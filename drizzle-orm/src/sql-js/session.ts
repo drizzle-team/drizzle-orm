@@ -3,7 +3,12 @@ import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeRqbJitMapper,
+	type RelationalQueryMapperConfig,
+	type RelationalRowsMapper,
+} from '~/relations.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import type { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteTransaction } from '~/sqlite-core/index.ts';
@@ -14,10 +19,11 @@ import type {
 	SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session.ts';
-import { type DrizzleTypeError, mapResultRow } from '~/utils.ts';
+import { type DrizzleTypeError, makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
 
 export interface SQLJsSessionOptions {
 	logger?: Logger;
+	useJitMapper?: boolean;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -36,7 +42,7 @@ export class SQLJsSession<
 		dialect: SQLiteSyncDialect,
 		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
-		options: SQLJsSessionOptions = {},
+		private options: SQLJsSessionOptions = {},
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
@@ -46,9 +52,15 @@ export class SQLJsSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		isResponseInArrayMode: boolean,
 	): PreparedQuery<T> {
-		return new PreparedQuery(this.client, query, this.logger, fields, executeMethod, isResponseInArrayMode);
+		return new PreparedQuery(
+			this.client,
+			query,
+			this.logger,
+			fields,
+			executeMethod,
+			this.options.useJitMapper,
+		);
 	}
 
 	prepareRelationalQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
@@ -56,6 +68,7 @@ export class SQLJsSession<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		customResultMapper: (rows: Record<string, unknown>[]) => unknown,
+		config: RelationalQueryMapperConfig,
 	): PreparedQuery<T, true> {
 		return new PreparedQuery(
 			this.client,
@@ -63,9 +76,10 @@ export class SQLJsSession<
 			this.logger,
 			fields,
 			executeMethod,
-			false,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
+			config,
 		);
 	}
 
@@ -126,6 +140,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 	>
 {
 	static override readonly [entityKind]: string = 'SQLJsPreparedQuery';
+	private jitMapper?: RowsMapper<any> | RelationalRowsMapper<any>;
 
 	constructor(
 		private client: Database,
@@ -133,12 +148,13 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 			mapColumnValue?: (value: unknown) => unknown,
 		) => unknown,
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
 		super('sync', executeMethod, query);
 	}
@@ -183,7 +199,10 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 			) => unknown)(rows, normalizeFieldValue) as T['all'];
 		}
 
-		return rows.map((row) => mapResultRow(fields!, row.map((v) => normalizeFieldValue(v)), joinsNotNullableMap));
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RowsMapper<T['all']>
+				?? makeJitQueryMapper<T['all']>(fields!, joinsNotNullableMap))(rows)
+			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
 	private allRqbV2(placeholderValues?: Record<string, unknown>): T['all'] {
@@ -200,10 +219,13 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 
 		stmt.free();
 
-		return (customResultMapper as (
-			rows: Record<string, unknown>[],
-			mapColumnValue?: (value: unknown) => unknown,
-		) => unknown)(rows, normalizeFieldValue) as T['all'];
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['all']>
+				?? makeRqbJitMapper<T['all']>(this.rqbConfig!))(rows)
+			: (customResultMapper as (
+				rows: Record<string, unknown>[],
+				mapColumnValue?: (value: unknown) => unknown,
+			) => unknown)(rows, normalizeFieldValue) as T['all'];
 	}
 
 	get(placeholderValues?: Record<string, unknown>): T['get'] {
@@ -237,7 +259,12 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 			) => unknown)([row], normalizeFieldValue) as T['get'];
 		}
 
-		return mapResultRow(fields!, row.map((v) => normalizeFieldValue(v)), joinsNotNullableMap);
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RowsMapper<T['get'][]>
+				?? makeJitQueryMapper<T['get'][]>(fields!, joinsNotNullableMap))(
+					[row],
+				)[0]
+			: mapResultRow(fields!, row, joinsNotNullableMap);
 	}
 
 	private getRqbV2(placeholderValues?: Record<string, unknown>): T['get'] {
@@ -265,10 +292,13 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 		}
 		if (!nonUndef) return undefined;
 
-		return (customResultMapper as (
-			rows: Record<string, unknown>[],
-			mapColumnValue?: (value: unknown) => unknown,
-		) => unknown)([row], normalizeFieldValue) as T['get'];
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['get'][]>
+				?? makeRqbJitMapper<T['get'][]>(this.rqbConfig!))([row])
+			: (customResultMapper as (
+				rows: Record<string, unknown>[],
+				mapColumnValue?: (value: unknown) => unknown,
+			) => unknown)([row], normalizeFieldValue) as T['get'];
 	}
 
 	values(placeholderValues?: Record<string, unknown>): T['values'] {
@@ -285,11 +315,6 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 		stmt.free();
 
 		return rows;
-	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
 	}
 }
 

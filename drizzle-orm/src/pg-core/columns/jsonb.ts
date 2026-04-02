@@ -22,27 +22,15 @@ export class PgJsonbBuilder extends PgColumnBuilder<{
 export class PgJsonb extends PgColumn<'object json'> {
 	static override readonly [entityKind]: string = 'PgJsonb';
 
+	/** @internal */
+	override readonly useCodecType = 'jsonb';
+
 	constructor(table: PgTable<any>, config: PgJsonbBuilder['config']) {
 		super(table, config);
 	}
 
 	getSQLType(): string {
 		return 'jsonb';
-	}
-
-	override mapToDriverValue(value: unknown): string {
-		return JSON.stringify(value);
-	}
-
-	override mapFromDriverValue(value: unknown): unknown {
-		if (typeof value === 'string') {
-			try {
-				return JSON.parse(value);
-			} catch {
-				return value;
-			}
-		}
-		return value;
 	}
 }
 

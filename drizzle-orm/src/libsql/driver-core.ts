@@ -61,7 +61,11 @@ export function construct<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const session = new LibSQLSession(client, dialect, relations, schema, { logger, cache: config.cache }, undefined);
+	const session = new LibSQLSession(client, dialect, relations, schema, {
+		logger,
+		cache: config.cache,
+		useJitMapper: config.useJitMappers,
+	}, undefined);
 	const db = new LibSQLDatabase(
 		'async',
 		dialect,

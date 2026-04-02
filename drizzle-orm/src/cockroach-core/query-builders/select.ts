@@ -1054,7 +1054,6 @@ export class CockroachSelectBase<
 				query,
 				fieldsList,
 				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-				true,
 			);
 			preparedQuery.joinsNotNullableMap = joinsNotNullableMap;
 

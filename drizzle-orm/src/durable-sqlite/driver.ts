@@ -54,7 +54,10 @@ export function drizzle<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const session = new SQLiteDOSession(client as DurableObjectStorage, dialect, relations, schema, { logger });
+	const session = new SQLiteDOSession(client as DurableObjectStorage, dialect, relations, schema, {
+		logger,
+		useJitMapper: config.useJitMappers,
+	});
 	const db = new DrizzleSqliteDODatabase(
 		'sync',
 		dialect,

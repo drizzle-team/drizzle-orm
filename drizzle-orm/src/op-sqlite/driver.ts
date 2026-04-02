@@ -46,7 +46,11 @@ export function drizzle<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const session = new OPSQLiteSession(client, dialect, relations, schema, { logger, cache: config.cache });
+	const session = new OPSQLiteSession(client, dialect, relations, schema, {
+		logger,
+		cache: config.cache,
+		useJitMapper: config.useJitMappers,
+	});
 	const db = new OPSQLiteDatabase(
 		'async',
 		dialect,

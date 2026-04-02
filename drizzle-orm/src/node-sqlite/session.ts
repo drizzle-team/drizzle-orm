@@ -46,10 +46,10 @@ export class NodeSQLiteSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		isResponseInArrayMode: boolean,
+		customResultMapper: (rows: unknown[][]) => unknown,
 	): NodeSQLitePreparedQuery<T> {
 		const stmt = this.client.prepare(query.sql);
-		return new NodeSQLitePreparedQuery(stmt, query, this.logger, fields, executeMethod, isResponseInArrayMode);
+		return new NodeSQLitePreparedQuery(stmt, query, this.logger, fields, executeMethod, customResultMapper);
 	}
 
 	prepareRelationalQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
@@ -65,7 +65,6 @@ export class NodeSQLiteSession<
 			this.logger,
 			fields,
 			executeMethod,
-			false,
 			customResultMapper,
 			true,
 		);
@@ -136,7 +135,6 @@ export class NodeSQLitePreparedQuery<
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 			mapColumnValue?: (value: unknown) => unknown,
@@ -262,10 +260,5 @@ export class NodeSQLitePreparedQuery<
 
 		stmt.setReturnArrays(true);
 		return stmt.all(...params as SQLInputValue[]);
-	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
 	}
 }

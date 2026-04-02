@@ -67,7 +67,12 @@ function construct<
 	const mode = config.mode ?? 'default';
 
 	const relations = config.relations ?? {} as TRelations;
-	const session = new BunMySqlSession(client, dialect, relations, schema, { logger, mode, cache: config.cache });
+	const session = new BunMySqlSession(client, dialect, relations, schema, {
+		logger,
+		mode,
+		cache: config.cache,
+		useJitMapper: config.useJitMappers,
+	});
 	const db = new BunMySqlDatabase(dialect, session, relations, schema as any, mode) as BunMySqlDatabase<
 		TSchema,
 		TRelations

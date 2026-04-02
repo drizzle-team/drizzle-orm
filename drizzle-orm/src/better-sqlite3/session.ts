@@ -5,7 +5,12 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeRqbJitMapper,
+	type RelationalQueryMapperConfig,
+	type RelationalRowsMapper,
+} from '~/relations.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import type { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteTransaction } from '~/sqlite-core/index.ts';
@@ -17,11 +22,12 @@ import {
 	SQLiteSession,
 	type SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
-import { type DrizzleTypeError, mapResultRow } from '~/utils.ts';
+import { type DrizzleTypeError, makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
 
 export interface BetterSQLiteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -41,7 +47,7 @@ export class BetterSQLiteSession<
 		dialect: SQLiteSyncDialect,
 		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
-		options: BetterSQLiteSessionOptions = {},
+		private options: BetterSQLiteSessionOptions = {},
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
@@ -52,7 +58,6 @@ export class BetterSQLiteSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -70,7 +75,7 @@ export class BetterSQLiteSession<
 			cacheConfig,
 			fields,
 			executeMethod,
-			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 		);
 	}
@@ -80,6 +85,7 @@ export class BetterSQLiteSession<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		customResultMapper: (rows: Record<string, unknown>[]) => unknown,
+		config: RelationalQueryMapperConfig,
 	): PreparedQuery<T, true> {
 		const stmt = this.client.prepare(query.sql);
 		return new PreparedQuery(
@@ -91,9 +97,10 @@ export class BetterSQLiteSession<
 			undefined,
 			fields,
 			executeMethod,
-			false,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
+			config,
 		);
 	}
 
@@ -147,6 +154,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 	>
 {
 	static override readonly [entityKind]: string = 'BetterSQLitePreparedQuery';
+	private jitMapper?: RowsMapper | RelationalRowsMapper;
 
 	constructor(
 		private stmt: Statement,
@@ -160,11 +168,12 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => unknown,
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
 		super('sync', executeMethod, query, cache, queryMetadata, cacheConfig);
 	}
@@ -189,7 +198,11 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 		if (customResultMapper) {
 			return (customResultMapper as (rows: unknown[][]) => unknown)(rows) as T['all'];
 		}
-		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
+
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RowsMapper
+				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(rows)
+			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
 	get(placeholderValues?: Record<string, unknown>): T['get'] {
@@ -213,7 +226,12 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 			return (customResultMapper as (rows: unknown[][]) => unknown)([row]) as T['get'];
 		}
 
-		return mapResultRow(fields!, row, joinsNotNullableMap);
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RowsMapper
+				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(
+					[row],
+				)[0]
+			: mapResultRow(fields!, row, joinsNotNullableMap);
 	}
 
 	private allRqbV2(placeholderValues?: Record<string, unknown>): T['all'] {
@@ -221,9 +239,15 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 
 		const params = fillPlaceholders(query.params, placeholderValues ?? {});
 		logger.logQuery(query.sql, params);
-		return (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(
-			stmt.all(...params) as Record<string, unknown>[],
-		);
+
+		const rows = stmt.all(...params) as Record<string, unknown>[];
+
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['all']>
+				?? makeRqbJitMapper<T['all']>(this.rqbConfig!))(rows)
+			: (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(
+				rows,
+			);
 	}
 
 	private getRqbV2(placeholderValues?: Record<string, unknown>): T['get'] {
@@ -235,19 +259,17 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 		const row = stmt.get(...params) as Record<string, unknown>;
 		if (row === undefined) return row;
 
-		return (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(
-			[row],
-		);
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['get'][]>
+				?? makeRqbJitMapper<T['get'][]>(this.rqbConfig!))([row])
+			: (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(
+				[row],
+			);
 	}
 
 	values(placeholderValues?: Record<string, unknown>): T['values'] {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		return this.stmt.raw().all(...params) as T['values'];
-	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
 	}
 }

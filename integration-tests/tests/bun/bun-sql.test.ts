@@ -12,9 +12,11 @@ import {
 	avgDistinct,
 	count,
 	countDistinct,
+	defineRelations,
 	eq,
 	Equal,
 	exists,
+	getColumns,
 	getTableColumns,
 	gt,
 	gte,
@@ -43,6 +45,7 @@ import {
 	bigint,
 	bigserial,
 	boolean,
+	bytea,
 	char,
 	cidr,
 	date,
@@ -94,6 +97,7 @@ import {
 import { PgAsyncDatabase } from 'drizzle-orm/pg-core/async/db';
 import { PgQueryResultHKT } from 'drizzle-orm/pg-core/session';
 import { clear, init, rqbPost, rqbUser } from '~/pg/schema';
+import { normalizeDataWithDbCodecs } from '~/pg/utils';
 import { Expect } from '~/utils';
 import { relations } from '../pg/relations';
 
@@ -357,7 +361,7 @@ afterAll(async () => {
 	await pgContainer?.stop().catch(console.error);
 });
 
-let db: BunSQLDatabase<never, typeof relations>;
+let db: BunSQLDatabase<typeof relations>;
 
 beforeAll(async () => {
 	const connectionString = process.env['PG_CONNECTION_STRING']!;
@@ -507,7 +511,7 @@ afterEach(async () => {
 	await db.execute(sql`drop schema if exists custom_migrations cascade`);
 });
 
-async function setupSetOperationTest(db: PgAsyncDatabase<PgQueryResultHKT, any, any>) {
+async function setupSetOperationTest(db: PgAsyncDatabase<PgQueryResultHKT, any>) {
 	await db.execute(sql`drop table if exists users2`);
 	await db.execute(sql`drop table if exists cities`);
 	await db.execute(
@@ -546,7 +550,7 @@ async function setupSetOperationTest(db: PgAsyncDatabase<PgQueryResultHKT, any, 
 	]);
 }
 
-async function setupAggregateFunctionsTest(db: PgAsyncDatabase<PgQueryResultHKT, any, any>) {
+async function setupAggregateFunctionsTest(db: PgAsyncDatabase<PgQueryResultHKT, any>) {
 	await db.execute(sql`drop table if exists "aggregate_table"`);
 	await db.execute(
 		sql`
@@ -1401,7 +1405,7 @@ test('build query insert with onConflict do update', async () => {
 	expect(query).toEqual({
 		sql:
 			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do update set "name" = $3',
-		params: ['John', '["foo","bar"]', 'John1'],
+		params: ['John', ['foo', 'bar'], 'John1'],
 	});
 });
 
@@ -1415,7 +1419,7 @@ test('build query insert with onConflict do update / multiple columns', async ()
 	expect(query).toEqual({
 		sql:
 			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
-		params: ['John', '["foo","bar"]', 'John1'],
+		params: ['John', ['foo', 'bar'], 'John1'],
 	});
 });
 
@@ -1429,7 +1433,7 @@ test('build query insert with onConflict do nothing', async () => {
 	expect(query).toEqual({
 		sql:
 			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict do nothing',
-		params: ['John', '["foo","bar"]'],
+		params: ['John', ['foo', 'bar']],
 	});
 });
 
@@ -1443,7 +1447,7 @@ test('build query insert with onConflict do nothing + target', async () => {
 	expect(query).toEqual({
 		sql:
 			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
-		params: ['John', '["foo","bar"]'],
+		params: ['John', ['foo', 'bar']],
 	});
 });
 
@@ -4151,7 +4155,7 @@ test('mySchema :: build query insert with onConflict do update / multiple column
 	expect(query).toEqual({
 		sql:
 			'insert into "mySchema"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
-		params: ['John', '["foo","bar"]', 'John1'],
+		params: ['John', ['foo', 'bar'], 'John1'],
 	});
 });
 
@@ -4164,7 +4168,7 @@ test('mySchema :: build query insert with onConflict do nothing + target', async
 	expect(query).toEqual({
 		sql:
 			'insert into "mySchema"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
-		params: ['John', '["foo","bar"]'],
+		params: ['John', ['foo', 'bar']],
 	});
 });
 
@@ -6271,4 +6275,572 @@ test('all types', async () => {
 
 	Expect<Equal<typeof rawRes, ExpectedType>>;
 	expect(rawRes).toStrictEqual(expectedRes);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5287
+test('raw jsons', async () => {
+	const allTypesTable = pgTable('all_types', {
+		json: json('json'),
+		jsonb: jsonb('jsonb'),
+		arrjson: json('arrjson').array(),
+		arrjsonb: jsonb('arrjsonb').array(),
+	});
+
+	await db.execute(sql`
+				CREATE TABLE "all_types" (
+					"json" json,
+					"jsonb" jsonb,
+					"arrjson" json[],
+					"arrjsonb" jsonb[]
+				);
+			`);
+
+	await db.insert(allTypesTable).values({
+		json: {
+			str: 'strval',
+			arr: ['str', 10],
+		},
+		jsonb: {
+			str: 'strvalb',
+			arr: ['strb', 11],
+		},
+		arrjson: [{
+			str: 'strval',
+			arr: ['str', 10],
+		}],
+		arrjsonb: [{
+			str: 'strvalb',
+			arr: ['strb', 11],
+		}],
+	});
+
+	const queryRes1 = await db.execute(sql`select * from ${allTypesTable};`);
+	const rawData1 = [queryRes1[0]];
+
+	const expectedRes1 = [
+		{
+			json: { str: 'strval', arr: ['str', 10] },
+			jsonb: { arr: ['strb', 11], str: 'strvalb' },
+
+			arrjson: [{ str: 'strval', arr: ['str', 10] }],
+			arrjsonb: [{ arr: ['strb', 11], str: 'strvalb' }],
+		},
+	];
+
+	expect(rawData1).toStrictEqual(expectedRes1);
+
+	await db.update(allTypesTable).set({
+		json: {
+			str: 'strval',
+			arr: ['str', 100],
+		},
+		jsonb: {
+			str: 'strvalb',
+			arr: ['strb', 110],
+		},
+		arrjson: [{
+			str: 'strval',
+			arr: ['str', 100],
+		}],
+		arrjsonb: [{
+			str: 'strvalb',
+			arr: ['strb', 110],
+		}],
+	});
+
+	const queryRes2 = await db.execute(sql`select * from ${allTypesTable};`);
+	const rawData2 = [queryRes2[0]];
+
+	const expectedRes2 = [
+		{
+			json: { str: 'strval', arr: ['str', 100] },
+			jsonb: { arr: ['strb', 110], str: 'strvalb' },
+
+			arrjson: [{ str: 'strval', arr: ['str', 100] }],
+			arrjsonb: [{ arr: ['strb', 110], str: 'strvalb' }],
+		},
+	];
+
+	expect(rawData2).toStrictEqual(expectedRes2);
+});
+
+test('all types ~codecs~', async () => {
+	const en = pgEnum('en_48', ['enVal1', 'enVal2']);
+	const allTypesTable = pgTable('all_types', {
+		serial: serial('serial'),
+		bigserial: bigserial('bigserial', {
+			mode: 'bigint',
+		}),
+		int: integer('int'),
+		bigint: bigint('bigint', {
+			mode: 'bigint',
+		}),
+		bool: boolean('bool'),
+		bytea: bytea('bytea'),
+		char: char('char'),
+		cidr: cidr('cidr'),
+		date: date('date', {
+			mode: 'date',
+		}),
+		double: doublePrecision('double'),
+		enum: en('enum'),
+		inet: inet('inet'),
+		interval: interval('interval'),
+		json: json('json'),
+		jsonb: jsonb('jsonb'),
+		json1: json('json1'),
+		jsonb1: jsonb('jsonb1'),
+		// json2: json('json2'),
+		// jsonb2: jsonb('jsonb2'),
+		json3: json('json3'),
+		jsonb3: jsonb('jsonb3'),
+		line: line('line', {
+			mode: 'abc',
+		}),
+		macaddr: macaddr('macaddr'),
+		macaddr8: macaddr8('macaddr8'),
+		numeric: numeric('numeric'),
+		point: point('point', {
+			mode: 'xy',
+		}),
+		real: real('real'),
+		smallint: smallint('smallint'),
+		smallserial: smallserial('smallserial'),
+		text: text('text'),
+		time: time('time'),
+		timestamp: timestamp('timestamp', {
+			mode: 'date',
+		}),
+		timestampTz: timestamp('timestampTz', {
+			mode: 'date',
+			withTimezone: true,
+		}),
+		uuid: uuid('uuid'),
+		varchar: varchar('varchar'),
+		arrint: integer('arrint').array(),
+		// mtxint: integer('mtxint').array('[][]'), // MULTIDIMENSIONAL ARRAYS NOT SUPPORTED YET BY DRIVER
+		arrbigint: bigint('arrbigint', {
+			mode: 'bigint',
+		}).array(),
+		arrbool: boolean('arrbool').array(),
+		arrbytea: bytea('arrbytea').array(),
+		mtxbytea: bytea('mtxbytea').array('[][]'),
+		arrchar: char('arrchar').array(),
+		arrcidr: cidr('arrcidr').array(),
+		arrdate: date('arrdate', {
+			mode: 'date',
+		}).array(),
+		arrdouble: doublePrecision('arrdouble').array(),
+		arrenum: en('arrenum').array(),
+		arrinet: inet('arrinet').array(),
+		arrinterval: interval('arrinterval').array(),
+		arrjson: json('arrjson').array(),
+		arrjsonb: jsonb('arrjsonb').array(),
+		arrjson1: json('arrjson1').array(),
+		arrjsonb1: jsonb('arrjsonb1').array(),
+		arrjson2: json('arrjson2').array(),
+		arrjsonb2: jsonb('arrjsonb2').array(),
+		arrjson3: json('arrjson3').array(),
+		arrjsonb3: jsonb('arrjsonb3').array(),
+		arrline: line('arrline', {
+			mode: 'abc',
+		}).array(),
+		arrmacaddr: macaddr('arrmacaddr').array(),
+		arrmacaddr8: macaddr8('arrmacaddr8').array(),
+		arrnumeric: numeric('arrnumeric').array(),
+		arrpoint: point('arrpoint', {
+			mode: 'xy',
+		}).array(),
+		arrreal: real('arrreal').array(),
+		// mtxreal: real('mtxreal').array('[][]'), // MULTIDIMENSIONAL ARRAYS NOT SUPPORTED YET BY DRIVER
+		arrsmallint: smallint('arrsmallint').array(),
+		arrtext: text('arrtext').array(),
+		arrtime: time('arrtime').array(),
+		arrtimestamp: timestamp('arrtimestamp', {
+			mode: 'date',
+		}).array(),
+		arrtimestampTz: timestamp('arrtimestampTz', {
+			mode: 'date',
+			withTimezone: true,
+		}).array(),
+		arruuid: uuid('arruuid').array(),
+		arrvarchar: varchar('arrvarchar').array(),
+	});
+
+	const db = drizzle(process.env['PG_CONNECTION_STRING']!, {
+		relations: defineRelations({ allTypesTable }, (r) => ({
+			allTypesTable: {
+				self: r.many.allTypesTable({
+					from: r.allTypesTable.serial,
+					to: r.allTypesTable.serial,
+				}),
+			},
+		})),
+	});
+
+	await db.execute(sql`CREATE TYPE "public"."en" AS ENUM('enVal1', 'enVal2');`);
+	await db.execute(sql`
+				CREATE TABLE "all_types" (
+					"serial" serial NOT NULL,
+					"bigserial" bigserial,
+					"int" integer,
+					"bigint" bigint,
+					"bool" boolean,
+					"bytea" bytea,
+					"char" char,
+					"cidr" "cidr",
+					"date" date,
+					"double" double precision,
+					"enum" "en",
+					"inet" "inet",
+					"interval" interval,
+					"json" json,
+					"jsonb" jsonb,
+					"json1" json,
+					"jsonb1" jsonb,
+					"json2" json,
+					"jsonb2" jsonb,
+					"json3" json,
+					"jsonb3" jsonb,
+					"line" "line",
+					"macaddr" "macaddr",
+					"macaddr8" "macaddr8",
+					"numeric" numeric,
+					"point" "point",
+					"real" real,
+					"smallint" smallint,
+					"smallserial" "smallserial" NOT NULL,
+					"text" text,
+					"time" time,
+					"timestamp" timestamp,
+					"timestampTz" timestamp with time zone,
+					"uuid" uuid,
+					"varchar" varchar,
+					"arrint" integer[],
+					"mtxint" integer[][],
+					"arrbigint" bigint[],
+					"arrbool" boolean[],
+					"arrbytea" bytea[],
+					"mtxbytea" bytea[][],
+					"arrchar" char[],
+					"arrcidr" "cidr"[],
+					"arrdate" date[],
+					"arrdouble" double precision[],
+					"arrenum" "en"[],
+					"arrinet" "inet"[],
+					"arrinterval" interval[],
+					"arrjson" json[],
+					"arrjsonb" jsonb[],
+					"arrjson1" json[],
+					"arrjsonb1" jsonb[],
+					"arrjson2" json[],
+					"arrjsonb2" jsonb[],
+					"arrjson3" json[],
+					"arrjsonb3" jsonb[],
+					"arrline" "line"[],
+					"arrmacaddr" "macaddr"[],
+					"arrmacaddr8" "macaddr8"[],
+					"arrnumeric" numeric[],
+					"arrpoint" "point"[],
+					"arrpoint_tuple" "point"[],
+					"mtxreal" real[][],
+					"arrreal" real[],
+					"arrsmallint" smallint[],
+					"arrtext" text[],
+					"arrtime" time[],
+					"arrtimestamp" timestamp[],
+					"arrtimestampTz" timestamp with time zone[],
+					"arruuid" uuid[],
+					"arrvarchar" varchar[]
+				);
+			`);
+
+	await db.insert(allTypesTable).values({
+		serial: 1,
+		smallserial: 15,
+		bigint: 5044565289845416380n,
+		bigserial: 5044565289845416380n,
+		bool: true,
+		bytea: Buffer.from('BYTES'),
+		char: 'c',
+		cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
+		inet: '192.168.0.1/24',
+		macaddr: '08:00:2b:01:02:03',
+		macaddr8: '08:00:2b:01:02:03:04:05',
+		date: new Date(1741743161623),
+		double: 15.35325689124218,
+		enum: 'enVal1',
+		int: 621,
+		interval: '2 months ago',
+		json: {
+			str: 'strval',
+			arr: ['str', 10],
+		},
+		jsonb: {
+			str: 'strvalb',
+			arr: ['strb', 11],
+		},
+		json1: [{ key: 'value', num: 7 }, 'v', '11', 5],
+		jsonb1: [{ key: 'value', num: 8 }, 'x', '10', 3],
+		// json2: 5, // Driver can't process this
+		// jsonb2: 7, // Driver can't process this
+		json3: '5',
+		jsonb3: '7',
+		line: {
+			a: 1,
+			b: 2,
+			c: 3,
+		},
+		numeric: '475452353476',
+		point: {
+			x: 24.5,
+			y: 49.6,
+		},
+		real: 1.048596,
+		smallint: 10,
+		text: 'TEXT STRING',
+		time: '13:59:28',
+		timestamp: new Date(1741743161623),
+		timestampTz: new Date(1741743161623),
+		uuid: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
+		varchar: 'C4-',
+		arrbigint: [5044565289845416380n],
+		arrbool: [true],
+		arrbytea: [Buffer.from('BYTES')],
+		mtxbytea: [[Buffer.from('BYTES'), Buffer.from('BYTES2')], [
+			Buffer.from('OTHERBYTES'),
+			Buffer.from('OTHERBYTES2'),
+		]],
+		arrchar: ['c'],
+		arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
+		arrinet: ['192.168.0.1/24'],
+		arrmacaddr: ['08:00:2b:01:02:03'],
+		arrmacaddr8: ['08:00:2b:01:02:03:04:05'],
+		arrdate: [new Date(1741743161623)],
+		arrdouble: [15.35325689124218],
+		arrenum: ['enVal1'],
+		arrint: [621],
+		// mtxint: [[621, 235], [866, 279]],
+		arrinterval: ['2 months ago'],
+		arrjson: [{
+			str: 'strval',
+			arr: ['str', 10],
+		}],
+		arrjsonb: [{
+			str: 'strvalb',
+			arr: ['strb', 11],
+		}],
+		arrjson1: [[{ key: 'value', num: 7 }, 'v', '11', 5]],
+		arrjsonb1: [[{ key: 'value', num: 8 }, 'x', '10', 3]],
+		arrjson2: [5],
+		arrjsonb2: [7],
+		arrjson3: ['5'],
+		arrjsonb3: ['7'],
+		arrline: [{
+			a: 1,
+			b: 2,
+			c: 3,
+		}],
+		arrnumeric: ['475452353476'],
+		arrpoint: [{
+			x: 24.5,
+			y: 49.6,
+		}],
+		arrreal: [1.048596],
+		// mtxreal: [[1.048596, 2.1362], [3.13625, 2.5128]],
+		arrsmallint: [10],
+		arrtext: ['TEXT STRING'],
+		arrtime: ['13:59:28'],
+		arrtimestamp: [new Date(1741743161623)],
+		arrtimestampTz: [new Date(1741743161623)],
+		arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
+		arrvarchar: ['C4-'],
+	});
+
+	const buff: (from: string) => Buffer = (s: string) => Buffer.from(s);
+
+	type ExpectedType = {
+		serial: number;
+		bigserial: bigint;
+		int: number | null;
+		bigint: bigint | null;
+		bool: boolean | null;
+		bytea: Buffer | Uint8Array | null;
+		char: string | null;
+		cidr: string | null;
+		date: string | null;
+		double: number | null;
+		enum: 'enVal1' | 'enVal2' | null;
+		inet: string | null;
+		interval: string | null;
+		json: unknown;
+		jsonb: unknown;
+		json1: unknown;
+		jsonb1: unknown;
+		// json2: unknown;
+		// jsonb2: unknown;
+		json3: unknown;
+		jsonb3: unknown;
+		line: string | null;
+		macaddr: string | null;
+		macaddr8: string | null;
+		numeric: string | null;
+		point: string | null;
+		real: number | null;
+		smallint: number | null;
+		smallserial: number;
+		text: string | null;
+		time: string | null;
+		timestamp: string | null;
+		timestampTz: string | null;
+		uuid: string | null;
+		varchar: string | null;
+		arrint: number[] | null;
+		// mtxint: number[][] | null;
+		arrbigint: bigint[] | null;
+		arrbool: boolean[] | null;
+		arrbytea: (Buffer | Uint8Array)[] | null;
+		mtxbytea: (Buffer | Uint8Array)[][] | null;
+		arrchar: string[] | null;
+		arrcidr: string[] | null;
+		arrdate: string[] | null;
+		arrdouble: number[] | null;
+		arrenum: ('enVal1' | 'enVal2')[] | null;
+		arrinet: string[] | null;
+		arrinterval: string[] | null;
+		arrjson: unknown[] | null;
+		arrjsonb: unknown[] | null;
+		arrjson1: unknown[] | null;
+		arrjsonb1: unknown[] | null;
+		arrjson2: unknown[] | null;
+		arrjsonb2: unknown[] | null;
+		arrjson3: unknown[] | null;
+		arrjsonb3: unknown[] | null;
+		arrline: string[] | null;
+		arrmacaddr: string[] | null;
+		arrmacaddr8: string[] | null;
+		arrnumeric: string[] | null;
+		arrpoint: string[] | null;
+		arrreal: number[] | null;
+		// mtxreal: number[][] | null;
+		arrsmallint: number[] | null;
+		arrtext: string[] | null;
+		arrtime: string[] | null;
+		arrtimestamp: string[] | null;
+		arrtimestampTz: string[] | null;
+		arruuid: string[] | null;
+		arrvarchar: string[] | null;
+	};
+
+	const expectedRes: ExpectedType = {
+		serial: 1,
+		bigserial: 5044565289845416380n,
+		int: 621,
+		bigint: 5044565289845416380n,
+		bool: true,
+		bytea: buff('BYTES'),
+		char: 'c',
+		cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
+		date: '2025-03-12',
+		double: 15.35325689124218,
+		enum: 'enVal1',
+		inet: '192.168.0.1/24',
+		interval: '-2 mons',
+		json: { str: 'strval', arr: ['str', 10] },
+		jsonb: { arr: ['strb', 11], str: 'strvalb' },
+		json1: [{ key: 'value', num: 7 }, 'v', '11', 5],
+		jsonb1: [{ key: 'value', num: 8 }, 'x', '10', 3],
+		// json2: 5, // Driver can't process this
+		// jsonb2: 7, // Driver can't process this
+		json3: '5',
+		jsonb3: '7',
+		line: '{1,2,3}',
+		macaddr: '08:00:2b:01:02:03',
+		macaddr8: '08:00:2b:01:02:03:04:05',
+		numeric: '475452353476',
+		point: '(24.5,49.6)',
+		real: 1.048596,
+		smallint: 10,
+		smallserial: 15,
+		text: 'TEXT STRING',
+		time: '13:59:28',
+		timestamp: '2025-03-12 01:32:41.623',
+		timestampTz: '2025-03-12 01:32:41.623+00',
+		uuid: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
+		varchar: 'C4-',
+		arrint: [621],
+		// mtxint: [[621, 235], [866, 279]],
+		arrbigint: [5044565289845416380n],
+		arrbool: [true],
+		arrbytea: [buff('BYTES')],
+		mtxbytea: [[buff('BYTES'), buff('BYTES2')], [
+			buff('OTHERBYTES'),
+			buff('OTHERBYTES2'),
+		]],
+		arrchar: ['c'],
+		arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
+		arrdate: ['2025-03-12'],
+		arrdouble: [15.35325689124218],
+		arrenum: ['enVal1'],
+		arrinet: ['192.168.0.1/24'],
+		arrinterval: ['-2 mons'],
+		arrjson: [{ str: 'strval', arr: ['str', 10] }],
+		arrjsonb: [{ arr: ['strb', 11], str: 'strvalb' }],
+		arrjson1: [[{ key: 'value', num: 7 }, 'v', '11', 5]],
+		arrjsonb1: [[{ key: 'value', num: 8 }, 'x', '10', 3]],
+		arrjson2: [5],
+		arrjsonb2: [7],
+		arrjson3: ['5'],
+		arrjsonb3: ['7'],
+		arrline: ['{1,2,3}'],
+		arrmacaddr: ['08:00:2b:01:02:03'],
+		arrmacaddr8: ['08:00:2b:01:02:03:04:05'],
+		arrnumeric: ['475452353476'],
+		arrpoint: ['(24.5,49.6)'],
+		arrreal: [1.048596],
+		// mtxreal: [[1.048596, 2.1362], [3.13625, 2.5128]],
+		arrsmallint: [10],
+		arrtext: ['TEXT STRING'],
+		arrtime: ['13:59:28'],
+		arrtimestamp: ['2025-03-12 01:32:41.623'],
+		arrtimestampTz: ['2025-03-12 01:32:41.623+00'],
+		arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
+		arrvarchar: ['C4-'],
+	};
+
+	const queryRes = await db.execute<ExpectedType>(db.select().from(allTypesTable)).then((e) =>
+		normalizeDataWithDbCodecs({
+			db,
+			columns: getColumns(allTypesTable),
+			data: e,
+			mode: 'query',
+		})[0]
+	);
+
+	const { relationRes, rootRes } = await db.execute(db.query.allTypesTable.findFirst({
+		with: {
+			self: true,
+		},
+	})).then((e) => {
+		const { self: relationRaw, ...rootRaw } = e[0]!;
+
+		return {
+			relationRes: normalizeDataWithDbCodecs({
+				db,
+				columns: getColumns(allTypesTable),
+				data: relationRaw as any,
+				mode: 'json',
+			})[0]!,
+			rootRes: normalizeDataWithDbCodecs({
+				db,
+				columns: getColumns(allTypesTable),
+				data: [rootRaw],
+				mode: 'query',
+			})[0]!,
+		};
+	});
+
+	expect(queryRes).toStrictEqual(expectedRes);
+	expect(relationRes).toStrictEqual(expectedRes);
+	expect(rootRes).toStrictEqual(expectedRes);
 });

@@ -1,6 +1,7 @@
 import { IsAlias, OriginalName, Table, TableColumns, TableSchema } from '~/table.ts';
 import { aliasedTable } from './alias.ts';
 import type { CasingCache } from './casing.ts';
+import type { NormalizeArrayCodec, NormalizeCodec } from './codecs.ts';
 import { type AnyColumn, Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
 import { DrizzleError } from './errors.ts';
@@ -566,32 +567,12 @@ export type DBQueryConfigWithComment<
 	TRelationType extends 'one' | 'many' = 'one' | 'many',
 	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
 	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
-> =
-	& (TTableConfig['relations'] extends Record<string, never> ? {}
-		: {
-			with?:
-				| DBQueryConfigWith<TSchema, TTableConfig['relations']>
-				| undefined;
-		})
-	& {
-		columns?: DBQueryConfigColumns<GetTableViewFieldSelection<TTableConfig['table']>> | undefined;
-		where?: RelationsFilter<TTableConfig, TSchema> | undefined;
-		extras?:
-			| DBQueryConfigExtras<TTableConfig['table']>
-			| undefined;
-		orderBy?:
-			| DBQueryConfigOrderBy<TTableConfig['table'], GetTableViewFieldSelection<TTableConfig['table']>>
-			| undefined;
-		offset?: number | Placeholder | undefined;
-		/**
-		 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
-		 */
-		comment?: CommentInput | undefined;
-	}
-	& (TRelationType extends 'many' ? {
-			limit?: number | Placeholder | undefined;
-		}
-		: {});
+> = DBQueryConfig<TRelationType, TSchema, TTableConfig> & {
+	/**
+	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
+	 */
+	comment?: CommentInput | undefined;
+};
 
 export type AnyDBQueryConfig = {
 	columns?:
@@ -754,87 +735,271 @@ export interface BuildRelationalQueryResult {
 	selection: {
 		key: string;
 		field: Column<any> | Table | View | SQL | SQL.Aliased | SQLWrapper | AggregatedField;
+		/** For array type relations */
 		isArray?: boolean;
 		selection?: BuildRelationalQueryResult['selection'];
 		isOptional?: boolean;
+		codec?: NormalizeCodec | NormalizeArrayCodec;
+		/** For array type columns */
+		arrayDimensions?: number;
 	}[];
 	sql: SQL;
 }
 
 export function mapRelationalRow(
-	row: Record<string, unknown>,
+	rows: Record<string, unknown> | Record<string, unknown>[],
+	isOne: boolean,
 	buildQueryResultSelection: BuildRelationalQueryResult['selection'],
-	mapColumnValue: (value: unknown) => unknown = (value) => value,
+	mapColumnValue?: (value: unknown) => unknown,
 	/** Needed for SQLite as it returns JSON values as strings */
 	parseJson: boolean = false,
 	/** Needed for SingleStore as it returns JSON arrays as strings */
 	parseJsonIfString: boolean = false,
-	path?: string,
-): Record<string, unknown> {
-	for (const selectionItem of buildQueryResultSelection) {
-		if (selectionItem.selection) {
-			const currentPath = `${path ? `${path}.` : ''}${selectionItem.key}`;
+	/** Root level data of query is usually not nested in JSON */
+	useJsonMappers: boolean = true,
+): Record<string, unknown> | Record<string, unknown>[] {
+	const maxIdx = isOne ? 1 : (rows as Record<string, unknown>[]).length;
+	const decoders: (undefined | ((v: any) => any))[] = buildQueryResultSelection.map(
+		({ field, codec, arrayDimensions }) => {
+			let decoder;
+			if (is(field, Column)) {
+				// Support for old custom column JSON field API
+				if (useJsonMappers && (<any> field).mapFromJsonValue) {
+					return (v) => (<(value: unknown) => unknown> (<any> field).mapFromJsonValue)(v);
+				}
 
-			if (row[selectionItem.key] === null) continue;
+				decoder = field;
+			} else if (is(field, SQL)) {
+				decoder = field.decoder;
+			} else if (is(field, SQL.Aliased)) {
+				decoder = field.sql.decoder;
+			} else if (is(field, Table) || is(field, View)) {
+				decoder = noopDecoder;
+			} else {
+				decoder = field.getSQL().decoder;
+			}
 
-			if (parseJson) {
-				row[selectionItem.key] = JSON.parse(row[selectionItem.key] as string);
+			return decoder.mapFromDriverValue.isNoop
+				? codec
+					? (value) => codec(value, arrayDimensions!)
+					: undefined
+				: codec
+				? (value) => decoder.mapFromDriverValue(codec(value, arrayDimensions!))
+				: (value) => decoder.mapFromDriverValue(value);
+		},
+	);
+
+	for (let i = 0; i < maxIdx; ++i) {
+		const row = (isOne ? rows : (rows as Record<string, unknown>[])[i]) as Record<string, unknown>;
+
+		for (let selectionItemIdx = 0; selectionItemIdx < buildQueryResultSelection.length; ++selectionItemIdx) {
+			const selectionItem = buildQueryResultSelection[selectionItemIdx]!;
+
+			if (selectionItem.selection) {
 				if (row[selectionItem.key] === null) continue;
-			}
-			if (parseJsonIfString && typeof row[selectionItem.key] === 'string') {
-				row[selectionItem.key] = JSON.parse(row[selectionItem.key] as string);
-			}
 
-			if (selectionItem.isArray) {
-				for (const item of (row[selectionItem.key] as Array<Record<string, unknown>>)) {
+				if (parseJson) {
+					row[selectionItem.key] = JSON.parse(row[selectionItem.key] as string);
+					if (row[selectionItem.key] === null) continue;
+				} else if (parseJsonIfString && typeof row[selectionItem.key] === 'string') {
+					row[selectionItem.key] = JSON.parse(row[selectionItem.key] as string);
+				}
+
+				if (selectionItem.isArray) {
 					mapRelationalRow(
-						item,
+						row[selectionItem.key] as Array<Record<string, unknown>>,
+						false,
 						selectionItem.selection!,
 						mapColumnValue,
 						false,
 						parseJsonIfString,
-						currentPath,
 					);
+
+					continue;
 				}
+
+				mapRelationalRow(
+					row[selectionItem.key] as Record<string, unknown>,
+					true,
+					selectionItem.selection!,
+					mapColumnValue,
+					false,
+					parseJsonIfString,
+				);
 
 				continue;
 			}
 
-			mapRelationalRow(
-				row[selectionItem.key] as Record<string, unknown>,
-				selectionItem.selection!,
+			if (mapColumnValue) row[selectionItem.key] = mapColumnValue(row[selectionItem.key]);
+			if (row[selectionItem.key] === null) continue;
+
+			const decoder = decoders[selectionItemIdx];
+			if (!decoder) continue;
+
+			row[selectionItem.key] = decoder(row[selectionItem.key]);
+		}
+	}
+
+	return rows;
+}
+
+export type RelationalRowsMapper<T = any> = (rows: Record<string, unknown>[]) => T;
+export type RelationalRowsMapperGenerator<T = any> = (
+	config: RelationalQueryMapperConfig,
+	mapColumnValue?: (value: unknown) => unknown,
+) => (rows: Record<string, unknown>[]) => T;
+
+export function makeRqbMapper<T = any>(
+	{ selection, isFirst, parseJson, parseJsonIfString, rootJsonMappers }: RelationalQueryMapperConfig,
+	mapColumnValue?: (value: unknown) => unknown,
+): RelationalRowsMapper<T> {
+	return ((rows) => {
+		if (isFirst && !rows[0]) return rows[0];
+
+		return mapRelationalRow(
+			isFirst ? rows[0]! : rows,
+			isFirst,
+			selection,
+			mapColumnValue,
+			parseJson,
+			parseJsonIfString,
+			rootJsonMappers,
+		);
+	}) as RelationalRowsMapper<T>;
+}
+
+function makeRqbJitMapperInner(
+	selection: BuildRelationalQueryResult['selection'],
+	pathPrefix: string,
+	selectionPathPrefix: string,
+	mapColumnValue: ((value: unknown) => unknown) | undefined,
+	/** Needed for SQLite as it returns JSON values as strings */
+	parseJson: boolean,
+	/** Needed for SingleStore as it returns JSON arrays as strings */
+	parseJsonIfString: boolean,
+	/** Root level data of query is usually not nested in JSON */
+	useJsonMappers: boolean,
+	recursionDepth = 0,
+): string {
+	const fn = [] as string[];
+	for (
+		const [idx, { field, key, codec, isArray, selection: innerSelection, arrayDimensions }] of selection
+			.entries()
+	) {
+		const sel = `${selectionPathPrefix}[${idx}]`;
+		const item = `${pathPrefix}[${JSON.stringify(key)}]`;
+
+		if (innerSelection) {
+			const innerIdx = `i${recursionDepth}`;
+			const innerCode = makeRqbJitMapperInner(
+				innerSelection,
+				isArray ? `${item}[${innerIdx}]` : item,
+				`${sel}.selection`,
 				mapColumnValue,
 				false,
 				parseJsonIfString,
-				currentPath,
+				true,
+				recursionDepth + 1,
 			);
 
-			continue;
+			if (innerCode && !isArray) {
+				fn.push(`if(${item} !== null${parseJson ? ` && (${item} = JSON.parse(${item})) !== null` : ''}) {`);
+			}
+
+			if (parseJson && (isArray || !innerCode)) fn.push(`${item} = JSON.parse(${item});`);
+			if (parseJsonIfString && !parseJson) fn.push(`if(typeof ${item} === 'string') ${item} = JSON.parse(${item});`);
+
+			if (innerCode) {
+				if (isArray) {
+					fn.push(
+						`for(let ${innerIdx} = 0; ${innerIdx} < ${item}.length; ++${innerIdx} ) {`,
+						innerCode,
+						`}`,
+					);
+				} else fn.push(innerCode);
+			}
+
+			if (innerCode && !isArray) {
+				fn.push(`}`);
+			}
 		}
 
-		const field = selectionItem.field!;
-		const value = mapColumnValue(row[selectionItem.key]);
-		if (value === null) continue;
-
-		let decoder;
+		let bypassCodecs = false;
+		let decoder: string;
 		if (is(field, Column)) {
-			decoder = field;
+			if (useJsonMappers && (<any> field).mapFromJsonValue) {
+				bypassCodecs = true;
+				decoder = `${sel}.field.mapFromJsonValue`;
+			} else {
+				decoder = field.mapFromDriverValue.isNoop ? '' : `${sel}.field.mapFromDriverValue`;
+			}
 		} else if (is(field, SQL)) {
-			decoder = field.decoder;
+			decoder = field.decoder.mapFromDriverValue.isNoop ? '' : `${sel}.field.decoder.mapFromDriverValue`;
 		} else if (is(field, SQL.Aliased)) {
-			decoder = field.sql.decoder;
+			decoder = field.sql.decoder.mapFromDriverValue.isNoop ? '' : `${sel}.field.sql.decoder.mapFromDriverValue`;
 		} else if (is(field, Table) || is(field, View)) {
-			decoder = noopDecoder;
+			decoder = '';
 		} else {
-			decoder = field.getSQL().decoder;
+			decoder = field.getSQL().decoder.mapFromDriverValue.isNoop ? '' : `${sel}.getSQL().decoder.mapFromDriverValue`;
 		}
 
-		row[selectionItem.key] = 'mapFromJsonValue' in decoder
-			? (<(value: unknown) => unknown> decoder.mapFromJsonValue)(value)
-			: decoder.mapFromDriverValue(value);
+		if (mapColumnValue) fn.push(`${item} = this.mapColumnValue(${item});`);
+
+		let decodedValue = item;
+		if (!bypassCodecs && codec) decodedValue = `${sel}.codec(${decodedValue}, ${arrayDimensions})`;
+		if (decoder) decodedValue = `${decoder}(${decodedValue})`;
+		if ((!bypassCodecs && codec) || decoder) fn.push(`if(${item} !== null) {`, `${item} = ${decodedValue};`, '}');
 	}
 
-	return row;
+	return fn.join('\n');
+}
+
+export interface RelationalQueryMapperConfig {
+	selection: BuildRelationalQueryResult['selection'];
+	/** Used for `db.query.table.findFirst(...)` */
+	isFirst: boolean;
+	/** Used by SQLite & drivers that return JSON-s as strings by default */
+	parseJson: boolean;
+	/** Used by SingleStore to fix malformed outputs for empty JSON arrays */
+	parseJsonIfString: boolean;
+	/** Enable for non-reworked dialects & drivers with JSON-ified root level of relational query */
+	rootJsonMappers: boolean;
+}
+
+export function makeRqbJitMapper<T = unknown>(
+	{ selection, isFirst, parseJson, parseJsonIfString, rootJsonMappers }: RelationalQueryMapperConfig,
+	mapColumnValue?: (value: unknown) => unknown,
+): RelationalRowsMapper<T> {
+	const fn = [] as string[];
+	const innerCode = makeRqbJitMapperInner(
+		selection,
+		isFirst ? 'rows[0]' : 'rows[i]',
+		'this.selection',
+		mapColumnValue,
+		parseJson,
+		parseJsonIfString,
+		rootJsonMappers,
+	);
+
+	if (innerCode) {
+		if (isFirst) {
+			fn.push(
+				`if(!rows[0]) return undefined;`,
+				innerCode,
+			);
+		} else {
+			fn.push(`for(let i = 0; i < rows.length; ++i) {`, innerCode, `}`);
+		}
+	}
+
+	fn.push(`return rows${isFirst ? '[0]' : ''};`, '//# sourceURL=drizzle:jit-relational-query-mapper');
+	return new Function(
+		'rows',
+		fn.join('\n'),
+	).bind({
+		selection,
+		mapColumnValue,
+	}) as RelationalRowsMapper<T>;
 }
 
 export class RelationsBuilderTable<TTableName extends string = string> {

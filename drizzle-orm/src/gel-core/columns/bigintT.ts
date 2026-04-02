@@ -31,9 +31,9 @@ export class GelBigInt64<T extends ColumnBaseConfig<'bigint int64'>> extends Gel
 		return 'edgedbt.bigint_t';
 	}
 
-	override mapFromDriverValue(value: string): bigint {
+	override mapFromDriverValue = (value: string): bigint => {
 		return BigInt(value as string); // TODO ts error if remove 'as string'
-	}
+	};
 }
 export function bigintT(name?: string): GelBigInt64Builder {
 	return new GelBigInt64Builder(name ?? '');

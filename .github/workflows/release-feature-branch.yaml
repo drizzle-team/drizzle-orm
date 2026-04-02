@@ -252,7 +252,7 @@ jobs:
             int:singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-proxy.test.ts ;;
             int:postgres)
               if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
-                pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/
+                pnpm --stream test:postgres
               fi
             ;;
             int:mysql)
@@ -285,13 +285,13 @@ jobs:
             orm|seed)
               (cd ../drizzle-${{ matrix.shard }} && pnpm --stream test --reporter=verbose --silent=false)
             ;;
-          
+            
             int:bun)  bun test ./tests/bun/ ;;
 
             int:seeder) pnpm test:seeder ;;
             int:imports) pnpm test:imports ;;
             int:other) pnpm test:other ;;
-            
+
             *) echo "Unknown shard: ${{matrix.shard}}"; exit 1 ;;
           esac
 

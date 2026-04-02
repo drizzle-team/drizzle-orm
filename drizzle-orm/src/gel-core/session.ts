@@ -3,7 +3,7 @@ import { type Cache, hashQuery, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
-import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations, RelationalQueryMapperConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL } from '~/sql/index.ts';
 import { tracer } from '~/tracing.ts';
@@ -145,9 +145,6 @@ export abstract class GelPreparedQuery<T extends PreparedQueryConfig> implements
 
 	/** @internal */
 	abstract all(placeholderValues?: Record<string, unknown>): Promise<T['all']>;
-
-	/** @internal */
-	abstract isResponseInArrayMode(): boolean;
 }
 
 export abstract class GelSession<
@@ -164,7 +161,6 @@ export abstract class GelSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -177,10 +173,11 @@ export abstract class GelSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		customResultMapper?: (
+		customResultMapper: (
 			rows: Record<string, unknown>[],
 			mapColumnValue?: (value: unknown) => unknown,
 		) => T['execute'],
+		config: RelationalQueryMapperConfig,
 	): GelPreparedQuery<T>;
 
 	execute<T>(query: SQL): Promise<T> {
@@ -190,7 +187,6 @@ export abstract class GelSession<
 					this.dialect.sqlToQuery(query),
 					undefined,
 					undefined,
-					false,
 				);
 			});
 
@@ -203,7 +199,6 @@ export abstract class GelSession<
 			this.dialect.sqlToQuery(query),
 			undefined,
 			undefined,
-			false,
 		).all();
 	}
 

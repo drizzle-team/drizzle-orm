@@ -3,7 +3,8 @@ import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { SQL, SQLGenerator } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
-import { parsePgArray } from '../utils/array.ts';
+import { type PostgresColumnType, type PostgresType, resolvePgType } from '../codecs.ts';
+import { parsePgArray } from '../utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type ConvertCustomConfig<T extends Partial<CustomTypeValues>> =
@@ -50,11 +51,12 @@ export class PgCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'>> 
 export class PgCustomColumn<T extends ColumnBuilderBaseConfig<'custom'>> extends PgColumn<'custom'> {
 	static override readonly [entityKind]: string = 'PgCustomColumn';
 
+	/** @internal */
+	override readonly useCodecType: PostgresType;
+
 	private sqlName: string;
-	private mapTo?: (value: T['data']) => T['driverParam'];
-	private mapFrom?: (value: T['driverParam']) => T['data'];
-	private mapJson?: (value: unknown) => T['data'];
-	private forJsonSelect?: (identifier: SQL, sql: SQLGenerator, arrayDimensions?: number) => SQL;
+	readonly mapFromJsonValue?: (value: unknown) => T['data'];
+	readonly jsonSelectIdentifier?: (identifier: SQL, sql: SQLGenerator, arrayDimensions?: number) => SQL;
 
 	constructor(
 		table: PgTable<any>,
@@ -62,30 +64,23 @@ export class PgCustomColumn<T extends ColumnBuilderBaseConfig<'custom'>> extends
 	) {
 		super(table, config as any);
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
-		this.mapTo = config.customTypeParams.toDriver;
-		this.mapFrom = config.customTypeParams.fromDriver;
-		this.mapJson = config.customTypeParams.fromJson;
-		this.forJsonSelect = config.customTypeParams.forJsonSelect;
+		this.mapToDriverValue = config.customTypeParams.toDriver ?? this.mapToDriverValue;
+		this.mapFromDriverValue = config.customTypeParams.fromDriver ?? this.mapFromDriverValue;
+		this.mapFromJsonValue = config.customTypeParams.fromJson;
+		this.jsonSelectIdentifier = config.customTypeParams.forJsonSelect;
+		this.useCodecType = resolvePgType(
+			config.customTypeParams.useCodecType
+				?? this.sqlName.slice(
+					0,
+					Math.min(...[this.sqlName.indexOf('('), this.sqlName.indexOf('[')].filter((e) => e !== -1)),
+				),
+		);
 
-		// Wrap mapFromJsonValue with array handling if this is an array column
-		if (this.dimensions) {
-			// Create a mapper function that handles a single element
-			// This uses the raw mapJson or mapFrom functions, not the wrapped mapFromDriverValue
-			const elementMapper = (value: unknown): unknown => {
-				if (typeof this.mapJson === 'function') {
-					return this.mapJson(value);
-				}
-				if (typeof this.mapFrom === 'function') {
-					return this.mapFrom(value as T['driverParam']);
-				}
-				return value;
-			};
-
+		if (this.dimensions && config.customTypeParams.fromJson) {
 			this.mapFromJsonValue = (value: unknown): unknown => {
 				if (value === null) return value;
-				// Parse string representation if needed
 				const arr = typeof value === 'string' ? parsePgArray(value) : value as unknown[];
-				return this.mapJsonArrayElements(arr, elementMapper, this.dimensions);
+				return this.mapJsonArrayElements(arr, config.customTypeParams.fromJson!, this.dimensions);
 			};
 		}
 	}
@@ -100,41 +95,6 @@ export class PgCustomColumn<T extends ColumnBuilderBaseConfig<'custom'>> extends
 
 	getSQLType(): string {
 		return this.sqlName;
-	}
-
-	override mapFromDriverValue(value: T['driverParam']): T['data'] {
-		return typeof this.mapFrom === 'function' ? this.mapFrom(value) : value as T['data'];
-	}
-
-	mapFromJsonValue(value: unknown): T['data'] {
-		return typeof this.mapJson === 'function' ? this.mapJson(value) : this.mapFromDriverValue(value) as T['data'];
-	}
-
-	jsonSelectIdentifier(identifier: SQL, sql: SQLGenerator, arrayDimensions?: number): SQL {
-		if (typeof this.forJsonSelect === 'function') return this.forJsonSelect(identifier, sql, arrayDimensions);
-
-		const rawType = this.getSQLType().toLowerCase();
-		const parenPos = rawType.indexOf('(');
-		const type = (parenPos + 1) ? rawType.slice(0, parenPos) : rawType;
-
-		switch (type) {
-			case 'bytea':
-			case 'geometry':
-			case 'timestamp':
-			case 'numeric':
-			case 'bigint': {
-				const arrVal = '[]'.repeat(arrayDimensions ?? 0);
-
-				return sql`${identifier}::text${sql.raw(arrVal).if(arrayDimensions)}`;
-			}
-			default: {
-				return identifier;
-			}
-		}
-	}
-
-	override mapToDriverValue(value: T['data']): T['driverParam'] {
-		return typeof this.mapTo === 'function' ? this.mapTo(value) : value as T['data'];
 	}
 }
 
@@ -156,6 +116,8 @@ export interface CustomTypeValues {
 	driverData?: unknown;
 
 	/**
+	 * @deprecated Use codecs instead
+	 *
 	 * Type helper, that represents what type database driver is returning for specific database data type
 	 *
 	 * Needed only in case driver's output and input for type differ
@@ -165,6 +127,8 @@ export interface CustomTypeValues {
 	driverOutput?: unknown;
 
 	/**
+	 * @deprecated Use codecs instead
+	 *
 	 * Type helper, that represents what type field returns after being aggregated to JSON
 	 */
 	jsonData?: unknown;
@@ -275,6 +239,8 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	fromDriver?: (value: 'driverOutput' extends keyof T ? T['driverOutput'] : T['driverData']) => T['data'];
 
 	/**
+	 * @deprecated Use codecs instead; bypasses codecs if used
+	 *
 	 * Optional mapping function, that is used for transforming data returned by transofmed to JSON in database data to desired format
 	 *
 	 * Used by [relational queries](https://orm.drizzle.team/docs/rqb-v2)
@@ -305,6 +271,8 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	fromJson?: (value: T['jsonData']) => T['data'];
 
 	/**
+	 * @deprecated Use codecs instead; bypasses codecs if used
+	 *
 	 * Optional selection modifier function, that is used for modifying selection of column inside [JSON functions](https://orm.drizzle.team/docs/json-functions)
 	 *
 	 * Additional mapping that could be required for such scenarios can be handled using {@link fromJson} function
@@ -359,6 +327,13 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	forJsonSelect?: (identifier: SQL, sql: SQLGenerator, arrayDimensions?: number) => SQL;
+
+	/**
+	 * Select which column type codec will be used for this column
+	 *
+	 * Defaults to {@link dataType}
+	 */
+	useCodecType?: PostgresColumnType;
 }
 
 /**

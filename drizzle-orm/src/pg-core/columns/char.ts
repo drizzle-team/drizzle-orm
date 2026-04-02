@@ -34,6 +34,9 @@ export class PgChar<TEnum extends [string, ...string[]] = [string, ...string[]]>
 {
 	static override readonly [entityKind]: string = 'PgChar';
 
+	/** @internal */
+	override readonly useCodecType = 'char';
+
 	override readonly enumValues: TEnum;
 	private readonly setLength: boolean;
 

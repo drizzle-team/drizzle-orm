@@ -24,27 +24,15 @@ export class PgJsonBuilder extends PgColumnBuilder<
 export class PgJson extends PgColumn<'object json'> {
 	static override readonly [entityKind]: string = 'PgJson';
 
+	/** @internal */
+	override readonly useCodecType = 'json';
+
 	constructor(table: PgTable<any>, config: PgJsonBuilder['config']) {
 		super(table, config);
 	}
 
 	getSQLType(): string {
 		return 'json';
-	}
-
-	override mapToDriverValue(value: unknown): string {
-		return JSON.stringify(value);
-	}
-
-	override mapFromDriverValue(value: unknown): unknown {
-		if (typeof value === 'string') {
-			try {
-				return JSON.parse(value);
-			} catch {
-				return value;
-			}
-		}
-		return value;
 	}
 }
 

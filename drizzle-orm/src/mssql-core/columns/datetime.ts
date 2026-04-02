@@ -78,9 +78,9 @@ export class MsSqlDateTimeString<T extends ColumnBaseConfig<'string datetime'>> 
 		return 'datetime';
 	}
 
-	override mapFromDriverValue(value: Date | string | null): string | null {
+	override mapFromDriverValue = (value: Date | string | null): string | null => {
 		return typeof value === 'string' ? value : value?.toISOString() ?? null;
-	}
+	};
 }
 
 export interface MsSqlDatetimeConfig<TMode extends 'date' | 'string' = 'date' | 'string'> {

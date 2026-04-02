@@ -43,15 +43,15 @@ export class MySqlDateTime<T extends ColumnBaseConfig<'object date'>> extends My
 		return `datetime${precision}`;
 	}
 
-	override mapToDriverValue(value: Date | string): string {
+	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
 		return value.toISOString().replace('T', ' ').replace('Z', '');
-	}
+	};
 
-	override mapFromDriverValue(value: string | Date): Date {
+	override mapFromDriverValue = (value: string | Date): Date => {
 		if (typeof value === 'string') return new Date(value.replace(' ', 'T') + 'Z');
 		return value;
-	}
+	};
 }
 
 export class MySqlDateTimeStringBuilder extends MySqlDateColumnBaseBuilder<{
@@ -93,15 +93,15 @@ export class MySqlDateTimeString<T extends ColumnBaseConfig<'string datetime'>> 
 		return `datetime${precision}`;
 	}
 
-	override mapFromDriverValue(value: Date | string): string {
+	override mapFromDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
 		return value.toISOString().slice(0, -5).replace('T', ' ');
-	}
+	};
 
-	override mapToDriverValue(value: Date | string): string {
+	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
 		return value.toISOString().replace('T', ' ').replace('Z', '');
-	}
+	};
 }
 
 export type DatetimeFsp = 0 | 1 | 2 | 3 | 4 | 5 | 6;

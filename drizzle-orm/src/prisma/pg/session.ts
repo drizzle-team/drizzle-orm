@@ -8,33 +8,6 @@ import type { PgDialect } from '~/pg-core/index.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { EmptyRelations } from '~/relations.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
-import { fillPlaceholders } from '~/sql/sql.ts';
-
-export class PrismaPgPreparedQuery<T> extends PgAsyncPreparedQuery<PreparedQueryConfig & { execute: T }> {
-	static override readonly [entityKind]: string = 'PrismaPgPreparedQuery';
-
-	constructor(
-		private readonly prisma: PrismaClient,
-		query: Query,
-		private readonly logger: Logger,
-	) {
-		super(query, undefined, undefined, undefined);
-	}
-
-	override execute(placeholderValues?: Record<string, unknown>): Promise<T> {
-		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-		this.logger.logQuery(this.query.sql, params);
-		return this.prisma.$queryRawUnsafe(this.query.sql, ...params);
-	}
-
-	override all(): Promise<unknown> {
-		throw new Error('Method not implemented.');
-	}
-
-	override isResponseInArrayMode(): boolean {
-		return false;
-	}
-}
 
 export interface PrismaPgSessionOptions {
 	logger?: Logger;
@@ -59,24 +32,21 @@ export class PrismaPgSession extends PgAsyncSession {
 	}
 
 	override prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(query: Query): PgAsyncPreparedQuery<T> {
-		return new PrismaPgPreparedQuery(this.prisma, query, this.logger);
-	}
-
-	override prepareRelationalQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
-		// query: Query,
-	): PgAsyncPreparedQuery<T> {
-		throw new Error('Method not implemented.');
-		// return new PrismaPgPreparedQuery(this.prisma, query, this.logger);
+		return new PgAsyncPreparedQuery(
+			(params) => this.prisma.$queryRawUnsafe(query.sql, ...(params ?? [])),
+			query,
+			undefined,
+			'objects',
+			this.logger,
+			undefined,
+			undefined,
+			undefined,
+		);
 	}
 
 	override transaction<T>(
 		_transaction: (
-			tx: PgAsyncTransaction<
-				PgQueryResultHKT,
-				Record<string, never>,
-				EmptyRelations,
-				Record<string, never>
-			>,
+			tx: PgAsyncTransaction<PgQueryResultHKT, EmptyRelations>,
 		) => Promise<T>,
 		_config?: PgTransactionConfig,
 	): Promise<T> {

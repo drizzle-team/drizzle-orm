@@ -22,17 +22,8 @@ export class PgByteaBuilder extends PgColumnBuilder<{
 export class PgBytea extends PgColumn<'object buffer'> {
 	static override readonly [entityKind]: string = 'PgBytea';
 
-	override mapFromDriverValue(value: Buffer | Uint8Array | string): Buffer {
-		if (Buffer.isBuffer(value)) return value;
-
-		if (typeof value === 'string') {
-			// Remove '\x'
-			const trimmed = value.slice(2, value.length);
-			return Buffer.from(trimmed, 'hex');
-		}
-
-		return Buffer.from(value);
-	}
+	/** @internal */
+	override readonly useCodecType = 'bytea';
 
 	getSQLType(): string {
 		return 'bytea';

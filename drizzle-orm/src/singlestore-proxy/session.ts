@@ -4,7 +4,12 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeRqbJitMapper,
+	type RelationalQueryMapperConfig,
+	type RelationalRowsMapper,
+} from '~/relations.ts';
 import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
 import { SingleStoreTransaction } from '~/singlestore-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/singlestore-core/query-builders/select.types.ts';
@@ -18,13 +23,14 @@ import type {
 import { SingleStorePreparedQuery as PreparedQueryBase, SingleStoreSession } from '~/singlestore-core/session.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { type Assume, makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
 import type { RemoteCallback } from './driver.ts';
 
 export type SingleStoreRawQueryResult = [ResultSetHeader, FieldPacket[]];
 
 export interface SingleStoreRemoteSessionOptions {
 	logger?: Logger;
+	useJitMapper?: boolean;
 }
 
 export class SingleStoreRemoteSession<
@@ -47,7 +53,7 @@ export class SingleStoreRemoteSession<
 		dialect: SingleStoreDialect,
 		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
-		options: SingleStoreRemoteSessionOptions,
+		private options: SingleStoreRemoteSessionOptions,
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
@@ -66,6 +72,7 @@ export class SingleStoreRemoteSession<
 			query.params,
 			this.logger,
 			fields,
+			this.options.useJitMapper,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -76,6 +83,7 @@ export class SingleStoreRemoteSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		config: RelationalQueryMapperConfig,
 		generatedIds?: Record<string, unknown>[],
 		returningIds?: SelectedFieldsOrdered,
 	): PreparedQueryKind<SingleStoreRemotePreparedQueryHKT, T> {
@@ -85,10 +93,12 @@ export class SingleStoreRemoteSession<
 			query.params,
 			this.logger,
 			fields,
+			this.options.useJitMapper,
 			customResultMapper,
 			generatedIds,
 			returningIds,
 			true,
+			config,
 		) as any;
 	}
 
@@ -130,6 +140,7 @@ export class PreparedQuery<T extends SingleStorePreparedQueryConfig, TIsRqbV2 ex
 	extends PreparedQueryBase<T>
 {
 	static override readonly [entityKind]: string = 'SingleStoreProxyPreparedQuery';
+	private jitMapper?: RowsMapper<T['execute']> | RelationalRowsMapper<T['execute']>;
 
 	constructor(
 		private client: RemoteCallback,
@@ -137,6 +148,7 @@ export class PreparedQuery<T extends SingleStorePreparedQueryConfig, TIsRqbV2 ex
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -145,6 +157,7 @@ export class PreparedQuery<T extends SingleStorePreparedQueryConfig, TIsRqbV2 ex
 		// Keys that should be returned, it has the column with all properries + key from object
 		private returningIds?: SelectedFieldsOrdered,
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
 		super();
 	}
@@ -197,7 +210,10 @@ export class PreparedQuery<T extends SingleStorePreparedQueryConfig, TIsRqbV2 ex
 			return customResultMapper(rows);
 		}
 
-		return rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RowsMapper<T['execute']>
+				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(rows)
+			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
@@ -210,7 +226,10 @@ export class PreparedQuery<T extends SingleStorePreparedQueryConfig, TIsRqbV2 ex
 		const { rows: res } = await client(queryString, params, 'execute');
 		const rows = res[0];
 
-		return customResultMapper!(rows);
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
+				?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(rows)
+			: customResultMapper!(rows);
 	}
 
 	override iterator(

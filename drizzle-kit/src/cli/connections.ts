@@ -1,6 +1,6 @@
 import type { PGlite } from '@electric-sql/pglite';
 import type { SQLiteCloudRowset } from '@sqlitecloud/drivers';
-import type { AwsDataApiPgQueryResult, AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
+import type { AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
 import type { config } from 'mssql';
@@ -81,7 +81,6 @@ export const preparePostgresDB = async (
 				rdsClient,
 				new PgDialect(),
 				{},
-				undefined,
 				config,
 				undefined,
 			);
@@ -91,21 +90,24 @@ export const preparePostgresDB = async (
 				return migrate(db, config);
 			};
 
-			const query = async (sql: string, params: any[]) => {
-				const prepared = session.prepareQuery(
+			const query = async (sql: string, params: any[]): Promise<any[]> => {
+				const prepared = session.prepareQuery<
+					PreparedQueryConfig & {
+						execute: any[];
+					}
+				>(
 					{ sql, params: params ?? [] },
-					undefined,
-					undefined,
+					'objects',
 					false,
+					undefined,
 				);
-				const result = await prepared.all();
-				return result as any[];
+
+				return prepared.execute();
 			};
 			const proxy = async (params: ProxyParams) => {
 				const prepared = session.prepareQuery<
 					PreparedQueryConfig & {
-						execute: AwsDataApiPgQueryResult<unknown>;
-						values: AwsDataApiPgQueryResult<unknown[]>;
+						execute: unknown[];
 					}
 				>(
 					{
@@ -113,16 +115,12 @@ export const preparePostgresDB = async (
 						params: params.params ?? [],
 						typings: params.typings,
 					},
+					params.mode === 'array' ? 'arrays' : 'objects',
+					false,
 					undefined,
-					undefined,
-					params.mode === 'array',
 				);
-				if (params.mode === 'array') {
-					const result = await prepared.values();
-					return result.rows;
-				}
-				const result = await prepared.execute();
-				return result.rows;
+
+				return prepared.execute();
 			};
 			const transactionProxy: TransactionProxy = async (_queries) => {
 				throw new Error('Transaction not supported');

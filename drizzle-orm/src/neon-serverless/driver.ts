@@ -1,60 +1,44 @@
 import { neonConfig, Pool, type PoolConfig } from '@neondatabase/serverless';
-import * as V1 from '~/_relations.ts';
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
+import { refineGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
+import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import type { DrizzleConfig } from '~/utils.ts';
 import type { NeonClient, NeonQueryResultHKT } from './session.ts';
 import { NeonSession } from './session.ts';
 
 export interface NeonDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
-export class NeonDriver {
-	static readonly [entityKind]: string = 'NeonDriver';
-
-	constructor(
-		private client: NeonClient,
-		private dialect: PgDialect,
-		private options: NeonDriverOptions = {},
-	) {
-	}
-
-	createSession(
-		relations: AnyRelations,
-		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
-	): NeonSession<Record<string, unknown>, AnyRelations, V1.TablesRelationalConfig> {
-		return new NeonSession(this.client, this.dialect, relations, schema, {
-			logger: this.options.logger,
-			cache: this.options.cache,
-		});
-	}
-}
-
-export class NeonDatabase<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
-> extends PgAsyncDatabase<NeonQueryResultHKT, TSchema, TRelations> {
+export class NeonDatabase<TRelations extends AnyRelations = EmptyRelations>
+	extends PgAsyncDatabase<NeonQueryResultHKT, TRelations>
+{
 	static override readonly [entityKind]: string = 'NeonServerlessDatabase';
 }
 
+export const neonServerlessCodecs = refineGenericPgCodecs();
+
 function construct<
-	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends NeonClient = NeonClient,
 >(
 	client: TClient,
-	config: DrizzleConfig<TSchema, TRelations> = {},
-): NeonDatabase<TSchema, TRelations> & {
+	config: DrizzlePgConfig<TRelations> = {},
+): NeonDatabase<TRelations> & {
 	$client: NeonClient extends TClient ? Pool : TClient;
 } {
-	const dialect = new PgDialect({ casing: config.casing });
+	const dialect = new PgDialect({
+		casing: config.casing,
+		useJitMappers: config.useJitMappers,
+		codecs: config.codecs ?? neonServerlessCodecs,
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -62,25 +46,13 @@ function construct<
 		logger = config.logger;
 	}
 
-	let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;
-	if (config.schema) {
-		const tablesConfig = V1.extractTablesRelationalConfig(
-			config.schema,
-			V1.createTableRelationsHelpers,
-		);
-		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
-			tableNamesMap: tablesConfig.tableNamesMap,
-		};
-	}
-
 	const relations = config.relations ?? {} as TRelations;
-	const driver = new NeonDriver(client, dialect, { logger, cache: config.cache });
-	const session = driver.createSession(relations, schema);
-	const db = new NeonDatabase(dialect, session, relations, schema as V1.RelationalSchemaConfig<any>) as NeonDatabase<
-		TSchema
-	>;
+	const session = new NeonSession(client, dialect, relations, {
+		logger,
+		useJitMapper: config.useJitMappers ?? false,
+		cache: config.cache,
+	});
+	const db = new NeonDatabase(dialect, session, relations) as NeonDatabase<TRelations>;
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {
@@ -91,7 +63,6 @@ function construct<
 }
 
 export function drizzle<
-	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends NeonClient = Pool,
 >(
@@ -99,10 +70,10 @@ export function drizzle<
 		string,
 	] | [
 		string,
-		DrizzleConfig<TSchema, TRelations>,
+		DrizzlePgConfig<TRelations>,
 	] | [
 		(
-			& DrizzleConfig<TSchema, TRelations>
+			& DrizzlePgConfig<TRelations>
 			& ({
 				connection: string | PoolConfig;
 			} | {
@@ -113,7 +84,7 @@ export function drizzle<
 			}
 		),
 	]
-): NeonDatabase<TSchema, TRelations> & {
+): NeonDatabase<TRelations> & {
 	$client: NeonClient extends TClient ? Pool : TClient;
 } {
 	if (typeof params[0] === 'string') {
@@ -124,17 +95,19 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	const { connection, client, ws, ...drizzleConfig } = params[0] as {
-		connection?: PoolConfig | string;
-		ws?: any;
-		client?: TClient;
-	} & DrizzleConfig<TSchema, TRelations>;
+	const { connection, client, ws, ...DrizzlePgConfig } = params[0] as
+		& {
+			connection?: PoolConfig | string;
+			ws?: any;
+			client?: TClient;
+		}
+		& DrizzlePgConfig<TRelations>;
 
 	if (ws) {
 		neonConfig.webSocketConstructor = ws;
 	}
 
-	if (client) return construct(client, drizzleConfig);
+	if (client) return construct(client, DrizzlePgConfig);
 
 	const instance = typeof connection === 'string'
 		? new Pool({
@@ -142,16 +115,13 @@ export function drizzle<
 		})
 		: new Pool(connection);
 
-	return construct(instance, drizzleConfig) as any;
+	return construct(instance, DrizzlePgConfig) as any;
 }
 
 export namespace drizzle {
-	export function mock<
-		TSchema extends Record<string, unknown> = Record<string, never>,
-		TRelations extends AnyRelations = EmptyRelations,
-	>(
-		config?: DrizzleConfig<TSchema, TRelations>,
-	): NeonDatabase<TSchema> & {
+	export function mock<TRelations extends AnyRelations = EmptyRelations>(
+		config?: DrizzlePgConfig<TRelations>,
+	): NeonDatabase<TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;

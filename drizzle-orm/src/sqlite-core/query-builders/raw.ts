@@ -48,9 +48,4 @@ export class SQLiteRaw<TResult> extends QueryPromise<TResult>
 	_prepare(): PreparedQuery {
 		return this;
 	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return false;
-	}
 }
