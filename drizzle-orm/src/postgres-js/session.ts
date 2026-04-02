@@ -51,10 +51,18 @@ export class PostgresJsSession<TSQL extends Sql, TRelations extends AnyRelations
 	) {
 		const executor = async (params?: unknown[]) => {
 			if (mode === 'objects') {
-				return this.client.unsafe(query.sql, params ?? [] as any[]).then((rows) => Object.values(rows));
+				return this.client.unsafe(query.sql, params ?? [] as any[], {
+					prepare: name !== false,
+				}).then((rows) => Object.values(rows));
 			}
-			if (mode === 'raw') return this.client.unsafe(query.sql, params ?? [] as any[]);
-			return this.client.unsafe(query.sql, params ?? [] as any[]).values();
+			if (mode === 'raw') {
+				return this.client.unsafe(query.sql, params ?? [] as any[], {
+					prepare: name !== false,
+				});
+			}
+			return this.client.unsafe(query.sql, params ?? [] as any[], {
+				prepare: name !== false,
+			}).values();
 		};
 
 		return new PgAsyncPreparedQuery<T>(
