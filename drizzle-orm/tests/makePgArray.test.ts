@@ -1,5 +1,5 @@
 import { describe, it } from 'vitest';
-import { makePgArray } from '~/pg-core/utils/array.ts';
+import { makePgArray } from '~/pg-core/utils.ts';
 
 describe.concurrent('makePgArray', () => {
 	it('parses simple 1D array', ({ expect }) => {

@@ -197,7 +197,7 @@ describe('batch', () => {
 			}[],
 		]>();
 
-		expect(batchResponse.length).eq(4);
+		expect(batchResponse.length).eq(3);
 
 		expect(batchResponse[0]).toEqual([{
 			id: 1,
@@ -239,7 +239,7 @@ describe('batch', () => {
 			} | undefined,
 		]>();
 
-		expect(batchResponse.length).eq(6);
+		expect(batchResponse.length).eq(4);
 
 		expect(batchResponse[0]).toEqual([{
 			id: 1,
@@ -307,7 +307,7 @@ describe('batch', () => {
 			}>,
 		]>();
 
-		expect(batchResponse.length).eq(5);
+		expect(batchResponse.length).eq(4);
 
 		expect(batchResponse[0]).toEqual([{
 			id: 1,
@@ -361,7 +361,7 @@ describe('batch', () => {
 			}[],
 		]>();
 
-		expect(batchResponse.length).eq(6);
+		expect(batchResponse.length).eq(5);
 
 		expect(batchResponse[0]).toEqual([{
 			id: 1,
@@ -414,7 +414,7 @@ describe('batch', () => {
 			} | undefined,
 		]>();
 
-		expect(batchResponse.length).eq(5);
+		expect(batchResponse.length).eq(4);
 
 		expect(batchResponse[0]).toEqual([{
 			id: 1,

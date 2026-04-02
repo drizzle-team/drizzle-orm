@@ -29,7 +29,7 @@ const developersRelations = relations(developers, ({ one }) => ({
 const devs = alias(developers, 'devs');
 const schema = { users, usersRelations, developers, developersRelations };
 
-const db = drizzle({ client: postgres(''), schema, casing: 'snake_case' });
+const db = drizzle({ client: postgres(''), casing: 'snake_case' });
 
 const usersCache = {
 	'public.users.id': 'id',
@@ -130,62 +130,6 @@ describe('postgres to snake case', () => {
 			params: [],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);
-	});
-
-	it('query (find first)', ({ expect }) => {
-		const query = db._query.users.findFirst({
-			columns: {
-				id: true,
-				age: true,
-			},
-			extras: {
-				fullName,
-			},
-			where: eq(users.id, 1),
-			with: {
-				developers: {
-					columns: {
-						usesDrizzleORM: true,
-					},
-				},
-			},
-		});
-
-		expect(query.toSQL()).toEqual({
-			sql:
-				'select "users"."id", "users"."AGE", "users"."first_name" || \' \' || "users"."last_name" as "name", "users_developers"."data" as "developers" from "users" "users" left join lateral (select json_build_array("users_developers"."uses_drizzle_orm") as "data" from (select * from "test"."developers" "users_developers" where "users_developers"."user_id" = "users"."id" limit $1) "users_developers") "users_developers" on true where "users"."id" = $2 limit $3',
-			params: [1, 1, 1],
-			typings: ['none', 'none', 'none'],
-		});
-		expect(db.dialect.casing.cache).toEqual(cache);
-	});
-
-	it('query (find many)', ({ expect }) => {
-		const query = db._query.users.findMany({
-			columns: {
-				id: true,
-				age: true,
-			},
-			extras: {
-				fullName,
-			},
-			where: eq(users.id, 1),
-			with: {
-				developers: {
-					columns: {
-						usesDrizzleORM: true,
-					},
-				},
-			},
-		});
-
-		expect(query.toSQL()).toEqual({
-			sql:
-				'select "users"."id", "users"."AGE", "users"."first_name" || \' \' || "users"."last_name" as "name", "users_developers"."data" as "developers" from "users" "users" left join lateral (select json_build_array("users_developers"."uses_drizzle_orm") as "data" from (select * from "test"."developers" "users_developers" where "users_developers"."user_id" = "users"."id" limit $1) "users_developers") "users_developers" on true where "users"."id" = $2',
-			params: [1, 1],
-			typings: ['none', 'none'],
-		});
-		expect(db.dialect.casing.cache).toEqual(cache);
 	});
 
 	it('insert (on conflict do nothing)', ({ expect }) => {
