@@ -36,6 +36,7 @@ import {
 	numeric,
 	primaryKey,
 	real,
+	SQLiteSyncDialect,
 	sqliteTable,
 	sqliteTableCreator,
 	sqliteView,
@@ -2502,6 +2503,32 @@ export function tests() {
 			expect(res).toBeUndefined();
 
 			await db.run(sql`drop table ${users}`);
+		});
+
+		test('sql.identifier escape', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			const users = sqliteTable('users', {
+				id: int('id'),
+				name: text('name').notNull(),
+			});
+
+			await db.run(sql`drop table if exists ${users}`);
+			await db.run(sql`create table ${users} (id int primary key, name text not null)`);
+			await db.insert(users).values([
+				{ name: 'John' },
+				{ name: 'Jane' },
+			]);
+
+			const dialect = new SQLiteSyncDialect();
+			const userInput = 'id" ASC, CAST((SELECT name FROM users LIMIT 1) AS int)--';
+
+			const query = sql`SELECT * FROM ${sql.identifier('users')} ORDER BY ${sql.identifier(userInput)} ASC`;
+
+			const str = dialect.sqlToQuery(query);
+			expect(str.sql).toBe(
+				'SELECT * FROM "users" ORDER BY "id"" ASC, CAST((SELECT name FROM users LIMIT 1) AS int)--" ASC',
+			);
 		});
 
 		test('set operations (union) from query builder with subquery', async (ctx) => {

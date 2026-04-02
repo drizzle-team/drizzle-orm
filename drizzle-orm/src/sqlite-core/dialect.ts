@@ -55,7 +55,7 @@ export abstract class SQLiteDialect {
 	}
 
 	escapeName(name: string): string {
-		return `"${name}"`;
+		return `"${name.replace(/"/g, '""')}"`;
 	}
 
 	escapeParam(_num: number): string {
@@ -80,7 +80,14 @@ export abstract class SQLiteDialect {
 		return sql.join(withSqlChunks);
 	}
 
-	buildDeleteQuery({ table, where, returning, withList, limit, orderBy }: SQLiteDeleteConfig): SQL {
+	buildDeleteQuery({
+		table,
+		where,
+		returning,
+		withList,
+		limit,
+		orderBy,
+	}: SQLiteDeleteConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
@@ -99,26 +106,43 @@ export abstract class SQLiteDialect {
 	buildUpdateSet(table: SQLiteTable, set: UpdateSet): SQL {
 		const tableColumns = table[Table.Symbol.Columns];
 
-		const columnNames = Object.keys(tableColumns).filter((colName) =>
-			set[colName] !== undefined || tableColumns[colName]?.onUpdateFn !== undefined
+		const columnNames = Object.keys(tableColumns).filter(
+			(colName) =>
+				set[colName] !== undefined
+				|| tableColumns[colName]?.onUpdateFn !== undefined,
 		);
 
 		const setSize = columnNames.length;
-		return sql.join(columnNames.flatMap((colName, i) => {
-			const col = tableColumns[colName]!;
+		return sql.join(
+			columnNames.flatMap((colName, i) => {
+				const col = tableColumns[colName]!;
 
-			const onUpdateFnResult = col.onUpdateFn?.();
-			const value = set[colName] ?? (is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col));
-			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
+				const onUpdateFnResult = col.onUpdateFn?.();
+				const value = set[colName]
+					?? (is(onUpdateFnResult, SQL)
+						? onUpdateFnResult
+						: sql.param(onUpdateFnResult, col));
+				const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
 
-			if (i < setSize - 1) {
-				return [res, sql.raw(', ')];
-			}
-			return [res];
-		}));
+				if (i < setSize - 1) {
+					return [res, sql.raw(', ')];
+				}
+				return [res];
+			}),
+		);
 	}
 
-	buildUpdateQuery({ table, set, where, returning, withList, joins, from, limit, orderBy }: SQLiteUpdateConfig): SQL {
+	buildUpdateQuery({
+		table,
+		set,
+		where,
+		returning,
+		withList,
+		joins,
+		from,
+		limit,
+		orderBy,
+	}: SQLiteUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const setSql = this.buildUpdateSet(table, set);
@@ -157,77 +181,85 @@ export abstract class SQLiteDialect {
 	): SQL {
 		const columnsLen = fields.length;
 
-		const chunks = fields
-			.flatMap(({ field }, i) => {
-				const chunk: SQLChunk[] = [];
+		const chunks = fields.flatMap(({ field }, i) => {
+			const chunk: SQLChunk[] = [];
 
-				if (is(field, SQL.Aliased) && field.isSelectionField) {
-					chunk.push(sql.identifier(field.fieldAlias));
-				} else if (is(field, SQL.Aliased) || is(field, SQL)) {
-					const query = is(field, SQL.Aliased) ? field.sql : field;
+			if (is(field, SQL.Aliased) && field.isSelectionField) {
+				chunk.push(sql.identifier(field.fieldAlias));
+			} else if (is(field, SQL.Aliased) || is(field, SQL)) {
+				const query = is(field, SQL.Aliased) ? field.sql : field;
 
+				if (isSingleTable) {
+					chunk.push(
+						new SQL(
+							query.queryChunks.map((c) => {
+								if (is(c, Column)) {
+									return sql.identifier(this.casing.getColumnCasing(c));
+								}
+								return c;
+							}),
+						),
+					);
+				} else {
+					chunk.push(query);
+				}
+
+				if (is(field, SQL.Aliased)) {
+					chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
+				}
+			} else if (is(field, Column)) {
+				const tableName = field.table[Table.Symbol.Name];
+				if (field.columnType === 'SQLiteNumericBigInt') {
 					if (isSingleTable) {
 						chunk.push(
-							new SQL(
-								query.queryChunks.map((c) => {
-									if (is(c, Column)) {
-										return sql.identifier(this.casing.getColumnCasing(c));
-									}
-									return c;
-								}),
-							),
+							sql`cast(${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
 						);
 					} else {
-						chunk.push(query);
+						chunk.push(
+							sql`cast(${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
+						);
 					}
-
-					if (is(field, SQL.Aliased)) {
-						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
-					}
-				} else if (is(field, Column)) {
-					const tableName = field.table[Table.Symbol.Name];
-					if (field.columnType === 'SQLiteNumericBigInt') {
-						if (isSingleTable) {
-							chunk.push(sql`cast(${sql.identifier(this.casing.getColumnCasing(field))} as text)`);
-						} else {
-							chunk.push(
-								sql`cast(${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
-							);
-						}
+				} else {
+					if (isSingleTable) {
+						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
 					} else {
-						if (isSingleTable) {
-							chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
-						} else {
-							chunk.push(sql`${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))}`);
-						}
+						chunk.push(
+							sql`${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))}`,
+						);
 					}
-				} else if (is(field, Subquery)) {
-					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
-
-					if (entries.length === 1) {
-						const entry = entries[0]![1];
-
-						const fieldDecoder = is(entry, SQL)
-							? entry.decoder
-							: is(entry, Column)
-							? { mapFromDriverValue: (v: any) => entry.mapFromDriverValue(v) }
-							: entry.sql.decoder;
-						if (fieldDecoder) field._.sql.decoder = fieldDecoder;
-					}
-					chunk.push(field);
 				}
+			} else if (is(field, Subquery)) {
+				const entries = Object.entries(field._.selectedFields) as [
+					string,
+					SQL.Aliased | Column | SQL,
+				][];
 
-				if (i < columnsLen - 1) {
-					chunk.push(sql`, `);
+				if (entries.length === 1) {
+					const entry = entries[0]![1];
+
+					const fieldDecoder = is(entry, SQL)
+						? entry.decoder
+						: is(entry, Column)
+						? { mapFromDriverValue: (v: any) => entry.mapFromDriverValue(v) }
+						: entry.sql.decoder;
+					if (fieldDecoder) field._.sql.decoder = fieldDecoder;
 				}
+				chunk.push(field);
+			}
 
-				return chunk;
-			});
+			if (i < columnsLen - 1) {
+				chunk.push(sql`, `);
+			}
+
+			return chunk;
+		});
 
 		return sql.join(chunks);
 	}
 
-	private buildJoins(joins: SQLiteSelectJoinConfig[] | undefined): SQL | undefined {
+	private buildJoins(
+		joins: SQLiteSelectJoinConfig[] | undefined,
+	): SQL | undefined {
 		if (!joins || joins.length === 0) {
 			return undefined;
 		}
@@ -249,7 +281,9 @@ export abstract class SQLiteDialect {
 					const alias = tableName === origTableName ? undefined : joinMeta.alias;
 					joinsArray.push(
 						sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined}${
-							sql.identifier(origTableName)
+							sql.identifier(
+								origTableName,
+							)
 						}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 					);
 				} else {
@@ -267,12 +301,15 @@ export abstract class SQLiteDialect {
 	}
 
 	private buildLimit(limit: number | Placeholder | undefined): SQL | undefined {
-		return typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
+		return typeof limit === 'object'
+				|| (typeof limit === 'number' && limit >= 0)
 			? sql` limit ${limit}`
 			: undefined;
 	}
 
-	private buildOrderBy(orderBy: (SQLiteColumn | SQL | SQL.Aliased)[] | undefined): SQL | undefined {
+	private buildOrderBy(
+		orderBy: (SQLiteColumn | SQL | SQL.Aliased)[] | undefined,
+	): SQL | undefined {
 		const orderByList: (SQLiteColumn | SQL | SQL.Aliased)[] = [];
 
 		if (orderBy) {
@@ -285,7 +322,9 @@ export abstract class SQLiteDialect {
 			}
 		}
 
-		return orderByList.length > 0 ? sql` order by ${sql.join(orderByList)}` : undefined;
+		return orderByList.length > 0
+			? sql` order by ${sql.join(orderByList)}`
+			: undefined;
 	}
 
 	private buildFromTable(
@@ -293,30 +332,30 @@ export abstract class SQLiteDialect {
 	): SQL | Subquery | SQLiteViewBase | SQLiteTable | undefined {
 		if (is(table, Table) && table[Table.Symbol.IsAlias]) {
 			return sql`${sql`${sql.identifier(table[Table.Symbol.Schema] ?? '')}.`.if(table[Table.Symbol.Schema])}${
-				sql.identifier(table[Table.Symbol.OriginalName])
+				sql.identifier(
+					table[Table.Symbol.OriginalName],
+				)
 			} ${sql.identifier(table[Table.Symbol.Name])}`;
 		}
 
 		return table;
 	}
 
-	buildSelectQuery(
-		{
-			withList,
-			fields,
-			fieldsFlat,
-			where,
-			having,
-			table,
-			joins,
-			orderBy,
-			groupBy,
-			limit,
-			offset,
-			distinct,
-			setOperators,
-		}: SQLiteSelectConfig,
-	): SQL {
+	buildSelectQuery({
+		withList,
+		fields,
+		fieldsFlat,
+		where,
+		having,
+		table,
+		joins,
+		orderBy,
+		groupBy,
+		limit,
+		offset,
+		distinct,
+		setOperators,
+	}: SQLiteSelectConfig): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<SQLiteColumn>(fields);
 		for (const f of fieldsList) {
 			if (
@@ -330,14 +369,20 @@ export abstract class SQLiteDialect {
 						? undefined
 						: getTableName(table))
 				&& !((table) =>
-					joins?.some(({ alias }) =>
-						alias === (table[Table.Symbol.IsAlias] ? getTableName(table) : table[Table.Symbol.BaseName])
+					joins?.some(
+						({ alias }) =>
+							alias
+								=== (table[Table.Symbol.IsAlias]
+									? getTableName(table)
+									: table[Table.Symbol.BaseName]),
 					))(f.field.table)
 			) {
 				const tableName = getTableName(f.field.table);
 				throw new Error(
 					`Your "${
-						f.path.join('->')
+						f.path.join(
+							'->',
+						)
 					}" field references a column "${tableName}"."${f.field.name}", but the table "${tableName}" is not part of the query! Did you forget to join it?`,
 				);
 			}
@@ -370,7 +415,9 @@ export abstract class SQLiteDialect {
 			}
 		}
 
-		const groupBySql = groupByList.length > 0 ? sql` group by ${sql.join(groupByList)}` : undefined;
+		const groupBySql = groupByList.length > 0
+			? sql` group by ${sql.join(groupByList)}`
+			: undefined;
 
 		const orderBySql = this.buildOrderBy(orderBy);
 
@@ -388,7 +435,10 @@ export abstract class SQLiteDialect {
 		return finalQuery;
 	}
 
-	buildSetOperations(leftSelect: SQL, setOperators: SQLiteSelectConfig['setOperators']): SQL {
+	buildSetOperations(
+		leftSelect: SQL,
+		setOperators: SQLiteSelectConfig['setOperators'],
+	): SQL {
 		const [setOperator, ...rest] = setOperators;
 
 		if (!setOperator) {
@@ -409,7 +459,10 @@ export abstract class SQLiteDialect {
 	buildSetOperationQuery({
 		leftSelect,
 		setOperator: { type, isAll, rightSelect, limit, orderBy, offset },
-	}: { leftSelect: SQL; setOperator: SQLiteSelectConfig['setOperators'][number] }): SQL {
+	}: {
+		leftSelect: SQL;
+		setOperator: SQLiteSelectConfig['setOperators'][number];
+	}): SQL {
 		// SQLite doesn't support parenthesis in set operations
 		const leftChunk = sql`${leftSelect.getSQL()} `;
 		const rightChunk = sql`${rightSelect.getSQL()}`;
@@ -428,7 +481,9 @@ export abstract class SQLiteDialect {
 						const chunk = singleOrderBy.queryChunks[i];
 
 						if (is(chunk, SQLiteColumn)) {
-							singleOrderBy.queryChunks[i] = sql.identifier(this.casing.getColumnCasing(chunk));
+							singleOrderBy.queryChunks[i] = sql.identifier(
+								this.casing.getColumnCasing(chunk),
+							);
 						}
 					}
 
@@ -452,15 +507,20 @@ export abstract class SQLiteDialect {
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	buildInsertQuery(
-		{ table, values: valuesOrSelect, onConflict, returning, withList, select }: SQLiteInsertConfig,
-	): SQL {
+	buildInsertQuery({
+		table,
+		values: valuesOrSelect,
+		onConflict,
+		returning,
+		withList,
+		select,
+	}: SQLiteInsertConfig): SQL {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, SQLiteColumn> = table[Table.Symbol.Columns];
 
-		const colEntries: [string, SQLiteColumn][] = Object.entries(columns).filter(([_, col]) =>
-			!col.shouldDisableInsert()
+		const colEntries: [string, SQLiteColumn][] = Object.entries(columns).filter(
+			([_, col]) => !col.shouldDisableInsert(),
 		);
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(this.casing.getColumnCasing(column)));
 
@@ -480,18 +540,27 @@ export abstract class SQLiteDialect {
 				const valueList: (SQLChunk | SQL)[] = [];
 				for (const [fieldName, col] of colEntries) {
 					const colValue = value[fieldName];
-					if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
+					if (
+						colValue === undefined
+						|| (is(colValue, Param) && colValue.value === undefined)
+					) {
 						let defaultValue;
 						if (col.default !== null && col.default !== undefined) {
-							defaultValue = is(col.default, SQL) ? col.default : sql.param(col.default, col);
+							defaultValue = is(col.default, SQL)
+								? col.default
+								: sql.param(col.default, col);
 							// eslint-disable-next-line unicorn/no-negated-condition
 						} else if (col.defaultFn !== undefined) {
 							const defaultFnResult = col.defaultFn();
-							defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
+							defaultValue = is(defaultFnResult, SQL)
+								? defaultFnResult
+								: sql.param(defaultFnResult, col);
 							// eslint-disable-next-line unicorn/no-negated-condition
 						} else if (!col.default && col.onUpdateFn !== undefined) {
 							const onUpdateFnResult = col.onUpdateFn();
-							defaultValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
+							defaultValue = is(onUpdateFnResult, SQL)
+								? onUpdateFnResult
+								: sql.param(onUpdateFnResult, col);
 						} else {
 							defaultValue = sql`null`;
 						}
@@ -515,9 +584,7 @@ export abstract class SQLiteDialect {
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
-		const onConflictSql = onConflict?.length
-			? sql.join(onConflict)
-			: undefined;
+		const onConflictSql = onConflict?.length ? sql.join(onConflict) : undefined;
 
 		// if (isSingleValue && valuesSqlList.length === 0){
 		// 	return sql`insert into ${table} default values ${onConflictSql}${returningSql}`;
@@ -557,15 +624,19 @@ export abstract class SQLiteDialect {
 		nestedQueryRelation?: Relation;
 		joinOn?: SQL;
 	}): BuildRelationalQueryResult<SQLiteTable, SQLiteColumn> {
-		let selection: BuildRelationalQueryResult<SQLiteTable, SQLiteColumn>['selection'] = [];
-		let limit, offset, orderBy: SQLiteSelectConfig['orderBy'] = [], where;
+		let selection: BuildRelationalQueryResult<
+			SQLiteTable,
+			SQLiteColumn
+		>['selection'] = [];
+		let limit,
+			offset,
+			orderBy: SQLiteSelectConfig['orderBy'] = [],
+			where;
 		const joins: SQLiteSelectJoinConfig[] = [];
 
 		if (config === true) {
 			const selectionEntries = Object.entries(tableConfig.columns);
-			selection = selectionEntries.map((
-				[key, value],
-			) => ({
+			selection = selectionEntries.map(([key, value]) => ({
 				dbKey: value.name,
 				tsKey: key,
 				field: aliasedTableColumn(value as SQLiteColumn, tableAlias),
@@ -575,7 +646,10 @@ export abstract class SQLiteDialect {
 			}));
 		} else {
 			const aliasedColumns = Object.fromEntries(
-				Object.entries(tableConfig.columns).map(([key, value]) => [key, aliasedTableColumn(value, tableAlias)]),
+				Object.entries(tableConfig.columns).map(([key, value]) => [
+					key,
+					aliasedTableColumn(value, tableAlias),
+				]),
 			);
 
 			if (config.where) {
@@ -585,7 +659,10 @@ export abstract class SQLiteDialect {
 				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
 			}
 
-			const fieldsSelection: { tsKey: string; value: SQLiteColumn | SQL.Aliased }[] = [];
+			const fieldsSelection: {
+				tsKey: string;
+				value: SQLiteColumn | SQL.Aliased;
+			}[] = [];
 			let selectedColumns: string[] = [];
 
 			// Figure out which columns to select
@@ -612,7 +689,9 @@ export abstract class SQLiteDialect {
 				if (selectedColumns.length > 0) {
 					selectedColumns = isIncludeMode
 						? selectedColumns.filter((c) => config.columns?.[c] === true)
-						: Object.keys(tableConfig.columns).filter((key) => !selectedColumns.includes(key));
+						: Object.keys(tableConfig.columns).filter(
+							(key) => !selectedColumns.includes(key),
+						);
 				}
 			} else {
 				// Select all columns if selection is not specified
@@ -633,8 +712,16 @@ export abstract class SQLiteDialect {
 			// Figure out which relations to select
 			if (config.with) {
 				selectedRelations = Object.entries(config.with)
-					.filter((entry): entry is [typeof entry[0], NonNullable<typeof entry[1]>] => !!entry[1])
-					.map(([tsKey, queryConfig]) => ({ tsKey, queryConfig, relation: tableConfig.relations[tsKey]! }));
+					.filter(
+						(
+							entry,
+						): entry is [(typeof entry)[0], NonNullable<(typeof entry)[1]>] => !!entry[1],
+					)
+					.map(([tsKey, queryConfig]) => ({
+						tsKey,
+						queryConfig,
+						relation: tableConfig.relations[tsKey]!,
+					}));
 			}
 
 			let extras;
@@ -656,9 +743,13 @@ export abstract class SQLiteDialect {
 			// `fieldsSelection` shouldn't be used after this point
 			for (const { tsKey, value } of fieldsSelection) {
 				selection.push({
-					dbKey: is(value, SQL.Aliased) ? value.fieldAlias : tableConfig.columns[tsKey]!.name,
+					dbKey: is(value, SQL.Aliased)
+						? value.fieldAlias
+						: tableConfig.columns[tsKey]!.name,
 					tsKey,
-					field: is(value, Column) ? aliasedTableColumn(value, tableAlias) : value,
+					field: is(value, Column)
+						? aliasedTableColumn(value, tableAlias)
+						: value,
 					relationTableTsKey: undefined,
 					isJson: false,
 					selection: [],
@@ -667,7 +758,7 @@ export abstract class SQLiteDialect {
 
 			let orderByOrig = typeof config.orderBy === 'function'
 				? config.orderBy(aliasedColumns, getOrderByOperators())
-				: config.orderBy ?? [];
+				: (config.orderBy ?? []);
 			if (!Array.isArray(orderByOrig)) {
 				orderByOrig = [orderByOrig];
 			}
@@ -689,7 +780,11 @@ export abstract class SQLiteDialect {
 					relation,
 				} of selectedRelations
 			) {
-				const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
+				const normalizedRelation = normalizeRelation(
+					schema,
+					tableNamesMap,
+					relation,
+				);
 				const relationTableName = getTableUniqueName(relation.referencedTable);
 				const relationTableTsName = tableNamesMap[relationTableName]!;
 				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
@@ -697,7 +792,10 @@ export abstract class SQLiteDialect {
 				const joinOn = and(
 					...normalizedRelation.fields.map((field, i) =>
 						eq(
-							aliasedTableColumn(normalizedRelation.references[i]!, relationTableAlias),
+							aliasedTableColumn(
+								normalizedRelation.references[i]!,
+								relationTableAlias,
+							),
 							aliasedTableColumn(field, tableAlias),
 						)
 					),
@@ -709,15 +807,15 @@ export abstract class SQLiteDialect {
 					table: fullSchema[relationTableTsName] as SQLiteTable,
 					tableConfig: schema[relationTableTsName]!,
 					queryConfig: is(relation, One)
-						? (selectedRelationConfigValue === true
+						? selectedRelationConfigValue === true
 							? { limit: 1 }
-							: { ...selectedRelationConfigValue, limit: 1 })
+							: { ...selectedRelationConfigValue, limit: 1 }
 						: selectedRelationConfigValue,
 					tableAlias: relationTableAlias,
 					joinOn,
 					nestedQueryRelation: relation,
 				});
-				const field = (sql`(${builtRelation.sql})`).as(selectedRelationTsKey);
+				const field = sql`(${builtRelation.sql})`.as(selectedRelationTsKey);
 				selection.push({
 					dbKey: selectedRelationTsKey,
 					tsKey: selectedRelationTsKey,
@@ -756,14 +854,16 @@ export abstract class SQLiteDialect {
 			if (is(nestedQueryRelation, Many)) {
 				field = sql`coalesce(json_group_array(${field}), json_array())`;
 			}
-			const nestedSelection = [{
-				dbKey: 'data',
-				tsKey: 'data',
-				field: field.as('data'),
-				isJson: true,
-				relationTableTsKey: tableConfig.tsName,
-				selection,
-			}];
+			const nestedSelection = [
+				{
+					dbKey: 'data',
+					tsKey: 'data',
+					field: field.as('data'),
+					isJson: true,
+					relationTableTsKey: tableConfig.tsName,
+					selection,
+				},
+			];
 
 			const needsSubquery = limit !== undefined || offset !== undefined || orderBy.length > 0;
 
@@ -793,11 +893,15 @@ export abstract class SQLiteDialect {
 			}
 
 			result = this.buildSelectQuery({
-				table: is(result, SQLiteTable) ? result : new Subquery(result, {}, tableAlias),
+				table: is(result, SQLiteTable)
+					? result
+					: new Subquery(result, {}, tableAlias),
 				fields: {},
 				fieldsFlat: nestedSelection.map(({ field }) => ({
 					path: [],
-					field: is(field, Column) ? aliasedTableColumn(field, tableAlias) : field,
+					field: is(field, Column)
+						? aliasedTableColumn(field, tableAlias)
+						: field,
 				})),
 				joins,
 				where,
@@ -812,7 +916,9 @@ export abstract class SQLiteDialect {
 				fields: {},
 				fieldsFlat: selection.map(({ field }) => ({
 					path: [],
-					field: is(field, Column) ? aliasedTableColumn(field, tableAlias) : field,
+					field: is(field, Column)
+						? aliasedTableColumn(field, tableAlias)
+						: field,
 				})),
 				joins,
 				where,
@@ -836,14 +942,19 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 
 	migrate(
 		migrations: MigrationMeta[],
-		session: SQLiteSession<'sync', unknown, Record<string, unknown>, TablesRelationalConfig>,
+		session: SQLiteSession<
+			'sync',
+			unknown,
+			Record<string, unknown>,
+			TablesRelationalConfig
+		>,
 		config?: string | MigrationConfig,
 	): void {
 		const migrationsTable = config === undefined
 			? '__drizzle_migrations'
 			: typeof config === 'string'
 			? '__drizzle_migrations'
-			: config.migrationsTable ?? '__drizzle_migrations';
+			: (config.migrationsTable ?? '__drizzle_migrations');
 
 		const migrationTableCreate = sql`
 			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
@@ -863,13 +974,18 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 
 		try {
 			for (const migration of migrations) {
-				if (!lastDbMigration || Number(lastDbMigration[2])! < migration.folderMillis) {
+				if (
+					!lastDbMigration
+					|| Number(lastDbMigration[2])! < migration.folderMillis
+				) {
 					for (const stmt of migration.sql) {
 						session.run(sql.raw(stmt));
 					}
 					session.run(
 						sql`INSERT INTO ${
-							sql.identifier(migrationsTable)
+							sql.identifier(
+								migrationsTable,
+							)
 						} ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
 					);
 				}
@@ -895,7 +1011,7 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 			? '__drizzle_migrations'
 			: typeof config === 'string'
 			? '__drizzle_migrations'
-			: config.migrationsTable ?? '__drizzle_migrations';
+			: (config.migrationsTable ?? '__drizzle_migrations');
 
 		const migrationTableCreate = sql`
 			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
@@ -914,13 +1030,18 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 
 		await session.transaction(async (tx) => {
 			for (const migration of migrations) {
-				if (!lastDbMigration || Number(lastDbMigration[2])! < migration.folderMillis) {
+				if (
+					!lastDbMigration
+					|| Number(lastDbMigration[2])! < migration.folderMillis
+				) {
 					for (const stmt of migration.sql) {
 						await tx.run(sql.raw(stmt));
 					}
 					await tx.run(
 						sql`INSERT INTO ${
-							sql.identifier(migrationsTable)
+							sql.identifier(
+								migrationsTable,
+							)
 						} ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
 					);
 				}
