@@ -47,7 +47,6 @@
 		"url": "https://github.com/drizzle-team/drizzle-orm/issues"
 	},
 	"peerDependencies": {
-		"@auth/core": ">=0.34.0",
 		"@aws-sdk/client-rds-data": ">=3",
 		"@cloudflare/workers-types": ">=4",
 		"@effect/sql": "^0.48.5",
@@ -88,9 +87,6 @@
 		"zod": "^3.25.0 || ^4.0.0"
 	},
 	"peerDependenciesMeta": {
-		"@auth/core": {
-			"optional": true
-		},
 		"arktype": {
 			"optional": true
 		},
@@ -202,7 +198,6 @@
 	},
 	"devDependencies": {
 		"@arktype/attest": "^0.46.0",
-		"@auth/core": "^0.34.3",
 		"@aws-sdk/client-rds-data": "^3.914.0",
 		"@cloudflare/workers-types": "^4.20251004.0",
 		"@effect/sql": "^0.48.5",
@@ -241,6 +236,7 @@
 		"gel": "^2.0.0",
 		"glob": "^11.0.1",
 		"mysql2": "^3.14.1",
+		"next-auth": "^4.24.13",
 		"pg": "^8.11.0",
 		"postgres": "^3.3.5",
 		"prisma": "5.14.0",

@@ -1,3 +1,4 @@
+import type { Awaitable } from 'next-auth';
 import type {
 	Adapter,
 	AdapterAccount,
@@ -5,8 +6,7 @@ import type {
 	AdapterSession,
 	AdapterUser,
 	VerificationToken,
-} from '@auth/core/adapters';
-import type { Awaitable } from '@auth/core/types';
+} from 'next-auth/adapters';
 import type { ColumnBaseConfig } from '~/column';
 import type {
 	MySqlColumn,
