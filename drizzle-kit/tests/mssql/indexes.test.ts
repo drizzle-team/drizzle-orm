@@ -73,7 +73,7 @@ test('indexes #0', async (t) => {
 		'CREATE INDEX [removeColumn] ON [users] ([name]);',
 		'CREATE INDEX [addColumn] ON [users] ([name],[id]);',
 		'CREATE INDEX [removeWhere] ON [users] ([name]);',
-		"CREATE INDEX [addWhere] ON [users] ([name]) WHERE [users].[name] != 'name';",
+		"CREATE INDEX [addWhere] ON [users] ([name]) WHERE [name] != 'name';",
 	]);
 	expect(pst).toStrictEqual([
 		'DROP INDEX [changeName] ON [users];',
@@ -83,7 +83,7 @@ test('indexes #0', async (t) => {
 		'DROP INDEX [removeWhere] ON [users];',
 		'CREATE INDEX [newName] ON [users] ([name]);',
 		'CREATE INDEX [addColumn] ON [users] ([name],[id]);',
-		"CREATE INDEX [addWhere] ON [users] ([name]) WHERE [users].[name] != 'name';",
+		"CREATE INDEX [addWhere] ON [users] ([name]) WHERE [name] != 'name';",
 		'CREATE INDEX [removeColumn] ON [users] ([name]);',
 		'CREATE INDEX [removeWhere] ON [users] ([name]);',
 	]);
