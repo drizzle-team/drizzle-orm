@@ -3,6 +3,7 @@ import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
+import { makePgArray } from '~/pg-core/array.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import {
 	arrayCompatNormalize,
@@ -12,7 +13,7 @@ import {
 	refineGenericPgCodecs,
 } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
-import { type DrizzlePgConfig, makePgArray } from '~/pg-core/utils.ts';
+import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { base64ToUint8Array } from '~/utils.ts';
 import type { PgliteClient, PgliteQueryResultHKT } from './session.ts';

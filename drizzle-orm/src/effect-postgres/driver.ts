@@ -4,10 +4,11 @@ import * as Layer from 'effect/Layer';
 import { EffectCache } from '~/cache/core/cache-effect.ts';
 import { EffectLogger } from '~/effect-core/index.ts';
 import { entityKind } from '~/entity.ts';
+import { makePgArray } from '~/pg-core/array.ts';
 import { castToText, refineGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectDatabase } from '~/pg-core/effect/db.ts';
-import { type DrizzlePgConfig, makePgArray } from '~/pg-core/utils.ts';
+import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type EffectPgQueryEffectHKT, type EffectPgQueryResultHKT, EffectPgSession } from './session.ts';
 

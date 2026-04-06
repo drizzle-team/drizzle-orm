@@ -1,4 +1,5 @@
 export * from './alias.ts';
+export * from './array.ts';
 export * from './async/index.ts';
 export * from './checks.ts';
 export * from './columns/index.ts';

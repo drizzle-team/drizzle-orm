@@ -8,7 +8,7 @@ import {
 } from '~/codecs.ts';
 import { type Name, sql, type SQLChunk } from '~/sql/sql.ts';
 import type { PartialWithUndefined } from '~/utils.ts';
-import { makePgArray, parsePgArray } from './utils.ts';
+import { makePgArray, parsePgArray } from './array';
 
 export type PostgresType =
 	// Numeric
