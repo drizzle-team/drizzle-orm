@@ -79,7 +79,7 @@ for (const [i, key] of Object.keys(pj['exports']).entries()) {
 const chunksESM = chunk(promises, 10);
 
 for (const c of chunksESM) {
-	it.concurrent('dynamic imports check for ESM chunk', async () => {
+	it('dynamic imports check for ESM chunk', async () => {
 		const results = await Promise.all(c);
 
 		for (const result of results) {
