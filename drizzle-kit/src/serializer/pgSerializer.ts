@@ -1367,8 +1367,14 @@ WHERE
 					for (const checks of tableChecks) {
 						// CHECK (((email)::text <> 'test@gmail.com'::text))
 						// Where (email) is column in table
-						let checkValue: string = checks.constraint_definition;
-						const constraintName: string = checks.constraint_name;
+						let checkValue: string | null | undefined = checks.constraint_definition;
+					    const constraintName: string = checks.constraint_name;
+					
+					    // Fix: Prevent TypeError crashing if Postgres returns null/undefined for constraints 
+					    // due to permissions or internal schemas like in Supabase.
+					    if (!checkValue) {
+					        continue;
+					    }
 
 						checkValue = checkValue.replace(/^CHECK\s*\(\(/, '').replace(/\)\)\s*$/, '');
 
