@@ -3769,10 +3769,22 @@ class SQLiteRecreateTableConvertor extends Convertor {
 	}
 
 	convert(statement: JsonRecreateTableStatement): string | string[] {
-		const { tableName, columns, compositePKs, referenceData, checkConstraints } = statement;
+		const { tableName, columns, compositePKs, referenceData, checkConstraints, columnRenames } = statement;
 
 		const columnNames = columns.map((it) => `"${it.name}"`).join(', ');
 		const newTableName = `__new_${tableName}`;
+
+		const renameMap = new Map<string, string>();
+		if (columnRenames) {
+			for (const { oldName, newName } of columnRenames) {
+				renameMap.set(newName, oldName);
+			}
+		}
+
+		const selectColumnNames = columns.map((it) => {
+			const oldName = renameMap.get(it.name);
+			return oldName ? `"${oldName}"` : `"${it.name}"`;
+		}).join(', ');
 
 		const sqlStatements: string[] = [];
 
@@ -3798,7 +3810,7 @@ class SQLiteRecreateTableConvertor extends Convertor {
 
 		// migrate data
 		sqlStatements.push(
-			`INSERT INTO \`${newTableName}\`(${columnNames}) SELECT ${columnNames} FROM \`${tableName}\`;`,
+			`INSERT INTO \`${newTableName}\`(${columnNames}) SELECT ${selectColumnNames} FROM \`${tableName}\`;`,
 		);
 
 		// drop table
@@ -3836,10 +3848,22 @@ class LibSQLRecreateTableConvertor extends Convertor {
 	}
 
 	convert(statement: JsonRecreateTableStatement): string[] {
-		const { tableName, columns, compositePKs, referenceData, checkConstraints } = statement;
+		const { tableName, columns, compositePKs, referenceData, checkConstraints, columnRenames } = statement;
 
 		const columnNames = columns.map((it) => `"${it.name}"`).join(', ');
 		const newTableName = `__new_${tableName}`;
+
+		const renameMap = new Map<string, string>();
+		if (columnRenames) {
+			for (const { oldName, newName } of columnRenames) {
+				renameMap.set(newName, oldName);
+			}
+		}
+
+		const selectColumnNames = columns.map((it) => {
+			const oldName = renameMap.get(it.name);
+			return oldName ? `"${oldName}"` : `"${it.name}"`;
+		}).join(', ');
 
 		const sqlStatements: string[] = [];
 
@@ -3864,7 +3888,7 @@ class LibSQLRecreateTableConvertor extends Convertor {
 
 		// migrate data
 		sqlStatements.push(
-			`INSERT INTO \`${newTableName}\`(${columnNames}) SELECT ${columnNames} FROM \`${tableName}\`;`,
+			`INSERT INTO \`${newTableName}\`(${columnNames}) SELECT ${selectColumnNames} FROM \`${tableName}\`;`,
 		);
 
 		// drop table
