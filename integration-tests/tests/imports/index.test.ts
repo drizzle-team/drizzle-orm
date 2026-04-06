@@ -46,7 +46,7 @@ for (const [i, key] of Object.keys(pj['exports']).entries()) {
 	);
 }
 
-const chunksCJS = chunk(promisesCJS, 10);
+const chunksCJS = chunk(promisesCJS, 20);
 
 for (const c of chunksCJS) {
 	it.concurrent('dynamic imports check for CommonJS chunk', async () => {
@@ -80,7 +80,7 @@ for (const [i, key] of Object.keys(pj['exports']).entries()) {
 	);
 }
 
-const chunksESM = chunk(promises, 10);
+const chunksESM = chunk(promises, 20);
 
 for (const c of chunksESM) {
 	it('dynamic imports check for ESM chunk', async () => {
