@@ -3,10 +3,11 @@
 import { SQL } from 'bun';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
+import { makePgArray } from '~/pg-core/array.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import { arrayCompatNormalize, castToText, castToTextArr, refineGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
-import { type DrizzlePgConfig, makePgArray } from '~/pg-core/utils.ts';
+import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { BunSQLQueryResultHKT } from './session.ts';
 import { BunSQLSession } from './session.ts';

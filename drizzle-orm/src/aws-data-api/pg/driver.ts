@@ -2,13 +2,14 @@ import { RDSDataClient, type RDSDataClientConfig } from '@aws-sdk/client-rds-dat
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
+import { makePgArray } from '~/pg-core/array.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import { refineGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgColumn } from '~/pg-core/columns/common.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgInsertConfig } from '~/pg-core/query-builders/insert.ts';
 import type { PgTable, TableConfig } from '~/pg-core/table.ts';
-import { type DrizzlePgConfig, makePgArray } from '~/pg-core/utils.ts';
+import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { Param, type SQL, sql } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
