@@ -11,6 +11,7 @@ import type { SqliteSnapshot } from '../../dialects/sqlite/snapshot';
 import { BREAKPOINT } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
 import type { Driver } from '../validations/common';
+import { humanLog } from '../views';
 
 export const writeResult = (config: {
 	snapshot: SqliteSnapshot | PostgresSnapshot | MysqlSnapshot | MssqlSnapshot | CockroachSnapshot | SingleStoreSnapshot;
@@ -39,7 +40,7 @@ export const writeResult = (config: {
 
 	if (type === 'none') {
 		if (sqlStatements.length === 0) {
-			console.log('No schema changes, nothing to migrate 😴');
+			humanLog('No schema changes, nothing to migrate 😴');
 			return;
 		}
 	}
@@ -63,7 +64,7 @@ export const writeResult = (config: {
 	}
 
 	if (type === 'custom') {
-		console.log('Prepared empty file for your custom SQL migration!');
+		humanLog('Prepared empty file for your custom SQL migration!');
 		sql = '-- Custom SQL migration file, put your code below! --';
 	}
 

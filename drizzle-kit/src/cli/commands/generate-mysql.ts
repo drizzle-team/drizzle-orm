@@ -4,9 +4,10 @@ import type { JsonStatement } from 'src/dialects/mysql/statements';
 import { prepareOutFolder } from 'src/utils/utils-node';
 import { type Column, createDDL, interimToDDL, type MysqlDDL, type Table, type View } from '../../dialects/mysql/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/mysql/diff';
+import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import { withStyle } from '../validations/outputs';
-import { explain, mysqlSchemaError } from '../views';
+import { explain, humanLog, mysqlSchemaError, printJsonOutput } from '../views';
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
@@ -137,12 +138,14 @@ export const handle = async (
 
 	const { errors } = suggestions(statements, ddlCur);
 	if (errors.length) {
-		console.log(errors.map((err) => withStyle.errorWarning(err)).join('\n\n'));
-		process.exit(1);
+		throw new CommandOutputCliError('generate', errors.map((err) => withStyle.errorWarning(err)).join('\n\n'), {
+			stage: 'suggestions',
+			dialect: 'mysql',
+		});
 	}
 
 	const explainMessage = explain('mysql', groupedStatements, false, []);
-	if (explainMessage) console.log(explainMessage);
+	if (explainMessage) humanLog(explainMessage);
 
 	writeResult({
 		snapshot,
@@ -161,10 +164,13 @@ export const handleExport = async (config: ExportConfig) => {
 	const { ddl, errors } = interimToDDL(schema);
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => mysqlSchemaError(it)).join('\n'));
-		process.exit(1);
+		throw new CommandOutputCliError('export', errors.map((it) => mysqlSchemaError(it)).join('\n'), {
+			stage: 'ddl',
+			dialect: 'mysql',
+		});
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
-	console.log(sqlStatements.join('\n'));
+	printJsonOutput({ sqlStatements });
+	humanLog(sqlStatements.join('\n'));
 };

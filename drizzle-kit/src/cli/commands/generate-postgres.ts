@@ -19,8 +19,9 @@ import type {
 import { createDDL, interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { prepareSnapshot } from '../../dialects/postgres/serializer';
+import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
-import { explain, postgresSchemaError, postgresSchemaWarning } from '../views';
+import { explain, humanLog, postgresSchemaError, postgresSchemaWarning, printJsonOutput } from '../views';
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
@@ -74,7 +75,7 @@ export const handle = async (
 	);
 
 	const explainMessage = explain('postgres', groupedStatements, false, []);
-	if (explainMessage) console.log(explainMessage);
+	if (explainMessage) humanLog(explainMessage);
 
 	writeResult({
 		snapshot: snapshot,
@@ -96,21 +97,26 @@ export const handleExport = async (config: ExportConfig) => {
 		() => true,
 	);
 	if (warnings.length > 0) {
-		console.log(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
+		humanLog(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
 	}
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => postgresSchemaError(it)).join('\n'));
-		process.exit(1);
+		throw new CommandOutputCliError('export', errors.map((it) => postgresSchemaError(it)).join('\n'), {
+			stage: 'schema',
+			dialect: 'postgresql',
+		});
 	}
 
 	const { ddl, errors: errors2 } = interimToDDL(schema);
 
 	if (errors2.length > 0) {
-		console.log(errors2.map((it) => postgresSchemaError(it)).join('\n'));
-		process.exit(1);
+		throw new CommandOutputCliError('export', errors2.map((it) => postgresSchemaError(it)).join('\n'), {
+			stage: 'ddl',
+			dialect: 'postgresql',
+		});
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
-	console.log(sqlStatements.join('\n'));
+	printJsonOutput({ sqlStatements });
+	humanLog(sqlStatements.join('\n'));
 };
