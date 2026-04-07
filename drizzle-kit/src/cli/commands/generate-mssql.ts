@@ -15,9 +15,10 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../../dialects/mssql/ddl';
+import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import { withStyle } from '../validations/outputs';
-import { mssqlSchemaError } from '../views';
+import { humanLog, mssqlSchemaError, printJsonOutput } from '../views';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
@@ -62,7 +63,7 @@ export const handle = async (config: GenerateConfig) => {
 		recreateIdentity && Boolean(recreateIdentity.column.identity?.to)
 		&& !recreateIdentity.column.identity?.from
 	) {
-		console.log(
+		humanLog(
 			withStyle.warning(
 				chalk.red.bold('You are about to add an identity property to an existing column.')
 					+ '\n'
@@ -94,16 +95,21 @@ export const handleExport = async (config: ExportConfig) => {
 	const { schema, errors } = fromDrizzleSchema(res, config.casing, () => true);
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
-		process.exit(1);
+		throw new CommandOutputCliError('export', errors.map((it) => mssqlSchemaError(it)).join('\n'), {
+			stage: 'schema',
+			dialect: 'mssql',
+		});
 	}
 
 	const { ddl, errors: errors2 } = interimToDDL(schema);
 	if (errors2.length > 0) {
-		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
-		process.exit(1);
+		throw new CommandOutputCliError('export', errors2.map((it) => mssqlSchemaError(it)).join('\n'), {
+			stage: 'ddl',
+			dialect: 'mssql',
+		});
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
-	console.log(sqlStatements.join('\n'));
+	printJsonOutput({ sqlStatements });
+	humanLog(sqlStatements.join('\n'));
 };

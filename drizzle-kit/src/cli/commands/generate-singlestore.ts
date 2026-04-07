@@ -5,6 +5,7 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/singlest
 import { prepareSnapshot } from 'src/dialects/singlestore/serializer';
 import { prepareOutFolder } from 'src/utils/utils-node';
 import { resolver } from '../prompts';
+import { humanLog, printJsonOutput } from '../views';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
@@ -53,5 +54,6 @@ export const handleExport = async (config: ExportConfig) => {
 	const schema = fromDrizzleSchema(res.tables, config.casing);
 	const { ddl } = interimToDDL(schema);
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl);
-	console.log(sqlStatements.join('\n'));
+	printJsonOutput({ sqlStatements });
+	humanLog(sqlStatements.join('\n'));
 };
