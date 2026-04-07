@@ -1759,6 +1759,9 @@ export const connectToD1 = async (
 			const stmt = d1.prepare(query);
 			await stmt.run();
 		},
+		batch: async (statements: string[]) => {
+			await d1.batch(statements.map((s) => d1.prepare(s)));
+		},
 	};
 
 	const proxy: Proxy = async (params) => {

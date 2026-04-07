@@ -233,8 +233,7 @@ export class NetlifyDbWsSession<
 	): PgAsyncPreparedQuery<T> {
 		return new NeonPreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			this.cache,
 			queryMetadata,
@@ -254,8 +253,7 @@ export class NetlifyDbWsSession<
 	): PgAsyncPreparedQuery<T> {
 		return new NeonPreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			this.cache,
 			undefined,

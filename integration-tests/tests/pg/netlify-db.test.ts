@@ -35,7 +35,7 @@ import {
 	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
-import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import pg from 'pg';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
@@ -283,7 +283,7 @@ describe('migrator', () => {
 
 		// create migration directory
 		const migrationDir = './migrations/postgres-neon-http';
-		if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
+		if (existsSync(migrationDir)) rmSync(migrationDir, { recursive: true });
 		mkdirSync(migrationDir, { recursive: true });
 
 		// first branch
@@ -318,7 +318,7 @@ describe('migrator', () => {
 		expect(res1).toStrictEqual(expected);
 		expect(res2).toStrictEqual(expected);
 
-		rmdirSync(migrationDir, { recursive: true });
+		rmSync(migrationDir, { recursive: true });
 	});
 
 	test('all date and time columns without timezone first case mode string', async ({ db, push }) => {
