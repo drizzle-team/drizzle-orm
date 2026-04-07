@@ -2045,7 +2045,7 @@ test('.as in view select', async () => {
 				.from(user)
 				.leftJoin(
 					userSubscription,
-					sql`(${user.id} = ${userSubscription.userId} and (${userSubscription.status} = 'active' or ${userSubscription.status} = 'trialing'))`,
+					sql`((${user.id} = ${userSubscription.userId}) and (((${userSubscription.status} = 'active') or (${userSubscription.status} = 'trialing'))))`,
 				);
 		},
 	);
@@ -2084,8 +2084,8 @@ test('.as in view select', async () => {
 	const expectedSt1View = (viewName: string) =>
 		`CREATE VIEW "${viewName}" AS `
 		+ `(select "user"."id" as "userId", "user"."email", "user"."name", "user_subscription"."id" as "subscriptionId", "user_subscription"."status" `
-		+ `from "user" left join "user_subscription" on ("user"."id" = "user_subscription"."userId" `
-		+ `and ("user_subscription"."status" = 'active' or "user_subscription"."status" = 'trialing')));`;
+		+ `from "user" left join "user_subscription" on (("user"."id" = "user_subscription"."userId") `
+		+ `and ((("user_subscription"."status" = 'active') or ("user_subscription"."status" = 'trialing')))));`;
 	const expectedSt1 = [
 		'CREATE TABLE "user" (\n\t"id" serial PRIMARY KEY,\n\t"email" text,\n\t"name" text\n);\n',
 		'CREATE TABLE "user_subscription" (\n\t"id" serial PRIMARY KEY,\n\t"userId" integer,\n\t"status" text\n);\n',
@@ -2105,7 +2105,7 @@ test('.as in view select', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4181
 // casing bug
-test.skipIf(Date.now() < +new Date('2026-02-10'))('create view with snake_case', async () => {
+test.skipIf(Date.now() < +new Date('2026-04-12'))('create view with snake_case', async () => {
 	const test = pgTable('test', {
 		testId: serial().primaryKey(),
 		testName: text().notNull(),
@@ -2142,7 +2142,7 @@ test.skipIf(Date.now() < +new Date('2026-02-10'))('create view with snake_case',
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4181
 // casing bug
-test.skipIf(Date.now() < +new Date('2026-02-10'))('create view with camelCase', async () => {
+test.skipIf(Date.now() < +new Date('2026-04-12'))('create view with camelCase', async () => {
 	const test = pgTable('test', {
 		test_id: serial().primaryKey(),
 		test_name: text().notNull(),

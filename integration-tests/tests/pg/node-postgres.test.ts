@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { getTableConfig, integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe, expect } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
@@ -534,7 +534,7 @@ describe('migrator', () => {
 
 		// create migration directory
 		const migrationDir = './migrations/postgres';
-		if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
+		if (existsSync(migrationDir)) rmSync(migrationDir, { recursive: true });
 		mkdirSync(migrationDir, { recursive: true });
 
 		// first branch
@@ -569,6 +569,6 @@ describe('migrator', () => {
 		expect(res1).toStrictEqual(expected);
 		expect(res2).toStrictEqual(expected);
 
-		rmdirSync(migrationDir, { recursive: true });
+		rmSync(migrationDir, { recursive: true });
 	});
 });

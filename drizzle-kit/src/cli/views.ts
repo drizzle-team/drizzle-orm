@@ -1665,7 +1665,9 @@ export class IntrospectProgress extends TaskView {
 		super();
 		this.timeout = setInterval(() => {
 			this.spinner.tick();
-			this.requestLayout();
+			if (this.terminal) {
+				this.requestLayout();
+			}
 		}, 128);
 
 		this.on('detach', () => clearInterval(this.timeout));
@@ -1678,7 +1680,9 @@ export class IntrospectProgress extends TaskView {
 	) {
 		this.state[stage].count = count;
 		this.state[stage].status = status;
-		this.requestLayout();
+		if (this.terminal) {
+			this.requestLayout();
+		}
 	}
 
 	private formatCount = (count: number) => {
@@ -1704,7 +1708,13 @@ export class IntrospectProgress extends TaskView {
 		return `${prefix} ${suffix}\n`;
 	};
 
-	render(): string {
+	render(
+		status: 'pending' | 'done' | 'rejected' = 'pending',
+		error?: Error,
+	): string {
+		if (status === 'rejected' && error) {
+			return `[${chalk.red('✗')}] Error during introspection:\n${chalk.red(error.message)}\n${error.stack ?? ''}\n`;
+		}
 		let info = '';
 		const spin = this.spinner.value();
 		info += this.statusText(spin, this.state.tables);
@@ -1734,8 +1744,8 @@ export class MigrateProgress extends TaskView {
 		this.on('detach', () => clearInterval(this.timeout));
 	}
 
-	render(status: 'pending' | 'done'): string {
-		if (status === 'pending') {
+	render(status: 'pending' | 'done' | 'rejected'): string {
+		if (status === 'pending' || status === 'rejected') {
 			const spin = this.spinner.value();
 			return `[${spin}] applying migrations...`;
 		}
@@ -1766,8 +1776,8 @@ export class ProgressView extends TaskView {
 		this.on('detach', () => clearInterval(this.timeout));
 	}
 
-	render(status: 'pending' | 'done'): string {
-		if (status === 'pending') {
+	render(status: 'pending' | 'done' | 'rejected'): string {
+		if (status === 'pending' || status === 'rejected') {
 			const spin = this.spinner.value();
 			return `[${spin}] ${this.progressText}\n`;
 		}

@@ -1,17 +1,24 @@
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mysql/drizzle';
 import { prepareSnapshot } from 'src/dialects/mysql/serializer';
 import type { JsonStatement } from 'src/dialects/mysql/statements';
-import { prepareFilenames, prepareOutFolder } from 'src/utils/utils-node';
+import { prepareOutFolder } from 'src/utils/utils-node';
 import { type Column, createDDL, interimToDDL, type MysqlDDL, type Table, type View } from '../../dialects/mysql/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/mysql/diff';
 import { resolver } from '../prompts';
 import { withStyle } from '../validations/outputs';
 import { explain, mysqlSchemaError } from '../views';
+import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
-export const suggestions = (jsonStatements: JsonStatement[], ddl2: MysqlDDL) => {
-	const grouped: { hints: string[]; errors: string[] } = { errors: [], hints: [] };
+export const suggestions = (
+	jsonStatements: JsonStatement[],
+	ddl2: MysqlDDL,
+) => {
+	const grouped: { hints: string[]; errors: string[] } = {
+		errors: [],
+		hints: [],
+	};
 
 	for (const statement of jsonStatements) {
 		if (statement.type === 'create_fk' && statement.cause !== 'alter_pk') {
@@ -30,7 +37,8 @@ export const suggestions = (jsonStatements: JsonStatement[], ddl2: MysqlDDL) => 
 				return index.columns.every((col) => columnsToSet.has(col.value));
 			});
 
-			const isPkFound = pk && pk.columns.length === columnsToSet.size
+			const isPkFound = pk
+				&& pk.columns.length === columnsToSet.size
 				&& pk.columns.every((col) => columnsToSet.has(col));
 
 			if (isPkFound || isUniqueFound) continue;
@@ -73,9 +81,13 @@ export const suggestions = (jsonStatements: JsonStatement[], ddl2: MysqlDDL) => 
 
 			grouped.errors.push(
 				`· You are trying to drop primary key from "${table}" ("${
-					columns.join('", ')
+					columns.join(
+						'", ',
+					)
 				}"), but there is an existing reference on this column. You must either add a UNIQUE constraint to ("${
-					columns.join('", ')
+					columns.join(
+						'", ',
+					)
 				}") or drop the foreign key constraint that references this column.`,
 			);
 
@@ -86,13 +98,19 @@ export const suggestions = (jsonStatements: JsonStatement[], ddl2: MysqlDDL) => 
 	return grouped;
 };
 
-export const handle = async (config: GenerateConfig) => {
-	const outFolder = config.out;
-	const schemaPath = config.schema;
-	const casing = config.casing;
+export const handle = async (
+	config: GenerateConfig,
+	checkResult?: CheckHandlerResult,
+) => {
+	const { out: outFolder, casing, filenames } = config;
 
 	const { snapshots } = prepareOutFolder(outFolder);
-	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, schemaPath, casing);
+	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(
+		snapshots,
+		filenames,
+		casing,
+		checkResult,
+	);
 
 	if (config.custom) {
 		writeResult({
@@ -138,8 +156,7 @@ export const handle = async (config: GenerateConfig) => {
 };
 
 export const handleExport = async (config: ExportConfig) => {
-	const filenames = prepareFilenames(config.schema);
-	const res = await prepareFromSchemaFiles(filenames);
+	const res = await prepareFromSchemaFiles(config.filenames);
 	const schema = fromDrizzleSchema(res.tables, res.views, config.casing);
 	const { ddl, errors } = interimToDDL(schema);
 

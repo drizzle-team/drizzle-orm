@@ -29,7 +29,7 @@ import {
 	year,
 } from 'drizzle-orm/singlestore-core';
 import { migrate } from 'drizzle-orm/singlestore/migrator';
-import { existsSync, mkdirSync, rmdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe, expect } from 'vitest';
 import { toLocalDate } from '../utils';
 import type { Test } from './instrumentation';
@@ -956,7 +956,7 @@ export function tests(test: Test) {
 
 			// create migration directory
 			const migrationDir = './migrations/singlestore';
-			if (existsSync(migrationDir)) rmdirSync(migrationDir, { recursive: true });
+			if (existsSync(migrationDir)) rmSync(migrationDir, { recursive: true });
 			mkdirSync(migrationDir, { recursive: true });
 
 			// first branch
@@ -993,7 +993,7 @@ export function tests(test: Test) {
 			expect(res1).toStrictEqual(expected);
 			expect(res2).toStrictEqual(expected);
 
-			rmdirSync(migrationDir, { recursive: true });
+			rmSync(migrationDir, { recursive: true });
 		});
 
 		test.concurrent('insert via db.execute + select via db.execute', async ({ db }) => {

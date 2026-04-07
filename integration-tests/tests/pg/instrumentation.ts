@@ -541,16 +541,16 @@ const testFor = (
 		db: PgAsyncDatabase<any, any, typeof relations>;
 		push: (schema: any, params?: { log: 'statements' }) => Promise<void>;
 		createDB: {
-			<S extends PostgresSchema>(schema: S): PgAsyncDatabase<any, any, ReturnType<typeof defineRelations<S>>>;
+			<S extends PostgresSchema>(schema: S): PgAsyncDatabase<any, S, ReturnType<typeof defineRelations<S>>>;
 			<S extends PostgresSchema, TConfig extends AnyRelationsBuilderConfig>(
 				schema: S,
 				cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
-			): PgAsyncDatabase<any, any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
+			): PgAsyncDatabase<any, S, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
 			<S extends PostgresSchema, TConfig extends AnyRelationsBuilderConfig>(
 				schema: S,
 				cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
 				casing: NonNullable<DrizzleConfig['casing']>,
-			): PgAsyncDatabase<any, any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
+			): PgAsyncDatabase<any, S, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
 		};
 		caches: { all: PgAsyncDatabase<any, any, typeof relations>; explicit: PgAsyncDatabase<any, any, typeof relations> };
 	}>({
@@ -653,12 +653,18 @@ const testFor = (
 				) => {
 					const relations = cb ? defineRelations(schema, cb) : defineRelations(schema);
 
-					if (vendor === 'neon-http') return drizzleNeonHttp({ client: kit.client, relations, casing });
-					if (vendor === 'neon-serverless') return drizzleNeonWs({ client: kit.client as any, relations, casing });
-					if (vendor === 'pglite') return drizzlePglite({ client: kit.client as any, relations, casing });
-					if (vendor === 'node-postgres') return drizzleNodePostgres({ client: kit.client as any, relations, casing });
-					if (vendor === 'postgresjs') return drizzlePostgresjs({ client: kit.client as any, relations, casing });
-					if (vendor === 'netlify-db') return drizzleNetlify({ client: kit.client as any, relations, casing });
+					if (vendor === 'neon-http') return drizzleNeonHttp({ client: kit.client, relations, schema, casing });
+					if (vendor === 'neon-serverless') {
+						return drizzleNeonWs({ client: kit.client as any, relations, schema, casing });
+					}
+					if (vendor === 'pglite') return drizzlePglite({ client: kit.client as any, relations, schema, casing });
+					if (vendor === 'node-postgres') {
+						return drizzleNodePostgres({ client: kit.client as any, relations, schema, casing });
+					}
+					if (vendor === 'postgresjs') {
+						return drizzlePostgresjs({ client: kit.client as any, relations, schema, casing });
+					}
+					if (vendor === 'netlify-db') return drizzleNetlify({ client: kit.client as any, relations, schema, casing });
 
 					if (vendor === 'proxy') {
 						const serverSimulator = new ServerSimulator(kit.client);
@@ -676,7 +682,7 @@ const testFor = (
 								throw e;
 							}
 						};
-						return drizzleProxy(proxyHandler, { relations, casing });
+						return drizzleProxy(proxyHandler, { relations, schema, casing });
 					}
 					throw new Error();
 				};

@@ -1,12 +1,12 @@
 {
 	"name": "drizzle-seed",
-	"version": "1.0.0-beta.15",
+	"version": "1.0.0-beta.20",
 	"main": "./index.cjs",
 	"module": "./index.mjs",
 	"types": "./index.d.ts",
 	"type": "module",
 	"scripts": {
-		"build": "tsx scripts/build.ts",
+		"build": "bun --bun run scripts/build.ts",
 		"build:artifact": "pnpm run build",
 		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"pack:artifact": "pnpm run pack",
@@ -97,7 +97,6 @@
 		"mssql": "^11.0.1",
 		"mysql2": "^3.14.1",
 		"pg": "^8.12.0",
-		"tsdown": "^0.18.3",
 		"tslib": "^2.7.0",
 		"tsx": "^4.19.0",
 		"uuid": "^10.0.0",

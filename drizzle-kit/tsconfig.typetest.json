@@ -19,6 +19,10 @@
 		"isolatedModules": true,
 		"sourceMap": true,
 		"baseUrl": ".",
+		"paths": {
+			"@/*": ["tests/fixtures/tsconfig-paths/src/*"],
+			"@profile": ["tests/fixtures/tsconfig-paths/src/profile/schema.ts"]
+		},
 		"outDir": "dist",
 		"noEmit": true,
 		"typeRoots": ["node_modules/@types", "src/@types"]

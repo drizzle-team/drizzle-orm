@@ -7,7 +7,6 @@ import { interimToDDL } from '../../dialects/mysql/ddl';
 import { ddlDiff } from '../../dialects/mysql/diff';
 import type { JsonStatement } from '../../dialects/mysql/statements';
 import type { DB } from '../../utils';
-import { prepareFilenames } from '../../utils/utils-node';
 import { connectToMySQL } from '../connections';
 import { highlightSQL } from '../highlighter';
 import { resolver } from '../prompts';
@@ -19,7 +18,7 @@ import { explain, mysqlSchemaError, ProgressView } from '../views';
 import { introspect } from './pull-mysql';
 
 export const handle = async (
-	schemaPath: string | string[],
+	filenames: string[],
 	credentials: MysqlCredentials,
 	verbose: boolean,
 	force: boolean,
@@ -33,8 +32,6 @@ export const handle = async (
 ) => {
 	const { prepareFromSchemaFiles, fromDrizzleSchema } = await import('../../dialects/mysql/drizzle');
 
-	const filenames = prepareFilenames(schemaPath);
-	console.log(chalk.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
 	const res = await prepareFromSchemaFiles(filenames);
 
 	const existing = extractMysqlExisting(res.views);
