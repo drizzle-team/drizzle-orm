@@ -2,9 +2,11 @@ import chalk from 'chalk';
 import { writeFileSync } from 'fs';
 import { upToV8 } from 'src/dialects/postgres/versions';
 import { prepareOutFolder, validateWithReport } from '../../utils/utils-node';
+import { humanLog } from '../views';
+import type { UpJsonState } from './up-state';
 import { migrateToFoldersV3 } from './utils';
 
-export const upPgHandler = (out: string) => {
+export const upPgHandler = (out: string, jsonState?: UpJsonState) => {
 	migrateToFoldersV3(out);
 
 	const { snapshots } = prepareOutFolder(out);
@@ -20,10 +22,14 @@ export const upPgHandler = (out: string) => {
 
 			const { snapshot } = upToV8(it.raw);
 
-			console.log(`[${chalk.green('✓')}] ${path}`);
+			if (jsonState) {
+				jsonState.addUpgradedFile(path);
+			}
+
+			humanLog(`[${chalk.green('✓')}] ${path}`);
 
 			writeFileSync(path, JSON.stringify(snapshot, null, 2));
 		});
 
-	console.log("Everything's fine 🐶🔥");
+	humanLog("Everything's fine 🐶🔥");
 };

@@ -13,10 +13,12 @@ import {
 	type SqliteSnapshot,
 } from '../../dialects/sqlite/snapshot';
 import { mapEntries } from '../../utils';
+import { humanLog } from '../views';
 import { embeddedMigrations } from './generate-common';
+import type { UpJsonState } from './up-state';
 import { migrateToFoldersV3 } from './utils';
 
-export const upSqliteHandler = (out: string) => {
+export const upSqliteHandler = (out: string, jsonState?: UpJsonState) => {
 	migrateToFoldersV3(out);
 
 	const { snapshots } = prepareOutFolder(out);
@@ -39,7 +41,12 @@ export const upSqliteHandler = (out: string) => {
 				throw new Error(`unexpected version of SQLite snapshot: ${it.raw['version']}`);
 			}
 
-			console.log(`[${chalk.green('✓')}] ${path}`);
+			if (jsonState) {
+				jsonState.addUpgradedFile(path);
+			}
+
+			humanLog(`[${chalk.green('✓')}] ${path}`);
+
 			writeFileSync(path, JSON.stringify(result, null, 2));
 		});
 
@@ -48,7 +55,7 @@ export const upSqliteHandler = (out: string) => {
 		writeFileSync(`${out}/migrations.js`, js);
 	}
 
-	console.log("Everything's fine 🐶🔥");
+	humanLog("Everything's fine 🐶🔥");
 };
 
 export const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
