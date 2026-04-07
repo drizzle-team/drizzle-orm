@@ -16,6 +16,7 @@ import { upMysqlHandler } from './commands/up-mysql';
 import { upPgHandler } from './commands/up-postgres';
 import { upSinglestoreHandler } from './commands/up-singlestore';
 import { upSqliteHandler } from './commands/up-sqlite';
+import { UpJsonState } from './commands/up-state';
 import {
 	prepareCheckParams,
 	prepareExportConfig,
@@ -25,12 +26,19 @@ import {
 	preparePushConfig,
 	prepareStudioConfig,
 } from './commands/utils';
+import {
+	CheckCliError,
+	OrmDriverVersionCliError,
+	UnsupportedCommandCliError,
+	UnsupportedCommandDialectCliError,
+} from './errors';
+import { isJsonMode } from './mode';
 import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersionGt } from './utils';
 import { assertCollisions, drivers } from './validations/common';
 import type { LibSQLCredentials } from './validations/libsql';
 import { withStyle } from './validations/outputs';
 import type { SqliteCredentials } from './validations/sqlite';
-import { error, grey, MigrateProgress } from './views';
+import { error, grey, humanLog, MigrateProgress, printJsonOutput } from './views';
 
 const optionDialect = string('dialect')
 	.enum(...dialects)
@@ -108,7 +116,9 @@ export const generate = command({
 			const { handle } = await import('./commands/generate-singlestore');
 			await handle(opts);
 		} else if (dialect === 'gel') {
-			throw new Error(`You can't use 'generate' command with Gel dialect`);
+			throw new UnsupportedCommandCliError('generate', error(`You can't use 'generate' command with Gel dialect`), {
+				dialect: 'Gel',
+			});
 		} else if (dialect === 'mssql') {
 			const { handle } = await import('./commands/generate-mssql');
 			await handle(opts);
@@ -116,10 +126,9 @@ export const generate = command({
 			const { handle } = await import('./commands/generate-cockroach');
 			await handle(opts);
 		} else if (dialect === 'duckdb') {
-			console.log(
-				error(`You can't use 'generate' command with DuckDb dialect`),
-			);
-			process.exit(1);
+			throw new UnsupportedCommandCliError('generate', error(`You can't use 'generate' command with DuckDb dialect`), {
+				dialect: 'DuckDb',
+			});
 		} else {
 			assertUnreachable(dialect);
 		}
@@ -144,9 +153,7 @@ export const migrate = command({
 	handler: async (opts) => {
 		await assertOrmCoreVersion();
 		await assertPackages('drizzle-orm');
-
 		assertV3OutFolder(opts.out);
-
 		const { dialect, schema, table, out, credentials, ignoreConflicts } = opts;
 
 		await checkHandler(out, dialect, ignoreConflicts);
@@ -156,17 +163,19 @@ export const migrate = command({
 				const { driver } = credentials;
 				if (driver === 'aws-data-api') {
 					if (!(await ormVersionGt('0.30.10'))) {
-						console.log(
+						throw new OrmDriverVersionCliError(
+							'aws-data-api',
+							'0.30.10',
 							"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
 						);
-						process.exit(1);
 					}
 				} else if (driver === 'pglite') {
 					if (!(await ormVersionGt('0.30.6'))) {
-						console.log(
+						throw new OrmDriverVersionCliError(
+							'pglite',
+							'0.30.6',
 							"To use 'pglite' driver - please update drizzle-orm to the latest version",
 						);
-						process.exit(1);
 					}
 				} else {
 					assertUnreachable(driver);
@@ -210,7 +219,7 @@ export const migrate = command({
 			await renderWithTask(
 				new MigrateProgress(),
 				migrate({
-					migrationsFolder: opts.out,
+					migrationsFolder: out,
 					migrationsTable: table,
 					migrationsSchema: schema,
 				}),
@@ -221,7 +230,7 @@ export const migrate = command({
 			await renderWithTask(
 				new MigrateProgress(),
 				migrate({
-					migrationsFolder: opts.out,
+					migrationsFolder: out,
 					migrationsTable: table,
 					migrationsSchema: schema,
 				}),
@@ -249,7 +258,7 @@ export const migrate = command({
 				}),
 			);
 		} else if (dialect === 'gel') {
-			throw new Error(`You can't use 'migrate' command with Gel dialect`);
+			throw new UnsupportedCommandCliError('migrate', `You can't use 'migrate' command with Gel dialect`);
 		} else {
 			assertUnreachable(dialect);
 		}
@@ -328,12 +337,11 @@ export const push = command({
 		);
 
 		if (typeof opts.strict !== 'undefined') {
-			console.log(
-				withStyle.fullWarning(
-					"⚠️ Deprecated: Do not use 'strict' flag. Use 'explain' instead",
-				),
+			throw new UnsupportedCommandCliError(
+				'push',
+				withStyle.fullWarning("⚠️ Deprecated: Do not use 'strict' flag. Use 'explain' instead"),
+				{ option: 'strict' },
 			);
-			process.exit(1);
 		}
 
 		return preparePushConfig(opts, from);
@@ -370,16 +378,18 @@ export const push = command({
 			if ('driver' in credentials) {
 				const { driver } = credentials;
 				if (driver === 'aws-data-api' && !(await ormVersionGt('0.30.10'))) {
-					console.log(
+					throw new OrmDriverVersionCliError(
+						'aws-data-api',
+						'0.30.10',
 						"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
 					);
-					process.exit(1);
 				}
 				if (driver === 'pglite' && !(await ormVersionGt('0.30.6'))) {
-					console.log(
+					throw new OrmDriverVersionCliError(
+						'pglite',
+						'0.30.6',
 						"To use 'pglite' driver - please update drizzle-orm to the latest version",
 					);
-					process.exit(1);
 				}
 			}
 
@@ -449,7 +459,7 @@ export const push = command({
 				migrations,
 			);
 		} else if (dialect === 'gel') {
-			console.log(error(`You can't use 'push' command with Gel dialect`));
+			throw new UnsupportedCommandCliError('push', `You can't use 'push' command with Gel dialect`);
 		} else {
 			assertUnreachable(dialect);
 		}
@@ -483,7 +493,7 @@ export const check = command({
 
 		const { out, dialect, ignoreConflicts } = config;
 		await checkHandler(out, dialect, ignoreConflicts);
-		console.log("Everything's fine 🐶🔥");
+		humanLog("Everything's fine 🐶🔥");
 	},
 });
 
@@ -503,21 +513,22 @@ export const up = command({
 
 		const { out, dialect } = config;
 		await assertPackages('drizzle-orm');
+		const jsonState = isJsonMode() ? new UpJsonState() : undefined;
 
 		if (dialect === 'postgresql') {
-			upPgHandler(out);
+			upPgHandler(out, jsonState);
 		}
 
 		if (dialect === 'mysql') {
-			upMysqlHandler(out);
+			upMysqlHandler(out, jsonState);
 		}
 
 		if (dialect === 'sqlite' || dialect === 'turso') {
-			upSqliteHandler(out);
+			upSqliteHandler(out, jsonState);
 		}
 
 		if (dialect === 'singlestore') {
-			upSinglestoreHandler(out);
+			upSinglestoreHandler(out, jsonState);
 		}
 
 		if (dialect === 'cockroach') {
@@ -525,12 +536,14 @@ export const up = command({
 		}
 
 		if (dialect === 'mssql') {
-			upMssqlHandler(out);
+			upMssqlHandler(out, jsonState);
 		}
 
 		if (dialect === 'gel') {
-			throw new Error(`You can't use 'up' command with Gel dialect`);
+			throw new UnsupportedCommandDialectCliError('up', 'Gel');
 		}
+
+		printJsonOutput(jsonState);
 	},
 });
 
@@ -600,17 +613,19 @@ export const pull = command({
 				const { driver } = credentials;
 				if (driver === 'aws-data-api') {
 					if (!(await ormVersionGt('0.30.10'))) {
-						console.log(
+						throw new OrmDriverVersionCliError(
+							'aws-data-api',
+							'0.30.10',
 							"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
 						);
-						process.exit(1);
 					}
 				} else if (driver === 'pglite') {
 					if (!(await ormVersionGt('0.30.6'))) {
-						console.log(
+						throw new OrmDriverVersionCliError(
+							'pglite',
+							'0.30.6',
 							"To use 'pglite' driver - please update drizzle-orm to the latest version",
 						);
-						process.exit(1);
 					}
 				} else {
 					assertUnreachable(driver);
@@ -738,11 +753,13 @@ export const pull = command({
 
 		if (init) {
 			if (!migrate) {
-				throw new Error(`--init can't be used with '${dialect}' dialect`);
+				throw new CheckCliError('conflicts', `--init can't be used with '${dialect}' dialect`, {
+					dialect: dialect,
+				});
 			}
 
-			console.log();
-			console.log(grey('Applying migration metadata to the database'));
+			humanLog();
+			humanLog(grey('Applying migration metadata to the database'));
 
 			const migrateInput = {
 				migrationsFolder: out,
@@ -756,10 +773,11 @@ export const pull = command({
 
 			if (error) {
 				if (error.exitCode === 'localMigrations') {
-					throw new Error("--init can't be used with existing migrations");
+					throw new CheckCliError('conflicts', "--init can't be used with existing migrations");
 				}
 				if (error.exitCode === 'databaseMigrations') {
-					throw new Error(
+					throw new CheckCliError(
+						'conflicts',
 						"--init can't be used when database already has migrations set",
 					);
 				}
@@ -976,7 +994,9 @@ export const exportRaw = command({
 			const { handleExport } = await import('./commands/generate-singlestore');
 			await handleExport(opts);
 		} else if (dialect === 'gel') {
-			throw new Error(`You can't use 'export' command with Gel dialect`);
+			throw new UnsupportedCommandCliError('export', error(`You can't use 'export' command with Gel dialect`), {
+				dialect: 'Gel',
+			});
 		} else if (dialect === 'mssql') {
 			const { handleExport } = await import('./commands/generate-mssql');
 			await handleExport(opts);
@@ -984,8 +1004,9 @@ export const exportRaw = command({
 			const { handleExport } = await import('./commands/generate-cockroach');
 			await handleExport(opts);
 		} else if (dialect === 'duckdb') {
-			console.log(error(`You can't use 'export' command with DuckDb dialect`));
-			process.exit(1);
+			throw new UnsupportedCommandCliError('export', error(`You can't use 'export' command with DuckDb dialect`), {
+				dialect: 'DuckDb',
+			});
 		} else {
 			assertUnreachable(dialect);
 		}
