@@ -5,9 +5,11 @@ import { prepareOutFolder, validateWithReport } from 'src/utils/utils-node';
 import { createDDL } from '../../dialects/mysql/ddl';
 import { Binary, Varbinary } from '../../dialects/mysql/grammar';
 import { trimChar } from '../../utils';
+import { humanLog } from '../views';
+import type { UpJsonState } from './up-state';
 import { migrateToFoldersV3 } from './utils';
 
-export const upSinglestoreHandler = (out: string) => {
+export const upSinglestoreHandler = (out: string, jsonState?: UpJsonState) => {
 	migrateToFoldersV3(out);
 
 	const { snapshots } = prepareOutFolder(out);
@@ -23,12 +25,16 @@ export const upSinglestoreHandler = (out: string) => {
 
 			const snapshot = upToV2(it.raw);
 
-			console.log(`[${chalk.green('✓')}] ${path}`);
+			if (jsonState) {
+				jsonState.addUpgradedFile(path);
+			}
+
+			humanLog(`[${chalk.green('✓')}] ${path}`);
 
 			writeFileSync(path, JSON.stringify(snapshot, null, 2));
 		});
 
-	console.log("Everything's fine 🐶🔥");
+	humanLog("Everything's fine 🐶🔥");
 };
 
 export const upToV2 = (it: Record<string, any>): SingleStoreSnapshot => {
