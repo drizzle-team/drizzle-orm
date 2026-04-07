@@ -20,13 +20,14 @@ import { ddlDiff } from '../../dialects/mssql/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/mssql/drizzle';
 import type { JsonStatement } from '../../dialects/mssql/statements';
 import type { DB } from '../../utils';
+import { CommandOutputCliError } from '../errors';
 import { highlightSQL } from '../highlighter';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MssqlCredentials } from '../validations/mssql';
-import { explain, mssqlSchemaError, ProgressView } from '../views';
+import { explain, humanLog, mssqlSchemaError, ProgressView } from '../views';
 
 export const handle = async (
 	filenames: string[],
@@ -53,8 +54,9 @@ export const handle = async (
 	const { schema: schemaTo, errors } = fromDrizzleSchema(res, casing, filter);
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
-		process.exit(1);
+		throw new CommandOutputCliError('push', errors.map((it) => mssqlSchemaError(it)).join('\n'), {
+			dialect: 'mssql',
+		});
 	}
 
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
@@ -64,8 +66,9 @@ export const handle = async (
 	const { ddl: ddl2, errors: errors1 } = interimToDDL(schemaTo);
 
 	if (errors1.length > 0) {
-		console.log(errors1.map((it) => mssqlSchemaError(it)).join('\n'));
-		process.exit(1);
+		throw new CommandOutputCliError('push', errors1.map((it) => mssqlSchemaError(it)).join('\n'), {
+			dialect: 'mssql',
+		});
 	}
 
 	const { sqlStatements, statements: jsonStatements, groupedStatements } = await ddlDiff(
@@ -92,7 +95,7 @@ export const handle = async (
 	const hints = await suggestions(db, jsonStatements, ddl2);
 
 	const explainMessage = explain('mssql', groupedStatements, explainFlag, hints);
-	if (explainMessage) console.log(explainMessage);
+	if (explainMessage) humanLog(explainMessage);
 	if (explainFlag) return;
 
 	if (!force && hints.length > 0) {
@@ -100,14 +103,14 @@ export const handle = async (
 
 		if (data?.index === 0) {
 			render(`[${chalk.red('x')}] All changes were aborted`);
-			process.exit(0);
+			return;
 		}
 	}
 
 	const lossStatements = hints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
 
 	for (const statement of [...lossStatements, ...sqlStatements]) {
-		if (verbose) console.log(highlightSQL(statement));
+		if (verbose) humanLog(highlightSQL(statement));
 
 		await db.query(statement);
 	}
