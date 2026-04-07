@@ -1,5 +1,15 @@
-import { sql } from 'drizzle-orm';
-import { boolean, cockroachTable, index, int4, text, uniqueIndex, uuid } from 'drizzle-orm/cockroach-core';
+import { isNotNull, sql } from 'drizzle-orm';
+import {
+	boolean,
+	cockroachSchema,
+	cockroachTable,
+	index,
+	IndexBuilder,
+	int4,
+	text,
+	uniqueIndex,
+	uuid,
+} from 'drizzle-orm/cockroach-core';
 import { expect } from 'vitest';
 import { diff, push, test } from './mocks';
 
@@ -439,6 +449,8 @@ test('index #4', async ({ dbc: db }) => {
 		index4,
 		index5,
 		index6,
+		index7,
+		index8,
 	]);
 
 	const index1 = uniqueIndex('index1').on(table1.col1);
@@ -447,6 +459,10 @@ test('index #4', async ({ dbc: db }) => {
 	const index4 = index('index4').on(table1.col1, table1.col2);
 	const index5 = index('index5').on(sql`${table1.col1} asc`);
 	const index6 = index('index6').on(sql`${table1.col1} asc`, sql`${table1.col2} desc`);
+	throw new Error();
+	// TODO: it's needed to fix ts error;
+	const index7 = uniqueIndex('index7').on(table1.col1).where(isNotNull(table1.col1));
+	const index8 = index('index8').on(table1.col1).where(isNotNull(table1.col1));
 
 	const schema1 = { table1 };
 
@@ -464,6 +480,40 @@ test('index #4', async ({ dbc: db }) => {
 		'CREATE INDEX "index4" ON "table1" ("col1","col2");',
 		'CREATE INDEX "index5" ON "table1" ("col1" asc);',
 		'CREATE INDEX "index6" ON "table1" ("col1" asc,"col2" desc);',
+		'CREATE UNIQUE INDEX "index7" ON "table1" ("col1") WHERE ("table1"."col1" is not null);',
+		'CREATE INDEX "index8" ON "table1" ("col1") WHERE ("table1"."col1" is not null);',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5593
+test('indexes #5', async ({ dbc: db }) => {
+	const schema = cockroachSchema('my_schema');
+	const table1 = schema.table('table1', {
+		col1: int4(),
+		col2: int4(),
+	}, () => [
+		index1,
+		index2,
+	]);
+	// TODO: it's needed to fix ts error; If you remove type from index7/index8, it will trigger an ts error in table1 definition.
+	const index1: IndexBuilder = uniqueIndex('index1').on(table1.col1).where(isNotNull(table1.col1));
+	const index2: IndexBuilder = index('index2').on(table1.col1).where(isNotNull(table1.col1));
+
+	const schema1 = { schema, table1 };
+
+	const { sqlStatements: st1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+
+	const expectedSt1 = [
+		'CREATE SCHEMA "my_schema";\n',
+		'CREATE TABLE "my_schema"."table1" (\n'
+		+ '\t"col1" int4,\n'
+		+ '\t"col2" int4\n'
+		+ ');\n',
+		'CREATE UNIQUE INDEX "index1" ON "my_schema"."table1" ("col1") WHERE ("my_schema"."table1"."col1" is not null);',
+		'CREATE INDEX "index2" ON "my_schema"."table1" ("col1") WHERE ("my_schema"."table1"."col1" is not null);',
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
