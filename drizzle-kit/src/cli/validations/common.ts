@@ -3,6 +3,7 @@ import type { UnionToIntersection } from 'hono/utils/types';
 import { dialect } from 'src/utils/schemaValidator';
 import type { TypeOf } from 'zod';
 import { any, boolean, coerce, enum as enum_, literal, object, string, union } from 'zod';
+import { AmbiguousParamsCliError } from '../errors';
 import { outputs } from './outputs';
 
 export type Commands =
@@ -58,8 +59,7 @@ export const assertCollisions = <
 	}
 
 	// if config and cli - return error - write a reason
-	console.log(outputs.common.ambiguousParams(command));
-	process.exit(1);
+	throw new AmbiguousParamsCliError(command, outputs.common.ambiguousParams(command));
 };
 
 export const sqliteDriversLiterals = [
