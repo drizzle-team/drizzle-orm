@@ -11,7 +11,7 @@ import type {
 	SchemaWarning as PostgresSchemaWarning,
 	View,
 } from 'src/dialects/postgres/ddl';
-import type { JsonStatement as StatementCockraoch } from '../dialects/cockroach/statements';
+import type { JsonStatement as StatementCockroach } from '../dialects/cockroach/statements';
 import type { JsonStatement as StatementMssql } from '../dialects/mssql/statements';
 import type { JsonStatement as StatementMysql } from '../dialects/mysql/statements';
 import { vectorOps } from '../dialects/postgres/grammar';
@@ -21,6 +21,7 @@ import type { JsonStatement as StatementSqlite } from '../dialects/sqlite/statem
 import type { Named, NamedWithSchema } from '../dialects/utils';
 import { assertUnreachable } from '../utils';
 import { highlightSQL } from './highlighter';
+import { isJsonMode } from './mode';
 import { withStyle } from './validations/outputs';
 
 export const warning = (msg: string) => {
@@ -28,7 +29,19 @@ export const warning = (msg: string) => {
 };
 
 export const err = (msg: string) => {
-	render(`${chalk.bold.red('Error')} ${msg}`);
+	render(errText(msg));
+};
+
+export const errText = (msg: string) => `${chalk.bold.red('Error')} ${msg}`;
+
+export const humanLog = (...args: Parameters<typeof console.log>) => {
+	if (isJsonMode()) return;
+	console.log(...args);
+};
+
+export const printJsonOutput = (value: unknown) => {
+	if (!isJsonMode()) return;
+	process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 };
 
 export const info = (msg: string, greyMsg: string = ''): string => {
@@ -134,7 +147,7 @@ function formatOptionChanges(
 export const explain = (
 	dialect: 'postgres' | 'mysql' | 'sqlite' | 'singlestore' | 'mssql' | 'common' | 'gel' | 'cockroach',
 	grouped: {
-		jsonStatement: StatementPostgres | StatementSqlite | StatementMysql | StatementMssql | StatementCockraoch;
+		jsonStatement: StatementPostgres | StatementSqlite | StatementMysql | StatementMssql | StatementCockroach;
 		sqlStatements: string[];
 	}[],
 	explain: boolean,
@@ -152,7 +165,7 @@ export const explain = (
 			: dialect === 'mssql'
 			? mssqlExplain(jsonStatement as StatementMssql)
 			: dialect === 'cockroach'
-			? cockroachExplain(jsonStatement as StatementCockraoch)
+			? cockroachExplain(jsonStatement as StatementCockroach)
 			: null;
 
 		if (res) {
@@ -371,7 +384,7 @@ export const psqlExplain = (st: StatementPostgres) => {
 	return null;
 };
 
-export const cockroachExplain = (st: StatementCockraoch) => {
+export const cockroachExplain = (st: StatementCockroach) => {
 	let title = '';
 	let cause = '';
 

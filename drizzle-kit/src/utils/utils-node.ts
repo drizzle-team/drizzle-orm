@@ -6,7 +6,8 @@ import { dirname, join, resolve } from 'path';
 import { snapshotValidator as mysqlSnapshotValidator } from 'src/dialects/mysql/snapshot';
 import { snapshotValidator as singlestoreSnapshotValidator } from 'src/dialects/singlestore/snapshot';
 import { parse, pathToFileURL } from 'url';
-import { error, info } from '../cli/views';
+import { UnsupportedSnapshotVersionCliError } from '../cli/errors';
+import { error } from '../cli/views';
 import { snapshotValidator as cockroachValidator } from '../dialects/cockroach/snapshot';
 import { snapshotValidator as mssqlValidatorSnapshot } from '../dialects/mssql/snapshot';
 import { snapshotValidator as pgSnapshotValidator } from '../dialects/postgres/snapshot';
@@ -353,12 +354,7 @@ export const validateWithReport = (snapshots: string[], dialect: Dialect) => {
 
 			const res = validator(raw);
 			if (res.status === 'unsupported') {
-				console.log(
-					info(
-						`${it} snapshot is of unsupported version, please update drizzle-kit`,
-					),
-				);
-				process.exit(0);
+				throw new UnsupportedSnapshotVersionCliError(it);
 			}
 			if (res.status === 'malformed') {
 				accum.malformed.push(it);
