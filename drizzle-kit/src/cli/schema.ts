@@ -33,7 +33,7 @@ import { error, grey, MigrateProgress } from './views';
 const optionDialect = string('dialect')
 	.enum(...dialects)
 	.desc(
-		`Database dialect: 'gel', 'postgresql', 'mysql', 'sqlite', 'turso' or 'singlestore'`,
+		`Database dialect: 'gel', 'postgresql', 'mysql', 'sqlite', 'turso', 'singlestore' or 'firebird'`,
 	);
 const optionOut = string().desc("Output folder, 'drizzle' by default");
 const optionConfig = string().desc('Path to drizzle config file');
@@ -86,6 +86,7 @@ export const generate = command({
 			prepareAndMigrateSqlite,
 			prepareAndMigrateLibSQL,
 			prepareAndMigrateSingleStore,
+			prepareAndMigrateFirebird,
 		} = await import('./commands/migrate');
 
 		const dialect = opts.dialect;
@@ -99,6 +100,8 @@ export const generate = command({
 			await prepareAndMigrateLibSQL(opts);
 		} else if (dialect === 'singlestore') {
 			await prepareAndMigrateSingleStore(opts);
+		} else if (dialect === 'firebird') {
+			await prepareAndMigrateFirebird(opts);
 		} else if (dialect === 'gel') {
 			console.log(
 				error(
@@ -193,6 +196,17 @@ export const migrate = command({
 			} else if (dialect === 'turso') {
 				const { connectToLibSQL } = await import('./connections');
 				const { migrate } = await connectToLibSQL(credentials);
+				await renderWithTask(
+					new MigrateProgress(),
+					migrate({
+						migrationsFolder: opts.out,
+						migrationsTable: table,
+						migrationsSchema: schema,
+					}),
+				);
+			} else if (dialect === 'firebird') {
+				const { connectToFirebird } = await import('./connections');
+				const { migrate } = await connectToFirebird(credentials);
 				await renderWithTask(
 					new MigrateProgress(),
 					migrate({
@@ -386,6 +400,17 @@ export const push = command({
 					force,
 					casing,
 				);
+			} else if (dialect === 'firebird') {
+				const { firebirdPush } = await import('./commands/push');
+				await firebirdPush(
+					schemaPath,
+					verbose,
+					strict,
+					credentials,
+					tablesFilter,
+					force,
+					casing,
+				);
 			} else if (dialect === 'gel') {
 				console.log(
 					error(
@@ -454,6 +479,11 @@ export const up = command({
 
 		if (dialect === 'singlestore') {
 			upSinglestoreHandler(out);
+		}
+
+		if (dialect === 'firebird') {
+			checkHandler(out, dialect);
+			console.log("Everything's fine 🐶🔥");
 		}
 
 		if (dialect === 'gel') {
@@ -620,6 +650,16 @@ export const pull = command({
 					prefix,
 					entities,
 				);
+			} else if (dialect === 'firebird') {
+				const { introspectFirebird } = await import('./commands/introspect');
+				await introspectFirebird(
+					casing,
+					out,
+					breakpoints,
+					credentials,
+					tablesFilter,
+					prefix,
+				);
 			} else {
 				assertUnreachable(dialect);
 			}
@@ -684,6 +724,8 @@ export const studio = command({
 			prepareSingleStoreSchema,
 			drizzleForSingleStore,
 			drizzleForLibSQL,
+			prepareFirebirdSchema,
+			drizzleForFirebird,
 		} = await import('../serializer/studio');
 
 		let setup: Setup;
@@ -734,6 +776,17 @@ export const studio = command({
 					? await prepareSingleStoreSchema(schemaPath)
 					: { schema: {}, relations: {}, files: [] };
 				setup = await drizzleForSingleStore(
+					credentials,
+					schema,
+					relations,
+					files,
+					casing,
+				);
+			} else if (dialect === 'firebird') {
+				const { schema, relations, files } = schemaPath
+					? await prepareFirebirdSchema(schemaPath)
+					: { schema: {}, relations: {}, files: [] };
+				setup = await drizzleForFirebird(
 					credentials,
 					schema,
 					relations,
@@ -827,6 +880,7 @@ export const exportRaw = command({
 			prepareAndExportSqlite,
 			prepareAndExportLibSQL,
 			prepareAndExportSinglestore,
+			prepareAndExportFirebird,
 		} = await import(
 			'./commands/migrate'
 		);
@@ -842,6 +896,8 @@ export const exportRaw = command({
 			await prepareAndExportLibSQL(opts);
 		} else if (dialect === 'singlestore') {
 			await prepareAndExportSinglestore(opts);
+		} else if (dialect === 'firebird') {
+			await prepareAndExportFirebird(opts);
 		} else if (dialect === 'gel') {
 			console.log(
 				error(
