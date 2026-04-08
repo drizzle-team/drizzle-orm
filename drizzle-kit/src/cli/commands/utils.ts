@@ -1020,15 +1020,16 @@ export const migrateToFoldersV3 = (out: string) => {
 			const [snapshotPrefix, ...rest] = entry.tag.split('_');
 			const migrationName = rest.join('_');
 			const oldSnapshotPath = join(metaPath, `${snapshotPrefix}_snapshot.json`);
+			const snapshotExists = existsSync(oldSnapshotPath);
 
-			if (!existsSync(oldSnapshotPath)) {
-				// If for some reason this happens we need to throw an error
-				// This can't happen unless there were wrong drizzle-kit migrations usage
-				console.error('No snapshot was found');
-				process.exit(1);
+			if (!snapshotExists) {
+				// This can happen when the migration was created before drizzle-kit started
+				// tracking snapshots (e.g. the very first migration in older projects).
+				// We skip creating a snapshot.json for this entry and only migrate the SQL file.
+				console.warn(
+					`Warning: No snapshot found for migration "${entry.tag}". This migration will be migrated without a snapshot.`,
+				);
 			}
-
-			const oldSnapshot = readFileSync(oldSnapshotPath);
 
 			// Reading SQL files
 			let oldSqlPath = join(out, `${entry.tag}.sql`);
@@ -1046,10 +1047,12 @@ export const migrateToFoldersV3 = (out: string) => {
 			const oldSql = readFileSync(oldSqlPath);
 
 			mkdirSync(join(out, `${folderName}_${migrationName}`));
-			writeFileSync(
-				join(out, `${folderName}_${migrationName}/snapshot.json`),
-				oldSnapshot,
-			);
+			if (snapshotExists) {
+				writeFileSync(
+					join(out, `${folderName}_${migrationName}/snapshot.json`),
+					readFileSync(oldSnapshotPath),
+				);
+			}
 			writeFileSync(
 				join(out, `${folderName}_${migrationName}/migration.sql`),
 				oldSql,
