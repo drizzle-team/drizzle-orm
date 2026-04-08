@@ -329,6 +329,10 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 			result = this.isRqbV2Query ? (result as D1Result).results[0] : d1ToRawMapping((result as D1Result).results)[0];
 		}
 
+		if (!result) {
+			return undefined;
+		}
+
 		if (!this.fields && !this.customResultMapper) {
 			return result;
 		}
