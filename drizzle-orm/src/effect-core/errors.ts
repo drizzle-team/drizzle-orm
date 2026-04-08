@@ -16,7 +16,12 @@ export class EffectDrizzleQueryError extends Schema.TaggedError<EffectDrizzleQue
 	static readonly [entityKind]: string = this._tag;
 
 	override get message() {
-		return `Failed query: ${this.query}\nparams: ${this.params}`;
+		const cause = this.cause;
+		const causeMsg = cause !== null && typeof cause === 'object' && 'message' in cause
+				&& typeof (cause as { message: unknown }).message === 'string'
+			? `\nerror: ${(cause as { message: string }).message}`
+			: '';
+		return `Failed query: ${this.query}\nparams: ${this.params}${causeMsg}`;
 	}
 
 	constructor(params: Omit<Schema.Struct.Constructor<typeof EffectDrizzleQueryError.fields>, '_tag'>) {
