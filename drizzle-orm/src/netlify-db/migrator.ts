@@ -16,5 +16,5 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 	}
 
 	const migrations = readMigrationFiles(config);
-	return coreMigrate(migrations, db.session as any, config);
+	return coreMigrate(migrations, db, config);
 }
