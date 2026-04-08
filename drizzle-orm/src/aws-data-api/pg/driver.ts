@@ -336,7 +336,6 @@ function construct<TRelations extends AnyRelations = EmptyRelations>(
 		...config,
 		logger,
 		cache: config.cache,
-		useJitMapper: config.useJitMappers,
 	}, undefined);
 	const db = new AwsDataApiPgDatabase(dialect, session, relations, true);
 	(<any> db).$client = client;

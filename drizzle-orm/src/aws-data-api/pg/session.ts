@@ -25,7 +25,6 @@ export interface AwsDataApiSessionOptions {
 	database: string;
 	resourceArn: string;
 	secretArn: string;
-	useJitMapper?: boolean;
 }
 
 interface AwsDataApiQueryBase {
