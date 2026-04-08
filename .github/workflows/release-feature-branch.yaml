@@ -25,6 +25,8 @@ on:
         required: true
       TURBO_TOKEN: 
         required: true
+      NETLIFY_DB_URL: 
+        required: true
 
 concurrency:
   group: feature-${{ github.workflow }}-${{ github.ref }}
