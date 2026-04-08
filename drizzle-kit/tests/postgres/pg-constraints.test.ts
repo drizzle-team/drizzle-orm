@@ -2419,7 +2419,7 @@ test('generated + unique', async (t) => {
 	expect(st).toStrictEqual([
 		`ALTER TABLE \"table\" RENAME COLUMN \"column2\" TO \"column3\";`,
 		`ALTER TABLE \"table\" DROP COLUMN \"bool\";`,
-		`ALTER TABLE \"table\" ADD COLUMN \"bool\" boolean GENERATED ALWAYS AS (((\"table\".\"column1\" is null) and (\"table\".\"column3\" is null))) STORED;`,
+		`ALTER TABLE \"table\" ADD COLUMN \"bool\" boolean GENERATED ALWAYS AS ((((\"table\".\"column1\" is null)) and ((\"table\".\"column3\" is null)))) STORED;`,
 		'ALTER TABLE "table" ADD CONSTRAINT "table_bool_key" UNIQUE("bool");',
 	]);
 	// push is not triggered on generated change
@@ -2467,7 +2467,7 @@ test('generated + pk', async (t) => {
 	expect(st).toStrictEqual([
 		`ALTER TABLE \"table\" RENAME COLUMN \"column2\" TO \"column3\";`,
 		`ALTER TABLE \"table\" DROP COLUMN \"bool\";`,
-		`ALTER TABLE \"table\" ADD COLUMN \"bool\" boolean PRIMARY KEY GENERATED ALWAYS AS (((\"table\".\"column1\" is null) and (\"table\".\"column3\" is null))) STORED;`,
+		`ALTER TABLE \"table\" ADD COLUMN \"bool\" boolean PRIMARY KEY GENERATED ALWAYS AS ((((\"table\".\"column1\" is null)) and ((\"table\".\"column3\" is null)))) STORED;`,
 	]);
 	// push is not triggered on generated change
 	expect(pst).toStrictEqual([

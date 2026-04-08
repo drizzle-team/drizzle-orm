@@ -54,12 +54,21 @@ export class CockroachDialect {
 	): Promise<void | MigratorInitFailResponse> {
 		const migrationsTable = typeof config === 'string'
 			? '__drizzle_migrations'
-			: config.migrationsTable ?? '__drizzle_migrations';
-		const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
+			: (config.migrationsTable ?? '__drizzle_migrations');
+		const migrationsSchema = typeof config === 'string'
+			? 'drizzle'
+			: (config.migrationsSchema ?? 'drizzle');
 
-		await session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
+		await session.execute(
+			sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`,
+		);
 
-		const { newDb } = await upgradeIfNeeded(migrationsSchema, migrationsTable, session, migrations);
+		const { newDb } = await upgradeIfNeeded(
+			migrationsSchema,
+			migrationsTable,
+			session,
+			migrations,
+		);
 
 		if (newDb) {
 			const migrationTableCreate = sql`
@@ -75,9 +84,16 @@ export class CockroachDialect {
 			await session.execute(migrationTableCreate);
 		}
 
-		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string; name: string | null }>(
+		const dbMigrations = await session.all<{
+			id: number;
+			hash: string;
+			created_at: string;
+			name: string | null;
+		}>(
 			sql`select id, hash, created_at, name from ${sql.identifier(migrationsSchema)}.${
-				sql.identifier(migrationsTable)
+				sql.identifier(
+					migrationsTable,
+				)
 			}`,
 		);
 
@@ -96,7 +112,9 @@ export class CockroachDialect {
 
 			await session.execute(
 				sql`insert into ${sql.identifier(migrationsSchema)}.${
-					sql.identifier(migrationsTable)
+					sql.identifier(
+						migrationsTable,
+					)
 				} ("hash", "created_at", "name") 
 				values (${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 			);
@@ -104,7 +122,10 @@ export class CockroachDialect {
 			return;
 		}
 
-		const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
+		const migrationsToRun = getMigrationsToRun({
+			localMigrations: migrations,
+			dbMigrations,
+		});
 		await session.transaction(async (tx) => {
 			for await (const migration of migrationsToRun) {
 				for (const stmt of migration.sql) {
@@ -112,7 +133,9 @@ export class CockroachDialect {
 				}
 				await tx.execute(
 					sql`insert into ${sql.identifier(migrationsSchema)}.${
-						sql.identifier(migrationsTable)
+						sql.identifier(
+							migrationsTable,
+						)
 					} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 				);
 			}
@@ -120,7 +143,7 @@ export class CockroachDialect {
 	}
 
 	escapeName(name: string): string {
-		return `"${name}"`;
+		return `"${name.replace(/"/g, '""')}"`;
 	}
 
 	escapeParam(num: number): string {
@@ -145,7 +168,12 @@ export class CockroachDialect {
 		return sql.join(withSqlChunks);
 	}
 
-	buildDeleteQuery({ table, where, returning, withList }: CockroachDeleteConfig): SQL {
+	buildDeleteQuery({
+		table,
+		where,
+		returning,
+		withList,
+	}: CockroachDeleteConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
@@ -160,26 +188,41 @@ export class CockroachDialect {
 	buildUpdateSet(table: CockroachTable, set: UpdateSet): SQL {
 		const tableColumns = table[Table.Symbol.Columns];
 
-		const columnNames = Object.keys(tableColumns).filter((colName) =>
-			set[colName] !== undefined || tableColumns[colName]?.onUpdateFn !== undefined
+		const columnNames = Object.keys(tableColumns).filter(
+			(colName) =>
+				set[colName] !== undefined
+				|| tableColumns[colName]?.onUpdateFn !== undefined,
 		);
 
 		const setSize = columnNames.length;
-		return sql.join(columnNames.flatMap((colName, i) => {
-			const col = tableColumns[colName]!;
+		return sql.join(
+			columnNames.flatMap((colName, i) => {
+				const col = tableColumns[colName]!;
 
-			const onUpdateFnResult = col.onUpdateFn?.();
-			const value = set[colName] ?? (is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col));
-			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
+				const onUpdateFnResult = col.onUpdateFn?.();
+				const value = set[colName]
+					?? (is(onUpdateFnResult, SQL)
+						? onUpdateFnResult
+						: sql.param(onUpdateFnResult, col));
+				const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
 
-			if (i < setSize - 1) {
-				return [res, sql.raw(', ')];
-			}
-			return [res];
-		}));
+				if (i < setSize - 1) {
+					return [res, sql.raw(', ')];
+				}
+				return [res];
+			}),
+		);
 	}
 
-	buildUpdateQuery({ table, set, where, returning, withList, from, joins }: CockroachUpdateConfig): SQL {
+	buildUpdateQuery({
+		table,
+		set,
+		where,
+		returning,
+		withList,
+		from,
+		joins,
+	}: CockroachUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const tableName = table[CockroachTable.Symbol.Name];
@@ -187,7 +230,9 @@ export class CockroachDialect {
 		const origTableName = table[CockroachTable.Symbol.OriginalName];
 		const alias = tableName === origTableName ? undefined : tableName;
 		const tableSql = sql`${tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined}${
-			sql.identifier(origTableName)
+			sql.identifier(
+				origTableName,
+			)
 		}${alias && sql` ${sql.identifier(alias)}`}`;
 
 		const setSql = this.buildUpdateSet(table, set);
@@ -222,74 +267,84 @@ export class CockroachDialect {
 	): SQL {
 		const columnsLen = fields.length;
 
-		const chunks = fields
-			.flatMap(({ field }, i) => {
-				const chunk: SQLChunk[] = [];
+		const chunks = fields.flatMap(({ field }, i) => {
+			const chunk: SQLChunk[] = [];
 
-				if (is(field, SQL.Aliased) && field.isSelectionField) {
-					if (!isSingleTable && field.origin !== undefined) chunk.push(sql.identifier(field.origin), sql.raw('.'));
-					chunk.push(sql.identifier(field.fieldAlias));
-				} else if (is(field, SQL.Aliased) || is(field, SQL)) {
-					const query = is(field, SQL.Aliased) ? field.sql : field;
+			if (is(field, SQL.Aliased) && field.isSelectionField) {
+				if (!isSingleTable && field.origin !== undefined) {
+					chunk.push(sql.identifier(field.origin), sql.raw('.'));
+				}
+				chunk.push(sql.identifier(field.fieldAlias));
+			} else if (is(field, SQL.Aliased) || is(field, SQL)) {
+				const query = is(field, SQL.Aliased) ? field.sql : field;
 
-					if (isSingleTable) {
-						const newSql = new SQL(
-							query.queryChunks.map((c) => {
-								if (is(c, CockroachColumn)) {
-									return sql.identifier(this.casing.getColumnCasing(c));
-								}
-								return c;
-							}),
-						);
+				if (isSingleTable) {
+					const newSql = new SQL(
+						query.queryChunks.map((c) => {
+							if (is(c, CockroachColumn)) {
+								return sql.identifier(this.casing.getColumnCasing(c));
+							}
+							return c;
+						}),
+					);
 
-						chunk.push(query.shouldInlineParams ? newSql.inlineParams() : newSql);
-					} else {
-						chunk.push(query);
-					}
-
-					if (is(field, SQL.Aliased)) {
-						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
-					}
-				} else if (is(field, Column)) {
-					if (isSingleTable) {
-						chunk.push(
-							field.isAlias
-								? sql`${sql.identifier(this.casing.getColumnCasing(getOriginalColumnFromAlias(field)))} as ${field}`
-								: sql.identifier(this.casing.getColumnCasing(field)),
-						);
-					} else {
-						chunk.push(field.isAlias ? sql`${getOriginalColumnFromAlias(field)} as ${field}` : field);
-					}
-				} else if (is(field, Subquery)) {
-					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
-
-					if (entries.length === 1) {
-						const entry = entries[0]![1];
-
-						const fieldDecoder = is(entry, SQL)
-							? entry.decoder
-							: is(entry, Column)
-							? { mapFromDriverValue: (v: any) => entry.mapFromDriverValue(v) }
-							: entry.sql.decoder;
-
-						if (fieldDecoder) {
-							field._.sql.decoder = fieldDecoder;
-						}
-					}
-					chunk.push(field);
+					chunk.push(query.shouldInlineParams ? newSql.inlineParams() : newSql);
+				} else {
+					chunk.push(query);
 				}
 
-				if (i < columnsLen - 1) {
-					chunk.push(sql`, `);
+				if (is(field, SQL.Aliased)) {
+					chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 				}
+			} else if (is(field, Column)) {
+				if (isSingleTable) {
+					chunk.push(
+						field.isAlias
+							? sql`${sql.identifier(this.casing.getColumnCasing(getOriginalColumnFromAlias(field)))} as ${field}`
+							: sql.identifier(this.casing.getColumnCasing(field)),
+					);
+				} else {
+					chunk.push(
+						field.isAlias
+							? sql`${getOriginalColumnFromAlias(field)} as ${field}`
+							: field,
+					);
+				}
+			} else if (is(field, Subquery)) {
+				const entries = Object.entries(field._.selectedFields) as [
+					string,
+					SQL.Aliased | Column | SQL,
+				][];
 
-				return chunk;
-			});
+				if (entries.length === 1) {
+					const entry = entries[0]![1];
+
+					const fieldDecoder = is(entry, SQL)
+						? entry.decoder
+						: is(entry, Column)
+						? { mapFromDriverValue: (v: any) => entry.mapFromDriverValue(v) }
+						: entry.sql.decoder;
+
+					if (fieldDecoder) {
+						field._.sql.decoder = fieldDecoder;
+					}
+				}
+				chunk.push(field);
+			}
+
+			if (i < columnsLen - 1) {
+				chunk.push(sql`, `);
+			}
+
+			return chunk;
+		});
 
 		return sql.join(chunks);
 	}
 
-	private buildJoins(joins: CockroachSelectJoinConfig[] | undefined): SQL | undefined {
+	private buildJoins(
+		joins: CockroachSelectJoinConfig[] | undefined,
+	): SQL | undefined {
 		if (!joins || joins.length === 0) {
 			return undefined;
 		}
@@ -359,24 +414,22 @@ export class CockroachDialect {
 		return table;
 	}
 
-	buildSelectQuery(
-		{
-			withList,
-			fields,
-			fieldsFlat,
-			where,
-			having,
-			table,
-			joins,
-			orderBy,
-			groupBy,
-			limit,
-			offset,
-			lockingClause,
-			distinct,
-			setOperators,
-		}: CockroachSelectConfig,
-	): SQL {
+	buildSelectQuery({
+		withList,
+		fields,
+		fieldsFlat,
+		where,
+		having,
+		table,
+		joins,
+		orderBy,
+		groupBy,
+		limit,
+		offset,
+		lockingClause,
+		distinct,
+		setOperators,
+	}: CockroachSelectConfig): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<CockroachColumn>(fields);
 		for (const f of fieldsList) {
 			if (
@@ -390,14 +443,20 @@ export class CockroachDialect {
 						? undefined
 						: getTableName(table))
 				&& !((table) =>
-					joins?.some(({ alias }) =>
-						alias === (table[Table.Symbol.IsAlias] ? getTableName(table) : table[Table.Symbol.BaseName])
+					joins?.some(
+						({ alias }) =>
+							alias
+								=== (table[Table.Symbol.IsAlias]
+									? getTableName(table)
+									: table[Table.Symbol.BaseName]),
 					))(f.field.table)
 			) {
 				const tableName = getTableName(f.field.table);
 				throw new Error(
 					`Your "${
-						f.path.join('->')
+						f.path.join(
+							'->',
+						)
 					}" field references a column "${tableName}"."${f.field.name}", but the table "${tableName}" is not part of the query! Did you forget to join it?`,
 				);
 			}
@@ -409,7 +468,9 @@ export class CockroachDialect {
 
 		let distinctSql: SQL | undefined;
 		if (distinct) {
-			distinctSql = distinct === true ? sql` distinct` : sql` distinct on (${sql.join(distinct.on, sql`, `)})`;
+			distinctSql = distinct === true
+				? sql` distinct`
+				: sql` distinct on (${sql.join(distinct.on, sql`, `)})`;
 		}
 
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
@@ -445,7 +506,9 @@ export class CockroachDialect {
 				clauseSql.append(
 					sql` of ${
 						sql.join(
-							Array.isArray(lockingClause.config.of) ? lockingClause.config.of : [lockingClause.config.of],
+							Array.isArray(lockingClause.config.of)
+								? lockingClause.config.of
+								: [lockingClause.config.of],
 							sql`, `,
 						)
 					}`,
@@ -468,7 +531,10 @@ export class CockroachDialect {
 		return finalQuery;
 	}
 
-	buildSetOperations(leftSelect: SQL, setOperators: CockroachSelectConfig['setOperators']): SQL {
+	buildSetOperations(
+		leftSelect: SQL,
+		setOperators: CockroachSelectConfig['setOperators'],
+	): SQL {
 		const [setOperator, ...rest] = setOperators;
 
 		if (!setOperator) {
@@ -489,7 +555,10 @@ export class CockroachDialect {
 	buildSetOperationQuery({
 		leftSelect,
 		setOperator: { type, isAll, rightSelect, limit, orderBy, offset },
-	}: { leftSelect: SQL; setOperator: CockroachSelectConfig['setOperators'][number] }): SQL {
+	}: {
+		leftSelect: SQL;
+		setOperator: CockroachSelectConfig['setOperators'][number];
+	}): SQL {
 		const leftChunk = sql`(${leftSelect.getSQL()}) `;
 		const rightChunk = sql`(${rightSelect.getSQL()})`;
 
@@ -531,19 +600,22 @@ export class CockroachDialect {
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	buildInsertQuery(
-		{ table, values: valuesOrSelect, onConflict, returning, withList, select }: CockroachInsertConfig,
-	): SQL {
+	buildInsertQuery({
+		table,
+		values: valuesOrSelect,
+		onConflict,
+		returning,
+		withList,
+		select,
+	}: CockroachInsertConfig): SQL {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, CockroachColumn> = table[Table.Symbol.Columns];
 
-		const colEntries: [string, CockroachColumn][] = Object.entries(columns).filter(([_, col]) =>
-			!col.shouldDisableInsert()
-		);
+		const colEntries: [string, CockroachColumn][] = Object.entries(
+			columns,
+		).filter(([_, col]) => !col.shouldDisableInsert());
 
-		const insertOrder = colEntries.map(
-			([, column]) => sql.identifier(this.casing.getColumnCasing(column)),
-		);
+		const insertOrder = colEntries.map(([, column]) => sql.identifier(this.casing.getColumnCasing(column)));
 
 		if (select) {
 			const select = valuesOrSelect as AnyCockroachSelectQueryBuilder | SQL;
@@ -561,16 +633,23 @@ export class CockroachDialect {
 				const valueList: (SQLChunk | SQL)[] = [];
 				for (const [fieldName, col] of colEntries) {
 					const colValue = value[fieldName];
-					if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
+					if (
+						colValue === undefined
+						|| (is(colValue, Param) && colValue.value === undefined)
+					) {
 						// eslint-disable-next-line unicorn/no-negated-condition
 						if (col.defaultFn !== undefined) {
 							const defaultFnResult = col.defaultFn();
-							const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
+							const defaultValue = is(defaultFnResult, SQL)
+								? defaultFnResult
+								: sql.param(defaultFnResult, col);
 							valueList.push(defaultValue);
 							// eslint-disable-next-line unicorn/no-negated-condition
 						} else if (!col.default && col.onUpdateFn !== undefined) {
 							const onUpdateFnResult = col.onUpdateFn();
-							const newValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
+							const newValue = is(onUpdateFnResult, SQL)
+								? onUpdateFnResult
+								: sql.param(onUpdateFnResult, col);
 							valueList.push(newValue);
 						} else {
 							valueList.push(sql`default`);
@@ -595,18 +674,22 @@ export class CockroachDialect {
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
-		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
+		const onConflictSql = onConflict
+			? sql` on conflict ${onConflict}`
+			: undefined;
 
 		return sql`${withSql}insert into ${table} ${insertOrder} ${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
-	buildRefreshMaterializedViewQuery(
-		{ view, concurrently, withNoData }: {
-			view: CockroachMaterializedView;
-			concurrently?: boolean;
-			withNoData?: boolean;
-		},
-	): SQL {
+	buildRefreshMaterializedViewQuery({
+		view,
+		concurrently,
+		withNoData,
+	}: {
+		view: CockroachMaterializedView;
+		concurrently?: boolean;
+		withNoData?: boolean;
+	}): SQL {
 		const concurrentlySql = concurrently ? sql` concurrently` : undefined;
 		const withNoDataSql = withNoData ? sql` with no data` : undefined;
 
@@ -1174,15 +1257,19 @@ export class CockroachDialect {
 		nestedQueryRelation?: V1.Relation;
 		joinOn?: SQL;
 	}): V1.BuildRelationalQueryResult<CockroachTable, CockroachColumn> {
-		let selection: V1.BuildRelationalQueryResult<CockroachTable, CockroachColumn>['selection'] = [];
-		let limit, offset, orderBy: NonNullable<CockroachSelectConfig['orderBy']> = [], where;
+		let selection: V1.BuildRelationalQueryResult<
+			CockroachTable,
+			CockroachColumn
+		>['selection'] = [];
+		let limit,
+			offset,
+			orderBy: NonNullable<CockroachSelectConfig['orderBy']> = [],
+			where;
 		const joins: CockroachSelectJoinConfig[] = [];
 
 		if (config === true) {
 			const selectionEntries = Object.entries(tableConfig.columns);
-			selection = selectionEntries.map((
-				[key, value],
-			) => ({
+			selection = selectionEntries.map(([key, value]) => ({
 				dbKey: value.name,
 				tsKey: key,
 				field: aliasedTableColumn(value as CockroachColumn, tableAlias),
@@ -1192,9 +1279,10 @@ export class CockroachDialect {
 			}));
 		} else {
 			const aliasedColumns = Object.fromEntries(
-				Object.entries(tableConfig.columns).map((
-					[key, value],
-				) => [key, aliasedTableColumn(value, tableAlias)]),
+				Object.entries(tableConfig.columns).map(([key, value]) => [
+					key,
+					aliasedTableColumn(value, tableAlias),
+				]),
 			);
 
 			if (config.where) {
@@ -1204,7 +1292,10 @@ export class CockroachDialect {
 				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
 			}
 
-			const fieldsSelection: { tsKey: string; value: CockroachColumn | SQL.Aliased }[] = [];
+			const fieldsSelection: {
+				tsKey: string;
+				value: CockroachColumn | SQL.Aliased;
+			}[] = [];
 			let selectedColumns: string[] = [];
 
 			// Figure out which columns to select
@@ -1227,7 +1318,9 @@ export class CockroachDialect {
 				if (selectedColumns.length > 0) {
 					selectedColumns = isIncludeMode
 						? selectedColumns.filter((c) => config.columns?.[c] === true)
-						: Object.keys(tableConfig.columns).filter((key) => !selectedColumns.includes(key));
+						: Object.keys(tableConfig.columns).filter(
+							(key) => !selectedColumns.includes(key),
+						);
 				}
 			} else {
 				// Select all columns if selection is not specified
@@ -1248,8 +1341,16 @@ export class CockroachDialect {
 			// Figure out which relations to select
 			if (config.with) {
 				selectedRelations = Object.entries(config.with)
-					.filter((entry): entry is [typeof entry[0], NonNullable<typeof entry[1]>] => !!entry[1])
-					.map(([tsKey, queryConfig]) => ({ tsKey, queryConfig, relation: tableConfig.relations[tsKey]! }));
+					.filter(
+						(
+							entry,
+						): entry is [(typeof entry)[0], NonNullable<(typeof entry)[1]>] => !!entry[1],
+					)
+					.map(([tsKey, queryConfig]) => ({
+						tsKey,
+						queryConfig,
+						relation: tableConfig.relations[tsKey]!,
+					}));
 			}
 
 			let extras;
@@ -1271,9 +1372,13 @@ export class CockroachDialect {
 			// `fieldsSelection` shouldn't be used after this point
 			for (const { tsKey, value } of fieldsSelection) {
 				selection.push({
-					dbKey: is(value, SQL.Aliased) ? value.fieldAlias : tableConfig.columns[tsKey]!.name,
+					dbKey: is(value, SQL.Aliased)
+						? value.fieldAlias
+						: tableConfig.columns[tsKey]!.name,
 					tsKey,
-					field: is(value, Column) ? aliasedTableColumn(value, tableAlias) : value,
+					field: is(value, Column)
+						? aliasedTableColumn(value, tableAlias)
+						: value,
 					relationTableTsKey: undefined,
 					isJson: false,
 					selection: [],
@@ -1282,13 +1387,16 @@ export class CockroachDialect {
 
 			let orderByOrig = typeof config.orderBy === 'function'
 				? config.orderBy(aliasedColumns, V1.getOrderByOperators())
-				: config.orderBy ?? [];
+				: (config.orderBy ?? []);
 			if (!Array.isArray(orderByOrig)) {
 				orderByOrig = [orderByOrig];
 			}
 			orderBy = orderByOrig.map((orderByValue) => {
 				if (is(orderByValue, Column)) {
-					return aliasedTableColumn(orderByValue, tableAlias) as CockroachColumn;
+					return aliasedTableColumn(
+						orderByValue,
+						tableAlias,
+					) as CockroachColumn;
 				}
 				return mapColumnsInSQLToAlias(orderByValue, tableAlias);
 			});
@@ -1304,14 +1412,21 @@ export class CockroachDialect {
 					relation,
 				} of selectedRelations
 			) {
-				const normalizedRelation = V1.normalizeRelation(schema, tableNamesMap, relation);
+				const normalizedRelation = V1.normalizeRelation(
+					schema,
+					tableNamesMap,
+					relation,
+				);
 				const relationTableName = getTableUniqueName(relation.referencedTable);
 				const relationTableTsName = tableNamesMap[relationTableName]!;
 				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
 				const joinOn = and(
 					...normalizedRelation.fields.map((field, i) =>
 						eq(
-							aliasedTableColumn(normalizedRelation.references[i]!, relationTableAlias),
+							aliasedTableColumn(
+								normalizedRelation.references[i]!,
+								relationTableAlias,
+							),
 							aliasedTableColumn(field, tableAlias),
 						)
 					),
@@ -1323,15 +1438,17 @@ export class CockroachDialect {
 					table: fullSchema[relationTableTsName] as CockroachTable,
 					tableConfig: schema[relationTableTsName]!,
 					queryConfig: is(relation, V1.One)
-						? (selectedRelationConfigValue === true
+						? selectedRelationConfigValue === true
 							? { limit: 1 }
-							: { ...selectedRelationConfigValue, limit: 1 })
+							: { ...selectedRelationConfigValue, limit: 1 }
 						: selectedRelationConfigValue,
 					tableAlias: relationTableAlias,
 					joinOn,
 					nestedQueryRelation: relation,
 				});
-				const field = sql`${sql.identifier(relationTableAlias)}.${sql.identifier('data')}`.as(selectedRelationTsKey);
+				const field = sql`${sql.identifier(relationTableAlias)}.${sql.identifier('data')}`.as(
+					selectedRelationTsKey,
+				);
 				joins.push({
 					on: sql`true`,
 					table: new Subquery(builtRelation.sql as SQL, {}, relationTableAlias),
@@ -1351,7 +1468,9 @@ export class CockroachDialect {
 		}
 
 		if (selection.length === 0) {
-			throw new DrizzleError({ message: `No fields selected for table "${tableConfig.tsName}" ("${tableAlias}")` });
+			throw new DrizzleError({
+				message: `No fields selected for table "${tableConfig.tsName}" ("${tableAlias}")`,
+			});
 		}
 
 		let result;
@@ -1373,18 +1492,22 @@ export class CockroachDialect {
 			})`;
 			if (is(nestedQueryRelation, V1.Many)) {
 				field = sql`coalesce(json_agg(${field}${
-					orderBy.length > 0 ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined
+					orderBy.length > 0
+						? sql` order by ${sql.join(orderBy, sql`, `)}`
+						: undefined
 				}), '[]'::json)`;
 				// orderBy = [];
 			}
-			const nestedSelection = [{
-				dbKey: 'data',
-				tsKey: 'data',
-				field: field.as('data'),
-				isJson: true,
-				relationTableTsKey: tableConfig.tsName,
-				selection,
-			}];
+			const nestedSelection = [
+				{
+					dbKey: 'data',
+					tsKey: 'data',
+					field: field.as('data'),
+					isJson: true,
+					relationTableTsKey: tableConfig.tsName,
+					selection,
+				},
+			];
 
 			const needsSubquery = limit !== undefined || offset !== undefined || orderBy.length > 0;
 
@@ -1392,10 +1515,12 @@ export class CockroachDialect {
 				result = this.buildSelectQuery({
 					table: aliasedTable(table, tableAlias),
 					fields: {},
-					fieldsFlat: [{
-						path: [],
-						field: sql.raw('*'),
-					}],
+					fieldsFlat: [
+						{
+							path: [],
+							field: sql.raw('*'),
+						},
+					],
 					where,
 					limit,
 					offset,
@@ -1412,11 +1537,15 @@ export class CockroachDialect {
 			}
 
 			result = this.buildSelectQuery({
-				table: is(result, CockroachTable) ? result : new Subquery(result, {}, tableAlias),
+				table: is(result, CockroachTable)
+					? result
+					: new Subquery(result, {}, tableAlias),
 				fields: {},
 				fieldsFlat: nestedSelection.map(({ field }) => ({
 					path: [],
-					field: is(field, Column) ? aliasedTableColumn(field, tableAlias) : field,
+					field: is(field, Column)
+						? aliasedTableColumn(field, tableAlias)
+						: field,
 				})),
 				joins,
 				where,
@@ -1431,7 +1560,9 @@ export class CockroachDialect {
 				fields: {},
 				fieldsFlat: selection.map(({ field }) => ({
 					path: [],
-					field: is(field, Column) ? aliasedTableColumn(field, tableAlias) : field,
+					field: is(field, Column)
+						? aliasedTableColumn(field, tableAlias)
+						: field,
 				})),
 				joins,
 				where,
