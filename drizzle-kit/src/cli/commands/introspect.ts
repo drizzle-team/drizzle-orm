@@ -7,6 +7,7 @@ import { plural, singular } from 'pluralize';
 import { GelSchema } from 'src/serializer/gelSchema';
 import { drySingleStore, SingleStoreSchema, squashSingleStoreScheme } from 'src/serializer/singlestoreSchema';
 import { assertUnreachable, originUUID } from '../../global';
+import { schemaToTypeScript as firebirdSchemaToTypeScript } from '../../introspect-firebird';
 import { schemaToTypeScript as gelSchemaToTypeScript } from '../../introspect-gel';
 import { schemaToTypeScript as mysqlSchemaToTypeScript } from '../../introspect-mysql';
 import { paramNameFor, schemaToTypeScript as postgresSchemaToTypeScript } from '../../introspect-pg';
@@ -21,6 +22,7 @@ import { fromDatabase as fromSingleStoreDatabase } from '../../serializer/single
 import { drySQLite, type SQLiteSchema, squashSqliteScheme } from '../../serializer/sqliteSchema';
 import { fromDatabase as fromSqliteDatabase } from '../../serializer/sqliteSerializer';
 import {
+	applyFirebirdSnapshotsDiff,
 	applyLibSQLSnapshotsDiff,
 	applyMysqlSnapshotsDiff,
 	applyPgSnapshotsDiff,
@@ -30,6 +32,7 @@ import {
 import { prepareOutFolder } from '../../utils';
 import { Entities } from '../validations/cli';
 import type { Casing, Prefix } from '../validations/common';
+import type { FirebirdCredentials } from '../validations/firebird';
 import { GelCredentials } from '../validations/gel';
 import { LibSQLCredentials } from '../validations/libsql';
 import type { MysqlCredentials } from '../validations/mysql';
@@ -40,6 +43,7 @@ import { IntrospectProgress } from '../views';
 import {
 	columnsResolver,
 	enumsResolver,
+	firebirdViewsResolver,
 	indPolicyResolver,
 	mySqlViewsResolver,
 	policyResolver,
@@ -51,6 +55,8 @@ import {
 	viewsResolver,
 	writeResult,
 } from './migrate';
+import { dryFirebird, FirebirdSchema, squashFirebirdScheme } from '../../serializer/firebirdSchema';
+import { fromDatabase as fromFirebirdDatabase } from '../../serializer/firebirdSerializer';
 
 export const introspectPostgres = async (
 	casing: Casing,
@@ -616,6 +622,116 @@ export const introspectSqlite = async (
 				'✓',
 			)
 		}] You relations file is ready ➜ ${
+			chalk.bold.underline.blue(
+				relationsFile,
+			)
+		} 🚀`,
+	);
+	process.exit(0);
+};
+
+export const introspectFirebird = async (
+	casing: Casing,
+	out: string,
+	breakpoints: boolean,
+	credentials: FirebirdCredentials,
+	tablesFilter: string[],
+	prefix: Prefix,
+) => {
+	const { connectToFirebird } = await import('../connections');
+	const { db } = await connectToFirebird(credentials);
+
+	const matchers = tablesFilter.map((it) => {
+		return new Minimatch(it);
+	});
+
+	const filter = (tableName: string) => {
+		if (matchers.length === 0) return true;
+
+		let flags: boolean[] = [];
+
+		for (let matcher of matchers) {
+			if (matcher.negate) {
+				if (!matcher.match(tableName)) {
+					flags.push(false);
+				}
+			}
+
+			if (matcher.match(tableName)) {
+				flags.push(true);
+			}
+		}
+
+		if (flags.length > 0) {
+			return flags.every(Boolean);
+		}
+		return false;
+	};
+
+	const progress = new IntrospectProgress();
+	const res = await renderWithTask(
+		progress,
+		fromFirebirdDatabase(db, filter, (stage, count, status) => {
+			progress.update(stage, count, status);
+		}),
+	);
+
+	const schema = { id: originUUID, prevId: '', ...res } as FirebirdSchema;
+	const ts = firebirdSchemaToTypeScript(schema, casing);
+	const relationsTs = relationsToTypeScript(schema, casing);
+
+	const schemaFile = join(out, 'schema.ts');
+	writeFileSync(schemaFile, ts.file);
+	const relationsFile = join(out, 'relations.ts');
+	writeFileSync(relationsFile, relationsTs.file);
+	console.log();
+
+	const { snapshots, journal } = prepareOutFolder(out, 'firebird');
+
+	if (snapshots.length === 0) {
+		const { sqlStatements, _meta } = await applyFirebirdSnapshotsDiff(
+			squashFirebirdScheme(dryFirebird),
+			squashFirebirdScheme(schema),
+			tablesResolver,
+			columnsResolver,
+			firebirdViewsResolver,
+			dryFirebird,
+			schema,
+		);
+
+		writeResult({
+			cur: schema,
+			sqlStatements,
+			journal,
+			_meta,
+			outFolder: out,
+			breakpoints,
+			type: 'introspect',
+			prefixMode: prefix,
+		});
+	} else {
+		render(
+			`[${
+				chalk.blue(
+					'i',
+				)
+			}] No SQL generated, you already have migrations in project`,
+		);
+	}
+
+	render(
+		`[${
+			chalk.green(
+				'✓',
+			)
+		}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
+	);
+	render(
+		`[${
+			chalk.green(
+				'✓',
+			)
+		}] Your relations file is ready ➜ ${
 			chalk.bold.underline.blue(
 				relationsFile,
 			)

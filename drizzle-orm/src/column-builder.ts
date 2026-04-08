@@ -25,7 +25,7 @@ export type ColumnDataType =
 	| 'localDate'
 	| 'localDateTime';
 
-export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'common' | 'gel';
+export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'common' | 'gel' | 'firebird';
 
 export type GeneratedStorageMode = 'virtual' | 'stored';
 
