@@ -154,6 +154,47 @@ export class MySqlDialect {
 		});
 	}
 
+	async rollback(
+		migrations: MigrationMeta[],
+		session: MySqlSession,
+		config: Omit<MigrationConfig, 'migrationsSchema'>,
+		steps: number = 1,
+	): Promise<void> {
+		const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
+
+		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string; name: string | null }>(
+			sql`select id, hash, name from ${sql.identifier(migrationsTable)} order by id desc limit ${
+				sql.raw(String(steps))
+			}`,
+		);
+
+		if (dbMigrations.length === 0) {
+			return;
+		}
+
+		await session.transaction(async (tx) => {
+			for (const dbMigration of dbMigrations) {
+				const meta = migrations.find((m) => m.hash === dbMigration.hash && (!dbMigration.name || m.name === dbMigration.name));
+				if (!meta) {
+					throw new DrizzleError({
+						message: `Cannot rollback migration with hash ${dbMigration.hash}: migration file not found`,
+					});
+				}
+				if (!meta.downSql || meta.downSql.length === 0) {
+					throw new DrizzleError({
+						message: `Cannot rollback migration ${dbMigration.hash}: no down SQL available. Add a down.sql file alongside the migration.`,
+					});
+				}
+				for (const stmt of [...meta.downSql].reverse()) {
+					await tx.execute(sql.raw(stmt));
+				}
+				await tx.execute(
+					sql`delete from ${sql.identifier(migrationsTable)} where id = ${dbMigration.id}`,
+				);
+			}
+		});
+	}
+
 	escapeName(name: string): string {
 		return `\`${name.replace(/`/g, '``')}\``;
 	}

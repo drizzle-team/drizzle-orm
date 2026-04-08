@@ -15,6 +15,7 @@ import type { Driver } from '../validations/common';
 export const writeResult = (config: {
 	snapshot: SqliteSnapshot | PostgresSnapshot | MysqlSnapshot | MssqlSnapshot | CockroachSnapshot | SingleStoreSnapshot;
 	sqlStatements: string[];
+	downSqlStatements?: string[];
 	outFolder: string;
 	breakpoints: boolean;
 	name?: string;
@@ -27,6 +28,7 @@ export const writeResult = (config: {
 	const {
 		snapshot,
 		sqlStatements,
+		downSqlStatements,
 		outFolder,
 		breakpoints,
 		name,
@@ -69,6 +71,11 @@ export const writeResult = (config: {
 
 	fs.writeFileSync(join(outFolder, `${tag}/migration.sql`), sql);
 
+	if (downSqlStatements && downSqlStatements.length > 0) {
+		const downSql = downSqlStatements.join(sqlDelimiter);
+		fs.writeFileSync(join(outFolder, `${tag}/down.sql`), downSql);
+	}
+
 	// js file with .sql imports for React Native / Expo and Durable Sqlite Objects
 	if (bundle) {
 		// adding new migration to the list of all migrations
@@ -103,11 +110,30 @@ export const embeddedMigrations = (snapshots: string[], driver?: Driver) => {
 		migrations[prefix] = importName;
 	});
 
+	// Check each snapshot dir for down.sql
+	const downMigrations: Record<string, string> = {};
+	snapshots.forEach((entry, idx) => {
+		const prefix = entry.split('/')[entry.split('/').length - 2];
+		const downPath = join(path.dirname(entry), 'down.sql');
+		if (fs.existsSync(downPath)) {
+			const importName = idx.toString().padStart(4, '0');
+			content += `import d${importName} from './${prefix}/down.sql';\n`;
+			downMigrations[prefix] = importName;
+		}
+	});
+
+	const hasDown = Object.keys(downMigrations).length > 0;
+	const downBlock = hasDown
+		? `,\n    downMigrations: {\n      ${
+			Object.entries(downMigrations).map(([key, query]) => `"${key}": d${query}`).join(',\n      ')
+		}\n    }`
+		: '';
+
 	content += `
   export default {
     migrations: {
-      ${Object.entries(migrations).map(([key, query]) => `"${key}": m${query}`).join(',\n')}
-}
+      ${Object.entries(migrations).map(([key, query]) => `"${key}": m${query}`).join(',\n      ')}
+    }${downBlock}
   }
   `;
 

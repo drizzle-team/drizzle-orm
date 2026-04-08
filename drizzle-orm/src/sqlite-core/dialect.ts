@@ -1391,6 +1391,66 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 			throw e;
 		}
 	}
+
+	rollback(
+		migrations: MigrationMeta[],
+		session: SQLiteSession<
+			'sync',
+			unknown,
+			Record<string, unknown>,
+			AnyRelations,
+			V1.TablesRelationalConfig
+		>,
+		config?: string | MigrationConfig,
+		steps: number = 1,
+	): void {
+		const migrationsTable = config === undefined
+			? '__drizzle_migrations'
+			: typeof config === 'string'
+			? '__drizzle_migrations'
+			: config.migrationsTable ?? '__drizzle_migrations';
+
+		const dbMigrations = session.values<[number, string, string, string | null]>(
+			sql`SELECT id, hash, created_at, name FROM ${
+				sql.identifier(migrationsTable)
+			} ORDER BY id DESC LIMIT ${sql.raw(String(steps))}`,
+		);
+
+		if (dbMigrations.length === 0) {
+			return;
+		}
+
+		session.run(sql`BEGIN`);
+		try {
+			for (const dbMigration of dbMigrations) {
+				const meta = migrations.find((m) =>
+					m.hash
+						? m.hash === dbMigration[1] && (!dbMigration[3] || m.name === dbMigration[3])
+						: m.folderMillis === Number(dbMigration[2])
+				);
+				if (!meta) {
+					throw new DrizzleError({
+						message: `Cannot rollback migration with hash ${dbMigration[1]}: migration file not found`,
+					});
+				}
+				if (!meta.downSql || meta.downSql.length === 0) {
+					throw new DrizzleError({
+						message: `Cannot rollback migration ${dbMigration[1]}: no down SQL available. Add a down.sql file alongside the migration.`,
+					});
+				}
+				for (const stmt of [...meta.downSql].reverse()) {
+					session.run(sql.raw(stmt));
+				}
+				session.run(
+					sql`DELETE FROM ${sql.identifier(migrationsTable)} WHERE id = ${dbMigration[0]}`,
+				);
+			}
+			session.run(sql`COMMIT`);
+		} catch (e) {
+			session.run(sql`ROLLBACK`);
+			throw e;
+		}
+	}
 }
 
 export class SQLiteAsyncDialect extends SQLiteDialect {
@@ -1485,6 +1545,61 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 					} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
 						new Date().toISOString()
 					})`,
+				);
+			}
+		});
+	}
+
+	async rollback(
+		migrations: MigrationMeta[],
+		session: SQLiteSession<
+			'async',
+			unknown,
+			Record<string, unknown>,
+			AnyRelations,
+			V1.TablesRelationalConfig
+		>,
+		config?: string | MigrationConfig,
+		steps: number = 1,
+	): Promise<void> {
+		const migrationsTable = config === undefined
+			? '__drizzle_migrations'
+			: typeof config === 'string'
+			? '__drizzle_migrations'
+			: config.migrationsTable ?? '__drizzle_migrations';
+
+		const dbMigrations = await session.values<[number, string, string, string | null]>(
+			sql`SELECT rowid, hash, created_at, name FROM ${
+				sql.identifier(migrationsTable)
+			} ORDER BY id DESC LIMIT ${sql.raw(String(steps))}`,
+		);
+
+		if (dbMigrations.length === 0) {
+			return;
+		}
+
+		await session.transaction(async (tx) => {
+			for (const dbMigration of dbMigrations) {
+				const meta = migrations.find((m) =>
+					m.hash
+						? m.hash === dbMigration[1] && (!dbMigration[3] || m.name === dbMigration[3])
+						: m.folderMillis === Number(dbMigration[2])
+				);
+				if (!meta) {
+					throw new DrizzleError({
+						message: `Cannot rollback migration with hash ${dbMigration[1]}: migration file not found`,
+					});
+				}
+				if (!meta.downSql || meta.downSql.length === 0) {
+					throw new DrizzleError({
+						message: `Cannot rollback migration ${dbMigration[1]}: no down SQL available. Add a down.sql file alongside the migration.`,
+					});
+				}
+				for (const stmt of [...meta.downSql].reverse()) {
+					await tx.run(sql.raw(stmt));
+				}
+				await tx.run(
+					sql`DELETE FROM ${sql.identifier(migrationsTable)} WHERE rowid = ${dbMigration[0]}`,
 				);
 			}
 		});

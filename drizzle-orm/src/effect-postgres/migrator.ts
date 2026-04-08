@@ -11,3 +11,5 @@ export function migrate<TSchema extends Record<string, unknown>, TRelations exte
 	const migrations = readMigrationFiles(config);
 	return coreMigrate(migrations, db.session, config);
 }
+
+// TODO: Add rollback() once Effect-based rollback is implemented in pg-core/effect/session.ts
