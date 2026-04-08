@@ -58,16 +58,14 @@ describe('daterange column type', () => {
 		const rows = await db.select().from(testTable);
 		expect(rows.length).toBe(1);
 
-		const result = rows[0]!.period;
-		expect(result.empty).toBe(false);
-		expect(result.lowerInc).toBe(true);
-		expect(result.upperInc).toBe(false);
-		// PG canonicalizes daterange bounds by converting inclusive bounds to
-		// exclusive via +1 day (e.g. [2025-01-01,2025-12-31] becomes
-		// [2025-01-01,2026-01-01)), and the returned format may vary by locale,
-		// so we only assert the values are non-null rather than exact strings.
-		expect(result.lower).toBeTruthy();
-		expect(result.upper).toBeTruthy();
+		// Upper bound is already exclusive, so PG returns it unchanged
+		expect(rows[0]!.period).toEqual({
+			lower: '2025-01-01',
+			upper: '2025-12-31',
+			lowerInc: true,
+			upperInc: false,
+			empty: false,
+		});
 	});
 
 	test('insert and select a string-mode range', async () => {
@@ -80,9 +78,9 @@ describe('daterange column type', () => {
 
 		const rows = await db.select().from(testTable);
 		expect(rows.length).toBe(1);
-		// String mode returns raw PG text
-		expect(typeof rows[0]!.periodStr).toBe('string');
-		expect(rows[0]!.periodStr).toContain('2025-');
+		// String mode returns raw PG text; PG canonicalizes upper inclusive
+		// bound +1 day, so [2025-06-01,2025-06-30] becomes [2025-06-01,2025-07-01)
+		expect(rows[0]!.periodStr).toBe('[2025-06-01,2025-07-01)');
 	});
 
 	test('insert and select an empty range', async () => {
@@ -132,13 +130,21 @@ describe('daterange column type', () => {
 		const rows = await db.select().from(testTable);
 		expect(rows.length).toBe(2);
 
-		// Lower unbounded
-		expect(rows[0]!.period.lower).toBeNull();
-		expect(rows[0]!.period.upper).toBeTruthy();
+		expect(rows[0]!.period).toEqual({
+			lower: null,
+			upper: '2025-12-31',
+			lowerInc: false,
+			upperInc: false,
+			empty: false,
+		});
 
-		// Upper unbounded
-		expect(rows[1]!.period.lower).toBeTruthy();
-		expect(rows[1]!.period.upper).toBeNull();
+		expect(rows[1]!.period).toEqual({
+			lower: '2025-01-01',
+			upper: null,
+			lowerInc: true,
+			upperInc: false,
+			empty: false,
+		});
 	});
 
 	test('nullable column returns null', async () => {
@@ -160,8 +166,12 @@ describe('daterange column type', () => {
 
 		const rows = await db.select().from(testTable);
 		expect(rows.length).toBe(1);
-		expect(rows[0]!.period.empty).toBe(false);
-		expect(rows[0]!.period.lower).toBeTruthy();
-		expect(rows[0]!.period.upper).toBeTruthy();
+		expect(rows[0]!.period).toEqual({
+			lower: '2025-03-01',
+			upper: '2025-03-31',
+			lowerInc: true,
+			upperInc: false,
+			empty: false,
+		});
 	});
 });
