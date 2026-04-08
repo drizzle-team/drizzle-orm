@@ -62,7 +62,10 @@ describe('daterange column type', () => {
 		expect(result.empty).toBe(false);
 		expect(result.lowerInc).toBe(true);
 		expect(result.upperInc).toBe(false);
-		// PG canonicalizes dates, so just check they parsed
+		// PG canonicalizes daterange bounds by converting inclusive bounds to
+		// exclusive via +1 day (e.g. [2025-01-01,2025-12-31] becomes
+		// [2025-01-01,2026-01-01)), and the returned format may vary by locale,
+		// so we only assert the values are non-null rather than exact strings.
 		expect(result.lower).toBeTruthy();
 		expect(result.upper).toBeTruthy();
 	});
