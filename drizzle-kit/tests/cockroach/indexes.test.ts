@@ -443,13 +443,10 @@ test('indexes #5', async ({ dbc: db }) => {
 	const table1 = schema.table('table1', {
 		col1: int4(),
 		col2: int4(),
-	}, () => [
-		index1,
-		index2,
+	}, (t) => [
+		uniqueIndex('index1').on(t.col1).where(isNotNull(t.col1)),
+		index('index2').on(t.col1).where(isNotNull(t.col1)),
 	]);
-	// TODO: it's needed to fix ts error; If you remove type from index7/index8, it will trigger an ts error in table1 definition.
-	const index1: IndexBuilder = uniqueIndex('index1').on(table1.col1).where(isNotNull(table1.col1));
-	const index2: IndexBuilder = index('index2').on(table1.col1).where(isNotNull(table1.col1));
 
 	const schema1 = { schema, table1 };
 
