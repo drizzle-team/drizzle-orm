@@ -4,7 +4,7 @@ import {
 	type BuildQueryResult,
 	type BuildRelationalQueryResult,
 	type DBQueryConfigWithComment,
-	makeRqbMapper,
+	makeDefaultRqbMapper,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
@@ -88,7 +88,7 @@ export class MySqlRelationalQuery<
 		return this.session.prepareRelationalQuery(
 			builtQuery,
 			undefined,
-			makeRqbMapper({
+			makeDefaultRqbMapper({
 				isFirst: this.mode === 'first',
 				parseJson: false,
 				parseJsonIfString: false,

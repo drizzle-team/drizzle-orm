@@ -8,7 +8,7 @@ import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import {
 	type AnyRelations,
-	makeRqbJitMapper,
+	makeJitRqbMapper,
 	type RelationalQueryMapperConfig,
 	type RelationalRowsMapper,
 } from '~/relations.ts';
@@ -288,7 +288,7 @@ export class TursoDatabasePreparedQuery<
 
 		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['all']>
-				?? makeRqbJitMapper<T['all']>(this.rqbConfig!))(rows)
+				?? makeJitRqbMapper<T['all']>(this.rqbConfig!))(rows)
 			: (customResultMapper as (
 				rows: Record<string, unknown>[],
 				mapColumnValue?: (value: unknown) => unknown,
@@ -334,7 +334,7 @@ export class TursoDatabasePreparedQuery<
 
 		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['get'][]>
-				?? makeRqbJitMapper<T['get'][]>(this.rqbConfig!))([row])
+				?? makeJitRqbMapper<T['get'][]>(this.rqbConfig!))([row])
 			: (customResultMapper as (
 				rows: Record<string, unknown>[],
 				mapColumnValue?: (value: unknown) => unknown,

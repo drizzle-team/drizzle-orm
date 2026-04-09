@@ -19,7 +19,7 @@ import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import {
 	type AnyRelations,
-	makeRqbJitMapper,
+	makeJitRqbMapper,
 	type RelationalQueryMapperConfig,
 	type RelationalRowsMapper,
 } from '~/relations.ts';
@@ -214,7 +214,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 					if (this.isRqbV2Query) {
 						if (this.useJitMapper) {
 							yield (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
-								?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))([row as Record<string, unknown>]);
+								?? makeJitRqbMapper<T['execute']>(this.rqbConfig!))([row as Record<string, unknown>]);
 						} else {
 							const mapped = (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])([
 								row as Record<string, unknown>,

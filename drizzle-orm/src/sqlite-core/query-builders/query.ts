@@ -4,7 +4,7 @@ import {
 	type BuildQueryResult,
 	type BuildRelationalQueryResult,
 	type DBQueryConfig,
-	makeRqbMapper,
+	makeDefaultRqbMapper,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
@@ -151,7 +151,7 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 			builtQuery,
 			undefined,
 			this.mode === 'first' ? 'get' : 'all',
-			makeRqbMapper({
+			makeDefaultRqbMapper({
 				isFirst: this.mode === 'first',
 				parseJson: !this.rowMode,
 				parseJsonIfString: false,

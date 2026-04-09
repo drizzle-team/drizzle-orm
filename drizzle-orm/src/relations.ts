@@ -849,7 +849,7 @@ export type RelationalRowsMapperGenerator<T = any> = (
 	mapColumnValue?: (value: unknown) => unknown,
 ) => (rows: Record<string, unknown>[]) => T;
 
-export function makeRqbMapper<T = any>(
+export function makeDefaultRqbMapper<T = any>(
 	{ selection, isFirst, parseJson, parseJsonIfString, rootJsonMappers }: RelationalQueryMapperConfig,
 	mapColumnValue?: (value: unknown) => unknown,
 ): RelationalRowsMapper<T> {
@@ -868,7 +868,7 @@ export function makeRqbMapper<T = any>(
 	}) as RelationalRowsMapper<T>;
 }
 
-function makeRqbJitMapperInner(
+function makeJitRqbMapperInner(
 	selection: BuildRelationalQueryResult['selection'],
 	pathPrefix: string,
 	selectionPathPrefix: string,
@@ -891,7 +891,7 @@ function makeRqbJitMapperInner(
 
 		if (innerSelection) {
 			const innerIdx = `i${recursionDepth}`;
-			const innerCode = makeRqbJitMapperInner(
+			const innerCode = makeJitRqbMapperInner(
 				innerSelection,
 				isArray ? `${item}[${innerIdx}]` : item,
 				`${sel}.selection`,
@@ -966,12 +966,12 @@ export interface RelationalQueryMapperConfig {
 	rootJsonMappers: boolean;
 }
 
-export function makeRqbJitMapper<T = unknown>(
+export function makeJitRqbMapper<T = unknown>(
 	{ selection, isFirst, parseJson, parseJsonIfString, rootJsonMappers }: RelationalQueryMapperConfig,
 	mapColumnValue?: (value: unknown) => unknown,
 ): RelationalRowsMapper<T> {
 	const fn = [] as string[];
-	const innerCode = makeRqbJitMapperInner(
+	const innerCode = makeJitRqbMapperInner(
 		selection,
 		isFirst ? 'rows[0]' : 'rows[i]',
 		'this.selection',

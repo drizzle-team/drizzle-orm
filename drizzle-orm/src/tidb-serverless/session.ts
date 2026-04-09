@@ -19,7 +19,7 @@ import {
 } from '~/mysql-core/session.ts';
 import {
 	type AnyRelations,
-	makeRqbJitMapper,
+	makeJitRqbMapper,
 	type RelationalQueryMapperConfig,
 	type RelationalRowsMapper,
 } from '~/relations.ts';
@@ -126,7 +126,7 @@ export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig, TIs
 		const { rows } = res;
 		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
-				?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))((rows ?? []) as Record<string, any>[])
+				?? makeJitRqbMapper<T['execute']>(this.rqbConfig!))((rows ?? []) as Record<string, any>[])
 			: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
 				(rows ?? []) as Record<string, any>[],
 			);

@@ -32,8 +32,8 @@ import {
 	type BuildRelationalQueryResult,
 	type DBQueryConfigWithComment,
 	getTableAsAliasSQL,
-	makeRqbJitMapper,
-	makeRqbMapper,
+	makeDefaultRqbMapper,
+	makeJitRqbMapper,
 	One,
 	type Relation,
 	type RelationalRowsMapperGenerator,
@@ -60,8 +60,8 @@ import { Subquery } from '~/subquery.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
 import {
 	type Casing,
+	makeDefaultQueryMapper,
 	makeJitQueryMapper,
-	makeQueryMapper,
 	orderSelectedFields,
 	type RowsMapperGenerator,
 	type UpdateSet,
@@ -93,11 +93,11 @@ export class PgDialect {
 		this.mapperGenerators = config?.useJitMappers
 			? {
 				rows: makeJitQueryMapper,
-				relationalRows: makeRqbJitMapper,
+				relationalRows: makeJitRqbMapper,
 			}
 			: {
-				rows: makeQueryMapper,
-				relationalRows: makeRqbMapper,
+				rows: makeDefaultQueryMapper,
+				relationalRows: makeDefaultRqbMapper,
 			};
 	}
 

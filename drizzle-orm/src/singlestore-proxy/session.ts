@@ -6,7 +6,7 @@ import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import {
 	type AnyRelations,
-	makeRqbJitMapper,
+	makeJitRqbMapper,
 	type RelationalQueryMapperConfig,
 	type RelationalRowsMapper,
 } from '~/relations.ts';
@@ -228,7 +228,7 @@ export class PreparedQuery<T extends SingleStorePreparedQueryConfig, TIsRqbV2 ex
 
 		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
-				?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(rows)
+				?? makeJitRqbMapper<T['execute']>(this.rqbConfig!))(rows)
 			: customResultMapper!(rows);
 	}
 
