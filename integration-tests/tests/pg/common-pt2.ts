@@ -3059,38 +3059,36 @@ export function tests(test: Test) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5112
 		// looks like casing issue
-		test
-			.skipIf(Date.now() < +new Date('2026-04-18'))
-			.concurrent('view #1', async ({ push, createDB }) => {
-				const animal = pgTable('animal', (t) => ({
-					id: t.text().primaryKey(),
-					name: t.text().notNull(),
-					caretakerId: t.text().notNull(),
-				}));
-				const caretaker = pgTable('caretaker', (t) => ({
-					id: t.text().primaryKey(),
-					caretakerName: t.text().notNull(),
-				}));
-				const animalWithCaretakerView = pgView('animal_with_caretaker_view').as(
-					(qb) =>
-						qb
-							.select({
-								id: animal.id,
-								animalName: animal.name,
-								caretakerName: caretaker.caretakerName,
-							})
-							.from(animal)
-							.innerJoin(caretaker, eq(animal.caretakerId, caretaker.id)),
-				);
+		test.skipIf(Date.now() < +new Date('2026-04-12')).concurrent('view #1', async ({ push, createDB }) => {
+			const animal = pgTable('animal', (t) => ({
+				id: t.text().primaryKey(),
+				name: t.text().notNull(),
+				caretakerId: t.text().notNull(),
+			}));
+			const caretaker = pgTable('caretaker', (t) => ({
+				id: t.text().primaryKey(),
+				caretakerName: t.text().notNull(),
+			}));
+			const animalWithCaretakerView = pgView('animal_with_caretaker_view').as(
+				(qb) =>
+					qb
+						.select({
+							id: animal.id,
+							animalName: animal.name,
+							caretakerName: caretaker.caretakerName,
+						})
+						.from(animal)
+						.innerJoin(caretaker, eq(animal.caretakerId, caretaker.id)),
+			);
 
-				const schema = { animal, caretaker, animalWithCaretakerView };
-				const db = createDB(schema);
+			const schema = { animal, caretaker, animalWithCaretakerView };
+			const db = createDB(schema);
 
-				const sql = db.select().from(animalWithCaretakerView).toSQL().sql;
-				expect(sql).toEqual(
-					'select "id", "name", "caretakerName" from "animal_with_caretaker_view";',
-				);
-			});
+			const sql = db.select().from(animalWithCaretakerView).toSQL().sql;
+			expect(sql).toEqual(
+				'select "id", "name", "caretakerName" from "animal_with_caretaker_view";',
+			);
+		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4875
 		test.concurrent('select aliased view', async ({ db }) => {
@@ -3959,19 +3957,17 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/3018
-		test
-			.skipIf(Date.now() < +new Date('2026-04-18'))
-			.concurrent(
-				'select string from jsonb/json column',
-				async ({ db, push }) => {
-					const table = pgTable('table_jsonb', { col1: jsonb(), col2: json() });
-					await push({ table });
+		test.skipIf(Date.now() < +new Date('2026-04-12')).concurrent(
+			'select string from jsonb/json column',
+			async ({ db, push }) => {
+				const table = pgTable('table_jsonb', { col1: jsonb(), col2: json() });
+				await push({ table });
 
-					await db.insert(table).values({ col1: '10.5', col2: '10.6' });
-					const res = await db.select().from(table);
-					expect(res).toStrictEqual([{ col1: '10.5', col2: '10.6' }]);
-				},
-			);
+				await db.insert(table).values({ col1: '10.5', col2: '10.6' });
+				const res = await db.select().from(table);
+				expect(res).toStrictEqual([{ col1: '10.5', col2: '10.6' }]);
+			},
+		);
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5227
 		test.concurrent(
@@ -4059,46 +4055,44 @@ export function tests(test: Test) {
 		// https://github.com/drizzle-team/drizzle-orm/issues/5253
 		// enhancement
 		// allow select which columns to insert in insert...select
-		test
-			.skipIf(Date.now() < +new Date('2026-04-18'))
-			.concurrent('insert into ... select #2', async ({ db, push }) => {
-				const users = pgTable('users_114', {
-					id: integer('id').primaryKey(),
-					name: text('name').notNull(),
-					role: text().notNull(),
-				});
-				const employees = pgTable('employees_114', {
-					id: integer('id').primaryKey().generatedByDefaultAsIdentity(),
-					name: text('name').notNull(),
-				});
-
-				await push({ users, employees });
-
-				await db.insert(users).values([
-					{ id: 1, name: 'John', role: 'employee' },
-					{
-						id: 2,
-						name: 'Jane',
-						role: 'admin',
-					},
-				]);
-
-				await db
-					.insert(employees)
-					.select(
-						db
-							.select({ name: users.name })
-							.from(users)
-							.where(eq(users.role, 'employee')),
-					)
-					.returning({
-						id: employees.id,
-						name: employees.name,
-					});
-
-				const employeesList = await db.select().from(employees);
-				expect(employeesList).toStrictEqual([{ id: 1, name: 'John' }]);
+		test.skipIf(Date.now() < +new Date('2026-04-12')).concurrent('insert into ... select #2', async ({ db, push }) => {
+			const users = pgTable('users_114', {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+				role: text().notNull(),
 			});
+			const employees = pgTable('employees_114', {
+				id: integer('id').primaryKey().generatedByDefaultAsIdentity(),
+				name: text('name').notNull(),
+			});
+
+			await push({ users, employees });
+
+			await db.insert(users).values([
+				{ id: 1, name: 'John', role: 'employee' },
+				{
+					id: 2,
+					name: 'Jane',
+					role: 'admin',
+				},
+			]);
+
+			await db
+				.insert(employees)
+				.select(
+					db
+						.select({ name: users.name })
+						.from(users)
+						.where(eq(users.role, 'employee')),
+				)
+				.returning({
+					id: employees.id,
+					name: employees.name,
+				});
+
+			const employeesList = await db.select().from(employees);
+			expect(employeesList).toStrictEqual([{ id: 1, name: 'John' }]);
+		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4612
 		test('select with inline params in sql', async ({ db }) => {
@@ -4150,7 +4144,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4596
-		test.skipIf(Date.now() < +new Date('2026-04-18'))(
+		test.skipIf(Date.now() < +new Date('2026-04-12'))(
 			'functional index; onConflict do update',
 			async ({ db, push }) => {
 				throw new Error('SKIP. commented below because of type error');
@@ -4188,48 +4182,45 @@ export function tests(test: Test) {
 		);
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5282
-		test.skipIf(Date.now() < +new Date('2026-04-18'))(
-			'casing in sql``',
-			async ({ createDB, push }) => {
-				const payments = pgTable('payments', {
-					id: integer().primaryKey(),
-					amount: numeric(),
-					completedAt: timestamp(),
+		test.skipIf(Date.now() < +new Date('2026-04-12'))('casing in sql``', async ({ createDB, push }) => {
+			const payments = pgTable('payments', {
+				id: integer().primaryKey(),
+				amount: numeric(),
+				completedAt: timestamp(),
+			});
+			const schema = { payments };
+			const db = createDB(schema, () => ({}), 'snake_case');
+
+			await push(schema);
+			db.insert(payments).values({
+				id: 1,
+				amount: '10.12',
+				completedAt: new Date(),
+			});
+
+			const query = db
+				.insert(payments)
+				.values({ id: 1, amount: '12.14', completedAt: new Date() })
+				.onConflictDoUpdate({
+					target: [payments.id],
+					set: {
+						completedAt: sql`excluded.${payments.completedAt}`,
+						amount: sql`excluded.${payments.amount}`,
+					},
 				});
-				const schema = { payments };
-				const db = createDB(schema, () => ({}), 'snake_case');
 
-				await push(schema);
-				db.insert(payments).values({
-					id: 1,
-					amount: '10.12',
-					completedAt: new Date(),
-				});
+			expect(query.toSQL().sql).toEqual(
+				'insert into "payments" ("id", "amount", "completedAt") values ($1, $2, $3) on conflict ("id") do update set "amount" = excluded."amount", "completed_at" = excluded."completed_at"',
+			);
+			await query;
 
-				const query = db
-					.insert(payments)
-					.values({ id: 1, amount: '12.14', completedAt: new Date() })
-					.onConflictDoUpdate({
-						target: [payments.id],
-						set: {
-							completedAt: sql`excluded.${payments.completedAt}`,
-							amount: sql`excluded.${payments.amount}`,
-						},
-					});
+			const result = await db
+				.select({ amount: payments.amount })
+				.from(payments)
+				.where(eq(payments.id, 1));
 
-				expect(query.toSQL().sql).toEqual(
-					'insert into "payments" ("id", "amount", "completedAt") values ($1, $2, $3) on conflict ("id") do update set "amount" = excluded."amount", "completed_at" = excluded."completed_at"',
-				);
-				await query;
-
-				const result = await db
-					.select({ amount: payments.amount })
-					.from(payments)
-					.where(eq(payments.id, 1));
-
-				expect(result).toStrictEqual([{ amount: '12.14' }]);
-			},
-		);
+			expect(result).toStrictEqual([{ amount: '12.14' }]);
+		});
 
 		test.concurrent('sql.identifier escape', async () => {
 			const dialect = new PgDialect();
@@ -4242,29 +4233,26 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4419
-		test.skipIf(Date.now() < +new Date('2026-04-18'))(
-			'db/js timestamp comparison',
-			async ({ db, push }) => {
-				const table1 = pgTable('table1', {
-					id: integer(),
-					// default config equal to: { mode: 'date' }
-					// config to make it work: { mode: 'date', precision: 3 }
-					rowCreatedAt: timestamp('row_created_at').notNull().defaultNow(),
-				});
+		test.skipIf(Date.now() < +new Date('2026-04-12'))('db/js timestamp comparison', async ({ db, push }) => {
+			const table1 = pgTable('table1', {
+				id: integer(),
+				// default config equal to: { mode: 'date' }
+				// config to make it work: { mode: 'date', precision: 3 }
+				rowCreatedAt: timestamp('row_created_at').notNull().defaultNow(),
+			});
 
-				await push({ table1 });
+			await push({ table1 });
 
-				await db.insert(table1).values({ id: 1 });
-				const result1 = await db.select().from(table1);
-				const rowCreatedAt = result1[0]!.rowCreatedAt;
+			await db.insert(table1).values({ id: 1 });
+			const result1 = await db.select().from(table1);
+			const rowCreatedAt = result1[0]!.rowCreatedAt;
 
-				const result2 = await db
-					.select({ id: table1.id })
-					.from(table1)
-					.where(eq(table1.rowCreatedAt, rowCreatedAt));
-				expect(result2).toStrictEqual([{ id: 1 }]);
-			},
-		);
+			const result2 = await db
+				.select({ id: table1.id })
+				.from(table1)
+				.where(eq(table1.rowCreatedAt, rowCreatedAt));
+			expect(result2).toStrictEqual([{ id: 1 }]);
+		});
 
 		test.concurrent('comments', async ({ createDB, push }) => {
 			const ctbl = pgTable('comments_test', (t) => ({
