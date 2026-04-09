@@ -870,7 +870,7 @@ test('optional db aliases (snake case)', async () => {
 
 	const st6 = `CREATE UNIQUE INDEX [t1_uni_idx] ON [t1] ([t1_uni_idx]);`;
 
-	const st7 = `CREATE INDEX [t1_idx] ON [t1] ([t1_idx]) WHERE [t1].[t1_idx] > 0;`;
+	const st7 = `CREATE INDEX [t1_idx] ON [t1] ([t1_idx]) WHERE [t1_idx] > 0;`;
 
 	expect(st).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
 	expect(pst).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);

@@ -4954,7 +4954,7 @@ test('select with inline params in sql', async ({ db }) => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5527
 test('issue 5527. real() returns unprecise float64 values', async ({ db }) => {
-	const users = mssqlTable('users_116', {
+	const users = mssqlTable('users_5527', {
 		id: int('id').primaryKey(),
 		age: real('age').notNull(),
 	});
