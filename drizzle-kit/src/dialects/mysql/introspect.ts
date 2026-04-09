@@ -508,7 +508,7 @@ export const fromDatabase = async (
 				view: name,
 				name: column['COLUMN_NAME'],
 				notNull: column['IS_NULLABLE'] === 'NO',
-				type: column['DATA_TYPE'],
+				type: column['COLUMN_TYPE'],
 			});
 		}
 
