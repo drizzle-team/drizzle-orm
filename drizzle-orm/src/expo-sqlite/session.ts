@@ -5,7 +5,7 @@ import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import {
 	type AnyRelations,
-	makeRqbJitMapper,
+	makeJitRqbMapper,
 	type RelationalQueryMapperConfig,
 	type RelationalRowsMapper,
 } from '~/relations.ts';
@@ -203,7 +203,7 @@ export class ExpoSQLitePreparedQuery<
 
 		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['all']>
-				?? makeRqbJitMapper<T['all']>(this.rqbConfig!))(rows)
+				?? makeJitRqbMapper<T['all']>(this.rqbConfig!))(rows)
 			: (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(rows) as T['all'];
 	}
 
@@ -250,7 +250,7 @@ export class ExpoSQLitePreparedQuery<
 
 		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['get'][]>
-				?? makeRqbJitMapper<T['get'][]>(this.rqbConfig!))([row])
+				?? makeJitRqbMapper<T['get'][]>(this.rqbConfig!))([row])
 			: (customResultMapper as (rows: Record<string, unknown>[]) => unknown)([row]) as T['get'];
 	}
 

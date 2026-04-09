@@ -10,7 +10,7 @@ import { GelPreparedQuery, GelSession, GelTransaction, type PreparedQueryConfig 
 import { type Logger, NoopLogger } from '~/logger.ts';
 import {
 	type AnyRelations,
-	makeRqbJitMapper,
+	makeJitRqbMapper,
 	type RelationalQueryMapperConfig,
 	type RelationalRowsMapper,
 } from '~/relations.ts';
@@ -114,7 +114,7 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
 				return this.useJitMapper
 					? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
-						?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(result as Record<string, unknown>[])
+						?? makeJitRqbMapper<T['execute']>(this.rqbConfig!))(result as Record<string, unknown>[])
 					: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
 						result as Record<string, unknown>[],
 					);

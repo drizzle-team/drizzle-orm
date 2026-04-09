@@ -7,7 +7,7 @@ import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import {
 	type AnyRelations,
-	makeRqbJitMapper,
+	makeJitRqbMapper,
 	type RelationalQueryMapperConfig,
 	type RelationalRowsMapper,
 } from '~/relations.ts';
@@ -241,7 +241,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 
 			return this.useJitMapper
 				? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['get'][]>
-					?? makeRqbJitMapper<T['get'][]>(this.rqbConfig!))(rows as Record<string, unknown>[])
+					?? makeJitRqbMapper<T['get'][]>(this.rqbConfig!))(rows as Record<string, unknown>[])
 				: (this.customResultMapper as (
 					rows: Record<string, unknown>[],
 					mapColumnValue?: (value: unknown) => unknown,
@@ -326,7 +326,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		if (this.isRqbV2Query) {
 			return this.useJitMapper
 				? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['get'][]>
-					?? makeRqbJitMapper<T['get'][]>(this.rqbConfig!))([JSON.parse(row as string) as Record<string, unknown>])
+					?? makeJitRqbMapper<T['get'][]>(this.rqbConfig!))([JSON.parse(row as string) as Record<string, unknown>])
 				: (this.customResultMapper as (
 					rows: Record<string, unknown>[],
 					mapColumnValue?: (value: unknown) => unknown,

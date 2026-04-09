@@ -19,7 +19,7 @@ import type {
 import { MySqlPreparedQuery as PreparedQueryBase, MySqlSession } from '~/mysql-core/session.ts';
 import {
 	type AnyRelations,
-	makeRqbJitMapper,
+	makeJitRqbMapper,
 	type RelationalQueryMapperConfig,
 	type RelationalRowsMapper,
 } from '~/relations.ts';
@@ -254,7 +254,7 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends 
 
 		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
-				?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(rows)
+				?? makeJitRqbMapper<T['execute']>(this.rqbConfig!))(rows)
 			: customResultMapper!(rows);
 	}
 

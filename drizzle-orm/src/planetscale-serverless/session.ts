@@ -18,7 +18,7 @@ import {
 } from '~/mysql-core/session.ts';
 import {
 	type AnyRelations,
-	makeRqbJitMapper,
+	makeJitRqbMapper,
 	type RelationalQueryMapperConfig,
 	type RelationalRowsMapper,
 } from '~/relations.ts';
@@ -142,7 +142,7 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqb
 
 		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
-				?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(res.rows as any as Record<string, unknown>[])
+				?? makeJitRqbMapper<T['execute']>(this.rqbConfig!))(res.rows as any as Record<string, unknown>[])
 			: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
 				res.rows as any as Record<string, unknown>[],
 			);

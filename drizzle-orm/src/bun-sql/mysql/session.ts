@@ -23,7 +23,7 @@ import {
 } from '~/mysql-core/session.ts';
 import {
 	type AnyRelations,
-	makeRqbJitMapper,
+	makeJitRqbMapper,
 	type RelationalQueryMapperConfig,
 	type RelationalRowsMapper,
 } from '~/relations.ts';
@@ -145,7 +145,7 @@ export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 
 
 		return this.useJitMapper
 			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
-				?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))(rows)
+				?? makeJitRqbMapper<T['execute']>(this.rqbConfig!))(rows)
 			: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(rows);
 	}
 
@@ -167,7 +167,7 @@ export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 
 			if (this.isRqbV2Query) {
 				if (this.useJitMapper) {
 					yield (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
-						?? makeRqbJitMapper<T['execute']>(this.rqbConfig!))([row]);
+						?? makeJitRqbMapper<T['execute']>(this.rqbConfig!))([row]);
 				} else {
 					const mapped = (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])([row]);
 					if (this.rqbConfig!.isFirst) yield mapped;

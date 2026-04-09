@@ -18,10 +18,10 @@ import {
 	isNull,
 	like,
 	lt,
+	makeDefaultQueryMapper,
+	makeDefaultRqbMapper,
 	makeJitQueryMapper,
-	makeQueryMapper,
-	makeRqbJitMapper,
-	makeRqbMapper,
+	makeJitRqbMapper,
 	max,
 	min,
 	not,
@@ -4846,9 +4846,9 @@ export function tests(test: Test) {
 			const dialect: PgDialect = (<any> db).dialect;
 			const jitDialect: PgDialect = (<any> createDB({}, () => ({}), undefined, true)).dialect;
 
-			expect(dialect.mapperGenerators.relationalRows === makeRqbMapper).toStrictEqual(true);
-			expect(dialect.mapperGenerators.rows === makeQueryMapper).toStrictEqual(true);
-			expect(jitDialect.mapperGenerators.relationalRows === makeRqbJitMapper).toStrictEqual(true);
+			expect(dialect.mapperGenerators.relationalRows === makeDefaultRqbMapper).toStrictEqual(true);
+			expect(dialect.mapperGenerators.rows === makeDefaultQueryMapper).toStrictEqual(true);
+			expect(jitDialect.mapperGenerators.relationalRows === makeJitRqbMapper).toStrictEqual(true);
 			expect(jitDialect.mapperGenerators.rows === makeJitQueryMapper).toStrictEqual(true);
 		});
 

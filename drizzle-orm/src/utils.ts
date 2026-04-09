@@ -177,7 +177,7 @@ export function makeJitQueryMapper<TResult>(
 	}) as any;
 }
 
-export function makeQueryMapper<TResult>(
+export function makeDefaultQueryMapper<TResult>(
 	columns: SelectedFieldsOrdered<AnyColumn>,
 	joinsNotNullableMap: Record<string, boolean> | undefined,
 ): RowsMapper<TResult> {

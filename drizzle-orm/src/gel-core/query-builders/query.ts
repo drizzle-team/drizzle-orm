@@ -5,7 +5,7 @@ import {
 	type BuildQueryResult,
 	type BuildRelationalQueryResult,
 	type DBQueryConfig,
-	makeRqbMapper,
+	makeDefaultRqbMapper,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
@@ -91,7 +91,7 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 				builtQuery,
 				undefined,
 				name ?? (generateName ? preparedStatementName(builtQuery.sql, builtQuery.params) : name),
-				makeRqbMapper({
+				makeDefaultRqbMapper({
 					isFirst: this.mode === 'first',
 					parseJson: false,
 					parseJsonIfString: false,
