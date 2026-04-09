@@ -948,7 +948,7 @@ test('optional db aliases (camel case)', async () => {
 
 	const st6 = `CREATE UNIQUE INDEX [t1UniIdx] ON [t1] ([t1UniIdx]);`;
 
-	const st7 = `CREATE INDEX [t1Idx] ON [t1] ([t1Idx]) WHERE [t1].[t1Idx] > 0;`;
+	const st7 = `CREATE INDEX [t1Idx] ON [t1] ([t1Idx]) WHERE [t1Idx] > 0;`;
 
 	expect(st).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
 	expect(pst).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);

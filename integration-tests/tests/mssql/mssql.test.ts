@@ -4103,8 +4103,8 @@ test('all possible columns', async ({ db }) => {
 			numericWithConfig: '41.34512',
 			numericDefault: '1',
 			numericDefaultNumber: 1,
-			real: 421.3999938964844,
-			realDefault: 5231.412109375,
+			real: 421.4,
+			realDefault: 5231.412,
 			text: 'hello',
 			textEnum: 'this',
 			textDefault: 'hello, world',
@@ -4953,7 +4953,7 @@ test('select with inline params in sql', async ({ db }) => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5527
-test('select with inline params in sql', async ({ db }) => {
+test('issue 5527. real() returns unprecise float64 values', async ({ db }) => {
 	const users = mssqlTable('users_116', {
 		id: int('id').primaryKey(),
 		age: real('age').notNull(),
