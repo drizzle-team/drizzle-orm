@@ -47,7 +47,7 @@ export const preparePostgresDB = async (
 	if ('driver' in credentials) {
 		const { driver } = credentials;
 		if (driver === 'aws-data-api') {
-			assertPackages('@aws-sdk/client-rds-data');
+			await assertPackages('@aws-sdk/client-rds-data');
 			const { RDSDataClient, ExecuteStatementCommand, TypeHint } = await import(
 				'@aws-sdk/client-rds-data'
 			);
