@@ -13,10 +13,10 @@ import {
 	gte,
 	inArray,
 	lt,
+	makeDefaultQueryMapper,
+	makeDefaultRqbMapper,
 	makeJitQueryMapper,
-	makeQueryMapper,
-	makeRqbJitMapper,
-	makeRqbMapper,
+	makeJitRqbMapper,
 	RelationsBuilder,
 	sql,
 } from 'drizzle-orm';
@@ -3492,9 +3492,9 @@ it.layer(TestLive)((it) => {
 			const dialect: PgDialect = (<any> db).dialect;
 			const jitDialect: PgDialect = (<any> jitDb).dialect;
 
-			expect(dialect.mapperGenerators.relationalRows === makeRqbMapper).toStrictEqual(true);
-			expect(dialect.mapperGenerators.rows === makeQueryMapper).toStrictEqual(true);
-			expect(jitDialect.mapperGenerators.relationalRows === makeRqbJitMapper).toStrictEqual(true);
+			expect(dialect.mapperGenerators.relationalRows === makeDefaultRqbMapper).toStrictEqual(true);
+			expect(dialect.mapperGenerators.rows === makeDefaultQueryMapper).toStrictEqual(true);
+			expect(jitDialect.mapperGenerators.relationalRows === makeJitRqbMapper).toStrictEqual(true);
 			expect(jitDialect.mapperGenerators.rows === makeJitQueryMapper).toStrictEqual(true);
 		}));
 
