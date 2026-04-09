@@ -23,7 +23,7 @@ export async function migrateInternal<TSchema extends Record<string, unknown>, T
 	db: SqliteRemoteDatabase<TSchema, TRelations>,
 	callback: ProxyMigrator,
 	config: MigrationConfig,
-	mode: 'transaction' | 'run',
+	mode: 'transaction' | 'batch',
 ) {
 	const migrations = readMigrationFiles(config);
 
@@ -32,7 +32,7 @@ export async function migrateInternal<TSchema extends Record<string, unknown>, T
 		: config.migrationsTable ?? '__drizzle_migrations';
 
 	// Detect DB version and upgrade table schema if needed
-	const { newDb } = await upgradeAsyncIfNeeded(migrationsTable, db.session, migrations, mode);
+	const { newDb } = await upgradeAsyncIfNeeded(migrationsTable, db, migrations, mode);
 
 	if (newDb) {
 		const migrationTableCreate = sql`

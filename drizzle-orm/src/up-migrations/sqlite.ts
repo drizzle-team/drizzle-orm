@@ -1,12 +1,12 @@
 import type { TablesRelationalConfig } from '~/_relations.ts';
-import type { SQLiteD1Session } from '~/d1/session.ts';
-import type { LibSQLSession } from '~/libsql/session.ts';
+import type { BatchItem } from '~/batch';
+import type { DrizzleD1Database } from '~/d1';
 import type { MigrationMeta } from '~/migrator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
-import type { SQLiteCloudSession } from '~/sqlite-cloud/session.ts';
+import type { BaseSQLiteDatabase } from '~/sqlite-core';
 import type { SQLiteSession } from '~/sqlite-core/session.ts';
-import type { SQLiteRemoteSession } from '~/sqlite-proxy/session.ts';
+import type { SqliteRemoteDatabase } from '~/sqlite-proxy';
 import { assertUnreachable } from '~/utils.ts';
 
 const CURRENT_MIGRATION_TABLE_VERSION = 1;
@@ -266,24 +266,13 @@ const upgradeSyncFunctions: Record<
  */
 export async function upgradeAsyncIfNeeded(
 	migrationsTable: string,
-	session:
-		| SQLiteSession<
-			'async',
-			unknown,
-			Record<string, unknown>,
-			AnyRelations,
-			TablesRelationalConfig
-		>
-		| SQLiteRemoteSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>
-		| SQLiteD1Session<Record<string, unknown>, AnyRelations, TablesRelationalConfig>
-		| LibSQLSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>
-		| SQLiteCloudSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>,
+	db: BaseSQLiteDatabase<'async', unknown, Record<string, unknown>>,
 	localMigrations: MigrationMeta[],
-	mode: 'transaction' | 'run' = 'transaction',
+	mode: 'transaction' | 'batch' = 'transaction',
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
 	const tableExists = await allAsync(
-		session,
+		db.session,
 		sql`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ${migrationsTable}`,
 		(row) => ({ '1': row[0] }),
 	);
@@ -296,7 +285,7 @@ export async function upgradeAsyncIfNeeded(
 	// sqlite-proxy returns [ [string] ]
 	// sqlite returns [{ column_name: string }]
 	const rows = await allAsync(
-		session,
+		db.session,
 		sql`SELECT name as column_name FROM pragma_table_info(${migrationsTable})`,
 		(row) => ({ column_name: row[0] }),
 	);
@@ -308,7 +297,7 @@ export async function upgradeAsyncIfNeeded(
 		if (!upgradeFn) {
 			throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
 		}
-		await upgradeFn(migrationsTable, session, localMigrations, mode);
+		await upgradeFn(migrationsTable, db, localMigrations, mode);
 	}
 
 	return { prevVersion: version, currentVersion: CURRENT_MIGRATION_TABLE_VERSION };
@@ -318,15 +307,9 @@ const upgradeAsyncFunctions: Record<
 	number,
 	(
 		migrationsTable: string,
-		session: SQLiteSession<
-			'async',
-			unknown,
-			Record<string, unknown>,
-			AnyRelations,
-			TablesRelationalConfig
-		>,
+		db: BaseSQLiteDatabase<'async', unknown, Record<string, unknown>>,
 		localMigrations: MigrationMeta[],
-		mode: 'transaction' | 'run',
+		mode: 'transaction' | 'batch',
 	) => Promise<void>
 > = {
 	/**
@@ -338,14 +321,14 @@ const upgradeAsyncFunctions: Record<
 	 * Not implemented for now -> If hash matching fails, fall back to serial id ordering
 	 * 5. Create extra column and backfill names for matched migrations
 	 */
-	0: async (migrationsTable, session, localMigrations, mode) => {
+	0: async (migrationsTable, db, localMigrations, mode) => {
 		const table = sql`${sql.identifier(migrationsTable)}`;
 
 		// 1. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
 		// this can be null from legacy implementation where id was serial
 		const dbRows = await allAsync<{ id: number | null; hash: string; created_at: number }>(
-			session,
+			db.session,
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
 			(row) => ({
 				id: row[0],
@@ -450,17 +433,17 @@ const upgradeAsyncFunctions: Record<
 
 		if (mode === 'transaction') {
 			// for normal sqlite proxy migrate() call from code
-			await session.transaction(async (tx) => {
+			await db.transaction(async (tx) => {
 				for (const statement of statements) {
 					await tx.run(statement);
 				}
 			});
-		} else if (mode === 'run') {
-			// for drizzle-kit migrate call for d1 driver
-			// see drizzle-kit/src/cli/connections.ts for sqlite d1
-			for (const statement of statements) {
-				await session.run(statement);
-			}
+		} else if (mode === 'batch') {
+			const database = db as SqliteRemoteDatabase<Record<string, unknown>> | DrizzleD1Database;
+
+			await database.batch(
+				statements.map((s) => database.run(s)) as unknown as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]],
+			);
 		} else assertUnreachable(mode);
 	},
 };

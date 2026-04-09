@@ -1930,14 +1930,45 @@ export const connectToSQLite = async (
 				};
 			};
 
-			const drzl = drizzle(remoteCallback);
+			const remoteMigrateBatchCallback = async (
+				queries: {
+					sql: string;
+				}[],
+			) => {
+				const sql = queries.map((q) => q.sql).join('; ');
+				const res = await fetch(
+					`https://api.cloudflare.com/client/v4/accounts/${credentials.accountId}/d1/database/${credentials.databaseId}/query`,
+					{
+						method: 'POST',
+						body: JSON.stringify({ sql }),
+						headers: {
+							'Content-Type': 'application/json',
+							Authorization: `Bearer ${credentials.token}`,
+						},
+					},
+				);
+
+				const data = (await res.json()) as D1Response;
+
+				if (!data.success) {
+					throw new Error(
+						data.errors.map((it) => `${it.code}: ${it.message}`).join('\n'),
+					);
+				}
+
+				const rows: { rows: any[] }[] = data.result.flatMap(({ results }) => {
+					return Array.isArray(results) ? { rows: results } : results.rows.map((it) => ({ rows: it }));
+				});
+
+				return rows;
+			};
+
+			const drzl = drizzle(remoteCallback, remoteMigrateBatchCallback);
 			const migrateFn = async (config: MigrationConfig) => {
 				return migrateInternal(
 					drzl,
 					async (queries) => {
-						for (const query of queries) {
-							await remoteCallback(query, [], 'run');
-						}
+						await remoteBatchCallback(queries.map((sql) => ({ sql })));
 					},
 					config,
 					'run',
