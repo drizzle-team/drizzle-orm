@@ -12,11 +12,8 @@ export class GelRole implements GelRoleConfig {
 	/** @internal */
 	_existing?: boolean;
 
-	/** @internal */
 	readonly createDb: GelRoleConfig['createDb'];
-	/** @internal */
 	readonly createRole: GelRoleConfig['createRole'];
-	/** @internal */
 	readonly inherit: GelRoleConfig['inherit'];
 
 	constructor(
