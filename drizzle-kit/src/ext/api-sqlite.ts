@@ -1,3 +1,4 @@
+/// <reference types="@cloudflare/workers-types" />
 import type { Relations } from 'drizzle-orm/_relations';
 import type { AnySQLiteTable } from 'drizzle-orm/sqlite-core';
 import type { CasingType } from 'src/cli/validations/common';
@@ -5,7 +6,10 @@ import type { SqliteCredentials } from 'src/cli/validations/sqlite';
 
 export const startStudioServer = async (
 	imports: Record<string, unknown>,
-	credentials: SqliteCredentials,
+	credentials: SqliteCredentials | {
+		driver: 'd1';
+		binding: D1Database;
+	},
 	options?: {
 		host?: string;
 		port?: number;

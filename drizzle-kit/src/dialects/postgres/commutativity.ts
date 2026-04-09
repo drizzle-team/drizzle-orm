@@ -145,7 +145,7 @@ const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
 		'create_enum',
 		'drop_enum',
 		'rename_enum',
-		'alter_enum',
+		// 'alter_enum',
 		'recreate_enum',
 		'move_enum',
 		'alter_type_drop_value',

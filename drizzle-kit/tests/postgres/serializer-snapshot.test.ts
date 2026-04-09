@@ -161,9 +161,7 @@ describe('transition tests', () => {
 				age: integer('age'),
 				test: integer('test'),
 			},
-			(
-				t,
-			) => [
+			(t) => [
 				check('age_check', sql`${t.age} > 18`),
 				index('users_name_idx').on(t.name),
 				unique().on(t.test),
@@ -189,9 +187,7 @@ describe('transition tests', () => {
 				age: integer('age'),
 				test: integer('test'),
 			},
-			(
-				t,
-			) => [
+			(t) => [
 				check('age_check', sql`${t.age} > 18`),
 				index('users_name_idx').on(t.name),
 				unique().on(t.test),
@@ -278,9 +274,7 @@ describe('transition tests', () => {
 				age: integer('age'),
 				test: integer('test'),
 			},
-			(
-				t,
-			) => [
+			(t) => [
 				check('age_check', sql`${t.age} > 18`),
 				index('users_name_idx').on(t.name),
 				unique().on(t.test),
@@ -307,9 +301,7 @@ describe('transition tests', () => {
 				age: integer('age'),
 				test: integer('test'),
 			},
-			(
-				t,
-			) => [
+			(t) => [
 				check('age_check', sql`${t.age} > 18`),
 				index('users_name_idx').on(t.name),
 				unique().on(t.test),
@@ -362,9 +354,7 @@ describe('transition tests', () => {
 				age: integer('age'),
 				test: integer('test'),
 			},
-			(
-				t,
-			) => [
+			(t) => [
 				check('age_check', sql`${t.age} > 18`),
 				index('users_name_idx').on(t.name),
 				unique().on(t.test),
@@ -391,9 +381,7 @@ describe('transition tests', () => {
 				age: integer('age'),
 				test: integer('test'),
 			},
-			(
-				t,
-			) => [
+			(t) => [
 				check('age_check', sql`${t.age} > 18`),
 				index('users_name_idx').on(t.name),
 				unique().on(t.test),
@@ -411,7 +399,10 @@ describe('transition tests', () => {
 			usersSubs: usersSubsTo,
 		};
 
-		const expectedTypes: JsonStatement['type'][] = ['rename_table', 'move_table'];
+		const expectedTypes: JsonStatement['type'][] = [
+			'rename_table',
+			'move_table',
+		];
 
 		const { afterPatch, fromTs, statements } = await applyTransition({
 			from,
@@ -570,7 +561,9 @@ describe('transition tests', () => {
 	});
 
 	test('recreate_column', async () => {
-		const from = { users: pgTable('users', { id: integer('id').generatedAlwaysAs(sql`13`) }) };
+		const from = {
+			users: pgTable('users', { id: integer('id').generatedAlwaysAs(sql`13`) }),
+		};
 		const to = {
 			users: pgTable('users', { id: integer('id').generatedAlwaysAs(sql`15`) }),
 		};
@@ -945,7 +938,11 @@ describe('transition tests', () => {
 			}),
 		};
 
-		const expectedTypes: JsonStatement['type'][] = ['alter_column', 'alter_column', 'drop_pk'];
+		const expectedTypes: JsonStatement['type'][] = [
+			'alter_column',
+			'alter_column',
+			'drop_pk',
+		];
 
 		const { afterPatch, fromTs, statements } = await applyTransition({
 			from,
@@ -1788,7 +1785,9 @@ describe('transition tests', () => {
 		const from = { users };
 		const to = {
 			users,
-			policy: pgPolicy('users_policy', { for: 'select', to: 'public' }).link(users),
+			policy: pgPolicy('users_policy', { for: 'select', to: 'public' }).link(
+				users,
+			),
 		};
 
 		const expectedTypes: JsonStatement['type'][] = ['create_policy'];
@@ -1815,7 +1814,9 @@ describe('transition tests', () => {
 
 		const from = {
 			users,
-			policy: pgPolicy('users_policy', { for: 'select', to: 'public' }).link(users),
+			policy: pgPolicy('users_policy', { for: 'select', to: 'public' }).link(
+				users,
+			),
 		};
 		const to = { users };
 
@@ -1843,11 +1844,16 @@ describe('transition tests', () => {
 
 		const from = {
 			users,
-			policy: pgPolicy('users_policy', { for: 'select', to: 'public' }).link(users),
+			policy: pgPolicy('users_policy', { for: 'select', to: 'public' }).link(
+				users,
+			),
 		};
 		const to = {
 			users,
-			policy: pgPolicy('users_policy_renamed', { for: 'select', to: 'public' }).link(users),
+			policy: pgPolicy('users_policy_renamed', {
+				for: 'select',
+				to: 'public',
+			}).link(users),
 		};
 
 		const expectedTypes: JsonStatement['type'][] = ['rename_policy'];
@@ -1874,11 +1880,19 @@ describe('transition tests', () => {
 
 		const from = {
 			users,
-			policy: pgPolicy('users_policy', { for: 'select', to: 'public', using: sql`` }).link(users),
+			policy: pgPolicy('users_policy', {
+				for: 'select',
+				to: 'public',
+				using: sql``,
+			}).link(users),
 		};
 		const to = {
 			users,
-			policy: pgPolicy('users_policy', { for: 'select', to: 'public', using: sql`1` }).link(users),
+			policy: pgPolicy('users_policy', {
+				for: 'select',
+				to: 'public',
+				using: sql`1`,
+			}).link(users),
 		};
 
 		const expectedTypes: JsonStatement['type'][] = ['alter_policy'];
@@ -1905,7 +1919,9 @@ describe('transition tests', () => {
 
 		const from = {
 			users,
-			policy: pgPolicy('users_policy', { for: 'select', to: 'public' }).link(users),
+			policy: pgPolicy('users_policy', { for: 'select', to: 'public' }).link(
+				users,
+			),
 		};
 		const to = {
 			users,
@@ -2190,6 +2206,107 @@ describe('transition tests', () => {
 		expect(afterPatch).toStrictEqual(fromTs);
 	});
 
+	test('merge commutative branches with alter_enum (no duplicates)', async () => {
+		// Simulates 3 leaf branches forking from the same parent, each independently
+		// modifying the same enum. When merging, all their alter_enum statements are
+		// concatenated and applied to the parent snapshot. Previously this caused
+		// duplicate enum entries because the 2nd/3rd alter_enum's `from` didn't match
+		// the already-modified enum.
+		const parentEnum = pgEnum('status', ['a', 'b']);
+		const finalEnum = pgEnum('status', ['a', 'b', 'c', 'd', 'e']);
+
+		const parentSchema = {
+			statusEnum: parentEnum,
+			items: pgTable('items', {
+				id: integer('id'),
+				status: parentEnum('status'),
+			}),
+		};
+
+		// Branch A: adds 'c'
+		const branchAEnum = pgEnum('status', ['a', 'b', 'c']);
+		const branchA = {
+			statusEnum: branchAEnum,
+			items: pgTable('items', {
+				id: integer('id'),
+				status: branchAEnum('status'),
+			}),
+		};
+
+		// Branch B: adds 'd', 'e'
+		const branchBEnum = pgEnum('status', ['a', 'b', 'd', 'e']);
+		const branchB = {
+			statusEnum: branchBEnum,
+			items: pgTable('items', {
+				id: integer('id'),
+				status: branchBEnum('status'),
+			}),
+		};
+
+		// Get statements from each branch (parent -> branch)
+		const { statements: statementsA } = await diff(parentSchema, branchA, []);
+		const { statements: statementsB } = await diff(parentSchema, branchB, []);
+
+		// Combine all statements (simulates flatMap of leaf statements)
+		const combinedStatements = [...statementsA, ...statementsB];
+
+		const base: PostgresSnapshot = {
+			version: '8',
+			dialect: 'postgres',
+			id: 'snapshot-id',
+			prevIds: [originId],
+			ddl: drizzleToDDL(parentSchema).ddl.entities.list(),
+			renames: [],
+		};
+
+		const actual = generateLatestSnapshot(base, combinedStatements);
+
+		// The expected snapshot is what the final schema looks like
+		const expected = {
+			...base,
+			ddl: drizzleToDDL({
+				statusEnum: finalEnum,
+				items: pgTable('items', {
+					id: integer('id'),
+					status: finalEnum('status'),
+				}),
+			}).ddl.entities.list(),
+		};
+
+		const stable = (value: unknown): unknown => {
+			if (Array.isArray(value)) {
+				return value.map(stable);
+			}
+			if (value && typeof value === 'object') {
+				return Object.fromEntries(
+					Object.entries(value as Record<string, unknown>)
+						.sort(([left], [right]) => left.localeCompare(right))
+						.map(([key, entry]) => [key, stable(entry)]),
+				);
+			}
+			return value;
+		};
+
+		const ddlEntries = (ddl: PostgresEntity[]) =>
+			ddl
+				.map((entry) => JSON.stringify(stable(entry)))
+				.sort((left, right) => left.localeCompare(right));
+
+		const actualDdl = ddlEntries(actual.ddl);
+		const expectedDdl = ddlEntries(expected.ddl);
+
+		// Verify no duplicate enum entries
+		const enumEntries = actual.ddl.filter(
+			(e) => (e as any).entityType === 'enums',
+		);
+		expect(
+			enumEntries.length,
+			`Expected exactly 1 enum entry, but found ${enumEntries.length}. Duplicate enums were created during branch merge.`,
+		).toBe(1);
+
+		expect(actualDdl).toStrictEqual(expectedDdl);
+	});
+
 	test('alter view', async () => {
 		const from = {
 			users: pgTable('users', { id: integer('id') }),
@@ -2202,7 +2319,9 @@ describe('transition tests', () => {
 			active_users: pgView('active_users', {
 				id: integer('id'),
 				name: varchar('name'),
-			}).with({ checkOption: 'local' }).as(sql`SELECT id, name FROM users WHERE active = true`),
+			})
+				.with({ checkOption: 'local' })
+				.as(sql`SELECT id, name FROM users WHERE active = true`),
 		};
 
 		const expectedTypes: JsonStatement['type'][] = ['alter_view'];

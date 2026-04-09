@@ -25,6 +25,8 @@ on:
         required: true
       TURBO_TOKEN: 
         required: true
+      NETLIFY_DB_URL: 
+        required: true
 
 concurrency:
   group: feature-${{ github.workflow }}-${{ github.ref }}
@@ -234,6 +236,7 @@ jobs:
           TEST_CONFIG_PATH_PREFIX: ./tests/cli/
           SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
           SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
+          NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
         working-directory: integration-tests
         shell: bash
         run: |

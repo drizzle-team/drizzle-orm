@@ -58,6 +58,9 @@ export class NeonHttpSession<TRelations extends AnyRelations>
 		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
 		const executor = (params?: unknown[]) => {
+			// `client.query` is for @neondatabase/serverless v1.0.0 and up, where the
+			// root query function `httpClient` is only usable as a template function;
+			// `client` is a fallback for earlier versions
 			const q = ((this.client as any).query ?? this.client as any) as NeonHttpClient;
 			if (mode === 'raw') {
 				// otherwise raw queries with .then crash due to .then not existing on raw mode queries
