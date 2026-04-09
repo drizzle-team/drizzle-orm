@@ -36,6 +36,7 @@ import {
 	mssqlTableCreator,
 	mssqlView,
 	primaryKey,
+	real,
 	text,
 	union,
 	unionAll,
@@ -4949,4 +4950,17 @@ test('select with inline params in sql', async ({ db }) => {
 		sql: 'select sum(3) from [users_115]',
 		params: [],
 	});
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5527
+test('select with inline params in sql', async ({ db }) => {
+	const users = mssqlTable('users_116', {
+		id: int('id').primaryKey(),
+		age: real('age').notNull(),
+	});
+
+	await db.insert(users).values({ id: 1, age: 0.01 });
+	const [res] = await db.select().from(users);
+
+	expect(res).toStrictEqual({ id: 1, age: 0.01 });
 });

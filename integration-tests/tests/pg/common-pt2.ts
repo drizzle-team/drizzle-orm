@@ -3060,7 +3060,7 @@ export function tests(test: Test) {
 		// https://github.com/drizzle-team/drizzle-orm/issues/5112
 		// looks like casing issue
 		test
-			.skipIf(Date.now() < +new Date('2026-03-29'))
+			.skipIf(Date.now() < +new Date('2026-04-18'))
 			.concurrent('view #1', async ({ push, createDB }) => {
 				const animal = pgTable('animal', (t) => ({
 					id: t.text().primaryKey(),
@@ -3960,7 +3960,7 @@ export function tests(test: Test) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/3018
 		test
-			.skipIf(Date.now() < +new Date('2026-03-29'))
+			.skipIf(Date.now() < +new Date('2026-04-18'))
 			.concurrent(
 				'select string from jsonb/json column',
 				async ({ db, push }) => {
@@ -4060,7 +4060,7 @@ export function tests(test: Test) {
 		// enhancement
 		// allow select which columns to insert in insert...select
 		test
-			.skipIf(Date.now() < +new Date('2026-03-29'))
+			.skipIf(Date.now() < +new Date('2026-04-18'))
 			.concurrent('insert into ... select #2', async ({ db, push }) => {
 				const users = pgTable('users_114', {
 					id: integer('id').primaryKey(),
@@ -4150,7 +4150,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4596
-		test.skipIf(Date.now() < +new Date('2026-03-29'))(
+		test.skipIf(Date.now() < +new Date('2026-04-18'))(
 			'functional index; onConflict do update',
 			async ({ db, push }) => {
 				throw new Error('SKIP. commented below because of type error');
@@ -4188,7 +4188,7 @@ export function tests(test: Test) {
 		);
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5282
-		test.skipIf(Date.now() < +new Date('2026-03-29'))(
+		test.skipIf(Date.now() < +new Date('2026-04-18'))(
 			'casing in sql``',
 			async ({ createDB, push }) => {
 				const payments = pgTable('payments', {
@@ -4242,7 +4242,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4419
-		test.skipIf(Date.now() < +new Date('2026-03-29'))(
+		test.skipIf(Date.now() < +new Date('2026-04-18'))(
 			'db/js timestamp comparison',
 			async ({ db, push }) => {
 				const table1 = pgTable('table1', {

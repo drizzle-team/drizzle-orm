@@ -673,8 +673,6 @@ test('index #7', async () => {
 	const index4 = index('index4').on(table1.col1, table1.col2);
 	const index5 = index('index5').on(sql`${table1.col1} asc`);
 	const index6 = index('index6').on(sql`${table1.col1} asc`, sql`${table1.col2} desc`);
-	throw new Error();
-	// TODO: it's needed to fix ts error;
 	const index7 = uniqueIndex('index7').on(table1.col1).where(isNotNull(table1.col1));
 	const index8 = index('index8').on(table1.col1).where(isNotNull(table1.col1));
 

@@ -7,6 +7,7 @@ import { type SQL, sql } from '~/sql/sql.ts';
 import type { SQLiteCloudSession } from '~/sqlite-cloud/session.ts';
 import type { SQLiteSession } from '~/sqlite-core/session.ts';
 import type { SQLiteRemoteSession } from '~/sqlite-proxy/session.ts';
+import { assertUnreachable } from '~/utils.ts';
 
 const CURRENT_MIGRATION_TABLE_VERSION = 1;
 
@@ -278,6 +279,7 @@ export async function upgradeAsyncIfNeeded(
 		| LibSQLSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>
 		| SQLiteCloudSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>,
 	localMigrations: MigrationMeta[],
+	mode: 'transaction' | 'run' = 'transaction',
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
 	const tableExists = await allAsync(
@@ -306,7 +308,7 @@ export async function upgradeAsyncIfNeeded(
 		if (!upgradeFn) {
 			throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
 		}
-		await upgradeFn(migrationsTable, session, localMigrations);
+		await upgradeFn(migrationsTable, session, localMigrations, mode);
 	}
 
 	return { prevVersion: version, currentVersion: CURRENT_MIGRATION_TABLE_VERSION };
@@ -324,6 +326,7 @@ const upgradeAsyncFunctions: Record<
 			TablesRelationalConfig
 		>,
 		localMigrations: MigrationMeta[],
+		mode: 'transaction' | 'run',
 	) => Promise<void>
 > = {
 	/**
@@ -335,7 +338,7 @@ const upgradeAsyncFunctions: Record<
 	 * Not implemented for now -> If hash matching fails, fall back to serial id ordering
 	 * 5. Create extra column and backfill names for matched migrations
 	 */
-	0: async (migrationsTable, session, localMigrations) => {
+	0: async (migrationsTable, session, localMigrations, mode) => {
 		const table = sql`${sql.identifier(migrationsTable)}`;
 
 		// 1. Read all existing DB migrations
@@ -425,27 +428,39 @@ const upgradeAsyncFunctions: Record<
 		}
 
 		// 5. Create extra column and backfill names for matched migrations
-		await session.transaction(async (tx) => {
-			await tx.run(sql`ALTER TABLE ${table} ADD COLUMN ${sql.identifier('name')} text`);
-			await tx.run(
-				sql`ALTER TABLE ${table} ADD COLUMN ${sql.identifier('applied_at')} TEXT`,
-			);
+		const statements: SQL[] = [
+			sql`ALTER TABLE ${table} ADD COLUMN ${sql.identifier('name')} text`,
+			sql`ALTER TABLE ${table} ADD COLUMN ${sql.identifier('applied_at')} TEXT`,
+		];
+		for (const backfillEntry of toApply) {
+			const updateQuery = sql`UPDATE ${table} SET ${sql.identifier('name')} = ${backfillEntry.name}, ${
+				sql.identifier('applied_at')
+			} = NULL WHERE`;
 
-			for (const backfillEntry of toApply) {
-				const updateQuery = sql`UPDATE ${table} SET ${sql.identifier('name')} = ${backfillEntry.name}, ${
-					sql.identifier('applied_at')
-				} = NULL WHERE`;
+			// id
+			// created_at
+			// hash
+			if (backfillEntry.id) updateQuery.append(sql` ${sql.identifier('id')} = ${backfillEntry.id}`);
+			else if (backfillEntry.matchedBy === 'millis') {
+				updateQuery.append(sql` ${sql.identifier('created_at')} = ${backfillEntry.created_at}`);
+			} else updateQuery.append(sql` ${sql.identifier('hash')} = ${backfillEntry.hash}`);
 
-				// id
-				// created_at
-				// hash
-				if (backfillEntry.id) updateQuery.append(sql` ${sql.identifier('id')} = ${backfillEntry.id}`);
-				else if (backfillEntry.matchedBy === 'millis') {
-					updateQuery.append(sql` ${sql.identifier('created_at')} = ${backfillEntry.created_at}`);
-				} else updateQuery.append(sql` ${sql.identifier('hash')} = ${backfillEntry.hash}`);
+			statements.push(updateQuery);
+		}
 
-				await tx.run(updateQuery);
+		if (mode === 'transaction') {
+			// for normal sqlite proxy migrate() call from code
+			await session.transaction(async (tx) => {
+				for (const statement of statements) {
+					await tx.run(statement);
+				}
+			});
+		} else if (mode === 'run') {
+			// for drizzle-kit migrate call for d1 driver
+			// see drizzle-kit/src/cli/connections.ts for sqlite d1
+			for (const statement of statements) {
+				await session.run(statement);
 			}
-		});
+		} else assertUnreachable(mode);
 	},
 };
