@@ -33,27 +33,14 @@ const typeConfig: CustomTypesConfig = {
 	getTypeParser: <CustomTypesConfig['getTypeParser']> ((typeId, format) => {
 		switch (typeId as number) {
 			case types.builtins.TIMESTAMPTZ:
-				return noop;
 			case types.builtins.TIMESTAMP:
-				return noop;
 			case types.builtins.DATE:
-				return noop;
 			case types.builtins.INTERVAL:
-				return noop;
-			// numeric[]
-			case 1231:
-				return noop;
-			// timestamp[]
-			case 1115:
-				return noop;
-			// timestamp with timezone[]
-			case 1185:
-				return noop;
-			// interval[]
-			case 1187:
-				return noop;
-			// date[]
-			case 1182:
+			case 1231: // numeric[]
+			case 1115: // timestamp[]
+			case 1185: // timestamp with timezone[]
+			case 1187: // interval[]
+			case 1182: // date[]
 				return noop;
 			default:
 				return types.getTypeParser(typeId, format);

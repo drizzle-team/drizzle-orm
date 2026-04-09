@@ -56,6 +56,7 @@ export interface PgColumnBuilderRuntimeConfig<TData> {
 	dimensions?: PgArrayDimension;
 }
 
+// TODO: remove isAutoincrement and hasRuntimeDefault
 export interface PgColumnBaseConfig<out TDataType extends ColumnType = ColumnType> {
 	name: string;
 	dataType: TDataType;

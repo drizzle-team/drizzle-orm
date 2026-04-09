@@ -69,7 +69,7 @@ export class PgCustomColumn<T extends ColumnBuilderBaseConfig<'custom'>> extends
 		this.mapFromJsonValue = config.customTypeParams.fromJson;
 		this.jsonSelectIdentifier = config.customTypeParams.forJsonSelect;
 		this.useCodecType = resolvePgType(
-			config.customTypeParams.useCodecType
+			config.customTypeParams.codec
 				?? this.sqlName.slice(
 					0,
 					Math.min(...[this.sqlName.indexOf('('), this.sqlName.indexOf('[')].filter((e) => e !== -1)),
@@ -333,7 +333,7 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 *
 	 * Defaults to {@link dataType}
 	 */
-	useCodecType?: PostgresColumnType;
+	codec?: PostgresColumnType;
 }
 
 /**
