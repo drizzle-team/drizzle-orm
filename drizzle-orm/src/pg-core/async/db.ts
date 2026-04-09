@@ -120,6 +120,8 @@ export class PgAsyncDatabase<
 		) => {
 			if (typeof qb === 'function') {
 				qb = qb(
+					// Need to recreate dialect without codecs as to not affect selection within subquery
+					// as codecs must only modify selection at an output
 					new QueryBuilder(
 						new (Object.getPrototypeOf(this.dialect).constructor as typeof PgDialect)({
 							casing: this.dialect.casing,

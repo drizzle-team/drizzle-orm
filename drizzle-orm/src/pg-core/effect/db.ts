@@ -130,6 +130,8 @@ export class PgEffectDatabase<
 			if (typeof qb === 'function') {
 				qb = qb(
 					new QueryBuilder(
+						// Need to recreate dialect without codecs as to not affect selection within subquery
+						// as codecs must only modify selection at an output
 						new (Object.getPrototypeOf(this.dialect).constructor as typeof PgDialect)({
 							casing: this.dialect.casing,
 							codecs: noopCodecs,
