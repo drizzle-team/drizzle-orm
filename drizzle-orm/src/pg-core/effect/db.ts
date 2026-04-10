@@ -2,7 +2,6 @@ import type { SqlError } from '@effect/sql/SqlError';
 import { Effect } from 'effect';
 import type { EffectCache } from '~/cache/core/cache-effect.ts';
 import type { MutationOption } from '~/cache/core/cache.ts';
-import { noopCodecs } from '~/codecs.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -128,24 +127,17 @@ export class PgEffectDatabase<
 				| ((qb: QueryBuilder) => TypedQueryBuilder<ColumnsSelection | undefined> | SQL),
 		) => {
 			if (typeof qb === 'function') {
-				qb = qb(
-					new QueryBuilder(
-						// Need to recreate dialect without codecs as to not affect selection within subquery
-						// as codecs must only modify selection at an output
-						new (Object.getPrototypeOf(this.dialect).constructor as typeof PgDialect)({
-							casing: this.dialect.casing,
-							codecs: noopCodecs,
-						}),
-					),
-				);
+				qb = qb(new QueryBuilder(this.dialect));
 			}
 
+			const sql = ('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL();
 			return new Proxy(
 				new WithSubquery(
-					qb.getSQL(),
+					sql,
 					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
 					alias,
 					true,
+					sql.usedTables ?? [],
 				),
 				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 			);

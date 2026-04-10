@@ -998,6 +998,11 @@ export abstract class GelSelectQueryBuilderBase<
 		) as this['_']['selectedFields'];
 	}
 
+	/** @internal */
+	override withoutSelectionCastCodecs(): this {
+		return this;
+	}
+
 	$dynamic(): GelSelectDynamic<this> {
 		return this;
 	}

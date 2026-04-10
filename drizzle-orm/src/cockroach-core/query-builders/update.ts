@@ -627,6 +627,11 @@ export class CockroachUpdateBase<
 		) as this['_']['selectedFields'];
 	}
 
+	/** @internal */
+	withoutSelectionCastCodecs(): this {
+		return this;
+	}
+
 	$dynamic(): CockroachUpdateDynamic<this> {
 		return this as any;
 	}

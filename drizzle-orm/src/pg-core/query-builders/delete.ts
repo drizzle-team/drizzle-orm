@@ -52,6 +52,7 @@ export interface PgDeleteConfig {
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
 	comment?: SQL;
+	ignoreSelectionCastCodecs?: boolean;
 }
 
 export type PgDeleteReturningAll<
@@ -279,7 +280,6 @@ export class PgDeleteBase<
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildDeleteQuery(this.config);
 	}
@@ -303,6 +303,12 @@ export class PgDeleteBase<
 				)
 				: undefined
 		) as this['_']['selectedFields'];
+	}
+
+	/** @internal */
+	withoutSelectionCastCodecs() {
+		this.config.ignoreSelectionCastCodecs = true;
+		return this;
 	}
 
 	$dynamic(): PgDeleteDynamic<this> {
