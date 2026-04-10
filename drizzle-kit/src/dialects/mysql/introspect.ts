@@ -504,11 +504,13 @@ export const fromDatabase = async (
 		const viewColumns = columns.filter((it) => it['TABLE_NAME'] === name);
 
 		for (const column of viewColumns) {
+			const columnType = column['COLUMN_TYPE'].replace('decimal(10,0)', 'decimal');
+
 			res.viewColumns.push({
 				view: name,
 				name: column['COLUMN_NAME'],
 				notNull: column['IS_NULLABLE'] === 'NO',
-				type: column['DATA_TYPE'],
+				type: columnType,
 			});
 		}
 

@@ -1832,7 +1832,11 @@ export const connectToSQLite = async (
 		const { driver } = credentials;
 		if (driver === 'd1-http') {
 			const { drizzle } = await import('drizzle-orm/sqlite-proxy');
-			const { migrate } = await import('drizzle-orm/sqlite-proxy/migrator');
+			// sqlite-proxy uses transaction for up-migrations
+			// d1 does not support transactions through http
+			// need to pass some "mode" param to sqlite-proxy migrate, so it up-migrator knows how to handle
+			// that is why migrateInternal was created
+			const { migrateInternal } = await import('drizzle-orm/sqlite-proxy/migrator.internal');
 
 			type D1Response =
 				| {
@@ -1926,16 +1930,55 @@ export const connectToSQLite = async (
 				};
 			};
 
-			const drzl = drizzle(remoteCallback);
+			// This function is needed for d1 migrations
+			// up-migrator uses db.batch that passes to callback sql and params
+			// to enable db.batch - need to pass 2nd callback to drizzle()
+			// this will enable running up-migrator with batch (transaction)
+			const remoteMigrateBatchCallback = async (
+				queries: {
+					sql: string;
+					params: string[];
+				}[],
+			) => {
+				const res = await fetch(
+					`https://api.cloudflare.com/client/v4/accounts/${credentials.accountId}/d1/database/${credentials.databaseId}/query`,
+					{
+						method: 'POST',
+						body: JSON.stringify({ batch: queries }),
+						headers: {
+							'Content-Type': 'application/json',
+							Authorization: `Bearer ${credentials.token}`,
+						},
+					},
+				);
+
+				const data = (await res.json()) as D1Response;
+
+				if (!data.success) {
+					throw new Error(
+						data.errors.map((it) => `${it.code}: ${it.message}`).join('\n'),
+					);
+				}
+
+				const rows: { rows: any[] }[] = data.result.flatMap(({ results }) => {
+					return Array.isArray(results) ? { rows: results } : results.rows.map((it) => ({ rows: it }));
+				});
+
+				return rows;
+			};
+
+			// @see remoteMigrateBatchCallback
+			// passing remoteMigrateBatchCallback allows us to use db.batch in migrator.ts (up-migration)
+			const drzl = drizzle(remoteCallback, remoteMigrateBatchCallback);
 			const migrateFn = async (config: MigrationConfig) => {
-				return migrate(
+				return migrateInternal(
 					drzl,
 					async (queries) => {
-						for (const query of queries) {
-							await remoteCallback(query, [], 'run');
-						}
+						// run migrations in transaction
+						await remoteBatchCallback(queries.map((sql) => ({ sql })));
 					},
 					config,
+					'batch',
 				);
 			};
 
