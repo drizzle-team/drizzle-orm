@@ -23,5 +23,6 @@ export const studioCliParams = object({
 export const studioConfig = object({
 	dialect,
 	schema: union([string(), string().array()]).optional(),
+	schemaFilter: union([string(), string().array()]).optional(),
 	casing: casingType.optional(),
 });
