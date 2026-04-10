@@ -447,6 +447,11 @@ export class CockroachInsertBase<
 		) as this['_']['selectedFields'];
 	}
 
+	/** @internal */
+	withoutSelectionCastCodecs(): this {
+		return this;
+	}
+
 	$dynamic(): CockroachInsertDynamic<this> {
 		return this as any;
 	}

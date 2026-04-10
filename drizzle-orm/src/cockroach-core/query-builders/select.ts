@@ -985,6 +985,11 @@ export abstract class CockroachSelectQueryBuilderBase<
 		) as this['_']['selectedFields'];
 	}
 
+	/** @internal */
+	override withoutSelectionCastCodecs(): this {
+		return this;
+	}
+
 	$dynamic(): CockroachSelectDynamic<this> {
 		return this;
 	}

@@ -133,11 +133,14 @@ export class PgDialect {
 		returning,
 		withList,
 		comment,
+		ignoreSelectionCastCodecs,
 	}: PgDeleteConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${
+				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: ignoreSelectionCastCodecs })
+			}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -185,6 +188,7 @@ export class PgDialect {
 		from,
 		joins,
 		comment,
+		ignoreSelectionCastCodecs,
 	}: PgUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
@@ -205,7 +209,9 @@ export class PgDialect {
 		const joinsSql = this.buildJoins(joins);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: !from })}`
+			? sql` returning ${
+				this.buildSelection(returning, { isSingleTable: !from, ignoreCastCodecs: ignoreSelectionCastCodecs })
+			}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -228,7 +234,10 @@ export class PgDialect {
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
-		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
+		{ isSingleTable = false, ignoreCastCodecs = false }: {
+			isSingleTable?: boolean;
+			ignoreCastCodecs?: boolean;
+		} = {},
 	): SQL {
 		const columnsLen = fields.length;
 
@@ -271,7 +280,7 @@ export class PgDialect {
 					name = field.isAlias ? getOriginalColumnFromAlias(field) : field;
 				}
 
-				const casted = this.codecs.apply(field, 'cast', name);
+				const casted = ignoreCastCodecs ? name : this.codecs.apply(field, 'cast', name);
 				chunk.push(field.isAlias ? sql`${casted} as ${field}` : casted);
 			} else if (is(field, Subquery)) {
 				const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
@@ -388,6 +397,7 @@ export class PgDialect {
 		distinct,
 		setOperators,
 		comment,
+		ignoreSelectionCastCodecs,
 	}: PgSelectConfig): SQL {
 		const fieldsList = fieldsFlat
 			?? orderSelectedFields<PgColumn>(fields, undefined, this.codecs);
@@ -433,7 +443,7 @@ export class PgDialect {
 				: sql` distinct on (${sql.join(distinct.on, sql`, `)})`;
 		}
 
-		const selection = this.buildSelection(fieldsList, { isSingleTable });
+		const selection = this.buildSelection(fieldsList, { isSingleTable, ignoreCastCodecs: ignoreSelectionCastCodecs });
 
 		const tableSql = this.buildFromTable(table);
 
@@ -571,6 +581,7 @@ export class PgDialect {
 		select,
 		overridingSystemValue_,
 		comment,
+		ignoreSelectionCastCodecs,
 	}: PgInsertConfig): SQL {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
@@ -635,7 +646,9 @@ export class PgDialect {
 		const valuesSql = sql.join(valuesSqlList);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${
+				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: ignoreSelectionCastCodecs })
+			}`
 			: undefined;
 
 		const onConflictSql = onConflict

@@ -58,6 +58,7 @@ export interface PgUpdateConfig {
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
 	comment?: SQL;
+	ignoreSelectionCastCodecs?: boolean;
 }
 
 export type PgUpdateSetSource<
@@ -681,7 +682,6 @@ export class PgUpdateBase<
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildUpdateQuery(this.config);
 	}
@@ -705,6 +705,12 @@ export class PgUpdateBase<
 				)
 				: undefined
 		) as this['_']['selectedFields'];
+	}
+
+	/** @internal */
+	withoutSelectionCastCodecs() {
+		this.config.ignoreSelectionCastCodecs = true;
+		return this;
 	}
 
 	$dynamic(): PgUpdateDynamic<this> {

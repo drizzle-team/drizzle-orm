@@ -15,5 +15,10 @@ export abstract class TypedQueryBuilder<TSelection, TResult = unknown, TConfig =
 		return this._.selectedFields;
 	}
 
+	/** @internal */
+	withoutSelectionCastCodecs(): this {
+		return this;
+	}
+
 	abstract getSQL(): SQL;
 }

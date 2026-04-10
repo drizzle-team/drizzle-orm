@@ -845,6 +845,11 @@ export abstract class SQLiteSelectQueryBuilderBase<
 		) as this['_']['selectedFields'];
 	}
 
+	/** @internal */
+	override withoutSelectionCastCodecs(): this {
+		return this;
+	}
+
 	$dynamic(): SQLiteSelectDynamic<this> {
 		return this;
 	}

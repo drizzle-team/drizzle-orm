@@ -286,6 +286,11 @@ export class CockroachDeleteBase<
 		) as this['_']['selectedFields'];
 	}
 
+	/** @internal */
+	withoutSelectionCastCodecs(): this {
+		return this;
+	}
+
 	$dynamic(): CockroachDeleteDynamic<this> {
 		return this as any;
 	}

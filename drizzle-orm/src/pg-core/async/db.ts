@@ -1,5 +1,4 @@
 import type { Cache } from '~/cache/core/cache.ts';
-import { noopCodecs } from '~/codecs.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -119,24 +118,17 @@ export class PgAsyncDatabase<
 				| ((qb: QueryBuilder) => TypedQueryBuilder<ColumnsSelection | undefined> | SQL),
 		) => {
 			if (typeof qb === 'function') {
-				qb = qb(
-					// Need to recreate dialect without codecs as to not affect selection within subquery
-					// as codecs must only modify selection at an output
-					new QueryBuilder(
-						new (Object.getPrototypeOf(this.dialect).constructor as typeof PgDialect)({
-							casing: this.dialect.casing,
-							codecs: noopCodecs,
-						}),
-					),
-				);
+				qb = qb(new QueryBuilder(this.dialect));
 			}
+
+			const sql = ('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL();
 			return new Proxy(
 				new WithSubquery(
-					qb.getSQL(),
+					sql,
 					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
 					alias,
 					true,
-					qb.getSQL().usedTables ?? [],
+					sql.usedTables ?? [],
 				),
 				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 			);
