@@ -800,19 +800,17 @@ export const fromDatabase = async (
 			? JSON.parse(column.metadata)
 			: column.metadata;
 		if (column.generatedType === 's' && (!metadata || !metadata.expression)) {
-			throw new Error(
-				`Generated ${table.schema}.${table.name}.${column.name} columns missing expression: \n${
-					JSON.stringify(column.metadata)
-				}`,
+			console.warn(
+				`Warning: skipping column ${table.schema}.${table.name}.${column.name} — generated column expression is missing (possibly due to insufficient privileges on the schema).`,
 			);
+			continue;
 		}
 
 		if (column.identityType !== '' && !metadata) {
-			throw new Error(
-				`Identity ${table.schema}.${table.name}.${column.name} columns missing metadata: \n${
-					JSON.stringify(column.metadata)
-				}`,
+			console.warn(
+				`Warning: skipping column ${table.schema}.${table.name}.${column.name} — identity metadata is missing (possibly due to insufficient privileges on the schema).`,
 			);
+			continue;
 		}
 
 		const sequence = metadata?.seqId

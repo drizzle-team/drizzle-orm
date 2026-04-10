@@ -58,6 +58,7 @@ type SchemaFile = {
 export type Setup = {
 	dbHash: string;
 	dialect: 'postgresql' | 'mysql' | 'sqlite' | 'singlestore' | 'duckdb';
+	schemaFilter?: string[];
 	packageName:
 		| '@aws-sdk/client-rds-data'
 		| 'pglite'
@@ -322,6 +323,7 @@ export const drizzleForPostgres = async (
 	relations: Record<string, Relations>,
 	schemaFiles?: SchemaFile[],
 	casing?: CasingType,
+	schemaFilter?: string[],
 ): Promise<Setup> => {
 	const { preparePostgresDB } = await import('../connections');
 	const db = await preparePostgresDB(credentials);
@@ -360,6 +362,7 @@ export const drizzleForPostgres = async (
 		relations,
 		schemaFiles,
 		casing,
+		schemaFilter,
 	};
 };
 
@@ -813,6 +816,7 @@ export const prepareServer = async (
 		dbHash,
 		casing,
 		schemaFiles,
+		schemaFilter,
 	}: Setup,
 	app?: Hono,
 ): Promise<Server> => {
@@ -900,10 +904,43 @@ export const prepareServer = async (
 		}
 
 		if (type === 'proxy') {
-			const result = await proxy({
+			let result = await proxy({
 				...body.data,
 				params: body.data.params || [],
 			});
+
+			// When schemaFilter is configured, filter namespace listing results
+			// to only include schemas the user has access to. This prevents the
+			// Studio frontend from introspecting schemas the user lacks privileges
+			// on (e.g. Supabase internal schemas like 'realtime', 'auth', etc.),
+			// which would otherwise cause "columns missing metadata" errors.
+			//
+			// Only match the pure namespace listing query (SELECT FROM pg_namespace
+			// without JOINs to other tables), not queries that JOIN pg_namespace
+			// for schema name resolution.
+			const isNamespaceListQuery = schemaFilter
+				&& schemaFilter.length > 0
+				&& /FROM\s+pg_catalog\.pg_namespace\b/i.test(body.data.sql)
+				&& !/\bJOIN\b/i.test(body.data.sql);
+
+			if (isNamespaceListQuery) {
+				const rows = Array.isArray(result) ? result : result?.rows;
+				if (Array.isArray(rows)) {
+					const filtered = rows.filter((row: any) => {
+						const name = row.name ?? row.nspname ?? row[1];
+						if (typeof name !== 'string') return true;
+						// Always keep system schemas (pg_catalog, information_schema, etc.)
+						if (name.startsWith('pg_') || name === 'information_schema') return true;
+						return schemaFilter!.includes(name);
+					});
+					if (Array.isArray(result)) {
+						result = filtered;
+					} else if (result?.rows) {
+						result = { ...result, rows: filtered };
+					}
+				}
+			}
+
 			const res = jsonStringify(result)!;
 			return c.body(
 				res,

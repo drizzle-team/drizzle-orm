@@ -791,7 +791,10 @@ export const studio = command({
 			host,
 			credentials,
 			casing,
-		} = await prepareStudioConfig(opts);
+			schemaFilter,
+		} = await prepareStudioConfig(opts) as Awaited<ReturnType<typeof prepareStudioConfig>> & {
+			schemaFilter?: string[];
+		};
 
 		const {
 			drizzleForPostgres,
@@ -840,6 +843,7 @@ export const studio = command({
 				relations,
 				files,
 				casing,
+				schemaFilter,
 			);
 		} else if (dialect === 'mysql') {
 			const { schema, relations, files } = schemaPath
