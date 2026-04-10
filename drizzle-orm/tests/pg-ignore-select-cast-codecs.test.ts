@@ -48,10 +48,10 @@ test('view selection', () => {
 	);
 
 	expect(db.dialect.sqlToQuery(getViewConfig(v1).query).sql).toStrictEqual(
-		`select "id1" as "id1", "d1" as "d1", "id2" as "id2", "d2" as "d2" from "t1" cross join "t2" where "t1"."date" >= '1970-01-01T00:00:00.000Z'`,
+		`select "t1"."id" as "id1", "t1"."date" as "d1", "t2"."id" as "id2", "t2"."timestamp" as "d2" from "t1" cross join "t2" where "t1"."date" >= '1970-01-01T00:00:00.000Z'`,
 	);
 	expect(db.dialect.sqlToQuery(getViewConfig(v2).query).sql).toStrictEqual(
-		`select "id1" as "id1", "d1" as "d1", "id2" as "id2", "d2" as "d2" from "t1" cross join "t2" where "t1"."date" >= '1970-01-01T00:00:00.000Z'`,
+		`select "t1"."id" as "id1", "t1"."date" as "d1", "t2"."id" as "id2", "t2"."timestamp" as "d2" from "t1" cross join "t2" where "t1"."date" >= '1970-01-01T00:00:00.000Z'`,
 	);
 });
 
@@ -75,10 +75,10 @@ test('materialized view selection', () => {
 	);
 
 	expect(db.dialect.sqlToQuery(getMaterializedViewConfig(v1).query!).sql).toStrictEqual(
-		`select "id1" as "id1", "d1" as "d1", "id2" as "id2", "d2" as "d2" from "t1" cross join "t2" where "t1"."date" >= '1970-01-01T00:00:00.000Z'`,
+		`select "t1"."id" as "id1", "t1"."date" as "d1", "t2"."id" as "id2", "t2"."timestamp" as "d2" from "t1" cross join "t2" where "t1"."date" >= '1970-01-01T00:00:00.000Z'`,
 	);
 	expect(db.dialect.sqlToQuery(getMaterializedViewConfig(v2).query!).sql).toStrictEqual(
-		`select "id1" as "id1", "d1" as "d1", "id2" as "id2", "d2" as "d2" from "t1" cross join "t2" where "t1"."date" >= '1970-01-01T00:00:00.000Z'`,
+		`select "t1"."id" as "id1", "t1"."date" as "d1", "t2"."id" as "id2", "t2"."timestamp" as "d2" from "t1" cross join "t2" where "t1"."date" >= '1970-01-01T00:00:00.000Z'`,
 	);
 });
 
@@ -87,10 +87,10 @@ test('insert from select', () => {
 	const q2 = db.insert(t1).select(db.select().from(t1)).returning();
 
 	expect(db.dialect.sqlToQuery(q1.getSQL()).sql).toStrictEqual(
-		`insert into "t1" ("id", "date") select "t1"."id", "t1"."date" from "t1" returning "id", "date"::text`,
+		`insert into "t1" ("id", "date") select "id", "date" from "t1" returning "id", "date"::text`,
 	);
 	expect(db.dialect.sqlToQuery(q2.getSQL()).sql).toStrictEqual(
-		`insert into "t1" ("id", "date") select "t1"."id", "t1"."date" from "t1" returning "id", "date"::text`,
+		`insert into "t1" ("id", "date") select "id", "date" from "t1" returning "id", "date"::text`,
 	);
 });
 
@@ -130,10 +130,10 @@ test('$with select', () => {
 	const s2 = db.with(w2).select().from(w2);
 
 	expect(db.dialect.sqlToQuery(s1.getSQL()).sql).toStrictEqual(
-		`with "w1" as (select "id1" as "id1", "d1" as "d1", "id2" as "id2", "d2" as "d2" from "t1" cross join "t2" where "t1"."date" >= $1::date) select "id1", "d1"::text, "id2", "d2"::text from "w1"`,
+		`with "w1" as (select "t1"."id" as "id1", "t1"."date" as "d1", "t2"."id" as "id2", "t2"."timestamp" as "d2" from "t1" cross join "t2" where "t1"."date" >= $1::date) select "id1", "d1"::text, "id2", "d2"::text from "w1"`,
 	);
 	expect(db.dialect.sqlToQuery(s2.getSQL()).sql).toStrictEqual(
-		`with "w1" as (select "id1" as "id1", "d1" as "d1", "id2" as "id2", "d2" as "d2" from "t1" cross join "t2" where "t1"."date" >= $1::date) select "id1", "d1"::text, "id2", "d2"::text from "w1"`,
+		`with "w1" as (select "t1"."id" as "id1", "t1"."date" as "d1", "t2"."id" as "id2", "t2"."timestamp" as "d2" from "t1" cross join "t2" where "t1"."date" >= $1::date) select "id1", "d1"::text, "id2", "d2"::text from "w1"`,
 	);
 });
 
@@ -148,7 +148,7 @@ test('$with insert returning', () => {
 	const s1 = db.with(w1).select().from(w1);
 
 	expect(db.dialect.sqlToQuery(s1.getSQL()).sql).toStrictEqual(
-		`with "w1" as (insert into "t1" ("id", "date") values ($1, $2::date) returning "t1"."id", "t1"."date") select "id", "date"::text from "w1"`,
+		`with "w1" as (insert into "t1" ("id", "date") values ($1, $2::date) returning "id", "date") select "id", "date"::text from "w1"`,
 	);
 });
 
@@ -163,7 +163,7 @@ test('$with update returning', () => {
 	const s1 = db.with(w1).select().from(w1);
 
 	expect(db.dialect.sqlToQuery(s1.getSQL()).sql).toStrictEqual(
-		`with "w1" as (update "t1" set "id" = $1, "date" = $2::date where "t1"."date" >= $3::date returning "t1"."id", "t1"."date") select "id", "date"::text from "w1"`,
+		`with "w1" as (update "t1" set "id" = $1, "date" = $2::date where "t1"."date" >= $3::date returning "id", "date") select "id", "date"::text from "w1"`,
 	);
 });
 
@@ -175,7 +175,7 @@ test('$with delete returning', () => {
 	const s1 = db.with(w1).select().from(w1);
 
 	expect(db.dialect.sqlToQuery(s1.getSQL()).sql).toStrictEqual(
-		`with "w1" as (delete from "t1" where "t1"."date" >= $1::date returning "t1"."id", "t1"."date") select "id", "date"::text from "w1"`,
+		`with "w1" as (delete from "t1" where "t1"."date" >= $1::date returning "id", "date") select "id", "date"::text from "w1"`,
 	);
 });
 
@@ -214,9 +214,9 @@ test('$with nested', () => {
 	const s2 = db.with(w2).select().from(w2);
 
 	expect(db.dialect.sqlToQuery(s1.getSQL()).sql).toStrictEqual(
-		`with "w1" as (with "wn" as (select "id1" as "id1", "d1" as "d1", "id2" as "id2", "d2" as "d2" from "t1" cross join "t2" where "t1"."date" >= $1::date) select "wn"."id1", "wn"."d1", "wn"."id2", "wn"."d2" from "wn") select "id1", "d1"::text, "id2", "d2"::text from "w1"`,
+		`with "w1" as (with "wn" as (select "t1"."id" as "id1", "t1"."date" as "d1", "t2"."id" as "id2", "t2"."timestamp" as "d2" from "t1" cross join "t2" where "t1"."date" >= $1::date) select "id1", "d1", "id2", "d2" from "wn") select "id1", "d1"::text, "id2", "d2"::text from "w1"`,
 	);
 	expect(db.dialect.sqlToQuery(s2.getSQL()).sql).toStrictEqual(
-		`with "w1" as (with "wn" as (select "id1" as "id1", "d1" as "d1", "id2" as "id2", "d2" as "d2" from "t1" cross join "t2" where "t1"."date" >= $1::date) select "wn"."id1", "wn"."d1", "wn"."id2", "wn"."d2" from "wn") select "id1", "d1"::text, "id2", "d2"::text from "w1"`,
+		`with "w1" as (with "wn" as (select "t1"."id" as "id1", "t1"."date" as "d1", "t2"."id" as "id2", "t2"."timestamp" as "d2" from "t1" cross join "t2" where "t1"."date" >= $1::date) select "id1", "d1", "id2", "d2" from "wn") select "id1", "d1"::text, "id2", "d2"::text from "w1"`,
 	);
 });
