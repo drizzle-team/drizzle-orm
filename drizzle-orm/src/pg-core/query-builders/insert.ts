@@ -28,6 +28,7 @@ export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	select?: boolean;
 	overridingSystemValue_?: boolean;
 	comment?: SQL;
+	ignoreSelectionCastCodecs?: boolean;
 }
 
 export type PgInsertValue<
@@ -141,6 +142,7 @@ export class PgInsertBuilder<
 			| ((qb: QueryBuilder) => PgInsertSelectQueryBuilder<TTable> | SQL),
 	): PgInsertKind<TBuilderHKT, TTable, TQueryResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
+		if ('withoutSelectionCastCodecs' in select) select.withoutSelectionCastCodecs();
 
 		if (
 			!is(select, SQL)
@@ -370,7 +372,11 @@ export class PgInsertBase<
 		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
 	): PgInsertReturningAll<this, TDynamic> | PgInsertReturning<this, TDynamic, SelectedFieldsFlat> {
 		this.config.returningFields = fields;
-		this.config.returning = orderSelectedFields<PgColumn>(this.config.returningFields);
+		this.config.returning = orderSelectedFields<PgColumn>(
+			this.config.returningFields,
+			undefined,
+			this.dialect.codecs,
+		);
 		return this as any;
 	}
 
@@ -472,7 +478,6 @@ export class PgInsertBase<
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildInsertQuery(this.config);
 	}
@@ -496,6 +501,12 @@ export class PgInsertBase<
 				)
 				: undefined
 		) as this['_']['selectedFields'];
+	}
+
+	/** @internal */
+	withoutSelectionCastCodecs() {
+		this.config.ignoreSelectionCastCodecs = true;
+		return this;
 	}
 
 	$dynamic(): PgInsertDynamic<this> {

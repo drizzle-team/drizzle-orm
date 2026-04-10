@@ -6,7 +6,7 @@ import type {
 } from './column-builder.ts';
 import { OriginalColumn } from './column-common.ts';
 import { entityKind } from './entity.ts';
-import type { DriverValueMapper, SQL, SQLWrapper } from './sql/sql.ts';
+import type { DriverValueDecoderFn, DriverValueEncoderFn, DriverValueMapper, SQL, SQLWrapper } from './sql/sql.ts';
 import type { Table } from './table.ts';
 import type { Update } from './utils.ts';
 
@@ -27,6 +27,9 @@ export interface ColumnBaseConfig<TDataType extends ColumnType> {
 	generated: unknown;
 	identity: undefined | 'always' | 'byDefault';
 }
+
+const noop: DriverValueDecoderFn<any, any> | DriverValueEncoderFn<any, any> = (v) => v;
+noop.isNoop = true;
 
 export interface Column<
 	out T extends ColumnBaseConfig<ColumnType> = ColumnBaseConfig<ColumnType>,
@@ -50,6 +53,9 @@ export abstract class Column<
 	static readonly [entityKind]: string = 'Column';
 
 	declare readonly _: T;
+
+	/** @internal */
+	readonly useCodecType?: string;
 
 	readonly name: string;
 	readonly keyAsName: boolean;
@@ -110,15 +116,16 @@ export abstract class Column<
 
 	abstract getSQLType(): string;
 
-	mapFromDriverValue(value: unknown): unknown {
-		return value;
+	mapFromDriverValue = noop;
+
+	mapToDriverValue = noop;
+
+	/** @internal  */
+	postBuild() {
+		return this;
 	}
 
-	mapToDriverValue(value: unknown): unknown {
-		return value;
-	}
-
-	// ** @internal */
+	/** @internal */
 	shouldDisableInsert(): boolean {
 		return this.config.generated !== undefined && this.config.generated.type !== 'byDefault';
 	}

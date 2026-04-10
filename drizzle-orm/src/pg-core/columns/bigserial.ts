@@ -7,7 +7,6 @@ export class PgBigSerial53Builder extends PgColumnBuilder<{
 	dataType: 'number int53';
 	data: number;
 	driverParam: number;
-
 	notNull: true;
 	hasDefault: true;
 }> {
@@ -31,16 +30,16 @@ export class PgBigSerial53Builder extends PgColumnBuilder<{
 export class PgBigSerial53 extends PgColumn<'number int53'> {
 	static override readonly [entityKind]: string = 'PgBigSerial53';
 
+	/** @internal */
+	override readonly useCodecType = 'bigserial';
+
 	getSQLType(): string {
 		return 'bigserial';
 	}
 
-	override mapFromDriverValue(value: number): number {
-		if (typeof value === 'number') {
-			return value;
-		}
+	override mapFromDriverValue = (value: bigint): number => {
 		return Number(value);
-	}
+	};
 }
 
 export class PgBigSerial64Builder extends PgColumnBuilder<{
@@ -70,13 +69,11 @@ export class PgBigSerial64Builder extends PgColumnBuilder<{
 export class PgBigSerial64 extends PgColumn<'bigint int64'> {
 	static override readonly [entityKind]: string = 'PgBigSerial64';
 
+	/** @internal */
+	override readonly useCodecType = 'bigserial';
+
 	getSQLType(): string {
 		return 'bigserial';
-	}
-
-	// eslint-disable-next-line unicorn/prefer-native-coercion-functions
-	override mapFromDriverValue(value: string): bigint {
-		return BigInt(value);
 	}
 }
 

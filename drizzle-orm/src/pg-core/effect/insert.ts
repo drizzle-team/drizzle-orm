@@ -3,7 +3,6 @@ import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query
 import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
@@ -86,27 +85,28 @@ export class PgEffectInsertBase<
 > implements RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'> {
 	static override readonly [entityKind]: string = 'PgEffectInsert';
 
-	declare protected session: PgEffectSession<TEffectHKT, any, any, any, any>;
+	declare protected session: PgEffectSession<TEffectHKT, any, any>;
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgInsertPrepare<this, TEffectHKT> {
-		const query = this.dialect.sqlToQuery(this.getSQL());
-		return this.session.prepareQuery<
-			PreparedQueryConfig & {
-				execute: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];
-			}
-		>(
+		const { session, config, dialect, cacheConfig } = this;
+		const { returning: fields } = config;
+
+		const query = dialect.sqlToQuery(this.getSQL());
+		const mapper = fields
+			? this.dialect.mapperGenerators.rows(fields, undefined)
+			: undefined;
+
+		const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
 			query,
-			this.config.returning,
-			name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-			true,
-			undefined,
-			{
-				type: 'insert',
-				tables: extractUsedTable(this.config.table),
-			},
-			this.cacheConfig,
+			fields ? 'arrays' : 'raw',
+			name ?? generateName,
+			mapper,
+			{ type: 'insert', tables: [...extractUsedTable(this.config.table)] },
+			cacheConfig,
 		);
+
+		return preparedQuery;
 	}
 
 	prepare(name?: string): PgInsertPrepare<this, TEffectHKT> {

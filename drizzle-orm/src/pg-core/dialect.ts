@@ -1,12 +1,6 @@
-import * as V1 from '~/_relations.ts';
-import {
-	aliasedTable,
-	aliasedTableColumn,
-	getOriginalColumnFromAlias,
-	mapColumnsInAliasedSQLToAlias,
-	mapColumnsInSQLToAlias,
-} from '~/alias.ts';
+import { aliasedTable, getOriginalColumnFromAlias } from '~/alias.ts';
 import { CasingCache } from '~/casing.ts';
+import { CodecsCollection } from '~/codecs.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
@@ -38,8 +32,11 @@ import {
 	type BuildRelationalQueryResult,
 	type DBQueryConfigWithComment,
 	getTableAsAliasSQL,
+	makeDefaultRqbMapper,
+	makeJitRqbMapper,
 	One,
 	type Relation,
+	type RelationalRowsMapperGenerator,
 	relationExtrasToSQL,
 	relationsFilterToSQL,
 	relationsOrderToSQL,
@@ -48,7 +45,7 @@ import {
 	type TablesRelationalConfig,
 	type WithContainer,
 } from '~/relations.ts';
-import { and, eq, isSQLWrapper, type SQLWrapper, View } from '~/sql/index.ts';
+import { and, isSQLWrapper, type SQLWrapper, View } from '~/sql/index.ts';
 import {
 	type DriverValueEncoder,
 	type Name,
@@ -60,24 +57,48 @@ import {
 	type SQLChunk,
 } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
-import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { getTableName, Table, TableColumns } from '~/table.ts';
+import {
+	type Casing,
+	makeDefaultQueryMapper,
+	makeJitQueryMapper,
+	orderSelectedFields,
+	type RowsMapperGenerator,
+	type UpdateSet,
+} from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { type PgCodecs, type PostgresType, resolvePgType } from './codecs.ts';
 import { PgViewBase } from './view-base.ts';
 import type { PgMaterializedView, PgView } from './view.ts';
 
 export interface PgDialectConfig {
-	casing?: Casing;
+	casing?: Casing | CasingCache;
+	codecs?: PgCodecs;
+	useJitMappers?: boolean;
 }
 
 export class PgDialect {
 	static readonly [entityKind]: string = 'PgDialect';
 
-	/** @internal */
 	readonly casing: CasingCache;
+	readonly codecs: CodecsCollection<PostgresType>;
+	readonly mapperGenerators: {
+		rows: RowsMapperGenerator;
+		relationalRows: RelationalRowsMapperGenerator;
+	};
 
 	constructor(config?: PgDialectConfig) {
-		this.casing = new CasingCache(config?.casing);
+		this.casing = typeof config?.casing === 'object' ? config.casing : new CasingCache(config?.casing);
+		this.codecs = new CodecsCollection<PostgresType>(resolvePgType, config?.codecs);
+		this.mapperGenerators = config?.useJitMappers
+			? {
+				rows: makeJitQueryMapper,
+				relationalRows: makeJitRqbMapper,
+			}
+			: {
+				rows: makeDefaultQueryMapper,
+				relationalRows: makeDefaultRqbMapper,
+			};
 	}
 
 	escapeName(name: string): string {
@@ -112,11 +133,14 @@ export class PgDialect {
 		returning,
 		withList,
 		comment,
+		ignoreSelectionCastCodecs,
 	}: PgDeleteConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${
+				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: ignoreSelectionCastCodecs })
+			}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -164,6 +188,7 @@ export class PgDialect {
 		from,
 		joins,
 		comment,
+		ignoreSelectionCastCodecs,
 	}: PgUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
@@ -184,7 +209,9 @@ export class PgDialect {
 		const joinsSql = this.buildJoins(joins);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: !from })}`
+			? sql` returning ${
+				this.buildSelection(returning, { isSingleTable: !from, ignoreCastCodecs: ignoreSelectionCastCodecs })
+			}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -207,7 +234,10 @@ export class PgDialect {
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
-		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
+		{ isSingleTable = false, ignoreCastCodecs = false }: {
+			isSingleTable?: boolean;
+			ignoreCastCodecs?: boolean;
+		} = {},
 	): SQL {
 		const columnsLen = fields.length;
 
@@ -241,24 +271,19 @@ export class PgDialect {
 					chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 				}
 			} else if (is(field, Column)) {
+				let name: Name | Column;
 				if (isSingleTable) {
-					chunk.push(
-						field.isAlias
-							? sql`${sql.identifier(this.casing.getColumnCasing(getOriginalColumnFromAlias(field)))} as ${field}`
-							: sql.identifier(this.casing.getColumnCasing(field)),
-					);
+					name = field.isAlias
+						? sql.identifier(this.casing.getColumnCasing(getOriginalColumnFromAlias(field)))
+						: sql.identifier(this.casing.getColumnCasing(field));
 				} else {
-					chunk.push(
-						field.isAlias
-							? sql`${getOriginalColumnFromAlias(field)} as ${field}`
-							: field,
-					);
+					name = field.isAlias ? getOriginalColumnFromAlias(field) : field;
 				}
+
+				const casted = ignoreCastCodecs ? name : this.codecs.apply(field, 'cast', name);
+				chunk.push(field.isAlias ? sql`${casted} as ${field}` : casted);
 			} else if (is(field, Subquery)) {
-				const entries = Object.entries(field._.selectedFields) as [
-					string,
-					SQL.Aliased | Column | SQL,
-				][];
+				const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
 
 				if (entries.length === 1) {
 					const entry = entries[0]![1];
@@ -372,8 +397,10 @@ export class PgDialect {
 		distinct,
 		setOperators,
 		comment,
+		ignoreSelectionCastCodecs,
 	}: PgSelectConfig): SQL {
-		const fieldsList = fieldsFlat ?? orderSelectedFields<PgColumn>(fields);
+		const fieldsList = fieldsFlat
+			?? orderSelectedFields<PgColumn>(fields, undefined, this.codecs);
 		for (const f of fieldsList) {
 			if (
 				is(f.field, Column)
@@ -416,7 +443,7 @@ export class PgDialect {
 				: sql` distinct on (${sql.join(distinct.on, sql`, `)})`;
 		}
 
-		const selection = this.buildSelection(fieldsList, { isSingleTable });
+		const selection = this.buildSelection(fieldsList, { isSingleTable, ignoreCastCodecs: ignoreSelectionCastCodecs });
 
 		const tableSql = this.buildFromTable(table);
 
@@ -554,6 +581,7 @@ export class PgDialect {
 		select,
 		overridingSystemValue_,
 		comment,
+		ignoreSelectionCastCodecs,
 	}: PgInsertConfig): SQL {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
@@ -618,7 +646,9 @@ export class PgDialect {
 		const valuesSql = sql.join(valuesSqlList);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${
+				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: ignoreSelectionCastCodecs })
+			}`
 			: undefined;
 
 		const onConflictSql = onConflict
@@ -676,355 +706,9 @@ export class PgDialect {
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
 			prepareTyping: this.prepareTyping,
+			codecs: this.codecs,
 			invokeSource,
 		});
-	}
-
-	/** @deprecated */
-	_buildRelationalQuery({
-		fullSchema,
-		schema,
-		tableNamesMap,
-		table,
-		tableConfig,
-		queryConfig: config,
-		tableAlias,
-		nestedQueryRelation,
-		joinOn,
-	}: {
-		fullSchema: Record<string, unknown>;
-		schema: V1.TablesRelationalConfig;
-		tableNamesMap: Record<string, string>;
-		table: PgTable;
-		tableConfig: V1.TableRelationalConfig;
-		queryConfig: true | V1.DBQueryConfigWithComment<'many', true>;
-		tableAlias: string;
-		nestedQueryRelation?: V1.Relation;
-		joinOn?: SQL;
-	}): V1.BuildRelationalQueryResult<PgTable, PgColumn> {
-		let selection: V1.BuildRelationalQueryResult<
-			PgTable,
-			PgColumn
-		>['selection'] = [];
-		let limit,
-			offset,
-			orderBy: NonNullable<PgSelectConfig['orderBy']> = [],
-			where;
-		const joins: PgSelectJoinConfig[] = [];
-
-		if (config === true) {
-			const selectionEntries = Object.entries(tableConfig.columns);
-			selection = selectionEntries.map(([key, value]) => ({
-				dbKey: value.name,
-				tsKey: key,
-				field: aliasedTableColumn(value as PgColumn, tableAlias),
-				relationTableTsKey: undefined,
-				isJson: false,
-				selection: [],
-			}));
-		} else {
-			const aliasedColumns = Object.fromEntries(
-				Object.entries(tableConfig.columns).map(([key, value]) => [
-					key,
-					aliasedTableColumn(value, tableAlias),
-				]),
-			);
-
-			if (config.where) {
-				const whereSql = typeof config.where === 'function'
-					? config.where(aliasedColumns, V1.getOperators())
-					: config.where;
-				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
-			}
-
-			const fieldsSelection: {
-				tsKey: string;
-				value: PgColumn | SQL.Aliased;
-			}[] = [];
-			let selectedColumns: string[] = [];
-
-			// Figure out which columns to select
-			if (config.columns) {
-				let isIncludeMode = false;
-
-				for (const [field, value] of Object.entries(config.columns)) {
-					if (value === undefined) {
-						continue;
-					}
-
-					if (field in tableConfig.columns) {
-						if (!isIncludeMode && value === true) {
-							isIncludeMode = true;
-						}
-						selectedColumns.push(field);
-					}
-				}
-
-				if (selectedColumns.length > 0) {
-					selectedColumns = isIncludeMode
-						? selectedColumns.filter((c) => config.columns?.[c] === true)
-						: Object.keys(tableConfig.columns).filter(
-							(key) => !selectedColumns.includes(key),
-						);
-				}
-			} else {
-				// Select all columns if selection is not specified
-				selectedColumns = Object.keys(tableConfig.columns);
-			}
-
-			for (const field of selectedColumns) {
-				const column = tableConfig.columns[field]! as PgColumn;
-				fieldsSelection.push({ tsKey: field, value: column });
-			}
-
-			let selectedRelations: {
-				tsKey: string;
-				queryConfig: true | V1.DBQueryConfigWithComment<'many', false>;
-				relation: V1.Relation;
-			}[] = [];
-
-			// Figure out which relations to select
-			if (config.with) {
-				selectedRelations = Object.entries(config.with)
-					.filter(
-						(
-							entry,
-						): entry is [(typeof entry)[0], NonNullable<(typeof entry)[1]>] => !!entry[1],
-					)
-					.map(([tsKey, queryConfig]) => ({
-						tsKey,
-						queryConfig,
-						relation: tableConfig.relations[tsKey]!,
-					}));
-			}
-
-			let extras;
-
-			// Figure out which extras to select
-			if (config.extras) {
-				extras = typeof config.extras === 'function'
-					? config.extras(aliasedColumns, { sql })
-					: config.extras;
-				for (const [tsKey, value] of Object.entries(extras)) {
-					fieldsSelection.push({
-						tsKey,
-						value: mapColumnsInAliasedSQLToAlias(value, tableAlias),
-					});
-				}
-			}
-
-			// Transform `fieldsSelection` into `selection`
-			// `fieldsSelection` shouldn't be used after this point
-			for (const { tsKey, value } of fieldsSelection) {
-				selection.push({
-					dbKey: is(value, SQL.Aliased)
-						? value.fieldAlias
-						: tableConfig.columns[tsKey]!.name,
-					tsKey,
-					field: is(value, Column)
-						? aliasedTableColumn(value, tableAlias)
-						: value,
-					relationTableTsKey: undefined,
-					isJson: false,
-					selection: [],
-				});
-			}
-
-			let orderByOrig = typeof config.orderBy === 'function'
-				? config.orderBy(aliasedColumns, V1.getOrderByOperators())
-				: (config.orderBy ?? []);
-			if (!Array.isArray(orderByOrig)) {
-				orderByOrig = [orderByOrig];
-			}
-			orderBy = orderByOrig.map((orderByValue) => {
-				if (is(orderByValue, Column)) {
-					return aliasedTableColumn(orderByValue, tableAlias) as PgColumn;
-				}
-				return mapColumnsInSQLToAlias(orderByValue, tableAlias);
-			});
-
-			limit = config.limit;
-			offset = config.offset;
-
-			// Process all relations
-			for (
-				const {
-					tsKey: selectedRelationTsKey,
-					queryConfig: selectedRelationConfigValue,
-					relation,
-				} of selectedRelations
-			) {
-				const normalizedRelation = V1.normalizeRelation(
-					schema,
-					tableNamesMap,
-					relation,
-				);
-				const relationTableName = getTableUniqueName(relation.referencedTable);
-				const relationTableTsName = tableNamesMap[relationTableName]!;
-				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
-				const joinOn = and(
-					...normalizedRelation.fields.map((field, i) =>
-						eq(
-							aliasedTableColumn(
-								normalizedRelation.references[i]!,
-								relationTableAlias,
-							),
-							aliasedTableColumn(field, tableAlias),
-						)
-					),
-				);
-				const builtRelation = this._buildRelationalQuery({
-					fullSchema,
-					schema,
-					tableNamesMap,
-					table: fullSchema[relationTableTsName] as PgTable,
-					tableConfig: schema[relationTableTsName]!,
-					queryConfig: is(relation, V1.One)
-						? selectedRelationConfigValue === true
-							? { limit: 1 }
-							: { ...selectedRelationConfigValue, limit: 1 }
-						: selectedRelationConfigValue,
-					tableAlias: relationTableAlias,
-					joinOn,
-					nestedQueryRelation: relation,
-				});
-				const field = sql`${sql.identifier(relationTableAlias)}.${sql.identifier('data')}`.as(
-					selectedRelationTsKey,
-				);
-				joins.push({
-					on: sql`true`,
-					table: new Subquery(builtRelation.sql as SQL, {}, relationTableAlias),
-					alias: relationTableAlias,
-					joinType: 'left',
-					lateral: true,
-				});
-				selection.push({
-					dbKey: selectedRelationTsKey,
-					tsKey: selectedRelationTsKey,
-					field,
-					relationTableTsKey: relationTableTsName,
-					isJson: true,
-					selection: builtRelation.selection,
-				});
-			}
-		}
-
-		if (selection.length === 0) {
-			throw new DrizzleError({
-				message: `No fields selected for table "${tableConfig.tsName}" ("${tableAlias}")`,
-			});
-		}
-
-		let result;
-
-		where = and(joinOn, where);
-
-		if (nestedQueryRelation) {
-			let field = sql`json_build_array(${
-				sql.join(
-					selection.map(({ field, tsKey, isJson }) =>
-						isJson
-							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
-							: is(field, SQL.Aliased)
-							? field.sql
-							: field
-					),
-					sql`, `,
-				)
-			})`;
-			if (is(nestedQueryRelation, V1.Many)) {
-				field = sql`coalesce(json_agg(${field}${
-					orderBy.length > 0
-						? sql` order by ${sql.join(orderBy, sql`, `)}`
-						: undefined
-				}), '[]'::json)`;
-				// orderBy = [];
-			}
-			const nestedSelection = [
-				{
-					dbKey: 'data',
-					tsKey: 'data',
-					field: field.as('data'),
-					isJson: true,
-					relationTableTsKey: tableConfig.tsName,
-					selection,
-				},
-			];
-
-			const needsSubquery = limit !== undefined || offset !== undefined || orderBy.length > 0;
-
-			if (needsSubquery) {
-				result = this.buildSelectQuery({
-					table: aliasedTable(table, tableAlias),
-					fields: {},
-					fieldsFlat: [
-						{
-							path: [],
-							field: sql.raw('*'),
-						},
-					],
-					where,
-					limit,
-					offset,
-					orderBy,
-					setOperators: [],
-				});
-
-				where = undefined;
-				limit = undefined;
-				offset = undefined;
-				orderBy = [];
-			} else {
-				result = aliasedTable(table, tableAlias);
-			}
-
-			result = this.buildSelectQuery({
-				table: is(result, PgTable)
-					? result
-					: new Subquery(result, {}, tableAlias),
-				fields: {},
-				fieldsFlat: nestedSelection.map(({ field }) => ({
-					path: [],
-					field: is(field, Column)
-						? aliasedTableColumn(field, tableAlias)
-						: field,
-				})),
-				joins,
-				where,
-				limit,
-				offset,
-				orderBy,
-				setOperators: [],
-			});
-		} else {
-			result = this.buildSelectQuery({
-				table: aliasedTable(table, tableAlias),
-				fields: {},
-				fieldsFlat: selection.map(({ field }) => ({
-					path: [],
-					field: is(field, Column)
-						? aliasedTableColumn(field, tableAlias)
-						: field,
-				})),
-				joins,
-				where,
-				limit,
-				offset,
-				orderBy,
-				setOperators: [],
-			});
-		}
-
-		if (config !== true && config.comment) {
-			const comment = sql.comment(config.comment);
-			result = comment ? sql`${result} ${comment}` : result;
-		}
-
-		return {
-			tableTsKey: tableConfig.tsName,
-			sql: result,
-			selection,
-		};
 	}
 
 	private nestedSelectionerror() {
@@ -1033,41 +717,14 @@ export class PgDialect {
 		});
 	}
 
-	private buildRqbColumn(table: Table | View, column: unknown, key: string) {
+	private buildRqbColumn(table: Table | View, column: unknown, key: string, inJson: boolean) {
 		if (is(column, Column)) {
 			const name = sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))}`;
-			const targetType = column.columnType;
-			// Get dimension count directly from PgColumn.dimensions
-			const dimensionCnt = is(column, PgColumn) ? column.dimensions : 0;
+			const casted = inJson && (<PgCustomColumn<any>> column).jsonSelectIdentifier
+				? (<PgCustomColumn<any>> column).jsonSelectIdentifier!(name, sql, (<PgCustomColumn<any>> column).dimensions)
+				: this.codecs.apply(column, inJson ? 'castInJson' : 'cast', name);
 
-			switch (targetType) {
-				case 'PgNumeric':
-				case 'PgNumericNumber':
-				case 'PgNumericBigInt':
-				case 'PgBigInt64':
-				case 'PgBigIntString':
-				case 'PgBigSerial64':
-				case 'PgTimestampString':
-				case 'PgGeometry':
-				case 'PgGeometryObject':
-				case 'PgBytea': {
-					const arrVal = '[]'.repeat(dimensionCnt);
-
-					return sql`${name}::text${sql.raw(arrVal).if(arrVal)} as ${sql.identifier(key)}`;
-				}
-				case 'PgCustomColumn': {
-					return sql`${
-						(<PgCustomColumn<any>> column).jsonSelectIdentifier(
-							name,
-							sql,
-							dimensionCnt > 0 ? dimensionCnt : undefined,
-						)
-					} as ${sql.identifier(key)}`;
-				}
-				default: {
-					return sql`${name} as ${sql.identifier(key)}`;
-				}
-			}
+			return sql`${casted} as ${sql.identifier(key)}`;
 		}
 
 		return sql`${table}.${
@@ -1082,15 +739,25 @@ export class PgDialect {
 	private unwrapAllColumns = (
 		table: Table | View,
 		selection: BuildRelationalQueryResult['selection'],
+		inJson: boolean,
 	) => {
 		return sql.join(
 			Object.entries(table[TableColumns]).map(([k, v]) => {
-				selection.push({
-					key: k,
-					field: v as Column | SQL | SQLWrapper | SQL.Aliased,
-				});
+				selection.push(
+					is(v, Column)
+						? {
+							key: k,
+							codec: this.codecs.get(v, inJson ? 'normalizeInJson' : 'normalize'),
+							arrayDimensions: (<PgColumn> v).dimensions,
+							field: v,
+						}
+						: {
+							key: k,
+							field: v as SQL | SQLWrapper | SQL.Aliased,
+						},
+				);
 
-				return this.buildRqbColumn(table, v, k);
+				return this.buildRqbColumn(table, v, k, inJson);
 			}),
 			sql`, `,
 		);
@@ -1099,6 +766,7 @@ export class PgDialect {
 	private buildColumns = (
 		table: Table | View,
 		selection: BuildRelationalQueryResult['selection'],
+		inJson: boolean,
 		config?: DBQueryConfigWithComment<'many'>,
 	) =>
 		config?.columns
@@ -1114,24 +782,42 @@ export class PgDialect {
 
 					if (v) {
 						const column = columnContainer[k];
-						columnIdentifiers.push(this.buildRqbColumn(table, column, k));
+						columnIdentifiers.push(this.buildRqbColumn(table, column, k, inJson));
 
-						selection.push({
-							key: k,
-							field: column as SQL | SQLWrapper | SQL.Aliased | Column,
-						});
+						selection.push(
+							is(column, Column)
+								? {
+									key: k,
+									codec: this.codecs.get(column, inJson ? 'normalizeInJson' : 'normalize'),
+									arrayDimensions: (<PgColumn> column).dimensions,
+									field: column,
+								}
+								: {
+									key: k,
+									field: column as SQL | SQLWrapper | SQL.Aliased,
+								},
+						);
 					}
 				}
 
 				if (colSelectionMode === false) {
 					for (const [k, v] of Object.entries(columnContainer)) {
 						if (config.columns[k] === false) continue;
-						columnIdentifiers.push(this.buildRqbColumn(table, v, k));
+						columnIdentifiers.push(this.buildRqbColumn(table, v, k, inJson));
 
-						selection.push({
-							key: k,
-							field: v as SQL | SQLWrapper | SQL.Aliased | Column,
-						});
+						selection.push(
+							is(v, Column)
+								? {
+									key: k,
+									codec: this.codecs.get(v, inJson ? 'normalizeInJson' : 'normalize'),
+									arrayDimensions: (<PgColumn> v).dimensions,
+									field: v,
+								}
+								: {
+									key: k,
+									field: v as SQL | SQLWrapper | SQL.Aliased,
+								},
+						);
 					}
 				}
 
@@ -1139,7 +825,7 @@ export class PgDialect {
 					? sql.join(columnIdentifiers, sql`, `)
 					: undefined;
 			})()
-			: this.unwrapAllColumns(table, selection);
+			: this.unwrapAllColumns(table, selection, inJson);
 
 	buildRelationalQuery({
 		schema,
@@ -1151,6 +837,7 @@ export class PgDialect {
 		errorPath,
 		depth,
 		throughJoin,
+		nested,
 	}: {
 		schema: TablesRelationalConfig;
 		table: PgTable | PgView;
@@ -1161,6 +848,7 @@ export class PgDialect {
 		errorPath?: string;
 		depth?: number;
 		throughJoin?: SQL;
+		nested?: boolean;
 	}): BuildRelationalQueryResult {
 		const selection: BuildRelationalQueryResult['selection'] = [];
 		const isSingle = mode === 'first';
@@ -1196,7 +884,7 @@ export class PgDialect {
 		const order = params?.orderBy
 			? relationsOrderToSQL(table, params.orderBy)
 			: undefined;
-		const columns = this.buildColumns(table, selection, params);
+		const columns = this.buildColumns(table, selection, !!nested, params);
 		const extras = params?.extras
 			? relationExtrasToSQL(table, params.extras)
 			: undefined;
@@ -1267,6 +955,7 @@ export class PgDialect {
 							errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 							depth: currentDepth + 1,
 							throughJoin,
+							nested: true,
 						});
 
 						selection.push({

@@ -1,5 +1,4 @@
 import { eq, getTableColumns, ne, sql } from 'drizzle-orm';
-import { relations } from 'drizzle-orm/_relations';
 import {
 	alias,
 	bigint,
@@ -61,21 +60,11 @@ export const usersTableV1 = schemaV1.table('users_table_V1', {
 	invitedBy: integer('invited_by'),
 });
 
-export const usersConfig = relations(usersTable, ({ one, many }) => ({
-	invitee: one(usersTable, { fields: [usersTable.invitedBy], references: [usersTable.id] }),
-	usersToGroups: many(usersToGroupsTable),
-	posts: many(postsTable),
-}));
-
 export const groupsTable = pgTable('groups', {
 	id: serial().primaryKey(),
 	name: text().notNull(),
 	description: text(),
 });
-
-export const groupsConfig = relations(groupsTable, ({ many }) => ({
-	usersToGroups: many(usersToGroupsTable),
-}));
 
 export const usersToGroupsTable = pgTable('users_to_groups', {
 	id: serial().primaryKey(),
@@ -85,22 +74,12 @@ export const usersToGroupsTable = pgTable('users_to_groups', {
 	pk: primaryKey(t.groupId, t.userId),
 }));
 
-export const usersToGroupsConfig = relations(usersToGroupsTable, ({ one }) => ({
-	group: one(groupsTable, { fields: [usersToGroupsTable.groupId], references: [groupsTable.id] }),
-	user: one(usersTable, { fields: [usersToGroupsTable.userId], references: [usersTable.id] }),
-}));
-
 export const postsTable = pgTable('posts', {
 	id: serial().primaryKey(),
 	content: text().notNull(),
 	ownerId: integer().references(() => usersTable.id),
 	createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 });
-
-export const postsConfig = relations(postsTable, ({ one, many }) => ({
-	author: one(usersTable, { fields: [postsTable.ownerId], references: [usersTable.id] }),
-	comments: many(commentsTable),
-}));
 
 export const usersView = pgView('users_view').as((qb) =>
 	qb.select({
@@ -125,23 +104,12 @@ export const commentsTable = pgTable('comments', {
 	createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 });
 
-export const commentsConfig = relations(commentsTable, ({ one, many }) => ({
-	post: one(postsTable, { fields: [commentsTable.postId], references: [postsTable.id] }),
-	author: one(usersTable, { fields: [commentsTable.creator], references: [usersTable.id] }),
-	likes: many(commentLikesTable),
-}));
-
 export const commentLikesTable = pgTable('comment_likes', {
 	id: serial().primaryKey(),
 	creator: integer().references(() => usersTable.id),
 	commentId: integer().references(() => commentsTable.id),
 	createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 });
-
-export const commentLikesConfig = relations(commentLikesTable, ({ one }) => ({
-	comment: one(commentsTable, { fields: [commentLikesTable.commentId], references: [commentsTable.id] }),
-	author: one(usersTable, { fields: [commentLikesTable.creator], references: [usersTable.id] }),
-}));
 
 export const rqbSchema = pgSchema('rqb_test_schema');
 

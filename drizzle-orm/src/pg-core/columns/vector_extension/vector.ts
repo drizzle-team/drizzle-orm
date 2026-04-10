@@ -31,20 +31,23 @@ export class PgVectorBuilder extends PgColumnBuilder<
 export class PgVector extends PgColumn<'array vector'> {
 	static override readonly [entityKind]: string = 'PgVector';
 
+	/** @internal */
+	override readonly useCodecType = 'vector';
+
 	getSQLType(): string {
 		return `vector(${this.length})`;
 	}
 
-	override mapToDriverValue(value: unknown): unknown {
+	override mapToDriverValue = (value: unknown): unknown => {
 		return JSON.stringify(value);
-	}
+	};
 
-	override mapFromDriverValue(value: string): unknown {
+	override mapFromDriverValue = (value: string): unknown => {
 		return value
 			.slice(1, -1)
 			.split(',')
 			.map((v) => Number.parseFloat(v));
-	}
+	};
 }
 
 export interface PgVectorConfig {

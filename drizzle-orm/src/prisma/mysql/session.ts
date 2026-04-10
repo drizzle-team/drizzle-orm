@@ -24,10 +24,10 @@ export class PrismaMySqlPreparedQuery<T> extends MySqlPreparedQuery<MySqlPrepare
 
 	constructor(
 		private readonly prisma: PrismaClient,
-		query: Query,
+		private readonly query: Query,
 		private readonly logger: Logger,
 	) {
-		super(query, undefined, undefined, undefined);
+		super(undefined, undefined, undefined);
 	}
 
 	override execute(placeholderValues?: Record<string, unknown>): Promise<T> {

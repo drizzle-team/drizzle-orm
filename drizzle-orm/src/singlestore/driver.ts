@@ -25,6 +25,7 @@ import { SingleStoreDriverSession } from './session.ts';
 export interface SingleStoreDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class SingleStoreDriverDriver {
@@ -43,6 +44,7 @@ export class SingleStoreDriverDriver {
 	): SingleStoreDriverSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig> {
 		return new SingleStoreDriverSession(this.client, this.dialect, relations, schema, {
 			logger: this.options.logger,
+			useJitMapper: this.options.useJitMapper ?? false,
 			cache: this.options.cache,
 		});
 	}
@@ -101,6 +103,7 @@ function construct<
 	const driver = new SingleStoreDriverDriver(clientForInstance as SingleStoreDriverClient, dialect, {
 		logger,
 		cache: config.cache,
+		useJitMapper: config.useJitMappers,
 	});
 	const session = driver.createSession(schema, relations);
 	const db = new SingleStoreDriverDatabase(dialect, session, relations, schema as any) as SingleStoreDriverDatabase<

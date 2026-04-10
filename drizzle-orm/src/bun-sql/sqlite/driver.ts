@@ -49,7 +49,11 @@ function construct<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const session = new BunSQLiteSession(client, dialect, relations, schema, { logger, cache: config.cache });
+	const session = new BunSQLiteSession(client, dialect, relations, schema, {
+		logger,
+		cache: config.cache,
+		useJitMapper: config.useJitMappers,
+	});
 	const db = new BunSQLiteDatabase('async', dialect, session, relations, schema as any) as BunSQLiteDatabase<
 		TSchema,
 		TRelations

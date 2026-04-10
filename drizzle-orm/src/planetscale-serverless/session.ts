@@ -16,21 +16,28 @@ import {
 	MySqlSession,
 	MySqlTransaction,
 } from '~/mysql-core/session.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeJitRqbMapper,
+	type RelationalQueryMapperConfig,
+	type RelationalRowsMapper,
+} from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { type Assume, makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
 
 export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends boolean = false>
 	extends MySqlPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'PlanetScalePreparedQuery';
+	private jitMapper?: RowsMapper<T['execute']> | RelationalRowsMapper<T['execute']>;
 
-	private rawQueryConfig = { as: 'object' } as const;
-	private queryConfig = { as: 'array' } as const;
+	private rawQuery = { as: 'object' } as const;
+	private query = { as: 'array' } as const;
 
 	constructor(
 		private client: Client | Transaction | Connection,
-		query: Query,
+		private queryString: string,
+		private params: unknown[],
 		private logger: Logger,
 		cache: Cache,
 		queryMetadata: {
@@ -39,6 +46,7 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqb
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -47,31 +55,32 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqb
 		// Keys that should be returned, it has the column with all properries + key from object
 		private returningIds?: SelectedFieldsOrdered,
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
-		super(query, cache, queryMetadata, cacheConfig);
+		super(cache, queryMetadata, cacheConfig);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
 
-		const params = fillPlaceholders(this.query.params, placeholderValues);
+		const params = fillPlaceholders(this.params, placeholderValues);
 
-		this.logger.logQuery(this.query.sql, params);
+		this.logger.logQuery(this.queryString, params);
 
 		const {
 			fields,
 			client,
+			queryString,
+			rawQuery,
 			query,
-			rawQueryConfig,
-			queryConfig,
 			joinsNotNullableMap,
 			customResultMapper,
 			returningIds,
 			generatedIds,
 		} = this;
 		if (!fields && !customResultMapper) {
-			const res = await this.queryWithCache(query.sql, params, async () => {
-				return await client.execute(query.sql, params, rawQueryConfig);
+			const res = await this.queryWithCache(queryString, params, async () => {
+				return await client.execute(queryString, params, rawQuery);
 			});
 
 			const insertId = Number.parseFloat(res.insertId);
@@ -101,34 +110,42 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqb
 			}
 			return res;
 		}
-		const { rows } = await this.queryWithCache(query.sql, params, async () => {
-			return await client.execute(query.sql, params, queryConfig);
+		const { rows } = await this.queryWithCache(queryString, params, async () => {
+			return await client.execute(queryString, params, query);
 		});
 
 		if (customResultMapper) {
 			return (customResultMapper as (rows: unknown[][]) => T['execute'])(rows as unknown[][]);
 		}
 
-		return rows.map((row) => mapResultRow<T['execute']>(fields!, row as unknown[], joinsNotNullableMap));
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RowsMapper<T['execute']>
+				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(
+					rows as unknown[][],
+				)
+			: rows.map((row) => mapResultRow(fields!, row as unknown[], joinsNotNullableMap));
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		const params = fillPlaceholders(this.query.params, placeholderValues);
+		const params = fillPlaceholders(this.params, placeholderValues);
 
-		this.logger.logQuery(this.query.sql, params);
+		this.logger.logQuery(this.queryString, params);
 
 		const {
 			client,
-			query,
-			rawQueryConfig,
+			queryString,
+			rawQuery,
 			customResultMapper,
 		} = this;
 
-		const res = await client.execute(query.sql, params, rawQueryConfig);
+		const res = await client.execute(queryString, params, rawQuery);
 
-		return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
-			res.rows as any as Record<string, unknown>[],
-		);
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
+				?? makeJitRqbMapper<T['execute']>(this.rqbConfig!))(res.rows as any as Record<string, unknown>[])
+			: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
+				res.rows as any as Record<string, unknown>[],
+			);
 	}
 
 	override iterator(_placeholderValues?: Record<string, unknown>): AsyncGenerator<T['iterator']> {
@@ -139,6 +156,7 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqb
 export interface PlanetscaleSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 export class PlanetscaleSession<
@@ -186,12 +204,14 @@ export class PlanetscaleSession<
 	): MySqlPreparedQuery<T> {
 		return new PlanetScalePreparedQuery(
 			this.client,
-			query,
+			query.sql,
+			query.params,
 			this.logger,
 			this.cache,
 			queryMetadata,
 			cacheConfig,
 			fields,
+			this.options.useJitMapper,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -202,21 +222,25 @@ export class PlanetscaleSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		config: RelationalQueryMapperConfig,
 		generatedIds?: Record<string, unknown>[],
 		returningIds?: SelectedFieldsOrdered,
 	): MySqlPreparedQuery<T> {
 		return new PlanetScalePreparedQuery(
 			this.client,
-			query,
+			query.sql,
+			query.params,
 			this.logger,
 			this.cache,
 			undefined,
 			undefined,
 			fields,
+			this.options.useJitMapper,
 			customResultMapper,
 			generatedIds,
 			returningIds,
 			true,
+			config,
 		);
 	}
 

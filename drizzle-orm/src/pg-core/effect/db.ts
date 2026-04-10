@@ -1,5 +1,5 @@
+import type { SqlError } from '@effect/sql/SqlError';
 import { Effect } from 'effect';
-import type * as V1 from '~/_relations.ts';
 import type { EffectCache } from '~/cache/core/cache-effect.ts';
 import type { MutationOption } from '~/cache/core/cache.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
@@ -8,7 +8,6 @@ import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectCountBuilder } from '~/pg-core/effect/count.ts';
 import { PgEffectInsertBase, type PgEffectInsertHKT } from '~/pg-core/effect/insert.ts';
 import { PgEffectSelectBase, type PgEffectSelectBuilder } from '~/pg-core/effect/select.ts';
-import type { _RelationalQueryBuilder } from '~/pg-core/query-builders/_query.ts';
 import { PgInsertBuilder } from '~/pg-core/query-builders/insert.ts';
 import { RelationalQueryBuilder } from '~/pg-core/query-builders/query.ts';
 import type { PgTable } from '~/pg-core/table.ts';
@@ -35,18 +34,13 @@ import { PgEffectUpdateBase, type PgEffectUpdateHKT } from './update.ts';
 export class PgEffectDatabase<
 	TEffectHKT extends QueryEffectHKTBase,
 	TQueryResult extends PgQueryResultHKT,
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > {
 	static readonly [entityKind]: string = 'EffectPgDatabase';
 
 	declare readonly _: {
-		readonly schema: TSchema | undefined;
-		readonly fullSchema: TFullSchema;
-		readonly tableNamesMap: Record<string, string>;
 		readonly relations: TRelations;
-		readonly session: PgEffectSession<TEffectHKT, TQueryResult, TFullSchema, TRelations, TSchema>;
+		readonly session: PgEffectSession<TEffectHKT, TQueryResult, TRelations>;
 	};
 
 	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
@@ -62,35 +56,21 @@ export class PgEffectDatabase<
 		/** @internal */
 		readonly dialect: PgDialect,
 		/** @internal */
-		readonly session: PgEffectSession<TEffectHKT, any, any, any, any>,
+		readonly session: PgEffectSession<TEffectHKT, any, any>,
 		relations: TRelations,
-		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		parseRqbJson: boolean = false,
 	) {
-		this._ = schema
-			? {
-				schema: schema.schema,
-				fullSchema: schema.fullSchema as TFullSchema,
-				tableNamesMap: schema.tableNamesMap,
-				relations: relations,
-				session,
-			}
-			: {
-				schema: undefined,
-				fullSchema: {} as TFullSchema,
-				tableNamesMap: {},
-				relations: relations,
-				session,
-			};
+		this._ = {
+			relations: relations,
+			session,
+		};
 
 		this.query = {} as typeof this['query'];
 		for (const [tableName, relation] of Object.entries(relations)) {
 			(this.query as PgEffectDatabase<
 				TEffectHKT,
 				TQueryResult,
-				TSchema,
-				AnyRelations,
-				V1.TablesRelationalConfig
+				AnyRelations
 			>['query'])[tableName] = new RelationalQueryBuilder(
 				relations,
 				relations[relation.name]!.table as PgTable,
@@ -140,7 +120,6 @@ export class PgEffectDatabase<
 	 * ```
 	 */
 	$with: WithBuilder = (alias: string, selection?: ColumnsSelection) => {
-		const self = this;
 		const as = (
 			qb:
 				| TypedQueryBuilder<ColumnsSelection | undefined>
@@ -148,15 +127,17 @@ export class PgEffectDatabase<
 				| ((qb: QueryBuilder) => TypedQueryBuilder<ColumnsSelection | undefined> | SQL),
 		) => {
 			if (typeof qb === 'function') {
-				qb = qb(new QueryBuilder(self.dialect));
+				qb = qb(new QueryBuilder(this.dialect));
 			}
 
+			const sql = ('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL();
 			return new Proxy(
 				new WithSubquery(
-					qb.getSQL(),
+					sql,
 					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
 					alias,
 					true,
+					sql.usedTables ?? [],
 				),
 				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 			);
@@ -658,8 +639,7 @@ export class PgEffectDatabase<
 			PreparedQueryConfig & { execute: PgQueryResultKind<TQueryResult, TRow> }
 		>(
 			builtQuery,
-			undefined,
-			undefined,
+			'raw',
 			false,
 		);
 		return new PgEffectRaw(
@@ -670,15 +650,11 @@ export class PgEffectDatabase<
 		);
 	}
 
-	transaction<A, E, R>(
+	transaction: <A, E, R>(
 		transaction: (
-			tx: PgEffectTransaction<TEffectHKT, TQueryResult, TFullSchema, TRelations, TSchema>,
+			tx: PgEffectTransaction<TEffectHKT, TQueryResult, TRelations>,
 		) => Effect.Effect<A, E, R>,
-	) {
-		return this.session.transaction(
-			transaction,
-		);
-	}
+	) => Effect.Effect<A, E | SqlError, R> = (tx) => this.session.transaction(tx);
 }
 
 export type PgEffectWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
@@ -686,16 +662,8 @@ export type PgEffectWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
 export const withReplicas = <
 	TEffectHKT extends QueryEffectHKTBase,
 	HKT extends PgQueryResultHKT,
-	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-	Q extends PgEffectDatabase<
-		TEffectHKT,
-		HKT,
-		TFullSchema,
-		TRelations,
-		TSchema extends Record<string, unknown> ? V1.ExtractTablesWithRelations<TFullSchema> : TSchema
-	>,
+	Q extends PgEffectDatabase<TEffectHKT, HKT, TRelations>,
 >(
 	primary: Q,
 	replicas: [Q, ...Q[]],
@@ -712,7 +680,7 @@ export const withReplicas = <
 	const insert: Q['insert'] = (...args: [any]) => primary.insert(...args);
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
 	const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
-	// const transaction: Q['transaction'] = (...args: [any]) => primary.transaction(...args);
+	const transaction: Q['transaction'] = (...args: [any]) => primary.transaction(...args);
 	const refreshMaterializedView: Q['refreshMaterializedView'] = (...args: [any]) =>
 		primary.refreshMaterializedView(...args);
 
@@ -722,7 +690,7 @@ export const withReplicas = <
 		insert,
 		delete: $delete,
 		execute,
-		// transaction,
+		transaction,
 		refreshMaterializedView,
 		$primary: primary,
 		$replicas: replicas,

@@ -410,7 +410,6 @@ export class CockroachInsertBase<
 				query,
 				this.config.returning,
 				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-				true,
 			);
 		});
 	}
@@ -446,6 +445,11 @@ export class CockroachInsertBase<
 				)
 				: undefined
 		) as this['_']['selectedFields'];
+	}
+
+	/** @internal */
+	withoutSelectionCastCodecs(): this {
+		return this;
 	}
 
 	$dynamic(): CockroachInsertDynamic<this> {

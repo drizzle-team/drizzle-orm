@@ -1448,9 +1448,14 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				select: `com'ment`,
 			})
 			.prepare();
-		expect((<any> selectQPrepared).query.sql).toStrictEqual(
-			`select \`id\`, \`name\` from \`comments_test\` /*select='com\\'ment'*/`,
-		);
+		expect(
+			typeof (<any> selectQPrepared).query?.sql === 'string'
+				? (<any> selectQPrepared).query.sql
+				: (<any> selectQPrepared).queryString,
+		)
+			.toStrictEqual(
+				`select \`id\`, \`name\` from \`comments_test\` /*select='com\\'ment'*/`,
+			);
 
 		await insertQ;
 		await updateQ;

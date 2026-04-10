@@ -22,6 +22,9 @@ export class PgMacaddr8Builder extends PgColumnBuilder<{
 export class PgMacaddr8 extends PgColumn<'string macaddr8'> {
 	static override readonly [entityKind]: string = 'PgMacaddr8';
 
+	/** @internal */
+	override readonly useCodecType = 'macaddr8';
+
 	getSQLType(): string {
 		return 'macaddr8';
 	}

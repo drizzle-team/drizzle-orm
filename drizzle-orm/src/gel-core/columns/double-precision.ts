@@ -30,12 +30,12 @@ export class GelDoublePrecision<T extends ColumnBaseConfig<'number double'>> ext
 		return 'double precision';
 	}
 
-	override mapFromDriverValue(value: string | number): number {
+	override mapFromDriverValue = (value: string | number): number => {
 		if (typeof value === 'string') {
 			return Number.parseFloat(value);
 		}
 		return value;
-	}
+	};
 }
 
 export function doublePrecision(name?: string): GelDoublePrecisionBuilder {

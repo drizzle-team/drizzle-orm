@@ -6,7 +6,12 @@ import { entityKind } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeJitRqbMapper,
+	type RelationalQueryMapperConfig,
+	type RelationalRowsMapper,
+} from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteTransaction } from '~/sqlite-core/index.ts';
@@ -18,12 +23,13 @@ import type {
 	SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
-import { mapResultRow } from '~/utils.ts';
+import { makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
 import type { SQLiteCloudRunResult } from './driver.ts';
 
 export interface SQLiteCloudSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMapper?: boolean;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -54,7 +60,6 @@ export class SQLiteCloudSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -73,7 +78,7 @@ export class SQLiteCloudSession<
 			cacheConfig,
 			fields,
 			executeMethod,
-			isResponseInArrayMode,
+			this.options.useJitMapper,
 			customResultMapper,
 		);
 	}
@@ -83,6 +88,7 @@ export class SQLiteCloudSession<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		customResultMapper: (rows: Record<string, unknown>[]) => unknown,
+		config: RelationalQueryMapperConfig,
 	): SQLiteCloudPreparedQuery<T, true> {
 		const stmt = this.client.prepare(query.sql);
 
@@ -95,16 +101,17 @@ export class SQLiteCloudSession<
 			undefined,
 			fields,
 			executeMethod,
-			false,
+			this.options.useJitMapper,
 			customResultMapper,
 			true,
+			config,
 		);
 	}
 
 	override async run(query: SQL): Result<'async', SQLiteCloudRunResult> {
 		const staticQuery = this.dialect.sqlToQuery(query);
 		try {
-			return await this.prepareOneTimeQuery(staticQuery, undefined, 'run', false).run() as Result<
+			return await this.prepareOneTimeQuery(staticQuery, undefined, 'run').run() as Result<
 				'async',
 				SQLiteCloudRunResult
 			>;
@@ -114,14 +121,14 @@ export class SQLiteCloudSession<
 	}
 
 	override async all<T = unknown>(query: SQL): Result<'async', T[]> {
-		return await this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run', false).all() as Result<
+		return await this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run').all() as Result<
 			'async',
 			T[]
 		>;
 	}
 
 	override async get<T = unknown>(query: SQL): Result<'async', T> {
-		return await this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run', false).get() as Result<
+		return await this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run').get() as Result<
 			'async',
 			T
 		>;
@@ -130,7 +137,7 @@ export class SQLiteCloudSession<
 	override async values<T extends any[] = unknown[]>(
 		query: SQL,
 	): Result<'async', T[]> {
-		return await this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run', false).values() as Result<
+		return await this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run').values() as Result<
 			'async',
 			T[]
 		>;
@@ -207,6 +214,7 @@ export class SQLiteCloudPreparedQuery<
 	}
 > {
 	static override readonly [entityKind]: string = 'SQLiteCloudPreparedQuery';
+	private jitMapper?: RowsMapper<any> | RelationalRowsMapper<any>;
 
 	constructor(
 		private stmt: ReturnType<Database['prepare']>,
@@ -220,12 +228,13 @@ export class SQLiteCloudPreparedQuery<
 		cacheConfig: WithCacheConfig | undefined,
 		/** @internal */ public fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		private _isResponseInArrayMode: boolean,
+		private useJitMapper: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 			mapColumnValue?: (value: unknown) => unknown,
 		) => unknown,
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
 		super('async', executeMethod, query, cache, queryMetadata, cacheConfig);
 	}
@@ -265,7 +274,10 @@ export class SQLiteCloudPreparedQuery<
 
 		const rows = await this.values(placeholderValues) as unknown[][];
 
-		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RowsMapper<T['all']>
+				?? makeJitQueryMapper<T['all']>(fields!, joinsNotNullableMap))(rows)
+			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
 	private async allRqbV2(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
@@ -282,10 +294,13 @@ export class SQLiteCloudPreparedQuery<
 			});
 		});
 
-		return (customResultMapper as (
-			rows: Record<string, unknown>[],
-			mapColumnValue?: (value: unknown) => unknown,
-		) => unknown)(rows as Record<string, unknown>[]) as T['all'];
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['all']>
+				?? makeJitRqbMapper<T['all']>(this.rqbConfig!))(rows)
+			: (customResultMapper as (
+				rows: Record<string, unknown>[],
+				mapColumnValue?: (value: unknown) => unknown,
+			) => unknown)(rows as Record<string, unknown>[]) as T['all'];
 	}
 
 	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
@@ -319,7 +334,12 @@ export class SQLiteCloudPreparedQuery<
 
 		if (row === undefined) return row;
 
-		return mapResultRow(fields!, row, joinsNotNullableMap);
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RowsMapper<T['get'][]>
+				?? makeJitQueryMapper<T['get'][]>(fields!, joinsNotNullableMap))(
+					[row],
+				)[0]
+			: mapResultRow(fields!, row, joinsNotNullableMap);
 	}
 
 	private async getRqbV2(placeholderValues?: Record<string, unknown>) {
@@ -338,10 +358,13 @@ export class SQLiteCloudPreparedQuery<
 
 		if (row === undefined) return row;
 
-		return (customResultMapper as (
-			rows: Record<string, unknown>[],
-			mapColumnValue?: (value: unknown) => unknown,
-		) => unknown)([row] as Record<string, unknown>[]) as T['get'];
+		return this.useJitMapper
+			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['get'][]>
+				?? makeJitRqbMapper<T['get'][]>(this.rqbConfig!))([row])
+			: (customResultMapper as (
+				rows: Record<string, unknown>[],
+				mapColumnValue?: (value: unknown) => unknown,
+			) => unknown)([row] as Record<string, unknown>[]) as T['get'];
 	}
 
 	async values(placeholderValues?: Record<string, unknown>): Promise<T['values']> {
@@ -357,10 +380,5 @@ export class SQLiteCloudPreparedQuery<
 				});
 			});
 		});
-	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
 	}
 }

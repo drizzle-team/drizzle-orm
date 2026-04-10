@@ -1,17 +1,20 @@
 import { RDSDataClient, type RDSDataClientConfig } from '@aws-sdk/client-rds-data';
-import * as V1 from '~/_relations.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
+import { makePgArray } from '~/pg-core/array.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
-import type { PgAsyncRaw } from '~/pg-core/async/raw.ts';
+import { refineGenericPgCodecs } from '~/pg-core/codecs.ts';
+import { PgColumn } from '~/pg-core/columns/common.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
-import { PgColumn, type PgInsertConfig, type PgTable, type TableConfig } from '~/pg-core/index.ts';
+import type { PgInsertConfig } from '~/pg-core/query-builders/insert.ts';
+import type { PgTable, TableConfig } from '~/pg-core/table.ts';
+import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { Param, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
+import { Param, type SQL, sql } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
 import type { DrizzleConfig, UpdateSet } from '~/utils.ts';
-import type { AwsDataApiClient, AwsDataApiPgQueryResult, AwsDataApiPgQueryResultHKT } from './session.ts';
+import type { AwsDataApiClient, AwsDataApiPgQueryResultHKT } from './session.ts';
 import { AwsDataApiSession } from './session.ts';
 
 export interface PgDriverOptions {
@@ -22,26 +25,18 @@ export interface PgDriverOptions {
 	secretArn: string;
 }
 
-export interface DrizzleAwsDataApiPgConfig<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
-> extends DrizzleConfig<TSchema, TRelations> {
+export interface DrizzleAwsDataApiPgConfig<TRelations extends AnyRelations = EmptyRelations>
+	extends DrizzlePgConfig<TRelations>
+{
 	database: string;
 	resourceArn: string;
 	secretArn: string;
 }
 
-export class AwsDataApiPgDatabase<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
-> extends PgAsyncDatabase<AwsDataApiPgQueryResultHKT, TSchema, TRelations> {
+export class AwsDataApiPgDatabase<TRelations extends AnyRelations = EmptyRelations>
+	extends PgAsyncDatabase<AwsDataApiPgQueryResultHKT, TRelations>
+{
 	static override readonly [entityKind]: string = 'AwsDataApiPgDatabase';
-
-	override execute<
-		TRow extends Record<string, unknown> = Record<string, unknown>,
-	>(query: SQLWrapper | string): PgAsyncRaw<AwsDataApiPgQueryResult<TRow>> {
-		return super.execute(query);
-	}
 }
 
 export class AwsPgDialect extends PgDialect {
@@ -66,7 +61,9 @@ export class AwsPgDialect extends PgDialect {
 						&& is(column, PgColumn) && column.dimensions
 						&& Array.isArray(colValue.value)
 					) {
-						value[fieldName] = sql`cast(${colValue} as ${sql.raw(column.getSQLType())})`;
+						value[fieldName] = sql`cast(${colValue} as ${sql.raw(column.getSQLType())}${
+							column.dimensions ? sql.raw('[]'.repeat(column.dimensions)) : undefined
+						})`;
 					}
 				}
 			}
@@ -85,23 +82,248 @@ export class AwsPgDialect extends PgDialect {
 				&& is(currentColumn, PgColumn) && currentColumn.dimensions
 				&& Array.isArray(colValue.value)
 			) {
-				set[colName] = sql`cast(${colValue} as ${sql.raw(currentColumn.getSQLType())})`;
+				set[colName] = sql`cast(${colValue} as ${sql.raw(currentColumn.getSQLType())}${
+					currentColumn.dimensions ? sql.raw('[]'.repeat(currentColumn.dimensions)) : undefined
+				})`;
 			}
 		}
 		return super.buildUpdateSet(table, set);
 	}
 }
 
-function construct<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
->(
+export const awsDataApiPgCodecs = refineGenericPgCodecs({
+	json: {
+		normalize: (v) => JSON.parse(v),
+		normalizeParam: (v) => JSON.stringify(v),
+	},
+	jsonb: {
+		normalize: (v) => JSON.parse(v),
+		normalizeParam: (v) => JSON.stringify(v),
+	},
+
+	bit: {
+		normalizeParamArray: makePgArray,
+	},
+	bool: {
+		normalizeParamArray: makePgArray,
+	},
+	box: {
+		normalizeParamArray: makePgArray,
+	},
+	box2d: {
+		normalizeParamArray: makePgArray,
+	},
+	box3d: {
+		normalizeParamArray: makePgArray,
+	},
+	char: {
+		normalizeParamArray: makePgArray,
+	},
+	cidr: {
+		normalizeParamArray: makePgArray,
+	},
+	circle: {
+		normalizeParamArray: makePgArray,
+	},
+	datemultirange: {
+		normalizeParamArray: makePgArray,
+	},
+	daterange: {
+		normalizeParamArray: makePgArray,
+	},
+	float8: {
+		normalizeParamArray: makePgArray,
+	},
+	geography: {
+		normalizeParamArray: makePgArray,
+	},
+	halfvec: {
+		normalizeParamArray: makePgArray,
+	},
+	inet: {
+		normalizeParamArray: makePgArray,
+	},
+	int4multirange: {
+		normalizeParamArray: makePgArray,
+	},
+	int4range: {
+		normalizeParamArray: makePgArray,
+	},
+	int8multirange: {
+		normalizeParamArray: makePgArray,
+	},
+	int8range: {
+		normalizeParamArray: makePgArray,
+	},
+	lseg: {
+		normalizeParamArray: makePgArray,
+	},
+	macaddr: {
+		normalizeParamArray: makePgArray,
+	},
+	money: {
+		normalizeParamArray: makePgArray,
+	},
+	nummultirange: {
+		normalizeParamArray: makePgArray,
+	},
+	numrange: {
+		normalizeParamArray: makePgArray,
+	},
+	oid: {
+		normalizeParamArray: makePgArray,
+	},
+	path: {
+		normalizeParamArray: makePgArray,
+	},
+	polygon: {
+		normalizeParamArray: makePgArray,
+	},
+	raster: {
+		normalizeParamArray: makePgArray,
+	},
+	regclass: {
+		normalizeParamArray: makePgArray,
+	},
+	regconfig: {
+		normalizeParamArray: makePgArray,
+	},
+	regdictionary: {
+		normalizeParamArray: makePgArray,
+	},
+	regnamespace: {
+		normalizeParamArray: makePgArray,
+	},
+	regoper: {
+		normalizeParamArray: makePgArray,
+	},
+	regoperator: {
+		normalizeParamArray: makePgArray,
+	},
+	regproc: {
+		normalizeParamArray: makePgArray,
+	},
+	regprocedure: {
+		normalizeParamArray: makePgArray,
+	},
+	regrole: {
+		normalizeParamArray: makePgArray,
+	},
+	regtype: {
+		normalizeParamArray: makePgArray,
+	},
+	serial: {
+		normalizeParamArray: makePgArray,
+	},
+	smallint: {
+		normalizeParamArray: makePgArray,
+	},
+	smallserial: {
+		normalizeParamArray: makePgArray,
+	},
+	sparsevec: {
+		normalizeParamArray: makePgArray,
+	},
+	text: {
+		normalizeParamArray: makePgArray,
+	},
+	time: {
+		normalizeParamArray: makePgArray,
+	},
+	timetz: {
+		normalizeParamArray: makePgArray,
+	},
+	tsmultirange: {
+		normalizeParamArray: makePgArray,
+	},
+	tsquery: {
+		normalizeParamArray: makePgArray,
+	},
+	tsrange: {
+		normalizeParamArray: makePgArray,
+	},
+	tstzmultirange: {
+		normalizeParamArray: makePgArray,
+	},
+	tstzrange: {
+		normalizeParamArray: makePgArray,
+	},
+	tsvector: {
+		normalizeParamArray: makePgArray,
+	},
+	varbit: {
+		normalizeParamArray: makePgArray,
+	},
+	varchar: {
+		normalizeParamArray: makePgArray,
+	},
+	vector: {
+		normalizeParamArray: makePgArray,
+	},
+	xml: {
+		normalizeParamArray: makePgArray,
+	},
+	bytea: {
+		normalizeParamArray: makePgArray,
+	},
+	enum: {
+		normalizeParamArray: makePgArray,
+	},
+	geometry: {
+		normalizeParamArray: makePgArray,
+	},
+	interval: {
+		normalizeParamArray: makePgArray,
+	},
+	line: {
+		normalizeParamArray: makePgArray,
+	},
+	macaddr8: {
+		normalizeParamArray: makePgArray,
+	},
+	numeric: {
+		normalizeParamArray: makePgArray,
+	},
+	point: {
+		normalizeParamArray: makePgArray,
+	},
+	bigint: {
+		normalizeParamArray: makePgArray,
+	},
+	bigserial: {
+		normalizeParamArray: makePgArray,
+	},
+	date: {
+		normalizeParamArray: makePgArray,
+	},
+	float4: {
+		normalizeParamArray: makePgArray,
+	},
+	int: {
+		normalizeParamArray: makePgArray,
+	},
+	timestamp: {
+		normalizeParamArray: makePgArray,
+	},
+	timestamptz: {
+		normalizeParamArray: makePgArray,
+	},
+	uuid: {
+		normalizeParamArray: makePgArray,
+	},
+});
+
+function construct<TRelations extends AnyRelations = EmptyRelations>(
 	client: AwsDataApiClient,
-	config: DrizzleAwsDataApiPgConfig<TSchema, TRelations>,
-): AwsDataApiPgDatabase<TSchema, TRelations> & {
+	config: DrizzleAwsDataApiPgConfig<TRelations>,
+): AwsDataApiPgDatabase<TRelations> & {
 	$client: AwsDataApiClient;
 } {
-	const dialect = new AwsPgDialect({ casing: config.casing });
+	const dialect = new AwsPgDialect({
+		casing: config.casing,
+		useJitMappers: config.useJitMappers,
+		codecs: config.codecs ?? awsDataApiPgCodecs,
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -109,26 +331,13 @@ function construct<
 		logger = config.logger;
 	}
 
-	let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;
-	if (config.schema) {
-		const tablesConfig = V1.extractTablesRelationalConfig(
-			config.schema,
-			V1.createTableRelationsHelpers,
-		);
-		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
-			tableNamesMap: tablesConfig.tableNamesMap,
-		};
-	}
-
 	const relations = config.relations ?? {} as TRelations;
-	const session = new AwsDataApiSession(client, dialect, relations, schema, {
+	const session = new AwsDataApiSession(client, dialect, relations, {
 		...config,
 		logger,
 		cache: config.cache,
 	}, undefined);
-	const db = new AwsDataApiPgDatabase(dialect, session, relations, schema as V1.RelationalSchemaConfig<any>, true);
+	const db = new AwsDataApiPgDatabase(dialect, session, relations, true);
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {
@@ -139,40 +348,39 @@ function construct<
 }
 
 export function drizzle<
-	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends AwsDataApiClient = RDSDataClient,
 >(
 	...params: [
 		(
 			| (
-				& DrizzleConfig<TSchema, TRelations>
+				& DrizzlePgConfig<TRelations>
 				& {
 					connection: RDSDataClientConfig & Omit<DrizzleAwsDataApiPgConfig, keyof DrizzleConfig>;
 				}
 			)
 			| (
-				& DrizzleAwsDataApiPgConfig<TSchema, TRelations>
+				& DrizzleAwsDataApiPgConfig<TRelations>
 				& {
 					client: TClient;
 				}
 			)
 		),
 	]
-): AwsDataApiPgDatabase<TSchema, TRelations> & {
+): AwsDataApiPgDatabase<TRelations> & {
 	$client: TClient;
 } {
 	if ((params[0] as { client?: TClient }).client) {
 		const { client, ...drizzleConfig } = params[0] as {
 			client: TClient;
-		} & DrizzleAwsDataApiPgConfig<TSchema, TRelations>;
+		} & DrizzleAwsDataApiPgConfig<TRelations>;
 
 		return construct(client, drizzleConfig) as any;
 	}
 
 	const { connection, ...drizzleConfig } = params[0] as {
 		connection: RDSDataClientConfig & Omit<DrizzleAwsDataApiPgConfig, keyof DrizzleConfig>;
-	} & DrizzleConfig<TSchema, TRelations>;
+	} & DrizzlePgConfig<TRelations>;
 	const { resourceArn, database, secretArn, ...rdsConfig } = connection;
 
 	const instance = new RDSDataClient(rdsConfig);
@@ -180,12 +388,9 @@ export function drizzle<
 }
 
 export namespace drizzle {
-	export function mock<
-		TSchema extends Record<string, unknown> = Record<string, never>,
-		TRelations extends AnyRelations = EmptyRelations,
-	>(
-		config: DrizzleAwsDataApiPgConfig<TSchema, TRelations>,
-	): AwsDataApiPgDatabase<TSchema, TRelations> & {
+	export function mock<TRelations extends AnyRelations = EmptyRelations>(
+		config: DrizzleAwsDataApiPgConfig<TRelations>,
+	): AwsDataApiPgDatabase<TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;

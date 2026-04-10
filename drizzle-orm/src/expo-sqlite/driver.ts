@@ -46,7 +46,10 @@ export function drizzle<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const session = new ExpoSQLiteSession(client, dialect, relations, schema, { logger });
+	const session = new ExpoSQLiteSession(client, dialect, relations, schema, {
+		logger,
+		useJitMapper: config.useJitMappers,
+	});
 	const db = new ExpoSQLiteDatabase(
 		'sync',
 		dialect,

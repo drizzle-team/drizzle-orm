@@ -50,10 +50,6 @@ export class PrismaSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQ
 	override values(_placeholderValues?: Record<string, unknown> | undefined): Promise<never> {
 		throw new Error('Method not implemented.');
 	}
-
-	override isResponseInArrayMode(): boolean {
-		return false;
-	}
 }
 
 export interface PrismaSQLiteSessionOptions {
