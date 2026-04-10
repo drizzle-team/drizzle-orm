@@ -432,7 +432,6 @@ const upgradeAsyncFunctions: Record<
 		}
 
 		if (mode === 'transaction') {
-			// for normal sqlite proxy migrate() call from code
 			await db.transaction(async (tx) => {
 				for (const statement of statements) {
 					await tx.run(statement);
@@ -441,8 +440,11 @@ const upgradeAsyncFunctions: Record<
 		} else if (mode === 'batch') {
 			const database = db as SqliteRemoteDatabase<Record<string, unknown>> | DrizzleD1Database;
 
-			await database.batch(
-				statements.map((s) => database.run(s)) as unknown as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]],
+			await database.session.batch(
+				statements.map((s) => database.run(s.inlineParams())) as unknown as [
+					BatchItem<'sqlite'>,
+					...BatchItem<'sqlite'>[],
+				],
 			);
 		} else assertUnreachable(mode);
 	},
