@@ -1,5 +1,5 @@
 import type { TablesRelationalConfig } from '~/_relations.ts';
-import type { BatchItem } from '~/batch';
+import type { BatchItem } from '~/batch.ts';
 import type { DrizzleD1Database } from '~/d1';
 import type { MigrationMeta } from '~/migrator.ts';
 import type { AnyRelations } from '~/relations.ts';

@@ -1932,7 +1932,7 @@ export const connectToSQLite = async (
 
 			// This function is needed for d1 migrations
 			// up-migrator uses db.batch that passes to callback sql and params
-			// to enable db.bactch - need to pass 2nd callback to drizzle()
+			// to enable db.batch - need to pass 2nd callback to drizzle()
 			// this will enable running up-migrator with batch (transaction)
 			const remoteMigrateBatchCallback = async (
 				queries: {
