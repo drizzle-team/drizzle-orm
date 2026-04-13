@@ -13,7 +13,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 	const migrations = readMigrationFiles(config);
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 
-	const { newDb } = await upgradeAsyncIfNeeded(migrationsTable, db, migrations, 'batch');
+	const { newDb } = await upgradeAsyncIfNeeded(migrationsTable, db, migrations);
 
 	if (newDb) {
 		const migrationTableCreate = sql`

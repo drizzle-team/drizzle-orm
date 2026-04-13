@@ -1,74 +1,10 @@
 import type { TablesRelationalConfig } from '~/_relations.ts';
-import type { BatchItem } from '~/batch.ts';
-import type { DrizzleD1Database } from '~/d1/index.ts';
 import type { MigrationMeta } from '~/migrator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
 import type { BaseSQLiteDatabase } from '~/sqlite-core';
 import type { SQLiteSession } from '~/sqlite-core/session.ts';
-import type { SqliteRemoteDatabase } from '~/sqlite-proxy';
-import { assertUnreachable } from '~/utils.ts';
-
-const CURRENT_MIGRATION_TABLE_VERSION = 1;
-
-interface UpgradeResult {
-	newDb?: boolean;
-	prevVersion?: number;
-	currentVersion?: number;
-}
-
-function getVersion(columns: string[]) {
-	if (columns.includes('name')) return 1;
-	return 0;
-}
-
-// sqlite-proxy returns [ [string] ]
-// sqlite returns [{ column_name: string }]
-function allSync<T>(
-	session: SQLiteSession<
-		'sync',
-		unknown,
-		Record<string, unknown>,
-		AnyRelations,
-		TablesRelationalConfig
-	>,
-	sqlQuery: SQL,
-	resultMapper: (row: any[]) => T = () => [] as T,
-): T[] {
-	const result = session.all(sqlQuery) as any[] | any[][];
-
-	if (result.length === 0) return [];
-
-	if (Array.isArray(result[0])) {
-		return (result as any[][]).map((row) => resultMapper(row));
-	}
-
-	return result as T[];
-}
-
-// sqlite-proxy returns [ [string] ]
-// sqlite returns [{ column_name: string }]
-async function allAsync<T>(
-	session: SQLiteSession<
-		'async',
-		unknown,
-		Record<string, unknown>,
-		AnyRelations,
-		TablesRelationalConfig
-	>,
-	sqlQuery: SQL,
-	resultMapper: (row: any[]) => T = () => [] as T,
-): Promise<T[]> {
-	const result = await session.all(sqlQuery) as any[] | any[][];
-
-	if (result.length === 0) return [];
-
-	if (Array.isArray(result[0])) {
-		return (result as any[][]).map((row) => resultMapper(row));
-	}
-
-	return result as T[];
-}
+import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResult } from './utils.ts';
 
 /**
  * Detects the current version of the migrations table schema and upgrades it if needed.
@@ -87,13 +23,8 @@ export function upgradeSyncIfNeeded(
 	>,
 	localMigrations: MigrationMeta[],
 ): UpgradeResult {
-	// Check if the table exists at all
-	// sqlite-proxy returns [ [1] ]
-	// sqlite returns [{ '1': 1 }]
-	const tableExists = allSync(
-		session,
+	const tableExists = session.all(
 		sql`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ${migrationsTable}`,
-		(row) => ({ '1': row[0] }),
 	);
 
 	if (tableExists.length === 0) {
@@ -101,15 +32,13 @@ export function upgradeSyncIfNeeded(
 	}
 
 	// Table exists, check table shape
-	const rows = allSync<{ column_name: string }>(
-		session,
+	const rows = session.all<{ column_name: string }>(
 		sql`SELECT name as column_name FROM pragma_table_info(${migrationsTable})`,
-		(row) => ({ column_name: row[0] }),
 	);
 
-	const version = getVersion(rows.map((r) => r.column_name));
+	const version = GET_VERSION_FOR.sqlite(rows.map((r) => r.column_name));
 
-	for (let v = version; v < CURRENT_MIGRATION_TABLE_VERSION; v++) {
+	for (let v = version; v < MIGRATIONS_TABLE_VERSIONS.sqlite; v++) {
 		const upgradeFn = upgradeSyncFunctions[v];
 		if (!upgradeFn) {
 			throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
@@ -117,7 +46,7 @@ export function upgradeSyncIfNeeded(
 		upgradeFn(migrationsTable, session, localMigrations);
 	}
 
-	return { prevVersion: version, currentVersion: CURRENT_MIGRATION_TABLE_VERSION };
+	return { newDb: false };
 }
 
 const upgradeSyncFunctions: Record<
@@ -149,14 +78,8 @@ const upgradeSyncFunctions: Record<
 		// 1. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
 		// this can be null from legacy implementation where id was serial
-		const dbRows = allSync<{ id: number | null; hash: string; created_at: number }>(
-			session,
+		const dbRows = session.all<{ id: number | null; hash: string; created_at: number }>(
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
-			(row) => ({
-				id: row[0],
-				hash: row[1],
-				created_at: row[2],
-			}),
 		);
 
 		// 2. Sort ASC by millis and if the same - sort by name
@@ -268,39 +191,31 @@ export async function upgradeAsyncIfNeeded(
 	migrationsTable: string,
 	db: BaseSQLiteDatabase<'async', unknown, Record<string, unknown>>,
 	localMigrations: MigrationMeta[],
-	mode: 'transaction' | 'batch' = 'transaction',
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
-	const tableExists = await allAsync(
-		db.session,
+	const tableExists = await db.session.all(
 		sql`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ${migrationsTable}`,
-		(row) => ({ '1': row[0] }),
 	);
 
 	if (tableExists.length === 0) {
 		return { newDb: true };
 	}
 
-	// Table exists, check table shape
-	// sqlite-proxy returns [ [string] ]
-	// sqlite returns [{ column_name: string }]
-	const rows = await allAsync(
-		db.session,
+	const rows = await db.session.all<{ column_name: string }>(
 		sql`SELECT name as column_name FROM pragma_table_info(${migrationsTable})`,
-		(row) => ({ column_name: row[0] }),
 	);
 
-	const version = getVersion(rows.map((r) => r.column_name));
+	const version = GET_VERSION_FOR.sqlite(rows.map((r) => r.column_name));
 
-	for (let v = version; v < CURRENT_MIGRATION_TABLE_VERSION; v++) {
+	for (let v = version; v < MIGRATIONS_TABLE_VERSIONS.sqlite; v++) {
 		const upgradeFn = upgradeAsyncFunctions[v];
 		if (!upgradeFn) {
 			throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
 		}
-		await upgradeFn(migrationsTable, db, localMigrations, mode);
+		await upgradeFn(migrationsTable, db, localMigrations);
 	}
 
-	return { prevVersion: version, currentVersion: CURRENT_MIGRATION_TABLE_VERSION };
+	return { newDb: false };
 }
 
 const upgradeAsyncFunctions: Record<
@@ -309,7 +224,6 @@ const upgradeAsyncFunctions: Record<
 		migrationsTable: string,
 		db: BaseSQLiteDatabase<'async', unknown, Record<string, unknown>>,
 		localMigrations: MigrationMeta[],
-		mode: 'transaction' | 'batch',
 	) => Promise<void>
 > = {
 	/**
@@ -321,20 +235,14 @@ const upgradeAsyncFunctions: Record<
 	 * Not implemented for now -> If hash matching fails, fall back to serial id ordering
 	 * 5. Create extra column and backfill names for matched migrations
 	 */
-	0: async (migrationsTable, db, localMigrations, mode) => {
+	0: async (migrationsTable, db, localMigrations) => {
 		const table = sql`${sql.identifier(migrationsTable)}`;
 
 		// 1. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
 		// this can be null from legacy implementation where id was serial
-		const dbRows = await allAsync<{ id: number | null; hash: string; created_at: number }>(
-			db.session,
+		const dbRows = await db.session.all<{ id: number | null; hash: string; created_at: number }>(
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
-			(row) => ({
-				id: row[0],
-				hash: row[1],
-				created_at: row[2],
-			}),
 		);
 
 		// 2. Sort ASC by millis and if the same - sort by name
@@ -431,21 +339,10 @@ const upgradeAsyncFunctions: Record<
 			statements.push(updateQuery);
 		}
 
-		if (mode === 'transaction') {
-			await db.transaction(async (tx) => {
-				for (const statement of statements) {
-					await tx.run(statement);
-				}
-			});
-		} else if (mode === 'batch') {
-			const database = db as SqliteRemoteDatabase<Record<string, unknown>> | DrizzleD1Database;
-
-			await database.session.batch(
-				statements.map((s) => database.run(s.inlineParams())) as unknown as [
-					BatchItem<'sqlite'>,
-					...BatchItem<'sqlite'>[],
-				],
-			);
-		} else assertUnreachable(mode);
+		await db.transaction(async (tx) => {
+			for (const statement of statements) {
+				await tx.run(statement);
+			}
+		});
 	},
 };

@@ -1,7 +1,7 @@
 import type { MigrationMeta } from '~/migrator.ts';
-import type { MySqlSession } from '~/mysql-core/session.ts';
+import type { MySqlRemoteDatabase } from '~/mysql-proxy/index.ts';
 import { sql } from '~/sql/sql.ts';
-import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResult } from './utils.ts';
+import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResultProxy } from './utils.ts';
 
 /**
  * Map of upgrade functions. Each key is the version being upgraded FROM,
@@ -11,9 +11,9 @@ const upgradeFunctions: Record<
 	number,
 	(
 		migrationsTable: string,
-		session: MySqlSession,
+		db: MySqlRemoteDatabase<Record<string, unknown>>,
 		localMigrations: MigrationMeta[],
-	) => Promise<void>
+	) => Promise<string[]>
 > = {
 	/**
 	 * Upgrade from version 0 to version 1:
@@ -24,12 +24,12 @@ const upgradeFunctions: Record<
 	 * Not implemented for now -> If hash matching fails, fall back to serial id ordering
 	 * 5. Create extra column and backfill names for matched migrations
 	 */
-	0: async (migrationsTable, session, localMigrations) => {
+	0: async (migrationsTable, db, localMigrations) => {
 		const table = sql`${sql.identifier(migrationsTable)}`;
 
 		// 1. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
-		const dbRows = await session.execute<{ id: number; hash: string; created_at: string }[]>(
+		const dbRows = await db.session.execute<{ id: number; hash: string; created_at: string }[]>(
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
 		);
 
@@ -86,18 +86,20 @@ const upgradeFunctions: Record<
 		}
 
 		// 5. Create extra column and backfill names for matched migrations
-		await session.execute(sql`ALTER TABLE ${table} ADD ${sql.identifier('name')} text`);
-		await session.execute(
+		const statements = [
+			sql`ALTER TABLE ${table} ADD ${sql.identifier('name')} text`,
 			sql`ALTER TABLE ${table} ADD ${sql.identifier('applied_at')} TIMESTAMP DEFAULT CURRENT_TIMESTAMP`,
-		);
+		];
 
 		for (const backfillEntry of toApply) {
-			await session.execute(
+			statements.push(
 				sql`UPDATE ${table} SET ${sql.identifier('name')} = ${backfillEntry.name}, ${
 					sql.identifier('applied_at')
 				} = NULL WHERE ${sql.identifier('id')} = ${backfillEntry.id}`,
 			);
 		}
+
+		return statements.map((it) => db.dialect.sqlToQuery(it.inlineParams()).sql);
 	},
 };
 
@@ -109,22 +111,22 @@ const upgradeFunctions: Record<
  */
 export async function upgradeIfNeeded(
 	migrationsTable: string,
-	session: MySqlSession,
+	db: MySqlRemoteDatabase<Record<string, unknown>>,
 	localMigrations: MigrationMeta[],
-): Promise<UpgradeResult> {
+): Promise<UpgradeResultProxy> {
 	// Check if the table exists at all
-	const result = await session.execute<{ '1': 1 }[]>(
+	const result = await db.session.execute<{ '1': 1 }[]>(
 		sql`SELECT 1 FROM information_schema.tables 
 			WHERE table_name = ${migrationsTable}
 			AND table_schema = DATABASE()`,
 	);
 
 	if (result.length === 0) {
-		return { newDb: true };
+		return { newDb: true, statements: [] };
 	}
 
 	// Table exists, check table shape
-	const rows = await session.execute<{ column_name: string }[]>(
+	const rows = await db.session.execute<{ column_name: string }[]>(
 		sql`SELECT column_name as \`column_name\`
 		FROM information_schema.columns
 		WHERE table_name = ${migrationsTable}
@@ -134,13 +136,14 @@ export async function upgradeIfNeeded(
 
 	const version = GET_VERSION_FOR.mysql(rows.map((r) => r.column_name));
 
+	let statements: string[] = [];
 	for (let v = version; v < MIGRATIONS_TABLE_VERSIONS.mysql; v++) {
 		const upgradeFn = upgradeFunctions[v];
 		if (!upgradeFn) {
 			throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
 		}
-		await upgradeFn(migrationsTable, session, localMigrations);
+		statements = await upgradeFn(migrationsTable, db, localMigrations);
 	}
 
-	return { newDb: false };
+	return { newDb: false, statements };
 }
