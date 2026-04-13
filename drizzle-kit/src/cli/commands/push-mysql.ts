@@ -15,7 +15,14 @@ import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
-import { explain, explainJsonOutput, humanLog, mysqlSchemaError, printJsonOutput, ProgressView } from '../views';
+import {
+	explain as explainView,
+	explainJsonOutput,
+	humanLog,
+	mysqlSchemaError,
+	printJsonOutput,
+	ProgressView,
+} from '../views';
 import { introspect } from './pull-mysql';
 
 export const handle = async (
@@ -25,7 +32,7 @@ export const handle = async (
 	force: boolean,
 	casing: CasingType | undefined,
 	filters: EntitiesFilterConfig,
-	explainFlag: boolean,
+	explain: boolean,
 	migrations: {
 		table: string;
 		schema: string;
@@ -76,16 +83,18 @@ export const handle = async (
 	}
 
 	const hints = await suggestions(db, filteredStatements, ddl2);
-	if (explainFlag && isJsonMode()) {
-		const explainOutput = explainJsonOutput('mysql', statements, hints);
-		printJsonOutput(explainOutput);
-	} else if (!isJsonMode()) {
-		const explainMessage = explain('mysql', groupedStatements, explainFlag, hints);
-		if (explainMessage) {
-			humanLog(explainMessage);
+	if (explain) {
+		if (isJsonMode()) {
+			const explainOutput = explainJsonOutput('mysql', statements, hints);
+			printJsonOutput(explainOutput);
+		} else {
+			const explainMessage = explainView('mysql', groupedStatements, hints);
+			if (explainMessage) {
+				humanLog(explainMessage);
+			}
 		}
+		return;
 	}
-	if (explainFlag) return;
 
 	if (!force && hints.length > 0) {
 		if (isJsonMode()) {

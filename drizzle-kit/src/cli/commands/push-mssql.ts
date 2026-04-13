@@ -28,7 +28,14 @@ import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MssqlCredentials } from '../validations/mssql';
-import { explain, explainJsonOutput, humanLog, mssqlSchemaError, printJsonOutput, ProgressView } from '../views';
+import {
+	explain as explainView,
+	explainJsonOutput,
+	humanLog,
+	mssqlSchemaError,
+	printJsonOutput,
+	ProgressView,
+} from '../views';
 
 export const handle = async (
 	filenames: string[],
@@ -37,7 +44,7 @@ export const handle = async (
 	filters: EntitiesFilterConfig,
 	force: boolean,
 	casing: CasingType | undefined,
-	explainFlag: boolean,
+	explain: boolean,
 	migrations: {
 		table: string;
 		schema: string;
@@ -99,16 +106,18 @@ export const handle = async (
 
 	const hints = await suggestions(db, jsonStatements, ddl2);
 
-	if (explainFlag && isJsonMode()) {
-		const explainOutput = explainJsonOutput('mssql', jsonStatements, hints);
-		printJsonOutput(explainOutput);
-	} else if (!isJsonMode()) {
-		const explainMessage = explain('mssql', groupedStatements, explainFlag, hints);
-		if (explainMessage) {
-			humanLog(explainMessage);
+	if (explain) {
+		if (isJsonMode()) {
+			const explainOutput = explainJsonOutput('mssql', jsonStatements, hints);
+			printJsonOutput(explainOutput);
+		} else {
+			const explainMessage = explainView('mssql', groupedStatements, hints);
+			if (explainMessage) {
+				humanLog(explainMessage);
+			}
 		}
+		return;
 	}
-	if (explainFlag) return;
 
 	if (!force && hints.length > 0) {
 		if (isJsonMode()) {
