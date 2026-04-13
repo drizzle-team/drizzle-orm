@@ -1,7 +1,7 @@
 import type { TypeOf } from 'zod';
 import { boolean, coerce, object, string, union } from 'zod';
 import { ConfigConnectionCliError } from '../errors';
-import { error } from '../views';
+import { error, humanLog } from '../views';
 import { wrapParam } from './common';
 import { outputs } from './outputs';
 
@@ -29,7 +29,7 @@ export const printCliConnectionIssues = (options: any) => {
 	const { uri, host, database } = options || {};
 
 	if (!uri && (!host || !database)) {
-		console.log(outputs.mssql.connection.required());
+		humanLog(outputs.mssql.connection.required());
 	}
 };
 

@@ -16,9 +16,10 @@ import type {
 	View,
 } from '../../dialects/mssql/ddl';
 import { CommandOutputCliError } from '../errors';
+import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
 import { withStyle } from '../validations/outputs';
-import { humanLog, mssqlSchemaError, printJsonOutput } from '../views';
+import { explain, explainJsonOutput, humanLog, mssqlSchemaError, printJsonOutput } from '../views';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
@@ -42,7 +43,7 @@ export const handle = async (config: GenerateConfig) => {
 		return;
 	}
 
-	const { sqlStatements, renames, statements } = await ddlDiff(
+	const { sqlStatements, renames, statements, groupedStatements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
 		resolver<Schema>('schema', 'dbo'),
@@ -75,6 +76,21 @@ export const handle = async (config: GenerateConfig) => {
 			),
 		);
 	}
+
+	if (config.explain && isJsonMode()) {
+		const explainOutput = explainJsonOutput('mssql', statements, []);
+		printJsonOutput(explainOutput);
+		return;
+	}
+
+	if (!isJsonMode()) {
+		const explainMessage = explain('mssql', groupedStatements, config.explain, []);
+		if (explainMessage) {
+			humanLog(explainMessage);
+		}
+	}
+
+	if (config.explain) return;
 
 	writeResult({
 		snapshot: snapshot,

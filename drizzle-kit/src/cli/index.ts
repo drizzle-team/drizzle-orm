@@ -5,7 +5,7 @@ import { highlightSQL } from './highlighter';
 import { setJsonMode } from './mode';
 import { check, exportRaw, generate, migrate, pull, push, studio, up } from './schema';
 import { ormCoreVersions, QueryError } from './utils';
-import { error, printJsonOutput } from './views';
+import { error, humanLog, printJsonOutput } from './views';
 
 const writeStderr = (message: string) => {
 	process.stderr.write(`${message}\n`);
@@ -70,7 +70,7 @@ const version = async () => {
 	});
 	if (process.argv.includes('--json')) return;
 	const versions = `drizzle-kit: ${kitVersion}\n${ormVersion}`;
-	console.log(chalk.gray(versions), '\n');
+	humanLog(chalk.gray(versions), '\n');
 };
 
 const legacyCommand = (
@@ -82,11 +82,12 @@ const legacyCommand = (
 		handler: () => {
 			// in this case command was deleted and there is no new command
 			if (!newName) {
-				console.log(
+				humanLog(
 					`This command is deprecated. ${customMessage}`,
 				);
+				return;
 			}
-			console.log(
+			humanLog(
 				`This command is deprecated, please use updated '${newName}' command (see https://orm.drizzle.team/kit-docs/upgrade-21#how-to-migrate-to-0210)`,
 			);
 		},
@@ -174,13 +175,13 @@ const main = async () => {
 				const e = event.error;
 				if (e instanceof QueryError) {
 					const msg = formatQueryError(e);
-					console.log();
-					console.log(msg);
+					humanLog();
+					humanLog(msg);
 					return true;
 				}
 
 				if (e instanceof DrizzleCliError) {
-					console.log(e.humanMessage);
+					humanLog(e.humanMessage);
 					return true;
 				}
 
@@ -188,7 +189,7 @@ const main = async () => {
 					!(typeof e === 'object' && e !== null && 'message' in e && typeof e.message === 'string')
 				) return false;
 
-				console.log(error(e.message));
+				humanLog(error(e.message));
 				return true;
 			}
 

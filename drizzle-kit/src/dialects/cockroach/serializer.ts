@@ -1,4 +1,5 @@
-import { cockroachSchemaError, cockroachSchemaWarning } from '../../cli/views';
+import type { CasingType } from '../../cli/validations/common';
+import { cockroachSchemaError, cockroachSchemaWarning, humanLog } from '../../cli/views';
 import { findLeafSnapshotIds } from '../../utils/utils-node';
 import type { CockroachDDL } from './ddl';
 import { createDDL, interimToDDL } from './ddl';
@@ -9,6 +10,7 @@ import { drySnapshot, snapshotValidator } from './snapshot';
 export const prepareSnapshot = async (
 	snapshots: string[],
 	filenames: string[],
+	casing: CasingType | undefined,
 ): Promise<{
 	ddlPrev: CockroachDDL;
 	ddlCur: CockroachDDL;
@@ -31,25 +33,26 @@ export const prepareSnapshot = async (
 
 	const res = await prepareFromSchemaFiles(filenames);
 
-	// TODO: do we want to export everything or ignore .existing and respect entity filters in config
+	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
 	const { schema, errors, warnings } = fromDrizzleSchema(
 		res,
+		casing,
 		() => true,
 	);
 
 	if (warnings.length > 0) {
-		console.log(warnings.map((it) => cockroachSchemaWarning(it)).join('\n\n'));
+		humanLog(warnings.map((it) => cockroachSchemaWarning(it)).join('\n\n'));
 	}
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => cockroachSchemaError(it)).join('\n'));
+		humanLog(errors.map((it) => cockroachSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 
 	const { ddl: ddlCur, errors: errors2 } = interimToDDL(schema);
 
 	if (errors2.length > 0) {
-		console.log(errors2.map((it) => cockroachSchemaError(it)).join('\n'));
+		humanLog(errors2.map((it) => cockroachSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 

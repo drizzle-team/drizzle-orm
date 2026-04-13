@@ -28,9 +28,10 @@ import type { DB } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
 import type { prepareCockroach } from '../connections';
 import { resolver } from '../prompts';
+import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
-import type { Casing, EntitiesFilterConfig } from '../validations/common';
-import { IntrospectProgress, type IntrospectStage, type IntrospectStatus } from '../views';
+import type { Casing } from '../validations/common';
+import { humanLog, IntrospectProgress, type IntrospectStage, type IntrospectStatus } from '../views';
 import { writeResult } from './generate-common';
 import { relationsToTypeScript } from './pull-common';
 
@@ -79,7 +80,7 @@ export const handle = async (
 	writeFileSync(schemaFile, ts.file);
 	const relationsFile = join(out, 'relations.ts');
 	writeFileSync(relationsFile, relationsTs.file);
-	console.log();
+	humanLog();
 
 	const { snapshots } = prepareOutFolder(out);
 	if (snapshots.length === 0) {

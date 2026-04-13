@@ -10,8 +10,9 @@ import type { MysqlSnapshot } from '../../dialects/mysql/snapshot';
 import type { SqliteSnapshot } from '../../dialects/sqlite/snapshot';
 import { BREAKPOINT } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
+import { isJsonMode } from '../mode';
 import type { Driver } from '../validations/common';
-import { humanLog } from '../views';
+import { humanLog, printJsonOutput } from '../views';
 
 export const writeResult = (config: {
 	snapshot: SqliteSnapshot | PostgresSnapshot | MysqlSnapshot | MssqlSnapshot | CockroachSnapshot | SingleStoreSnapshot;
@@ -40,6 +41,7 @@ export const writeResult = (config: {
 
 	if (type === 'none') {
 		if (sqlStatements.length === 0) {
+			printJsonOutput({ status: 'ok', message: 'No schema changes, nothing to migrate' });
 			humanLog('No schema changes, nothing to migrate 😴');
 			return;
 		}
@@ -64,6 +66,7 @@ export const writeResult = (config: {
 	}
 
 	if (type === 'custom') {
+		printJsonOutput({ status: 'ok', message: 'Prepared empty file for your custom SQL migration' });
 		humanLog('Prepared empty file for your custom SQL migration!');
 		sql = '-- Custom SQL migration file, put your code below! --';
 	}
@@ -77,17 +80,19 @@ export const writeResult = (config: {
 		fs.writeFileSync(`${outFolder}/migrations.js`, js);
 	}
 
-	render(
-		`[${
-			chalk.green(
-				'✓',
-			)
-		}] Your SQL migration ➜ ${
-			chalk.bold.underline.blue(
-				path.join(`${outFolder}/${tag}/migration.sql`),
-			)
-		} 🚀`,
-	);
+	if (!isJsonMode()) {
+		render(
+			`[${
+				chalk.green(
+					'✓',
+				)
+			}] Your SQL migration ➜ ${
+				chalk.bold.underline.blue(
+					path.join(`${outFolder}/${tag}/migration.sql`),
+				)
+			} 🚀`,
+		);
+	}
 };
 
 export const embeddedMigrations = (snapshots: string[], driver?: Driver) => {

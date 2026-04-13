@@ -1,5 +1,6 @@
 import type { CheckHandlerResult } from 'src/cli/commands/check';
-import { mysqlSchemaError } from 'src/cli/views';
+import { humanLog, mysqlSchemaError } from 'src/cli/views';
+import type { CasingType } from '../../cli/validations/common';
 import { assertUnreachable } from '../../utils';
 import { findLeafSnapshotIds } from '../../utils/utils-node';
 import type { MysqlDDL, SchemaError } from './ddl';
@@ -12,6 +13,7 @@ import type { JsonStatement } from './statements';
 export const prepareSnapshot = async (
 	snapshots: string[],
 	filenames: string[],
+	casing: CasingType | undefined,
 	checkResult?: CheckHandlerResult,
 ): Promise<{
 	ddlPrev: MysqlDDL;
@@ -48,12 +50,12 @@ export const prepareSnapshot = async (
 	}
 	const res = await prepareFromSchemaFiles(filenames);
 
-	const interim = fromDrizzleSchema(res.tables, res.views);
+	const interim = fromDrizzleSchema(res.tables, res.views, casing);
 
 	const { ddl: ddlCur, errors: errors2 } = interimToDDL(interim);
 
 	if (errors2.length > 0) {
-		console.log(errors2.map((it) => mysqlSchemaError(it)).join('\n'));
+		humanLog(errors2.map((it) => mysqlSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 
