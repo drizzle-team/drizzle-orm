@@ -46,20 +46,18 @@ export const handle = async (config: GenerateConfig) => {
 		}
 	}
 
-	if (config.explain && isJsonMode()) {
-		const explainOutput = explainJsonOutput('sqlite', statements, []);
-		printJsonOutput(explainOutput);
+	if (config.explain) {
+		if (isJsonMode()) {
+			const explainOutput = explainJsonOutput('sqlite', statements, []);
+			printJsonOutput(explainOutput);
+		} else {
+			const explainMessage = explain('sqlite', groupedStatements, []);
+			if (explainMessage) {
+				humanLog(explainMessage);
+			}
+		}
 		return;
 	}
-
-	if (!isJsonMode()) {
-		const explainMessage = explain('sqlite', groupedStatements, config.explain, []);
-		if (explainMessage) {
-			humanLog(explainMessage);
-		}
-	}
-
-	if (config.explain) return;
 
 	writeResult({
 		snapshot: snapshot,
