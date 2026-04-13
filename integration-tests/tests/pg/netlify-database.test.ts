@@ -1,7 +1,7 @@
 import { neon, Pool as NeonPool } from '@neondatabase/serverless';
 import { eq, sql } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/netlify-db';
-import { migrate } from 'drizzle-orm/netlify-db/migrator';
+import { drizzle } from 'drizzle-orm/netlify-database';
+import { migrate } from 'drizzle-orm/netlify-database/migrator';
 import {
 	bigint,
 	bigserial,
