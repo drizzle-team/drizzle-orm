@@ -82,20 +82,18 @@ export const handle = async (
 		'default',
 	);
 
-	if (config.explain && isJsonMode()) {
-		const explainOutput = explainJsonOutput('postgres', jsonStatements, []);
-		printJsonOutput(explainOutput);
+	if (config.explain) {
+		if (isJsonMode()) {
+			const explainOutput = explainJsonOutput('postgres', jsonStatements, []);
+			printJsonOutput(explainOutput);
+		} else {
+			const explainMessage = explain('postgres', groupedStatements, []);
+			if (explainMessage) {
+				humanLog(explainMessage);
+			}
+		}
 		return;
 	}
-
-	if (!isJsonMode()) {
-		const explainMessage = explain('postgres', groupedStatements, config.explain, []);
-		if (explainMessage) {
-			humanLog(explainMessage);
-		}
-	}
-
-	if (config.explain) return;
 
 	writeResult({
 		snapshot: snapshot,
