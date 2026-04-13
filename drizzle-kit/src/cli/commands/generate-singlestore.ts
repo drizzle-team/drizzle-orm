@@ -4,8 +4,9 @@ import { ddlDiff, ddlDiffDry } from 'src/dialects/singlestore/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/singlestore/drizzle';
 import { prepareSnapshot } from 'src/dialects/singlestore/serializer';
 import { prepareOutFolder } from 'src/utils/utils-node';
+import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
-import { humanLog, printJsonOutput } from '../views';
+import { explain, explainJsonOutput, humanLog, printJsonOutput } from '../views';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
@@ -29,7 +30,7 @@ export const handle = async (config: GenerateConfig) => {
 		return;
 	}
 
-	const { sqlStatements, renames } = await ddlDiff(
+	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
 		resolver<Table>('table'),
@@ -37,6 +38,21 @@ export const handle = async (config: GenerateConfig) => {
 		resolver<View>('view'),
 		'default',
 	);
+
+	if (config.explain && isJsonMode()) {
+		const explainOutput = explainJsonOutput('singlestore', statements, []);
+		printJsonOutput(explainOutput);
+		return;
+	}
+
+	if (!isJsonMode()) {
+		const explainMessage = explain('singlestore', groupedStatements, config.explain, []);
+		if (explainMessage) {
+			humanLog(explainMessage);
+		}
+	}
+
+	if (config.explain) return;
 
 	writeResult({
 		snapshot,

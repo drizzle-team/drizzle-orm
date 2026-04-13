@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import { render } from 'hanji';
 import type { Resolver } from 'src/dialects/common';
 import type { RenamePropmtItem } from './views';
-import { isRenamePromptItem, ResolveSelect } from './views';
+import { humanLog, isRenamePromptItem, ResolveSelect } from './views';
 
 export const resolver = <T extends { name: string; schema?: string; table?: string }>(
 	entity:
@@ -64,7 +64,7 @@ export const resolver = <T extends { name: string; schema?: string; table?: stri
 				const tableToPrefix = to.table ? `${to.table}.` : '';
 				const toEntity = `${schemaToPrefix}${tableToPrefix}${to.name}`;
 
-				console.log(
+				humanLog(
 					`${chalk.yellow('~')} ${fromEntity} › ${toEntity} ${
 						chalk.gray(
 							`${entity} will be renamed/moved`,
@@ -77,7 +77,7 @@ export const resolver = <T extends { name: string; schema?: string; table?: stri
 				delete leftMissing[leftMissing.indexOf(data.from)];
 				leftMissing = leftMissing.filter(Boolean);
 			} else {
-				console.log(
+				humanLog(
 					`${chalk.green('+')} ${newItem.name} ${
 						chalk.gray(
 							`${entity} will be created`,
@@ -88,7 +88,7 @@ export const resolver = <T extends { name: string; schema?: string; table?: stri
 			}
 			index += 1;
 		} while (index < created.length);
-		console.log(chalk.gray(`--- all ${entity} conflicts resolved ---\n`));
+		humanLog(chalk.gray(`--- all ${entity} conflicts resolved ---\n`));
 		result.deleted.push(...leftMissing);
 		return result;
 	};

@@ -20,6 +20,7 @@ export const startStudioServer = async (
 	const { SQLiteTable } = await import('drizzle-orm/sqlite-core');
 	const { Relations } = await import('drizzle-orm/_relations');
 	const { drizzleForSQLite, prepareServer } = await import('../cli/commands/studio');
+	const { humanLog } = await import('../cli/views');
 
 	const sqliteSchema: Record<string, Record<string, AnySQLiteTable>> = {};
 	const relations: Record<string, Relations> = {};
@@ -50,7 +51,7 @@ export const startStudioServer = async (
 			if (err) {
 				console.error(err);
 			} else {
-				console.log(`Studio is running at ${options?.key ? 'https' : 'http'}://${host}:${port}`);
+				humanLog(`Studio is running at ${options?.key ? 'https' : 'http'}://${host}:${port}`);
 			}
 		},
 	});

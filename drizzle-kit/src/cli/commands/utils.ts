@@ -100,6 +100,7 @@ export type GenerateConfig = {
 	casing?: CasingType;
 	driver?: Driver;
 	ignoreConflicts?: boolean;
+	explain: boolean;
 };
 
 export type ExportConfig = {
@@ -121,6 +122,7 @@ export const prepareGenerateConfig = async (
 		driver?: Driver;
 		casing?: CasingType;
 		ignoreConflicts?: boolean;
+		explain?: boolean;
 	},
 	from: 'config' | 'cli',
 ): Promise<GenerateConfig> => {
@@ -157,6 +159,7 @@ export const prepareGenerateConfig = async (
 		casing,
 		driver,
 		ignoreConflicts: options.ignoreConflicts !== undefined && options.ignoreConflicts,
+		explain: options.explain ?? false,
 	};
 };
 
@@ -294,7 +297,7 @@ export const preparePushConfig = async (
 	const config = parsed.data;
 
 	const schemaFiles = prepareFilenames(config.schema);
-	console.log(chalk.gray(`Reading schema files:\n${schemaFiles.join('\n')}\n`));
+	humanLog(chalk.gray(`Reading schema files:\n${schemaFiles.join('\n')}\n`));
 	if (schemaFiles.length === 0) {
 		render(`[${chalk.blue('i')}] No schema file in ${config.schema} was found`);
 		process.exit(0);
@@ -676,13 +679,13 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 	const result = studioConfig.safeParse(config);
 	if (!result.success) {
 		if (!('dialect' in config)) {
-			console.log(outputs.studio.noDialect());
+			humanLog(outputs.studio.noDialect());
 		}
 		process.exit(1);
 	}
 
 	if (!('dbCredentials' in config)) {
-		console.log(outputs.studio.noCredentials());
+		humanLog(outputs.studio.noCredentials());
 		process.exit(1);
 	}
 	const { host, port } = params;

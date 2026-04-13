@@ -16,6 +16,7 @@ export const startStudioServer = async (
 	const { SingleStoreTable, getTableConfig } = await import('drizzle-orm/singlestore-core');
 	const { Relations } = await import('drizzle-orm/_relations');
 	const { drizzleForSingleStore, prepareServer } = await import('../cli/commands/studio');
+	const { humanLog } = await import('../cli/views');
 
 	const singleStoreSchema: Record<string, Record<string, AnySingleStoreTable>> = {};
 	const relations: Record<string, Relations> = {};
@@ -46,7 +47,7 @@ export const startStudioServer = async (
 			if (err) {
 				console.error(err);
 			} else {
-				console.log(`Studio is running at ${options?.key ? 'https' : 'http'}://${host}:${port}`);
+				humanLog(`Studio is running at ${options?.key ? 'https' : 'http'}://${host}:${port}`);
 			}
 		},
 	});

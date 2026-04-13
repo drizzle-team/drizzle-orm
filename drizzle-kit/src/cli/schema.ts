@@ -77,12 +77,15 @@ export const generate = command({
 			.desc('Prepare empty migration file for custom SQL')
 			.default(false),
 		ignoreConflicts: optionIgnoreConflicts,
+		explain: boolean()
+			.desc('Print the planned SQL changes (dry run)')
+			.default(false),
 	},
 	transform: async (opts) => {
 		const from = assertCollisions(
 			'generate',
 			opts,
-			['name', 'custom', 'ignoreConflicts'],
+			['name', 'custom', 'ignoreConflicts', 'explain'],
 			['driver', 'breakpoints', 'schema', 'out', 'dialect', 'casing'],
 		);
 		return prepareGenerateConfig(opts, from);
@@ -832,14 +835,14 @@ export const studio = command({
 				const { driver } = credentials;
 				if (driver === 'aws-data-api') {
 					if (!(await ormVersionGt('0.30.10'))) {
-						console.log(
+						humanLog(
 							"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
 						);
 						process.exit(1);
 					}
 				} else if (driver === 'pglite') {
 					if (!(await ormVersionGt('0.30.6'))) {
-						console.log(
+						humanLog(
 							"To use 'pglite' driver - please update drizzle-orm to the latest version",
 						);
 						process.exit(1);
@@ -942,7 +945,7 @@ export const studio = command({
 						})
 						.join('&');
 
-					console.log(
+					humanLog(
 						`\nDrizzle Studio is up and running on ${
 							chalk.blue(
 								`https://local.drizzle.studio${queryString ? `?${queryString}` : ''}`,

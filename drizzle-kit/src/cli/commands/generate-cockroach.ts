@@ -17,8 +17,16 @@ import { createDDL, interimToDDL } from '../../dialects/cockroach/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/cockroach/diff';
 import { prepareSnapshot } from '../../dialects/cockroach/serializer';
 import { CommandOutputCliError } from '../errors';
+import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
-import { cockroachSchemaError, cockroachSchemaWarning, humanLog, printJsonOutput } from '../views';
+import {
+	cockroachSchemaError,
+	cockroachSchemaWarning,
+	explain,
+	explainJsonOutput,
+	humanLog,
+	printJsonOutput,
+} from '../views';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
@@ -41,7 +49,7 @@ export const handle = async (config: GenerateConfig) => {
 		return;
 	}
 
-	const { sqlStatements, renames } = await ddlDiff(
+	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
 		resolver<Schema>('schema'),
@@ -57,6 +65,21 @@ export const handle = async (config: GenerateConfig) => {
 		resolver<ForeignKey>('foreign key'),
 		'default',
 	);
+
+	if (config.explain && isJsonMode()) {
+		const explainOutput = explainJsonOutput('cockroach', statements, []);
+		printJsonOutput(explainOutput);
+		return;
+	}
+
+	if (!isJsonMode()) {
+		const explainMessage = explain('cockroach', groupedStatements, config.explain, []);
+		if (explainMessage) {
+			humanLog(explainMessage);
+		}
+	}
+
+	if (config.explain) return;
 
 	writeResult({
 		snapshot: snapshot,
