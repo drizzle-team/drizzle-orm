@@ -7,7 +7,7 @@ import { snapshotValidator as mysqlSnapshotValidator } from 'src/dialects/mysql/
 import { snapshotValidator as singlestoreSnapshotValidator } from 'src/dialects/singlestore/snapshot';
 import { parse, pathToFileURL } from 'url';
 import { UnsupportedSnapshotVersionCliError } from '../cli/errors';
-import { error } from '../cli/views';
+import { error, humanLog } from '../cli/views';
 import { snapshotValidator as cockroachValidator } from '../dialects/cockroach/snapshot';
 import { snapshotValidator as mssqlValidatorSnapshot } from '../dialects/mssql/snapshot';
 import { snapshotValidator as pgSnapshotValidator } from '../dialects/postgres/snapshot';
@@ -71,7 +71,7 @@ export const prepareFilenames = (path: string | string[]) => {
 
 	// when schema: "./schema" and not "./schema.ts"
 	if (res.length === 0) {
-		console.log(
+		humanLog(
 			error(
 				`No schema files found for path config [${
 					path
@@ -80,7 +80,7 @@ export const prepareFilenames = (path: string | string[]) => {
 				}]`,
 			),
 		);
-		console.log(
+		humanLog(
 			error(
 				`If path represents a file - please make sure to use .ts or other extension in the path`,
 			),
@@ -99,7 +99,7 @@ export const assertV1OutFolder = (out: string) => {
 	);
 
 	if (oldMigrationFolders.length > 0) {
-		console.log(
+		humanLog(
 			`Your migrations folder format is outdated, please run ${
 				chalk.green.bold(
 					`drizzle-kit up`,
@@ -114,7 +114,7 @@ export const assertV3OutFolder = (out: string) => {
 	if (!existsSync(out)) return;
 
 	if (existsSync(join(out, 'meta/_journal.json'))) {
-		console.log(
+		humanLog(
 			`Your migrations folder format is outdated, please run ${
 				chalk.green.bold(
 					`drizzle-kit up`,

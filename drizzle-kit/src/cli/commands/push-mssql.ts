@@ -22,12 +22,13 @@ import type { JsonStatement } from '../../dialects/mssql/statements';
 import type { DB } from '../../utils';
 import { CommandOutputCliError } from '../errors';
 import { highlightSQL } from '../highlighter';
+import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MssqlCredentials } from '../validations/mssql';
-import { explain, humanLog, mssqlSchemaError, ProgressView } from '../views';
+import { explain, explainJsonOutput, humanLog, mssqlSchemaError, printJsonOutput, ProgressView } from '../views';
 
 export const handle = async (
 	filenames: string[],
@@ -88,17 +89,32 @@ export const handle = async (
 	);
 
 	if (sqlStatements.length === 0) {
-		render(`[${chalk.blue('i')}] No changes detected`);
+		if (isJsonMode()) {
+			printJsonOutput({ status: 'ok', dialect: 'mssql', message: 'No changes detected' });
+		} else {
+			render(`[${chalk.blue('i')}] No changes detected`);
+		}
 		return;
 	}
 
 	const hints = await suggestions(db, jsonStatements, ddl2);
 
-	const explainMessage = explain('mssql', groupedStatements, explainFlag, hints);
-	if (explainMessage) humanLog(explainMessage);
+	if (explainFlag && isJsonMode()) {
+		const explainOutput = explainJsonOutput('mssql', jsonStatements, hints);
+		printJsonOutput(explainOutput);
+	} else if (!isJsonMode()) {
+		const explainMessage = explain('mssql', groupedStatements, explainFlag, hints);
+		if (explainMessage) {
+			humanLog(explainMessage);
+		}
+	}
 	if (explainFlag) return;
 
 	if (!force && hints.length > 0) {
+		if (isJsonMode()) {
+			printJsonOutput({ status: 'aborted', dialect: 'mssql' });
+			return;
+		}
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
@@ -110,14 +126,18 @@ export const handle = async (
 	const lossStatements = hints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
 
 	for (const statement of [...lossStatements, ...sqlStatements]) {
-		if (verbose) humanLog(highlightSQL(statement));
+		if (verbose && !isJsonMode()) humanLog(highlightSQL(statement));
 
 		await db.query(statement);
 	}
 
 	if (sqlStatements.length > 0) {
-		render(`[${chalk.green('✓')}] Changes applied`);
-	} else {
+		if (isJsonMode()) {
+			printJsonOutput({ status: 'ok', dialect: 'mssql', message: 'Changes applied' });
+		} else {
+			render(`[${chalk.green('\u2713')}] Changes applied`);
+		}
+	} else if (!isJsonMode()) {
 		render(`[${chalk.blue('i')}] No changes detected`);
 	}
 };

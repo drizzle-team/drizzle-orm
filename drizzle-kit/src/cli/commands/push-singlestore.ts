@@ -5,12 +5,13 @@ import { interimToDDL } from 'src/dialects/mysql/ddl';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { ddlDiff } from '../../dialects/singlestore/diff';
 import { highlightSQL } from '../highlighter';
+import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
-import { explain, ProgressView } from '../views';
+import { explain, explainJsonOutput, humanLog, printJsonOutput, ProgressView } from '../views';
 import { suggestions } from './push-mysql';
 
 export const handle = async (
@@ -65,16 +66,30 @@ export const handle = async (
 
 	const filteredStatements = statements;
 	if (filteredStatements.length === 0) {
+		if (isJsonMode()) {
+			printJsonOutput({ status: 'ok', dialect: 'singlestore', message: 'No changes detected' });
+			return;
+		}
 		render(`[${chalk.blue('i')}] No changes detected`);
 	}
 
 	const hints = await suggestions(db, filteredStatements, ddl2);
-	const explainMessage = explain('singlestore', groupedStatements, explainFlag, hints);
-
-	if (explainMessage) console.log(explainMessage);
+	if (explainFlag && isJsonMode()) {
+		const explainOutput = explainJsonOutput('singlestore', statements, hints);
+		printJsonOutput(explainOutput);
+	} else if (!isJsonMode()) {
+		const explainMessage = explain('singlestore', groupedStatements, explainFlag, hints);
+		if (explainMessage) {
+			humanLog(explainMessage);
+		}
+	}
 	if (explainFlag) return;
 
 	if (!force && hints.length > 0) {
+		if (isJsonMode()) {
+			printJsonOutput({ status: 'aborted', dialect: 'singlestore' });
+			process.exit(0);
+		}
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
@@ -86,14 +101,18 @@ export const handle = async (
 	const lossStatements = hints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
 
 	for (const statement of [...lossStatements, ...sqlStatements]) {
-		if (verbose) console.log(highlightSQL(statement));
+		if (verbose && !isJsonMode()) humanLog(highlightSQL(statement));
 
 		await db.query(statement);
 	}
 
 	if (filteredStatements.length > 0) {
-		render(`[${chalk.green('✓')}] Changes applied`);
-	} else {
+		if (isJsonMode()) {
+			printJsonOutput({ status: 'ok', dialect: 'singlestore', message: 'Changes applied' });
+		} else {
+			render(`[${chalk.green('\u2713')}] Changes applied`);
+		}
+	} else if (!isJsonMode()) {
 		render(`[${chalk.blue('i')}] No changes detected`);
 	}
 };

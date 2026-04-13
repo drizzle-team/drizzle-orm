@@ -14,7 +14,7 @@ import type { connectToSingleStore } from '../connections';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { Casing } from '../validations/common';
 import type { SingleStoreCredentials } from '../validations/singlestore';
-import { IntrospectProgress } from '../views';
+import { humanLog, IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
 import { relationsToTypeScript } from './pull-common';
 
@@ -53,7 +53,7 @@ export const handle = async (
 
 	const relationsFile = join(out, 'relations.ts');
 	writeFileSync(relationsFile, relations.file);
-	console.log();
+	humanLog();
 
 	const { snapshots } = prepareOutFolder(out);
 

@@ -20,8 +20,16 @@ import { createDDL, interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { prepareSnapshot } from '../../dialects/postgres/serializer';
 import { CommandOutputCliError } from '../errors';
+import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
-import { explain, humanLog, postgresSchemaError, postgresSchemaWarning, printJsonOutput } from '../views';
+import {
+	explain,
+	explainJsonOutput,
+	humanLog,
+	postgresSchemaError,
+	postgresSchemaWarning,
+	printJsonOutput,
+} from '../views';
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
@@ -54,7 +62,7 @@ export const handle = async (
 		return;
 	}
 
-	const { sqlStatements, renames, groupedStatements } = await ddlDiff(
+	const { sqlStatements, renames, groupedStatements, statements: jsonStatements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
 		resolver<Schema>('schema'),
@@ -74,8 +82,20 @@ export const handle = async (
 		'default',
 	);
 
-	const explainMessage = explain('postgres', groupedStatements, false, []);
-	if (explainMessage) humanLog(explainMessage);
+	if (config.explain && isJsonMode()) {
+		const explainOutput = explainJsonOutput('postgres', jsonStatements, []);
+		printJsonOutput(explainOutput);
+		return;
+	}
+
+	if (!isJsonMode()) {
+		const explainMessage = explain('postgres', groupedStatements, config.explain, []);
+		if (explainMessage) {
+			humanLog(explainMessage);
+		}
+	}
+
+	if (config.explain) return;
 
 	writeResult({
 		snapshot: snapshot,

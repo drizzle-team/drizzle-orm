@@ -21,12 +21,21 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/cockro
 import type { JsonStatement } from '../../dialects/cockroach/statements';
 import type { DB } from '../../utils';
 import { highlightSQL } from '../highlighter';
+import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
 import type { CasingType } from '../validations/common';
-import { cockroachSchemaError, explain, postgresSchemaWarning, ProgressView } from '../views';
+import {
+	cockroachSchemaError,
+	explain,
+	explainJsonOutput,
+	humanLog,
+	postgresSchemaWarning,
+	printJsonOutput,
+	ProgressView,
+} from '../views';
 
 export const handle = async (
 	filenames: string[],
@@ -53,11 +62,11 @@ export const handle = async (
 	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, casing, filter);
 
 	if (warnings.length > 0) {
-		console.log(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
+		humanLog(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
 	}
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => cockroachSchemaError(it)).join('\n'));
+		process.stderr.write(errors.map((it) => cockroachSchemaError(it)).join('\n') + '\n');
 		process.exit(1);
 	}
 
@@ -75,7 +84,7 @@ export const handle = async (
 	// TODO: handle errors?
 
 	if (errors1.length > 0) {
-		console.log(errors1.map((it) => cockroachSchemaError(it)).join('\n'));
+		process.stderr.write(errors1.map((it) => cockroachSchemaError(it)).join('\n') + '\n');
 		process.exit(1);
 	}
 
@@ -97,16 +106,30 @@ export const handle = async (
 	);
 
 	if (sqlStatements.length === 0) {
-		render(`[${chalk.blue('i')}] No changes detected`);
+		if (isJsonMode()) {
+			printJsonOutput({ status: 'ok', dialect: 'cockroach', message: 'No changes detected' });
+		} else {
+			render(`[${chalk.blue('i')}] No changes detected`);
+		}
 		return;
 	}
 
 	const hints = await suggestions(db, jsonStatements);
-	const explainMessage = explain('cockroach', groupedStatements, explainFlag, hints);
-
-	if (explainMessage) console.log(explainMessage);
+	if (explainFlag && isJsonMode()) {
+		const explainOutput = explainJsonOutput('cockroach', jsonStatements, hints);
+		printJsonOutput(explainOutput);
+	} else if (!isJsonMode()) {
+		const explainMessage = explain('cockroach', groupedStatements, explainFlag, hints);
+		if (explainMessage) {
+			humanLog(explainMessage);
+		}
+	}
 	if (explainFlag) return;
 	if (!force && hints.length > 0) {
+		if (isJsonMode()) {
+			printJsonOutput({ status: 'aborted', dialect: 'cockroach' });
+			process.exit(0);
+		}
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
@@ -118,12 +141,16 @@ export const handle = async (
 	const lossStatements = hints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
 
 	for (const statement of [...lossStatements, ...sqlStatements]) {
-		if (verbose) console.log(highlightSQL(statement));
+		if (verbose && !isJsonMode()) humanLog(highlightSQL(statement));
 
 		await db.query(statement);
 	}
 
-	render(`[${chalk.green('✓')}] Changes applied`);
+	if (isJsonMode()) {
+		printJsonOutput({ status: 'ok', dialect: 'cockroach', message: 'Changes applied' });
+	} else {
+		render(`[${chalk.green('\u2713')}] Changes applied`);
+	}
 };
 
 const identifier = (it: { schema?: string; name: string }) => {

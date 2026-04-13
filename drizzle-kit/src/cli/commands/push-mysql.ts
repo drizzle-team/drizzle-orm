@@ -9,12 +9,13 @@ import type { JsonStatement } from '../../dialects/mysql/statements';
 import type { DB } from '../../utils';
 import { connectToMySQL } from '../connections';
 import { highlightSQL } from '../highlighter';
+import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
-import { explain, mysqlSchemaError, ProgressView } from '../views';
+import { explain, explainJsonOutput, humanLog, mysqlSchemaError, printJsonOutput, ProgressView } from '../views';
 import { introspect } from './pull-mysql';
 
 export const handle = async (
@@ -52,7 +53,7 @@ export const handle = async (
 	// TODO: handle errors
 
 	if (errors1.length > 0) {
-		console.log(errors1.map((it) => mysqlSchemaError(it)).join('\n'));
+		process.stderr.write(errors1.map((it) => mysqlSchemaError(it)).join('\n') + '\n');
 		process.exit(1);
 	}
 
@@ -67,16 +68,30 @@ export const handle = async (
 
 	const filteredStatements = statements;
 	if (filteredStatements.length === 0) {
+		if (isJsonMode()) {
+			printJsonOutput({ status: 'ok', dialect: 'mysql', message: 'No changes detected' });
+			return;
+		}
 		render(`[${chalk.blue('i')}] No changes detected`);
 	}
 
 	const hints = await suggestions(db, filteredStatements, ddl2);
-	const explainMessage = explain('mysql', groupedStatements, explainFlag, hints);
-
-	if (explainMessage) console.log(explainMessage);
+	if (explainFlag && isJsonMode()) {
+		const explainOutput = explainJsonOutput('mysql', statements, hints);
+		printJsonOutput(explainOutput);
+	} else if (!isJsonMode()) {
+		const explainMessage = explain('mysql', groupedStatements, explainFlag, hints);
+		if (explainMessage) {
+			humanLog(explainMessage);
+		}
+	}
 	if (explainFlag) return;
 
 	if (!force && hints.length > 0) {
+		if (isJsonMode()) {
+			printJsonOutput({ status: 'aborted', dialect: 'mysql' });
+			process.exit(0);
+		}
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
@@ -88,14 +103,18 @@ export const handle = async (
 	const lossStatements = hints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
 
 	for (const statement of [...lossStatements, ...sqlStatements]) {
-		if (verbose) console.log(highlightSQL(statement));
+		if (verbose && !isJsonMode()) humanLog(highlightSQL(statement));
 
 		await db.query(statement);
 	}
 
 	if (filteredStatements.length > 0) {
-		render(`[${chalk.green('✓')}] Changes applied`);
-	} else {
+		if (isJsonMode()) {
+			printJsonOutput({ status: 'ok', dialect: 'mysql', message: 'Changes applied' });
+		} else {
+			render(`[${chalk.green('\u2713')}] Changes applied`);
+		}
+	} else if (!isJsonMode()) {
 		render(`[${chalk.blue('i')}] No changes detected`);
 	}
 };

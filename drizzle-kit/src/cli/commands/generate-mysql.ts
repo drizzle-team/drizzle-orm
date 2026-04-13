@@ -5,9 +5,10 @@ import { prepareOutFolder } from 'src/utils/utils-node';
 import { type Column, createDDL, interimToDDL, type MysqlDDL, type Table, type View } from '../../dialects/mysql/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/mysql/diff';
 import { CommandOutputCliError } from '../errors';
+import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
 import { withStyle } from '../validations/outputs';
-import { explain, humanLog, mysqlSchemaError, printJsonOutput } from '../views';
+import { explain, explainJsonOutput, humanLog, mysqlSchemaError, printJsonOutput } from '../views';
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
@@ -144,8 +145,20 @@ export const handle = async (
 		});
 	}
 
-	const explainMessage = explain('mysql', groupedStatements, false, []);
-	if (explainMessage) humanLog(explainMessage);
+	if (config.explain && isJsonMode()) {
+		const explainOutput = explainJsonOutput('mysql', statements, []);
+		printJsonOutput(explainOutput);
+		return;
+	}
+
+	if (!isJsonMode()) {
+		const explainMessage = explain('mysql', groupedStatements, config.explain, []);
+		if (explainMessage) {
+			humanLog(explainMessage);
+		}
+	}
+
+	if (config.explain) return;
 
 	writeResult({
 		snapshot,

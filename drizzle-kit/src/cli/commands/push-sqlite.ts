@@ -9,12 +9,13 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/d
 import type { JsonStatement } from 'src/dialects/sqlite/statements';
 import type { SQLiteClient } from '../../utils';
 import { highlightSQL } from '../highlighter';
+import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { SqliteCredentials } from '../validations/sqlite';
-import { explain, ProgressView, sqliteSchemaError } from '../views';
+import { explain, explainJsonOutput, humanLog, printJsonOutput, ProgressView, sqliteSchemaError } from '../views';
 
 export const handle = async (
 	db: SQLiteClient,
@@ -40,7 +41,7 @@ export const handle = async (
 	const { ddl: ddl2, errors: errors1 } = interimToDDL(fromDrizzleSchema(res.tables, res.views, casing));
 
 	if (errors1.length > 0) {
-		console.log(errors1.map((it) => sqliteSchemaError(it)).join('\n'));
+		process.stderr.write(errors1.map((it) => sqliteSchemaError(it)).join('\n') + '\n');
 		process.exit(1);
 	}
 
@@ -60,18 +61,32 @@ export const handle = async (
 	);
 
 	if (sqlStatements.length === 0) {
-		render(`\n[${chalk.blue('i')}] No changes detected`);
+		if (isJsonMode()) {
+			printJsonOutput({ status: 'ok', dialect: 'sqlite', message: 'No changes detected' });
+		} else {
+			render(`\n[${chalk.blue('i')}] No changes detected`);
+		}
 		return;
 	}
 
 	const hints = await suggestions(db, statements);
 
-	const explainMessage = explain('sqlite', groupedStatements, explainFlag, hints);
-
-	if (explainMessage) console.log(explainMessage);
+	if (explainFlag && isJsonMode()) {
+		const explainOutput = explainJsonOutput('sqlite', statements, hints);
+		printJsonOutput(explainOutput);
+	} else if (!isJsonMode()) {
+		const explainMessage = explain('sqlite', groupedStatements, explainFlag, hints);
+		if (explainMessage) {
+			humanLog(explainMessage);
+		}
+	}
 	if (explainFlag) return;
 
 	if (!force && hints.length > 0) {
+		if (isJsonMode()) {
+			printJsonOutput({ status: 'aborted', dialect: 'sqlite' });
+			process.exit(0);
+		}
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
@@ -84,14 +99,18 @@ export const handle = async (
 
 	const allStatements = [...lossStatements, ...sqlStatements];
 
-	if (verbose) console.log(highlightSQL(allStatements.join('\n')));
+	if (verbose && !isJsonMode()) humanLog(highlightSQL(allStatements.join('\n')));
 
 	// no need to re-enable or re-disable PRAGMA foreign_keys, because this config lives per-connection
 	// https://sqlite.org/pragma.html#pragma_foreign_keys
 	// | Changing the foreign_keys setting affects the execution of all statements prepared using the database connection, including those prepared before the setting was changed.
 	await db.batch(allStatements);
 
-	render(`[${chalk.green('✓')}] Changes applied`);
+	if (isJsonMode()) {
+		printJsonOutput({ status: 'ok', dialect: 'sqlite', message: 'Changes applied' });
+	} else {
+		render(`[${chalk.green('\u2713')}] Changes applied`);
+	}
 };
 
 export const suggestions = async (

@@ -4,8 +4,9 @@ import { prepareOutFolder } from 'src/utils/utils-node';
 import { type Column, createDDL, interimToDDL, type SqliteEntities } from '../../dialects/sqlite/ddl';
 import { prepareSqliteSnapshot } from '../../dialects/sqlite/serializer';
 import { CommandOutputCliError } from '../errors';
+import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
-import { humanLog, printJsonOutput, sqliteSchemaError, warning } from '../views';
+import { explain, explainJsonOutput, humanLog, printJsonOutput, sqliteSchemaError, warning } from '../views';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
@@ -31,7 +32,7 @@ export const handle = async (config: GenerateConfig) => {
 		});
 		return;
 	}
-	const { sqlStatements, warnings, renames } = await ddlDiff(
+	const { sqlStatements, warnings, renames, groupedStatements, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
 		resolver<SqliteEntities['tables']>('table'),
@@ -39,9 +40,26 @@ export const handle = async (config: GenerateConfig) => {
 		'default',
 	);
 
-	for (const w of warnings) {
-		warning(w);
+	if (!isJsonMode()) {
+		for (const w of warnings) {
+			warning(w);
+		}
 	}
+
+	if (config.explain && isJsonMode()) {
+		const explainOutput = explainJsonOutput('sqlite', statements, []);
+		printJsonOutput(explainOutput);
+		return;
+	}
+
+	if (!isJsonMode()) {
+		const explainMessage = explain('sqlite', groupedStatements, config.explain, []);
+		if (explainMessage) {
+			humanLog(explainMessage);
+		}
+	}
+
+	if (config.explain) return;
 
 	writeResult({
 		snapshot: snapshot,

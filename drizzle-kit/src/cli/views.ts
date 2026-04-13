@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { Prompt, render, SelectState, TaskView } from 'hanji';
+import { stripAnsi } from 'hanji/utils';
 import type {
 	SchemaError as CockroachSchemaError,
 	SchemaWarning as CockroachSchemaWarning,
@@ -41,7 +42,7 @@ export const humanLog = (...args: Parameters<typeof console.log>) => {
 
 export const printJsonOutput = (value: unknown) => {
 	if (!isJsonMode()) return;
-	process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+	process.stdout.write(JSON.stringify(value) + '\n');
 };
 
 export const info = (msg: string, greyMsg: string = ''): string => {
@@ -193,7 +194,7 @@ export const explain = (
 		res.push(withStyle.warning(`There're potential data loss statements:\n`));
 
 		for (const h of hints) {
-			res.push(h.hint);
+			res.push(h.hint.startsWith('· ') ? h.hint : `· ${h.hint}`);
 			res.push('\n');
 			if (h.statement) res.push(highlightSQL(h.statement), '\n');
 		}
@@ -872,6 +873,19 @@ export const sqliteExplain = (
 	if (title) return { title, cause };
 
 	return null;
+};
+
+export const explainJsonOutput = (
+	dialect: string,
+	statements: (StatementPostgres | StatementSqlite | StatementMysql | StatementMssql | StatementCockroach)[],
+	hints: { hint: string; statement?: string }[],
+) => {
+	return {
+		status: 'ok' as const,
+		dialect,
+		statements,
+		hints: hints.map((h) => ({ hint: stripAnsi(h.hint) })),
+	};
 };
 
 export const postgresSchemaError = (error: PostgresSchemaError): string => {
@@ -1790,6 +1804,10 @@ export class ProgressView extends TaskView {
 	}
 
 	render(status: 'pending' | 'done' | 'rejected'): string {
+		if (isJsonMode()) {
+			return '';
+		}
+
 		if (status === 'pending' || status === 'rejected') {
 			const spin = this.spinner.value();
 			return `[${spin}] ${this.progressText}\n`;
