@@ -151,7 +151,6 @@ export const explain = (
 		jsonStatement: StatementPostgres | StatementSqlite | StatementMysql | StatementMssql | StatementCockroach;
 		sqlStatements: string[];
 	}[],
-	explain: boolean,
 	hints: { hint: string; statement?: string }[],
 ) => {
 	const res = [];
@@ -178,14 +177,14 @@ export const explain = (
 			}
 			msg += `└───\n`;
 			explains.push(msg);
-		} else if (explain) {
+		} else {
 			explains.push(...sqlStatements.map((x) => highlightSQL(x)));
 		}
 	}
 
 	if (explains.length > 0) {
 		res.push('\n');
-		if (explain) res.push(chalk.gray(`--- Generated migration statements ---\n`));
+		res.push(chalk.gray(`--- Generated migration statements ---\n`));
 		res.push(explains.join('\n'));
 	}
 

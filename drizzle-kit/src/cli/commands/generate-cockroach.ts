@@ -66,20 +66,18 @@ export const handle = async (config: GenerateConfig) => {
 		'default',
 	);
 
-	if (config.explain && isJsonMode()) {
-		const explainOutput = explainJsonOutput('cockroach', statements, []);
-		printJsonOutput(explainOutput);
+	if (config.explain) {
+		if (isJsonMode()) {
+			const explainOutput = explainJsonOutput('cockroach', statements, []);
+			printJsonOutput(explainOutput);
+		} else {
+			const explainMessage = explain('cockroach', groupedStatements, []);
+			if (explainMessage) {
+				humanLog(explainMessage);
+			}
+		}
 		return;
 	}
-
-	if (!isJsonMode()) {
-		const explainMessage = explain('cockroach', groupedStatements, config.explain, []);
-		if (explainMessage) {
-			humanLog(explainMessage);
-		}
-	}
-
-	if (config.explain) return;
 
 	writeResult({
 		snapshot: snapshot,
