@@ -562,9 +562,16 @@ export function isConfig(data: any): boolean {
 		return true;
 	}
 
-	if ('useJitMapper' in data) {
-		const type = typeof data['useJitMapper'];
+	if ('useJitMappers' in data) {
+		const type = typeof data['useJitMappers'];
 		if (type !== 'boolean' && type !== 'undefined') return false;
+
+		return true;
+	}
+
+	if ('codecs' in data) {
+		const type = typeof data['connection'];
+		if (type !== 'object' && type !== 'undefined') return false;
 
 		return true;
 	}
