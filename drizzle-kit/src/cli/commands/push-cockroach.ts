@@ -29,7 +29,7 @@ import type { CockroachCredentials } from '../validations/cockroach';
 import type { CasingType } from '../validations/common';
 import {
 	cockroachSchemaError,
-	explain,
+	explain as explainView,
 	explainJsonOutput,
 	humanLog,
 	postgresSchemaWarning,
@@ -44,7 +44,7 @@ export const handle = async (
 	filters: EntitiesFilterConfig,
 	force: boolean,
 	casing: CasingType | undefined,
-	explainFlag: boolean,
+	explain: boolean,
 	migrations: {
 		table: string;
 		schema: string;
@@ -115,16 +115,18 @@ export const handle = async (
 	}
 
 	const hints = await suggestions(db, jsonStatements);
-	if (explainFlag && isJsonMode()) {
-		const explainOutput = explainJsonOutput('cockroach', jsonStatements, hints);
-		printJsonOutput(explainOutput);
-	} else if (!isJsonMode()) {
-		const explainMessage = explain('cockroach', groupedStatements, explainFlag, hints);
-		if (explainMessage) {
-			humanLog(explainMessage);
+	if (explain) {
+		if (isJsonMode()) {
+			const explainOutput = explainJsonOutput('cockroach', jsonStatements, hints);
+			printJsonOutput(explainOutput);
+		} else {
+			const explainMessage = explainView('cockroach', groupedStatements, hints);
+			if (explainMessage) {
+				humanLog(explainMessage);
+			}
 		}
+		return;
 	}
-	if (explainFlag) return;
 	if (!force && hints.length > 0) {
 		if (isJsonMode()) {
 			printJsonOutput({ status: 'aborted', dialect: 'cockroach' });

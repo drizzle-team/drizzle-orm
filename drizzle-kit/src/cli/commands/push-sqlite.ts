@@ -12,9 +12,17 @@ import { highlightSQL } from '../highlighter';
 import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
-import type { EntitiesFilterConfig } from '../validations/common';
+import type { EntitiesFilterConfig } from '../validations/cli';
+import type { CasingType } from '../validations/common';
 import type { SqliteCredentials } from '../validations/sqlite';
-import { explain, explainJsonOutput, humanLog, printJsonOutput, ProgressView, sqliteSchemaError } from '../views';
+import {
+	explain as explainView,
+	explainJsonOutput,
+	humanLog,
+	printJsonOutput,
+	ProgressView,
+	sqliteSchemaError,
+} from '../views';
 
 export const handle = async (
 	db: SQLiteClient,
@@ -23,7 +31,8 @@ export const handle = async (
 	credentials: SqliteCredentials,
 	filters: EntitiesFilterConfig,
 	force: boolean,
-	explainFlag: boolean,
+	casing: CasingType | undefined,
+	explain: boolean,
 	migrations: {
 		table: string;
 		schema: string;
@@ -36,7 +45,7 @@ export const handle = async (
 	const existing = extractSqliteExisting(res.views);
 	const filter = prepareEntityFilter('sqlite', filters, existing);
 
-	const { ddl: ddl2, errors: errors1 } = interimToDDL(fromDrizzleSchema(res.tables, res.views));
+	const { ddl: ddl2, errors: errors1 } = interimToDDL(fromDrizzleSchema(res.tables, res.views, casing));
 
 	if (errors1.length > 0) {
 		process.stderr.write(errors1.map((it) => sqliteSchemaError(it)).join('\n') + '\n');
@@ -69,16 +78,18 @@ export const handle = async (
 
 	const hints = await suggestions(db, statements);
 
-	if (explainFlag && isJsonMode()) {
-		const explainOutput = explainJsonOutput('sqlite', statements, hints);
-		printJsonOutput(explainOutput);
-	} else if (!isJsonMode()) {
-		const explainMessage = explain('sqlite', groupedStatements, explainFlag, hints);
-		if (explainMessage) {
-			humanLog(explainMessage);
+	if (explain) {
+		if (isJsonMode()) {
+			const explainOutput = explainJsonOutput('sqlite', statements, hints);
+			printJsonOutput(explainOutput);
+		} else {
+			const explainMessage = explainView('sqlite', groupedStatements, hints);
+			if (explainMessage) {
+				humanLog(explainMessage);
+			}
 		}
+		return;
 	}
-	if (explainFlag) return;
 
 	if (!force && hints.length > 0) {
 		if (isJsonMode()) {

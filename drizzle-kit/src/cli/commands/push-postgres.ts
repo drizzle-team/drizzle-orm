@@ -27,10 +27,11 @@ import { highlightSQL } from '../highlighter';
 import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
-import type { EntitiesFilterConfig } from '../validations/common';
+import type { EntitiesFilterConfig } from '../validations/cli';
+import type { CasingType } from '../validations/common';
 import type { PostgresCredentials } from '../validations/postgres';
 import {
-	explain,
+	explain as explainView,
 	explainJsonOutput,
 	humanLog,
 	postgresSchemaError,
@@ -45,7 +46,8 @@ export const handle = async (
 	credentials: PostgresCredentials,
 	filters: EntitiesFilterConfig,
 	force: boolean,
-	explainFlag: boolean,
+	casing: CasingType | undefined,
+	explain: boolean,
 	migrations: {
 		table: string;
 		schema: string;
@@ -60,7 +62,7 @@ export const handle = async (
 	const existing = extractPostgresExisting(res.schemas, res.views, res.matViews);
 	const entityFilter = prepareEntityFilter('postgresql', filters, existing);
 
-	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, entityFilter);
+	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, casing, entityFilter);
 
 	if (warnings.length > 0) {
 		humanLog(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
@@ -121,16 +123,18 @@ export const handle = async (
 	}
 
 	const hints = await suggestions(db, jsonStatements);
-	if (explainFlag && isJsonMode()) {
-		const explainOutput = explainJsonOutput('postgres', jsonStatements, hints);
-		printJsonOutput(explainOutput);
-	} else if (!isJsonMode()) {
-		const explainMessage = explain('postgres', groupedStatements, explainFlag, hints);
-		if (explainMessage) {
-			humanLog(explainMessage);
+	if (explain) {
+		if (isJsonMode()) {
+			const explainOutput = explainJsonOutput('postgres', jsonStatements, hints);
+			printJsonOutput(explainOutput);
+		} else {
+			const explainMessage = explainView('postgres', groupedStatements, hints);
+			if (explainMessage) {
+				humanLog(explainMessage);
+			}
 		}
+		return;
 	}
-	if (explainFlag) return;
 
 	if (!force && hints.length > 0) {
 		if (isJsonMode()) {
