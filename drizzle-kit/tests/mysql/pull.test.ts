@@ -930,3 +930,143 @@ test('double-quote-issue', async () => {
 	expect(statements).toStrictEqual([]);
 	expect(sqlStatements).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5546
+test('issue #5546', async () => {
+	await db.query(`
+-- ==========================================
+-- SCENARIO A: Functional/Expression Index
+-- Triggering "Cannot read properties of null (reading 'camelCase')" crash in codegen
+-- ==========================================
+CREATE TABLE my_table (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  col INT
+);`);
+	await db.query(`-- COLUMN_NAME is NULL in INFORMATION_SCHEMA.STATISTICS for this index
+CREATE UNIQUE INDEX idx_functional 
+ON my_table ((CASE WHEN col = 1 THEN 1 ELSE NULL END));`);
+
+	await db.query(`-- ==========================================
+-- SCENARIO B: View without column visibility
+-- Triggering "Cannot read properties of undefined (reading 'columns')" crash in serializer
+-- ==========================================
+CREATE TABLE base_table (
+  id INT, 
+  name VARCHAR(50)
+);
+`);
+
+	await db.query(`
+-- Create a temporary user
+CREATE USER 'ghost_user'@'%' IDENTIFIED BY 'temp123';`);
+
+	await db.query(`-- Create a view assigning the DEFINER to that user
+CREATE DEFINER='ghost_user'@'%' VIEW broken_view AS SELECT * FROM base_table;`);
+
+	await db.query(`-- Drop the user. View exists in VIEWS but returns 0 rows in columns for current user.
+DROP USER 'ghost_user'@'%';`);
+
+	const { statements, sqlStatements, ddlAfterPull } = await diffIntrospect(db, {}, '#5546');
+
+	expect(ddlAfterPull.entities.list()).toStrictEqual([
+		{
+			entityType: 'tables',
+			name: 'base_table',
+		},
+		{
+			entityType: 'tables',
+			name: 'my_table',
+		},
+		{
+			autoIncrement: false,
+			charSet: null,
+			collation: null,
+			default: null,
+			entityType: 'columns',
+			generated: null,
+			name: 'id',
+			notNull: false,
+			onUpdateNow: false,
+			onUpdateNowFsp: null,
+			table: 'base_table',
+			type: 'int',
+		},
+		{
+			autoIncrement: false,
+			charSet: null,
+			collation: null,
+			default: null,
+			entityType: 'columns',
+			generated: null,
+			name: 'name',
+			notNull: false,
+			onUpdateNow: false,
+			onUpdateNowFsp: null,
+			table: 'base_table',
+			type: 'varchar(50)',
+		},
+		{
+			autoIncrement: true,
+			charSet: null,
+			collation: null,
+			default: null,
+			entityType: 'columns',
+			generated: null,
+			name: 'id',
+			notNull: true,
+			onUpdateNow: false,
+			onUpdateNowFsp: null,
+			table: 'my_table',
+			type: 'int',
+		},
+		{
+			autoIncrement: false,
+			charSet: null,
+			collation: null,
+			default: null,
+			entityType: 'columns',
+			generated: null,
+			name: 'col',
+			notNull: false,
+			onUpdateNow: false,
+			onUpdateNowFsp: null,
+			table: 'my_table',
+			type: 'int',
+		},
+		{
+			columns: [
+				'id',
+			],
+			entityType: 'pks',
+			name: 'PRIMARY',
+			table: 'my_table',
+		},
+		{
+			algorithm: null,
+			columns: [
+				{
+					isExpression: true,
+					value: '(case when (`col` = 1) then 1 else NULL end)',
+				},
+			],
+			entityType: 'indexes',
+			isUnique: true,
+			lock: null,
+			name: 'idx_functional',
+			nameExplicit: true,
+			table: 'my_table',
+			using: null,
+		},
+		{
+			algorithm: 'undefined',
+			definition:
+				'select `drizzle`.`base_table`.`id` AS `id`,`drizzle`.`base_table`.`name` AS `name` from `drizzle`.`base_table`',
+			entityType: 'views',
+			name: 'broken_view',
+			sqlSecurity: 'definer',
+			withCheckOption: null,
+		},
+	]);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});

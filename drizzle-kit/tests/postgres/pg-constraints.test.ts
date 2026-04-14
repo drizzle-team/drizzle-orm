@@ -2419,7 +2419,7 @@ test('generated + unique', async (t) => {
 	expect(st).toStrictEqual([
 		`ALTER TABLE \"table\" RENAME COLUMN \"column2\" TO \"column3\";`,
 		`ALTER TABLE \"table\" DROP COLUMN \"bool\";`,
-		`ALTER TABLE \"table\" ADD COLUMN \"bool\" boolean GENERATED ALWAYS AS (((\"table\".\"column1\" is null) and (\"table\".\"column3\" is null))) STORED;`,
+		`ALTER TABLE \"table\" ADD COLUMN \"bool\" boolean GENERATED ALWAYS AS ((((\"table\".\"column1\" is null)) and ((\"table\".\"column3\" is null)))) STORED;`,
 		'ALTER TABLE "table" ADD CONSTRAINT "table_bool_key" UNIQUE("bool");',
 	]);
 	// push is not triggered on generated change
@@ -2467,7 +2467,7 @@ test('generated + pk', async (t) => {
 	expect(st).toStrictEqual([
 		`ALTER TABLE \"table\" RENAME COLUMN \"column2\" TO \"column3\";`,
 		`ALTER TABLE \"table\" DROP COLUMN \"bool\";`,
-		`ALTER TABLE \"table\" ADD COLUMN \"bool\" boolean PRIMARY KEY GENERATED ALWAYS AS (((\"table\".\"column1\" is null) and (\"table\".\"column3\" is null))) STORED;`,
+		`ALTER TABLE \"table\" ADD COLUMN \"bool\" boolean PRIMARY KEY GENERATED ALWAYS AS ((((\"table\".\"column1\" is null)) and ((\"table\".\"column3\" is null)))) STORED;`,
 	]);
 	// push is not triggered on generated change
 	expect(pst).toStrictEqual([
@@ -2663,6 +2663,38 @@ test('issue No4704. Composite index with sort outputs', async () => {
 		'CREATE TABLE "table" (\n\t"col1" integer,\n\t"col2" integer,\n\t"col3" integer\n);\n',
 		'CREATE INDEX "table_composite_idx" ON "table" ("col1","col2","col3" desc);',
 	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5585
+test('Issue No5585. Alter unique constraint', async () => {
+	const from = {
+		table: pgTable(
+			'table',
+			{ col1: integer(), col2: integer(), col3: integer() },
+			(table) => [unique('table_unique').on(table.col1)],
+		),
+	};
+
+	const to = {
+		table: pgTable(
+			'table',
+			{ col1: integer(), col2: integer(), col3: integer() },
+			(table) => [unique('table_unique').on(table.col1).nullsNotDistinct()],
+		),
+	};
+
+	await push({ db, to: from });
+
+	const { sqlStatements: st1, next: n1 } = await diff(from, to, []);
+	const { sqlStatements: pst1 } = await push({ db, to: to });
+
+	const expectedSt1 = [
+		'ALTER TABLE "table" DROP CONSTRAINT "table_unique";',
+		'ALTER TABLE "table" ADD CONSTRAINT "table_unique" UNIQUE NULLS NOT DISTINCT("col1");',
+	];
+
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
 });

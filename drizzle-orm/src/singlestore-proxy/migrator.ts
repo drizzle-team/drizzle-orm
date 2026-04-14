@@ -3,7 +3,7 @@ import { readMigrationFiles } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
-import { upgradeIfNeeded } from '~/up-migrations/singlestore.ts';
+import { upgradeIfNeeded } from '~/up-migrations/singlestore-proxy.ts';
 import type { SingleStoreRemoteDatabase } from './driver.ts';
 
 export type ProxyMigrator = (migrationQueries: string[]) => Promise<void>;
@@ -18,7 +18,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 
 	// Detect DB version and upgrade table schema if needed
-	const { newDb } = await upgradeIfNeeded(migrationsTable, db.session, migrations);
+	const { newDb, statements } = await upgradeIfNeeded(migrationsTable, db, migrations);
 
 	if (newDb) {
 		const migrationTableCreate = sql`
@@ -59,6 +59,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		if (!migration) return;
 
 		await callback([
+			...statements,
 			db.dialect.sqlToQuery(
 				sql`insert into ${
 					sql.identifier(migrationsTable)
@@ -84,7 +85,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		);
 	}
 
-	await callback(queriesToRun);
+	await callback([...statements, ...queriesToRun]);
 
 	return;
 }
