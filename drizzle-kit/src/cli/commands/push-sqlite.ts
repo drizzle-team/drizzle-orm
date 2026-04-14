@@ -8,6 +8,7 @@ import { ddlDiff } from 'src/dialects/sqlite/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
 import type { JsonStatement } from 'src/dialects/sqlite/statements';
 import type { SQLiteClient } from '../../utils';
+import { CommandOutputCliError } from '../errors';
 import { highlightSQL } from '../highlighter';
 import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
@@ -62,8 +63,8 @@ export const handle = async (
 	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
-		resolver<Table>('table'),
-		resolver<Column>('column'),
+		resolver<Table>('table', 'public', 'push'),
+		resolver<Column>('column', 'public', 'push'),
 		'push',
 	);
 
@@ -93,8 +94,11 @@ export const handle = async (
 
 	if (!force && hints.length > 0) {
 		if (isJsonMode()) {
-			printJsonOutput({ status: 'aborted', dialect: 'sqlite' });
-			process.exit(0);
+			throw new CommandOutputCliError(
+				'push',
+				'Destructive changes detected. Interactive confirmation is required but cannot be performed in JSON mode. Use --force to apply anyway.',
+				{ dialect: 'sqlite', hints: hints.map((h) => h.hint) },
+			);
 		}
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 

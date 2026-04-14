@@ -8,6 +8,7 @@ import { ddlDiff } from '../../dialects/mysql/diff';
 import type { JsonStatement } from '../../dialects/mysql/statements';
 import type { DB } from '../../utils';
 import { connectToMySQL } from '../connections';
+import { CommandOutputCliError } from '../errors';
 import { highlightSQL } from '../highlighter';
 import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
@@ -67,9 +68,9 @@ export const handle = async (
 	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
-		resolver<Table>('table'),
-		resolver<Column>('column'),
-		resolver<View>('view'),
+		resolver<Table>('table', 'public', 'push'),
+		resolver<Column>('column', 'public', 'push'),
+		resolver<View>('view', 'public', 'push'),
 		'push',
 	);
 
@@ -98,8 +99,11 @@ export const handle = async (
 
 	if (!force && hints.length > 0) {
 		if (isJsonMode()) {
-			printJsonOutput({ status: 'aborted', dialect: 'mysql' });
-			process.exit(0);
+			throw new CommandOutputCliError(
+				'push',
+				'Destructive changes detected. Interactive confirmation is required but cannot be performed in JSON mode. Use --force to apply anyway.',
+				{ dialect: 'mysql', hints: hints.map((h) => h.hint) },
+			);
 		}
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
