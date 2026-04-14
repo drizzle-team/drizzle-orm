@@ -1926,58 +1926,15 @@ export const connectToSQLite = async (
 				};
 			};
 
-			// The sqlite-proxy integration treats `.all()` as an array of arrays.
-			// `remoteCallback` function that was used in the `drizzle()` function below
-			// treated `.all()` as an array of objects
-			// Since `remoteCallback` is also used by Drizzle Studio - new function was added
-			// This could be handled inside up-migration/sqlite-proxy by checking the response type,
-			// but because `.all()` always used the `[[]]` format, it is simpler to create a dedicated
-			// function that is compatible with the current format rather than adding extra checks for this one case
-			const remoteMigrateCallback: Parameters<typeof drizzle>[0] = async (
-				sql,
-				params,
-				method,
-			) => {
-				const res = await fetch(
-					`https://api.cloudflare.com/client/v4/accounts/${credentials.accountId}/d1/database/${credentials.databaseId}/${
-						method === 'values' || method === 'all' ? 'raw' : 'query'
-					}`,
-					{
-						method: 'POST',
-						body: JSON.stringify({ sql, params }),
-						headers: {
-							'Content-Type': 'application/json',
-							Authorization: `Bearer ${credentials.token}`,
-						},
-					},
-				).catch((e) => {
-					throw new QueryError(e, sql, params || []);
-				});
-
-				const data = (await res.json()) as D1Response;
-
-				if (!data.success) {
-					throw new QueryError(
-						new Error(data.errors.map((it) => `${it.code}: ${it.message}`).join('\n')),
-						sql,
-						params || [],
-					);
-				}
-
-				const result = data.result[0].results;
-				const rows = Array.isArray(result) ? result : result.rows;
-
-				return {
-					rows,
-				};
-			};
-			const drzl = drizzle(remoteMigrateCallback);
+			const drzl = drizzle(remoteCallback);
 			const migrateFn = async (config: MigrationConfig) => {
 				return migrate(
 					drzl,
 					async (queries) => {
 						// run migrations in transaction
-						await remoteBatchCallback(queries.map((sql) => ({ sql })));
+						if (queries.length > 0) {
+							await remoteBatchCallback(queries.map((sql) => ({ sql })));
+						}
 					},
 					config,
 				);
