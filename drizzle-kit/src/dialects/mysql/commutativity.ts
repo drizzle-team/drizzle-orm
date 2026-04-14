@@ -232,18 +232,21 @@ export function footprint(
 		formatFootprint(statement.type, info.objectName, info.columnName),
 	];
 
-	// For column-level operations, also produce a table-level statement footprint.
-	// This allows table-level operations (e.g. drop_table) whose conflict footprints
-	// use an empty column name to match against any column operation on that table,
-	// including newly-added columns not present in the parent snapshot.
-	const columnOps: JsonStatement['type'][] = [
+	// For column-level and index-level operations, also produce a table-level
+	// statement footprint. This allows table-level operations (e.g. drop_table)
+	// whose conflict footprints use an empty column name to match against any
+	// column/index operation on that table, including newly-added columns or
+	// indexes not present in the parent snapshot.
+	const subTableOps: JsonStatement['type'][] = [
 		'add_column',
 		'drop_column',
 		'alter_column',
 		'recreate_column',
 		'rename_column',
+		'create_index',
+		'drop_index',
 	];
-	if (columnOps.includes(statement.type) && info.columnName !== '') {
+	if (subTableOps.includes(statement.type) && info.columnName !== '') {
 		statementFootprint.push(
 			formatFootprint(statement.type, info.objectName, ''),
 		);

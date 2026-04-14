@@ -914,4 +914,40 @@ describe('commutativity integration (mysql)', () => {
 		const report = await detectNonCommutative(files, 'mysql');
 		expect(report.conflicts.length).toBeGreaterThan(0);
 	});
+
+	test('conflict when one branch drops table and other adds index to it', async () => {
+		const { tmp } = mkTmp();
+		const files: string[] = [];
+
+		const parent = createDDL();
+		parent.tables.push({ name: 'orders' });
+		const p = makeSnapshot('p_idx4', [ORIGIN], parent.entities.list());
+
+		// Branch A: drop the table
+		const a = createDDL();
+		// no tables — orders is dropped
+
+		// Branch B: add a new index to the table
+		const b = createDDL();
+		b.tables.push({ name: 'orders' });
+		b.indexes.push({
+			table: 'orders',
+			name: 'idx_orders_new',
+			nameExplicit: true,
+			columns: [{ value: 'customer_id', isExpression: false }],
+			isUnique: false,
+			using: null,
+			algorithm: null,
+			lock: null,
+		} as any);
+
+		files.push(
+			writeTempSnapshot(tmp, '230_p_idx4', p),
+			writeTempSnapshot(tmp, '231_a_idx4', makeSnapshot('a_idx4', ['p_idx4'], a.entities.list())),
+			writeTempSnapshot(tmp, '232_b_idx4', makeSnapshot('b_idx4', ['p_idx4'], b.entities.list())),
+		);
+
+		const report = await detectNonCommutative(files, 'mysql');
+		expect(report.conflicts.length).toBeGreaterThan(0);
+	});
 });
