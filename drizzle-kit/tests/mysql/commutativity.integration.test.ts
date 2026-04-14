@@ -114,7 +114,7 @@ describe('conflict rule coverage (statement pairs)', () => {
 		expect(conflicts).not.toBeUndefined();
 	});
 
-	test('unique: create vs drop', async () => {
+	test('unique: create on different column vs drop are commutative', async () => {
 		const parent = {
 			t: mysqlTable('t', (t) => ({
 				c: t.varchar({ length: 255 }).unique(),
@@ -140,7 +140,9 @@ describe('conflict rule coverage (statement pairs)', () => {
 			child2: { id: '3', prevId: '1', schema: child2 },
 		});
 
-		expect(conflicts).not.toBeUndefined();
+		// Creating a unique index on column d and dropping a unique index
+		// on column c are independent operations that commute.
+		expect(conflicts).toBeUndefined();
 	});
 
 	test('fk: recreate vs drop', async () => {
