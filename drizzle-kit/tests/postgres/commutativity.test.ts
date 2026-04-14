@@ -1098,6 +1098,52 @@ describe('commutativity integration (postgres)', () => {
 		expect(report.conflicts.length).toBeGreaterThan(0);
 	});
 
+	test('conflict when one branch drops table and other adds index to it', async () => {
+		const { tmp } = mkTmp();
+		const files: string[] = [];
+
+		const parent = createDDL();
+		parent.tables.push({ schema: 'public', isRlsEnabled: false, name: 'orders' });
+		const p = makeSnapshot('p_idx3', [ORIGIN], parent.entities.list());
+
+		// Branch A: drop the table
+		const a = createDDL();
+		// no tables — orders is dropped
+
+		// Branch B: add a new index to the table
+		const b = createDDL();
+		b.tables.push({ schema: 'public', isRlsEnabled: false, name: 'orders' });
+		b.indexes.push(
+			{
+				schema: 'public',
+				table: 'orders',
+				name: 'idx_orders_new',
+				nameExplicit: true,
+				columns: [{
+					value: 'customer_id',
+					isExpression: false,
+					asc: true,
+					nullsFirst: false,
+					opclass: { name: '', default: true },
+				}],
+				isUnique: false,
+				where: null,
+				with: '',
+				method: 'btree',
+				concurrently: false,
+			} as any,
+		);
+
+		files.push(
+			writeTempSnapshot(tmp, '220_p_idx3', p),
+			writeTempSnapshot(tmp, '221_a_idx3', makeSnapshot('a_idx3', ['p_idx3'], a.entities.list())),
+			writeTempSnapshot(tmp, '222_b_idx3', makeSnapshot('b_idx3', ['p_idx3'], b.entities.list())),
+		);
+
+		const report = await detectNonCommutative(files, 'postgresql');
+		expect(report.conflicts.length).toBeGreaterThan(0);
+	});
+
 	test('complex schema and moves: rename, move, drop schema/table conflicts', async () => {
 		const { tmp } = mkTmp();
 		const files: string[] = [];

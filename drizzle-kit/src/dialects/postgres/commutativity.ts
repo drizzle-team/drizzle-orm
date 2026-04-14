@@ -632,6 +632,24 @@ export function footprint(
 		),
 	];
 
+	// For index operations, also produce a table-level statement footprint.
+	// Index fingerprints use the index name as objectName, but drop_table's
+	// conflict footprints use the table name. The table-level footprint lets
+	// drop_table detect conflicts with new indexes not in the parent snapshot.
+	if (
+		(statement.type === 'create_index' || statement.type === 'drop_index')
+		&& statement.index.table
+	) {
+		statementFootprint.push(
+			formatFootprint(
+				statement.type,
+				statement.index.schema,
+				statement.index.table,
+				'',
+			),
+		);
+	}
+
 	let conflictFootprints = conflictingTypes.map((conflictType) =>
 		formatFootprint(
 			conflictType,
@@ -733,10 +751,12 @@ function expandFootprintsFromSnapshot(
 				);
 			}
 		}
-		// all indexes in changed tables should make a conflict in this case
-		// maybe we need to make other fields optional
-		// TODO: revise formatFootprint
-		expandedFootprints.push(formatFootprint('create_index', '', '', ''));
+		// Catch-all for new indexes not in the parent snapshot: use the
+		// table's schema+name so it matches the table-level secondary
+		// footprint emitted by create_index statements.
+		expandedFootprints.push(
+			formatFootprint('create_index', info.schema, info.objectName, ''),
+		);
 	}
 
 	return expandedFootprints;
