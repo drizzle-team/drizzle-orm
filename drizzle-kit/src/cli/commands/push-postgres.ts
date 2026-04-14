@@ -23,6 +23,7 @@ import { ddlDiff } from '../../dialects/postgres/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import type { JsonStatement } from '../../dialects/postgres/statements';
 import type { DB } from '../../utils';
+import { CommandOutputCliError } from '../errors';
 import { highlightSQL } from '../highlighter';
 import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
@@ -96,20 +97,20 @@ export const handle = async (
 	const { sqlStatements, statements: jsonStatements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
-		resolver<Schema>('schema'),
-		resolver<Enum>('enum'),
-		resolver<Sequence>('sequence'),
-		resolver<Policy>('policy'),
-		resolver<Role>('role'),
-		resolver<Privilege>('privilege'),
-		resolver<PostgresEntities['tables']>('table'),
-		resolver<Column>('column'),
-		resolver<View>('view'),
-		resolver<UniqueConstraint>('unique'),
-		resolver<Index>('index'),
-		resolver<CheckConstraint>('check'),
-		resolver<PrimaryKey>('primary key'),
-		resolver<ForeignKey>('foreign key'),
+		resolver<Schema>('schema', 'public', 'push'),
+		resolver<Enum>('enum', 'public', 'push'),
+		resolver<Sequence>('sequence', 'public', 'push'),
+		resolver<Policy>('policy', 'public', 'push'),
+		resolver<Role>('role', 'public', 'push'),
+		resolver<Privilege>('privilege', 'public', 'push'),
+		resolver<PostgresEntities['tables']>('table', 'public', 'push'),
+		resolver<Column>('column', 'public', 'push'),
+		resolver<View>('view', 'public', 'push'),
+		resolver<UniqueConstraint>('unique', 'public', 'push'),
+		resolver<Index>('index', 'public', 'push'),
+		resolver<CheckConstraint>('check', 'public', 'push'),
+		resolver<PrimaryKey>('primary key', 'public', 'push'),
+		resolver<ForeignKey>('foreign key', 'public', 'push'),
 		'push',
 	);
 
@@ -138,8 +139,11 @@ export const handle = async (
 
 	if (!force && hints.length > 0) {
 		if (isJsonMode()) {
-			printJsonOutput({ status: 'aborted', dialect: 'postgres' });
-			process.exit(0);
+			throw new CommandOutputCliError(
+				'push',
+				'Destructive changes detected. Interactive confirmation is required but cannot be performed in JSON mode. Use --force to apply anyway.',
+				{ dialect: 'postgres', hints: hints.map((h) => h.hint) },
+			);
 		}
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
