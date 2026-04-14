@@ -933,38 +933,25 @@ test('double-quote-issue', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5546
 test('issue #5546', async () => {
-	await db.query(`
--- ==========================================
--- SCENARIO A: Functional/Expression Index
--- Triggering "Cannot read properties of null (reading 'camelCase')" crash in codegen
--- ==========================================
-CREATE TABLE my_table (
+	await db.query(`CREATE TABLE my_table (
   id INT AUTO_INCREMENT PRIMARY KEY,
   col INT
 );`);
-	await db.query(`-- COLUMN_NAME is NULL in INFORMATION_SCHEMA.STATISTICS for this index
-CREATE UNIQUE INDEX idx_functional 
+	await db.query(`CREATE UNIQUE INDEX idx_functional 
 ON my_table ((CASE WHEN col = 1 THEN 1 ELSE NULL END));`);
 
-	await db.query(`-- ==========================================
--- SCENARIO B: View without column visibility
--- Triggering "Cannot read properties of undefined (reading 'columns')" crash in serializer
--- ==========================================
-CREATE TABLE base_table (
+	await db.query(`CREATE TABLE base_table (
   id INT, 
   name VARCHAR(50)
 );
 `);
 
 	await db.query(`
--- Create a temporary user
 CREATE USER 'ghost_user'@'%' IDENTIFIED BY 'temp123';`);
 
-	await db.query(`-- Create a view assigning the DEFINER to that user
-CREATE DEFINER='ghost_user'@'%' VIEW broken_view AS SELECT * FROM base_table;`);
+	await db.query(`CREATE DEFINER='ghost_user'@'%' VIEW broken_view AS SELECT * FROM base_table;`);
 
-	await db.query(`-- Drop the user. View exists in VIEWS but returns 0 rows in columns for current user.
-DROP USER 'ghost_user'@'%';`);
+	await db.query(`DROP USER 'ghost_user'@'%';`);
 
 	const { statements, sqlStatements, ddlAfterPull } = await diffIntrospect(db, {}, '#5546');
 

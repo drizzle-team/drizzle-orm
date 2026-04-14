@@ -1,7 +1,8 @@
 import type { MigrationMeta } from '~/migrator.ts';
 import type { SingleStoreRemoteDatabase } from '~/singlestore-proxy/index.ts';
+import type { ProxyMigrator } from '~/singlestore-proxy/migrator.ts';
 import { sql } from '~/sql/sql.ts';
-import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResultProxy } from './utils.ts';
+import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResult } from './utils.ts';
 
 /**
  * Map of upgrade functions. Each key is the version being upgraded FROM,
@@ -12,8 +13,9 @@ const upgradeFunctions: Record<
 	(
 		migrationsTable: string,
 		db: SingleStoreRemoteDatabase<Record<string, unknown>>,
+		callback: ProxyMigrator,
 		localMigrations: MigrationMeta[],
-	) => Promise<string[]>
+	) => Promise<void>
 > = {
 	/**
 	 * Upgrade from version 0 to version 1:
@@ -24,14 +26,18 @@ const upgradeFunctions: Record<
 	 * Not implemented for now -> If hash matching fails, fall back to serial id ordering
 	 * 5. Create extra column and backfill names for matched migrations
 	 */
-	0: async (migrationsTable, db, localMigrations) => {
+	0: async (migrationsTable, db, callback, localMigrations) => {
 		const table = sql`${sql.identifier(migrationsTable)}`;
 
 		// 1. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
-		const dbRows = await db.session.execute<{ id: number; hash: string; created_at: string }[]>(
+		const dbRows = (await db.session.all<[number, string, string]>(
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
-		);
+		)).map((it) => ({
+			id: it[0],
+			hash: it[1],
+			created_at: it[2],
+		}));
 
 		// 2. Sort ASC by millis and if the same - sort by name
 		localMigrations.sort((a, b) =>
@@ -104,7 +110,8 @@ const upgradeFunctions: Record<
 			);
 		}
 
-		return statements;
+		await callback(statements);
+		return;
 	},
 };
 
@@ -117,21 +124,22 @@ const upgradeFunctions: Record<
 export async function upgradeIfNeeded(
 	migrationsTable: string,
 	db: SingleStoreRemoteDatabase<Record<string, unknown>>,
+	callback: ProxyMigrator,
 	localMigrations: MigrationMeta[],
-): Promise<UpgradeResultProxy> {
+): Promise<UpgradeResult> {
 	// Check if the table exists at all
-	const result = await db.session.execute<{ '1': 1 }[]>(
+	const result = await db.session.all<[1]>(
 		sql`SELECT 1 FROM information_schema.tables 
 			WHERE table_name = ${migrationsTable}
 			AND table_schema = DATABASE()`,
 	);
 
 	if (result.length === 0) {
-		return { newDb: true, statements: [] };
+		return { newDb: true };
 	}
 
 	// Table exists, check table shape
-	const rows = await db.session.execute<{ column_name: string }[]>(
+	const rows = await db.session.all<[string]>(
 		sql`SELECT column_name as \`column_name\`
 		FROM information_schema.columns
 		WHERE table_name = ${migrationsTable}
@@ -139,16 +147,15 @@ export async function upgradeIfNeeded(
 		ORDER BY ordinal_position`,
 	);
 
-	const version = GET_VERSION_FOR.singlestore(rows.map((r) => r.column_name));
+	const version = GET_VERSION_FOR.singlestore(rows.map((r) => r[0]));
 
-	let statements: string[] = [];
 	for (let v = version; v < MIGRATIONS_TABLE_VERSIONS.singlestore; v++) {
 		const upgradeFn = upgradeFunctions[v];
 		if (!upgradeFn) {
 			throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
 		}
-		statements = await upgradeFn(migrationsTable, db, localMigrations);
+		await upgradeFn(migrationsTable, db, callback, localMigrations);
 	}
 
-	return { newDb: false, statements };
+	return { newDb: false };
 }
