@@ -1274,26 +1274,26 @@ export const mssqlSchemaError = (error: MssqlSchemaError): string => {
 	assertUnreachable(error);
 };
 
-export interface RenamePropmtItem<T> {
+export interface RenamePromptItem<T> {
 	from: T;
 	to: T;
 }
 
 export const isRenamePromptItem = <T extends EntityBase>(
-	item: RenamePropmtItem<T> | T,
-): item is RenamePropmtItem<T> => {
+	item: RenamePromptItem<T> | T,
+): item is RenamePromptItem<T> => {
 	return 'from' in item && 'to' in item;
 };
 
 export class ResolveColumnSelect<T extends Named> extends Prompt<
-	RenamePropmtItem<T> | T
+	RenamePromptItem<T> | T
 > {
-	private readonly data: SelectState<RenamePropmtItem<T> | T>;
+	private readonly data: SelectState<RenamePromptItem<T> | T>;
 
 	constructor(
 		private readonly tableName: string,
 		private readonly base: Named,
-		data: (RenamePropmtItem<T> | T)[],
+		data: (RenamePromptItem<T> | T)[],
 	) {
 		super();
 		this.on('attach', (terminal) => terminal.toggleCursor('hide'));
@@ -1326,7 +1326,7 @@ export class ResolveColumnSelect<T extends Named> extends Prompt<
 
 		const labelLength: number = this.data.items
 			.filter((it) => isRenamePromptItem(it))
-			.map((it: RenamePropmtItem<T>) => {
+			.map((it: RenamePromptItem<T>) => {
 				return this.base.name.length + 3 + it['from'].name.length;
 			})
 			.reduce((a, b) => {
@@ -1352,7 +1352,7 @@ export class ResolveColumnSelect<T extends Named> extends Prompt<
 		return text;
 	}
 
-	result(): RenamePropmtItem<T> | T {
+	result(): RenamePromptItem<T> | T {
 		return this.data.items[this.data.selectedIdx]!;
 	}
 }
@@ -1364,13 +1364,13 @@ export const tableKey = (it: NamedWithSchema) => {
 };
 
 export class ResolveSelectNamed<T extends Named> extends Prompt<
-	RenamePropmtItem<T> | T
+	RenamePromptItem<T> | T
 > {
-	private readonly state: SelectState<RenamePropmtItem<T> | T>;
+	private readonly state: SelectState<RenamePromptItem<T> | T>;
 
 	constructor(
 		private readonly base: T,
-		data: (RenamePropmtItem<T> | T)[],
+		data: (RenamePromptItem<T> | T)[],
 		private readonly entityType: 'role' | 'policy',
 	) {
 		super();
@@ -1398,7 +1398,7 @@ export class ResolveSelectNamed<T extends Named> extends Prompt<
 		const labelLength: number = this.state.items
 			.filter((it) => isRenamePromptItem(it))
 			.map((_) => {
-				const it = _ as RenamePropmtItem<T>;
+				const it = _ as RenamePromptItem<T>;
 				const keyFrom = it.from.name;
 				return key.length + 3 + keyFrom.length;
 			})
@@ -1428,7 +1428,7 @@ export class ResolveSelectNamed<T extends Named> extends Prompt<
 		return text;
 	}
 
-	result(): RenamePropmtItem<T> | T {
+	result(): RenamePromptItem<T> | T {
 		return this.state.items[this.state.selectedIdx]!;
 	}
 }
@@ -1442,13 +1442,13 @@ const keyFor = (it: EntityBase, defaultSchema: 'dbo' | 'public' = 'public') => {
 };
 
 export class ResolveSelect<T extends EntityBase> extends Prompt<
-	RenamePropmtItem<T> | T
+	RenamePromptItem<T> | T
 > {
-	private readonly state: SelectState<RenamePropmtItem<T> | T>;
+	private readonly state: SelectState<RenamePromptItem<T> | T>;
 
 	constructor(
 		private readonly base: T,
-		data: (RenamePropmtItem<T> | T)[],
+		data: (RenamePromptItem<T> | T)[],
 		private readonly entityType:
 			| 'schema'
 			| 'enum'
@@ -1492,7 +1492,7 @@ export class ResolveSelect<T extends EntityBase> extends Prompt<
 		const labelLength: number = this.state.items
 			.filter((it) => isRenamePromptItem(it))
 			.map((_) => {
-				const it = _ as RenamePropmtItem<T>;
+				const it = _ as RenamePromptItem<T>;
 				const keyFrom = keyFor(it.from);
 				return key.length + 3 + keyFrom.length;
 			})
@@ -1522,17 +1522,17 @@ export class ResolveSelect<T extends EntityBase> extends Prompt<
 		return text;
 	}
 
-	result(): RenamePropmtItem<T> | T {
+	result(): RenamePromptItem<T> | T {
 		return this.state.items[this.state.selectedIdx]!;
 	}
 }
 
 export class ResolveSchemasSelect<T extends Named> extends Prompt<
-	RenamePropmtItem<T> | T
+	RenamePromptItem<T> | T
 > {
-	private readonly state: SelectState<RenamePropmtItem<T> | T>;
+	private readonly state: SelectState<RenamePromptItem<T> | T>;
 
-	constructor(private readonly base: Named, data: (RenamePropmtItem<T> | T)[]) {
+	constructor(private readonly base: Named, data: (RenamePromptItem<T> | T)[]) {
 		super();
 		this.on('attach', (terminal) => terminal.toggleCursor('hide'));
 		this.state = new SelectState(data);
@@ -1558,7 +1558,7 @@ export class ResolveSchemasSelect<T extends Named> extends Prompt<
 
 		const labelLength: number = this.state.items
 			.filter((it) => isRenamePromptItem(it))
-			.map((it: RenamePropmtItem<T>) => {
+			.map((it: RenamePromptItem<T>) => {
 				return this.base.name.length + 3 + it['from'].name.length;
 			})
 			.reduce((a, b) => {
@@ -1584,7 +1584,7 @@ export class ResolveSchemasSelect<T extends Named> extends Prompt<
 		return text;
 	}
 
-	result(): RenamePropmtItem<T> | T {
+	result(): RenamePromptItem<T> | T {
 		return this.state.items[this.state.selectedIdx]!;
 	}
 }

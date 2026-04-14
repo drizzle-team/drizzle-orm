@@ -587,3 +587,81 @@ test('push postgres schema warnings do not leak to stdout in json mode', async (
 	expect(stderr).toBe('');
 	setJsonMode(false);
 });
+
+test('push postgres rename resolution reports push command in json mode', async () => {
+	vi.doMock('../../src/cli/commands/pull-postgres', () => ({
+		introspect: vi.fn(async () => ({
+			schema: { from: 'db' },
+		})),
+	}));
+
+	vi.doMock('../../src/dialects/postgres/drizzle', () => ({
+		prepareFromSchemaFiles: vi.fn(async () => ({
+			schemas: [],
+			views: [],
+			matViews: [],
+		})),
+		fromDrizzleSchema: vi.fn(() => ({
+			schema: { to: 'schema' },
+			errors: [],
+			warnings: [],
+		})),
+	}));
+
+	vi.doMock('../../src/dialects/postgres/ddl', () => ({
+		interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+	}));
+
+	vi.doMock('../../src/dialects/postgres/diff', () => ({
+		ddlDiff: vi.fn(async (...args: unknown[]) => {
+			const schemaResolver = args[2] as (
+				it: { created: { name: string }[]; deleted: { name: string }[] },
+			) => Promise<unknown>;
+			await schemaResolver({
+				created: [{ name: 'next_schema' }],
+				deleted: [{ name: 'prev_schema' }],
+			});
+			return {
+				sqlStatements: [],
+				statements: [],
+				groupedStatements: [],
+			};
+		}),
+	}));
+
+	vi.doMock('../../src/cli/connections', () => ({
+		preparePostgresDB: vi.fn(async () => ({
+			query: vi.fn(async () => []),
+		})),
+	}));
+
+	const { setJsonMode } = await import('../../src/cli/mode');
+	const pushPostgres = await import('../../src/cli/commands/push-postgres');
+	const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+	const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+	setJsonMode(true);
+
+	await expect(
+		pushPostgres.handle(
+			['schema.ts'],
+			false,
+			{} as never,
+			{} as never,
+			[] as never,
+			false,
+			undefined,
+			false,
+			{ table: '__drizzle_migrations', schema: 'public' },
+		),
+	).rejects.toMatchObject({
+		code: 'command_output_error',
+		meta: {
+			command: 'push',
+			dialect: 'common',
+		},
+	});
+
+	expect(stdoutSpy).not.toHaveBeenCalled();
+	expect(stderrSpy).not.toHaveBeenCalled();
+	setJsonMode(false);
+});

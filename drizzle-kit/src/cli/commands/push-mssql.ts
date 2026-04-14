@@ -82,16 +82,16 @@ export const handle = async (
 	const { sqlStatements, statements: jsonStatements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
-		resolver<Schema>('schema', 'dbo'),
-		resolver<MssqlEntities['tables']>('table', 'dbo'),
-		resolver<Column>('column', 'dbo'),
-		resolver<View>('view', 'dbo'),
-		resolver<UniqueConstraint>('unique', 'dbo'), // uniques
-		resolver<Index>('index', 'dbo'), // indexes
-		resolver<CheckConstraint>('check', 'dbo'), // checks
-		resolver<PrimaryKey>('primary key', 'dbo'), // pks
-		resolver<ForeignKey>('foreign key', 'dbo'), // fks
-		resolver<DefaultConstraint>('default', 'dbo'), // fks
+		resolver<Schema>('schema', 'dbo', 'push'),
+		resolver<MssqlEntities['tables']>('table', 'dbo', 'push'),
+		resolver<Column>('column', 'dbo', 'push'),
+		resolver<View>('view', 'dbo', 'push'),
+		resolver<UniqueConstraint>('unique', 'dbo', 'push'), // uniques
+		resolver<Index>('index', 'dbo', 'push'), // indexes
+		resolver<CheckConstraint>('check', 'dbo', 'push'), // checks
+		resolver<PrimaryKey>('primary key', 'dbo', 'push'), // pks
+		resolver<ForeignKey>('foreign key', 'dbo', 'push'), // fks
+		resolver<DefaultConstraint>('default', 'dbo', 'push'), // fks
 		'push',
 	);
 
@@ -121,8 +121,11 @@ export const handle = async (
 
 	if (!force && hints.length > 0) {
 		if (isJsonMode()) {
-			printJsonOutput({ status: 'aborted', dialect: 'mssql' });
-			return;
+			throw new CommandOutputCliError(
+				'push',
+				'Destructive changes detected. Interactive confirmation is required but cannot be performed in JSON mode. Use --force to apply anyway.',
+				{ dialect: 'mssql', hints: hints.map((h) => h.hint) },
+			);
 		}
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 

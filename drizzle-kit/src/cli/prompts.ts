@@ -1,7 +1,9 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
 import type { Resolver } from 'src/dialects/common';
-import type { RenamePropmtItem } from './views';
+import { CommandOutputCliError } from './errors';
+import { isJsonMode } from './mode';
+import type { RenamePromptItem } from './views';
 import { humanLog, isRenamePromptItem, ResolveSelect } from './views';
 
 export const resolver = <T extends { name: string; schema?: string; table?: string }>(
@@ -22,12 +24,21 @@ export const resolver = <T extends { name: string; schema?: string; table?: stri
 		| 'foreign key'
 		| 'default',
 	defaultSchema: 'public' | 'dbo' = 'public',
+	command: 'generate' | 'push' = 'generate',
 ): Resolver<T> => {
 	return async (it: { created: T[]; deleted: T[] }) => {
 		const { created, deleted } = it;
 
 		if (created.length === 0 || deleted.length === 0) {
 			return { created, deleted, renamedOrMoved: [] };
+		}
+
+		if (isJsonMode()) {
+			throw new CommandOutputCliError(
+				command,
+				`Interactive ${entity} rename resolution is required but cannot be performed in JSON mode. Please resolve schema conflicts manually or run without JSON mode.`,
+				{ dialect: 'common' },
+			);
 		}
 
 		const result: {
@@ -39,11 +50,11 @@ export const resolver = <T extends { name: string; schema?: string; table?: stri
 		let leftMissing = [...deleted];
 		do {
 			const newItem = created[index];
-			const renames: RenamePropmtItem<T>[] = leftMissing.map((it) => {
+			const renames: RenamePromptItem<T>[] = leftMissing.map((it) => {
 				return { from: it, to: newItem };
 			});
 
-			const promptData: (RenamePropmtItem<T> | T)[] = [newItem, ...renames];
+			const promptData: (RenamePromptItem<T> | T)[] = [newItem, ...renames];
 			const { status, data } = await render(new ResolveSelect(newItem, promptData, entity, defaultSchema));
 
 			if (status === 'aborted') {
