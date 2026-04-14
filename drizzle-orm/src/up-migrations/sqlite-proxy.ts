@@ -18,7 +18,7 @@ export async function upgradeAsyncIfNeeded(
 	localMigrations: MigrationMeta[],
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
-	const tableExists = await db.session.all<{ '1': 1 }>(
+	const tableExists = await db.session.all<[1]>(
 		sql`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ${migrationsTable}`,
 	);
 
@@ -27,11 +27,11 @@ export async function upgradeAsyncIfNeeded(
 	}
 
 	// Table exists, check table shape
-	const rows = await db.session.all<{ column_name: string }>(
+	const rows = await db.session.all<[string]>(
 		sql`SELECT name as column_name FROM pragma_table_info(${migrationsTable})`,
 	);
 
-	const version = GET_VERSION_FOR.sqlite(rows.map((r) => r.column_name));
+	const version = GET_VERSION_FOR.sqlite(rows.map((r) => r[0]));
 
 	for (let v = version; v < MIGRATIONS_TABLE_VERSIONS.sqlite; v++) {
 		const upgradeFn = upgradeAsyncFunctions[v];
@@ -68,9 +68,13 @@ const upgradeAsyncFunctions: Record<
 		// 1. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
 		// this can be null from legacy implementation where id was serial
-		const dbRows = await db.session.all<{ id: number | null; hash: string; created_at: number }>(
+		const dbRows = (await db.session.all<[number | null, string, number]>(
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
-		);
+		)).map((row) => ({
+			id: row[0],
+			hash: row[1],
+			created_at: row[2],
+		}));
 
 		// 2. Sort ASC by millis and if the same - sort by name
 		localMigrations.sort((a, b) =>
