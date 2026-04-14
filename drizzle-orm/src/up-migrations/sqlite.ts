@@ -2,7 +2,7 @@ import type { TablesRelationalConfig } from '~/_relations.ts';
 import type { MigrationMeta } from '~/migrator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
-import type { BaseSQLiteDatabase } from '~/sqlite-core';
+import type { BaseSQLiteDatabase } from '~/sqlite-core/index.ts';
 import type { SQLiteSession } from '~/sqlite-core/session.ts';
 import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResult } from './utils.ts';
 
