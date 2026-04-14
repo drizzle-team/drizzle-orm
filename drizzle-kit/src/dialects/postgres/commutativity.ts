@@ -382,6 +382,8 @@ function extractStatementInfo(statement: JsonStatement): {
 
 		// Index operations
 		case 'create_index':
+			schema = statement.index.schema;
+			objectName = statement.index.name;
 			break;
 		case 'drop_index':
 			schema = statement.index.schema;
