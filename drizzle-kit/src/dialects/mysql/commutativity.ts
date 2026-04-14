@@ -144,7 +144,7 @@ function extractStatementInfo(statement: JsonStatement): {
 		case 'create_index':
 		case 'drop_index':
 			objectName = statement.index.table;
-			// columnName = statement.index.name;
+			columnName = statement.index.name;
 			break;
 
 		// Primary key operations

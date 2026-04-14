@@ -779,4 +779,139 @@ describe('commutativity integration (mysql)', () => {
 		const report = await detectNonCommutative(files, 'mysql');
 		expect(report.conflicts.length).toBeGreaterThan(0);
 	});
+
+	test('no conflict when branches create indexes on different tables', async () => {
+		const { tmp } = mkTmp();
+		const files: string[] = [];
+
+		const parent = createDDL();
+		parent.tables.push({ name: 'orders' });
+		parent.tables.push({ name: 'invoices' });
+		const p = makeSnapshot('p_idx', [ORIGIN], parent.entities.list());
+
+		const a = createDDL();
+		a.tables.push({ name: 'orders' });
+		a.tables.push({ name: 'invoices' });
+		a.indexes.push({
+			table: 'orders',
+			name: 'idx_orders_customer',
+			nameExplicit: true,
+			columns: [{ value: 'customer_id', isExpression: false }],
+			isUnique: false,
+			using: null,
+			algorithm: null,
+			lock: null,
+		} as any);
+
+		const b = createDDL();
+		b.tables.push({ name: 'orders' });
+		b.tables.push({ name: 'invoices' });
+		b.indexes.push({
+			table: 'invoices',
+			name: 'idx_invoices_date',
+			nameExplicit: true,
+			columns: [{ value: 'invoice_date', isExpression: false }],
+			isUnique: false,
+			using: null,
+			algorithm: null,
+			lock: null,
+		} as any);
+
+		files.push(
+			writeTempSnapshot(tmp, '200_p_idx', p),
+			writeTempSnapshot(tmp, '201_a_idx', makeSnapshot('a_idx', ['p_idx'], a.entities.list())),
+			writeTempSnapshot(tmp, '202_b_idx', makeSnapshot('b_idx', ['p_idx'], b.entities.list())),
+		);
+
+		const report = await detectNonCommutative(files, 'mysql');
+		expect(report.conflicts.length).toBe(0);
+	});
+
+	test('no conflict when branches create different indexes on same table', async () => {
+		const { tmp } = mkTmp();
+		const files: string[] = [];
+
+		const parent = createDDL();
+		parent.tables.push({ name: 'orders' });
+		const p = makeSnapshot('p_idx2', [ORIGIN], parent.entities.list());
+
+		const a = createDDL();
+		a.tables.push({ name: 'orders' });
+		a.indexes.push({
+			table: 'orders',
+			name: 'idx_orders_customer',
+			nameExplicit: true,
+			columns: [{ value: 'customer_id', isExpression: false }],
+			isUnique: false,
+			using: null,
+			algorithm: null,
+			lock: null,
+		} as any);
+
+		const b = createDDL();
+		b.tables.push({ name: 'orders' });
+		b.indexes.push({
+			table: 'orders',
+			name: 'idx_orders_date',
+			nameExplicit: true,
+			columns: [{ value: 'order_date', isExpression: false }],
+			isUnique: false,
+			using: null,
+			algorithm: null,
+			lock: null,
+		} as any);
+
+		files.push(
+			writeTempSnapshot(tmp, '210_p_idx2', p),
+			writeTempSnapshot(tmp, '211_a_idx2', makeSnapshot('a_idx2', ['p_idx2'], a.entities.list())),
+			writeTempSnapshot(tmp, '212_b_idx2', makeSnapshot('b_idx2', ['p_idx2'], b.entities.list())),
+		);
+
+		const report = await detectNonCommutative(files, 'mysql');
+		expect(report.conflicts.length).toBe(0);
+	});
+
+	test('conflict when branches create same-named index', async () => {
+		const { tmp } = mkTmp();
+		const files: string[] = [];
+
+		const parent = createDDL();
+		parent.tables.push({ name: 'orders' });
+		const p = makeSnapshot('p_idx3', [ORIGIN], parent.entities.list());
+
+		const a = createDDL();
+		a.tables.push({ name: 'orders' });
+		a.indexes.push({
+			table: 'orders',
+			name: 'idx_orders_status',
+			nameExplicit: true,
+			columns: [{ value: 'status', isExpression: false }],
+			isUnique: false,
+			using: null,
+			algorithm: null,
+			lock: null,
+		} as any);
+
+		const b = createDDL();
+		b.tables.push({ name: 'orders' });
+		b.indexes.push({
+			table: 'orders',
+			name: 'idx_orders_status',
+			nameExplicit: true,
+			columns: [{ value: 'status', isExpression: false }],
+			isUnique: false,
+			using: null,
+			algorithm: null,
+			lock: null,
+		} as any);
+
+		files.push(
+			writeTempSnapshot(tmp, '220_p_idx3', p),
+			writeTempSnapshot(tmp, '221_a_idx3', makeSnapshot('a_idx3', ['p_idx3'], a.entities.list())),
+			writeTempSnapshot(tmp, '222_b_idx3', makeSnapshot('b_idx3', ['p_idx3'], b.entities.list())),
+		);
+
+		const report = await detectNonCommutative(files, 'mysql');
+		expect(report.conflicts.length).toBeGreaterThan(0);
+	});
 });
