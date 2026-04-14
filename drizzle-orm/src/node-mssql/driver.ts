@@ -54,7 +54,7 @@ function construct<
 ): NodeMsSqlDatabase<TSchema> & {
 	$client: Equal<TClient, NodeMsSqlClient> extends true ? AutoPool : TClient;
 } {
-	const dialect = new MsSqlDialect({ casing: config.casing });
+	const dialect = new MsSqlDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

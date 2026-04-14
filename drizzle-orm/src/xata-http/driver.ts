@@ -254,7 +254,6 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	$client: XataHttpClient;
 } {
 	const dialect = new PgDialect({
-		casing: config.casing,
 		useJitMappers: config.useJitMappers,
 		codecs: config.codecs ?? xataHttpCodecs,
 	});

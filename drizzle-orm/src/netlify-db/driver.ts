@@ -93,7 +93,6 @@ function construct<
 	$client: NetlifyDbClient;
 } {
 	const dialect = new PgDialect({
-		casing: config.casing,
 		codecs: config.codecs ?? netlifyDbCodecs,
 		useJitMappers: config.useJitMappers,
 	});
@@ -109,7 +108,6 @@ function construct<
 	const session = new NetlifyDbSession(httpClient, pool, dialect, relations ?? {}, {
 		logger: logger,
 		cache: config.cache,
-		casing: config.casing,
 		transactionCodecs: config.transactionCodecs ?? netlifyDbTransactionCodecs,
 	});
 

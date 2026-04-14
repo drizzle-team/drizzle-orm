@@ -27,7 +27,7 @@ function construct<
 ): BunSQLiteDatabase<TSchema, TRelations> & {
 	$client: SQL;
 } {
-	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
+	const dialect = new SQLiteAsyncDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

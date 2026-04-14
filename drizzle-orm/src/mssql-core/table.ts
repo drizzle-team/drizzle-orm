@@ -1,3 +1,4 @@
+import { type Casing, getCasingFn } from '~/casing.ts';
 import type { BuildColumns, BuildExtraConfigColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import {
@@ -73,6 +74,7 @@ export function mssqlTableWithSchema<
 		) => MsSqlTableExtraConfig | MsSqlTableExtraConfigValue[])
 		| undefined,
 	schema: TSchemaName,
+	casing: Casing | undefined,
 	baseName = name,
 ): MsSqlTableWithColumns<{
 	name: TTableName;
@@ -80,6 +82,7 @@ export function mssqlTableWithSchema<
 	columns: BuildColumns<TTableName, TColumnsMap, 'mssql'>;
 	dialect: 'mssql';
 }> {
+	const casingFn = getCasingFn(casing);
 	const rawTable = new MsSqlTable<{
 		name: TTableName;
 		schema: TSchemaName;
@@ -92,7 +95,7 @@ export function mssqlTableWithSchema<
 	const builtColumns = Object.fromEntries(
 		Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
 			const colBuilder = colBuilderBase as MsSqlColumnBuilder;
-			colBuilder.setName(name);
+			colBuilder.setName(name, casingFn);
 			const column = colBuilder.build(rawTable).postBuild();
 			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
@@ -147,12 +150,19 @@ export interface MsSqlTableFn<TSchema extends string | undefined = undefined> {
 	}>;
 }
 
-export const mssqlTable: MsSqlTableFn = (name, columns, extraConfig) => {
-	return mssqlTableWithSchema(name, columns, extraConfig, undefined, name);
-};
-
-export function mssqlTableCreator(customizeTableName: (name: string) => string): MsSqlTableFn {
+export function mssqlTableWithCasing(casing: Casing | undefined): MsSqlTableFn {
 	return (name, columns, extraConfig) => {
-		return mssqlTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig, undefined, name);
+		return mssqlTableWithSchema(name, columns, extraConfig, undefined, casing, name);
+	};
+}
+
+export const mssqlTable = mssqlTableWithCasing(undefined);
+
+export function mssqlTableCreator(
+	customizeTableName: (name: string) => string,
+	casing?: Casing | undefined,
+): MsSqlTableFn {
+	return (name, columns, extraConfig) => {
+		return mssqlTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig, undefined, casing, name);
 	};
 }

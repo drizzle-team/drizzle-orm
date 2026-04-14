@@ -1,3 +1,4 @@
+import { type Casing, getCasingFn } from '~/casing.ts';
 import type { BuildColumns, BuildExtraConfigColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import {
@@ -87,6 +88,7 @@ export function gelTableWithSchema<
 		) => GelTableExtraConfig | GelTableExtraConfigValue[])
 		| undefined,
 	schema: TSchemaName,
+	casing: Casing | undefined,
 	baseName = name,
 ): GelTableWithColumns<{
 	name: TTableName;
@@ -94,6 +96,7 @@ export function gelTableWithSchema<
 	columns: BuildColumns<TTableName, TColumnsMap, 'gel'>;
 	dialect: 'gel';
 }> {
+	const casingFn = getCasingFn(casing);
 	const rawTable = new GelTable<{
 		name: TTableName;
 		schema: TSchemaName;
@@ -106,7 +109,7 @@ export function gelTableWithSchema<
 	const builtColumns = Object.fromEntries(
 		Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
 			const colBuilder = colBuilderBase as GelColumnBuilder;
-			colBuilder.setName(name);
+			colBuilder.setName(name, casingFn);
 			const column = colBuilder.build(rawTable).postBuild();
 			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
@@ -116,7 +119,7 @@ export function gelTableWithSchema<
 	const builtColumnsForExtraConfig = Object.fromEntries(
 		Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
 			const colBuilder = colBuilderBase as GelColumnBuilder;
-			colBuilder.setName(name);
+			colBuilder.setName(name, casingFn);
 			const column = colBuilder.buildExtraConfigColumn(rawTable);
 			return [name, column];
 		}),
@@ -250,12 +253,15 @@ export interface GelTableFn<TSchema extends string | undefined = undefined> {
 	}>;
 }
 
-export const gelTable: GelTableFn = (name, columns, extraConfig) => {
-	return gelTableWithSchema(name, columns, extraConfig, undefined);
-};
+/** @internal */
+export function gelTableWithCasing(casing: Casing | undefined): GelTableFn {
+	return (name, columns, extraConfig) => gelTableWithSchema(name, columns, extraConfig, undefined, casing);
+}
 
-export function gelTableCreator(customizeTableName: (name: string) => string): GelTableFn {
+export const gelTable = gelTableWithCasing(undefined);
+
+export function gelTableCreator(customizeTableName: (name: string) => string, casing?: Casing | undefined): GelTableFn {
 	return (name, columns, extraConfig) => {
-		return gelTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig, undefined, name);
+		return gelTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig, undefined, casing, name);
 	};
 }

@@ -216,7 +216,7 @@ export class GelExtraConfigColumn<
 export class IndexedColumn {
 	static readonly [entityKind]: string = 'IndexedColumn';
 	constructor(
-		name: string | undefined,
+		name: string,
 		keyAsName: boolean,
 		type: string,
 		indexConfig: IndexedExtraConfigType,

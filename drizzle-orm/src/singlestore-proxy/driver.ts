@@ -36,7 +36,7 @@ export function drizzle<
 	callback: RemoteCallback,
 	config: DrizzleConfig<TSchema, TRelations> = {},
 ): SingleStoreRemoteDatabase<TSchema, TRelations> {
-	const dialect = new SingleStoreDialect({ casing: config.casing });
+	const dialect = new SingleStoreDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

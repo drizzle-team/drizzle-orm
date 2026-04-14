@@ -1,6 +1,5 @@
 import { IsAlias, OriginalName, Table, TableColumns, TableSchema } from '~/table.ts';
 import { aliasedTable } from './alias.ts';
-import type { CasingCache } from './casing.ts';
 import type { NormalizeArrayCodec, NormalizeCodec } from './codecs.ts';
 import { type AnyColumn, Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
@@ -1545,7 +1544,6 @@ export function relationsFilterToSQL(
 	filter: AnyRelationsFilter | AnyTableFilter,
 	tableRelations: RelationsRecord,
 	tablesRelations: TablesRelationalConfig,
-	casing: CasingCache,
 	depth?: number,
 ): SQL | undefined;
 export function relationsFilterToSQL(
@@ -1553,7 +1551,6 @@ export function relationsFilterToSQL(
 	filter: AnyRelationsFilter | AnyTableFilter,
 	tableRelations: RelationsRecord = {},
 	tablesRelations: TablesRelationalConfig = {},
-	casing?: CasingCache,
 	depth: number = 0,
 ): SQL | undefined {
 	const entries = Object.entries(filter);
@@ -1579,7 +1576,7 @@ export function relationsFilterToSQL(
 				parts.push(
 					or(
 						...(value as AnyRelationsFilter[]).map((subFilter) =>
-							relationsFilterToSQL(table, subFilter, tableRelations, tablesRelations, casing!, depth)
+							relationsFilterToSQL(table, subFilter, tableRelations, tablesRelations, depth)
 						),
 					)!,
 				);
@@ -1592,7 +1589,7 @@ export function relationsFilterToSQL(
 				parts.push(
 					and(
 						...(value as AnyRelationsFilter[]).map((subFilter) =>
-							relationsFilterToSQL(table, subFilter, tableRelations, tablesRelations, casing!, depth)
+							relationsFilterToSQL(table, subFilter, tableRelations, tablesRelations, depth)
 						),
 					)!,
 				);
@@ -1607,7 +1604,6 @@ export function relationsFilterToSQL(
 					value as AnyRelationsFilter,
 					tableRelations,
 					tablesRelations,
-					casing!,
 					depth,
 				);
 				if (!built) continue;
@@ -1644,13 +1640,12 @@ export function relationsFilterToSQL(
 				const {
 					filter: relationFilter,
 					joinCondition,
-				} = relationToSQL(casing!, relation, table, targetTable, throughTable);
+				} = relationToSQL(relation, table, targetTable, throughTable);
 				const subfilter = typeof value === 'boolean' ? undefined : relationsFilterToSQL(
 					targetTable,
 					value as AnyRelationsFilter,
 					targetConfig.relations,
 					tablesRelations,
-					casing!,
 					depth + 1,
 				);
 				const filter = and(
@@ -1734,7 +1729,6 @@ export interface BuiltRelationFilters {
 }
 
 export function relationToSQL(
-	casing: CasingCache,
 	relation: Relation,
 	sourceTable: SchemaEntry,
 	targetTable: SchemaEntry,
@@ -1745,8 +1739,8 @@ export function relationToSQL(
 			const t = relation.through!.source[i]!;
 
 			return eq(
-				sql`${sourceTable}.${sql.identifier(casing.getColumnCasing(s))}`,
-				sql`${throughTable!}.${sql.identifier(is(t._.column, Column) ? casing.getColumnCasing(t._.column) : t._.key)}`,
+				sql`${sourceTable}.${sql.identifier(s.name)}`,
+				sql`${throughTable!}.${sql.identifier(is(t._.column, Column) ? t._.column.name : t._.key)}`,
 			);
 		});
 
@@ -1754,8 +1748,8 @@ export function relationToSQL(
 			const t = relation.through!.target[i]!;
 
 			return eq(
-				sql`${throughTable!}.${sql.identifier(is(t._.column, Column) ? casing.getColumnCasing(t._.column) : t._.key)}`,
-				sql`${targetTable}.${sql.identifier(casing.getColumnCasing(s))}`,
+				sql`${throughTable!}.${sql.identifier(is(t._.column, Column) ? t._.column.name : t._.key)}`,
+				sql`${targetTable}.${sql.identifier(s.name)}`,
 			);
 		});
 
@@ -1774,8 +1768,8 @@ export function relationToSQL(
 		const t = relation.targetColumns[i]!;
 
 		return eq(
-			sql`${sourceTable}.${sql.identifier(casing.getColumnCasing(s))}`,
-			sql`${targetTable}.${sql.identifier(casing.getColumnCasing(t))}`,
+			sql`${sourceTable}.${sql.identifier(s.name)}`,
+			sql`${targetTable}.${sql.identifier(t.name)}`,
 		);
 	});
 

@@ -54,7 +54,7 @@ function construct<
 ): SQLiteBunDatabase<TSchema, TRelations> & {
 	$client: Database;
 } {
-	const dialect = new SQLiteSyncDialect({ casing: config.casing });
+	const dialect = new SQLiteSyncDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
