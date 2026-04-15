@@ -49,7 +49,6 @@ function construct<
 	const relations = config.relations ?? {} as TRelations;
 	const session = new NeonSession(client, dialect, relations, {
 		logger,
-		useJitMapper: config.useJitMappers ?? false,
 		cache: config.cache,
 	});
 	const db = new NeonDatabase(dialect, session, relations) as NeonDatabase<TRelations>;

@@ -32,7 +32,7 @@ export class PgHalfVector extends PgColumn<'array halfvector'> {
 	static override readonly [entityKind]: string = 'PgHalfVector';
 
 	/** @internal */
-	override readonly useCodecType = 'halfvec';
+	override readonly codec = 'halfvec';
 
 	getSQLType(): string {
 		return `halfvec(${this.length})`;

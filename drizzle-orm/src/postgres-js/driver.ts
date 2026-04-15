@@ -286,7 +286,6 @@ function construct<
 	const session = new PostgresJsSession(client, dialect, relations, {
 		logger,
 		cache: config.cache,
-		useJitMapper: config.useJitMappers,
 	});
 	const db = new PostgresJsDatabase(dialect, session, relations);
 	(<any> db).$client = client;

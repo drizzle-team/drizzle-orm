@@ -42,7 +42,7 @@ export class PgEnumObjectColumn<TValues extends object> extends PgColumn<'string
 	static override readonly [entityKind]: string = 'PgEnumObjectColumn';
 
 	/** @internal */
-	override readonly useCodecType = 'enum';
+	override readonly codec = 'enum';
 
 	readonly enum: PgEnumObject<TValues>;
 	override readonly enumValues: string[];
@@ -106,7 +106,7 @@ export class PgEnumColumn<TValues extends [string, ...string[]]> extends PgColum
 	static override readonly [entityKind]: string = 'PgEnumColumn';
 
 	/** @internal */
-	override readonly useCodecType = 'enum';
+	override readonly codec = 'enum';
 
 	readonly enum: PgEnum<TValues>;
 	override readonly enumValues: TValues;

@@ -23,7 +23,7 @@ export class PgJsonb extends PgColumn<'object json'> {
 	static override readonly [entityKind]: string = 'PgJsonb';
 
 	/** @internal */
-	override readonly useCodecType = 'jsonb';
+	override readonly codec = 'jsonb';
 
 	constructor(table: PgTable<any>, config: PgJsonbBuilder['config']) {
 		super(table, config);

@@ -55,7 +55,7 @@ export abstract class Column<
 	declare readonly _: T;
 
 	/** @internal */
-	readonly useCodecType?: string;
+	readonly codec?: string;
 
 	readonly name: string;
 	readonly keyAsName: boolean;
@@ -120,7 +120,8 @@ export abstract class Column<
 
 	mapToDriverValue = noop;
 
-	/** @internal  */
+	// TODO: Revisit
+	/** @internal */
 	postBuild() {
 		return this;
 	}

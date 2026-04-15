@@ -32,7 +32,7 @@ export class PgGeometry
 	static override readonly [entityKind]: string = 'PgGeometry';
 
 	/** @internal */
-	override readonly useCodecType = 'geometry';
+	override readonly codec = 'geometry';
 
 	readonly srid = this.config.srid;
 	readonly mode = 'tuple';
@@ -77,7 +77,7 @@ export class PgGeometryObject
 	static override readonly [entityKind]: string = 'PgGeometryObject';
 
 	/** @internal */
-	override readonly useCodecType = 'geometry';
+	override readonly codec = 'geometry';
 
 	readonly srid = this.config.srid;
 	readonly mode = 'object';

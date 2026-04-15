@@ -34,7 +34,7 @@ export class PgVarchar<TEnum extends [string, ...string[]] = [string, ...string[
 	static override readonly [entityKind]: string = 'PgVarchar';
 
 	/** @internal */
-	override readonly useCodecType = 'varchar';
+	override readonly codec = 'varchar';
 
 	override readonly enumValues: TEnum;
 

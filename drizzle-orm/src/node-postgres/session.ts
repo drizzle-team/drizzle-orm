@@ -41,7 +41,6 @@ const typeConfig: CustomTypesConfig = {
 export interface NodePgSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
-	useJitMapper?: boolean;
 }
 
 export class NodePgSession<

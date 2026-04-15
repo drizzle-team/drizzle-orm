@@ -24,7 +24,7 @@ export class PgInteger extends PgColumn<'number int32'> {
 	static override readonly [entityKind]: string = 'PgInteger';
 
 	/** @internal */
-	override readonly useCodecType = 'int';
+	override readonly codec = 'int';
 
 	getSQLType(): string {
 		return 'integer';

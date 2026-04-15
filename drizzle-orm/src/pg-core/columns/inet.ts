@@ -23,7 +23,7 @@ export class PgInet extends PgColumn<'string inet'> {
 	static override readonly [entityKind]: string = 'PgInet';
 
 	/** @internal */
-	override readonly useCodecType = 'inet';
+	override readonly codec = 'inet';
 
 	getSQLType(): string {
 		return 'inet';

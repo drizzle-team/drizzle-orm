@@ -15,7 +15,6 @@ import type { Query } from '~/sql/sql.ts';
 export interface BunSQLSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
-	useJitMapper?: boolean;
 }
 
 export class BunSQLSession<

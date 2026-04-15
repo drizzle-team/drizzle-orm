@@ -833,8 +833,8 @@ importers:
   typeperf-test:
     dependencies:
       drizzle-beta:
-        specifier: npm:drizzle-orm@1.0.0-beta.8-734e789
-        version: drizzle-orm@1.0.0-beta.8-734e789(12f1be6440688b484116c0e598ccec00)
+        specifier: npm:drizzle-orm@1.0.0-beta.21
+        version: drizzle-orm@1.0.0-beta.21(b74699b8b3170d089da6bde4f8c204ac)
       drizzle-seed:
         specifier: workspace:../drizzle-seed/dist
         version: link:../drizzle-seed/dist
@@ -851,6 +851,9 @@ importers:
       '@ark/attest':
         specifier: ^0.56.0
         version: 0.56.0(typescript@5.9.2)
+      tslatest:
+        specifier: npm:typescript@^6.0.2
+        version: typescript@6.0.2
       tsx:
         specifier: ^4.19.0
         version: 4.20.6
@@ -4995,11 +4998,13 @@ packages:
       sqlite3:
         optional: true
 
-  drizzle-orm@1.0.0-beta.8-734e789:
-    resolution: {integrity: sha512-5WZVn/bVFCDrmFkaMUpsBE0Xqje+86uTjba7CuKFpjn6MtAr0jBzhN/KBboien8mEWzBVKGJCpMnJ8QapGDtZQ==}
+  drizzle-orm@1.0.0-beta.21:
+    resolution: {integrity: sha512-HZcIbVn5J9T/Z91Wj12Pn7Pi8/1aykS/GPJf2lXeZnEuPjxaBfQ+YAt0Sl+XI+9R/D1BpK+2fdIqbpuaTbcvqA==}
     peerDependencies:
       '@aws-sdk/client-rds-data': '>=3'
       '@cloudflare/workers-types': '>=4'
+      '@effect/sql': ^0.48.5
+      '@effect/sql-pg': ^0.49.7
       '@electric-sql/pglite': '>=0.2.0'
       '@libsql/client': '>=0.10.0'
       '@libsql/client-wasm': '>=0.10.0'
@@ -5007,7 +5012,7 @@ packages:
       '@op-engineering/op-sqlite': '>=2'
       '@opentelemetry/api': ^1.4.1
       '@planetscale/database': '>=1.13'
-      '@prisma/client': '*'
+      '@sinclair/typebox': '>=0.34.8'
       '@sqlitecloud/drivers': '>=1.0.653'
       '@tidbcloud/serverless': '*'
       '@tursodatabase/database': '>=0.2.1'
@@ -5020,6 +5025,7 @@ packages:
       '@upstash/redis': '>=1.34.7'
       '@vercel/postgres': '>=0.8.0'
       '@xata.io/client': '*'
+      arktype: '>=2.0.0'
       better-sqlite3: '>=9.3.0'
       bun-types: '*'
       expo-sqlite: '>=14.0.0'
@@ -5028,13 +5034,19 @@ packages:
       mysql2: '>=2'
       pg: '>=8'
       postgres: '>=3'
-      prisma: '*'
       sql.js: '>=1'
       sqlite3: '>=5'
+      typebox: '>=1.0.0'
+      valibot: '>=1.0.0-beta.7'
+      zod: ^3.25.0 || ^4.0.0
     peerDependenciesMeta:
       '@aws-sdk/client-rds-data':
         optional: true
       '@cloudflare/workers-types':
+        optional: true
+      '@effect/sql':
+        optional: true
+      '@effect/sql-pg':
         optional: true
       '@electric-sql/pglite':
         optional: true
@@ -5050,7 +5062,7 @@ packages:
         optional: true
       '@planetscale/database':
         optional: true
-      '@prisma/client':
+      '@sinclair/typebox':
         optional: true
       '@sqlitecloud/drivers':
         optional: true
@@ -5074,6 +5086,8 @@ packages:
         optional: true
       '@xata.io/client':
         optional: true
+      arktype:
+        optional: true
       better-sqlite3:
         optional: true
       bun-types:
@@ -5088,11 +5102,15 @@ packages:
         optional: true
       postgres:
         optional: true
-      prisma:
-        optional: true
       sql.js:
         optional: true
       sqlite3:
+        optional: true
+      typebox:
+        optional: true
+      valibot:
+        optional: true
+      zod:
         optional: true
 
   drizzle-prisma-generator@0.1.7:
@@ -7416,6 +7434,7 @@ packages:
   prebuild-install@7.1.3:
     resolution: {integrity: sha512-8Mf2cbV7x1cXPUILADGI3wuhfqWvtiLA1iclTDbFRZkgRQS0NqsPZphna9V+HyTEadheuPmjaJMsbzKQFOzLug==}
     engines: {node: '>=10'}
+    deprecated: No longer maintained. Please contact the author of the relevant native addon; alternatives are available.
     hasBin: true
 
   prelude-ls@1.2.1:
@@ -8462,6 +8481,11 @@ packages:
 
   typescript@5.9.3:
     resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
+
+  typescript@6.0.2:
+    resolution: {integrity: sha512-bGdAIrZ0wiGDo5l8c++HWtbaNCWTS4UTv7RaTH/ThVIgjkveJt83m74bBHMJkuCbslY8ixgLBVZJIOiQlQTjfQ==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -13967,13 +13991,15 @@ snapshots:
       sql.js: 1.13.0
       sqlite3: 5.1.7
 
-  drizzle-orm@1.0.0-beta.8-734e789(12f1be6440688b484116c0e598ccec00):
+  drizzle-orm@1.0.0-beta.21(b74699b8b3170d089da6bde4f8c204ac):
     dependencies:
       '@types/mssql': 9.1.8
       mssql: 12.1.1
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.940.0
       '@cloudflare/workers-types': 4.20251126.0
+      '@effect/sql': 0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@3.19.8))(effect@3.19.8))(@effect/platform@0.93.5(effect@3.19.8))(effect@3.19.8)
+      '@effect/sql-pg': 0.49.7(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@3.19.8))(effect@3.19.8))(@effect/platform@0.93.5(effect@3.19.8))(@effect/sql@0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@3.19.8))(effect@3.19.8))(@effect/platform@0.93.5(effect@3.19.8))(effect@3.19.8))(effect@3.19.8)
       '@electric-sql/pglite': 0.2.12
       '@libsql/client': 0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       '@libsql/client-wasm': 0.10.0
@@ -13981,7 +14007,7 @@ snapshots:
       '@op-engineering/op-sqlite': 2.0.22(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
       '@opentelemetry/api': 1.9.0
       '@planetscale/database': 1.19.0
-      '@prisma/client': 5.14.0(prisma@5.14.0)
+      '@sinclair/typebox': 0.34.48
       '@sqlitecloud/drivers': 1.0.653(@craftzdog/react-native-buffer@6.1.1(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(bufferutil@4.0.8)(react-native-quick-base64@2.2.2(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(react-native-tcp-socket@6.3.0(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)))(react-native-url-polyfill@3.0.0(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)))(utf-8-validate@6.0.3)
       '@tidbcloud/serverless': 0.1.1
       '@tursodatabase/database': 0.2.1
@@ -13993,6 +14019,7 @@ snapshots:
       '@upstash/redis': 1.35.7
       '@vercel/postgres': 0.8.0
       '@xata.io/client': 0.29.5(typescript@5.9.2)
+      arktype: 2.2.0
       better-sqlite3: 11.10.0
       bun-types: 1.3.3
       expo-sqlite: 14.0.6(expo@54.0.25(@babel/core@7.28.5)(bufferutil@4.0.8)(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))
@@ -14000,9 +14027,11 @@ snapshots:
       mysql2: 3.14.1
       pg: 8.16.3
       postgres: 3.4.7
-      prisma: 5.14.0
       sql.js: 1.13.0
       sqlite3: 5.1.7
+      typebox: 1.1.6
+      valibot: 1.0.0-beta.7(typescript@5.9.2)
+      zod: 4.3.4
 
   drizzle-prisma-generator@0.1.7:
     dependencies:
@@ -17975,6 +18004,8 @@ snapshots:
   typescript@5.9.2: {}
 
   typescript@5.9.3: {}
+
+  typescript@6.0.2: {}
 
   ufo@1.6.1: {}
 

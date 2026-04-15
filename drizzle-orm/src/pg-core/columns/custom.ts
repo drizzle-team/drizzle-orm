@@ -52,7 +52,7 @@ export class PgCustomColumn<T extends ColumnBuilderBaseConfig<'custom'>> extends
 	static override readonly [entityKind]: string = 'PgCustomColumn';
 
 	/** @internal */
-	override readonly useCodecType: PostgresType;
+	override readonly codec: PostgresType;
 
 	private sqlName: string;
 	readonly mapFromJsonValue?: (value: unknown) => T['data'];
@@ -68,7 +68,7 @@ export class PgCustomColumn<T extends ColumnBuilderBaseConfig<'custom'>> extends
 		this.mapFromDriverValue = config.customTypeParams.fromDriver ?? this.mapFromDriverValue;
 		this.mapFromJsonValue = config.customTypeParams.fromJson;
 		this.jsonSelectIdentifier = config.customTypeParams.forJsonSelect;
-		this.useCodecType = resolvePgType(
+		this.codec = resolvePgType(
 			config.customTypeParams.codec
 				?? this.sqlName.slice(
 					0,

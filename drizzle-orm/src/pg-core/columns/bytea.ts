@@ -23,7 +23,7 @@ export class PgBytea extends PgColumn<'object buffer'> {
 	static override readonly [entityKind]: string = 'PgBytea';
 
 	/** @internal */
-	override readonly useCodecType = 'bytea';
+	override readonly codec = 'bytea';
 
 	getSQLType(): string {
 		return 'bytea';

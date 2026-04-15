@@ -45,7 +45,6 @@ const typeConfig: CustomTypesConfig = {
 export interface NeonSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
-	useJitMapper?: boolean;
 }
 
 export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession<NeonQueryResultHKT, TRelations> {

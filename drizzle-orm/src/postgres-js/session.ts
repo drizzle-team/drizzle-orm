@@ -15,7 +15,6 @@ import type { Assume } from '~/utils.ts';
 export interface PostgresJsSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
-	useJitMapper?: boolean;
 }
 
 export class PostgresJsSession<TSQL extends Sql, TRelations extends AnyRelations>

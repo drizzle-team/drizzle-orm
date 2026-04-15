@@ -1,7 +1,5 @@
 import pg, { type Pool, type PoolConfig } from 'pg';
-import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
-import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import { refineGenericPgCodecs } from '~/pg-core/codecs.ts';
@@ -10,12 +8,6 @@ import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { NodePgClient, NodePgQueryResultHKT } from './session.ts';
 import { NodePgSession } from './session.ts';
-
-export interface PgDriverOptions {
-	logger?: Logger;
-	cache?: Cache;
-	useJitMapper?: boolean;
-}
 
 export class NodePgDatabase<
 	TRelations extends AnyRelations = EmptyRelations,
@@ -50,7 +42,6 @@ function construct<
 	const session = new NodePgSession(client, dialect, relations, {
 		logger,
 		cache: config.cache,
-		useJitMapper: config.useJitMappers,
 	});
 
 	const db = new NodePgDatabase(

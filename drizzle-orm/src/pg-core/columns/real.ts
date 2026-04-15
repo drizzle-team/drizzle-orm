@@ -27,7 +27,7 @@ export class PgReal extends PgColumn<'number float'> {
 	static override readonly [entityKind]: string = 'PgReal';
 
 	/** @internal */
-	override readonly useCodecType = 'float4';
+	override readonly codec = 'float4';
 
 	constructor(table: PgTable<any>, config: PgRealBuilder['config']) {
 		super(table, config);
