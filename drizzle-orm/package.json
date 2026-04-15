@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm",
-	"version": "1.0.0-beta.20",
+	"version": "1.0.0-beta.22",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
@@ -87,6 +87,12 @@
 		"zod": "^3.25.0 || ^4.0.0"
 	},
 	"peerDependenciesMeta": {
+		"@types/mssql": {
+			"optional": true
+		},
+		"mssql": {
+			"optional": true
+		},
 		"arktype": {
 			"optional": true
 		},

@@ -1,19 +1,7 @@
 import type { MigrationMeta } from '~/migrator.ts';
 import type { MsSqlSession } from '~/mssql-core/session.ts';
 import { sql } from '~/sql/sql.ts';
-
-const CURRENT_MIGRATION_TABLE_VERSION = 1;
-
-interface UpgradeResult {
-	newDb?: boolean;
-	prevVersion?: number;
-	currentVersion?: number;
-}
-
-function getVersion(columns: string[]) {
-	if (columns.includes('name')) return 1;
-	return 0;
-}
+import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResult } from './utils.ts';
 
 /**
  * Map of upgrade functions. Each key is the version being upgraded FROM,
@@ -147,9 +135,9 @@ export async function upgradeIfNeeded(
 		ORDER BY ORDINAL_POSITION`,
 	);
 
-	const version = getVersion(rows.recordset.map((r) => r.column_name));
+	const version = GET_VERSION_FOR.mssql(rows.recordset.map((r) => r.column_name));
 
-	for (let v = version; v < CURRENT_MIGRATION_TABLE_VERSION; v++) {
+	for (let v = version; v < MIGRATIONS_TABLE_VERSIONS.mssql; v++) {
 		const upgradeFn = upgradeFunctions[v];
 		if (!upgradeFn) {
 			throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
@@ -157,5 +145,5 @@ export async function upgradeIfNeeded(
 		await upgradeFn(migrationsSchema, migrationsTable, session, localMigrations);
 	}
 
-	return { prevVersion: version, currentVersion: CURRENT_MIGRATION_TABLE_VERSION };
+	return { newDb: false };
 }

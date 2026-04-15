@@ -545,11 +545,47 @@ export function generateLatestSnapshot(
 					},
 				});
 				break;
-			case 'alter_enum':
-				replace(ddl.enums, statement.from, statement.to);
+			case 'alter_enum': {
+				// When merging commutative branches, multiple alter_enum statements
+				// for the same enum may be applied sequentially. Each statement's
+				// `from`/`to` reflects the diff from the common parent, so the 2nd
+				// statement's `to` wouldn't include values added by the 1st branch.
+				// Instead of replacing the whole enum, we apply the diff incrementally:
+				// find the current enum by identity (name + schema) and merge in the
+				// added values from this statement's diff.
+				const identity = {
+					name: statement.from.name,
+					schema: statement.from.schema,
+				};
+				const existing = ddl.enums.one(identity);
+				if (!existing) {
+					push(ddl.enums, statement.to);
+					break;
+				}
+
+				const values = [...existing.values];
+				for (const d of statement.diff) {
+					if (d.type !== 'added' || values.includes(d.value)) continue;
+
+					const insertAt = d.beforeValue !== undefined ? values.indexOf(d.beforeValue) : -1;
+					if (insertAt !== -1) {
+						values.splice(insertAt, 0, d.value);
+					} else {
+						values.push(d.value);
+					}
+				}
+				ddl.enums.update({ where: identity, set: { values } });
 				break;
+			}
 			case 'recreate_enum':
-				replace(ddl.enums, statement.from, statement.to);
+				// recreate_enum is used when values are removed, which requires a full
+				// replacement. Delete by identity to handle the case where a prior
+				// commutative branch may have already modified the enum values.
+				ddl.enums.delete({
+					name: statement.from.name,
+					schema: statement.from.schema,
+				});
+				push(ddl.enums, statement.to);
 				break;
 			case 'alter_type_drop_value':
 				ddl.enums.update({
