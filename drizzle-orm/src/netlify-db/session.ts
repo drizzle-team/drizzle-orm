@@ -148,7 +148,7 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 		const poolClient = await this.pool.connect();
 		const dialect = new PgDialect({
 			casing: this.options.casing,
-			useJitMappers: this.options.useJitMapper,
+			useJitMappers: this.options.useJitMappers,
 			codecs: this.options.transactionCodecs,
 		});
 		const session = new NetlifyDbWsSession<TRelations>(

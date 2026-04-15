@@ -25,7 +25,7 @@ export class PgDate extends PgColumn<'object date'> {
 	static override readonly [entityKind]: string = 'PgDate';
 
 	/** @internal */
-	override readonly useCodecType = 'date';
+	override readonly codec = 'date';
 
 	getSQLType(): string {
 		return 'date';
@@ -65,7 +65,7 @@ export class PgDateString extends PgColumn<'string date'> {
 	static override readonly [entityKind]: string = 'PgDateString';
 
 	/** @internal */
-	override readonly useCodecType = 'date';
+	override readonly codec = 'date';
 
 	getSQLType(): string {
 		return 'date';

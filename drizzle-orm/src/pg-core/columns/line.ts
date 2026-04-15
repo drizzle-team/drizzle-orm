@@ -27,7 +27,7 @@ export class PgLineTuple extends PgColumn<'array line'> {
 	static override readonly [entityKind]: string = 'PgLine';
 
 	/** @internal */
-	override readonly useCodecType = 'line';
+	override readonly codec = 'line';
 
 	readonly mode = 'tuple';
 
@@ -69,7 +69,7 @@ export class PgLineABC extends PgColumn<'object line'> {
 	static override readonly [entityKind]: string = 'PgLineABC';
 
 	/** @internal */
-	override readonly useCodecType = 'line';
+	override readonly codec = 'line';
 
 	readonly mode = 'abc';
 

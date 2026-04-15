@@ -17,7 +17,6 @@ export type NeonHttpClient = NeonQueryFunction<any, any>;
 export interface NeonHttpSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
-	useJitMapper?: boolean;
 	authToken?: NeonAuthToken;
 }
 

@@ -34,7 +34,7 @@ export class PgText<TEnum extends [string, ...string[]] = [string, ...string[]]>
 	override readonly enumValues;
 
 	/** @internal */
-	override readonly useCodecType = 'text';
+	override readonly codec = 'text';
 
 	constructor(
 		table: PgTable<any>,

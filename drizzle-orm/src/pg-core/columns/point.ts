@@ -27,7 +27,7 @@ export class PgPointTuple extends PgColumn<'array point'> {
 	static override readonly [entityKind]: string = 'PgPointTuple';
 
 	/** @internal */
-	override readonly useCodecType = 'point';
+	override readonly codec = 'point';
 
 	readonly mode = 'tuple';
 
@@ -69,7 +69,7 @@ export class PgPointObject extends PgColumn<'object point'> {
 	static override readonly [entityKind]: string = 'PgPointObject';
 
 	/** @internal */
-	override readonly useCodecType = 'point';
+	override readonly codec = 'point';
 
 	readonly mode = 'xy';
 

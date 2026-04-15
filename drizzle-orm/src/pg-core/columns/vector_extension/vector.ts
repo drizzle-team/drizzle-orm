@@ -32,7 +32,7 @@ export class PgVector extends PgColumn<'array vector'> {
 	static override readonly [entityKind]: string = 'PgVector';
 
 	/** @internal */
-	override readonly useCodecType = 'vector';
+	override readonly codec = 'vector';
 
 	getSQLType(): string {
 		return `vector(${this.length})`;

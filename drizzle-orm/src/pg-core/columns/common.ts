@@ -415,7 +415,7 @@ export abstract class PgColumn<
 	static override readonly [entityKind]: string = 'PgColumn';
 
 	/** @internal */
-	abstract override readonly useCodecType?: PostgresType;
+	abstract override readonly codec?: PostgresType;
 
 	/** @internal */
 	override readonly table: PgTable;
@@ -470,7 +470,7 @@ export class ExtraConfigColumn<
 	static override readonly [entityKind]: string = 'ExtraConfigColumn';
 
 	/** @itnernal */
-	override readonly useCodecType = undefined;
+	override readonly codec = undefined;
 
 	override getSQLType(): string {
 		return this.getSQLType();

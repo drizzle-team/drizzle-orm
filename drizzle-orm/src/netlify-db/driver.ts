@@ -1,8 +1,6 @@
 import { type HTTPQueryOptions, neon, Pool, types } from '@neondatabase/serverless';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
-import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
-import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { NeonHttpClient, NeonHttpQueryResultHKT } from '~/neon-http/session.ts';
 import { drizzle as drizzleNodePg, type NodePgDatabase } from '~/node-postgres/driver.ts';
@@ -29,11 +27,6 @@ export interface ServerDrizzleClient {
 }
 
 export type DrizzleClient = ServerlessDrizzleClient | ServerDrizzleClient;
-
-export interface NetlifyDbDriverOptions {
-	logger?: Logger;
-	cache?: Cache;
-}
 
 export interface DrizzleNetlifyConfig<TRelations extends AnyRelations = EmptyRelations>
 	extends DrizzlePgConfig<TRelations>

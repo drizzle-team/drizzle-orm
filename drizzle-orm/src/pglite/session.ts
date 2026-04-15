@@ -34,7 +34,6 @@ const parsers: ParserOptions = {
 export interface PgliteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
-	useJitMapper?: boolean;
 }
 
 export class PgliteSession<TRelations extends AnyRelations> extends PgAsyncSession<PgliteQueryResultHKT, TRelations> {
