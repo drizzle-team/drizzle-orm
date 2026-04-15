@@ -284,7 +284,10 @@ export function inArray(
 ): SQL {
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
-			return sql`false`;
+			// Use `1=0` instead of the boolean literal `false` so dialects that
+			// don't have a native boolean type (e.g. SQL Server / T-SQL) still
+			// parse this correctly. See drizzle-team/drizzle-orm#5632.
+			return sql`1=0`;
 		}
 		return sql`${column} in ${values.map((v) => bindIfParam(v, column))}`;
 	}
@@ -325,7 +328,10 @@ export function notInArray(
 ): SQL {
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
-			return sql`true`;
+			// Use `1=1` instead of the boolean literal `true` so dialects that
+			// don't have a native boolean type (e.g. SQL Server / T-SQL) still
+			// parse this correctly. See drizzle-team/drizzle-orm#5632.
+			return sql`1=1`;
 		}
 		return sql`${column} not in ${values.map((v) => bindIfParam(v, column))}`;
 	}
