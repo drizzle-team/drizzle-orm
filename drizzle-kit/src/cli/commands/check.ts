@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { readFileSync } from 'fs';
-import type { MigrationNode, NonCommutativityReport, UnifiedBranchConflict } from 'src/utils/commutativity';
-import { detectNonCommutative } from 'src/utils/commutativity';
+import { getCommutativityDialect } from 'src/commutativity';
+import type { MigrationNode, NonCommutativityReport, UnifiedBranchConflict } from 'src/commutativity/types';
 import type { Dialect } from '../../utils/schemaValidator';
 import { prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
 import { info } from '../views';
@@ -198,7 +198,12 @@ export const checkHandler = async (
 	}
 
 	try {
-		const response = await detectNonCommutative(snapshots, dialect);
+		const commutativity = getCommutativityDialect(dialect);
+		if (!commutativity) {
+			return emptyResult();
+		}
+
+		const response = await commutativity.detectNonCommutative(snapshots);
 		if (response.conflicts.length > 0) {
 			const nonCommutativityMessage = generateReportDirectory(response);
 			console.log(nonCommutativityMessage);
