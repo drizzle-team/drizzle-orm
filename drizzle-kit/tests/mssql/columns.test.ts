@@ -1,5 +1,16 @@
 import { sql } from 'drizzle-orm';
-import { bit, check, int, mssqlSchema, mssqlTable, primaryKey, text, unique, varchar } from 'drizzle-orm/mssql-core';
+import {
+	bit,
+	check,
+	int,
+	mssqlSchema,
+	mssqlTable,
+	primaryKey,
+	snakeCase,
+	text,
+	unique,
+	varchar,
+} from 'drizzle-orm/mssql-core';
 import { defaultNameForPK } from 'src/dialects/mssql/grammar';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
@@ -2564,14 +2575,14 @@ test('same column names in two tables. Check for correct not null creation #3. c
 	expect(pst).toStrictEqual(st0);
 });
 test('same column names in two tables. Check for correct not null creation #4. snake_case', async (t) => {
-	const users = mssqlTable(
+	const users = snakeCase.table(
 		'users',
 		{
 			id: int().primaryKey().identity(),
 			departmentId: int().references(() => departments.id, { onDelete: 'set null' }),
 		},
 	);
-	const userHasDepartmentFilter = mssqlTable(
+	const userHasDepartmentFilter = snakeCase.table(
 		'user_has_department_filter',
 		{
 			userId: int().references(() => users.id),
@@ -2581,7 +2592,7 @@ test('same column names in two tables. Check for correct not null creation #4. s
 			return [primaryKey({ columns: [table.userId, table.departmentId] })];
 		},
 	);
-	const departments = mssqlTable(
+	const departments = snakeCase.table(
 		'departments',
 		{
 			id: int().primaryKey().identity(),

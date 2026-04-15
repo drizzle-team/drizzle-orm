@@ -6,6 +6,7 @@ import {
 	int,
 	integer,
 	primaryKey,
+	snakeCase,
 	sqliteTable,
 	text,
 	unique,
@@ -1766,25 +1767,24 @@ test('fk #15', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3653
 test('fk #16', async () => {
-	const services1 = sqliteTable('services', {
+	const services1 = snakeCase.table('services', {
 		id: integer().primaryKey(),
 	});
 
-	const serviceLinks1 = sqliteTable('service_links', {
+	const serviceLinks1 = snakeCase.table('service_links', {
 		id: integer().primaryKey(),
 		serviceId: integer().references(() => services1.id, { onUpdate: 'restrict', onDelete: 'cascade' }),
 	});
 	const schema1 = { services1, serviceLinks1 };
 
-	const casing = 'snake_case';
 	const { next: n1 } = await diff({}, schema1, []);
 	await push({ db, to: schema1 });
 
-	const services2 = sqliteTable('services', {
+	const services2 = snakeCase.table('services', {
 		id: integer().primaryKey(),
 	});
 
-	const serviceLinks2 = sqliteTable('service_links', {
+	const serviceLinks2 = snakeCase.table('service_links', {
 		id: integer().primaryKey(),
 		clientId: integer().references(() => services2.id, { onUpdate: 'restrict', onDelete: 'cascade' }),
 	});

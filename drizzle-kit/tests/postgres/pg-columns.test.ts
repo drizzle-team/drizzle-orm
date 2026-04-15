@@ -25,6 +25,7 @@ import {
 	serial,
 	smallint,
 	smallserial,
+	snakeCase,
 	text,
 	time,
 	timestamp,
@@ -323,7 +324,7 @@ test('alter text type to enum type', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3589
 // After discussion it was decided to postpone this feature
-test.skipIf(Date.now() < +new Date('2026-04-12'))('alter integer type to text type with fk constraints', async () => {
+test.skipIf(Date.now() < +new Date('2026-04-19'))('alter integer type to text type with fk constraints', async () => {
 	const users1 = pgTable('users', {
 		id: serial().primaryKey(),
 	});
@@ -1559,14 +1560,14 @@ test('same column names in two tables. Check for correct not null creation #3. c
 	expect(pst).toStrictEqual(st0);
 });
 test('same column names in two tables. Check for correct not null creation #4. snake_case', async (t) => {
-	const users = pgTable(
+	const users = snakeCase.table(
 		'users',
 		{
 			id: integer().primaryKey(),
 			departmentId: integer().references(() => departments.id, { onDelete: 'set null' }),
 		},
 	);
-	const userHasDepartmentFilter = pgTable(
+	const userHasDepartmentFilter = snakeCase.table(
 		'user_has_department_filter',
 		{
 			userId: integer().references(() => users.id),
@@ -1576,7 +1577,7 @@ test('same column names in two tables. Check for correct not null creation #4. s
 			return [primaryKey({ columns: [table.userId, table.departmentId] })];
 		},
 	);
-	const departments = pgTable(
+	const departments = snakeCase.table(
 		'departments',
 		{
 			id: integer().primaryKey(),

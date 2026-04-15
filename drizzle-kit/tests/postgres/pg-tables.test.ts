@@ -1,6 +1,7 @@
 import type { PGlite } from '@electric-sql/pglite';
 import { SQL, sql } from 'drizzle-orm';
 import {
+	camelCase,
 	foreignKey,
 	geometry,
 	index,
@@ -10,6 +11,7 @@ import {
 	pgTableCreator,
 	primaryKey,
 	serial,
+	snakeCase,
 	text,
 	unique,
 	uniqueIndex,
@@ -1036,7 +1038,7 @@ test('add index with op', async () => {
 test('optional db aliases (snake case)', async () => {
 	const from = {};
 
-	const t1 = pgTable(
+	const t1 = snakeCase.table(
 		't1',
 		{
 			t1Id1: integer().notNull().primaryKey(),
@@ -1059,14 +1061,14 @@ test('optional db aliases (snake case)', async () => {
 		],
 	);
 
-	const t2 = pgTable(
+	const t2 = snakeCase.table(
 		't2',
 		{
 			t2Id: serial().primaryKey(),
 		},
 	);
 
-	const t3 = pgTable(
+	const t3 = snakeCase.table(
 		't3',
 		{
 			t3Id1: integer(),
@@ -1128,7 +1130,7 @@ test('optional db aliases (snake case)', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4541
 test('create table (camel case -> snake case)', async () => {
-	const t1 = pgTable('table_snake_case1', {
+	const t1 = snakeCase.table('table_snake_case1', {
 		columnCamelCase1: integer(),
 		columnCamelCase2: integer(),
 		columnCamelCase3: integer(),
@@ -1159,7 +1161,7 @@ test('create table (camel case -> snake case)', async () => {
 });
 
 test('create table (snake case -> camel case)', async () => {
-	const t1 = pgTable('tableCamelcase1', {
+	const t1 = camelCase.table('tableCamelcase1', {
 		column_snake_case1: integer(),
 		column_snake_case2: integer(),
 		column_snake_case3: integer(),
@@ -1171,7 +1173,6 @@ test('create table (snake case -> camel case)', async () => {
 
 	const to = { t1 };
 
-	const casing = 'camelCase';
 	const { sqlStatements: st1 } = await diff({}, to, []);
 	const { sqlStatements: pst1 } = await push({ db, to });
 
@@ -1192,7 +1193,7 @@ test('create table (snake case -> camel case)', async () => {
 test('optional db aliases (camel case)', async () => {
 	const from = {};
 
-	const t1 = pgTable('t1', {
+	const t1 = camelCase.table('t1', {
 		t1_id1: integer().notNull().primaryKey(),
 		t1_col2: integer().notNull(),
 		t1_col3: integer().notNull(),
@@ -1210,11 +1211,11 @@ test('optional db aliases (camel case)', async () => {
 		}),
 	]);
 
-	const t2 = pgTable('t2', {
+	const t2 = camelCase.table('t2', {
 		t2_id: serial().primaryKey(),
 	});
 
-	const t3 = pgTable('t3', {
+	const t3 = camelCase.table('t3', {
 		t3_id1: integer(),
 		t3_id2: integer(),
 	}, (table) => [primaryKey({ columns: [table.t3_id1, table.t3_id2] })]);
@@ -1225,7 +1226,6 @@ test('optional db aliases (camel case)', async () => {
 		t3,
 	};
 
-	const casing = 'camelCase';
 	const { sqlStatements: st } = await diff(from, to, []);
 
 	const { sqlStatements: pst } = await push({

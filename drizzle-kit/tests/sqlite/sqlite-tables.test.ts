@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
 	AnySQLiteColumn,
 	blob,
+	camelCase,
 	customType,
 	foreignKey,
 	index,
@@ -10,6 +11,7 @@ import {
 	numeric,
 	primaryKey,
 	real,
+	snakeCase,
 	sqliteTable,
 	text,
 	unique,
@@ -535,7 +537,7 @@ test('create table with unique in third param and in column config', async () =>
 test('optional db aliases (snake case)', async () => {
 	const from = {};
 
-	const t1 = sqliteTable(
+	const t1 = snakeCase.table(
 		't1',
 		{
 			t1Id1: int().notNull().primaryKey(),
@@ -557,14 +559,14 @@ test('optional db aliases (snake case)', async () => {
 		],
 	);
 
-	const t2 = sqliteTable(
+	const t2 = snakeCase.table(
 		't2',
 		{
 			t2Id: int().primaryKey({ autoIncrement: true }),
 		},
 	);
 
-	const t3 = sqliteTable(
+	const t3 = snakeCase.table(
 		't3',
 		{
 			t3Id1: int(),
@@ -581,7 +583,6 @@ test('optional db aliases (snake case)', async () => {
 		t3,
 	};
 
-	const casing = 'snake_case';
 	const { sqlStatements: st } = await diff(from, to, []);
 
 	await push({ db, to: from });
@@ -615,7 +616,7 @@ test('optional db aliases (snake case)', async () => {
 test('optional db aliases (camel case)', async () => {
 	const from = {};
 
-	const t1 = sqliteTable(
+	const t1 = camelCase.table(
 		't1',
 		{
 			t1_id1: int().notNull().primaryKey(),
@@ -637,14 +638,14 @@ test('optional db aliases (camel case)', async () => {
 		],
 	);
 
-	const t2 = sqliteTable(
+	const t2 = camelCase.table(
 		't2',
 		{
 			t2_id: int().primaryKey({ autoIncrement: true }),
 		},
 	);
 
-	const t3 = sqliteTable(
+	const t3 = camelCase.table(
 		't3',
 		{
 			t3_id1: int(),
@@ -661,7 +662,6 @@ test('optional db aliases (camel case)', async () => {
 		t3,
 	};
 
-	const casing = 'camelCase';
 	const { sqlStatements: st } = await diff(from, to, []);
 
 	await push({ db, to: from });
