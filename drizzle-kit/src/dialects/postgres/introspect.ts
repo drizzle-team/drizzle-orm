@@ -775,6 +775,15 @@ export const fromDatabase = async (
 
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
+		// format_type() may return schema-qualified type names (e.g. public.vector(1536))
+		// when the extension type's schema is not in the current search_path.
+		// Strip the schema prefix for known pgvector extension types so the introspected
+		// representation stays aligned with getSQLType() output from the ORM column classes.
+		columnTypeMapped = columnTypeMapped.replace(
+			/^[^.(]+\.(vector|halfvec|sparsevec)(\(\d+\))?$/i,
+			'$1$2',
+		);
+
 		const columnDefault = defaultsList.find(
 			(it) => Number(it.tableId) === Number(column.tableId) && it.ordinality === column.ordinality,
 		);
@@ -1141,6 +1150,12 @@ export const fromDatabase = async (
 			// .replace("timestamp without time zone", "timestamp")
 			.replace('character', 'char')
 			.replace('geometry(Point)', 'geometry(point)');
+
+		// Strip schema prefix from known pgvector extension types (see table-column comment above)
+		columnTypeMapped = columnTypeMapped.replace(
+			/^[^.(]+\.(vector|halfvec|sparsevec)(\(\d+\))?$/i,
+			'$1$2',
+		);
 
 		columnTypeMapped += '[]'.repeat(it.dimensions);
 
