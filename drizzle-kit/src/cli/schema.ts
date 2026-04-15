@@ -47,9 +47,6 @@ const optionDriver = string()
 	.enum(...drivers)
 	.desc('Database driver');
 
-const optionCasing = string()
-	.enum('camelCase', 'snake_case')
-	.desc('Casing for serialization');
 const optionIgnoreConflicts = boolean('ignore-conflicts').desc(
 	'Skip commutativity conflict checks',
 );
@@ -60,7 +57,6 @@ export const generate = command({
 		config: optionConfig,
 		dialect: optionDialect,
 		driver: optionDriver,
-		casing: optionCasing,
 		schema: string().desc('Path to a schema file or folder'),
 		out: optionOut,
 		name: string().desc('Migration file name'),
@@ -75,7 +71,7 @@ export const generate = command({
 			'generate',
 			opts,
 			['name', 'custom', 'ignoreConflicts'],
-			['driver', 'breakpoints', 'schema', 'out', 'dialect', 'casing'],
+			['driver', 'breakpoints', 'schema', 'out', 'dialect'],
 		);
 		return prepareGenerateConfig(opts, from);
 	},
@@ -285,7 +281,6 @@ export const push = command({
 	options: {
 		config: optionConfig,
 		dialect: optionDialect,
-		casing: optionCasing,
 		schema: string().desc('Path to a schema file or folder'),
 		...optionsFilters,
 		...optionsDatabaseCredentials,
@@ -322,7 +317,6 @@ export const push = command({
 				'schemaFilters',
 				'extensionsFilters',
 				'tablesFilter',
-				'casing',
 				'tlsSecurity',
 			],
 		);
