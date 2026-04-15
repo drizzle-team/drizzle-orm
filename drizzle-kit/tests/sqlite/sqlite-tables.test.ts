@@ -582,10 +582,10 @@ test('optional db aliases (snake case)', async () => {
 	};
 
 	const casing = 'snake_case';
-	const { sqlStatements: st } = await diff(from, to, [], casing);
+	const { sqlStatements: st } = await diff(from, to, []);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({ db, to, casing });
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
 		'CREATE TABLE `t1` (\n'
@@ -662,10 +662,10 @@ test('optional db aliases (camel case)', async () => {
 	};
 
 	const casing = 'camelCase';
-	const { sqlStatements: st } = await diff(from, to, [], casing);
+	const { sqlStatements: st } = await diff(from, to, []);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({ db, to, casing });
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
 		'CREATE TABLE `t1` (\n'

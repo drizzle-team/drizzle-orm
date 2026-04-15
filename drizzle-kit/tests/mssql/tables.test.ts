@@ -251,8 +251,8 @@ test('add table #14', async () => {
 		}),
 	};
 
-	const { sqlStatements: st } = await diff({}, to, [], 'snake_case');
-	const { sqlStatements: pst } = await push({ db, to: to, casing: 'snake_case' });
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to: to });
 
 	const st0 = [
 		`CREATE TABLE [company] (
@@ -833,9 +833,9 @@ test('optional db aliases (snake case)', async () => {
 		t3,
 	};
 
-	const { sqlStatements: st } = await diff(from, to, [], 'snake_case');
-	await push({ db, to: from, casing: 'snake_case' });
-	const { sqlStatements: pst } = await push({ db, to: to, casing: 'snake_case' });
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: to });
 
 	const st1 = `CREATE TABLE [t1] (
 	[t1_id1] int,
@@ -912,9 +912,9 @@ test('optional db aliases (camel case)', async () => {
 		t3,
 	};
 
-	const { sqlStatements: st } = await diff(from, to, [], 'camelCase');
-	await push({ db, to: from, casing: 'camelCase' });
-	const { sqlStatements: pst } = await push({ db, to: to, casing: 'camelCase' });
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: to });
 
 	const st1 = `CREATE TABLE [t1] (
 	[t1Id1] int,

@@ -347,7 +347,6 @@ export const push = command({
 			verbose,
 			credentials,
 			force,
-			casing,
 			filters,
 			explain,
 			migrations,
@@ -361,7 +360,6 @@ export const push = command({
 				credentials,
 				verbose,
 				force,
-				casing,
 				filters,
 				explain,
 				migrations,
@@ -390,7 +388,6 @@ export const push = command({
 				credentials,
 				filters,
 				force,
-				casing,
 				explain,
 				migrations,
 			);
@@ -408,7 +405,6 @@ export const push = command({
 				credentials,
 				filters,
 				force,
-				casing,
 				explain,
 				migrations,
 			);
@@ -420,7 +416,6 @@ export const push = command({
 				filters,
 				verbose,
 				force,
-				casing,
 				explain,
 				migrations,
 			);
@@ -432,7 +427,6 @@ export const push = command({
 				credentials,
 				filters,
 				force,
-				casing,
 				explain,
 				migrations,
 			);
@@ -444,7 +438,6 @@ export const push = command({
 				credentials,
 				filters,
 				force,
-				casing,
 				explain,
 				migrations,
 			);
@@ -790,7 +783,6 @@ export const studio = command({
 			port,
 			host,
 			credentials,
-			casing,
 		} = await prepareStudioConfig(opts);
 
 		const {
@@ -839,7 +831,6 @@ export const studio = command({
 				schema,
 				relations,
 				files,
-				casing,
 			);
 		} else if (dialect === 'mysql') {
 			const { schema, relations, files } = schemaPath
@@ -850,7 +841,6 @@ export const studio = command({
 				schema,
 				relations,
 				files,
-				casing,
 			);
 		} else if (dialect === 'sqlite') {
 			const { schema, relations, files } = schemaPath
@@ -861,7 +851,6 @@ export const studio = command({
 				schema,
 				relations,
 				files,
-				casing,
 			);
 		} else if (dialect === 'turso') {
 			const { schema, relations, files } = schemaPath
@@ -872,7 +861,6 @@ export const studio = command({
 				schema,
 				relations,
 				files,
-				casing,
 			);
 		} else if (dialect === 'singlestore') {
 			const { schema, relations, files } = schemaPath
@@ -883,7 +871,6 @@ export const studio = command({
 				schema,
 				relations,
 				files,
-				casing,
 			);
 		} else if (dialect === 'duckdb') {
 			setup = await drizzleForDuckDb(credentials);

@@ -1777,8 +1777,8 @@ test('fk #16', async () => {
 	const schema1 = { services1, serviceLinks1 };
 
 	const casing = 'snake_case';
-	const { next: n1 } = await diff({}, schema1, [], casing);
-	await push({ db, to: schema1, casing });
+	const { next: n1 } = await diff({}, schema1, []);
+	await push({ db, to: schema1 });
 
 	const services2 = sqliteTable('services', {
 		id: integer().primaryKey(),
@@ -1791,8 +1791,8 @@ test('fk #16', async () => {
 	const schema2 = { services2, serviceLinks2 };
 
 	const renames = ['service_links.service_id->service_links.client_id'];
-	const { sqlStatements: st2 } = await diff(n1, schema2, renames, casing);
-	const { sqlStatements: pst2 } = await push({ db, to: schema2, casing, renames });
+	const { sqlStatements: st2 } = await diff(n1, schema2, renames);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2, renames });
 
 	const expectedSt2 = [
 		'ALTER TABLE `service_links` RENAME COLUMN `service_id` TO `client_id`;',

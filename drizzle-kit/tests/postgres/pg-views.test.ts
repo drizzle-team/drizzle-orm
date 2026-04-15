@@ -2122,8 +2122,8 @@ test.skipIf(Date.now() < +new Date('2026-04-12'))('create view with snake_case',
 	const schema = { test, testView };
 	const casing = 'snake_case';
 
-	const { sqlStatements: st1, next: n1 } = await diff({}, schema, [], casing);
-	const { sqlStatements: pst1 } = await push({ db, to: schema, casing });
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
 	const expectedSt1 = [
 		'CREATE TABLE "test" (\n'
 		+ '\t"test_id" serial PRIMARY KEY,\n'
@@ -2134,8 +2134,8 @@ test.skipIf(Date.now() < +new Date('2026-04-12'))('create view with snake_case',
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
 
-	const { sqlStatements: st2 } = await diff(n1, schema, [], casing);
-	const { sqlStatements: pst2 } = await push({ db, to: schema, casing });
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
 	expect(st2).toStrictEqual([]);
 	expect(pst2).toStrictEqual([]);
 });
@@ -2159,8 +2159,8 @@ test.skipIf(Date.now() < +new Date('2026-04-12'))('create view with camelCase', 
 	const schema = { test, testView };
 	const casing = 'camelCase';
 
-	const { sqlStatements: st1, next: n1 } = await diff({}, schema, [], casing);
-	const { sqlStatements: pst1 } = await push({ db, to: schema, casing });
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
 	const expectedSt1 = [
 		'CREATE TABLE "test" (\n'
 		+ '\t"testId" serial PRIMARY KEY,\n'
@@ -2171,8 +2171,8 @@ test.skipIf(Date.now() < +new Date('2026-04-12'))('create view with camelCase', 
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
 
-	const { sqlStatements: st2 } = await diff(n1, schema, [], casing);
-	const { sqlStatements: pst2 } = await push({ db, to: schema, casing });
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
 	expect(st2).toStrictEqual([]);
 	expect(pst2).toStrictEqual([]);
 });

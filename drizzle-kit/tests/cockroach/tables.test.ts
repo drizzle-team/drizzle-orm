@@ -964,14 +964,9 @@ test.concurrent('optional db aliases (snake case)', async ({ dbc: db }) => {
 		t3,
 	};
 
-	const casing = 'snake_case';
-	const { sqlStatements: st } = await diff(from, to, [], casing);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-		casing,
-	});
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st1 = `CREATE TABLE "t1" (
 	"t1_id1" int4 PRIMARY KEY,
@@ -1047,13 +1042,9 @@ test.concurrent('optional db aliases (camel case)', async ({ dbc: db }) => {
 	};
 
 	const casing = 'camelCase';
-	const { sqlStatements: st } = await diff(from, to, [], casing);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-		casing,
-	});
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st1 = `CREATE TABLE "t1" (
 	"t1Id1" int4 PRIMARY KEY,

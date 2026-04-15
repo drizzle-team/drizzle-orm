@@ -9,14 +9,13 @@ import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
-	const { out: outFolder, casing, filenames } = config;
+	const { out: outFolder, filenames } = config;
 
 	try {
 		const { snapshots } = prepareOutFolder(outFolder);
 		const { ddlCur, ddlPrev, snapshot, custom } = await prepareSqliteSnapshot(
 			snapshots,
 			filenames,
-			casing,
 		);
 		if (config.custom) {
 			writeResult({
@@ -62,7 +61,7 @@ export const handle = async (config: GenerateConfig) => {
 
 export const handleExport = async (config: ExportConfig) => {
 	const res = await prepareFromSchemaFiles(config.filenames);
-	const schema = fromDrizzleSchema(res.tables, res.views, config.casing);
+	const schema = fromDrizzleSchema(res.tables, res.views);
 	const { ddl, errors } = interimToDDL(schema);
 
 	if (errors.length > 0) {

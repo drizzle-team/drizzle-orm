@@ -2537,8 +2537,8 @@ test('same column names in two tables. Check for correct not null creation #3. c
 
 	// order matters here
 	const schema1 = { departments, userHasDepartmentFilter, users };
-	const { sqlStatements: st } = await diff({}, schema1, [], 'camelCase');
-	const { sqlStatements: pst } = await push({ db, to: schema1, casing: 'camelCase' });
+	const { sqlStatements: st } = await diff({}, schema1, []);
+	const { sqlStatements: pst } = await push({ db, to: schema1 });
 
 	const st0 = [
 		`CREATE TABLE [departments] (
@@ -2590,8 +2590,8 @@ test('same column names in two tables. Check for correct not null creation #4. s
 
 	// order matters here
 	const schema1 = { departments, userHasDepartmentFilter, users };
-	const { sqlStatements: st } = await diff({}, schema1, [], 'snake_case');
-	const { sqlStatements: pst } = await push({ db, to: schema1, casing: 'snake_case' });
+	const { sqlStatements: st } = await diff({}, schema1, []);
+	const { sqlStatements: pst } = await push({ db, to: schema1 });
 
 	const st0 = [
 		`CREATE TABLE [departments] (

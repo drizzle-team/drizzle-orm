@@ -65,6 +65,7 @@ import {
 	serial,
 	smallint,
 	smallserial,
+	snakeCase,
 	text,
 	time,
 	timestamp,
@@ -3073,7 +3074,8 @@ export function tests(test: Test) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5112
 		// looks like casing issue
-		test.skipIf(Date.now() < +new Date('2026-04-12')).concurrent('view #1', async ({ push, createDB }) => {
+		// ^ and so it was
+		test.concurrent('view #1', async ({ push, createDB }) => {
 			const animal = pgTable('animal', (t) => ({
 				id: t.text().primaryKey(),
 				name: t.text().notNull(),
@@ -3100,7 +3102,7 @@ export function tests(test: Test) {
 
 			const sql = db.select().from(animalWithCaretakerView).toSQL().sql;
 			expect(sql).toEqual(
-				'select "id", "name", "caretakerName" from "animal_with_caretaker_view";',
+				'select "id", "name", "caretakerName" from "animal_with_caretaker_view"',
 			);
 		});
 
@@ -4543,7 +4545,7 @@ export function tests(test: Test) {
 		// https://github.com/drizzle-team/drizzle-orm/issues/5253
 		// enhancement
 		// allow select which columns to insert in insert...select
-		test.skipIf(Date.now() < +new Date('2026-04-12')).concurrent('insert into ... select #2', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-04-19')).concurrent('insert into ... select #2', async ({ db, push }) => {
 			const users = pgTable('users_114', {
 				id: integer('id').primaryKey(),
 				name: text('name').notNull(),
@@ -4632,7 +4634,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4596
-		test.skipIf(Date.now() < +new Date('2026-04-12'))(
+		test.skipIf(Date.now() < +new Date('2026-04-19'))(
 			'functional index; onConflict do update',
 			async ({ db, push }) => {
 				throw new Error('SKIP. commented below because of type error');
@@ -4671,7 +4673,7 @@ export function tests(test: Test) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5282
 		test('casing in sql``', async ({ db, push }) => {
-			const payments = pgTable('payments', {
+			const payments = snakeCase.table('payments', {
 				id: integer().primaryKey(),
 				amount: numeric(),
 				completedAt: timestamp(),
@@ -4690,13 +4692,13 @@ export function tests(test: Test) {
 				.onConflictDoUpdate({
 					target: [payments.id],
 					set: {
-						completedAt: sql`excluded.${payments.completedAt}`,
-						amount: sql`excluded.${payments.amount}`,
+						completedAt: sql`excluded.${sql.identifier(payments.completedAt.name)}`,
+						amount: sql`excluded.${sql.identifier(payments.amount.name)}`,
 					},
 				});
 
 			expect(query.toSQL().sql).toEqual(
-				'insert into "payments" ("id", "amount", "completedAt") values ($1, $2, $3) on conflict ("id") do update set "amount" = excluded."amount", "completed_at" = excluded."completed_at"',
+				'insert into "payments" ("id", "amount", "completed_at") values ($1, $2, $3) on conflict ("id") do update set "amount" = excluded."amount", "completed_at" = excluded."completed_at"',
 			);
 			await query;
 
@@ -4719,7 +4721,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4419
-		test.skipIf(Date.now() < +new Date('2026-04-12'))('db/js timestamp comparison', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-04-19'))('db/js timestamp comparison', async ({ db, push }) => {
 			const table1 = pgTable('table1', {
 				id: integer(),
 				// default config equal to: { mode: 'date' }
