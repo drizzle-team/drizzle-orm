@@ -1,5 +1,6 @@
 import { SQL, sql } from 'drizzle-orm';
 import {
+	camelCase,
 	cockroachSchema,
 	cockroachTable,
 	cockroachTableCreator,
@@ -14,7 +15,6 @@ import {
 	uniqueIndex,
 	vector,
 } from 'drizzle-orm/cockroach-core';
-import { camelCase } from 'drizzle-orm/pg-core';
 import { expect } from 'vitest';
 import { diff, push, test } from './mocks';
 
