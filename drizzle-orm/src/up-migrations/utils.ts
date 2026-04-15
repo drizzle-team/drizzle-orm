@@ -2,10 +2,6 @@ export interface UpgradeResult {
 	newDb: boolean;
 }
 
-export interface UpgradeResultProxy extends UpgradeResult {
-	statements: string[];
-}
-
 export const MIGRATIONS_TABLE_VERSIONS = {
 	sqlite: 1,
 	pg: 1,

@@ -87,6 +87,12 @@
 		"zod": "^3.25.0 || ^4.0.0"
 	},
 	"peerDependenciesMeta": {
+		"@types/mssql": {
+			"optional": true
+		},
+		"mssql": {
+			"optional": true
+		},
 		"arktype": {
 			"optional": true
 		},

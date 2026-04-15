@@ -26,7 +26,7 @@ export async function migrate<
 		: config.migrationsTable ?? '__drizzle_migrations';
 
 	// Detect DB version and upgrade table schema if needed
-	const { newDb, statements } = await upgradeIfNeeded(migrationsSchema, migrationsTable, db, migrations);
+	const { newDb } = await upgradeIfNeeded(migrationsSchema, migrationsTable, db, callback, migrations);
 
 	if (newDb) {
 		const migrationTableCreate = sql`
@@ -59,7 +59,6 @@ export async function migrate<
 
 		await callback(
 			[
-				...statements,
 				db.dialect.sqlToQuery(
 					sql`insert into ${sql.identifier(migrationsSchema)}.${
 						sql.identifier(migrationsTable)
@@ -86,7 +85,7 @@ export async function migrate<
 		);
 	}
 
-	await callback([...statements, ...queriesToRun]);
+	await callback(queriesToRun);
 
 	return;
 }

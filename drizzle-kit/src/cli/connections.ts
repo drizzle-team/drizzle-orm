@@ -1832,10 +1832,6 @@ export const connectToSQLite = async (
 		const { driver } = credentials;
 		if (driver === 'd1-http') {
 			const { drizzle } = await import('drizzle-orm/sqlite-proxy');
-			// sqlite-proxy uses transaction for up-migrations
-			// d1 does not support transactions through http
-			// need to pass some "mode" param to sqlite-proxy migrate, so it up-migrator knows how to handle
-			// that is why migrateInternal was created
 			const { migrate } = await import('drizzle-orm/sqlite-proxy/migrator');
 
 			type D1Response =
@@ -1936,7 +1932,9 @@ export const connectToSQLite = async (
 					drzl,
 					async (queries) => {
 						// run migrations in transaction
-						await remoteBatchCallback(queries.map((sql) => ({ sql })));
+						if (queries.length > 0) {
+							await remoteBatchCallback(queries.map((sql) => ({ sql })));
+						}
 					},
 					config,
 				);

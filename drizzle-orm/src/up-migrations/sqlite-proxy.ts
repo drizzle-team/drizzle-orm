@@ -1,8 +1,9 @@
 import type { MigrationMeta } from '~/migrator.ts';
-import { type SQL, sql } from '~/sql/sql.ts';
+import { sql } from '~/sql/sql.ts';
 import type { BaseSQLiteDatabase } from '~/sqlite-core/index.ts';
 import type { SqliteRemoteDatabase } from '~/sqlite-proxy/index.ts';
-import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResultProxy } from './utils.ts';
+import type { ProxyMigrator } from '~/sqlite-proxy/migrator.ts';
+import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResult } from './utils.ts';
 
 /**
  * Detects the current version of the migrations table schema and upgrades it if needed.
@@ -13,36 +14,34 @@ import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResultProxy } f
 export async function upgradeAsyncIfNeeded(
 	migrationsTable: string,
 	db: SqliteRemoteDatabase<Record<string, unknown>>,
+	callback: ProxyMigrator,
 	localMigrations: MigrationMeta[],
-): Promise<UpgradeResultProxy> {
+): Promise<UpgradeResult> {
 	// Check if the table exists at all
-	const tableExists = (await db.session.all<[string]>(
+	const tableExists = await db.session.values<[1]>(
 		sql`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ${migrationsTable}`,
-	)).map((row) => ({ '1': row[0] }));
+	);
 
 	if (tableExists.length === 0) {
-		return { newDb: true, statements: [] };
+		return { newDb: true };
 	}
 
 	// Table exists, check table shape
-	// sqlite-proxy returns [ [string] ]
-	// sqlite returns [{ column_name: string }]
-	const rows = (await db.session.all<[string]>(
+	const rows = await db.session.values<[string]>(
 		sql`SELECT name as column_name FROM pragma_table_info(${migrationsTable})`,
-	)).map((it) => ({ column_name: it[0] }));
+	);
 
-	const version = GET_VERSION_FOR.sqlite(rows.map((r) => r.column_name));
+	const version = GET_VERSION_FOR.sqlite(rows.map((r) => r[0]));
 
-	let statements: string[] = [];
 	for (let v = version; v < MIGRATIONS_TABLE_VERSIONS.sqlite; v++) {
 		const upgradeFn = upgradeAsyncFunctions[v];
 		if (!upgradeFn) {
 			throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
 		}
-		statements = await upgradeFn(migrationsTable, db, localMigrations);
+		await upgradeFn(migrationsTable, db, callback, localMigrations);
 	}
 
-	return { newDb: false, statements };
+	return { newDb: false };
 }
 
 const upgradeAsyncFunctions: Record<
@@ -50,8 +49,9 @@ const upgradeAsyncFunctions: Record<
 	(
 		migrationsTable: string,
 		db: BaseSQLiteDatabase<'async', unknown, Record<string, unknown>>,
+		callback: ProxyMigrator,
 		localMigrations: MigrationMeta[],
-	) => Promise<string[]>
+	) => Promise<void>
 > = {
 	/**
 	 * Upgrade from version 0 to version 1:
@@ -62,18 +62,18 @@ const upgradeAsyncFunctions: Record<
 	 * Not implemented for now -> If hash matching fails, fall back to serial id ordering
 	 * 5. Create extra column and backfill names for matched migrations
 	 */
-	0: async (migrationsTable, db, localMigrations) => {
+	0: async (migrationsTable, db, callback, localMigrations) => {
 		const table = sql`${sql.identifier(migrationsTable)}`;
 
 		// 1. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
 		// this can be null from legacy implementation where id was serial
-		const dbRows = (await db.session.all<[number | null, string, number]>(
+		const dbRows = (await db.session.values<[number | null, string, number]>(
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
 		)).map((row) => ({
-			id: row[0]!,
-			hash: row[1]!,
-			created_at: row[2]!,
+			id: row[0],
+			hash: row[1],
+			created_at: row[2],
 		}));
 
 		// 2. Sort ASC by millis and if the same - sort by name
@@ -150,9 +150,10 @@ const upgradeAsyncFunctions: Record<
 		}
 
 		// 5. Create extra column and backfill names for matched migrations
-		const statements: SQL[] = [
-			sql`ALTER TABLE ${table} ADD COLUMN ${sql.identifier('name')} text`.inlineParams(),
-			sql`ALTER TABLE ${table} ADD COLUMN ${sql.identifier('applied_at')} TEXT`,
+		const statements: string[] = [
+			db.dialect.sqlToQuery(sql`ALTER TABLE ${table} ADD COLUMN ${sql.identifier('name')} text`.inlineParams()).sql,
+			db.dialect.sqlToQuery(sql`ALTER TABLE ${table} ADD COLUMN ${sql.identifier('applied_at')} TEXT`.inlineParams())
+				.sql,
 		];
 		for (const backfillEntry of toApply) {
 			const updateQuery = sql`UPDATE ${table} SET ${sql.identifier('name')} = ${backfillEntry.name}, ${
@@ -167,9 +168,10 @@ const upgradeAsyncFunctions: Record<
 				updateQuery.append(sql` ${sql.identifier('created_at')} = ${backfillEntry.created_at}`);
 			} else updateQuery.append(sql` ${sql.identifier('hash')} = ${backfillEntry.hash}`);
 
-			statements.push(updateQuery);
+			statements.push(db.dialect.sqlToQuery(updateQuery.inlineParams()).sql);
 		}
 
-		return statements.map((st) => db.dialect.sqlToQuery(st.inlineParams()).sql);
+		await callback(statements);
+		return;
 	},
 };

@@ -37,7 +37,7 @@ const upgradeFunctions: Record<
 		migrationsTable: string,
 		db: PgAsyncDatabase<PgQueryResultHKT, any, any, any>,
 		localMigrations: MigrationMeta[],
-		mode: 'transaction' | 'batch',
+		mode: 'transaction' | 'batch' | 'execute',
 	) => Promise<void>
 > = {
 	/**
@@ -126,8 +126,8 @@ const upgradeFunctions: Record<
 			);
 		}
 
-		// check if http
-		// batch - http drivers
+		// batch - neon http
+		// execute - xata http
 		// transaction -> other
 		if (mode === 'transaction') {
 			await db.transaction(async (tx: PgAsyncTransaction<any, any, any>) => {
@@ -141,6 +141,10 @@ const upgradeFunctions: Record<
 			await database.batch(
 				sqls.map((s) => database.execute(s)) as unknown as [BatchItem<'pg'>, ...BatchItem<'pg'>[]],
 			);
+		} else if (mode === 'execute') {
+			for (const sql of sqls) {
+				await db.session.execute(sql);
+			}
 		} else {
 			assertUnreachable(mode);
 		}
@@ -158,7 +162,10 @@ export async function upgradeIfNeeded(
 	migrationsTable: string,
 	db: PgAsyncDatabase<PgQueryResultHKT, any, any, any>,
 	localMigrations: MigrationMeta[],
-	mode: 'transaction' | 'batch' = 'transaction',
+	// batch - neon http
+	// execute - xata http
+	// transaction - all others
+	mode: 'transaction' | 'batch' | 'execute' = 'transaction',
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
 	const result = await execute<{ '1': 1 }[]>(

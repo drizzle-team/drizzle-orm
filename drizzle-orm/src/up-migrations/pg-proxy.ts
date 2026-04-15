@@ -1,7 +1,8 @@
 import type { MigrationMeta } from '~/migrator.ts';
 import type { PgRemoteDatabase } from '~/pg-proxy/index.ts';
-import { type SQL, sql } from '~/sql/sql.ts';
-import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResultProxy } from './utils.ts';
+import type { ProxyMigrator } from '~/pg-proxy/migrator.ts';
+import { sql } from '~/sql/sql.ts';
+import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResult } from './utils.ts';
 
 /**
  * Map of upgrade functions. Each key is the version being upgraded FROM,
@@ -13,8 +14,9 @@ const upgradeFunctions: Record<
 		migrationsSchema: string,
 		migrationsTable: string,
 		db: PgRemoteDatabase<Record<string, unknown>>,
+		callback: ProxyMigrator,
 		localMigrations: MigrationMeta[],
-	) => Promise<string[]>
+	) => Promise<void>
 > = {
 	/**
 	 * Upgrade from version 0 to version 1:
@@ -25,7 +27,7 @@ const upgradeFunctions: Record<
 	 * Not implemented for now -> If hash matching fails, fall back to serial id ordering
 	 * 5. Create extra column and backfill names for matched migrations
 	 */
-	0: async (migrationsSchema, migrationsTable, db, localMigrations) => {
+	0: async (migrationsSchema, migrationsTable, db, callback, localMigrations) => {
 		const table = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
 
 		// 1. Read all existing DB migrations
@@ -87,21 +89,28 @@ const upgradeFunctions: Record<
 		}
 
 		// 5. Create extra column and backfill names for matched migrations
-		const sqls: SQL[] = [
-			sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${sql.identifier('name')} text`,
-			sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${
-				sql.identifier('applied_at')
-			} timestamp with time zone DEFAULT now()`,
+		const sqls: string[] = [
+			db.dialect.sqlToQuery(
+				sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${sql.identifier('name')} text`.inlineParams(),
+			).sql,
+			db.dialect.sqlToQuery(
+				sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${
+					sql.identifier('applied_at')
+				} timestamp with time zone DEFAULT now()`.inlineParams(),
+			).sql,
 		];
 		for (const { id, name } of toApply) {
 			sqls.push(
-				sql`UPDATE ${table} SET ${sql.identifier('name')} = ${name}, ${sql.identifier('applied_at')} = NULL WHERE ${
-					sql.identifier('id')
-				} = ${id}`,
+				db.dialect.sqlToQuery(
+					sql`UPDATE ${table} SET ${sql.identifier('name')} = ${name}, ${sql.identifier('applied_at')} = NULL WHERE ${
+						sql.identifier('id')
+					} = ${id}`.inlineParams(),
+				).sql,
 			);
 		}
 
-		return sqls.map((it) => db.dialect.sqlToQuery(it.inlineParams()).sql);
+		await callback(sqls);
+		return;
 	},
 };
 
@@ -115,8 +124,9 @@ export async function upgradeIfNeeded(
 	migrationsSchema: string,
 	migrationsTable: string,
 	db: PgRemoteDatabase<Record<string, unknown>>,
+	callback: ProxyMigrator,
 	localMigrations: MigrationMeta[],
-): Promise<UpgradeResultProxy> {
+): Promise<UpgradeResult> {
 	// Check if the table exists at all
 	const result = await db.session.execute<{ '1': 1 }[]>(
 		sql`SELECT 1 FROM information_schema.tables
@@ -125,7 +135,7 @@ export async function upgradeIfNeeded(
 	);
 
 	if (result.length === 0) {
-		return { newDb: true, statements: [] };
+		return { newDb: true };
 	}
 
 	// Table exists, check table shape
@@ -151,14 +161,13 @@ export async function upgradeIfNeeded(
 
 	let version = GET_VERSION_FOR.pg(rows.map((r) => r.column_name));
 
-	let statements: string[] = [];
 	for (let v = version; v < MIGRATIONS_TABLE_VERSIONS.pg; v++) {
 		const upgradeFn = upgradeFunctions[v];
 		if (!upgradeFn) {
 			throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
 		}
-		statements = await upgradeFn(migrationsSchema, migrationsTable, db, localMigrations);
+		await upgradeFn(migrationsSchema, migrationsTable, db, callback, localMigrations);
 	}
 
-	return { newDb: false, statements };
+	return { newDb: false };
 }
