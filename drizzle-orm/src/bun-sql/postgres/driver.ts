@@ -308,7 +308,6 @@ function construct<
 	const session = new BunSQLSession(client, dialect, relations, {
 		logger,
 		cache: config.cache,
-		useJitMapper: config.useJitMappers,
 	});
 	const db = new BunSQLDatabase(dialect, session, relations) as BunSQLDatabase<TRelations>;
 	(<any> db).$client = client;

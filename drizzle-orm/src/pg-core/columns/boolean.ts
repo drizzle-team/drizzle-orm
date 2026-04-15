@@ -23,7 +23,7 @@ export class PgBoolean extends PgColumn<'boolean'> {
 	static override readonly [entityKind]: string = 'PgBoolean';
 
 	/** @internal */
-	override readonly useCodecType = 'bool';
+	override readonly codec = 'bool';
 
 	getSQLType(): string {
 		return 'boolean';

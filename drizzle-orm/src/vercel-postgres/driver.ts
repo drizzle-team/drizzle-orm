@@ -1,7 +1,5 @@
 import { sql } from '@vercel/postgres';
-import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
-import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import { refineGenericPgCodecs } from '~/pg-core/codecs.ts';
@@ -10,12 +8,6 @@ import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { isConfig } from '~/utils.ts';
 import { type VercelPgClient, type VercelPgQueryResultHKT, VercelPgSession } from './session.ts';
-
-export interface VercelPgDriverOptions {
-	logger?: Logger;
-	cache?: Cache;
-	useJitMapper?: boolean;
-}
 
 export class VercelPgDatabase<TRelations extends AnyRelations = EmptyRelations>
 	extends PgAsyncDatabase<VercelPgQueryResultHKT, TRelations>
@@ -45,7 +37,6 @@ function construct<TRelations extends AnyRelations = EmptyRelations>(
 	const relations = config.relations ?? {} as TRelations;
 	const session = new VercelPgSession(client, dialect, relations ?? {} as EmptyRelations, {
 		logger,
-		useJitMapper: config.useJitMappers ?? false,
 		cache: config.cache,
 	});
 	const db = new VercelPgDatabase(

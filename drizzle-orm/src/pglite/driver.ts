@@ -1,7 +1,5 @@
 import { PGlite, type PGliteOptions } from '@electric-sql/pglite';
-import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
-import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { makePgArray } from '~/pg-core/array.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
@@ -18,12 +16,6 @@ import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { base64ToUint8Array } from '~/utils.ts';
 import type { PgliteClient, PgliteQueryResultHKT } from './session.ts';
 import { PgliteSession } from './session.ts';
-
-export interface PgDriverOptions {
-	logger?: Logger;
-	cache?: Cache;
-	useJitMapper?: boolean;
-}
 
 export class PgliteDatabase<
 	TRelations extends AnyRelations = EmptyRelations,
@@ -119,7 +111,6 @@ function construct<TRelations extends AnyRelations = EmptyRelations>(
 	const relations = config.relations ?? {} as TRelations;
 	const session = new PgliteSession(client, dialect, relations, {
 		logger,
-		useJitMapper: config.useJitMappers ?? false,
 		cache: config.cache,
 	});
 	const db = new PgliteDatabase(

@@ -23,7 +23,7 @@ export class PgMacaddr extends PgColumn<'string macaddr'> {
 	static override readonly [entityKind]: string = 'PgMacaddr';
 
 	/** @internal */
-	override readonly useCodecType = 'macaddr';
+	override readonly codec = 'macaddr';
 
 	getSQLType(): string {
 		return 'macaddr';

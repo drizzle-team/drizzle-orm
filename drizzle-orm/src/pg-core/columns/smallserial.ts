@@ -30,7 +30,7 @@ export class PgSmallSerial extends PgColumn<'number int16'> {
 	static override readonly [entityKind]: string = 'PgSmallSerial';
 
 	/** @internal */
-	override readonly useCodecType = 'smallserial';
+	override readonly codec = 'smallserial';
 
 	getSQLType(): string {
 		return 'smallserial';

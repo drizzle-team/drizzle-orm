@@ -31,7 +31,7 @@ export class PgBigSerial53 extends PgColumn<'number int53'> {
 	static override readonly [entityKind]: string = 'PgBigSerial53';
 
 	/** @internal */
-	override readonly useCodecType = 'bigserial';
+	override readonly codec = 'bigserial';
 
 	getSQLType(): string {
 		return 'bigserial';
@@ -70,7 +70,7 @@ export class PgBigSerial64 extends PgColumn<'bigint int64'> {
 	static override readonly [entityKind]: string = 'PgBigSerial64';
 
 	/** @internal */
-	override readonly useCodecType = 'bigserial';
+	override readonly codec = 'bigserial';
 
 	getSQLType(): string {
 		return 'bigserial';

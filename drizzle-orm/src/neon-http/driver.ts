@@ -1,9 +1,7 @@
 import type { HTTPQueryOptions, HTTPTransactionOptions, NeonQueryFunction } from '@neondatabase/serverless';
 import { neon, types } from '@neondatabase/serverless';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
-import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
-import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import { refineGenericPgCodecs } from '~/pg-core/codecs.ts';
@@ -11,12 +9,6 @@ import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type NeonHttpQueryResultHKT, NeonHttpSession } from './session.ts';
-
-export interface NeonDriverOptions {
-	logger?: Logger;
-	cache?: Cache;
-	useJitMapper?: boolean;
-}
 
 export class NeonHttpDatabase<TRelations extends AnyRelations = EmptyRelations>
 	extends PgAsyncDatabase<NeonHttpQueryResultHKT, TRelations>
@@ -80,7 +72,6 @@ function construct<
 
 	const session = new NeonHttpSession(client, dialect, relations ?? {} as EmptyRelations, {
 		logger,
-		useJitMapper: config.useJitMappers ?? false,
 		cache: config.cache,
 	});
 

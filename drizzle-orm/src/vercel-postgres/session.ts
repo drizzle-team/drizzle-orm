@@ -25,7 +25,6 @@ export type VercelPgClient = VercelPool | VercelClient | VercelPoolClient;
 export interface VercelPgSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
-	useJitMapper?: boolean;
 }
 
 const noop = (val: any) => val;
