@@ -21,15 +21,13 @@ import {
 	numeric,
 	type PgColumn,
 	pgEnum,
-	pgSchema,
-	pgTable,
-	pgView,
 	point,
 	primaryKey,
 	real,
 	serial,
 	smallint,
 	smallserial,
+	snakeCase,
 	text,
 	time,
 	timestamp,
@@ -37,14 +35,14 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 
-export const usersTable = pgTable('users', {
+export const usersTable = snakeCase.table('users', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
 	invitedBy: integer('invited_by').references((): PgColumn => usersTable.id),
 });
 
-export const schemaV1 = pgSchema('schemaV1');
+export const schemaV1 = snakeCase.schema('schemaV1');
 
 export const usersV1 = schemaV1.table('usersV1', {
 	id: serial('id').primaryKey(),
@@ -60,13 +58,13 @@ export const usersTableV1 = schemaV1.table('users_table_V1', {
 	invitedBy: integer('invited_by'),
 });
 
-export const groupsTable = pgTable('groups', {
+export const groupsTable = snakeCase.table('groups', {
 	id: serial().primaryKey(),
 	name: text().notNull(),
 	description: text(),
 });
 
-export const usersToGroupsTable = pgTable('users_to_groups', {
+export const usersToGroupsTable = snakeCase.table('users_to_groups', {
 	id: serial().primaryKey(),
 	userId: integer().notNull().references(() => usersTable.id),
 	groupId: integer().notNull().references(() => groupsTable.id),
@@ -74,14 +72,14 @@ export const usersToGroupsTable = pgTable('users_to_groups', {
 	pk: primaryKey(t.groupId, t.userId),
 }));
 
-export const postsTable = pgTable('posts', {
+export const postsTable = snakeCase.table('posts', {
 	id: serial().primaryKey(),
 	content: text().notNull(),
 	ownerId: integer().references(() => usersTable.id),
 	createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 });
 
-export const usersView = pgView('users_view').as((qb) =>
+export const usersView = snakeCase.view('users_view').as((qb) =>
 	qb.select({
 		...getTableColumns(usersTable),
 		postContent: postsTable.content,
@@ -96,7 +94,7 @@ export const usersView = pgView('users_view').as((qb) =>
 		.from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.ownerId))
 );
 
-export const commentsTable = pgTable('comments', {
+export const commentsTable = snakeCase.table('comments', {
 	id: serial().primaryKey(),
 	content: text().notNull(),
 	creator: integer().references(() => usersTable.id),
@@ -104,14 +102,14 @@ export const commentsTable = pgTable('comments', {
 	createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 });
 
-export const commentLikesTable = pgTable('comment_likes', {
+export const commentLikesTable = snakeCase.table('comment_likes', {
 	id: serial().primaryKey(),
 	creator: integer().references(() => usersTable.id),
 	commentId: integer().references(() => commentsTable.id),
 	createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 });
 
-export const rqbSchema = pgSchema('rqb_test_schema');
+export const rqbSchema = snakeCase.schema('rqb_test_schema');
 
 export const schemaUsers = rqbSchema.table('users', {
 	id: serial().primaryKey(),
@@ -158,7 +156,7 @@ export const schemaUsersView = rqbSchema.view('users_sch_view').as((qb) =>
 
 export const en = pgEnum('en', ['enVal1', 'enVal2']);
 
-export const allTypesTable = pgTable('all_types', {
+export const allTypesTable = snakeCase.table('all_types', {
 	serial: serial(),
 	bigserial53: bigserial({
 		mode: 'number',
@@ -303,17 +301,17 @@ export const allTypesTable = pgTable('all_types', {
 	arrvarchar: varchar().array(),
 });
 
-export const students = pgTable('students', {
+export const students = snakeCase.table('students', {
 	studentId: serial('student_id').primaryKey().notNull(),
 	name: text().notNull(),
 });
 
-export const courseOfferings = pgTable('course_offerings', {
+export const courseOfferings = snakeCase.table('course_offerings', {
 	courseId: integer('course_id').notNull(),
 	semester: varchar({ length: 10 }).notNull(),
 });
 
-export const studentGrades = pgTable('student_grades', {
+export const studentGrades = snakeCase.table('student_grades', {
 	studentId: integer('student_id').notNull(),
 	courseId: integer('course_id').notNull(),
 	semester: varchar({ length: 10 }).notNull(),
@@ -365,7 +363,7 @@ const customInt = customType<{
 	dataType: () => 'integer',
 });
 
-export const customTypesTable = pgTable('custom_types', {
+export const customTypesTable = snakeCase.table('custom_types', {
 	id: serial('id'),
 	big: customBigInt(),
 	bigArr: customBigInt().array(),

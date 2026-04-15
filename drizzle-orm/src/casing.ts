@@ -1,8 +1,4 @@
-import { Column } from '~/column.ts';
-import { entityKind, is } from './entity.ts';
-import type { View } from './sql/index.ts';
-import { Table } from './table.ts';
-import type { Casing } from './utils.ts';
+export type Casing = 'snake_case' | 'camelCase';
 
 export function toSnakeCase(input: string) {
 	const words = input
@@ -23,57 +19,8 @@ export function toCamelCase(input: string) {
 	}, '');
 }
 
-function noopCase(input: string) {
-	return input;
-}
-
-export class CasingCache {
-	static readonly [entityKind]: string = 'CasingCache';
-
-	/** @internal */
-	cache: Record<string, string> = {};
-	private cachedTables: Record<string, true> = {};
-	private convert: (input: string) => string;
-
-	constructor(casing?: Casing) {
-		this.convert = casing === 'snake_case'
-			? toSnakeCase
-			: casing === 'camelCase'
-			? toCamelCase
-			: noopCase;
-	}
-
-	getColumnCasing(column: Column): string {
-		if (!column.keyAsName) return column.name;
-
-		const schema = column.table[Table.Symbol.Schema] ?? 'public';
-		const tableName = column.table[Table.Symbol.OriginalName];
-		const key = `${schema}.${tableName}.${column.name}`;
-
-		if (!this.cache[key]) {
-			this.cacheTable(column.table);
-		}
-		return this.cache[key]!;
-	}
-
-	private cacheTable(table: Table | View) {
-		const schema = table[Table.Symbol.Schema] ?? 'public';
-		const tableName = table[Table.Symbol.OriginalName];
-		const tableKey = `${schema}.${tableName}`;
-
-		if (!this.cachedTables[tableKey]) {
-			for (const column of Object.values(table[Table.Symbol.Columns])) {
-				if (!is(column, Column)) continue;
-
-				const columnKey = `${tableKey}.${column.name}`;
-				this.cache[columnKey] = this.convert(column.name);
-			}
-			this.cachedTables[tableKey] = true;
-		}
-	}
-
-	clearCache() {
-		this.cache = {};
-		this.cachedTables = {};
-	}
+export function getCasingFn(casing: Casing | undefined) {
+	if (casing === 'snake_case') return toSnakeCase;
+	if (casing === 'camelCase') return toCamelCase;
+	return (name: string) => name;
 }

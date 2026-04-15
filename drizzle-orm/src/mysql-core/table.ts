@@ -1,3 +1,4 @@
+import { type Casing, getCasingFn } from '~/casing.ts';
 import type { BuildColumns, BuildExtraConfigColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import {
@@ -73,6 +74,7 @@ export function mysqlTableWithSchema<
 		) => MySqlTableExtraConfig | MySqlTableExtraConfigValue[])
 		| undefined,
 	schema: TSchemaName,
+	casing: Casing | undefined,
 	baseName = name,
 ): MySqlTableWithColumns<{
 	name: TTableName;
@@ -80,6 +82,7 @@ export function mysqlTableWithSchema<
 	columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
 	dialect: 'mysql';
 }> {
+	const casingFn = getCasingFn(casing);
 	const rawTable = new MySqlTable<{
 		name: TTableName;
 		schema: TSchemaName;
@@ -92,7 +95,7 @@ export function mysqlTableWithSchema<
 	const builtColumns = Object.fromEntries(
 		Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
 			const colBuilder = colBuilderBase as MySqlColumnBuilder;
-			colBuilder.setName(name);
+			colBuilder.setName(name, casingFn);
 			const column = colBuilder.build(rawTable).postBuild();
 			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
@@ -220,12 +223,18 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 	}>;
 }
 
-export const mysqlTable: MySqlTableFn = (name, columns, extraConfig) => {
-	return mysqlTableWithSchema(name, columns, extraConfig, undefined, name);
-};
+/** @internal */
+export function mysqlTableWithCasing(casing: Casing | undefined): MySqlTableFn {
+	return (name, columns, extraConfig) => mysqlTableWithSchema(name, columns, extraConfig, undefined, casing, name);
+}
 
-export function mysqlTableCreator(customizeTableName: (name: string) => string): MySqlTableFn {
+export const mysqlTable = mysqlTableWithCasing(undefined);
+
+export function mysqlTableCreator(
+	customizeTableName: (name: string) => string,
+	casing?: Casing | undefined,
+): MySqlTableFn {
 	return (name, columns, extraConfig) => {
-		return mysqlTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig, undefined, name);
+		return mysqlTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig, undefined, casing, name);
 	};
 }

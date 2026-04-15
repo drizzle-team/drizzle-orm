@@ -320,7 +320,6 @@ function construct<TRelations extends AnyRelations = EmptyRelations>(
 	$client: AwsDataApiClient;
 } {
 	const dialect = new AwsPgDialect({
-		casing: config.casing,
 		useJitMappers: config.useJitMappers,
 		codecs: config.codecs ?? awsDataApiPgCodecs,
 	});

@@ -34,7 +34,7 @@ export function construct<
 ): SQLiteCloudDatabase<TSchema, TRelations> & {
 	$client: Database;
 } {
-	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
+	const dialect = new SQLiteAsyncDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

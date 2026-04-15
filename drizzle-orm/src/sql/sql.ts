@@ -1,4 +1,3 @@
-import type { CasingCache } from '~/casing.ts';
 import type { CodecsCollection } from '~/codecs.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { SelectResult } from '~/query-builders/select.types.ts';
@@ -31,7 +30,6 @@ export type Chunk =
 	| SQL;
 
 export interface BuildQueryConfig {
-	casing: CasingCache;
 	escapeName(name: string): string;
 	escapeParam(num: number, value: unknown): string;
 	escapeString(str: string): string;
@@ -155,7 +153,6 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 		});
 
 		const {
-			casing,
 			escapeName,
 			escapeParam,
 			prepareTyping,
@@ -218,7 +215,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 			}
 
 			if (is(chunk, Column)) {
-				const columnName = casing.getColumnCasing(chunk);
+				const columnName = chunk.name;
 				if (_config.invokeSource === 'indexes') {
 					return { sql: escapeName(columnName), params: [] };
 				}

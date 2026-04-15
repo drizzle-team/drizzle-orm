@@ -6,7 +6,6 @@ import {
 	mapColumnsInAliasedSQLToAlias,
 	mapColumnsInSQLToAlias,
 } from '~/alias.ts';
-import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
@@ -15,7 +14,7 @@ import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/s
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/mssql.ts';
-import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { and, DrizzleError, eq, type Name, ViewBaseConfig } from '../index.ts';
 import { MsSqlColumn } from './columns/common.ts';
 import type { MsSqlDeleteConfig } from './query-builders/delete.ts';
@@ -26,18 +25,13 @@ import type { MsSqlSession } from './session.ts';
 import { MsSqlTable } from './table.ts';
 import { MsSqlViewBase } from './view-base.ts';
 
-export interface MsSqlDialectConfig {
-	casing?: Casing;
-}
+// Will add codecs here, do not remove
+export interface MsSqlDialectConfig {}
+
 export class MsSqlDialect {
 	static readonly [entityKind]: string = 'MsSqlDialect';
 
-	/** @internal */
-	readonly casing: CasingCache;
-
-	constructor(config?: MsSqlDialectConfig) {
-		this.casing = new CasingCache(config?.casing);
-	}
+	constructor(_config?: MsSqlDialectConfig) {}
 
 	async migrate(
 		migrations: MigrationMeta[],
@@ -189,7 +183,7 @@ export class MsSqlDialect {
 					?? (is(onUpdateFnResult, SQL)
 						? onUpdateFnResult
 						: sql.param(onUpdateFnResult, col));
-				const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
+				const res = sql`${sql.identifier(col.name)} = ${value}`;
 
 				if (i < setSize - 1) {
 					return [res, sql.raw(', ')];
@@ -272,7 +266,7 @@ export class MsSqlDialect {
 					const newSql = new SQL(
 						query.queryChunks.map((c) => {
 							if (is(c, MsSqlColumn)) {
-								return sql.identifier(this.casing.getColumnCasing(c));
+								return sql.identifier(c.name);
 							}
 							return c;
 						}),
@@ -290,8 +284,8 @@ export class MsSqlDialect {
 				if (isSingleTable) {
 					chunk.push(
 						field.isAlias
-							? sql`${sql.identifier(this.casing.getColumnCasing(getOriginalColumnFromAlias(field)))} as ${field}`
-							: sql.identifier(this.casing.getColumnCasing(field)),
+							? sql`${sql.identifier(getOriginalColumnFromAlias(field).name)} as ${field}`
+							: sql.identifier(field.name),
 					);
 				} else {
 					chunk.push(
@@ -354,7 +348,7 @@ export class MsSqlDialect {
 							if (is(c, MsSqlColumn)) {
 								return sql.join([
 									sql.raw(`${type}.`),
-									sql.identifier(this.casing.getColumnCasing(c)),
+									sql.identifier(c.name),
 								]);
 							}
 							return c;
@@ -370,8 +364,8 @@ export class MsSqlDialect {
 					sql.join([
 						sql.raw(`${type}.`),
 						field.isAlias
-							? sql`${sql.identifier(this.casing.getColumnCasing(getOriginalColumnFromAlias(field)))} as ${field}`
-							: sql.identifier(this.casing.getColumnCasing(field)),
+							? sql`${sql.identifier(getOriginalColumnFromAlias(field).name)} as ${field}`
+							: sql.identifier(field.name),
 					]),
 				);
 			}
@@ -642,7 +636,7 @@ export class MsSqlDialect {
 			([_, col]) => !col.shouldDisableInsert(),
 		);
 
-		const insertOrder = colEntries.map(([, column]) => sql.identifier(this.casing.getColumnCasing(column)));
+		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 
 		for (const [valueIndex, value] of values.entries()) {
 			const valueList: (SQLChunk | SQL)[] = [];
@@ -693,7 +687,6 @@ export class MsSqlDialect {
 		invokeSource?: 'indexes' | 'mssql-check' | 'mssql-view-with-schemabinding',
 	): QueryWithTypings {
 		const res = sql.toQuery({
-			casing: this.casing,
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,

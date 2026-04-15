@@ -1,3 +1,4 @@
+import type { Casing } from '~/casing.ts';
 import { entityKind, is } from '~/entity.ts';
 import { type SingleStoreTableFn, singlestoreTableWithSchema } from './table.ts';
 /* import { type singlestoreView, singlestoreViewWithSchema } from './view.ts'; */
@@ -7,10 +8,11 @@ export class SingleStoreSchema<TName extends string = string> {
 
 	constructor(
 		public readonly schemaName: TName,
+		protected casing: Casing | undefined,
 	) {}
 
 	table: SingleStoreTableFn<TName> = (name, columns, extraConfig) => {
-		return singlestoreTableWithSchema(name, columns, extraConfig, this.schemaName);
+		return singlestoreTableWithSchema(name, columns, extraConfig, this.schemaName, this.casing);
 	};
 	/*
 	view = ((name, columns) => {
@@ -30,8 +32,12 @@ export function isSingleStoreSchema(obj: unknown): obj is SingleStoreSchema {
  * @param name singlestore use schema name
  * @returns SingleStore schema
  */
-export function singlestoreDatabase<TName extends string>(name: TName) {
-	return new SingleStoreSchema(name);
+export function singlestoreDatabase<TName extends string>(name: TName): SingleStoreSchema<TName>;
+/** @internal */
+export function singlestoreDatabase<TName extends string>(name: TName, casing?: Casing): SingleStoreSchema<TName>;
+/** @internal */
+export function singlestoreDatabase<TName extends string>(name: TName, casing?: Casing): SingleStoreSchema<TName> {
+	return new SingleStoreSchema(name, casing);
 }
 
 /**

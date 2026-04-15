@@ -69,7 +69,7 @@ export function drizzle<
 	batchCallback?: AsyncBatchRemoteCallback | DrizzleConfig<TSchema, TRelations>,
 	config?: DrizzleConfig<TSchema, TRelations>,
 ): SqliteRemoteDatabase<TSchema, TRelations> {
-	const dialect = new SQLiteAsyncDialect({ casing: config?.casing });
+	const dialect = new SQLiteAsyncDialect();
 	let logger;
 	let cache;
 	let _batchCallback: AsyncBatchRemoteCallback | undefined;

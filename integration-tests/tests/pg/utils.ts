@@ -1,5 +1,4 @@
 import { Column } from 'drizzle-orm';
-import { CasingCache } from 'drizzle-orm/casing';
 import { CodecsCollection } from 'drizzle-orm/codecs';
 import { PgAsyncDatabase, PgDialect } from 'drizzle-orm/pg-core';
 import { PgEffectDatabase } from 'drizzle-orm/pg-core/effect/db';
@@ -14,12 +13,11 @@ export function normalizeDataWithDbCodecs(
 ) {
 	const { db, data: rawData, columns, mode } = cfg;
 	const dialect = (<any> db).dialect as PgDialect;
-	const casing = (<any> dialect).casing as CasingCache;
 	const codecs = (<any> dialect).codecs as CodecsCollection;
 	const data = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
 
 	const dbNamedColumns = Object.values(columns).map((c) => {
-		return [casing.getColumnCasing(c), c];
+		return [c.name, c];
 	}) as [string, Column][];
 
 	const res: Record<string, any>[] = [];

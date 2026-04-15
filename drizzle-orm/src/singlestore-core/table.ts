@@ -1,3 +1,4 @@
+import { type Casing, getCasingFn } from '~/casing.ts';
 import type { BuildColumns, BuildExtraConfigColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import {
@@ -61,6 +62,7 @@ export function singlestoreTableWithSchema<
 		) => SingleStoreTableExtraConfig | SingleStoreTableExtraConfigValue[])
 		| undefined,
 	schema: TSchemaName,
+	casing: Casing | undefined,
 	baseName = name,
 ): SingleStoreTableWithColumns<{
 	name: TTableName;
@@ -68,6 +70,7 @@ export function singlestoreTableWithSchema<
 	columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
 	dialect: 'singlestore';
 }> {
+	const casingFn = getCasingFn(casing);
 	const rawTable = new SingleStoreTable<{
 		name: TTableName;
 		schema: TSchemaName;
@@ -80,7 +83,7 @@ export function singlestoreTableWithSchema<
 	const builtColumns = Object.fromEntries(
 		Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
 			const colBuilder = colBuilderBase as SingleStoreColumnBuilder;
-			colBuilder.setName(name);
+			colBuilder.setName(name, casingFn);
 			const column = colBuilder.build(rawTable).postBuild();
 			return [name, column];
 		}),
@@ -207,12 +210,26 @@ export interface SingleStoreTableFn<TSchemaName extends string | undefined = und
 	}>;
 }
 
-export const singlestoreTable: SingleStoreTableFn = (name, columns, extraConfig) => {
-	return singlestoreTableWithSchema(name, columns, extraConfig, undefined, name);
-};
+/** @internal */
+export function singlestoreTableWithCasing(casing: Casing | undefined): SingleStoreTableFn {
+	return (name, columns, extraConfig) =>
+		singlestoreTableWithSchema(name, columns, extraConfig, undefined, casing, name);
+}
 
-export function singlestoreTableCreator(customizeTableName: (name: string) => string): SingleStoreTableFn {
+export const singlestoreTable = singlestoreTableWithCasing(undefined);
+
+export function singlestoreTableCreator(
+	customizeTableName: (name: string) => string,
+	casing?: Casing | undefined,
+): SingleStoreTableFn {
 	return (name, columns, extraConfig) => {
-		return singlestoreTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig, undefined, name);
+		return singlestoreTableWithSchema(
+			customizeTableName(name) as typeof name,
+			columns,
+			extraConfig,
+			undefined,
+			casing,
+			name,
+		);
 	};
 }

@@ -1,3 +1,4 @@
+import type { Casing } from '~/casing.ts';
 import { entityKind, is } from '~/entity.ts';
 import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { gelSequence } from './sequence.ts';
@@ -10,10 +11,11 @@ export class GelSchema<TName extends string = string> implements SQLWrapper {
 	static readonly [entityKind]: string = 'GelSchema';
 	constructor(
 		public readonly schemaName: TName,
+		readonly casing: Casing | undefined,
 	) {}
 
 	table: GelTableFn<TName> = ((name, columns, extraConfig) => {
-		return gelTableWithSchema(name, columns, extraConfig, this.schemaName);
+		return gelTableWithSchema(name, columns, extraConfig, this.schemaName, this.casing);
 	});
 
 	// view = ((name, columns) => {
@@ -45,12 +47,16 @@ export function isGelSchema(obj: unknown): obj is GelSchema {
 	return is(obj, GelSchema);
 }
 
-export function gelSchema<T extends string>(name: T) {
+export function gelSchema<T extends string>(name: T): GelSchema<T>;
+/** @internal */
+export function gelSchema<T extends string>(name: T, casing: Casing | undefined): GelSchema<T>;
+/** @internal */
+export function gelSchema<T extends string>(name: T, casing?: Casing): GelSchema<T> {
 	if (name === 'public') {
 		throw new Error(
 			`You can't specify 'public' as schema name. Postgres is using public schema by default. If you want to use 'public' schema, just use GelTable() instead of creating a schema`,
 		);
 	}
 
-	return new GelSchema(name);
+	return new GelSchema(name, casing);
 }

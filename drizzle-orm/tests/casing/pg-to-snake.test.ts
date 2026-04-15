@@ -1,12 +1,12 @@
 import postgres from 'postgres';
-import { beforeEach, describe, it } from 'vitest';
+import { describe, it } from 'vitest';
 import { relations } from '~/_relations';
-import { alias, boolean, integer, pgSchema, pgTable, serial, text, union } from '~/pg-core';
+import { alias, boolean, integer, serial, snakeCase, text, union } from '~/pg-core';
 import { drizzle } from '~/postgres-js';
 import { asc, eq, sql } from '~/sql';
 
-const testSchema = pgSchema('test');
-const users = pgTable('users', {
+const testSchema = snakeCase.schema('test');
+const users = snakeCase.table('users', {
 	id: serial().primaryKey(),
 	firstName: text().notNull(),
 	lastName: text().notNull(),
@@ -27,9 +27,8 @@ const developersRelations = relations(developers, ({ one }) => ({
 	}),
 }));
 const devs = alias(developers, 'devs');
-const schema = { users, usersRelations, developers, developersRelations };
 
-const db = drizzle({ client: postgres(''), casing: 'snake_case' });
+const db = drizzle({ client: postgres('') });
 
 const usersCache = {
 	'public.users.id': 'id',
@@ -49,10 +48,6 @@ const cache = {
 const fullName = sql`${users.firstName} || ' ' || ${users.lastName}`.as('name');
 
 describe('postgres to snake case', () => {
-	beforeEach(() => {
-		db.dialect.casing.clearCache();
-	});
-
 	it('select', ({ expect }) => {
 		const query = db
 			.select({ name: fullName, age: users.age })
@@ -65,7 +60,6 @@ describe('postgres to snake case', () => {
 				'select "users"."first_name" || \' \' || "users"."last_name" as "name", "users"."AGE" from "users" left join "test"."developers" on "users"."id" = "test"."developers"."user_id" order by "users"."first_name" asc',
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(cache);
 	});
 
 	it('select (with alias)', ({ expect }) => {
@@ -79,7 +73,6 @@ describe('postgres to snake case', () => {
 				'select "users"."first_name" from "users" left join "test"."developers" "devs" on "users"."id" = "devs"."user_id"',
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(cache);
 	});
 
 	it('with CTE', ({ expect }) => {
@@ -91,7 +84,6 @@ describe('postgres to snake case', () => {
 				'with "cte" as (select "first_name" || \' \' || "last_name" as "name" from "users") select "name" from "cte"',
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('with CTE (with query builder)', ({ expect }) => {
@@ -103,7 +95,6 @@ describe('postgres to snake case', () => {
 				'with "cte" as (select "first_name" || \' \' || "last_name" as "name" from "users") select "name" from "cte"',
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('set operator', ({ expect }) => {
@@ -116,7 +107,6 @@ describe('postgres to snake case', () => {
 			sql: '(select "first_name" from "users") union (select "first_name" from "users")',
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('set operator (function)', ({ expect }) => {
@@ -129,7 +119,6 @@ describe('postgres to snake case', () => {
 			sql: '(select "first_name" from "users") union (select "first_name" from "users")',
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('insert (on conflict do nothing)', ({ expect }) => {
@@ -144,7 +133,6 @@ describe('postgres to snake case', () => {
 				'insert into "users" ("id", "first_name", "last_name", "AGE") values (default, $1, $2, $3) on conflict ("first_name") do nothing returning "first_name", "AGE"',
 			params: ['John', 'Doe', 30],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('insert (on conflict do update)', ({ expect }) => {
@@ -159,7 +147,6 @@ describe('postgres to snake case', () => {
 				'insert into "users" ("id", "first_name", "last_name", "AGE") values (default, $1, $2, $3) on conflict ("first_name") do update set "AGE" = $4 returning "first_name", "AGE"',
 			params: ['John', 'Doe', 30, 31],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('update', ({ expect }) => {
@@ -174,7 +161,6 @@ describe('postgres to snake case', () => {
 				'update "users" set "first_name" = $1, "last_name" = $2, "AGE" = $3 where "users"."id" = $4 returning "first_name", "AGE"',
 			params: ['John', 'Doe', 30, 1],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('delete', ({ expect }) => {
@@ -187,7 +173,6 @@ describe('postgres to snake case', () => {
 			sql: 'delete from "users" where "users"."id" = $1 returning "first_name", "AGE"',
 			params: [1],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('select columns as', ({ expect }) => {

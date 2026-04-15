@@ -546,7 +546,6 @@ const testFor = (
 			<S extends PostgresSchema, TConfig extends AnyRelationsBuilderConfig>(
 				schema: S,
 				cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
-				casing?: NonNullable<DrizzleConfig['casing']>,
 				useJitMappers?: boolean,
 			): PgAsyncDatabase<any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
 		};
@@ -647,28 +646,27 @@ const testFor = (
 					cb?: (
 						helpers: RelationsBuilder<ExtractTablesFromSchema<S>>,
 					) => RelationsBuilderConfig<ExtractTablesFromSchema<S>>,
-					casing?: NonNullable<DrizzleConfig['casing']>,
 					useJitMappers?: boolean,
 				) => {
 					const relations = cb ? defineRelations(schema, cb) : defineRelations(schema);
 
 					if (vendor === 'neon-http') {
-						return drizzleNeonHttp({ client: kit.client, relations, casing, useJitMappers });
+						return drizzleNeonHttp({ client: kit.client, relations, useJitMappers });
 					}
 					if (vendor === 'neon-serverless') {
-						return drizzleNeonWs({ client: kit.client as any, relations, casing, useJitMappers });
+						return drizzleNeonWs({ client: kit.client as any, relations, useJitMappers });
 					}
 					if (vendor === 'pglite') {
-						return drizzlePglite({ client: kit.client as any, relations, casing, useJitMappers });
+						return drizzlePglite({ client: kit.client as any, relations, useJitMappers });
 					}
 					if (vendor === 'node-postgres') {
-						return drizzleNodePostgres({ client: kit.client as any, relations, casing, useJitMappers });
+						return drizzleNodePostgres({ client: kit.client as any, relations, useJitMappers });
 					}
 					if (vendor === 'postgresjs') {
-						return drizzlePostgresjs({ client: kit.client as any, relations, casing, useJitMappers });
+						return drizzlePostgresjs({ client: kit.client as any, relations, useJitMappers });
 					}
 					if (vendor === 'netlify-db') {
-						return drizzleNetlify({ client: kit.client as any, relations, casing, useJitMappers });
+						return drizzleNetlify({ client: kit.client as any, relations, useJitMappers });
 					}
 
 					if (vendor === 'proxy') {
@@ -687,7 +685,7 @@ const testFor = (
 								throw e;
 							}
 						};
-						return drizzleProxy(proxyHandler, { relations, casing, codecs: nodePgCodecs, useJitMappers });
+						return drizzleProxy(proxyHandler, { relations, codecs: nodePgCodecs, useJitMappers });
 					}
 					throw new Error();
 				};

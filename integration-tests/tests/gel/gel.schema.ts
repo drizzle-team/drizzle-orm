@@ -1,6 +1,6 @@
-import { boolean, gelSchema, gelTable, integer, text, timestamptz } from 'drizzle-orm/gel-core';
+import { boolean, integer, snakeCase, text, timestamptz } from 'drizzle-orm/gel-core';
 
-export const usersTable = gelTable('users', {
+export const usersTable = snakeCase.table('users', {
 	id: integer('custom_id').unique().generatedByDefaultAsIdentity({
 		name: 'default::users_id',
 		minValue: 0,
@@ -12,7 +12,7 @@ export const usersTable = gelTable('users', {
 	invitedBy: integer(),
 });
 
-export const groupsTable = gelTable('groups', {
+export const groupsTable = snakeCase.table('groups', {
 	id: integer('custom_id').unique().generatedByDefaultAsIdentity({
 		name: 'default::groups_id',
 		minValue: 0,
@@ -23,7 +23,7 @@ export const groupsTable = gelTable('groups', {
 	description: text(),
 });
 
-export const usersToGroupsTable = gelTable('users_to_groups', {
+export const usersToGroupsTable = snakeCase.table('users_to_groups', {
 	id: integer('custom_id').unique().generatedByDefaultAsIdentity({
 		name: 'default::users_to_groups_id',
 		minValue: 0,
@@ -34,7 +34,7 @@ export const usersToGroupsTable = gelTable('users_to_groups', {
 	groupId: integer().notNull(),
 });
 
-export const postsTable = gelTable('posts', {
+export const postsTable = snakeCase.table('posts', {
 	id: integer('custom_id').unique().generatedByDefaultAsIdentity({
 		name: 'default::posts_id',
 		minValue: 0,
@@ -46,7 +46,7 @@ export const postsTable = gelTable('posts', {
 	createdAt: timestamptz().notNull().defaultNow(),
 });
 
-export const commentsTable = gelTable('comments', {
+export const commentsTable = snakeCase.table('comments', {
 	id: integer('custom_id').unique().generatedByDefaultAsIdentity({
 		name: 'default::comments_id',
 		minValue: 0,
@@ -59,7 +59,7 @@ export const commentsTable = gelTable('comments', {
 	createdAt: timestamptz().notNull().defaultNow(),
 });
 
-export const commentLikesTable = gelTable('comment_likes', {
+export const commentLikesTable = snakeCase.table('comment_likes', {
 	id: integer('custom_id').unique().generatedByDefaultAsIdentity({
 		name: 'default::comments_likes_id',
 		minValue: 0,
@@ -71,7 +71,7 @@ export const commentLikesTable = gelTable('comment_likes', {
 	createdAt: timestamptz().notNull().defaultNow(),
 });
 
-export const rqbSchema = gelSchema('rqb_test_schema');
+export const rqbSchema = snakeCase.schema('rqb_test_schema');
 
 export const schemaUsers = rqbSchema.table('users', {
 	id: integer('custom_id').unique().generatedByDefaultAsIdentity({

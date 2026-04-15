@@ -26,7 +26,7 @@ export function drizzle<
 >(
 	callback: RemoteCallback,
 	config: DrizzleConfig<TSchema, TRelations> = {},
-	_dialect: () => MySqlDialect = () => new MySqlDialect({ casing: config.casing }),
+	_dialect: () => MySqlDialect = () => new MySqlDialect(),
 ): MySqlRemoteDatabase<TSchema, TRelations> {
 	const dialect = _dialect();
 	let logger;

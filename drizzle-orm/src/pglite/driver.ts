@@ -98,7 +98,6 @@ function construct<TRelations extends AnyRelations = EmptyRelations>(
 	$client: PgliteClient;
 } {
 	const dialect = new PgDialect({
-		casing: config.casing,
 		useJitMappers: config.useJitMappers,
 		codecs: config.codecs ?? pgliteCodecs,
 	});

@@ -183,7 +183,7 @@ export class ExtraConfigColumn<
 export class IndexedColumn {
 	static readonly [entityKind]: string = 'IndexedColumn';
 	constructor(
-		name: string | undefined,
+		name: string,
 		keyAsName: boolean,
 		type: string,
 		indexConfig: IndexedExtraConfigType,
@@ -194,7 +194,7 @@ export class IndexedColumn {
 		this.indexConfig = indexConfig;
 	}
 
-	name: string | undefined;
+	name: string;
 	keyAsName: boolean;
 	type: string;
 	indexConfig: IndexedExtraConfigType;

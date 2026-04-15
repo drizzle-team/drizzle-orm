@@ -1,3 +1,4 @@
+import type { Casing } from '~/casing.ts';
 import { entityKind, is } from '~/entity.ts';
 import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { NonArray, Writable } from '~/utils.ts';
@@ -12,10 +13,11 @@ export class PgSchema<TName extends string = string> implements SQLWrapper {
 	isExisting: boolean = false;
 	constructor(
 		public readonly schemaName: TName,
+		protected casing: Casing | undefined,
 	) {
 		this.table = Object.assign(this.table, {
 			withRLS: ((name, columns, extraConfig) => {
-				const table = pgTableWithSchema(name, columns, extraConfig, this.schemaName);
+				const table = pgTableWithSchema(name, columns, extraConfig, this.schemaName, this.casing);
 				table[EnableRLS] = true;
 
 				return table;
@@ -24,15 +26,15 @@ export class PgSchema<TName extends string = string> implements SQLWrapper {
 	}
 
 	table: PgTableFn<TName> = ((name, columns, extraConfig) => {
-		return pgTableWithSchema(name, columns, extraConfig, this.schemaName);
+		return pgTableWithSchema(name, columns, extraConfig, this.schemaName, this.casing);
 	}) as PgTableFn<TName>;
 
 	view = ((name, columns) => {
-		return pgViewWithSchema(name, columns, this.schemaName);
+		return pgViewWithSchema(name, columns, this.schemaName, this.casing);
 	}) as typeof pgView;
 
 	materializedView = ((name, columns) => {
-		return pgMaterializedViewWithSchema(name, columns, this.schemaName);
+		return pgMaterializedViewWithSchema(name, columns, this.schemaName, this.casing);
 	}) as typeof pgMaterializedView;
 
 	public enum<U extends string, T extends Readonly<[U, ...U[]]>>(
@@ -77,12 +79,16 @@ export function isPgSchema(obj: unknown): obj is PgSchema {
 	return is(obj, PgSchema);
 }
 
-export function pgSchema<T extends string>(name: T) {
+export function pgSchema<T extends string>(name: T): PgSchema<T>;
+/** @internal */
+export function pgSchema<T extends string>(name: T, casing: Casing | undefined): PgSchema<T>;
+/** @internal */
+export function pgSchema<T extends string>(name: T, casing?: Casing): PgSchema<T> {
 	if (name === 'public') {
 		throw new Error(
 			`You can't specify 'public' as schema name. Postgres is using public schema by default. If you want to use 'public' schema, just use pgTable() instead of creating a schema`,
 		);
 	}
 
-	return new PgSchema(name);
+	return new PgSchema(name, casing);
 }

@@ -1,3 +1,4 @@
+import { type Casing, getCasingFn } from '~/casing.ts';
 import type { BuildColumns, BuildExtraConfigColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import {
@@ -163,7 +164,8 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 	}>;
 }
 
-function sqliteTableBase<
+/** @internal */
+export function sqliteTableBase<
 	TTableName extends string,
 	TColumnsMap extends Record<string, ColumnBuilderBase>,
 	TSchema extends string | undefined,
@@ -175,7 +177,8 @@ function sqliteTableBase<
 			self: BuildColumns<TTableName, TColumnsMap, 'sqlite'>,
 		) => SQLiteTableExtraConfig | SQLiteTableExtraConfigValue[])
 		| undefined,
-	schema?: TSchema,
+	schema: TSchema | undefined,
+	casing: Casing | undefined,
 	baseName = name,
 ): SQLiteTableWithColumns<{
 	name: TTableName;
@@ -183,6 +186,7 @@ function sqliteTableBase<
 	columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
 	dialect: 'sqlite';
 }> {
+	const casingFn = getCasingFn(casing);
 	const rawTable = new SQLiteTable<{
 		name: TTableName;
 		schema: TSchema;
@@ -195,7 +199,7 @@ function sqliteTableBase<
 	const builtColumns = Object.fromEntries(
 		Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
 			const colBuilder = colBuilderBase as SQLiteColumnBuilder;
-			colBuilder.setName(name);
+			colBuilder.setName(name, casingFn);
 			const column = colBuilder.build(rawTable).postBuild();
 			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
@@ -220,12 +224,18 @@ function sqliteTableBase<
 	return table as any;
 }
 
-export const sqliteTable: SQLiteTableFn = (name, columns, extraConfig) => {
-	return sqliteTableBase(name, columns, extraConfig);
-};
+/** @internal */
+export function sqliteTableWithCasing(casing: Casing | undefined): SQLiteTableFn {
+	return (name, columns, extraConfig) => sqliteTableBase(name, columns, extraConfig, undefined, casing);
+}
 
-export function sqliteTableCreator(customizeTableName: (name: string) => string): SQLiteTableFn {
+export const sqliteTable = sqliteTableWithCasing(undefined);
+
+export function sqliteTableCreator(
+	customizeTableName: (name: string) => string,
+	casing?: Casing | undefined,
+): SQLiteTableFn {
 	return (name, columns, extraConfig) => {
-		return sqliteTableBase(customizeTableName(name) as typeof name, columns, extraConfig, undefined, name);
+		return sqliteTableBase(customizeTableName(name) as typeof name, columns, extraConfig, undefined, casing, name);
 	};
 }

@@ -271,7 +271,6 @@ function construct<
 	client.options.serializers['3802'] = transparentParser;
 
 	const dialect = new PgDialect({
-		casing: config.casing,
 		useJitMappers: config.useJitMappers,
 		codecs: config.codecs ?? postgresJsCodecs,
 	});

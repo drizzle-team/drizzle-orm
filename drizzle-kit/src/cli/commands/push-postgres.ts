@@ -27,7 +27,6 @@ import { highlightSQL } from '../highlighter';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
-import type { CasingType } from '../validations/common';
 import type { PostgresCredentials } from '../validations/postgres';
 import { explain, postgresSchemaError, postgresSchemaWarning, ProgressView } from '../views';
 
@@ -37,7 +36,6 @@ export const handle = async (
 	credentials: PostgresCredentials,
 	filters: EntitiesFilterConfig,
 	force: boolean,
-	casing: CasingType | undefined,
 	explainFlag: boolean,
 	migrations: {
 		table: string;
@@ -53,7 +51,7 @@ export const handle = async (
 	const existing = extractPostgresExisting(res.schemas, res.views, res.matViews);
 	const entityFilter = prepareEntityFilter('postgresql', filters, existing);
 
-	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, casing, entityFilter);
+	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, entityFilter);
 
 	if (warnings.length > 0) {
 		console.log(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));

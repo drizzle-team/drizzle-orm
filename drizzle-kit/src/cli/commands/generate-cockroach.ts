@@ -22,10 +22,10 @@ import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
-	const { out: outFolder, filenames, casing } = config;
+	const { out: outFolder, filenames } = config;
 
 	const { snapshots } = prepareOutFolder(outFolder);
-	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, filenames, casing);
+	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, filenames);
 	if (config.custom) {
 		writeResult({
 			snapshot: custom,
@@ -73,7 +73,7 @@ export const handleExport = async (config: ExportConfig) => {
 
 	// TODO: do we wanna respect entity filter while exporting to sql?
 	// cc: @AleksandrSherman
-	const { schema, errors, warnings } = fromDrizzleSchema(res, config.casing, () => true);
+	const { schema, errors, warnings } = fromDrizzleSchema(res, () => true);
 
 	if (warnings.length > 0) {
 		console.log(warnings.map((it) => cockroachSchemaWarning(it)).join('\n\n'));

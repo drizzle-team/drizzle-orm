@@ -448,15 +448,12 @@ export type ColumnsWithTable<
 	TColumns extends AnyColumn<{ tableName: TTableName }>[],
 > = { [Key in keyof TColumns]: AnyColumn<{ tableName: TForeignTableName }> };
 
-export type Casing = 'snake_case' | 'camelCase';
-
 export interface DrizzleConfig<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelationConfigs extends AnyRelations = EmptyRelations,
 > {
 	logger?: boolean | Logger | undefined;
 	schema?: TSchema | undefined;
-	casing?: Casing | undefined;
 	relations?: TRelationConfigs | undefined;
 	cache?: Cache | undefined;
 	useJitMappers?: boolean | undefined;
@@ -499,7 +496,6 @@ type ExpectedConfigShape = {
 	} | undefined;
 	schema?: Record<string, never> | undefined;
 	relations?: AnyRelations | undefined;
-	casing?: 'snake_case' | 'camelCase' | undefined;
 };
 
 // If this errors, you must update config shape checker function with new config specs
@@ -531,13 +527,6 @@ export function isConfig(data: any): boolean {
 	if ('relations' in data) {
 		const type = typeof data['relations'];
 		if (type !== 'object' && type !== 'undefined') return false;
-
-		return true;
-	}
-
-	if ('casing' in data) {
-		const type = typeof data['casing'];
-		if (type !== 'string' && type !== 'undefined') return false;
 
 		return true;
 	}

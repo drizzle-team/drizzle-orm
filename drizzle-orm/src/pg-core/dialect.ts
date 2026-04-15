@@ -1,5 +1,4 @@
 import { aliasedTable, getOriginalColumnFromAlias } from '~/alias.ts';
-import { CasingCache } from '~/casing.ts';
 import { CodecsCollection } from '~/codecs.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
@@ -59,7 +58,6 @@ import {
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
 import {
-	type Casing,
 	makeDefaultQueryMapper,
 	makeJitQueryMapper,
 	orderSelectedFields,
@@ -72,7 +70,6 @@ import { PgViewBase } from './view-base.ts';
 import type { PgMaterializedView, PgView } from './view.ts';
 
 export interface PgDialectConfig {
-	casing?: Casing | CasingCache;
 	codecs?: PgCodecs;
 	useJitMappers?: boolean;
 }
@@ -80,7 +77,6 @@ export interface PgDialectConfig {
 export class PgDialect {
 	static readonly [entityKind]: string = 'PgDialect';
 
-	readonly casing: CasingCache;
 	readonly codecs: CodecsCollection<PostgresType>;
 	readonly mapperGenerators: {
 		rows: RowsMapperGenerator;
@@ -88,7 +84,6 @@ export class PgDialect {
 	};
 
 	constructor(config?: PgDialectConfig) {
-		this.casing = typeof config?.casing === 'object' ? config.casing : new CasingCache(config?.casing);
 		this.codecs = new CodecsCollection<PostgresType>(resolvePgType, config?.codecs);
 		this.mapperGenerators = config?.useJitMappers
 			? {
@@ -169,7 +164,7 @@ export class PgDialect {
 					?? (is(onUpdateFnResult, SQL)
 						? onUpdateFnResult
 						: sql.param(onUpdateFnResult, col));
-				const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
+				const res = sql`${sql.identifier(col.name)} = ${value}`;
 
 				if (i < setLength - 1) {
 					return [res, sql.raw(', ')];
@@ -256,7 +251,7 @@ export class PgDialect {
 					const newSql = new SQL(
 						query.queryChunks.map((c) => {
 							if (is(c, PgColumn)) {
-								return sql.identifier(this.casing.getColumnCasing(c));
+								return sql.identifier(c.name);
 							}
 							return c;
 						}),
@@ -274,8 +269,8 @@ export class PgDialect {
 				let name: Name | Column;
 				if (isSingleTable) {
 					name = field.isAlias
-						? sql.identifier(this.casing.getColumnCasing(getOriginalColumnFromAlias(field)))
-						: sql.identifier(this.casing.getColumnCasing(field));
+						? sql.identifier(getOriginalColumnFromAlias(field).name)
+						: sql.identifier(field.name);
 				} else {
 					name = field.isAlias ? getOriginalColumnFromAlias(field) : field;
 				}
@@ -590,7 +585,7 @@ export class PgDialect {
 			([_, col]) => !col.shouldDisableInsert(),
 		);
 
-		const insertOrder = colEntries.map(([, column]) => sql.identifier(this.casing.getColumnCasing(column)));
+		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 
 		if (select) {
 			const select = valuesOrSelect as AnyPgSelectQueryBuilder | SQL;
@@ -701,7 +696,6 @@ export class PgDialect {
 
 	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
 		return sql.toQuery({
-			casing: this.casing,
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
@@ -719,7 +713,7 @@ export class PgDialect {
 
 	private buildRqbColumn(table: Table | View, column: unknown, key: string, inJson: boolean) {
 		if (is(column, Column)) {
-			const name = sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))}`;
+			const name = sql`${table}.${sql.identifier(column.name)}`;
 			const casted = inJson && (<PgCustomColumn<any>> column).jsonSelectIdentifier
 				? (<PgCustomColumn<any>> column).jsonSelectIdentifier!(name, sql, (<PgCustomColumn<any>> column).dimensions)
 				: this.codecs.apply(column, inJson ? 'castInJson' : 'cast', name);
@@ -867,7 +861,6 @@ export class PgDialect {
 					params.where,
 					tableConfig.relations,
 					schema,
-					this.casing,
 				),
 				relationWhere,
 			)
@@ -877,7 +870,6 @@ export class PgDialect {
 				params.where,
 				tableConfig.relations,
 				schema,
-				this.casing,
 			)
 			: relationWhere;
 
@@ -930,7 +922,6 @@ export class PgDialect {
 								| View)
 							: undefined;
 						const { filter, joinCondition } = relationToSQL(
-							this.casing,
 							relation,
 							table,
 							targetTable,

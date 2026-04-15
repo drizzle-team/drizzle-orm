@@ -932,7 +932,6 @@ export const libSQLTursoTest = testFor('libsql-turso').extend<{ db: LibSQLDataba
 			const db = drizzleLibSQL({
 				client: kit.client,
 				relations: sqliteRelations,
-				casing: 'snake_case',
 			}) as LibSQLDatabase<never, typeof sqliteRelations>;
 
 			await use(db);
@@ -946,7 +945,6 @@ export const libSQLTursoV1Test = testFor('libsql-turso-v1').extend<{ db: LibSQLD
 			const db = drizzleLibSQL({
 				client: kit.client,
 				schema: sqliteSchema,
-				casing: 'snake_case',
 			}) as LibSQLDatabase<typeof sqliteSchema>;
 
 			await use(db);

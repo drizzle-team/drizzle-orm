@@ -98,7 +98,6 @@ export const configCommonSchema = object({
 	schemaFilter: union([string(), string().array()]).optional(),
 	migrations: configMigrations,
 	dbCredentials: any().optional(),
-	casing: casingType.optional(),
 	sql: boolean().default(true),
 }).passthrough();
 

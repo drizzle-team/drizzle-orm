@@ -49,7 +49,7 @@ function construct<
 ): NodeCockroachDatabase<TSchema> & {
 	$client: TClient;
 } {
-	const dialect = new CockroachDialect({ casing: config.casing });
+	const dialect = new CockroachDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

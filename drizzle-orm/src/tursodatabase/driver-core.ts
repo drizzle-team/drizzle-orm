@@ -34,7 +34,7 @@ export function construct<
 ): TursoDatabaseDatabase<TSchema, TRelations> & {
 	$client: DatabasePromise;
 } {
-	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
+	const dialect = new SQLiteAsyncDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

@@ -1,3 +1,4 @@
+import type { Casing } from '~/casing.ts';
 import type { BuildColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -7,7 +8,7 @@ import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
 import type { SQLiteColumn } from './columns/common.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
-import { sqliteTable } from './table.ts';
+import { sqliteTableBase } from './table.ts';
 import { SQLiteViewBase } from './view-base.ts';
 
 export interface ViewBuilderConfig {
@@ -79,9 +80,14 @@ export class ManualViewBuilder<
 	constructor(
 		name: TName,
 		columns: TColumns,
+		casing: Casing | undefined,
 	) {
 		super(name);
-		this.columns = getTableColumns(sqliteTable(name, columns)) as BuildColumns<TName, TColumns, 'sqlite'>;
+		this.columns = getTableColumns(sqliteTableBase(name, columns, undefined, undefined, casing)) as BuildColumns<
+			TName,
+			TColumns,
+			'sqlite'
+		>;
 	}
 
 	existing(): SQLiteViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'sqlite'>> {
@@ -148,19 +154,23 @@ export type SQLiteViewWithSelection<
 	TSelection extends ColumnsSelection,
 > = SQLiteView<TName, TExisting, TSelection> & TSelection;
 
-export function sqliteView<TName extends string>(name: TName): ViewBuilder<TName>;
-export function sqliteView<TName extends string, TColumns extends Record<string, ColumnBuilderBase>>(
-	name: TName,
-	columns: TColumns,
-): ManualViewBuilder<TName, TColumns>;
-export function sqliteView(
-	name: string,
-	selection?: Record<string, ColumnBuilderBase>,
-): ViewBuilder | ManualViewBuilder {
-	if (selection) {
-		return new ManualViewBuilder(name, selection);
-	}
-	return new ViewBuilder(name);
+export interface SQLiteViewFn {
+	<TName extends string>(name: TName): ViewBuilder<TName>;
+	<TName extends string, TColumns extends Record<string, ColumnBuilderBase>>(
+		name: TName,
+		columns: TColumns,
+	): ManualViewBuilder<TName, TColumns>;
 }
 
+/** @internal */
+export function sqliteViewWithCasing(casing: Casing | undefined): SQLiteViewFn {
+	return ((name, columns) => {
+		if (columns) {
+			return new ManualViewBuilder(name, columns, casing);
+		}
+		return new ViewBuilder(name);
+	}) as SQLiteViewFn;
+}
+
+export const sqliteView = sqliteViewWithCasing(undefined);
 export const view = sqliteView;

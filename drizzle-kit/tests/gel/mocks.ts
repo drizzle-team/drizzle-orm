@@ -3,7 +3,6 @@ import { drizzle, GelJsDatabase } from 'drizzle-orm/gel';
 import createClient from 'gel';
 import getPort from 'get-port';
 import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/cli';
-import { CasingType } from 'src/cli/validations/common';
 import { interimToDDL } from 'src/dialects/postgres/ddl';
 import { isSystemNamespace, isSystemRole } from 'src/dialects/postgres/grammar';
 import { fromDatabase } from 'src/dialects/postgres/introspect';
@@ -81,7 +80,6 @@ export const pull = async (
 	testName: string,
 	schemas: string[] = [],
 	entities?: EntitiesFilter,
-	casing?: CasingType | undefined,
 ) => {
 	const filterConfig: EntitiesFilterConfig = {
 		entities,

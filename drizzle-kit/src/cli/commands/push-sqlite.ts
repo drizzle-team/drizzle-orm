@@ -12,7 +12,6 @@ import { highlightSQL } from '../highlighter';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
-import type { CasingType } from '../validations/common';
 import type { SqliteCredentials } from '../validations/sqlite';
 import { explain, ProgressView, sqliteSchemaError } from '../views';
 
@@ -23,7 +22,6 @@ export const handle = async (
 	credentials: SqliteCredentials,
 	filters: EntitiesFilterConfig,
 	force: boolean,
-	casing: CasingType | undefined,
 	explainFlag: boolean,
 	migrations: {
 		table: string;
@@ -37,7 +35,7 @@ export const handle = async (
 	const existing = extractSqliteExisting(res.views);
 	const filter = prepareEntityFilter('sqlite', filters, existing);
 
-	const { ddl: ddl2, errors: errors1 } = interimToDDL(fromDrizzleSchema(res.tables, res.views, casing));
+	const { ddl: ddl2, errors: errors1 } = interimToDDL(fromDrizzleSchema(res.tables, res.views));
 
 	if (errors1.length > 0) {
 		console.log(errors1.map((it) => sqliteSchemaError(it)).join('\n'));
