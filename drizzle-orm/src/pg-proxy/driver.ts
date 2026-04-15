@@ -25,7 +25,6 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	config: DrizzlePgConfig<TRelations> & { codecs?: PgCodecs } = {},
 	_dialect: () => PgDialect = () =>
 		new PgDialect({
-			casing: config.casing,
 			useJitMappers: config.useJitMappers,
 			codecs: config.codecs ?? genericPgCodecs,
 		}),

@@ -1,4 +1,3 @@
-import type { Casing } from 'drizzle-orm';
 import { getTableName, is, SQL } from 'drizzle-orm';
 import { Relations } from 'drizzle-orm/_relations';
 import type { AnyMsSqlColumn, AnyMsSqlTable } from 'drizzle-orm/mssql-core';
@@ -11,9 +10,8 @@ import {
 	MsSqlTable,
 	MsSqlView,
 } from 'drizzle-orm/mssql-core';
-import type { CasingType } from 'src/cli/validations/common';
 import { loadModule } from 'src/utils/utils-node';
-import { getColumnCasing, sqlToStr } from '../drizzle';
+import { sqlToStr } from '../drizzle';
 import type { EntityFilter } from '../pull-utils';
 import type { DefaultConstraint, InterimSchema, MssqlEntities, Schema, SchemaError } from './ddl';
 import { defaultNameForDefault, defaultNameForFK, defaultNameForPK, defaultNameForUnique, typeFor } from './grammar';
@@ -25,7 +23,6 @@ export const upper = <T extends string>(value: T | undefined): Uppercase<T> | nu
 
 export const defaultFromColumn = (
 	column: AnyMsSqlColumn,
-	casing?: Casing,
 ): DefaultConstraint['default'] | null => {
 	if (typeof column.default === 'undefined') return null;
 	const def = column.default;
@@ -34,7 +31,7 @@ export const defaultFromColumn = (
 
 	if (is(def, SQL)) {
 		// extra wrapping
-		const str = sqlToStr(def, casing);
+		const str = sqlToStr(def);
 		if (!str.startsWith('(')) return `(${str})`;
 
 		return str;
@@ -52,10 +49,9 @@ export const fromDrizzleSchema = (
 		tables: AnyMsSqlTable[];
 		views: MsSqlView[];
 	},
-	casing: CasingType | undefined,
 	filter: EntityFilter,
 ): { schema: InterimSchema; errors: SchemaError[] } => {
-	const dialect = new MsSqlDialect({ casing });
+	const dialect = new MsSqlDialect();
 	const errors: SchemaError[] = [];
 
 	const schemas = schema.schemas
@@ -113,7 +109,7 @@ export const fromDrizzleSchema = (
 		}
 
 		for (const pk of primaryKeys) {
-			const columnNames = pk.columns.map((c: any) => getColumnCasing(c, casing));
+			const columnNames = pk.columns.map((c: any) => c.name);
 
 			const name = pk.name || defaultNameForPK(tableName);
 
@@ -128,7 +124,7 @@ export const fromDrizzleSchema = (
 		}
 
 		for (const column of columns) {
-			const columnName = getColumnCasing(column, casing);
+			const columnName = column.name;
 
 			const isPk = result.pks.find((it) =>
 				it.columns.includes(columnName) && it.table === tableName && it.schema === schema
@@ -189,14 +185,14 @@ export const fromDrizzleSchema = (
 					schema,
 					column: columnName,
 					table: tableName,
-					default: defaultFromColumn(column, casing),
+					default: defaultFromColumn(column),
 				});
 			}
 		}
 
 		for (const unique of uniqueConstraints) {
 			const columns = unique.columns.map((c) => {
-				return getColumnCasing(c, casing);
+				return c.name;
 			});
 
 			const name = unique.name ?? defaultNameForUnique(tableName, unique.columns.map((c) => c.name));
@@ -219,21 +215,10 @@ export const fromDrizzleSchema = (
 			// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
 			const tableTo = getTableName(referenceFT);
 
-			const originalColumnsFrom = reference.columns.map((it) => it.name);
-			const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
-			const originalColumnsTo = reference.foreignColumns.map((it) => it.name);
-			const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
+			const columnsFrom = reference.columns.map((it) => it.name);
+			const columnsTo = reference.foreignColumns.map((it) => it.name);
 
 			let name = fk.getName() || defaultNameForFK(tableName, columnsFrom, tableTo, columnsTo);
-			if (casing !== undefined) {
-				for (let i = 0; i < originalColumnsFrom.length; i++) {
-					name = name.replace(originalColumnsFrom[i], columnsFrom[i]);
-				}
-				for (let i = 0; i < originalColumnsTo.length; i++) {
-					name = name.replace(originalColumnsTo[i], columnsTo[i]);
-				}
-			}
-
 			result.fks.push({
 				entityType: 'fks',
 				table: tableName,
@@ -280,7 +265,7 @@ export const fromDrizzleSchema = (
 						const sql = dialect.sqlToQuery(it, 'indexes').sql;
 						return { value: sql, isExpression: true };
 					} else {
-						return { value: getColumnCasing(it, casing), isExpression: false };
+						return { value: it.name, isExpression: false };
 					}
 				}),
 				isUnique: index.config.unique ?? false,

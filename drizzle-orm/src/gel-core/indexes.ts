@@ -142,7 +142,7 @@ export class IndexBuilderOn {
 
 				it = it as GelColumn;
 				return new IndexedColumn(
-					it.name,
+					it.name!,
 					!!it.keyAsName,
 					it.columnType!,
 					{},
@@ -176,7 +176,7 @@ export class IndexBuilderOn {
 
 				it = it as GelColumn;
 				return new IndexedColumn(
-					it.name,
+					it.name!,
 					!!it.keyAsName,
 					it.columnType!,
 					{},
@@ -222,7 +222,7 @@ export class IndexBuilderOn {
 
 				it = it as GelColumn;
 				return new IndexedColumn(
-					it.name,
+					it.name!,
 					!!it.keyAsName,
 					it.columnType!,
 					{},

@@ -16,7 +16,6 @@ import { preparedStatementName } from '~/query-name-generator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import { sql } from '~/sql/sql.ts';
-import type { Casing } from '~/utils.ts';
 
 /**
  * Ensures a WebSocket implementation is available for Neon's
@@ -39,7 +38,6 @@ export type NetlifyDbClient = {
 
 export interface NetlifyDbSessionOptions extends NeonHttpSessionOptions {
 	useJitMappers?: boolean | undefined;
-	casing?: Casing | undefined;
 	transactionCodecs?: PgCodecs | undefined;
 }
 
@@ -147,7 +145,6 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 		ensureWebSocket();
 		const poolClient = await this.pool.connect();
 		const dialect = new PgDialect({
-			casing: this.options.casing,
 			useJitMappers: this.options.useJitMappers,
 			codecs: this.options.transactionCodecs,
 		});

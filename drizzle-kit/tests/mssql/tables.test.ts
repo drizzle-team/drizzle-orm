@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+	camelCase,
 	foreignKey,
 	index,
 	int,
@@ -7,6 +8,7 @@ import {
 	mssqlTable,
 	mssqlTableCreator,
 	primaryKey,
+	snakeCase,
 	text,
 	unique,
 	uniqueIndex,
@@ -251,8 +253,8 @@ test('add table #14', async () => {
 		}),
 	};
 
-	const { sqlStatements: st } = await diff({}, to, [], 'snake_case');
-	const { sqlStatements: pst } = await push({ db, to: to, casing: 'snake_case' });
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to: to });
 
 	const st0 = [
 		`CREATE TABLE [company] (
@@ -789,7 +791,7 @@ test('add unique index', async () => {
 test('optional db aliases (snake case)', async () => {
 	const from = {};
 
-	const t1 = mssqlTable(
+	const t1 = snakeCase.table(
 		't1',
 		{
 			t1Id1: int().notNull().primaryKey(),
@@ -811,14 +813,14 @@ test('optional db aliases (snake case)', async () => {
 		],
 	);
 
-	const t2 = mssqlTable(
+	const t2 = snakeCase.table(
 		't2',
 		{
 			t2Id: int().primaryKey(),
 		},
 	);
 
-	const t3 = mssqlTable(
+	const t3 = snakeCase.table(
 		't3',
 		{
 			t3Id1: int(),
@@ -833,9 +835,9 @@ test('optional db aliases (snake case)', async () => {
 		t3,
 	};
 
-	const { sqlStatements: st } = await diff(from, to, [], 'snake_case');
-	await push({ db, to: from, casing: 'snake_case' });
-	const { sqlStatements: pst } = await push({ db, to: to, casing: 'snake_case' });
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: to });
 
 	const st1 = `CREATE TABLE [t1] (
 	[t1_id1] int,
@@ -879,7 +881,7 @@ test('optional db aliases (snake case)', async () => {
 test('optional db aliases (camel case)', async () => {
 	const from = {};
 
-	const t1 = mssqlTable('t1', {
+	const t1 = camelCase.table('t1', {
 		t1_id1: int().notNull().primaryKey(),
 		t1_col2: int().notNull(),
 		t1_col3: int().notNull(),
@@ -897,11 +899,11 @@ test('optional db aliases (camel case)', async () => {
 		}),
 	]);
 
-	const t2 = mssqlTable('t2', {
+	const t2 = camelCase.table('t2', {
 		t2_id: int().primaryKey(),
 	});
 
-	const t3 = mssqlTable('t3', {
+	const t3 = camelCase.table('t3', {
 		t3_id1: int(),
 		t3_id2: int(),
 	}, (table) => [primaryKey({ columns: [table.t3_id1, table.t3_id2] })]);
@@ -912,9 +914,9 @@ test('optional db aliases (camel case)', async () => {
 		t3,
 	};
 
-	const { sqlStatements: st } = await diff(from, to, [], 'camelCase');
-	await push({ db, to: from, casing: 'camelCase' });
-	const { sqlStatements: pst } = await push({ db, to: to, casing: 'camelCase' });
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: to });
 
 	const st1 = `CREATE TABLE [t1] (
 	[t1Id1] int,

@@ -31,7 +31,7 @@ function construct<
 ): NodeSQLiteDatabase<TSchema, TRelations> & {
 	$client: DatabaseSync;
 } {
-	const dialect = new SQLiteSyncDialect({ casing: config.casing });
+	const dialect = new SQLiteSyncDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

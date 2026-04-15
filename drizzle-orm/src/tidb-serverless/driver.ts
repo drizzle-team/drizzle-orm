@@ -32,7 +32,7 @@ function construct<
 ): TiDBServerlessDatabase<TSchema, TRelations> & {
 	$client: Connection;
 } {
-	const dialect = new MySqlDialect({ casing: config.casing });
+	const dialect = new MySqlDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

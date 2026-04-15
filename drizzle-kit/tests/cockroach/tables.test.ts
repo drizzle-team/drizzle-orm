@@ -1,5 +1,6 @@
 import { SQL, sql } from 'drizzle-orm';
 import {
+	camelCase,
 	cockroachSchema,
 	cockroachTable,
 	cockroachTableCreator,
@@ -8,6 +9,7 @@ import {
 	index,
 	int4,
 	primaryKey,
+	snakeCase,
 	text,
 	unique,
 	uniqueIndex,
@@ -920,7 +922,7 @@ test.concurrent('alter composite primary key', async ({ dbc: db }) => {
 test.concurrent('optional db aliases (snake case)', async ({ dbc: db }) => {
 	const from = {};
 
-	const t1 = cockroachTable(
+	const t1 = snakeCase.table(
 		't1',
 		{
 			t1Id1: int4().notNull().primaryKey(),
@@ -942,14 +944,14 @@ test.concurrent('optional db aliases (snake case)', async ({ dbc: db }) => {
 		],
 	);
 
-	const t2 = cockroachTable(
+	const t2 = snakeCase.table(
 		't2',
 		{
 			t2Id: int4().primaryKey(),
 		},
 	);
 
-	const t3 = cockroachTable(
+	const t3 = snakeCase.table(
 		't3',
 		{
 			t3Id1: int4(),
@@ -964,14 +966,9 @@ test.concurrent('optional db aliases (snake case)', async ({ dbc: db }) => {
 		t3,
 	};
 
-	const casing = 'snake_case';
-	const { sqlStatements: st } = await diff(from, to, [], casing);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-		casing,
-	});
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st1 = `CREATE TABLE "t1" (
 	"t1_id1" int4 PRIMARY KEY,
@@ -1013,7 +1010,7 @@ test.concurrent('optional db aliases (snake case)', async ({ dbc: db }) => {
 test.concurrent('optional db aliases (camel case)', async ({ dbc: db }) => {
 	const from = {};
 
-	const t1 = cockroachTable('t1', {
+	const t1 = camelCase.table('t1', {
 		t1_id1: int4().notNull().primaryKey(),
 		t1_col2: int4().notNull(),
 		t1_col3: int4().notNull(),
@@ -1031,11 +1028,11 @@ test.concurrent('optional db aliases (camel case)', async ({ dbc: db }) => {
 		}),
 	]);
 
-	const t2 = cockroachTable('t2', {
+	const t2 = camelCase.table('t2', {
 		t2_id: int4().primaryKey(),
 	});
 
-	const t3 = cockroachTable('t3', {
+	const t3 = camelCase.table('t3', {
 		t3_id1: int4(),
 		t3_id2: int4(),
 	}, (table) => [primaryKey({ columns: [table.t3_id1, table.t3_id2] })]);
@@ -1046,14 +1043,9 @@ test.concurrent('optional db aliases (camel case)', async ({ dbc: db }) => {
 		t3,
 	};
 
-	const casing = 'camelCase';
-	const { sqlStatements: st } = await diff(from, to, [], casing);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-		casing,
-	});
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st1 = `CREATE TABLE "t1" (
 	"t1Id1" int4 PRIMARY KEY,

@@ -65,6 +65,7 @@ import {
 	serial,
 	smallint,
 	smallserial,
+	snakeCase,
 	text,
 	time,
 	timestamp,
@@ -3073,7 +3074,8 @@ export function tests(test: Test) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5112
 		// looks like casing issue
-		test.skipIf(Date.now() < +new Date('2026-04-19')).concurrent('view #1', async ({ push, createDB }) => {
+		// ^ and so it was
+		test.concurrent('view #1', async ({ push, createDB }) => {
 			const animal = pgTable('animal', (t) => ({
 				id: t.text().primaryKey(),
 				name: t.text().notNull(),
@@ -3100,7 +3102,7 @@ export function tests(test: Test) {
 
 			const sql = db.select().from(animalWithCaretakerView).toSQL().sql;
 			expect(sql).toEqual(
-				'select "id", "name", "caretakerName" from "animal_with_caretaker_view";',
+				'select "id", "name", "caretakerName" from "animal_with_caretaker_view"',
 			);
 		});
 
@@ -4670,15 +4672,13 @@ export function tests(test: Test) {
 		);
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5282
-		test.skipIf(Date.now() < +new Date('2026-04-19'))('casing in sql``', async ({ createDB, push }) => {
-			const payments = pgTable('payments', {
+		test('casing in sql``', async ({ db, push }) => {
+			const payments = snakeCase.table('payments', {
 				id: integer().primaryKey(),
 				amount: numeric(),
 				completedAt: timestamp(),
 			});
 			const schema = { payments };
-			const db = createDB(schema, () => ({}), 'snake_case');
-
 			await push(schema);
 			db.insert(payments).values({
 				id: 1,
@@ -4692,13 +4692,13 @@ export function tests(test: Test) {
 				.onConflictDoUpdate({
 					target: [payments.id],
 					set: {
-						completedAt: sql`excluded.${payments.completedAt}`,
-						amount: sql`excluded.${payments.amount}`,
+						completedAt: sql`excluded.${sql.identifier(payments.completedAt.name)}`,
+						amount: sql`excluded.${sql.identifier(payments.amount.name)}`,
 					},
 				});
 
 			expect(query.toSQL().sql).toEqual(
-				'insert into "payments" ("id", "amount", "completedAt") values ($1, $2, $3) on conflict ("id") do update set "amount" = excluded."amount", "completed_at" = excluded."completed_at"',
+				'insert into "payments" ("id", "amount", "completed_at") values ($1, $2, $3) on conflict ("id") do update set "amount" = excluded."amount", "completed_at" = excluded."completed_at"',
 			);
 			await query;
 
@@ -4844,7 +4844,7 @@ export function tests(test: Test) {
 
 		test.concurrent('Mappers: - correct mappers enabled', async ({ createDB, db }) => {
 			const dialect: PgDialect = (<any> db).dialect;
-			const jitDialect: PgDialect = (<any> createDB({}, () => ({}), undefined, true)).dialect;
+			const jitDialect: PgDialect = (<any> createDB({}, () => ({}), true)).dialect;
 
 			expect(dialect.mapperGenerators.relationalRows === makeDefaultRqbMapper).toStrictEqual(true);
 			expect(dialect.mapperGenerators.rows === makeDefaultQueryMapper).toStrictEqual(true);
@@ -5204,7 +5204,6 @@ export function tests(test: Test) {
 						}),
 					},
 				}),
-				undefined,
 				false,
 			);
 
@@ -5547,7 +5546,7 @@ export function tests(test: Test) {
 			}));
 
 			await push({ users });
-			const db = createDB({}, () => ({}), undefined, true);
+			const db = createDB({}, () => ({}), true);
 
 			const result = await db.select().from(users);
 
@@ -5566,7 +5565,7 @@ export function tests(test: Test) {
 			}));
 
 			await push({ users });
-			const db = createDB({}, () => ({}), undefined, true);
+			const db = createDB({}, () => ({}), true);
 
 			await db.insert(users).values([{
 				id: 1,
@@ -5591,7 +5590,7 @@ export function tests(test: Test) {
 			}));
 
 			await push({ users });
-			const db = createDB({}, () => ({}), undefined, true);
+			const db = createDB({}, () => ({}), true);
 
 			await db.insert(users).values([{
 				id: 1,
@@ -5616,7 +5615,7 @@ export function tests(test: Test) {
 			}));
 
 			await push({ users });
-			const db = createDB({}, () => ({}), undefined, true);
+			const db = createDB({}, () => ({}), true);
 
 			const inserted = await db.insert(users).values([{
 				id: 1,
@@ -5715,7 +5714,7 @@ export function tests(test: Test) {
 			}));
 
 			await push({ users, posts });
-			const db = createDB({}, () => ({}), undefined, true);
+			const db = createDB({}, () => ({}), true);
 
 			await db.insert(users).values([{
 				id: 1,
@@ -5890,7 +5889,6 @@ export function tests(test: Test) {
 						}),
 					},
 				}),
-				undefined,
 				true,
 			);
 

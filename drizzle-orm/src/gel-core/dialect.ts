@@ -6,7 +6,6 @@ import {
 	mapColumnsInAliasedSQLToAlias,
 	mapColumnsInSQLToAlias,
 } from '~/alias.ts';
-import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
@@ -48,25 +47,19 @@ import {
 } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
-import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { GelTimestamp } from './columns/timestamp.ts';
 import { GelViewBase } from './view-base.ts';
 import type { GelMaterializedView, GelView } from './view.ts';
 
-export interface GelDialectConfig {
-	casing?: Casing;
-}
+// Will add codecs here, do not remove
+export interface GelDialectConfig {}
 
 export class GelDialect {
 	static readonly [entityKind]: string = 'GelDialect';
 
-	/** @internal */
-	readonly casing: CasingCache;
-
-	constructor(config?: GelDialectConfig) {
-		this.casing = new CasingCache(config?.casing);
-	}
+	constructor(_config?: GelDialectConfig) {}
 
 	// TODO can not migrate gel with drizzle
 	// async migrate(migrations: MigrationMeta[], session: GelSession, config: string | MigrationConfig): Promise<void | MigratorInitFailResponse> {
@@ -183,7 +176,7 @@ export class GelDialect {
 
 			const onUpdateFnResult = col.onUpdateFn?.();
 			const value = set[colName] ?? (is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col));
-			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
+			const res = sql`${sql.identifier(col.name)} = ${value}`;
 
 			if (i < setLength - 1) {
 				return [res, sql.raw(', ')];
@@ -254,7 +247,7 @@ export class GelDialect {
 					// 		new SQL(
 					// 			query.queryChunks.map((c) => {
 					// 				if (is(c, GelColumn)) {
-					// 					return sql.identifier(this.casing.getColumnCasing(c));
+					// 					return sql.identifier((c.name));
 					// 				}
 					// 				return c;
 					// 			}),
@@ -273,8 +266,8 @@ export class GelDialect {
 					// if (isSingleTable) {
 					// chunk.push(
 					// 	field.isAlias
-					// 		? sql`${sql.identifier(this.casing.getColumnCasing(getOriginalColumnFromAlias(field)))} as ${field}`
-					// 		: sql.identifier(this.casing.getColumnCasing(field)),
+					// 		? sql`${sql.identifier((getOriginalColumnFromAlias(field).name))} as ${field}`
+					// 		: sql.identifier((field.name)),
 					// );
 					// } else {
 					chunk.push(field.isAlias ? sql`${getOriginalColumnFromAlias(field)} as ${field}` : field);
@@ -559,7 +552,7 @@ export class GelDialect {
 		const colEntries: [string, GelColumn][] = Object.entries(columns).filter(([_, col]) => !col.shouldDisableInsert());
 
 		const insertOrder = colEntries.map(
-			([, column]) => sql.identifier(this.casing.getColumnCasing(column)),
+			([, column]) => sql.identifier(column.name),
 		);
 
 		if (select) {
@@ -644,7 +637,6 @@ export class GelDialect {
 
 	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
 		return sql.toQuery({
-			casing: this.casing,
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
@@ -957,7 +949,7 @@ export class GelDialect {
 
 	private buildRqbColumn(table: Table | View, column: unknown, key: string) {
 		if (is(column, Column)) {
-			const name = sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))}`;
+			const name = sql`${table}.${sql.identifier(column.name)}`;
 			let targetType = column.columnType;
 			let col = column;
 			let dimensionCnt = 0;
@@ -1097,11 +1089,11 @@ export class GelDialect {
 
 		const where: SQL | undefined = (params?.where && relationWhere)
 			? and(
-				relationsFilterToSQL(table, params.where, tableConfig.relations, schema, this.casing),
+				relationsFilterToSQL(table, params.where, tableConfig.relations, schema),
 				relationWhere,
 			)
 			: params?.where
-			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, this.casing)
+			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema)
 			: relationWhere;
 
 		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy) : undefined;
@@ -1144,7 +1136,6 @@ export class GelDialect {
 							? aliasedTable(relation.throughTable, `tr${currentDepth}`) as Table | View
 							: undefined;
 						const { filter, joinCondition } = relationToSQL(
-							this.casing,
 							relation,
 							table,
 							targetTable,

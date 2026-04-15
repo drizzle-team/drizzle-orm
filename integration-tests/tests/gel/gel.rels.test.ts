@@ -41,7 +41,7 @@ beforeAll(async () => {
 	if (!connectionString) throw new Error('gel GEL_CONNECTION_STRING is not set. ');
 
 	client = createClient({ dsn: connectionString, tlsSecurity: 'insecure' });
-	db = drizzle({ client, relations, casing: 'snake_case' });
+	db = drizzle({ client, relations });
 
 	dsn = connectionString;
 

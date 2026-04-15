@@ -286,7 +286,6 @@ export const make = Effect.fn('PgDrizzle.make')(
 		const logger = yield* EffectLogger;
 
 		const dialect = new PgDialect({
-			casing: config.casing,
 			useJitMappers: config.useJitMappers,
 			codecs: config.codecs ?? effectPgCodecs,
 		});

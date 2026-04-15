@@ -12,7 +12,7 @@ import { pullParams, pushParams } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
 import { cockroachCredentials } from '../validations/cockroach';
 import { printConfigConnectionIssues as printCockroachIssues } from '../validations/cockroach';
-import type { Casing, CasingType, CliConfig, Driver } from '../validations/common';
+import type { Casing, CliConfig, Driver } from '../validations/common';
 import { configCommonSchema, configMigrations, wrapParam } from '../validations/common';
 import { duckdbCredentials, printConfigConnectionIssues as printIssuesDuckDb } from '../validations/duckdb';
 import type { GelCredentials } from '../validations/gel';
@@ -87,7 +87,6 @@ export type GenerateConfig = {
 	name?: string;
 	custom: boolean;
 	bundle: boolean;
-	casing?: CasingType;
 	driver?: Driver;
 	ignoreConflicts?: boolean;
 };
@@ -95,7 +94,6 @@ export type GenerateConfig = {
 export type ExportConfig = {
 	dialect: Dialect;
 	sql: boolean;
-	casing?: CasingType;
 	filenames: string[];
 };
 
@@ -109,14 +107,13 @@ export const prepareGenerateConfig = async (
 		name?: string;
 		dialect?: Dialect;
 		driver?: Driver;
-		casing?: CasingType;
 		ignoreConflicts?: boolean;
 	},
 	from: 'config' | 'cli',
 ): Promise<GenerateConfig> => {
 	const config = from === 'config' ? await drizzleConfigFromFile(options.config) : options;
 
-	const { schema, out, breakpoints, dialect, driver, casing } = config;
+	const { schema, out, breakpoints, dialect, driver } = config;
 
 	if (!schema || !dialect) {
 		console.log(error('Please provide required params:'));
@@ -140,7 +137,6 @@ export const prepareGenerateConfig = async (
 		filenames: fileNames,
 		out: out || 'drizzle',
 		bundle: driver === 'expo' || driver === 'durable-sqlite',
-		casing,
 		driver,
 		ignoreConflicts: options.ignoreConflicts !== undefined && options.ignoreConflicts,
 	};
@@ -152,7 +148,6 @@ export const prepareExportConfig = async (
 		schema?: string;
 		dialect?: Dialect;
 		sql: boolean;
-		casing?: CasingType;
 	},
 	from: 'config' | 'cli',
 ): Promise<ExportConfig> => {
@@ -175,7 +170,6 @@ export const prepareExportConfig = async (
 		process.exit(0);
 	}
 	return {
-		casing: config.casing,
 		dialect: dialect,
 		sql: sql,
 		filenames: fileNames,
@@ -242,7 +236,6 @@ export const preparePushConfig = async (
 		verbose: boolean;
 		force: boolean;
 		explain: boolean;
-		casing?: CasingType;
 		filters: EntitiesFilterConfig;
 		migrations: {
 			table: string;
@@ -298,7 +291,6 @@ export const preparePushConfig = async (
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
-			casing: config.casing,
 			filters,
 			migrations: config.migrations,
 			filenames: schemaFiles,
@@ -316,7 +308,6 @@ export const preparePushConfig = async (
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
-			casing: config.casing,
 			filters,
 			explain: (options.explain as boolean) ?? false,
 			migrations: config.migrations,
@@ -354,7 +345,6 @@ export const preparePushConfig = async (
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
-			casing: config.casing,
 			filters,
 			explain: (options.explain as boolean) ?? false,
 			migrations: config.migrations,
@@ -373,7 +363,6 @@ export const preparePushConfig = async (
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
-			casing: config.casing,
 			filters,
 			explain: (options.explain as boolean) ?? false,
 			migrations: config.migrations,
@@ -397,7 +386,6 @@ export const preparePushConfig = async (
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
-			casing: config.casing,
 			filters,
 			explain: (options.explain as boolean) ?? false,
 			migrations: config.migrations,
@@ -417,7 +405,6 @@ export const preparePushConfig = async (
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
-			casing: config.casing,
 			filters,
 			explain: (options.explain as boolean) ?? false,
 			migrations: config.migrations,
@@ -679,7 +666,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 		process.exit(1);
 	}
 	const { host, port } = params;
-	const { dialect, schema, casing } = result.data;
+	const { dialect, schema } = result.data;
 	const flattened = flattenDatabaseCredentials(config);
 
 	if (dialect === 'postgresql') {
@@ -695,7 +682,6 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
-			casing,
 		};
 	}
 
@@ -712,7 +698,6 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
-			casing,
 		};
 	}
 
@@ -729,7 +714,6 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
-			casing,
 		};
 	}
 
@@ -746,7 +730,6 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
-			casing,
 		};
 	}
 
@@ -763,7 +746,6 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
-			casing,
 		};
 	}
 

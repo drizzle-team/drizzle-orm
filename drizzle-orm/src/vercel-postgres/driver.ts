@@ -24,7 +24,6 @@ function construct<TRelations extends AnyRelations = EmptyRelations>(
 	$client: VercelPgClient;
 } {
 	const dialect = new PgDialect({
-		casing: config.casing,
 		useJitMappers: config.useJitMappers,
 		codecs: config.codecs ?? vercelPgCodecs,
 	});

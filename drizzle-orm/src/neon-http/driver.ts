@@ -58,7 +58,6 @@ function construct<
 	$client: TClient;
 } {
 	const dialect = new PgDialect({
-		casing: config.casing,
 		useJitMappers: config.useJitMappers,
 		codecs: config.codecs ?? neonHttpCodecs,
 	});

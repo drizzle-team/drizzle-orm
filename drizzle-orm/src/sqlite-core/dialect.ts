@@ -6,7 +6,6 @@ import {
 	mapColumnsInAliasedSQLToAlias,
 	mapColumnsInSQLToAlias,
 } from '~/alias.ts';
-import { CasingCache } from '~/casing.ts';
 import type { AnyColumn } from '~/column.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
@@ -45,7 +44,7 @@ import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
 import { upgradeAsyncIfNeeded, upgradeSyncIfNeeded } from '~/up-migrations/sqlite.ts';
-import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type {
 	SelectedFieldsOrdered,
@@ -56,18 +55,13 @@ import type { SQLiteSession } from './session.ts';
 import { SQLiteViewBase } from './view-base.ts';
 import type { SQLiteView } from './view.ts';
 
-export interface SQLiteDialectConfig {
-	casing?: Casing;
-}
+// Will add codecs here, do not remove
+export interface SQLiteDialectConfig {}
 
 export abstract class SQLiteDialect {
 	static readonly [entityKind]: string = 'SQLiteDialect';
 
-	/** @internal */
-	readonly casing: CasingCache;
-
-	constructor(config?: SQLiteDialectConfig) {
-		this.casing = new CasingCache(config?.casing);
+	constructor(_config?: SQLiteDialectConfig) {
 	}
 
 	escapeName(name: string): string {
@@ -138,7 +132,7 @@ export abstract class SQLiteDialect {
 					?? (is(onUpdateFnResult, SQL)
 						? onUpdateFnResult
 						: sql.param(onUpdateFnResult, col));
-				const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
+				const res = sql`${sql.identifier(col.name)} = ${value}`;
 
 				if (i < setLength - 1) {
 					return [res, sql.raw(', ')];
@@ -212,7 +206,7 @@ export abstract class SQLiteDialect {
 					const newSql = new SQL(
 						query.queryChunks.map((c) => {
 							if (is(c, Column)) {
-								return sql.identifier(this.casing.getColumnCasing(c));
+								return sql.identifier(c.name);
 							}
 							return c;
 						}),
@@ -231,14 +225,8 @@ export abstract class SQLiteDialect {
 					if (isSingleTable) {
 						chunk.push(
 							field.isAlias
-								? sql`cast(${
-									sql.identifier(
-										this.casing.getColumnCasing(
-											getOriginalColumnFromAlias(field),
-										),
-									)
-								} as text) as ${field}`
-								: sql`cast(${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
+								? sql`cast(${sql.identifier(getOriginalColumnFromAlias(field).name)} as text) as ${field}`
+								: sql`cast(${sql.identifier(field.name)} as text)`,
 						);
 					} else {
 						chunk.push(
@@ -251,8 +239,8 @@ export abstract class SQLiteDialect {
 					if (isSingleTable) {
 						chunk.push(
 							field.isAlias
-								? sql`${sql.identifier(this.casing.getColumnCasing(getOriginalColumnFromAlias(field)))} as ${field}`
-								: sql.identifier(this.casing.getColumnCasing(field)),
+								? sql`${sql.identifier(getOriginalColumnFromAlias(field).name)} as ${field}`
+								: sql.identifier(field.name),
 						);
 					} else {
 						chunk.push(
@@ -523,9 +511,7 @@ export abstract class SQLiteDialect {
 						const chunk = singleOrderBy.queryChunks[i];
 
 						if (is(chunk, SQLiteColumn)) {
-							singleOrderBy.queryChunks[i] = sql.identifier(
-								this.casing.getColumnCasing(chunk),
-							);
+							singleOrderBy.queryChunks[i] = sql.identifier(chunk.name);
 						}
 					}
 
@@ -564,7 +550,7 @@ export abstract class SQLiteDialect {
 		const colEntries: [string, SQLiteColumn][] = Object.entries(columns).filter(
 			([_, col]) => !col.shouldDisableInsert(),
 		);
-		const insertOrder = colEntries.map(([, column]) => sql.identifier(this.casing.getColumnCasing(column)));
+		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 
 		if (select) {
 			const select = valuesOrSelect as AnySQLiteSelectQueryBuilder | SQL;
@@ -637,7 +623,6 @@ export abstract class SQLiteDialect {
 
 	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
 		return sql.toQuery({
-			casing: this.casing,
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
@@ -882,7 +867,7 @@ export abstract class SQLiteDialect {
 				sql.join(
 					selection.map(({ field }) =>
 						is(field, SQLiteColumn)
-							? sql.identifier(this.casing.getColumnCasing(field))
+							? sql.identifier(field.name)
 							: is(field, SQL.Aliased)
 							? field.sql
 							: field
@@ -983,7 +968,7 @@ export abstract class SQLiteDialect {
 
 	private buildRqbColumn(table: Table | View, column: unknown, key: string) {
 		if (is(column, Column)) {
-			const name = sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))}`;
+			const name = sql`${table}.${sql.identifier(column.name)}`;
 
 			switch (column.columnType) {
 				case 'SQLiteBigInt':
@@ -1143,7 +1128,6 @@ export abstract class SQLiteDialect {
 					params.where,
 					tableConfig.relations,
 					schema,
-					this.casing,
 				),
 				relationWhere,
 			)
@@ -1153,7 +1137,6 @@ export abstract class SQLiteDialect {
 				params.where,
 				tableConfig.relations,
 				schema,
-				this.casing,
 			)
 			: relationWhere;
 		const order = params?.orderBy
@@ -1198,7 +1181,6 @@ export abstract class SQLiteDialect {
 							? aliasedTable(relation.throughTable, `tr${currentDepth}`)
 							: undefined;
 						const { filter, joinCondition } = relationToSQL(
-							this.casing,
 							relation,
 							table,
 							targetTable,

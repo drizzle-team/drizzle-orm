@@ -385,9 +385,9 @@ export abstract class ColumnBuilder<
 	}>;
 
 	/** @internal Sets the name of the column to the key within the table definition if a name was not given. */
-	setName(name: string) {
+	setName(name: string, casingFn: (name: string) => string) {
 		if (this.config.name !== '') return;
-		this.config.name = name;
+		this.config.name = casingFn(name);
 	}
 }
 
