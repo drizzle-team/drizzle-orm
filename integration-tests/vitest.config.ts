@@ -69,6 +69,7 @@ export default defineConfig({
 		typecheck: {
 			tsconfig: 'tsconfig.json',
 		},
+		setupFiles: ['tests/setup-temporal.ts'],
 		testTimeout: 100000,
 		hookTimeout: 200000,
 		isolate: true,
