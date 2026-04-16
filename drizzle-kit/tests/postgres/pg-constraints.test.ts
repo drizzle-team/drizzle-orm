@@ -2666,3 +2666,35 @@ test('issue No4704. Composite index with sort outputs', async () => {
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5585
+test('Issue No5585. Alter unique constraint', async () => {
+	const from = {
+		table: pgTable(
+			'table',
+			{ col1: integer(), col2: integer(), col3: integer() },
+			(table) => [unique('table_unique').on(table.col1)],
+		),
+	};
+
+	const to = {
+		table: pgTable(
+			'table',
+			{ col1: integer(), col2: integer(), col3: integer() },
+			(table) => [unique('table_unique').on(table.col1).nullsNotDistinct()],
+		),
+	};
+
+	await push({ db, to: from });
+
+	const { sqlStatements: st1, next: n1 } = await diff(from, to, []);
+	const { sqlStatements: pst1 } = await push({ db, to: to });
+
+	const expectedSt1 = [
+		'ALTER TABLE "table" DROP CONSTRAINT "table_unique";',
+		'ALTER TABLE "table" ADD CONSTRAINT "table_unique" UNIQUE NULLS NOT DISTINCT("col1");',
+	];
+
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+});

@@ -3,19 +3,7 @@ import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import type { MigrationMeta } from '~/migrator.ts';
 import type { PgEffectSession } from '~/pg-core/effect/session.ts';
 import { sql } from '~/sql/sql.ts';
-
-const CURRENT_MIGRATION_TABLE_VERSION = 1;
-
-interface UpgradeResult {
-	newDb?: boolean;
-	prevVersion?: number;
-	currentVersion?: number;
-}
-
-function getVersion(columns: string[]) {
-	if (columns.includes('name')) return 1;
-	return 0;
-}
+import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResult } from './utils.ts';
 
 /**
  * Map of upgrade functions. Each key is the version being upgraded FROM,
@@ -172,9 +160,9 @@ export const upgradeIfNeeded: <TEffectHKT extends QueryEffectHKTBase>(
 		ORDER BY a.attnum;`,
 		);
 
-		const version = getVersion(rows.map((r) => r.column_name));
+		const version = GET_VERSION_FOR.effect(rows.map((r) => r.column_name));
 
-		for (let v = version; v < CURRENT_MIGRATION_TABLE_VERSION; v++) {
+		for (let v = version; v < MIGRATIONS_TABLE_VERSIONS.effect; v++) {
 			const upgradeFn = upgradeFunctions[v];
 			if (!upgradeFn) {
 				throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
@@ -182,6 +170,6 @@ export const upgradeIfNeeded: <TEffectHKT extends QueryEffectHKTBase>(
 			yield* upgradeFn(migrationsSchema, migrationsTable, session, localMigrations);
 		}
 
-		return { prevVersion: version, currentVersion: CURRENT_MIGRATION_TABLE_VERSION };
+		return { newDb: false };
 	},
 );

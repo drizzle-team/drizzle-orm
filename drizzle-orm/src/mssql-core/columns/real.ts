@@ -28,6 +28,10 @@ export class MsSqlReal<T extends ColumnBaseConfig<'number float'>> extends MsSql
 	getSQLType(): string {
 		return 'real';
 	}
+
+	override mapFromDriverValue(value: number): number {
+		return parseFloat(value.toPrecision(7));
+	}
 }
 
 export function real(name?: string) {

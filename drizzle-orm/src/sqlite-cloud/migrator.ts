@@ -20,7 +20,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		: config.migrationsTable ?? '__drizzle_migrations';
 
 	// Detect DB version and upgrade table schema if needed
-	const { newDb } = await upgradeAsyncIfNeeded(migrationsTable, session, migrations);
+	const { newDb } = await upgradeAsyncIfNeeded(migrationsTable, db, migrations);
 
 	if (newDb) {
 		const migrationTableCreate = sql`

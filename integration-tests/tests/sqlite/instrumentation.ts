@@ -24,7 +24,6 @@ import { D1Database, D1DatabaseAPI } from '@miniflare/d1';
 import { createSQLiteDB } from '@miniflare/shared';
 import { Database as SqliteCloudDatabase, SQLiteCloudRowset } from '@sqlitecloud/drivers';
 import { Database as TursoDatabase } from '@tursodatabase/database';
-import retry from 'async-retry';
 import type BetterSqlite3 from 'better-sqlite3';
 import Client from 'better-sqlite3';
 import {
