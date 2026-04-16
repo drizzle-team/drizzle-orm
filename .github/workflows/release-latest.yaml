@@ -159,10 +159,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build Prisma client
-        working-directory: drizzle-orm
-        run: pnpm prisma generate --schema src/prisma/schema.prisma
-
       - name: Build
         run: pnpm build
 
@@ -345,11 +341,6 @@ jobs:
             } >> $GITHUB_OUTPUT
           fi
 
-      - name: Build Prisma client
-        if: steps.checks.outputs.has_new_release == 'true'
-        working-directory: drizzle-orm
-        run: pnpm prisma generate --schema src/prisma/schema.prisma
-
       - name: Build
         if: steps.checks.outputs.has_new_release == 'true'
         run: pnpm build
@@ -438,11 +429,6 @@ jobs:
               echo "has_new_release=true"
             } >> $GITHUB_OUTPUT
           fi
-
-      - name: Build Prisma client
-        if: steps.checks.outputs.has_new_release == 'true'
-        working-directory: drizzle-orm
-        run: pnpm prisma generate --schema src/prisma/schema.prisma
 
       - name: Build
         if: steps.checks.outputs.has_new_release == 'true'
@@ -544,11 +530,6 @@ jobs:
             echo "Already up to date: $version"
             echo "\`$version\` is already latest on NPM" >> $GITHUB_STEP_SUMMARY
           fi
-
-      - name: Build Prisma client
-        if: steps.checks.outputs.has_new_release == 'true'
-        working-directory: drizzle-orm
-        run: pnpm prisma generate --schema src/prisma/schema.prisma
 
       - name: Build
         if: steps.checks.outputs.has_new_release == 'true'
