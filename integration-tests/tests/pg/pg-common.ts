@@ -1,3 +1,4 @@
+/// <reference path="../../../drizzle-orm/src/temporal.d.ts" />
 import Docker from 'dockerode';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import {
@@ -3051,6 +3052,462 @@ export function tests() {
 			expect(result[0]?.timestamp.getTime()).toBe(result[1]?.timestamp.getTime());
 
 			await db.execute(sql`drop table if exists ${table}`);
+		});
+
+		test('all temporal date and time columns', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const table = pgTable('all_temporal_columns', {
+				id: serial('id').primaryKey(),
+				date: date('date', { mode: 'temporal' }).notNull(),
+				time: time('time', { mode: 'temporal', precision: 3 }).notNull(),
+				datetime: timestamp('datetime', { mode: 'temporal' }).notNull(),
+				datetimeWTZ: timestamp('datetime_wtz', { mode: 'temporal', withTimezone: true }).notNull(),
+				datetimeFullPrecision: timestamp('datetime_full_precision', { mode: 'temporal', precision: 6 }).notNull(),
+				interval: interval('interval', { mode: 'temporal' }).notNull(),
+			});
+
+			try {
+				await db.execute(sql`drop table if exists ${table}`);
+				// Use iso_8601 so the interval round-trip works without the optional postgres-interval dep.
+				await db.execute(sql`set intervalstyle = 'iso_8601'`);
+
+				await db.execute(sql`
+					create table ${table} (
+								id serial primary key,
+								date date not null,
+								time time(3) not null,
+								datetime timestamp not null,
+								datetime_wtz timestamp with time zone not null,
+								datetime_full_precision timestamp(6) not null,
+								interval interval not null
+						)
+				`);
+
+				const someDate = Temporal.PlainDate.from('2022-01-01');
+				const someTime = Temporal.PlainTime.from('23:23:12.432');
+				const someDatetime = Temporal.PlainDateTime.from('2022-01-01T00:00:00.123');
+				const someInstant = Temporal.Instant.from('2022-01-01T00:00:00.123Z');
+				const fullPrecision = Temporal.PlainDateTime.from('2022-01-01T00:00:00.123456');
+				const someInterval = Temporal.Duration.from('P1DT2H30M');
+
+				await db.insert(table).values({
+					date: someDate,
+					time: someTime,
+					datetime: someDatetime,
+					datetimeWTZ: someInstant,
+					datetimeFullPrecision: fullPrecision,
+					interval: someInterval,
+				});
+
+				const result = await db.select().from(table);
+
+				Expect<
+					Equal<{
+						id: number;
+						date: Temporal.PlainDate;
+						time: Temporal.PlainTime;
+						datetime: Temporal.PlainDateTime;
+						datetimeWTZ: Temporal.Instant;
+						datetimeFullPrecision: Temporal.PlainDateTime;
+						interval: Temporal.Duration;
+					}[], typeof result>
+				>;
+
+				Expect<
+					Equal<{
+						date: Temporal.PlainDate;
+						time: Temporal.PlainTime;
+						datetime: Temporal.PlainDateTime;
+						datetimeWTZ: Temporal.Instant;
+						datetimeFullPrecision: Temporal.PlainDateTime;
+						interval: Temporal.Duration;
+						id?: number | undefined;
+					}, typeof table.$inferInsert>
+				>;
+
+				expect(result).toHaveLength(1);
+				expect(result[0]!.id).toBe(1);
+				expect(result[0]!.date.equals(someDate)).toBe(true);
+				expect(result[0]!.time.equals(someTime)).toBe(true);
+				expect(result[0]!.datetime.equals(someDatetime)).toBe(true);
+				expect(result[0]!.datetimeWTZ.equals(someInstant)).toBe(true);
+				expect(result[0]!.datetimeFullPrecision.equals(fullPrecision)).toBe(true);
+				expect(result[0]!.interval.total('seconds')).toBe(someInterval.total('seconds'));
+			} finally {
+				await db.execute(sql`drop table if exists ${table}`);
+				await db.execute(sql`reset intervalstyle`);
+			}
+		});
+
+		test('temporal timestamp with timezone preserves same instant across zones', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const table = pgTable('all_temporal_columns', {
+				id: serial('id').primaryKey(),
+				timestamp: timestamp('timestamp_instant', {
+					mode: 'temporal',
+					withTimezone: true,
+					precision: 3,
+				}).notNull(),
+			});
+
+			try {
+				await db.execute(sql`drop table if exists ${table}`);
+
+				await db.execute(sql`
+					create table ${table} (
+								id serial primary key,
+								timestamp_instant timestamp (3) with time zone not null
+						)
+				`);
+
+				const insertedInstant = Temporal.Instant.from('2022-01-01T20:00:00.123-04:00');
+				const insertedInstant2 = Temporal.Instant.from('2022-01-02T04:00:00.123+04:00');
+
+				await db.insert(table).values([
+					{ timestamp: insertedInstant },
+					{ timestamp: insertedInstant2 },
+				]);
+
+				const result = await db.select().from(table);
+
+				expect(result[0]?.timestamp.epochMilliseconds).toBe(result[1]?.timestamp.epochMilliseconds);
+				expect(result[0]?.timestamp.epochMilliseconds).toBe(insertedInstant.epochMilliseconds);
+			} finally {
+				await db.execute(sql`drop table if exists ${table}`);
+			}
+		});
+
+		test('temporal date column roundtrips date-only values without TZ drift', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const table = pgTable('temporal_date_only', {
+				id: serial('id').primaryKey(),
+				d: date('d', { mode: 'temporal' }).notNull(),
+			});
+
+			try {
+				await db.execute(sql`drop table if exists ${table}`);
+				await db.execute(sql`create table ${table} (id serial primary key, d date not null)`);
+
+				const dates = [
+					Temporal.PlainDate.from('1970-01-01'),
+					Temporal.PlainDate.from('2024-02-29'),
+					Temporal.PlainDate.from('9999-12-31'),
+				];
+
+				await db.insert(table).values(dates.map((d) => ({ d })));
+
+				const result = await db.select().from(table).orderBy(asc(table.id));
+
+				Expect<Equal<{ id: number; d: Temporal.PlainDate }[], typeof result>>;
+
+				expect(result.map((r) => r.d.toString())).toEqual(dates.map((d) => d.toString()));
+			} finally {
+				await db.execute(sql`drop table if exists ${table}`);
+			}
+		});
+
+		test('temporal time column respects precision across values', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const table = pgTable('temporal_time_precision', {
+				id: serial('id').primaryKey(),
+				t0: time('t0', { mode: 'temporal' }).notNull(),
+				t3: time('t3', { mode: 'temporal', precision: 3 }).notNull(),
+				t6: time('t6', { mode: 'temporal', precision: 6 }).notNull(),
+			});
+
+			try {
+				await db.execute(sql`drop table if exists ${table}`);
+				await db.execute(sql`
+					create table ${table} (
+								id serial primary key,
+								t0 time not null,
+								t3 time(3) not null,
+								t6 time(6) not null
+						)
+				`);
+
+				const t = Temporal.PlainTime.from('12:34:56.123456');
+
+				await db.insert(table).values({ t0: t, t3: t, t6: t });
+
+				const result = await db.select().from(table);
+
+				expect(result).toHaveLength(1);
+				// Postgres `time` without an explicit precision defaults to microsecond precision.
+				expect(result[0]!.t0.equals(t)).toBe(true);
+				expect(result[0]!.t3.equals(Temporal.PlainTime.from('12:34:56.123'))).toBe(true);
+				expect(result[0]!.t6.equals(t)).toBe(true);
+			} finally {
+				await db.execute(sql`drop table if exists ${table}`);
+			}
+		});
+
+		test('temporal interval parses iso_8601 style', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const table = pgTable('temporal_interval_iso', {
+				id: serial('id').primaryKey(),
+				i: interval('i', { mode: 'temporal' }).notNull(),
+			});
+
+			try {
+				await db.execute(sql`drop table if exists ${table}`);
+				await db.execute(sql`create table ${table} (id serial primary key, i interval not null)`);
+				await db.execute(sql`set intervalstyle = 'iso_8601'`);
+
+				const d = Temporal.Duration.from({ days: 1, hours: 2, minutes: 30, seconds: 15 });
+
+				await db.insert(table).values({ i: d });
+
+				const result = await db.select().from(table);
+
+				expect(result).toHaveLength(1);
+				expect(result[0]!.i.total('seconds')).toBe(d.total('seconds'));
+			} finally {
+				await db.execute(sql`drop table if exists ${table}`);
+				await db.execute(sql`reset intervalstyle`);
+			}
+		});
+
+		test('temporal interval throws DrizzleError on unparseable driver value', () => {
+			// Bypass the DB — directly invoke mapFromDriverValue with garbage to prove the
+			// DrizzleError branch fires rather than silently returning a zero Duration.
+			const t = pgTable('temporal_interval_parse_fail', {
+				i: interval('i', { mode: 'temporal' }).notNull(),
+			});
+
+			expect(() => t.i.mapFromDriverValue('this is not an interval at all')).toThrowError(/Failed to parse/);
+		});
+
+		test('temporal interval preserves months and years without requiring relativeTo', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const table = pgTable('temporal_interval_calendar', {
+				id: serial('id').primaryKey(),
+				i: interval('i', { mode: 'temporal' }).notNull(),
+			});
+
+			try {
+				await db.execute(sql`drop table if exists ${table}`);
+				await db.execute(sql`create table ${table} (id serial primary key, i interval not null)`);
+				await db.execute(sql`set intervalstyle = 'iso_8601'`);
+
+				const d = Temporal.Duration.from({ years: 1, months: 2, days: 3, hours: 4, minutes: 5, seconds: 6 });
+
+				await db.insert(table).values({ i: d });
+
+				const result = await db.select().from(table);
+
+				expect(result).toHaveLength(1);
+				const parsed = result[0]!.i;
+				// Months and years are variable-length, so .total('seconds') without relativeTo throws.
+				// Assert per-field instead.
+				expect(parsed.years).toBe(1);
+				expect(parsed.months).toBe(2);
+				expect(parsed.days).toBe(3);
+				expect(parsed.hours).toBe(4);
+				expect(parsed.minutes).toBe(5);
+				expect(parsed.seconds).toBe(6);
+			} finally {
+				await db.execute(sql`drop table if exists ${table}`);
+				await db.execute(sql`reset intervalstyle`);
+			}
+		});
+
+		test('temporal timestamp instant is stable across DST boundary regardless of session TimeZone', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const table = pgTable('temporal_ts_dst', {
+				id: serial('id').primaryKey(),
+				ts: timestamp('ts', { mode: 'temporal', withTimezone: true, precision: 3 }).notNull(),
+			});
+
+			// 2024-03-10 07:00:00Z is inside the US DST spring-forward window.
+			// 2024-11-03 06:00:00Z is inside the US DST fall-back window.
+			const springForward = Temporal.Instant.from('2024-03-10T07:00:00.123Z');
+			const fallBack = Temporal.Instant.from('2024-11-03T06:00:00.456Z');
+
+			try {
+				await db.execute(sql`drop table if exists ${table}`);
+				await db.execute(
+					sql`create table ${table} (id serial primary key, ts timestamp(3) with time zone not null)`,
+				);
+
+				for (const tz of ['UTC', 'America/New_York', 'Asia/Tokyo']) {
+					await db.execute(sql.raw(`set time zone '${tz}'`));
+					await db.execute(sql`delete from ${table}`);
+
+					await db.insert(table).values([{ ts: springForward }, { ts: fallBack }]);
+					const result = await db.select().from(table).orderBy(asc(table.id));
+
+					expect(result, `session tz=${tz}`).toHaveLength(2);
+					expect(result[0]!.ts.epochMilliseconds, `session tz=${tz}`).toBe(springForward.epochMilliseconds);
+					expect(result[1]!.ts.epochMilliseconds, `session tz=${tz}`).toBe(fallBack.epochMilliseconds);
+				}
+			} finally {
+				await db.execute(sql`reset time zone`);
+				await db.execute(sql`drop table if exists ${table}`);
+			}
+		});
+
+		test('temporal columns round-trip via update ... returning', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const table = pgTable('temporal_update_returning', {
+				id: serial('id').primaryKey(),
+				date: date('date', { mode: 'temporal' }).notNull(),
+				time: time('time', { mode: 'temporal', precision: 3 }).notNull(),
+				datetime: timestamp('datetime', { mode: 'temporal', precision: 3 }).notNull(),
+				datetimeWTZ: timestamp('datetime_wtz', { mode: 'temporal', withTimezone: true, precision: 3 }).notNull(),
+				interval: interval('interval', { mode: 'temporal' }).notNull(),
+			});
+
+			try {
+				await db.execute(sql`drop table if exists ${table}`);
+				await db.execute(sql`set intervalstyle = 'iso_8601'`);
+				await db.execute(sql`
+					create table ${table} (
+								id serial primary key,
+								date date not null,
+								time time(3) not null,
+								datetime timestamp(3) not null,
+								datetime_wtz timestamp(3) with time zone not null,
+								interval interval not null
+						)
+				`);
+
+				const initialDate = Temporal.PlainDate.from('2020-01-01');
+				const initialTime = Temporal.PlainTime.from('01:02:03.004');
+				const initialDatetime = Temporal.PlainDateTime.from('2020-01-01T01:02:03.004');
+				const initialInstant = Temporal.Instant.from('2020-01-01T01:02:03.004Z');
+				const initialInterval = Temporal.Duration.from('PT1H');
+
+				const inserted = await db.insert(table).values({
+					date: initialDate,
+					time: initialTime,
+					datetime: initialDatetime,
+					datetimeWTZ: initialInstant,
+					interval: initialInterval,
+				}).returning();
+
+				expect(inserted[0]!.date.equals(initialDate)).toBe(true);
+				expect(inserted[0]!.time.equals(initialTime)).toBe(true);
+				expect(inserted[0]!.datetime.equals(initialDatetime)).toBe(true);
+				expect(inserted[0]!.datetimeWTZ.epochMilliseconds).toBe(initialInstant.epochMilliseconds);
+				expect(inserted[0]!.interval.total('seconds')).toBe(initialInterval.total('seconds'));
+
+				const newDate = Temporal.PlainDate.from('2025-06-15');
+				const newTime = Temporal.PlainTime.from('23:59:59.999');
+				const newDatetime = Temporal.PlainDateTime.from('2025-06-15T23:59:59.999');
+				const newInstant = Temporal.Instant.from('2025-06-15T23:59:59.999Z');
+				const newInterval = Temporal.Duration.from('PT2H30M');
+
+				const updated = await db.update(table).set({
+					date: newDate,
+					time: newTime,
+					datetime: newDatetime,
+					datetimeWTZ: newInstant,
+					interval: newInterval,
+				}).where(eq(table.id, inserted[0]!.id)).returning();
+
+				expect(updated).toHaveLength(1);
+				expect(updated[0]!.date.equals(newDate)).toBe(true);
+				expect(updated[0]!.time.equals(newTime)).toBe(true);
+				expect(updated[0]!.datetime.equals(newDatetime)).toBe(true);
+				expect(updated[0]!.datetimeWTZ.epochMilliseconds).toBe(newInstant.epochMilliseconds);
+				expect(updated[0]!.interval.total('seconds')).toBe(newInterval.total('seconds'));
+			} finally {
+				await db.execute(sql`drop table if exists ${table}`);
+				await db.execute(sql`reset intervalstyle`);
+			}
+		});
+
+		test('temporal columns round-trip via onConflictDoUpdate', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const table = pgTable('temporal_on_conflict', {
+				id: integer('id').primaryKey(),
+				datetime: timestamp('datetime', { mode: 'temporal', precision: 3 }).notNull(),
+			});
+
+			try {
+				await db.execute(sql`drop table if exists ${table}`);
+				await db.execute(
+					sql`create table ${table} (id integer primary key, datetime timestamp(3) not null)`,
+				);
+
+				const initial = Temporal.PlainDateTime.from('2020-01-01T00:00:00.000');
+				const updated = Temporal.PlainDateTime.from('2030-12-31T23:59:59.999');
+
+				await db.insert(table).values({ id: 1, datetime: initial });
+
+				await db.insert(table).values({ id: 1, datetime: updated })
+					.onConflictDoUpdate({ target: table.id, set: { datetime: updated } });
+
+				const result = await db.select().from(table);
+				expect(result).toHaveLength(1);
+				expect(result[0]!.datetime.equals(updated)).toBe(true);
+			} finally {
+				await db.execute(sql`drop table if exists ${table}`);
+			}
+		});
+
+		test('temporal column SQL types', () => {
+			const table = pgTable('temporal_sql_types', {
+				date: date('date', { mode: 'temporal' }).notNull(),
+				time: time('time', { mode: 'temporal' }).notNull(),
+				timePrecision: time('time_precision', { mode: 'temporal', precision: 3 }).notNull(),
+				timestamp: timestamp('timestamp', { mode: 'temporal' }).notNull(),
+				timestampPrecision: timestamp('timestamp_precision', { mode: 'temporal', precision: 6 }).notNull(),
+				timestampTz: timestamp('timestamp_tz', { mode: 'temporal', withTimezone: true }).notNull(),
+				timestampTzPrecision: timestamp('timestamp_tz_precision', {
+					mode: 'temporal',
+					withTimezone: true,
+					precision: 3,
+				}).notNull(),
+				interval: interval('interval', { mode: 'temporal' }).notNull(),
+				intervalFields: interval('interval_fields', { mode: 'temporal', fields: 'day' }).notNull(),
+				intervalPrecision: interval('interval_precision', { mode: 'temporal', precision: 2 }).notNull(),
+			});
+
+			const { columns } = getTableConfig(table);
+			const typesByName = Object.fromEntries(columns.map((c) => [c.name, c.getSQLType()]));
+
+			expect(typesByName).toEqual({
+				date: 'date',
+				time: 'time',
+				time_precision: 'time(3)',
+				timestamp: 'timestamp',
+				timestamp_precision: 'timestamp (6)',
+				timestamp_tz: 'timestamp with time zone',
+				timestamp_tz_precision: 'timestamp (3) with time zone',
+				interval: 'interval',
+				interval_fields: 'interval day',
+				interval_precision: 'interval(2)',
+			});
+		});
+
+		test('temporal time column rejects withTimezone at build time', () => {
+			expect(() => time('time_tz', { mode: 'temporal', withTimezone: true })).toThrowError(
+				/Time with timezone is not supported in temporal mode/,
+			);
+		});
+
+		test('temporal column config rejects invalid types at compile time', () => {
+			// Smoke tests — these assertions fail the type check, not the runtime expect.
+			// @ts-expect-error — 7 is outside the Precision union (0-6)
+			timestamp('ts', { mode: 'temporal', precision: 7 });
+			// @ts-expect-error — unknown mode
+			date('d', { mode: 'not-a-real-mode' });
+			// @ts-expect-error — unknown key on config
+			interval('i', { mode: 'temporal', notARealOption: true });
+
+			// If any of the above stopped erroring, this test's type check would fail at `tsc`.
+			expect(true).toBe(true);
 		});
 
 		test('orderBy with aliased column', (ctx) => {
