@@ -55,9 +55,6 @@ jobs:
         id: meta
         shell: bash
         run: echo "suffix=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-      - name: Build Prisma client
-        working-directory: drizzle-orm
-        run: pnpm prisma generate --schema src/prisma/schema.prisma
       - name: Build all
         run: pnpm build:artifact
       
@@ -202,7 +199,6 @@ jobs:
             exit 1
           fi
 
-      # Prisma client was generated in prepare -> build outputs already contain it
       # No `pnpm build` here — we reuse dist to save time
 
       - name: Run tests
