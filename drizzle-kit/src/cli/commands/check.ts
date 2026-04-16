@@ -193,10 +193,6 @@ export const checkHandler = async (
 		}
 	}
 
-	if (ignoreConflicts) {
-		return emptyResult();
-	}
-
 	try {
 		const commutativity = getCommutativityDialect(dialect);
 		if (!commutativity) {
@@ -206,26 +202,35 @@ export const checkHandler = async (
 		const response = await commutativity.detectNonCommutative(snapshots);
 		if (response.conflicts.length > 0) {
 			const nonCommutativityMessage = generateReportDirectory(response);
-			console.log(nonCommutativityMessage);
-			if (shouldExitOnConflict) {
-				process.exit(1);
+			if (!ignoreConflicts) {
+				console.log(nonCommutativityMessage);
+				if (shouldExitOnConflict) {
+					process.exit(1);
+				}
+				return emptyResult(nonCommutativityMessage);
 			}
-			return emptyResult(nonCommutativityMessage);
 		}
 
 		const selectedBranch = selectOpenCommutativeBranch(response);
-		if (!selectedBranch) {
-			return emptyResult();
+		if (selectedBranch) {
+			const sortedLeafs = [...selectedBranch.leafs].sort((left, right) => left.id.localeCompare(right.id));
+			return {
+				statements: sortedLeafs.flatMap((leaf) => leaf.statements),
+				parentSnapshot: selectedBranch.parentSnapshot,
+				parentId: selectedBranch.parentId,
+				leafIds: sortedLeafs.map((leaf) => leaf.id),
+			};
 		}
 
-		// Maybe remove
-		const sortedLeafs = [...selectedBranch.leafs].sort((left, right) => left.id.localeCompare(right.id));
-		return {
-			statements: sortedLeafs.flatMap((leaf) => leaf.statements),
-			parentSnapshot: selectedBranch.parentSnapshot,
-			parentId: selectedBranch.parentId,
-			leafIds: sortedLeafs.map((leaf) => leaf.id),
-		};
+		if (ignoreConflicts && response.leafNodes.length > 1) {
+			return {
+				statements: [],
+				parentSnapshot: null,
+				leafIds: [...response.leafNodes].sort((left, right) => left.localeCompare(right)),
+			};
+		}
+
+		return emptyResult();
 	} catch (e) {
 		console.error(e);
 		return emptyResult();
