@@ -356,7 +356,7 @@ export const diffIntrospect = async (
 
 	// schema
 	const filePath = `${tmpDir}/${testName}.ts`;
-	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'pg');
+	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
 	writeFileSync(filePath, file.file);
 	await tsc(file.file).catch((e) => {
 		throw new Error(`tsc error in file ${filePath}`, { cause: e });
@@ -518,7 +518,7 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	);
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
-	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'pg');
+	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
 	const path = `tests/postgres/tmp/temp-${hash(String(Math.random()))}.ts`;
 
 	if (existsSync(path)) rmSync(path);

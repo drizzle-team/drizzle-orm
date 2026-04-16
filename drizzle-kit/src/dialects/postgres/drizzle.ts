@@ -1,6 +1,5 @@
 import { getTableName, is, SQL } from 'drizzle-orm';
 import { Relations } from 'drizzle-orm/_relations';
-import type { AnyGelColumn, GelDialect, GelPolicy } from 'drizzle-orm/gel-core';
 import type {
 	AnyPgColumn,
 	AnyPgTable,
@@ -72,7 +71,7 @@ import {
 	typeFor,
 } from './grammar';
 
-export const policyFrom = (policy: PgPolicy | GelPolicy, dialect: PgDialect | GelDialect) => {
+export const policyFrom = (policy: PgPolicy, dialect: PgDialect) => {
 	const mappedTo = !policy.to
 		? ['public']
 		: typeof policy.to === 'string'
@@ -110,7 +109,7 @@ export const policyFrom = (policy: PgPolicy | GelPolicy, dialect: PgDialect | Ge
 	};
 };
 
-export const unwrapColumn = (column: AnyPgColumn | AnyGelColumn) => {
+export const unwrapColumn = (column: AnyPgColumn) => {
 	// In the new architecture, columns have a dimensions property directly
 	const dimensions = (column as any).dimensions ?? 0;
 	const baseColumn = column;
@@ -155,10 +154,10 @@ type JsonObject = { [key: string]: JsonValue };
 type JsonArray = JsonValue[];
 
 export const defaultFromColumn = (
-	base: AnyPgColumn | AnyGelColumn,
+	base: AnyPgColumn,
 	def: unknown,
 	dimensions: number,
-	dialect: PgDialect | GelDialect,
+	dialect: PgDialect,
 ): Column['default'] => {
 	if (typeof def === 'undefined') return null;
 

@@ -20,7 +20,6 @@
 	"private": true,
 	"devDependencies": {
 		"@ark/attest": "^0.56.0",
-		"tslatest": "npm:typescript@^6.0.2",
 		"tsx": "^4.19.0",
 		"vitest": "^2.1.8"
 	},

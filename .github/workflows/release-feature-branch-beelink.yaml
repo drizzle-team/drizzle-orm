@@ -276,7 +276,6 @@ jobs:
 
             int:other)
               pnpm --stream vitest --reporter=verbose --silent=false run tests \
-                --exclude ./tests/gel/ \
                 --exclude ./tests/mysql/ \
                 --exclude ./tests/cockroach/ \
                 --exclude ./tests/mssql/ \

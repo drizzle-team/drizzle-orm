@@ -15,8 +15,6 @@ import { printConfigConnectionIssues as printCockroachIssues } from '../validati
 import type { Casing, CliConfig, Driver } from '../validations/common';
 import { configCommonSchema, configMigrations, wrapParam } from '../validations/common';
 import { duckdbCredentials, printConfigConnectionIssues as printIssuesDuckDb } from '../validations/duckdb';
-import type { GelCredentials } from '../validations/gel';
-import { gelCredentials, printConfigConnectionIssues as printIssuesGel } from '../validations/gel';
 import type { LibSQLCredentials } from '../validations/libsql';
 import { libSQLCredentials, printConfigConnectionIssues as printIssuesLibSQL } from '../validations/libsql';
 import { printConfigConnectionIssues as printMssqlIssues } from '../validations/mssql';
@@ -70,11 +68,6 @@ export const prepareDropParams = async (
 	const config = from === 'config'
 		? await drizzleConfigFromFile(options.config as string | undefined)
 		: options;
-
-	if (config.dialect === 'gel') {
-		console.log(error(`You can't use 'drop' command with Gel dialect`));
-		process.exit(1);
-	}
 
 	return { out: config.out || 'drizzle', bundle: config.driver === 'expo' };
 };
@@ -370,11 +363,6 @@ export const preparePushConfig = async (
 		};
 	}
 
-	if (config.dialect === 'gel') {
-		console.log(error(`You can't use 'push' command with Gel dialect`));
-		process.exit(1);
-	}
-
 	if (config.dialect === 'mssql') {
 		const parsed = mssqlCredentials.safeParse(config);
 		if (!parsed.success) {
@@ -444,10 +432,6 @@ export const preparePullConfig = async (
 		| {
 			dialect: 'singlestore';
 			credentials: SingleStoreCredentials;
-		}
-		| {
-			dialect: 'gel';
-			credentials?: GelCredentials;
 		}
 		| {
 			dialect: 'mssql';
@@ -583,24 +567,6 @@ export const preparePullConfig = async (
 			filters,
 			init: !!options.init,
 			migrations,
-		};
-	}
-
-	if (dialect === 'gel') {
-		const parsed = gelCredentials.safeParse(config);
-		if (!parsed.success) {
-			printIssuesGel(config);
-			process.exit(1);
-		}
-		return {
-			dialect,
-			out: config.out,
-			breakpoints: config.breakpoints,
-			casing: config.casing,
-			credentials: parsed.data,
-			init: !!options.init,
-			migrations,
-			filters,
 		};
 	}
 
@@ -765,10 +731,6 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 		};
 	}
 
-	if (dialect === 'gel') {
-		throw new Error(`You can't use 'studio' command with Gel dialect`);
-	}
-
 	if (dialect === 'mssql') {
 		throw new Error(`You can't use 'studio' command with MsSql dialect yet`);
 	}
@@ -888,11 +850,6 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 			schema,
 			table,
 		};
-	}
-
-	if (dialect === 'gel') {
-		console.log(error(`You can't use 'migrate' command with Gel dialect`));
-		process.exit(1);
 	}
 
 	if (dialect === 'mssql') {

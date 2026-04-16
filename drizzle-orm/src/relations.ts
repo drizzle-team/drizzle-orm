@@ -33,7 +33,14 @@ import {
 	or,
 } from './sql/expressions/index.ts';
 import { type CommentInput, noopDecoder, Placeholder, SQL, sql, type SQLWrapper, View } from './sql/sql.ts';
-import type { Assume, DrizzleTypeError, Equal, Simplify, ValueOrArray } from './utils.ts';
+import {
+	type Assume,
+	type DrizzleTypeError,
+	type Equal,
+	FnConstructor,
+	type Simplify,
+	type ValueOrArray,
+} from './utils.ts';
 
 export type FilteredSchemaEntry = Table<any> | View<string, boolean, FieldSelection>;
 
@@ -842,11 +849,16 @@ export function mapRelationalRow(
 	return rows;
 }
 
-export type RelationalRowsMapper<T = any> = (rows: Record<string, unknown>[]) => T;
+export interface RelationalRowsMapper<T = any> {
+	(rows: Record<string, unknown>[]): T;
+	/** @internal jit mapper's function body for debugging */
+	body?: string;
+}
+
 export type RelationalRowsMapperGenerator<T = any> = (
 	config: RelationalQueryMapperConfig,
 	mapColumnValue?: (value: unknown) => unknown,
-) => (rows: Record<string, unknown>[]) => T;
+) => RelationalRowsMapper<T>;
 
 export function makeDefaultRqbMapper<T = any>(
 	{ selection, isFirst, parseJson, parseJsonIfString, rootJsonMappers }: RelationalQueryMapperConfig,
@@ -992,13 +1004,17 @@ export function makeJitRqbMapper<T = unknown>(
 	}
 
 	fn.push(`return rows${isFirst ? '[0]' : ''};`, '//# sourceURL=drizzle:jit-relational-query-mapper');
-	return new Function(
-		'rows',
-		fn.join('\n'),
-	).bind({
-		selection,
-		mapColumnValue,
-	}) as RelationalRowsMapper<T>;
+	const compiled = fn.join('\n');
+	return Object.assign(
+		new FnConstructor(
+			'rows',
+			compiled,
+		).bind({
+			selection,
+			mapColumnValue,
+		}),
+		{ body: `function jitRqbMapper (rows) {\n${compiled}\n}` },
+	) as RelationalRowsMapper<T>;
 }
 
 export class RelationsBuilderTable<TTableName extends string = string> {

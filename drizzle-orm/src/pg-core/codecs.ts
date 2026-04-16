@@ -221,7 +221,7 @@ export const arrayCompatNormalize = (normalize: NormalizeCodec, transformToPgArr
 	return transformToPgArray ? (v: any, d: number) => makePgArray(loop(v, d)) : loop;
 };
 
-export const genericPgCodecs: PgCodecs = {
+export const genericPgCodecs = {
 	bytea: {
 		castInJson: (name) => sql`encode(${name}, 'base64')`,
 		castArrayInJson: arrayCompatCast((name) => sql`encode(${name}, 'base64')`),
@@ -311,7 +311,7 @@ export const genericPgCodecs: PgCodecs = {
 	vector: {
 		normalizeArray: parsePgArray,
 	},
-};
+} as const satisfies PgCodecs;
 
 export const refineGenericPgCodecs = (extension?: PartialWithUndefined<PgCodecs>): PgCodecs =>
 	refineCodecs<PostgresType>(genericPgCodecs, extension);

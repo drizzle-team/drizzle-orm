@@ -93,8 +93,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # - shard: int:gel
-          #   dbs: [gel]
           # - shard: int:singlestore
           #   dbs: [singlestore]
           # - shard: int:singlestore-core
@@ -172,7 +170,6 @@ jobs:
               singlestore-many)    compose_files+=("-f" "compose/singlestore-many.yml") ;;
               mssql)               compose_files+=("-f" "compose/mssql.yml") ;;
               cockroach)           compose_files+=("-f" "compose/cockroach.yml") ;;
-              gel)                 compose_files+=("-f" "compose/gel.yml") ;;
               *) echo "Unknown db '$db'"; exit 1 ;;
             esac
           done
@@ -228,7 +225,6 @@ jobs:
           LIBSQL_URL: file:local.db
           LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
           LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
-          GEL_CONNECTION_STRING: gel://admin:password@localhost:56565/main
           SINGLESTORE_CONNECTION_STRING: singlestore://root:singlestore@localhost:33307/
           SINGLESTORE_MANY_CONNECTION_STRING: singlestore://root:singlestore@localhost:3308/;singlestore://root:singlestore@localhost:3309/;singlestore://root:singlestore@localhost:3310/;singlestore://root:singlestore@localhost:3311/
           COCKROACH_CONNECTION_STRING: postgresql://root@127.0.0.1:26257/defaultdb?sslmode=disable
@@ -245,11 +241,6 @@ jobs:
             export SKIP_EXTERNAL_DB_TESTS=1
           fi
           case ${{ matrix.shard }} in
-            int:gel)
-              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
-                pnpm --stream vitest --reporter=verbose --silent=false run tests/gel
-              fi
-            ;;
             int:singlestore) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-prefixed.test.ts ./singlestore/singlestore-custom.test.ts ;;
             int:singlestore-core) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore.test.ts ;;
             int:singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-proxy.test.ts ;;
