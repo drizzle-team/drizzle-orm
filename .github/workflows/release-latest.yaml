@@ -35,7 +35,6 @@ jobs:
     strategy:
       matrix:
         shard:
-          - gel
           - planetscale
           - singlestore-core
           - singlestore-proxy
@@ -193,10 +192,6 @@ jobs:
         run: |
           case ${{ matrix.shard }} in
 
-            gel)
-              pnpm --stream vitest --reporter=verbose --silent=false run tests/gel
-            ;;
-
             planetscale)
               pnpm --stream vitest --reporter=verbose --silent=false run \
                 tests/mysql/mysql-planetscale.test.ts \
@@ -266,7 +261,6 @@ jobs:
 
             other)
               pnpm --stream vitest --reporter=verbose --silent=false run \
-                --exclude tests/gel \
                 --exclude tests/mysql/mysql-planetscale.test.ts \
                 --exclude tests/relational/mysql.planetscale-v1.test.ts \
                 --exclude tests/relational/mysql.planetscale.test.ts \

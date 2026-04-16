@@ -21,7 +21,10 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 	static override readonly [entityKind]: string = 'PgAsyncPreparedQuery';
 
 	/** @internal */
-	readonly mapper: ((rows: any[]) => any) | undefined;
+	readonly mapper: {
+		(rows: any[]): any;
+		body?: string;
+	} | undefined;
 
 	constructor(
 		protected executor: (params?: unknown[]) => Promise<any>,

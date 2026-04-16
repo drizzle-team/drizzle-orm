@@ -38,16 +38,18 @@ export const pgliteCodecs = refineGenericPgCodecs({
 			? arrayCompatNormalize(base64ToUint8Array)
 			: genericPgCodecs.bytea?.normalizeArrayInJson,
 		normalize: typeof Buffer === 'undefined'
-			? genericPgCodecs.bytea?.normalize
+			? undefined
 			: (v: Uint8Array) => Buffer.from(v),
 		normalizeArray: typeof Buffer === 'undefined'
-			? genericPgCodecs.bytea?.normalizeArray
+			? undefined
 			: arrayCompatNormalize((v: Uint8Array) => Buffer.from(v)),
 	},
 	json: {
+		// Driver handless objects, other types need to be stringified
 		normalizeParam: (v) => typeof v === 'object' ? v : JSON.stringify(v),
 	},
 	jsonb: {
+		// Driver handless objects, other types need to be stringified
 		normalizeParam: (v) => typeof v === 'object' ? v : JSON.stringify(v),
 	},
 	geometry: {

@@ -32,7 +32,10 @@ export class PgEffectPreparedQuery<
 	static override readonly [entityKind]: string = 'PgEffectPreparedQuery';
 
 	/** @internal */
-	readonly mapper: ((rows: any[]) => any) | undefined;
+	readonly mapper: {
+		(rows: any[]): any;
+		body?: string;
+	} | undefined;
 
 	constructor(
 		protected executor: (params?: unknown[]) => Effect.Effect<unknown, unknown, unknown>,

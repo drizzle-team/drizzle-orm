@@ -231,29 +231,6 @@ export type Config =
 					url: string;
 				};
 		}
-		| {
-			dialect: Verify<Dialect, 'gel'>;
-			dbCredentials?:
-				& {
-					tlsSecurity?:
-						| 'insecure'
-						| 'no_host_verification'
-						| 'strict'
-						| 'default';
-				}
-				& (
-					| {
-						url: string;
-					}
-					| ({
-						host: string;
-						port?: number;
-						user?: string;
-						password?: string;
-						database: string;
-					})
-				);
-		}
 		// TODO update?
 		| {
 			dialect: Verify<Dialect, 'mssql'>;

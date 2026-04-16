@@ -63,7 +63,6 @@ export type Setup = {
 		| 'postgres'
 		| '@vercel/postgres'
 		| '@neondatabase/serverless'
-		| 'gel'
 		| 'mysql2'
 		| '@planetscale/database'
 		| 'd1-http'

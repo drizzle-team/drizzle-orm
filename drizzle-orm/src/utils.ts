@@ -76,6 +76,9 @@ export function mapResultRow<TResult>(
 	return result as TResult;
 }
 
+/** @internal bypass bundle-time filtering */
+export const FnConstructor = Object.getPrototypeOf(() => null).constructor as typeof Function;
+
 /** @internal */
 function makeJitQueryMapperInner(
 	columns: SelectedFieldsOrdered<AnyColumn>,
@@ -125,10 +128,11 @@ function makeJitQueryMapperInner(
 
 		if (joinsNotNullableMap && is(field, Column) && pathArr.length === 2) {
 			const objectName = JSON.stringify(pathArr[0]!);
+			const tableName = JSON.stringify(getTableName(field.table));
 			fn.push(
 				`if (!(${objectName} in nullifyMap)) {`,
-				`	nullifyMap[${objectName}] = res${path} === null ? this.getTableName(this.columns[${idx}].field.table) : false;`,
-				`} else if (typeof nullifyMap[${objectName}] === 'string' && nullifyMap[${objectName}] !== this.getTableName(this.columns[${idx}].field.table)) {`,
+				`	nullifyMap[${objectName}] = res${path} === null ? ${tableName} : false;`,
+				`} else if (typeof nullifyMap[${objectName}] === 'string' && nullifyMap[${objectName}] !== ${tableName}) {`,
 				`	nullifyMap[${objectName}] = false;`,
 				`}`,
 			);
@@ -154,27 +158,37 @@ export type RowsMapperGenerator = <TResult = any>(
 	columns: SelectedFieldsOrdered<AnyColumn>,
 	joinsNotNullableMap: Record<string, boolean> | undefined,
 ) => RowsMapper<TResult>;
-export type RowsMapper<TResult = Record<string, unknown>[]> = (rows: unknown[][]) => TResult;
+export interface RowsMapper<TResult = Record<string, unknown>[]> {
+	(rows: unknown[][]): TResult;
+	/** @internal jit mapper's function body for debugging */
+	body?: string;
+}
 
 export function makeJitQueryMapper<TResult>(
 	columns: SelectedFieldsOrdered<AnyColumn>,
 	joinsNotNullableMap: Record<string, boolean> | undefined,
 ): RowsMapper<TResult> {
-	return new Function(
-		'rows',
-		`const mapped = [];
+	const internals = `const mapped = [];
 		for (let i = 0; i < rows.length; ++i) {
 			const res = {};
 			${makeJitQueryMapperInner(columns, joinsNotNullableMap)} 
 			mapped[i] = res;
 		}
 		return mapped;
-		//# sourceURL=drizzle:jit-query-mapper`,
-	).bind({
-		getTableName,
-		columns,
-		joinsNotNullableMap,
-	}) as any;
+		//# sourceURL=drizzle:jit-query-mapper`;
+
+	const fn = Object.assign(
+		new FnConstructor(
+			'rows',
+			internals,
+		).bind({
+			columns,
+			joinsNotNullableMap,
+		}),
+		{ body: `function jitQueryMapper (rows) {\n${internals}\n}` },
+	) as RowsMapper<TResult>;
+
+	return fn;
 }
 
 export function makeDefaultQueryMapper<TResult>(
