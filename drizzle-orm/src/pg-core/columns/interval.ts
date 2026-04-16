@@ -7,13 +7,6 @@ import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 import type { Precision } from './timestamp.ts';
 
-let PostgresInterval: typeof import('postgres-interval') | undefined;
-import('postgres-interval')
-	.then((mod) => {
-		PostgresInterval = mod.default;
-	})
-	.catch(() => {});
-
 export type PgIntervalBuilderInitial<TName extends string> = PgIntervalBuilder<{
 	name: TName;
 	dataType: 'string';
@@ -106,29 +99,42 @@ export class PgTemporalInterval<T extends ColumnBaseConfig<'date', 'PgTemporalIn
 		return `interval${fields}${precision}`;
 	}
 
+	/**
+	 * Parses a PostgreSQL interval string into a `Temporal.Duration`.
+	 *
+	 * Only the `iso_8601` server `intervalstyle` is supported — the session must
+	 * be configured with `set intervalstyle = 'iso_8601'` (or the equivalent
+	 * connection setting). `Temporal.Duration.from` accepts the ISO 8601-2
+	 * extensions Temporal uses, so values like `P3W1D` or `-P1M` round-trip fine
+	 * even though strict ISO 8601-1 would reject them.
+	 *
+	 * The default `postgres` output (`"2 days 03:45:30"`), as well as
+	 * `postgres_verbose` and `sql_standard`, are **not** supported and will
+	 * throw. They require format-specific parsing that can't be done reliably
+	 * without risking silent data corruption on ambiguous tokens.
+	 *
+	 * Why we don't fall back to the `postgres-interval` package:
+	 * `postgres-interval` never throws — on input it can't tokenize it silently
+	 * returns a zero-valued (or worse, *partially* populated) duration. That
+	 * breaks two real server outputs:
+	 *   - `postgres_verbose` (`@ 2 days 3 hours 45 mins 30 secs`) — it matches
+	 *     `"mins"` against its `month` prefix and produces `months: 45`, losing
+	 *     the actual minutes and fabricating a year-month component.
+	 *   - `sql_standard` (`2 3:45:30`) — it drops the leading day count and
+	 *     returns `{ hours: 3, minutes: 45, seconds: 30 }`, off by two days.
+	 * Because the output is populated but wrong, we can't reliably detect the
+	 * bad parse and fail loudly; the only safe answer is not to use the library.
+	 *
+	 * https://www.postgresql.org/docs/current/datatype-datetime.html#DATATYPE-INTERVAL-OUTPUT
+	 */
 	override mapFromDriverValue(value: string): Temporal.Duration {
 		try {
-			// intervalStyle=iso_8601
 			return Temporal.Duration.from(value);
 		} catch {
-			if (PostgresInterval) {
-				try {
-					// intervalStyle=postgres
-					const durationLike = PostgresInterval(value);
-					return Temporal.Duration.from(durationLike);
-				} catch {
-					throw new DrizzleError({
-						message: `Failed to parse PostgreSQL interval from string "${value}". `
-							+ `Is \`intervalstyle\` set to other than \`postgres\` or \`iso_8601\`?`,
-					});
-				}
-			} else {
-				throw new DrizzleError({
-					message: `Failed to parse PostgreSQL interval from string "${value}". `
-						+ `Is \`intervalstyle\` set to other than \`iso_8601\`?`
-						+ `To parse \`postgres\` style (the default) intervals, the \`postgres-interval\` package is required.`,
-				});
-			}
+			throw new DrizzleError({
+				message: `Failed to parse PostgreSQL interval from string "${value}". `
+					+ `Temporal interval columns require \`intervalstyle = 'iso_8601'\` on the session.`,
+			});
 		}
 	}
 }
