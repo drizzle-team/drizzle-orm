@@ -122,9 +122,13 @@ function makeJitQueryMapperInner(
 		let decodedValue = rowStr;
 		if (codec) decodedValue = `this.columns[${idx}].codec(${decodedValue}, ${arrayDimensions})`;
 		if (decoderStr) decodedValue = `${decoderStr}(${decodedValue})`;
-		fn.push(
-			`res${path} = ${rowStr} === null ? ${rowStr} : ${decodedValue};`,
-		);
+		if (rowStr === decodedValue) {
+			fn.push(`res${path} = ${rowStr};`);
+		} else {
+			fn.push(
+				`res${path} = ${rowStr} === null ? ${rowStr} : ${decodedValue};`,
+			);
+		}
 
 		if (joinsNotNullableMap && is(field, Column) && pathArr.length === 2) {
 			const objectName = JSON.stringify(pathArr[0]!);
