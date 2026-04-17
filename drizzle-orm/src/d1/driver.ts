@@ -44,7 +44,7 @@ export function drizzle<
 	TClient extends AnyD1Database = AnyD1Database,
 >(
 	client: TClient,
-	config: DrizzleConfig<TSchema, TRelations> = {},
+	config: Omit<DrizzleConfig<TSchema, TRelations>, 'useJitMappers'> = {},
 ): DrizzleD1Database<TSchema, TRelations> & {
 	$client: TClient;
 } {
@@ -73,7 +73,6 @@ export function drizzle<
 	const session = new SQLiteD1Session(client as D1Database, dialect, relations, schema, {
 		logger,
 		cache: config.cache,
-		useJitMapper: config.useJitMappers,
 	});
 	const db = new DrizzleD1Database(
 		'async',
