@@ -1843,8 +1843,9 @@ export const connectToSQLite = async (
 				return migrate(
 					drzl,
 					async (queries) => {
-						for (const query of queries) {
-							await remoteCallback(query, [], 'run');
+						// run migrations in transaction
+						if (queries.length > 0) {
+							await remoteBatchCallback(queries.map((sql) => ({ sql })));
 						}
 					},
 					config,

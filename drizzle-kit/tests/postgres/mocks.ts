@@ -68,7 +68,7 @@ import 'zx/globals';
 import { relationsToTypeScript } from 'src/cli/commands/pull-common';
 import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/cli';
 import { extractPostgresExisting } from 'src/dialects/drizzle';
-import { getReasonsFromStatements } from 'src/dialects/postgres/commutativity';
+import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
 import { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
 import { upToV8 } from 'src/dialects/postgres/versions';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
@@ -863,7 +863,7 @@ export const preparePostgisTestDatabase = async (tx: boolean = true): Promise<Te
 type SchemaShape = {
 	id: string;
 	prevId?: string;
-	schema: Record<string, PgTable>;
+	schema: PostgresSchema;
 };
 
 export async function conflictsFromSchema(
@@ -873,31 +873,19 @@ export async function conflictsFromSchema(
 		child2: SchemaShape;
 	},
 ) {
-	const parentInterim = fromDrizzleSchema(
-		{
-			tables: Object.values(parent.schema),
-			schemas: [],
-			enums: [],
-			sequences: [],
-			roles: [],
-			policies: [],
-			views: [],
-			matViews: [],
-		},
-		() => true,
-	);
+	const { ddl: parentDDL } = drizzleToDDL(parent.schema);
 
 	const parentSnapshot = {
 		version: '8',
 		dialect: 'postgres',
 		id: parent.id,
 		prevIds: parent.prevId ? [parent.prevId] : [],
-		ddl: interimToDDL(parentInterim.schema).ddl.entities.list(),
+		ddl: parentDDL.entities.list(),
 		renames: [],
 	} satisfies PostgresSnapshot;
 
 	const { statements: st1 } = await diff(parent.schema, child1.schema, []);
 	const { statements: st2 } = await diff(parent.schema, child2.schema, []);
 
-	return await getReasonsFromStatements(st1, st2, parentSnapshot);
+	return await postgresCommutativity.getReasonsFromStatements(st1, st2, parentSnapshot);
 }
