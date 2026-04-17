@@ -1,5 +1,6 @@
 import type { MigrationMeta } from '~/migrator.ts';
-import type { MySqlSession } from '~/mysql-core/session.ts';
+import type { PgRemoteDatabase } from '~/pg-proxy/index.ts';
+import type { ProxyMigrator } from '~/pg-proxy/migrator.ts';
 import { sql } from '~/sql/sql.ts';
 import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResult } from './utils.ts';
 
@@ -10,8 +11,10 @@ import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResult } from '
 const upgradeFunctions: Record<
 	number,
 	(
+		migrationsSchema: string,
 		migrationsTable: string,
-		session: MySqlSession,
+		db: PgRemoteDatabase<Record<string, unknown>>,
+		callback: ProxyMigrator,
 		localMigrations: MigrationMeta[],
 	) => Promise<void>
 > = {
@@ -24,12 +27,12 @@ const upgradeFunctions: Record<
 	 * Not implemented for now -> If hash matching fails, fall back to serial id ordering
 	 * 5. Create extra column and backfill names for matched migrations
 	 */
-	0: async (migrationsTable, session, localMigrations) => {
-		const table = sql`${sql.identifier(migrationsTable)}`;
+	0: async (migrationsSchema, migrationsTable, db, callback, localMigrations) => {
+		const table = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
 
 		// 1. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
-		const dbRows = await session.all<{ id: number; hash: string; created_at: string }>(
+		const dbRows = await db.session.execute<{ id: number; hash: string; created_at: string }[]>(
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
 		);
 
@@ -86,18 +89,28 @@ const upgradeFunctions: Record<
 		}
 
 		// 5. Create extra column and backfill names for matched migrations
-		await session.all(sql`ALTER TABLE ${table} ADD ${sql.identifier('name')} text`);
-		await session.all(
-			sql`ALTER TABLE ${table} ADD ${sql.identifier('applied_at')} TIMESTAMP DEFAULT CURRENT_TIMESTAMP`,
-		);
-
-		for (const backfillEntry of toApply) {
-			await session.all(
-				sql`UPDATE ${table} SET ${sql.identifier('name')} = ${backfillEntry.name}, ${
+		const sqls: string[] = [
+			db.dialect.sqlToQuery(
+				sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${sql.identifier('name')} text`.inlineParams(),
+			).sql,
+			db.dialect.sqlToQuery(
+				sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${
 					sql.identifier('applied_at')
-				} = NULL WHERE ${sql.identifier('id')} = ${backfillEntry.id}`,
+				} timestamp with time zone DEFAULT now()`.inlineParams(),
+			).sql,
+		];
+		for (const { id, name } of toApply) {
+			sqls.push(
+				db.dialect.sqlToQuery(
+					sql`UPDATE ${table} SET ${sql.identifier('name')} = ${name}, ${sql.identifier('applied_at')} = NULL WHERE ${
+						sql.identifier('id')
+					} = ${id}`.inlineParams(),
+				).sql,
 			);
 		}
+
+		await callback(sqls);
+		return;
 	},
 };
 
@@ -108,15 +121,17 @@ const upgradeFunctions: Record<
  * Version 1: Extended schema (id, hash, created_at, name, applied_at)
  */
 export async function upgradeIfNeeded(
+	migrationsSchema: string,
 	migrationsTable: string,
-	session: MySqlSession,
+	db: PgRemoteDatabase<Record<string, unknown>>,
+	callback: ProxyMigrator,
 	localMigrations: MigrationMeta[],
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
-	const result = await session.all<{ '1': 1 }>(
-		sql`SELECT 1 FROM information_schema.tables 
-			WHERE table_name = ${migrationsTable}
-			AND table_schema = DATABASE()`,
+	const result = await db.session.execute<{ '1': 1 }[]>(
+		sql`SELECT 1 FROM information_schema.tables
+			WHERE table_schema = ${migrationsSchema}
+			AND table_name = ${migrationsTable}`,
 	);
 
 	if (result.length === 0) {
@@ -124,22 +139,34 @@ export async function upgradeIfNeeded(
 	}
 
 	// Table exists, check table shape
-	const rows = await session.all<{ column_name: string }>(
-		sql`SELECT column_name as \`column_name\`
-		FROM information_schema.columns
-		WHERE table_name = ${migrationsTable}
-		AND table_schema = DATABASE()
-		ORDER BY ordinal_position`,
+	const rows = await db.session.execute<
+		{ schema: string; table_name: string; column_name: string; type: string }[]
+	>(
+		sql`SELECT
+			n.nspname AS "schema",
+			c.relname AS "table_name",
+			a.attname AS "column_name",
+			pg_catalog.format_type(a.atttypid, a.atttypmod) AS "type"
+		FROM
+			pg_catalog.pg_attribute a
+			JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
+			JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+		WHERE
+			a.attnum > 0
+			AND NOT a.attisdropped
+			AND n.nspname = ${migrationsSchema}
+			AND c.relname = ${migrationsTable}
+		ORDER BY a.attnum;`,
 	);
 
-	const version = GET_VERSION_FOR.mysql(rows.map((r) => r.column_name));
+	let version = GET_VERSION_FOR.pg(rows.map((r) => r.column_name));
 
-	for (let v = version; v < MIGRATIONS_TABLE_VERSIONS.mysql; v++) {
+	for (let v = version; v < MIGRATIONS_TABLE_VERSIONS.pg; v++) {
 		const upgradeFn = upgradeFunctions[v];
 		if (!upgradeFn) {
 			throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
 		}
-		await upgradeFn(migrationsTable, session, localMigrations);
+		await upgradeFn(migrationsSchema, migrationsTable, db, callback, localMigrations);
 	}
 
 	return { newDb: false };

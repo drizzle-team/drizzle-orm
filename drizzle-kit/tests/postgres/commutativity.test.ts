@@ -1,6 +1,6 @@
+import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
 import { createDDL } from 'src/dialects/postgres/ddl';
 import type { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
-import { detectNonCommutative } from 'src/utils/commutativity';
 import { describe, expect, test } from 'vitest';
 
 const baseId = '00000000-0000-0000-0000-000000000000';
@@ -176,7 +176,7 @@ describe('commutativity integration (postgres)', () => {
 		const b2Path = writeTempSnapshot(tmp, '002_leafB2', leafB2);
 		const b3Path = writeTempSnapshot(tmp, '002_leafB3', leafB3);
 
-		const report = await detectNonCommutative([pPath, aPath, bPath, b2Path, b3Path, a2Path], 'postgresql');
+		const report = await postgresCommutativity.detectNonCommutative([pPath, aPath, bPath, b2Path, b3Path, a2Path]);
 		expect(report.conflicts.length).toBeGreaterThan(0);
 		expect(report.conflicts[0].parentId).toBe('p1');
 	});
@@ -292,7 +292,7 @@ describe('commutativity integration (postgres)', () => {
 		const b2Path = writeTempSnapshot(tmp, '003_leafB2', leafB2);
 		const b3Path = writeTempSnapshot(tmp, '004_leafB3', leafB3);
 
-		const report = await detectNonCommutative([pPath, aPath, a2Path, bPath, b2Path, b3Path], 'postgresql');
+		const report = await postgresCommutativity.detectNonCommutative([pPath, aPath, a2Path, bPath, b2Path, b3Path]);
 		expect(report.conflicts.length).toBeGreaterThan(0);
 		expect(report.conflicts[0].parentId).toBe('p1');
 	});
@@ -340,7 +340,7 @@ describe('commutativity integration (postgres)', () => {
 		const aPath = writeTempSnapshot(tmp, '001_leafA', leafA);
 		const bPath = writeTempSnapshot(tmp, '002_leafB', leafB);
 
-		const report = await detectNonCommutative([pPath, aPath, bPath], 'postgresql');
+		const report = await postgresCommutativity.detectNonCommutative([pPath, aPath, bPath]);
 		expect(report.conflicts.length).toBeGreaterThan(0);
 		expect(report.conflicts[0].parentId).toBe('p1');
 	});
@@ -388,7 +388,7 @@ describe('commutativity integration (postgres)', () => {
 		const aPath = writeTempSnapshot(tmp, '001_leafA', leafA);
 		const bPath = writeTempSnapshot(tmp, '002_leafB', leafB);
 
-		const report = await detectNonCommutative([pPath, aPath, bPath], 'postgresql');
+		const report = await postgresCommutativity.detectNonCommutative([pPath, aPath, bPath]);
 		expect(report.conflicts.length).toBeGreaterThan(0);
 		expect(report.conflicts[0].parentId).toBe('p1');
 	});
@@ -410,7 +410,7 @@ describe('commutativity integration (postgres)', () => {
 		const aPath = writeTempSnapshot(tmp, '001_leafA', leafA);
 		const bPath = writeTempSnapshot(tmp, '002_leafB', leafB);
 
-		const report = await detectNonCommutative([pPath, aPath, bPath], 'postgresql');
+		const report = await postgresCommutativity.detectNonCommutative([pPath, aPath, bPath]);
 		expect(report.conflicts.length).toBe(0);
 	});
 
@@ -463,7 +463,7 @@ describe('commutativity integration (postgres)', () => {
 			writeTempSnapshot(tmp, '002_b_col', makeSnapshot('b_col', ['p_col'], b.entities.list())),
 		);
 
-		const report = await detectNonCommutative(files, 'postgresql');
+		const report = await postgresCommutativity.detectNonCommutative(files);
 		expect(report.conflicts.length).toBeGreaterThan(0);
 	});
 
@@ -515,7 +515,7 @@ describe('commutativity integration (postgres)', () => {
 			writeTempSnapshot(tmp, '012_b_drop', makeSnapshot('b_drop', ['p_drop'], b.entities.list())),
 		);
 
-		const report = await detectNonCommutative(files, 'postgresql');
+		const report = await postgresCommutativity.detectNonCommutative(files);
 		expect(report.conflicts.length).toBe(1);
 		expect(report.conflicts[0].branchA.chain[report.conflicts[0].branchA.chain.length - 1].id).toStrictEqual('a_drop');
 		expect(report.conflicts[0].branchB.chain[report.conflicts[0].branchB.chain.length - 1].id).toStrictEqual('b_drop');
@@ -524,6 +524,208 @@ describe('commutativity integration (postgres)', () => {
 		// console.log(
 		// 	`The conflict in your migrations was detected. Starting from a ${con.parentId} we've detected 2 branches of migrations that are conflicting. A file with conflicted migration for a first branch in ${con.branchA.chain[con.branchA.chain.length - 1].id} and second branch is ${con.branchB.chain[con.branchB.chain.length - 1].id}.\n\n${con.branchA.statementDescription} statement from first branch is conflicting with ${con.branchB.statementDescription}`,
 		// );
+	});
+
+	test('schema drop conflicts with new table in the same schema', async () => {
+		const { tmp } = mkTmp();
+		const files: string[] = [];
+
+		const parent = createDDL();
+		parent.schemas.push({ name: 'app' } as any);
+		parent.tables.push({ schema: 'app', isRlsEnabled: false, name: 'users' } as any);
+		parent.columns.push({
+			schema: 'app',
+			table: 'users',
+			name: 'id',
+			type: 'integer',
+			options: null,
+			typeSchema: 'pg_catalog',
+			notNull: true,
+			dimensions: 0,
+			default: null,
+			generated: null,
+			identity: null,
+		} as any);
+		const p = makeSnapshot('p_drop_schema', [ORIGIN], parent.entities.list());
+
+		const a = createDDL();
+
+		const b = createDDL();
+		b.schemas.push({ name: 'app' } as any);
+		b.tables.push({ schema: 'app', isRlsEnabled: false, name: 'users' } as any);
+		b.tables.push({ schema: 'app', isRlsEnabled: false, name: 'profiles' } as any);
+		b.columns.push(
+			{
+				schema: 'app',
+				table: 'users',
+				name: 'id',
+				type: 'integer',
+				options: null,
+				typeSchema: 'pg_catalog',
+				notNull: true,
+				dimensions: 0,
+				default: null,
+				generated: null,
+				identity: null,
+			} as any,
+			{
+				schema: 'app',
+				table: 'profiles',
+				name: 'id',
+				type: 'integer',
+				options: null,
+				typeSchema: 'pg_catalog',
+				notNull: true,
+				dimensions: 0,
+				default: null,
+				generated: null,
+				identity: null,
+			} as any,
+		);
+
+		files.push(
+			writeTempSnapshot(tmp, '013_p_drop_schema', p),
+			writeTempSnapshot(tmp, '014_a_drop_schema', makeSnapshot('a_drop_schema', ['p_drop_schema'], a.entities.list())),
+			writeTempSnapshot(tmp, '015_b_drop_schema', makeSnapshot('b_drop_schema', ['p_drop_schema'], b.entities.list())),
+		);
+
+		const report = await postgresCommutativity.detectNonCommutative(files);
+		expect(report.conflicts.length).toBeGreaterThan(0);
+	});
+
+	test('create indexes on different tables do not conflict', async () => {
+		const { tmp } = mkTmp();
+		const files: string[] = [];
+
+		const parent = createDDL();
+		parent.tables.push({ schema: 'public', isRlsEnabled: false, name: 'orders' });
+		parent.tables.push({ schema: 'public', isRlsEnabled: false, name: 'invoices' });
+		parent.columns.push(
+			{
+				schema: 'public',
+				table: 'orders',
+				name: 'customer_id',
+				type: 'integer',
+				options: null,
+				typeSchema: 'pg_catalog',
+				notNull: false,
+				dimensions: 0,
+				default: null,
+				generated: null,
+				identity: null,
+			} as any,
+			{
+				schema: 'public',
+				table: 'invoices',
+				name: 'account_id',
+				type: 'integer',
+				options: null,
+				typeSchema: 'pg_catalog',
+				notNull: false,
+				dimensions: 0,
+				default: null,
+				generated: null,
+				identity: null,
+			} as any,
+		);
+		const p = makeSnapshot('p_idx', [ORIGIN], parent.entities.list());
+
+		const a = createDDL();
+		a.tables.push({ schema: 'public', isRlsEnabled: false, name: 'orders' });
+		a.tables.push({ schema: 'public', isRlsEnabled: false, name: 'invoices' });
+		a.columns.push(
+			{
+				schema: 'public',
+				table: 'orders',
+				name: 'customer_id',
+				type: 'integer',
+				options: null,
+				typeSchema: 'pg_catalog',
+				notNull: false,
+				dimensions: 0,
+				default: null,
+				generated: null,
+				identity: null,
+			} as any,
+			{
+				schema: 'public',
+				table: 'invoices',
+				name: 'account_id',
+				type: 'integer',
+				options: null,
+				typeSchema: 'pg_catalog',
+				notNull: false,
+				dimensions: 0,
+				default: null,
+				generated: null,
+				identity: null,
+			} as any,
+		);
+		a.indexes.push({
+			schema: 'public',
+			table: 'orders',
+			name: 'orders_customer_id_idx',
+			columns: [{ value: 'customer_id', isExpression: false, opclass: null, nullsFirst: false, asc: false }],
+			isUnique: false,
+			where: null,
+			with: '',
+			concurrently: false,
+			method: 'btree',
+			nameExplicit: true,
+		} as any);
+
+		const b = createDDL();
+		b.tables.push({ schema: 'public', isRlsEnabled: false, name: 'orders' });
+		b.tables.push({ schema: 'public', isRlsEnabled: false, name: 'invoices' });
+		b.columns.push(
+			{
+				schema: 'public',
+				table: 'orders',
+				name: 'customer_id',
+				type: 'integer',
+				options: null,
+				typeSchema: 'pg_catalog',
+				notNull: false,
+				dimensions: 0,
+				default: null,
+				generated: null,
+				identity: null,
+			} as any,
+			{
+				schema: 'public',
+				table: 'invoices',
+				name: 'account_id',
+				type: 'integer',
+				options: null,
+				typeSchema: 'pg_catalog',
+				notNull: false,
+				dimensions: 0,
+				default: null,
+				generated: null,
+				identity: null,
+			} as any,
+		);
+		b.indexes.push({
+			schema: 'public',
+			table: 'invoices',
+			name: 'invoices_account_id_idx',
+			columns: [{ value: 'account_id', isExpression: false, opclass: null, nullsFirst: false, asc: false }],
+			isUnique: false,
+			where: null,
+			with: '',
+			concurrently: false,
+			method: 'btree',
+			nameExplicit: true,
+		} as any);
+
+		files.push(
+			writeTempSnapshot(tmp, '020_p_idx', p),
+			writeTempSnapshot(tmp, '021_a_idx', makeSnapshot('a_idx', ['p_idx'], a.entities.list())),
+			writeTempSnapshot(tmp, '022_b_idx', makeSnapshot('b_idx', ['p_idx'], b.entities.list())),
+		);
+
+		const report = await postgresCommutativity.detectNonCommutative(files);
+		expect(report.conflicts).toStrictEqual([]);
 	});
 
 	test('unique constraint same name on same table', async () => {
@@ -565,7 +767,7 @@ describe('commutativity integration (postgres)', () => {
 			writeTempSnapshot(tmp, '022_b_uq', makeSnapshot('b_uq', ['p_uq'], b.entities.list())),
 		);
 
-		const report = await detectNonCommutative(files, 'postgresql');
+		const report = await postgresCommutativity.detectNonCommutative(files);
 		expect(report.conflicts.length).toBeGreaterThan(0);
 	});
 
@@ -607,7 +809,7 @@ describe('commutativity integration (postgres)', () => {
 			writeTempSnapshot(tmp, '032_b_view', makeSnapshot('b_view', ['p_view'], b.entities.list())),
 		);
 
-		const report = await detectNonCommutative(files, 'postgresql');
+		const report = await postgresCommutativity.detectNonCommutative(files);
 		expect(report.conflicts.length).toBeGreaterThan(0);
 	});
 
@@ -627,7 +829,7 @@ describe('commutativity integration (postgres)', () => {
 			writeTempSnapshot(tmp, '042_b_enum', makeSnapshot('b_enum', ['p_enum'], b.entities.list())),
 		);
 
-		const report = await detectNonCommutative(files, 'postgresql');
+		const report = await postgresCommutativity.detectNonCommutative(files);
 		expect(report.conflicts.length).toBeGreaterThan(0);
 	});
 
@@ -669,7 +871,7 @@ describe('commutativity integration (postgres)', () => {
 			writeTempSnapshot(tmp, '052_b_seq', makeSnapshot('b_seq', ['p_seq'], b.entities.list())),
 		);
 
-		const report = await detectNonCommutative(files, 'postgresql');
+		const report = await postgresCommutativity.detectNonCommutative(files);
 		expect(report.conflicts.length).toBeGreaterThan(0);
 	});
 
@@ -716,7 +918,7 @@ describe('commutativity integration (postgres)', () => {
 			writeTempSnapshot(tmp, '062_b_pol', makeSnapshot('b_pol', ['p_pol'], b.entities.list())),
 		);
 
-		const report = await detectNonCommutative(files, 'postgresql');
+		const report = await postgresCommutativity.detectNonCommutative(files);
 		expect(report.conflicts.length).toBeGreaterThan(0);
 	});
 
@@ -751,7 +953,7 @@ describe('commutativity integration (postgres)', () => {
 			writeTempSnapshot(tmp, '072_b_rls', makeSnapshot('b_rls', ['p_rls'], b.entities.list())),
 		);
 
-		const report = await detectNonCommutative(files, 'postgresql');
+		const report = await postgresCommutativity.detectNonCommutative(files);
 		expect(report.conflicts.length).toBeGreaterThan(0);
 	});
 
@@ -822,7 +1024,7 @@ describe('commutativity integration (postgres)', () => {
 			writeTempSnapshot(tmp, '103_c_three', makeSnapshot('c_three', ['p_three'], c.entities.list())),
 		);
 
-		const report = await detectNonCommutative(files, 'postgresql');
+		const report = await postgresCommutativity.detectNonCommutative(files);
 		// At least A vs B should conflict; C may or may not depending on overlap
 		expect(report.conflicts.length).toBeGreaterThan(0);
 	});
@@ -894,7 +1096,7 @@ describe('commutativity integration (postgres)', () => {
 			writeTempSnapshot(tmp, '113_B', makeSnapshot('B', ['p_nested'], B.entities.list())),
 		);
 
-		const report = await detectNonCommutative(files, 'postgresql');
+		const report = await postgresCommutativity.detectNonCommutative(files);
 		// A1 vs B should be compared (different initial children: A vs B), and should conflict on column 'c' vs 'd'? Only if overlap; ensure conflict by changing B to touch 'c'
 		expect(report.conflicts.length).toBeGreaterThanOrEqual(0);
 	});
@@ -963,7 +1165,7 @@ describe('commutativity integration (postgres)', () => {
 			writeTempSnapshot(tmp, '122_Y', makeSnapshot('Y', ['p_mix'], Y.entities.list())),
 		);
 
-		const report = await detectNonCommutative(files, 'postgresql');
+		const report = await postgresCommutativity.detectNonCommutative(files);
 		expect(report.conflicts.length).toBeGreaterThan(0);
 	});
 
@@ -1004,7 +1206,7 @@ describe('commutativity integration (postgres)', () => {
 			writeTempSnapshot(tmp, '133_C', makeSnapshot('C_schema_move', ['p_schema_move'], C.entities.list())),
 		);
 
-		const report = await detectNonCommutative(files, 'postgresql');
+		const report = await postgresCommutativity.detectNonCommutative(files);
 		// Expect conflicts between A and B (s1 rename vs drop)
 		// Expect conflicts between A and C (s1 operations)
 		// Expect conflicts between B and C (s1 drop vs s1 operations)

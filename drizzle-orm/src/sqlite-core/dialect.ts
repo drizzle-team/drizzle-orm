@@ -46,6 +46,7 @@ import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.t
 import { upgradeAsyncIfNeeded, upgradeSyncIfNeeded } from '~/up-migrations/sqlite.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import type { BaseSQLiteDatabase } from './db.ts';
 import type {
 	SelectedFieldsOrdered,
 	SQLiteSelectConfig,
@@ -1380,13 +1381,7 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 
 	async migrate(
 		migrations: MigrationMeta[],
-		session: SQLiteSession<
-			'async',
-			unknown,
-			Record<string, unknown>,
-			AnyRelations,
-			V1.TablesRelationalConfig
-		>,
+		db: BaseSQLiteDatabase<'async', unknown, Record<string, unknown>>,
 		config?: string | Omit<MigrationConfig, 'migrationsFolder'>,
 	): Promise<void | MigratorInitFailResponse> {
 		const migrationsTable = config === undefined
@@ -1398,7 +1393,7 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 		// Detect DB version and upgrade table schema if needed
 		const { newDb } = await upgradeAsyncIfNeeded(
 			migrationsTable,
-			session,
+			db,
 			migrations,
 		);
 
@@ -1412,10 +1407,10 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 				applied_at TEXT
 		)
 		`;
-			await session.run(migrationTableCreate);
+			await db.session.run(migrationTableCreate);
 		}
 
-		const dbMigrations = await session.all<{
+		const dbMigrations = await db.session.all<{
 			id: number;
 			hash: string;
 			created_at: string;
@@ -1437,7 +1432,7 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 
 			if (!migration) return;
 
-			await session.run(
+			await db.session.run(
 				sql`insert into ${
 					sql.identifier(
 						migrationsTable,
@@ -1454,7 +1449,7 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 			localMigrations: migrations,
 			dbMigrations,
 		});
-		await session.transaction(async (tx) => {
+		await db.session.transaction(async (tx) => {
 			for (const migration of migrationsToRun) {
 				for (const stmt of migration.sql) {
 					await tx.run(sql.raw(stmt));

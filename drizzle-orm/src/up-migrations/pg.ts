@@ -5,19 +5,8 @@ import type { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import type { PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgQueryResultHKT } from '~/pg-core/session.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
-
-const CURRENT_MIGRATION_TABLE_VERSION = 1;
-
-interface UpgradeResult {
-	newDb?: boolean;
-	prevVersion?: number;
-	currentVersion?: number;
-}
-
-function getVersion(columns: string[]) {
-	if (columns.includes('name')) return 1;
-	return 0;
-}
+import { assertUnreachable } from '~/utils.ts';
+import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResult } from './utils.ts';
 
 /**
  * Map of upgrade functions. Each key is the version being upgraded FROM,
@@ -30,7 +19,7 @@ const upgradeFunctions: Record<
 		migrationsTable: string,
 		db: PgAsyncDatabase<PgQueryResultHKT, any>,
 		localMigrations: MigrationMeta[],
-		mode: 'transaction' | 'execute' | 'batch',
+		mode: 'transaction' | 'batch' | 'execute',
 	) => Promise<void>
 > = {
 	/**
@@ -118,8 +107,8 @@ const upgradeFunctions: Record<
 			);
 		}
 
-		// check if http
-		// execute -> proxy, http drivers
+		// batch - neon http
+		// execute - xata http
 		// transaction -> other
 		if (mode === 'transaction') {
 			await db.transaction(async (tx: PgAsyncTransaction<any, any>) => {
@@ -133,10 +122,12 @@ const upgradeFunctions: Record<
 			await database.batch(
 				sqls.map((s) => database.execute(s)) as unknown as [BatchItem<'pg'>, ...BatchItem<'pg'>[]],
 			);
-		} else {
+		} else if (mode === 'execute') {
 			for (const sql of sqls) {
-				await db.execute(sql);
+				await db.session.execute(sql);
 			}
+		} else {
+			assertUnreachable(mode);
 		}
 	},
 };
@@ -152,7 +143,10 @@ export async function upgradeIfNeeded(
 	migrationsTable: string,
 	db: PgAsyncDatabase<PgQueryResultHKT, any>,
 	localMigrations: MigrationMeta[],
-	mode: 'transaction' | 'execute' | 'batch' = 'transaction',
+	// batch - neon http
+	// execute - xata http
+	// transaction - all others
+	mode: 'transaction' | 'batch' | 'execute' = 'transaction',
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
 	const result = await db.session.objects<{ '1': 1 }>(
@@ -186,9 +180,9 @@ export async function upgradeIfNeeded(
 		ORDER BY a.attnum;`,
 	);
 
-	let version = getVersion(rows.map((r) => r.column_name));
+	let version = GET_VERSION_FOR.pg(rows.map((r) => r.column_name));
 
-	for (let v = version; v < CURRENT_MIGRATION_TABLE_VERSION; v++) {
+	for (let v = version; v < MIGRATIONS_TABLE_VERSIONS.pg; v++) {
 		const upgradeFn = upgradeFunctions[v];
 		if (!upgradeFn) {
 			throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
@@ -196,5 +190,5 @@ export async function upgradeIfNeeded(
 		await upgradeFn(migrationsSchema, migrationsTable, db, localMigrations, mode);
 	}
 
-	return { prevVersion: version, currentVersion: CURRENT_MIGRATION_TABLE_VERSION };
+	return { newDb: false };
 }

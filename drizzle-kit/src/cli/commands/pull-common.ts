@@ -63,7 +63,10 @@ export const relationsToTypeScript = (
 			columnsThroughFrom?: string[];
 			columnsThroughTo?: string[];
 		}[]
-	> = {};
+	> =
+		// {} links to Object.prototype that has "constructor" property
+		// table can be named so
+		Object.create(null);
 
 	// Process all foreign keys as before.
 	schema.forEach((table) => {

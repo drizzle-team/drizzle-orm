@@ -83,6 +83,99 @@ describe('conflict rule coverage (statement pairs)', () => {
 		expect(conflicts).not.toBeUndefined();
 	});
 
+	test('table drop vs new column on same table', async () => {
+		const parent = {
+			t: mysqlTable('t', (t) => ({
+				c: t.varchar({ length: 255 }),
+			})),
+		};
+
+		const child1 = {};
+
+		const child2 = {
+			t: mysqlTable('t', (t) => ({
+				c: t.varchar({ length: 255 }),
+				d: t.varchar({ length: 255 }),
+			})),
+		};
+
+		const conflicts = await conflictsFromSchema({
+			parent: { id: '1', schema: parent },
+			child1: { id: '2', prevId: '1', schema: child1 },
+			child2: { id: '3', prevId: '1', schema: child2 },
+		});
+
+		expect(conflicts).not.toBeUndefined();
+	});
+
+	test('index: create vs create on different tables is commutative', async () => {
+		const parent = {
+			orders: mysqlTable('orders', (t) => ({
+				customerId: t.varchar({ length: 255 }),
+			})),
+			invoices: mysqlTable('invoices', (t) => ({
+				accountId: t.varchar({ length: 255 }),
+			})),
+		};
+
+		const child1 = {
+			orders: mysqlTable('orders', (t) => ({
+				customerId: t.varchar({ length: 255 }),
+			}), (table) => [index('orders_customer_idx').on(table.customerId)]),
+			invoices: mysqlTable('invoices', (t) => ({
+				accountId: t.varchar({ length: 255 }),
+			})),
+		};
+
+		const child2 = {
+			orders: mysqlTable('orders', (t) => ({
+				customerId: t.varchar({ length: 255 }),
+			})),
+			invoices: mysqlTable('invoices', (t) => ({
+				accountId: t.varchar({ length: 255 }),
+			}), (table) => [index('invoices_account_idx').on(table.accountId)]),
+		};
+
+		const conflicts = await conflictsFromSchema({
+			parent: { id: '1', schema: parent },
+			child1: { id: '2', prevId: '1', schema: child1 },
+			child2: { id: '3', prevId: '1', schema: child2 },
+		});
+
+		expect(conflicts).toBeUndefined();
+	});
+
+	test('index: create vs create on same table with different names is commutative', async () => {
+		const parent = {
+			t: mysqlTable('t', (t) => ({
+				c: t.varchar({ length: 255 }),
+				d: t.varchar({ length: 255 }),
+			})),
+		};
+
+		const child1 = {
+			t: mysqlTable('t', (t) => ({
+				c: t.varchar({ length: 255 }),
+				d: t.varchar({ length: 255 }),
+			}), (table) => [index('t_c_idx').on(table.c)]),
+		};
+
+		const child2 = {
+			t: mysqlTable('t', (t) => ({
+				c: t.varchar({ length: 255 }),
+				d: t.varchar({ length: 255 }),
+			}), (table) => [index('t_d_idx').on(table.d)]),
+		};
+
+		const conflicts = await conflictsFromSchema({
+			parent: { id: '1', schema: parent },
+			child1: { id: '2', prevId: '1', schema: child1 },
+			child2: { id: '3', prevId: '1', schema: child2 },
+		});
+
+		expect(conflicts).toBeUndefined();
+	});
+
 	test('pk: alter vs drop', async () => {
 		const parent = {
 			t: mysqlTable('t', (t) => ({
@@ -114,7 +207,7 @@ describe('conflict rule coverage (statement pairs)', () => {
 		expect(conflicts).not.toBeUndefined();
 	});
 
-	test('unique: create vs drop', async () => {
+	test('unique: create vs drop on different indexes is commutative', async () => {
 		const parent = {
 			t: mysqlTable('t', (t) => ({
 				c: t.varchar({ length: 255 }).unique(),
@@ -140,7 +233,7 @@ describe('conflict rule coverage (statement pairs)', () => {
 			child2: { id: '3', prevId: '1', schema: child2 },
 		});
 
-		expect(conflicts).not.toBeUndefined();
+		expect(conflicts).toBeUndefined();
 	});
 
 	test('fk: recreate vs drop', async () => {

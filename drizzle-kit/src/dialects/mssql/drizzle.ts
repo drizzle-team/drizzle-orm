@@ -252,7 +252,7 @@ export const fromDrizzleSchema = (
 				}
 			}
 
-			let where = index.config.where ? dialect.sqlToQuery(index.config.where).sql : '';
+			let where = index.config.where ? dialect.sqlToQuery(index.config.where, 'indexes').sql : '';
 			where = where === 'true' ? '' : where;
 
 			result.indexes.push({
