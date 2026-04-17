@@ -66,9 +66,9 @@ test('Jit mappers: simple select - no rows', async () => {
 		const res = {};
 		const nullifyMap = {};
 		res["id"] = rows[i][0] === null ? rows[i][0] : this.columns[0].field.mapFromDriverValue(this.columns[0].codec(rows[i][0], 0));
-		res["name"] = rows[i][1] === null ? rows[i][1] : rows[i][1];
+		res["name"] = rows[i][1];
 		res["createdAt"] = rows[i][2] === null ? rows[i][2] : this.columns[2].field.mapFromDriverValue(rows[i][2]);
-		res["isBanned"] = rows[i][3] === null ? rows[i][3] : rows[i][3];
+		res["isBanned"] = rows[i][3];
 		if(Object.keys(nullifyMap).length) {
 			for (const [objectName, tableName] of Object.entries(nullifyMap)) {
 				if (typeof tableName === 'string' && !this.joinsNotNullableMap[tableName]) {
@@ -90,7 +90,7 @@ test('Jit mappers: select - nothing to decode - text', async () => {
 	for (let i = 0; i < rows.length; ++i) {
 		const res = {};
 		const nullifyMap = {};
-		res["name"] = rows[i][0] === null ? rows[i][0] : rows[i][0];
+		res["name"] = rows[i][0];
 		if(Object.keys(nullifyMap).length) {
 			for (const [objectName, tableName] of Object.entries(nullifyMap)) {
 				if (typeof tableName === 'string' && !this.joinsNotNullableMap[tableName]) {
@@ -113,7 +113,7 @@ test('Jit mappers: select - nothing to decode - null', async () => {
 	for (let i = 0; i < rows.length; ++i) {
 		const res = {};
 		const nullifyMap = {};
-		res["isBanned"] = rows[i][0] === null ? rows[i][0] : rows[i][0];
+		res["isBanned"] = rows[i][0];
 		if(Object.keys(nullifyMap).length) {
 			for (const [objectName, tableName] of Object.entries(nullifyMap)) {
 				if (typeof tableName === 'string' && !this.joinsNotNullableMap[tableName]) {
@@ -158,9 +158,9 @@ test('Jit mappers: insert returning all, select, update returning, delete return
 	for (let i = 0; i < rows.length; ++i) {
 		const res = {};
 		res["id"] = rows[i][0] === null ? rows[i][0] : this.columns[0].field.mapFromDriverValue(this.columns[0].codec(rows[i][0], 0));
-		res["name"] = rows[i][1] === null ? rows[i][1] : rows[i][1];
+		res["name"] = rows[i][1];
 		res["createdAt"] = rows[i][2] === null ? rows[i][2] : this.columns[2].field.mapFromDriverValue(rows[i][2]);
-		res["isBanned"] = rows[i][3] === null ? rows[i][3] : rows[i][3];
+		res["isBanned"] = rows[i][3];
 		mapped[i] = res;
 	}
 	return mapped;
@@ -172,9 +172,9 @@ test('Jit mappers: insert returning all, select, update returning, delete return
 		const res = {};
 		const nullifyMap = {};
 		res["id"] = rows[i][0] === null ? rows[i][0] : this.columns[0].field.mapFromDriverValue(this.columns[0].codec(rows[i][0], 0));
-		res["name"] = rows[i][1] === null ? rows[i][1] : rows[i][1];
+		res["name"] = rows[i][1];
 		res["createdAt"] = rows[i][2] === null ? rows[i][2] : this.columns[2].field.mapFromDriverValue(rows[i][2]);
-		res["isBanned"] = rows[i][3] === null ? rows[i][3] : rows[i][3];
+		res["isBanned"] = rows[i][3];
 		if(Object.keys(nullifyMap).length) {
 			for (const [objectName, tableName] of Object.entries(nullifyMap)) {
 				if (typeof tableName === 'string' && !this.joinsNotNullableMap[tableName]) {
@@ -193,9 +193,9 @@ test('Jit mappers: insert returning all, select, update returning, delete return
 		const res = {};
 		const nullifyMap = {};
 		res["id"] = rows[i][0] === null ? rows[i][0] : this.columns[0].field.mapFromDriverValue(this.columns[0].codec(rows[i][0], 0));
-		res["name"] = rows[i][1] === null ? rows[i][1] : rows[i][1];
+		res["name"] = rows[i][1];
 		res["createdAt"] = rows[i][2] === null ? rows[i][2] : this.columns[2].field.mapFromDriverValue(rows[i][2]);
-		res["isBanned"] = rows[i][3] === null ? rows[i][3] : rows[i][3];
+		res["isBanned"] = rows[i][3];
 		if(Object.keys(nullifyMap).length) {
 			for (const [objectName, tableName] of Object.entries(nullifyMap)) {
 				if (typeof tableName === 'string' && !this.joinsNotNullableMap[tableName]) {
@@ -213,9 +213,9 @@ test('Jit mappers: insert returning all, select, update returning, delete return
 	for (let i = 0; i < rows.length; ++i) {
 		const res = {};
 		res["id"] = rows[i][0] === null ? rows[i][0] : this.columns[0].field.mapFromDriverValue(this.columns[0].codec(rows[i][0], 0));
-		res["name"] = rows[i][1] === null ? rows[i][1] : rows[i][1];
+		res["name"] = rows[i][1];
 		res["createdAt"] = rows[i][2] === null ? rows[i][2] : this.columns[2].field.mapFromDriverValue(rows[i][2]);
-		res["isBanned"] = rows[i][3] === null ? rows[i][3] : rows[i][3];
+		res["isBanned"] = rows[i][3];
 		mapped[i] = res;
 	}
 	return mapped;
@@ -267,7 +267,7 @@ test('Jit mappers: select complex selections', async () => {
 		} else if (typeof nullifyMap["user"] === 'string' && nullifyMap["user"] !== "users") {
 			nullifyMap["user"] = false;
 		}
-		res["user"]["name"] = rows[i][1] === null ? rows[i][1] : rows[i][1];
+		res["user"]["name"] = rows[i][1];
 		if (!("user" in nullifyMap)) {
 			nullifyMap["user"] = res["user"]["name"] === null ? "users" : false;
 		} else if (typeof nullifyMap["user"] === 'string' && nullifyMap["user"] !== "users") {
@@ -279,14 +279,14 @@ test('Jit mappers: select complex selections', async () => {
 		} else if (typeof nullifyMap["user"] === 'string' && nullifyMap["user"] !== "users") {
 			nullifyMap["user"] = false;
 		}
-		res["user"]["isBanned"] = rows[i][3] === null ? rows[i][3] : rows[i][3];
+		res["user"]["isBanned"] = rows[i][3];
 		if (!("user" in nullifyMap)) {
 			nullifyMap["user"] = res["user"]["isBanned"] === null ? "users" : false;
 		} else if (typeof nullifyMap["user"] === 'string' && nullifyMap["user"] !== "users") {
 			nullifyMap["user"] = false;
 		}
 		res["post"] = {};
-		res["post"]["id"] = rows[i][4] === null ? rows[i][4] : rows[i][4];
+		res["post"]["id"] = rows[i][4];
 		if (!("post" in nullifyMap)) {
 			nullifyMap["post"] = res["post"]["id"] === null ? "posts" : false;
 		} else if (typeof nullifyMap["post"] === 'string' && nullifyMap["post"] !== "posts") {
@@ -298,7 +298,7 @@ test('Jit mappers: select complex selections', async () => {
 		} else if (typeof nullifyMap["post"] === 'string' && nullifyMap["post"] !== "posts") {
 			nullifyMap["post"] = false;
 		}
-		res["post"]["content"] = rows[i][6] === null ? rows[i][6] : rows[i][6];
+		res["post"]["content"] = rows[i][6];
 		if (!("post" in nullifyMap)) {
 			nullifyMap["post"] = res["post"]["content"] === null ? "posts" : false;
 		} else if (typeof nullifyMap["post"] === 'string' && nullifyMap["post"] !== "posts") {
@@ -328,7 +328,7 @@ test('Jit mappers: select complex selections', async () => {
 		} else if (typeof nullifyMap["user"] === 'string' && nullifyMap["user"] !== "users") {
 			nullifyMap["user"] = false;
 		}
-		res["user"]["name"] = rows[i][1] === null ? rows[i][1] : rows[i][1];
+		res["user"]["name"] = rows[i][1];
 		if (!("user" in nullifyMap)) {
 			nullifyMap["user"] = res["user"]["name"] === null ? "users" : false;
 		} else if (typeof nullifyMap["user"] === 'string' && nullifyMap["user"] !== "users") {
@@ -340,14 +340,14 @@ test('Jit mappers: select complex selections', async () => {
 		} else if (typeof nullifyMap["user"] === 'string' && nullifyMap["user"] !== "users") {
 			nullifyMap["user"] = false;
 		}
-		res["user"]["isBanned"] = rows[i][3] === null ? rows[i][3] : rows[i][3];
+		res["user"]["isBanned"] = rows[i][3];
 		if (!("user" in nullifyMap)) {
 			nullifyMap["user"] = res["user"]["isBanned"] === null ? "users" : false;
 		} else if (typeof nullifyMap["user"] === 'string' && nullifyMap["user"] !== "users") {
 			nullifyMap["user"] = false;
 		}
 		res["post"] = {};
-		res["post"]["id"] = rows[i][4] === null ? rows[i][4] : rows[i][4];
+		res["post"]["id"] = rows[i][4];
 		if (!("post" in nullifyMap)) {
 			nullifyMap["post"] = res["post"]["id"] === null ? "posts" : false;
 		} else if (typeof nullifyMap["post"] === 'string' && nullifyMap["post"] !== "posts") {
@@ -359,7 +359,7 @@ test('Jit mappers: select complex selections', async () => {
 		} else if (typeof nullifyMap["post"] === 'string' && nullifyMap["post"] !== "posts") {
 			nullifyMap["post"] = false;
 		}
-		res["post"]["content"] = rows[i][6] === null ? rows[i][6] : rows[i][6];
+		res["post"]["content"] = rows[i][6];
 		if (!("post" in nullifyMap)) {
 			nullifyMap["post"] = res["post"]["content"] === null ? "posts" : false;
 		} else if (typeof nullifyMap["post"] === 'string' && nullifyMap["post"] !== "posts") {
@@ -383,10 +383,10 @@ test('Jit mappers: select complex selections', async () => {
 		const res = {};
 		const nullifyMap = {};
 		res["userId"] = rows[i][0] === null ? rows[i][0] : this.columns[0].field.mapFromDriverValue(this.columns[0].codec(rows[i][0], 0));
-		res["postId"] = rows[i][1] === null ? rows[i][1] : rows[i][1];
-		res["name"] = rows[i][2] === null ? rows[i][2] : rows[i][2];
-		res["isBanned"] = rows[i][3] === null ? rows[i][3] : rows[i][3];
-		res["content"] = rows[i][4] === null ? rows[i][4] : rows[i][4];
+		res["postId"] = rows[i][1];
+		res["name"] = rows[i][2];
+		res["isBanned"] = rows[i][3];
+		res["content"] = rows[i][4];
 		res["createdAt"] = rows[i][5] === null ? rows[i][5] : this.columns[5].field.mapFromDriverValue(rows[i][5]);
 		if(Object.keys(nullifyMap).length) {
 			for (const [objectName, tableName] of Object.entries(nullifyMap)) {
