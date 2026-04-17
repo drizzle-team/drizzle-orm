@@ -4842,7 +4842,7 @@ export function tests(test: Test) {
 			expect(res3).toStrictEqual([{ id: 1, name: 'Updated' }]);
 		});
 
-		test.concurrent('Mappers: - correct mappers enabled', async ({ createDB, db }) => {
+		test.concurrent('Mappers: correct mappers enabled', async ({ createDB, db }) => {
 			const dialect: PgDialect = (<any> db).dialect;
 			const jitDialect: PgDialect = (<any> createDB({}, () => ({}), true)).dialect;
 
@@ -5534,7 +5534,7 @@ export function tests(test: Test) {
 			]);
 		});
 
-		test.concurrent('Jit mappers: - simple select - no rows', async ({ createDB, push }) => {
+		test.concurrent('Jit mappers: simple select - no rows', async ({ createDB, push }) => {
 			const users = pgTable('jit_mappers_users_1', (t) => ({
 				id: t.bigint('id', { mode: 'number' }).primaryKey(),
 				name: t.text('name').notNull(),
@@ -5553,7 +5553,7 @@ export function tests(test: Test) {
 			expect(result).toStrictEqual([]);
 		});
 
-		test.concurrent('Jit mappers: - select - nothing to decode - text', async ({ createDB, push }) => {
+		test.concurrent('Jit mappers: select - nothing to decode - text', async ({ createDB, push }) => {
 			const users = pgTable('jit_mappers_users_2', (t) => ({
 				id: t.bigint('id', { mode: 'number' }).primaryKey(),
 				name: t.text('name').notNull(),
@@ -5578,7 +5578,7 @@ export function tests(test: Test) {
 			expect(selected).toStrictEqual([{ name: 'First' }]);
 		});
 
-		test.concurrent('Jit mappers: - select - nothing to decode - null', async ({ createDB, push }) => {
+		test.concurrent('Jit mappers: select - nothing to decode - null', async ({ createDB, push }) => {
 			const users = pgTable('jit_mappers_users_3', (t) => ({
 				id: t.bigint('id', { mode: 'number' }).primaryKey(),
 				name: t.text('name').notNull(),
@@ -5603,7 +5603,7 @@ export function tests(test: Test) {
 			expect(selected).toStrictEqual([{ isBanned: null }]);
 		});
 
-		test.concurrent('Jit mappers: - insert returning all + select + update returning + delete returning', async ({ createDB, push }) => {
+		test.concurrent('Jit mappers: insert returning all + select + update returning + delete returning', async ({ createDB, push }) => {
 			const users = pgTable('jit_mappers_users_4', (t) => ({
 				id: t.bigint('id', { mode: 'number' }).primaryKey(),
 				name: t.text('name').notNull(),
@@ -5696,7 +5696,7 @@ export function tests(test: Test) {
 			}]));
 		});
 
-		test.concurrent('Jit mappers: - select complex selections', async ({ createDB, push }) => {
+		test.concurrent('Jit mappers: select complex selections', async ({ createDB, push }) => {
 			const users = pgTable('jit_mappers_users_5', (t) => ({
 				id: t.bigint('id', { mode: 'number' }).primaryKey(),
 				name: t.text('name').notNull(),
@@ -5847,7 +5847,7 @@ export function tests(test: Test) {
 			]);
 		});
 
-		test.concurrent('Jit mappers: - relational', async ({ createDB, push }) => {
+		test.concurrent('Jit mappers: relational', async ({ createDB, push }) => {
 			const users = pgTable('jit_mappers_users_6', (t) => ({
 				id: t.bigint('id', { mode: 'number' }).primaryKey(),
 				name: t.text('name').notNull(),

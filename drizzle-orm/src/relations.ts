@@ -890,6 +890,7 @@ function makeJitRqbMapperInner(
 	parseJsonIfString: boolean,
 	/** Root level data of query is usually not nested in JSON */
 	useJsonMappers: boolean,
+	tabs: number,
 	recursionDepth = 0,
 ): string {
 	const fn = [] as string[];
@@ -910,6 +911,7 @@ function makeJitRqbMapperInner(
 				false,
 				parseJsonIfString,
 				true,
+				tabs + 1,
 				recursionDepth + 1,
 			);
 
@@ -917,17 +919,19 @@ function makeJitRqbMapperInner(
 				fn.push(`if(${item} !== null${parseJson ? ` && (${item} = JSON.parse(${item})) !== null` : ''}) {`);
 			}
 
-			if (parseJson && (isArray || !innerCode)) fn.push(`${item} = JSON.parse(${item});`);
-			if (parseJsonIfString && !parseJson) fn.push(`if(typeof ${item} === 'string') ${item} = JSON.parse(${item});`);
+			if (parseJson && (isArray || !innerCode)) fn.push(`\t${item} = JSON.parse(${item});`);
+			if (parseJsonIfString && !parseJson) {
+				fn.push(`if(typeof ${item} === 'string') ${item} = JSON.parse(${item});`);
+			}
 
 			if (innerCode) {
 				if (isArray) {
 					fn.push(
 						`for(let ${innerIdx} = 0; ${innerIdx} < ${item}.length; ++${innerIdx} ) {`,
-						innerCode,
+						`\t${innerCode}`,
 						`}`,
 					);
-				} else fn.push(innerCode);
+				} else fn.push(`\t${innerCode}`);
 			}
 
 			if (innerCode && !isArray) {
@@ -959,10 +963,10 @@ function makeJitRqbMapperInner(
 		let decodedValue = item;
 		if (!bypassCodecs && codec) decodedValue = `${sel}.codec(${decodedValue}, ${arrayDimensions})`;
 		if (decoder) decodedValue = `${decoder}(${decodedValue})`;
-		if ((!bypassCodecs && codec) || decoder) fn.push(`if(${item} !== null) {`, `${item} = ${decodedValue};`, '}');
+		if ((!bypassCodecs && codec) || decoder) fn.push(`if(${item} !== null) {`, `\t${item} = ${decodedValue};`, '}');
 	}
 
-	return fn.join('\n');
+	return fn.join(`\n${'\t'.repeat(tabs)}`);
 }
 
 export interface RelationalQueryMapperConfig {
@@ -990,31 +994,37 @@ export function makeJitRqbMapper<T = unknown>(
 		parseJson,
 		parseJsonIfString,
 		rootJsonMappers,
+		isFirst ? 1 : 2,
 	);
 
 	if (innerCode) {
 		if (isFirst) {
 			fn.push(
-				`if(!rows[0]) return undefined;`,
-				innerCode,
+				`\tif(!rows[0]) return undefined;`,
+				`\t${innerCode}`,
 			);
 		} else {
-			fn.push(`for(let i = 0; i < rows.length; ++i) {`, innerCode, `}`);
+			fn.push(`\tfor(let i = 0; i < rows.length; ++i) {`, `\t\t${innerCode}`, `\t}`);
 		}
 	}
 
-	fn.push(`return rows${isFirst ? '[0]' : ''};`, '//# sourceURL=drizzle:jit-relational-query-mapper');
+	fn.push(`\treturn rows${isFirst ? '[0]' : ''};`, '\t//# sourceURL=drizzle:jit-relational-query-mapper');
 	const compiled = fn.join('\n');
-	return Object.assign(
-		new FnConstructor(
-			'rows',
-			compiled,
-		).bind({
-			selection,
-			mapColumnValue,
-		}),
-		{ body: `function jitRqbMapper (rows) {\n${compiled}\n}` },
-	) as RelationalRowsMapper<T>;
+	try {
+		return Object.assign(
+			new FnConstructor(
+				'rows',
+				compiled,
+			).bind({
+				selection,
+				mapColumnValue,
+			}),
+			{ body: `function jitRqbMapper (rows) {\n${compiled}\n}` },
+		) as RelationalRowsMapper<T>;
+	} catch (error) {
+		console.log(`function jitRqbMapper (rows) {\n${compiled}\n}`);
+		throw error;
+	}
 }
 
 export class RelationsBuilderTable<TTableName extends string = string> {

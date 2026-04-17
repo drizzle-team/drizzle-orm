@@ -123,7 +123,7 @@ function makeJitQueryMapperInner(
 		if (codec) decodedValue = `this.columns[${idx}].codec(${decodedValue}, ${arrayDimensions})`;
 		if (decoderStr) decodedValue = `${decoderStr}(${decodedValue})`;
 		fn.push(
-			`	res${path} = ${rowStr} === null ? ${rowStr} : ${decodedValue};`,
+			`res${path} = ${rowStr} === null ? ${rowStr} : ${decodedValue};`,
 		);
 
 		if (joinsNotNullableMap && is(field, Column) && pathArr.length === 2) {
@@ -151,7 +151,7 @@ function makeJitQueryMapperInner(
 		);
 	}
 
-	return fn.join('\n');
+	return fn.join('\n\t\t');
 }
 
 export type RowsMapperGenerator = <TResult = any>(
@@ -168,14 +168,14 @@ export function makeJitQueryMapper<TResult>(
 	columns: SelectedFieldsOrdered<AnyColumn>,
 	joinsNotNullableMap: Record<string, boolean> | undefined,
 ): RowsMapper<TResult> {
-	const internals = `const mapped = [];
-		for (let i = 0; i < rows.length; ++i) {
-			const res = {};
-			${makeJitQueryMapperInner(columns, joinsNotNullableMap)} 
-			mapped[i] = res;
-		}
-		return mapped;
-		//# sourceURL=drizzle:jit-query-mapper`;
+	const internals = `\tconst mapped = [];
+	for (let i = 0; i < rows.length; ++i) {
+		const res = {};
+		${makeJitQueryMapperInner(columns, joinsNotNullableMap)}
+		mapped[i] = res;
+	}
+	return mapped;
+	//# sourceURL=drizzle:jit-query-mapper`;
 
 	const fn = Object.assign(
 		new FnConstructor(
@@ -546,7 +546,7 @@ export function isConfig(data: any): boolean {
 	}
 
 	if ('mode' in data) {
-		if (data['mode'] !== 'default' || data['mode'] !== 'planetscale' || data['mode'] !== undefined) return false;
+		if (data['mode'] !== 'default' && data['mode'] !== 'planetscale' && data['mode'] !== undefined) return false;
 
 		return true;
 	}
