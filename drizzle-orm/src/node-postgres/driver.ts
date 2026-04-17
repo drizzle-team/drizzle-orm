@@ -1,8 +1,9 @@
 import pg, { type Pool, type PoolConfig } from 'pg';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
+import { parsePgArray } from '~/pg-core/array.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
-import { refineGenericPgCodecs } from '~/pg-core/codecs.ts';
+import { castToText, castToTextArr, refineGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -15,7 +16,49 @@ export class NodePgDatabase<
 	static override readonly [entityKind]: string = 'NodePgDatabase';
 }
 
-export const nodePgCodecs = refineGenericPgCodecs();
+export const nodePgCodecs = refineGenericPgCodecs({
+	bit: {
+		normalizeArray: parsePgArray,
+	},
+	geometry: {
+		normalizeArray: parsePgArray,
+	},
+	interval: {
+		castArray: castToTextArr,
+	},
+	// driver handles objects, other types need to be stringified
+	json: {
+		normalizeParam: (v) => typeof v === 'object' && !Array.isArray(v) ? v : JSON.stringify(v),
+	},
+	jsonb: {
+		normalizeParam: (v) => typeof v === 'object' && !Array.isArray(v) ? v : JSON.stringify(v),
+	},
+	line: {
+		castInJson: castToText,
+		castArrayInJson: castToTextArr,
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	macaddr8: {
+		castArrayInJson: castToTextArr,
+		castArray: castToTextArr,
+	},
+	point: {
+		castInJson: castToText,
+		castArrayInJson: castToTextArr,
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	halfvec: {
+		normalizeArray: parsePgArray,
+	},
+	sparsevec: {
+		normalizeArray: parsePgArray,
+	},
+	vector: {
+		normalizeArray: parsePgArray,
+	},
+});
 
 function construct<
 	TRelations extends AnyRelations = EmptyRelations,

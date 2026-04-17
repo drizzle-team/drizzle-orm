@@ -4,8 +4,8 @@ import * as Layer from 'effect/Layer';
 import { EffectCache } from '~/cache/core/cache-effect.ts';
 import { EffectLogger } from '~/effect-core/index.ts';
 import { entityKind } from '~/entity.ts';
-import { makePgArray } from '~/pg-core/array.ts';
-import { castToText, refineGenericPgCodecs } from '~/pg-core/codecs.ts';
+import { makePgArray, parsePgArray } from '~/pg-core/array.ts';
+import { castToText, castToTextArr, refineGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectDatabase } from '~/pg-core/effect/db.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
@@ -28,12 +28,40 @@ export const DefaultServices = Layer.merge(
 );
 
 export const effectPgCodecs = refineGenericPgCodecs({
+	bit: {
+		normalizeArray: parsePgArray,
+		normalizeParamArray: makePgArray,
+	},
 	date: {
 		cast: castToText,
 		normalizeParamArray: makePgArray,
 	},
+	geometry: {
+		normalizeArray: parsePgArray,
+		normalizeParamArray: makePgArray,
+	},
 	interval: {
 		cast: castToText,
+		castArray: castToTextArr,
+		normalizeParamArray: makePgArray,
+	},
+	line: {
+		castInJson: castToText,
+		castArrayInJson: castToTextArr,
+		cast: castToText,
+		castArray: castToTextArr,
+		normalizeParamArray: makePgArray,
+	},
+	macaddr8: {
+		castArrayInJson: castToTextArr,
+		castArray: castToTextArr,
+		normalizeParamArray: makePgArray,
+	},
+	point: {
+		castInJson: castToText,
+		castArrayInJson: castToTextArr,
+		cast: castToText,
+		castArray: castToTextArr,
 		normalizeParamArray: makePgArray,
 	},
 	timestamp: {
@@ -51,9 +79,6 @@ export const effectPgCodecs = refineGenericPgCodecs({
 		normalizeParam: (v) => JSON.stringify(v),
 	},
 
-	bit: {
-		normalizeParamArray: makePgArray,
-	},
 	bool: {
 		normalizeParamArray: makePgArray,
 	},
@@ -85,9 +110,6 @@ export const effectPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: makePgArray,
 	},
 	geography: {
-		normalizeParamArray: makePgArray,
-	},
-	halfvec: {
 		normalizeParamArray: makePgArray,
 	},
 	inet: {
@@ -171,9 +193,6 @@ export const effectPgCodecs = refineGenericPgCodecs({
 	smallserial: {
 		normalizeParamArray: makePgArray,
 	},
-	sparsevec: {
-		normalizeParamArray: makePgArray,
-	},
 	text: {
 		normalizeParamArray: makePgArray,
 	},
@@ -207,9 +226,6 @@ export const effectPgCodecs = refineGenericPgCodecs({
 	varchar: {
 		normalizeParamArray: makePgArray,
 	},
-	vector: {
-		normalizeParamArray: makePgArray,
-	},
 	xml: {
 		normalizeParamArray: makePgArray,
 	},
@@ -219,19 +235,7 @@ export const effectPgCodecs = refineGenericPgCodecs({
 	enum: {
 		normalizeParamArray: makePgArray,
 	},
-	geometry: {
-		normalizeParamArray: makePgArray,
-	},
-	line: {
-		normalizeParamArray: makePgArray,
-	},
-	macaddr8: {
-		normalizeParamArray: makePgArray,
-	},
 	numeric: {
-		normalizeParamArray: makePgArray,
-	},
-	point: {
 		normalizeParamArray: makePgArray,
 	},
 	bigint: {
@@ -247,6 +251,18 @@ export const effectPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: makePgArray,
 	},
 	uuid: {
+		normalizeParamArray: makePgArray,
+	},
+	halfvec: {
+		normalizeArray: parsePgArray,
+		normalizeParamArray: makePgArray,
+	},
+	sparsevec: {
+		normalizeArray: parsePgArray,
+		normalizeParamArray: makePgArray,
+	},
+	vector: {
+		normalizeArray: parsePgArray,
 		normalizeParamArray: makePgArray,
 	},
 });

@@ -1,7 +1,7 @@
 import { PGlite, type PGliteOptions } from '@electric-sql/pglite';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { makePgArray } from '~/pg-core/array.ts';
+import { makePgArray, parsePgArray } from '~/pg-core/array.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import {
 	arrayCompatNormalize,
@@ -44,6 +44,9 @@ export const pgliteCodecs = refineGenericPgCodecs({
 			? undefined
 			: arrayCompatNormalize((v: Uint8Array) => Buffer.from(v)),
 	},
+	interval: {
+		castArray: castToTextArr,
+	},
 	json: {
 		// Driver handless objects, other types need to be stringified
 		normalizeParam: (v) => typeof v === 'object' ? v : JSON.stringify(v),
@@ -53,43 +56,28 @@ export const pgliteCodecs = refineGenericPgCodecs({
 		normalizeParam: (v) => typeof v === 'object' ? v : JSON.stringify(v),
 	},
 	geometry: {
+		normalizeArray: parsePgArray,
 		castParam: (name) => `${name}::geometry`,
 		castArrayParam: (name, dimensions) => `${name}::geometry${'[]'.repeat(dimensions)}`,
 		normalizeParamArray: makePgArray,
 	},
-	bit: {
-		normalizeArray: undefined,
-	},
 	halfvec: {
+		normalizeArray: parsePgArray,
 		castParam: (name) => `${name}::halfvec`,
 		castArrayParam: (name, dimensions) => `${name}::halfvec${'[]'.repeat(dimensions)}`,
 		normalizeParamArray: makePgArray,
 	},
 	vector: {
+		normalizeArray: parsePgArray,
 		castParam: (name) => `${name}::vector`,
 		castArrayParam: (name, dimensions) => `${name}::vector${'[]'.repeat(dimensions)}`,
 		normalizeParamArray: makePgArray,
 	},
 	sparsevec: {
+		normalizeArray: parsePgArray,
 		castParam: (name) => `${name}::sparsevec`,
 		castArrayParam: (name, dimensions) => `${name}::sparsevec${'[]'.repeat(dimensions)}`,
 		normalizeParamArray: makePgArray,
-	},
-	point: {
-		cast: undefined,
-		castArray: undefined,
-		castInJson: undefined,
-		castArrayInJson: undefined,
-	},
-	line: {
-		cast: undefined,
-		castArray: undefined,
-		castInJson: undefined,
-		castArrayInJson: undefined,
-	},
-	macaddr8: {
-		castArrayInJson: undefined,
-		castArray: undefined,
 	},
 });
 
