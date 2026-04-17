@@ -1,8 +1,8 @@
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { makePgArray } from '~/pg-core/array.ts';
+import { makePgArray, parsePgArray } from '~/pg-core/array.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
-import { refineGenericPgCodecs } from '~/pg-core/codecs.ts';
+import { castToText, castToTextArr, refineGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -19,27 +19,37 @@ export class XataHttpDatabase<TRelations extends AnyRelations = EmptyRelations>
 }
 
 export const xataHttpCodecs = refineGenericPgCodecs({
+	bit: {
+		normalizeArray: parsePgArray,
+		normalizeParamArray: makePgArray,
+	},
 	json: {
-		normalizeParam: undefined,
 		castParam: (name) => `${name}::json`,
 	},
 	jsonb: {
-		normalizeParam: undefined,
 		castParam: (name) => `${name}::jsonb`,
 	},
 	interval: {
+		castArray: castToTextArr,
 		normalizeParamArray: makePgArray,
 	},
 	point: {
+		castInJson: castToText,
+		castArrayInJson: castToTextArr,
+		cast: castToText,
+		castArray: castToTextArr,
 		normalizeParamArray: makePgArray,
 	},
 	line: {
+		castInJson: castToText,
+		castArrayInJson: castToTextArr,
+		cast: castToText,
+		castArray: castToTextArr,
 		normalizeParamArray: makePgArray,
 	},
 	macaddr8: {
-		normalizeParamArray: makePgArray,
-	},
-	bit: {
+		castArrayInJson: castToTextArr,
+		castArray: castToTextArr,
 		normalizeParamArray: makePgArray,
 	},
 	bool: {
@@ -73,9 +83,6 @@ export const xataHttpCodecs = refineGenericPgCodecs({
 		normalizeParamArray: makePgArray,
 	},
 	geography: {
-		normalizeParamArray: makePgArray,
-	},
-	halfvec: {
 		normalizeParamArray: makePgArray,
 	},
 	inet: {
@@ -159,9 +166,6 @@ export const xataHttpCodecs = refineGenericPgCodecs({
 	smallserial: {
 		normalizeParamArray: makePgArray,
 	},
-	sparsevec: {
-		normalizeParamArray: makePgArray,
-	},
 	text: {
 		normalizeParamArray: makePgArray,
 	},
@@ -195,9 +199,6 @@ export const xataHttpCodecs = refineGenericPgCodecs({
 	varchar: {
 		normalizeParamArray: makePgArray,
 	},
-	vector: {
-		normalizeParamArray: makePgArray,
-	},
 	xml: {
 		normalizeParamArray: makePgArray,
 	},
@@ -208,6 +209,7 @@ export const xataHttpCodecs = refineGenericPgCodecs({
 		normalizeParamArray: makePgArray,
 	},
 	geometry: {
+		normalizeArray: parsePgArray,
 		normalizeParamArray: makePgArray,
 	},
 	numeric: {
@@ -235,6 +237,18 @@ export const xataHttpCodecs = refineGenericPgCodecs({
 		normalizeParamArray: makePgArray,
 	},
 	timestamptz: {
+		normalizeParamArray: makePgArray,
+	},
+	halfvec: {
+		normalizeArray: parsePgArray,
+		normalizeParamArray: makePgArray,
+	},
+	sparsevec: {
+		normalizeArray: parsePgArray,
+		normalizeParamArray: makePgArray,
+	},
+	vector: {
+		normalizeArray: parsePgArray,
 		normalizeParamArray: makePgArray,
 	},
 });

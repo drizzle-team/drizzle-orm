@@ -18,26 +18,15 @@ export class PostgresJsDatabase<TRelations extends AnyRelations = EmptyRelations
 
 export const postgresJsCodecs = refineGenericPgCodecs({
 	interval: {
-		castArray: undefined,
 		normalizeParamArray: makePgArray,
 	},
 	point: {
-		cast: undefined,
-		castArray: undefined,
-		castInJson: undefined,
-		castArrayInJson: undefined,
 		normalizeParamArray: makePgArray,
 	},
 	line: {
-		cast: undefined,
-		castArray: undefined,
-		castInJson: undefined,
-		castArrayInJson: undefined,
 		normalizeParamArray: makePgArray,
 	},
 	macaddr8: {
-		castArray: undefined,
-		castArrayInJson: undefined,
 		normalizeParamArray: makePgArray,
 	},
 	json: {
@@ -49,7 +38,6 @@ export const postgresJsCodecs = refineGenericPgCodecs({
 
 	bit: {
 		normalizeParamArray: makePgArray,
-		normalizeArray: undefined,
 	},
 	bool: {
 		normalizeParamArray: makePgArray,
@@ -86,7 +74,6 @@ export const postgresJsCodecs = refineGenericPgCodecs({
 	},
 	halfvec: {
 		normalizeParamArray: makePgArray,
-		normalizeArray: undefined,
 	},
 	inet: {
 		normalizeParamArray: makePgArray,
@@ -171,7 +158,6 @@ export const postgresJsCodecs = refineGenericPgCodecs({
 	},
 	sparsevec: {
 		normalizeParamArray: makePgArray,
-		normalizeArray: undefined,
 	},
 	text: {
 		normalizeParamArray: makePgArray,
@@ -208,7 +194,6 @@ export const postgresJsCodecs = refineGenericPgCodecs({
 	},
 	vector: {
 		normalizeParamArray: makePgArray,
-		normalizeArray: undefined,
 	},
 	xml: {
 		normalizeParamArray: makePgArray,
@@ -220,7 +205,6 @@ export const postgresJsCodecs = refineGenericPgCodecs({
 		normalizeParamArray: makePgArray,
 	},
 	geometry: {
-		normalizeArray: undefined,
 		normalizeParamArray: makePgArray,
 	},
 	numeric: {

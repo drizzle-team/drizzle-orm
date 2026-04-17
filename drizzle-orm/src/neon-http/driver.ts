@@ -3,8 +3,9 @@ import { neon, types } from '@neondatabase/serverless';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
+import { parsePgArray } from '~/pg-core/array.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
-import { refineGenericPgCodecs } from '~/pg-core/codecs.ts';
+import { castToText, castToTextArr, refineGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -37,14 +38,48 @@ export class NeonHttpDatabase<TRelations extends AnyRelations = EmptyRelations>
 }
 
 export const neonHttpCodecs = refineGenericPgCodecs({
+	bit: {
+		normalizeArray: parsePgArray,
+	},
 	bytea: {
 		normalizeParam: String,
+	},
+	geometry: {
+		normalizeArray: parsePgArray,
+	},
+	interval: {
+		castArray: castToTextArr,
 	},
 	json: {
 		normalizeParam: (v) => JSON.stringify(v),
 	},
 	jsonb: {
 		normalizeParam: (v) => JSON.stringify(v),
+	},
+	line: {
+		castInJson: castToText,
+		castArrayInJson: castToTextArr,
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	macaddr8: {
+		castArrayInJson: castToTextArr,
+		castArray: castToTextArr,
+	},
+	point: {
+		castInJson: castToText,
+		castArrayInJson: castToTextArr,
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	halfvec: {
+		normalizeArray: parsePgArray,
+	},
+	sparsevec: {
+		normalizeArray: parsePgArray,
+	},
+	vector: {
+		normalizeArray: parsePgArray,
 	},
 });
 

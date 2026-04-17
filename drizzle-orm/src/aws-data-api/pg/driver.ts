@@ -2,9 +2,9 @@ import { RDSDataClient, type RDSDataClientConfig } from '@aws-sdk/client-rds-dat
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { makePgArray } from '~/pg-core/array.ts';
+import { makePgArray, parsePgArray } from '~/pg-core/array.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
-import { refineGenericPgCodecs } from '~/pg-core/codecs.ts';
+import { castToText, castToTextArr, refineGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgColumn } from '~/pg-core/columns/common.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgInsertConfig } from '~/pg-core/query-builders/insert.ts';
@@ -100,10 +100,50 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		normalize: (v) => JSON.parse(v),
 		normalizeParam: (v) => JSON.stringify(v),
 	},
-
 	bit: {
+		normalizeArray: parsePgArray,
 		normalizeParamArray: makePgArray,
 	},
+	geometry: {
+		normalizeArray: parsePgArray,
+		normalizeParamArray: makePgArray,
+	},
+	interval: {
+		castArray: castToTextArr,
+		normalizeParamArray: makePgArray,
+	},
+	line: {
+		castInJson: castToText,
+		castArrayInJson: castToTextArr,
+		cast: castToText,
+		castArray: castToTextArr,
+		normalizeParamArray: makePgArray,
+	},
+	macaddr8: {
+		castArrayInJson: castToTextArr,
+		castArray: castToTextArr,
+		normalizeParamArray: makePgArray,
+	},
+	point: {
+		castInJson: castToText,
+		castArrayInJson: castToTextArr,
+		cast: castToText,
+		castArray: castToTextArr,
+		normalizeParamArray: makePgArray,
+	},
+	halfvec: {
+		normalizeArray: parsePgArray,
+		normalizeParamArray: makePgArray,
+	},
+	sparsevec: {
+		normalizeArray: parsePgArray,
+		normalizeParamArray: makePgArray,
+	},
+	vector: {
+		normalizeArray: parsePgArray,
+		normalizeParamArray: makePgArray,
+	},
+
 	bool: {
 		normalizeParamArray: makePgArray,
 	},
@@ -135,9 +175,6 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: makePgArray,
 	},
 	geography: {
-		normalizeParamArray: makePgArray,
-	},
-	halfvec: {
 		normalizeParamArray: makePgArray,
 	},
 	inet: {
@@ -221,9 +258,6 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 	smallserial: {
 		normalizeParamArray: makePgArray,
 	},
-	sparsevec: {
-		normalizeParamArray: makePgArray,
-	},
 	text: {
 		normalizeParamArray: makePgArray,
 	},
@@ -257,9 +291,6 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 	varchar: {
 		normalizeParamArray: makePgArray,
 	},
-	vector: {
-		normalizeParamArray: makePgArray,
-	},
 	xml: {
 		normalizeParamArray: makePgArray,
 	},
@@ -269,22 +300,7 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 	enum: {
 		normalizeParamArray: makePgArray,
 	},
-	geometry: {
-		normalizeParamArray: makePgArray,
-	},
-	interval: {
-		normalizeParamArray: makePgArray,
-	},
-	line: {
-		normalizeParamArray: makePgArray,
-	},
-	macaddr8: {
-		normalizeParamArray: makePgArray,
-	},
 	numeric: {
-		normalizeParamArray: makePgArray,
-	},
-	point: {
 		normalizeParamArray: makePgArray,
 	},
 	bigint: {

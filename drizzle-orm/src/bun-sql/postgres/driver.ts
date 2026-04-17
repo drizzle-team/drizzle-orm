@@ -3,7 +3,7 @@
 import { SQL } from 'bun';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { makePgArray } from '~/pg-core/array.ts';
+import { makePgArray, parsePgArray } from '~/pg-core/array.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import { arrayCompatNormalize, castToText, castToTextArr, refineGenericPgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
@@ -46,12 +46,6 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 		normalizeArray: arrayCompatNormalize(BigInt),
 		normalizeParamArray: makePgArray,
 	},
-	json: {
-		normalizeParam: undefined,
-	},
-	jsonb: {
-		normalizeParam: undefined,
-	},
 	int: {
 		normalizeArray: (
 			value: any,
@@ -92,7 +86,6 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 
 	bit: {
 		normalizeParamArray: makePgArray,
-		normalizeArray: undefined,
 	},
 	bool: {
 		normalizeParamArray: makePgArray,
@@ -125,9 +118,6 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: makePgArray,
 	},
 	geography: {
-		normalizeParamArray: makePgArray,
-	},
-	halfvec: {
 		normalizeParamArray: makePgArray,
 	},
 	inet: {
@@ -211,9 +201,6 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 	smallserial: {
 		normalizeParamArray: makePgArray,
 	},
-	sparsevec: {
-		normalizeParamArray: makePgArray,
-	},
 	text: {
 		normalizeParamArray: makePgArray,
 	},
@@ -247,9 +234,6 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 	varchar: {
 		normalizeParamArray: makePgArray,
 	},
-	vector: {
-		normalizeParamArray: makePgArray,
-	},
 	xml: {
 		normalizeParamArray: makePgArray,
 	},
@@ -260,21 +244,45 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: makePgArray,
 	},
 	geometry: {
+		normalizeArray: parsePgArray,
 		normalizeParamArray: makePgArray,
 	},
 	interval: {
+		castArray: castToTextArr,
 		normalizeParamArray: makePgArray,
 	},
 	line: {
+		castInJson: castToText,
+		castArrayInJson: castToTextArr,
+		cast: castToText,
+		castArray: castToTextArr,
 		normalizeParamArray: makePgArray,
 	},
 	macaddr8: {
+		castArrayInJson: castToTextArr,
+		castArray: castToTextArr,
 		normalizeParamArray: makePgArray,
 	},
 	numeric: {
 		normalizeParamArray: makePgArray,
 	},
 	point: {
+		castInJson: castToText,
+		castArrayInJson: castToTextArr,
+		cast: castToText,
+		castArray: castToTextArr,
+		normalizeParamArray: makePgArray,
+	},
+	halfvec: {
+		normalizeArray: parsePgArray,
+		normalizeParamArray: makePgArray,
+	},
+	sparsevec: {
+		normalizeArray: parsePgArray,
+		normalizeParamArray: makePgArray,
+	},
+	vector: {
+		normalizeArray: parsePgArray,
 		normalizeParamArray: makePgArray,
 	},
 });

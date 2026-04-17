@@ -8,7 +8,7 @@ import {
 } from '~/codecs.ts';
 import { type Name, sql, type SQLChunk } from '~/sql/sql.ts';
 import type { PartialWithUndefined } from '~/utils.ts';
-import { makePgArray, parsePgArray } from './array';
+import { makePgArray } from './array';
 
 export type PostgresType =
 	// Numeric
@@ -254,39 +254,19 @@ export const genericPgCodecs = {
 	geometry: {
 		castInJson: castToText,
 		castArrayInJson: castToTextArr,
-		normalizeArray: parsePgArray,
 	},
 	interval: {
 		castArrayInJson: castToTextArr,
-		castArray: castToTextArr,
 	},
 	json: {
-		normalizeParam: (v) => typeof v === 'object' && !Array.isArray(v) ? v : JSON.stringify(v),
 		normalizeParamArray: arrayCompatNormalize((v) => JSON.stringify(v), true),
 	},
 	jsonb: {
-		normalizeParam: (v) => typeof v === 'object' && !Array.isArray(v) ? v : JSON.stringify(v),
 		normalizeParamArray: arrayCompatNormalize((v) => JSON.stringify(v), true),
-	},
-	line: {
-		castInJson: castToText,
-		castArrayInJson: castToTextArr,
-		cast: castToText,
-		castArray: castToTextArr,
-	},
-	macaddr8: {
-		castArrayInJson: castToTextArr,
-		castArray: castToTextArr,
 	},
 	numeric: {
 		castInJson: castToText,
 		castArrayInJson: castToTextArr,
-		castArray: castToTextArr,
-	},
-	point: {
-		castInJson: castToText,
-		castArrayInJson: castToTextArr,
-		cast: castToText,
 		castArray: castToTextArr,
 	},
 	timestamp: {
@@ -298,18 +278,6 @@ export const genericPgCodecs = {
 		castInJson: castToText,
 		castArrayInJson: castToTextArr,
 		castArray: castToTextArr,
-	},
-	bit: {
-		normalizeArray: parsePgArray,
-	},
-	halfvec: {
-		normalizeArray: parsePgArray,
-	},
-	sparsevec: {
-		normalizeArray: parsePgArray,
-	},
-	vector: {
-		normalizeArray: parsePgArray,
 	},
 } as const satisfies PgCodecs;
 
