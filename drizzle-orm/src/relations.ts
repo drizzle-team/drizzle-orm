@@ -1010,21 +1010,17 @@ export function makeJitRqbMapper<T = unknown>(
 
 	fn.push(`\treturn rows${isFirst ? '[0]' : ''};`, '\t//# sourceURL=drizzle:jit-relational-query-mapper');
 	const compiled = fn.join('\n');
-	try {
-		return Object.assign(
-			new FnConstructor(
-				'rows',
-				compiled,
-			).bind({
-				selection,
-				mapColumnValue,
-			}),
-			{ body: `function jitRqbMapper (rows) {\n${compiled}\n}` },
-		) as RelationalRowsMapper<T>;
-	} catch (error) {
-		console.log(`function jitRqbMapper (rows) {\n${compiled}\n}`);
-		throw error;
-	}
+
+	return Object.assign(
+		new FnConstructor(
+			'rows',
+			compiled,
+		).bind({
+			selection,
+			mapColumnValue,
+		}),
+		{ body: `function jitRqbMapper (rows) {\n${compiled}\n}` },
+	) as RelationalRowsMapper<T>;
 }
 
 export class RelationsBuilderTable<TTableName extends string = string> {
