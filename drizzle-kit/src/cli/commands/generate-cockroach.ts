@@ -34,6 +34,7 @@ export const handle = async (config: GenerateConfig) => {
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
+			generateDownMigrations: config.generateDownMigrations,
 			type: 'custom',
 			renames: [],
 			snapshots,
@@ -70,22 +71,24 @@ export const handle = async (config: GenerateConfig) => {
 		'default',
 	);
 
-	const { sqlStatements: downSqlStatements } = await ddlDiff(
-		ddlCur,
-		ddlPrev,
-		makeInverseResolver(schemaRenames),
-		makeInverseResolver(enumRenames),
-		makeInverseResolver(seqRenames),
-		makeInverseResolver(policyRenames),
-		makeInverseResolver(tableRenames),
-		makeInverseResolver(columnRenames),
-		makeInverseResolver(viewRenames),
-		makeInverseResolver(indexRenames),
-		makeInverseResolver(checkRenames),
-		makeInverseResolver(pkRenames),
-		makeInverseResolver(fkRenames),
-		'default',
-	);
+	const downSqlStatements = config.generateDownMigrations
+		? (await ddlDiff(
+			ddlCur,
+			ddlPrev,
+			makeInverseResolver(schemaRenames),
+			makeInverseResolver(enumRenames),
+			makeInverseResolver(seqRenames),
+			makeInverseResolver(policyRenames),
+			makeInverseResolver(tableRenames),
+			makeInverseResolver(columnRenames),
+			makeInverseResolver(viewRenames),
+			makeInverseResolver(indexRenames),
+			makeInverseResolver(checkRenames),
+			makeInverseResolver(pkRenames),
+			makeInverseResolver(fkRenames),
+			'default',
+		)).sqlStatements
+		: undefined;
 
 	writeResult({
 		snapshot: snapshot,
@@ -94,6 +97,7 @@ export const handle = async (config: GenerateConfig) => {
 		outFolder,
 		name: config.name,
 		breakpoints: config.breakpoints,
+		generateDownMigrations: config.generateDownMigrations,
 		renames,
 		snapshots,
 	});

@@ -2,7 +2,12 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
-import { embeddedMigrations, writeResult } from 'src/cli/commands/generate-common';
+import {
+	CUSTOM_DOWN_SQL_SCAFFOLD,
+	DOWN_SQL_HEADER,
+	embeddedMigrations,
+	writeResult,
+} from 'src/cli/commands/generate-common';
 
 // Minimal snapshot stub accepted by writeResult
 const minimalSnapshot: any = {
@@ -102,9 +107,11 @@ describe('writeResult — down SQL file generation', () => {
 		const dirs = fs.readdirSync(tmpDir).filter((d) => fs.statSync(path.join(tmpDir, d)).isDirectory());
 		const tag = dirs[0]!;
 		const downContent = fs.readFileSync(path.join(tmpDir, tag, 'down.sql'), 'utf8');
+		expect(downContent.startsWith(DOWN_SQL_HEADER)).toBe(true);
 		expect(downContent).toContain('--> statement-breakpoint');
-		// Exactly one breakpoint between two statements
-		const parts = downContent.split('--> statement-breakpoint\n');
+		// After the header, exactly one breakpoint between two statements
+		const body = downContent.slice(DOWN_SQL_HEADER.length + 1);
+		const parts = body.split('--> statement-breakpoint\n');
 		expect(parts).toHaveLength(2);
 		expect(parts[0]!.trim()).toBe('DROP TABLE b');
 		expect(parts[1]!.trim()).toBe('DROP TABLE a');
@@ -126,7 +133,82 @@ describe('writeResult — down SQL file generation', () => {
 		const tag = dirs[0]!;
 		const downContent = fs.readFileSync(path.join(tmpDir, tag, 'down.sql'), 'utf8');
 		expect(downContent).not.toContain('--> statement-breakpoint');
-		expect(downContent).toBe('DROP TABLE b\nDROP TABLE a');
+		expect(downContent).toBe(`${DOWN_SQL_HEADER}\nDROP TABLE b\nDROP TABLE a`);
+	});
+
+	test('prepends editable header to generated down.sql', () => {
+		writeResult({
+			snapshot: { ...minimalSnapshot },
+			sqlStatements: ['CREATE TABLE users (id INTEGER PRIMARY KEY)'],
+			downSqlStatements: ['DROP TABLE users'],
+			outFolder: tmpDir,
+			breakpoints: true,
+			name: 'with_header',
+			renames: [],
+			snapshots: [],
+		});
+
+		const dirs = fs.readdirSync(tmpDir).filter((d) => fs.statSync(path.join(tmpDir, d)).isDirectory());
+		const tag = dirs[0]!;
+		const downContent = fs.readFileSync(path.join(tmpDir, tag, 'down.sql'), 'utf8');
+		expect(downContent.startsWith(DOWN_SQL_HEADER)).toBe(true);
+		expect(downContent).toContain('Edit freely');
+	});
+
+	test('writes scaffold down.sql for custom migrations', () => {
+		writeResult({
+			snapshot: { ...minimalSnapshot },
+			sqlStatements: [],
+			outFolder: tmpDir,
+			breakpoints: true,
+			name: 'custom_migration',
+			type: 'custom',
+			renames: [],
+			snapshots: [],
+		});
+
+		const dirs = fs.readdirSync(tmpDir).filter((d) => fs.statSync(path.join(tmpDir, d)).isDirectory());
+		const tag = dirs[0]!;
+		expect(fs.existsSync(path.join(tmpDir, tag, 'down.sql'))).toBe(true);
+		const downContent = fs.readFileSync(path.join(tmpDir, tag, 'down.sql'), 'utf8');
+		expect(downContent).toBe(CUSTOM_DOWN_SQL_SCAFFOLD);
+	});
+
+	test('skips down.sql entirely when generateDownMigrations is false', () => {
+		writeResult({
+			snapshot: { ...minimalSnapshot },
+			sqlStatements: ['CREATE TABLE users (id INTEGER PRIMARY KEY)'],
+			downSqlStatements: ['DROP TABLE users'],
+			outFolder: tmpDir,
+			breakpoints: true,
+			generateDownMigrations: false,
+			name: 'opt_out',
+			renames: [],
+			snapshots: [],
+		});
+
+		const dirs = fs.readdirSync(tmpDir).filter((d) => fs.statSync(path.join(tmpDir, d)).isDirectory());
+		const tag = dirs[0]!;
+		expect(fs.existsSync(path.join(tmpDir, tag, 'migration.sql'))).toBe(true);
+		expect(fs.existsSync(path.join(tmpDir, tag, 'down.sql'))).toBe(false);
+	});
+
+	test('skips custom scaffold when generateDownMigrations is false', () => {
+		writeResult({
+			snapshot: { ...minimalSnapshot },
+			sqlStatements: [],
+			outFolder: tmpDir,
+			breakpoints: true,
+			generateDownMigrations: false,
+			name: 'custom_opt_out',
+			type: 'custom',
+			renames: [],
+			snapshots: [],
+		});
+
+		const dirs = fs.readdirSync(tmpDir).filter((d) => fs.statSync(path.join(tmpDir, d)).isDirectory());
+		const tag = dirs[0]!;
+		expect(fs.existsSync(path.join(tmpDir, tag, 'down.sql'))).toBe(false);
 	});
 });
 

@@ -79,6 +79,7 @@ export type GenerateConfig = {
 	filenames: string[];
 	out: string;
 	breakpoints: boolean;
+	generateDownMigrations: boolean;
 	name?: string;
 	custom: boolean;
 	bundle: boolean;
@@ -100,6 +101,7 @@ export const prepareGenerateConfig = async (
 		schema?: string;
 		out?: string;
 		breakpoints?: boolean;
+		generateDownMigrations?: boolean;
 		custom?: boolean;
 		name?: string;
 		dialect?: Dialect;
@@ -125,7 +127,7 @@ export const prepareGenerateConfig = async (
 		process.exit(1);
 	}
 
-	const { schema, out, breakpoints, dialect, driver } = parsed.data;
+	const { schema, out, breakpoints, generateDownMigrations, dialect, driver } = parsed.data;
 
 	const fileNames = prepareFilenames(schema);
 	if (fileNames.length === 0) {
@@ -138,6 +140,7 @@ export const prepareGenerateConfig = async (
 		name: options.name,
 		custom: options.custom || false,
 		breakpoints: breakpoints,
+		generateDownMigrations: generateDownMigrations ?? true,
 		filenames: fileNames,
 		out: out,
 		bundle: driver === 'expo' || driver === 'durable-sqlite',
