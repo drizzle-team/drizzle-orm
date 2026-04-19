@@ -50,6 +50,7 @@ import {
 } from '~/relations.ts';
 import { and, eq, isSQLWrapper, type SQLWrapper, View } from '~/sql/index.ts';
 import {
+	type BuildQueryConfig,
 	type DriverValueEncoder,
 	type Name,
 	Param,
@@ -429,6 +430,461 @@ export class PgDialect {
 		}
 
 		return finalQuery;
+	}
+
+	/**
+	 * Builds a SELECT query directly into a { sql, params } result,
+	 * skipping the intermediate SQL chunk tree.
+	 *
+	 * For set operations (UNION, INTERSECT, EXCEPT), returns undefined
+	 * to signal the caller should fall back to the existing two-step path.
+	 */
+	buildSelectQueryDirect(
+		{
+			withList,
+			fields,
+			fieldsFlat,
+			where,
+			having,
+			table,
+			joins,
+			orderBy,
+			groupBy,
+			limit,
+			offset,
+			lockingClause,
+			distinct,
+			setOperators,
+		}: PgSelectConfig,
+	): QueryWithTypings | undefined {
+		// ?? Fall back to the two-step path for set operations
+		if (setOperators.length > 0) {
+			return undefined;
+		}
+
+		const fieldsList = fieldsFlat ?? orderSelectedFields<PgColumn>(fields);
+
+		// Validate fields — same validation as buildSelectQuery
+		for (const f of fieldsList) {
+			if (
+				is(f.field, Column)
+				&& getTableName(f.field.table)
+					!== (is(table, Subquery)
+						? table._.alias
+						: is(table, PgViewBase)
+						? table[ViewBaseConfig].name
+						: is(table, SQL)
+						? undefined
+						: getTableName(table))
+				&& !((table) =>
+					joins?.some(({ alias }) =>
+						alias === (table[Table.Symbol.IsAlias] ? getTableName(table) : table[Table.Symbol.BaseName])
+					))(f.field.table)
+			) {
+				const tableName = getTableName(f.field.table);
+				throw new Error(
+					`Your "${
+						f.path.join('->')
+					}" field references a column "${tableName}"."${f.field.name}", but the table "${tableName}" is not part of the query! Did you forget to join it?`,
+				);
+			}
+		}
+
+		const isSingleTable = !joins || joins.length === 0;
+
+		// Mutable state for building the query
+		const sqlParts: string[] = [];
+		const params: unknown[] = [];
+		const typings: QueryTypingsValue[] = [];
+		const paramIndex = { value: 0 };
+
+		// Helper: Build config for resolving SQL sub-expressions
+		const buildConfig: BuildQueryConfig = {
+			casing: this.casing,
+			escapeName: this.escapeName,
+			escapeParam: this.escapeParam,
+			escapeString: this.escapeString,
+			prepareTyping: this.prepareTyping,
+			paramStartIndex: paramIndex,
+		};
+
+		// Helper: Resolve an SQL object to a query string + params and append
+		const appendSQL = (sqlObj: SQL) => {
+			const resolved = sqlObj.toQuery(buildConfig);
+			sqlParts.push(resolved.sql);
+			params.push(...resolved.params);
+			if (resolved.typings?.length) {
+				typings.push(...resolved.typings);
+			}
+		};
+
+		// Helper: Escape a DB identifier (table/column name)
+		const esc = this.escapeName;
+
+		// // Helper: Append a param value and return its placeholder string
+		// const appendParam = (value: unknown, encoder?: DriverValueEncoder<unknown, unknown>): string => {
+		// 	const mappedValue = value === null ? null : (encoder ? encoder.mapToDriverValue(value) : value);
+		// 	if (is(mappedValue, SQL)) {
+		// 		// Encoder returned SQL — resolve it
+		// 		const resolved = mappedValue.toQuery(buildConfig);
+		// 		// Return inline since we can't just push a placeholder
+		// 		return resolved.sql;
+		// 	}
+		// 	const placeholder = this.escapeParam(paramIndex.value++);
+		// 	params.push(mappedValue);
+		// 	if (encoder) {
+		// 		typings.push(this.prepareTyping(encoder));
+		// 	} else {
+		// 		typings.push('none');
+		// 	}
+		// 	return placeholder;
+		// };
+
+		// --- WITH CTE ---
+		if (withList?.length) {
+			sqlParts.push('with ');
+			for (let i = 0; i < withList.length; i++) {
+				const w = withList[i]!;
+				if (i > 0) sqlParts.push(', ');
+				sqlParts.push(esc(w._.alias), ' as (');
+				appendSQL(w._.sql);
+				sqlParts.push(')');
+			}
+			sqlParts.push(' ');
+		}
+
+		// --- SELECT ---
+		sqlParts.push('select');
+
+		// --- DISTINCT ---
+		if (distinct) {
+			if (distinct === true) {
+				sqlParts.push(' distinct');
+			} else {
+				sqlParts.push(' distinct on (');
+				for (let i = 0; i < distinct.on.length; i++) {
+					if (i > 0) sqlParts.push(', ');
+					const col = distinct.on[i]!;
+					if (is(col, PgColumn)) {
+						// distinct on columns always use full table.column form
+						// (they pass through buildQueryFromSourceParams in the old path)
+						const schemaName = col.table[Table.Symbol.Schema];
+						const colName = this.casing.getColumnCasing(col);
+						if (col.isAlias) {
+							sqlParts.push(esc(col.name));
+						} else if (schemaName === undefined || col.table[Table.Symbol.IsAlias]) {
+							sqlParts.push(esc(col.table[Table.Symbol.Name]), '.', esc(colName));
+						} else {
+							sqlParts.push(esc(schemaName), '.', esc(col.table[Table.Symbol.Name]), '.', esc(colName));
+						}
+					} else {
+						// SQLWrapper
+						appendSQL(col.getSQL());
+					}
+				}
+				sqlParts.push(')');
+			}
+		}
+
+		sqlParts.push(' ');
+
+		// --- SELECTION ---
+		const columnsLen = fieldsList.length;
+		for (let i = 0; i < columnsLen; i++) {
+			const { field } = fieldsList[i]!;
+			if (i > 0) sqlParts.push(', ');
+
+			if (is(field, SQL.Aliased) && field.isSelectionField) {
+				// Reference to an already-projected subquery field
+				if (!isSingleTable && field.origin !== undefined) {
+					sqlParts.push(esc(field.origin), '.');
+				}
+				sqlParts.push(esc(field.fieldAlias));
+			} else if (is(field, SQL.Aliased) || is(field, SQL)) {
+				// SQL expression, possibly aliased
+				const query = is(field, SQL.Aliased) ? field.sql : field;
+
+				if (isSingleTable) {
+					// In single-table mode, replace Column refs with just their names
+					const newChunks = query.queryChunks.map((c) => {
+						if (is(c, PgColumn)) {
+							return sql.identifier(this.casing.getColumnCasing(c));
+						}
+						return c;
+					});
+					const newSql = new SQL(newChunks);
+					if (query.shouldInlineParams) newSql.shouldInlineParams = true;
+					appendSQL(newSql);
+				} else {
+					appendSQL(query);
+				}
+
+				if (is(field, SQL.Aliased)) {
+					sqlParts.push(' as ', esc(field.fieldAlias));
+				}
+			} else if (is(field, Column)) {
+				if (isSingleTable) {
+					if (field.isAlias) {
+						// Aliased column in single-table: original_name as alias
+						const original = getOriginalColumnFromAlias(field);
+						sqlParts.push(esc(this.casing.getColumnCasing(original)), ' as ', esc(field.name));
+					} else {
+						sqlParts.push(esc(this.casing.getColumnCasing(field)));
+					}
+				} else {
+					if (field.isAlias) {
+						// Aliased column in multi-table: table.original_col as alias
+						const original = getOriginalColumnFromAlias(field);
+						const colName = this.casing.getColumnCasing(original);
+						const schemaName = original.table[Table.Symbol.Schema];
+						if (original.table[Table.Symbol.IsAlias] || schemaName === undefined) {
+							sqlParts.push(esc(original.table[Table.Symbol.Name]), '.', esc(colName));
+						} else {
+							sqlParts.push(esc(schemaName), '.', esc(original.table[Table.Symbol.Name]), '.', esc(colName));
+						}
+						sqlParts.push(' as ', esc(field.name));
+					} else {
+						const colName = this.casing.getColumnCasing(field);
+						const schemaName = field.table[Table.Symbol.Schema];
+						if (field.table[Table.Symbol.IsAlias] || schemaName === undefined) {
+							sqlParts.push(esc(field.table[Table.Symbol.Name]), '.', esc(colName));
+						} else {
+							sqlParts.push(esc(schemaName), '.', esc(field.table[Table.Symbol.Name]), '.', esc(colName));
+						}
+					}
+				}
+			} else if (is(field, Subquery)) {
+				// Subquery field — decode handling
+				const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
+				if (entries.length === 1) {
+					const entry = entries[0]![1];
+					const fieldDecoder = is(entry, SQL)
+						? entry.decoder
+						: is(entry, Column)
+						? { mapFromDriverValue: (v: any) => entry.mapFromDriverValue(v) }
+						: entry.sql.decoder;
+					if (fieldDecoder) {
+						field._.sql.decoder = fieldDecoder;
+					}
+				}
+				// Resolve the subquery
+				if (field._.isWith) {
+					sqlParts.push(esc(field._.alias));
+				} else {
+					sqlParts.push('(');
+					appendSQL(field._.sql);
+					sqlParts.push(') ', esc(field._.alias));
+				}
+			}
+		}
+
+		// --- FROM ---
+		sqlParts.push(' from ');
+
+		if (is(table, Table)) {
+			if (table[Table.Symbol.IsAlias]) {
+				// Aliased table: "original_name" "alias"
+				const schema = table[Table.Symbol.Schema];
+				if (schema) {
+					sqlParts.push(esc(schema), '.');
+				}
+				sqlParts.push(esc(table[Table.Symbol.OriginalName]), ' ', esc(table[Table.Symbol.Name]));
+			} else {
+				const schema = table[Table.Symbol.Schema];
+				if (schema) {
+					sqlParts.push(esc(schema), '.');
+				}
+				sqlParts.push(esc(table[Table.Symbol.Name]));
+			}
+		} else if (is(table, View)) {
+			if (table[ViewBaseConfig].isAlias) {
+				const schema = table[ViewBaseConfig].schema;
+				if (schema) {
+					sqlParts.push(esc(schema), '.');
+				}
+				sqlParts.push(esc(table[ViewBaseConfig].originalName), ' ', esc(table[ViewBaseConfig].name));
+			} else {
+				const schema = table[ViewBaseConfig].schema;
+				if (schema) {
+					sqlParts.push(esc(schema), '.');
+				}
+				sqlParts.push(esc(table[ViewBaseConfig].name));
+			}
+		} else if (is(table, Subquery)) {
+			if (table._.isWith) {
+				sqlParts.push(esc(table._.alias));
+			} else {
+				sqlParts.push('(');
+				appendSQL(table._.sql);
+				sqlParts.push(') ', esc(table._.alias));
+			}
+		} else if (is(table, SQL)) {
+			appendSQL(table);
+		}
+
+		// --- JOINS ---
+		if (joins && joins.length > 0) {
+			for (let index = 0; index < joins.length; index++) {
+				const joinMeta = joins[index]!;
+				if (index === 0) sqlParts.push(' ');
+
+				sqlParts.push(joinMeta.joinType, ' join');
+				if (joinMeta.lateral) sqlParts.push(' lateral');
+				sqlParts.push(' ');
+
+				const jTable = joinMeta.table;
+				if (is(jTable, PgTable)) {
+					const jTableName = jTable[PgTable.Symbol.Name];
+					const jTableSchema = jTable[PgTable.Symbol.Schema];
+					const jOrigTableName = jTable[PgTable.Symbol.OriginalName];
+					const alias = jTableName === jOrigTableName ? undefined : joinMeta.alias;
+					if (jTableSchema) {
+						sqlParts.push(esc(jTableSchema), '.');
+					}
+					sqlParts.push(esc(jOrigTableName));
+					if (alias) {
+						sqlParts.push(' ', esc(alias));
+					}
+				} else if (is(jTable, View)) {
+					const viewName = jTable[ViewBaseConfig].name;
+					const viewSchema = jTable[ViewBaseConfig].schema;
+					const origViewName = jTable[ViewBaseConfig].originalName;
+					const alias = viewName === origViewName ? undefined : joinMeta.alias;
+					if (viewSchema) {
+						sqlParts.push(esc(viewSchema), '.');
+					}
+					sqlParts.push(esc(origViewName));
+					if (alias) {
+						sqlParts.push(' ', esc(alias));
+					}
+				} else {
+					// Subquery or SQL — resolve via appendSQL
+					if (is(jTable, Subquery)) {
+						if (jTable._.isWith) {
+							sqlParts.push(esc(jTable._.alias));
+						} else {
+							sqlParts.push('(');
+							appendSQL(jTable._.sql);
+							sqlParts.push(') ', esc(jTable._.alias));
+						}
+					} else {
+						appendSQL(jTable.getSQL());
+					}
+				}
+
+				if (joinMeta.on) {
+					sqlParts.push(' on ');
+					appendSQL(joinMeta.on);
+				}
+
+				if (index < joins.length - 1) {
+					sqlParts.push(' ');
+				}
+			}
+		}
+
+		// --- WHERE ---
+		if (where) {
+			sqlParts.push(' where ');
+			appendSQL(where);
+		}
+
+		// --- GROUP BY ---
+		if (groupBy && groupBy.length > 0) {
+			sqlParts.push(' group by ');
+			for (let i = 0; i < groupBy.length; i++) {
+				if (i > 0) sqlParts.push(', ');
+				const gb = groupBy[i]!;
+				if (is(gb, PgColumn)) {
+					const colName = this.casing.getColumnCasing(gb);
+					const schemaName = gb.table[Table.Symbol.Schema];
+					if (gb.isAlias) {
+						sqlParts.push(esc(gb.name));
+					} else if (gb.table[Table.Symbol.IsAlias] || schemaName === undefined) {
+						sqlParts.push(esc(gb.table[Table.Symbol.Name]), '.', esc(colName));
+					} else {
+						sqlParts.push(esc(schemaName), '.', esc(gb.table[Table.Symbol.Name]), '.', esc(colName));
+					}
+				} else {
+					appendSQL(gb.getSQL());
+				}
+			}
+		}
+
+		// --- HAVING ---
+		if (having) {
+			sqlParts.push(' having ');
+			appendSQL(having);
+		}
+
+		// --- ORDER BY ---
+		if (orderBy && orderBy.length > 0) {
+			sqlParts.push(' order by ');
+			for (let i = 0; i < orderBy.length; i++) {
+				if (i > 0) sqlParts.push(', ');
+				const ob = orderBy[i]!;
+				if (is(ob, PgColumn)) {
+					const colName = this.casing.getColumnCasing(ob);
+					const schemaName = ob.table[Table.Symbol.Schema];
+					if (ob.isAlias) {
+						sqlParts.push(esc(ob.name));
+					} else if (ob.table[Table.Symbol.IsAlias] || schemaName === undefined) {
+						sqlParts.push(esc(ob.table[Table.Symbol.Name]), '.', esc(colName));
+					} else {
+						sqlParts.push(esc(schemaName), '.', esc(ob.table[Table.Symbol.Name]), '.', esc(colName));
+					}
+				} else {
+					appendSQL(ob.getSQL());
+				}
+			}
+		}
+
+		// --- LIMIT ---
+		if (typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)) {
+			sqlParts.push(' limit ');
+			const ph = this.escapeParam(paramIndex.value++);
+			params.push(limit);
+			typings.push('none');
+			sqlParts.push(ph);
+		}
+
+		// --- OFFSET ---
+		if (offset) {
+			sqlParts.push(' offset ');
+			const ph = this.escapeParam(paramIndex.value++);
+			params.push(offset);
+			typings.push('none');
+			sqlParts.push(ph);
+		}
+
+		// --- LOCKING CLAUSE ---
+		if (lockingClause) {
+			sqlParts.push(' for ', lockingClause.strength);
+			if (lockingClause.config.of) {
+				sqlParts.push(' of ');
+				const tables = Array.isArray(lockingClause.config.of)
+					? lockingClause.config.of
+					: [lockingClause.config.of];
+				for (let i = 0; i < tables.length; i++) {
+					if (i > 0) sqlParts.push(', ');
+					sqlParts.push(esc(tables[i]![PgTable.Symbol.Name]));
+				}
+			}
+			if (lockingClause.config.noWait) {
+				sqlParts.push(' nowait');
+			} else if (lockingClause.config.skipLocked) {
+				sqlParts.push(' skip locked');
+			}
+		}
+
+		const result: QueryWithTypings = {
+			sql: sqlParts.join(''),
+			params,
+		};
+		if (typings.length > 0) {
+			result.typings = typings;
+		}
+		return result;
 	}
 
 	buildSetOperations(leftSelect: SQL, setOperators: PgSelectConfig['setOperators']): SQL {
