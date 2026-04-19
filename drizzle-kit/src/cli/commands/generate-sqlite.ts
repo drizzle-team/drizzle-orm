@@ -35,6 +35,7 @@ export const handle = async (
 			name: config.name,
 			breakpoints: config.breakpoints,
 			dialect,
+			generateDownMigrations: config.generateDownMigrations,
 			bundle: config.bundle,
 			type: 'custom',
 			renames: [],
@@ -57,13 +58,15 @@ export const handle = async (
 		return config.hints.toResponse();
 	}
 
-	const { sqlStatements: downSqlStatements } = await ddlDiff(
-		ddlCur,
-		ddlPrev,
-		makeInverseResolver(tableRenames),
-		makeInverseResolver(columnRenames),
-		'default',
-	);
+	const downSqlStatements = config.generateDownMigrations
+		? (await ddlDiff(
+			ddlCur,
+			ddlPrev,
+			makeInverseResolver(tableRenames),
+			makeInverseResolver(columnRenames),
+			'default',
+		)).sqlStatements
+		: undefined;
 
 	if (!json) {
 		for (const w of warnings) {
@@ -81,6 +84,7 @@ export const handle = async (
 			name: config.name,
 			breakpoints: config.breakpoints,
 			dialect,
+			generateDownMigrations: config.generateDownMigrations,
 			bundle: config.bundle,
 			driver: config.driver,
 			snapshots,

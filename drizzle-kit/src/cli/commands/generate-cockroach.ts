@@ -38,6 +38,7 @@ export const handle = async (config: GenerateConfig) => {
 			name: config.name,
 			breakpoints: config.breakpoints,
 			dialect: 'cockroach',
+			generateDownMigrations: config.generateDownMigrations,
 			type: 'custom',
 			renames: [],
 			snapshots,
@@ -77,22 +78,24 @@ export const handle = async (config: GenerateConfig) => {
 		return config.hints.toResponse();
 	}
 
-	const { sqlStatements: downSqlStatements } = await ddlDiff(
-		ddlCur,
-		ddlPrev,
-		makeInverseResolver(schemaRenames),
-		makeInverseResolver(enumRenames),
-		makeInverseResolver(seqRenames),
-		makeInverseResolver(policyRenames),
-		makeInverseResolver(tableRenames),
-		makeInverseResolver(columnRenames),
-		makeInverseResolver(viewRenames),
-		makeInverseResolver(indexRenames),
-		makeInverseResolver(checkRenames),
-		makeInverseResolver(pkRenames),
-		makeInverseResolver(fkRenames),
-		'default',
-	);
+	const downSqlStatements = config.generateDownMigrations
+		? (await ddlDiff(
+			ddlCur,
+			ddlPrev,
+			makeInverseResolver(schemaRenames),
+			makeInverseResolver(enumRenames),
+			makeInverseResolver(seqRenames),
+			makeInverseResolver(policyRenames),
+			makeInverseResolver(tableRenames),
+			makeInverseResolver(columnRenames),
+			makeInverseResolver(viewRenames),
+			makeInverseResolver(indexRenames),
+			makeInverseResolver(checkRenames),
+			makeInverseResolver(pkRenames),
+			makeInverseResolver(fkRenames),
+			'default',
+		)).sqlStatements
+		: undefined;
 
 	if (!config.explain) {
 		return writeResult({
@@ -103,6 +106,7 @@ export const handle = async (config: GenerateConfig) => {
 			name: config.name,
 			breakpoints: config.breakpoints,
 			dialect: 'cockroach',
+			generateDownMigrations: config.generateDownMigrations,
 			renames,
 			snapshots,
 		});

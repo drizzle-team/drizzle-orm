@@ -123,6 +123,7 @@ export const handle = async (
 			name: config.name,
 			breakpoints: config.breakpoints,
 			dialect: 'mysql',
+			generateDownMigrations: config.generateDownMigrations,
 			type: 'custom',
 			renames: [],
 			snapshots,
@@ -146,14 +147,16 @@ export const handle = async (
 		return config.hints.toResponse();
 	}
 
-	const { sqlStatements: downSqlStatements } = await ddlDiff(
-		ddlCur,
-		ddlPrev,
-		makeInverseResolver(tableRenames),
-		makeInverseResolver(columnRenames),
-		makeInverseResolver(viewRenames),
-		'default',
-	);
+	const downSqlStatements = config.generateDownMigrations
+		? (await ddlDiff(
+			ddlCur,
+			ddlPrev,
+			makeInverseResolver(tableRenames),
+			makeInverseResolver(columnRenames),
+			makeInverseResolver(viewRenames),
+			'default',
+		)).sqlStatements
+		: undefined;
 
 	const { errors } = suggestions(statements, ddlCur);
 	if (errors.length) {
@@ -185,6 +188,7 @@ export const handle = async (
 		name: config.name,
 		breakpoints: config.breakpoints,
 		dialect: 'mysql',
+		generateDownMigrations: config.generateDownMigrations,
 		renames,
 		snapshots,
 	});

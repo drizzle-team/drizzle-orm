@@ -14,12 +14,18 @@ import { outputFormat } from '../context';
 import type { Driver } from '../validations/common';
 import { humanLog } from '../views';
 
+export const DOWN_SQL_HEADER =
+	'-- Rollback SQL for the migration above.\n-- Edit freely, but keep it in sync with migration.sql when you hand-edit that file.';
+
+export const CUSTOM_DOWN_SQL_SCAFFOLD = '-- Custom SQL rollback file, put your reverse statements below! --';
+
 type WriteResultConfigBase = {
 	snapshot: SqliteSnapshot | PostgresSnapshot | MysqlSnapshot | MssqlSnapshot | CockroachSnapshot | SingleStoreSnapshot;
 	sqlStatements: string[];
 	downSqlStatements?: string[];
 	outFolder: string;
 	breakpoints: boolean;
+	generateDownMigrations?: boolean;
 	name?: string;
 	bundle?: boolean;
 	dialect?: string;
@@ -45,6 +51,7 @@ export function writeResult(
 		downSqlStatements,
 		outFolder,
 		breakpoints,
+		generateDownMigrations = true,
 		name,
 		renames,
 		bundle = false,
@@ -88,9 +95,13 @@ export function writeResult(
 	fs.writeFileSync(join(outFolder, `${tag}/migration.sql`), sql);
 	const migrationPath = path.join(`${outFolder}/${tag}/migration.sql`);
 
-	if (downSqlStatements && downSqlStatements.length > 0) {
-		const downSql = downSqlStatements.join(sqlDelimiter);
-		fs.writeFileSync(join(outFolder, `${tag}/down.sql`), downSql);
+	if (generateDownMigrations) {
+		if (type === 'custom') {
+			fs.writeFileSync(join(outFolder, `${tag}/down.sql`), CUSTOM_DOWN_SQL_SCAFFOLD);
+		} else if (downSqlStatements && downSqlStatements.length > 0) {
+			const downSql = `${DOWN_SQL_HEADER}\n${downSqlStatements.join(sqlDelimiter)}`;
+			fs.writeFileSync(join(outFolder, `${tag}/down.sql`), downSql);
+		}
 	}
 
 	// js file with .sql imports for React Native / Expo and Durable Sqlite Objects

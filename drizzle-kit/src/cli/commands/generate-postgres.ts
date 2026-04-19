@@ -52,6 +52,7 @@ export const handle = async (
 			name: config.name,
 			breakpoints: config.breakpoints,
 			dialect: 'postgresql',
+			generateDownMigrations: config.generateDownMigrations,
 			type: 'custom',
 			renames: [],
 			snapshots,
@@ -97,25 +98,27 @@ export const handle = async (
 		return config.hints.toResponse();
 	}
 
-	const { sqlStatements: downSqlStatements } = await ddlDiff(
-		ddlCur,
-		ddlPrev,
-		makeInverseResolver(schemaRenames),
-		makeInverseResolver(enumRenames),
-		makeInverseResolver(seqRenames),
-		makeInverseResolver(policyRenames),
-		makeInverseResolver(roleRenames),
-		makeInverseResolver(privilegeRenames),
-		makeInverseResolver(tableRenames),
-		makeInverseResolver(columnRenames),
-		makeInverseResolver(viewRenames),
-		makeInverseResolver(uniqueRenames),
-		makeInverseResolver(indexRenames),
-		makeInverseResolver(checkRenames),
-		makeInverseResolver(pkRenames),
-		makeInverseResolver(fkRenames),
-		'default',
-	);
+	const downSqlStatements = config.generateDownMigrations
+		? (await ddlDiff(
+			ddlCur,
+			ddlPrev,
+			makeInverseResolver(schemaRenames),
+			makeInverseResolver(enumRenames),
+			makeInverseResolver(seqRenames),
+			makeInverseResolver(policyRenames),
+			makeInverseResolver(roleRenames),
+			makeInverseResolver(privilegeRenames),
+			makeInverseResolver(tableRenames),
+			makeInverseResolver(columnRenames),
+			makeInverseResolver(viewRenames),
+			makeInverseResolver(uniqueRenames),
+			makeInverseResolver(indexRenames),
+			makeInverseResolver(checkRenames),
+			makeInverseResolver(pkRenames),
+			makeInverseResolver(fkRenames),
+			'default',
+		)).sqlStatements
+		: undefined;
 
 	if (!config.explain) {
 		return writeResult({
@@ -126,6 +129,7 @@ export const handle = async (
 			name: config.name,
 			breakpoints: config.breakpoints,
 			dialect: 'postgresql',
+			generateDownMigrations: config.generateDownMigrations,
 			renames,
 			snapshots,
 		});
