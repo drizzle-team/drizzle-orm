@@ -61,6 +61,8 @@ export const generate = command({
 		out: optionOut,
 		name: string().desc('Migration file name'),
 		breakpoints: optionBreakpoints,
+		generateDownMigrations: boolean()
+			.desc('Emit down.sql rollback files alongside each migration (default: true)'),
 		custom: boolean()
 			.desc('Prepare empty migration file for custom SQL')
 			.default(false),
@@ -71,7 +73,7 @@ export const generate = command({
 			'generate',
 			opts,
 			['name', 'custom', 'ignoreConflicts'],
-			['driver', 'breakpoints', 'schema', 'out', 'dialect'],
+			['driver', 'breakpoints', 'generateDownMigrations', 'schema', 'out', 'dialect', 'casing'],
 		);
 		return prepareGenerateConfig(opts, from);
 	},
