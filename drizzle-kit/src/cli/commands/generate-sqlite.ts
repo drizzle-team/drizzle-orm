@@ -26,6 +26,7 @@ export const handle = async (config: GenerateConfig) => {
 				outFolder,
 				name: config.name,
 				breakpoints: config.breakpoints,
+				generateDownMigrations: config.generateDownMigrations,
 				bundle: config.bundle,
 				type: 'custom',
 				renames: [],
@@ -44,13 +45,15 @@ export const handle = async (config: GenerateConfig) => {
 			'default',
 		);
 
-		const { sqlStatements: downSqlStatements } = await ddlDiff(
-			ddlCur,
-			ddlPrev,
-			makeInverseResolver(tableRenames),
-			makeInverseResolver(columnRenames),
-			'default',
-		);
+		const downSqlStatements = config.generateDownMigrations
+			? (await ddlDiff(
+				ddlCur,
+				ddlPrev,
+				makeInverseResolver(tableRenames),
+				makeInverseResolver(columnRenames),
+				'default',
+			)).sqlStatements
+			: undefined;
 
 		for (const w of warnings) {
 			warning(w);
@@ -64,6 +67,7 @@ export const handle = async (config: GenerateConfig) => {
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
+			generateDownMigrations: config.generateDownMigrations,
 			bundle: config.bundle,
 			driver: config.driver,
 			snapshots,

@@ -47,6 +47,7 @@ export const handle = async (
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
+			generateDownMigrations: config.generateDownMigrations,
 			type: 'custom',
 			renames: [],
 			snapshots,
@@ -89,25 +90,27 @@ export const handle = async (
 		'default',
 	);
 
-	const { sqlStatements: downSqlStatements } = await ddlDiff(
-		ddlCur,
-		ddlPrev,
-		makeInverseResolver(schemaRenames),
-		makeInverseResolver(enumRenames),
-		makeInverseResolver(seqRenames),
-		makeInverseResolver(policyRenames),
-		makeInverseResolver(roleRenames),
-		makeInverseResolver(privilegeRenames),
-		makeInverseResolver(tableRenames),
-		makeInverseResolver(columnRenames),
-		makeInverseResolver(viewRenames),
-		makeInverseResolver(uniqueRenames),
-		makeInverseResolver(indexRenames),
-		makeInverseResolver(checkRenames),
-		makeInverseResolver(pkRenames),
-		makeInverseResolver(fkRenames),
-		'default',
-	);
+	const downSqlStatements = config.generateDownMigrations
+		? (await ddlDiff(
+			ddlCur,
+			ddlPrev,
+			makeInverseResolver(schemaRenames),
+			makeInverseResolver(enumRenames),
+			makeInverseResolver(seqRenames),
+			makeInverseResolver(policyRenames),
+			makeInverseResolver(roleRenames),
+			makeInverseResolver(privilegeRenames),
+			makeInverseResolver(tableRenames),
+			makeInverseResolver(columnRenames),
+			makeInverseResolver(viewRenames),
+			makeInverseResolver(uniqueRenames),
+			makeInverseResolver(indexRenames),
+			makeInverseResolver(checkRenames),
+			makeInverseResolver(pkRenames),
+			makeInverseResolver(fkRenames),
+			'default',
+		)).sqlStatements
+		: undefined;
 
 	const explainMessage = explain('postgres', groupedStatements, false, []);
 	if (explainMessage) console.log(explainMessage);
@@ -119,6 +122,7 @@ export const handle = async (
 		outFolder,
 		name: config.name,
 		breakpoints: config.breakpoints,
+		generateDownMigrations: config.generateDownMigrations,
 		renames,
 		snapshots,
 	});

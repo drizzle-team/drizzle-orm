@@ -92,6 +92,7 @@ export const configCommonSchema = object({
 	schema: union([string(), string().array()]).optional(),
 	out: string().default('drizzle'),
 	breakpoints: boolean().optional().default(true),
+	generateDownMigrations: boolean().optional().default(true),
 	verbose: boolean().optional().default(false),
 	driver: driver.optional(),
 	tablesFilter: union([string(), string().array()]).optional(),
@@ -135,6 +136,7 @@ export const configGenerateSchema = object({
 	schema: union([string(), string().array()]),
 	out: string().optional().default('./drizzle'),
 	breakpoints: boolean().default(true),
+	generateDownMigrations: boolean().default(true),
 });
 
 export type GenerateSchema = TypeOf<typeof configGenerateSchema>;
