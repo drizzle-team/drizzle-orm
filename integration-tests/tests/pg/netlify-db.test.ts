@@ -405,26 +405,7 @@ test.skip('test mode string for timestamp with timezone in different timezone', 
 	await db.execute(sql`drop table if exists ${table}`);
 });
 
-skipTests([
-	'migrator : default migration strategy',
-	'migrator : migrate with custom schema',
-	'migrator : migrate with custom table',
-	'migrator : migrate with custom table and custom schema',
-	'insert via db.execute + select via db.execute',
-	'insert via db.execute + returning',
-	'insert via db.execute w/ query builder',
-	'all date and time columns without timezone first case mode string',
-	'all date and time columns without timezone third case mode date',
-	'test mode string for timestamp with timezone',
-	'test mode date for timestamp with timezone',
-	'test mode string for timestamp with timezone in UTC timezone',
-	'nested transaction rollback',
-	'transaction rollback',
-	'nested transaction',
-	'transaction',
-	'timestamp timezone',
-	'test $onUpdateFn and $onUpdate works as $default',
-]);
+skipTests([]);
 tests();
 cacheTests();
 
