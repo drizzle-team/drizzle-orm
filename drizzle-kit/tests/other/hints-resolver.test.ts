@@ -156,13 +156,13 @@ test('resolver matches hints against the default schema when entity schema is om
 	expect(result.unresolved).toStrictEqual([]);
 });
 
-test('resolver normalizes primary key entity types to primary_key hints', async () => {
+test('resolver matches primary key entity types against primary key hints', async () => {
 	const created = constraint('users', 'members_pkey', 'public');
 	const deleted = constraint('users', 'users_pkey', 'public');
 	const hints = new HintsHandler([
 		{
 			type: 'rename',
-			kind: 'primary_key',
+			kind: 'primary key',
 			from: ['public', 'users', 'users_pkey'] as const,
 			to: ['public', 'users', 'members_pkey'] as const,
 		},
@@ -184,10 +184,19 @@ test('resolver normalizes primary key entity types to primary_key hints', async 
 	expect(hints.missingHints).toStrictEqual([]);
 });
 
+test('resolver keeps default interactive-only in json mode', async () => {
+	const resolve = resolver<Entity>('default', 'dbo', 'generate', new HintsHandler());
+
+	await expect(resolve({
+		created: [constraint('users', 'users_default', 'dbo')],
+		deleted: [constraint('users', 'legacy_default', 'dbo')],
+	})).rejects.toThrow('Interactive default rename resolution is required but cannot be performed in JSON mode');
+});
+
 test('resolver is idempotent for matching rename hints', async () => {
 	const hints = [
 		{ type: 'rename', kind: 'table', from: ['public', 'users'] as const, to: ['public', 'members'] as const },
-	] as const;
+	] satisfies readonly Hint[];
 	const input = {
 		created: [table('members', 'public')],
 		deleted: [table('users', 'public')],
@@ -202,7 +211,7 @@ test('resolver is idempotent for matching rename hints', async () => {
 test('resolver is idempotent for matching create hints', async () => {
 	const hints = [
 		{ type: 'create', kind: 'table', entity: ['public', 'members'] as const },
-	] as const;
+	] satisfies readonly Hint[];
 	const input = {
 		created: [table('members', 'public')],
 		deleted: [table('users', 'public')],

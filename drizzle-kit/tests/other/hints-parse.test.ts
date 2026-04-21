@@ -52,13 +52,13 @@ const validRenameHints = [
 	},
 	{
 		type: 'rename',
-		kind: 'primary_key',
+		kind: 'primary key',
 		from: ['public', 'orders', 'orders_pkey'] as const,
 		to: ['public', 'orders', 'orders_v2_pkey'] as const,
 	},
 	{
 		type: 'rename',
-		kind: 'foreign_key',
+		kind: 'foreign key',
 		from: ['public', 'orders', 'orders_user_id_fkey'] as const,
 		to: ['public', 'orders', 'orders_v2_user_id_fkey'] as const,
 	},
@@ -77,8 +77,8 @@ const validCreateHints = [
 	{ type: 'create', kind: 'check', entity: ['public', 'orders', 'orders_check'] as const },
 	{ type: 'create', kind: 'index', entity: ['public', 'orders', 'orders_idx'] as const },
 	{ type: 'create', kind: 'unique', entity: ['public', 'orders', 'orders_unique'] as const },
-	{ type: 'create', kind: 'primary_key', entity: ['public', 'orders', 'orders_pkey'] as const },
-	{ type: 'create', kind: 'foreign_key', entity: ['public', 'orders', 'orders_user_id_fkey'] as const },
+	{ type: 'create', kind: 'primary key', entity: ['public', 'orders', 'orders_pkey'] as const },
+	{ type: 'create', kind: 'foreign key', entity: ['public', 'orders', 'orders_user_id_fkey'] as const },
 ] satisfies readonly CreateHint[];
 
 const validConfirmHints = [
@@ -138,10 +138,10 @@ test('HintsHandler.fromCli rejects invalid type', async () => {
 	expect(error.code).toBe('invalid_hints');
 	expect(error.meta?.source).toBe('inline');
 	expect(issue).toMatchObject({
-		code: 'invalid_union_discriminator',
-		path: [0, 'type'],
+		code: 'invalid_union',
+		path: [0],
 	});
-	expect(issue.message).toContain("'rename' | 'create' | 'confirm_data_loss'");
+	expect(issue.message).toContain('Invalid input');
 });
 
 test('HintsHandler.fromCli rejects invalid confirm_data_loss kind', async () => {
@@ -150,23 +150,29 @@ test('HintsHandler.fromCli rejects invalid confirm_data_loss kind', async () => 
 
 	expect(error.code).toBe('invalid_hints');
 	expect(issue).toMatchObject({
-		code: 'invalid_enum_value',
-		path: [0, 'kind'],
-		received: 'enum',
+		code: 'invalid_union',
+		path: [0],
 	});
-	expect(issue.message).toContain(
-		"'table' | 'column' | 'schema' | 'view' | 'primary_key' | 'add_not_null' | 'add_unique'",
-	);
+	expect(issue.message).toContain('Invalid input');
 });
 
-test('HintsHandler.fromCli rejects tuple arity mismatches with the tuple path', async () => {
+test('HintsHandler.fromCli rejects default as a rename/create hint kind', async () => {
+	const error = await expectInvalidHints([{ type: 'create', kind: 'default', entity: ['public', 'orders', 'id'] }]);
+	const issue = firstIssue(error);
+
+	expect(error.code).toBe('invalid_hints');
+	expect(issue.path).toContain(0);
+	expect(JSON.stringify(issue)).toContain('default');
+});
+
+test('HintsHandler.fromCli rejects tuple arity mismatches at the hint item path', async () => {
 	const error = await expectInvalidHints([{ type: 'create', kind: 'column', entity: ['public', 'orders'] }]);
 	const issue = firstIssue(error);
 
 	expect(error.code).toBe('invalid_hints');
 	expect(issue).toMatchObject({
-		code: 'too_small',
-		path: [0, 'entity'],
+		code: 'invalid_union',
+		path: [0],
 	});
 });
 
@@ -178,10 +184,8 @@ test('HintsHandler.fromCli rejects non-string tuple members', async () => {
 
 	expect(error.code).toBe('invalid_hints');
 	expect(issue).toMatchObject({
-		code: 'invalid_type',
-		expected: 'string',
-		received: 'number',
-		path: [0, 'to', 1],
+		code: 'invalid_union',
+		path: [0],
 	});
 });
 
