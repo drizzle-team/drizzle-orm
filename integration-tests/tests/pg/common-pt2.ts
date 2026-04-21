@@ -1,4 +1,5 @@
 import {
+	aliasedTable,
 	and,
 	arrayContains,
 	asc,
@@ -4545,7 +4546,7 @@ export function tests(test: Test) {
 		// https://github.com/drizzle-team/drizzle-orm/issues/5253
 		// enhancement
 		// allow select which columns to insert in insert...select
-		test.skipIf(Date.now() < +new Date('2026-04-19')).concurrent('insert into ... select #2', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-04-26')).concurrent('insert into ... select #2', async ({ db, push }) => {
 			const users = pgTable('users_114', {
 				id: integer('id').primaryKey(),
 				name: text('name').notNull(),
@@ -4634,7 +4635,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4596
-		test.skipIf(Date.now() < +new Date('2026-04-19'))(
+		test.skipIf(Date.now() < +new Date('2026-04-26'))(
 			'functional index; onConflict do update',
 			async ({ db, push }) => {
 				throw new Error('SKIP. commented below because of type error');
@@ -4721,7 +4722,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4419
-		test.skipIf(Date.now() < +new Date('2026-04-19'))('db/js timestamp comparison', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-04-26'))('db/js timestamp comparison', async ({ db, push }) => {
 			const table1 = pgTable('table1', {
 				id: integer(),
 				// default config equal to: { mode: 'date' }
@@ -5029,7 +5030,15 @@ export function tests(test: Test) {
 				content: t.text('content'),
 			}));
 
-			await push({ users, posts });
+			const internalStaff = pgTable('internal_staff_qm1', {
+				userId: integer('user_id').notNull().primaryKey(),
+			});
+
+			const ticket = pgTable('ticket_qm1', {
+				staffId: integer('staff_id').notNull(),
+			});
+
+			await push({ users, posts, internalStaff, ticket });
 
 			await db.insert(users).values([{
 				id: 1,
@@ -5050,6 +5059,12 @@ export function tests(test: Test) {
 				authorId: 1,
 				content: 'p1',
 			});
+			await db.insert(internalStaff).values([{
+				userId: 1,
+			}, {
+				userId: 2,
+			}]);
+			await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }]);
 
 			const selected1 = await db.select({ user: users, post: posts }).from(users).leftJoin(
 				posts,
@@ -5081,6 +5096,28 @@ export function tests(test: Test) {
 				posts,
 				eq(users.id, posts.authorId),
 			);
+			const selected5 = await db.select({
+				user: {
+					...getTableColumns(users),
+					extra: sql`1`.mapWith(Number).as('extra_1'),
+				},
+				post: {
+					...getTableColumns(posts),
+					extra: sql`1`.mapWith(Number).as('extra_1'),
+				},
+			}).from(users).leftJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			);
+			const subq = db
+				.select()
+				.from(internalStaff)
+				.leftJoin(users, eq(internalStaff.userId, users.id))
+				.as('internal_staff');
+			const selected6 = await db
+				.select()
+				.from(ticket)
+				.leftJoin(subq, eq(subq.internal_staff_qm1.userId, ticket.staffId));
 
 			expect(selected1).toStrictEqual([{
 				user: {
@@ -5160,6 +5197,79 @@ export function tests(test: Test) {
 					userId: 1,
 				},
 			]);
+			expect(selected5).toStrictEqual([
+				{
+					post: {
+						authorId: 1,
+						content: 'p1',
+						extra: 1,
+						id: 1,
+					},
+					user: {
+						createdAt: mappersDate,
+						extra: 1,
+						id: 1,
+						isBanned: null,
+						name: 'First',
+					},
+				},
+				{
+					post: null,
+					user: {
+						createdAt: mappersDate,
+						extra: 1,
+						id: 2,
+						isBanned: true,
+						name: 'Second',
+					},
+				},
+				{
+					post: null,
+					user: {
+						createdAt: mappersDate,
+						extra: 1,
+						id: 3,
+						isBanned: null,
+						name: 'Third',
+					},
+				},
+			]);
+			expect(selected6).toStrictEqual(
+				[
+					{
+						internal_staff: {
+							internal_staff_qm1: {
+								userId: 1,
+							},
+							mappers_users_5: {
+								createdAt: mappersDate,
+								id: 1,
+								isBanned: null,
+								name: 'First',
+							},
+						},
+						ticket_qm1: {
+							staffId: 1,
+						},
+					},
+					{
+						internal_staff: {
+							internal_staff_qm1: {
+								userId: 2,
+							},
+							mappers_users_5: {
+								createdAt: mappersDate,
+								id: 2,
+								isBanned: true,
+								name: 'Second',
+							},
+						},
+						ticket_qm1: {
+							staffId: 2,
+						},
+					},
+				],
+			);
 		});
 
 		test.concurrent('Mappers: relational', async ({ createDB, push }) => {
@@ -5713,7 +5823,15 @@ export function tests(test: Test) {
 				content: t.text('content'),
 			}));
 
-			await push({ users, posts });
+			const internalStaff = pgTable('internal_staff_jqm1', {
+				userId: integer('user_id').notNull().primaryKey(),
+			});
+
+			const ticket = pgTable('ticket_jqm1', {
+				staffId: integer('staff_id').notNull(),
+			});
+
+			await push({ users, posts, internalStaff, ticket });
 			const db = createDB({}, () => ({}), true);
 
 			await db.insert(users).values([{
@@ -5735,6 +5853,12 @@ export function tests(test: Test) {
 				authorId: 1,
 				content: 'p1',
 			});
+			await db.insert(internalStaff).values([{
+				userId: 1,
+			}, {
+				userId: 2,
+			}]);
+			await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }]);
 
 			const selected1 = await db.select({ user: users, post: posts }).from(users).leftJoin(
 				posts,
@@ -5766,6 +5890,28 @@ export function tests(test: Test) {
 				posts,
 				eq(users.id, posts.authorId),
 			);
+			const selected5 = await db.select({
+				user: {
+					...getTableColumns(users),
+					extra: sql`1`.mapWith(Number).as('extra_1'),
+				},
+				post: {
+					...getTableColumns(posts),
+					extra: sql`1`.mapWith(Number).as('extra_1'),
+				},
+			}).from(users).leftJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			);
+			const subq = db
+				.select()
+				.from(internalStaff)
+				.leftJoin(users, eq(internalStaff.userId, users.id))
+				.as('internal_staff');
+			const selected6 = await db
+				.select()
+				.from(ticket)
+				.leftJoin(subq, eq(subq.internal_staff_jqm1.userId, ticket.staffId));
 
 			expect(selected1).toStrictEqual([{
 				user: {
@@ -5845,6 +5991,79 @@ export function tests(test: Test) {
 					userId: 1,
 				},
 			]);
+			expect(selected5).toStrictEqual([
+				{
+					post: {
+						authorId: 1,
+						content: 'p1',
+						extra: 1,
+						id: 1,
+					},
+					user: {
+						createdAt: mappersDate,
+						extra: 1,
+						id: 1,
+						isBanned: null,
+						name: 'First',
+					},
+				},
+				{
+					post: null,
+					user: {
+						createdAt: mappersDate,
+						extra: 1,
+						id: 2,
+						isBanned: true,
+						name: 'Second',
+					},
+				},
+				{
+					post: null,
+					user: {
+						createdAt: mappersDate,
+						extra: 1,
+						id: 3,
+						isBanned: null,
+						name: 'Third',
+					},
+				},
+			]);
+			expect(selected6).toStrictEqual(
+				[
+					{
+						internal_staff: {
+							internal_staff_jqm1: {
+								userId: 1,
+							},
+							mappers_users_5: {
+								createdAt: mappersDate,
+								id: 1,
+								isBanned: null,
+								name: 'First',
+							},
+						},
+						ticket_jqm1: {
+							staffId: 1,
+						},
+					},
+					{
+						internal_staff: {
+							internal_staff_jqm1: {
+								userId: 2,
+							},
+							mappers_users_5: {
+								createdAt: mappersDate,
+								id: 2,
+								isBanned: true,
+								name: 'Second',
+							},
+						},
+						ticket_jqm1: {
+							staffId: 2,
+						},
+					},
+				],
+			);
 		});
 
 		test.concurrent('Jit mappers: relational', async ({ createDB, push }) => {

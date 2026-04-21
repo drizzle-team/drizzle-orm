@@ -82,80 +82,94 @@ export const FnConstructor = Object.getPrototypeOf(() => null).constructor as ty
 /** @internal */
 function makeJitQueryMapperInner(
 	columns: SelectedFieldsOrdered<AnyColumn>,
-	joinsNotNullableMap: Record<string, boolean> | undefined,
+	joinsNotNullableMap: Record<string, boolean> = {},
 ): string {
-	let fn = [] as string[];
-	if (joinsNotNullableMap) fn.push(`const nullifyMap = {};`);
+	const preFn = [] as string[];
+	const fn = [] as string[];
+	fn.push(`const [ ${columns.map((_, i) => `c${i}`).join(', ')} ] = rows[i];`);
 
-	const initializedPaths = new Set<string>();
+	const nullifyMap: Record<string, string | false> = {};
+	const objectIds: Record<string, string[]> = {};
+	const decodes = Array.from<string>({ length: columns.length });
 
-	for (const [idx, { path: pathArr, field, codec, arrayDimensions }] of columns.entries()) {
-		const pathPrefix = pathArr.slice(0, -1);
-		const path = pathArr.map((e) => `[${JSON.stringify(e)}]`).join('');
-
-		let processedPath;
-		for (const p of pathPrefix) {
-			processedPath = processedPath ? `${processedPath}[${JSON.stringify(p)}]` : `[${JSON.stringify(p)}]`;
-			if (initializedPaths.has(processedPath)) continue;
-			fn.push(`res${processedPath} = {};`);
-			initializedPaths.add(processedPath);
-		}
-
+	for (let idx = 0; idx < columns.length; ++idx) {
+		const { field, path, codec, arrayDimensions } = columns[idx]!;
 		let decoder: DriverValueDecoder<unknown, unknown>;
 		let decoderStr: string;
+		let isColumn = false;
 		if (is(field, Column)) {
+			isColumn = true;
 			decoder = field;
-			decoderStr = `this.columns[${idx}].field.mapFromDriverValue`;
+			decoderStr = `field${idx}.mapFromDriverValue`;
 		} else if (is(field, SQL)) {
 			decoder = field.decoder;
-			decoderStr = `this.columns[${idx}].field.decoder.mapFromDriverValue`;
+			decoderStr = `field${idx}.decoder.mapFromDriverValue`;
 		} else if (is(field, Subquery)) {
 			decoder = field._.sql.decoder;
-			decoderStr = `this.columns[${idx}].field._.sql.decoder.mapFromDriverValue`;
+			decoderStr = `field${idx}._.sql.decoder.mapFromDriverValue`;
 		} else {
 			decoder = field.sql.decoder;
-			decoderStr = `this.columns[${idx}].field.sql.decoder.mapFromDriverValue`;
+			decoderStr = `field${idx}.sql.decoder.mapFromDriverValue`;
 		}
 		if (decoder.mapFromDriverValue.isNoop) decoderStr = '';
-		const rowStr = `rows[i][${idx}]`;
+		if (decoderStr) {
+			preFn.push(`const { field: field${idx}${codec ? `, codec: codec${idx}` : ''} } = columns[${idx}];`);
+		} else if (codec) {
+			preFn.push(`const { codec: codec${idx} } = columns[${idx}];`);
+		}
 
-		let decodedValue = rowStr;
-		if (codec) decodedValue = `this.columns[${idx}].codec(${decodedValue}, ${arrayDimensions})`;
+		const colStr = `c${idx}`;
+		let decodedValue = colStr;
+		if (codec) decodedValue = `codec${idx}(${decodedValue}, ${arrayDimensions})`;
 		if (decoderStr) decodedValue = `${decoderStr}(${decodedValue})`;
-		if (rowStr === decodedValue) {
-			fn.push(`res${path} = ${rowStr};`);
+		decodes[idx] = colStr === decodedValue
+			? `${colStr}`
+			: `${colStr} === null ? ${colStr} : ${decodedValue}`;
+
+		if (path.length !== 2 || !isColumn) continue;
+		if (objectIds[path[0]!] === undefined) objectIds[path[0]!] = [`c${idx}`];
+		else objectIds[path[0]!]?.push(`c${idx}`);
+		const [objectName] = path as [string];
+		const tableName = getTableName((<Column> field).table);
+		nullifyMap[objectName] = joinsNotNullableMap[tableName] ? false : typeof nullifyMap[objectName] === 'string'
+			? nullifyMap[objectName] === tableName ? tableName : false
+			: tableName;
+	}
+
+	fn.push(`mapped[i] = {`);
+	let currentObject: string | undefined;
+	for (let idx = 0; idx < columns.length; ++idx) {
+		const { path } = columns[idx]!;
+		const jsonPath = path.map((e) => JSON.stringify(e));
+		const decodedValue = decodes[idx]!;
+
+		// TODO: path.length > 2
+		if (path.length === 2) {
+			if (currentObject !== path[0]) {
+				if (currentObject !== undefined) fn.push(`\t},`);
+				fn.push(
+					`\t${jsonPath[0]}: ${
+						typeof nullifyMap[path[0]!] === 'string'
+							? `${objectIds[path[0]!]?.map((c) => `${c} === null`).join(' && ')} ? null : {`
+							: '{'
+					}`,
+				);
+				currentObject = path[0];
+			}
+			fn.push(`\t\t${jsonPath[1]}: ${decodedValue},`);
 		} else {
-			fn.push(
-				`res${path} = ${rowStr} === null ? ${rowStr} : ${decodedValue};`,
-			);
-		}
-
-		if (joinsNotNullableMap && is(field, Column) && pathArr.length === 2) {
-			const objectName = JSON.stringify(pathArr[0]!);
-			const tableName = JSON.stringify(getTableName(field.table));
-			fn.push(
-				`if (!(${objectName} in nullifyMap)) {`,
-				`	nullifyMap[${objectName}] = res${path} === null ? ${tableName} : false;`,
-				`} else if (typeof nullifyMap[${objectName}] === 'string' && nullifyMap[${objectName}] !== ${tableName}) {`,
-				`	nullifyMap[${objectName}] = false;`,
-				`}`,
-			);
+			if (currentObject !== undefined) fn.push(`\t},`);
+			currentObject = undefined;
+			fn.push(`\t${jsonPath[0]}: ${decodedValue},`);
 		}
 	}
 
-	if (joinsNotNullableMap) {
-		fn.push(
-			`if(Object.keys(nullifyMap).length) {`,
-			`	for (const [objectName, tableName] of Object.entries(nullifyMap)) {`,
-			`		if (typeof tableName === 'string' && !this.joinsNotNullableMap[tableName]) {`,
-			`			res[objectName] = null;`,
-			`		}`,
-			`	}`,
-			`}`,
-		);
-	}
+	if (currentObject !== undefined) fn.push(`\t},`);
+	fn.push(`};`);
 
-	return fn.join('\n\t\t');
+	return `${preFn.length ? `${preFn.join('\n\t')}\n\t` : ''}for (let i = 0; i < length; ++i) {
+		${fn.join('\n\t\t')}
+	}`;
 }
 
 export type RowsMapperGenerator = <TResult = any>(
@@ -172,12 +186,10 @@ export function makeJitQueryMapper<TResult>(
 	columns: SelectedFieldsOrdered<AnyColumn>,
 	joinsNotNullableMap: Record<string, boolean> | undefined,
 ): RowsMapper<TResult> {
-	const internals = `\tconst mapped = [];
-	for (let i = 0; i < rows.length; ++i) {
-		const res = {};
-		${makeJitQueryMapperInner(columns, joinsNotNullableMap)}
-		mapped[i] = res;
-	}
+	const internals = `\tconst { columns } = this;
+	const { length } = rows;
+	const mapped = Array.from({ length });
+	${makeJitQueryMapperInner(columns, joinsNotNullableMap)}
 	return mapped;
 	//# sourceURL=drizzle:jit-query-mapper`;
 
@@ -187,7 +199,6 @@ export function makeJitQueryMapper<TResult>(
 			internals,
 		).bind({
 			columns,
-			joinsNotNullableMap,
 		}),
 		{ body: `function jitQueryMapper (rows) {\n${internals}\n}` },
 	) as RowsMapper<TResult>;
