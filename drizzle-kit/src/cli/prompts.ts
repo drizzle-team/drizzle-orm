@@ -2,31 +2,14 @@ import chalk from 'chalk';
 import { render } from 'hanji';
 import type { Resolver } from 'src/dialects/common';
 import { CommandOutputCliError } from './errors';
-import type { HintEntityKind, HintsHandler, IdFor } from './hints';
+import type { HintsHandler, IdFor, PromptEntityType, RenameCreateHintKind } from './hints';
 import { isJsonMode } from './mode';
 import type { RenamePromptItem } from './views';
 import { humanLog, isRenamePromptItem, ResolveSelect } from './views';
 
-type PromptEntityType =
-	| 'schema'
-	| 'enum'
-	| 'table'
-	| 'column'
-	| 'sequence'
-	| 'view'
-	| 'privilege'
-	| 'policy'
-	| 'role'
-	| 'check'
-	| 'index'
-	| 'unique'
-	| 'primary key'
-	| 'foreign key'
-	| 'default';
-
 type PromptEntityBase = { name: string; schema?: string; table?: string };
 
-const entityId = <K extends HintEntityKind>(
+const entityId = <K extends RenameCreateHintKind>(
 	kind: K,
 	entity: PromptEntityBase,
 	defaultSchema: 'dbo' | 'public',
@@ -46,8 +29,8 @@ const entityId = <K extends HintEntityKind>(
 		case 'check':
 		case 'index':
 		case 'unique':
-		case 'primary_key':
-		case 'foreign_key': {
+		case 'primary key':
+		case 'foreign key': {
 			if (typeof entity.table !== 'string') {
 				throw new Error(`Expected ${kind} resolver entity to include a table name`);
 			}
@@ -74,13 +57,6 @@ const entityId = <K extends HintEntityKind>(
 			] as unknown as IdFor<K>;
 		}
 	}
-};
-
-const normalizeKind = (entity: PromptEntityType): HintEntityKind | undefined => {
-	if (entity === 'default') return undefined;
-	if (entity === 'primary key') return 'primary_key';
-	if (entity === 'foreign key') return 'foreign_key';
-	return entity;
 };
 
 export const resolver = <T extends PromptEntityBase>(
@@ -114,7 +90,7 @@ export const resolver = <T extends PromptEntityBase>(
 		});
 
 		const resolveJsonMode = async () => {
-			const kind = normalizeKind(entity);
+			const kind = entity === 'default' ? undefined : entity;
 
 			// JSON mode can only resolve entities that map to a supported hint kind.
 			// If this branch is reached for an unsupported kind, the caller must rerun interactively.
@@ -134,30 +110,23 @@ export const resolver = <T extends PromptEntityBase>(
 			do {
 				const newItem = created[index]!;
 				const newItemId = entityId(kind, newItem, defaultSchema);
-
-				// First try an explicit rename hint targeting the newly created entity.
 				const renameHint = hints.matchRename(kind, newItemId);
-				const matchedSource = renameHint
-					? leftMissing.find((item) =>
-						JSON.stringify(entityId(kind, item, defaultSchema)) === JSON.stringify(renameHint.from)
-					)
+				const createHint = hints.matchCreate(kind, newItemId);
+				const renameSource = renameHint
+					? leftMissing.find((item) => tupleEquals(entityId(kind, item, defaultSchema), renameHint.from))
 					: undefined;
 
-				if (matchedSource) {
-					applySelection({ from: matchedSource, to: newItem }, newItem, leftMissing, result, entity, defaultSchema);
+				if (renameSource) {
+					applySelection({ from: renameSource, to: newItem }, newItem, leftMissing, result, entity, defaultSchema);
 					leftMissing = leftMissing.filter(Boolean);
 					index += 1;
 					continue;
 				}
 
-				// If no rename hint matches, look for an explicit create hint.
-				// Otherwise, record the ambiguity so the CLI can emit missing_hints.
-				const createHint = hints.matchCreate(kind, newItemId);
 				if (!createHint && leftMissing.length > 0) {
 					hints.pushMissingHint({ type: 'rename_or_create', kind, entity: newItemId });
 				}
 
-				// Whether the create is explicit or still unresolved, the new entity stays on the created side.
 				applySelection(newItem, newItem, leftMissing, result, entity, defaultSchema);
 				index += 1;
 			} while (index < created.length);
@@ -245,4 +214,12 @@ const applySelection = <T extends PromptEntityBase>(
 
 	humanLog(`${chalk.green('+')} ${newItem.name} ${chalk.gray(`${entity} will be created`)}`);
 	result.created.push(newItem);
+};
+
+const tupleEquals = (left: readonly string[], right: readonly string[]) => {
+	if (left.length !== right.length) {
+		return false;
+	}
+
+	return left.every((segment, index) => segment === right[index]);
 };

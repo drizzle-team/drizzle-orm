@@ -2,88 +2,65 @@ import { readFile } from 'fs/promises';
 import { z, type ZodIssue } from 'zod';
 import { InvalidHintsCliError, type JsonValue } from './errors';
 
-const schemaTupleSchema = z.tuple([z.string()]);
+const singleTupleSchema = z.tuple([z.string()]);
 const pairTupleSchema = z.tuple([z.string(), z.string()]);
 const tripleTupleSchema = z.tuple([z.string(), z.string(), z.string()]);
 const privilegeTupleSchema = z.tuple([z.string(), z.string(), z.string(), z.string(), z.string()]);
 
-const hintEntities = [
-	'table',
-	'column',
-	'schema',
-	'enum',
-	'sequence',
-	'view',
-	'policy',
-	'role',
-	'privilege',
-	'check',
-	'index',
-	'unique',
-	'primary_key',
-	'foreign_key',
-] as const;
+const renameCreateEntitySchemas = [
+	{ kind: 'table', schema: pairTupleSchema },
+	{ kind: 'column', schema: tripleTupleSchema },
+	{ kind: 'schema', schema: singleTupleSchema },
+	{ kind: 'enum', schema: pairTupleSchema },
+	{ kind: 'sequence', schema: pairTupleSchema },
+	{ kind: 'view', schema: pairTupleSchema },
+	{ kind: 'policy', schema: tripleTupleSchema },
+	{ kind: 'role', schema: singleTupleSchema },
+	{ kind: 'privilege', schema: privilegeTupleSchema },
+	{ kind: 'check', schema: tripleTupleSchema },
+	{ kind: 'index', schema: tripleTupleSchema },
+	{ kind: 'unique', schema: tripleTupleSchema },
+	{ kind: 'primary key', schema: tripleTupleSchema },
+	{ kind: 'foreign key', schema: tripleTupleSchema },
+] as const satisfies readonly { readonly kind: string; readonly schema: z.ZodTypeAny }[];
 
-export type HintEntityKind = typeof hintEntities[number];
+export type RenameCreateHintKind = typeof renameCreateEntitySchemas[number]['kind'];
 
-const confirmEntities = [
-	'table',
-	'column',
-	'schema',
-	'view',
-	'primary_key',
-	'add_not_null',
-	'add_unique',
-] as const;
+const confirmEntitySchemas = [
+	{ kind: 'table', schema: pairTupleSchema },
+	{ kind: 'column', schema: tripleTupleSchema },
+	{ kind: 'schema', schema: singleTupleSchema },
+	{ kind: 'view', schema: pairTupleSchema },
+	{ kind: 'primary_key', schema: tripleTupleSchema },
+	{ kind: 'add_not_null', schema: tripleTupleSchema },
+	{ kind: 'add_unique', schema: tripleTupleSchema },
+] as const satisfies readonly { readonly kind: string; readonly schema: z.ZodTypeAny }[];
 
-export type ConfirmEntityKind = typeof confirmEntities[number];
+export type ConfirmEntityKind = typeof confirmEntitySchemas[number]['kind'];
 
-const hintEntitySchemas = {
-	table: pairTupleSchema,
-	column: tripleTupleSchema,
-	schema: schemaTupleSchema,
-	enum: pairTupleSchema,
-	sequence: pairTupleSchema,
-	view: pairTupleSchema,
-	policy: tripleTupleSchema,
-	role: schemaTupleSchema,
-	privilege: privilegeTupleSchema,
-	check: tripleTupleSchema,
-	index: tripleTupleSchema,
-	unique: tripleTupleSchema,
-	primary_key: tripleTupleSchema,
-	foreign_key: tripleTupleSchema,
-} satisfies Record<HintEntityKind, z.ZodTypeAny>;
+export type PromptEntityType = RenameCreateHintKind | 'default';
 
-const confirmEntitySchemas = {
-	table: pairTupleSchema,
-	column: tripleTupleSchema,
-	schema: schemaTupleSchema,
-	view: pairTupleSchema,
-	primary_key: tripleTupleSchema,
-	add_not_null: tripleTupleSchema,
-	add_unique: tripleTupleSchema,
-} satisfies Record<ConfirmEntityKind, z.ZodTypeAny>;
+type RenameCreateSchemaFor<K extends RenameCreateHintKind> = Extract<
+	typeof renameCreateEntitySchemas[number],
+	{ kind: K }
+>['schema'];
 
-type KindIds = {
-	[K in HintEntityKind]: Readonly<z.infer<(typeof hintEntitySchemas)[K]>>;
-};
+type ConfirmSchemaFor<K extends ConfirmEntityKind> = Extract<
+	typeof confirmEntitySchemas[number],
+	{ kind: K }
+>['schema'];
 
-type ConfirmIds = {
-	[K in ConfirmEntityKind]: Readonly<z.infer<(typeof confirmEntitySchemas)[K]>>;
-};
+export type IdFor<K extends RenameCreateHintKind> = Readonly<z.infer<RenameCreateSchemaFor<K>>>;
 
-export type IdFor<K extends HintEntityKind> = KindIds[K];
-
-export type ConfirmIdFor<K extends ConfirmEntityKind> = ConfirmIds[K];
+export type ConfirmIdFor<K extends ConfirmEntityKind> = Readonly<z.infer<ConfirmSchemaFor<K>>>;
 
 export type RenameHint = {
-	[K in HintEntityKind]: { type: 'rename'; kind: K; from: IdFor<K>; to: IdFor<K> };
-}[HintEntityKind];
+	[K in RenameCreateHintKind]: { type: 'rename'; kind: K; from: IdFor<K>; to: IdFor<K> };
+}[RenameCreateHintKind];
 
 export type CreateHint = {
-	[K in HintEntityKind]: { type: 'create'; kind: K; entity: IdFor<K> };
-}[HintEntityKind];
+	[K in RenameCreateHintKind]: { type: 'create'; kind: K; entity: IdFor<K> };
+}[RenameCreateHintKind];
 
 export type ConfirmDataLossHint = {
 	[K in ConfirmEntityKind]: { type: 'confirm_data_loss'; kind: K; entity: ConfirmIdFor<K> };
@@ -93,8 +70,8 @@ export type Hint = RenameHint | CreateHint | ConfirmDataLossHint;
 
 export type MissingHint =
 	| {
-		[K in HintEntityKind]: { type: 'rename_or_create'; kind: K; entity: IdFor<K> };
-	}[HintEntityKind]
+		[K in RenameCreateHintKind]: { type: 'rename_or_create'; kind: K; entity: IdFor<K> };
+	}[RenameCreateHintKind]
 	| {
 		[K in ConfirmEntityKind]: {
 			type: 'confirm_data_loss';
@@ -110,38 +87,89 @@ export type MissingHintsResponse = {
 };
 
 type Hints = {
-	renames: Map<string, RenameHint>;
-	creates: Map<string, CreateHint>;
-	confirms: Map<string, ConfirmDataLossHint>;
+	renames: RenameHint[];
+	creates: CreateHint[];
+	confirms: ConfirmDataLossHint[];
 };
 
 type InvalidHintShapeCliErrorMeta = {
 	issues: readonly ZodIssue[];
 };
 
-const renameHintInputSchema = z.object({
-	type: z.literal('rename'),
-	kind: z.enum(hintEntities),
-	from: z.array(z.string()),
-	to: z.array(z.string()),
-}).strict();
+type RenameHintMember<E> = E extends { kind: infer K extends string; schema: infer S extends z.ZodTypeAny }
+	? z.ZodObject<{
+		type: z.ZodLiteral<'rename'>;
+		kind: z.ZodLiteral<K>;
+		from: S;
+		to: S;
+	}, 'strict'>
+	: never;
 
-const createHintInputSchema = z.object({
-	type: z.literal('create'),
-	kind: z.enum(hintEntities),
-	entity: z.array(z.string()),
-}).strict();
+type CreateHintMember<E> = E extends { kind: infer K extends string; schema: infer S extends z.ZodTypeAny }
+	? z.ZodObject<{
+		type: z.ZodLiteral<'create'>;
+		kind: z.ZodLiteral<K>;
+		entity: S;
+	}, 'strict'>
+	: never;
 
-const confirmHintInputSchema = z.object({
-	type: z.literal('confirm_data_loss'),
-	kind: z.enum(confirmEntities),
-	entity: z.array(z.string()),
-}).strict();
+type ConfirmHintMember<E> = E extends { kind: infer K extends string; schema: infer S extends z.ZodTypeAny }
+	? z.ZodObject<{
+		type: z.ZodLiteral<'confirm_data_loss'>;
+		kind: z.ZodLiteral<K>;
+		entity: S;
+	}, 'strict'>
+	: never;
 
-const hintSchema = z.array(z.discriminatedUnion('type', [
-	renameHintInputSchema,
-	createHintInputSchema,
-	confirmHintInputSchema,
+type RenameHintMembers = {
+	-readonly [I in keyof typeof renameCreateEntitySchemas]: RenameHintMember<typeof renameCreateEntitySchemas[I]>;
+};
+
+type CreateHintMembers = {
+	-readonly [I in keyof typeof renameCreateEntitySchemas]: CreateHintMember<typeof renameCreateEntitySchemas[I]>;
+};
+
+type ConfirmHintMembers = {
+	-readonly [I in keyof typeof confirmEntitySchemas]: ConfirmHintMember<typeof confirmEntitySchemas[I]>;
+};
+
+type UnionInput<T extends readonly z.ZodTypeAny[]> = T & [T[number], T[number], ...T[number][]];
+
+const renameHintSchema = z.union(
+	(renameCreateEntitySchemas.map(({ kind, schema }) =>
+		z.object({
+			type: z.literal('rename'),
+			kind: z.literal(kind),
+			from: schema,
+			to: schema,
+		}).strict()
+	) as unknown as RenameHintMembers) as UnionInput<RenameHintMembers>,
+);
+
+const createHintSchema = z.union(
+	(renameCreateEntitySchemas.map(({ kind, schema }) =>
+		z.object({
+			type: z.literal('create'),
+			kind: z.literal(kind),
+			entity: schema,
+		}).strict()
+	) as unknown as CreateHintMembers) as UnionInput<CreateHintMembers>,
+);
+
+const confirmHintSchema = z.union(
+	(confirmEntitySchemas.map(({ kind, schema }) =>
+		z.object({
+			type: z.literal('confirm_data_loss'),
+			kind: z.literal(kind),
+			entity: schema,
+		}).strict()
+	) as unknown as ConfirmHintMembers) as UnionInput<ConfirmHintMembers>,
+);
+
+const hintSchema = z.array(z.union([
+	renameHintSchema,
+	createHintSchema,
+	confirmHintSchema,
 ]));
 
 export class InvalidHintShapeCliError extends Error {
@@ -214,27 +242,42 @@ export class HintsHandler {
 		}
 	}
 
-	matchRename<K extends HintEntityKind>(kind: K, toId: IdFor<K>) {
-		return this.userHints.renames.get(keyFor(kind, toId)) as Extract<RenameHint, { kind: K }> | undefined;
+	matchRename<K extends RenameCreateHintKind>(kind: K, toId: IdFor<K>) {
+		return this.userHints.renames.find((hint): hint is Extract<RenameHint, { kind: K }> => {
+			return hint.kind === kind && tuplesEqual(hint.to, toId);
+		});
 	}
 
-	matchCreate<K extends HintEntityKind>(kind: K, entityId: IdFor<K>) {
-		return this.userHints.creates.get(keyFor(kind, entityId)) as Extract<CreateHint, { kind: K }> | undefined;
+	matchCreate<K extends RenameCreateHintKind>(kind: K, entityId: IdFor<K>) {
+		return this.userHints.creates.find((hint): hint is Extract<CreateHint, { kind: K }> => {
+			return hint.kind === kind && tuplesEqual(hint.entity, entityId);
+		});
 	}
 
 	matchConfirm<K extends ConfirmEntityKind>(kind: K, entityId: ConfirmIdFor<K>) {
-		return this.userHints.confirms.get(keyFor(kind, entityId)) as Extract<ConfirmDataLossHint, { kind: K }> | undefined;
+		return this.userHints.confirms.find((hint): hint is Extract<ConfirmDataLossHint, { kind: K }> => {
+			return hint.kind === kind && tuplesEqual(hint.entity, entityId);
+		});
 	}
 
-	pushMissingHint<K extends HintEntityKind>(hint: { type: 'rename_or_create'; kind: K; entity: IdFor<K> }): void;
+	pushMissingHint<K extends RenameCreateHintKind>(hint: { type: 'rename_or_create'; kind: K; entity: IdFor<K> }): void;
 	pushMissingHint<K extends ConfirmEntityKind>(hint: {
 		type: 'confirm_data_loss';
 		kind: K;
 		entity: ConfirmIdFor<K>;
 		reason: 'non_empty' | 'nulls_present' | 'duplicates_present';
 	}): void;
-	pushMissingHint(hint: MissingHint): void {
-		this.missingHints.push(hint);
+	pushMissingHint(
+		hint:
+			| { type: 'rename_or_create'; kind: RenameCreateHintKind; entity: Readonly<readonly string[]> }
+			| {
+				type: 'confirm_data_loss';
+				kind: ConfirmEntityKind;
+				entity: Readonly<readonly string[]>;
+				reason: 'non_empty' | 'nulls_present' | 'duplicates_present';
+			},
+	): void {
+		this.missingHints.push(hint as MissingHint);
 	}
 
 	hasUnresolved(): boolean {
@@ -268,91 +311,39 @@ function parseHints(raw: unknown): Hint[] {
 		throw new InvalidHintShapeCliError({ issues: result.error.issues });
 	}
 
-	const issues: ZodIssue[] = [];
-	const hints: Hint[] = [];
-
-	const collect = (
-		parseResult: z.SafeParseReturnType<unknown, readonly string[]>,
-		path: readonly (string | number)[],
-	): boolean => {
-		if (parseResult.success) return true;
-		for (const issue of parseResult.error.issues) {
-			issues.push({ ...issue, path: [...path, ...issue.path] });
-		}
-		return false;
-	};
-
-	result.data.forEach((hint, index) => {
-		if (hint.type === 'rename') {
-			const tupleSchema = hintEntitySchemas[hint.kind];
-			const fromResult = tupleSchema.safeParse(hint.from);
-			const toResult = tupleSchema.safeParse(hint.to);
-			const fromOk = collect(fromResult, [index, 'from']);
-			const toOk = collect(toResult, [index, 'to']);
-			if (fromOk && toOk) {
-				hints.push({
-					type: 'rename',
-					kind: hint.kind,
-					from: fromResult.data as IdFor<typeof hint.kind>,
-					to: toResult.data as IdFor<typeof hint.kind>,
-				} as RenameHint);
-			}
-			return;
-		}
-
-		if (hint.type === 'create') {
-			const entityResult = hintEntitySchemas[hint.kind].safeParse(hint.entity);
-			if (collect(entityResult, [index, 'entity'])) {
-				hints.push({
-					type: 'create',
-					kind: hint.kind,
-					entity: entityResult.data as IdFor<typeof hint.kind>,
-				} as CreateHint);
-			}
-			return;
-		}
-
-		const entityResult = confirmEntitySchemas[hint.kind].safeParse(hint.entity);
-		if (collect(entityResult, [index, 'entity'])) {
-			hints.push({
-				type: 'confirm_data_loss',
-				kind: hint.kind,
-				entity: entityResult.data as ConfirmIdFor<typeof hint.kind>,
-			} as ConfirmDataLossHint);
-		}
-	});
-
-	if (issues.length > 0) {
-		throw new InvalidHintShapeCliError({ issues });
-	}
-
-	return hints;
+	return result.data;
 }
 
 function buildHints(hints: readonly Hint[]): Hints {
 	const set: Hints = {
-		renames: new Map(),
-		creates: new Map(),
-		confirms: new Map(),
+		renames: [],
+		creates: [],
+		confirms: [],
 	};
 
 	for (const hint of hints) {
 		if (hint.type === 'rename') {
-			set.renames.set(keyFor(hint.kind, hint.to), hint);
+			set.renames.push(hint);
 			continue;
 		}
 
 		if (hint.type === 'create') {
-			set.creates.set(keyFor(hint.kind, hint.entity), hint);
+			set.creates.push(hint);
 			continue;
 		}
 
-		set.confirms.set(keyFor(hint.kind, hint.entity), hint);
+		set.confirms.push(hint);
 	}
 
 	return set;
 }
 
-function keyFor(kind: string, tuple: readonly string[]): string {
-	return `${kind}|${tuple.join('|')}`;
+function tuplesEqual(left: readonly string[], right: readonly string[]): boolean {
+	if (left.length !== right.length) {
+		return false;
+	}
+
+	return left.every((segment, index) => segment === right[index]);
 }
+
+export const supportedRenameCreateHintKinds = renameCreateEntitySchemas.map((entry) => entry.kind);
