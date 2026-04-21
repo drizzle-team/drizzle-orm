@@ -21,6 +21,7 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/mssql/
 import type { JsonStatement } from '../../dialects/mssql/statements';
 import type { DB } from '../../utils';
 import { CommandOutputCliError } from '../errors';
+import { JsonModeUnsupportedCliError } from '../errors';
 import { highlightSQL } from '../highlighter';
 import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
@@ -28,14 +29,7 @@ import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MssqlCredentials } from '../validations/mssql';
-import {
-	explain as explainView,
-	explainJsonOutput,
-	humanLog,
-	mssqlSchemaError,
-	printJsonOutput,
-	ProgressView,
-} from '../views';
+import { explain as explainView, humanLog, mssqlSchemaError, ProgressView } from '../views';
 
 export const handle = async (
 	filenames: string[],
@@ -50,6 +44,10 @@ export const handle = async (
 		schema: string;
 	},
 ) => {
+	if (isJsonMode()) {
+		throw new JsonModeUnsupportedCliError({ dialect: 'mssql', command: 'push' });
+	}
+
 	const { connectToMsSQL } = await import('../connections');
 	const { introspect } = await import('./pull-mssql');
 
@@ -79,56 +77,47 @@ export const handle = async (
 		});
 	}
 
-	const { sqlStatements, statements: jsonStatements, groupedStatements } = await ddlDiff(
+	let sqlStatements: string[] = [];
+	let jsonStatements: JsonStatement[] = [];
+	let groupedStatements: { jsonStatement: JsonStatement; sqlStatements: string[] }[] = [];
+
+	const diffResult = await ddlDiff(
 		ddl1,
 		ddl2,
 		resolver<Schema>('schema', 'dbo', 'push'),
 		resolver<MssqlEntities['tables']>('table', 'dbo', 'push'),
 		resolver<Column>('column', 'dbo', 'push'),
 		resolver<View>('view', 'dbo', 'push'),
-		resolver<UniqueConstraint>('unique', 'dbo', 'push'), // uniques
-		resolver<Index>('index', 'dbo', 'push'), // indexes
-		resolver<CheckConstraint>('check', 'dbo', 'push'), // checks
-		resolver<PrimaryKey>('primary key', 'dbo', 'push'), // pks
-		resolver<ForeignKey>('foreign key', 'dbo', 'push'), // fks
-		resolver<DefaultConstraint>('default', 'dbo', 'push'), // fks
+		resolver<UniqueConstraint>('unique', 'dbo', 'push'),
+		resolver<Index>('index', 'dbo', 'push'),
+		resolver<CheckConstraint>('check', 'dbo', 'push'),
+		resolver<PrimaryKey>('primary key', 'dbo', 'push'),
+		resolver<ForeignKey>('foreign key', 'dbo', 'push'),
+		resolver<DefaultConstraint>('default', 'dbo', 'push'),
 		'push',
 	);
 
+	sqlStatements = diffResult.sqlStatements;
+	jsonStatements = diffResult.statements;
+	groupedStatements = diffResult.groupedStatements;
+
 	if (sqlStatements.length === 0) {
-		if (isJsonMode()) {
-			printJsonOutput({ status: 'ok', dialect: 'mssql', message: 'No changes detected' });
-		} else {
-			render(`[${chalk.blue('i')}] No changes detected`);
-		}
+		render(`[${chalk.blue('i')}] No changes detected`);
 		return;
 	}
 
 	const hints = await suggestions(db, jsonStatements, ddl2);
 
 	if (explain) {
-		if (isJsonMode()) {
-			const explainOutput = explainJsonOutput('mssql', jsonStatements, hints);
-			printJsonOutput(explainOutput);
-		} else {
-			const explainMessage = explainView('mssql', groupedStatements, hints);
-			if (explainMessage) {
-				humanLog(explainMessage);
-			}
+		const explainMessage = explainView('mssql', groupedStatements, hints);
+		if (explainMessage) {
+			humanLog(explainMessage);
 		}
 		return;
 	}
 
 	if (!force && hints.length > 0) {
-		if (isJsonMode()) {
-			throw new CommandOutputCliError(
-				'push',
-				'Destructive changes detected. Interactive confirmation is required but cannot be performed in JSON mode. Use --force to apply anyway.',
-				{ dialect: 'mssql', hints: hints.map((h) => h.hint) },
-			);
-		}
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
-
 		if (data?.index === 0) {
 			render(`[${chalk.red('x')}] All changes were aborted`);
 			return;
@@ -144,12 +133,8 @@ export const handle = async (
 	}
 
 	if (sqlStatements.length > 0) {
-		if (isJsonMode()) {
-			printJsonOutput({ status: 'ok', dialect: 'mssql', message: 'Changes applied' });
-		} else {
-			render(`[${chalk.green('\u2713')}] Changes applied`);
-		}
-	} else if (!isJsonMode()) {
+		render(`[${chalk.green('\u2713')}] Changes applied`);
+	} else {
 		render(`[${chalk.blue('i')}] No changes detected`);
 	}
 };
@@ -177,7 +162,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const tableName = identifier({ schema: statement.table.schema, table: statement.table.name });
 			const res = await db.query(`select top(1) 1 from ${tableName};`);
 
-			if (res.length > 0) grouped.push({ hint: `· You're about to delete non-empty [${statement.table.name}] table` });
+			if (res.length > 0) grouped.push({ hint: `You're about to delete non-empty [${statement.table.name}] table` });
 			continue;
 		}
 
@@ -189,7 +174,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const res = await db.query(`SELECT TOP(1) 1 FROM ${key} WHERE [${column.name}] IS NOT NULL;`);
 			if (res.length === 0) continue;
 
-			grouped.push({ hint: `· You're about to delete non-empty [${column.name}] column in [${column.table}] table` });
+			grouped.push({ hint: `You're about to delete non-empty [${column.name}] column in [${column.table}] table` });
 			continue;
 		}
 
@@ -202,7 +187,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			if (count === 0) continue;
 
 			const tableGrammar = count === 1 ? 'table' : 'tables';
-			grouped.push({ hint: `· You're about to delete [${statement.name}] schema with ${count} ${tableGrammar}` });
+			grouped.push({ hint: `You're about to delete [${statement.name}] schema with ${count} ${tableGrammar}` });
 			continue;
 		}
 
@@ -222,7 +207,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			if (res.length === 0) continue;
 			grouped.push({
 				hint:
-					`· You're about to add not-null to [${statement.diff.$right.name}] column without default value to a non-empty ${key} table`,
+					`You're about to add not-null to [${statement.diff.$right.name}] column without default value to a non-empty ${key} table`,
 			});
 
 			continue;
@@ -243,7 +228,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			if (res.length === 0) continue;
 			grouped.push({
 				hint:
-					`· You're about to add not-null [${statement.column.name}] column without default value to a non-empty ${key} table`,
+					`You're about to add not-null [${statement.column.name}] column without default value to a non-empty ${key} table`,
 			});
 
 			continue;
@@ -259,7 +244,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 			if (res.length > 0) {
 				grouped.push({
-					hint: `· You're about to drop ${
+					hint: `You're about to drop ${
 						chalk.underline(id)
 					} primary key, this statements may fail and your table may loose primary key`,
 				});
@@ -276,7 +261,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			if (res.length === 0) continue;
 
 			grouped.push({
-				hint: `· You're about to add ${
+				hint: `You're about to add ${
 					chalk.underline(unique.name)
 				} unique constraint to a non-empty ${id} table which may fail`,
 			});
@@ -294,7 +279,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 			grouped.push({
 				hint:
-					`· You are trying to rename column from ${left.name} to ${right.name}, but it is not possible to rename a column if it is used in a check constraint on the table.
+					`You are trying to rename column from ${left.name} to ${right.name}, but it is not possible to rename a column if it is used in a check constraint on the table.
 To rename the column, first drop the check constraint, then rename the column, and finally recreate the check constraint`,
 			});
 
@@ -307,7 +292,7 @@ To rename the column, first drop the check constraint, then rename the column, a
 
 			grouped.push({
 				hint:
-					`· You are trying to rename schema ${left.name} to ${right.name}, but it is not supported to rename a schema in mssql.
+					`You are trying to rename schema ${left.name} to ${right.name}, but it is not supported to rename a schema in mssql.
 You should create new schema and transfer everything to it`,
 			});
 

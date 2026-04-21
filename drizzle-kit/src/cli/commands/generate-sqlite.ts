@@ -1,16 +1,22 @@
 import { ddlDiff, ddlDiffDry } from 'src/dialects/sqlite/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
+import type { JsonStatement } from 'src/dialects/sqlite/statements';
 import { prepareOutFolder } from 'src/utils/utils-node';
 import { type Column, createDDL, interimToDDL, type SqliteEntities } from '../../dialects/sqlite/ddl';
 import { prepareSqliteSnapshot } from '../../dialects/sqlite/serializer';
 import { CommandOutputCliError } from '../errors';
+import { JsonModeUnsupportedCliError } from '../errors';
 import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
-import { explain, explainJsonOutput, humanLog, printJsonOutput, sqliteSchemaError, warning } from '../views';
+import { explain, humanLog, printJsonOutput, sqliteSchemaError, warning } from '../views';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
+	if (isJsonMode()) {
+		throw new JsonModeUnsupportedCliError({ dialect: 'sqlite', command: 'generate' });
+	}
+
 	const { out: outFolder, casing, filenames } = config;
 	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSqliteSnapshot(
@@ -32,13 +38,23 @@ export const handle = async (config: GenerateConfig) => {
 		});
 		return;
 	}
-	const { sqlStatements, warnings, renames, groupedStatements, statements } = await ddlDiff(
+	let sqlStatements: string[] = [];
+	let warnings: string[] = [];
+	let renames: string[] = [];
+	let groupedStatements: { jsonStatement: JsonStatement; sqlStatements: string[] }[] = [];
+
+	const diffResult = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<SqliteEntities['tables']>('table'),
-		resolver<Column>('column'),
+		resolver<SqliteEntities['tables']>('table', 'public', 'generate'),
+		resolver<Column>('column', 'public', 'generate'),
 		'default',
 	);
+
+	sqlStatements = diffResult.sqlStatements;
+	warnings = diffResult.warnings;
+	renames = diffResult.renames;
+	groupedStatements = diffResult.groupedStatements;
 
 	if (!isJsonMode()) {
 		for (const w of warnings) {
@@ -46,30 +62,25 @@ export const handle = async (config: GenerateConfig) => {
 		}
 	}
 
-	if (config.explain) {
-		if (isJsonMode()) {
-			const explainOutput = explainJsonOutput('sqlite', statements, []);
-			printJsonOutput(explainOutput);
-		} else {
-			const explainMessage = explain('sqlite', groupedStatements, []);
-			if (explainMessage) {
-				humanLog(explainMessage);
-			}
-		}
+	if (!config.explain) {
+		writeResult({
+			snapshot: snapshot,
+			sqlStatements,
+			renames,
+			outFolder,
+			name: config.name,
+			breakpoints: config.breakpoints,
+			bundle: config.bundle,
+			driver: config.driver,
+			snapshots,
+		});
 		return;
 	}
 
-	writeResult({
-		snapshot: snapshot,
-		sqlStatements,
-		renames,
-		outFolder,
-		name: config.name,
-		breakpoints: config.breakpoints,
-		bundle: config.bundle,
-		driver: config.driver,
-		snapshots,
-	});
+	const explainMessage = explain('sqlite', groupedStatements, []);
+	if (explainMessage) {
+		humanLog(explainMessage);
+	}
 };
 
 export const handleExport = async (config: ExportConfig) => {
