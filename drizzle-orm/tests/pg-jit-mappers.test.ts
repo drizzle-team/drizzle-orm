@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { pgTable } from '~/pg-core';
+import { integer, pgTable } from '~/pg-core';
 import { drizzle, PgliteDatabase } from '~/pglite';
 import {
 	AnyRelationsBuilderConfig,
@@ -9,6 +9,7 @@ import {
 	RelationsBuilder,
 } from '~/relations';
 import { eq, sql } from '~/sql';
+import { getTableColumns } from '~/utils';
 
 function createDB<S extends Record<string, unknown>, TConfig extends AnyRelationsBuilderConfig>(
 	schema: S,
@@ -36,6 +37,14 @@ const posts = pgTable('posts', (t) => ({
 	content: t.text('content'),
 }));
 
+const internalStaff = pgTable('internal_staff_jqm1', {
+	userId: integer('user_id').notNull().primaryKey(),
+});
+
+const ticket = pgTable('ticket_jqm1', {
+	staffId: integer('staff_id').notNull(),
+});
+
 const db = createDB({ users, posts }, (r) => ({
 	users: {
 		post: r.one.posts({
@@ -59,24 +68,21 @@ const db = createDB({ users, posts }, (r) => ({
 	},
 }));
 
-test('Jit mappers: simple select - no rows', async () => {
+test('Jit mappers: simple select', async () => {
 	expect(db.select().from(users).prepare().mapper?.body).toStrictEqual(`function jitQueryMapper (rows) {
-	const mapped = [];
-	for (let i = 0; i < rows.length; ++i) {
-		const res = {};
-		const nullifyMap = {};
-		res["id"] = rows[i][0] === null ? rows[i][0] : this.columns[0].field.mapFromDriverValue(this.columns[0].codec(rows[i][0], 0));
-		res["name"] = rows[i][1];
-		res["createdAt"] = rows[i][2] === null ? rows[i][2] : this.columns[2].field.mapFromDriverValue(rows[i][2]);
-		res["isBanned"] = rows[i][3];
-		if(Object.keys(nullifyMap).length) {
-			for (const [objectName, tableName] of Object.entries(nullifyMap)) {
-				if (typeof tableName === 'string' && !this.joinsNotNullableMap[tableName]) {
-					res[objectName] = null;
-				}
-			}
-		}
-		mapped[i] = res;
+	const { columns } = this;
+	const { length } = rows;
+	const mapped = Array.from({ length });
+	const { field: field0, codec: codec0 } = columns[0];
+	const { field: field2 } = columns[2];
+	for (let i = 0; i < length; ++i) {
+		const [ c0, c1, c2, c3 ] = rows[i];
+		mapped[i] = {
+			"id": c0 === null ? c0 : field0.mapFromDriverValue(codec0(c0, 0)),
+			"name": c1,
+			"createdAt": c2 === null ? c2 : field2.mapFromDriverValue(c2),
+			"isBanned": c3,
+		};
 	}
 	return mapped;
 	//# sourceURL=drizzle:jit-query-mapper
@@ -86,19 +92,14 @@ test('Jit mappers: simple select - no rows', async () => {
 test('Jit mappers: select - nothing to decode - text', async () => {
 	expect(db.select({ name: users.name }).from(users).prepare().mapper?.body).toStrictEqual(
 		`function jitQueryMapper (rows) {
-	const mapped = [];
-	for (let i = 0; i < rows.length; ++i) {
-		const res = {};
-		const nullifyMap = {};
-		res["name"] = rows[i][0];
-		if(Object.keys(nullifyMap).length) {
-			for (const [objectName, tableName] of Object.entries(nullifyMap)) {
-				if (typeof tableName === 'string' && !this.joinsNotNullableMap[tableName]) {
-					res[objectName] = null;
-				}
-			}
-		}
-		mapped[i] = res;
+	const { columns } = this;
+	const { length } = rows;
+	const mapped = Array.from({ length });
+	for (let i = 0; i < length; ++i) {
+		const [ c0 ] = rows[i];
+		mapped[i] = {
+			"name": c0,
+		};
 	}
 	return mapped;
 	//# sourceURL=drizzle:jit-query-mapper
@@ -109,19 +110,14 @@ test('Jit mappers: select - nothing to decode - text', async () => {
 test('Jit mappers: select - nothing to decode - null', async () => {
 	expect(db.select({ isBanned: users.isBanned }).from(users).prepare().mapper?.body).toStrictEqual(
 		`function jitQueryMapper (rows) {
-	const mapped = [];
-	for (let i = 0; i < rows.length; ++i) {
-		const res = {};
-		const nullifyMap = {};
-		res["isBanned"] = rows[i][0];
-		if(Object.keys(nullifyMap).length) {
-			for (const [objectName, tableName] of Object.entries(nullifyMap)) {
-				if (typeof tableName === 'string' && !this.joinsNotNullableMap[tableName]) {
-					res[objectName] = null;
-				}
-			}
-		}
-		mapped[i] = res;
+	const { columns } = this;
+	const { length } = rows;
+	const mapped = Array.from({ length });
+	for (let i = 0; i < length; ++i) {
+		const [ c0 ] = rows[i];
+		mapped[i] = {
+			"isBanned": c0,
+		};
 	}
 	return mapped;
 	//# sourceURL=drizzle:jit-query-mapper
@@ -154,69 +150,73 @@ test('Jit mappers: insert returning all, select, update returning, delete return
 	const deleted = db.delete(users).returning().prepare().mapper?.body;
 
 	expect(inserted).toStrictEqual(`function jitQueryMapper (rows) {
-	const mapped = [];
-	for (let i = 0; i < rows.length; ++i) {
-		const res = {};
-		res["id"] = rows[i][0] === null ? rows[i][0] : this.columns[0].field.mapFromDriverValue(this.columns[0].codec(rows[i][0], 0));
-		res["name"] = rows[i][1];
-		res["createdAt"] = rows[i][2] === null ? rows[i][2] : this.columns[2].field.mapFromDriverValue(rows[i][2]);
-		res["isBanned"] = rows[i][3];
-		mapped[i] = res;
+	const { columns } = this;
+	const { length } = rows;
+	const mapped = Array.from({ length });
+	const { field: field0, codec: codec0 } = columns[0];
+	const { field: field2 } = columns[2];
+	for (let i = 0; i < length; ++i) {
+		const [ c0, c1, c2, c3 ] = rows[i];
+		mapped[i] = {
+			"id": c0 === null ? c0 : field0.mapFromDriverValue(codec0(c0, 0)),
+			"name": c1,
+			"createdAt": c2 === null ? c2 : field2.mapFromDriverValue(c2),
+			"isBanned": c3,
+		};
 	}
 	return mapped;
 	//# sourceURL=drizzle:jit-query-mapper
 }`);
 	expect(selected).toStrictEqual(`function jitQueryMapper (rows) {
-	const mapped = [];
-	for (let i = 0; i < rows.length; ++i) {
-		const res = {};
-		const nullifyMap = {};
-		res["id"] = rows[i][0] === null ? rows[i][0] : this.columns[0].field.mapFromDriverValue(this.columns[0].codec(rows[i][0], 0));
-		res["name"] = rows[i][1];
-		res["createdAt"] = rows[i][2] === null ? rows[i][2] : this.columns[2].field.mapFromDriverValue(rows[i][2]);
-		res["isBanned"] = rows[i][3];
-		if(Object.keys(nullifyMap).length) {
-			for (const [objectName, tableName] of Object.entries(nullifyMap)) {
-				if (typeof tableName === 'string' && !this.joinsNotNullableMap[tableName]) {
-					res[objectName] = null;
-				}
-			}
-		}
-		mapped[i] = res;
+	const { columns } = this;
+	const { length } = rows;
+	const mapped = Array.from({ length });
+	const { field: field0, codec: codec0 } = columns[0];
+	const { field: field2 } = columns[2];
+	for (let i = 0; i < length; ++i) {
+		const [ c0, c1, c2, c3 ] = rows[i];
+		mapped[i] = {
+			"id": c0 === null ? c0 : field0.mapFromDriverValue(codec0(c0, 0)),
+			"name": c1,
+			"createdAt": c2 === null ? c2 : field2.mapFromDriverValue(c2),
+			"isBanned": c3,
+		};
 	}
 	return mapped;
 	//# sourceURL=drizzle:jit-query-mapper
 }`);
 	expect(updated).toStrictEqual(`function jitQueryMapper (rows) {
-	const mapped = [];
-	for (let i = 0; i < rows.length; ++i) {
-		const res = {};
-		const nullifyMap = {};
-		res["id"] = rows[i][0] === null ? rows[i][0] : this.columns[0].field.mapFromDriverValue(this.columns[0].codec(rows[i][0], 0));
-		res["name"] = rows[i][1];
-		res["createdAt"] = rows[i][2] === null ? rows[i][2] : this.columns[2].field.mapFromDriverValue(rows[i][2]);
-		res["isBanned"] = rows[i][3];
-		if(Object.keys(nullifyMap).length) {
-			for (const [objectName, tableName] of Object.entries(nullifyMap)) {
-				if (typeof tableName === 'string' && !this.joinsNotNullableMap[tableName]) {
-					res[objectName] = null;
-				}
-			}
-		}
-		mapped[i] = res;
+	const { columns } = this;
+	const { length } = rows;
+	const mapped = Array.from({ length });
+	const { field: field0, codec: codec0 } = columns[0];
+	const { field: field2 } = columns[2];
+	for (let i = 0; i < length; ++i) {
+		const [ c0, c1, c2, c3 ] = rows[i];
+		mapped[i] = {
+			"id": c0 === null ? c0 : field0.mapFromDriverValue(codec0(c0, 0)),
+			"name": c1,
+			"createdAt": c2 === null ? c2 : field2.mapFromDriverValue(c2),
+			"isBanned": c3,
+		};
 	}
 	return mapped;
 	//# sourceURL=drizzle:jit-query-mapper
 }`);
 	expect(deleted).toStrictEqual(`function jitQueryMapper (rows) {
-	const mapped = [];
-	for (let i = 0; i < rows.length; ++i) {
-		const res = {};
-		res["id"] = rows[i][0] === null ? rows[i][0] : this.columns[0].field.mapFromDriverValue(this.columns[0].codec(rows[i][0], 0));
-		res["name"] = rows[i][1];
-		res["createdAt"] = rows[i][2] === null ? rows[i][2] : this.columns[2].field.mapFromDriverValue(rows[i][2]);
-		res["isBanned"] = rows[i][3];
-		mapped[i] = res;
+	const { columns } = this;
+	const { length } = rows;
+	const mapped = Array.from({ length });
+	const { field: field0, codec: codec0 } = columns[0];
+	const { field: field2 } = columns[2];
+	for (let i = 0; i < length; ++i) {
+		const [ c0, c1, c2, c3 ] = rows[i];
+		mapped[i] = {
+			"id": c0 === null ? c0 : field0.mapFromDriverValue(codec0(c0, 0)),
+			"name": c1,
+			"createdAt": c2 === null ? c2 : field2.mapFromDriverValue(c2),
+			"isBanned": c3,
+		};
 	}
 	return mapped;
 	//# sourceURL=drizzle:jit-query-mapper
@@ -254,152 +254,154 @@ test('Jit mappers: select complex selections', async () => {
 		posts,
 		eq(users.id, posts.authorId),
 	).prepare().mapper?.body;
+	const selected5 = db.select({
+		user: {
+			...getTableColumns(users),
+			extra: sql`1`.mapWith(Number).as('extra_1'),
+		},
+		post: {
+			...getTableColumns(posts),
+			extra: sql`1`.mapWith(Number).as('extra_1'),
+		},
+	}).from(users).leftJoin(
+		posts,
+		eq(users.id, posts.authorId),
+	).prepare().mapper?.body;
+	const subq = db
+		.select()
+		.from(internalStaff)
+		.leftJoin(users, eq(internalStaff.userId, users.id))
+		.as('internal_staff');
+	const selected6 = db
+		.select()
+		.from(ticket)
+		.leftJoin(subq, eq(subq.internal_staff_jqm1.userId, ticket.staffId))
+		.prepare().mapper?.body;
 
 	expect(selected1).toStrictEqual(`function jitQueryMapper (rows) {
-	const mapped = [];
-	for (let i = 0; i < rows.length; ++i) {
-		const res = {};
-		const nullifyMap = {};
-		res["user"] = {};
-		res["user"]["id"] = rows[i][0] === null ? rows[i][0] : this.columns[0].field.mapFromDriverValue(this.columns[0].codec(rows[i][0], 0));
-		if (!("user" in nullifyMap)) {
-			nullifyMap["user"] = res["user"]["id"] === null ? "users" : false;
-		} else if (typeof nullifyMap["user"] === 'string' && nullifyMap["user"] !== "users") {
-			nullifyMap["user"] = false;
-		}
-		res["user"]["name"] = rows[i][1];
-		if (!("user" in nullifyMap)) {
-			nullifyMap["user"] = res["user"]["name"] === null ? "users" : false;
-		} else if (typeof nullifyMap["user"] === 'string' && nullifyMap["user"] !== "users") {
-			nullifyMap["user"] = false;
-		}
-		res["user"]["createdAt"] = rows[i][2] === null ? rows[i][2] : this.columns[2].field.mapFromDriverValue(rows[i][2]);
-		if (!("user" in nullifyMap)) {
-			nullifyMap["user"] = res["user"]["createdAt"] === null ? "users" : false;
-		} else if (typeof nullifyMap["user"] === 'string' && nullifyMap["user"] !== "users") {
-			nullifyMap["user"] = false;
-		}
-		res["user"]["isBanned"] = rows[i][3];
-		if (!("user" in nullifyMap)) {
-			nullifyMap["user"] = res["user"]["isBanned"] === null ? "users" : false;
-		} else if (typeof nullifyMap["user"] === 'string' && nullifyMap["user"] !== "users") {
-			nullifyMap["user"] = false;
-		}
-		res["post"] = {};
-		res["post"]["id"] = rows[i][4];
-		if (!("post" in nullifyMap)) {
-			nullifyMap["post"] = res["post"]["id"] === null ? "posts" : false;
-		} else if (typeof nullifyMap["post"] === 'string' && nullifyMap["post"] !== "posts") {
-			nullifyMap["post"] = false;
-		}
-		res["post"]["authorId"] = rows[i][5] === null ? rows[i][5] : this.columns[5].field.mapFromDriverValue(this.columns[5].codec(rows[i][5], 0));
-		if (!("post" in nullifyMap)) {
-			nullifyMap["post"] = res["post"]["authorId"] === null ? "posts" : false;
-		} else if (typeof nullifyMap["post"] === 'string' && nullifyMap["post"] !== "posts") {
-			nullifyMap["post"] = false;
-		}
-		res["post"]["content"] = rows[i][6];
-		if (!("post" in nullifyMap)) {
-			nullifyMap["post"] = res["post"]["content"] === null ? "posts" : false;
-		} else if (typeof nullifyMap["post"] === 'string' && nullifyMap["post"] !== "posts") {
-			nullifyMap["post"] = false;
-		}
-		if(Object.keys(nullifyMap).length) {
-			for (const [objectName, tableName] of Object.entries(nullifyMap)) {
-				if (typeof tableName === 'string' && !this.joinsNotNullableMap[tableName]) {
-					res[objectName] = null;
-				}
-			}
-		}
-		mapped[i] = res;
+	const { columns } = this;
+	const { length } = rows;
+	const mapped = Array.from({ length });
+	const { field: field0, codec: codec0 } = columns[0];
+	const { field: field2 } = columns[2];
+	const { field: field5, codec: codec5 } = columns[5];
+	for (let i = 0; i < length; ++i) {
+		const [ c0, c1, c2, c3, c4, c5, c6 ] = rows[i];
+		mapped[i] = {
+			"user": {
+				"id": c0 === null ? c0 : field0.mapFromDriverValue(codec0(c0, 0)),
+				"name": c1,
+				"createdAt": c2 === null ? c2 : field2.mapFromDriverValue(c2),
+				"isBanned": c3,
+			},
+			"post": c4 === null && c5 === null && c6 === null ? null : {
+				"id": c4,
+				"authorId": c5 === null ? c5 : field5.mapFromDriverValue(codec5(c5, 0)),
+				"content": c6,
+			},
+		};
 	}
 	return mapped;
 	//# sourceURL=drizzle:jit-query-mapper
 }`);
 	expect(selected2).toStrictEqual(`function jitQueryMapper (rows) {
-	const mapped = [];
-	for (let i = 0; i < rows.length; ++i) {
-		const res = {};
-		const nullifyMap = {};
-		res["user"] = {};
-		res["user"]["id"] = rows[i][0] === null ? rows[i][0] : this.columns[0].field.mapFromDriverValue(this.columns[0].codec(rows[i][0], 0));
-		if (!("user" in nullifyMap)) {
-			nullifyMap["user"] = res["user"]["id"] === null ? "users" : false;
-		} else if (typeof nullifyMap["user"] === 'string' && nullifyMap["user"] !== "users") {
-			nullifyMap["user"] = false;
-		}
-		res["user"]["name"] = rows[i][1];
-		if (!("user" in nullifyMap)) {
-			nullifyMap["user"] = res["user"]["name"] === null ? "users" : false;
-		} else if (typeof nullifyMap["user"] === 'string' && nullifyMap["user"] !== "users") {
-			nullifyMap["user"] = false;
-		}
-		res["user"]["createdAt"] = rows[i][2] === null ? rows[i][2] : this.columns[2].field.mapFromDriverValue(rows[i][2]);
-		if (!("user" in nullifyMap)) {
-			nullifyMap["user"] = res["user"]["createdAt"] === null ? "users" : false;
-		} else if (typeof nullifyMap["user"] === 'string' && nullifyMap["user"] !== "users") {
-			nullifyMap["user"] = false;
-		}
-		res["user"]["isBanned"] = rows[i][3];
-		if (!("user" in nullifyMap)) {
-			nullifyMap["user"] = res["user"]["isBanned"] === null ? "users" : false;
-		} else if (typeof nullifyMap["user"] === 'string' && nullifyMap["user"] !== "users") {
-			nullifyMap["user"] = false;
-		}
-		res["post"] = {};
-		res["post"]["id"] = rows[i][4];
-		if (!("post" in nullifyMap)) {
-			nullifyMap["post"] = res["post"]["id"] === null ? "posts" : false;
-		} else if (typeof nullifyMap["post"] === 'string' && nullifyMap["post"] !== "posts") {
-			nullifyMap["post"] = false;
-		}
-		res["post"]["authorId"] = rows[i][5] === null ? rows[i][5] : this.columns[5].field.mapFromDriverValue(this.columns[5].codec(rows[i][5], 0));
-		if (!("post" in nullifyMap)) {
-			nullifyMap["post"] = res["post"]["authorId"] === null ? "posts" : false;
-		} else if (typeof nullifyMap["post"] === 'string' && nullifyMap["post"] !== "posts") {
-			nullifyMap["post"] = false;
-		}
-		res["post"]["content"] = rows[i][6];
-		if (!("post" in nullifyMap)) {
-			nullifyMap["post"] = res["post"]["content"] === null ? "posts" : false;
-		} else if (typeof nullifyMap["post"] === 'string' && nullifyMap["post"] !== "posts") {
-			nullifyMap["post"] = false;
-		}
-		if(Object.keys(nullifyMap).length) {
-			for (const [objectName, tableName] of Object.entries(nullifyMap)) {
-				if (typeof tableName === 'string' && !this.joinsNotNullableMap[tableName]) {
-					res[objectName] = null;
-				}
-			}
-		}
-		mapped[i] = res;
+	const { columns } = this;
+	const { length } = rows;
+	const mapped = Array.from({ length });
+	const { field: field0, codec: codec0 } = columns[0];
+	const { field: field2 } = columns[2];
+	const { field: field5, codec: codec5 } = columns[5];
+	for (let i = 0; i < length; ++i) {
+		const [ c0, c1, c2, c3, c4, c5, c6 ] = rows[i];
+		mapped[i] = {
+			"user": {
+				"id": c0 === null ? c0 : field0.mapFromDriverValue(codec0(c0, 0)),
+				"name": c1,
+				"createdAt": c2 === null ? c2 : field2.mapFromDriverValue(c2),
+				"isBanned": c3,
+			},
+			"post": {
+				"id": c4,
+				"authorId": c5 === null ? c5 : field5.mapFromDriverValue(codec5(c5, 0)),
+				"content": c6,
+			},
+		};
+	}
+	return mapped;
+	//# sourceURL=drizzle:jit-query-mapper
+}`);
+	expect(selected3).toStrictEqual(`function jitQueryMapper (rows) {
+	const { columns } = this;
+	const { length } = rows;
+	const mapped = Array.from({ length });
+	const { field: field0, codec: codec0 } = columns[0];
+	const { field: field5 } = columns[5];
+	for (let i = 0; i < length; ++i) {
+		const [ c0, c1, c2, c3, c4, c5 ] = rows[i];
+		mapped[i] = {
+			"userId": c0 === null ? c0 : field0.mapFromDriverValue(codec0(c0, 0)),
+			"postId": c1,
+			"name": c2,
+			"isBanned": c3,
+			"content": c4,
+			"createdAt": c5 === null ? c5 : field5.mapFromDriverValue(c5),
+		};
 	}
 	return mapped;
 	//# sourceURL=drizzle:jit-query-mapper
 }`);
 	expect(selected4).toStrictEqual(`function jitQueryMapper (rows) {
-	const mapped = [];
-	for (let i = 0; i < rows.length; ++i) {
-		const res = {};
-		const nullifyMap = {};
-		res["userId"] = rows[i][0] === null ? rows[i][0] : this.columns[0].field.mapFromDriverValue(this.columns[0].codec(rows[i][0], 0));
-		res["postId"] = rows[i][1];
-		res["name"] = rows[i][2];
-		res["isBanned"] = rows[i][3];
-		res["content"] = rows[i][4];
-		res["createdAt"] = rows[i][5] === null ? rows[i][5] : this.columns[5].field.mapFromDriverValue(rows[i][5]);
-		if(Object.keys(nullifyMap).length) {
-			for (const [objectName, tableName] of Object.entries(nullifyMap)) {
-				if (typeof tableName === 'string' && !this.joinsNotNullableMap[tableName]) {
-					res[objectName] = null;
-				}
-			}
-		}
-		mapped[i] = res;
+	const { columns } = this;
+	const { length } = rows;
+	const mapped = Array.from({ length });
+	const { field: field0, codec: codec0 } = columns[0];
+	const { field: field5 } = columns[5];
+	for (let i = 0; i < length; ++i) {
+		const [ c0, c1, c2, c3, c4, c5 ] = rows[i];
+		mapped[i] = {
+			"userId": c0 === null ? c0 : field0.mapFromDriverValue(codec0(c0, 0)),
+			"postId": c1,
+			"name": c2,
+			"isBanned": c3,
+			"content": c4,
+			"createdAt": c5 === null ? c5 : field5.mapFromDriverValue(c5),
+		};
 	}
 	return mapped;
 	//# sourceURL=drizzle:jit-query-mapper
 }`);
+	expect(selected5).toStrictEqual(`function jitQueryMapper (rows) {
+	const { columns } = this;
+	const { length } = rows;
+	const mapped = Array.from({ length });
+	const { field: field0, codec: codec0 } = columns[0];
+	const { field: field2 } = columns[2];
+	const { field: field4 } = columns[4];
+	const { field: field6, codec: codec6 } = columns[6];
+	const { field: field8 } = columns[8];
+	for (let i = 0; i < length; ++i) {
+		const [ c0, c1, c2, c3, c4, c5, c6, c7, c8 ] = rows[i];
+		mapped[i] = {
+			"user": {
+				"id": c0 === null ? c0 : field0.mapFromDriverValue(codec0(c0, 0)),
+				"name": c1,
+				"createdAt": c2 === null ? c2 : field2.mapFromDriverValue(c2),
+				"isBanned": c3,
+				"extra": c4 === null ? c4 : field4.sql.decoder.mapFromDriverValue(c4),
+			},
+			"post": c5 === null && c6 === null && c7 === null ? null : {
+				"id": c5,
+				"authorId": c6 === null ? c6 : field6.mapFromDriverValue(codec6(c6, 0)),
+				"content": c7,
+				"extra": c8 === null ? c8 : field8.sql.decoder.mapFromDriverValue(c8),
+			},
+		};
+	}
+	return mapped;
+	//# sourceURL=drizzle:jit-query-mapper
+}`);
+	// WIP
+	expect(selected6).toStrictEqual(``);
 });
 
 test('Jit mappers: relational', async () => {
