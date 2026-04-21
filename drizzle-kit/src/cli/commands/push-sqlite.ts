@@ -8,7 +8,7 @@ import { ddlDiff } from 'src/dialects/sqlite/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
 import type { JsonStatement } from 'src/dialects/sqlite/statements';
 import type { SQLiteClient } from '../../utils';
-import { CommandOutputCliError } from '../errors';
+import { JsonModeUnsupportedCliError } from '../errors';
 import { highlightSQL } from '../highlighter';
 import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
@@ -16,14 +16,7 @@ import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { SqliteCredentials } from '../validations/sqlite';
-import {
-	explain as explainView,
-	explainJsonOutput,
-	humanLog,
-	printJsonOutput,
-	ProgressView,
-	sqliteSchemaError,
-} from '../views';
+import { explain as explainView, humanLog, ProgressView, sqliteSchemaError } from '../views';
 
 export const handle = async (
 	db: SQLiteClient,
@@ -39,6 +32,10 @@ export const handle = async (
 		schema: string;
 	},
 ) => {
+	if (isJsonMode()) {
+		throw new JsonModeUnsupportedCliError({ dialect: 'sqlite', command: 'push' });
+	}
+
 	const { introspect: sqliteIntrospect } = await import('./pull-sqlite');
 
 	const res = await prepareFromSchemaFiles(filenames);
@@ -69,37 +66,21 @@ export const handle = async (
 	);
 
 	if (sqlStatements.length === 0) {
-		if (isJsonMode()) {
-			printJsonOutput({ status: 'ok', dialect: 'sqlite', message: 'No changes detected' });
-		} else {
-			render(`\n[${chalk.blue('i')}] No changes detected`);
-		}
+		render(`\n[${chalk.blue('i')}] No changes detected`);
 		return;
 	}
 
 	const hints = await suggestions(db, statements);
 
 	if (explain) {
-		if (isJsonMode()) {
-			const explainOutput = explainJsonOutput('sqlite', statements, hints);
-			printJsonOutput(explainOutput);
-		} else {
-			const explainMessage = explainView('sqlite', groupedStatements, hints);
-			if (explainMessage) {
-				humanLog(explainMessage);
-			}
+		const explainMessage = explainView('sqlite', groupedStatements, hints);
+		if (explainMessage) {
+			humanLog(explainMessage);
 		}
 		return;
 	}
 
 	if (!force && hints.length > 0) {
-		if (isJsonMode()) {
-			throw new CommandOutputCliError(
-				'push',
-				'Destructive changes detected. Interactive confirmation is required but cannot be performed in JSON mode. Use --force to apply anyway.',
-				{ dialect: 'sqlite', hints: hints.map((h) => h.hint) },
-			);
-		}
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
@@ -119,11 +100,7 @@ export const handle = async (
 	// | Changing the foreign_keys setting affects the execution of all statements prepared using the database connection, including those prepared before the setting was changed.
 	await db.batch(allStatements);
 
-	if (isJsonMode()) {
-		printJsonOutput({ status: 'ok', dialect: 'sqlite', message: 'Changes applied' });
-	} else {
-		render(`[${chalk.green('\u2713')}] Changes applied`);
-	}
+	render(`[${chalk.green('\u2713')}] Changes applied`);
 };
 
 export const suggestions = async (
@@ -138,7 +115,7 @@ export const suggestions = async (
 			const name = statement.tableName;
 			const res = await connection.query(`select 1 from "${name}" limit 1;`);
 
-			if (res.length > 0) grouped.push({ hint: `· You're about to delete non-empty '${name}' table` });
+			if (res.length > 0) grouped.push({ hint: `You're about to delete non-empty '${name}' table` });
 			continue;
 		}
 
@@ -147,7 +124,7 @@ export const suggestions = async (
 
 			const res = await connection.query(`select 1 from "${table}" limit 1;`);
 			if (res.length > 0) {
-				grouped.push({ hint: `· You're about to delete '${name}' column in a non-empty '${table}' table` });
+				grouped.push({ hint: `You're about to delete '${name}' column in a non-empty '${table}' table` });
 			}
 			continue;
 		}
@@ -158,7 +135,7 @@ export const suggestions = async (
 			if (res.length > 0) {
 				grouped.push(
 					{
-						hint: `· You're about to add not-null '${name}' column without default value to non-empty '${table}' table`,
+						hint: `You're about to add not-null '${name}' column without default value to non-empty '${table}' table`,
 						statement: `DELETE FROM "${table}" where true;`,
 					},
 				);
@@ -177,7 +154,7 @@ export const suggestions = async (
 			if (res.length > 0) {
 				grouped.push(
 					{
-						hint: `· You're about to drop ${
+						hint: `You're about to drop ${
 							droppedColumns.map((col) => `'${col.name}'`).join(', ')
 						} column(s) in a non-empty '${statement.from.name}' table`,
 					},

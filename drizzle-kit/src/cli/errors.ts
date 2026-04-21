@@ -1,7 +1,7 @@
 import { error, errText, info } from './views';
 
 type JsonPrimitive = string | number | boolean | null;
-type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
+export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 
 export type DrizzleCliErrorMeta = Record<string, JsonValue>;
 
@@ -193,5 +193,21 @@ export class CheckCliError extends DrizzleCliError {
 		meta?: DrizzleCliErrorMeta,
 	) {
 		super('check_error', humanMessage, { kind, ...meta });
+	}
+}
+
+export class InvalidHintsCliError extends DrizzleCliError {
+	constructor(humanMessage: string, meta?: DrizzleCliErrorMeta, options?: ErrorOptions) {
+		super('invalid_hints', humanMessage, meta, options);
+	}
+}
+
+export class JsonModeUnsupportedCliError extends DrizzleCliError {
+	constructor(override readonly meta: { dialect: string; command: 'push' | 'generate' }) {
+		super(
+			'json_mode_unsupported',
+			`--json mode is not yet supported for dialect "${meta.dialect}" in ${meta.command}`,
+			meta,
+		);
 	}
 }

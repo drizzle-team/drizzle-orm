@@ -193,8 +193,7 @@ export const explain = (
 		res.push(withStyle.warning(`There're potential data loss statements:\n`));
 
 		for (const h of hints) {
-			res.push(h.hint.startsWith('· ') ? h.hint : `· ${h.hint}`);
-			res.push('\n');
+			res.push(`· ${h.hint}\n`);
 			if (h.statement) res.push(highlightSQL(h.statement), '\n');
 		}
 	}
@@ -1800,6 +1799,13 @@ export class ProgressView extends TaskView {
 		}, 128);
 
 		this.on('detach', () => clearInterval(this.timeout));
+	}
+
+	stop() {
+		if (this.timeout) {
+			clearInterval(this.timeout);
+			this.timeout = undefined;
+		}
 	}
 
 	render(status: 'pending' | 'done' | 'rejected'): string {

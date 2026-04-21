@@ -18,6 +18,7 @@ import {
 	RequiredParamsCliError,
 	UnsupportedCommandCliError,
 } from '../errors';
+import { HintsHandler } from '../hints';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import { pullParams, pushParams } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
@@ -101,6 +102,7 @@ export type GenerateConfig = {
 	driver?: Driver;
 	ignoreConflicts?: boolean;
 	explain: boolean;
+	hints: HintsHandler;
 };
 
 export type ExportConfig = {
@@ -123,10 +125,13 @@ export const prepareGenerateConfig = async (
 		casing?: CasingType;
 		ignoreConflicts?: boolean;
 		explain?: boolean;
+		hints?: string;
+		hintsFile?: string;
 	},
 	from: 'config' | 'cli',
 ): Promise<GenerateConfig> => {
 	const config = from === 'config' ? await drizzleConfigFromFile(options.config) : options;
+	const hints = await HintsHandler.fromCli(options);
 
 	const { schema, out, breakpoints, dialect, driver, casing } = config;
 
@@ -160,6 +165,7 @@ export const prepareGenerateConfig = async (
 		driver,
 		ignoreConflicts: options.ignoreConflicts !== undefined && options.ignoreConflicts,
 		explain: options.explain ?? false,
+		hints,
 	};
 };
 
@@ -263,6 +269,7 @@ export const preparePushConfig = async (
 		verbose: boolean;
 		force: boolean;
 		explain: boolean;
+		hints: HintsHandler;
 		casing?: CasingType;
 		filters: EntitiesFilterConfig;
 		migrations: {
@@ -272,6 +279,10 @@ export const preparePushConfig = async (
 		filenames: string[];
 	}
 > => {
+	const hints = await HintsHandler.fromCli({
+		hints: options.hints as string | undefined,
+		hintsFile: options.hintsFile as string | undefined,
+	});
 	const raw = flattenDatabaseCredentials(
 		from === 'config'
 			? await drizzleConfigFromFile(options.config as string | undefined)
@@ -316,6 +327,7 @@ export const preparePushConfig = async (
 			return {
 				dialect: 'postgresql',
 				explain: (options.explain as boolean) ?? false,
+				hints,
 				verbose: config.verbose ?? false,
 				force: (options.force as boolean) ?? false,
 				credentials: parsed.data,
@@ -339,6 +351,7 @@ export const preparePushConfig = async (
 				casing: config.casing,
 				filters,
 				explain: (options.explain as boolean) ?? false,
+				hints,
 				migrations: config.migrations,
 				filenames: schemaFiles,
 			};
@@ -356,6 +369,7 @@ export const preparePushConfig = async (
 				credentials: parsed.data,
 				filters,
 				explain: (options.explain as boolean) ?? false,
+				hints,
 				migrations: config.migrations,
 				filenames: schemaFiles,
 			};
@@ -374,6 +388,7 @@ export const preparePushConfig = async (
 				casing: config.casing,
 				filters,
 				explain: (options.explain as boolean) ?? false,
+				hints,
 				migrations: config.migrations,
 				filenames: schemaFiles,
 			};
@@ -392,6 +407,7 @@ export const preparePushConfig = async (
 				casing: config.casing,
 				filters,
 				explain: (options.explain as boolean) ?? false,
+				hints,
 				migrations: config.migrations,
 				filenames: schemaFiles,
 			};
@@ -416,6 +432,7 @@ export const preparePushConfig = async (
 				casing: config.casing,
 				filters,
 				explain: (options.explain as boolean) ?? false,
+				hints,
 				migrations: config.migrations,
 				filenames: schemaFiles,
 			};
@@ -434,6 +451,7 @@ export const preparePushConfig = async (
 				casing: config.casing,
 				filters,
 				explain: (options.explain as boolean) ?? false,
+				hints,
 				migrations: config.migrations,
 				filenames: schemaFiles,
 			};
@@ -905,7 +923,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	if (dialect === 'turso') {
 		const parsed = libSQLCredentials.safeParse(flattened);
 		if (!parsed.success) {
-			printIssuesLibSQL(flattened as Record<string, unknown>, 'migrate');
+			return printIssuesLibSQL(flattened as Record<string, unknown>, 'migrate');
 		}
 		const credentials = parsed.data;
 		return {

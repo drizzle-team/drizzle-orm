@@ -8,21 +8,14 @@ import { ddlDiff } from '../../dialects/mysql/diff';
 import type { JsonStatement } from '../../dialects/mysql/statements';
 import type { DB } from '../../utils';
 import { connectToMySQL } from '../connections';
-import { CommandOutputCliError } from '../errors';
+import { JsonModeUnsupportedCliError } from '../errors';
 import { highlightSQL } from '../highlighter';
 import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
-import {
-	explain as explainView,
-	explainJsonOutput,
-	humanLog,
-	mysqlSchemaError,
-	printJsonOutput,
-	ProgressView,
-} from '../views';
+import { explain as explainView, humanLog, mysqlSchemaError, ProgressView } from '../views';
 import { introspect } from './pull-mysql';
 
 export const handle = async (
@@ -37,6 +30,10 @@ export const handle = async (
 		schema: string;
 	},
 ) => {
+	if (isJsonMode()) {
+		throw new JsonModeUnsupportedCliError({ dialect: 'mysql', command: 'push' });
+	}
+
 	const { prepareFromSchemaFiles, fromDrizzleSchema } = await import('../../dialects/mysql/drizzle');
 
 	const res = await prepareFromSchemaFiles(filenames);
@@ -63,7 +60,11 @@ export const handle = async (
 		process.exit(1);
 	}
 
-	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
+	let sqlStatements: string[] = [];
+	let statements: JsonStatement[] = [];
+	let groupedStatements: { jsonStatement: JsonStatement; sqlStatements: string[] }[] = [];
+
+	const diffResult = await ddlDiff(
 		ddl1,
 		ddl2,
 		resolver<Table>('table', 'public', 'push'),
@@ -72,37 +73,26 @@ export const handle = async (
 		'push',
 	);
 
-	const filteredStatements = statements;
-	if (filteredStatements.length === 0) {
-		if (isJsonMode()) {
-			printJsonOutput({ status: 'ok', dialect: 'mysql', message: 'No changes detected' });
-			return;
-		}
+	sqlStatements = diffResult.sqlStatements;
+	statements = diffResult.statements;
+	groupedStatements = diffResult.groupedStatements;
+
+	if (statements.length === 0) {
 		render(`[${chalk.blue('i')}] No changes detected`);
+		return;
 	}
 
-	const hints = await suggestions(db, filteredStatements, ddl2);
+	const hints = await suggestions(db, statements, ddl2);
+
 	if (explain) {
-		if (isJsonMode()) {
-			const explainOutput = explainJsonOutput('mysql', statements, hints);
-			printJsonOutput(explainOutput);
-		} else {
-			const explainMessage = explainView('mysql', groupedStatements, hints);
-			if (explainMessage) {
-				humanLog(explainMessage);
-			}
+		const explainMessage = explainView('mysql', groupedStatements, hints);
+		if (explainMessage) {
+			humanLog(explainMessage);
 		}
 		return;
 	}
 
 	if (!force && hints.length > 0) {
-		if (isJsonMode()) {
-			throw new CommandOutputCliError(
-				'push',
-				'Destructive changes detected. Interactive confirmation is required but cannot be performed in JSON mode. Use --force to apply anyway.',
-				{ dialect: 'mysql', hints: hints.map((h) => h.hint) },
-			);
-		}
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
@@ -114,20 +104,12 @@ export const handle = async (
 	const lossStatements = hints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
 
 	for (const statement of [...lossStatements, ...sqlStatements]) {
-		if (verbose && !isJsonMode()) humanLog(highlightSQL(statement));
+		if (verbose) humanLog(highlightSQL(statement));
 
 		await db.query(statement);
 	}
 
-	if (filteredStatements.length > 0) {
-		if (isJsonMode()) {
-			printJsonOutput({ status: 'ok', dialect: 'mysql', message: 'Changes applied' });
-		} else {
-			render(`[${chalk.green('\u2713')}] Changes applied`);
-		}
-	} else if (!isJsonMode()) {
-		render(`[${chalk.blue('i')}] No changes detected`);
-	}
+	render(`[${chalk.green('\u2713')}] Changes applied`);
 };
 
 const identifier = ({ table, column }: { table?: string; column?: string }) => {
@@ -147,7 +129,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const res = await db.query(`select 1 from ${identifier({ table: statement.table })} limit 1`);
 
 			if (res.length > 0) {
-				grouped.push({ hint: `· You're about to delete non-empty ${chalk.underline(statement.table)} table` });
+				grouped.push({ hint: `You're about to delete non-empty ${chalk.underline(statement.table)} table` });
 			}
 			continue;
 		}
@@ -158,7 +140,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			if (res.length === 0) continue;
 
 			grouped.push({
-				hint: `· You're about to delete non-empty ${chalk.underline(column.name)} column in ${
+				hint: `You're about to delete non-empty ${chalk.underline(column.name)} column in ${
 					chalk.underline(column.table)
 				} table`,
 			});
@@ -174,7 +156,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			);
 
 			if (res.length > 0) {
-				const hint = `· You're about to drop ${
+				const hint = `You're about to drop ${
 					chalk.underline(table)
 				} primary key, this statements may fail and your table may loose primary key`;
 
@@ -203,7 +185,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			if (indexesFound) continue;
 
 			grouped.push({
-				hint: `· You are trying to drop primary key from "${table}" ("${
+				hint: `You are trying to drop primary key from "${table}" ("${
 					columns.join('", ')
 				}"), but there is an existing reference on this column. You must either add a UNIQUE constraint to ("${
 					columns.join('", ')
@@ -221,7 +203,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const res = await db.query(`select 1 from ${id} limit 1`);
 
 			if (res.length === 0) continue;
-			const hint = `· You're about to add not-null ${
+			const hint = `You're about to add not-null ${
 				chalk.underline(statement.column.name)
 			} column without default value to a non-empty ${chalk.underline(statement.column.table)} table`;
 
@@ -241,7 +223,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 				const columnRes = await db.query(`select ${columnName} from ${tableName} WHERE ${columnName} IS NULL limit 1`);
 
 				if (columnRes.length > 0) {
-					const hint = `· You're about to add not-null to a non-empty ${
+					const hint = `You're about to add not-null to a non-empty ${
 						chalk.underline(columnName)
 					} column without default value in ${chalk.underline(statement.column.table)} table`;
 
@@ -250,7 +232,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			}
 
 			if (statement.diff.type) {
-				const hint = `· You're about to change ${
+				const hint = `You're about to change ${
 					chalk.underline(
 						columnName,
 					)
@@ -276,7 +258,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			if (res.length === 0) continue;
 
 			grouped.push({
-				hint: `· You're about to add ${chalk.underline(unique.name)} unique index to a non-empty ${
+				hint: `You're about to add ${chalk.underline(unique.name)} unique index to a non-empty ${
 					chalk.underline(unique.table)
 				} table which may fail`,
 			});
@@ -306,7 +288,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 			let composite = columnsTo.length > 1 ? 'composite ' : '';
 			grouped.push({
-				hint: `· You are trying to add reference from "${table}" ("${columns.join('", ')}") to "${tableTo}" ("${
+				hint: `You are trying to add reference from "${table}" ("${columns.join('", ')}") to "${tableTo}" ("${
 					columnsTo.join(
 						'", ',
 					)
