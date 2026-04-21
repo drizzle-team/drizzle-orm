@@ -19,6 +19,7 @@ import type {
 import { createDDL, interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { prepareSnapshot } from '../../dialects/postgres/serializer';
+import type { JsonStatement } from '../../dialects/postgres/statements';
 import { CommandOutputCliError } from '../errors';
 import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
@@ -62,48 +63,63 @@ export const handle = async (
 		return;
 	}
 
-	const { sqlStatements, renames, groupedStatements, statements: jsonStatements } = await ddlDiff(
+	let sqlStatements: string[] = [];
+	let renames: string[] = [];
+	let groupedStatements: { jsonStatement: JsonStatement; sqlStatements: string[] }[] = [];
+	let jsonStatements: JsonStatement[] = [];
+
+	const diffResult = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<Schema>('schema'),
-		resolver<Enum>('enum'),
-		resolver<Sequence>('sequence'),
-		resolver<Policy>('policy'),
-		resolver<Role>('role'),
-		resolver<Privilege>('privilege'),
-		resolver<PostgresEntities['tables']>('table'),
-		resolver<Column>('column'),
-		resolver<View>('view'),
-		resolver<UniqueConstraint>('unique'),
-		resolver<Index>('index'),
-		resolver<CheckConstraint>('check'),
-		resolver<PrimaryKey>('primary key'),
-		resolver<ForeignKey>('foreign key'),
+		resolver<Schema>('schema', 'public', 'generate', config.hints),
+		resolver<Enum>('enum', 'public', 'generate', config.hints),
+		resolver<Sequence>('sequence', 'public', 'generate', config.hints),
+		resolver<Policy>('policy', 'public', 'generate', config.hints),
+		resolver<Role>('role', 'public', 'generate', config.hints),
+		resolver<Privilege>('privilege', 'public', 'generate', config.hints),
+		resolver<PostgresEntities['tables']>('table', 'public', 'generate', config.hints),
+		resolver<Column>('column', 'public', 'generate', config.hints),
+		resolver<View>('view', 'public', 'generate', config.hints),
+		resolver<UniqueConstraint>('unique', 'public', 'generate', config.hints),
+		resolver<Index>('index', 'public', 'generate', config.hints),
+		resolver<CheckConstraint>('check', 'public', 'generate', config.hints),
+		resolver<PrimaryKey>('primary key', 'public', 'generate', config.hints),
+		resolver<ForeignKey>('foreign key', 'public', 'generate', config.hints),
 		'default',
 	);
 
-	if (config.explain) {
-		if (isJsonMode()) {
-			const explainOutput = explainJsonOutput('postgres', jsonStatements, []);
-			printJsonOutput(explainOutput);
-		} else {
-			const explainMessage = explain('postgres', groupedStatements, []);
-			if (explainMessage) {
-				humanLog(explainMessage);
-			}
-		}
+	sqlStatements = diffResult.sqlStatements;
+	renames = diffResult.renames;
+	groupedStatements = diffResult.groupedStatements;
+	jsonStatements = diffResult.statements;
+
+	if (isJsonMode() && config.hints.hasUnresolved()) {
+		config.hints.emitAndExit();
+	}
+
+	if (!config.explain) {
+		writeResult({
+			snapshot: snapshot,
+			sqlStatements,
+			outFolder,
+			name: config.name,
+			breakpoints: config.breakpoints,
+			renames,
+			snapshots,
+		});
 		return;
 	}
 
-	writeResult({
-		snapshot: snapshot,
-		sqlStatements,
-		outFolder,
-		name: config.name,
-		breakpoints: config.breakpoints,
-		renames,
-		snapshots,
-	});
+	if (isJsonMode()) {
+		const explainOutput = explainJsonOutput('postgres', jsonStatements, []);
+		printJsonOutput(explainOutput);
+		return;
+	}
+
+	const explainMessage = explain('postgres', groupedStatements, []);
+	if (explainMessage) {
+		humanLog(explainMessage);
+	}
 };
 
 export const handleExport = async (config: ExportConfig) => {

@@ -1,6 +1,7 @@
 import { test as brotest } from '@drizzle-team/brocli';
 import { join } from 'node:path';
 import { afterEach, assert, expect, test } from 'vitest';
+import { HintsHandler } from '../../src/cli/hints';
 import { generate } from '../../src/cli/schema';
 
 const originalPrefix = process.env.TEST_CONFIG_PATH_PREFIX;
@@ -55,6 +56,7 @@ test('generate #1', async (t) => {
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -77,6 +79,7 @@ test('generate #2', async (t) => {
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -96,6 +99,7 @@ test('generate #3', async (t) => {
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -116,6 +120,7 @@ test('generate #4', async (t) => {
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -135,6 +140,7 @@ test('generate #5', async (t) => {
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -154,6 +160,7 @@ test('generate #6', async (t) => {
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -173,6 +180,7 @@ test('generate #7', async (t) => {
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -193,6 +201,7 @@ test('generate #8', async (t) => {
 		driver: 'expo',
 		ignoreConflicts: false,
 		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -212,6 +221,7 @@ test('generate #9', async (t) => {
 		driver: 'durable-sqlite',
 		ignoreConflicts: false,
 		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -235,6 +245,7 @@ test('generate #9', async (t) => {
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -258,6 +269,7 @@ test('generate #10 tsconfig paths', async () => {
 			driver: undefined,
 			filenames: [filename],
 			explain: false,
+			hints: expect.any(HintsHandler),
 		});
 	} finally {
 		if (originalPrefix === undefined) {
@@ -286,6 +298,7 @@ test('generate --explain', async (t) => {
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: true,
+		hints: expect.any(HintsHandler),
 	});
 });
 

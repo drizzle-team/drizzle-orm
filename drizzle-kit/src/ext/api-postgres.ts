@@ -181,7 +181,8 @@ export const pushSchema = async (
 		'push',
 	);
 
-	const hints = await suggestions(db, statements);
+	const { HintsHandler } = await import('../cli/hints');
+	const hints = await suggestions(db, statements, new HintsHandler());
 
 	return {
 		sqlStatements,

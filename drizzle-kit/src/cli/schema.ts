@@ -61,6 +61,8 @@ const optionCasing = string()
 const optionIgnoreConflicts = boolean('ignore-conflicts').desc(
 	'Skip commutativity conflict checks',
 );
+const optionHints = string().desc('Inline JSON array of hints for --json mode');
+const optionHintsFile = string('hints-file').desc('Path to a JSON file containing a hints array');
 
 export const generate = command({
 	name: 'generate',
@@ -80,12 +82,14 @@ export const generate = command({
 		explain: boolean()
 			.desc('Print the planned SQL changes (dry run)')
 			.default(false),
+		hints: optionHints,
+		hintsFile: optionHintsFile,
 	},
 	transform: async (opts) => {
 		const from = assertCollisions(
 			'generate',
 			opts,
-			['name', 'custom', 'ignoreConflicts', 'explain'],
+			['name', 'custom', 'ignoreConflicts', 'explain', 'hints', 'hintsFile'],
 			['driver', 'breakpoints', 'schema', 'out', 'dialect', 'casing'],
 		);
 		return prepareGenerateConfig(opts, from);
@@ -313,12 +317,14 @@ export const push = command({
 		explain: boolean()
 			.desc('Print the planned SQL changes (dry run)')
 			.default(false),
+		hints: optionHints,
+		hintsFile: optionHintsFile,
 	},
 	transform: async (opts) => {
 		const from = assertCollisions(
 			'push',
 			opts,
-			['force', 'verbose', 'strict', 'explain'],
+			['force', 'verbose', 'strict', 'explain', 'hints', 'hintsFile'],
 			[
 				'schema',
 				'dialect',
@@ -363,6 +369,7 @@ export const push = command({
 			explain,
 			migrations,
 			filenames,
+			hints,
 		} = config;
 
 		if (dialect === 'mysql') {
@@ -406,6 +413,7 @@ export const push = command({
 				casing,
 				explain,
 				migrations,
+				hints,
 			);
 		} else if (dialect === 'sqlite' || dialect === 'turso') {
 			const { connectToSQLite, connectToLibSQL } = await import('./connections');

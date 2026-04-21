@@ -1,18 +1,23 @@
 import type { Column, Table, View } from 'src/dialects/mysql/ddl';
 import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
+import type { JsonStatement } from 'src/dialects/mysql/statements';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/singlestore/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/singlestore/drizzle';
 import { prepareSnapshot } from 'src/dialects/singlestore/serializer';
 import { prepareOutFolder } from 'src/utils/utils-node';
+import { JsonModeUnsupportedCliError } from '../errors';
 import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
-import { explain, explainJsonOutput, humanLog, printJsonOutput } from '../views';
+import { explain, humanLog, printJsonOutput } from '../views';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
-	const { out: outFolder, casing, filenames } = config;
+	if (isJsonMode()) {
+		throw new JsonModeUnsupportedCliError({ dialect: 'singlestore', command: 'generate' });
+	}
 
+	const { out: outFolder, casing, filenames } = config;
 	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, filenames, casing);
 
@@ -30,37 +35,40 @@ export const handle = async (config: GenerateConfig) => {
 		return;
 	}
 
-	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
+	let sqlStatements: string[] = [];
+	let renames: string[] = [];
+	let groupedStatements: { jsonStatement: JsonStatement; sqlStatements: string[] }[] = [];
+
+	const diffResult = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<Table>('table'),
-		resolver<Column>('column'),
-		resolver<View>('view'),
+		resolver<Table>('table', 'public', 'generate'),
+		resolver<Column>('column', 'public', 'generate'),
+		resolver<View>('view', 'public', 'generate'),
 		'default',
 	);
 
-	if (config.explain) {
-		if (isJsonMode()) {
-			const explainOutput = explainJsonOutput('singlestore', statements, []);
-			printJsonOutput(explainOutput);
-		} else {
-			const explainMessage = explain('singlestore', groupedStatements, []);
-			if (explainMessage) {
-				humanLog(explainMessage);
-			}
-		}
+	sqlStatements = diffResult.sqlStatements;
+	renames = diffResult.renames;
+	groupedStatements = diffResult.groupedStatements;
+
+	if (!config.explain) {
+		writeResult({
+			snapshot,
+			sqlStatements,
+			outFolder,
+			name: config.name,
+			breakpoints: config.breakpoints,
+			renames,
+			snapshots,
+		});
 		return;
 	}
 
-	writeResult({
-		snapshot,
-		sqlStatements,
-		outFolder,
-		name: config.name,
-		breakpoints: config.breakpoints,
-		renames,
-		snapshots,
-	});
+	const explainMessage = explain('singlestore', groupedStatements, []);
+	if (explainMessage) {
+		humanLog(explainMessage);
+	}
 };
 
 export const handleExport = async (config: ExportConfig) => {

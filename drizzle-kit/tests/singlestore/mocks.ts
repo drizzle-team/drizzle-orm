@@ -154,10 +154,11 @@ export const diffPush = async (config: {
 		'push',
 	);
 
-	const explainMessage = explain('singlestore', groupedStatements, false, []);
+	const hints = await suggestions(db, statements, ddl2);
+	const explainMessage = explain('singlestore', groupedStatements, []);
 	if (explainMessage) console.log(explainMessage);
 
-	return { sqlStatements, statements, hints: [] };
+	return { sqlStatements, statements, hints };
 };
 
 async function createDockerDB(): Promise<{ url: string; container: Container }> {

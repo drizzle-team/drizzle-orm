@@ -23,8 +23,8 @@ import { ddlDiff } from '../../dialects/postgres/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import type { JsonStatement } from '../../dialects/postgres/statements';
 import type { DB } from '../../utils';
-import { CommandOutputCliError } from '../errors';
 import { highlightSQL } from '../highlighter';
+import type { HintsHandler } from '../hints';
 import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
@@ -53,6 +53,7 @@ export const handle = async (
 		table: string;
 		schema: string;
 	},
+	hints: HintsHandler,
 ) => {
 	const { preparePostgresDB } = await import('../connections');
 	const { introspect } = await import('./pull-postgres');
@@ -97,22 +98,26 @@ export const handle = async (
 	const { sqlStatements, statements: jsonStatements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
-		resolver<Schema>('schema', 'public', 'push'),
-		resolver<Enum>('enum', 'public', 'push'),
-		resolver<Sequence>('sequence', 'public', 'push'),
-		resolver<Policy>('policy', 'public', 'push'),
-		resolver<Role>('role', 'public', 'push'),
-		resolver<Privilege>('privilege', 'public', 'push'),
-		resolver<PostgresEntities['tables']>('table', 'public', 'push'),
-		resolver<Column>('column', 'public', 'push'),
-		resolver<View>('view', 'public', 'push'),
-		resolver<UniqueConstraint>('unique', 'public', 'push'),
-		resolver<Index>('index', 'public', 'push'),
-		resolver<CheckConstraint>('check', 'public', 'push'),
-		resolver<PrimaryKey>('primary key', 'public', 'push'),
-		resolver<ForeignKey>('foreign key', 'public', 'push'),
+		resolver<Schema>('schema', 'public', 'push', hints),
+		resolver<Enum>('enum', 'public', 'push', hints),
+		resolver<Sequence>('sequence', 'public', 'push', hints),
+		resolver<Policy>('policy', 'public', 'push', hints),
+		resolver<Role>('role', 'public', 'push', hints),
+		resolver<Privilege>('privilege', 'public', 'push', hints),
+		resolver<PostgresEntities['tables']>('table', 'public', 'push', hints),
+		resolver<Column>('column', 'public', 'push', hints),
+		resolver<View>('view', 'public', 'push', hints),
+		resolver<UniqueConstraint>('unique', 'public', 'push', hints),
+		resolver<Index>('index', 'public', 'push', hints),
+		resolver<CheckConstraint>('check', 'public', 'push', hints),
+		resolver<PrimaryKey>('primary key', 'public', 'push', hints),
+		resolver<ForeignKey>('foreign key', 'public', 'push', hints),
 		'push',
 	);
+
+	if (hints.hasUnresolved()) {
+		hints.emitAndExit();
+	}
 
 	if (sqlStatements.length === 0) {
 		if (isJsonMode()) {
@@ -123,13 +128,18 @@ export const handle = async (
 		return;
 	}
 
-	const hints = await suggestions(db, jsonStatements);
+	const dataLossHints = await suggestions(db, jsonStatements, hints);
+
+	if (hints.hasUnresolved()) {
+		hints.emitAndExit();
+	}
+
 	if (explain) {
 		if (isJsonMode()) {
-			const explainOutput = explainJsonOutput('postgres', jsonStatements, hints);
+			const explainOutput = explainJsonOutput('postgres', jsonStatements, dataLossHints);
 			printJsonOutput(explainOutput);
 		} else {
-			const explainMessage = explainView('postgres', groupedStatements, hints);
+			const explainMessage = explainView('postgres', groupedStatements, dataLossHints);
 			if (explainMessage) {
 				humanLog(explainMessage);
 			}
@@ -137,13 +147,10 @@ export const handle = async (
 		return;
 	}
 
-	if (!force && hints.length > 0) {
+	if (!force && dataLossHints.length > 0) {
 		if (isJsonMode()) {
-			throw new CommandOutputCliError(
-				'push',
-				'Destructive changes detected. Interactive confirmation is required but cannot be performed in JSON mode. Use --force to apply anyway.',
-				{ dialect: 'postgres', hints: hints.map((h) => h.hint) },
-			);
+			printJsonOutput({ status: 'aborted', dialect: 'postgres' });
+			process.exit(0);
 		}
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
@@ -153,7 +160,7 @@ export const handle = async (
 		}
 	}
 
-	const lossStatements = hints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
+	const lossStatements = dataLossHints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
 
 	for (const statement of [...lossStatements, ...sqlStatements]) {
 		if (verbose && !isJsonMode()) humanLog(highlightSQL(statement));
@@ -174,7 +181,7 @@ const identifier = (it: { schema?: string; name: string }) => {
 	return `${schemakey}"${name}"`;
 };
 
-export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
+export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints: HintsHandler) => {
 	const grouped: { hint: string; statement?: string }[] = [];
 
 	const filtered = jsonStatements.filter((it) => {
@@ -205,34 +212,54 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 
 	for (const statement of filtered) {
 		if (statement.type === 'drop_table') {
+			const entity: [string, string] = [statement.table.schema, statement.table.name];
+			if (hints.matchConfirm('table', entity)) continue;
 			const res = await db.query(`select 1 from ${statement.key} limit 1`);
 
 			if (res.length > 0) {
-				grouped.push({ hint: `· You're about to delete non-empty ${statement.key} table` });
+				if (isJsonMode()) {
+					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'table', entity, reason: 'non_empty' });
+				} else {
+					grouped.push({ hint: `· You're about to delete non-empty ${statement.key} table` });
+				}
 			}
 			continue;
 		}
 
 		if (statement.type === 'drop_view' && statement.view.materialized) {
 			const id = identifier(statement.view);
+			const entity: [string, string] = [statement.view.schema, statement.view.name];
+			if (hints.matchConfirm('view', entity)) continue;
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
 
-			grouped.push({ hint: `· You're about to delete non-empty ${id} materialized view` });
+			if (isJsonMode()) {
+				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'view', entity, reason: 'non_empty' });
+			} else {
+				grouped.push({ hint: `· You're about to delete non-empty ${id} materialized view` });
+			}
 			continue;
 		}
 
 		if (statement.type === 'drop_column') {
 			const column = statement.column;
 			const id = identifier({ schema: column.schema, name: column.table });
+			const entity: [string, string, string] = [column.schema, column.table, column.name];
+			if (hints.matchConfirm('column', entity)) continue;
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
 
-			grouped.push({ hint: `· You're about to delete non-empty ${column.name} column in ${id} table` });
+			if (isJsonMode()) {
+				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'column', entity, reason: 'non_empty' });
+			} else {
+				grouped.push({ hint: `· You're about to delete non-empty ${column.name} column in ${id} table` });
+			}
 			continue;
 		}
 
 		if (statement.type === 'drop_schema') {
+			const entity: [string] = [statement.name];
+			if (hints.matchConfirm('schema', entity)) continue;
 			// count tables in schema
 			const res = await db.query(
 				`select count(*) as count from information_schema.tables where table_schema = '${statement.name}';`,
@@ -240,7 +267,13 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 			const count = Number(res[0].count);
 			if (count === 0) continue;
 
-			grouped.push({ hint: `· You're about to delete ${chalk.underline(statement.name)} schema with ${count} tables` });
+			if (isJsonMode()) {
+				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'schema', entity, reason: 'non_empty' });
+			} else {
+				grouped.push({
+					hint: `· You're about to delete ${chalk.underline(statement.name)} schema with ${count} tables`,
+				});
+			}
 			continue;
 		}
 
@@ -249,6 +282,8 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 			const schema = statement.pk.schema ?? 'public';
 			const table = statement.pk.table;
 			const id = `"${schema}"."${table}"`;
+			const entity: [string, string, string] = [schema, table, statement.pk.name];
+			if (hints.matchConfirm('primary_key', entity)) continue;
 			const res = await db.query(
 				`select 1 from ${id} limit 1`,
 			);
@@ -258,6 +293,11 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 			const hint = `· You're about to drop ${
 				chalk.underline(id)
 			} primary key, this statements may fail and your table may loose primary key`;
+
+			if (isJsonMode()) {
+				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'primary_key', entity, reason: 'non_empty' });
+				continue;
+			}
 
 			if (statement.pk.nameExplicit) {
 				grouped.push({ hint });
@@ -283,6 +323,8 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 		) {
 			const column = statement.column;
 			const id = identifier({ schema: column.schema, name: column.table });
+			const entity: [string, string, string] = [column.schema, column.table, column.name];
+			if (hints.matchConfirm('add_not_null', entity)) continue;
 			const res = await db.query(`select 1 from ${id} limit 1`);
 
 			if (res.length === 0) continue;
@@ -290,7 +332,11 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 				chalk.underline(statement.column.name)
 			} column without default value to a non-empty ${id} table`;
 
-			grouped.push({ hint });
+			if (isJsonMode()) {
+				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'add_not_null', entity, reason: 'nulls_present' });
+			} else {
+				grouped.push({ hint });
+			}
 			// statementsToExecute.push(`truncate table ${id} cascade;`);
 			continue;
 		}
@@ -298,15 +344,23 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 		if (statement.type === 'add_unique') {
 			const unique = statement.unique;
 			const id = identifier({ schema: unique.schema, name: unique.table });
+			const uniqueColumn = unique.columns[0];
+			if (!uniqueColumn) continue;
+			const entity: [string, string, string] = [unique.schema, unique.table, uniqueColumn];
+			if (hints.matchConfirm('add_unique', entity)) continue;
 
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
 
-			grouped.push({
-				hint: `· You're about to add ${
-					chalk.underline(unique.name)
-				} unique constraint to a non-empty ${id} table which may fail`,
-			});
+			if (isJsonMode()) {
+				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'add_unique', entity, reason: 'duplicates_present' });
+			} else {
+				grouped.push({
+					hint: `· You're about to add ${
+						chalk.underline(unique.name)
+					} unique constraint to a non-empty ${id} table which may fail`,
+				});
+			}
 			// const { status, data } = await render(
 			// 	new Select(['No, add the constraint without truncating the table', `Yes, truncate the table`]),
 			// );

@@ -5,6 +5,7 @@ import { prepareOutFolder } from 'src/utils/utils-node';
 import { type Column, createDDL, interimToDDL, type MysqlDDL, type Table, type View } from '../../dialects/mysql/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/mysql/diff';
 import { CommandOutputCliError } from '../errors';
+import { JsonModeUnsupportedCliError } from '../errors';
 import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
 import { withStyle } from '../validations/outputs';
@@ -47,7 +48,7 @@ export const suggestions = (
 
 			let composite = columnsTo.length > 1 ? 'composite ' : '';
 			grouped.errors.push(
-				`· You are trying to add reference from "${table}" ("${columns.join('", ')}") to "${tableTo}" ("${
+				`You are trying to add reference from "${table}" ("${columns.join('", ')}") to "${tableTo}" ("${
 					columnsTo.join(
 						'", ',
 					)
@@ -82,7 +83,7 @@ export const suggestions = (
 			if (indexesFound) continue;
 
 			grouped.errors.push(
-				`· You are trying to drop primary key from "${table}" ("${
+				`You are trying to drop primary key from "${table}" ("${
 					columns.join(
 						'", ',
 					)
@@ -104,6 +105,10 @@ export const handle = async (
 	config: GenerateConfig,
 	checkResult?: CheckHandlerResult,
 ) => {
+	if (isJsonMode()) {
+		throw new JsonModeUnsupportedCliError({ dialect: 'mysql', command: 'generate' });
+	}
+
 	const { out: outFolder, casing, filenames } = config;
 
 	const { snapshots } = prepareOutFolder(outFolder);
@@ -128,14 +133,24 @@ export const handle = async (
 		return;
 	}
 
-	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
+	let sqlStatements: string[] = [];
+	let renames: string[] = [];
+	let groupedStatements: { jsonStatement: JsonStatement; sqlStatements: string[] }[] = [];
+	let statements: JsonStatement[] = [];
+
+	const diffResult = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<Table>('table'),
-		resolver<Column>('column'),
-		resolver<View>('view'),
+		resolver<Table>('table', 'public', 'generate'),
+		resolver<Column>('column', 'public', 'generate'),
+		resolver<View>('view', 'public', 'generate'),
 		'default',
 	);
+
+	sqlStatements = diffResult.sqlStatements;
+	renames = diffResult.renames;
+	groupedStatements = diffResult.groupedStatements;
+	statements = diffResult.statements;
 
 	const { errors } = suggestions(statements, ddlCur);
 	if (errors.length) {

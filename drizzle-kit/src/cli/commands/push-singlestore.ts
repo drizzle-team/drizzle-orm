@@ -4,7 +4,7 @@ import type { Column, Table, View } from 'src/dialects/mysql/ddl';
 import { interimToDDL } from 'src/dialects/mysql/ddl';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { ddlDiff } from '../../dialects/singlestore/diff';
-import { CommandOutputCliError } from '../errors';
+import { JsonModeUnsupportedCliError } from '../errors';
 import { highlightSQL } from '../highlighter';
 import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
@@ -12,7 +12,7 @@ import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
-import { explain as explainView, explainJsonOutput, humanLog, printJsonOutput, ProgressView } from '../views';
+import { explain as explainView, humanLog, ProgressView } from '../views';
 import { suggestions } from './push-mysql';
 
 export const handle = async (
@@ -28,6 +28,10 @@ export const handle = async (
 		schema: string;
 	},
 ) => {
+	if (isJsonMode()) {
+		throw new JsonModeUnsupportedCliError({ dialect: 'singlestore', command: 'push' });
+	}
+
 	const { connectToSingleStore } = await import('../connections');
 	const { fromDatabaseForDrizzle } = await import('../../dialects/mysql/introspect');
 
@@ -56,7 +60,11 @@ export const handle = async (
 	const { ddl: ddl2 } = interimToDDL(interimFromFiles);
 	// TODO: handle errors
 
-	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
+	let sqlStatements: string[] = [];
+	let statements = [] as Awaited<ReturnType<typeof ddlDiff>>['statements'];
+	let groupedStatements = [] as Awaited<ReturnType<typeof ddlDiff>>['groupedStatements'];
+
+	const diffResult = await ddlDiff(
 		ddl1,
 		ddl2,
 		resolver<Table>('table', 'public', 'push'),
@@ -65,39 +73,27 @@ export const handle = async (
 		'push',
 	);
 
-	const filteredStatements = statements;
-	if (filteredStatements.length === 0) {
-		if (isJsonMode()) {
-			printJsonOutput({ status: 'ok', dialect: 'singlestore', message: 'No changes detected' });
-			return;
-		}
+	sqlStatements = diffResult.sqlStatements;
+	statements = diffResult.statements;
+	groupedStatements = diffResult.groupedStatements;
+
+	if (statements.length === 0) {
 		render(`[${chalk.blue('i')}] No changes detected`);
+		return;
 	}
 
-	const hints = await suggestions(db, filteredStatements, ddl2);
+	const hints = await suggestions(db, statements, ddl2);
+
 	if (explain) {
-		if (isJsonMode()) {
-			const explainOutput = explainJsonOutput('singlestore', statements, hints);
-			printJsonOutput(explainOutput);
-		} else {
-			const explainMessage = explainView('singlestore', groupedStatements, hints);
-			if (explainMessage) {
-				humanLog(explainMessage);
-			}
+		const explainMessage = explainView('singlestore', groupedStatements, hints);
+		if (explainMessage) {
+			humanLog(explainMessage);
 		}
 		return;
 	}
 
 	if (!force && hints.length > 0) {
-		if (isJsonMode()) {
-			throw new CommandOutputCliError(
-				'push',
-				'Destructive changes detected. Interactive confirmation is required but cannot be performed in JSON mode. Use --force to apply anyway.',
-				{ dialect: 'singlestore', hints: hints.map((h) => h.hint) },
-			);
-		}
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
-
 		if (data?.index === 0) {
 			render(`[${chalk.red('x')}] All changes were aborted`);
 			process.exit(0);
@@ -112,15 +108,7 @@ export const handle = async (
 		await db.query(statement);
 	}
 
-	if (filteredStatements.length > 0) {
-		if (isJsonMode()) {
-			printJsonOutput({ status: 'ok', dialect: 'singlestore', message: 'Changes applied' });
-		} else {
-			render(`[${chalk.green('\u2713')}] Changes applied`);
-		}
-	} else if (!isJsonMode()) {
-		render(`[${chalk.blue('i')}] No changes detected`);
-	}
+	render(`[${chalk.green('\u2713')}] Changes applied`);
 };
 
 // TODO: check

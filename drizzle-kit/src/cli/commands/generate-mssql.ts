@@ -15,17 +15,22 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../../dialects/mssql/ddl';
+import type { JsonStatement } from '../../dialects/mssql/statements';
 import { CommandOutputCliError } from '../errors';
+import { JsonModeUnsupportedCliError } from '../errors';
 import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
 import { withStyle } from '../validations/outputs';
-import { explain, explainJsonOutput, humanLog, mssqlSchemaError, printJsonOutput } from '../views';
+import { explain, humanLog, mssqlSchemaError, printJsonOutput } from '../views';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
-	const { out: outFolder, filenames, casing } = config;
+	if (isJsonMode()) {
+		throw new JsonModeUnsupportedCliError({ dialect: 'mssql', command: 'generate' });
+	}
 
+	const { out: outFolder, filenames, casing } = config;
 	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, filenames, casing);
 
@@ -43,23 +48,35 @@ export const handle = async (config: GenerateConfig) => {
 		return;
 	}
 
-	const { sqlStatements, renames, statements, groupedStatements } = await ddlDiff(
+	let sqlStatements: string[] = [];
+	let renames: string[] = [];
+	let statements: JsonStatement[] = [];
+	let groupedStatements: { jsonStatement: JsonStatement; sqlStatements: string[] }[] = [];
+
+	const diffResult = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<Schema>('schema', 'dbo'),
-		resolver<MssqlEntities['tables']>('table', 'dbo'),
-		resolver<Column>('column', 'dbo'),
-		resolver<View>('view', 'dbo'),
-		resolver<UniqueConstraint>('unique', 'dbo'), // uniques
-		resolver<Index>('index', 'dbo'), // indexes
-		resolver<CheckConstraint>('check', 'dbo'), // checks
-		resolver<PrimaryKey>('primary key', 'dbo'), // pks
-		resolver<ForeignKey>('foreign key', 'dbo'), // fks
-		resolver<DefaultConstraint>('default', 'dbo'), // fks
+		resolver<Schema>('schema', 'dbo', 'generate'),
+		resolver<MssqlEntities['tables']>('table', 'dbo', 'generate'),
+		resolver<Column>('column', 'dbo', 'generate'),
+		resolver<View>('view', 'dbo', 'generate'),
+		resolver<UniqueConstraint>('unique', 'dbo', 'generate'),
+		resolver<Index>('index', 'dbo', 'generate'),
+		resolver<CheckConstraint>('check', 'dbo', 'generate'),
+		resolver<PrimaryKey>('primary key', 'dbo', 'generate'),
+		resolver<ForeignKey>('foreign key', 'dbo', 'generate'),
+		resolver<DefaultConstraint>('default', 'dbo', 'generate'),
 		'default',
 	);
 
-	const recreateIdentity = statements.find((it) => it.type === 'recreate_identity_column');
+	sqlStatements = diffResult.sqlStatements;
+	renames = diffResult.renames;
+	statements = diffResult.statements;
+	groupedStatements = diffResult.groupedStatements;
+
+	const recreateIdentity = statements.find((it): it is Extract<JsonStatement, { type: 'recreate_identity_column' }> =>
+		it.type === 'recreate_identity_column'
+	);
 	if (
 		recreateIdentity && Boolean(recreateIdentity.column.identity?.to)
 		&& !recreateIdentity.column.identity?.from
@@ -77,28 +94,23 @@ export const handle = async (config: GenerateConfig) => {
 		);
 	}
 
-	if (config.explain) {
-		if (isJsonMode()) {
-			const explainOutput = explainJsonOutput('mssql', statements, []);
-			printJsonOutput(explainOutput);
-		} else {
-			const explainMessage = explain('mssql', groupedStatements, []);
-			if (explainMessage) {
-				humanLog(explainMessage);
-			}
-		}
+	if (!config.explain) {
+		writeResult({
+			snapshot: snapshot,
+			sqlStatements,
+			outFolder,
+			name: config.name,
+			breakpoints: config.breakpoints,
+			renames,
+			snapshots,
+		});
 		return;
 	}
 
-	writeResult({
-		snapshot: snapshot,
-		sqlStatements,
-		outFolder,
-		name: config.name,
-		breakpoints: config.breakpoints,
-		renames,
-		snapshots,
-	});
+	const explainMessage = explain('mssql', groupedStatements, []);
+	if (explainMessage) {
+		humanLog(explainMessage);
+	}
 };
 
 export const handleExport = async (config: ExportConfig) => {

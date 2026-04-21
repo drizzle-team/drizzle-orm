@@ -242,7 +242,7 @@ export const push = async (config: {
 	const hints = await suggestions(db, statements, ddl2);
 
 	if (config.explain) {
-		const explainMessage = explain('mssql', groupedStatements, false, []);
+		const explainMessage = explain('mssql', groupedStatements, []);
 		console.log(explainMessage);
 		return { sqlStatements, statements, hints };
 	}
@@ -440,73 +440,65 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 	const { url, container } = envUrl ? { url: envUrl, container: null } : await createDockerDB();
 	const params = parseMssqlUrl(url);
 
-	const sleep = 1000;
-	let timeLeft = 20000;
-	do {
-		try {
-			const client = await mssql.connect({
-				...params,
-				pool: { max: 1 },
-				requestTimeout: 30_000,
-			});
+	try {
+		const client = await mssql.connect({
+			...params,
+			pool: { max: 1 },
+			requestTimeout: 30_000,
+		});
+
+		await client.query(`use [master];`);
+		await client.query(`drop database if exists [drizzle];`);
+		await client.query(`create database [drizzle];`);
+		await client.query(`use [drizzle];`);
+
+		let transaction: mssql.Transaction | null = null;
+		let req: mssql.Request | null = null;
+		if (tx) {
+			transaction = client.transaction();
+			req = new mssql.Request(transaction);
+			await transaction.begin();
+		}
+
+		const db = {
+			query: async (sql: string, params: any[] = []) => {
+				const res = await (req ?? client).query(sql).catch((e) => {
+					throw new Error(e.message);
+				});
+				return res.recordset as any[];
+			},
+		};
+		const close = async () => {
+			if (transaction) {
+				await transaction.rollback().catch((e) => {});
+			}
+			await client?.close().catch(console.error);
+			await container?.stop().catch(console.error);
+		};
+
+		const clear = async () => {
+			if (transaction) {
+				try {
+					await transaction.rollback();
+					await transaction.begin();
+				} catch {
+					transaction = client.transaction();
+					await transaction.begin();
+					req = new mssql.Request(transaction);
+				}
+				return;
+			}
 
 			await client.query(`use [master];`);
 			await client.query(`drop database if exists [drizzle];`);
 			await client.query(`create database [drizzle];`);
 			await client.query(`use [drizzle];`);
-
-			let transaction: mssql.Transaction | null = null;
-			let req: mssql.Request | null = null;
-			if (tx) {
-				transaction = client.transaction();
-				req = new mssql.Request(transaction);
-				await transaction.begin();
-			}
-
-			const db = {
-				query: async (sql: string, params: any[] = []) => {
-					const res = await (req ?? client).query(sql).catch((e) => {
-						throw new Error(e.message);
-					});
-					return res.recordset as any[];
-				},
-			};
-			const close = async () => {
-				if (transaction) {
-					await transaction.rollback().catch((e) => {});
-				}
-				await client?.close().catch(console.error);
-				await container?.stop().catch(console.error);
-			};
-
-			const clear = async () => {
-				if (transaction) {
-					try {
-						await transaction.rollback();
-						await transaction.begin();
-					} catch {
-						transaction = client.transaction();
-						await transaction.begin();
-						req = new mssql.Request(transaction);
-					}
-					return;
-				}
-
-				await client.query(`use [master];`);
-				await client.query(`drop database if exists [drizzle];`);
-				await client.query(`create database [drizzle];`);
-				await client.query(`use [drizzle];`);
-			};
-			return { db, close, clear, client };
-		} catch (e) {
-			console.error(e);
-			throw e;
-			// await new Promise((resolve) => setTimeout(resolve, sleep));
-			// timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-
-	throw new Error();
+		};
+		return { db, close, clear, client };
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
 };
 
 export async function createDockerDB(): Promise<

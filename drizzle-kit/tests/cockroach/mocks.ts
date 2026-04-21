@@ -245,7 +245,7 @@ export const push = async (
 	const hints = await suggestions(db, statements);
 
 	if (config.explain) {
-		const explainMessage = explain('cockroach', groupedStatements, false, []);
+		const explainMessage = explain('cockroach', groupedStatements, []);
 		console.log(explainMessage);
 		return { sqlStatements, statements, hints };
 	}

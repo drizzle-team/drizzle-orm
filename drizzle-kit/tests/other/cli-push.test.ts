@@ -2,6 +2,7 @@ import { test as brotest } from '@drizzle-team/brocli';
 import { lstatSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { afterEach, assert, expect, test } from 'vitest';
+import { HintsHandler } from '../../src/cli/hints';
 import { push } from '../../src/cli/schema';
 
 const originalPrefix = process.env.TEST_CONFIG_PATH_PREFIX;
@@ -50,6 +51,7 @@ test('push #1', async (t) => {
 			schema: 'drizzle',
 			table: '__drizzle_migrations',
 		},
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -77,6 +79,7 @@ test('push #2', async (t) => {
 			schema: 'drizzle',
 			table: '__drizzle_migrations',
 		},
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -106,6 +109,7 @@ test('push #3', async (t) => {
 			schema: 'drizzle',
 			table: '__drizzle_migrations',
 		},
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -136,6 +140,7 @@ test('push #4', async (t) => {
 			schema: 'drizzle',
 			table: '__drizzle_migrations',
 		},
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -170,6 +175,7 @@ test('push #5', async (t) => {
 			schema: 'custom',
 			table: 'custom',
 		},
+		hints: expect.any(HintsHandler),
 	});
 });
 
