@@ -144,6 +144,9 @@ export const schemaToTypeScript = (
 
 	const imports = Object.values(schema.tables).reduce(
 		(res, it) => {
+			if (it.comment) {
+				res.singlestore.push('comment');
+			}
 			const idxImports = Object.values(it.indexes).map((idx) => idx.isUnique ? 'uniqueIndex' : 'index');
 			const pkImports = Object.values(it.compositePrimaryKeys).map(
 				(it) => 'primaryKey',
@@ -245,12 +248,14 @@ export const schemaToTypeScript = (
 		statement += '}';
 
 		if (
-			Object.keys(table.indexes).length > 0
+			table.comment
+			|| Object.keys(table.indexes).length > 0
 			|| Object.keys(table.compositePrimaryKeys).length > 0
 			|| Object.keys(table.uniqueConstraints).length > 0
 		) {
 			statement += ',\n';
 			statement += '(table) => [';
+			statement += createTableComment(table.comment);
 			statement += createTableIndexes(
 				table.name,
 				Object.values(table.indexes),
@@ -829,10 +834,16 @@ const createTableColumns = (
 			}\`, { mode: "${it.generated.type}" })`
 			: '';
 
+		statement += it.comment ? `.comment("${it.comment}")` : '';
+
 		statement += ',\n';
 	});
 
 	return statement;
+};
+
+const createTableComment = (comment?: string) => {
+	return comment ? `comment("${comment}"),` : '';
 };
 
 const createTableIndexes = (

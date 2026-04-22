@@ -104,7 +104,7 @@ Expect<Equal<InferInsertModel<typeof users>, typeof users['_']['inferInsert']>>;
 
 export const cities = gelTable('cities_table', {
 	id: integer('id').primaryKey(),
-	name: text('name').notNull(),
+	name: text('name').notNull().comment('The name of the city'),
 	population: integer('population').default(0),
 }, (cities) => ({
 	citiesNameIdx: index().on(cities.id),
@@ -701,6 +701,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
+				comment: undefined;
 			}>;
 			name: GelColumn<{
 				tableName: 'cities_table';
@@ -718,6 +719,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
+				comment: undefined;
 			}>;
 			role: GelColumn<
 				{
@@ -736,6 +738,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					comment: undefined;
 				},
 				{},
 				{ $type: 'admin' | 'user' }
@@ -756,6 +759,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 				isPrimaryKey: false;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
+				comment: undefined;
 			}>;
 		};
 	}>;
