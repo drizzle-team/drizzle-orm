@@ -14,6 +14,7 @@ import type {
 	CreateSchemaFactoryOptions,
 	CreateSelectSchema,
 	CreateUpdateSchema,
+	CreateUpsertSchema,
 	FactoryOptions,
 } from './schema.types.ts';
 
@@ -92,6 +93,15 @@ const updateConditions: Conditions = {
 	nullable: (column) => !column.notNull,
 };
 
+const upsertConditions: Conditions = {
+	never: () => false,
+	optional: (column) =>
+		!column.notNull || (column.notNull && column.hasDefault) || column?.generated?.type === 'always'
+		|| column?.generatedIdentity?.type === 'always'
+		|| ('identity' in (column ?? {}) && typeof (column as any)?.identity !== 'undefined'),
+	nullable: (column) => !column.notNull,
+};
+
 export const createSelectSchema: CreateSelectSchema<undefined> = (
 	entity: Table | View | PgEnum<[string, ...string[]]>,
 	refine?: Record<string, any>,
@@ -117,6 +127,14 @@ export const createUpdateSchema: CreateUpdateSchema<undefined> = (
 ) => {
 	const columns = getColumns(entity);
 	return handleColumns(columns, refine ?? {}, updateConditions) as any;
+};
+
+export const createUpsertSchema: CreateUpsertSchema<undefined> = (
+	entity: Table,
+	refine?: Record<string, any>,
+) => {
+	const columns = getColumns(entity);
+	return handleColumns(columns, refine ?? {}, upsertConditions) as any;
 };
 
 export function createSchemaFactory<
@@ -149,5 +167,13 @@ export function createSchemaFactory<
 		return handleColumns(columns, refine ?? {}, updateConditions, options) as any;
 	};
 
-	return { createSelectSchema, createInsertSchema, createUpdateSchema };
+	const createUpsertSchema: CreateUpsertSchema<TCoerce> = (
+		entity: Table,
+		refine?: Record<string, any>,
+	) => {
+		const columns = getColumns(entity);
+		return handleColumns(columns, refine ?? {}, upsertConditions, options) as any;
+	};
+
+	return { createSelectSchema, createInsertSchema, createUpdateSchema, createUpsertSchema };
 }
