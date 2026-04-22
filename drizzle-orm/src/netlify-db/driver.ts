@@ -1,4 +1,5 @@
 import { neon, Pool, types } from '@neondatabase/serverless';
+import { getDatabase } from '@netlify/db';
 import * as V1 from '~/_relations.ts';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import type { Cache } from '~/cache/core/cache.ts';
@@ -227,24 +228,13 @@ export function drizzle<
 			&& !('client' in (params[0] as any)))
 	) {
 		const drizzleConfig = (params[0] ?? {}) as DrizzleConfig<TSchema, TRelations>;
-		const connectionString = process.env['NETLIFY_DB_URL'];
+		const connection = getDatabase();
 
-		if (!connectionString) {
-			throw new Error(
-				'NETLIFY_DB_URL environment variable is not set. '
-					+ 'Provide a connection string or client to drizzle().',
-			);
+		if (connection.driver === 'server') {
+			return drizzleNodePg({ client: connection.pool, ...drizzleConfig }) as any;
 		}
 
-		const driver = process.env['NETLIFY_DB_DRIVER'];
-
-		if (driver === 'server') {
-			return drizzleNodePg({ connection: connectionString, ...drizzleConfig }) as any;
-		}
-
-		const httpClient = neon(connectionString);
-		const pool = new Pool({ connectionString });
-		return construct(httpClient, pool, drizzleConfig) as any;
+		return construct(connection.httpClient, connection.pool, drizzleConfig) as any;
 	}
 
 	if (typeof params[0] === 'string') {
