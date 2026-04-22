@@ -80,7 +80,16 @@ export function columnToSchema(
 	let schema!: zod.ZodType;
 
 	if (isWithEnum(column)) {
-		schema = column.enumValues.length ? z.enum(column.enumValues) : z.string();
+		const enumSchema = column.enumValues.length ? z.enum(column.enumValues) : z.string();
+		// Apply trim preprocessing to enum columns to prevent whitespace bypass
+		if (factory?.trim) {
+			schema = z.preprocess(
+				(val) => (typeof val === 'string' ? val.trim() : val),
+				enumSchema,
+			) as zod.ZodType;
+		} else {
+			schema = enumSchema;
+		}
 	}
 
 	if (!schema) {
@@ -117,7 +126,7 @@ export function columnToSchema(
 		} else if (column.dataType === 'date') {
 			schema = coerce === true || coerce.date ? z.coerce.date() : z.date();
 		} else if (column.dataType === 'string') {
-			schema = stringColumnToSchema(column, z, coerce);
+			schema = stringColumnToSchema(column, z, coerce, factory?.trim, factory?.defaultTextMaxLength);
 		} else if (column.dataType === 'json') {
 			schema = jsonSchema;
 		} else if (column.dataType === 'custom') {
@@ -270,9 +279,19 @@ function stringColumnToSchema(
 	coerce: CreateSchemaFactoryOptions<
 		Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
 	>['coerce'],
+	trim?: boolean,
+	defaultTextMaxLength?: number | false,
 ): zod.ZodType {
 	if (isColumnType<PgUUID<ColumnBaseConfig<'string', 'PgUUID'>>>(column, ['PgUUID'])) {
-		return z.uuid();
+		const schema = z.uuid();
+		// Apply trim using preprocess for UUID
+		if (trim) {
+			return z.preprocess(
+				(val) => (typeof val === 'string' ? val.trim() : val),
+				schema,
+			) as zod.ZodType;
+		}
+		return schema;
 	}
 
 	let max: number | undefined;
@@ -313,7 +332,23 @@ function stringColumnToSchema(
 		max = column.dimensions;
 	}
 
+	// Apply default max length for unbounded text columns (DoS protection)
+	if (max === undefined && defaultTextMaxLength !== false && typeof defaultTextMaxLength === 'number') {
+		max = defaultTextMaxLength;
+	}
+
+	// Build the base schema with all constraints
 	let schema = coerce === true || coerce?.string ? z.coerce.string() : z.string();
 	schema = regex ? schema.regex(regex) : schema;
-	return max && fixed ? schema.length(max) : max ? schema.max(max) : schema;
+	schema = max && fixed ? schema.length(max) : max ? schema.max(max) : schema;
+
+	// Apply trim using preprocess (runs before validation)
+	if (trim) {
+		return z.preprocess(
+			(val) => (typeof val === 'string' ? val.trim() : val),
+			schema,
+		) as zod.ZodType;
+	}
+
+	return schema;
 }
