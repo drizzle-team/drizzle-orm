@@ -96,24 +96,26 @@ function makeJitQueryMapperInner(
 		const { field, path, codec, arrayDimensions } = columns[idx]!;
 		let decoder: DriverValueDecoder<unknown, unknown>;
 		let decoderStr: string;
+		let decoderFieldDestructure: string;
 		let isColumn = false;
 		if (is(field, Column)) {
 			isColumn = true;
 			decoder = field;
-			decoderStr = `field${idx}.mapFromDriverValue`;
+			decoderFieldDestructure = `field: decoder${idx}`;
 		} else if (is(field, SQL)) {
 			decoder = field.decoder;
-			decoderStr = `field${idx}.decoder.mapFromDriverValue`;
+			decoderFieldDestructure = `field: { decoder: decoder${idx} }`;
 		} else if (is(field, Subquery)) {
 			decoder = field._.sql.decoder;
-			decoderStr = `field${idx}._.sql.decoder.mapFromDriverValue`;
+			decoderFieldDestructure = `field: { _: { sql: { decoder: decoder${idx} } } }`;
 		} else {
 			decoder = field.sql.decoder;
-			decoderStr = `field${idx}.sql.decoder.mapFromDriverValue`;
+			decoderFieldDestructure = `field: { sql: { decoder: decoder${idx} } }`;
 		}
+		decoderStr = `decoder${idx}.mapFromDriverValue`;
 		if (decoder.mapFromDriverValue.isNoop) decoderStr = '';
 		if (decoderStr) {
-			preFn.push(`const { field: field${idx}${codec ? `, codec: codec${idx}` : ''} } = columns[${idx}];`);
+			preFn.push(`const { ${decoderFieldDestructure}${codec ? `, codec: codec${idx}` : ''} } = columns[${idx}];`);
 		} else if (codec) {
 			preFn.push(`const { codec: codec${idx} } = columns[${idx}];`);
 		}
@@ -137,34 +139,41 @@ function makeJitQueryMapperInner(
 	}
 
 	fn.push(`mapped[i] = {`);
-	let currentObject: string | undefined;
+	let currentObjectPath: string[] = [];
 	for (let idx = 0; idx < columns.length; ++idx) {
 		const { path } = columns[idx]!;
 		const jsonPath = path.map((e) => JSON.stringify(e));
 		const decodedValue = decodes[idx]!;
 
-		// TODO: path.length > 2
-		if (path.length === 2) {
-			if (currentObject !== path[0]) {
-				if (currentObject !== undefined) fn.push(`\t},`);
-				fn.push(
-					`\t${jsonPath[0]}: ${
-						typeof nullifyMap[path[0]!] === 'string'
-							? `${objectIds[path[0]!]?.map((c) => `${c} === null`).join(' && ')} ? null : {`
-							: '{'
-					}`,
-				);
-				currentObject = path[0];
-			}
-			fn.push(`\t\t${jsonPath[1]}: ${decodedValue},`);
-		} else {
-			if (currentObject !== undefined) fn.push(`\t},`);
-			currentObject = undefined;
-			fn.push(`\t${jsonPath[0]}: ${decodedValue},`);
+		const objectPath = path.slice(0, -1);
+		let commonLen = 0;
+		while (
+			commonLen < currentObjectPath.length
+			&& commonLen < objectPath.length
+			&& currentObjectPath[commonLen] === objectPath[commonLen]
+		) commonLen++;
+
+		for (let d = currentObjectPath.length - 1; d >= commonLen; --d) {
+			fn.push(`${'\t'.repeat(d + 1)}},`);
 		}
+
+		for (let d = commonLen; d < objectPath.length; ++d) {
+			fn.push(
+				`${'\t'.repeat(d + 1)}${jsonPath[d]}: ${
+					d === 0 && objectPath.length === 1 && typeof nullifyMap[path[0]!] === 'string'
+						? `${objectIds[path[0]!]?.map((c) => `${c} === null`).join(' && ')} ? null : {`
+						: '{'
+				}`,
+			);
+		}
+
+		currentObjectPath = objectPath;
+		fn.push(`${'\t'.repeat(path.length)}${jsonPath[path.length - 1]}: ${decodedValue},`);
 	}
 
-	if (currentObject !== undefined) fn.push(`\t},`);
+	for (let d = currentObjectPath.length - 1; d >= 0; --d) {
+		fn.push(`${'\t'.repeat(d + 1)}},`);
+	}
 	fn.push(`};`);
 
 	return `${preFn.length ? `${preFn.join('\n\t')}\n\t` : ''}for (let i = 0; i < length; ++i) {
