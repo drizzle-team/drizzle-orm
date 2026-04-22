@@ -448,24 +448,24 @@ test('Jit mappers: relational - object mode', async () => {
 	const empty2 = bodyForObjectRoot(db.query.users.findMany(), false);
 
 	expect(empty1).toStrictEqual(`function jitRqbMapper (rows) {
-	if(!rows[0]) return undefined;
-	if(rows[0]["id"] !== null) {
-		rows[0]["id"] = this.selection[0].field.mapFromDriverValue(this.selection[0].codec(rows[0]["id"], 0));
-	}
-	if(rows[0]["createdAt"] !== null) {
-		rows[0]["createdAt"] = this.selection[2].field.mapFromDriverValue(rows[0]["createdAt"]);
-	}
+	const { selection } = this;
+	const { field: dec4, codec: codec5 } = selection[0];
+	const { field: dec6 } = selection[2];
+	const row = rows[0];
+	if (!row) return undefined;
+	let { "id": c0, "name": c1, "createdAt": c2, "isBanned": c3 } = row;
+	rows[0] = { "id": c0 === null ? null : dec4.mapFromDriverValue(codec5(c0, 0)), "name": c1, "createdAt": c2 === null ? null : dec6.mapFromDriverValue(c2), "isBanned": c3 };
 	return rows[0];
 	//# sourceURL=drizzle:jit-relational-query-mapper
 }`);
 	expect(empty2).toStrictEqual(`function jitRqbMapper (rows) {
-	for(let i = 0; i < rows.length; ++i) {
-		if(rows[i]["id"] !== null) {
-			rows[i]["id"] = this.selection[0].field.mapFromDriverValue(this.selection[0].codec(rows[i]["id"], 0));
-		}
-		if(rows[i]["createdAt"] !== null) {
-			rows[i]["createdAt"] = this.selection[2].field.mapFromDriverValue(rows[i]["createdAt"]);
-		}
+	const { selection } = this;
+	const { field: dec4, codec: codec5 } = selection[0];
+	const { field: dec6 } = selection[2];
+	for (let i = 0; i < rows.length; ++i) {
+		const row = rows[i];
+		let { "id": c0, "name": c1, "createdAt": c2, "isBanned": c3 } = row;
+		rows[i] = { "id": c0 === null ? null : dec4.mapFromDriverValue(codec5(c0, 0)), "name": c1, "createdAt": c2 === null ? null : dec6.mapFromDriverValue(c2), "isBanned": c3 };
 	}
 	return rows;
 	//# sourceURL=drizzle:jit-relational-query-mapper
@@ -475,24 +475,24 @@ test('Jit mappers: relational - object mode', async () => {
 	const simple2 = bodyForObjectRoot(db.query.users.findMany(), false);
 
 	expect(simple1).toStrictEqual(`function jitRqbMapper (rows) {
-	if(!rows[0]) return undefined;
-	if(rows[0]["id"] !== null) {
-		rows[0]["id"] = this.selection[0].field.mapFromDriverValue(this.selection[0].codec(rows[0]["id"], 0));
-	}
-	if(rows[0]["createdAt"] !== null) {
-		rows[0]["createdAt"] = this.selection[2].field.mapFromDriverValue(rows[0]["createdAt"]);
-	}
+	const { selection } = this;
+	const { field: dec4, codec: codec5 } = selection[0];
+	const { field: dec6 } = selection[2];
+	const row = rows[0];
+	if (!row) return undefined;
+	let { "id": c0, "name": c1, "createdAt": c2, "isBanned": c3 } = row;
+	rows[0] = { "id": c0 === null ? null : dec4.mapFromDriverValue(codec5(c0, 0)), "name": c1, "createdAt": c2 === null ? null : dec6.mapFromDriverValue(c2), "isBanned": c3 };
 	return rows[0];
 	//# sourceURL=drizzle:jit-relational-query-mapper
 }`);
 	expect(simple2).toStrictEqual(`function jitRqbMapper (rows) {
-	for(let i = 0; i < rows.length; ++i) {
-		if(rows[i]["id"] !== null) {
-			rows[i]["id"] = this.selection[0].field.mapFromDriverValue(this.selection[0].codec(rows[i]["id"], 0));
-		}
-		if(rows[i]["createdAt"] !== null) {
-			rows[i]["createdAt"] = this.selection[2].field.mapFromDriverValue(rows[i]["createdAt"]);
-		}
+	const { selection } = this;
+	const { field: dec4, codec: codec5 } = selection[0];
+	const { field: dec6 } = selection[2];
+	for (let i = 0; i < rows.length; ++i) {
+		const row = rows[i];
+		let { "id": c0, "name": c1, "createdAt": c2, "isBanned": c3 } = row;
+		rows[i] = { "id": c0 === null ? null : dec4.mapFromDriverValue(codec5(c0, 0)), "name": c1, "createdAt": c2 === null ? null : dec6.mapFromDriverValue(c2), "isBanned": c3 };
 	}
 	return rows;
 	//# sourceURL=drizzle:jit-relational-query-mapper
@@ -518,36 +518,28 @@ test('Jit mappers: relational - object mode', async () => {
 	);
 
 	expect(extra1).toStrictEqual(`function jitRqbMapper (rows) {
-	if(!rows[0]) return undefined;
-	if(rows[0]["id"] !== null) {
-		rows[0]["id"] = this.selection[0].field.mapFromDriverValue(this.selection[0].codec(rows[0]["id"], 0));
-	}
-	if(rows[0]["createdAt"] !== null) {
-		rows[0]["createdAt"] = this.selection[2].field.mapFromDriverValue(rows[0]["createdAt"]);
-	}
-	if(rows[0]["sql"] !== null) {
-		rows[0]["sql"] = this.selection[4].field.decoder.mapFromDriverValue(rows[0]["sql"]);
-	}
-	if(rows[0]["sqlWrapper"] !== null) {
-		rows[0]["sqlWrapper"] = this.selection[5].field.decoder.mapFromDriverValue(rows[0]["sqlWrapper"]);
-	}
+	const { selection } = this;
+	const { field: dec6, codec: codec7 } = selection[0];
+	const { field: dec8 } = selection[2];
+	const { field: { decoder: dec9 } } = selection[4];
+	const { field: { decoder: dec10 } } = selection[5];
+	const row = rows[0];
+	if (!row) return undefined;
+	let { "id": c0, "name": c1, "createdAt": c2, "isBanned": c3, "sql": c4, "sqlWrapper": c5 } = row;
+	rows[0] = { "id": c0 === null ? null : dec6.mapFromDriverValue(codec7(c0, 0)), "name": c1, "createdAt": c2 === null ? null : dec8.mapFromDriverValue(c2), "isBanned": c3, "sql": c4 === null ? null : dec9.mapFromDriverValue(c4), "sqlWrapper": c5 === null ? null : dec10.mapFromDriverValue(c5) };
 	return rows[0];
 	//# sourceURL=drizzle:jit-relational-query-mapper
 }`);
 	expect(extra2).toStrictEqual(`function jitRqbMapper (rows) {
-	for(let i = 0; i < rows.length; ++i) {
-		if(rows[i]["id"] !== null) {
-			rows[i]["id"] = this.selection[0].field.mapFromDriverValue(this.selection[0].codec(rows[i]["id"], 0));
-		}
-		if(rows[i]["createdAt"] !== null) {
-			rows[i]["createdAt"] = this.selection[2].field.mapFromDriverValue(rows[i]["createdAt"]);
-		}
-		if(rows[i]["sql"] !== null) {
-			rows[i]["sql"] = this.selection[4].field.decoder.mapFromDriverValue(rows[i]["sql"]);
-		}
-		if(rows[i]["sqlWrapper"] !== null) {
-			rows[i]["sqlWrapper"] = this.selection[5].field.decoder.mapFromDriverValue(rows[i]["sqlWrapper"]);
-		}
+	const { selection } = this;
+	const { field: dec6, codec: codec7 } = selection[0];
+	const { field: dec8 } = selection[2];
+	const { field: { decoder: dec9 } } = selection[4];
+	const { field: { decoder: dec10 } } = selection[5];
+	for (let i = 0; i < rows.length; ++i) {
+		const row = rows[i];
+		let { "id": c0, "name": c1, "createdAt": c2, "isBanned": c3, "sql": c4, "sqlWrapper": c5 } = row;
+		rows[i] = { "id": c0 === null ? null : dec6.mapFromDriverValue(codec7(c0, 0)), "name": c1, "createdAt": c2 === null ? null : dec8.mapFromDriverValue(c2), "isBanned": c3, "sql": c4 === null ? null : dec9.mapFromDriverValue(c4), "sqlWrapper": c5 === null ? null : dec10.mapFromDriverValue(c5) };
 	}
 	return rows;
 	//# sourceURL=drizzle:jit-relational-query-mapper
@@ -669,192 +661,140 @@ test('Jit mappers: relational - object mode', async () => {
 	);
 
 	expect(nested1).toStrictEqual(`function jitRqbMapper (rows) {
-	if(!rows[0]) return undefined;
-	if(rows[0]["id"] !== null) {
-		rows[0]["id"] = this.selection[0].field.mapFromDriverValue(this.selection[0].codec(rows[0]["id"], 0));
+	const { selection } = this;
+	const { field: dec8, codec: codec9 } = selection[0];
+	const { field: dec10 } = selection[2];
+	const { field: { decoder: dec11 } } = selection[4];
+	const { field: { decoder: dec12 } } = selection[5];
+	const { selection: s13 } = selection[6];
+	const { field: dec21, codec: codec22 } = s13[1];
+	const { field: { decoder: dec23 } } = s13[3];
+	const { field: { decoder: dec24 } } = s13[4];
+	const { selection: s25 } = s13[5];
+	const { field: dec32, codec: codec33 } = s25[0];
+	const { field: dec34 } = s25[2];
+	const { field: { decoder: dec35 } } = s25[4];
+	const { field: { decoder: dec36 } } = s25[5];
+	const { selection: s37 } = s13[6];
+	const { field: dec45, codec: codec46 } = s37[0];
+	const { field: dec47 } = s37[2];
+	const { field: { decoder: dec48 } } = s37[4];
+	const { field: { decoder: dec49 } } = s37[5];
+	const { selection: s50 } = selection[7];
+	const { field: dec58, codec: codec59 } = s50[1];
+	const { field: { decoder: dec60 } } = s50[3];
+	const { field: { decoder: dec61 } } = s50[4];
+	const { selection: s62 } = s50[5];
+	const { field: dec69, codec: codec70 } = s62[0];
+	const { field: dec71 } = s62[2];
+	const { field: { decoder: dec72 } } = s62[4];
+	const { field: { decoder: dec73 } } = s62[5];
+	const { selection: s74 } = s50[6];
+	const { field: dec82, codec: codec83 } = s74[0];
+	const { field: dec84 } = s74[2];
+	const { field: { decoder: dec85 } } = s74[4];
+	const { field: { decoder: dec86 } } = s74[5];
+	const row = rows[0];
+	if (!row) return undefined;
+	let { "id": c0, "name": c1, "createdAt": c2, "isBanned": c3, "sql": c4, "sqlWrapper": c5, "post": c6, "posts": c7 } = row;
+	if (c6 !== null) {
+		let { "id": c14, "authorId": c15, "content": c16, "sql": c17, "sqlWrapper": c18, "author": c19, "authors": c20 } = c6;
+		if (c19 !== null) {
+			let { "id": c26, "name": c27, "createdAt": c28, "isBanned": c29, "sql": c30, "sqlWrapper": c31 } = c19;
+			c19 = { "id": c26 === null ? null : dec32.mapFromDriverValue(codec33(c26, 0)), "name": c27, "createdAt": c28 === null ? null : dec34.mapFromDriverValue(c28), "isBanned": c29, "sql": c30 === null ? null : dec35.mapFromDriverValue(c30), "sqlWrapper": c31 === null ? null : dec36.mapFromDriverValue(c31) };
+		}
+		if (c20 !== null) {
+			for (let j38 = 0; j38 < c20.length; ++j38) {
+				let { "id": c39, "name": c40, "createdAt": c41, "isBanned": c42, "sql": c43, "sqlWrapper": c44 } = c20[j38];
+				c20[j38] = { "id": c39 === null ? null : dec45.mapFromDriverValue(codec46(c39, 0)), "name": c40, "createdAt": c41 === null ? null : dec47.mapFromDriverValue(c41), "isBanned": c42, "sql": c43 === null ? null : dec48.mapFromDriverValue(c43), "sqlWrapper": c44 === null ? null : dec49.mapFromDriverValue(c44) };
+			}
+		}
+		c6 = { "id": c14, "authorId": c15 === null ? null : dec21.mapFromDriverValue(codec22(c15, 0)), "content": c16, "sql": c17 === null ? null : dec23.mapFromDriverValue(c17), "sqlWrapper": c18 === null ? null : dec24.mapFromDriverValue(c18), "author": c19, "authors": c20 };
 	}
-	if(rows[0]["createdAt"] !== null) {
-		rows[0]["createdAt"] = this.selection[2].field.mapFromDriverValue(rows[0]["createdAt"]);
+	if (c7 !== null) {
+		let { "id": c51, "authorId": c52, "content": c53, "sql": c54, "sqlWrapper": c55, "author": c56, "authors": c57 } = c7;
+		if (c56 !== null) {
+			let { "id": c63, "name": c64, "createdAt": c65, "isBanned": c66, "sql": c67, "sqlWrapper": c68 } = c56;
+			c56 = { "id": c63 === null ? null : dec69.mapFromDriverValue(codec70(c63, 0)), "name": c64, "createdAt": c65 === null ? null : dec71.mapFromDriverValue(c65), "isBanned": c66, "sql": c67 === null ? null : dec72.mapFromDriverValue(c67), "sqlWrapper": c68 === null ? null : dec73.mapFromDriverValue(c68) };
+		}
+		if (c57 !== null) {
+			for (let j75 = 0; j75 < c57.length; ++j75) {
+				let { "id": c76, "name": c77, "createdAt": c78, "isBanned": c79, "sql": c80, "sqlWrapper": c81 } = c57[j75];
+				c57[j75] = { "id": c76 === null ? null : dec82.mapFromDriverValue(codec83(c76, 0)), "name": c77, "createdAt": c78 === null ? null : dec84.mapFromDriverValue(c78), "isBanned": c79, "sql": c80 === null ? null : dec85.mapFromDriverValue(c80), "sqlWrapper": c81 === null ? null : dec86.mapFromDriverValue(c81) };
+			}
+		}
+		c7 = { "id": c51, "authorId": c52 === null ? null : dec58.mapFromDriverValue(codec59(c52, 0)), "content": c53, "sql": c54 === null ? null : dec60.mapFromDriverValue(c54), "sqlWrapper": c55 === null ? null : dec61.mapFromDriverValue(c55), "author": c56, "authors": c57 };
 	}
-	if(rows[0]["sql"] !== null) {
-		rows[0]["sql"] = this.selection[4].field.decoder.mapFromDriverValue(rows[0]["sql"]);
-	}
-	if(rows[0]["sqlWrapper"] !== null) {
-		rows[0]["sqlWrapper"] = this.selection[5].field.decoder.mapFromDriverValue(rows[0]["sqlWrapper"]);
-	}
-	if(rows[0]["post"] !== null) {
-		if(rows[0]["post"]["authorId"] !== null) {
-			rows[0]["post"]["authorId"] = this.selection[6].selection[1].field.mapFromDriverValue(this.selection[6].selection[1].codec(rows[0]["post"]["authorId"], 0));
-		}
-		if(rows[0]["post"]["sql"] !== null) {
-			rows[0]["post"]["sql"] = this.selection[6].selection[3].field.decoder.mapFromDriverValue(rows[0]["post"]["sql"]);
-		}
-		if(rows[0]["post"]["sqlWrapper"] !== null) {
-			rows[0]["post"]["sqlWrapper"] = this.selection[6].selection[4].field.decoder.mapFromDriverValue(rows[0]["post"]["sqlWrapper"]);
-		}
-		if(rows[0]["post"]["author"] !== null) {
-			if(rows[0]["post"]["author"]["id"] !== null) {
-				rows[0]["post"]["author"]["id"] = this.selection[6].selection[5].selection[0].field.mapFromDriverValue(this.selection[6].selection[5].selection[0].codec(rows[0]["post"]["author"]["id"], 0));
-			}
-			if(rows[0]["post"]["author"]["createdAt"] !== null) {
-				rows[0]["post"]["author"]["createdAt"] = this.selection[6].selection[5].selection[2].field.mapFromDriverValue(rows[0]["post"]["author"]["createdAt"]);
-			}
-			if(rows[0]["post"]["author"]["sql"] !== null) {
-				rows[0]["post"]["author"]["sql"] = this.selection[6].selection[5].selection[4].field.decoder.mapFromDriverValue(rows[0]["post"]["author"]["sql"]);
-			}
-			if(rows[0]["post"]["author"]["sqlWrapper"] !== null) {
-				rows[0]["post"]["author"]["sqlWrapper"] = this.selection[6].selection[5].selection[5].field.decoder.mapFromDriverValue(rows[0]["post"]["author"]["sqlWrapper"]);
-			}
-		}
-		for(let i1 = 0; i1 < rows[0]["post"]["authors"].length; ++i1 ) {
-			if(rows[0]["post"]["authors"][i1]["id"] !== null) {
-				rows[0]["post"]["authors"][i1]["id"] = this.selection[6].selection[6].selection[0].field.mapFromDriverValue(this.selection[6].selection[6].selection[0].codec(rows[0]["post"]["authors"][i1]["id"], 0));
-			}
-			if(rows[0]["post"]["authors"][i1]["createdAt"] !== null) {
-				rows[0]["post"]["authors"][i1]["createdAt"] = this.selection[6].selection[6].selection[2].field.mapFromDriverValue(rows[0]["post"]["authors"][i1]["createdAt"]);
-			}
-			if(rows[0]["post"]["authors"][i1]["sql"] !== null) {
-				rows[0]["post"]["authors"][i1]["sql"] = this.selection[6].selection[6].selection[4].field.decoder.mapFromDriverValue(rows[0]["post"]["authors"][i1]["sql"]);
-			}
-			if(rows[0]["post"]["authors"][i1]["sqlWrapper"] !== null) {
-				rows[0]["post"]["authors"][i1]["sqlWrapper"] = this.selection[6].selection[6].selection[5].field.decoder.mapFromDriverValue(rows[0]["post"]["authors"][i1]["sqlWrapper"]);
-			}
-		}
-	}
-	if(rows[0]["posts"] !== null) {
-		if(rows[0]["posts"]["authorId"] !== null) {
-			rows[0]["posts"]["authorId"] = this.selection[7].selection[1].field.mapFromDriverValue(this.selection[7].selection[1].codec(rows[0]["posts"]["authorId"], 0));
-		}
-		if(rows[0]["posts"]["sql"] !== null) {
-			rows[0]["posts"]["sql"] = this.selection[7].selection[3].field.decoder.mapFromDriverValue(rows[0]["posts"]["sql"]);
-		}
-		if(rows[0]["posts"]["sqlWrapper"] !== null) {
-			rows[0]["posts"]["sqlWrapper"] = this.selection[7].selection[4].field.decoder.mapFromDriverValue(rows[0]["posts"]["sqlWrapper"]);
-		}
-		if(rows[0]["posts"]["author"] !== null) {
-			if(rows[0]["posts"]["author"]["id"] !== null) {
-				rows[0]["posts"]["author"]["id"] = this.selection[7].selection[5].selection[0].field.mapFromDriverValue(this.selection[7].selection[5].selection[0].codec(rows[0]["posts"]["author"]["id"], 0));
-			}
-			if(rows[0]["posts"]["author"]["createdAt"] !== null) {
-				rows[0]["posts"]["author"]["createdAt"] = this.selection[7].selection[5].selection[2].field.mapFromDriverValue(rows[0]["posts"]["author"]["createdAt"]);
-			}
-			if(rows[0]["posts"]["author"]["sql"] !== null) {
-				rows[0]["posts"]["author"]["sql"] = this.selection[7].selection[5].selection[4].field.decoder.mapFromDriverValue(rows[0]["posts"]["author"]["sql"]);
-			}
-			if(rows[0]["posts"]["author"]["sqlWrapper"] !== null) {
-				rows[0]["posts"]["author"]["sqlWrapper"] = this.selection[7].selection[5].selection[5].field.decoder.mapFromDriverValue(rows[0]["posts"]["author"]["sqlWrapper"]);
-			}
-		}
-		for(let i1 = 0; i1 < rows[0]["posts"]["authors"].length; ++i1 ) {
-			if(rows[0]["posts"]["authors"][i1]["id"] !== null) {
-				rows[0]["posts"]["authors"][i1]["id"] = this.selection[7].selection[6].selection[0].field.mapFromDriverValue(this.selection[7].selection[6].selection[0].codec(rows[0]["posts"]["authors"][i1]["id"], 0));
-			}
-			if(rows[0]["posts"]["authors"][i1]["createdAt"] !== null) {
-				rows[0]["posts"]["authors"][i1]["createdAt"] = this.selection[7].selection[6].selection[2].field.mapFromDriverValue(rows[0]["posts"]["authors"][i1]["createdAt"]);
-			}
-			if(rows[0]["posts"]["authors"][i1]["sql"] !== null) {
-				rows[0]["posts"]["authors"][i1]["sql"] = this.selection[7].selection[6].selection[4].field.decoder.mapFromDriverValue(rows[0]["posts"]["authors"][i1]["sql"]);
-			}
-			if(rows[0]["posts"]["authors"][i1]["sqlWrapper"] !== null) {
-				rows[0]["posts"]["authors"][i1]["sqlWrapper"] = this.selection[7].selection[6].selection[5].field.decoder.mapFromDriverValue(rows[0]["posts"]["authors"][i1]["sqlWrapper"]);
-			}
-		}
-	}
+	rows[0] = { "id": c0 === null ? null : dec8.mapFromDriverValue(codec9(c0, 0)), "name": c1, "createdAt": c2 === null ? null : dec10.mapFromDriverValue(c2), "isBanned": c3, "sql": c4 === null ? null : dec11.mapFromDriverValue(c4), "sqlWrapper": c5 === null ? null : dec12.mapFromDriverValue(c5), "post": c6, "posts": c7 };
 	return rows[0];
 	//# sourceURL=drizzle:jit-relational-query-mapper
 }`);
 	expect(nested2).toStrictEqual(`function jitRqbMapper (rows) {
-	for(let i = 0; i < rows.length; ++i) {
-		if(rows[i]["id"] !== null) {
-			rows[i]["id"] = this.selection[0].field.mapFromDriverValue(this.selection[0].codec(rows[i]["id"], 0));
+	const { selection } = this;
+	const { field: dec8, codec: codec9 } = selection[0];
+	const { field: dec10 } = selection[2];
+	const { field: { decoder: dec11 } } = selection[4];
+	const { field: { decoder: dec12 } } = selection[5];
+	const { selection: s13 } = selection[6];
+	const { field: dec21, codec: codec22 } = s13[1];
+	const { field: { decoder: dec23 } } = s13[3];
+	const { field: { decoder: dec24 } } = s13[4];
+	const { selection: s25 } = s13[5];
+	const { field: dec32, codec: codec33 } = s25[0];
+	const { field: dec34 } = s25[2];
+	const { field: { decoder: dec35 } } = s25[4];
+	const { field: { decoder: dec36 } } = s25[5];
+	const { selection: s37 } = s13[6];
+	const { field: dec45, codec: codec46 } = s37[0];
+	const { field: dec47 } = s37[2];
+	const { field: { decoder: dec48 } } = s37[4];
+	const { field: { decoder: dec49 } } = s37[5];
+	const { selection: s50 } = selection[7];
+	const { field: dec58, codec: codec59 } = s50[1];
+	const { field: { decoder: dec60 } } = s50[3];
+	const { field: { decoder: dec61 } } = s50[4];
+	const { selection: s62 } = s50[5];
+	const { field: dec69, codec: codec70 } = s62[0];
+	const { field: dec71 } = s62[2];
+	const { field: { decoder: dec72 } } = s62[4];
+	const { field: { decoder: dec73 } } = s62[5];
+	const { selection: s74 } = s50[6];
+	const { field: dec82, codec: codec83 } = s74[0];
+	const { field: dec84 } = s74[2];
+	const { field: { decoder: dec85 } } = s74[4];
+	const { field: { decoder: dec86 } } = s74[5];
+	for (let i = 0; i < rows.length; ++i) {
+		const row = rows[i];
+		let { "id": c0, "name": c1, "createdAt": c2, "isBanned": c3, "sql": c4, "sqlWrapper": c5, "post": c6, "posts": c7 } = row;
+		if (c6 !== null) {
+			let { "id": c14, "authorId": c15, "content": c16, "sql": c17, "sqlWrapper": c18, "author": c19, "authors": c20 } = c6;
+			if (c19 !== null) {
+				let { "id": c26, "name": c27, "createdAt": c28, "isBanned": c29, "sql": c30, "sqlWrapper": c31 } = c19;
+				c19 = { "id": c26 === null ? null : dec32.mapFromDriverValue(codec33(c26, 0)), "name": c27, "createdAt": c28 === null ? null : dec34.mapFromDriverValue(c28), "isBanned": c29, "sql": c30 === null ? null : dec35.mapFromDriverValue(c30), "sqlWrapper": c31 === null ? null : dec36.mapFromDriverValue(c31) };
+			}
+			if (c20 !== null) {
+				for (let j38 = 0; j38 < c20.length; ++j38) {
+					let { "id": c39, "name": c40, "createdAt": c41, "isBanned": c42, "sql": c43, "sqlWrapper": c44 } = c20[j38];
+					c20[j38] = { "id": c39 === null ? null : dec45.mapFromDriverValue(codec46(c39, 0)), "name": c40, "createdAt": c41 === null ? null : dec47.mapFromDriverValue(c41), "isBanned": c42, "sql": c43 === null ? null : dec48.mapFromDriverValue(c43), "sqlWrapper": c44 === null ? null : dec49.mapFromDriverValue(c44) };
+				}
+			}
+			c6 = { "id": c14, "authorId": c15 === null ? null : dec21.mapFromDriverValue(codec22(c15, 0)), "content": c16, "sql": c17 === null ? null : dec23.mapFromDriverValue(c17), "sqlWrapper": c18 === null ? null : dec24.mapFromDriverValue(c18), "author": c19, "authors": c20 };
 		}
-		if(rows[i]["createdAt"] !== null) {
-			rows[i]["createdAt"] = this.selection[2].field.mapFromDriverValue(rows[i]["createdAt"]);
+		if (c7 !== null) {
+			let { "id": c51, "authorId": c52, "content": c53, "sql": c54, "sqlWrapper": c55, "author": c56, "authors": c57 } = c7;
+			if (c56 !== null) {
+				let { "id": c63, "name": c64, "createdAt": c65, "isBanned": c66, "sql": c67, "sqlWrapper": c68 } = c56;
+				c56 = { "id": c63 === null ? null : dec69.mapFromDriverValue(codec70(c63, 0)), "name": c64, "createdAt": c65 === null ? null : dec71.mapFromDriverValue(c65), "isBanned": c66, "sql": c67 === null ? null : dec72.mapFromDriverValue(c67), "sqlWrapper": c68 === null ? null : dec73.mapFromDriverValue(c68) };
+			}
+			if (c57 !== null) {
+				for (let j75 = 0; j75 < c57.length; ++j75) {
+					let { "id": c76, "name": c77, "createdAt": c78, "isBanned": c79, "sql": c80, "sqlWrapper": c81 } = c57[j75];
+					c57[j75] = { "id": c76 === null ? null : dec82.mapFromDriverValue(codec83(c76, 0)), "name": c77, "createdAt": c78 === null ? null : dec84.mapFromDriverValue(c78), "isBanned": c79, "sql": c80 === null ? null : dec85.mapFromDriverValue(c80), "sqlWrapper": c81 === null ? null : dec86.mapFromDriverValue(c81) };
+				}
+			}
+			c7 = { "id": c51, "authorId": c52 === null ? null : dec58.mapFromDriverValue(codec59(c52, 0)), "content": c53, "sql": c54 === null ? null : dec60.mapFromDriverValue(c54), "sqlWrapper": c55 === null ? null : dec61.mapFromDriverValue(c55), "author": c56, "authors": c57 };
 		}
-		if(rows[i]["sql"] !== null) {
-			rows[i]["sql"] = this.selection[4].field.decoder.mapFromDriverValue(rows[i]["sql"]);
-		}
-		if(rows[i]["sqlWrapper"] !== null) {
-			rows[i]["sqlWrapper"] = this.selection[5].field.decoder.mapFromDriverValue(rows[i]["sqlWrapper"]);
-		}
-		if(rows[i]["post"] !== null) {
-			if(rows[i]["post"]["authorId"] !== null) {
-				rows[i]["post"]["authorId"] = this.selection[6].selection[1].field.mapFromDriverValue(this.selection[6].selection[1].codec(rows[i]["post"]["authorId"], 0));
-			}
-			if(rows[i]["post"]["sql"] !== null) {
-				rows[i]["post"]["sql"] = this.selection[6].selection[3].field.decoder.mapFromDriverValue(rows[i]["post"]["sql"]);
-			}
-			if(rows[i]["post"]["sqlWrapper"] !== null) {
-				rows[i]["post"]["sqlWrapper"] = this.selection[6].selection[4].field.decoder.mapFromDriverValue(rows[i]["post"]["sqlWrapper"]);
-			}
-			if(rows[i]["post"]["author"] !== null) {
-				if(rows[i]["post"]["author"]["id"] !== null) {
-					rows[i]["post"]["author"]["id"] = this.selection[6].selection[5].selection[0].field.mapFromDriverValue(this.selection[6].selection[5].selection[0].codec(rows[i]["post"]["author"]["id"], 0));
-				}
-				if(rows[i]["post"]["author"]["createdAt"] !== null) {
-					rows[i]["post"]["author"]["createdAt"] = this.selection[6].selection[5].selection[2].field.mapFromDriverValue(rows[i]["post"]["author"]["createdAt"]);
-				}
-				if(rows[i]["post"]["author"]["sql"] !== null) {
-					rows[i]["post"]["author"]["sql"] = this.selection[6].selection[5].selection[4].field.decoder.mapFromDriverValue(rows[i]["post"]["author"]["sql"]);
-				}
-				if(rows[i]["post"]["author"]["sqlWrapper"] !== null) {
-					rows[i]["post"]["author"]["sqlWrapper"] = this.selection[6].selection[5].selection[5].field.decoder.mapFromDriverValue(rows[i]["post"]["author"]["sqlWrapper"]);
-				}
-			}
-			for(let i1 = 0; i1 < rows[i]["post"]["authors"].length; ++i1 ) {
-				if(rows[i]["post"]["authors"][i1]["id"] !== null) {
-					rows[i]["post"]["authors"][i1]["id"] = this.selection[6].selection[6].selection[0].field.mapFromDriverValue(this.selection[6].selection[6].selection[0].codec(rows[i]["post"]["authors"][i1]["id"], 0));
-				}
-				if(rows[i]["post"]["authors"][i1]["createdAt"] !== null) {
-					rows[i]["post"]["authors"][i1]["createdAt"] = this.selection[6].selection[6].selection[2].field.mapFromDriverValue(rows[i]["post"]["authors"][i1]["createdAt"]);
-				}
-				if(rows[i]["post"]["authors"][i1]["sql"] !== null) {
-					rows[i]["post"]["authors"][i1]["sql"] = this.selection[6].selection[6].selection[4].field.decoder.mapFromDriverValue(rows[i]["post"]["authors"][i1]["sql"]);
-				}
-				if(rows[i]["post"]["authors"][i1]["sqlWrapper"] !== null) {
-					rows[i]["post"]["authors"][i1]["sqlWrapper"] = this.selection[6].selection[6].selection[5].field.decoder.mapFromDriverValue(rows[i]["post"]["authors"][i1]["sqlWrapper"]);
-				}
-			}
-		}
-		if(rows[i]["posts"] !== null) {
-			if(rows[i]["posts"]["authorId"] !== null) {
-				rows[i]["posts"]["authorId"] = this.selection[7].selection[1].field.mapFromDriverValue(this.selection[7].selection[1].codec(rows[i]["posts"]["authorId"], 0));
-			}
-			if(rows[i]["posts"]["sql"] !== null) {
-				rows[i]["posts"]["sql"] = this.selection[7].selection[3].field.decoder.mapFromDriverValue(rows[i]["posts"]["sql"]);
-			}
-			if(rows[i]["posts"]["sqlWrapper"] !== null) {
-				rows[i]["posts"]["sqlWrapper"] = this.selection[7].selection[4].field.decoder.mapFromDriverValue(rows[i]["posts"]["sqlWrapper"]);
-			}
-			if(rows[i]["posts"]["author"] !== null) {
-				if(rows[i]["posts"]["author"]["id"] !== null) {
-					rows[i]["posts"]["author"]["id"] = this.selection[7].selection[5].selection[0].field.mapFromDriverValue(this.selection[7].selection[5].selection[0].codec(rows[i]["posts"]["author"]["id"], 0));
-				}
-				if(rows[i]["posts"]["author"]["createdAt"] !== null) {
-					rows[i]["posts"]["author"]["createdAt"] = this.selection[7].selection[5].selection[2].field.mapFromDriverValue(rows[i]["posts"]["author"]["createdAt"]);
-				}
-				if(rows[i]["posts"]["author"]["sql"] !== null) {
-					rows[i]["posts"]["author"]["sql"] = this.selection[7].selection[5].selection[4].field.decoder.mapFromDriverValue(rows[i]["posts"]["author"]["sql"]);
-				}
-				if(rows[i]["posts"]["author"]["sqlWrapper"] !== null) {
-					rows[i]["posts"]["author"]["sqlWrapper"] = this.selection[7].selection[5].selection[5].field.decoder.mapFromDriverValue(rows[i]["posts"]["author"]["sqlWrapper"]);
-				}
-			}
-			for(let i1 = 0; i1 < rows[i]["posts"]["authors"].length; ++i1 ) {
-				if(rows[i]["posts"]["authors"][i1]["id"] !== null) {
-					rows[i]["posts"]["authors"][i1]["id"] = this.selection[7].selection[6].selection[0].field.mapFromDriverValue(this.selection[7].selection[6].selection[0].codec(rows[i]["posts"]["authors"][i1]["id"], 0));
-				}
-				if(rows[i]["posts"]["authors"][i1]["createdAt"] !== null) {
-					rows[i]["posts"]["authors"][i1]["createdAt"] = this.selection[7].selection[6].selection[2].field.mapFromDriverValue(rows[i]["posts"]["authors"][i1]["createdAt"]);
-				}
-				if(rows[i]["posts"]["authors"][i1]["sql"] !== null) {
-					rows[i]["posts"]["authors"][i1]["sql"] = this.selection[7].selection[6].selection[4].field.decoder.mapFromDriverValue(rows[i]["posts"]["authors"][i1]["sql"]);
-				}
-				if(rows[i]["posts"]["authors"][i1]["sqlWrapper"] !== null) {
-					rows[i]["posts"]["authors"][i1]["sqlWrapper"] = this.selection[7].selection[6].selection[5].field.decoder.mapFromDriverValue(rows[i]["posts"]["authors"][i1]["sqlWrapper"]);
-				}
-			}
-		}
+		rows[i] = { "id": c0 === null ? null : dec8.mapFromDriverValue(codec9(c0, 0)), "name": c1, "createdAt": c2 === null ? null : dec10.mapFromDriverValue(c2), "isBanned": c3, "sql": c4 === null ? null : dec11.mapFromDriverValue(c4), "sqlWrapper": c5 === null ? null : dec12.mapFromDriverValue(c5), "post": c6, "posts": c7 };
 	}
 	return rows;
 	//# sourceURL=drizzle:jit-relational-query-mapper
@@ -866,24 +806,25 @@ test('Jit mappers: relational - array mode', async () => {
 	const empty2 = db.query.users.findMany().prepare().mapper?.body;
 
 	expect(empty1).toStrictEqual(`function jitRqbMapper (rows) {
-	if(!rows[0]) return undefined;
-	const mapped = {};
-	mapped["id"] = rows[0][0] === null ? null : this.selection[0].field.mapFromDriverValue(this.selection[0].codec(rows[0][0], 0));
-	mapped["name"] = rows[0][1];
-	mapped["createdAt"] = rows[0][2] === null ? null : this.selection[2].field.mapFromDriverValue(rows[0][2]);
-	mapped["isBanned"] = rows[0][3];
-	return mapped;
+	const { selection } = this;
+	const { field: dec4, codec: codec5 } = selection[0];
+	const { field: dec6 } = selection[2];
+	const row = rows[0];
+	if (!row) return undefined;
+	let [ c0, c1, c2, c3 ] = row;
+	return { "id": c0 === null ? null : dec4.mapFromDriverValue(codec5(c0, 0)), "name": c1, "createdAt": c2 === null ? null : dec6.mapFromDriverValue(c2), "isBanned": c3 };
 	//# sourceURL=drizzle:jit-relational-query-mapper
 }`);
 	expect(empty2).toStrictEqual(`function jitRqbMapper (rows) {
+	const { selection } = this;
+	const { field: dec4, codec: codec5 } = selection[0];
+	const { field: dec6 } = selection[2];
 	const { length } = rows;
 	const mapped = Array.from({ length });
-	for(let i = 0; i < length; ++i) {
-		mapped[i] = {};
-		mapped[i]["id"] = rows[i][0] === null ? null : this.selection[0].field.mapFromDriverValue(this.selection[0].codec(rows[i][0], 0));
-		mapped[i]["name"] = rows[i][1];
-		mapped[i]["createdAt"] = rows[i][2] === null ? null : this.selection[2].field.mapFromDriverValue(rows[i][2]);
-		mapped[i]["isBanned"] = rows[i][3];
+	for (let i = 0; i < length; ++i) {
+		const row = rows[i];
+		let [ c0, c1, c2, c3 ] = row;
+		mapped[i] = { "id": c0 === null ? null : dec4.mapFromDriverValue(codec5(c0, 0)), "name": c1, "createdAt": c2 === null ? null : dec6.mapFromDriverValue(c2), "isBanned": c3 };
 	}
 	return mapped;
 	//# sourceURL=drizzle:jit-relational-query-mapper
@@ -893,24 +834,25 @@ test('Jit mappers: relational - array mode', async () => {
 	const simple2 = db.query.users.findMany().prepare().mapper?.body;
 
 	expect(simple1).toStrictEqual(`function jitRqbMapper (rows) {
-	if(!rows[0]) return undefined;
-	const mapped = {};
-	mapped["id"] = rows[0][0] === null ? null : this.selection[0].field.mapFromDriverValue(this.selection[0].codec(rows[0][0], 0));
-	mapped["name"] = rows[0][1];
-	mapped["createdAt"] = rows[0][2] === null ? null : this.selection[2].field.mapFromDriverValue(rows[0][2]);
-	mapped["isBanned"] = rows[0][3];
-	return mapped;
+	const { selection } = this;
+	const { field: dec4, codec: codec5 } = selection[0];
+	const { field: dec6 } = selection[2];
+	const row = rows[0];
+	if (!row) return undefined;
+	let [ c0, c1, c2, c3 ] = row;
+	return { "id": c0 === null ? null : dec4.mapFromDriverValue(codec5(c0, 0)), "name": c1, "createdAt": c2 === null ? null : dec6.mapFromDriverValue(c2), "isBanned": c3 };
 	//# sourceURL=drizzle:jit-relational-query-mapper
 }`);
 	expect(simple2).toStrictEqual(`function jitRqbMapper (rows) {
+	const { selection } = this;
+	const { field: dec4, codec: codec5 } = selection[0];
+	const { field: dec6 } = selection[2];
 	const { length } = rows;
 	const mapped = Array.from({ length });
-	for(let i = 0; i < length; ++i) {
-		mapped[i] = {};
-		mapped[i]["id"] = rows[i][0] === null ? null : this.selection[0].field.mapFromDriverValue(this.selection[0].codec(rows[i][0], 0));
-		mapped[i]["name"] = rows[i][1];
-		mapped[i]["createdAt"] = rows[i][2] === null ? null : this.selection[2].field.mapFromDriverValue(rows[i][2]);
-		mapped[i]["isBanned"] = rows[i][3];
+	for (let i = 0; i < length; ++i) {
+		const row = rows[i];
+		let [ c0, c1, c2, c3 ] = row;
+		mapped[i] = { "id": c0 === null ? null : dec4.mapFromDriverValue(codec5(c0, 0)), "name": c1, "createdAt": c2 === null ? null : dec6.mapFromDriverValue(c2), "isBanned": c3 };
 	}
 	return mapped;
 	//# sourceURL=drizzle:jit-relational-query-mapper
@@ -930,28 +872,29 @@ test('Jit mappers: relational - array mode', async () => {
 	}).prepare().mapper?.body;
 
 	expect(extras1).toStrictEqual(`function jitRqbMapper (rows) {
-	if(!rows[0]) return undefined;
-	const mapped = {};
-	mapped["id"] = rows[0][0] === null ? null : this.selection[0].field.mapFromDriverValue(this.selection[0].codec(rows[0][0], 0));
-	mapped["name"] = rows[0][1];
-	mapped["createdAt"] = rows[0][2] === null ? null : this.selection[2].field.mapFromDriverValue(rows[0][2]);
-	mapped["isBanned"] = rows[0][3];
-	mapped["sql"] = rows[0][4] === null ? null : this.selection[4].field.decoder.mapFromDriverValue(rows[0][4]);
-	mapped["sqlWrapper"] = rows[0][5] === null ? null : this.selection[5].field.decoder.mapFromDriverValue(rows[0][5]);
-	return mapped;
+	const { selection } = this;
+	const { field: dec6, codec: codec7 } = selection[0];
+	const { field: dec8 } = selection[2];
+	const { field: { decoder: dec9 } } = selection[4];
+	const { field: { decoder: dec10 } } = selection[5];
+	const row = rows[0];
+	if (!row) return undefined;
+	let [ c0, c1, c2, c3, c4, c5 ] = row;
+	return { "id": c0 === null ? null : dec6.mapFromDriverValue(codec7(c0, 0)), "name": c1, "createdAt": c2 === null ? null : dec8.mapFromDriverValue(c2), "isBanned": c3, "sql": c4 === null ? null : dec9.mapFromDriverValue(c4), "sqlWrapper": c5 === null ? null : dec10.mapFromDriverValue(c5) };
 	//# sourceURL=drizzle:jit-relational-query-mapper
 }`);
 	expect(extras2).toStrictEqual(`function jitRqbMapper (rows) {
+	const { selection } = this;
+	const { field: dec6, codec: codec7 } = selection[0];
+	const { field: dec8 } = selection[2];
+	const { field: { decoder: dec9 } } = selection[4];
+	const { field: { decoder: dec10 } } = selection[5];
 	const { length } = rows;
 	const mapped = Array.from({ length });
-	for(let i = 0; i < length; ++i) {
-		mapped[i] = {};
-		mapped[i]["id"] = rows[i][0] === null ? null : this.selection[0].field.mapFromDriverValue(this.selection[0].codec(rows[i][0], 0));
-		mapped[i]["name"] = rows[i][1];
-		mapped[i]["createdAt"] = rows[i][2] === null ? null : this.selection[2].field.mapFromDriverValue(rows[i][2]);
-		mapped[i]["isBanned"] = rows[i][3];
-		mapped[i]["sql"] = rows[i][4] === null ? null : this.selection[4].field.decoder.mapFromDriverValue(rows[i][4]);
-		mapped[i]["sqlWrapper"] = rows[i][5] === null ? null : this.selection[5].field.decoder.mapFromDriverValue(rows[i][5]);
+	for (let i = 0; i < length; ++i) {
+		const row = rows[i];
+		let [ c0, c1, c2, c3, c4, c5 ] = row;
+		mapped[i] = { "id": c0 === null ? null : dec6.mapFromDriverValue(codec7(c0, 0)), "name": c1, "createdAt": c2 === null ? null : dec8.mapFromDriverValue(c2), "isBanned": c3, "sql": c4 === null ? null : dec9.mapFromDriverValue(c4), "sqlWrapper": c5 === null ? null : dec10.mapFromDriverValue(c5) };
 	}
 	return mapped;
 	//# sourceURL=drizzle:jit-relational-query-mapper
@@ -1002,77 +945,69 @@ test('Jit mappers: relational - array mode', async () => {
 	}).prepare().mapper?.body;
 
 	expect(nested1).toStrictEqual(`function jitRqbMapper (rows) {
-	if(!rows[0]) return undefined;
-	const mapped = {};
-	mapped["id"] = rows[0][0] === null ? null : this.selection[0].field.mapFromDriverValue(this.selection[0].codec(rows[0][0], 0));
-	mapped["name"] = rows[0][1];
-	mapped["createdAt"] = rows[0][2] === null ? null : this.selection[2].field.mapFromDriverValue(rows[0][2]);
-	mapped["isBanned"] = rows[0][3];
-	mapped["sql"] = rows[0][4] === null ? null : this.selection[4].field.decoder.mapFromDriverValue(rows[0][4]);
-	mapped["post"] = rows[0][5];
-	if(mapped["post"] !== null) {
-		if(mapped["post"]["authorId"] !== null) {
-			mapped["post"]["authorId"] = this.selection[5].selection[1].field.mapFromDriverValue(this.selection[5].selection[1].codec(mapped["post"]["authorId"], 0));
+	const { selection } = this;
+	const { field: dec6, codec: codec7 } = selection[0];
+	const { field: dec8 } = selection[2];
+	const { field: { decoder: dec9 } } = selection[4];
+	const { selection: s10 } = selection[5];
+	const { field: dec17, codec: codec18 } = s10[1];
+	const { field: { decoder: dec19 } } = s10[3];
+	const { selection: s20 } = s10[4];
+	const { field: dec26, codec: codec27 } = s20[0];
+	const { field: dec28 } = s20[2];
+	const { field: { decoder: dec29 } } = s20[4];
+	const { selection: s30 } = s10[5];
+	const { field: dec37, codec: codec38 } = s30[0];
+	const { field: dec39 } = s30[2];
+	const { field: { decoder: dec40 } } = s30[4];
+	const row = rows[0];
+	if (!row) return undefined;
+	let [ c0, c1, c2, c3, c4, c5 ] = row;
+	if (c5 !== null) {
+		let { "id": c11, "authorId": c12, "content": c13, "sql": c14, "author": c15, "authors": c16 } = c5;
+		if (c15 !== null) {
+			let { "id": c21, "name": c22, "createdAt": c23, "isBanned": c24, "sql": c25 } = c15;
+			c15 = { "id": c21 === null ? null : dec26.mapFromDriverValue(codec27(c21, 0)), "name": c22, "createdAt": c23 === null ? null : dec28.mapFromDriverValue(c23), "isBanned": c24, "sql": c25 === null ? null : dec29.mapFromDriverValue(c25) };
 		}
-		if(mapped["post"]["sql"] !== null) {
-			mapped["post"]["sql"] = this.selection[5].selection[3].field.decoder.mapFromDriverValue(mapped["post"]["sql"]);
-		}
-		if(mapped["post"]["author"] !== null) {
-			if(mapped["post"]["author"]["id"] !== null) {
-				mapped["post"]["author"]["id"] = this.selection[5].selection[4].selection[0].field.mapFromDriverValue(this.selection[5].selection[4].selection[0].codec(mapped["post"]["author"]["id"], 0));
-			}
-			if(mapped["post"]["author"]["createdAt"] !== null) {
-				mapped["post"]["author"]["createdAt"] = this.selection[5].selection[4].selection[2].field.mapFromDriverValue(mapped["post"]["author"]["createdAt"]);
-			}
-			if(mapped["post"]["author"]["sql"] !== null) {
-				mapped["post"]["author"]["sql"] = this.selection[5].selection[4].selection[4].field.decoder.mapFromDriverValue(mapped["post"]["author"]["sql"]);
-			}
-		}
-		for(let i1 = 0; i1 < mapped["post"]["authors"].length; ++i1 ) {
-			if(mapped["post"]["authors"][i1]["id"] !== null) {
-				mapped["post"]["authors"][i1]["id"] = this.selection[5].selection[5].selection[0].field.mapFromDriverValue(this.selection[5].selection[5].selection[0].codec(mapped["post"]["authors"][i1]["id"], 0));
-			}
-			if(mapped["post"]["authors"][i1]["createdAt"] !== null) {
-				mapped["post"]["authors"][i1]["createdAt"] = this.selection[5].selection[5].selection[2].field.mapFromDriverValue(mapped["post"]["authors"][i1]["createdAt"]);
-			}
-			if(mapped["post"]["authors"][i1]["sql"] !== null) {
-				mapped["post"]["authors"][i1]["sql"] = this.selection[5].selection[5].selection[4].field.decoder.mapFromDriverValue(mapped["post"]["authors"][i1]["sql"]);
+		if (c16 !== null) {
+			for (let j31 = 0; j31 < c16.length; ++j31) {
+				let { "id": c32, "name": c33, "createdAt": c34, "isBanned": c35, "sql": c36 } = c16[j31];
+				c16[j31] = { "id": c32 === null ? null : dec37.mapFromDriverValue(codec38(c32, 0)), "name": c33, "createdAt": c34 === null ? null : dec39.mapFromDriverValue(c34), "isBanned": c35, "sql": c36 === null ? null : dec40.mapFromDriverValue(c36) };
 			}
 		}
+		c5 = { "id": c11, "authorId": c12 === null ? null : dec17.mapFromDriverValue(codec18(c12, 0)), "content": c13, "sql": c14 === null ? null : dec19.mapFromDriverValue(c14), "author": c15, "authors": c16 };
 	}
-	return mapped;
+	return { "id": c0 === null ? null : dec6.mapFromDriverValue(codec7(c0, 0)), "name": c1, "createdAt": c2 === null ? null : dec8.mapFromDriverValue(c2), "isBanned": c3, "sql": c4 === null ? null : dec9.mapFromDriverValue(c4), "post": c5 };
 	//# sourceURL=drizzle:jit-relational-query-mapper
 }`);
 	expect(nested2).toStrictEqual(`function jitRqbMapper (rows) {
+	const { selection } = this;
+	const { field: dec6, codec: codec7 } = selection[0];
+	const { field: dec8 } = selection[2];
+	const { field: { decoder: dec9 } } = selection[4];
+	const { selection: s10 } = selection[5];
+	const { field: dec16, codec: codec17 } = s10[1];
+	const { field: { decoder: dec18 } } = s10[3];
+	const { selection: s19 } = s10[4];
+	const { field: dec26, codec: codec27 } = s19[0];
+	const { field: dec28 } = s19[2];
+	const { field: { decoder: dec29 } } = s19[4];
 	const { length } = rows;
 	const mapped = Array.from({ length });
-	for(let i = 0; i < length; ++i) {
-		mapped[i] = {};
-		mapped[i]["id"] = rows[i][0] === null ? null : this.selection[0].field.mapFromDriverValue(this.selection[0].codec(rows[i][0], 0));
-		mapped[i]["name"] = rows[i][1];
-		mapped[i]["createdAt"] = rows[i][2] === null ? null : this.selection[2].field.mapFromDriverValue(rows[i][2]);
-		mapped[i]["isBanned"] = rows[i][3];
-		mapped[i]["sql"] = rows[i][4] === null ? null : this.selection[4].field.decoder.mapFromDriverValue(rows[i][4]);
-		mapped[i]["post"] = rows[i][5];
-		if(mapped[i]["post"] !== null) {
-			if(mapped[i]["post"]["authorId"] !== null) {
-				mapped[i]["post"]["authorId"] = this.selection[5].selection[1].field.mapFromDriverValue(this.selection[5].selection[1].codec(mapped[i]["post"]["authorId"], 0));
-			}
-			if(mapped[i]["post"]["sql"] !== null) {
-				mapped[i]["post"]["sql"] = this.selection[5].selection[3].field.decoder.mapFromDriverValue(mapped[i]["post"]["sql"]);
-			}
-			for(let i1 = 0; i1 < mapped[i]["post"]["authors"].length; ++i1 ) {
-				if(mapped[i]["post"]["authors"][i1]["id"] !== null) {
-					mapped[i]["post"]["authors"][i1]["id"] = this.selection[5].selection[4].selection[0].field.mapFromDriverValue(this.selection[5].selection[4].selection[0].codec(mapped[i]["post"]["authors"][i1]["id"], 0));
-				}
-				if(mapped[i]["post"]["authors"][i1]["createdAt"] !== null) {
-					mapped[i]["post"]["authors"][i1]["createdAt"] = this.selection[5].selection[4].selection[2].field.mapFromDriverValue(mapped[i]["post"]["authors"][i1]["createdAt"]);
-				}
-				if(mapped[i]["post"]["authors"][i1]["sql"] !== null) {
-					mapped[i]["post"]["authors"][i1]["sql"] = this.selection[5].selection[4].selection[4].field.decoder.mapFromDriverValue(mapped[i]["post"]["authors"][i1]["sql"]);
+	for (let i = 0; i < length; ++i) {
+		const row = rows[i];
+		let [ c0, c1, c2, c3, c4, c5 ] = row;
+		if (c5 !== null) {
+			let { "id": c11, "authorId": c12, "content": c13, "sql": c14, "authors": c15 } = c5;
+			if (c15 !== null) {
+				for (let j20 = 0; j20 < c15.length; ++j20) {
+					let { "id": c21, "name": c22, "createdAt": c23, "isBanned": c24, "sql": c25 } = c15[j20];
+					c15[j20] = { "id": c21 === null ? null : dec26.mapFromDriverValue(codec27(c21, 0)), "name": c22, "createdAt": c23 === null ? null : dec28.mapFromDriverValue(c23), "isBanned": c24, "sql": c25 === null ? null : dec29.mapFromDriverValue(c25) };
 				}
 			}
+			c5 = { "id": c11, "authorId": c12 === null ? null : dec16.mapFromDriverValue(codec17(c12, 0)), "content": c13, "sql": c14 === null ? null : dec18.mapFromDriverValue(c14), "authors": c15 };
 		}
+		mapped[i] = { "id": c0 === null ? null : dec6.mapFromDriverValue(codec7(c0, 0)), "name": c1, "createdAt": c2 === null ? null : dec8.mapFromDriverValue(c2), "isBanned": c3, "sql": c4 === null ? null : dec9.mapFromDriverValue(c4), "post": c5 };
 	}
 	return mapped;
 	//# sourceURL=drizzle:jit-relational-query-mapper
