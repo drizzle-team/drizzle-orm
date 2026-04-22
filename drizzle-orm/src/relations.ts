@@ -849,8 +849,110 @@ export function mapRelationalRow(
 	return rows;
 }
 
+export function mapRelationalRowFromArrays(
+	rows: unknown[][] | unknown[],
+	isOne: boolean,
+	buildQueryResultSelection: BuildRelationalQueryResult['selection'],
+	mapColumnValue?: (value: unknown) => unknown,
+	/** Needed for SQLite as it returns JSON values as strings */
+	parseJson: boolean = false,
+	/** Needed for SingleStore as it returns JSON arrays as strings */
+	parseJsonIfString: boolean = false,
+): Record<string, unknown> | Record<string, unknown>[] {
+	const maxIdx = isOne ? 1 : rows.length;
+	const decoders: (undefined | ((v: any) => any))[] = buildQueryResultSelection.map(
+		({ field, codec, arrayDimensions }) => {
+			let decoder;
+			if (is(field, Column)) {
+				decoder = field;
+			} else if (is(field, SQL)) {
+				decoder = field.decoder;
+			} else if (is(field, SQL.Aliased)) {
+				decoder = field.sql.decoder;
+			} else if (is(field, Table) || is(field, View)) {
+				decoder = noopDecoder;
+			} else {
+				decoder = field.getSQL().decoder;
+			}
+
+			return decoder.mapFromDriverValue.isNoop
+				? codec
+					? (value) => codec(value, arrayDimensions!)
+					: undefined
+				: codec
+				? (value) => decoder.mapFromDriverValue(codec(value, arrayDimensions!))
+				: (value) => decoder.mapFromDriverValue(value);
+		},
+	);
+
+	const results: Record<string, unknown>[] = Array.from({ length: maxIdx });
+
+	for (let i = 0; i < maxIdx; ++i) {
+		const row = (isOne ? rows : rows[i]!) as unknown[];
+		const result: Record<string, unknown> = {};
+
+		for (let selectionItemIdx = 0; selectionItemIdx < buildQueryResultSelection.length; ++selectionItemIdx) {
+			const selectionItem = buildQueryResultSelection[selectionItemIdx]!;
+			let value = row[selectionItemIdx];
+
+			if (selectionItem.selection) {
+				if (value === null) {
+					result[selectionItem.key] = null;
+					continue;
+				}
+
+				if (parseJson) {
+					value = JSON.parse(value as string);
+					if (value === null) {
+						result[selectionItem.key] = null;
+						continue;
+					}
+				} else if (parseJsonIfString && typeof value === 'string') {
+					value = JSON.parse(value);
+				}
+
+				if (selectionItem.isArray) {
+					mapRelationalRow(
+						value as Array<Record<string, unknown>>,
+						false,
+						selectionItem.selection!,
+						mapColumnValue,
+						false,
+						parseJsonIfString,
+					);
+				} else {
+					mapRelationalRow(
+						value as Record<string, unknown>,
+						true,
+						selectionItem.selection!,
+						mapColumnValue,
+						false,
+						parseJsonIfString,
+					);
+				}
+
+				result[selectionItem.key] = value;
+				continue;
+			}
+
+			if (mapColumnValue) value = mapColumnValue(value);
+			if (value === null) {
+				result[selectionItem.key] = null;
+				continue;
+			}
+
+			const decoder = decoders[selectionItemIdx];
+			result[selectionItem.key] = decoder ? decoder(value) : value;
+		}
+
+		results[i] = result;
+	}
+
+	return isOne ? results[0]! : results;
+}
+
 export interface RelationalRowsMapper<T = any> {
-	(rows: Record<string, unknown>[]): T;
+	(rows: unknown[][] | Record<string, unknown>[]): T;
 	/** @internal jit mapper's function body for debugging */
 	body?: string;
 }
@@ -861,21 +963,30 @@ export type RelationalRowsMapperGenerator<T = any> = (
 ) => RelationalRowsMapper<T>;
 
 export function makeDefaultRqbMapper<T = any>(
-	{ selection, isFirst, parseJson, parseJsonIfString, rootJsonMappers }: RelationalQueryMapperConfig,
+	{ selection, isFirst, parseJson, parseJsonIfString, rootJsonMappers, arrayModeRoot }: RelationalQueryMapperConfig,
 	mapColumnValue?: (value: unknown) => unknown,
 ): RelationalRowsMapper<T> {
 	return ((rows) => {
 		if (isFirst && !rows[0]) return rows[0];
 
-		return mapRelationalRow(
-			isFirst ? rows[0]! : rows,
-			isFirst,
-			selection,
-			mapColumnValue,
-			parseJson,
-			parseJsonIfString,
-			rootJsonMappers,
-		);
+		return arrayModeRoot
+			? mapRelationalRowFromArrays(
+				(isFirst ? rows[0]! : rows) as unknown[][] | unknown[],
+				isFirst,
+				selection,
+				mapColumnValue,
+				parseJson,
+				parseJsonIfString,
+			)
+			: mapRelationalRow(
+				(isFirst ? rows[0]! : rows) as Record<string, unknown>[] | Record<string, unknown>,
+				isFirst,
+				selection,
+				mapColumnValue,
+				parseJson,
+				parseJsonIfString,
+				rootJsonMappers,
+			);
 	}) as RelationalRowsMapper<T>;
 }
 
@@ -979,36 +1090,177 @@ export interface RelationalQueryMapperConfig {
 	parseJsonIfString: boolean;
 	/** Enable for non-reworked dialects & drivers with JSON-ified root level of relational query */
 	rootJsonMappers: boolean;
+	/** Used when root level of data is in array mode */
+	arrayModeRoot?: boolean;
 }
 
-export function makeJitRqbMapper<T = unknown>(
-	{ selection, isFirst, parseJson, parseJsonIfString, rootJsonMappers }: RelationalQueryMapperConfig,
-	mapColumnValue?: (value: unknown) => unknown,
-): RelationalRowsMapper<T> {
+function makeJitRqbMapperArrayRootInner(
+	selection: BuildRelationalQueryResult['selection'],
+	rowPath: string,
+	resultPath: string,
+	selectionPathPrefix: string,
+	mapColumnValue: ((value: unknown) => unknown) | undefined,
+	parseJson: boolean,
+	parseJsonIfString: boolean,
+	tabs: number,
+): string {
 	const fn = [] as string[];
-	const innerCode = makeJitRqbMapperInner(
-		selection,
-		isFirst ? 'rows[0]' : 'rows[i]',
-		'this.selection',
-		mapColumnValue,
-		parseJson,
-		parseJsonIfString,
-		rootJsonMappers,
-		isFirst ? 1 : 2,
-	);
+	for (
+		const [idx, { field, key, codec, isArray, selection: innerSelection, arrayDimensions }] of selection.entries()
+	) {
+		const sel = `${selectionPathPrefix}[${idx}]`;
+		const src = `${rowPath}[${idx}]`;
+		const dst = `${resultPath}[${JSON.stringify(key)}]`;
 
-	if (innerCode) {
-		if (isFirst) {
-			fn.push(
-				`\tif(!rows[0]) return undefined;`,
-				`\t${innerCode}`,
+		if (innerSelection) {
+			fn.push(`${dst} = ${src};`);
+
+			const innerIdx = `i0`;
+			const innerCode = makeJitRqbMapperInner(
+				innerSelection,
+				isArray ? `${dst}[${innerIdx}]` : dst,
+				`${sel}.selection`,
+				mapColumnValue,
+				false,
+				parseJsonIfString,
+				true,
+				tabs + 1,
+				1,
 			);
+
+			if (innerCode && !isArray) {
+				fn.push(`if(${dst} !== null${parseJson ? ` && (${dst} = JSON.parse(${dst})) !== null` : ''}) {`);
+			}
+
+			if (parseJson && (isArray || !innerCode)) fn.push(`\t${dst} = JSON.parse(${dst});`);
+			if (parseJsonIfString && !parseJson) {
+				fn.push(`if(typeof ${dst} === 'string') ${dst} = JSON.parse(${dst});`);
+			}
+
+			if (innerCode) {
+				if (isArray) {
+					fn.push(
+						`for(let ${innerIdx} = 0; ${innerIdx} < ${dst}.length; ++${innerIdx} ) {`,
+						`\t${innerCode}`,
+						`}`,
+					);
+				} else fn.push(`\t${innerCode}`);
+			}
+
+			if (innerCode && !isArray) {
+				fn.push(`}`);
+			}
+
+			continue;
+		}
+
+		let decoder: string;
+		if (is(field, Column)) {
+			decoder = field.mapFromDriverValue.isNoop ? '' : `${sel}.field.mapFromDriverValue`;
+		} else if (is(field, SQL)) {
+			decoder = field.decoder.mapFromDriverValue.isNoop ? '' : `${sel}.field.decoder.mapFromDriverValue`;
+		} else if (is(field, SQL.Aliased)) {
+			decoder = field.sql.decoder.mapFromDriverValue.isNoop ? '' : `${sel}.field.sql.decoder.mapFromDriverValue`;
+		} else if (is(field, Table) || is(field, View)) {
+			decoder = '';
 		} else {
-			fn.push(`\tfor(let i = 0; i < rows.length; ++i) {`, `\t\t${innerCode}`, `\t}`);
+			decoder = field.getSQL().decoder.mapFromDriverValue.isNoop ? '' : `${sel}.getSQL().decoder.mapFromDriverValue`;
+		}
+
+		if (mapColumnValue) {
+			fn.push(`${dst} = this.mapColumnValue(${src});`);
+			if (codec || decoder) {
+				let decoded = dst;
+				if (codec) decoded = `${sel}.codec(${decoded}, ${arrayDimensions})`;
+				if (decoder) decoded = `${decoder}(${decoded})`;
+				fn.push(`if(${dst} !== null) ${dst} = ${decoded};`);
+			}
+		} else if (codec || decoder) {
+			let decoded = src;
+			if (codec) decoded = `${sel}.codec(${decoded}, ${arrayDimensions})`;
+			if (decoder) decoded = `${decoder}(${decoded})`;
+			fn.push(`${dst} = ${src} === null ? null : ${decoded};`);
+		} else {
+			fn.push(`${dst} = ${src};`);
 		}
 	}
 
-	fn.push(`\treturn rows${isFirst ? '[0]' : ''};`, '\t//# sourceURL=drizzle:jit-relational-query-mapper');
+	return fn.join(`\n${'\t'.repeat(tabs)}`);
+}
+
+export function makeJitRqbMapper<T = unknown>(
+	{ selection, isFirst, parseJson, parseJsonIfString, rootJsonMappers, arrayModeRoot }: RelationalQueryMapperConfig,
+	mapColumnValue?: (value: unknown) => unknown,
+): RelationalRowsMapper<T> {
+	const fn = [] as string[];
+
+	if (arrayModeRoot) {
+		if (isFirst) {
+			const innerCode = makeJitRqbMapperArrayRootInner(
+				selection,
+				'rows[0]',
+				'mapped',
+				'this.selection',
+				mapColumnValue,
+				parseJson,
+				parseJsonIfString,
+				1,
+			);
+			fn.push(
+				`\tif(!rows[0]) return undefined;`,
+				`\tconst mapped = {};`,
+				`\t${innerCode}`,
+				`\treturn mapped;`,
+				`\t//# sourceURL=drizzle:jit-relational-query-mapper`,
+			);
+		} else {
+			const innerCode = makeJitRqbMapperArrayRootInner(
+				selection,
+				'rows[i]',
+				'mapped[i]',
+				'this.selection',
+				mapColumnValue,
+				parseJson,
+				parseJsonIfString,
+				2,
+			);
+			fn.push(
+				`\tconst { length } = rows;`,
+				`\tconst mapped = Array.from({ length });`,
+				`\tfor(let i = 0; i < length; ++i) {`,
+				`\t\tmapped[i] = {};`,
+				`\t\t${innerCode}`,
+				`\t}`,
+				`\treturn mapped;`,
+				`\t//# sourceURL=drizzle:jit-relational-query-mapper`,
+			);
+		}
+	} else {
+		const innerCode = makeJitRqbMapperInner(
+			selection,
+			isFirst ? 'rows[0]' : 'rows[i]',
+			'this.selection',
+			mapColumnValue,
+			parseJson,
+			parseJsonIfString,
+			rootJsonMappers,
+			isFirst ? 1 : 2,
+		);
+
+		if (innerCode) {
+			if (isFirst) {
+				fn.push(
+					`\tif(!rows[0]) return undefined;`,
+					`\t${innerCode}`,
+				);
+			} else {
+				fn.push(`\tfor(let i = 0; i < rows.length; ++i) {`, `\t\t${innerCode}`, `\t}`);
+			}
+		}
+
+		fn.push(`\treturn rows${isFirst ? '[0]' : ''};`, '\t//# sourceURL=drizzle:jit-relational-query-mapper');
+	}
+
 	const compiled = fn.join('\n');
 
 	return Object.assign(

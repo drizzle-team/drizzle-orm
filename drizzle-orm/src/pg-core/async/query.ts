@@ -32,11 +32,12 @@ export class PgAsyncRelationalQuery<TResult> extends PgRelationalQuery<PgAsyncRe
 				parseJsonIfString: false,
 				rootJsonMappers: false,
 				selection: query.selection,
+				arrayModeRoot: true,
 			});
 
 			return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
 				builtQuery,
-				'objects',
+				'arrays',
 				name ?? generateName,
 				mapper,
 				// TODO: implement cache
