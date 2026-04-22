@@ -510,7 +510,7 @@ export const up = command({
 		}
 
 		if (dialect === 'duckdb') {
-			throw new Error('Not implemented');
+			throw new Error(`You can't use 'pull' command with '${dialect}' dialect`);
 		}
 
 		assertUnreachable(dialect);
