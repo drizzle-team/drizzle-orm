@@ -913,6 +913,23 @@ test('json insert', async () => {
 	expect(result).toEqual([{ id: 1, name: 'John', jsonb: ['foo', 'bar'] }]);
 });
 
+test('jsonb empty array insert preserves jsonb type', async () => {
+	await db.insert(usersTable).values({ name: 'John', jsonb: [] });
+
+	const result = await db
+		.select({
+			id: usersTable.id,
+			jsonb: usersTable.jsonb,
+			jsonbType: sql<string>`jsonb_typeof(${usersTable.jsonb})`,
+			jsonbText: sql<string>`${usersTable.jsonb}::text`,
+		})
+		.from(usersTable);
+
+	expect(result).toEqual([
+		{ id: 1, jsonb: [], jsonbType: 'array', jsonbText: '[]' },
+	]);
+});
+
 test('char insert', async () => {
 	await db.insert(citiesTable).values({ name: 'Austin', state: 'TX' });
 	const result = await db
