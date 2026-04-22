@@ -174,7 +174,12 @@ export function or(
  *   .where(not(inArray(cars.make, ['GM', 'Ford'])))
  * ```
  */
-export function not(condition: SQLWrapper): SQL {
+export function not(condition: SQLWrapper): SQL;
+export function not(condition: SQLWrapper | undefined): SQL | undefined;
+export function not(condition: SQLWrapper | undefined): SQL | undefined {
+	if (condition === undefined) {
+		return undefined;
+	}
 	return sql`not ${condition}`;
 }
 
