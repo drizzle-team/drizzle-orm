@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm",
-	"version": "1.0.0-beta.22",
+	"version": "1.0.0-beta.23",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
@@ -55,6 +55,7 @@
 		"@libsql/client": ">=0.10.0",
 		"@libsql/client-wasm": ">=0.10.0",
 		"@neondatabase/serverless": ">=0.10.0",
+		"@netlify/db": ">=0.4.0",
 		"@op-engineering/op-sqlite": ">=2",
 		"@opentelemetry/api": "^1.4.1",
 		"@planetscale/database": ">=1.13",
@@ -133,6 +134,9 @@
 			"optional": true
 		},
 		"@neondatabase/serverless": {
+			"optional": true
+		},
+		"@netlify/db": {
 			"optional": true
 		},
 		"bun-types": {
@@ -214,6 +218,7 @@
 		"@libsql/client-wasm": "^0.10.0",
 		"@miniflare/d1": "^2.14.4",
 		"@neondatabase/serverless": "^0.10.0",
+		"@netlify/db": "^0.4.0",
 		"@op-engineering/op-sqlite": "^2.0.16",
 		"@opentelemetry/api": "^1.4.1",
 		"@originjs/vite-plugin-commonjs": "^1.0.3",
