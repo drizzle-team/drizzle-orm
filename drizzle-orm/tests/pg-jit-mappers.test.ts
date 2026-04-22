@@ -6,6 +6,7 @@ import {
 	defineRelations,
 	ExtractTablesFromSchema,
 	ExtractTablesWithRelations,
+	makeJitRqbMapper,
 	RelationsBuilder,
 } from '~/relations';
 import { eq, sql } from '~/sql';
@@ -430,9 +431,21 @@ test('Jit mappers: select complex selections', async () => {
 }`);
 });
 
-test('Jit mappers: relational', async () => {
-	const empty1 = db.query.users.findFirst().prepare().mapper?.body;
-	const empty2 = db.query.users.findMany().prepare().mapper?.body;
+test('Jit mappers: relational - object mode', async () => {
+	const bodyForObjectRoot = (q: unknown, isFirst: boolean) => {
+		const selection = (q as any)._toSQL().query.selection;
+		return makeJitRqbMapper({
+			selection,
+			isFirst,
+			parseJson: false,
+			parseJsonIfString: false,
+			rootJsonMappers: false,
+			arrayModeRoot: false,
+		}).body;
+	};
+
+	const empty1 = bodyForObjectRoot(db.query.users.findFirst(), true);
+	const empty2 = bodyForObjectRoot(db.query.users.findMany(), false);
 
 	expect(empty1).toStrictEqual(`function jitRqbMapper (rows) {
 	if(!rows[0]) return undefined;
@@ -458,8 +471,8 @@ test('Jit mappers: relational', async () => {
 	//# sourceURL=drizzle:jit-relational-query-mapper
 }`);
 
-	const simple1 = db.query.users.findFirst().prepare().mapper?.body;
-	const simple2 = db.query.users.findMany().prepare().mapper?.body;
+	const simple1 = bodyForObjectRoot(db.query.users.findFirst(), true);
+	const simple2 = bodyForObjectRoot(db.query.users.findMany(), false);
 
 	expect(simple1).toStrictEqual(`function jitRqbMapper (rows) {
 	if(!rows[0]) return undefined;
@@ -485,18 +498,24 @@ test('Jit mappers: relational', async () => {
 	//# sourceURL=drizzle:jit-relational-query-mapper
 }`);
 
-	const extra1 = db.query.users.findFirst({
-		extras: {
-			sql: sql`SELECT 1`.mapWith(Number),
-			sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-		},
-	}).prepare().mapper?.body;
-	const extra2 = db.query.users.findMany({
-		extras: {
-			sql: sql`SELECT 1`.mapWith(Number),
-			sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-		},
-	}).prepare().mapper?.body;
+	const extra1 = bodyForObjectRoot(
+		db.query.users.findFirst({
+			extras: {
+				sql: sql`SELECT 1`.mapWith(Number),
+				sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+			},
+		}),
+		true,
+	);
+	const extra2 = bodyForObjectRoot(
+		db.query.users.findMany({
+			extras: {
+				sql: sql`SELECT 1`.mapWith(Number),
+				sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+			},
+		}),
+		false,
+	);
 
 	expect(extra1).toStrictEqual(`function jitRqbMapper (rows) {
 	if(!rows[0]) return undefined;
@@ -534,114 +553,120 @@ test('Jit mappers: relational', async () => {
 	//# sourceURL=drizzle:jit-relational-query-mapper
 }`);
 
-	const nested1 = db.query.users.findFirst({
-		with: {
-			post: {
-				with: {
-					author: {
-						extras: {
-							sql: sql`SELECT 1`.mapWith(Number),
-							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+	const nested1 = bodyForObjectRoot(
+		db.query.users.findFirst({
+			with: {
+				post: {
+					with: {
+						author: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+							where: {
+								RAW: sql`false`,
+							},
 						},
-						where: {
-							RAW: sql`false`,
+						authors: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+							where: {
+								RAW: sql`false`,
+							},
 						},
 					},
-					authors: {
-						extras: {
-							sql: sql`SELECT 1`.mapWith(Number),
-							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-						},
-						where: {
-							RAW: sql`false`,
-						},
+					extras: {
+						sql: sql`SELECT 1`.mapWith(Number),
+						sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
 					},
 				},
-				extras: {
-					sql: sql`SELECT 1`.mapWith(Number),
-					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				posts: {
+					with: {
+						author: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+						},
+						authors: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+						},
+					},
+					extras: {
+						sql: sql`SELECT 1`.mapWith(Number),
+						sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+					},
 				},
 			},
-			posts: {
-				with: {
-					author: {
-						extras: {
-							sql: sql`SELECT 1`.mapWith(Number),
-							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+			extras: {
+				sql: sql`SELECT 1`.mapWith(Number),
+				sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+			},
+		}),
+		true,
+	);
+	const nested2 = bodyForObjectRoot(
+		db.query.users.findMany({
+			with: {
+				post: {
+					with: {
+						author: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+							where: {
+								RAW: sql`false`,
+							},
+						},
+						authors: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+							where: {
+								RAW: sql`false`,
+							},
 						},
 					},
-					authors: {
-						extras: {
-							sql: sql`SELECT 1`.mapWith(Number),
-							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-						},
+					extras: {
+						sql: sql`SELECT 1`.mapWith(Number),
+						sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
 					},
 				},
-				extras: {
-					sql: sql`SELECT 1`.mapWith(Number),
-					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				posts: {
+					with: {
+						author: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+						},
+						authors: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+						},
+					},
+					extras: {
+						sql: sql`SELECT 1`.mapWith(Number),
+						sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+					},
 				},
 			},
-		},
-		extras: {
-			sql: sql`SELECT 1`.mapWith(Number),
-			sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-		},
-	}).prepare().mapper?.body;
-	const nested2 = db.query.users.findMany({
-		with: {
-			post: {
-				with: {
-					author: {
-						extras: {
-							sql: sql`SELECT 1`.mapWith(Number),
-							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-						},
-						where: {
-							RAW: sql`false`,
-						},
-					},
-					authors: {
-						extras: {
-							sql: sql`SELECT 1`.mapWith(Number),
-							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-						},
-						where: {
-							RAW: sql`false`,
-						},
-					},
-				},
-				extras: {
-					sql: sql`SELECT 1`.mapWith(Number),
-					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-				},
+			extras: {
+				sql: sql`SELECT 1`.mapWith(Number),
+				sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
 			},
-			posts: {
-				with: {
-					author: {
-						extras: {
-							sql: sql`SELECT 1`.mapWith(Number),
-							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-						},
-					},
-					authors: {
-						extras: {
-							sql: sql`SELECT 1`.mapWith(Number),
-							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-						},
-					},
-				},
-				extras: {
-					sql: sql`SELECT 1`.mapWith(Number),
-					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-				},
-			},
-		},
-		extras: {
-			sql: sql`SELECT 1`.mapWith(Number),
-			sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-		},
-	}).prepare().mapper?.body;
+		}),
+		false,
+	);
 
 	expect(nested1).toStrictEqual(`function jitRqbMapper (rows) {
 	if(!rows[0]) return undefined;
@@ -832,6 +857,224 @@ test('Jit mappers: relational', async () => {
 		}
 	}
 	return rows;
+	//# sourceURL=drizzle:jit-relational-query-mapper
+}`);
+});
+
+test('Jit mappers: relational - array mode', async () => {
+	const empty1 = db.query.users.findFirst().prepare().mapper?.body;
+	const empty2 = db.query.users.findMany().prepare().mapper?.body;
+
+	expect(empty1).toStrictEqual(`function jitRqbMapper (rows) {
+	if(!rows[0]) return undefined;
+	const mapped = {};
+	mapped["id"] = rows[0][0] === null ? null : this.selection[0].field.mapFromDriverValue(this.selection[0].codec(rows[0][0], 0));
+	mapped["name"] = rows[0][1];
+	mapped["createdAt"] = rows[0][2] === null ? null : this.selection[2].field.mapFromDriverValue(rows[0][2]);
+	mapped["isBanned"] = rows[0][3];
+	return mapped;
+	//# sourceURL=drizzle:jit-relational-query-mapper
+}`);
+	expect(empty2).toStrictEqual(`function jitRqbMapper (rows) {
+	const { length } = rows;
+	const mapped = Array.from({ length });
+	for(let i = 0; i < length; ++i) {
+		mapped[i] = {};
+		mapped[i]["id"] = rows[i][0] === null ? null : this.selection[0].field.mapFromDriverValue(this.selection[0].codec(rows[i][0], 0));
+		mapped[i]["name"] = rows[i][1];
+		mapped[i]["createdAt"] = rows[i][2] === null ? null : this.selection[2].field.mapFromDriverValue(rows[i][2]);
+		mapped[i]["isBanned"] = rows[i][3];
+	}
+	return mapped;
+	//# sourceURL=drizzle:jit-relational-query-mapper
+}`);
+
+	const simple1 = db.query.users.findFirst().prepare().mapper?.body;
+	const simple2 = db.query.users.findMany().prepare().mapper?.body;
+
+	expect(simple1).toStrictEqual(`function jitRqbMapper (rows) {
+	if(!rows[0]) return undefined;
+	const mapped = {};
+	mapped["id"] = rows[0][0] === null ? null : this.selection[0].field.mapFromDriverValue(this.selection[0].codec(rows[0][0], 0));
+	mapped["name"] = rows[0][1];
+	mapped["createdAt"] = rows[0][2] === null ? null : this.selection[2].field.mapFromDriverValue(rows[0][2]);
+	mapped["isBanned"] = rows[0][3];
+	return mapped;
+	//# sourceURL=drizzle:jit-relational-query-mapper
+}`);
+	expect(simple2).toStrictEqual(`function jitRqbMapper (rows) {
+	const { length } = rows;
+	const mapped = Array.from({ length });
+	for(let i = 0; i < length; ++i) {
+		mapped[i] = {};
+		mapped[i]["id"] = rows[i][0] === null ? null : this.selection[0].field.mapFromDriverValue(this.selection[0].codec(rows[i][0], 0));
+		mapped[i]["name"] = rows[i][1];
+		mapped[i]["createdAt"] = rows[i][2] === null ? null : this.selection[2].field.mapFromDriverValue(rows[i][2]);
+		mapped[i]["isBanned"] = rows[i][3];
+	}
+	return mapped;
+	//# sourceURL=drizzle:jit-relational-query-mapper
+}`);
+
+	const extras1 = db.query.users.findFirst({
+		extras: {
+			sql: sql`SELECT 1`.mapWith(Number),
+			sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+		},
+	}).prepare().mapper?.body;
+	const extras2 = db.query.users.findMany({
+		extras: {
+			sql: sql`SELECT 1`.mapWith(Number),
+			sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+		},
+	}).prepare().mapper?.body;
+
+	expect(extras1).toStrictEqual(`function jitRqbMapper (rows) {
+	if(!rows[0]) return undefined;
+	const mapped = {};
+	mapped["id"] = rows[0][0] === null ? null : this.selection[0].field.mapFromDriverValue(this.selection[0].codec(rows[0][0], 0));
+	mapped["name"] = rows[0][1];
+	mapped["createdAt"] = rows[0][2] === null ? null : this.selection[2].field.mapFromDriverValue(rows[0][2]);
+	mapped["isBanned"] = rows[0][3];
+	mapped["sql"] = rows[0][4] === null ? null : this.selection[4].field.decoder.mapFromDriverValue(rows[0][4]);
+	mapped["sqlWrapper"] = rows[0][5] === null ? null : this.selection[5].field.decoder.mapFromDriverValue(rows[0][5]);
+	return mapped;
+	//# sourceURL=drizzle:jit-relational-query-mapper
+}`);
+	expect(extras2).toStrictEqual(`function jitRqbMapper (rows) {
+	const { length } = rows;
+	const mapped = Array.from({ length });
+	for(let i = 0; i < length; ++i) {
+		mapped[i] = {};
+		mapped[i]["id"] = rows[i][0] === null ? null : this.selection[0].field.mapFromDriverValue(this.selection[0].codec(rows[i][0], 0));
+		mapped[i]["name"] = rows[i][1];
+		mapped[i]["createdAt"] = rows[i][2] === null ? null : this.selection[2].field.mapFromDriverValue(rows[i][2]);
+		mapped[i]["isBanned"] = rows[i][3];
+		mapped[i]["sql"] = rows[i][4] === null ? null : this.selection[4].field.decoder.mapFromDriverValue(rows[i][4]);
+		mapped[i]["sqlWrapper"] = rows[i][5] === null ? null : this.selection[5].field.decoder.mapFromDriverValue(rows[i][5]);
+	}
+	return mapped;
+	//# sourceURL=drizzle:jit-relational-query-mapper
+}`);
+
+	const nested1 = db.query.users.findFirst({
+		with: {
+			post: {
+				with: {
+					author: {
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+						},
+					},
+					authors: {
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+						},
+					},
+				},
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+				},
+			},
+		},
+		extras: {
+			sql: sql`SELECT 1`.mapWith(Number),
+		},
+	}).prepare().mapper?.body;
+	const nested2 = db.query.users.findMany({
+		with: {
+			post: {
+				with: {
+					authors: {
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+						},
+					},
+				},
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+				},
+			},
+		},
+		extras: {
+			sql: sql`SELECT 1`.mapWith(Number),
+		},
+	}).prepare().mapper?.body;
+
+	expect(nested1).toStrictEqual(`function jitRqbMapper (rows) {
+	if(!rows[0]) return undefined;
+	const mapped = {};
+	mapped["id"] = rows[0][0] === null ? null : this.selection[0].field.mapFromDriverValue(this.selection[0].codec(rows[0][0], 0));
+	mapped["name"] = rows[0][1];
+	mapped["createdAt"] = rows[0][2] === null ? null : this.selection[2].field.mapFromDriverValue(rows[0][2]);
+	mapped["isBanned"] = rows[0][3];
+	mapped["sql"] = rows[0][4] === null ? null : this.selection[4].field.decoder.mapFromDriverValue(rows[0][4]);
+	mapped["post"] = rows[0][5];
+	if(mapped["post"] !== null) {
+		if(mapped["post"]["authorId"] !== null) {
+			mapped["post"]["authorId"] = this.selection[5].selection[1].field.mapFromDriverValue(this.selection[5].selection[1].codec(mapped["post"]["authorId"], 0));
+		}
+		if(mapped["post"]["sql"] !== null) {
+			mapped["post"]["sql"] = this.selection[5].selection[3].field.decoder.mapFromDriverValue(mapped["post"]["sql"]);
+		}
+		if(mapped["post"]["author"] !== null) {
+			if(mapped["post"]["author"]["id"] !== null) {
+				mapped["post"]["author"]["id"] = this.selection[5].selection[4].selection[0].field.mapFromDriverValue(this.selection[5].selection[4].selection[0].codec(mapped["post"]["author"]["id"], 0));
+			}
+			if(mapped["post"]["author"]["createdAt"] !== null) {
+				mapped["post"]["author"]["createdAt"] = this.selection[5].selection[4].selection[2].field.mapFromDriverValue(mapped["post"]["author"]["createdAt"]);
+			}
+			if(mapped["post"]["author"]["sql"] !== null) {
+				mapped["post"]["author"]["sql"] = this.selection[5].selection[4].selection[4].field.decoder.mapFromDriverValue(mapped["post"]["author"]["sql"]);
+			}
+		}
+		for(let i1 = 0; i1 < mapped["post"]["authors"].length; ++i1 ) {
+			if(mapped["post"]["authors"][i1]["id"] !== null) {
+				mapped["post"]["authors"][i1]["id"] = this.selection[5].selection[5].selection[0].field.mapFromDriverValue(this.selection[5].selection[5].selection[0].codec(mapped["post"]["authors"][i1]["id"], 0));
+			}
+			if(mapped["post"]["authors"][i1]["createdAt"] !== null) {
+				mapped["post"]["authors"][i1]["createdAt"] = this.selection[5].selection[5].selection[2].field.mapFromDriverValue(mapped["post"]["authors"][i1]["createdAt"]);
+			}
+			if(mapped["post"]["authors"][i1]["sql"] !== null) {
+				mapped["post"]["authors"][i1]["sql"] = this.selection[5].selection[5].selection[4].field.decoder.mapFromDriverValue(mapped["post"]["authors"][i1]["sql"]);
+			}
+		}
+	}
+	return mapped;
+	//# sourceURL=drizzle:jit-relational-query-mapper
+}`);
+	expect(nested2).toStrictEqual(`function jitRqbMapper (rows) {
+	const { length } = rows;
+	const mapped = Array.from({ length });
+	for(let i = 0; i < length; ++i) {
+		mapped[i] = {};
+		mapped[i]["id"] = rows[i][0] === null ? null : this.selection[0].field.mapFromDriverValue(this.selection[0].codec(rows[i][0], 0));
+		mapped[i]["name"] = rows[i][1];
+		mapped[i]["createdAt"] = rows[i][2] === null ? null : this.selection[2].field.mapFromDriverValue(rows[i][2]);
+		mapped[i]["isBanned"] = rows[i][3];
+		mapped[i]["sql"] = rows[i][4] === null ? null : this.selection[4].field.decoder.mapFromDriverValue(rows[i][4]);
+		mapped[i]["post"] = rows[i][5];
+		if(mapped[i]["post"] !== null) {
+			if(mapped[i]["post"]["authorId"] !== null) {
+				mapped[i]["post"]["authorId"] = this.selection[5].selection[1].field.mapFromDriverValue(this.selection[5].selection[1].codec(mapped[i]["post"]["authorId"], 0));
+			}
+			if(mapped[i]["post"]["sql"] !== null) {
+				mapped[i]["post"]["sql"] = this.selection[5].selection[3].field.decoder.mapFromDriverValue(mapped[i]["post"]["sql"]);
+			}
+			for(let i1 = 0; i1 < mapped[i]["post"]["authors"].length; ++i1 ) {
+				if(mapped[i]["post"]["authors"][i1]["id"] !== null) {
+					mapped[i]["post"]["authors"][i1]["id"] = this.selection[5].selection[4].selection[0].field.mapFromDriverValue(this.selection[5].selection[4].selection[0].codec(mapped[i]["post"]["authors"][i1]["id"], 0));
+				}
+				if(mapped[i]["post"]["authors"][i1]["createdAt"] !== null) {
+					mapped[i]["post"]["authors"][i1]["createdAt"] = this.selection[5].selection[4].selection[2].field.mapFromDriverValue(mapped[i]["post"]["authors"][i1]["createdAt"]);
+				}
+				if(mapped[i]["post"]["authors"][i1]["sql"] !== null) {
+					mapped[i]["post"]["authors"][i1]["sql"] = this.selection[5].selection[4].selection[4].field.decoder.mapFromDriverValue(mapped[i]["post"]["authors"][i1]["sql"]);
+				}
+			}
+		}
+	}
+	return mapped;
 	//# sourceURL=drizzle:jit-relational-query-mapper
 }`);
 });

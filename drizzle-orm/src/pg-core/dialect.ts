@@ -883,6 +883,7 @@ export class PgDialect {
 		if (extras) selection.push(...extras.selection);
 
 		const selectionArr: SQL[] = columns ? [columns] : [];
+		if (extras?.sql) selectionArr.push(extras.sql);
 
 		const joins = params
 			? (() => {
@@ -973,7 +974,6 @@ export class PgDialect {
 			})()
 			: undefined;
 
-		if (extras?.sql) selectionArr.push(extras.sql);
 		if (!selectionArr.length) {
 			throw new DrizzleError({
 				message: `No fields selected for table "${tableConfig.name}"${currentPath ? ` ("${currentPath}")` : ''}`,
