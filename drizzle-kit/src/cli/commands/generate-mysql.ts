@@ -9,6 +9,7 @@ import { withStyle } from '../validations/outputs';
 import { explain, mysqlSchemaError } from '../views';
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
+import { makeInverseResolver, withCapture } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const suggestions = (
@@ -119,6 +120,7 @@ export const handle = async (
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
+			generateDownMigrations: config.generateDownMigrations,
 			type: 'custom',
 			renames: [],
 			snapshots,
@@ -126,14 +128,29 @@ export const handle = async (
 		return;
 	}
 
+	const tableRenames: { from: Table; to: Table }[] = [];
+	const columnRenames: { from: Column; to: Column }[] = [];
+	const viewRenames: { from: View; to: View }[] = [];
+
 	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<Table>('table'),
-		resolver<Column>('column'),
-		resolver<View>('view'),
+		withCapture(resolver<Table>('table'), tableRenames),
+		withCapture(resolver<Column>('column'), columnRenames),
+		withCapture(resolver<View>('view'), viewRenames),
 		'default',
 	);
+
+	const downSqlStatements = config.generateDownMigrations
+		? (await ddlDiff(
+			ddlCur,
+			ddlPrev,
+			makeInverseResolver(tableRenames),
+			makeInverseResolver(columnRenames),
+			makeInverseResolver(viewRenames),
+			'default',
+		)).sqlStatements
+		: undefined;
 
 	const { errors } = suggestions(statements, ddlCur);
 	if (errors.length) {
@@ -147,9 +164,11 @@ export const handle = async (
 	writeResult({
 		snapshot,
 		sqlStatements,
+		downSqlStatements,
 		outFolder,
 		name: config.name,
 		breakpoints: config.breakpoints,
+		generateDownMigrations: config.generateDownMigrations,
 		renames,
 		snapshots,
 	});

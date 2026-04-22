@@ -18,6 +18,7 @@ export interface MigrationConfig {
 
 export interface MigrationMeta {
 	sql: string[];
+	downSql?: string[];
 	folderMillis: number;
 	hash: string;
 	bps: boolean;
@@ -75,8 +76,18 @@ export function readMigrationFiles(config: MigrationConfig): MigrationMeta[] {
 
 		const millis = formatToMillis(migrationDate);
 
+		let downSql: string[] | undefined;
+		const downPath = join(migrationFolderTo, migration.name, 'down.sql');
+		if (existsSync(downPath)) {
+			const downQuery = fs.readFileSync(downPath).toString().trim();
+			if (downQuery) {
+				downSql = downQuery.split('--> statement-breakpoint').map((it) => it);
+			}
+		}
+
 		migrationQueries.push({
 			sql: result,
+			downSql,
 			bps: true,
 			folderMillis: millis,
 			hash: crypto.createHash('sha256').update(query).digest('hex'),

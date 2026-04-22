@@ -6,6 +6,7 @@ import { prepareSqliteSnapshot } from '../../dialects/sqlite/serializer';
 import { resolver } from '../prompts';
 import { sqliteSchemaError, warning } from '../views';
 import { writeResult } from './generate-common';
+import { makeInverseResolver, withCapture } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
@@ -25,6 +26,7 @@ export const handle = async (config: GenerateConfig) => {
 				outFolder,
 				name: config.name,
 				breakpoints: config.breakpoints,
+				generateDownMigrations: config.generateDownMigrations,
 				bundle: config.bundle,
 				type: 'custom',
 				renames: [],
@@ -32,13 +34,26 @@ export const handle = async (config: GenerateConfig) => {
 			});
 			return;
 		}
+		const tableRenames: { from: SqliteEntities['tables']; to: SqliteEntities['tables'] }[] = [];
+		const columnRenames: { from: Column; to: Column }[] = [];
+
 		const { sqlStatements, warnings, renames } = await ddlDiff(
 			ddlPrev,
 			ddlCur,
-			resolver<SqliteEntities['tables']>('table'),
-			resolver<Column>('column'),
+			withCapture(resolver<SqliteEntities['tables']>('table'), tableRenames),
+			withCapture(resolver<Column>('column'), columnRenames),
 			'default',
 		);
+
+		const downSqlStatements = config.generateDownMigrations
+			? (await ddlDiff(
+				ddlCur,
+				ddlPrev,
+				makeInverseResolver(tableRenames),
+				makeInverseResolver(columnRenames),
+				'default',
+			)).sqlStatements
+			: undefined;
 
 		for (const w of warnings) {
 			warning(w);
@@ -47,10 +62,12 @@ export const handle = async (config: GenerateConfig) => {
 		writeResult({
 			snapshot: snapshot,
 			sqlStatements,
+			downSqlStatements,
 			renames,
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
+			generateDownMigrations: config.generateDownMigrations,
 			bundle: config.bundle,
 			driver: config.driver,
 			snapshots,

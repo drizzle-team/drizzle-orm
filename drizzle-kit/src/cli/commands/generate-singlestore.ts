@@ -6,6 +6,7 @@ import { prepareSnapshot } from 'src/dialects/singlestore/serializer';
 import { prepareOutFolder } from 'src/utils/utils-node';
 import { resolver } from '../prompts';
 import { writeResult } from './generate-common';
+import { makeInverseResolver, withCapture } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
@@ -21,6 +22,7 @@ export const handle = async (config: GenerateConfig) => {
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
+			generateDownMigrations: config.generateDownMigrations,
 			type: 'custom',
 			renames: [],
 			snapshots,
@@ -28,21 +30,38 @@ export const handle = async (config: GenerateConfig) => {
 		return;
 	}
 
+	const tableRenames: { from: Table; to: Table }[] = [];
+	const columnRenames: { from: Column; to: Column }[] = [];
+	const viewRenames: { from: View; to: View }[] = [];
+
 	const { sqlStatements, renames } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<Table>('table'),
-		resolver<Column>('column'),
-		resolver<View>('view'),
+		withCapture(resolver<Table>('table'), tableRenames),
+		withCapture(resolver<Column>('column'), columnRenames),
+		withCapture(resolver<View>('view'), viewRenames),
 		'default',
 	);
+
+	const downSqlStatements = config.generateDownMigrations
+		? (await ddlDiff(
+			ddlCur,
+			ddlPrev,
+			makeInverseResolver(tableRenames),
+			makeInverseResolver(columnRenames),
+			makeInverseResolver(viewRenames),
+			'default',
+		)).sqlStatements
+		: undefined;
 
 	writeResult({
 		snapshot,
 		sqlStatements,
+		downSqlStatements,
 		outFolder,
 		name: config.name,
 		breakpoints: config.breakpoints,
+		generateDownMigrations: config.generateDownMigrations,
 		renames,
 		snapshots,
 	});
