@@ -280,9 +280,14 @@ export const preparePostgresDB = async (
 		const { drizzle } = await import('drizzle-orm/postgres-js');
 		const { migrate } = await import('drizzle-orm/postgres-js/migrator');
 
+		// Silence raw NOTICE objects that postgres.js logs to stdout by default.
+		// The CLI runs internal `CREATE SCHEMA/TABLE IF NOT EXISTS` statements
+		// that emit NOTICE on subsequent runs, which would otherwise dump
+		// unstructured payloads on top of drizzle-kit's own output (#5643).
+		const onnotice = () => {};
 		const client = 'url' in credentials
-			? postgres.default(credentials.url, { max: 1 })
-			: postgres.default({ ...credentials, max: 1 });
+			? postgres.default(credentials.url, { max: 1, onnotice })
+			: postgres.default({ ...credentials, max: 1, onnotice });
 
 		const transparentParser = (val: any) => val;
 
