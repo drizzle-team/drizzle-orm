@@ -6035,7 +6035,7 @@ export function tests(test: Test) {
 							internal_staff_jqm1: {
 								userId: 1,
 							},
-							mappers_users_5: {
+							jit_mappers_users_5: {
 								createdAt: mappersDate,
 								id: 1,
 								isBanned: null,
@@ -6051,7 +6051,7 @@ export function tests(test: Test) {
 							internal_staff_jqm1: {
 								userId: 2,
 							},
-							mappers_users_5: {
+							jit_mappers_users_5: {
 								createdAt: mappersDate,
 								id: 2,
 								isBanned: true,
@@ -6437,5 +6437,267 @@ export function tests(test: Test) {
 				},
 			]);
 		});
+
+		test.skipIf(Date.now() < +new Date('2026-04-26')).concurrent(
+			'Mappers: deep nullification',
+			async ({ db, push }) => {
+				const users = pgTable('mappers_users_dn', (t) => ({
+					id: t.bigint('id', { mode: 'number' }).primaryKey(),
+					name: t.text('name').notNull(),
+					createdAt: t.timestamp('created_at', {
+						withTimezone: true,
+						mode: 'date',
+					}).notNull(),
+					isBanned: t.boolean('is_banned'),
+				}));
+
+				const internalStaff = pgTable('internal_staff_qm_dn', {
+					userId: integer('user_id').notNull().primaryKey(),
+				});
+
+				const ticket = pgTable('ticket_qm_dn', {
+					staffId: integer('staff_id').notNull(),
+				});
+
+				await push({ users, internalStaff, ticket });
+
+				await db.insert(users).values([{
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+				}, {
+					id: 2,
+					name: 'Second',
+					createdAt: mappersDate,
+					isBanned: true,
+				}, {
+					id: 3,
+					name: 'Third',
+					createdAt: mappersDate,
+				}]).returning();
+				await db.insert(internalStaff).values([{
+					userId: 1,
+				}, {
+					userId: 2,
+				}]);
+				await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]);
+
+				const subq = db
+					.select()
+					.from(internalStaff)
+					.leftJoin(users, eq(internalStaff.userId, users.id))
+					.as('internal_staff');
+				const selected = await db
+					.select()
+					.from(ticket)
+					.leftJoin(subq, eq(subq.internal_staff_qm_dn.userId, ticket.staffId));
+
+				expect(selected).toStrictEqual(
+					[
+						{
+							internal_staff: {
+								internal_staff_qm_dn: {
+									userId: 1,
+								},
+								mappers_users_dn: {
+									createdAt: mappersDate,
+									id: 1,
+									isBanned: null,
+									name: 'First',
+								},
+							},
+							ticket_qm_dn: {
+								staffId: 1,
+							},
+						},
+						{
+							internal_staff: {
+								internal_staff_qm_dn: {
+									userId: 2,
+								},
+								mappers_users_dn: {
+									createdAt: mappersDate,
+									id: 2,
+									isBanned: true,
+									name: 'Second',
+								},
+							},
+							ticket_qm_dn: {
+								staffId: 2,
+							},
+						},
+						{
+							internal_staff: null,
+							ticket_qm_dn: {
+								staffid: 3,
+							},
+						},
+					],
+				);
+			},
+		);
+
+		test.skipIf(Date.now() < +new Date('2026-04-26')).concurrent(
+			'Jit mappers: deep nullification',
+			async ({ createDB, push }) => {
+				const users = pgTable('mappers_users_jdn', (t) => ({
+					id: t.bigint('id', { mode: 'number' }).primaryKey(),
+					name: t.text('name').notNull(),
+					createdAt: t.timestamp('created_at', {
+						withTimezone: true,
+						mode: 'date',
+					}).notNull(),
+					isBanned: t.boolean('is_banned'),
+				}));
+
+				const internalStaff = pgTable('internal_staff_qm_jdn', {
+					userId: integer('user_id').notNull().primaryKey(),
+				});
+
+				const ticket = pgTable('ticket_qm_jdn', {
+					staffId: integer('staff_id').notNull(),
+				});
+
+				await push({ users, internalStaff, ticket });
+				const db = createDB({}, () => ({}), true);
+
+				await db.insert(users).values([{
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+				}, {
+					id: 2,
+					name: 'Second',
+					createdAt: mappersDate,
+					isBanned: true,
+				}, {
+					id: 3,
+					name: 'Third',
+					createdAt: mappersDate,
+				}]).returning();
+				await db.insert(internalStaff).values([{
+					userId: 1,
+				}, {
+					userId: 2,
+				}]);
+				await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]);
+
+				const subq = db
+					.select()
+					.from(internalStaff)
+					.leftJoin(users, eq(internalStaff.userId, users.id))
+					.as('internal_staff');
+				const selected = await db
+					.select()
+					.from(ticket)
+					.leftJoin(subq, eq(subq.internal_staff_qm_jdn.userId, ticket.staffId));
+
+				expect(selected).toStrictEqual(
+					[
+						{
+							internal_staff: {
+								internal_staff_qm_jdn: {
+									userId: 1,
+								},
+								mappers_users_jdn: {
+									createdAt: mappersDate,
+									id: 1,
+									isBanned: null,
+									name: 'First',
+								},
+							},
+							ticket_qm_jdn: {
+								staffId: 1,
+							},
+						},
+						{
+							internal_staff: {
+								internal_staff_qm_jdn: {
+									userId: 2,
+								},
+								mappers_users_jdn: {
+									createdAt: mappersDate,
+									id: 2,
+									isBanned: true,
+									name: 'Second',
+								},
+							},
+							ticket_qm_jdn: {
+								staffId: 2,
+							},
+						},
+						{
+							internal_staff: null,
+							ticket_qm_jdn: {
+								staffid: 3,
+							},
+						},
+					],
+				);
+			},
+		);
+
+		test.skipIf(Date.now() < +new Date('2026-04-26')).concurrent(
+			'Same table name joined between schemas',
+			async ({ db }) => {
+				const users1 = pgTable('users_cs_join_1', (t) => ({
+					id: t.integer('id').primaryKey(),
+					name: t.text('name').notNull(),
+				}));
+				const schema = pgSchema('cs_join_1');
+				const users2 = schema.table('users_cs_join_1', (t) => ({
+					id: t.integer('id').primaryKey(),
+					name: t.text('name').notNull(),
+				}));
+
+				await db.insert(users1).values([{
+					id: 1,
+					name: 'First',
+				}, {
+					id: 2,
+					name: 'Second',
+				}]);
+				await db.insert(users2).values([{
+					id: 1,
+					name: 'First',
+				}]);
+
+				const res = await db.select({
+					u1: users1,
+					u2: users2,
+				}).from(users1).leftJoin(users2, eq(users1.id, users2.id));
+
+				// @ts-ignore skipIf(Date.now() < +new Date('2026-04-26')) - just to make it searchable
+				expectTypeOf(res).toEqualTypeOf<{
+					u1: {
+						id: number;
+						name: string;
+					};
+					u2: {
+						id: number;
+						name: string;
+					} | null;
+				}[]>();
+				expect(res).toStrictEqual([
+					{
+						u1: {
+							id: 1,
+							name: 'First',
+						},
+						u2: {
+							id: 1,
+							name: 'First',
+						},
+					},
+					{
+						u1: {
+							id: 2,
+							name: 'Second',
+						},
+						u2: null,
+					},
+				]);
+			},
+		);
 	});
 }

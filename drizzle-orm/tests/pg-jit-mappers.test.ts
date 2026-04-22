@@ -73,14 +73,14 @@ test('Jit mappers: simple select', async () => {
 	const { columns } = this;
 	const { length } = rows;
 	const mapped = Array.from({ length });
-	const { field: field0, codec: codec0 } = columns[0];
-	const { field: field2 } = columns[2];
+	const { field: decoder0, codec: codec0 } = columns[0];
+	const { field: decoder2 } = columns[2];
 	for (let i = 0; i < length; ++i) {
 		const [ c0, c1, c2, c3 ] = rows[i];
 		mapped[i] = {
-			"id": c0 === null ? c0 : field0.mapFromDriverValue(codec0(c0, 0)),
+			"id": c0 === null ? c0 : decoder0.mapFromDriverValue(codec0(c0, 0)),
 			"name": c1,
-			"createdAt": c2 === null ? c2 : field2.mapFromDriverValue(c2),
+			"createdAt": c2 === null ? c2 : decoder2.mapFromDriverValue(c2),
 			"isBanned": c3,
 		};
 	}
@@ -153,14 +153,14 @@ test('Jit mappers: insert returning all, select, update returning, delete return
 	const { columns } = this;
 	const { length } = rows;
 	const mapped = Array.from({ length });
-	const { field: field0, codec: codec0 } = columns[0];
-	const { field: field2 } = columns[2];
+	const { field: decoder0, codec: codec0 } = columns[0];
+	const { field: decoder2 } = columns[2];
 	for (let i = 0; i < length; ++i) {
 		const [ c0, c1, c2, c3 ] = rows[i];
 		mapped[i] = {
-			"id": c0 === null ? c0 : field0.mapFromDriverValue(codec0(c0, 0)),
+			"id": c0 === null ? c0 : decoder0.mapFromDriverValue(codec0(c0, 0)),
 			"name": c1,
-			"createdAt": c2 === null ? c2 : field2.mapFromDriverValue(c2),
+			"createdAt": c2 === null ? c2 : decoder2.mapFromDriverValue(c2),
 			"isBanned": c3,
 		};
 	}
@@ -171,14 +171,14 @@ test('Jit mappers: insert returning all, select, update returning, delete return
 	const { columns } = this;
 	const { length } = rows;
 	const mapped = Array.from({ length });
-	const { field: field0, codec: codec0 } = columns[0];
-	const { field: field2 } = columns[2];
+	const { field: decoder0, codec: codec0 } = columns[0];
+	const { field: decoder2 } = columns[2];
 	for (let i = 0; i < length; ++i) {
 		const [ c0, c1, c2, c3 ] = rows[i];
 		mapped[i] = {
-			"id": c0 === null ? c0 : field0.mapFromDriverValue(codec0(c0, 0)),
+			"id": c0 === null ? c0 : decoder0.mapFromDriverValue(codec0(c0, 0)),
 			"name": c1,
-			"createdAt": c2 === null ? c2 : field2.mapFromDriverValue(c2),
+			"createdAt": c2 === null ? c2 : decoder2.mapFromDriverValue(c2),
 			"isBanned": c3,
 		};
 	}
@@ -189,14 +189,14 @@ test('Jit mappers: insert returning all, select, update returning, delete return
 	const { columns } = this;
 	const { length } = rows;
 	const mapped = Array.from({ length });
-	const { field: field0, codec: codec0 } = columns[0];
-	const { field: field2 } = columns[2];
+	const { field: decoder0, codec: codec0 } = columns[0];
+	const { field: decoder2 } = columns[2];
 	for (let i = 0; i < length; ++i) {
 		const [ c0, c1, c2, c3 ] = rows[i];
 		mapped[i] = {
-			"id": c0 === null ? c0 : field0.mapFromDriverValue(codec0(c0, 0)),
+			"id": c0 === null ? c0 : decoder0.mapFromDriverValue(codec0(c0, 0)),
 			"name": c1,
-			"createdAt": c2 === null ? c2 : field2.mapFromDriverValue(c2),
+			"createdAt": c2 === null ? c2 : decoder2.mapFromDriverValue(c2),
 			"isBanned": c3,
 		};
 	}
@@ -207,14 +207,14 @@ test('Jit mappers: insert returning all, select, update returning, delete return
 	const { columns } = this;
 	const { length } = rows;
 	const mapped = Array.from({ length });
-	const { field: field0, codec: codec0 } = columns[0];
-	const { field: field2 } = columns[2];
+	const { field: decoder0, codec: codec0 } = columns[0];
+	const { field: decoder2 } = columns[2];
 	for (let i = 0; i < length; ++i) {
 		const [ c0, c1, c2, c3 ] = rows[i];
 		mapped[i] = {
-			"id": c0 === null ? c0 : field0.mapFromDriverValue(codec0(c0, 0)),
+			"id": c0 === null ? c0 : decoder0.mapFromDriverValue(codec0(c0, 0)),
 			"name": c1,
-			"createdAt": c2 === null ? c2 : field2.mapFromDriverValue(c2),
+			"createdAt": c2 === null ? c2 : decoder2.mapFromDriverValue(c2),
 			"isBanned": c3,
 		};
 	}
@@ -282,21 +282,21 @@ test('Jit mappers: select complex selections', async () => {
 	const { columns } = this;
 	const { length } = rows;
 	const mapped = Array.from({ length });
-	const { field: field0, codec: codec0 } = columns[0];
-	const { field: field2 } = columns[2];
-	const { field: field5, codec: codec5 } = columns[5];
+	const { field: decoder0, codec: codec0 } = columns[0];
+	const { field: decoder2 } = columns[2];
+	const { field: decoder5, codec: codec5 } = columns[5];
 	for (let i = 0; i < length; ++i) {
 		const [ c0, c1, c2, c3, c4, c5, c6 ] = rows[i];
 		mapped[i] = {
 			"user": {
-				"id": c0 === null ? c0 : field0.mapFromDriverValue(codec0(c0, 0)),
+				"id": c0 === null ? c0 : decoder0.mapFromDriverValue(codec0(c0, 0)),
 				"name": c1,
-				"createdAt": c2 === null ? c2 : field2.mapFromDriverValue(c2),
+				"createdAt": c2 === null ? c2 : decoder2.mapFromDriverValue(c2),
 				"isBanned": c3,
 			},
 			"post": c4 === null && c5 === null && c6 === null ? null : {
 				"id": c4,
-				"authorId": c5 === null ? c5 : field5.mapFromDriverValue(codec5(c5, 0)),
+				"authorId": c5 === null ? c5 : decoder5.mapFromDriverValue(codec5(c5, 0)),
 				"content": c6,
 			},
 		};
@@ -308,21 +308,21 @@ test('Jit mappers: select complex selections', async () => {
 	const { columns } = this;
 	const { length } = rows;
 	const mapped = Array.from({ length });
-	const { field: field0, codec: codec0 } = columns[0];
-	const { field: field2 } = columns[2];
-	const { field: field5, codec: codec5 } = columns[5];
+	const { field: decoder0, codec: codec0 } = columns[0];
+	const { field: decoder2 } = columns[2];
+	const { field: decoder5, codec: codec5 } = columns[5];
 	for (let i = 0; i < length; ++i) {
 		const [ c0, c1, c2, c3, c4, c5, c6 ] = rows[i];
 		mapped[i] = {
 			"user": {
-				"id": c0 === null ? c0 : field0.mapFromDriverValue(codec0(c0, 0)),
+				"id": c0 === null ? c0 : decoder0.mapFromDriverValue(codec0(c0, 0)),
 				"name": c1,
-				"createdAt": c2 === null ? c2 : field2.mapFromDriverValue(c2),
+				"createdAt": c2 === null ? c2 : decoder2.mapFromDriverValue(c2),
 				"isBanned": c3,
 			},
 			"post": {
 				"id": c4,
-				"authorId": c5 === null ? c5 : field5.mapFromDriverValue(codec5(c5, 0)),
+				"authorId": c5 === null ? c5 : decoder5.mapFromDriverValue(codec5(c5, 0)),
 				"content": c6,
 			},
 		};
@@ -334,17 +334,17 @@ test('Jit mappers: select complex selections', async () => {
 	const { columns } = this;
 	const { length } = rows;
 	const mapped = Array.from({ length });
-	const { field: field0, codec: codec0 } = columns[0];
-	const { field: field5 } = columns[5];
+	const { field: decoder0, codec: codec0 } = columns[0];
+	const { field: decoder5 } = columns[5];
 	for (let i = 0; i < length; ++i) {
 		const [ c0, c1, c2, c3, c4, c5 ] = rows[i];
 		mapped[i] = {
-			"userId": c0 === null ? c0 : field0.mapFromDriverValue(codec0(c0, 0)),
+			"userId": c0 === null ? c0 : decoder0.mapFromDriverValue(codec0(c0, 0)),
 			"postId": c1,
 			"name": c2,
 			"isBanned": c3,
 			"content": c4,
-			"createdAt": c5 === null ? c5 : field5.mapFromDriverValue(c5),
+			"createdAt": c5 === null ? c5 : decoder5.mapFromDriverValue(c5),
 		};
 	}
 	return mapped;
@@ -354,17 +354,17 @@ test('Jit mappers: select complex selections', async () => {
 	const { columns } = this;
 	const { length } = rows;
 	const mapped = Array.from({ length });
-	const { field: field0, codec: codec0 } = columns[0];
-	const { field: field5 } = columns[5];
+	const { field: decoder0, codec: codec0 } = columns[0];
+	const { field: decoder5 } = columns[5];
 	for (let i = 0; i < length; ++i) {
 		const [ c0, c1, c2, c3, c4, c5 ] = rows[i];
 		mapped[i] = {
-			"userId": c0 === null ? c0 : field0.mapFromDriverValue(codec0(c0, 0)),
+			"userId": c0 === null ? c0 : decoder0.mapFromDriverValue(codec0(c0, 0)),
 			"postId": c1,
 			"name": c2,
 			"isBanned": c3,
 			"content": c4,
-			"createdAt": c5 === null ? c5 : field5.mapFromDriverValue(c5),
+			"createdAt": c5 === null ? c5 : decoder5.mapFromDriverValue(c5),
 		};
 	}
 	return mapped;
@@ -374,34 +374,60 @@ test('Jit mappers: select complex selections', async () => {
 	const { columns } = this;
 	const { length } = rows;
 	const mapped = Array.from({ length });
-	const { field: field0, codec: codec0 } = columns[0];
-	const { field: field2 } = columns[2];
-	const { field: field4 } = columns[4];
-	const { field: field6, codec: codec6 } = columns[6];
-	const { field: field8 } = columns[8];
+	const { field: decoder0, codec: codec0 } = columns[0];
+	const { field: decoder2 } = columns[2];
+	const { field: { sql: { decoder: decoder4 } } } = columns[4];
+	const { field: decoder6, codec: codec6 } = columns[6];
+	const { field: { sql: { decoder: decoder8 } } } = columns[8];
 	for (let i = 0; i < length; ++i) {
 		const [ c0, c1, c2, c3, c4, c5, c6, c7, c8 ] = rows[i];
 		mapped[i] = {
 			"user": {
-				"id": c0 === null ? c0 : field0.mapFromDriverValue(codec0(c0, 0)),
+				"id": c0 === null ? c0 : decoder0.mapFromDriverValue(codec0(c0, 0)),
 				"name": c1,
-				"createdAt": c2 === null ? c2 : field2.mapFromDriverValue(c2),
+				"createdAt": c2 === null ? c2 : decoder2.mapFromDriverValue(c2),
 				"isBanned": c3,
-				"extra": c4 === null ? c4 : field4.sql.decoder.mapFromDriverValue(c4),
+				"extra": c4 === null ? c4 : decoder4.mapFromDriverValue(c4),
 			},
 			"post": c5 === null && c6 === null && c7 === null ? null : {
 				"id": c5,
-				"authorId": c6 === null ? c6 : field6.mapFromDriverValue(codec6(c6, 0)),
+				"authorId": c6 === null ? c6 : decoder6.mapFromDriverValue(codec6(c6, 0)),
 				"content": c7,
-				"extra": c8 === null ? c8 : field8.sql.decoder.mapFromDriverValue(c8),
+				"extra": c8 === null ? c8 : decoder8.mapFromDriverValue(c8),
 			},
 		};
 	}
 	return mapped;
 	//# sourceURL=drizzle:jit-query-mapper
 }`);
-	// WIP
-	expect(selected6).toStrictEqual(``);
+	expect(selected6).toStrictEqual(`function jitQueryMapper (rows) {
+	const { columns } = this;
+	const { length } = rows;
+	const mapped = Array.from({ length });
+	const { field: decoder2, codec: codec2 } = columns[2];
+	const { field: decoder4 } = columns[4];
+	for (let i = 0; i < length; ++i) {
+		const [ c0, c1, c2, c3, c4, c5 ] = rows[i];
+		mapped[i] = {
+			"ticket_jqm1": {
+				"staffId": c0,
+			},
+			"internal_staff": {
+				"internal_staff_jqm1": {
+					"userId": c1,
+				},
+				"users": {
+					"id": c2 === null ? c2 : decoder2.mapFromDriverValue(codec2(c2, 0)),
+					"name": c3,
+					"createdAt": c4 === null ? c4 : decoder4.mapFromDriverValue(c4),
+					"isBanned": c5,
+				},
+			},
+		};
+	}
+	return mapped;
+	//# sourceURL=drizzle:jit-query-mapper
+}`);
 });
 
 test('Jit mappers: relational', async () => {
