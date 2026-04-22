@@ -14,6 +14,7 @@ export const sqliteCredentials = union([
 		accountId: string().min(1),
 		databaseId: string().min(1),
 		token: string().min(1),
+		baseApiUrl: string().min(1).optional(),
 	}),
 	object({
 		driver: undefined(),
@@ -30,6 +31,7 @@ export type SqliteCredentials =
 		accountId: string;
 		databaseId: string;
 		token: string;
+		baseApiUrl?: string;
 	}
 	| {
 		url: string;
