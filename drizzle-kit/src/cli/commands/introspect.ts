@@ -61,6 +61,7 @@ export const introspectPostgres = async (
 	schemasFilter: string[],
 	prefix: Prefix,
 	entities: Entities,
+	omitSuffixForSchema: string,
 ) => {
 	const { preparePostgresDB } = await import('../connections');
 	const db = await preparePostgresDB(credentials);
@@ -108,7 +109,7 @@ export const introspectPostgres = async (
 	);
 
 	const schema = { id: originUUID, prevId: '', ...res } as PgSchema;
-	const ts = postgresSchemaToTypeScript(schema, casing);
+	const ts = postgresSchemaToTypeScript(schema, casing, omitSuffixForSchema);
 	const relationsTs = relationsToTypeScript(schema, casing);
 	const { internal, ...schemaWithoutInternals } = schema;
 
@@ -187,6 +188,7 @@ export const introspectGel = async (
 	schemasFilter: string[],
 	prefix: Prefix,
 	entities: Entities,
+	omitSuffixForSchema: string,
 ) => {
 	const { prepareGelDB } = await import('../connections');
 	const db = await prepareGelDB(credentials);
@@ -234,7 +236,7 @@ export const introspectGel = async (
 	);
 
 	const schema = { id: originUUID, prevId: '', ...res } as GelSchema;
-	const ts = gelSchemaToTypeScript(schema, casing);
+	const ts = gelSchemaToTypeScript(schema, casing, omitSuffixForSchema);
 	const relationsTs = relationsToTypeScript(schema, casing);
 	const { internal, ...schemaWithoutInternals } = schema;
 
