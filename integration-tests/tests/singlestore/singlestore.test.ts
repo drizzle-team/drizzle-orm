@@ -2,9 +2,10 @@ import retry from 'async-retry';
 import { drizzle } from 'drizzle-orm/singlestore';
 import type { SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
 import * as mysql2 from 'mysql2/promise';
-import { afterAll, beforeAll, beforeEach } from 'vitest';
+import { afterAll, beforeAll, beforeEach, vi } from 'vitest';
 import { TestCache, TestGlobalCache, tests as cacheTests } from './singlestore-cache';
 import { createDockerDB, tests } from './singlestore-common';
+import { tests as onErrorTests } from './singlestore-on-error';
 
 const ENABLE_LOGGING = false;
 
@@ -12,6 +13,8 @@ let db: SingleStoreDriverDatabase;
 let dbGlobalCached: SingleStoreDriverDatabase;
 let cachedDb: SingleStoreDriverDatabase;
 let client: mysql2.Connection;
+const onErrorFn = vi.fn();
+let onErrorDb: SingleStoreDriverDatabase;
 
 beforeAll(async () => {
 	let connectionString;
@@ -41,6 +44,7 @@ beforeAll(async () => {
 	db = drizzle(client, { logger: ENABLE_LOGGING });
 	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
 	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
+	onErrorDb = drizzle(client, { logger: ENABLE_LOGGING, onError: onErrorFn });
 });
 
 afterAll(async () => {
@@ -55,7 +59,12 @@ beforeEach((ctx) => {
 		db: cachedDb,
 		dbGlobalCached,
 	};
+	ctx.onErrorSingleStore = {
+		db: onErrorDb,
+		onError: onErrorFn,
+	};
 });
 
 cacheTests();
 tests();
+onErrorTests();
