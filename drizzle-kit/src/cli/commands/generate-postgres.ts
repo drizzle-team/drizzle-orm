@@ -93,7 +93,7 @@ export const handle = async (
 	groupedStatements = diffResult.groupedStatements;
 	jsonStatements = diffResult.statements;
 
-	if (isJsonMode() && config.hints.hasUnresolved()) {
+	if (isJsonMode() && config.hints.hasMissingHints()) {
 		config.hints.emitAndExit();
 	}
 
