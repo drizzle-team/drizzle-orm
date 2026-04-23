@@ -519,19 +519,30 @@ test('type coercion - all', (t) => {
 		text: text().notNull(),
 	}));
 
-	const { createSelectSchema } = createSchemaFactory({
+	const { createSelectSchema, createInsertSchema } = createSchemaFactory({
 		coerce: true,
 	});
 	const result = createSelectSchema(table);
 	const expected = z.object({
-		bigint: z.coerce.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
-		boolean: z.coerce.boolean(),
-		timestamp: z.coerce.date(),
-		integer: z.coerce.number().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX).int(),
-		text: z.coerce.string(),
+		bigint: z.coerce.bigint<bigint>().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
+		boolean: z.coerce.boolean<boolean>(),
+		timestamp: z.coerce.date<Date>(),
+		integer: z.coerce.number<number>().int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
+		text: z.coerce.string<string>(),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
+
+	// Verify that createInsertSchema with coerce gives proper input types, not `unknown` (GH#5659)
+	const insertResult = createInsertSchema(table);
+	const insertExpected = z.object({
+		bigint: z.coerce.bigint<bigint>().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
+		boolean: z.coerce.boolean<boolean>(),
+		timestamp: z.coerce.date<Date>(),
+		integer: z.coerce.number<number>().int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
+		text: z.coerce.string<string>(),
+	});
+	Expect<Equal<z.input<typeof insertResult>, z.input<typeof insertExpected>>>();
 });
 
 test('type coercion - mixed', (t) => {
@@ -550,7 +561,7 @@ test('type coercion - mixed', (t) => {
 	});
 	const result = createSelectSchema(table);
 	const expected = z.object({
-		timestamp: z.coerce.date(),
+		timestamp: z.coerce.date<Date>(),
 		integer: z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
 	});
 	expectSchemaShape(t, expected).from(result);
