@@ -668,6 +668,7 @@ export class SQLiteCreateTableConvertor extends Convertor {
 			compositePKs,
 			uniqueConstraints,
 			checkConstraints,
+			isStrict,
 		} = st;
 
 		let statement = '';
@@ -744,7 +745,7 @@ export class SQLiteCreateTableConvertor extends Convertor {
 		}
 
 		statement += `\n`;
-		statement += `);`;
+		statement += isStrict ? `) STRICT;` : `);`;
 		statement += `\n`;
 		return statement;
 	}
@@ -3769,7 +3770,7 @@ class SQLiteRecreateTableConvertor extends Convertor {
 	}
 
 	convert(statement: JsonRecreateTableStatement): string | string[] {
-		const { tableName, columns, compositePKs, referenceData, checkConstraints } = statement;
+		const { tableName, columns, compositePKs, referenceData, checkConstraints, isStrict } = statement;
 
 		const columnNames = columns.map((it) => `"${it.name}"`).join(', ');
 		const newTableName = `__new_${tableName}`;
@@ -3793,6 +3794,7 @@ class SQLiteRecreateTableConvertor extends Convertor {
 				referenceData,
 				compositePKs,
 				checkConstraints: mappedCheckConstraints,
+				isStrict,
 			}),
 		);
 
@@ -3836,7 +3838,7 @@ class LibSQLRecreateTableConvertor extends Convertor {
 	}
 
 	convert(statement: JsonRecreateTableStatement): string[] {
-		const { tableName, columns, compositePKs, referenceData, checkConstraints } = statement;
+		const { tableName, columns, compositePKs, referenceData, checkConstraints, isStrict } = statement;
 
 		const columnNames = columns.map((it) => `"${it.name}"`).join(', ');
 		const newTableName = `__new_${tableName}`;
@@ -3859,6 +3861,7 @@ class LibSQLRecreateTableConvertor extends Convertor {
 				referenceData,
 				compositePKs,
 				checkConstraints: mappedCheckConstraints,
+				isStrict,
 			}),
 		);
 
