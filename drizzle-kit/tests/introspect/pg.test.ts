@@ -23,6 +23,7 @@ import {
 	pgPolicy,
 	pgRole,
 	pgSchema,
+	pgSequence,
 	pgTable,
 	pgView,
 	real,
@@ -921,6 +922,97 @@ test('multiple policies with roles from schema', async () => {
 		'multiple-policies-with-roles-from-schema',
 		['public'],
 		{ roles: { include: ['user_role'] } },
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect nextval defaults on integer columns', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		usersIdSeq: pgSequence('users_id_seq'),
+		users: pgTable('users', {
+			id: integer('id').notNull().default(sql`nextval('users_id_seq'::regclass)`),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-nextval-default-integer',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect nextval defaults on integer columns in non-public schema', async () => {
+	const client = new PGlite();
+	const musicbrainz = pgSchema('musicbrainz');
+
+	const schema = {
+		musicbrainz,
+		usersIdSeq: musicbrainz.sequence('users_id_seq'),
+		users: musicbrainz.table('users', {
+			id: integer('id').notNull().default(sql`nextval('musicbrainz.users_id_seq'::regclass)`),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-nextval-default-integer-non-public-schema',
+		['musicbrainz'],
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect pg_catalog.nextval defaults on integer columns', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		usersIdSeq: pgSequence('users_id_seq'),
+		users: pgTable('users', {
+			id: integer('id').notNull().default(sql`pg_catalog.nextval('users_id_seq'::regclass)`),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-pg-catalog-nextval-default-integer',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect defaults with duplicate table names across schemas', async () => {
+	const client = new PGlite();
+	const schemaA = pgSchema('schema_a');
+	const schemaB = pgSchema('schema_b');
+
+	const schema = {
+		schemaA,
+		schemaB,
+		schemaAUsersIdSeq: schemaA.sequence('users_id_seq'),
+		schemaAUsers: schemaA.table('users', {
+			id: integer('id').notNull().default(sql`nextval('schema_a.users_id_seq'::regclass)`),
+		}),
+		schemaBUsers: schemaB.table('users', {
+			id: integer('id').notNull().default(0),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-defaults-duplicate-table-names-across-schemas',
+		['schema_a', 'schema_b'],
 	);
 
 	expect(statements.length).toBe(0);

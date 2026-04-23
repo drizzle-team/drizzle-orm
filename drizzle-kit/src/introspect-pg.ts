@@ -148,6 +148,30 @@ const mapColumnDefault = (defaultValue: any, isExpression?: boolean) => {
 	return defaultValue;
 };
 
+const isSequenceDefaultExpression = (defaultValue: unknown): boolean => {
+	return typeof defaultValue === 'string' && /^\s*(?:\(+\s*)?(?:pg_catalog\.)?nextval\s*\(/i.test(defaultValue);
+};
+
+const mapNumericLikeDefault = (defaultValue: unknown, isExpression: boolean): string => {
+	if (typeof defaultValue === 'undefined') return '';
+	const forceExpression = isExpression || isSequenceDefaultExpression(defaultValue);
+	return `.default(${mapColumnDefault(defaultValue, forceExpression)})`;
+};
+
+const getInternalTableKey = (tableName: string, tableSchema: string): string => {
+	return `${tableSchema === '' ? 'public' : tableSchema}.${tableName}`;
+};
+
+const getColumnInternals = (
+	internals: PgKitInternals | undefined,
+	tableName: string,
+	tableSchema: string,
+	columnName: string,
+) => {
+	const tableKey = getInternalTableKey(tableName, tableSchema);
+	return internals?.tables[tableKey]?.columns[columnName] ?? internals?.tables[tableName]?.columns[columnName];
+};
+
 const importsPatch = {
 	'double precision': 'doublePrecision',
 	'timestamp without time zone': 'timestamp',
@@ -513,6 +537,7 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 		let statement = `export const ${withCasing(paramName, casing)} = ${func}("${table.name}", {\n`;
 		statement += createTableColumns(
 			table.name,
+			table.schema || 'public',
 			Object.values(table.columns),
 			Object.values(table.foreignKeys),
 			enumTypes,
@@ -583,7 +608,8 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 			const tablespace = it.tablespace ?? '';
 
 			const columns = createTableColumns(
-				'',
+				it.name,
+				it.schema || 'public',
 				Object.values(it.columns),
 				[],
 				enumTypes,
@@ -672,6 +698,7 @@ const buildArrayDefault = (defaultValue: string, typeName: string): string => {
 
 const mapDefault = (
 	tableName: string,
+	tableSchema: string,
 	type: string,
 	name: string,
 	enumTypes: Set<string>,
@@ -679,8 +706,9 @@ const mapDefault = (
 	defaultValue?: any,
 	internals?: PgKitInternals,
 ) => {
-	const isExpression = internals?.tables[tableName]?.columns[name]?.isDefaultAnExpression ?? false;
-	const isArray = internals?.tables[tableName]?.columns[name]?.isArray ?? false;
+	const columnInternals = getColumnInternals(internals, tableName, tableSchema, name);
+	const isExpression = columnInternals?.isDefaultAnExpression ?? false;
+	const isArray = columnInternals?.isArray ?? false;
 	const lowered = type.toLowerCase().replace('[]', '');
 
 	if (isArray) {
@@ -694,15 +722,15 @@ const mapDefault = (
 	}
 
 	if (lowered.startsWith('integer')) {
-		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+		return mapNumericLikeDefault(defaultValue, isExpression);
 	}
 
 	if (lowered.startsWith('smallint')) {
-		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+		return mapNumericLikeDefault(defaultValue, isExpression);
 	}
 
 	if (lowered.startsWith('bigint')) {
-		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+		return mapNumericLikeDefault(defaultValue, isExpression);
 	}
 
 	if (lowered.startsWith('boolean')) {
@@ -710,11 +738,11 @@ const mapDefault = (
 	}
 
 	if (lowered.startsWith('double precision')) {
-		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+		return mapNumericLikeDefault(defaultValue, isExpression);
 	}
 
 	if (lowered.startsWith('real')) {
-		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+		return mapNumericLikeDefault(defaultValue, isExpression);
 	}
 
 	if (lowered.startsWith('uuid')) {
@@ -837,6 +865,7 @@ const mapDefault = (
 
 const column = (
 	tableName: string,
+	tableSchema: string,
 	type: string,
 	name: string,
 	enumTypes: Set<string>,
@@ -845,7 +874,7 @@ const column = (
 	defaultValue?: any,
 	internals?: PgKitInternals,
 ) => {
-	const isExpression = internals?.tables[tableName]?.columns[name]?.isDefaultAnExpression ?? false;
+	const isExpression = getColumnInternals(internals, tableName, tableSchema, name)?.isDefaultAnExpression ?? false;
 	const lowered = type.toLowerCase().replace('[]', '');
 
 	if (enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`)) {
@@ -1111,6 +1140,7 @@ const dimensionsInArray = (size?: number): string => {
 
 const createTableColumns = (
 	tableName: string,
+	tableSchema: string,
 	columns: Column[],
 	fks: ForeignKey[],
 	enumTypes: Set<string>,
@@ -1135,8 +1165,10 @@ const createTableColumns = (
 	}, {} as Record<string, ForeignKey[]>);
 
 	columns.forEach((it) => {
+		const columnInternals = getColumnInternals(internals, tableName, tableSchema, it.name);
 		const columnStatement = column(
 			tableName,
+			tableSchema,
 			it.type,
 			it.name,
 			enumTypes,
@@ -1148,10 +1180,19 @@ const createTableColumns = (
 		statement += '\t';
 		statement += columnStatement;
 		// Provide just this in column function
-		if (internals?.tables[tableName]?.columns[it.name]?.isArray) {
-			statement += dimensionsInArray(internals?.tables[tableName]?.columns[it.name]?.dimensions);
+		if (columnInternals?.isArray) {
+			statement += dimensionsInArray(columnInternals.dimensions);
 		}
-		statement += mapDefault(tableName, it.type, it.name, enumTypes, it.typeSchema ?? 'public', it.default, internals);
+		statement += mapDefault(
+			tableName,
+			tableSchema,
+			it.type,
+			it.name,
+			enumTypes,
+			it.typeSchema ?? 'public',
+			it.default,
+			internals,
+		);
 		statement += it.primaryKey ? '.primaryKey()' : '';
 		statement += it.notNull && !it.identity ? '.notNull()' : '';
 
