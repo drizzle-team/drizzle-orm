@@ -679,7 +679,10 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 		process.exit(1);
 	}
 	const { host, port } = params;
-	const { dialect, schema, casing } = result.data;
+	const { dialect, schema, casing, schemaFilter: rawSchemaFilter } = result.data;
+	const schemaFilter = rawSchemaFilter
+		? (Array.isArray(rawSchemaFilter) ? rawSchemaFilter : [rawSchemaFilter])
+		: undefined;
 	const flattened = flattenDatabaseCredentials(config);
 
 	if (dialect === 'postgresql') {
@@ -696,6 +699,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			port,
 			credentials,
 			casing,
+			schemaFilter,
 		};
 	}
 
