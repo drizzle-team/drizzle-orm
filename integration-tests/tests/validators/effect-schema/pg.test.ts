@@ -15,7 +15,7 @@ import {
 	text,
 } from 'drizzle-orm/pg-core';
 import { CONSTANTS } from 'drizzle-orm/utils';
-import { Schema as s } from 'effect';
+import { type Brand, Schema as s } from 'effect';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { Equal, Expect } from '~/utils';
@@ -71,6 +71,41 @@ test('table in schema - select', (tc) => {
 	const expected = s.Struct({ id: integerSchema, name: textSchema });
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('$type override preserves effect schema output type', (t) => {
+	type MyBrandedId = string & Brand.Brand<'MyBrandedId'>;
+
+	const table = pgTable('test', ({ uuid }) => ({
+		id: uuid().$type<MyBrandedId>().notNull(),
+	}));
+
+	const result = createSelectSchema(table);
+	const runtimeExpected = s.Struct({ id: s.UUID });
+
+	expectSchemaShape(t, runtimeExpected).from(result);
+	Expect<Equal<s.Schema.Type<typeof result>['id'], MyBrandedId>>();
+	Expect<Equal<s.Schema.Type<typeof result.fields.id>, MyBrandedId>>();
+	Expect<Equal<s.Schema.Context<typeof result>, never>>();
+	Expect<Equal<s.Schema.Context<typeof result.fields.id>, never>>();
+});
+
+test('$type literal override preserves effect schema output type', (t) => {
+	const fooLiteral = s.Literal('Foo');
+	type Foo = s.Schema.Type<typeof fooLiteral>;
+
+	const table = pgTable('test', ({ varchar }) => ({
+		value: varchar().$type<Foo>().notNull(),
+	}));
+
+	const result = createSelectSchema(table);
+	const runtimeExpected = s.Struct({ value: s.String });
+
+	expectSchemaShape(t, runtimeExpected).from(result);
+	Expect<Equal<s.Schema.Type<typeof result>['value'], Foo>>();
+	Expect<Equal<s.Schema.Type<typeof result.fields.value>, Foo>>();
+	Expect<Equal<s.Schema.Context<typeof result>, never>>();
+	Expect<Equal<s.Schema.Context<typeof result.fields.value>, never>>();
 });
 
 test('table - insert', (t) => {
