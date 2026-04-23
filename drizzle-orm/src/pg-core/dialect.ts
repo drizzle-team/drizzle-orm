@@ -677,6 +677,7 @@ export class PgDialect {
 			escapeString: this.escapeString,
 			prepareTyping: this.prepareTyping,
 			invokeSource,
+			paramDedupMap: new Map(),
 		});
 	}
 
