@@ -66,7 +66,7 @@ afterEach(() => {
 
 test('HintsHandler.emitAndExit does not emit when missingHints is empty guard check', () => {
 	const hints = new HintsHandler();
-	expect(hints.hasUnresolved()).toBe(false);
+	expect(hints.hasMissingHints()).toBe(false);
 });
 
 test('resolver aggregates unresolved items across repeated calls on the same HintsHandler', async () => {
@@ -171,7 +171,7 @@ test('new HintsHandler() produces a fresh missing hint list each time', () => {
 
 	const secondHints = new HintsHandler();
 
-	expect(secondHints.hasUnresolved()).toBe(false);
+	expect(secondHints.hasMissingHints()).toBe(false);
 	expect(firstHints.toResponse()).toStrictEqual({
 		status: 'missing_hints',
 		unresolved: [{ type: 'rename_or_create', kind: 'table', entity: ['public', 'orders'] }],
