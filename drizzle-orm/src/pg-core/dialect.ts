@@ -92,8 +92,8 @@ export class PgDialect {
 		);
 
 		const lastDbMigration = dbMigrations[0];
-		await session.transaction(async (tx) => {
-			for await (const migration of migrations) {
+		for await (const migration of migrations) {
+			await session.transaction(async (tx) => {
 				if (
 					!lastDbMigration
 					|| Number(lastDbMigration.created_at) < migration.folderMillis
@@ -107,8 +107,8 @@ export class PgDialect {
 						} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
 					);
 				}
-			}
-		});
+			});
+		}
 	}
 
 	escapeName(name: string): string {
