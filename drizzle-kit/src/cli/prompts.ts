@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import { render } from 'hanji';
 import type { Resolver } from 'src/dialects/common';
 import { CommandOutputCliError } from './errors';
-import type { HintsHandler, IdFor, PromptEntityType, RenameCreateHintKind } from './hints';
+import type { HintsHandler, IdFor, MissingHint, PromptEntityType, RenameCreateHintKind } from './hints';
 import { isJsonMode } from './mode';
 import type { RenamePromptItem } from './views';
 import { humanLog, isRenamePromptItem, ResolveSelect } from './views';
@@ -124,7 +124,7 @@ export const resolver = <T extends PromptEntityBase>(
 				}
 
 				if (!createHint && leftMissing.length > 0) {
-					hints.pushMissingHint({ type: 'rename_or_create', kind, entity: newItemId });
+					hints.pushMissingHint({ type: 'rename_or_create', kind, entity: newItemId } as MissingHint);
 				}
 
 				applySelection(newItem, newItem, leftMissing, result, entity, defaultSchema);

@@ -68,17 +68,25 @@ export type ConfirmDataLossHint = {
 
 export type Hint = RenameHint | CreateHint | ConfirmDataLossHint;
 
+type RenameCreateMissingHint<K extends RenameCreateHintKind> = {
+	type: 'rename_or_create';
+	kind: K;
+	entity: IdFor<K>;
+};
+
+type ConfirmDataLossMissingHint<K extends ConfirmEntityKind> = {
+	type: 'confirm_data_loss';
+	kind: K;
+	entity: ConfirmIdFor<K>;
+	reason: 'non_empty' | 'nulls_present' | 'duplicates_present';
+};
+
 export type MissingHint =
 	| {
-		[K in RenameCreateHintKind]: { type: 'rename_or_create'; kind: K; entity: IdFor<K> };
+		[K in RenameCreateHintKind]: RenameCreateMissingHint<K>;
 	}[RenameCreateHintKind]
 	| {
-		[K in ConfirmEntityKind]: {
-			type: 'confirm_data_loss';
-			kind: K;
-			entity: ConfirmIdFor<K>;
-			reason: 'non_empty' | 'nulls_present' | 'duplicates_present';
-		};
+		[K in ConfirmEntityKind]: ConfirmDataLossMissingHint<K>;
 	}[ConfirmEntityKind];
 
 export type MissingHintsResponse = {
@@ -136,34 +144,34 @@ type ConfirmHintMembers = {
 type UnionInput<T extends readonly z.ZodTypeAny[]> = T & [T[number], T[number], ...T[number][]];
 
 const renameHintSchema = z.union(
-	(renameCreateEntitySchemas.map(({ kind, schema }) =>
+	renameCreateEntitySchemas.map(({ kind, schema }) =>
 		z.object({
 			type: z.literal('rename'),
 			kind: z.literal(kind),
 			from: schema,
 			to: schema,
 		}).strict()
-	) as unknown as RenameHintMembers) as UnionInput<RenameHintMembers>,
+	) as unknown as UnionInput<RenameHintMembers>,
 );
 
 const createHintSchema = z.union(
-	(renameCreateEntitySchemas.map(({ kind, schema }) =>
+	renameCreateEntitySchemas.map(({ kind, schema }) =>
 		z.object({
 			type: z.literal('create'),
 			kind: z.literal(kind),
 			entity: schema,
 		}).strict()
-	) as unknown as CreateHintMembers) as UnionInput<CreateHintMembers>,
+	) as unknown as UnionInput<CreateHintMembers>,
 );
 
 const confirmHintSchema = z.union(
-	(confirmEntitySchemas.map(({ kind, schema }) =>
+	confirmEntitySchemas.map(({ kind, schema }) =>
 		z.object({
 			type: z.literal('confirm_data_loss'),
 			kind: z.literal(kind),
 			entity: schema,
 		}).strict()
-	) as unknown as ConfirmHintMembers) as UnionInput<ConfirmHintMembers>,
+	) as unknown as UnionInput<ConfirmHintMembers>,
 );
 
 const hintSchema = z.array(z.union([
@@ -202,11 +210,11 @@ export class HintsHandler {
 			source = 'file';
 			try {
 				rawText = await readFile(opts.hintsFile, 'utf8');
-			} catch (cause) {
+			} catch (error) {
 				throw new InvalidHintsCliError(
-					`Failed to read hints file '${opts.hintsFile}': ${(cause as Error).message}`,
+					`Failed to read hints file '${opts.hintsFile}': ${(error as Error).message}`,
 					{ source, path: opts.hintsFile },
-					{ cause: cause as Error },
+					{ cause: error as Error },
 				);
 			}
 		} else if (opts.hints) {
@@ -219,26 +227,26 @@ export class HintsHandler {
 		let parsedJson: unknown;
 		try {
 			parsedJson = JSON.parse(rawText);
-		} catch (cause) {
+		} catch (error) {
 			throw new InvalidHintsCliError(
-				`Failed to parse hints JSON from ${source}: ${(cause as Error).message}`,
+				`Failed to parse hints JSON from ${source}: ${(error as Error).message}`,
 				{ source },
-				{ cause: cause as Error },
+				{ cause: error as Error },
 			);
 		}
 
 		try {
 			return new HintsHandler(parseHints(parsedJson));
-		} catch (cause) {
-			if (cause instanceof InvalidHintShapeCliError) {
+		} catch (error) {
+			if (error instanceof InvalidHintShapeCliError) {
 				throw new InvalidHintsCliError(
-					cause.message,
-					{ source, issues: cause.meta.issues as unknown as JsonValue },
-					{ cause },
+					error.message,
+					{ source, issues: error.meta.issues as unknown as JsonValue },
+					{ cause: error },
 				);
 			}
 
-			throw cause;
+			throw error;
 		}
 	}
 
@@ -260,27 +268,11 @@ export class HintsHandler {
 		});
 	}
 
-	pushMissingHint<K extends RenameCreateHintKind>(hint: { type: 'rename_or_create'; kind: K; entity: IdFor<K> }): void;
-	pushMissingHint<K extends ConfirmEntityKind>(hint: {
-		type: 'confirm_data_loss';
-		kind: K;
-		entity: ConfirmIdFor<K>;
-		reason: 'non_empty' | 'nulls_present' | 'duplicates_present';
-	}): void;
-	pushMissingHint(
-		hint:
-			| { type: 'rename_or_create'; kind: RenameCreateHintKind; entity: Readonly<readonly string[]> }
-			| {
-				type: 'confirm_data_loss';
-				kind: ConfirmEntityKind;
-				entity: Readonly<readonly string[]>;
-				reason: 'non_empty' | 'nulls_present' | 'duplicates_present';
-			},
-	): void {
-		this.missingHints.push(hint as MissingHint);
+	pushMissingHint(hint: MissingHint): void {
+		this.missingHints.push(hint);
 	}
 
-	hasUnresolved(): boolean {
+	hasMissingHints(): boolean {
 		return this.missingHints.length > 0;
 	}
 

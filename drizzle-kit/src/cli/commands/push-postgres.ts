@@ -115,7 +115,7 @@ export const handle = async (
 		'push',
 	);
 
-	if (hints.hasUnresolved()) {
+	if (hints.hasMissingHints()) {
 		hints.emitAndExit();
 	}
 
@@ -130,7 +130,7 @@ export const handle = async (
 
 	const dataLossHints = await suggestions(db, jsonStatements, hints);
 
-	if (hints.hasUnresolved()) {
+	if (hints.hasMissingHints()) {
 		hints.emitAndExit();
 	}
 
@@ -212,7 +212,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 
 	for (const statement of filtered) {
 		if (statement.type === 'drop_table') {
-			const entity: [string, string] = [statement.table.schema, statement.table.name];
+			const entity = [statement.table.schema, statement.table.name] as const;
 			if (hints.matchConfirm('table', entity)) continue;
 			const res = await db.query(`select 1 from ${statement.key} limit 1`);
 
@@ -220,7 +220,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 				if (isJsonMode()) {
 					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'table', entity, reason: 'non_empty' });
 				} else {
-					grouped.push({ hint: `· You're about to delete non-empty ${statement.key} table` });
+					grouped.push({ hint: `You're about to delete non-empty ${statement.key} table` });
 				}
 			}
 			continue;
@@ -228,7 +228,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 
 		if (statement.type === 'drop_view' && statement.view.materialized) {
 			const id = identifier(statement.view);
-			const entity: [string, string] = [statement.view.schema, statement.view.name];
+			const entity = [statement.view.schema, statement.view.name] as const;
 			if (hints.matchConfirm('view', entity)) continue;
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
@@ -236,7 +236,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			if (isJsonMode()) {
 				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'view', entity, reason: 'non_empty' });
 			} else {
-				grouped.push({ hint: `· You're about to delete non-empty ${id} materialized view` });
+				grouped.push({ hint: `You're about to delete non-empty ${id} materialized view` });
 			}
 			continue;
 		}
@@ -252,7 +252,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			if (isJsonMode()) {
 				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'column', entity, reason: 'non_empty' });
 			} else {
-				grouped.push({ hint: `· You're about to delete non-empty ${column.name} column in ${id} table` });
+				grouped.push({ hint: `You're about to delete non-empty ${column.name} column in ${id} table` });
 			}
 			continue;
 		}
@@ -271,7 +271,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'schema', entity, reason: 'non_empty' });
 			} else {
 				grouped.push({
-					hint: `· You're about to delete ${chalk.underline(statement.name)} schema with ${count} tables`,
+					hint: `You're about to delete ${chalk.underline(statement.name)} schema with ${count} tables`,
 				});
 			}
 			continue;
@@ -290,7 +290,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 
 			if (res.length === 0) continue;
 
-			const hint = `· You're about to drop ${
+			const hint = `You're about to drop ${
 				chalk.underline(id)
 			} primary key, this statements may fail and your table may loose primary key`;
 
@@ -328,7 +328,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			const res = await db.query(`select 1 from ${id} limit 1`);
 
 			if (res.length === 0) continue;
-			const hint = `· You're about to add not-null ${
+			const hint = `You're about to add not-null ${
 				chalk.underline(statement.column.name)
 			} column without default value to a non-empty ${id} table`;
 
@@ -356,7 +356,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'add_unique', entity, reason: 'duplicates_present' });
 			} else {
 				grouped.push({
-					hint: `· You're about to add ${
+					hint: `You're about to add ${
 						chalk.underline(unique.name)
 					} unique constraint to a non-empty ${id} table which may fail`,
 				});
