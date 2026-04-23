@@ -1,7 +1,7 @@
 import { type Cache, hashQuery, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
-import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
+import { DrizzleQueryError, TransactionRollbackError, wrapQueryError } from '~/errors.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
 import type { Assume, Equal } from '~/utils.ts';
@@ -76,7 +76,7 @@ export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 			try {
 				return await query();
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw wrapQueryError(queryString, params, e as Error);
 			}
 		}
 
@@ -85,7 +85,7 @@ export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 			try {
 				return await query();
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw wrapQueryError(queryString, params, e as Error);
 			}
 		}
 
@@ -103,7 +103,7 @@ export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 				]);
 				return res;
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw wrapQueryError(queryString, params, e as Error);
 			}
 		}
 
@@ -112,7 +112,7 @@ export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 			try {
 				return await query();
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw wrapQueryError(queryString, params, e as Error);
 			}
 		}
 
@@ -128,7 +128,7 @@ export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 				try {
 					result = await query();
 				} catch (e) {
-					throw new DrizzleQueryError(queryString, params, e as Error);
+					throw wrapQueryError(queryString, params, e as Error);
 				}
 
 				// put actual key
@@ -149,7 +149,7 @@ export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 		try {
 			return await query();
 		} catch (e) {
-			throw new DrizzleQueryError(queryString, params, e as Error);
+			throw wrapQueryError(queryString, params, e as Error);
 		}
 	}
 
