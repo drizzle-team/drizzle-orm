@@ -3,7 +3,6 @@ import type { PgTable } from '~/pg-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import type { PgColumnBaseConfig } from '../common.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
-import { parseEWKB } from './utils.ts';
 
 export class PgGeometryBuilder extends PgColumnBuilder<{
 	dataType: 'array geometry';
@@ -32,7 +31,7 @@ export class PgGeometry
 	static override readonly [entityKind]: string = 'PgGeometry';
 
 	/** @internal */
-	override readonly codec = 'geometry';
+	override readonly codec = 'geometry:tuple';
 
 	readonly srid = this.config.srid;
 	readonly mode = 'tuple';
@@ -40,10 +39,6 @@ export class PgGeometry
 	getSQLType(): string {
 		return `geometry(point${this.srid === undefined ? '' : `,${this.srid}`})`;
 	}
-
-	override mapFromDriverValue = (value: string): [number, number] => {
-		return parseEWKB(value).point;
-	};
 
 	override mapToDriverValue = (value: [number, number]): string => {
 		return `point(${value[0]} ${value[1]})`;
@@ -85,11 +80,6 @@ export class PgGeometryObject
 	getSQLType(): string {
 		return `geometry(point${this.srid === undefined ? '' : `,${this.srid}`})`;
 	}
-
-	override mapFromDriverValue = (value: string): { x: number; y: number } => {
-		const parsed = parseEWKB(value);
-		return { x: parsed.point[0], y: parsed.point[1] };
-	};
 
 	override mapToDriverValue = (value: { x: number; y: number }): string => {
 		return `point(${value.x} ${value.y})`;

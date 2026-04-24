@@ -41,13 +41,6 @@ export class PgVector extends PgColumn<'array vector'> {
 	override mapToDriverValue = (value: unknown): unknown => {
 		return JSON.stringify(value);
 	};
-
-	override mapFromDriverValue = (value: string): unknown => {
-		return value
-			.slice(1, -1)
-			.split(',')
-			.map((v) => Number.parseFloat(v));
-	};
 }
 
 export interface PgVectorConfig {

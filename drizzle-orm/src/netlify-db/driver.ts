@@ -7,7 +7,18 @@ import { drizzle as drizzleNodePg, type NodePgDatabase } from '~/node-postgres/d
 import type { NodePgClient } from '~/node-postgres/session.ts';
 import { parsePgArray } from '~/pg-core/array.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
-import { castToText, castToTextArr, type PgCodecs, refineGenericPgCodecs } from '~/pg-core/codecs.ts';
+import {
+	arrayCompatNormalize,
+	castToText,
+	castToTextArr,
+	parseGeometryTuple,
+	parseGeometryXY,
+	parsePgArrayAndNormalize,
+	type PgCodecs,
+	refineGenericPgCodecs,
+	textToDate,
+	textToDateWithTz,
+} from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -70,8 +81,35 @@ export const netlifyDbCodecs = refineGenericPgCodecs({
 	bytea: {
 		normalizeParam: String,
 	},
+	date: {
+		castArray: castToTextArr,
+		normalize: textToDate,
+		normalizeArray: arrayCompatNormalize(textToDate),
+	},
+	'date:string': {
+		castArray: castToTextArr,
+	},
+	timestamp: {
+		castArray: castToTextArr,
+		normalize: textToDateWithTz,
+		normalizeArray: arrayCompatNormalize(textToDateWithTz),
+	},
+	timestamptz: {
+		castArray: castToTextArr,
+		normalize: textToDate,
+		normalizeArray: arrayCompatNormalize(textToDate),
+	},
+	'timestamp:string': {
+		castArray: castToTextArr,
+	},
+	'timestamptz:string': {
+		castArray: castToTextArr,
+	},
 	geometry: {
-		normalizeArray: parsePgArray,
+		normalizeArray: parsePgArrayAndNormalize(parseGeometryXY),
+	},
+	'geometry:tuple': {
+		normalizeArray: parsePgArrayAndNormalize(parseGeometryTuple),
 	},
 	interval: {
 		castArray: castToTextArr,
@@ -83,8 +121,10 @@ export const netlifyDbCodecs = refineGenericPgCodecs({
 		normalizeParam: (v) => JSON.stringify(v),
 	},
 	line: {
-		castInJson: castToText,
-		castArrayInJson: castToTextArr,
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	'line:tuple': {
 		cast: castToText,
 		castArray: castToTextArr,
 	},
@@ -93,23 +133,86 @@ export const netlifyDbCodecs = refineGenericPgCodecs({
 		castArray: castToTextArr,
 	},
 	point: {
-		castInJson: castToText,
-		castArrayInJson: castToTextArr,
 		cast: castToText,
 		castArray: castToTextArr,
 	},
-	halfvec: {
-		normalizeArray: parsePgArray,
+	'point:tuple': {
+		cast: castToText,
+		castArray: castToTextArr,
 	},
 	sparsevec: {
 		normalizeArray: parsePgArray,
 	},
-	vector: {
+});
+
+export const netlifyDbTransactionCodecs = refineGenericPgCodecs({
+	bit: {
+		normalizeArray: parsePgArray,
+	},
+	date: {
+		castArray: castToTextArr,
+		normalize: textToDate,
+		normalizeArray: arrayCompatNormalize(textToDate),
+	},
+	'date:string': {
+		castArray: castToTextArr,
+	},
+	timestamp: {
+		castArray: castToTextArr,
+		normalize: textToDateWithTz,
+		normalizeArray: arrayCompatNormalize(textToDateWithTz),
+	},
+	timestamptz: {
+		castArray: castToTextArr,
+		normalize: textToDate,
+		normalizeArray: arrayCompatNormalize(textToDate),
+	},
+	'timestamp:string': {
+		castArray: castToTextArr,
+	},
+	'timestamptz:string': {
+		castArray: castToTextArr,
+	},
+	geometry: {
+		normalizeArray: parsePgArrayAndNormalize(parseGeometryXY),
+	},
+	'geometry:tuple': {
+		normalizeArray: parsePgArrayAndNormalize(parseGeometryTuple),
+	},
+	interval: {
+		castArray: castToTextArr,
+	},
+	// driver handles objects, other types need to be stringified
+	json: {
+		normalizeParam: (v) => typeof v === 'object' && !Array.isArray(v) ? v : JSON.stringify(v),
+	},
+	jsonb: {
+		normalizeParam: (v) => typeof v === 'object' && !Array.isArray(v) ? v : JSON.stringify(v),
+	},
+	line: {
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	'line:tuple': {
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	macaddr8: {
+		castArrayInJson: castToTextArr,
+		castArray: castToTextArr,
+	},
+	point: {
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	'point:tuple': {
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	sparsevec: {
 		normalizeArray: parsePgArray,
 	},
 });
-
-export const netlifyDbTransactionCodecs = refineGenericPgCodecs();
 
 function construct<
 	TRelations extends AnyRelations = EmptyRelations,
