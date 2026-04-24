@@ -5,7 +5,17 @@ import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { parsePgArray } from '~/pg-core/array.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
-import { castToText, castToTextArr, refineGenericPgCodecs } from '~/pg-core/codecs.ts';
+import {
+	arrayCompatNormalize,
+	castToText,
+	castToTextArr,
+	parseGeometryTuple,
+	parseGeometryXY,
+	parsePgArrayAndNormalize,
+	refineGenericPgCodecs,
+	textToDate,
+	textToDateWithTz,
+} from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -44,8 +54,35 @@ export const neonHttpCodecs = refineGenericPgCodecs({
 	bytea: {
 		normalizeParam: String,
 	},
+	date: {
+		castArray: castToTextArr,
+		normalize: textToDate,
+		normalizeArray: arrayCompatNormalize(textToDate),
+	},
+	'date:string': {
+		castArray: castToTextArr,
+	},
+	timestamp: {
+		castArray: castToTextArr,
+		normalize: textToDateWithTz,
+		normalizeArray: arrayCompatNormalize(textToDateWithTz),
+	},
+	timestamptz: {
+		castArray: castToTextArr,
+		normalize: textToDate,
+		normalizeArray: arrayCompatNormalize(textToDate),
+	},
+	'timestamp:string': {
+		castArray: castToTextArr,
+	},
+	'timestamptz:string': {
+		castArray: castToTextArr,
+	},
 	geometry: {
-		normalizeArray: parsePgArray,
+		normalizeArray: parsePgArrayAndNormalize(parseGeometryXY),
+	},
+	'geometry:tuple': {
+		normalizeArray: parsePgArrayAndNormalize(parseGeometryTuple),
 	},
 	interval: {
 		castArray: castToTextArr,
@@ -57,8 +94,10 @@ export const neonHttpCodecs = refineGenericPgCodecs({
 		normalizeParam: (v) => JSON.stringify(v),
 	},
 	line: {
-		castInJson: castToText,
-		castArrayInJson: castToTextArr,
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	'line:tuple': {
 		cast: castToText,
 		castArray: castToTextArr,
 	},
@@ -67,18 +106,14 @@ export const neonHttpCodecs = refineGenericPgCodecs({
 		castArray: castToTextArr,
 	},
 	point: {
-		castInJson: castToText,
-		castArrayInJson: castToTextArr,
 		cast: castToText,
 		castArray: castToTextArr,
 	},
-	halfvec: {
-		normalizeArray: parsePgArray,
+	'point:tuple': {
+		cast: castToText,
+		castArray: castToTextArr,
 	},
 	sparsevec: {
-		normalizeArray: parsePgArray,
-	},
-	vector: {
 		normalizeArray: parsePgArray,
 	},
 });

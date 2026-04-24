@@ -25,15 +25,11 @@ export class PgBigInt53 extends PgColumn<'number int53'> {
 	static override readonly [entityKind]: string = 'PgBigInt53';
 
 	/** @internal */
-	override readonly codec = 'bigint';
+	override readonly codec = 'bigint:number';
 
 	getSQLType(): string {
 		return 'bigint';
 	}
-
-	override mapFromDriverValue = (value: bigint): number => {
-		return Number(value);
-	};
 }
 
 export class PgBigInt64Builder extends PgIntColumnBuilder<{
@@ -85,15 +81,11 @@ export class PgBigIntString extends PgColumn<'string int64'> {
 	static override readonly [entityKind]: string = 'PgBigIntString';
 
 	/** @internal */
-	override readonly codec = 'bigint';
+	override readonly codec = 'bigint:string';
 
 	getSQLType(): string {
 		return 'bigint';
 	}
-
-	override mapFromDriverValue = (value: bigint): string => {
-		return String(value);
-	};
 }
 
 export interface PgBigIntConfig<T extends 'number' | 'bigint' | 'string' = 'number' | 'bigint' | 'string'> {

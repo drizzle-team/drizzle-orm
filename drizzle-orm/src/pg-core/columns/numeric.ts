@@ -86,7 +86,7 @@ export class PgNumericNumber extends PgColumn<'number'> {
 	static override readonly [entityKind]: string = 'PgNumericNumber';
 
 	/** @internal */
-	override readonly codec = 'numeric';
+	override readonly codec = 'numeric:number';
 
 	readonly precision: number | undefined;
 	readonly scale: number | undefined;
@@ -96,10 +96,6 @@ export class PgNumericNumber extends PgColumn<'number'> {
 		this.precision = config.precision;
 		this.scale = config.scale;
 	}
-
-	override mapFromDriverValue = (value: string): number => {
-		return Number(value);
-	};
 
 	override mapToDriverValue = String;
 
@@ -146,7 +142,7 @@ export class PgNumericBigInt extends PgColumn<'bigint int64'> {
 	static override readonly [entityKind]: string = 'PgNumericBigInt';
 
 	/** @internal */
-	override readonly codec = 'numeric';
+	override readonly codec = 'numeric:bigint';
 
 	readonly precision: number | undefined;
 	readonly scale: number | undefined;
@@ -156,10 +152,6 @@ export class PgNumericBigInt extends PgColumn<'bigint int64'> {
 		this.precision = config.precision;
 		this.scale = config.scale;
 	}
-
-	override mapFromDriverValue = (value: string): bigint => {
-		return BigInt(value);
-	};
 
 	override mapToDriverValue = String;
 
