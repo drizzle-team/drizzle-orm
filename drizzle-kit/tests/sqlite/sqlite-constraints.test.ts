@@ -1,6 +1,7 @@
-import { desc, isNull, sql } from 'drizzle-orm';
+import { desc, isNotNull, isNull, sql } from 'drizzle-orm';
 import {
 	AnySQLiteColumn,
+	check,
 	foreignKey,
 	index,
 	int,
@@ -1907,27 +1908,21 @@ test('fk multistep #2', async () => {
 	expect(pst3).toStrictEqual([]);
 });
 
-// https://github.com/drizzle-team/drizzle-orm/issues/4574
 // https://github.com/drizzle-team/drizzle-orm/issues/3255
 test('index #1', async () => {
 	const table1 = sqliteTable('table1', {
 		col1: integer(),
 		col2: integer(),
-	}, () => [
-		index1,
-		index2,
-		index3,
-		index4,
-		index5,
-		index6,
+	}, (t) => [
+		uniqueIndex('index1').on(t.col1),
+		uniqueIndex('index2').on(t.col1, t.col2),
+		index('index3').on(t.col1),
+		index('index4').on(t.col1, t.col2),
+		index('index5').on(sql`${t.col1} asc`),
+		index('index6').on(sql`${t.col1} asc`, sql`${t.col2} desc`),
+		uniqueIndex('index7').on(t.col1).where(isNotNull(t.col1)),
+		index('index8').on(t.col1).where(isNotNull(t.col1)),
 	]);
-
-	const index1 = uniqueIndex('index1').on(table1.col1);
-	const index2 = uniqueIndex('index2').on(table1.col1, table1.col2);
-	const index3 = index('index3').on(table1.col1);
-	const index4 = index('index4').on(table1.col1, table1.col2);
-	const index5 = index('index5').on(sql`${table1.col1} asc`);
-	const index6 = index('index6').on(sql`${table1.col1} asc`, sql`${table1.col2} desc`);
 
 	const schema1 = { table1 };
 
@@ -1945,6 +1940,43 @@ test('index #1', async () => {
 		'CREATE INDEX `index4` ON `table1` (`col1`,`col2`);',
 		'CREATE INDEX `index5` ON `table1` ("col1" asc);',
 		'CREATE INDEX `index6` ON `table1` ("col1" asc,"col2" desc);',
+		'CREATE UNIQUE INDEX `index7` ON `table1` (`col1`) WHERE ("table1"."col1" is not null);',
+		'CREATE INDEX `index8` ON `table1` (`col1`) WHERE ("table1"."col1" is not null);',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+});
+
+test('issue 4574', async () => {
+	const demo_with_check = sqliteTable(
+		'demo_with_check',
+		{
+			id: integer().primaryKey({ autoIncrement: true }),
+			test: integer(),
+		},
+		(table) => [check('test_positive', sql`0 < ${table.test}`)],
+	);
+
+	const demo_without_check = sqliteTable('demo_without_check', {
+		id: integer().primaryKey({ autoIncrement: true }),
+		unique: text().unique().notNull(),
+	});
+
+	const schema1 = { demo_with_check, demo_without_check };
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+
+	const expectedSt1 = [
+		`CREATE TABLE \`demo_with_check\` (
+\t\`id\` integer PRIMARY KEY AUTOINCREMENT,
+\t\`test\` integer,
+\tCONSTRAINT \"test_positive\" CHECK(0 < \"test\")
+);\n`,
+		`CREATE TABLE \`demo_without_check\` (
+\t\`id\` integer PRIMARY KEY AUTOINCREMENT,
+\t\`unique\` text NOT NULL UNIQUE
+);\n`,
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);

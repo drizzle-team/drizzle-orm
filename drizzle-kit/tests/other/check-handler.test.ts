@@ -170,6 +170,44 @@ test('returns non-commutativity message and no statements for conflicting branch
 	);
 });
 
+test('ignoreConflicts keeps all open leaf ids for conflicting branches', async () => {
+	mkdirSync('tests/tmp', { recursive: true });
+	const out = mkdtempSync('tests/tmp/dk-check-handler-');
+
+	const parentSchema = {
+		users: pgTable('users', {
+			email: varchar('email'),
+		}),
+	};
+
+	const leftSchema = {
+		users: pgTable('users', {
+			email: varchar('email').notNull(),
+		}),
+	};
+
+	const rightSchema = {
+		users: pgTable('users', {
+			email: integer('email'),
+		}),
+	};
+
+	const parent = makeSnapshot('p1', [ORIGIN], parentSchema);
+	const left = makeSnapshot('a1', ['p1'], leftSchema);
+	const right = makeSnapshot('b1', ['p1'], rightSchema);
+
+	snapshotPath(out, '000_parent', parent);
+	snapshotPath(out, '001_left', left);
+	snapshotPath(out, '002_right', right);
+
+	const result = await checkHandler(out, 'postgresql', true, false);
+
+	expect(result.statements).toStrictEqual([]);
+	expect(result.parentSnapshot).toBeNull();
+	expect(result.leafIds).toStrictEqual(['a1', 'b1']);
+	expect(result.nonCommutativityMessage).toBeUndefined();
+});
+
 test('does not report conflicts when sibling branches converge to the same terminal leaf', async () => {
 	mkdirSync('tests/tmp', { recursive: true });
 	const out = mkdtempSync('tests/tmp/dk-check-handler-');

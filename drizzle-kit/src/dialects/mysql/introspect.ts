@@ -5,6 +5,10 @@ import { batchQuery, filterMigrationsSchema } from '../utils';
 import type { ForeignKey, Index, InterimSchema, PrimaryKey } from './ddl';
 import { parseDefaultValue } from './grammar';
 
+// ! Important note about column names in SELECT queries:
+// * For consistency with MariaDB, we need to use uppercase for column names in SELECT queries,
+// * because MySQL returns them in uppercase, and MariaDB in the same case as defined (usually lowercase).
+
 export const fromDatabaseForDrizzle = async (
 	db: DB,
 	schema: string,
@@ -62,19 +66,21 @@ export const fromDatabase = async (
 
 	// TODO revise: perfomance_schema contains 'users' table
 	progressCallback('tables', 0, 'fetching');
-	const tablesAndViews = await batchQuery<{ name: string; type: 'BASE TABLE' | 'VIEW'; createTime: string }>(
+	const tablesAndViews = await batchQuery<
+		{ TABLE_NAME: string; TABLE_TYPE: 'BASE TABLE' | 'VIEW'; CREATE_TIME: string }
+	>(
 		db,
 		({ limit, cursor }) => `
-			SELECT 
-				TABLE_NAME as name, 
-				TABLE_TYPE as type,
-				CREATE_TIME as createTime
+			SELECT
+				TABLE_NAME, 
+				TABLE_TYPE,
+				CREATE_TIME
 			FROM INFORMATION_SCHEMA.TABLES
 			WHERE TABLE_SCHEMA = '${schema}'
 				AND CREATE_TIME IS NOT NULL
 				${
 			cursor
-				? `AND (CREATE_TIME > '${cursor.createTime}' OR (CREATE_TIME = '${cursor.createTime}' AND lower(TABLE_NAME) > '${cursor.name}'))`
+				? `AND (CREATE_TIME > '${cursor.CREATE_TIME}' OR (CREATE_TIME = '${cursor.CREATE_TIME}' AND lower(TABLE_NAME) > '${cursor.TABLE_NAME}'))`
 				: ''
 		}
 			ORDER BY CREATE_TIME, lower(TABLE_NAME)
@@ -86,7 +92,7 @@ export const fromDatabase = async (
 	).then((rows) => {
 		queryCallback('tables', rows, null);
 		return rows.filter((it) => {
-			return filter({ type: 'table', schema: false, name: it.name });
+			return filter({ type: 'table', schema: false, name: it.TABLE_NAME });
 		});
 	}).catch((err) => {
 		queryCallback('tables', [], err);
@@ -95,8 +101,8 @@ export const fromDatabase = async (
 
 	const tableNames = new Set(
 		tablesAndViews
-			.filter((it) => it.type === 'BASE TABLE')
-			.map((it) => it.name),
+			.filter((it) => it.TABLE_TYPE === 'BASE TABLE')
+			.map((it) => it.TABLE_NAME),
 	);
 	for (const table of tableNames) {
 		res.tables.push({
@@ -109,15 +115,21 @@ export const fromDatabase = async (
 	// INDEXES
 
 	progressCallback('indexes', 0, 'fetching');
-	const idxs = await db.query(`
-		SELECT 
-			* 
+	const idxs = await db.query<{
+		TABLE_NAME: string;
+		INDEX_NAME: string;
+		COLUMN_NAME: string;
+		NON_UNIQUE: number;
+		EXPRESSION: string | null | undefined; // MariaDB doesn't have this column, so we use * in query and handle it in code
+	}>(`
+		SELECT
+			*
 		FROM INFORMATION_SCHEMA.STATISTICS
 		WHERE INFORMATION_SCHEMA.STATISTICS.TABLE_SCHEMA = '${schema}' 
 			AND INFORMATION_SCHEMA.STATISTICS.INDEX_NAME != 'PRIMARY'
-		ORDER BY seq_in_index ASC;
+		ORDER BY SEQ_IN_INDEX ASC;
 	`).then((rows) => {
-		const filtered = rows.filter((it) => tableNames.has(it['TABLE_NAME']));
+		const filtered = rows.filter((it) => tableNames.has(it.TABLE_NAME));
 		queryCallback('indexes', filtered, null);
 		return filtered;
 	}).catch((err) => {
@@ -126,11 +138,11 @@ export const fromDatabase = async (
 	});
 
 	const groupedIndexes = idxs.reduce<Record<string, Index>>((acc, it) => {
-		const name = it['INDEX_NAME'];
-		const table = it['TABLE_NAME'];
-		const column: string = it['COLUMN_NAME'];
-		const isUnique = it['NON_UNIQUE'] === 0;
-		const expression = it['EXPRESSION'];
+		const name = it.INDEX_NAME;
+		const table = it.TABLE_NAME;
+		const column = it.COLUMN_NAME;
+		const isUnique = it.NON_UNIQUE === 0;
+		const expression = it.EXPRESSION;
 
 		const key = `${table}:${name}`;
 
@@ -166,7 +178,7 @@ export const fromDatabase = async (
 
 	// COLUMNS
 
-	const tableNamesSQL = tablesAndViews.map((t) => `'${t.name}'`).join(',');
+	const tableNamesSQL = tablesAndViews.map((t) => `'${t.TABLE_NAME}'`).join(',');
 	progressCallback('columns', 0, 'fetching');
 	const columns = tableNamesSQL
 		? await batchQuery<{
@@ -184,7 +196,7 @@ export const fromDatabase = async (
 		}>(
 			db,
 			({ limit, cursor }) => `
-			SELECT 
+			SELECT
 				TABLE_NAME,
 				COLUMN_NAME,
 				IS_NULLABLE,
@@ -196,14 +208,12 @@ export const fromDatabase = async (
 				GENERATION_EXPRESSION,
 				EXTRA,
 				ORDINAL_POSITION
-			FROM information_schema.columns
-			WHERE table_schema = '${schema}'
+			FROM INFORMATION_SCHEMA.COLUMNS
+			WHERE TABLE_SCHEMA = '${schema}'
 				AND TABLE_NAME IN (${tableNamesSQL})
 				${
 				cursor
-					? `AND (TABLE_NAME > '${cursor.TABLE_NAME}' OR (TABLE_NAME = '${cursor.TABLE_NAME}' AND ORDINAL_POSITION > ${
-						cursor['ORDINAL_POSITION']
-					}))`
+					? `AND (TABLE_NAME > '${cursor.TABLE_NAME}' OR (TABLE_NAME = '${cursor.TABLE_NAME}' AND ORDINAL_POSITION > ${cursor.ORDINAL_POSITION}))`
 					: ''
 			}
 			ORDER BY TABLE_NAME, ORDINAL_POSITION
@@ -221,32 +231,34 @@ export const fromDatabase = async (
 		})
 		: [];
 
-	const defaultCharSetAndCollation = await db.query<{ default_charset: string; default_collation: string }>(`
-		SELECT 
-			DEFAULT_CHARACTER_SET_NAME AS default_charset,
-			DEFAULT_COLLATION_NAME AS default_collation
-		FROM information_schema.SCHEMATA
+	const defaultCharSetAndCollation = await db.query<
+		{ DEFAULT_CHARACTER_SET_NAME: string; DEFAULT_COLLATION_NAME: string }
+	>(`
+		SELECT
+			DEFAULT_CHARACTER_SET_NAME,
+			DEFAULT_COLLATION_NAME
+		FROM INFORMATION_SCHEMA.SCHEMATA
 		WHERE SCHEMA_NAME = '${schema}';
 		`);
 
 	for (const column of columns) {
 		if (!tableNames.has(column.TABLE_NAME)) continue;
 
-		const table = column['TABLE_NAME'];
-		const name: string = column['COLUMN_NAME'];
-		const isNullable = column['IS_NULLABLE'] === 'YES'; // 'YES', 'NO'
-		const columnType = column['COLUMN_TYPE']; // varchar(256)
-		const columnDefault: string | undefined = column['COLUMN_DEFAULT'] ?? undefined;
-		const dbCollation: string = column['COLLATION_NAME'];
-		const dbCharSet: string = column['CHARACTER_SET_NAME'];
-		const geenratedExpression: string = column['GENERATION_EXPRESSION'];
+		const table = column.TABLE_NAME;
+		const name: string = column.COLUMN_NAME;
+		const isNullable = column.IS_NULLABLE === 'YES'; // 'YES', 'NO'
+		const columnType = column.COLUMN_TYPE; // varchar(256)
+		const columnDefault: string | undefined = column.COLUMN_DEFAULT ?? undefined;
+		const dbCollation: string = column.COLLATION_NAME;
+		const dbCharSet: string = column.CHARACTER_SET_NAME;
+		const geenratedExpression: string = column.GENERATION_EXPRESSION;
 
-		const extra = column['EXTRA'] ?? '';
+		const extra = column.EXTRA ?? '';
 		// const isDefaultAnExpression = extra.includes('DEFAULT_GENERATED'); // 'auto_increment', ''
-		// const dataType = column['DATA_TYPE']; // varchar
-		// const isPrimary = column['COLUMN_KEY'] === 'PRI'; // 'PRI', ''
-		// const numericPrecision = column['NUMERIC_PRECISION'];
-		// const numericScale = column['NUMERIC_SCALE'];
+		// const dataType = column.DATA_TYPE; // varchar
+		// const isPrimary = column.COLUMN_KEY === 'PRI'; // 'PRI', ''
+		// const numericPrecision = column.NUMERIC_PRECISION;
+		// const numericScale = column.NUMERIC_SCALE;
 		const isAutoincrement = extra === 'auto_increment';
 		const onUpdateNow: boolean = extra.includes('on update CURRENT_TIMESTAMP');
 
@@ -262,9 +274,9 @@ export const fromDatabase = async (
 		if (columnType === 'bigint unsigned' && !isNullable && isAutoincrement) {
 			const uniqueIdx = idxs.filter(
 				(it) =>
-					it['COLUMN_NAME'] === name
-					&& it['TABLE_NAME'] === table
-					&& it['NON_UNIQUE'] === 0,
+					it.COLUMN_NAME === name
+					&& it.TABLE_NAME === table
+					&& it.NON_UNIQUE === 0,
 			);
 			if (uniqueIdx && uniqueIdx.length === 1) {
 				changedType = columnType.replace('bigint unsigned', 'serial');
@@ -273,7 +285,8 @@ export const fromDatabase = async (
 
 		const def = parseDefaultValue(changedType, columnDefault);
 
-		const { default_charset: defDbCharSet, default_collation: defDbCollation } = defaultCharSetAndCollation[0];
+		const { DEFAULT_CHARACTER_SET_NAME: defDbCharSet, DEFAULT_COLLATION_NAME: defDbCollation } =
+			defaultCharSetAndCollation[0];
 		let charSet: string | null = dbCharSet;
 		let collation: string | null = dbCollation;
 		if (defDbCharSet === dbCharSet && defDbCollation === dbCollation) {
@@ -311,14 +324,22 @@ export const fromDatabase = async (
 	// PRIMARY KEYS
 
 	// progressCallback('pks', 0, 'fetching');
-	const pks = await db.query(`
-		SELECT 
-			CONSTRAINT_NAME, table_name, column_name, ordinal_position
-		FROM information_schema.table_constraints t
-		LEFT JOIN information_schema.key_column_usage k USING(constraint_name,table_schema,table_name)
-		WHERE t.constraint_type='PRIMARY KEY'
-			AND t.table_schema = '${schema}'
-		ORDER BY ordinal_position
+	const pks = await db.query<{
+		CONSTRAINT_NAME: string;
+		TABLE_NAME: string;
+		COLUMN_NAME: string;
+		ORDINAL_POSITION: number;
+	}>(`
+		SELECT
+			CONSTRAINT_NAME,
+			TABLE_NAME,
+			COLUMN_NAME,
+			ORDINAL_POSITION
+		FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS t
+		LEFT JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE k USING(CONSTRAINT_NAME, TABLE_SCHEMA, TABLE_NAME)
+		WHERE t.CONSTRAINT_TYPE='PRIMARY KEY'
+			AND t.TABLE_SCHEMA = '${schema}'
+		ORDER BY ORDINAL_POSITION
 	`).then((rows) => {
 		queryCallback('pks', rows, null);
 		return rows;
@@ -327,11 +348,11 @@ export const fromDatabase = async (
 		throw err;
 	});
 
-	const tableToPKs = pks.filter((it) => tableNames.has(it['TABLE_NAME'])).reduce<Record<string, PrimaryKey>>(
+	const tableToPKs = pks.filter((it) => tableNames.has(it.TABLE_NAME)).reduce<Record<string, PrimaryKey>>(
 		(acc, it) => {
-			const table: string = it['TABLE_NAME'];
-			const column: string = it['COLUMN_NAME'];
-			// const position: string = it['ordinal_position'];
+			const table: string = it.TABLE_NAME;
+			const column: string = it.COLUMN_NAME;
+			// const position: string = it.ORDINAL_POSITION;
 
 			if (table in acc) {
 				acc[table].columns.push(column);
@@ -339,7 +360,7 @@ export const fromDatabase = async (
 				acc[table] = {
 					entityType: 'pks',
 					table,
-					name: it['CONSTRAINT_NAME'],
+					name: it.CONSTRAINT_NAME,
 					columns: [column],
 				};
 			}
@@ -356,8 +377,18 @@ export const fromDatabase = async (
 	// FOREIGN KEYS
 
 	progressCallback('fks', 0, 'fetching');
-	const fks = await db.query(`
-		SELECT 
+	const fks = await db.query<{
+		TABLE_SCHEMA: string;
+		TABLE_NAME: string;
+		CONSTRAINT_NAME: string;
+		COLUMN_NAME: string;
+		REFERENCED_TABLE_SCHEMA: string;
+		REFERENCED_TABLE_NAME: string;
+		REFERENCED_COLUMN_NAME: string;
+		UPDATE_RULE: string;
+		DELETE_RULE: string;
+	}>(`
+		SELECT
 			kcu.TABLE_SCHEMA,
 			kcu.TABLE_NAME,
 			kcu.CONSTRAINT_NAME,
@@ -368,7 +399,7 @@ export const fromDatabase = async (
 			rc.UPDATE_RULE,
 			rc.DELETE_RULE
 		FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
-		LEFT JOIN information_schema.referential_constraints rc ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME AND kcu.CONSTRAINT_SCHEMA = rc.CONSTRAINT_SCHEMA
+		LEFT JOIN INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME AND kcu.CONSTRAINT_SCHEMA = rc.CONSTRAINT_SCHEMA
 		WHERE kcu.TABLE_SCHEMA = '${schema}' 
 			AND kcu.CONSTRAINT_NAME != 'PRIMARY' 
 			AND kcu.REFERENCED_TABLE_NAME IS NOT NULL;
@@ -380,16 +411,16 @@ export const fromDatabase = async (
 		throw err;
 	});
 
-	const filteredFKs = fks.filter((it) => tableNames.has(it['TABLE_NAME']));
+	const filteredFKs = fks.filter((it) => tableNames.has(it.TABLE_NAME));
 	const groupedFKs = filteredFKs.reduce<Record<string, ForeignKey>>(
 		(acc, it) => {
-			const name = it['CONSTRAINT_NAME'];
-			const table: string = it['TABLE_NAME'];
-			const column: string = it['COLUMN_NAME'];
-			const refTable: string = it['REFERENCED_TABLE_NAME'];
-			const refColumn: string = it['REFERENCED_COLUMN_NAME'];
-			const updateRule: string = it['UPDATE_RULE'];
-			const deleteRule: string = it['DELETE_RULE'];
+			const name = it.CONSTRAINT_NAME;
+			const table: string = it.TABLE_NAME;
+			const column: string = it.COLUMN_NAME;
+			const refTable: string = it.REFERENCED_TABLE_NAME;
+			const refColumn: string = it.REFERENCED_COLUMN_NAME;
+			const updateRule: string = it.UPDATE_RULE;
+			const deleteRule: string = it.DELETE_RULE;
 
 			const key = `${table}:${name}`;
 
@@ -423,15 +454,19 @@ export const fromDatabase = async (
 	// CHECKS
 
 	progressCallback('checks', 0, 'fetching');
-	const checks = await db.query(`
-		SELECT 
-			tc.table_name, 
-			tc.constraint_name, 
-			cc.check_clause
-		FROM information_schema.table_constraints tc
-		JOIN information_schema.check_constraints cc ON tc.constraint_name = cc.constraint_name
-		WHERE tc.constraint_schema = '${schema}'
-			AND tc.constraint_type = 'CHECK';
+	const checks = await db.query<{
+		TABLE_NAME: string;
+		CONSTRAINT_NAME: string;
+		CHECK_CLAUSE: string;
+	}>(`
+		SELECT
+			tc.TABLE_NAME, 
+			tc.CONSTRAINT_NAME, 
+			cc.CHECK_CLAUSE
+		FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
+		JOIN INFORMATION_SCHEMA.CHECK_CONSTRAINTS cc ON tc.CONSTRAINT_NAME = cc.CONSTRAINT_NAME
+		WHERE tc.CONSTRAINT_SCHEMA = '${schema}'
+			AND tc.CONSTRAINT_TYPE = 'CHECK';
 	`).then((rows) => {
 		queryCallback('checks', rows, null);
 		return rows;
@@ -440,10 +475,10 @@ export const fromDatabase = async (
 		throw err;
 	});
 
-	for (const check of checks.filter((it) => tableNames.has(it['TABLE_NAME']))) {
-		const table = check['TABLE_NAME'];
-		const name = check['CONSTRAINT_NAME'];
-		const value = check['CHECK_CLAUSE'];
+	for (const check of checks.filter((it) => tableNames.has(it.TABLE_NAME))) {
+		const table = check.TABLE_NAME;
+		const name = check.CONSTRAINT_NAME;
+		const value = check.CHECK_CLAUSE;
 
 		res.checks.push({
 			entityType: 'checks',
@@ -466,9 +501,12 @@ export const fromDatabase = async (
 		db,
 		({ limit, cursor }) =>
 			`SELECT
-				*
+				TABLE_NAME,
+				VIEW_DEFINITION,
+				CHECK_OPTION,
+				SECURITY_TYPE
 			FROM INFORMATION_SCHEMA.VIEWS
-			WHERE table_schema = '${schema}'
+			WHERE TABLE_SCHEMA = '${schema}'
 				${cursor ? `AND TABLE_NAME > '${cursor.TABLE_NAME}'` : ''}
 			ORDER BY TABLE_NAME
 			LIMIT ${limit}`,
@@ -478,7 +516,7 @@ export const fromDatabase = async (
 	).then((rows) => {
 		queryCallback('views', rows, null);
 		return rows.filter((it) => {
-			return filter({ type: 'table', schema: false, name: it['TABLE_NAME'] });
+			return filter({ type: 'table', schema: false, name: it.TABLE_NAME });
 		});
 	}).catch((err) => {
 		queryCallback('views', [], err);
@@ -486,29 +524,30 @@ export const fromDatabase = async (
 	});
 
 	for await (const view of views) {
-		const name = view['TABLE_NAME'];
-		const definition = view['VIEW_DEFINITION'];
-
-		const checkOption = view['CHECK_OPTION'] as string | null;
+		const name = view.TABLE_NAME;
+		const definition = view.VIEW_DEFINITION;
+		const checkOption = view.CHECK_OPTION;
 
 		const withCheckOption = !checkOption || checkOption === 'NONE'
 			? null
 			: checkOption.toLowerCase();
 
-		const sqlSecurity = view['SECURITY_TYPE'].toLowerCase() as 'definer' | 'invoker';
+		const sqlSecurity = view.SECURITY_TYPE.toLowerCase() as 'definer' | 'invoker';
 
 		const [createSqlStatement] = await db.query(`SHOW CREATE VIEW \`${name}\`;`);
 		const algorithmMatch = createSqlStatement['Create View'].match(/ALGORITHM=([^ ]+)/);
 		const algorithm = algorithmMatch ? algorithmMatch[1].toLowerCase() : null;
 
-		const viewColumns = columns.filter((it) => it['TABLE_NAME'] === name);
+		const viewColumns = columns.filter((it) => it.TABLE_NAME === name);
 
 		for (const column of viewColumns) {
+			const columnType = column['COLUMN_TYPE'].replace('decimal(10,0)', 'decimal');
+
 			res.viewColumns.push({
 				view: name,
 				name: column['COLUMN_NAME'],
 				notNull: column['IS_NULLABLE'] === 'NO',
-				type: column['DATA_TYPE'],
+				type: columnType,
 			});
 		}
 

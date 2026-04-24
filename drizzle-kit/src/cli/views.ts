@@ -1744,8 +1744,19 @@ export class MigrateProgress extends TaskView {
 		this.on('detach', () => clearInterval(this.timeout));
 	}
 
-	render(status: 'pending' | 'done' | 'rejected'): string {
-		if (status === 'pending' || status === 'rejected') {
+	render(status: 'pending' | 'done' | 'rejected', error?: Error): string {
+		if (status === 'rejected') {
+			if (error?.cause) {
+				console.log('\n');
+				console.log(error.cause); // render full object
+			}
+
+			return `[${chalk.red('✗')}] Error during migration:\n${
+				chalk.red(error ? error.message : 'unknown error occured')
+			}\n`;
+		}
+
+		if (status === 'pending') {
 			const spin = this.spinner.value();
 			return `[${spin}] applying migrations...`;
 		}
@@ -1776,8 +1787,19 @@ export class ProgressView extends TaskView {
 		this.on('detach', () => clearInterval(this.timeout));
 	}
 
-	render(status: 'pending' | 'done' | 'rejected'): string {
-		if (status === 'pending' || status === 'rejected') {
+	render(status: 'pending' | 'done' | 'rejected', error?: Error): string {
+		if (status === 'rejected') {
+			if (error?.cause) {
+				console.log('\n');
+				console.log(error.cause); // render full object
+			}
+
+			return `[${chalk.red('✗')}] ${this.progressText}\n${
+				chalk.red(error ? error.message : 'unknown error occured')
+			}\n`;
+		}
+
+		if (status === 'pending') {
 			const spin = this.spinner.value();
 			return `[${spin}] ${this.progressText}\n`;
 		}

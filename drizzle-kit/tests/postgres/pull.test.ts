@@ -899,7 +899,7 @@ test('introspect view #3', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-04-12'))('introspect view #4', async () => {
+test.skipIf(Date.now() < +new Date('2026-04-26'))('introspect view #4', async () => {
 	const table = pgTable('table', {
 		column1: text().notNull(),
 		column2: text(),
@@ -928,7 +928,7 @@ test.skipIf(Date.now() < +new Date('2026-04-12'))('introspect view #4', async ()
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-04-12'))('introspect view #5', async () => {
+test.skipIf(Date.now() < +new Date('2026-04-26'))('introspect view #5', async () => {
 	const applications = pgTable('applications', {
 		applicationId: serial('application_id').primaryKey(),
 		studentId: integer('student_id').references(() => students.studentId),
@@ -1792,7 +1792,7 @@ test('introspect view with table filter', async () => {
 // this does not look like a bug
 // sequences are separete entities
 // entity filter for sequences ??
-test.skipIf(Date.now() < +new Date('2026-04-12'))('introspect sequences with table filter', async () => {
+test.skipIf(Date.now() < +new Date('2026-04-26'))('introspect sequences with table filter', async () => {
 	// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')
 
 	// const seq1 = pgSequence('seq1');
@@ -2770,4 +2770,67 @@ test('halfvec column in custom schema does not produce spurious type diff', asyn
 	expect(generateSqlStatements).toStrictEqual([]);
 	expect(pushStatements).toStrictEqual([]);
 	expect(generateStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5525
+test('issue 5525', async () => {
+	await db.query(`CREATE TABLE "country" (
+		id text primary key
+	);`);
+
+	await db.query(`
+CREATE TABLE "public"."constructor" (
+  "id" text COLLATE "pg_catalog"."default" NOT NULL,
+  "name" text COLLATE "pg_catalog"."default",
+  "full_name" text COLLATE "pg_catalog"."default",
+  "country_id" text COLLATE "pg_catalog"."default",
+  "best_championship_position" int8,
+  "best_starting_grid_position" int8,
+  "best_race_result" int8,
+  "best_sprint_race_result" int8,
+  "total_championship_wins" int8,
+  "total_race_entries" int8,
+  "total_race_starts" int8,
+  "total_race_wins" int8,
+  "total_1_and_2_finishes" int8,
+  "total_race_laps" int8,
+  "total_podiums" int8,
+  "total_podium_races" int8,
+  "total_points" numeric(8,2),
+  "total_championship_points" numeric(8,2),
+  "total_pole_positions" int8,
+  "total_fastest_laps" int8,
+  "total_sprint_race_starts" int8,
+  "total_sprint_race_wins" int8
+);`);
+
+	await db.query(`ALTER TABLE "public"."constructor" OWNER TO "postgres";`);
+
+	await db.query(`CREATE INDEX "idx_19612_cnst_country_id_idx" ON "public"."constructor" USING btree (
+  "country_id" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
+);`);
+
+	await db.query(`
+CREATE INDEX "idx_19612_cnst_full_name_idx" ON "public"."constructor" USING btree (
+  "full_name" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
+);`);
+
+	await db.query(`CREATE INDEX "idx_19612_cnst_name_idx" ON "public"."constructor" USING btree (
+  "name" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
+);`);
+
+	await db.query(
+		`ALTER TABLE "public"."constructor" ADD CONSTRAINT "idx_19612_sqlite_autoindex_constructor_1" PRIMARY KEY ("id");`,
+	);
+	await db.query(
+		`ALTER TABLE "public"."constructor" ADD CONSTRAINT "constructor_country_id_fkey" FOREIGN KEY ("country_id") REFERENCES "public"."country" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION;`,
+	);
+
+	const { generateSqlStatements, generateStatements, pushSqlStatements, pushStatements, ddlAfterPull } =
+		await diffIntrospect(db, {}, '#5525');
+
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
 });

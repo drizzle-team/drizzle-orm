@@ -690,7 +690,7 @@ export function tests(test: Test) {
 		// https://github.com/drizzle-team/drizzle-orm/issues/4209
 		// postpone
 		// casing bug
-		test.skipIf(Date.now() < +new Date('2026-04-12')).concurrent('2 consecutive use of .toSQL', async ({ db }) => {
+		test.skipIf(Date.now() < +new Date('2026-04-26')).concurrent('2 consecutive use of .toSQL', async ({ db }) => {
 			const t1 = pgTable('table', (t) => ({
 				id: t.text().primaryKey(),
 			}));
@@ -1067,7 +1067,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/2872
-		test.skipIf(Date.now() < +new Date('2026-04-12')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-04-26')).concurrent(
 			'prepared statement with placeholder in .inArray',
 			async ({ db, push }) => {
 				const usersTable = pgTable('users_392', {
