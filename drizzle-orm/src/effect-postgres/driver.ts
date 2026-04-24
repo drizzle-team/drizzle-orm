@@ -39,6 +39,16 @@ export const DefaultServices = Layer.merge(
 );
 
 export const effectPgCodecs = refineGenericPgCodecs({
+	bigint: {
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
+		normalizeParamArray: makePgArray,
+	},
+	bigserial: {
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
+		normalizeParamArray: makePgArray,
+	},
 	bit: {
 		normalizeArray: parsePgArray,
 		normalizeParamArray: makePgArray,
@@ -181,10 +191,8 @@ export const effectPgCodecs = refineGenericPgCodecs({
 	numeric: { normalizeParamArray: makePgArray },
 	'numeric:number': { normalizeParamArray: makePgArray },
 	'numeric:bigint': { normalizeParamArray: makePgArray },
-	bigint: { normalizeParamArray: makePgArray },
 	'bigint:number': { normalizeParamArray: makePgArray },
 	'bigint:string': { normalizeParamArray: makePgArray },
-	bigserial: { normalizeParamArray: makePgArray },
 	'bigserial:number': { normalizeParamArray: makePgArray },
 	float4: { normalizeParamArray: makePgArray },
 	int: { normalizeParamArray: makePgArray },

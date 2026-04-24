@@ -27,6 +27,14 @@ export class NodePgDatabase<
 }
 
 export const nodePgCodecs = refineGenericPgCodecs({
+	bigint: {
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
+	},
+	bigserial: {
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
+	},
 	bit: {
 		normalizeArray: parsePgArray,
 	},

@@ -35,6 +35,14 @@ export class NeonDatabase<TRelations extends AnyRelations = EmptyRelations>
 }
 
 export const neonServerlessCodecs = refineGenericPgCodecs({
+	bigint: {
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
+	},
+	bigserial: {
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
+	},
 	bit: {
 		normalizeArray: parsePgArray,
 	},

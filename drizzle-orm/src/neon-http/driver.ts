@@ -48,6 +48,14 @@ export class NeonHttpDatabase<TRelations extends AnyRelations = EmptyRelations>
 }
 
 export const neonHttpCodecs = refineGenericPgCodecs({
+	bigint: {
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
+	},
+	bigserial: {
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
+	},
 	bit: {
 		normalizeArray: parsePgArray,
 	},
