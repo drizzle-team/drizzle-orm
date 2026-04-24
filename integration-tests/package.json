@@ -22,8 +22,6 @@
 	"private": true,
 	"devDependencies": {
 		"@cloudflare/workers-types": "^4.20241004.0",
-		"@electric-sql/pglite": "0.4.4",
-		"@electric-sql/pglite-postgis": "^0.0.6",
 		"@libsql/client": "^0.10.0",
 		"@neondatabase/serverless": "0.10.0",
 		"@originjs/vite-plugin-commonjs": "^1.0.3",
@@ -53,6 +51,7 @@
 		"@aws-sdk/credential-providers": "^3.549.0",
 		"@effect/sql-pg": "^0.49.7",
 		"@effect/vitest": "^0.27.0",
+		"@electric-sql/pglite": "0.2.12",
 		"@miniflare/d1": "^2.14.4",
 		"@miniflare/shared": "^2.14.4",
 		"@planetscale/database": "^1.16.0",

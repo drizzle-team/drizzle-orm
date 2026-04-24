@@ -360,8 +360,8 @@ importers:
         specifier: ^0.49.1
         version: 0.49.1(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@3.19.8))(effect@3.19.8))(@effect/platform@0.93.5(effect@3.19.8))(@effect/sql@0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@3.19.8))(effect@3.19.8))(@effect/platform@0.93.5(effect@3.19.8))(effect@3.19.8))(effect@3.19.8)
       '@electric-sql/pglite':
-        specifier: ^0.4.4
-        version: 0.4.4
+        specifier: ^0.2.12
+        version: 0.2.12
       '@libsql/client':
         specifier: ^0.10.0
         version: 0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
@@ -612,6 +612,9 @@ importers:
       '@effect/vitest':
         specifier: ^0.27.0
         version: 0.27.0(effect@3.19.8)(vitest@4.0.13(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.1))
+      '@electric-sql/pglite':
+        specifier: 0.2.12
+        version: 0.2.12
       '@miniflare/d1':
         specifier: ^2.14.4
         version: 2.14.4
@@ -745,12 +748,6 @@ importers:
       '@cloudflare/workers-types':
         specifier: ^4.20241004.0
         version: 4.20251126.0
-      '@electric-sql/pglite':
-        specifier: 0.4.4
-        version: 0.4.4
-      '@electric-sql/pglite-postgis':
-        specifier: ^0.0.6
-        version: 0.0.6(@electric-sql/pglite@0.4.4)
       '@libsql/client':
         specifier: ^0.10.0
         version: 0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
@@ -1769,11 +1766,6 @@ packages:
     peerDependencies:
       effect: ^3.19.0
       vitest: ^3.2.0
-
-  '@electric-sql/pglite-postgis@0.0.6':
-    resolution: {integrity: sha512-F4VQtP8GP7PNAFa0cB6ZgfG1oyGGDraWvfvtXFOIGIBVKRs3s/oKyVOJ0HyTBdLcVjVu98JSsvRIcOXlGKInAw==}
-    peerDependencies:
-      '@electric-sql/pglite': 0.4.4
 
   '@electric-sql/pglite@0.2.12':
     resolution: {integrity: sha512-J/X42ujcoFEbOkgRyoNqZB5qcqrnJRWVlwpH3fKYoJkTz49N91uAK/rDSSG/85WRas9nC9mdV4FnMTxnQWE/rw==}
@@ -10461,13 +10453,10 @@ snapshots:
       effect: 3.19.8
       vitest: 4.0.13(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.1)
 
-  '@electric-sql/pglite-postgis@0.0.6(@electric-sql/pglite@0.4.4)':
-    dependencies:
-      '@electric-sql/pglite': 0.4.4
-
   '@electric-sql/pglite@0.2.12': {}
 
-  '@electric-sql/pglite@0.4.4': {}
+  '@electric-sql/pglite@0.4.4':
+    optional: true
 
   '@emnapi/core@1.7.1':
     dependencies:
