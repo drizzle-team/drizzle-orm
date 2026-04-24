@@ -5,8 +5,6 @@ import { prepareOutFolder } from 'src/utils/utils-node';
 import { type Column, createDDL, interimToDDL, type MysqlDDL, type Table, type View } from '../../dialects/mysql/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/mysql/diff';
 import { CommandOutputCliError } from '../errors';
-import { JsonModeUnsupportedCliError } from '../errors';
-import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
 import { withStyle } from '../validations/outputs';
 import { explain, explainJsonOutput, humanLog, mysqlSchemaError, printJsonOutput } from '../views';
@@ -105,10 +103,6 @@ export const handle = async (
 	config: GenerateConfig,
 	checkResult?: CheckHandlerResult,
 ) => {
-	if (isJsonMode()) {
-		throw new JsonModeUnsupportedCliError({ dialect: 'mysql', command: 'generate' });
-	}
-
 	const { out: outFolder, casing, filenames } = config;
 
 	const { snapshots } = prepareOutFolder(outFolder);
@@ -124,6 +118,7 @@ export const handle = async (
 			snapshot: custom,
 			sqlStatements: [],
 			outFolder,
+			json: config.json,
 			name: config.name,
 			breakpoints: config.breakpoints,
 			type: 'custom',
@@ -141,9 +136,9 @@ export const handle = async (
 	const diffResult = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<Table>('table', 'public', 'generate'),
-		resolver<Column>('column', 'public', 'generate'),
-		resolver<View>('view', 'public', 'generate'),
+		resolver<Table>('table', 'public', 'generate', config.hints),
+		resolver<Column>('column', 'public', 'generate', config.hints),
+		resolver<View>('view', 'public', 'generate', config.hints),
 		'default',
 	);
 
@@ -151,6 +146,10 @@ export const handle = async (
 	renames = diffResult.renames;
 	groupedStatements = diffResult.groupedStatements;
 	statements = diffResult.statements;
+
+	if (config.json && config.hints.hasMissingHints()) {
+		config.hints.emitAndExit();
+	}
 
 	const { errors } = suggestions(statements, ddlCur);
 	if (errors.length) {
@@ -161,9 +160,9 @@ export const handle = async (
 	}
 
 	if (config.explain) {
-		if (isJsonMode()) {
+		if (config.json) {
 			const explainOutput = explainJsonOutput('mysql', statements, []);
-			printJsonOutput(explainOutput);
+			printJsonOutput(explainOutput, true);
 		} else {
 			const explainMessage = explain('mysql', groupedStatements, []);
 			if (explainMessage) {
@@ -177,6 +176,7 @@ export const handle = async (
 		snapshot,
 		sqlStatements,
 		outFolder,
+		json: config.json,
 		name: config.name,
 		breakpoints: config.breakpoints,
 		renames,
@@ -197,6 +197,6 @@ export const handleExport = async (config: ExportConfig) => {
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
-	printJsonOutput({ sqlStatements });
+	printJsonOutput({ sqlStatements }, config.json);
 	humanLog(sqlStatements.join('\n'));
 };

@@ -201,13 +201,3 @@ export class InvalidHintsCliError extends DrizzleCliError {
 		super('invalid_hints', humanMessage, meta, options);
 	}
 }
-
-export class JsonModeUnsupportedCliError extends DrizzleCliError {
-	constructor(override readonly meta: { dialect: string; command: 'push' | 'generate' }) {
-		super(
-			'json_mode_unsupported',
-			`--json mode is not yet supported for dialect "${meta.dialect}" in ${meta.command}`,
-			meta,
-		);
-	}
-}

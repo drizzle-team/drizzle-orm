@@ -6,7 +6,8 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import type { SQLiteTable as SQLiteTableOld, SQLiteView as SQLiteViewOld } from 'orm044/sqlite-core';
 import { introspect } from 'src/cli/commands/pull-sqlite';
 import { suggestions } from 'src/cli/commands/push-sqlite';
-import { configMigrations } from 'src/cli/validations/common';
+import { HintsHandler } from 'src/cli/hints';
+import { CasingType, configMigrations } from 'src/cli/validations/common';
 import { EmptyProgressView } from 'src/cli/views';
 import { hash } from 'src/dialects/common';
 import { createDDL, fromEntities, interimToDDL, SQLiteDDL } from 'src/dialects/sqlite/ddl';
@@ -27,24 +28,25 @@ mkdirSync('tests/sqlite/tmp/', { recursive: true });
 export type SqliteSchema = Record<string, SQLiteTable | SQLiteView | unknown>;
 export type SqliteSchemaOld = Record<string, SQLiteTableOld | SQLiteViewOld | unknown>;
 
-export const drizzleToDDL = (schema: SqliteSchema) => {
+export const drizzleToDDL = (schema: SqliteSchema, casing?: CasingType) => {
 	const tables = Object.values(schema).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
 	const views = Object.values(schema).filter((it) => is(it, SQLiteView)) as SQLiteView[];
 
-	return interimToDDL(fromDrizzleSchema(tables, views));
+	return interimToDDL(fromDrizzleSchema(tables, views, casing));
 };
 
 export const diff = async (
 	left: SqliteSchema | SQLiteDDL,
 	right: SqliteSchema | SQLiteDDL,
 	renamesArr: string[],
+	casing?: CasingType | undefined,
 ) => {
 	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
 		? { ddl: left as SQLiteDDL, errors: [] }
-		: drizzleToDDL(left);
+		: drizzleToDDL(left, casing);
 	const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
 		? { ddl: right as SQLiteDDL, errors: [] }
-		: drizzleToDDL(right);
+		: drizzleToDDL(right, casing);
 
 	if (err1.length > 0 || err2.length > 0) {
 		console.log('-----');
@@ -86,10 +88,11 @@ export const diffAfterPull = async (
 	client: Database,
 	initSchema: SqliteSchema,
 	testName: string,
+	casing?: CasingType | undefined,
 ) => {
 	const db = dbFrom(client);
 
-	const { ddl: initDDL, errors: e1 } = drizzleToDDL(initSchema);
+	const { ddl: initDDL, errors: e1 } = drizzleToDDL(initSchema, casing);
 	const { sqlStatements: inits } = await ddlDiffDry(createDDL(), initDDL, 'push');
 	for (const st of inits) {
 		client.exec(st);
@@ -108,7 +111,7 @@ export const diffAfterPull = async (
 	await tsc(file.file);
 
 	const res = await prepareFromSchemaFiles([path]);
-	const { ddl: ddl1, errors: err2 } = interimToDDL(fromDrizzleSchema(res.tables, res.views));
+	const { ddl: ddl1, errors: err2 } = interimToDDL(fromDrizzleSchema(res.tables, res.views, casing));
 
 	const { sqlStatements, statements } = await ddlDiff(
 		ddl1,
@@ -127,6 +130,7 @@ export const push = async (config: {
 	db: SQLiteDB;
 	to: SqliteSchema | SQLiteDDL;
 	renames?: string[];
+	casing?: CasingType;
 	force?: boolean;
 	expectError?: boolean;
 	log?: 'statements';
@@ -134,6 +138,7 @@ export const push = async (config: {
 	migrationsConfig?: { table?: string };
 }) => {
 	const { db, to, expectError, force, log } = config;
+	const casing = config.casing ?? 'camelCase';
 
 	const migrations = configMigrations.parse(config.migrationsConfig);
 	const { ddl: ddl1, errors: err1, viewColumns } = await introspect(
@@ -145,7 +150,7 @@ export const push = async (config: {
 	);
 	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
 		? { ddl: to as SQLiteDDL, errors: [] }
-		: drizzleToDDL(to);
+		: drizzleToDDL(to, casing);
 
 	if (err2.length > 0) {
 		for (const e of err2) {
@@ -171,7 +176,7 @@ export const push = async (config: {
 		'push',
 	);
 
-	const hints = await suggestions(db, statements);
+	const hints = await suggestions(db, statements, new HintsHandler());
 
 	if (force) {
 		for (const st of hints) {
@@ -231,7 +236,7 @@ export const diffDefault = async <T extends SQLiteColumnBuilder>(
 	const def = config['default'];
 	const column = sqliteTable('table', { column: builder }).column;
 	const type = column.getSQLType();
-	const columnDefault = defaultFromColumn(column);
+	const columnDefault = defaultFromColumn(column, 'camelCase');
 	const defaultSql = columnDefault ?? '';
 
 	const res = [] as string[];
@@ -268,7 +273,7 @@ export const diffDefault = async <T extends SQLiteColumnBuilder>(
 	await tsc(file.file);
 
 	const response = await prepareFromSchemaFiles([path]);
-	const sch = fromDrizzleSchema(response.tables, response.views);
+	const sch = fromDrizzleSchema(response.tables, response.views, 'camelCase');
 	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');

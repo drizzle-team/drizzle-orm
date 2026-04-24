@@ -1,8 +1,7 @@
-import { boolean, type BroCliEvent, command, getCommandNameWithParents, run } from '@drizzle-team/brocli';
+import { type BroCliEvent, command, getCommandNameWithParents, run } from '@drizzle-team/brocli';
 import chalk from 'chalk';
 import { DrizzleCliError } from './errors';
 import { highlightSQL } from './highlighter';
-import { setJsonMode } from './mode';
 import { check, exportRaw, generate, migrate, pull, push, studio, up } from './schema';
 import { ormCoreVersions, QueryError } from './utils';
 import { error, humanLog, printJsonOutput } from './views';
@@ -59,7 +58,7 @@ const getBroCliErrorMessage = (event: BroCliEvent & { type: 'error' }) => {
 	return `Invalid value for --${optionName}${offender ? `: ${offender}` : ''}`;
 };
 
-const version = async () => {
+const version = async (json = false) => {
 	const { npmVersion } = await ormCoreVersions();
 	const ormVersion = npmVersion ? `drizzle-orm: v${npmVersion}` : '';
 	const envVersion = process.env.DRIZZLE_KIT_VERSION;
@@ -67,8 +66,8 @@ const version = async () => {
 	printJsonOutput({
 		kitVersion,
 		ormVersion: npmVersion ? `v${npmVersion}` : null,
-	});
-	if (process.argv.includes('--json')) return;
+	}, json);
+	if (json) return;
 	const versions = `drizzle-kit: ${kitVersion}\n${ormVersion}`;
 	humanLog(chalk.gray(versions), '\n');
 };
@@ -115,31 +114,25 @@ const legacy = [
 	legacyCommand({ name: 'drop', customMessage: 'To drop a migration you can remove a migration folder manually' }),
 ];
 
-setJsonMode(process.argv.includes('--json'));
-
 const main = async () => {
+	const isJsonRequest = process.argv.includes('--json');
 	const isVersionRequest = process.argv.includes('--version') || process.argv.includes('-v');
 
-	if (process.argv.includes('--json') && isVersionRequest) {
-		await version();
+	if (isJsonRequest && isVersionRequest) {
+		await version(true);
 		process.exit(0);
 	}
 
 	await run([generate, migrate, pull, push, studio, up, check, exportRaw, ...legacy], {
 		name: 'drizzle-kit',
-		version: version,
-		globals: {
-			json: boolean('json').desc('Output as JSON').default(false),
-		},
+		version: () => version(false),
 
-		hook: (event, command, globals) => {
-			setJsonMode(globals.json);
-
+		hook: (event, command) => {
 			if (event === 'after' && getCommandNameWithParents(command) !== 'studio') process.exit(0);
 		},
 		theme: (event) => {
 			if (event.type === 'error') {
-				if (process.argv.includes('--json')) {
+				if (isJsonRequest) {
 					if (event.violation === 'unknown_error' && event.error instanceof QueryError) {
 						writeStderr(formatQueryError(event.error));
 						printJsonOutput({
@@ -149,7 +142,7 @@ const main = async () => {
 								sql: event.error.sql,
 								params: event.error.params,
 							},
-						});
+						}, true);
 						return true;
 					}
 
@@ -166,7 +159,7 @@ const main = async () => {
 					printJsonOutput({
 						status: 'error',
 						error: err,
-					});
+					}, true);
 					return true;
 				}
 

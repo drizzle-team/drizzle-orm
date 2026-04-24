@@ -20,15 +20,23 @@ import { ddlDiff } from '../../dialects/cockroach/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/cockroach/drizzle';
 import type { JsonStatement } from '../../dialects/cockroach/statements';
 import type { DB } from '../../utils';
-import { JsonModeUnsupportedCliError } from '../errors';
+import { isJsonMode } from '../context';
 import { highlightSQL } from '../highlighter';
-import { isJsonMode } from '../mode';
+import type { HintsHandler } from '../hints';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
 import type { CasingType } from '../validations/common';
-import { cockroachSchemaError, explain as explainView, humanLog, postgresSchemaWarning, ProgressView } from '../views';
+import {
+	cockroachSchemaError,
+	explain as explainView,
+	explainJsonOutput,
+	humanLog,
+	postgresSchemaWarning,
+	printJsonOutput,
+	ProgressView,
+} from '../views';
 
 export const handle = async (
 	filenames: string[],
@@ -42,10 +50,9 @@ export const handle = async (
 		table: string;
 		schema: string;
 	},
+	hints: HintsHandler,
 ) => {
-	if (isJsonMode()) {
-		throw new JsonModeUnsupportedCliError({ dialect: 'cockroach', command: 'push' });
-	}
+	const json = isJsonMode();
 
 	const { prepareCockroach } = await import('../connections');
 	const { introspect: cockroachPushIntrospect } = await import('./pull-cockroach');
@@ -92,17 +99,17 @@ export const handle = async (
 	const diffResult = await ddlDiff(
 		ddl1,
 		ddl2,
-		resolver<Schema>('schema', 'public', 'push'),
-		resolver<Enum>('enum', 'public', 'push'),
-		resolver<Sequence>('sequence', 'public', 'push'),
-		resolver<Policy>('policy', 'public', 'push'),
-		resolver<CockroachEntities['tables']>('table', 'public', 'push'),
-		resolver<Column>('column', 'public', 'push'),
-		resolver<View>('view', 'public', 'push'),
-		resolver<Index>('index', 'public', 'push'),
-		resolver<CheckConstraint>('check', 'public', 'push'),
-		resolver<PrimaryKey>('primary key', 'public', 'push'),
-		resolver<ForeignKey>('foreign key', 'public', 'push'),
+		resolver<Schema>('schema', 'public', 'push', hints),
+		resolver<Enum>('enum', 'public', 'push', hints),
+		resolver<Sequence>('sequence', 'public', 'push', hints),
+		resolver<Policy>('policy', 'public', 'push', hints),
+		resolver<CockroachEntities['tables']>('table', 'public', 'push', hints),
+		resolver<Column>('column', 'public', 'push', hints),
+		resolver<View>('view', 'public', 'push', hints),
+		resolver<Index>('index', 'public', 'push', hints),
+		resolver<CheckConstraint>('check', 'public', 'push', hints),
+		resolver<PrimaryKey>('primary key', 'public', 'push', hints),
+		resolver<ForeignKey>('foreign key', 'public', 'push', hints),
 		'push',
 	);
 
@@ -110,20 +117,39 @@ export const handle = async (
 	jsonStatements = diffResult.statements;
 	groupedStatements = diffResult.groupedStatements;
 
-	if (sqlStatements.length === 0) {
-		render(`[${chalk.blue('i')}] No changes detected`);
-		return;
+	if (hints.hasMissingHints()) {
+		hints.emitAndExit();
 	}
 
-	const hints = await suggestions(db, jsonStatements);
-	if (explain) {
-		const explainMessage = explainView('cockroach', groupedStatements, hints);
-		if (explainMessage) {
-			humanLog(explainMessage);
+	if (sqlStatements.length === 0) {
+		if (json) {
+			printJsonOutput(explainJsonOutput('cockroach', [], []), true);
+		} else {
+			render(`[${chalk.blue('i')}] No changes detected`);
 		}
 		return;
 	}
-	if (!force && hints.length > 0) {
+
+	const suggestionHints = await suggestions(db, jsonStatements, hints);
+	if (hints.hasMissingHints()) {
+		hints.emitAndExit();
+	}
+	if (explain) {
+		if (json) {
+			printJsonOutput(explainJsonOutput('cockroach', jsonStatements, suggestionHints), true);
+		} else {
+			const explainMessage = explainView('cockroach', groupedStatements, suggestionHints);
+			if (explainMessage) {
+				humanLog(explainMessage);
+			}
+		}
+		return;
+	}
+	if (!force && suggestionHints.length > 0) {
+		if (json) {
+			printJsonOutput({ status: 'aborted', dialect: 'cockroach' }, true);
+			process.exit(0);
+		}
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 		if (data?.index === 0) {
 			render(`[${chalk.red('x')}] All changes were aborted`);
@@ -131,15 +157,19 @@ export const handle = async (
 		}
 	}
 
-	const lossStatements = hints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
+	const lossStatements = suggestionHints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
 
 	for (const statement of [...lossStatements, ...sqlStatements]) {
-		if (verbose && !isJsonMode()) humanLog(highlightSQL(statement));
+		if (verbose && !json) humanLog(highlightSQL(statement));
 
 		await db.query(statement);
 	}
 
-	render(`[${chalk.green('\u2713')}] Changes applied`);
+	if (json) {
+		printJsonOutput({ status: 'ok', dialect: 'cockroach', message: 'Changes applied' }, true);
+	} else {
+		render(`[${chalk.green('\u2713')}] Changes applied`);
+	}
 };
 
 const identifier = (it: { schema?: string; name: string }) => {
@@ -148,7 +178,8 @@ const identifier = (it: { schema?: string; name: string }) => {
 	return `${schemakey}"${name}"`;
 };
 
-export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
+export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints: HintsHandler) => {
+	const json = isJsonMode();
 	const grouped: { hint: string; statement?: string }[] = [];
 
 	const filtered = jsonStatements.filter((it) => {
@@ -179,32 +210,54 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 
 	for (const statement of filtered) {
 		if (statement.type === 'drop_table') {
+			const entity = [statement.table.schema, statement.table.name] as const;
+			if (hints.matchConfirm('table', entity)) continue;
 			const res = await db.query(`select 1 from ${statement.key} limit 1`);
 
-			if (res.length > 0) grouped.push({ hint: `You're about to delete non-empty ${statement.key} table` });
+			if (res.length > 0) {
+				if (json) {
+					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'table', entity, reason: 'non_empty' });
+				} else {
+					grouped.push({ hint: `You're about to delete non-empty ${statement.key} table` });
+				}
+			}
 			continue;
 		}
 
 		if (statement.type === 'drop_view' && statement.view.materialized) {
 			const id = identifier(statement.view);
+			const entity = [statement.view.schema, statement.view.name] as const;
+			if (hints.matchConfirm('view', entity)) continue;
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
 
-			grouped.push({ hint: `You're about to delete non-empty ${id} materialized view` });
+			if (json) {
+				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'view', entity, reason: 'non_empty' });
+			} else {
+				grouped.push({ hint: `You're about to delete non-empty ${id} materialized view` });
+			}
 			continue;
 		}
 
 		if (statement.type === 'drop_column') {
 			const column = statement.column;
 			const id = identifier({ schema: column.schema, name: column.table });
+			const entity: [string, string, string] = [column.schema, column.table, column.name];
+			if (hints.matchConfirm('column', entity)) continue;
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
 
-			grouped.push({ hint: `You're about to delete non-empty ${column.name} column in ${id} table` });
+			if (json) {
+				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'column', entity, reason: 'non_empty' });
+			} else {
+				grouped.push({ hint: `You're about to delete non-empty ${column.name} column in ${id} table` });
+			}
 			continue;
 		}
 
 		if (statement.type === 'drop_schema') {
+			const entity: [string] = [statement.name];
+			if (hints.matchConfirm('schema', entity)) continue;
 			// count tables in schema
 			const res = await db.query(
 				`select count(*) as count from information_schema.tables where table_schema = '${statement.name}';`,
@@ -212,7 +265,11 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 			const count = Number(res[0].count);
 			if (count === 0) continue;
 
-			grouped.push({ hint: `You're about to delete ${chalk.underline(statement.name)} schema with ${count} tables` });
+			if (json) {
+				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'schema', entity, reason: 'non_empty' });
+			} else {
+				grouped.push({ hint: `You're about to delete ${chalk.underline(statement.name)} schema with ${count} tables` });
+			}
 			continue;
 		}
 
@@ -221,16 +278,22 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 			const schema = statement.pk.schema ?? 'public';
 			const table = statement.pk.table;
 			const id = `"${schema}"."${table}"`;
+			const entity: [string, string, string] = [schema, table, statement.pk.name];
+			if (hints.matchConfirm('primary_key', entity)) continue;
 			const res = await db.query(
 				`select 1 from ${id} limit 1`,
 			);
 
 			if (res.length > 0) {
-				grouped.push({
-					hint: `You're about to drop ${
-						chalk.underline(id)
-					} primary key, these statements may fail and your table may lose the primary key`,
-				});
+				const hint = `You're about to drop ${
+					chalk.underline(id)
+				} primary key, these statements may fail and your table may lose the primary key`;
+
+				if (json) {
+					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'primary_key', entity, reason: 'non_empty' });
+				} else {
+					grouped.push({ hint });
+				}
 			}
 
 			continue;
@@ -239,14 +302,20 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 		if (statement.type === 'add_column' && statement.column.notNull && statement.column.default === null) {
 			const column = statement.column;
 			const id = identifier({ schema: column.schema, name: column.table });
+			const entity: [string, string, string] = [column.schema, column.table, column.name];
+			if (hints.matchConfirm('add_not_null', entity)) continue;
 			const res = await db.query(`select 1 from ${id} limit 1`);
 
 			if (res.length === 0) continue;
-			grouped.push({
-				hint: `You're about to add not-null ${
-					chalk.underline(statement.column.name)
-				} column without default value to a non-empty ${id} table`,
-			});
+			const hint = `You're about to add not-null ${
+				chalk.underline(statement.column.name)
+			} column without default value to a non-empty ${id} table`;
+
+			if (json) {
+				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'add_not_null', entity, reason: 'nulls_present' });
+			} else {
+				grouped.push({ hint });
+			}
 
 			continue;
 		}
@@ -254,15 +323,22 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 		if (statement.type === 'create_index' && statement.index.isUnique && !statement.newTable) {
 			const unique = statement.index;
 			const id = identifier({ schema: unique.schema, name: unique.table });
+			const uniqueColumn = unique.columns[0];
+			const entity: [string, string, string] = [unique.schema, unique.table, uniqueColumn?.value ?? unique.name];
+			if (hints.matchConfirm('add_unique', entity)) continue;
 
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
 
-			grouped.push({
-				hint: `You're about to add ${
-					chalk.underline(unique.name)
-				} unique index to a non-empty ${id} table which may fail`,
-			});
+			if (json) {
+				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'add_unique', entity, reason: 'duplicates_present' });
+			} else {
+				grouped.push({
+					hint: `You're about to add ${
+						chalk.underline(unique.name)
+					} unique index to a non-empty ${id} table which may fail`,
+				});
+			}
 			continue;
 		}
 	}

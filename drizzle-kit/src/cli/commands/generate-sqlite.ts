@@ -5,18 +5,13 @@ import { prepareOutFolder } from 'src/utils/utils-node';
 import { type Column, createDDL, interimToDDL, type SqliteEntities } from '../../dialects/sqlite/ddl';
 import { prepareSqliteSnapshot } from '../../dialects/sqlite/serializer';
 import { CommandOutputCliError } from '../errors';
-import { JsonModeUnsupportedCliError } from '../errors';
-import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
-import { explain, humanLog, printJsonOutput, sqliteSchemaError, warning } from '../views';
+import { explain, explainJsonOutput, humanLog, printJsonOutput, sqliteSchemaError, warning } from '../views';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
-	if (isJsonMode()) {
-		throw new JsonModeUnsupportedCliError({ dialect: 'sqlite', command: 'generate' });
-	}
-
+	const dialect = config.dialect === 'turso' ? 'turso' : 'sqlite';
 	const { out: outFolder, casing, filenames } = config;
 	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSqliteSnapshot(
@@ -29,6 +24,7 @@ export const handle = async (config: GenerateConfig) => {
 			snapshot: custom,
 			sqlStatements: [],
 			outFolder,
+			json: config.json,
 			name: config.name,
 			breakpoints: config.breakpoints,
 			bundle: config.bundle,
@@ -41,6 +37,7 @@ export const handle = async (config: GenerateConfig) => {
 	let sqlStatements: string[] = [];
 	let warnings: string[] = [];
 	let renames: string[] = [];
+	let statements: JsonStatement[] = [];
 	let groupedStatements: { jsonStatement: JsonStatement; sqlStatements: string[] }[] = [];
 
 	const diffResult = await ddlDiff(
@@ -54,9 +51,14 @@ export const handle = async (config: GenerateConfig) => {
 	sqlStatements = diffResult.sqlStatements;
 	warnings = diffResult.warnings;
 	renames = diffResult.renames;
+	statements = diffResult.statements;
 	groupedStatements = diffResult.groupedStatements;
 
-	if (!isJsonMode()) {
+	if (config.json && config.hints.hasMissingHints()) {
+		config.hints.emitAndExit();
+	}
+
+	if (!config.json) {
 		for (const w of warnings) {
 			warning(w);
 		}
@@ -68,12 +70,18 @@ export const handle = async (config: GenerateConfig) => {
 			sqlStatements,
 			renames,
 			outFolder,
+			json: config.json,
 			name: config.name,
 			breakpoints: config.breakpoints,
 			bundle: config.bundle,
 			driver: config.driver,
 			snapshots,
 		});
+		return;
+	}
+
+	if (config.json) {
+		printJsonOutput(explainJsonOutput(dialect, statements, []), true);
 		return;
 	}
 
@@ -96,6 +104,6 @@ export const handleExport = async (config: ExportConfig) => {
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
-	printJsonOutput({ sqlStatements });
+	printJsonOutput({ sqlStatements }, config.json);
 	humanLog(sqlStatements.join('\n'));
 };
