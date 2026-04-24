@@ -52,7 +52,8 @@ export const preparePostgresDB = async (
 			| 'postgres'
 			| '@vercel/postgres'
 			| '@neondatabase/serverless'
-			| 'bun';
+			| 'bun'
+			| '@aws/aurora-dsql-node-postgres-connector';
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
 		benchmarkProxy?: BenchmarkProxy;
@@ -197,6 +198,123 @@ export const preparePostgresDB = async (
 
 			return {
 				packageName: 'pglite',
+				query,
+				proxy,
+				transactionProxy,
+				migrate: migrateFn,
+			};
+		}
+
+		if (driver === 'aws-dsql') {
+			assertPackages('@aws/aurora-dsql-node-postgres-connector');
+			const { AuroraDSQLPool } = await import('@aws/aurora-dsql-node-postgres-connector');
+			const { default: pg } = await import('pg');
+			const { drizzle } = await import('drizzle-orm/aws-dsql');
+			const { migrate } = await import('drizzle-orm/aws-dsql/migrator');
+
+			const pool = new AuroraDSQLPool({
+				host: credentials.host,
+				database: credentials.database ?? 'postgres',
+				user: credentials.user ?? 'admin',
+				region: credentials.region,
+				profile: credentials.profile,
+				tokenDurationSecs: credentials.tokenDurationSecs,
+				max: 1,
+			});
+
+			const drzl = drizzle({ client: pool });
+			const migrateFn = async (config: MigrationConfig) => {
+				const result = await migrate(drzl, config);
+				if (!result.success) {
+					const errInfo = result.error;
+					throw new Error(
+						`Migration failed: ${errInfo?.message ?? 'Unknown error'}\n`
+							+ (errInfo?.migrationName ? `Migration: ${errInfo.migrationName}\n` : '')
+							+ (errInfo?.statementIndex !== undefined ? `Statement: ${errInfo.statementIndex}\n` : '')
+							+ (errInfo?.sql ? `SQL: ${errInfo.sql}` : ''),
+					);
+				}
+			};
+
+			// Override pg default date parsers
+			const types: { getTypeParser: typeof pg.types.getTypeParser } = {
+				// @ts-ignore
+				getTypeParser: (typeId, format) => {
+					if (typeId === pg.types.builtins.TIMESTAMPTZ) {
+						return (val: any) => val;
+					}
+					if (typeId === pg.types.builtins.TIMESTAMP) {
+						return (val: any) => val;
+					}
+					if (typeId === pg.types.builtins.DATE) {
+						return (val: any) => val;
+					}
+					if (typeId === pg.types.builtins.INTERVAL) {
+						return (val: any) => val;
+					}
+					// @ts-ignore
+					return pg.types.getTypeParser(typeId, format);
+				},
+			};
+
+			const query = async (sql: string, params?: any[]) => {
+				const result = await pool.query({
+					text: sql,
+					values: params ?? [],
+					types,
+				}).catch((e) => {
+					throw new QueryError(e, sql, params || []);
+				});
+				return result.rows;
+			};
+
+			const proxy: Proxy = async (params) => {
+				const result = await pool.query({
+					text: params.sql,
+					values: params.params,
+					...(params.mode === 'array' && { rowMode: 'array' }),
+					types,
+				}).catch((e) => {
+					throw new QueryError(e, params.sql, params.params || []);
+				});
+				return result.rows;
+			};
+
+			const transactionProxy: TransactionProxy = async (queries) => {
+				const results: any[] = [];
+				const tx = await pool.connect();
+				try {
+					await tx.query('BEGIN');
+					for (const query of queries) {
+						const result = await tx.query({
+							text: query.sql,
+							types,
+						});
+						results.push(result.rows);
+					}
+					await tx.query('COMMIT');
+				} catch (error) {
+					try {
+						await tx.query('ROLLBACK');
+					} catch (rollbackError) {
+						console.error('[drizzle-kit:dsql] ROLLBACK failed after transaction error.', {
+							originalError: error,
+							rollbackError,
+						});
+					}
+					throw error;
+				} finally {
+					try {
+						tx.release();
+					} catch (releaseError) {
+						console.error('[drizzle-kit:dsql] Failed to release connection.', releaseError);
+					}
+				}
+				return results;
+			};
+
+			return {
+				packageName: '@aws/aurora-dsql-node-postgres-connector',
 				query,
 				proxy,
 				transactionProxy,

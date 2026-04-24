@@ -77,8 +77,9 @@ export type Setup = {
 		| 'bun'
 		| 'duckdb'
 		| '@duckdb/node-api'
-		| 'node:sqlite';
-	driver?: 'aws-data-api' | 'd1-http' | 'd1' | 'turso' | 'pglite' | 'sqlite-cloud';
+		| 'node:sqlite'
+		| '@aws/aurora-dsql-node-postgres-connector';
+	driver?: 'aws-data-api' | 'd1-http' | 'd1' | 'turso' | 'pglite' | 'sqlite-cloud' | 'aws-dsql';
 	databaseName?: string; // for planetscale (driver remove database name from connection string)
 	proxy: Proxy;
 	transactionProxy: TransactionProxy;
@@ -335,6 +336,8 @@ export const drizzleForPostgres = async (
 			dbUrl = `aws-data-api://${credentials.database}/${credentials.secretArn}/${credentials.resourceArn}`;
 		} else if (driver === 'pglite') {
 			dbUrl = 'client' in credentials ? credentials.client.dataDir || 'pglite://custom-client' : credentials.url;
+		} else if (driver === 'aws-dsql') {
+			dbUrl = `dsql://${credentials.host}`;
 		} else {
 			assertUnreachable(driver);
 		}
