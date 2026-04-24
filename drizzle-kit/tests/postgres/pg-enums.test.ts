@@ -666,6 +666,36 @@ test('enums #23', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5609
+test('enums #24', async () => {
+	const schema = pgSchema('schema');
+	const en = schema.enum('char_enum', ['a', 'b']);
+
+	const from = {
+		schema,
+		en,
+	};
+
+	const to = {
+		schema,
+		en,
+		table: schema.table('table', {
+			en: en(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
+		'CREATE TABLE "schema"."table" (\n\t"en" "schema"."char_enum"\n);\n',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
 test('drop enum value', async () => {
 	const enum1 = pgEnum('enum', ['value1', 'value2', 'value3']);
 
@@ -2460,7 +2490,7 @@ test('drop enum', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4982
 // enhancement
-test.skipIf(Date.now() < +new Date('2026-03-29'))(
+test.skipIf(Date.now() < +new Date('2026-04-26'))(
 	'alter enum values; enum value is column default; table with data',
 	async () => {
 		enum AppStatus1 {

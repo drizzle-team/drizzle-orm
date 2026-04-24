@@ -2,7 +2,7 @@ import { afterAll, expect, it } from 'vitest';
 import 'zx/globals';
 import * as fs from 'fs';
 import path from 'path';
-$.verbose = false;
+$.verbose = true;
 
 const IMPORTS_FOLDER = 'tests/imports/files';
 
@@ -23,7 +23,7 @@ function chunk<T>(arr: T[], size: number): T[][] {
 	return chunks;
 }
 
-const promisesCJS: ProcessPromise[] = [];
+const promisesCJS: (() => ProcessPromise)[] = [];
 for (const [i, key] of Object.keys(pj['exports']).entries()) {
 	const o1 = path.join('drizzle-orm', key);
 	if (
@@ -41,16 +41,16 @@ for (const [i, key] of Object.keys(pj['exports']).entries()) {
 	// fs.appendFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'ort "' + o1 + '"\n', {});
 
 	promisesCJS.push(
-		$`node ${IMPORTS_FOLDER}/imports_${i}.cjs`.nothrow(),
-		// $`node ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow(),
+		() => $`node ${IMPORTS_FOLDER}/imports_${i}.cjs`.nothrow().timeout('5s', 'SIGTERM'),
+		// () => $`node ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow().timeout('5s', 'SIGTERM'),
 	);
 }
 
-const chunksCJS = chunk(promisesCJS, 20);
+const chunksCJS = chunk(promisesCJS, 10);
 
 for (const c of chunksCJS) {
 	it.concurrent('dynamic imports check for CommonJS chunk', async () => {
-		const results = await Promise.all(c);
+		const results = await Promise.all(c.map((c) => c()));
 
 		for (const result of results) {
 			expect(result.exitCode, result.message).toBe(0);
@@ -58,7 +58,7 @@ for (const c of chunksCJS) {
 	});
 }
 
-const promises: ProcessPromise[] = [];
+const promises: (() => ProcessPromise)[] = [];
 for (const [i, key] of Object.keys(pj['exports']).entries()) {
 	const o1 = path.join('drizzle-orm', key);
 	if (
@@ -71,16 +71,20 @@ for (const [i, key] of Object.keys(pj['exports']).entries()) {
 	fs.writeFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'imp');
 	fs.appendFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'ort "' + o1 + '"\n', {});
 	promises.push(
-		$`node ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow(),
-		$`node --import import-in-the-middle/hook.mjs ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow(),
+		() => $`node ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow().timeout('5s', 'SIGTERM'),
+		() =>
+			$`node --import import-in-the-middle/hook.mjs ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow().timeout(
+				'5s',
+				'SIGTERM',
+			),
 	);
 }
 
-const chunksESM = chunk(promises, 20);
+const chunksESM = chunk(promises, 10);
 
 for (const c of chunksESM) {
-	it.concurrent('dynamic imports check for ESM chunk', async () => {
-		const results = await Promise.all(c);
+	it('dynamic imports check for ESM chunk', async () => {
+		const results = await Promise.all(c.map((c) => c()));
 
 		for (const result of results) {
 			expect(result.exitCode, result.message).toBe(0);

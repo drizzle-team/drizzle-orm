@@ -1,6 +1,6 @@
+import { mysqlCommutativity } from 'src/dialects/mysql/commutativity';
 import { createDDL } from 'src/dialects/mysql/ddl';
 import type { MysqlSnapshot } from 'src/dialects/mysql/snapshot';
-import { detectNonCommutative } from 'src/utils/commutativity';
 import { describe, expect, test } from 'vitest';
 
 const baseId = '00000000-0000-0000-0000-000000000000';
@@ -178,7 +178,7 @@ describe('commutativity integration (mysql)', () => {
 			const b2Path = writeTempSnapshot(tmp, '002_leafB2', leafB2);
 			const b3Path = writeTempSnapshot(tmp, '002_leafB3', leafB3);
 
-			const report = await detectNonCommutative([pPath, aPath, bPath, b2Path, b3Path, a2Path], 'mysql');
+			const report = await mysqlCommutativity.detectNonCommutative([pPath, aPath, bPath, b2Path, b3Path, a2Path]);
 			expect(report.conflicts.length).toBeGreaterThan(0);
 			expect(report.conflicts[0].parentId).toBe('p1');
 		},
@@ -295,7 +295,7 @@ describe('commutativity integration (mysql)', () => {
 		const b2Path = writeTempSnapshot(tmp, '003_leafB2', leafB2);
 		const b3Path = writeTempSnapshot(tmp, '004_leafB3', leafB3);
 
-		const report = await detectNonCommutative([pPath, aPath, a2Path, bPath, b2Path, b3Path], 'mysql');
+		const report = await mysqlCommutativity.detectNonCommutative([pPath, aPath, a2Path, bPath, b2Path, b3Path]);
 		expect(report.conflicts.length).toBeGreaterThan(0);
 		expect(report.conflicts[0].parentId).toBe('p1');
 	});
@@ -345,7 +345,7 @@ describe('commutativity integration (mysql)', () => {
 			const aPath = writeTempSnapshot(tmp, '001_leafA', leafA);
 			const bPath = writeTempSnapshot(tmp, '002_leafB', leafB);
 
-			const report = await detectNonCommutative([pPath, aPath, bPath], 'mysql');
+			const report = await mysqlCommutativity.detectNonCommutative([pPath, aPath, bPath]);
 			expect(report.conflicts.length).toBeGreaterThan(0);
 			expect(report.conflicts[0].parentId).toBe('p1');
 		},
@@ -394,7 +394,7 @@ describe('commutativity integration (mysql)', () => {
 		const aPath = writeTempSnapshot(tmp, '001_leafA', leafA);
 		const bPath = writeTempSnapshot(tmp, '002_leafB', leafB);
 
-		const report = await detectNonCommutative([pPath, aPath, bPath], 'mysql');
+		const report = await mysqlCommutativity.detectNonCommutative([pPath, aPath, bPath]);
 		expect(report.conflicts.length).toBeGreaterThan(0);
 		expect(report.conflicts[0].parentId).toBe('p1');
 	});
@@ -416,7 +416,7 @@ describe('commutativity integration (mysql)', () => {
 		const aPath = writeTempSnapshot(tmp, '001_leafA', leafA);
 		const bPath = writeTempSnapshot(tmp, '002_leafB', leafB);
 
-		const report = await detectNonCommutative([pPath, aPath, bPath], 'mysql');
+		const report = await mysqlCommutativity.detectNonCommutative([pPath, aPath, bPath]);
 		expect(report.conflicts.length).toBe(0);
 	});
 
@@ -466,7 +466,7 @@ describe('commutativity integration (mysql)', () => {
 			writeTempSnapshot(tmp, '002_b_col', makeSnapshot('b_col', ['p_col'], b.entities.list())),
 		);
 
-		const report = await detectNonCommutative(files, 'mysql');
+		const report = await mysqlCommutativity.detectNonCommutative(files);
 		expect(report.conflicts.length).toBeGreaterThan(0);
 	});
 
@@ -514,10 +514,277 @@ describe('commutativity integration (mysql)', () => {
 			writeTempSnapshot(tmp, '012_b_drop', makeSnapshot('b_drop', ['p_drop'], b.entities.list())),
 		);
 
-		const report = await detectNonCommutative(files, 'mysql');
+		const report = await mysqlCommutativity.detectNonCommutative(files);
 		expect(report.conflicts.length).toBe(1);
 		expect(report.conflicts[0].branchA.chain[report.conflicts[0].branchA.chain.length - 1].id).toStrictEqual('a_drop');
 		expect(report.conflicts[0].branchB.chain[report.conflicts[0].branchB.chain.length - 1].id).toStrictEqual('b_drop');
+	});
+
+	test('create indexes on different tables do not conflict', async () => {
+		const { tmp } = mkTmp();
+		const files: string[] = [];
+
+		const parent = createDDL();
+		parent.tables.push({ name: 'orders' });
+		parent.tables.push({ name: 'invoices' });
+		parent.columns.push(
+			{
+				table: 'orders',
+				name: 'customer_id',
+				type: 'int',
+				notNull: false,
+				autoIncrement: false,
+				default: null,
+				onUpdateNow: false,
+				onUpdateNowFsp: null,
+				charSet: null,
+				collation: null,
+				generated: null,
+			} as any,
+			{
+				table: 'invoices',
+				name: 'account_id',
+				type: 'int',
+				notNull: false,
+				autoIncrement: false,
+				default: null,
+				onUpdateNow: false,
+				onUpdateNowFsp: null,
+				charSet: null,
+				collation: null,
+				generated: null,
+			} as any,
+		);
+		const p = makeSnapshot('p_idx', [ORIGIN], parent.entities.list());
+
+		const a = createDDL();
+		a.tables.push({ name: 'orders' });
+		a.tables.push({ name: 'invoices' });
+		a.columns.push(
+			{
+				table: 'orders',
+				name: 'customer_id',
+				type: 'int',
+				notNull: false,
+				autoIncrement: false,
+				default: null,
+				onUpdateNow: false,
+				onUpdateNowFsp: null,
+				charSet: null,
+				collation: null,
+				generated: null,
+			} as any,
+			{
+				table: 'invoices',
+				name: 'account_id',
+				type: 'int',
+				notNull: false,
+				autoIncrement: false,
+				default: null,
+				onUpdateNow: false,
+				onUpdateNowFsp: null,
+				charSet: null,
+				collation: null,
+				generated: null,
+			} as any,
+		);
+		a.indexes.push({
+			table: 'orders',
+			nameExplicit: true,
+			name: 'orders_customer_id_idx',
+			columns: [{ value: 'customer_id', isExpression: false }],
+			isUnique: false,
+			using: null,
+			algorithm: null,
+			lock: null,
+		} as any);
+
+		const b = createDDL();
+		b.tables.push({ name: 'orders' });
+		b.tables.push({ name: 'invoices' });
+		b.columns.push(
+			{
+				table: 'orders',
+				name: 'customer_id',
+				type: 'int',
+				notNull: false,
+				autoIncrement: false,
+				default: null,
+				onUpdateNow: false,
+				onUpdateNowFsp: null,
+				charSet: null,
+				collation: null,
+				generated: null,
+			} as any,
+			{
+				table: 'invoices',
+				name: 'account_id',
+				type: 'int',
+				notNull: false,
+				autoIncrement: false,
+				default: null,
+				onUpdateNow: false,
+				onUpdateNowFsp: null,
+				charSet: null,
+				collation: null,
+				generated: null,
+			} as any,
+		);
+		b.indexes.push({
+			table: 'invoices',
+			nameExplicit: true,
+			name: 'invoices_account_id_idx',
+			columns: [{ value: 'account_id', isExpression: false }],
+			isUnique: false,
+			using: null,
+			algorithm: null,
+			lock: null,
+		} as any);
+
+		files.push(
+			writeTempSnapshot(tmp, '020_p_idx', p),
+			writeTempSnapshot(tmp, '021_a_idx', makeSnapshot('a_idx', ['p_idx'], a.entities.list())),
+			writeTempSnapshot(tmp, '022_b_idx', makeSnapshot('b_idx', ['p_idx'], b.entities.list())),
+		);
+
+		const report = await mysqlCommutativity.detectNonCommutative(files);
+		expect(report.conflicts).toStrictEqual([]);
+	});
+
+	test('create indexes with different names on the same table do not conflict', async () => {
+		const { tmp } = mkTmp();
+		const files: string[] = [];
+
+		const parent = createDDL();
+		parent.tables.push({ name: 'orders' });
+		parent.columns.push(
+			{
+				table: 'orders',
+				name: 'customer_id',
+				type: 'int',
+				notNull: false,
+				autoIncrement: false,
+				default: null,
+				onUpdateNow: false,
+				onUpdateNowFsp: null,
+				charSet: null,
+				collation: null,
+				generated: null,
+			} as any,
+			{
+				table: 'orders',
+				name: 'status',
+				type: 'varchar(255)',
+				notNull: false,
+				autoIncrement: false,
+				default: null,
+				onUpdateNow: false,
+				onUpdateNowFsp: null,
+				charSet: null,
+				collation: null,
+				generated: null,
+			} as any,
+		);
+		const p = makeSnapshot('p_idx_same_table', [ORIGIN], parent.entities.list());
+
+		const a = createDDL();
+		a.tables.push({ name: 'orders' });
+		a.columns.push(
+			{
+				table: 'orders',
+				name: 'customer_id',
+				type: 'int',
+				notNull: false,
+				autoIncrement: false,
+				default: null,
+				onUpdateNow: false,
+				onUpdateNowFsp: null,
+				charSet: null,
+				collation: null,
+				generated: null,
+			} as any,
+			{
+				table: 'orders',
+				name: 'status',
+				type: 'varchar(255)',
+				notNull: false,
+				autoIncrement: false,
+				default: null,
+				onUpdateNow: false,
+				onUpdateNowFsp: null,
+				charSet: null,
+				collation: null,
+				generated: null,
+			} as any,
+		);
+		a.indexes.push({
+			table: 'orders',
+			nameExplicit: true,
+			name: 'orders_customer_id_idx',
+			columns: [{ value: 'customer_id', isExpression: false }],
+			isUnique: false,
+			using: null,
+			algorithm: null,
+			lock: null,
+		} as any);
+
+		const b = createDDL();
+		b.tables.push({ name: 'orders' });
+		b.columns.push(
+			{
+				table: 'orders',
+				name: 'customer_id',
+				type: 'int',
+				notNull: false,
+				autoIncrement: false,
+				default: null,
+				onUpdateNow: false,
+				onUpdateNowFsp: null,
+				charSet: null,
+				collation: null,
+				generated: null,
+			} as any,
+			{
+				table: 'orders',
+				name: 'status',
+				type: 'varchar(255)',
+				notNull: false,
+				autoIncrement: false,
+				default: null,
+				onUpdateNow: false,
+				onUpdateNowFsp: null,
+				charSet: null,
+				collation: null,
+				generated: null,
+			} as any,
+		);
+		b.indexes.push({
+			table: 'orders',
+			nameExplicit: true,
+			name: 'orders_status_idx',
+			columns: [{ value: 'status', isExpression: false }],
+			isUnique: false,
+			using: null,
+			algorithm: null,
+			lock: null,
+		} as any);
+
+		files.push(
+			writeTempSnapshot(tmp, '030_p_idx_same_table', p),
+			writeTempSnapshot(
+				tmp,
+				'031_a_idx_same_table',
+				makeSnapshot('a_idx_same_table', ['p_idx_same_table'], a.entities.list()),
+			),
+			writeTempSnapshot(
+				tmp,
+				'032_b_idx_same_table',
+				makeSnapshot('b_idx_same_table', ['p_idx_same_table'], b.entities.list()),
+			),
+		);
+
+		const report = await mysqlCommutativity.detectNonCommutative(files);
+		expect(report.conflicts).toStrictEqual([]);
 	});
 
 	test('unique constraint same name on same table', async () => {
@@ -560,7 +827,7 @@ describe('commutativity integration (mysql)', () => {
 			writeTempSnapshot(tmp, '022_b_uq', makeSnapshot('b_uq', ['p_uq'], b.entities.list())),
 		);
 
-		const report = await detectNonCommutative(files, 'mysql');
+		const report = await mysqlCommutativity.detectNonCommutative(files);
 		expect(report.conflicts.length).toBeGreaterThan(0);
 	});
 
@@ -593,7 +860,7 @@ describe('commutativity integration (mysql)', () => {
 			writeTempSnapshot(tmp, '032_b_view', makeSnapshot('b_view', ['p_view'], b.entities.list())),
 		);
 
-		const report = await detectNonCommutative(files, 'mysql');
+		const report = await mysqlCommutativity.detectNonCommutative(files);
 		expect(report.conflicts.length).toBeGreaterThan(0);
 	});
 
@@ -660,7 +927,7 @@ describe('commutativity integration (mysql)', () => {
 			writeTempSnapshot(tmp, '103_c_three', makeSnapshot('c_three', ['p_three'], c.entities.list())),
 		);
 
-		const report = await detectNonCommutative(files, 'mysql');
+		const report = await mysqlCommutativity.detectNonCommutative(files);
 		// At least A vs B should conflict; C may or may not depending on overlap
 		expect(report.conflicts.length).toBeGreaterThan(0);
 	});
@@ -728,7 +995,7 @@ describe('commutativity integration (mysql)', () => {
 			writeTempSnapshot(tmp, '113_B', makeSnapshot('B', ['p_nested'], B.entities.list())),
 		);
 
-		const report = await detectNonCommutative(files, 'mysql');
+		const report = await mysqlCommutativity.detectNonCommutative(files);
 		expect(report.conflicts.length).toBeGreaterThanOrEqual(0);
 	});
 
@@ -776,7 +1043,7 @@ describe('commutativity integration (mysql)', () => {
 			writeTempSnapshot(tmp, '122_Y', makeSnapshot('Y', ['p_mix'], Y.entities.list())),
 		);
 
-		const report = await detectNonCommutative(files, 'mysql');
+		const report = await mysqlCommutativity.detectNonCommutative(files);
 		expect(report.conflicts.length).toBeGreaterThan(0);
 	});
 });

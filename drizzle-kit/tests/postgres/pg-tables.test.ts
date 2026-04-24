@@ -1,5 +1,5 @@
 import type { PGlite } from '@electric-sql/pglite';
-import { SQL, sql } from 'drizzle-orm';
+import { aliasedTable, SQL, sql } from 'drizzle-orm';
 import {
 	foreignKey,
 	geometry,
@@ -378,6 +378,28 @@ test('add table #15', async () => {
 
 	const st0 = [
 		`CREATE TABLE "users" (\n\t"name" text CONSTRAINT "name_unique" UNIQUE NULLS NOT DISTINCT\n);\n`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5603
+test.skipIf(Date.now() < +new Date('2026-04-26'))('add table #16', async () => {
+	const users = pgTable('users', {
+		name: text(),
+	}, (t) => [index('name_idx').on(t.name)]);
+	const u = aliasedTable(users, 'u');
+	const to = {
+		users,
+		u,
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
+		'CREATE TABLE "users" (\n\t"name" text\n);\n',
+		'CREATE INDEX "name_idx" ON "users" ("name");',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

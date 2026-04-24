@@ -33,7 +33,7 @@ import { mockResolver } from '../../src/utils/mocks';
 import { tsc } from '../utils';
 import 'zx/globals';
 import { relationsToTypeScript } from 'src/cli/commands/pull-common';
-import { getReasonsFromStatements } from 'src/dialects/mysql/commutativity';
+import { mysqlCommutativity } from 'src/dialects/mysql/commutativity';
 import type { MysqlSnapshot } from 'src/dialects/mysql/snapshot';
 import { expect } from 'vitest';
 
@@ -502,5 +502,5 @@ export async function conflictsFromSchema(
 	const { statements: st1 } = await diff(parent.schema, child1.schema, []);
 	const { statements: st2 } = await diff(parent.schema, child2.schema, []);
 
-	return await getReasonsFromStatements(st1, st2, parentSnapshot);
+	return await mysqlCommutativity.getReasonsFromStatements(st1, st2, parentSnapshot);
 }

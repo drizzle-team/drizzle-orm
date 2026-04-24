@@ -106,7 +106,7 @@ export const embeddedMigrations = (snapshots: string[], driver?: Driver) => {
 	const migrations: Record<string, string> = {};
 
 	snapshots.forEach((entry, idx) => {
-		const prefix = entry.split('/')[entry.split('/').length - 2];
+		const prefix = entry.split(path.sep)[entry.split(path.sep).length - 2];
 		const importName = idx.toString().padStart(4, '0');
 		content += `import m${importName} from './${prefix}/migration.sql';\n`;
 		migrations[prefix] = importName;

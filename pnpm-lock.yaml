@@ -377,6 +377,9 @@ importers:
       '@neondatabase/serverless':
         specifier: ^0.10.0
         version: 0.10.0
+      '@netlify/db':
+        specifier: ^0.4.0
+        version: 0.4.0(@cloudflare/workers-types@4.20251126.0)(@electric-sql/pglite@0.2.12)(@libsql/client-wasm@0.10.0)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.10.0)(@op-engineering/op-sqlite@2.0.22(react-native@0.82.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(@planetscale/database@1.19.0)(@tidbcloud/serverless@0.1.1)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@5.9.2))(better-sqlite3@11.9.1)(bufferutil@4.0.8)(bun-types@1.3.3)(gel@2.2.0)(mysql2@3.14.1)(pg@8.16.3)(postgres@3.4.7)(utf-8-validate@6.0.3)
       '@op-engineering/op-sqlite':
         specifier: ^2.0.16
         version: 2.0.22(react-native@0.82.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
@@ -630,6 +633,9 @@ importers:
       '@miniflare/shared':
         specifier: ^2.14.4
         version: 2.14.4
+      '@netlify/db':
+        specifier: ^0.4.0
+        version: 0.4.0(@cloudflare/workers-types@4.20251126.0)(@electric-sql/pglite@0.2.12)(@libsql/client-wasm@0.10.0)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.10.0)(@op-engineering/op-sqlite@2.0.22(react-native@0.82.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(@planetscale/database@1.19.0)(@tidbcloud/serverless@0.1.1)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@5.9.2))(better-sqlite3@11.9.1)(bufferutil@4.0.8)(bun-types@1.3.3)(gel@2.2.0)(mysql2@3.14.1)(pg@8.16.3)(postgres@3.4.7)(utf-8-validate@6.0.3)
       '@planetscale/database':
         specifier: ^1.16.0
         version: 1.19.0
@@ -2808,6 +2814,17 @@ packages:
   '@neondatabase/serverless@1.0.2':
     resolution: {integrity: sha512-I5sbpSIAHiB+b6UttofhrN/UJXII+4tZPAq1qugzwCwLIL8EZLV7F/JyHUrEIiGgQpEXzpnjlJ+zwcEhheGvCw==}
     engines: {node: '>=19.0.0'}
+
+  '@netlify/db@0.4.0':
+    resolution: {integrity: sha512-cC1TMD/nRhEJfhIa3QbdjU9HZ22/M5qxgUpOwPayk12FYhaENNKt1rHPcg3vLPlNmzBYlNT9ecjGUTwGH5+v9w==}
+    engines: {node: '>=20.6.1'}
+    peerDependencies:
+      '@neondatabase/serverless': '>=0.10.0'
+      pg: '>=8'
+
+  '@netlify/runtime-utils@2.3.0':
+    resolution: {integrity: sha512-cW8weDvsKV7zfia2m5EcBy6KILGoPD+eYZ3qWNGnIo05DGF28goPES0xKSDkNYgAF/2rRSIhie2qcBhbGVgSRg==}
+    engines: {node: ^18.14.0 || >=20}
 
   '@noble/hashes@1.8.0':
     resolution: {integrity: sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==}
@@ -8773,6 +8790,71 @@ packages:
   vlq@1.0.1:
     resolution: {integrity: sha512-gQpnTgkubC6hQgdIcRdYGDSDc+SaujOdyesZQMv6JlfQee/9Mp0Qhnys6WxDWvQnL5WZdT7o2Ul187aSt0Rq+w==}
 
+  waddler@0.1.1:
+    resolution: {integrity: sha512-lBJXYFBLEpYe+scAeCJmLj6Iqweuq1whM6Am3I9WfopOCFxvKz8Nq5hXoy8/b3zwJqHIQMglFIvM4skRydSpZg==}
+    peerDependencies:
+      '@clickhouse/client': ^1.11.2
+      '@cloudflare/workers-types': '*'
+      '@duckdb/node-api': ^1.1.2-alpha.4
+      '@electric-sql/pglite': ^0.2.17
+      '@libsql/client': ^0.15.4
+      '@libsql/client-wasm': ^0.15.4
+      '@neondatabase/serverless': ^1.0.0
+      '@op-engineering/op-sqlite': '*'
+      '@planetscale/database': ^1.19.0
+      '@tidbcloud/serverless': ^0.2.0
+      '@vercel/postgres': ^0.10.0
+      '@xata.io/client': ^0.30.1
+      better-sqlite3: ^11.9.1
+      bun-types: '*'
+      duckdb: ^1.2.1
+      gel: ^2.0.2
+      mysql2: ^3.14.0
+      pg: ^8.14.0
+      pg-query-stream: ^4.8.0
+      postgres: ^3.4.5
+    peerDependenciesMeta:
+      '@clickhouse/client':
+        optional: true
+      '@cloudflare/workers-types':
+        optional: true
+      '@duckdb/node-api':
+        optional: true
+      '@electric-sql/pglite':
+        optional: true
+      '@libsql/client':
+        optional: true
+      '@libsql/client-wasm':
+        optional: true
+      '@neondatabase/serverless':
+        optional: true
+      '@op-engineering/op-sqlite':
+        optional: true
+      '@planetscale/database':
+        optional: true
+      '@tidbcloud/serverless':
+        optional: true
+      '@vercel/postgres':
+        optional: true
+      '@xata.io/client':
+        optional: true
+      better-sqlite3:
+        optional: true
+      bun-types:
+        optional: true
+      duckdb:
+        optional: true
+      gel:
+        optional: true
+      mysql2:
+        optional: true
+      pg:
+        optional: true
+      pg-query-stream:
+        optional: true
+      postgres:
+        optional: true
+
   walker@1.0.8:
     resolution: {integrity: sha512-ts/8E8l5b7kY0vlWLewOkDXMmPdLcVV4GmOQLyxuSswIJsweeFZtAsMF7k1Nszz+TYBQrlYRmzOnr398y1JemQ==}
 
@@ -11577,6 +11659,37 @@ snapshots:
     dependencies:
       '@types/node': 22.19.1
       '@types/pg': 8.15.6
+
+  '@netlify/db@0.4.0(@cloudflare/workers-types@4.20251126.0)(@electric-sql/pglite@0.2.12)(@libsql/client-wasm@0.10.0)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.10.0)(@op-engineering/op-sqlite@2.0.22(react-native@0.82.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(@planetscale/database@1.19.0)(@tidbcloud/serverless@0.1.1)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@5.9.2))(better-sqlite3@11.9.1)(bufferutil@4.0.8)(bun-types@1.3.3)(gel@2.2.0)(mysql2@3.14.1)(pg@8.16.3)(postgres@3.4.7)(utf-8-validate@6.0.3)':
+    dependencies:
+      '@neondatabase/serverless': 0.10.0
+      '@netlify/runtime-utils': 2.3.0
+      pg: 8.16.3
+      waddler: 0.1.1(@cloudflare/workers-types@4.20251126.0)(@electric-sql/pglite@0.2.12)(@libsql/client-wasm@0.10.0)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.10.0)(@op-engineering/op-sqlite@2.0.22(react-native@0.82.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(@planetscale/database@1.19.0)(@tidbcloud/serverless@0.1.1)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@5.9.2))(better-sqlite3@11.9.1)(bun-types@1.3.3)(gel@2.2.0)(mysql2@3.14.1)(pg@8.16.3)(postgres@3.4.7)
+      ws: 8.18.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
+    transitivePeerDependencies:
+      - '@clickhouse/client'
+      - '@cloudflare/workers-types'
+      - '@duckdb/node-api'
+      - '@electric-sql/pglite'
+      - '@libsql/client'
+      - '@libsql/client-wasm'
+      - '@op-engineering/op-sqlite'
+      - '@planetscale/database'
+      - '@tidbcloud/serverless'
+      - '@vercel/postgres'
+      - '@xata.io/client'
+      - better-sqlite3
+      - bufferutil
+      - bun-types
+      - duckdb
+      - gel
+      - mysql2
+      - pg-query-stream
+      - postgres
+      - utf-8-validate
+
+  '@netlify/runtime-utils@2.3.0': {}
 
   '@noble/hashes@1.8.0': {}
 
@@ -18262,6 +18375,25 @@ snapshots:
       - yaml
 
   vlq@1.0.1: {}
+
+  waddler@0.1.1(@cloudflare/workers-types@4.20251126.0)(@electric-sql/pglite@0.2.12)(@libsql/client-wasm@0.10.0)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.10.0)(@op-engineering/op-sqlite@2.0.22(react-native@0.82.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(@planetscale/database@1.19.0)(@tidbcloud/serverless@0.1.1)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@5.9.2))(better-sqlite3@11.9.1)(bun-types@1.3.3)(gel@2.2.0)(mysql2@3.14.1)(pg@8.16.3)(postgres@3.4.7):
+    optionalDependencies:
+      '@cloudflare/workers-types': 4.20251126.0
+      '@electric-sql/pglite': 0.2.12
+      '@libsql/client': 0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
+      '@libsql/client-wasm': 0.10.0
+      '@neondatabase/serverless': 0.10.0
+      '@op-engineering/op-sqlite': 2.0.22(react-native@0.82.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
+      '@planetscale/database': 1.19.0
+      '@tidbcloud/serverless': 0.1.1
+      '@vercel/postgres': 0.8.0
+      '@xata.io/client': 0.29.5(typescript@5.9.2)
+      better-sqlite3: 11.9.1
+      bun-types: 1.3.3
+      gel: 2.2.0
+      mysql2: 3.14.1
+      pg: 8.16.3
+      postgres: 3.4.7
 
   walker@1.0.8:
     dependencies:
