@@ -29,11 +29,32 @@ export class PgliteDatabase<
 }
 
 export const pgliteCodecs = refineGenericPgCodecs({
+	// Otherwise outputs are inconsistent
 	bigint: {
 		cast: castToText,
 		castArray: castToTextArr,
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
 	},
+	// Otherwise outputs are inconsistent
+	'bigint:string': {
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	// Otherwise outputs are inconsistent
+	'bigint:number': {
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	// Otherwise outputs are inconsistent
 	bigserial: {
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	// Otherwise outputs are inconsistent
+	'bigserial:number': {
 		cast: castToText,
 		castArray: castToTextArr,
 	},

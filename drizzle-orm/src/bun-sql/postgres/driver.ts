@@ -25,6 +25,7 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 	date: { normalizeParamArray: makePgArray },
 	'date:string': {
 		cast: castToText,
+		castArray: castToTextArr,
 		normalizeParamArray: makePgArray,
 	},
 	uuid: {
@@ -35,10 +36,12 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 	timestamptz: { normalizeParamArray: makePgArray },
 	'timestamp:string': {
 		cast: castToText,
+		castArray: castToTextArr,
 		normalizeParamArray: makePgArray,
 	},
 	'timestamptz:string': {
 		cast: castToText,
+		castArray: castToTextArr,
 		normalizeParamArray: makePgArray,
 	},
 	float4: {
@@ -49,17 +52,15 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: makePgArray,
 	},
 	bigint: {
-		normalize: BigInt,
-		normalizeArray: arrayCompatNormalize(BigInt),
 		normalizeParamArray: makePgArray,
 	},
 	'bigint:number': { normalizeParamArray: makePgArray },
-	'bigint:string': { normalizeParamArray: makePgArray },
-	bigserial: {
-		normalize: BigInt,
-		normalizeArray: arrayCompatNormalize(BigInt),
+	'bigint:string': {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalizeParamArray: makePgArray,
 	},
+	bigserial: { normalizeParamArray: makePgArray },
 	'bigserial:number': { normalizeParamArray: makePgArray },
 	int: {
 		normalizeArray: (
@@ -220,6 +221,7 @@ function construct<
 ): BunSQLDatabase<TRelations> & {
 	$client: SQL;
 } {
+	client.options.bigint = true;
 	const dialect = new PgDialect({
 		useJitMappers: config.useJitMappers,
 		codecs: config.codecs ?? bunSqlPgCodecs,

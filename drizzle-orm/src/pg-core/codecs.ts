@@ -309,8 +309,6 @@ export const genericPgCodecs = {
 		castArrayInJson: castToTextArr,
 		normalizeInJson: BigInt,
 		normalizeArrayInJson: arrayCompatNormalize(BigInt),
-		normalize: BigInt,
-		normalizeArray: arrayCompatNormalize(BigInt),
 	},
 	'bigint:number': {
 		castInJson: castToText,
@@ -323,10 +321,6 @@ export const genericPgCodecs = {
 	'bigint:string': {
 		castInJson: castToText,
 		castArrayInJson: castToTextArr,
-		normalize: String,
-		normalizeArray: arrayCompatNormalize(String),
-		normalizeInJson: String,
-		normalizeArrayInJson: arrayCompatNormalize(String),
 	},
 	bigserial: {
 		castInJson: castToText,

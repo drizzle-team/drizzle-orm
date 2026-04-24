@@ -27,6 +27,14 @@ export class VercelPgDatabase<TRelations extends AnyRelations = EmptyRelations>
 }
 
 export const vercelPgCodecs = refineGenericPgCodecs({
+	bigint: {
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
+	},
+	bigserial: {
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
+	},
 	bit: {
 		normalizeArray: parsePgArray,
 	},

@@ -75,6 +75,14 @@ export class NetlifyDbDatabase<
 }
 
 export const netlifyDbCodecs = refineGenericPgCodecs({
+	bigint: {
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
+	},
+	bigserial: {
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
+	},
 	bit: {
 		normalizeArray: parsePgArray,
 	},
@@ -146,6 +154,14 @@ export const netlifyDbCodecs = refineGenericPgCodecs({
 });
 
 export const netlifyDbTransactionCodecs = refineGenericPgCodecs({
+	bigint: {
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
+	},
+	bigserial: {
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
+	},
 	bit: {
 		normalizeArray: parsePgArray,
 	},

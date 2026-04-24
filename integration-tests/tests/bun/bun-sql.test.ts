@@ -1910,7 +1910,7 @@ test('select count()', async () => {
 
 	const res = await db.select({ count: sql`count(*)` }).from(usersTable);
 
-	expect(res).toEqual([{ count: '2' }]);
+	expect(res).toEqual([{ count: 2n }]);
 });
 
 test('select count w/ custom mapper', async () => {
