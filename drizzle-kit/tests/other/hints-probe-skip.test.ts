@@ -1,7 +1,7 @@
 import { stripAnsi } from 'hanji/utils';
 import { suggestions } from 'src/cli/commands/push-postgres';
+import { runWithCliContext } from 'src/cli/context';
 import { type Hint, HintsHandler } from 'src/cli/hints';
-import { setJsonMode } from 'src/cli/mode';
 import { resolver } from 'src/cli/prompts';
 import {
 	type CheckConstraint,
@@ -24,7 +24,7 @@ import {
 import { ddlDiff } from 'src/dialects/postgres/diff';
 import { prepareStatement } from 'src/dialects/postgres/statements';
 import type { DB } from 'src/utils';
-import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { afterEach, expect, test, vi } from 'vitest';
 
 const table = (name: string, schema = 'public') =>
 	({
@@ -136,168 +136,174 @@ const runPushDiff = async (
 	return { ...diffResult, hints };
 };
 
-beforeEach(() => {
-	setJsonMode(true);
-});
-
 afterEach(() => {
 	vi.restoreAllMocks();
-	setJsonMode(false);
 });
 
 test('json mode skips the drop-table probe when a confirm hint already authorizes it', async () => {
-	const hints = new HintsHandler([
-		{ type: 'confirm_data_loss', kind: 'table', entity: ['public', 'orders'] as const },
-	]);
+	await runWithCliContext({ json: true }, async () => {
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'table', entity: ['public', 'orders'] as const },
+		]);
 
-	const { db, queries } = createDb(async (sql) => {
-		throw new Error(`probe should have been skipped: ${sql}`);
+		const { db, queries } = createDb(async (sql) => {
+			throw new Error(`probe should have been skipped: ${sql}`);
+		});
+
+		const result = await suggestions(db, [
+			prepareStatement('drop_table', { table: table('orders'), key: '"orders"' }),
+		], hints);
+
+		expect(result).toStrictEqual([]);
+		expect(queries).toStrictEqual([]);
+		expect(unresolved(hints)).toStrictEqual([]);
 	});
-
-	const result = await suggestions(db, [
-		prepareStatement('drop_table', { table: table('orders'), key: '"orders"' }),
-	], hints);
-
-	expect(result).toStrictEqual([]);
-	expect(queries).toStrictEqual([]);
-	expect(unresolved(hints)).toStrictEqual([]);
 });
 
 test('json mode auto-authorizes an empty materialized-view probe without recording a missing confirm hint', async () => {
-	const hints = new HintsHandler();
-	const { db, queries } = createDb(async () => []);
+	await runWithCliContext({ json: true }, async () => {
+		const hints = new HintsHandler();
+		const { db, queries } = createDb(async () => []);
 
-	const result = await suggestions(db, [
-		prepareStatement('drop_view', { view: view('orders_mv'), cause: null }),
-	], hints);
+		const result = await suggestions(db, [
+			prepareStatement('drop_view', { view: view('orders_mv'), cause: null }),
+		], hints);
 
-	expect(result).toStrictEqual([]);
-	expect(queries).toStrictEqual(['select 1 from "orders_mv" limit 1']);
-	expect(unresolved(hints)).toStrictEqual([]);
+		expect(result).toStrictEqual([]);
+		expect(queries).toStrictEqual(['select 1 from "orders_mv" limit 1']);
+		expect(unresolved(hints)).toStrictEqual([]);
+	});
 });
 
 test('json mode records add_not_null confirmation when the target table is non-empty', async () => {
-	const hints = new HintsHandler();
-	const { db, queries } = createDb(async () => [{}]);
+	await runWithCliContext({ json: true }, async () => {
+		const hints = new HintsHandler();
+		const { db, queries } = createDb(async () => [{}]);
 
-	const result = await suggestions(db, [
-		prepareStatement('add_column', {
-			column: column('orders', 'status', 'public', { notNull: true }),
-			isPK: false,
-			isCompositePK: false,
-		}),
-	], hints);
+		const result = await suggestions(db, [
+			prepareStatement('add_column', {
+				column: column('orders', 'status', 'public', { notNull: true }),
+				isPK: false,
+				isCompositePK: false,
+			}),
+		], hints);
 
-	expect(result).toStrictEqual([]);
-	expect(queries).toStrictEqual(['select 1 from "orders" limit 1']);
-	expect(unresolved(hints)).toStrictEqual([
-		{
-			type: 'confirm_data_loss',
-			kind: 'add_not_null',
-			entity: ['public', 'orders', 'status'],
-			reason: 'nulls_present',
-		},
-	]);
+		expect(result).toStrictEqual([]);
+		expect(queries).toStrictEqual(['select 1 from "orders" limit 1']);
+		expect(unresolved(hints)).toStrictEqual([
+			{
+				type: 'confirm_data_loss',
+				kind: 'add_not_null',
+				entity: ['public', 'orders', 'status'],
+				reason: 'nulls_present',
+			},
+		]);
+	});
 });
 
 test('json mode records only the risky probe sites when multiple probes have mixed outcomes', async () => {
-	const hints = new HintsHandler();
-	const { db, queries } = createDb(async (sql) => {
-		if (sql.includes(`table_schema = 'archive'`)) {
-			return [{ count: '2' }];
-		}
+	await runWithCliContext({ json: true }, async () => {
+		const hints = new HintsHandler();
+		const { db, queries } = createDb(async (sql) => {
+			if (sql.includes(`table_schema = 'archive'`)) {
+				return [{ count: '2' }];
+			}
 
-		if (sql === 'select 1 from "legacy_users" limit 1') {
-			return [];
-		}
+			if (sql === 'select 1 from "legacy_users" limit 1') {
+				return [];
+			}
 
-		if (sql === 'select 1 from "users" limit 1') {
-			return [{}];
-		}
+			if (sql === 'select 1 from "users" limit 1') {
+				return [{}];
+			}
 
-		throw new Error(`Unexpected SQL: ${sql}`);
+			throw new Error(`Unexpected SQL: ${sql}`);
+		});
+
+		const result = await suggestions(db, [
+			prepareStatement('drop_schema', { name: 'archive' }),
+			prepareStatement('drop_column', { column: column('legacy_users', 'legacy_flag') }),
+			prepareStatement('add_unique', { unique: unique('users', 'users_email_unique', 'email') }),
+		], hints);
+
+		expect(result).toStrictEqual([]);
+		expect(queries).toStrictEqual([
+			`select count(*) as count from information_schema.tables where table_schema = 'archive';`,
+			'select 1 from "legacy_users" limit 1',
+			'select 1 from "users" limit 1',
+		]);
+		expect(unresolved(hints)).toStrictEqual([
+			{ type: 'confirm_data_loss', kind: 'schema', entity: ['archive'], reason: 'non_empty' },
+			{
+				type: 'confirm_data_loss',
+				kind: 'add_unique',
+				entity: ['public', 'users', 'email'],
+				reason: 'duplicates_present',
+			},
+		]);
 	});
-
-	const result = await suggestions(db, [
-		prepareStatement('drop_schema', { name: 'archive' }),
-		prepareStatement('drop_column', { column: column('legacy_users', 'legacy_flag') }),
-		prepareStatement('add_unique', { unique: unique('users', 'users_email_unique', 'email') }),
-	], hints);
-
-	expect(result).toStrictEqual([]);
-	expect(queries).toStrictEqual([
-		`select count(*) as count from information_schema.tables where table_schema = 'archive';`,
-		'select 1 from "legacy_users" limit 1',
-		'select 1 from "users" limit 1',
-	]);
-	expect(unresolved(hints)).toStrictEqual([
-		{ type: 'confirm_data_loss', kind: 'schema', entity: ['archive'], reason: 'non_empty' },
-		{
-			type: 'confirm_data_loss',
-			kind: 'add_unique',
-			entity: ['public', 'users', 'email'],
-			reason: 'duplicates_present',
-		},
-	]);
 });
 
 test('tty mode keeps the existing drop-pk hint path, including the constraint-name lookup statement', async () => {
-	setJsonMode(false);
-	const hintsHandler = new HintsHandler();
-	const { db, queries } = createDb(async (sql) => {
-		if (sql === 'select 1 from "public"."orders" limit 1') {
-			return [{}];
-		}
+	await runWithCliContext({ json: false }, async () => {
+		const hintsHandler = new HintsHandler();
+		const { db, queries } = createDb(async (sql) => {
+			if (sql === 'select 1 from "public"."orders" limit 1') {
+				return [{}];
+			}
 
-		if (sql.includes('information_schema.table_constraints')) {
-			return [{ name: 'orders_actual_pkey' }];
-		}
+			if (sql.includes('information_schema.table_constraints')) {
+				return [{ name: 'orders_actual_pkey' }];
+			}
 
-		throw new Error(`Unexpected SQL: ${sql}`);
+			throw new Error(`Unexpected SQL: ${sql}`);
+		});
+
+		const hints = await suggestions(db, [
+			prepareStatement('drop_pk', { pk: primaryKey('orders', 'orders_pkey', 'public', false) }),
+		], hintsHandler);
+
+		expect(queries).toStrictEqual([
+			'select 1 from "public"."orders" limit 1',
+			`\n        SELECT constraint_name as name \n        FROM information_schema.table_constraints\n        WHERE \n          table_schema = 'public'\n          AND table_name = 'orders'\n          AND constraint_type = 'PRIMARY KEY';`,
+		]);
+		expect(hints).toHaveLength(1);
+		expect(stripAnsi(hints[0]!.hint).replace(/^·\s*/, '')).toBe(
+			'You\'re about to drop "public"."orders" primary key, this statements may fail and your table may loose primary key',
+		);
+		expect(hints[0]!.statement).toBe('ALTER TABLE "public"."orders" DROP CONSTRAINT "orders_actual_pkey"');
 	});
-
-	const hints = await suggestions(db, [
-		prepareStatement('drop_pk', { pk: primaryKey('orders', 'orders_pkey', 'public', false) }),
-	], hintsHandler);
-
-	expect(queries).toStrictEqual([
-		'select 1 from "public"."orders" limit 1',
-		`\n        SELECT constraint_name as name \n        FROM information_schema.table_constraints\n        WHERE \n          table_schema = 'public'\n          AND table_name = 'orders'\n          AND constraint_type = 'PRIMARY KEY';`,
-	]);
-	expect(hints).toHaveLength(1);
-	expect(stripAnsi(hints[0]!.hint).replace(/^·\s*/, '')).toBe(
-		'You\'re about to drop "public"."orders" primary key, this statements may fail and your table may loose primary key',
-	);
-	expect(hints[0]!.statement).toBe('ALTER TABLE "public"."orders" DROP CONSTRAINT "orders_actual_pkey"');
 });
 
 test('rename hints resolve orders to orders1 before probes so no stale orders1 select is attempted', async () => {
-	const hintsInput = [
-		{ type: 'rename', kind: 'table', from: ['public', 'orders'] as const, to: ['public', 'orders1'] as const },
-	] satisfies readonly Hint[];
+	await runWithCliContext({ json: true }, async () => {
+		const hintsInput = [
+			{ type: 'rename', kind: 'table', from: ['public', 'orders'] as const, to: ['public', 'orders1'] as const },
+		] satisfies readonly Hint[];
 
-	const ddlFrom = createDDL();
-	ddlFrom.tables.push({ schema: 'public', name: 'orders', isRlsEnabled: false });
+		const ddlFrom = createDDL();
+		ddlFrom.tables.push({ schema: 'public', name: 'orders', isRlsEnabled: false });
 
-	const ddlTo = createDDL();
-	ddlTo.tables.push({ schema: 'public', name: 'orders1', isRlsEnabled: false });
+		const ddlTo = createDDL();
+		ddlTo.tables.push({ schema: 'public', name: 'orders1', isRlsEnabled: false });
 
-	const diffResult = await runPushDiff(ddlFrom, ddlTo, hintsInput);
-	const statementTypes = diffResult.statements.map((statement) => statement.type);
+		const diffResult = await runPushDiff(ddlFrom, ddlTo, hintsInput);
+		const statementTypes = diffResult.statements.map((statement) => statement.type);
 
-	expect(statementTypes).toContain('rename_table');
-	expect(statementTypes).not.toContain('drop_table');
-	expect(statementTypes).not.toContain('create_table');
-	expect(unresolved(diffResult.hints)).toStrictEqual([]);
+		expect(statementTypes).toContain('rename_table');
+		expect(statementTypes).not.toContain('drop_table');
+		expect(statementTypes).not.toContain('create_table');
+		expect(unresolved(diffResult.hints)).toStrictEqual([]);
 
-	const { db, queries } = createDb(async (sql) => {
-		throw new Error(`rename-resolved diffs should not probe the database: ${sql}`);
+		const { db, queries } = createDb(async (sql) => {
+			throw new Error(`rename-resolved diffs should not probe the database: ${sql}`);
+		});
+
+		const suggestionHints = new HintsHandler(hintsInput);
+		const hints = await suggestions(db, diffResult.statements, suggestionHints);
+
+		expect(hints).toStrictEqual([]);
+		expect(queries).toStrictEqual([]);
+		expect(unresolved(suggestionHints)).toStrictEqual([]);
 	});
-
-	const suggestionHints = new HintsHandler(hintsInput);
-	const hints = await suggestions(db, diffResult.statements, suggestionHints);
-
-	expect(hints).toStrictEqual([]);
-	expect(queries).toStrictEqual([]);
-	expect(unresolved(suggestionHints)).toStrictEqual([]);
 });

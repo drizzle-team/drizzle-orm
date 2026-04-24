@@ -5,18 +5,12 @@ import { ddlDiff, ddlDiffDry } from 'src/dialects/singlestore/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/singlestore/drizzle';
 import { prepareSnapshot } from 'src/dialects/singlestore/serializer';
 import { prepareOutFolder } from 'src/utils/utils-node';
-import { JsonModeUnsupportedCliError } from '../errors';
-import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
-import { explain, humanLog, printJsonOutput } from '../views';
+import { explain, explainJsonOutput, humanLog, printJsonOutput } from '../views';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
-	if (isJsonMode()) {
-		throw new JsonModeUnsupportedCliError({ dialect: 'singlestore', command: 'generate' });
-	}
-
 	const { out: outFolder, casing, filenames } = config;
 	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, filenames, casing);
@@ -26,6 +20,7 @@ export const handle = async (config: GenerateConfig) => {
 			snapshot: custom,
 			sqlStatements: [],
 			outFolder,
+			json: config.json,
 			name: config.name,
 			breakpoints: config.breakpoints,
 			type: 'custom',
@@ -37,31 +32,43 @@ export const handle = async (config: GenerateConfig) => {
 
 	let sqlStatements: string[] = [];
 	let renames: string[] = [];
+	let statements: JsonStatement[] = [];
 	let groupedStatements: { jsonStatement: JsonStatement; sqlStatements: string[] }[] = [];
 
 	const diffResult = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<Table>('table', 'public', 'generate'),
-		resolver<Column>('column', 'public', 'generate'),
-		resolver<View>('view', 'public', 'generate'),
+		resolver<Table>('table', 'public', 'generate', config.hints),
+		resolver<Column>('column', 'public', 'generate', config.hints),
+		resolver<View>('view', 'public', 'generate', config.hints),
 		'default',
 	);
 
 	sqlStatements = diffResult.sqlStatements;
 	renames = diffResult.renames;
+	statements = diffResult.statements;
 	groupedStatements = diffResult.groupedStatements;
+
+	if (config.json && config.hints.hasMissingHints()) {
+		config.hints.emitAndExit();
+	}
 
 	if (!config.explain) {
 		writeResult({
 			snapshot,
 			sqlStatements,
 			outFolder,
+			json: config.json,
 			name: config.name,
 			breakpoints: config.breakpoints,
 			renames,
 			snapshots,
 		});
+		return;
+	}
+
+	if (config.json) {
+		printJsonOutput(explainJsonOutput('singlestore', statements, []), true);
 		return;
 	}
 
@@ -76,6 +83,6 @@ export const handleExport = async (config: ExportConfig) => {
 	const schema = fromDrizzleSchema(res.tables, config.casing);
 	const { ddl } = interimToDDL(schema);
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl);
-	printJsonOutput({ sqlStatements });
+	printJsonOutput({ sqlStatements }, config.json);
 	humanLog(sqlStatements.join('\n'));
 };

@@ -7,6 +7,8 @@ Drizzle Kit is a CLI migrator tool for Drizzle ORM. It is probably the one and o
 
 Check the full documentation on [the website](https://orm.drizzle.team/kit-docs/overview).
 
+For machine-readable CLI behavior in non-interactive workflows, see [JSON mode and hints contract](./JSON_CONTRACT.md).
+
 
 ### How it works
 
@@ -78,3 +80,16 @@ Running with CLI options:
 ```shell
 npm run generate
 ```
+
+### JSON mode for automation
+
+`drizzle-kit` supports per-command `--json` output for non-interactive callers on:
+
+- `generate`
+- `push`
+- `up`
+- `export`
+
+If a command needs rename or data-loss guidance in JSON mode, pass hints with `--hints` or `--hints-file`. If the command still cannot proceed, it returns `status: "missing_hints"` so the caller can retry with more explicit input.
+
+See [`JSON_CONTRACT.md`](./JSON_CONTRACT.md) for the supported payloads and response shapes.

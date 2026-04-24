@@ -10,7 +10,7 @@ import type { MysqlSnapshot } from '../../dialects/mysql/snapshot';
 import type { SqliteSnapshot } from '../../dialects/sqlite/snapshot';
 import { BREAKPOINT } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
-import { isJsonMode } from '../mode';
+import { isJsonMode } from '../context';
 import type { Driver } from '../validations/common';
 import { humanLog, printJsonOutput } from '../views';
 
@@ -23,6 +23,7 @@ export const writeResult = (config: {
 	bundle?: boolean;
 	type?: 'introspect' | 'custom' | 'none';
 	driver?: Driver;
+	json?: boolean;
 	renames: string[];
 	snapshots: string[];
 }) => {
@@ -36,12 +37,14 @@ export const writeResult = (config: {
 		bundle = false,
 		type = 'none',
 		driver,
+		json: jsonOverride,
 		snapshots,
 	} = config;
+	const json = jsonOverride ?? isJsonMode();
 
 	if (type === 'none') {
 		if (sqlStatements.length === 0) {
-			printJsonOutput({ status: 'ok', message: 'No schema changes, nothing to migrate' });
+			printJsonOutput({ status: 'ok', message: 'No schema changes, nothing to migrate' }, json);
 			humanLog('No schema changes, nothing to migrate 😴');
 			return;
 		}
@@ -66,7 +69,7 @@ export const writeResult = (config: {
 	}
 
 	if (type === 'custom') {
-		printJsonOutput({ status: 'ok', message: 'Prepared empty file for your custom SQL migration' });
+		printJsonOutput({ status: 'ok', message: 'Prepared empty file for your custom SQL migration' }, json);
 		humanLog('Prepared empty file for your custom SQL migration!');
 		sql = '-- Custom SQL migration file, put your code below! --';
 	}
@@ -80,7 +83,7 @@ export const writeResult = (config: {
 		fs.writeFileSync(`${outFolder}/migrations.js`, js);
 	}
 
-	if (!isJsonMode()) {
+	if (!json) {
 		render(
 			`[${
 				chalk.green(
