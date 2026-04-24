@@ -10,6 +10,7 @@ const privilegeTupleSchema = z.tuple([z.string(), z.string(), z.string(), z.stri
 const renameCreateEntitySchemas = [
 	{ kind: 'table', schema: pairTupleSchema },
 	{ kind: 'column', schema: tripleTupleSchema },
+	{ kind: 'default', schema: tripleTupleSchema },
 	{ kind: 'schema', schema: singleTupleSchema },
 	{ kind: 'enum', schema: pairTupleSchema },
 	{ kind: 'sequence', schema: pairTupleSchema },
@@ -38,7 +39,7 @@ const confirmEntitySchemas = [
 
 export type ConfirmEntityKind = typeof confirmEntitySchemas[number]['kind'];
 
-export type PromptEntityType = RenameCreateHintKind | 'default';
+export type PromptEntityType = RenameCreateHintKind;
 
 type RenameCreateSchemaFor<K extends RenameCreateHintKind> = Extract<
 	typeof renameCreateEntitySchemas[number],
@@ -50,17 +51,17 @@ type ConfirmSchemaFor<K extends ConfirmEntityKind> = Extract<
 	{ kind: K }
 >['schema'];
 
-export type IdFor<K extends RenameCreateHintKind> = Readonly<z.infer<RenameCreateSchemaFor<K>>>;
+export type IdFor<K extends PromptEntityType> = Readonly<z.infer<RenameCreateSchemaFor<K>>>;
 
 export type ConfirmIdFor<K extends ConfirmEntityKind> = Readonly<z.infer<ConfirmSchemaFor<K>>>;
 
 export type RenameHint = {
-	[K in RenameCreateHintKind]: { type: 'rename'; kind: K; from: IdFor<K>; to: IdFor<K> };
-}[RenameCreateHintKind];
+	[K in PromptEntityType]: { type: 'rename'; kind: K; from: IdFor<K>; to: IdFor<K> };
+}[PromptEntityType];
 
 export type CreateHint = {
-	[K in RenameCreateHintKind]: { type: 'create'; kind: K; entity: IdFor<K> };
-}[RenameCreateHintKind];
+	[K in PromptEntityType]: { type: 'create'; kind: K; entity: IdFor<K> };
+}[PromptEntityType];
 
 export type ConfirmDataLossHint = {
 	[K in ConfirmEntityKind]: { type: 'confirm_data_loss'; kind: K; entity: ConfirmIdFor<K> };
@@ -83,8 +84,8 @@ type ConfirmDataLossMissingHint<K extends ConfirmEntityKind> = {
 
 export type MissingHint =
 	| {
-		[K in RenameCreateHintKind]: RenameCreateMissingHint<K>;
-	}[RenameCreateHintKind]
+		[K in PromptEntityType]: RenameCreateMissingHint<K>;
+	}[PromptEntityType]
 	| {
 		[K in ConfirmEntityKind]: ConfirmDataLossMissingHint<K>;
 	}[ConfirmEntityKind];
@@ -250,13 +251,13 @@ export class HintsHandler {
 		}
 	}
 
-	matchRename<K extends RenameCreateHintKind>(kind: K, toId: IdFor<K>) {
+	matchRename<K extends PromptEntityType>(kind: K, toId: IdFor<K>) {
 		return this.userHints.renames.find((hint): hint is Extract<RenameHint, { kind: K }> => {
 			return hint.kind === kind && tuplesEqual(hint.to, toId);
 		});
 	}
 
-	matchCreate<K extends RenameCreateHintKind>(kind: K, entityId: IdFor<K>) {
+	matchCreate<K extends PromptEntityType>(kind: K, entityId: IdFor<K>) {
 		return this.userHints.creates.find((hint): hint is Extract<CreateHint, { kind: K }> => {
 			return hint.kind === kind && tuplesEqual(hint.entity, entityId);
 		});

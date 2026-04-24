@@ -21,8 +21,8 @@ import type { SchemaError as SqliteSchemaError } from '../dialects/sqlite/ddl';
 import type { JsonStatement as StatementSqlite } from '../dialects/sqlite/statements';
 import type { Named, NamedWithSchema } from '../dialects/utils';
 import { assertUnreachable } from '../utils';
+import { isJsonMode } from './context';
 import { highlightSQL } from './highlighter';
-import { isJsonMode } from './mode';
 import { withStyle } from './validations/outputs';
 
 export const warning = (msg: string) => {
@@ -40,8 +40,8 @@ export const humanLog = (...args: Parameters<typeof console.log>) => {
 	console.log(...args);
 };
 
-export const printJsonOutput = (value: unknown) => {
-	if (!isJsonMode()) return;
+export const printJsonOutput = (value: unknown, json = isJsonMode()) => {
+	if (!json) return;
 	process.stdout.write(JSON.stringify(value) + '\n');
 };
 
@@ -1453,6 +1453,7 @@ export class ResolveSelect<T extends EntityBase> extends Prompt<
 			| 'enum'
 			| 'table'
 			| 'column'
+			| 'default'
 			| 'sequence'
 			| 'view'
 			| 'privilege'
@@ -1462,8 +1463,7 @@ export class ResolveSelect<T extends EntityBase> extends Prompt<
 			| 'index'
 			| 'unique'
 			| 'primary key'
-			| 'foreign key'
-			| 'default',
+			| 'foreign key',
 		private defaultSchema: 'dbo' | 'public' = 'public',
 	) {
 		super();

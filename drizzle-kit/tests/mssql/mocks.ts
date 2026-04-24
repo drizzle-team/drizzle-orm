@@ -11,6 +11,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import getPort from 'get-port';
 import mssql from 'mssql';
 import { introspect } from 'src/cli/commands/pull-mssql';
+import { HintsHandler } from 'src/cli/hints';
 import { EmptyProgressView, explain } from 'src/cli/views';
 import { createDDL } from 'src/dialects/mssql/ddl';
 import { defaultNameForDefault } from 'src/dialects/mssql/grammar';
@@ -239,7 +240,7 @@ export const push = async (config: {
 		'push',
 	);
 
-	const hints = await suggestions(db, statements, ddl2);
+	const hints = await suggestions(db, statements, ddl2, new HintsHandler());
 
 	if (config.explain) {
 		const explainMessage = explain('mssql', groupedStatements, []);

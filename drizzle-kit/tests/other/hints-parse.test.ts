@@ -156,13 +156,13 @@ test('HintsHandler.fromCli rejects invalid confirm_data_loss kind', async () => 
 	expect(issue.message).toContain('Invalid input');
 });
 
-test('HintsHandler.fromCli rejects default as a rename/create hint kind', async () => {
-	const error = await expectInvalidHints([{ type: 'create', kind: 'default', entity: ['public', 'orders', 'id'] }]);
+test('HintsHandler.fromCli rejects unsupported rename/create hint kinds', async () => {
+	const error = await expectInvalidHints([{ type: 'create', kind: 'trigger', entity: ['public', 'orders', 'id'] }]);
 	const issue = firstIssue(error);
 
 	expect(error.code).toBe('invalid_hints');
 	expect(issue.path).toContain(0);
-	expect(JSON.stringify(issue)).toContain('default');
+	expect(JSON.stringify(issue)).toContain('trigger');
 });
 
 test('HintsHandler.fromCli rejects tuple arity mismatches at the hint item path', async () => {

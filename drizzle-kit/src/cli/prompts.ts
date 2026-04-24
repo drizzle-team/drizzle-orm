@@ -1,15 +1,14 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
 import type { Resolver } from 'src/dialects/common';
-import { CommandOutputCliError } from './errors';
-import type { HintsHandler, IdFor, MissingHint, PromptEntityType, RenameCreateHintKind } from './hints';
-import { isJsonMode } from './mode';
+import { isJsonMode } from './context';
+import type { HintsHandler, IdFor, MissingHint, PromptEntityType } from './hints';
 import type { RenamePromptItem } from './views';
 import { humanLog, isRenamePromptItem, ResolveSelect } from './views';
 
 type PromptEntityBase = { name: string; schema?: string; table?: string };
 
-const entityId = <K extends RenameCreateHintKind>(
+const entityId = <K extends PromptEntityType>(
 	kind: K,
 	entity: PromptEntityBase,
 	defaultSchema: 'dbo' | 'public',
@@ -25,6 +24,7 @@ const entityId = <K extends RenameCreateHintKind>(
 		case 'view':
 			return [entity.schema ?? defaultSchema, entity.name] as unknown as IdFor<K>;
 		case 'column':
+		case 'default':
 		case 'policy':
 		case 'check':
 		case 'index':
@@ -90,16 +90,10 @@ export const resolver = <T extends PromptEntityBase>(
 		});
 
 		const resolveJsonMode = async () => {
-			const kind = entity === 'default' ? undefined : entity;
+			const kind = entity;
 
-			// JSON mode can only resolve entities that map to a supported hint kind.
-			// If this branch is reached for an unsupported kind, the caller must rerun interactively.
-			if (!kind || !hints) {
-				throw new CommandOutputCliError(
-					command,
-					`Interactive ${entity} rename resolution is required but cannot be performed in JSON mode. Provide a matching hint via --hints or --hints-file, or run without JSON mode.`,
-					{ dialect: 'common' },
-				);
+			if (!hints) {
+				throw new Error(`Internal error: resolver(${entity}) was called in JSON mode without a HintsHandler`);
 			}
 
 			const result = createResult();

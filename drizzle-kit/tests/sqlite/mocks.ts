@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import type { SQLiteTable as SQLiteTableOld, SQLiteView as SQLiteViewOld } from 'orm044/sqlite-core';
 import { introspect } from 'src/cli/commands/pull-sqlite';
 import { suggestions } from 'src/cli/commands/push-sqlite';
+import { HintsHandler } from 'src/cli/hints';
 import { CasingType, configMigrations } from 'src/cli/validations/common';
 import { EmptyProgressView } from 'src/cli/views';
 import { hash } from 'src/dialects/common';
@@ -175,7 +176,7 @@ export const push = async (config: {
 		'push',
 	);
 
-	const hints = await suggestions(db, statements);
+	const hints = await suggestions(db, statements, new HintsHandler());
 
 	if (force) {
 		for (const st of hints) {

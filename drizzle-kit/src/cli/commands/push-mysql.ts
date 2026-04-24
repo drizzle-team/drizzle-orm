@@ -8,15 +8,22 @@ import { ddlDiff } from '../../dialects/mysql/diff';
 import type { JsonStatement } from '../../dialects/mysql/statements';
 import type { DB } from '../../utils';
 import { connectToMySQL } from '../connections';
-import { JsonModeUnsupportedCliError } from '../errors';
+import { isJsonMode } from '../context';
 import { highlightSQL } from '../highlighter';
-import { isJsonMode } from '../mode';
+import type { HintsHandler } from '../hints';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
-import { explain as explainView, humanLog, mysqlSchemaError, ProgressView } from '../views';
+import {
+	explain as explainView,
+	explainJsonOutput,
+	humanLog,
+	mysqlSchemaError,
+	printJsonOutput,
+	ProgressView,
+} from '../views';
 import { introspect } from './pull-mysql';
 
 export const handle = async (
@@ -31,10 +38,9 @@ export const handle = async (
 		table: string;
 		schema: string;
 	},
+	hints: HintsHandler,
 ) => {
-	if (isJsonMode()) {
-		throw new JsonModeUnsupportedCliError({ dialect: 'mysql', command: 'push' });
-	}
+	const json = isJsonMode();
 
 	const { prepareFromSchemaFiles, fromDrizzleSchema } = await import('../../dialects/mysql/drizzle');
 
@@ -69,9 +75,9 @@ export const handle = async (
 	const diffResult = await ddlDiff(
 		ddl1,
 		ddl2,
-		resolver<Table>('table', 'public', 'push'),
-		resolver<Column>('column', 'public', 'push'),
-		resolver<View>('view', 'public', 'push'),
+		resolver<Table>('table', 'public', 'push', hints),
+		resolver<Column>('column', 'public', 'push', hints),
+		resolver<View>('view', 'public', 'push', hints),
 		'push',
 	);
 
@@ -79,22 +85,42 @@ export const handle = async (
 	statements = diffResult.statements;
 	groupedStatements = diffResult.groupedStatements;
 
-	if (statements.length === 0) {
-		render(`[${chalk.blue('i')}] No changes detected`);
-		return;
+	if (hints.hasMissingHints()) {
+		hints.emitAndExit();
 	}
 
-	const hints = await suggestions(db, statements, ddl2);
-
-	if (explain) {
-		const explainMessage = explainView('mysql', groupedStatements, hints);
-		if (explainMessage) {
-			humanLog(explainMessage);
+	if (sqlStatements.length === 0) {
+		if (json) {
+			printJsonOutput(explainJsonOutput('mysql', [], []), true);
+		} else {
+			render(`[${chalk.blue('i')}] No changes detected`);
 		}
 		return;
 	}
 
-	if (!force && hints.length > 0) {
+	const suggestionHints = await suggestions(db, statements, ddl2, hints);
+
+	if (hints.hasMissingHints()) {
+		hints.emitAndExit();
+	}
+
+	if (explain) {
+		if (json) {
+			printJsonOutput(explainJsonOutput('mysql', statements, suggestionHints), true);
+		} else {
+			const explainMessage = explainView('mysql', groupedStatements, suggestionHints);
+			if (explainMessage) {
+				humanLog(explainMessage);
+			}
+		}
+		return;
+	}
+
+	if (!force && suggestionHints.length > 0) {
+		if (json) {
+			printJsonOutput({ status: 'aborted', dialect: 'mysql' }, true);
+			process.exit(0);
+		}
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
@@ -103,21 +129,26 @@ export const handle = async (
 		}
 	}
 
-	const lossStatements = hints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
+	const lossStatements = suggestionHints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
 
 	for (const statement of [...lossStatements, ...sqlStatements]) {
-		if (verbose) humanLog(highlightSQL(statement));
+		if (verbose && !json) humanLog(highlightSQL(statement));
 
 		await db.query(statement);
 	}
 
-	render(`[${chalk.green('\u2713')}] Changes applied`);
+	if (json) {
+		printJsonOutput({ status: 'ok', dialect: 'mysql', message: 'Changes applied' }, true);
+	} else {
+		render(`[${chalk.green('\u2713')}] Changes applied`);
+	}
 };
 
 const identifier = ({ table, column }: { table?: string; column?: string }) => {
 	return [table, column].filter(Boolean).map((t) => `\`${t}\``).join('.');
 };
-export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2: MysqlDDL) => {
+export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2: MysqlDDL, hints: HintsHandler) => {
+	const json = isJsonMode();
 	const grouped: { hint: string; statement?: string }[] = [];
 
 	const filtered = jsonStatements.filter((it) => {
@@ -128,24 +159,36 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 	for (const statement of filtered) {
 		if (statement.type === 'drop_table') {
+			const entity: [string, string] = ['public', statement.table];
+			if (hints.matchConfirm('table', entity)) continue;
 			const res = await db.query(`select 1 from ${identifier({ table: statement.table })} limit 1`);
 
 			if (res.length > 0) {
-				grouped.push({ hint: `You're about to delete non-empty ${chalk.underline(statement.table)} table` });
+				if (json) {
+					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'table', entity, reason: 'non_empty' });
+				} else {
+					grouped.push({ hint: `You're about to delete non-empty ${chalk.underline(statement.table)} table` });
+				}
 			}
 			continue;
 		}
 
 		if (statement.type === 'drop_column') {
 			const column = statement.column;
+			const entity: [string, string, string] = ['public', column.table, column.name];
+			if (hints.matchConfirm('column', entity)) continue;
 			const res = await db.query(`select 1 from ${identifier({ table: column.table })} limit 1`);
 			if (res.length === 0) continue;
 
-			grouped.push({
-				hint: `You're about to delete non-empty ${chalk.underline(column.name)} column in ${
-					chalk.underline(column.table)
-				} table`,
-			});
+			if (json) {
+				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'column', entity, reason: 'non_empty' });
+			} else {
+				grouped.push({
+					hint: `You're about to delete non-empty ${chalk.underline(column.name)} column in ${
+						chalk.underline(column.table)
+					} table`,
+				});
+			}
 			continue;
 		}
 
@@ -153,6 +196,8 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 		if (statement.type === 'drop_pk') {
 			const { table, columns } = statement.pk;
 			const id = identifier({ table });
+			const entity: [string, string, string] = ['public', table, statement.pk.name];
+			if (hints.matchConfirm('primary_key', entity)) continue;
 			const res = await db.query(
 				`select 1 from ${id} limit 1`,
 			);
@@ -162,7 +207,11 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 					chalk.underline(table)
 				} primary key, this statements may fail and your table may loose primary key`;
 
-				grouped.push({ hint });
+				if (json) {
+					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'primary_key', entity, reason: 'non_empty' });
+				} else {
+					grouped.push({ hint });
+				}
 			}
 
 			const fks = ddl2.fks.list({ tableTo: table });
@@ -202,6 +251,8 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 		) {
 			const column = statement.column;
 			const id = identifier({ table: column.table });
+			const entity: [string, string, string] = ['public', column.table, column.name];
+			if (hints.matchConfirm('add_not_null', entity)) continue;
 			const res = await db.query(`select 1 from ${id} limit 1`);
 
 			if (res.length === 0) continue;
@@ -209,7 +260,11 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 				chalk.underline(statement.column.name)
 			} column without default value to a non-empty ${chalk.underline(statement.column.table)} table`;
 
-			grouped.push({ hint });
+			if (json) {
+				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'add_not_null', entity, reason: 'nulls_present' });
+			} else {
+				grouped.push({ hint });
+			}
 			continue;
 		}
 
@@ -222,6 +277,8 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 				statement.diff.notNull && statement.diff.notNull.to && statement.column.default === null
 				&& !statement.column.generated
 			) {
+				const entity: [string, string, string] = ['public', statement.column.table, statement.column.name];
+				if (hints.matchConfirm('add_not_null', entity)) continue;
 				const columnRes = await db.query(`select ${columnName} from ${tableName} WHERE ${columnName} IS NULL limit 1`);
 
 				if (columnRes.length > 0) {
@@ -229,7 +286,11 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 						chalk.underline(columnName)
 					} column without default value in ${chalk.underline(statement.column.table)} table`;
 
-					grouped.push({ hint });
+					if (json) {
+						hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'add_not_null', entity, reason: 'nulls_present' });
+					} else {
+						grouped.push({ hint });
+					}
 				}
 			}
 
@@ -255,15 +316,22 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 			const unique = statement.index;
 			const id = identifier({ table: unique.table });
+			const uniqueColumn = unique.columns[0];
+			const entity: [string, string, string] = ['public', unique.table, uniqueColumn?.value ?? unique.name];
+			if (hints.matchConfirm('add_unique', entity)) continue;
 
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
 
-			grouped.push({
-				hint: `You're about to add ${chalk.underline(unique.name)} unique index to a non-empty ${
-					chalk.underline(unique.table)
-				} table which may fail`,
-			});
+			if (json) {
+				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'add_unique', entity, reason: 'duplicates_present' });
+			} else {
+				grouped.push({
+					hint: `You're about to add ${chalk.underline(unique.name)} unique index to a non-empty ${
+						chalk.underline(unique.table)
+					} table which may fail`,
+				});
+			}
 			continue;
 		}
 

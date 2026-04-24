@@ -21,7 +21,6 @@ import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { prepareSnapshot } from '../../dialects/postgres/serializer';
 import type { JsonStatement } from '../../dialects/postgres/statements';
 import { CommandOutputCliError } from '../errors';
-import { isJsonMode } from '../mode';
 import { resolver } from '../prompts';
 import {
 	explain,
@@ -54,6 +53,7 @@ export const handle = async (
 			snapshot: custom,
 			sqlStatements: [],
 			outFolder,
+			json: config.json,
 			name: config.name,
 			breakpoints: config.breakpoints,
 			type: 'custom',
@@ -93,7 +93,7 @@ export const handle = async (
 	groupedStatements = diffResult.groupedStatements;
 	jsonStatements = diffResult.statements;
 
-	if (isJsonMode() && config.hints.hasMissingHints()) {
+	if (config.json && config.hints.hasMissingHints()) {
 		config.hints.emitAndExit();
 	}
 
@@ -102,6 +102,7 @@ export const handle = async (
 			snapshot: snapshot,
 			sqlStatements,
 			outFolder,
+			json: config.json,
 			name: config.name,
 			breakpoints: config.breakpoints,
 			renames,
@@ -110,9 +111,9 @@ export const handle = async (
 		return;
 	}
 
-	if (isJsonMode()) {
+	if (config.json) {
 		const explainOutput = explainJsonOutput('postgres', jsonStatements, []);
-		printJsonOutput(explainOutput);
+		printJsonOutput(explainOutput, true);
 		return;
 	}
 
@@ -151,6 +152,6 @@ export const handleExport = async (config: ExportConfig) => {
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
-	printJsonOutput({ sqlStatements });
+	printJsonOutput({ sqlStatements }, config.json);
 	humanLog(sqlStatements.join('\n'));
 };

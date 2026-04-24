@@ -94,6 +94,7 @@ export type GenerateConfig = {
 	dialect: Dialect;
 	filenames: string[];
 	out: string;
+	json: boolean;
 	breakpoints: boolean;
 	name?: string;
 	custom: boolean;
@@ -108,6 +109,7 @@ export type GenerateConfig = {
 export type ExportConfig = {
 	dialect: Dialect;
 	sql: boolean;
+	json: boolean;
 	casing?: CasingType;
 	filenames: string[];
 };
@@ -125,6 +127,7 @@ export const prepareGenerateConfig = async (
 		casing?: CasingType;
 		ignoreConflicts?: boolean;
 		explain?: boolean;
+		json?: boolean;
 		hints?: string;
 		hintsFile?: string;
 	},
@@ -156,6 +159,7 @@ export const prepareGenerateConfig = async (
 	return {
 		dialect: dialect,
 		name: options.name,
+		json: options.json ?? false,
 		custom: options.custom || false,
 		breakpoints: breakpoints ?? true,
 		filenames: fileNames,
@@ -174,6 +178,7 @@ export const prepareExportConfig = async (
 		config?: string;
 		schema?: string;
 		dialect?: Dialect;
+		json?: boolean;
 		sql: boolean;
 		casing?: CasingType;
 	},
@@ -204,6 +209,7 @@ export const prepareExportConfig = async (
 	return {
 		casing: config.casing,
 		dialect: dialect,
+		json: options.json ?? false,
 		sql: sql,
 		filenames: fileNames,
 	};
@@ -266,6 +272,7 @@ export const preparePushConfig = async (
 			credentials: CockroachCredentials;
 		}
 	) & {
+		json: boolean;
 		verbose: boolean;
 		force: boolean;
 		explain: boolean;
@@ -326,6 +333,7 @@ export const preparePushConfig = async (
 		if (parsed.success) {
 			return {
 				dialect: 'postgresql',
+				json: (options.json as boolean) ?? false,
 				explain: (options.explain as boolean) ?? false,
 				hints,
 				verbose: config.verbose ?? false,
@@ -345,6 +353,7 @@ export const preparePushConfig = async (
 		if (parsed.success) {
 			return {
 				dialect: 'mysql',
+				json: (options.json as boolean) ?? false,
 				verbose: config.verbose ?? false,
 				force: (options.force as boolean) ?? false,
 				credentials: parsed.data,
@@ -364,6 +373,7 @@ export const preparePushConfig = async (
 		if (parsed.success) {
 			return {
 				dialect: 'singlestore',
+				json: (options.json as boolean) ?? false,
 				verbose: config.verbose ?? false,
 				force: (options.force as boolean) ?? false,
 				credentials: parsed.data,
@@ -382,6 +392,7 @@ export const preparePushConfig = async (
 		if (parsed.success) {
 			return {
 				dialect: 'sqlite',
+				json: (options.json as boolean) ?? false,
 				verbose: config.verbose ?? false,
 				force: (options.force as boolean) ?? false,
 				credentials: parsed.data,
@@ -401,6 +412,7 @@ export const preparePushConfig = async (
 		if (parsed.success) {
 			return {
 				dialect: 'turso',
+				json: (options.json as boolean) ?? false,
 				verbose: config.verbose ?? false,
 				force: (options.force as boolean) ?? false,
 				credentials: parsed.data,
@@ -426,6 +438,7 @@ export const preparePushConfig = async (
 		if (parsed.success) {
 			return {
 				dialect: 'mssql',
+				json: (options.json as boolean) ?? false,
 				verbose: config.verbose ?? false,
 				force: (options.force as boolean) ?? false,
 				credentials: parsed.data,
@@ -445,6 +458,7 @@ export const preparePushConfig = async (
 		if (parsed.success) {
 			return {
 				dialect: 'cockroach',
+				json: (options.json as boolean) ?? false,
 				verbose: config.verbose ?? false,
 				force: (options.force as boolean) ?? false,
 				credentials: parsed.data,

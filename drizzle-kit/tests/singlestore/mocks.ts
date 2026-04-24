@@ -5,6 +5,7 @@ import { mkdirSync, writeFileSync } from 'fs';
 import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
 import { suggestions } from 'src/cli/commands/push-mysql';
+import { HintsHandler } from 'src/cli/hints';
 import { CasingType, configMigrations } from 'src/cli/validations/common';
 import { explain } from 'src/cli/views';
 import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
@@ -154,7 +155,7 @@ export const diffPush = async (config: {
 		'push',
 	);
 
-	const hints = await suggestions(db, statements, ddl2);
+	const hints = await suggestions(db, statements, ddl2, new HintsHandler());
 	const explainMessage = explain('singlestore', groupedStatements, []);
 	if (explainMessage) console.log(explainMessage);
 

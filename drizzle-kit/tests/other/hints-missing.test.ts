@@ -1,7 +1,7 @@
+import { runWithCliContext } from 'src/cli/context';
 import { HintsHandler } from 'src/cli/hints';
-import { setJsonMode } from 'src/cli/mode';
 import { resolver } from 'src/cli/prompts';
-import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { afterEach, expect, test, vi } from 'vitest';
 
 type Entity = {
 	name: string;
@@ -55,13 +55,8 @@ const captureMissingHintsEmission = (hints: HintsHandler) => {
 	};
 };
 
-beforeEach(() => {
-	setJsonMode(true);
-});
-
 afterEach(() => {
 	vi.restoreAllMocks();
-	setJsonMode(false);
 });
 
 test('HintsHandler.emitAndExit does not emit when missingHints is empty guard check', () => {
@@ -70,17 +65,21 @@ test('HintsHandler.emitAndExit does not emit when missingHints is empty guard ch
 });
 
 test('resolver aggregates unresolved items across repeated calls on the same HintsHandler', async () => {
-	const hints = new HintsHandler();
-	const resolveTables = resolver<Entity>('table', 'public', 'push', hints);
-	const resolveColumns = resolver<Entity>('column', 'public', 'push', hints);
+	const { hints, tableResult, columnResult } = await runWithCliContext({ json: true }, async () => {
+		const hints = new HintsHandler();
+		const resolveTables = resolver<Entity>('table', 'public', 'push', hints);
+		const resolveColumns = resolver<Entity>('column', 'public', 'push', hints);
 
-	const tableResult = await resolveTables({
-		created: [table('members', 'public')],
-		deleted: [table('users', 'public')],
-	});
-	const columnResult = await resolveColumns({
-		created: [column('users', 'email', 'public')],
-		deleted: [column('users', 'name', 'public')],
+		const tableResult = await resolveTables({
+			created: [table('members', 'public')],
+			deleted: [table('users', 'public')],
+		});
+		const columnResult = await resolveColumns({
+			created: [column('users', 'email', 'public')],
+			deleted: [column('users', 'name', 'public')],
+		});
+
+		return { hints, tableResult, columnResult };
 	});
 
 	expect(tableResult.unresolved).toStrictEqual([
@@ -99,19 +98,23 @@ test('resolver aggregates unresolved items across repeated calls on the same Hin
 });
 
 test('each HintsHandler instance owns its own missing hints state', async () => {
-	const firstHints = new HintsHandler();
-	const secondHints = new HintsHandler();
+	const { firstHints, secondHints } = await runWithCliContext({ json: true }, async () => {
+		const firstHints = new HintsHandler();
+		const secondHints = new HintsHandler();
 
-	const resolveFirst = resolver<Entity>('table', 'public', 'push', firstHints);
-	const resolveSecond = resolver<Entity>('table', 'public', 'push', secondHints);
+		const resolveFirst = resolver<Entity>('table', 'public', 'push', firstHints);
+		const resolveSecond = resolver<Entity>('table', 'public', 'push', secondHints);
 
-	await resolveFirst({
-		created: [table('members', 'public')],
-		deleted: [table('users', 'public')],
-	});
-	await resolveSecond({
-		created: [table('accounts', 'public')],
-		deleted: [table('profiles', 'public')],
+		await resolveFirst({
+			created: [table('members', 'public')],
+			deleted: [table('users', 'public')],
+		});
+		await resolveSecond({
+			created: [table('accounts', 'public')],
+			deleted: [table('profiles', 'public')],
+		});
+
+		return { firstHints, secondHints };
 	});
 
 	expect(firstHints.toResponse()).toStrictEqual({

@@ -4,15 +4,15 @@ import type { Column, Table, View } from 'src/dialects/mysql/ddl';
 import { interimToDDL } from 'src/dialects/mysql/ddl';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { ddlDiff } from '../../dialects/singlestore/diff';
-import { JsonModeUnsupportedCliError } from '../errors';
+import { isJsonMode } from '../context';
 import { highlightSQL } from '../highlighter';
-import { isJsonMode } from '../mode';
+import type { HintsHandler } from '../hints';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
-import { explain as explainView, humanLog, ProgressView } from '../views';
+import { explain as explainView, explainJsonOutput, humanLog, printJsonOutput, ProgressView } from '../views';
 import { suggestions } from './push-mysql';
 
 export const handle = async (
@@ -27,10 +27,9 @@ export const handle = async (
 		table: string;
 		schema: string;
 	},
+	hints: HintsHandler,
 ) => {
-	if (isJsonMode()) {
-		throw new JsonModeUnsupportedCliError({ dialect: 'singlestore', command: 'push' });
-	}
+	const json = isJsonMode();
 
 	const { connectToSingleStore } = await import('../connections');
 	const { fromDatabaseForDrizzle } = await import('../../dialects/mysql/introspect');
@@ -67,9 +66,9 @@ export const handle = async (
 	const diffResult = await ddlDiff(
 		ddl1,
 		ddl2,
-		resolver<Table>('table', 'public', 'push'),
-		resolver<Column>('column', 'public', 'push'),
-		resolver<View>('view', 'public', 'push'),
+		resolver<Table>('table', 'public', 'push', hints),
+		resolver<Column>('column', 'public', 'push', hints),
+		resolver<View>('view', 'public', 'push', hints),
 		'push',
 	);
 
@@ -77,22 +76,42 @@ export const handle = async (
 	statements = diffResult.statements;
 	groupedStatements = diffResult.groupedStatements;
 
-	if (statements.length === 0) {
-		render(`[${chalk.blue('i')}] No changes detected`);
-		return;
+	if (hints.hasMissingHints()) {
+		hints.emitAndExit();
 	}
 
-	const hints = await suggestions(db, statements, ddl2);
-
-	if (explain) {
-		const explainMessage = explainView('singlestore', groupedStatements, hints);
-		if (explainMessage) {
-			humanLog(explainMessage);
+	if (sqlStatements.length === 0) {
+		if (json) {
+			printJsonOutput(explainJsonOutput('singlestore', [], []), true);
+		} else {
+			render(`[${chalk.blue('i')}] No changes detected`);
 		}
 		return;
 	}
 
-	if (!force && hints.length > 0) {
+	const suggestionHints = await suggestions(db, statements, ddl2, hints);
+
+	if (hints.hasMissingHints()) {
+		hints.emitAndExit();
+	}
+
+	if (explain) {
+		if (json) {
+			printJsonOutput(explainJsonOutput('singlestore', statements, suggestionHints), true);
+		} else {
+			const explainMessage = explainView('singlestore', groupedStatements, suggestionHints);
+			if (explainMessage) {
+				humanLog(explainMessage);
+			}
+		}
+		return;
+	}
+
+	if (!force && suggestionHints.length > 0) {
+		if (json) {
+			printJsonOutput({ status: 'aborted', dialect: 'singlestore' }, true);
+			process.exit(0);
+		}
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 		if (data?.index === 0) {
 			render(`[${chalk.red('x')}] All changes were aborted`);
@@ -100,15 +119,19 @@ export const handle = async (
 		}
 	}
 
-	const lossStatements = hints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
+	const lossStatements = suggestionHints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
 
 	for (const statement of [...lossStatements, ...sqlStatements]) {
-		if (verbose && !isJsonMode()) humanLog(highlightSQL(statement));
+		if (verbose && !json) humanLog(highlightSQL(statement));
 
 		await db.query(statement);
 	}
 
-	render(`[${chalk.green('\u2713')}] Changes applied`);
+	if (json) {
+		printJsonOutput({ status: 'ok', dialect: 'singlestore', message: 'Changes applied' }, true);
+	} else {
+		render(`[${chalk.green('\u2713')}] Changes applied`);
+	}
 };
 
 // TODO: check
