@@ -106,6 +106,84 @@ type Verify<T, U extends T> = U;
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#strict
  */
+/**
+ * Input passed to `columnTypeMapper` for each column encountered during `drizzle-kit pull`.
+ */
+export type ColumnTypeMapperInput = {
+	/** Column name as reported by the database. */
+	column: string;
+	/** Table name as reported by the database. */
+	table: string;
+	/** Schema name (PostgreSQL only). `undefined` for dialects without schemas. */
+	schema: string | undefined;
+	/** Raw SQL type string as reported by the database, e.g. `"timestamp with time zone"`. */
+	sqlType: string;
+	/** Whether the column allows NULL values. */
+	nullable: boolean;
+};
+
+/**
+ * Returned from `columnTypeMapper` to override how a column is rendered.
+ *
+ * Two shapes are supported:
+ *
+ * 1. **Built-in mode override** – sets the `mode` option on a Drizzle-native column type:
+ *    ```ts
+ *    return { mode: 'date' };
+ *    ```
+ *
+ * 2. **Custom type reference** – replaces the built-in column call entirely with a
+ *    user-defined `customType()`. The generator will import `typeName` from `typeImport.from`
+ *    and emit `typeName('col_name')` instead of e.g. `timestamp('col_name', { mode: 'string' })`:
+ *    ```ts
+ *    return {
+ *      typeName: 'dayjsTimestamp',
+ *      typeImport: { name: 'dayjsTimestamp', from: './custom-types' },
+ *    };
+ *    ```
+ */
+export type ColumnTypeMapperOutput =
+	| { mode: 'string' | 'date' }
+	| {
+		/** Identifier of the custom type factory to use in generated code. */
+		typeName: string;
+		/** Import statement info so the generated file can reference the custom type. */
+		typeImport: {
+			/** Exported symbol name (may differ from `typeName` if re-exported). */
+			name: string;
+			/** Module specifier, e.g. `"./custom-types"` or `"my-drizzle-types"`. */
+			from: string;
+		};
+	};
+
+/**
+ * Callback invoked once per column during `drizzle-kit pull`.
+ * Return a {@link ColumnTypeMapperOutput} to override the generated column definition,
+ * or `undefined`/`null` to fall back to the default behaviour.
+ *
+ * @example – use native `Date` for all timestamps
+ * ```ts
+ * columnTypeMapper: ({ sqlType }) => {
+ *   if (sqlType.startsWith('timestamp')) return { mode: 'date' };
+ * }
+ * ```
+ *
+ * @example – replace timestamps with a dayjs custom type
+ * ```ts
+ * columnTypeMapper: ({ sqlType }) => {
+ *   if (sqlType.startsWith('timestamp')) {
+ *     return {
+ *       typeName: 'dayjsTimestamp',
+ *       typeImport: { name: 'dayjsTimestamp', from: './custom-types' },
+ *     };
+ *   }
+ * }
+ * ```
+ */
+export type ColumnTypeMapper = (
+	input: ColumnTypeMapperInput,
+) => ColumnTypeMapperOutput | null | undefined;
+
 export type Config =
 	& {
 		dialect: Dialect;
@@ -125,6 +203,11 @@ export type Config =
 		};
 		introspect?: {
 			casing: 'camel' | 'preserve';
+			/**
+			 * Customize how columns are rendered during `drizzle-kit pull`.
+			 * See {@link ColumnTypeMapper} for full documentation and examples.
+			 */
+			columnTypeMapper?: ColumnTypeMapper;
 		};
 		entities?: {
 			roles?: boolean | { provider?: 'supabase' | 'neon' | string & {}; exclude?: string[]; include?: string[] };

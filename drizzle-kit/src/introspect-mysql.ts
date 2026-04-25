@@ -2,6 +2,7 @@
 import { toCamelCase } from 'drizzle-orm/casing';
 import './@types/utils';
 import type { Casing } from './cli/validations/common';
+import type { ColumnTypeMapper, ColumnTypeMapperOutput } from './index';
 import { assertUnreachable } from './global';
 import {
 	CheckConstraint,
@@ -133,6 +134,7 @@ const dbColumnName = ({ name, casing, withMode = false }: { name: string; casing
 export const schemaToTypeScript = (
 	schema: MySqlSchemaInternal,
 	casing: Casing,
+	columnTypeMapper?: ColumnTypeMapper,
 ) => {
 	const withCasing = prepareCasing(casing);
 	// collectFKs
@@ -142,6 +144,9 @@ export const schemaToTypeScript = (
 			relations.add(relation);
 		});
 	});
+
+	// Accumulates custom type imports emitted by columnTypeMapper: from → Set<name>
+	const customImports = new Map<string, Set<string>>();
 
 	const imports = Object.values(schema.tables).reduce(
 		(res, it) => {
@@ -164,6 +169,17 @@ export const schemaToTypeScript = (
 			res.mysql.push(...checkImports);
 
 			const columnImports = Object.values(it.columns)
+				.filter((col) => {
+					if (!columnTypeMapper) return true;
+					const result = columnTypeMapper({
+						column: col.name,
+						table: it.name,
+						schema: undefined,
+						sqlType: col.type.toLowerCase(),
+						nullable: !col.notNull,
+					});
+					return !(result && 'typeName' in result);
+				})
 				.map((col) => {
 					let patched = importsPatch[col.type] ?? col.type;
 					patched = patched.startsWith('varchar(') ? 'varchar' : patched;
@@ -243,6 +259,8 @@ export const schemaToTypeScript = (
 			casing,
 			table.name,
 			schema,
+			columnTypeMapper,
+			customImports,
 		);
 		statement += '}';
 
@@ -305,6 +323,8 @@ export const schemaToTypeScript = (
 			casing,
 			name,
 			schema,
+			columnTypeMapper,
+			customImports,
 		);
 		statement += '})';
 
@@ -322,11 +342,18 @@ export const schemaToTypeScript = (
 		'AnyMySqlColumn',
 		...new Set(imports.mysql),
 	];
+
+	const customImportsTs = customImports.size > 0
+		? [...customImports.entries()]
+			.map(([from, names]) => `import { ${[...names].join(', ')} } from "${from}";`)
+			.join('\n') + '\n'
+		: '';
+
 	const importsTs = `import { ${
 		uniqueMySqlImports.join(
 			', ',
 		)
-	} } from "drizzle-orm/mysql-core"\nimport { sql } from "drizzle-orm"\n\n`;
+	} } from "drizzle-orm/mysql-core"\nimport { sql } from "drizzle-orm"\n${customImportsTs}\n`;
 
 	let decalrations = '';
 	decalrations += tableStatements.join('\n\n');
@@ -388,15 +415,38 @@ const column = (
 	name: string,
 	casing: (value: string) => string,
 	rawCasing: Casing,
+	tableName: string,
+	notNull: boolean,
 	defaultValue?: any,
 	autoincrement?: boolean,
 	onUpdate?: boolean,
 	isExpression?: boolean,
+	columnTypeMapper?: ColumnTypeMapper,
+	customImports?: Map<string, Set<string>>,
 ) => {
 	let lowered = type;
 	if (!type.startsWith('enum(')) {
 		lowered = type.toLowerCase();
 	}
+
+	const applyCustomType = (result: ColumnTypeMapperOutput & { typeName: string; typeImport: { name: string; from: string } }) => {
+		const { typeName, typeImport } = result;
+		if (customImports) {
+			const existing = customImports.get(typeImport.from) ?? new Set<string>();
+			existing.add(typeImport.name);
+			customImports.set(typeImport.from, existing);
+		}
+		return `${casing(name)}: ${typeName}(${dbColumnName({ name, casing: rawCasing })})`;
+	};
+
+	const invokeMapper = (sqlType: string) =>
+		columnTypeMapper?.({
+			column: name,
+			table: tableName,
+			schema: undefined,
+			sqlType,
+			nullable: !notNull,
+		});
 
 	if (lowered === 'serial') {
 		return `${casing(name)}: serial(${dbColumnName({ name, casing: rawCasing })})`;
@@ -530,13 +580,28 @@ const column = (
 	}
 
 	if (lowered.startsWith('timestamp')) {
+		const mapperResult = invokeMapper(lowered);
+
+		if (mapperResult && 'typeName' in mapperResult) {
+			let out = applyCustomType(mapperResult as any);
+			defaultValue = defaultValue === 'now()' || defaultValue === '(CURRENT_TIMESTAMP)'
+				? '.defaultNow()'
+				: defaultValue
+				? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+				: '';
+			out += defaultValue;
+			out += onUpdate ? '.onUpdateNow()' : '';
+			return out;
+		}
+
 		const keyLength = 'timestamp'.length + 1;
 		let fsp = lowered.length > keyLength
 			? Number(lowered.substring(keyLength, lowered.length - 1))
 			: null;
 		fsp = fsp ? fsp : null;
 
-		const params = timeConfig({ fsp, mode: "'string'" });
+		const mode = mapperResult?.mode ?? 'string';
+		const params = timeConfig({ fsp, mode: `'${mode}'` });
 
 		let out = params
 			? `${casing(name)}: timestamp(${
@@ -583,11 +648,25 @@ const column = (
 	}
 
 	if (lowered === 'date') {
-		let out = `// you can use { mode: 'date' }, if you want to have Date as type for this column\n\t${
-			casing(
-				name,
-			)
-		}: date(${dbColumnName({ name, casing: rawCasing, withMode: true })}{ mode: 'string' })`;
+		const mapperResult = invokeMapper(lowered);
+
+		if (mapperResult && 'typeName' in mapperResult) {
+			let out = applyCustomType(mapperResult as any);
+			defaultValue = defaultValue === 'now()'
+				? '.defaultNow()'
+				: defaultValue
+				? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+				: '';
+			out += defaultValue;
+			return out;
+		}
+
+		const mode = mapperResult?.mode ?? 'string';
+		let out = mode === 'date'
+			? `${casing(name)}: date(${dbColumnName({ name, casing: rawCasing, withMode: true })}{ mode: 'date' })`
+			: `// you can use { mode: 'date' }, if you want to have Date as type for this column\n\t${
+				casing(name)
+			}: date(${dbColumnName({ name, casing: rawCasing, withMode: true })}{ mode: 'string' })`;
 
 		defaultValue = defaultValue === 'now()'
 			? '.defaultNow()'
@@ -692,24 +771,35 @@ const column = (
 	}
 
 	if (lowered.startsWith('datetime')) {
-		let out = `// you can use { mode: 'date' }, if you want to have Date as type for this column\n\t`;
+		const mapperResult = invokeMapper(lowered);
+
+		if (mapperResult && 'typeName' in mapperResult) {
+			let out = applyCustomType(mapperResult as any);
+			defaultValue = defaultValue === 'now()'
+				? '.defaultNow()'
+				: defaultValue
+				? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+				: '';
+			out += defaultValue;
+			return out;
+		}
 
 		const fsp = lowered.startsWith('datetime(')
 			? lowered.substring('datetime'.length + 1, lowered.length - 1)
 			: undefined;
 
-		out = fsp
-			? `${
-				casing(
-					name,
-				)
-			}: datetime(${dbColumnName({ name, casing: rawCasing, withMode: true })}{ mode: 'string', fsp: ${
-				lowered.substring(
-					'datetime'.length + 1,
-					lowered.length - 1,
-				)
-			} })`
-			: `${casing(name)}: datetime(${dbColumnName({ name, casing: rawCasing, withMode: true })}{ mode: 'string'})`;
+		const mode = mapperResult?.mode ?? 'string';
+		let out = fsp
+			? `${casing(name)}: datetime(${
+				dbColumnName({ name, casing: rawCasing, withMode: true })
+			}{ mode: '${mode}', fsp: ${fsp} })`
+			: `${casing(name)}: datetime(${
+				dbColumnName({ name, casing: rawCasing, withMode: true })
+			}{ mode: '${mode}'})`;
+
+		if (mode === 'string' && !fsp) {
+			out = `// you can use { mode: 'date' }, if you want to have Date as type for this column\n\t` + out;
+		}
 
 		defaultValue = defaultValue === 'now()'
 			? '.defaultNow()'
@@ -822,6 +912,8 @@ const createTableColumns = (
 	rawCasing: Casing,
 	tableName: string,
 	schema: MySqlSchemaInternal,
+	columnTypeMapper?: ColumnTypeMapper,
+	customImports?: Map<string, Set<string>>,
 ): string => {
 	let statement = '';
 
@@ -846,11 +938,15 @@ const createTableColumns = (
 			it.name,
 			casing,
 			rawCasing,
+			tableName,
+			it.notNull,
 			it.default,
 			it.autoincrement,
 			it.onUpdate,
 			schema.internal?.tables![tableName]?.columns[it.name]
 				?.isDefaultAnExpression ?? false,
+			columnTypeMapper,
+			customImports,
 		);
 		statement += it.primaryKey ? '.primaryKey()' : '';
 		statement += it.notNull ? '.notNull()' : '';

@@ -44,6 +44,7 @@ import { logSuggestionsAndReturn as singleStoreLogSuggestionsAndReturn } from 's
 import { logSuggestionsAndReturn } from 'src/cli/commands/sqlitePushUtils';
 import { Entities } from 'src/cli/validations/cli';
 import { CasingType } from 'src/cli/validations/common';
+import type { ColumnTypeMapper } from 'src/index';
 import { schemaToTypeScript as schemaToTypeScriptGel } from 'src/introspect-gel';
 import { schemaToTypeScript as schemaToTypeScriptMySQL } from 'src/introspect-mysql';
 import { schemaToTypeScript } from 'src/introspect-pg';
@@ -2307,6 +2308,7 @@ export const introspectPgToFile = async (
 	schemas: string[] = ['public'],
 	entities?: Entities,
 	casing?: CasingType | undefined,
+	columnTypeMapper?: ColumnTypeMapper,
 ) => {
 	// put in db
 	const { sqlStatements } = await applyPgDiffs(initSchema, casing);
@@ -2341,7 +2343,7 @@ export const introspectPgToFile = async (
 	const validatedCur = pgSchema.parse(initSch);
 
 	// write to ts file
-	const file = schemaToTypeScript(introspectedSchema, 'camel');
+	const file = schemaToTypeScript(introspectedSchema, 'camel', columnTypeMapper);
 
 	fs.writeFileSync(`tests/introspect/postgres/${testName}.ts`, file.file);
 
@@ -2399,6 +2401,7 @@ export const introspectPgToFile = async (
 	return {
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
+		file: file.file,
 	};
 };
 

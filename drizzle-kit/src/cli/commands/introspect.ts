@@ -9,6 +9,7 @@ import { drySingleStore, SingleStoreSchema, squashSingleStoreScheme } from 'src/
 import { assertUnreachable, originUUID } from '../../global';
 import { schemaToTypeScript as gelSchemaToTypeScript } from '../../introspect-gel';
 import { schemaToTypeScript as mysqlSchemaToTypeScript } from '../../introspect-mysql';
+import type { ColumnTypeMapper } from '../../index';
 import { paramNameFor, schemaToTypeScript as postgresSchemaToTypeScript } from '../../introspect-pg';
 import { schemaToTypeScript as singlestoreSchemaToTypeScript } from '../../introspect-singlestore';
 import { schemaToTypeScript as sqliteSchemaToTypeScript } from '../../introspect-sqlite';
@@ -61,6 +62,7 @@ export const introspectPostgres = async (
 	schemasFilter: string[],
 	prefix: Prefix,
 	entities: Entities,
+	columnTypeMapper?: ColumnTypeMapper,
 ) => {
 	const { preparePostgresDB } = await import('../connections');
 	const db = await preparePostgresDB(credentials);
@@ -108,7 +110,7 @@ export const introspectPostgres = async (
 	);
 
 	const schema = { id: originUUID, prevId: '', ...res } as PgSchema;
-	const ts = postgresSchemaToTypeScript(schema, casing);
+	const ts = postgresSchemaToTypeScript(schema, casing, columnTypeMapper);
 	const relationsTs = relationsToTypeScript(schema, casing);
 	const { internal, ...schemaWithoutInternals } = schema;
 
@@ -311,6 +313,7 @@ export const introspectMysql = async (
 	credentials: MysqlCredentials,
 	tablesFilter: string[],
 	prefix: Prefix,
+	columnTypeMapper?: ColumnTypeMapper,
 ) => {
 	const { connectToMySQL } = await import('../connections');
 	const { db, database } = await connectToMySQL(credentials);
@@ -351,7 +354,7 @@ export const introspectMysql = async (
 	);
 
 	const schema = { id: originUUID, prevId: '', ...res } as MySqlSchema;
-	const ts = mysqlSchemaToTypeScript(schema, casing);
+	const ts = mysqlSchemaToTypeScript(schema, casing, columnTypeMapper);
 	const relationsTs = relationsToTypeScript(schema, casing);
 	const { internal, ...schemaWithoutInternals } = schema;
 

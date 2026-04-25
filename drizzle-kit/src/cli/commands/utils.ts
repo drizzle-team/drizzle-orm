@@ -7,6 +7,7 @@ import { getTablesFilterByExtensions } from '../../extensions/getTablesFilterByE
 import { assertUnreachable } from '../../global';
 import { type Dialect, dialect } from '../../schemaValidator';
 import { prepareFilenames } from '../../serializer';
+import type { ColumnTypeMapper } from '../../index';
 import type { Entities } from '../validations/cli';
 import { pullParams, pushParams } from '../validations/cli';
 import type { Casing, CasingType, CliConfig, Driver, Prefix } from '../validations/common';
@@ -271,6 +272,10 @@ const flattenPull = (config: any) => {
 	return config;
 };
 
+const extractColumnTypeMapper = (config: any): ColumnTypeMapper | undefined => {
+	return config?.introspect?.columnTypeMapper;
+};
+
 export const preparePushConfig = async (
 	options: Record<string, unknown>,
 	from: 'cli' | 'config',
@@ -496,13 +501,15 @@ export const preparePullConfig = async (
 		schemasFilter: string[];
 		prefix: Prefix;
 		entities: Entities;
+		columnTypeMapper: ColumnTypeMapper | undefined;
 	}
 > => {
-	const raw = flattenPull(
-		from === 'config'
-			? await drizzleConfigFromFile(options.config as string | undefined)
-			: options,
-	);
+	const rawConfig = from === 'config'
+		? await drizzleConfigFromFile(options.config as string | undefined)
+		: options;
+
+	const columnTypeMapper = extractColumnTypeMapper(rawConfig);
+	const raw = flattenPull(rawConfig);
 	const parsed = pullParams.safeParse(raw);
 
 	if (parsed.error) {
@@ -556,6 +563,7 @@ export const preparePullConfig = async (
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
 			entities: config.entities,
+			columnTypeMapper,
 		};
 	}
 
@@ -575,6 +583,7 @@ export const preparePullConfig = async (
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
 			entities: config.entities,
+			columnTypeMapper,
 		};
 	}
 
@@ -595,6 +604,7 @@ export const preparePullConfig = async (
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
 			entities: config.entities,
+			columnTypeMapper,
 		};
 	}
 
@@ -614,6 +624,7 @@ export const preparePullConfig = async (
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
 			entities: config.entities,
+			columnTypeMapper,
 		};
 	}
 
@@ -633,6 +644,7 @@ export const preparePullConfig = async (
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
 			entities: config.entities,
+			columnTypeMapper,
 		};
 	}
 
@@ -652,6 +664,7 @@ export const preparePullConfig = async (
 			schemasFilter,
 			prefix: config.migrations?.prefix || 'index',
 			entities: config.entities,
+			columnTypeMapper,
 		};
 	}
 

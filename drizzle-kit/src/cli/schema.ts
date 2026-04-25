@@ -520,6 +520,7 @@ export const pull = command({
 			schemasFilter,
 			prefix,
 			entities,
+			columnTypeMapper,
 		} = config;
 		mkdirSync(out, { recursive: true });
 
@@ -567,6 +568,7 @@ export const pull = command({
 					schemasFilter,
 					prefix,
 					entities,
+					columnTypeMapper,
 				);
 			} else if (dialect === 'mysql') {
 				const { introspectMysql } = await import('./commands/introspect');
@@ -577,6 +579,7 @@ export const pull = command({
 					credentials,
 					tablesFilter,
 					prefix,
+					columnTypeMapper,
 				);
 			} else if (dialect === 'sqlite') {
 				const { introspectSqlite } = await import('./commands/introspect');

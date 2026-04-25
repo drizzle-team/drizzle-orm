@@ -1,4 +1,5 @@
 import { getTableName, is } from 'drizzle-orm';
+import type { ColumnTypeMapper, ColumnTypeMapperOutput } from './index';
 import { AnyPgTable } from 'drizzle-orm/pg-core';
 import {
 	createTableRelationsHelpers,
@@ -306,7 +307,11 @@ export const paramNameFor = (name: string, schema?: string) => {
 	return `${name}${schemaSuffix}`;
 };
 
-export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => {
+export const schemaToTypeScript = (
+	schema: PgSchemaInternal,
+	casing: Casing,
+	columnTypeMapper?: ColumnTypeMapper,
+) => {
 	// collectFKs
 	Object.values(schema.tables).forEach((table) => {
 		Object.values(table.foreignKeys).forEach((fk) => {
@@ -325,6 +330,9 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 		acc.add(`${cur.schema}.${cur.name}`);
 		return acc;
 	}, new Set<string>());
+
+	// Accumulates custom type imports emitted by columnTypeMapper: from → Set<name>
+	const customImports = new Map<string, Set<string>>();
 
 	const imports = Object.values(schema.tables).reduce(
 		(res, it) => {
@@ -356,6 +364,19 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 			res.pg.push(...checkImports);
 
 			const columnImports = Object.values(it.columns)
+				.filter((col) => {
+					// If the mapper returns a custom type for this column, skip adding
+					// the built-in Drizzle import so the generated file stays clean.
+					if (!columnTypeMapper) return true;
+					const result = columnTypeMapper({
+						column: col.name,
+						table: it.name,
+						schema: it.schema || undefined,
+						sqlType: col.type.toLowerCase().replace('[]', ''),
+						nullable: !col.notNull,
+					});
+					return !(result && 'typeName' in result);
+				})
 				.map((col) => {
 					let patched: string = (importsPatch[col.type] || col.type).replace('[]', '');
 					patched = patched === 'double precision' ? 'doublePrecision' : patched;
@@ -513,12 +534,15 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 		let statement = `export const ${withCasing(paramName, casing)} = ${func}("${table.name}", {\n`;
 		statement += createTableColumns(
 			table.name,
+			table.schema || undefined,
 			Object.values(table.columns),
 			Object.values(table.foreignKeys),
 			enumTypes,
 			schemas,
 			casing,
 			schema.internal,
+			columnTypeMapper,
+			customImports,
 		);
 		statement += '}';
 
@@ -582,33 +606,43 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 
 			const tablespace = it.tablespace ?? '';
 
-			const columns = createTableColumns(
-				'',
-				Object.values(it.columns),
-				[],
-				enumTypes,
-				schemas,
-				casing,
-				schema.internal,
-			);
+		const columns = createTableColumns(
+			'',
+			it.schema || undefined,
+			Object.values(it.columns),
+			[],
+			enumTypes,
+			schemas,
+			casing,
+			schema.internal,
+			columnTypeMapper,
+			customImports,
+		);
 
-			let statement = `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", {${columns}})`;
-			statement += tablespace ? `.tablespace("${tablespace}")` : '';
-			statement += withOption ? `.with(${JSON.stringify(withOption)})` : '';
-			statement += `.as(${as});`;
+		let statement = `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", {${columns}})`;
+		statement += tablespace ? `.tablespace("${tablespace}")` : '';
+		statement += withOption ? `.with(${JSON.stringify(withOption)})` : '';
+		statement += `.as(${as});`;
 
-			return statement;
-		})
-		.join('\n\n');
+		return statement;
+	})
+	.join('\n\n');
 
-	const uniquePgImports = ['pgTable', ...new Set(imports.pg)];
+const uniquePgImports = ['pgTable', ...new Set(imports.pg)];
 
-	const importsTs = `import { ${
-		uniquePgImports.join(
-			', ',
-		)
-	} } from "drizzle-orm/pg-core"
-import { sql } from "drizzle-orm"\n\n`;
+const customImportsTs = customImports.size > 0
+	? [...customImports.entries()]
+		.map(([from, names]) => `import { ${[...names].join(', ')} } from "${from}";`)
+		.join('\n') + '\n'
+	: '';
+
+const importsTs = `import { ${
+	uniquePgImports.join(
+		', ',
+	)
+} } from "drizzle-orm/pg-core"
+import { sql } from "drizzle-orm"
+${customImportsTs}\n`;
 
 	let decalrations = schemaStatements;
 	decalrations += rolesStatements;
@@ -837,16 +871,30 @@ const mapDefault = (
 
 const column = (
 	tableName: string,
+	tableSchema: string | undefined,
 	type: string,
 	name: string,
 	enumTypes: Set<string>,
 	typeSchema: string,
 	casing: Casing,
+	notNull: boolean,
 	defaultValue?: any,
 	internals?: PgKitInternals,
+	columnTypeMapper?: ColumnTypeMapper,
+	customImports?: Map<string, Set<string>>,
 ) => {
 	const isExpression = internals?.tables[tableName]?.columns[name]?.isDefaultAnExpression ?? false;
 	const lowered = type.toLowerCase().replace('[]', '');
+
+	const applyCustomType = (result: ColumnTypeMapperOutput & { typeName: string; typeImport: { name: string; from: string } }) => {
+		const { typeName, typeImport } = result;
+		if (customImports) {
+			const existing = customImports.get(typeImport.from) ?? new Set<string>();
+			existing.add(typeImport.name);
+			customImports.set(typeImport.from, existing);
+		}
+		return `${withCasing(name, casing)}: ${typeName}(${dbColumnName({ name, casing })})`;
+	};
 
 	if (enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`)) {
 		let out = `${withCasing(name, casing)}: ${withCasing(paramNameFor(type.replace('[]', ''), typeSchema), casing)}(${
@@ -922,17 +970,29 @@ const column = (
 	}
 
 	if (lowered.startsWith('timestamp')) {
+		const mapperResult = columnTypeMapper?.({
+			column: name,
+			table: tableName,
+			schema: tableSchema,
+			sqlType: lowered,
+			nullable: !notNull,
+		});
+
+		if (mapperResult && 'typeName' in mapperResult) {
+			return applyCustomType(mapperResult as any);
+		}
+
 		const withTimezone = lowered.includes('with time zone');
-		// const split = lowered.split(" ");
 		let precision = lowered.startsWith('timestamp(')
 			? Number(lowered.split(' ')[0].substring('timestamp('.length, lowered.split(' ')[0].length - 1))
 			: null;
 		precision = precision ? precision : null;
 
+		const mode = mapperResult?.mode ?? 'string';
 		const params = timeConfig({
 			precision,
 			withTimezone,
-			mode: "'string'",
+			mode: `'${mode}'`,
 		});
 
 		let out = params
@@ -975,7 +1035,23 @@ const column = (
 	}
 
 	if (lowered === 'date') {
-		let out = `${withCasing(name, casing)}: date(${dbColumnName({ name, casing })})`;
+		const mapperResult = columnTypeMapper?.({
+			column: name,
+			table: tableName,
+			schema: tableSchema,
+			sqlType: lowered,
+			nullable: !notNull,
+		});
+
+		if (mapperResult && 'typeName' in mapperResult) {
+			return applyCustomType(mapperResult as any);
+		}
+
+		const mode = mapperResult?.mode;
+		const params = mode ? `{ mode: '${mode}' }` : undefined;
+		let out = params
+			? `${withCasing(name, casing)}: date(${dbColumnName({ name, casing, withMode: true })}${params})`
+			: `${withCasing(name, casing)}: date(${dbColumnName({ name, casing })})`;
 
 		return out;
 	}
@@ -1111,12 +1187,15 @@ const dimensionsInArray = (size?: number): string => {
 
 const createTableColumns = (
 	tableName: string,
+	tableSchema: string | undefined,
 	columns: Column[],
 	fks: ForeignKey[],
 	enumTypes: Set<string>,
 	schemas: Record<string, string>,
 	casing: Casing,
 	internals: PgKitInternals,
+	columnTypeMapper?: ColumnTypeMapper,
+	customImports?: Map<string, Set<string>>,
 ): string => {
 	let statement = '';
 
@@ -1137,13 +1216,17 @@ const createTableColumns = (
 	columns.forEach((it) => {
 		const columnStatement = column(
 			tableName,
+			tableSchema,
 			it.type,
 			it.name,
 			enumTypes,
 			it.typeSchema ?? 'public',
 			casing,
+			it.notNull,
 			it.default,
 			internals,
+			columnTypeMapper,
+			customImports,
 		);
 		statement += '\t';
 		statement += columnStatement;

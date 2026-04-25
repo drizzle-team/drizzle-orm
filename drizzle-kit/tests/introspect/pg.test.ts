@@ -926,3 +926,132 @@ test('multiple policies with roles from schema', async () => {
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
+
+// ---------------------------------------------------------------------------
+// columnTypeMapper tests
+// ---------------------------------------------------------------------------
+
+test('columnTypeMapper: mode override — timestamp columns use mode: date', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		events: pgTable('events', {
+			id: integer('id').primaryKey(),
+			createdAt: timestamp('created_at'),
+			startsAt: timestamp('starts_at', { withTimezone: true }),
+			endsAt: timestamp('ends_at', { precision: 3 }),
+		}),
+	};
+
+	const { file } = await introspectPgToFile(
+		client,
+		schema,
+		'column-type-mapper-mode-date',
+		['public'],
+		undefined,
+		undefined,
+		({ sqlType }) => {
+			if (sqlType.startsWith('timestamp')) return { mode: 'date' };
+		},
+	);
+
+	expect(file).toContain("mode: 'date'");
+	expect(file).not.toContain("mode: 'string'");
+});
+
+test('columnTypeMapper: custom type — timestamp columns replaced with custom type', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+			createdAt: timestamp('created_at'),
+			updatedAt: timestamp('updated_at', { withTimezone: true }),
+			name: text('name'),
+		}),
+	};
+
+	const { file } = await introspectPgToFile(
+		client,
+		schema,
+		'column-type-mapper-custom-type',
+		['public'],
+		undefined,
+		undefined,
+		({ sqlType }) => {
+			if (sqlType.startsWith('timestamp')) {
+				return {
+					typeName: 'dayjsTimestamp',
+					typeImport: { name: 'dayjsTimestamp', from: './custom-types' },
+				};
+			}
+		},
+	);
+
+	expect(file).toContain('import { dayjsTimestamp } from "./custom-types"');
+	expect(file).toContain('dayjsTimestamp(');
+	expect(file).not.toContain("mode: 'string'");
+	expect(file).toContain('text(');
+});
+
+test('columnTypeMapper: per-table targeting — only specific table uses custom type', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+			createdAt: timestamp('created_at'),
+		}),
+		events: pgTable('events', {
+			id: integer('id').primaryKey(),
+			startsAt: timestamp('starts_at'),
+		}),
+	};
+
+	const { file } = await introspectPgToFile(
+		client,
+		schema,
+		'column-type-mapper-per-table',
+		['public'],
+		undefined,
+		undefined,
+		({ table, sqlType }) => {
+			if (!sqlType.startsWith('timestamp')) return undefined;
+			if (table === 'events') {
+				return {
+					typeName: 'luxonTimestamp',
+					typeImport: { name: 'luxonTimestamp', from: './custom-types' },
+				};
+			}
+			return { mode: 'date' };
+		},
+	);
+
+	expect(file).toContain('import { luxonTimestamp } from "./custom-types"');
+	expect(file).toContain('luxonTimestamp(');
+	expect(file).toContain("mode: 'date'");
+	expect(file).not.toContain("mode: 'string'");
+});
+
+test('columnTypeMapper: undefined return — falls back to default string mode', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		logs: pgTable('logs', {
+			id: integer('id').primaryKey(),
+			loggedAt: timestamp('logged_at'),
+		}),
+	};
+
+	const { file } = await introspectPgToFile(
+		client,
+		schema,
+		'column-type-mapper-fallback',
+		['public'],
+		undefined,
+		undefined,
+		() => undefined,
+	);
+
+	expect(file).toContain("mode: 'string'");
+});
