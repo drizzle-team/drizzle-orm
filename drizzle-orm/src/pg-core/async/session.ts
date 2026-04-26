@@ -9,7 +9,7 @@ import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
-import { tracer } from '~/tracing.ts';
+import { hasTelemetry, tracer } from '~/tracing.ts';
 import { upgradeIfNeeded } from '~/up-migrations/pg.ts';
 import { assertUnreachable } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
@@ -53,6 +53,18 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 	}
 
 	override execute(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
+		const fast = this.cacheConfig === undefined
+			&& (this.cache === undefined || is(this.cache, NoopCache))
+			&& !hasTelemetry;
+
+		if (fast) {
+			const params = this.query.params.length === 0
+				? this.query.params
+				: fillPlaceholders(this.query.params, placeholderValues);
+			const p = this.executor(params);
+			return this.mapper ? p.then(this.mapper) : p;
+		}
+
 		return tracer.startActiveSpan('drizzle.execute', async (span) => {
 			const params = fillPlaceholders(this.query.params, placeholderValues);
 			const { query: { sql }, mapper } = this;

@@ -20,6 +20,8 @@ type SpanName =
 	| 'drizzle.driver.execute'
 	| 'drizzle.mapResponse';
 
+export const hasTelemetry = !!otel;
+
 /** @internal */
 export const tracer = {
 	startActiveSpan<F extends (span?: Span) => unknown>(name: SpanName, fn: F): ReturnType<F> {
