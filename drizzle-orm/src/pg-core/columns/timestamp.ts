@@ -51,10 +51,6 @@ export class PgTimestamp extends PgColumn<'object date'> {
 		return `timestamp${precision}${this.withTimezone ? ' with time zone' : ''}`;
 	}
 
-	override mapFromDriverValue = (value: string): Date => {
-		return new Date(this.withTimezone ? value : value + '+0000');
-	};
-
 	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
 		return value.toISOString();
@@ -94,7 +90,7 @@ export class PgTimestampString extends PgColumn<'string timestamp'> {
 	static override readonly [entityKind]: string = 'PgTimestampString';
 
 	/** @internal */
-	override readonly codec: 'timestamp' | 'timestamptz';
+	override readonly codec: 'timestamp:string' | 'timestamptz:string';
 
 	readonly withTimezone: boolean;
 	readonly precision: number | undefined;
@@ -103,7 +99,7 @@ export class PgTimestampString extends PgColumn<'string timestamp'> {
 		super(table, config);
 		this.withTimezone = config.withTimezone;
 		this.precision = config.precision;
-		this.codec = this.withTimezone ? 'timestamptz' : 'timestamp';
+		this.codec = this.withTimezone ? 'timestamptz:string' : 'timestamp:string';
 	}
 
 	getSQLType(): string {

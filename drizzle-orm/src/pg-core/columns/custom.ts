@@ -239,7 +239,7 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	fromDriver?: (value: 'driverOutput' extends keyof T ? T['driverOutput'] : T['driverData']) => T['data'];
 
 	/**
-	 * @deprecated Use codecs instead; bypasses codecs if used
+	 * @deprecated Use codecs instead; bypasses JSON codecs if used
 	 *
 	 * Optional mapping function, that is used for transforming data returned by transofmed to JSON in database data to desired format
 	 *
@@ -271,7 +271,7 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	fromJson?: (value: T['jsonData']) => T['data'];
 
 	/**
-	 * @deprecated Use codecs instead; bypasses codecs if used
+	 * @deprecated Use codecs instead; bypasses JSON codecs if used
 	 *
 	 * Optional selection modifier function, that is used for modifying selection of column inside [JSON functions](https://orm.drizzle.team/docs/json-functions)
 	 *

@@ -8,7 +8,12 @@ import {
 	castToText,
 	castToTextArr,
 	genericPgCodecs,
+	parseGeometryTuple,
+	parseGeometryXY,
+	parsePgArrayAndNormalize,
 	refineGenericPgCodecs,
+	textToDate,
+	textToDateWithTz,
 } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
@@ -24,11 +29,32 @@ export class PgliteDatabase<
 }
 
 export const pgliteCodecs = refineGenericPgCodecs({
+	// Otherwise outputs are inconsistent
 	bigint: {
 		cast: castToText,
 		castArray: castToTextArr,
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
 	},
+	// Otherwise outputs are inconsistent
+	'bigint:string': {
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	// Otherwise outputs are inconsistent
+	'bigint:number': {
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	// Otherwise outputs are inconsistent
 	bigserial: {
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	// Otherwise outputs are inconsistent
+	'bigserial:number': {
 		cast: castToText,
 		castArray: castToTextArr,
 	},
@@ -47,28 +73,56 @@ export const pgliteCodecs = refineGenericPgCodecs({
 	interval: {
 		castArray: castToTextArr,
 	},
+	date: {
+		castArray: castToTextArr,
+		normalize: textToDate,
+		normalizeArray: arrayCompatNormalize(textToDate),
+	},
+	'date:string': {
+		castArray: castToTextArr,
+	},
+	timestamp: {
+		castArray: castToTextArr,
+		normalize: textToDateWithTz,
+		normalizeArray: arrayCompatNormalize(textToDateWithTz),
+	},
+	timestamptz: {
+		castArray: castToTextArr,
+		normalize: textToDate,
+		normalizeArray: arrayCompatNormalize(textToDate),
+	},
+	'timestamp:string': {
+		castArray: castToTextArr,
+	},
+	'timestamptz:string': {
+		castArray: castToTextArr,
+	},
 	json: {
-		// Driver handless objects, other types need to be stringified
+		// Driver handles objects, other types need to be stringified
 		normalizeParam: (v) => typeof v === 'object' ? v : JSON.stringify(v),
 	},
 	jsonb: {
-		// Driver handless objects, other types need to be stringified
+		// Driver handles objects, other types need to be stringified
 		normalizeParam: (v) => typeof v === 'object' ? v : JSON.stringify(v),
 	},
 	geometry: {
-		normalizeArray: parsePgArray,
+		normalizeArray: parsePgArrayAndNormalize(parseGeometryXY),
+		castParam: (name) => `${name}::geometry`,
+		castArrayParam: (name, dimensions) => `${name}::geometry${'[]'.repeat(dimensions)}`,
+		normalizeParamArray: makePgArray,
+	},
+	'geometry:tuple': {
+		normalizeArray: parsePgArrayAndNormalize(parseGeometryTuple),
 		castParam: (name) => `${name}::geometry`,
 		castArrayParam: (name, dimensions) => `${name}::geometry${'[]'.repeat(dimensions)}`,
 		normalizeParamArray: makePgArray,
 	},
 	halfvec: {
-		normalizeArray: parsePgArray,
 		castParam: (name) => `${name}::halfvec`,
 		castArrayParam: (name, dimensions) => `${name}::halfvec${'[]'.repeat(dimensions)}`,
 		normalizeParamArray: makePgArray,
 	},
 	vector: {
-		normalizeArray: parsePgArray,
 		castParam: (name) => `${name}::vector`,
 		castArrayParam: (name, dimensions) => `${name}::vector${'[]'.repeat(dimensions)}`,
 		normalizeParamArray: makePgArray,

@@ -389,12 +389,6 @@ test('select with getColumns spread containing custom type', async () => {
 		toDriver(value: number[]): string {
 			return `[${value.join(',')}]`;
 		},
-		fromDriver(value: string): number[] {
-			return value
-				.replace(/^\[|\]$/g, '')
-				.split(',')
-				.map(Number);
-		},
 	});
 
 	const tsvector = customType<{ data: string }>({

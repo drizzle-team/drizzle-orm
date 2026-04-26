@@ -347,10 +347,8 @@ const customTimestamp = customType<{
 	driverData: string;
 	jsonData: string;
 }>({
+	codec: 'timestamp',
 	dataType: () => 'timestamp(3)',
-	fromDriver: (value: string) => {
-		return new Date(value + '+0000');
-	},
 	toDriver: (value: Date) => {
 		return value.toISOString();
 	},

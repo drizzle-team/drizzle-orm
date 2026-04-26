@@ -27,18 +27,13 @@ export class PgPointTuple extends PgColumn<'array point'> {
 	static override readonly [entityKind]: string = 'PgPointTuple';
 
 	/** @internal */
-	override readonly codec = 'point';
+	override readonly codec = 'point:tuple';
 
 	readonly mode = 'tuple';
 
 	getSQLType(): string {
 		return 'point';
 	}
-
-	override mapFromDriverValue = (value: string): [number, number] => {
-		const [x, y] = value.slice(1, -1).split(',');
-		return [Number.parseFloat(x!), Number.parseFloat(y!)];
-	};
 
 	override mapToDriverValue = (value: [number, number]): string => {
 		return `(${value[0]},${value[1]})`;
@@ -76,11 +71,6 @@ export class PgPointObject extends PgColumn<'object point'> {
 	getSQLType(): string {
 		return 'point';
 	}
-
-	override mapFromDriverValue = (value: string): { x: number; y: number } => {
-		const [x, y] = value.slice(1, -1).split(',');
-		return { x: Number.parseFloat(x!), y: Number.parseFloat(y!) };
-	};
 
 	override mapToDriverValue = (value: { x: number; y: number }): string => {
 		return `(${value.x},${value.y})`;

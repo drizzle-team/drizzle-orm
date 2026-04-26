@@ -31,10 +31,6 @@ export class PgDate extends PgColumn<'object date'> {
 		return 'date';
 	}
 
-	override mapFromDriverValue = (value: string): Date => {
-		return new Date(value);
-	};
-
 	override mapToDriverValue = function(value: Date | string): string {
 		if (typeof value === 'string') return value;
 		return value.toISOString();
@@ -65,7 +61,7 @@ export class PgDateString extends PgColumn<'string date'> {
 	static override readonly [entityKind]: string = 'PgDateString';
 
 	/** @internal */
-	override readonly codec = 'date';
+	override readonly codec = 'date:string';
 
 	getSQLType(): string {
 		return 'date';
