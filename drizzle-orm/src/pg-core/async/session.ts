@@ -26,6 +26,8 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 		body?: string;
 	} | undefined;
 
+	private fastPath: boolean;
+
 	constructor(
 		protected executor: (params?: unknown[]) => Promise<any>,
 		query: Query,
@@ -50,19 +52,22 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 		if (!this.cacheConfig?.enabled) {
 			this.cacheConfig = undefined;
 		}
+
+		this.fastPath = cacheConfig === undefined
+			&& (cache === undefined || is(cache, NoopCache))
+			&& !hasTelemetry;
 	}
 
-	override execute(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
-		const fast = this.cacheConfig === undefined
-			&& (this.cache === undefined || is(this.cache, NoopCache))
-			&& !hasTelemetry;
+	override async execute(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
+		const { query, logger, executor, mapper, fastPath } = this;
 
-		if (fast) {
-			const params = this.query.params.length === 0
-				? this.query.params
-				: fillPlaceholders(this.query.params, placeholderValues);
-			const p = this.executor(params);
-			return this.mapper ? p.then(this.mapper) : p;
+		if (fastPath) {
+			const params = query.params.length === 0
+				? query.params
+				: fillPlaceholders(query.params, placeholderValues);
+			logger.logQuery(query._sql ? query._sql.join(' ') : query.sql, params);
+			const res = await executor(params);
+			return mapper ? mapper(res) : res;
 		}
 
 		return tracer.startActiveSpan('drizzle.execute', async (span) => {
