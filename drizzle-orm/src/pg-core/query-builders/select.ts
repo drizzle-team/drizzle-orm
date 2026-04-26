@@ -156,6 +156,7 @@ export class PgSelectBase<
 			distinct?: boolean | {
 				on: (PgColumn | SQLWrapper)[];
 			};
+			tagged?: boolean;
 		},
 	) {
 		super();

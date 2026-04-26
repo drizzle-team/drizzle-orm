@@ -78,6 +78,7 @@ export interface PgSelectConfig {
 	}[];
 	comment?: SQL;
 	ignoreSelectionCastCodecs?: boolean;
+	_tagged?: boolean;
 }
 
 export type TableLikeHasEmptySelection<T extends PgTable | Subquery | PgViewBase | SQL> = T extends Subquery

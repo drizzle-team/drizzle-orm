@@ -106,7 +106,7 @@ export class PgAsyncSelectBase<
 		const { fields } = config;
 
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const query = dialect.sqlToQuery(this.getSQL());
+			const query = this.config._tagged ? dialect._sqlToQuery(this.getSQL()) : dialect.sqlToQuery(this.getSQL());
 			const fieldsList = orderSelectedFields<PgColumn>(
 				fields,
 				undefined,
