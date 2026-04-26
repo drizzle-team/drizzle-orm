@@ -38,6 +38,7 @@ export interface BuildQueryConfig {
 	paramStartIndex?: { value: number };
 	inlineParams?: boolean;
 	invokeSource?: 'indexes' | 'mssql-check' | 'mssql-view-with-schemabinding' | undefined;
+	tagged?: true;
 }
 
 export type QueryTypingsValue = 'json' | 'decimal' | 'time' | 'timestamp' | 'uuid' | 'date' | 'none';
@@ -45,6 +46,9 @@ export type QueryTypingsValue = 'json' | 'decimal' | 'time' | 'timestamp' | 'uui
 export interface Query {
 	sql: string;
 	params: unknown[];
+	_sql?: TemplateStringsArray;
+	// ^ TODO: revisit
+	// for Bun.SQL cache performance
 }
 
 export interface QueryWithTypings extends Query {
@@ -83,6 +87,23 @@ function mergeQueries(queries: QueryWithTypings[]): QueryWithTypings {
 			result.typings.push(...query.typings);
 		}
 	}
+	return result;
+}
+
+function _mergeQueries(queries: QueryWithTypings[]): QueryWithTypings {
+	const result: QueryWithTypings = { sql: '', params: [] };
+	const sqls = [] as string[];
+	for (const query of queries) {
+		sqls.push(query.sql);
+		result.params.push(...query.params);
+		if (query.typings?.length) {
+			if (!result.typings) {
+				result.typings = [];
+			}
+			result.typings.push(...query.typings);
+		}
+	}
+	result._sql = Object.assign(sqls, { raw: sqls }) as unknown as TemplateStringsArray;
 	return result;
 }
 
@@ -162,7 +183,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 			invokeSource,
 		} = config;
 
-		return mergeQueries(chunks.map((chunk): QueryWithTypings => {
+		const mappedChunks = chunks.map((chunk): QueryWithTypings => {
 			if (is(chunk, StringChunk)) {
 				return { sql: chunk.value.join(''), params: [] };
 			}
@@ -348,7 +369,13 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 			}
 
 			return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
-		}));
+		});
+
+		if (_config.tagged) {
+			return _mergeQueries(mappedChunks);
+		}
+
+		return mergeQueries(mappedChunks);
 	}
 
 	private mapInlineParam(

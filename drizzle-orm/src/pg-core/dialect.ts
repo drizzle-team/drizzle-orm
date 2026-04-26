@@ -704,6 +704,16 @@ export class PgDialect {
 			invokeSource,
 		});
 	}
+	_sqlToQuery(sql: SQL): QueryWithTypings {
+		return sql.toQuery({
+			escapeName: this.escapeName,
+			escapeParam: this.escapeParam,
+			escapeString: this.escapeString,
+			prepareTyping: this.prepareTyping,
+			codecs: this.codecs,
+			tagged: true,
+		});
+	}
 
 	private nestedSelectionerror() {
 		throw new DrizzleError({

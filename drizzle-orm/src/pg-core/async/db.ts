@@ -53,6 +53,7 @@ export class PgAsyncDatabase<
 		readonly session: PgAsyncSession<any, any>,
 		relations: TRelations,
 		parseRqbJson: boolean = false,
+		readonly tagged: boolean = false,
 	) {
 		this._ = {
 			relations: relations,
@@ -213,6 +214,7 @@ export class PgAsyncDatabase<
 				session: self.session,
 				dialect: self.dialect,
 				withList: queries,
+				tagged: self.tagged,
 			});
 		}
 
@@ -436,6 +438,7 @@ export class PgAsyncDatabase<
 			fields: fields ?? undefined,
 			session: this.session,
 			dialect: this.dialect,
+			tagged: this.tagged,
 		}) as PgAsyncSelectBuilder<TSelection>;
 	}
 
@@ -473,6 +476,7 @@ export class PgAsyncDatabase<
 			session: this.session,
 			dialect: this.dialect,
 			distinct: true,
+			tagged: this.tagged,
 		});
 	}
 
@@ -515,6 +519,7 @@ export class PgAsyncDatabase<
 			session: this.session,
 			dialect: this.dialect,
 			distinct: { on },
+			tagged: this.tagged,
 		});
 	}
 
