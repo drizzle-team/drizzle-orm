@@ -4,38 +4,20 @@ import type { BuildRelationalQueryResult } from '~/relations.ts';
 import { noopDecoder, SQL, type SQLWrapper, View } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
 
-/**
- * Type for the selection structure used by row mappers.
- */
 export type RowMapperSelection = BuildRelationalQueryResult['selection'];
 
-/**
- * Result of a row mapper generator.
- * Contains the mapper function and metadata about the expected input format.
- */
 export interface RowMapperResult {
-	/** The mapper function that transforms ALL raw rows into typed objects in a single call */
 	mapper:
 		| ((rows: Record<string, unknown>[]) => Record<string, unknown>[])
 		| ((rows: unknown[][]) => Record<string, unknown>[]);
-	/** Whether this mapper expects array-mode input (from .values()) */
 	isArrayMode: boolean;
-	/** The generated function body code (for debugging purposes) */
 	code?: string;
 }
 
-/**
- * A function that generates a row mapper for a given selection.
- * The row mapper transforms raw database rows into properly typed objects.
- */
 export type RowMapperGenerator = (
 	selection: RowMapperSelection,
 	parseJson: boolean,
 ) => RowMapperResult;
-
-// ============================================================================
-// JIT Row Mapper (uses new Function for best performance)
-// ============================================================================
 
 function resolveDecoder(
 	field: RowMapperSelection[number]['field'],
@@ -114,26 +96,6 @@ function generateObjectCode(
 	return `{ ${props.join(', ')} }`;
 }
 
-/**
- * JIT-compiled row mapper generator.
- * Uses `new Function()` to generate optimized mapping code at prepare time.
- *
- * **Note:** This mapper does NOT work in environments that restrict dynamic code evaluation,
- * such as Cloudflare Workers, Deno Deploy, or Vercel Edge Functions.
- * Use `interpretedRowMapper` in those environments.
- *
- * @example
- * ```ts
- * import { jitRowMapper } from 'drizzle-orm/row-mappers';
- *
- * const db = drizzle({
- *   client,
- *   schema,
- *   relations,
- *   rowMapperGenerator: jitRowMapper,
- * });
- * ```
- */
 export const jitRowMapper: RowMapperGenerator = (
 	selection: RowMapperSelection,
 	parseJson: boolean,
@@ -168,10 +130,6 @@ return rows;`;
 		code: batchCode,
 	};
 };
-
-// ============================================================================
-// Interpreted Row Mapper (works in all environments)
-// ============================================================================
 
 function mapRowInterpreted(
 	row: Record<string, unknown>,
