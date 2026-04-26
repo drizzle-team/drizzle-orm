@@ -50,27 +50,14 @@ export class BunSQLSession<
 		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
 		const tagged = query._sql ? query._sql : null;
+		const client = this.client;
 		const executor = tagged
-			? async (params?: unknown[]) => {
-				const ps = params ? params : [];
-				if (mode === 'arrays') {
-					return this.client(tagged, ...ps).values();
-				}
-				if (mode === 'objects') {
-					return this.client(tagged, ...ps);
-				}
-				return this.client(tagged, ...ps);
-			}
-			: async (params?: unknown[]) => {
-				if (mode === 'arrays') {
-					return this.client.unsafe(query.sql, params).values();
-				}
-				if (mode === 'objects') {
-					return this.client.unsafe(query.sql, params);
-				}
-
-				return this.client.unsafe(query.sql, params);
-			};
+			? mode === 'arrays'
+				? (params?: unknown[]) => params ? client(tagged, ...params).values() : client(tagged).values()
+				: (params?: unknown[]) => params ? client(tagged, ...params) : client(tagged)
+			: mode === 'arrays'
+			? (params?: unknown[]) => client.unsafe(query.sql, params).values()
+			: (params?: unknown[]) => client.unsafe(query.sql, params);
 
 		return new PgAsyncPreparedQuery<T>(
 			executor,
