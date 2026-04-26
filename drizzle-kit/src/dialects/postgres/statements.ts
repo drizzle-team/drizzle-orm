@@ -2,6 +2,7 @@ import type { Simplify } from '../../utils';
 import type {
 	CheckConstraint,
 	Column,
+	Composite,
 	DiffEntities,
 	Enum,
 	ForeignKey,
@@ -79,6 +80,36 @@ export interface JsonAlterEnum {
 		value: string;
 		beforeValue?: string;
 	}[];
+}
+
+export interface JsonCreateComposite {
+	type: 'create_composite_type';
+	composite: Composite;
+}
+
+export interface JsonDropComposite {
+	type: 'drop_composite_type';
+	composite: Composite;
+}
+
+export interface JsonMoveComposite {
+	type: 'move_composite_type';
+	from: { name: string; schema: string | null };
+	to: { name: string; schema: string | null };
+}
+
+export interface JsonRenameComposite {
+	type: 'rename_composite_type';
+	schema: string;
+	from: string;
+	to: string;
+}
+
+export interface JsonRecreateComposite {
+	type: 'recreate_composite_type';
+	to: Composite;
+	from: Composite;
+	columns: Column[];
 }
 
 export interface JsonCreateRole {
@@ -399,6 +430,11 @@ export type JsonStatement =
 	| JsonRenameEnum
 	| JsonRecreateEnum
 	| JsonAlterEnum
+	| JsonCreateComposite
+	| JsonDropComposite
+	| JsonMoveComposite
+	| JsonRenameComposite
+	| JsonRecreateComposite
 	| JsonDropColumn
 	| JsonAddColumn
 	| JsonCreateIndex

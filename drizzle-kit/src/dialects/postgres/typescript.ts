@@ -60,6 +60,7 @@ const imports = [
 	'geometry',
 	'bit',
 	'pgEnum',
+	'pgComposite',
 	'gelEnum',
 	'customType',
 ] as const;
@@ -292,6 +293,7 @@ export const ddlToTypeScript = (
 
 		if (x.entityType === 'sequences' && x.schema === 'public') imports.add('pgSequence');
 		if (x.entityType === 'enums' && x.schema === 'public') imports.add('pgEnum');
+		if (x.entityType === 'composites' && x.schema === 'public') imports.add('pgComposite');
 		if (x.entityType === 'policies') imports.add('pgPolicy');
 		if (x.entityType === 'roles') imports.add('pgRole');
 	}
@@ -310,6 +312,25 @@ export const ddlToTypeScript = (
 	})
 		.join('')
 		.concat('\n');
+
+	const compositeStatements = ddl.composites.list().map((it) => {
+		const compositeSchema = schemas[it.schema];
+		const paramName = paramNameFor(it.name, compositeSchema);
+		const func = compositeSchema ? `${compositeSchema}.composite` : 'pgComposite';
+
+		const fieldLines = it.fields.map((f) => {
+			const grammarType = typeFor(f.type, false);
+			const fnName = grammarType.drizzleImport();
+			imports.add(fnName);
+			const arrayDim = '.array()'.repeat(f.dimensions || 0);
+			const notNull = f.notNull ? '.notNull()' : '';
+			return `\t${withCasing(f.name, casing)}: ${fnName}()${arrayDim}${notNull},`;
+		}).join('\n');
+
+		return `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", {\n${fieldLines}\n})\n`;
+	})
+		.join('')
+		.concat(ddl.composites.list().length ? '\n' : '');
 
 	const sequencesStatements = ddl.sequences.list().map((it) => {
 		const seqSchema = schemas[it.schema];
@@ -447,6 +468,7 @@ import { sql } from "drizzle-orm"\n\n`;
 	let decalrations = schemaStatements;
 	decalrations += rolesStatements;
 	decalrations += enumStatements;
+	decalrations += compositeStatements;
 	decalrations += sequencesStatements;
 	decalrations += '\n';
 	decalrations += tableStatements.join('\n\n');

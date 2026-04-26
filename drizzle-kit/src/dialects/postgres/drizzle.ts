@@ -4,6 +4,7 @@ import type { AnyGelColumn, GelDialect, GelPolicy } from 'drizzle-orm/gel-core';
 import type {
 	AnyPgColumn,
 	AnyPgTable,
+	PgComposite,
 	PgEnum,
 	PgMaterializedView,
 	PgMaterializedViewWithConfig,
@@ -16,6 +17,7 @@ import {
 	getTableConfig,
 	getViewConfig,
 	IndexedColumn,
+	isPgComposite,
 	isPgEnum,
 	isPgMaterializedView,
 	isPgSequence,
@@ -45,6 +47,8 @@ import { getOrNull } from '../utils';
 import type {
 	CheckConstraint,
 	Column,
+	Composite,
+	CompositeField,
 	Enum,
 	ForeignKey,
 	Index,
@@ -221,6 +225,7 @@ export const fromDrizzleSchema = (
 		schemas: PgSchema[];
 		tables: AnyPgTable[];
 		enums: PgEnum<any>[];
+		composites: PgComposite<any>[];
 		sequences: PgSequence[];
 		roles: PgRole[];
 		policies: PgPolicy[];
@@ -247,6 +252,7 @@ export const fromDrizzleSchema = (
 		columns: [],
 		policies: [],
 		enums: [],
+		composites: [],
 		roles: [],
 		privileges: [],
 		schemas: [],
@@ -779,6 +785,34 @@ export const fromDrizzleSchema = (
 		};
 	});
 
+	res.composites = schema.composites.map<Composite>((c) => {
+		const fields: CompositeField[] = [];
+		for (const [fieldName, builder] of Object.entries(c.compositeFields)) {
+			// Build each field column against a sentinel table so we can read
+			// its SQL type via the same code path drizzle uses for real tables.
+			const built = (builder as any).build({} as AnyPgTable);
+			const sqlType = (built as { getSQLType: () => string }).getSQLType();
+			const config = (builder as any).config as { dimensions?: number };
+			// Composite fields cannot be NOT NULL in PostgreSQL — `CREATE TYPE` syntax
+			// rejects column constraints. The user's `.notNull()` chain still affects
+			// TypeScript-level inference (see `InferCompositeData`), but the snapshot
+			// always stores `notNull: false` so it round-trips with introspection.
+			fields.push({
+				name: fieldName,
+				type: sqlType,
+				typeSchema: null,
+				dimensions: config.dimensions ?? 0,
+				notNull: false,
+			});
+		}
+		return {
+			entityType: 'composites',
+			name: c.compositeName,
+			schema: c.schema || 'public',
+			fields,
+		};
+	});
+
 	return {
 		schema: res,
 		errors,
@@ -789,6 +823,7 @@ export const fromDrizzleSchema = (
 export const fromExports = (exports: Record<string, unknown>) => {
 	const tables: AnyPgTable[] = [];
 	const enums: PgEnum<any>[] = [];
+	const composites: PgComposite<any>[] = [];
 	const schemas: PgSchema[] = [];
 	const sequences: PgSequence[] = [];
 	const roles: PgRole[] = [];
@@ -801,6 +836,10 @@ export const fromExports = (exports: Record<string, unknown>) => {
 	i0values.forEach((t) => {
 		if (isPgEnum(t)) {
 			enums.push(t);
+			return;
+		}
+		if (isPgComposite(t)) {
+			composites.push(t);
 			return;
 		}
 		if (is(t, PgTable)) {
@@ -839,6 +878,7 @@ export const fromExports = (exports: Record<string, unknown>) => {
 	return {
 		tables,
 		enums,
+		composites,
 		schemas,
 		sequences,
 		views,
@@ -852,6 +892,7 @@ export const fromExports = (exports: Record<string, unknown>) => {
 export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const tables: AnyPgTable[] = [];
 	const enums: PgEnum<any>[] = [];
+	const composites: PgComposite<any>[] = [];
 	const schemas: PgSchema[] = [];
 	const sequences: PgSequence[] = [];
 	const views: PgView[] = [];
@@ -868,6 +909,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 
 		tables.push(...prepared.tables);
 		enums.push(...prepared.enums);
+		composites.push(...prepared.composites);
 		schemas.push(...prepared.schemas);
 		sequences.push(...prepared.sequences);
 		views.push(...prepared.views);
@@ -880,6 +922,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	return {
 		tables,
 		enums,
+		composites,
 		schemas,
 		sequences,
 		views,

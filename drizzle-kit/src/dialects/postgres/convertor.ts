@@ -785,6 +785,74 @@ const recreateEnumConvertor = convertor('recreate_enum', (st) => {
 	return statements;
 });
 
+const formatCompositeFieldType = (
+	field: { type: string; typeSchema: string | null; dimensions: number },
+): string => {
+	const base = field.typeSchema && field.typeSchema !== 'public'
+		? `"${field.typeSchema}"."${field.type}"`
+		: field.type;
+	return `${base}${'[]'.repeat(field.dimensions || 0)}`;
+};
+
+const createCompositeConvertor = convertor('create_composite_type', (st) => {
+	const { name, schema, fields } = st.composite;
+	const key = schema !== 'public' ? `"${schema}"."${name}"` : `"${name}"`;
+	// PG's CREATE TYPE syntax does not accept column constraints (NOT NULL, defaults).
+	// Field-level `.notNull()` on the runtime side only feeds TypeScript-level
+	// nullability inference; it has no DDL effect for composite types.
+	const fieldDefs = fields.map((f) => `"${f.name}" ${formatCompositeFieldType(f)}`);
+	return `CREATE TYPE ${key} AS (${fieldDefs.join(', ')});`;
+});
+
+const dropCompositeConvertor = convertor('drop_composite_type', (st) => {
+	const { name, schema } = st.composite;
+	const key = schema !== 'public' ? `"${schema}"."${name}"` : `"${name}"`;
+	// CASCADE so dependent columns and the implicit array type fall together;
+	// otherwise PG (and PGlite especially) refuses with "type is required by ..."
+	return `DROP TYPE ${key} CASCADE;`;
+});
+
+const renameCompositeConvertor = convertor('rename_composite_type', (st) => {
+	const from = st.schema !== 'public' ? `"${st.schema}"."${st.from}"` : `"${st.from}"`;
+	return `ALTER TYPE ${from} RENAME TO "${st.to}";`;
+});
+
+const moveCompositeConvertor = convertor('move_composite_type', (st) => {
+	const { from, to } = st;
+	const key = from.schema !== 'public' ? `"${from.schema}"."${from.name}"` : `"${from.name}"`;
+	return `ALTER TYPE ${key} SET SCHEMA "${to.schema || 'public'}";`;
+});
+
+const recreateCompositeConvertor = convertor('recreate_composite_type', (st) => {
+	const { to, from, columns } = st;
+	const statements: string[] = [];
+	// PostgreSQL forbids changing a composite type that's referenced by a column,
+	// so we drop dependent columns to text first, drop+recreate the type, then
+	// cast back. This loses data on incompatible field-shape changes — the
+	// migration writer can replace this with hand-tuned ALTER TYPE for column-
+	// preserving changes (see PR follow-up for proper ALTER TYPE diffing).
+	for (const column of columns) {
+		const tableKey = column.schema !== 'public' ? `"${column.schema}"."${column.table}"` : `"${column.table}"`;
+		statements.push(
+			`ALTER TABLE ${tableKey} ALTER COLUMN "${column.name}" SET DATA TYPE text${
+				'[]'.repeat(column.dimensions)
+			} USING "${column.name}"::text${'[]'.repeat(column.dimensions)};`,
+		);
+	}
+	statements.push(dropCompositeConvertor.convert({ composite: from }) as string);
+	statements.push(createCompositeConvertor.convert({ composite: to }) as string);
+	for (const column of columns) {
+		const tableKey = column.schema !== 'public' ? `"${column.schema}"."${column.table}"` : `"${column.table}"`;
+		const compKey = to.schema !== 'public' ? `"${to.schema}"."${to.name}"` : `"${to.name}"`;
+		statements.push(
+			`ALTER TABLE ${tableKey} ALTER COLUMN "${column.name}" SET DATA TYPE ${compKey}${
+				'[]'.repeat(column.dimensions)
+			} USING "${column.name}"::${compKey}${'[]'.repeat(column.dimensions)};`,
+		);
+	}
+	return statements;
+});
+
 const createSequenceConvertor = convertor('create_sequence', (st) => {
 	const { name, schema, minValue, maxValue, incrementBy, startWith, cacheSize, cycle } = st.sequence;
 	const sequenceWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
@@ -1079,6 +1147,11 @@ const convertors = [
 	moveEnumConvertor,
 	alterEnumConvertor,
 	recreateEnumConvertor,
+	createCompositeConvertor,
+	dropCompositeConvertor,
+	renameCompositeConvertor,
+	moveCompositeConvertor,
+	recreateCompositeConvertor,
 	createSequenceConvertor,
 	dropSequenceConvertor,
 	renameSequenceConvertor,

@@ -434,6 +434,7 @@ export function generateLatestSnapshot(
 				ddl.schemas.delete({ name: statement.name });
 				ddl.tables.delete({ schema: statement.name });
 				ddl.enums.delete({ schema: statement.name });
+				ddl.composites.delete({ schema: statement.name });
 				ddl.columns.delete({ schema: statement.name });
 				ddl.indexes.delete({ schema: statement.name });
 				ddl.fks.delete({ schema: statement.name });
@@ -455,6 +456,10 @@ export function generateLatestSnapshot(
 					set: { schema: statement.to.name },
 				});
 				ddl.enums.update({
+					where: { schema: statement.from.name },
+					set: { schema: statement.to.name },
+				});
+				ddl.composites.update({
 					where: { schema: statement.from.name },
 					set: { schema: statement.to.name },
 				});
@@ -592,6 +597,54 @@ export function generateLatestSnapshot(
 					where: { schema: statement.enum.schema, name: statement.enum.name },
 					set: { values: statement.enum.values },
 				});
+				break;
+
+			case 'create_composite_type':
+				push(ddl.composites, statement.composite);
+				break;
+			case 'drop_composite_type':
+				del(ddl.composites, statement.composite);
+				break;
+			case 'rename_composite_type':
+				ddl.composites.update({
+					where: { schema: statement.schema, name: statement.from },
+					set: { name: statement.to },
+				});
+				ddl.columns.update({
+					where: {
+						type: statement.from,
+						typeSchema: statement.schema,
+					},
+					set: { type: statement.to },
+				});
+				break;
+			case 'move_composite_type':
+				ddl.composites.update({
+					where: {
+						schema: statement.from.schema ?? 'public',
+						name: statement.from.name,
+					},
+					set: {
+						schema: statement.to.schema ?? 'public',
+						name: statement.to.name,
+					},
+				});
+				ddl.columns.update({
+					where: {
+						type: statement.from.name,
+						typeSchema: statement.from.schema ?? 'public',
+					},
+					set: {
+						typeSchema: statement.to.schema ?? 'public',
+					},
+				});
+				break;
+			case 'recreate_composite_type':
+				ddl.composites.delete({
+					name: statement.from.name,
+					schema: statement.from.schema,
+				});
+				push(ddl.composites, statement.to);
 				break;
 
 			case 'create_sequence':

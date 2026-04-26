@@ -1206,6 +1206,7 @@ export const fromDatabase = async (
 		schemas,
 		tables,
 		enums,
+		composites: [],
 		columns,
 		indexes,
 		pks,

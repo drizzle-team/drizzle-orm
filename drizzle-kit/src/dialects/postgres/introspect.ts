@@ -5,6 +5,7 @@ import type { EntityFilter } from '../pull-utils';
 import { filterMigrationsSchema } from '../utils';
 import type {
 	CheckConstraint,
+	Composite,
 	Enum,
 	ForeignKey,
 	Index,
@@ -53,6 +54,7 @@ export const fromDatabase = async (
 ): Promise<InterimSchema> => {
 	const schemas: Schema[] = [];
 	const enums: Enum[] = [];
+	const composites: Composite[] = [];
 	const tables: PostgresEntities['tables'][] = [];
 	const columns: InterimColumn[] = [];
 	const indexes: InterimIndex[] = [];
@@ -279,6 +281,48 @@ export const fromDatabase = async (
 		ordinality: number;
 		value: string;
 	};
+	type CompositeListItem = {
+		oid: number | string;
+		name: string;
+		schema: string;
+		fieldName: string;
+		fieldOrdinality: number;
+		fieldType: string;
+		fieldTypeSchema: string;
+		fieldDimensions: number;
+		fieldNotNull: boolean;
+	};
+	const compositesQuery = filteredNamespacesStringForSQL
+		? db
+			.query<CompositeListItem>(`SELECT
+				t.oid AS "oid",
+				t.typname AS "name",
+				n.nspname AS "schema",
+				a.attname AS "fieldName",
+				a.attnum AS "fieldOrdinality",
+				pg_catalog.format_type(a.atttypid, a.atttypmod) AS "fieldType",
+				ftn.nspname AS "fieldTypeSchema",
+				CASE WHEN a.attndims > 0 THEN a.attndims ELSE 0 END AS "fieldDimensions",
+				a.attnotnull AS "fieldNotNull"
+			FROM pg_catalog.pg_type t
+			JOIN pg_catalog.pg_namespace n ON n.oid OPERATOR(pg_catalog.=) t.typnamespace
+			JOIN pg_catalog.pg_class c ON c.oid OPERATOR(pg_catalog.=) t.typrelid AND c.relkind OPERATOR(pg_catalog.=) 'c'
+			JOIN pg_catalog.pg_attribute a ON a.attrelid OPERATOR(pg_catalog.=) c.oid
+				AND a.attnum > 0 AND NOT a.attisdropped
+			JOIN pg_catalog.pg_type ft ON ft.oid OPERATOR(pg_catalog.=) a.atttypid
+			JOIN pg_catalog.pg_namespace ftn ON ftn.oid OPERATOR(pg_catalog.=) ft.typnamespace
+			WHERE t.typtype OPERATOR(pg_catalog.=) 'c'
+				AND n.nspname IN (${filteredNamespacesStringForSQL})
+			ORDER BY t.oid, a.attnum
+		`).then((rows) => {
+				queryCallback('composites', rows, null);
+				return rows;
+			}).catch((err) => {
+				queryCallback('composites', [], err);
+				throw err;
+			})
+		: [] as CompositeListItem[];
+
 	progressCallback('enums', 0, 'fetching');
 	const enumsQuery = filteredNamespacesStringForSQL
 		? db
@@ -605,6 +649,7 @@ export const fromDatabase = async (
 	const [
 		dependList,
 		enumsList,
+		compositesList,
 		serialsList,
 		sequencesList,
 		policiesList,
@@ -616,6 +661,7 @@ export const fromDatabase = async (
 		.all([
 			dependQuery,
 			enumsQuery,
+			compositesQuery,
 			serialsQuery,
 			sequencesQuery,
 			policiesQuery,
@@ -662,6 +708,41 @@ export const fromDatabase = async (
 		});
 	}
 	progressCallback('enums', enums.length, 'done');
+
+	const groupedComposites = compositesList.reduce((acc, it) => {
+		const key = `${it.schema}.${it.name}`;
+		if (!(key in acc)) {
+			acc[key] = {
+				schema: it.schema,
+				name: it.name,
+				fields: [],
+			};
+		}
+		// `format_type` returns an array suffix like `integer[]` for array fields.
+		// Strip it and reflect the count in `dimensions` so it round-trips cleanly.
+		const arrayMatch = it.fieldType.match(/^(.*?)((?:\[\])+)$/);
+		const baseType = arrayMatch ? arrayMatch[1] : it.fieldType;
+		const dimensions = arrayMatch ? arrayMatch[2].length / 2 : 0;
+		acc[key]!.fields.push({
+			name: it.fieldName,
+			type: baseType,
+			typeSchema: (it.fieldTypeSchema && it.fieldTypeSchema !== 'pg_catalog' && it.fieldTypeSchema !== 'public')
+				? it.fieldTypeSchema
+				: null,
+			dimensions: dimensions || it.fieldDimensions || 0,
+			notNull: it.fieldNotNull,
+		});
+		return acc;
+	}, {} as Record<string, { schema: string; name: string; fields: Composite['fields'] }>);
+
+	for (const it of Object.values(groupedComposites)) {
+		composites.push({
+			entityType: 'composites',
+			schema: it.schema,
+			name: it.name,
+			fields: it.fields,
+		});
+	}
 
 	for (const seq of sequencesList) {
 		const depend = dependList.find((it) => Number(it.oid) === Number(seq.oid));
@@ -1228,6 +1309,7 @@ export const fromDatabase = async (
 	const resultUniques = uniques.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
 	const resultChecks = checks.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
 	const resultSequences = sequences.filter((x) => resultSchemas.some((t) => t.name === x.schema));
+	const resultComposites = composites.filter((x) => resultSchemas.some((t) => t.name === x.schema));
 	// TODO: drizzle link
 	const resultRoles = roles.filter((x) => filter({ type: 'role', name: x.name }));
 	const resultViews = views.filter((x) => filter({ type: 'table', schema: x.schema, name: x.name }));
@@ -1240,6 +1322,7 @@ export const fromDatabase = async (
 		schemas: resultSchemas,
 		tables: resultTables,
 		enums: resultEnums,
+		composites: resultComposites,
 		columns: resultColumns,
 		indexes: resultIndexes,
 		pks: resultPKs,

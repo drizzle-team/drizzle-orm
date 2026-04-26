@@ -8,6 +8,7 @@ export const resolver = <T extends { name: string; schema?: string; table?: stri
 	entity:
 		| 'schema'
 		| 'enum'
+		| 'composite type'
 		| 'table'
 		| 'column'
 		| 'sequence'
