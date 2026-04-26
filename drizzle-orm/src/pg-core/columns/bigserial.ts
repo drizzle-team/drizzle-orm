@@ -31,15 +31,11 @@ export class PgBigSerial53 extends PgColumn<'number int53'> {
 	static override readonly [entityKind]: string = 'PgBigSerial53';
 
 	/** @internal */
-	override readonly codec = 'bigserial';
+	override readonly codec = 'bigserial:number';
 
 	getSQLType(): string {
 		return 'bigserial';
 	}
-
-	override mapFromDriverValue = (value: bigint): number => {
-		return Number(value);
-	};
 }
 
 export class PgBigSerial64Builder extends PgColumnBuilder<{

@@ -3,7 +3,17 @@ import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { makePgArray } from '~/pg-core/array.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
-import { refineGenericPgCodecs } from '~/pg-core/codecs.ts';
+import {
+	arrayCompatNormalize,
+	arrayCompatNormalizeInput,
+	castToTextArr,
+	parseGeometryTuple,
+	parseGeometryXY,
+	parsePgVector,
+	refineGenericPgCodecs,
+	textToDate,
+	textToDateWithTz,
+} from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -17,221 +27,136 @@ export class PostgresJsDatabase<TRelations extends AnyRelations = EmptyRelations
 }
 
 export const postgresJsCodecs = refineGenericPgCodecs({
-	interval: {
-		normalizeParamArray: makePgArray,
-	},
-	point: {
-		normalizeParamArray: makePgArray,
-	},
-	line: {
-		normalizeParamArray: makePgArray,
-	},
-	macaddr8: {
-		normalizeParamArray: makePgArray,
-	},
+	interval: { normalizeParamArray: makePgArray },
+	point: { normalizeParamArray: makePgArray },
+	'point:tuple': { normalizeParamArray: makePgArray },
+	line: { normalizeParamArray: makePgArray },
+	'line:tuple': { normalizeParamArray: makePgArray },
+	macaddr8: { normalizeParamArray: makePgArray },
 	json: {
 		normalizeParam: (v) => JSON.stringify(v),
+		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
 	jsonb: {
 		normalizeParam: (v) => JSON.stringify(v),
+		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
 
-	bit: {
-		normalizeParamArray: makePgArray,
-	},
-	bool: {
-		normalizeParamArray: makePgArray,
-	},
-	box: {
-		normalizeParamArray: makePgArray,
-	},
-	box2d: {
-		normalizeParamArray: makePgArray,
-	},
-	box3d: {
-		normalizeParamArray: makePgArray,
-	},
-	char: {
-		normalizeParamArray: makePgArray,
-	},
-	cidr: {
-		normalizeParamArray: makePgArray,
-	},
-	circle: {
-		normalizeParamArray: makePgArray,
-	},
-	datemultirange: {
-		normalizeParamArray: makePgArray,
-	},
-	daterange: {
-		normalizeParamArray: makePgArray,
-	},
-	float8: {
-		normalizeParamArray: makePgArray,
-	},
-	geography: {
-		normalizeParamArray: makePgArray,
-	},
+	bit: { normalizeParamArray: makePgArray },
+	bool: { normalizeParamArray: makePgArray },
+	box: { normalizeParamArray: makePgArray },
+	box2d: { normalizeParamArray: makePgArray },
+	box3d: { normalizeParamArray: makePgArray },
+	char: { normalizeParamArray: makePgArray },
+	cidr: { normalizeParamArray: makePgArray },
+	circle: { normalizeParamArray: makePgArray },
+	datemultirange: { normalizeParamArray: makePgArray },
+	daterange: { normalizeParamArray: makePgArray },
+	float8: { normalizeParamArray: makePgArray },
+	geography: { normalizeParamArray: makePgArray },
 	halfvec: {
+		normalize: parsePgVector,
+		normalizeArray: arrayCompatNormalize(parsePgVector),
 		normalizeParamArray: makePgArray,
 	},
-	inet: {
-		normalizeParamArray: makePgArray,
-	},
-	int4multirange: {
-		normalizeParamArray: makePgArray,
-	},
-	int4range: {
-		normalizeParamArray: makePgArray,
-	},
-	int8multirange: {
-		normalizeParamArray: makePgArray,
-	},
-	int8range: {
-		normalizeParamArray: makePgArray,
-	},
-	lseg: {
-		normalizeParamArray: makePgArray,
-	},
-	macaddr: {
-		normalizeParamArray: makePgArray,
-	},
-	money: {
-		normalizeParamArray: makePgArray,
-	},
-	nummultirange: {
-		normalizeParamArray: makePgArray,
-	},
-	numrange: {
-		normalizeParamArray: makePgArray,
-	},
-	oid: {
-		normalizeParamArray: makePgArray,
-	},
-	path: {
-		normalizeParamArray: makePgArray,
-	},
-	polygon: {
-		normalizeParamArray: makePgArray,
-	},
-	raster: {
-		normalizeParamArray: makePgArray,
-	},
-	regclass: {
-		normalizeParamArray: makePgArray,
-	},
-	regconfig: {
-		normalizeParamArray: makePgArray,
-	},
-	regdictionary: {
-		normalizeParamArray: makePgArray,
-	},
-	regnamespace: {
-		normalizeParamArray: makePgArray,
-	},
-	regoper: {
-		normalizeParamArray: makePgArray,
-	},
-	regoperator: {
-		normalizeParamArray: makePgArray,
-	},
-	regproc: {
-		normalizeParamArray: makePgArray,
-	},
-	regprocedure: {
-		normalizeParamArray: makePgArray,
-	},
-	regrole: {
-		normalizeParamArray: makePgArray,
-	},
-	regtype: {
-		normalizeParamArray: makePgArray,
-	},
-	serial: {
-		normalizeParamArray: makePgArray,
-	},
-	smallint: {
-		normalizeParamArray: makePgArray,
-	},
-	smallserial: {
-		normalizeParamArray: makePgArray,
-	},
-	sparsevec: {
-		normalizeParamArray: makePgArray,
-	},
-	text: {
-		normalizeParamArray: makePgArray,
-	},
-	time: {
-		normalizeParamArray: makePgArray,
-	},
-	timetz: {
-		normalizeParamArray: makePgArray,
-	},
-	tsmultirange: {
-		normalizeParamArray: makePgArray,
-	},
-	tsquery: {
-		normalizeParamArray: makePgArray,
-	},
-	tsrange: {
-		normalizeParamArray: makePgArray,
-	},
-	tstzmultirange: {
-		normalizeParamArray: makePgArray,
-	},
-	tstzrange: {
-		normalizeParamArray: makePgArray,
-	},
-	tsvector: {
-		normalizeParamArray: makePgArray,
-	},
-	varbit: {
-		normalizeParamArray: makePgArray,
-	},
-	varchar: {
-		normalizeParamArray: makePgArray,
-	},
+	inet: { normalizeParamArray: makePgArray },
+	int4multirange: { normalizeParamArray: makePgArray },
+	int4range: { normalizeParamArray: makePgArray },
+	int8multirange: { normalizeParamArray: makePgArray },
+	int8range: { normalizeParamArray: makePgArray },
+	lseg: { normalizeParamArray: makePgArray },
+	macaddr: { normalizeParamArray: makePgArray },
+	money: { normalizeParamArray: makePgArray },
+	nummultirange: { normalizeParamArray: makePgArray },
+	numrange: { normalizeParamArray: makePgArray },
+	oid: { normalizeParamArray: makePgArray },
+	path: { normalizeParamArray: makePgArray },
+	polygon: { normalizeParamArray: makePgArray },
+	raster: { normalizeParamArray: makePgArray },
+	regclass: { normalizeParamArray: makePgArray },
+	regconfig: { normalizeParamArray: makePgArray },
+	regdictionary: { normalizeParamArray: makePgArray },
+	regnamespace: { normalizeParamArray: makePgArray },
+	regoper: { normalizeParamArray: makePgArray },
+	regoperator: { normalizeParamArray: makePgArray },
+	regproc: { normalizeParamArray: makePgArray },
+	regprocedure: { normalizeParamArray: makePgArray },
+	regrole: { normalizeParamArray: makePgArray },
+	regtype: { normalizeParamArray: makePgArray },
+	serial: { normalizeParamArray: makePgArray },
+	smallint: { normalizeParamArray: makePgArray },
+	smallserial: { normalizeParamArray: makePgArray },
+	sparsevec: { normalizeParamArray: makePgArray },
+	text: { normalizeParamArray: makePgArray },
+	time: { normalizeParamArray: makePgArray },
+	timetz: { normalizeParamArray: makePgArray },
+	tsmultirange: { normalizeParamArray: makePgArray },
+	tsquery: { normalizeParamArray: makePgArray },
+	tsrange: { normalizeParamArray: makePgArray },
+	tstzmultirange: { normalizeParamArray: makePgArray },
+	tstzrange: { normalizeParamArray: makePgArray },
+	tsvector: { normalizeParamArray: makePgArray },
+	varbit: { normalizeParamArray: makePgArray },
+	varchar: { normalizeParamArray: makePgArray },
 	vector: {
+		normalize: parsePgVector,
+		normalizeArray: arrayCompatNormalize(parsePgVector),
 		normalizeParamArray: makePgArray,
 	},
-	xml: {
-		normalizeParamArray: makePgArray,
-	},
-	bytea: {
-		normalizeParamArray: makePgArray,
-	},
-	enum: {
-		normalizeParamArray: makePgArray,
-	},
+	xml: { normalizeParamArray: makePgArray },
+	bytea: { normalizeParamArray: makePgArray },
+	enum: { normalizeParamArray: makePgArray },
 	geometry: {
+		normalizeArray: arrayCompatNormalize(parseGeometryXY),
 		normalizeParamArray: makePgArray,
 	},
-	numeric: {
+	'geometry:tuple': {
+		normalizeArray: arrayCompatNormalize(parseGeometryTuple),
 		normalizeParamArray: makePgArray,
 	},
+	numeric: { normalizeParamArray: makePgArray },
+	'numeric:number': { normalizeParamArray: makePgArray },
+	'numeric:bigint': { normalizeParamArray: makePgArray },
 	bigint: {
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
 		normalizeParamArray: makePgArray,
 	},
-	bigserial: {
-		normalizeParamArray: makePgArray,
-	},
-	float4: {
-		normalizeParamArray: makePgArray,
-	},
-	int: {
-		normalizeParamArray: makePgArray,
-	},
-	uuid: {
-		normalizeParamArray: makePgArray,
-	},
+	'bigint:number': { normalizeParamArray: makePgArray },
+	'bigint:string': { normalizeParamArray: makePgArray },
+	bigserial: { normalize: BigInt, normalizeArray: arrayCompatNormalize(BigInt), normalizeParamArray: makePgArray },
+	'bigserial:number': { normalizeParamArray: makePgArray },
+	float4: { normalizeParamArray: makePgArray },
+	int: { normalizeParamArray: makePgArray },
+	uuid: { normalizeParamArray: makePgArray },
 	date: {
+		castArray: castToTextArr,
+		normalize: textToDate,
+		normalizeArray: arrayCompatNormalize(textToDate),
+		normalizeParamArray: makePgArray,
+	},
+	'date:string': {
+		castArray: castToTextArr,
 		normalizeParamArray: makePgArray,
 	},
 	timestamp: {
+		castArray: castToTextArr,
+		normalize: textToDateWithTz,
+		normalizeArray: arrayCompatNormalize(textToDateWithTz),
 		normalizeParamArray: makePgArray,
 	},
 	timestamptz: {
+		castArray: castToTextArr,
+		normalize: textToDate,
+		normalizeArray: arrayCompatNormalize(textToDate),
+		normalizeParamArray: makePgArray,
+	},
+	'timestamp:string': {
+		castArray: castToTextArr,
+		normalizeParamArray: makePgArray,
+	},
+	'timestamptz:string': {
+		castArray: castToTextArr,
 		normalizeParamArray: makePgArray,
 	},
 });

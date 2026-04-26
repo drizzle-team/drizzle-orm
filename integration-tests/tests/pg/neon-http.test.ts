@@ -628,7 +628,7 @@ describe('$withAuth tests', (it) => {
 	it('rqbV2', async () => {
 		await db.$withAuth('rqbV2').query.usersTable.findFirst().catch(() => null);
 
-		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: false, fullResults: true, authToken: 'rqbV2' });
+		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: true, fullResults: true, authToken: 'rqbV2' });
 	});
 
 	it('exec', async () => {

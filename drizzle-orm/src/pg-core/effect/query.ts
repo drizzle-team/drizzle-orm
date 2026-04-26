@@ -38,11 +38,12 @@ export class PgEffectRelationalQuery<TResult, TEffectHKT extends QueryEffectHKTB
 			parseJsonIfString: false,
 			rootJsonMappers: false,
 			selection: query.selection,
+			arrayModeRoot: true,
 		});
 
 		return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
 			builtQuery,
-			'objects',
+			'arrays',
 			name ?? generateName,
 			mapper,
 		);
