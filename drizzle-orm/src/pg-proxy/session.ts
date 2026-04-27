@@ -14,7 +14,6 @@ import type { RemoteCallback } from './driver.ts';
 export interface PgRemoteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
-	useJitMapper?: boolean;
 }
 
 export class PgRemoteSession<

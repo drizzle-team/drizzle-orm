@@ -9,7 +9,7 @@ import { MySqlDatabase } from '~/mysql-core/db.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { Mode } from '~/mysql-core/session.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
 import type { BunMySqlPreparedQueryHKT, BunMySqlQueryResultHKT } from './session.ts';
 import { BunMySqlSession } from './session.ts';
 
@@ -71,7 +71,7 @@ function construct<
 		logger,
 		mode,
 		cache: config.cache,
-		useJitMapper: config.useJitMappers,
+		useJitMappers: jitCompatCheck(config.useJitMappers),
 	});
 	const db = new BunMySqlDatabase(dialect, session, relations, schema as any, mode) as BunMySqlDatabase<
 		TSchema,

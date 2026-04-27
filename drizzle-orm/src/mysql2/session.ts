@@ -71,7 +71,7 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
-		private useJitMapper: boolean | undefined,
+		private useJitMappers: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -157,7 +157,7 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 			return customResultMapper(rows);
 		}
 
-		return this.useJitMapper
+		return this.useJitMappers
 			? (this.jitMapper = this.jitMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number]
 				: T['execute'])[]>
 				?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number]
@@ -211,7 +211,7 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 					throw row;
 				} else {
 					if (this.isRqbV2Query) {
-						if (this.useJitMapper) {
+						if (this.useJitMappers) {
 							yield (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
 								?? makeJitRqbMapper<T['execute']>(this.rqbConfig!))([row as Record<string, unknown>]);
 						} else {
@@ -226,7 +226,7 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 							const mappedRow = (customResultMapper as (rows: unknown[][]) => T['execute'])([row as unknown[]]);
 							yield (Array.isArray(mappedRow) ? mappedRow[0] : mappedRow);
 						} else {
-							yield this.useJitMapper
+							yield this.useJitMappers
 								? (this.jitMapper = this.jitMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number]
 									: T['execute'])[]>
 									?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
@@ -252,7 +252,7 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 export interface MySql2SessionOptions {
 	logger?: Logger;
 	cache?: Cache;
-	useJitMapper?: boolean;
+	useJitMappers?: boolean;
 	mode: Mode;
 }
 
@@ -303,7 +303,7 @@ export class MySql2Session<
 			queryMetadata,
 			cacheConfig,
 			fields,
-			this.options.useJitMapper,
+			this.options.useJitMappers,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -329,7 +329,7 @@ export class MySql2Session<
 			undefined,
 			undefined,
 			fields,
-			this.options.useJitMapper,
+			this.options.useJitMappers,
 			customResultMapper,
 			generatedIds,
 			returningIds,

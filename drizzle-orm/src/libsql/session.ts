@@ -28,7 +28,7 @@ import { makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
 export interface LibSQLSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
-	useJitMapper?: boolean;
+	useJitMappers?: boolean;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -77,7 +77,7 @@ export class LibSQLSession<
 			fields,
 			this.tx,
 			executeMethod,
-			this.options.useJitMapper,
+			this.options.useJitMappers,
 			customResultMapper,
 		);
 	}
@@ -99,7 +99,7 @@ export class LibSQLSession<
 			fields,
 			this.tx,
 			executeMethod,
-			this.options.useJitMapper,
+			this.options.useJitMappers,
 			customResultMapper,
 			true,
 			config,
@@ -232,7 +232,7 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		/** @internal */ public fields: SelectedFieldsOrdered | undefined,
 		private tx: Transaction | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		private useJitMapper: boolean | undefined,
+		private useJitMappers: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 			mapColumnValue?: (value: unknown) => unknown,
@@ -295,7 +295,7 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		}
 
 		if (this.isRqbV2Query) {
-			return this.useJitMapper
+			return this.useJitMappers
 				? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['all']>
 					?? makeJitRqbMapper<T['all']>(this.rqbConfig!, normalizeFieldValue))(rows as Record<string, unknown>[])
 				: (this.customResultMapper as (
@@ -311,7 +311,7 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 			) => unknown)(rows as unknown[][], normalizeFieldValue) as T['all'];
 		}
 
-		return this.useJitMapper
+		return this.useJitMappers
 			? (this.jitMapper = this.jitMapper as RowsMapper<T['all']>
 				?? makeJitQueryMapper<T['all']>(this.fields!, this.joinsNotNullableMap))(
 					(rows as unknown[][]).map((row) => Array.prototype.slice.call(row).map((v) => normalizeFieldValue(v))),
@@ -371,7 +371,7 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		}
 
 		if (this.isRqbV2Query) {
-			return this.useJitMapper
+			return this.useJitMappers
 				? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['get'][]>
 					?? makeJitRqbMapper<T['get'][]>(this.rqbConfig!, normalizeFieldValue))([row as Record<string, unknown>])
 				: (this.customResultMapper as (
@@ -387,7 +387,7 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 			) => unknown)(rows as unknown[][], normalizeFieldValue) as T['get'];
 		}
 
-		return this.useJitMapper
+		return this.useJitMappers
 			? (this.jitMapper = this.jitMapper as RowsMapper<T['get'][]>
 				?? makeJitQueryMapper<T['get'][]>(this.fields!, this.joinsNotNullableMap))(
 					[Array.prototype.slice.call(row).map((v) => normalizeFieldValue(v))],

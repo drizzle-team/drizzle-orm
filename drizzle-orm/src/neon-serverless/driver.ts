@@ -7,6 +7,7 @@ import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import { jitCompatCheck } from '~/utils.ts';
 import { neonServerlessCodecs } from './codecs.ts';
 import type { NeonClient, NeonQueryResultHKT } from './session.ts';
 import { NeonSession } from './session.ts';
@@ -14,7 +15,7 @@ import { NeonSession } from './session.ts';
 export interface NeonDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
-	useJitMapper?: boolean;
+	useJitMappers?: boolean;
 }
 
 export class NeonDatabase<TRelations extends AnyRelations = EmptyRelations>
@@ -33,7 +34,7 @@ function construct<
 	$client: NeonClient extends TClient ? Pool : TClient;
 } {
 	const dialect = new PgDialect({
-		useJitMappers: config.useJitMappers,
+		useJitMappers: jitCompatCheck(config.useJitMappers),
 		codecs: config.codecs ?? neonServerlessCodecs,
 	});
 	let logger;

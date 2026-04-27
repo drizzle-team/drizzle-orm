@@ -9,7 +9,7 @@ import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SingleStoreDatabase } from '~/singlestore-core/db.ts';
 import { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
 import {
 	type SingleStoreRemotePreparedQueryHKT,
 	type SingleStoreRemoteQueryResultHKT,
@@ -60,7 +60,7 @@ export function drizzle<
 	const relations = config.relations ?? {} as TRelations;
 	const session = new SingleStoreRemoteSession(callback, dialect, relations, schema, {
 		logger,
-		useJitMapper: config.useJitMappers,
+		useJitMappers: jitCompatCheck(config.useJitMappers),
 	});
 	return new SingleStoreRemoteDatabase(dialect, session, relations, schema as any) as SingleStoreRemoteDatabase<
 		TSchema,

@@ -47,7 +47,7 @@ export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig, TIs
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
-		private useJitMapper: boolean | undefined,
+		private useJitMappers: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -109,7 +109,7 @@ export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig, TIs
 			return (customResultMapper as (rows: unknown[][]) => T['execute'])(rows);
 		}
 
-		return this.useJitMapper
+		return this.useJitMappers
 			? (this.jitMapper = this.jitMapper as RowsMapper<T['execute']>
 				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(rows)
 			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
@@ -124,7 +124,7 @@ export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig, TIs
 		const res = await client.execute(queryString, params, executeRawConfig) as FullResult;
 
 		const { rows } = res;
-		return this.useJitMapper
+		return this.useJitMappers
 			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
 				?? makeJitRqbMapper<T['execute']>(this.rqbConfig!))((rows ?? []) as Record<string, any>[])
 			: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
@@ -140,7 +140,7 @@ export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig, TIs
 export interface TiDBServerlessSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
-	useJitMapper?: boolean;
+	useJitMappers?: boolean;
 }
 
 export class TiDBServerlessSession<
@@ -195,7 +195,7 @@ export class TiDBServerlessSession<
 			queryMetadata,
 			cacheConfig,
 			fields,
-			this.options.useJitMapper,
+			this.options.useJitMappers,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -219,7 +219,7 @@ export class TiDBServerlessSession<
 			undefined,
 			undefined,
 			fields,
-			this.options.useJitMapper,
+			this.options.useJitMappers,
 			customResultMapper,
 			generatedIds,
 			returningIds,

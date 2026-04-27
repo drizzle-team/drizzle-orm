@@ -11,7 +11,7 @@ import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { Param, type SQL, sql } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
-import type { DrizzleConfig, UpdateSet } from '~/utils.ts';
+import { type DrizzleConfig, jitCompatCheck, type UpdateSet } from '~/utils.ts';
 import { awsDataApiPgCodecs } from './codecs.ts';
 import type { AwsDataApiClient, AwsDataApiPgQueryResultHKT } from './session.ts';
 import { AwsDataApiSession } from './session.ts';
@@ -97,7 +97,7 @@ function construct<TRelations extends AnyRelations = EmptyRelations>(
 	$client: AwsDataApiClient;
 } {
 	const dialect = new AwsPgDialect({
-		useJitMappers: config.useJitMappers,
+		useJitMappers: jitCompatCheck(config.useJitMappers),
 		codecs: config.codecs ?? awsDataApiPgCodecs,
 	});
 	let logger;
