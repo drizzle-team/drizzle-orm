@@ -195,7 +195,8 @@ export function makeJitQueryMapper<TResult>(
 	columns: SelectedFieldsOrdered<AnyColumn>,
 	joinsNotNullableMap: Record<string, boolean> | undefined,
 ): RowsMapper<TResult> {
-	const internals = `\tconst { columns } = this;
+	const internals = `\t"use strict";
+	const { columns } = this;
 	const { length } = rows;
 	const mapped = Array.from({ length });
 	${makeJitQueryMapperInner(columns, joinsNotNullableMap)}

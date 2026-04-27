@@ -71,6 +71,7 @@ const db = createDB({ users, posts }, (r) => ({
 
 test('Jit mappers: simple select', async () => {
 	expect(db.select().from(users).prepare().mapper?.body).toStrictEqual(`function jitQueryMapper (rows) {
+	"use strict";
 	const { columns } = this;
 	const { length } = rows;
 	const mapped = Array.from({ length });
@@ -93,6 +94,7 @@ test('Jit mappers: simple select', async () => {
 test('Jit mappers: select - nothing to decode - text', async () => {
 	expect(db.select({ name: users.name }).from(users).prepare().mapper?.body).toStrictEqual(
 		`function jitQueryMapper (rows) {
+	"use strict";
 	const { columns } = this;
 	const { length } = rows;
 	const mapped = Array.from({ length });
@@ -111,6 +113,7 @@ test('Jit mappers: select - nothing to decode - text', async () => {
 test('Jit mappers: select - nothing to decode - null', async () => {
 	expect(db.select({ isBanned: users.isBanned }).from(users).prepare().mapper?.body).toStrictEqual(
 		`function jitQueryMapper (rows) {
+	"use strict";
 	const { columns } = this;
 	const { length } = rows;
 	const mapped = Array.from({ length });
@@ -151,6 +154,7 @@ test('Jit mappers: insert returning all, select, update returning, delete return
 	const deleted = db.delete(users).returning().prepare().mapper?.body;
 
 	expect(inserted).toStrictEqual(`function jitQueryMapper (rows) {
+	"use strict";
 	const { columns } = this;
 	const { length } = rows;
 	const mapped = Array.from({ length });
@@ -169,6 +173,7 @@ test('Jit mappers: insert returning all, select, update returning, delete return
 	//# sourceURL=drizzle:jit-query-mapper
 }`);
 	expect(selected).toStrictEqual(`function jitQueryMapper (rows) {
+	"use strict";
 	const { columns } = this;
 	const { length } = rows;
 	const mapped = Array.from({ length });
@@ -187,6 +192,7 @@ test('Jit mappers: insert returning all, select, update returning, delete return
 	//# sourceURL=drizzle:jit-query-mapper
 }`);
 	expect(updated).toStrictEqual(`function jitQueryMapper (rows) {
+	"use strict";
 	const { columns } = this;
 	const { length } = rows;
 	const mapped = Array.from({ length });
@@ -205,6 +211,7 @@ test('Jit mappers: insert returning all, select, update returning, delete return
 	//# sourceURL=drizzle:jit-query-mapper
 }`);
 	expect(deleted).toStrictEqual(`function jitQueryMapper (rows) {
+	"use strict";
 	const { columns } = this;
 	const { length } = rows;
 	const mapped = Array.from({ length });
@@ -280,6 +287,7 @@ test('Jit mappers: select complex selections', async () => {
 		.prepare().mapper?.body;
 
 	expect(selected1).toStrictEqual(`function jitQueryMapper (rows) {
+	"use strict";
 	const { columns } = this;
 	const { length } = rows;
 	const mapped = Array.from({ length });
@@ -306,6 +314,7 @@ test('Jit mappers: select complex selections', async () => {
 	//# sourceURL=drizzle:jit-query-mapper
 }`);
 	expect(selected2).toStrictEqual(`function jitQueryMapper (rows) {
+	"use strict";
 	const { columns } = this;
 	const { length } = rows;
 	const mapped = Array.from({ length });
@@ -332,6 +341,7 @@ test('Jit mappers: select complex selections', async () => {
 	//# sourceURL=drizzle:jit-query-mapper
 }`);
 	expect(selected3).toStrictEqual(`function jitQueryMapper (rows) {
+	"use strict";
 	const { columns } = this;
 	const { length } = rows;
 	const mapped = Array.from({ length });
@@ -352,6 +362,7 @@ test('Jit mappers: select complex selections', async () => {
 	//# sourceURL=drizzle:jit-query-mapper
 }`);
 	expect(selected4).toStrictEqual(`function jitQueryMapper (rows) {
+	"use strict";
 	const { columns } = this;
 	const { length } = rows;
 	const mapped = Array.from({ length });
@@ -372,6 +383,7 @@ test('Jit mappers: select complex selections', async () => {
 	//# sourceURL=drizzle:jit-query-mapper
 }`);
 	expect(selected5).toStrictEqual(`function jitQueryMapper (rows) {
+	"use strict";
 	const { columns } = this;
 	const { length } = rows;
 	const mapped = Array.from({ length });
@@ -402,6 +414,7 @@ test('Jit mappers: select complex selections', async () => {
 	//# sourceURL=drizzle:jit-query-mapper
 }`);
 	expect(selected6).toStrictEqual(`function jitQueryMapper (rows) {
+	"use strict";
 	const { columns } = this;
 	const { length } = rows;
 	const mapped = Array.from({ length });
@@ -448,6 +461,7 @@ test('Jit mappers: relational - object mode', async () => {
 	const empty2 = bodyForObjectRoot(db.query.users.findMany(), false);
 
 	expect(empty1).toStrictEqual(`function jitRqbMapper (rows) {
+	"use strict";
 	const { selection } = this;
 	const { codec: codec4 } = selection[0];
 	const { codec: codec5 } = selection[2];
@@ -459,6 +473,7 @@ test('Jit mappers: relational - object mode', async () => {
 	//# sourceURL=drizzle:jit-relational-query-mapper
 }`);
 	expect(empty2).toStrictEqual(`function jitRqbMapper (rows) {
+	"use strict";
 	const { selection } = this;
 	const { codec: codec4 } = selection[0];
 	const { codec: codec5 } = selection[2];
@@ -475,6 +490,7 @@ test('Jit mappers: relational - object mode', async () => {
 	const simple2 = bodyForObjectRoot(db.query.users.findMany(), false);
 
 	expect(simple1).toStrictEqual(`function jitRqbMapper (rows) {
+	"use strict";
 	const { selection } = this;
 	const { codec: codec4 } = selection[0];
 	const { codec: codec5 } = selection[2];
@@ -486,6 +502,7 @@ test('Jit mappers: relational - object mode', async () => {
 	//# sourceURL=drizzle:jit-relational-query-mapper
 }`);
 	expect(simple2).toStrictEqual(`function jitRqbMapper (rows) {
+	"use strict";
 	const { selection } = this;
 	const { codec: codec4 } = selection[0];
 	const { codec: codec5 } = selection[2];
@@ -518,6 +535,7 @@ test('Jit mappers: relational - object mode', async () => {
 	);
 
 	expect(extra1).toStrictEqual(`function jitRqbMapper (rows) {
+	"use strict";
 	const { selection } = this;
 	const { codec: codec6 } = selection[0];
 	const { codec: codec7 } = selection[2];
@@ -531,6 +549,7 @@ test('Jit mappers: relational - object mode', async () => {
 	//# sourceURL=drizzle:jit-relational-query-mapper
 }`);
 	expect(extra2).toStrictEqual(`function jitRqbMapper (rows) {
+	"use strict";
 	const { selection } = this;
 	const { codec: codec6 } = selection[0];
 	const { codec: codec7 } = selection[2];
@@ -661,6 +680,7 @@ test('Jit mappers: relational - object mode', async () => {
 	);
 
 	expect(nested1).toStrictEqual(`function jitRqbMapper (rows) {
+	"use strict";
 	const { selection } = this;
 	const { codec: codec8 } = selection[0];
 	const { codec: codec9 } = selection[2];
@@ -730,6 +750,7 @@ test('Jit mappers: relational - object mode', async () => {
 	//# sourceURL=drizzle:jit-relational-query-mapper
 }`);
 	expect(nested2).toStrictEqual(`function jitRqbMapper (rows) {
+	"use strict";
 	const { selection } = this;
 	const { codec: codec8 } = selection[0];
 	const { codec: codec9 } = selection[2];
@@ -806,6 +827,7 @@ test('Jit mappers: relational - array mode', async () => {
 	const empty2 = db.query.users.findMany().prepare().mapper?.body;
 
 	expect(empty1).toStrictEqual(`function jitRqbMapper (rows) {
+	"use strict";
 	const { selection } = this;
 	const { codec: codec4 } = selection[0];
 	const { codec: codec5 } = selection[2];
@@ -816,6 +838,7 @@ test('Jit mappers: relational - array mode', async () => {
 	//# sourceURL=drizzle:jit-relational-query-mapper
 }`);
 	expect(empty2).toStrictEqual(`function jitRqbMapper (rows) {
+	"use strict";
 	const { selection } = this;
 	const { codec: codec4 } = selection[0];
 	const { codec: codec5 } = selection[2];
@@ -834,6 +857,7 @@ test('Jit mappers: relational - array mode', async () => {
 	const simple2 = db.query.users.findMany().prepare().mapper?.body;
 
 	expect(simple1).toStrictEqual(`function jitRqbMapper (rows) {
+	"use strict";
 	const { selection } = this;
 	const { codec: codec4 } = selection[0];
 	const { codec: codec5 } = selection[2];
@@ -844,6 +868,7 @@ test('Jit mappers: relational - array mode', async () => {
 	//# sourceURL=drizzle:jit-relational-query-mapper
 }`);
 	expect(simple2).toStrictEqual(`function jitRqbMapper (rows) {
+	"use strict";
 	const { selection } = this;
 	const { codec: codec4 } = selection[0];
 	const { codec: codec5 } = selection[2];
@@ -872,6 +897,7 @@ test('Jit mappers: relational - array mode', async () => {
 	}).prepare().mapper?.body;
 
 	expect(extras1).toStrictEqual(`function jitRqbMapper (rows) {
+	"use strict";
 	const { selection } = this;
 	const { codec: codec6 } = selection[0];
 	const { codec: codec7 } = selection[2];
@@ -884,6 +910,7 @@ test('Jit mappers: relational - array mode', async () => {
 	//# sourceURL=drizzle:jit-relational-query-mapper
 }`);
 	expect(extras2).toStrictEqual(`function jitRqbMapper (rows) {
+	"use strict";
 	const { selection } = this;
 	const { codec: codec6 } = selection[0];
 	const { codec: codec7 } = selection[2];
@@ -945,6 +972,7 @@ test('Jit mappers: relational - array mode', async () => {
 	}).prepare().mapper?.body;
 
 	expect(nested1).toStrictEqual(`function jitRqbMapper (rows) {
+	"use strict";
 	const { selection } = this;
 	const { codec: codec6 } = selection[0];
 	const { codec: codec7 } = selection[2];
@@ -981,6 +1009,7 @@ test('Jit mappers: relational - array mode', async () => {
 	//# sourceURL=drizzle:jit-relational-query-mapper
 }`);
 	expect(nested2).toStrictEqual(`function jitRqbMapper (rows) {
+	"use strict";
 	const { selection } = this;
 	const { codec: codec6 } = selection[0];
 	const { codec: codec7 } = selection[2];
