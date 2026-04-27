@@ -11,6 +11,7 @@ import {
 	PgDialect,
 	PgEnum,
 	PgEnumColumn,
+	PgEnumObjectColumn,
 	PgMaterializedView,
 	PgPolicy,
 	PgRole,
@@ -163,7 +164,9 @@ export const generatePgSnapshot = (
 				while (is(column, PgArray)) {
 					column = column.baseColumn;
 				}
-				return is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
+				if (is(column, PgEnumColumn)) return column.enum.schema || 'public';
+				if (is(column, PgEnumObjectColumn)) return column.enum.schema || 'public';
+				return undefined;
 			};
 			const typeSchema: string | undefined = getEnumSchema(column);
 
@@ -754,7 +757,11 @@ export const generatePgSnapshot = (
 				const primaryKey: boolean = column.primary;
 				const sqlTypeLowered = column.getSQLType().toLowerCase();
 
-				const typeSchema = is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
+				const typeSchema = is(column, PgEnumColumn)
+					? column.enum.schema || 'public'
+					: is(column, PgEnumObjectColumn)
+						? column.enum.schema || 'public'
+						: undefined;
 				const generated = column.generated;
 				const identity = column.generatedIdentity;
 
