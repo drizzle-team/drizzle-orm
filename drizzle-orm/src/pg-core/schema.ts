@@ -1,6 +1,7 @@
 import { entityKind, is } from '~/entity.ts';
 import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { NonArray, Writable } from '~/utils.ts';
+import { type PgComposite, type PgCompositeFields, pgCompositeWithSchema } from './columns/composite.ts';
 import { type PgEnum, type PgEnumObject, pgEnumObjectWithSchema, pgEnumWithSchema } from './columns/enum.ts';
 import { type pgSequence, pgSequenceWithSchema } from './sequence.ts';
 import { EnableRLS, type PgTableFn, type PgTableFnInternal, pgTableWithSchema } from './table.ts';
@@ -53,6 +54,13 @@ export class PgSchema<TName extends string = string> implements SQLWrapper {
 				this.schemaName,
 			)
 			: pgEnumObjectWithSchema(enumName, input, this.schemaName);
+	}
+
+	public composite<TFields extends PgCompositeFields>(
+		compositeName: string,
+		fields: TFields,
+	): PgComposite<TFields> {
+		return pgCompositeWithSchema(compositeName, fields, this.schemaName);
 	}
 
 	sequence: typeof pgSequence = ((name, options) => {

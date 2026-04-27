@@ -3,6 +3,7 @@ import { prepareOutFolder } from 'src/utils/utils-node';
 import type {
 	CheckConstraint,
 	Column,
+	Composite,
 	Enum,
 	ForeignKey,
 	Index,
@@ -58,6 +59,7 @@ export const handle = async (
 		ddlCur,
 		resolver<Schema>('schema'),
 		resolver<Enum>('enum'),
+		resolver<Composite>('composite type'),
 		resolver<Sequence>('sequence'),
 		resolver<Policy>('policy'),
 		resolver<Role>('role'),

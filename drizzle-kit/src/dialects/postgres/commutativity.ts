@@ -99,6 +99,11 @@ class PostgresCommutativity extends AbstractCommutativity<
 		'rename_enum',
 		'move_enum',
 		'alter_type_drop_value',
+		'create_composite_type',
+		'drop_composite_type',
+		'rename_composite_type',
+		'move_composite_type',
+		'recreate_composite_type',
 		'create_sequence',
 		'drop_sequence',
 		'alter_sequence',
@@ -149,6 +154,11 @@ class PostgresCommutativity extends AbstractCommutativity<
 		'recreate_enum',
 		'move_enum',
 		'alter_type_drop_value',
+		'create_composite_type',
+		'drop_composite_type',
+		'rename_composite_type',
+		'move_composite_type',
+		'recreate_composite_type',
 		'create_sequence',
 		'drop_sequence',
 		'rename_sequence',
@@ -452,6 +462,73 @@ class PostgresCommutativity extends AbstractCommutativity<
 				conflicts: ['drop_enum', 'alter_enum', 'alter_type_drop_value'],
 				buildInfo: (statement) => ({
 					primary: makeTarget(statement.enum.schema, statement.enum.name),
+					ancestors: [],
+				}),
+			},
+
+			// Composite type operations
+			create_composite_type: {
+				conflicts: [
+					'create_composite_type',
+					'drop_composite_type',
+					'rename_composite_type',
+					'move_composite_type',
+					'recreate_composite_type',
+				],
+				buildInfo: (statement) => ({
+					primary: makeTarget(statement.composite.schema, statement.composite.name),
+					ancestors: [],
+				}),
+			},
+			drop_composite_type: {
+				conflicts: [
+					'create_composite_type',
+					'drop_composite_type',
+					'rename_composite_type',
+					'move_composite_type',
+					'recreate_composite_type',
+				],
+				buildInfo: (statement) => ({
+					primary: makeTarget(statement.composite.schema, statement.composite.name),
+					ancestors: [],
+				}),
+			},
+			rename_composite_type: {
+				conflicts: [
+					'create_composite_type',
+					'drop_composite_type',
+					'rename_composite_type',
+					'move_composite_type',
+					'recreate_composite_type',
+				],
+				buildInfo: (statement) => ({
+					primary: makeTarget(statement.schema, statement.from),
+					ancestors: [],
+				}),
+			},
+			move_composite_type: {
+				conflicts: [
+					'create_composite_type',
+					'drop_composite_type',
+					'rename_composite_type',
+					'move_composite_type',
+					'recreate_composite_type',
+				],
+				buildInfo: (statement) => ({
+					primary: makeTarget(statement.from.schema || 'public', statement.from.name),
+					ancestors: [],
+				}),
+			},
+			recreate_composite_type: {
+				conflicts: [
+					'create_composite_type',
+					'drop_composite_type',
+					'rename_composite_type',
+					'move_composite_type',
+					'recreate_composite_type',
+				],
+				buildInfo: (statement) => ({
+					primary: makeTarget(statement.to.schema, statement.to.name),
 					ancestors: [],
 				}),
 			},

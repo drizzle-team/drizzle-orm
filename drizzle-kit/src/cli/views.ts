@@ -1002,6 +1002,14 @@ export const postgresSchemaError = (error: PostgresSchemaError): string => {
 		);
 	}
 
+	if (error.type === 'composite_name_duplicate') {
+		const { name, schema } = error;
+		const compositeName = chalk.underline.blue(`'${schema}'.'${name}'`);
+		return withStyle.errorWarning(
+			`There's a duplicate composite type name ${compositeName}`,
+		);
+	}
+
 	assertUnreachable(error);
 };
 
@@ -1426,6 +1434,7 @@ export class ResolveSelect<T extends EntityBase> extends Prompt<
 		private readonly entityType:
 			| 'schema'
 			| 'enum'
+			| 'composite type'
 			| 'table'
 			| 'column'
 			| 'sequence'

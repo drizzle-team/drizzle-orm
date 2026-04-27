@@ -10,6 +10,7 @@ import { fromJson } from './convertor';
 import type {
 	CheckConstraint,
 	Column,
+	Composite,
 	DiffEntities,
 	Enum,
 	ForeignKey,
@@ -50,6 +51,7 @@ export const ddlDiffDry = async (ddlFrom: PostgresDDL, ddlTo: PostgresDDL, mode:
 		mockResolver(mocks),
 		mockResolver(mocks),
 		mockResolver(mocks),
+		mockResolver(mocks),
 		mode,
 	);
 };
@@ -59,6 +61,7 @@ export const ddlDiff = async (
 	ddl2: PostgresDDL,
 	schemasResolver: Resolver<Schema>,
 	enumsResolver: Resolver<Enum>,
+	compositesResolver: Resolver<Composite>,
 	sequencesResolver: Resolver<Sequence>,
 	policyResolver: Resolver<Policy>,
 	roleResolver: Resolver<Role>,
@@ -150,6 +153,62 @@ export const ddlDiff = async (
 	}
 	for (const move of movedEnums) {
 		ddl1.enums.update({
+			set: {
+				schema: move.to.schema,
+			},
+			where: {
+				name: move.from.name,
+				schema: move.from.schema,
+			},
+		});
+		ddl1.columns.update({
+			set: {
+				typeSchema: move.to.schema,
+			},
+			where: {
+				type: move.from.name,
+				typeSchema: move.from.schema,
+			},
+		});
+	}
+
+	const compositesDiff = diff(ddl1, ddl2, 'composites');
+	const {
+		created: createdComposites,
+		deleted: deletedComposites,
+		renamedOrMoved: renamedOrMovedComposites,
+	} = await compositesResolver({
+		created: compositesDiff.filter((it) => it.$diffType === 'create'),
+		deleted: compositesDiff.filter((it) => it.$diffType === 'drop'),
+	});
+
+	const renamedComposites = renamedOrMovedComposites.filter((it) => it.from.name !== it.to.name);
+	const movedComposites = renamedOrMovedComposites.filter((it) => it.from.schema !== it.to.schema);
+
+	for (const rename of renamedComposites) {
+		ddl1.composites.update({
+			set: {
+				name: rename.to.name,
+				schema: rename.to.schema,
+			},
+			where: {
+				name: rename.from.name,
+				schema: rename.from.schema,
+			},
+		});
+		ddl1.columns.update({
+			set: {
+				type: rename.to.name,
+				typeSchema: rename.to.schema,
+			},
+			where: {
+				type: rename.from.name,
+				typeSchema: rename.from.schema,
+			},
+		});
+	}
+	for (const move of movedComposites) {
+		ddl1.composites.update({
 			set: {
 				schema: move.to.schema,
 			},
@@ -1007,6 +1066,33 @@ export const ddlDiff = async (
 			to: it.to.name,
 		})
 	);
+	const jsonCreateComposites = createdComposites.map((it) =>
+		prepareStatement('create_composite_type', { composite: it })
+	);
+	const jsonDropComposites = deletedComposites.map((it) => prepareStatement('drop_composite_type', { composite: it }));
+	const jsonMoveComposites = movedComposites.map((it) => prepareStatement('move_composite_type', it));
+	const jsonRenameComposites = renamedComposites.map((it) =>
+		prepareStatement('rename_composite_type', {
+			schema: it.to.schema,
+			from: it.from.name,
+			to: it.to.name,
+		})
+	);
+
+	const compositesAlters = alters.filter((it) => it.entityType === 'composites');
+	const recreateComposites = [] as Extract<JsonStatement, { type: 'recreate_composite_type' }>[];
+	for (const alter of compositesAlters) {
+		const to = alter.$right as Composite;
+		const from = alter.$left as Composite;
+		// PR 1 has no field-level ALTER TYPE diffing — any field change recreates the type.
+		const dependentColumns = ddl1.columns.list({ typeSchema: to.schema, type: to.name });
+		recreateComposites.push(prepareStatement('recreate_composite_type', {
+			to,
+			from,
+			columns: dependentColumns,
+		}));
+	}
+
 	const enumsAlters = alters.filter((it) => it.entityType === 'enums');
 
 	const recreateEnums = [] as Extract<JsonStatement, { type: 'recreate_enum' }>[];
@@ -1213,6 +1299,10 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonRenameEnums);
 	jsonStatements.push(...jsonAlterEnums);
 
+	jsonStatements.push(...jsonCreateComposites);
+	jsonStatements.push(...jsonMoveComposites);
+	jsonStatements.push(...jsonRenameComposites);
+
 	jsonStatements.push(...createSequences);
 	jsonStatements.push(...moveSequences);
 	jsonStatements.push(...renameSequences);
@@ -1258,6 +1348,7 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonAddPrimaryKeys);
 	jsonStatements.push(...jsonRenamePrimaryKey);
 	jsonStatements.push(...recreateEnums);
+	jsonStatements.push(...recreateComposites);
 	jsonStatements.push(...jsonRecreateColumns);
 
 	jsonStatements.push(...jsonDropColumnsStatemets);
@@ -1284,6 +1375,7 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonCreatePoliciesStatements);
 	jsonStatements.push(...jsonAlterOrRecreatePoliciesStatements);
 
+	jsonStatements.push(...jsonDropComposites);
 	jsonStatements.push(...jsonDropEnums);
 	jsonStatements.push(...dropSequences);
 	jsonStatements.push(...dropSchemas);
@@ -1293,6 +1385,7 @@ export const ddlDiff = async (
 	const renames = prepareMigrationRenames([
 		...renameSchemas,
 		...renamedEnums,
+		...renamedComposites,
 		...renamedOrMovedTables,
 		...columnRenames,
 		...uniqueRenames,

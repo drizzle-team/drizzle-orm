@@ -50,6 +50,7 @@ export type ColumnDataNumberConstraint =
 
 export type ColumnDataObjectConstraint =
 	| 'buffer'
+	| 'composite'
 	| 'date'
 	| 'geometry'
 	| 'json'

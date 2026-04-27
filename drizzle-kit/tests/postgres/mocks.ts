@@ -1,10 +1,12 @@
 import { is } from 'drizzle-orm';
 import {
+	isPgComposite,
 	isPgEnum,
 	isPgMaterializedView,
 	isPgSequence,
 	isPgView,
 	PgColumnBuilder,
+	PgComposite,
 	PgDialect,
 	PgEnum,
 	PgEnumObject,
@@ -130,13 +132,24 @@ export const drizzleToDDL = (
 	const tables = Object.values(schema).filter((it) => is(it, PgTable)) as PgTable[];
 	const schemas = Object.values(schema).filter((it) => is(it, PgSchema)) as PgSchema[];
 	const enums = Object.values(schema).filter((it) => isPgEnum(it)) as PgEnum<any>[];
+	const composites = Object.values(schema).filter((it) => isPgComposite(it)) as PgComposite<any>[];
 	const sequences = Object.values(schema).filter((it) => isPgSequence(it)) as PgSequence[];
 	const roles = Object.values(schema).filter((it) => is(it, PgRole)) as PgRole[];
 	const policies = Object.values(schema).filter((it) => is(it, PgPolicy)) as PgPolicy[];
 	const views = Object.values(schema).filter((it) => isPgView(it)) as PgView[];
 	const materializedViews = Object.values(schema).filter((it) => isPgMaterializedView(it)) as PgMaterializedView[];
 
-	const grouped = { schemas, tables, enums, sequences, roles, policies, views, matViews: materializedViews };
+	const grouped = {
+		schemas,
+		tables,
+		enums,
+		composites,
+		sequences,
+		roles,
+		policies,
+		views,
+		matViews: materializedViews,
+	};
 
 	const existing = extractPostgresExisting(schemas, views, materializedViews);
 	const filter = prepareEntityFilter('postgresql', filtersConfig, existing);
@@ -177,6 +190,7 @@ export const diff = async (
 	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
+		mockResolver(renames),
 		mockResolver(renames),
 		mockResolver(renames),
 		mockResolver(renames),
@@ -276,6 +290,7 @@ export const push = async (config: {
 		mockResolver(renames),
 		mockResolver(renames),
 		mockResolver(renames),
+		mockResolver(renames),
 		'push',
 	);
 
@@ -307,6 +322,7 @@ export const push = async (config: {
 			const { sqlStatements, statements } = await ddlDiff(
 				ddl1,
 				ddl2,
+				mockResolver(renames),
 				mockResolver(renames),
 				mockResolver(renames),
 				mockResolver(renames),

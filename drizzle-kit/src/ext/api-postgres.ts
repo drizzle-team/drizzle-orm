@@ -9,6 +9,7 @@ import type { PostgresCredentials } from '../cli/validations/postgres';
 import type {
 	CheckConstraint,
 	Column,
+	Composite,
 	Enum,
 	ForeignKey,
 	Index,
@@ -91,6 +92,7 @@ export const generateMigration = async (
 		to,
 		resolver<Schema>('schema'),
 		resolver<Enum>('enum'),
+		resolver<Composite>('composite type'),
 		resolver<Sequence>('sequence'),
 		resolver<Policy>('policy'),
 		resolver<Role>('role'),
@@ -166,6 +168,7 @@ export const pushSchema = async (
 		to,
 		resolver<Schema>('schema'),
 		resolver<Enum>('enum'),
+		resolver<Composite>('composite type'),
 		resolver<Sequence>('sequence'),
 		resolver<Policy>('policy'),
 		resolver<Role>('role'),

@@ -9,6 +9,7 @@ import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import type {
 	CheckConstraint,
 	Column,
+	Composite,
 	Enum,
 	ForeignKey,
 	Index,
@@ -97,6 +98,7 @@ export const handle = async (
 			ddl2,
 			resolver<Schema>('schema'),
 			resolver<Enum>('enum'),
+			resolver<Composite>('composite type'),
 			resolver<Sequence>('sequence'),
 			resolver<Policy>('policy'),
 			resolver<Role>('role'),

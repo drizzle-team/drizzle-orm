@@ -5,6 +5,7 @@ export * from './bytea.ts';
 export * from './char.ts';
 export * from './cidr.ts';
 export * from './common.ts';
+export * from './composite.ts';
 export * from './custom.ts';
 export * from './date.ts';
 export * from './double-precision.ts';

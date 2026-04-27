@@ -158,6 +158,7 @@ const fromInterims = ({
 		views: vws,
 		viewColumns,
 		enums,
+		composites: [],
 		sequences,
 		roles,
 		privileges,
@@ -183,6 +184,7 @@ export const diffPostgresql = async (from: InterimStudioSchema, to: InterimStudi
 		mockResolver(renames),
 		mockResolver(renames),
 		mockResolver(renames),
+		mockResolver(renames), // composites
 		mockResolver(renames), // views
 		mockResolver(renames), // uniques
 		mockResolver(renames), // indexes

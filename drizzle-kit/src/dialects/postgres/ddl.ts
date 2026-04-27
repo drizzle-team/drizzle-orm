@@ -10,6 +10,16 @@ export const createDDL = () => {
 			schema: 'required',
 			values: 'string[]',
 		},
+		composites: {
+			schema: 'required',
+			fields: [{
+				name: 'string',
+				type: 'string',
+				typeSchema: 'string?',
+				dimensions: 'number',
+				notNull: 'boolean',
+			}],
+		},
 		columns: {
 			schema: 'required',
 			table: 'required',
@@ -165,6 +175,8 @@ export type DiffEntities = PostgresDDL['_']['diffs']['alter'];
 
 export type Schema = PostgresEntities['schemas'];
 export type Enum = PostgresEntities['enums'];
+export type Composite = PostgresEntities['composites'];
+export type CompositeField = Composite['fields'][number];
 export type Sequence = PostgresEntities['sequences'];
 export type Column = PostgresEntities['columns'];
 export type Identity = Column['identity'];
@@ -220,6 +232,7 @@ export type InterimIndex = Index & {
 export interface InterimSchema {
 	schemas: Schema[];
 	enums: Enum[];
+	composites: Composite[];
 	tables: PostgresEntities['tables'][];
 	columns: InterimColumn[];
 	indexes: InterimIndex[];
@@ -289,6 +302,12 @@ interface SchemaDuplicate {
 
 interface EnumDuplicate {
 	type: 'enum_name_duplicate';
+	name: string;
+	schema: string;
+}
+
+interface CompositeDuplicate {
+	type: 'composite_name_duplicate';
 	name: string;
 	schema: string;
 }
@@ -372,6 +391,7 @@ export type SchemaError =
 	| EnumValuesDuplicate
 	| SchemaDuplicate
 	| EnumDuplicate
+	| CompositeDuplicate
 	| TableDuplicate
 	| ColumnDuplicate
 	| ViewDuplicate
@@ -427,6 +447,17 @@ export const interimToDDL = (
 		if (res.status === 'CONFLICT') {
 			errors.push({
 				type: 'enum_name_duplicate',
+				schema: it.schema,
+				name: it.name,
+			});
+		}
+	}
+
+	for (const it of schema.composites) {
+		const res = ddl.composites.push(it);
+		if (res.status === 'CONFLICT') {
+			errors.push({
+				type: 'composite_name_duplicate',
 				schema: it.schema,
 				name: it.name,
 			});
