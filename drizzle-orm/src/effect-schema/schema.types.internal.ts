@@ -1,5 +1,5 @@
 import type { Schema as s } from 'effect';
-import type { Schema, Struct, Top as SchemaTop, UndefinedOr } from 'effect/Schema';
+import type { Struct, Top as SchemaTop, UndefinedOr } from 'effect/Schema';
 import type { Column } from '~/column.ts';
 import type { SelectedFieldsFlat } from '~/operations.ts';
 import type { View } from '~/sql/sql.ts';
@@ -30,8 +30,7 @@ type HandleRefinement<
 	TRefinement,
 	TColumn extends Column,
 > = TRefinement extends (((schema: any) => infer R extends SchemaTop)) ? (TColumn['_']['notNull'] extends true ? R
-		: (s.NullOr<R>)) extends infer TSchema extends SchemaTop
-		? TType extends 'update' ? s.optional<UndefinedOr<TSchema>>
+		: (s.NullOr<R>)) extends infer TSchema extends SchemaTop ? TType extends 'update' ? s.optional<UndefinedOr<TSchema>>
 		: TSchema
 	: typeof s.Any
 	: TRefinement;
@@ -40,8 +39,8 @@ type IsRefinementDefined<
 	TRefinements extends Record<string | symbol | number, any> | undefined,
 	TKey extends string | symbol | number,
 > = TRefinements extends object
-	? TRefinements[TKey] extends
-		SchemaTop | s.optional<SchemaTop> | s.optionalKey<SchemaTop> | ((schema: any) => any) ? true
+	? TRefinements[TKey] extends SchemaTop | s.optional<SchemaTop> | s.optionalKey<SchemaTop> | ((schema: any) => any)
+		? true
 	: false
 	: false;
 

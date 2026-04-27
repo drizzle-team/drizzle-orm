@@ -4,8 +4,7 @@
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
-		"p": "prisma generate --schema src/prisma/schema.prisma",
-		"build": "pnpm p && bun --bun run scripts/build.ts",
+		"build": "bun --bun run scripts/build.ts",
 		"build:artifact": "pnpm build",
 		"b": "pnpm build",
 		"test:types": "cd type-tests && tsc",
@@ -55,7 +54,6 @@
 		"@libsql/client": ">=0.10.0",
 		"@libsql/client-wasm": ">=0.10.0",
 		"@neondatabase/serverless": ">=0.10.0",
-		"@netlify/db": ">=0.4.0",
 		"@op-engineering/op-sqlite": ">=2",
 		"@opentelemetry/api": "^1.4.1",
 		"@planetscale/database": ">=1.13",
@@ -76,7 +74,6 @@
 		"better-sqlite3": ">=9.3.0",
 		"bun-types": "*",
 		"expo-sqlite": ">=14.0.0",
-		"gel": ">=2",
 		"mssql": "^11.0.1",
 		"mysql2": ">=2",
 		"pg": ">=8",
@@ -136,9 +133,6 @@
 		"@neondatabase/serverless": {
 			"optional": true
 		},
-		"@netlify/db": {
-			"optional": true
-		},
 		"bun-types": {
 			"optional": true
 		},
@@ -158,9 +152,6 @@
 			"optional": true
 		},
 		"expo-sqlite": {
-			"optional": true
-		},
-		"gel": {
 			"optional": true
 		},
 		"@op-engineering/op-sqlite": {
@@ -217,7 +208,6 @@
 		"@libsql/client-wasm": "^0.10.0",
 		"@miniflare/d1": "^2.14.4",
 		"@neondatabase/serverless": "^0.10.0",
-		"@netlify/db": "^0.4.0",
 		"@op-engineering/op-sqlite": "^2.0.16",
 		"@opentelemetry/api": "^1.4.1",
 		"@originjs/vite-plugin-commonjs": "^1.0.3",
@@ -243,12 +233,10 @@
 		"cpy": "^10.1.0",
 		"effect": "4.0.0-beta.31",
 		"expo-sqlite": "^14.0.0",
-		"gel": "^2.0.0",
 		"glob": "^11.0.1",
 		"mysql2": "^3.14.1",
 		"pg": "^8.11.0",
 		"postgres": "^3.3.5",
-		"prisma": "5.14.0",
 		"react": "^18.2.0",
 		"sql.js": "^1.8.0",
 		"sqlite3": "^5.1.2",

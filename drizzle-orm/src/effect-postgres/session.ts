@@ -1,21 +1,18 @@
 import type { PgClient } from '@effect/sql-pg/PgClient';
 import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/unstable/sql/SqlError';
-import type * as V1 from '~/_relations.ts';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
-import { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
+import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectPreparedQuery, PgEffectSession, PgEffectTransaction } from '~/pg-core/effect/session.ts';
-import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
-import type { Query, SQL } from '~/sql/sql.ts';
-import { fillPlaceholders } from '~/sql/sql.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import type { Query } from '~/sql/sql.ts';
+import type { Assume } from '~/utils.ts';
 
 export interface EffectPgQueryEffectHKT extends QueryEffectHKTBase {
 	readonly error: EffectDrizzleQueryError;
@@ -26,215 +23,69 @@ export interface EffectPgQueryResultHKT extends PgQueryResultHKT {
 	type: readonly Assume<this['row'], object>[];
 }
 
-export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends boolean = false>
-	extends PgEffectPreparedQuery<T, EffectPgQueryEffectHKT>
-{
-	static override readonly [entityKind]: string = 'EffectPgPreparedQuery';
-
-	constructor(
-		private client: PgClient,
-		query: Query,
-		private logger: EffectLoggerShape,
-		cache: EffectCacheShape,
-		queryMetadata: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		} | undefined,
-		cacheConfig: WithCacheConfig | undefined,
-		private fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		private _isResponseInArrayMode: boolean,
-		private customResultMapper?: (
-			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
-		) => T['execute'],
-		private isRqbV2Query?: TIsRqbV2,
-	) {
-		super(query, cache, queryMetadata, cacheConfig);
-	}
-
-	override execute(placeholderValues?: Record<string, unknown>) {
-		return Effect.gen({ self: this }, function*() {
-			if (this.isRqbV2Query) return yield* this.executeRqbV2(placeholderValues);
-
-			const { query, customResultMapper, fields, joinsNotNullableMap, client, logger } = this;
-			const params = fillPlaceholders(query.params, placeholderValues ?? {});
-			yield* logger.logQuery(query.sql, params);
-
-			if (!fields && !customResultMapper) {
-				return yield* this.queryWithCache<T['execute'], SqlError, never>(
-					query.sql,
-					params,
-					this.client.unsafe(query.sql, params as any).withoutTransform,
-				);
-			}
-
-			return yield* this.queryWithCache(
-				query.sql,
-				params,
-				client.unsafe(query.sql, params as any).values,
-			).pipe(Effect.map(
-				(rows) => {
-					if (customResultMapper) {
-						return (customResultMapper as (rows: unknown[][]) => T['execute'])(rows as unknown[][]);
-					}
-
-					return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap)) as T['execute'];
-				},
-			));
-		});
-	}
-
-	private executeRqbV2(
-		placeholderValues?: Record<string, unknown>,
-	) {
-		return Effect.gen({ self: this }, function*() {
-			const { query, customResultMapper, client, logger } = this;
-			const params = fillPlaceholders(query.params, placeholderValues ?? {});
-
-			yield* logger.logQuery(query.sql, params);
-			return yield* client.unsafe(query.sql, params as any).withoutTransform.pipe(
-				Effect.flatMap((v) =>
-					Effect.try({
-						try: () =>
-							(customResultMapper as (
-								rows: Record<string, unknown>[],
-								mapColumnValue?: (value: unknown) => unknown,
-							) => T['execute'])(v as Record<string, unknown>[]),
-						catch: (e) => e,
-					})
-				),
-				Effect.catch((e) => Effect.fail(new EffectDrizzleQueryError({ query: query.sql, params, cause: e }))),
-			);
-		});
-	}
-
-	override all(placeholderValues?: Record<string, unknown>) {
-		return Effect.gen({ self: this }, function*() {
-			const { query, client, logger } = this;
-			const params = fillPlaceholders(query.params, placeholderValues ?? {});
-
-			yield* logger.logQuery(query.sql, params);
-
-			return yield* this.queryWithCache<T['all'], SqlError, never>(
-				query.sql,
-				params,
-				client.unsafe(query.sql, params as any).withoutTransform,
-			);
-		});
-	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
-	}
+export interface EffectPgSessionOptions {
+	logger: EffectLoggerShape;
+	cache: EffectCacheShape;
+	useJitMappers?: boolean;
 }
 
 export class EffectPgSession<
 	TQueryResult extends PgQueryResultHKT,
-	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends PgEffectSession<EffectPgQueryEffectHKT, TQueryResult, TFullSchema, TRelations, TSchema> {
+> extends PgEffectSession<EffectPgQueryEffectHKT, TQueryResult, TRelations> {
 	static override readonly [entityKind]: string = 'EffectPgSession';
 
 	constructor(
 		private client: PgClient,
 		dialect: PgDialect,
 		protected relations: TRelations,
-		protected schema: V1.RelationalSchemaConfig<TSchema> | undefined,
-		private logger: EffectLoggerShape,
-		private cache: EffectCacheShape,
+		private options: EffectPgSessionOptions,
 	) {
 		super(dialect);
 	}
 
 	override prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		isResponseInArrayMode: boolean,
-		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
+		mode: 'arrays' | 'objects' | 'raw',
+		_name: string | boolean,
+		mapper?: (rows: any[]) => any,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): EffectPgPreparedQuery<T, false> {
-		return new EffectPgPreparedQuery(
-			this.client,
+	): PgEffectPreparedQuery<T, EffectPgQueryEffectHKT> {
+		const executor = (params?: unknown[]) => {
+			const q = this.client.unsafe(query.sql, params);
+
+			if (mode === 'arrays') return q.values;
+			return q.withoutTransform;
+		};
+
+		return new PgEffectPreparedQuery<T, EffectPgQueryEffectHKT>(
+			executor,
 			query,
-			this.logger,
-			this.cache,
+			mapper,
+			mode,
+			this.options.logger,
+			this.options.cache,
 			queryMetadata,
 			cacheConfig,
-			fields,
-			name,
-			isResponseInArrayMode,
-			customResultMapper,
-			false,
 		);
-	}
-
-	override prepareRelationalQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
-		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		customResultMapper: (
-			rows: Record<string, unknown>[],
-			mapColumnValue?: (value: unknown) => unknown,
-		) => T['execute'],
-	): EffectPgPreparedQuery<T, true> {
-		return new EffectPgPreparedQuery<T, true>(
-			this.client,
-			query,
-			this.logger,
-			this.cache,
-			undefined,
-			undefined,
-			fields,
-			name,
-			false,
-			customResultMapper,
-			true,
-		);
-	}
-
-	override execute<T>(query: SQL) {
-		return this.prepareQuery<PreparedQueryConfig & { execute: T }>(
-			this.dialect.sqlToQuery(query),
-			undefined,
-			undefined,
-			false,
-		).execute();
-	}
-
-	override all<T>(query: SQL) {
-		return this.prepareQuery<PreparedQueryConfig & { all: T }>(
-			this.dialect.sqlToQuery(query),
-			undefined,
-			undefined,
-			false,
-		).all();
 	}
 
 	override transaction<A, E, R>(
 		transaction: (
-			tx: EffectPgTransaction<
-				TQueryResult,
-				TFullSchema,
-				TRelations,
-				TSchema
-			>,
+			tx: EffectPgTransaction<TQueryResult, TRelations>,
 		) => Effect.Effect<A, E, R>,
 	): Effect.Effect<A, E | SqlError, R> {
-		const { dialect, relations, schema } = this;
+		const { dialect, relations } = this;
 
 		return this.client.withTransaction(Effect.gen({ self: this }, function*() {
-			const tx = new EffectPgTransaction<TQueryResult, TFullSchema, TRelations, TSchema>(
+			const tx = new EffectPgTransaction<TQueryResult, TRelations>(
 				dialect,
 				this,
 				relations,
-				schema,
 			);
 
 			return yield* transaction(tx);
@@ -244,9 +95,13 @@ export class EffectPgSession<
 
 export class EffectPgTransaction<
 	TQueryResult extends PgQueryResultHKT,
-	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends PgEffectTransaction<EffectPgQueryEffectHKT, TQueryResult, TFullSchema, TRelations, TSchema> {
+> extends PgEffectTransaction<EffectPgQueryEffectHKT, TQueryResult, TRelations> {
 	static override readonly [entityKind]: string = 'EffectPgTransaction';
+
+	override transaction: <A, E, R>(
+		transaction: (
+			tx: PgEffectTransaction<EffectPgQueryEffectHKT, TQueryResult, TRelations>,
+		) => Effect.Effect<A, E, R>,
+	) => Effect.Effect<A, SqlError | E, R> = (tx) => this.session.transaction(tx);
 }

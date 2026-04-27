@@ -5,13 +5,14 @@ import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MsSqlDatabase } from '~/mssql-core/db.ts';
 import { MsSqlDialect } from '~/mssql-core/dialect.ts';
-import type { DrizzleConfig, Equal } from '~/utils.ts';
+import { type DrizzleConfig, type Equal, jitCompatCheck } from '~/utils.ts';
 import { AutoPool } from './pool.ts';
 import type { NodeMsSqlClient, NodeMsSqlPreparedQueryHKT, NodeMsSqlQueryResultHKT } from './session.ts';
 import { NodeMsSqlSession } from './session.ts';
 
 export interface MsSqlDriverOptions {
 	logger?: Logger;
+	useJitMappers?: boolean;
 }
 
 export class NodeMsSqlDriver {
@@ -27,7 +28,10 @@ export class NodeMsSqlDriver {
 	createSession(
 		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
 	): NodeMsSqlSession<Record<string, unknown>, V1.TablesRelationalConfig> {
-		return new NodeMsSqlSession(this.client, this.dialect, schema, { logger: this.options.logger });
+		return new NodeMsSqlSession(this.client, this.dialect, schema, {
+			logger: this.options.logger,
+			useJitMappers: this.options.useJitMappers,
+		});
 	}
 }
 
@@ -50,7 +54,7 @@ function construct<
 ): NodeMsSqlDatabase<TSchema> & {
 	$client: Equal<TClient, NodeMsSqlClient> extends true ? AutoPool : TClient;
 } {
-	const dialect = new MsSqlDialect({ casing: config.casing });
+	const dialect = new MsSqlDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -74,7 +78,10 @@ function construct<
 		};
 	}
 
-	const driver = new NodeMsSqlDriver(client as NodeMsSqlClient, dialect, { logger });
+	const driver = new NodeMsSqlDriver(client as NodeMsSqlClient, dialect, {
+		logger,
+		useJitMappers: jitCompatCheck(config.useJitMappers),
+	});
 	const session = driver.createSession(schema);
 	const db = new MsSqlDatabase(dialect, session, schema) as NodeMsSqlDatabase<TSchema>;
 	(<any> db).$client = client;

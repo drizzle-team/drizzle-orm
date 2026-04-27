@@ -33,7 +33,7 @@ const upgradeFunctions: Record<
 
 			// 1. Read all existing DB migrations
 			// Sort them by ids asc (order how they were applied)
-			const dbRows = yield* session.all<{ id: number; hash: string; created_at: string }>(
+			const dbRows = yield* session.objects<{ id: number; hash: string; created_at: string }>(
 				sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
 			);
 
@@ -131,7 +131,7 @@ export const upgradeIfNeeded: <TEffectHKT extends QueryEffectHKTBase>(
 		localMigrations: MigrationMeta[],
 	) {
 		// Check if the table exists at all
-		const result = yield* session.all(
+		const result = yield* session.objects(
 			sql`SELECT 1 FROM information_schema.tables
 			WHERE table_schema = ${migrationsSchema}
 			AND table_name = ${migrationsTable}`,
@@ -142,7 +142,7 @@ export const upgradeIfNeeded: <TEffectHKT extends QueryEffectHKTBase>(
 		}
 
 		// Table exists, check table shape
-		const rows = yield* session.all<{ schema: string; table_name: string; column_name: string; type: string }>(
+		const rows = yield* session.objects<{ schema: string; table_name: string; column_name: string; type: string }>(
 			sql`SELECT
 			n.nspname AS "schema",
 			c.relname AS "table_name",

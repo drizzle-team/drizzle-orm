@@ -5,7 +5,7 @@ import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
 import { SQLiteCloudSession } from './session.ts';
 
 export type SQLiteCloudRunResult = unknown;
@@ -34,7 +34,7 @@ export function construct<
 ): SQLiteCloudDatabase<TSchema, TRelations> & {
 	$client: Database;
 } {
-	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
+	const dialect = new SQLiteAsyncDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -61,7 +61,7 @@ export function construct<
 		dialect,
 		relations,
 		schema,
-		{ logger, cache: config.cache },
+		{ logger, cache: config.cache, useJitMappers: jitCompatCheck(config.useJitMappers) },
 	);
 	const db = new SQLiteCloudDatabase(
 		'async',

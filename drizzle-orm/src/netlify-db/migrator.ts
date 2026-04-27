@@ -7,8 +7,8 @@ import type { AnyRelations } from '~/relations.ts';
 import { NodePgDatabase } from '../node-postgres/driver.ts';
 import type { NetlifyDbDatabase } from './driver.ts';
 
-export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: NetlifyDbDatabase<TSchema, TRelations> | NodePgDatabase<TSchema, TRelations>,
+export async function migrate<TRelations extends AnyRelations>(
+	db: NetlifyDbDatabase<TRelations> | NodePgDatabase<TRelations>,
 	config: MigrationConfig,
 ) {
 	if (is(db, NodePgDatabase)) {

@@ -43,9 +43,9 @@ export class MsSqlTimeString<T extends ColumnBaseConfig<'string time'>> extends 
 		return `time${precision}`;
 	}
 
-	override mapFromDriverValue(value: Date | string | null): string | null {
+	override mapFromDriverValue = (value: Date | string | null): string | null => {
 		return typeof value === 'string' ? value : value?.toISOString().split('T')[1]?.split('Z')[0] ?? null;
-	}
+	};
 }
 
 export class MsSqlTimeBuilder extends MsSqlColumnBuilder<

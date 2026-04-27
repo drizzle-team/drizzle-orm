@@ -4,7 +4,7 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError, DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations, RelationalQueryMapperConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
@@ -199,9 +199,6 @@ export abstract class SQLitePreparedQuery<T extends PreparedQueryConfig> impleme
 			}
 		}
 	}
-
-	/** @internal */
-	abstract isResponseInArrayMode(): boolean;
 }
 
 export interface SQLiteTransactionConfig {
@@ -228,7 +225,6 @@ export abstract class SQLiteSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -241,7 +237,6 @@ export abstract class SQLiteSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -253,7 +248,6 @@ export abstract class SQLiteSession<
 			query,
 			fields,
 			executeMethod,
-			isResponseInArrayMode,
 			customResultMapper,
 			queryMetadata,
 			cacheConfig,
@@ -265,6 +259,7 @@ export abstract class SQLiteSession<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		customResultMapper: (rows: Record<string, unknown>[], mapColumnValue?: (value: unknown) => unknown) => unknown,
+		config: RelationalQueryMapperConfig,
 	): SQLitePreparedQuery<PreparedQueryConfig & { type: TResultKind }>;
 
 	prepareOneTimeRelationalQuery(
@@ -272,8 +267,9 @@ export abstract class SQLiteSession<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		customResultMapper: (rows: Record<string, unknown>[], mapColumnValue?: (value: unknown) => unknown) => unknown,
+		config: RelationalQueryMapperConfig,
 	): SQLitePreparedQuery<PreparedQueryConfig & { type: TResultKind }> {
-		return this.prepareRelationalQuery(query, fields, executeMethod, customResultMapper);
+		return this.prepareRelationalQuery(query, fields, executeMethod, customResultMapper, config);
 	}
 
 	abstract transaction<T>(
@@ -286,7 +282,7 @@ export abstract class SQLiteSession<
 	run(query: SQL): Result<TResultKind, TRunResult> {
 		const staticQuery = this.dialect.sqlToQuery(query);
 		try {
-			return this.prepareOneTimeQuery(staticQuery, undefined, 'run', false).run() as Result<TResultKind, TRunResult>;
+			return this.prepareOneTimeQuery(staticQuery, undefined, 'run').run() as Result<TResultKind, TRunResult>;
 		} catch (err) {
 			throw new DrizzleError({ cause: err, message: `Failed to run the query '${staticQuery.sql}'` });
 		}
@@ -298,7 +294,7 @@ export abstract class SQLiteSession<
 	}
 
 	all<T = unknown>(query: SQL): Result<TResultKind, T[]> {
-		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run', false).all() as Result<
+		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run').all() as Result<
 			TResultKind,
 			T[]
 		>;
@@ -310,7 +306,7 @@ export abstract class SQLiteSession<
 	}
 
 	get<T = unknown>(query: SQL): Result<TResultKind, T> {
-		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run', false).get() as Result<
+		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run').get() as Result<
 			TResultKind,
 			T
 		>;
@@ -324,7 +320,7 @@ export abstract class SQLiteSession<
 	values<T extends any[] = unknown[]>(
 		query: SQL,
 	): Result<TResultKind, T[]> {
-		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run', false).values() as Result<
+		return this.prepareOneTimeQuery(this.dialect.sqlToQuery(query), undefined, 'run').values() as Result<
 			TResultKind,
 			T[]
 		>;

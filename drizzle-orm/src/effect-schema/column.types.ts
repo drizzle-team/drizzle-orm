@@ -1,5 +1,5 @@
 import type { Schema as s } from 'effect';
-import type { $Array, Literals, NullOr, optional, Schema, Struct, Top as SchemaTop, Tuple, UndefinedOr } from 'effect/Schema';
+import type { $Array, Literals, NullOr, optional, Struct, Top as SchemaTop, Tuple, UndefinedOr } from 'effect/Schema';
 import type { ColumnTypeData, ExtractColumnTypeData } from '~/column-builder.ts';
 import type { Column } from '~/column.ts';
 import type { Assume } from '~/utils.ts';

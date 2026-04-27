@@ -29,13 +29,12 @@ export const handle = async (
 	config: GenerateConfig,
 	checkResult?: CheckHandlerResult,
 ) => {
-	const { out: outFolder, filenames, casing } = config;
+	const { out: outFolder, filenames } = config;
 
 	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(
 		snapshots,
 		filenames,
-		casing,
 		checkResult,
 	);
 
@@ -92,7 +91,6 @@ export const handleExport = async (config: ExportConfig) => {
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
 	const { schema, errors, warnings } = fromDrizzleSchema(
 		res,
-		config.casing,
 		() => true,
 	);
 	if (warnings.length > 0) {

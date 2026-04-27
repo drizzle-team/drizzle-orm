@@ -125,7 +125,6 @@ export class PgRelationalQuery<THKT extends PgRelationalQueryHKTBase, TResult> i
 		});
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this._getQuery().sql;
 	}

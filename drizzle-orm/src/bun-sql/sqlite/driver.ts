@@ -7,7 +7,7 @@ import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
 import type { BunSQLiteRunResult } from './session.ts';
 import { BunSQLiteSession } from './session.ts';
 
@@ -27,7 +27,7 @@ function construct<
 ): BunSQLiteDatabase<TSchema, TRelations> & {
 	$client: SQL;
 } {
-	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
+	const dialect = new SQLiteAsyncDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -49,7 +49,11 @@ function construct<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const session = new BunSQLiteSession(client, dialect, relations, schema, { logger, cache: config.cache });
+	const session = new BunSQLiteSession(client, dialect, relations, schema, {
+		logger,
+		cache: config.cache,
+		useJitMappers: jitCompatCheck(config.useJitMappers),
+	});
 	const db = new BunSQLiteDatabase('async', dialect, session, relations, schema as any) as BunSQLiteDatabase<
 		TSchema,
 		TRelations

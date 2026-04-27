@@ -5,7 +5,7 @@ import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
 import { OPSQLiteSession } from './session.ts';
 
 export class OPSQLiteDatabase<
@@ -24,7 +24,7 @@ export function drizzle<
 ): OPSQLiteDatabase<TSchema, TRelations> & {
 	$client: OPSQLiteConnection;
 } {
-	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
+	const dialect = new SQLiteAsyncDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -46,7 +46,11 @@ export function drizzle<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const session = new OPSQLiteSession(client, dialect, relations, schema, { logger, cache: config.cache });
+	const session = new OPSQLiteSession(client, dialect, relations, schema, {
+		logger,
+		cache: config.cache,
+		useJitMappers: jitCompatCheck(config.useJitMappers),
+	});
 	const db = new OPSQLiteDatabase(
 		'async',
 		dialect,

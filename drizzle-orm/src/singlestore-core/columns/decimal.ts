@@ -38,12 +38,12 @@ export class SingleStoreDecimal<T extends ColumnBaseConfig<'string numeric' | 's
 	readonly scale: number | undefined = this.config.scale;
 	readonly unsigned: boolean | undefined = this.config.unsigned;
 
-	override mapFromDriverValue(value: unknown): string {
+	override mapFromDriverValue = (value: unknown): string => {
 		// For RQBv2
 		if (typeof value === 'string') return value;
 
 		return String(value);
-	}
+	};
 
 	getSQLType(): string {
 		let type = '';
@@ -93,11 +93,11 @@ export class SingleStoreDecimalNumber<T extends ColumnBaseConfig<'number' | 'num
 	readonly scale: number | undefined = this.config.scale;
 	readonly unsigned: boolean | undefined = this.config.unsigned;
 
-	override mapFromDriverValue(value: unknown): number {
+	override mapFromDriverValue = (value: unknown): number => {
 		if (typeof value === 'number') return value;
 
 		return Number(value);
-	}
+	};
 
 	override mapToDriverValue = String;
 

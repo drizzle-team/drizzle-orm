@@ -17,9 +17,14 @@ import {
 	MySqlSession,
 	MySqlTransaction,
 } from '~/mysql-core/session.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeJitRqbMapper,
+	type RelationalQueryMapperConfig,
+	type RelationalRowsMapper,
+} from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { type Assume, makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
 
 const executeRawConfig = { fullResult: true } satisfies ExecuteOptions;
 const queryConfig = { arrayMode: true } satisfies ExecuteOptions;
@@ -28,10 +33,12 @@ export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig, TIs
 	extends MySqlPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'TiDBPreparedQuery';
+	private jitMapper?: RowsMapper<T['execute']> | RelationalRowsMapper<T['execute']>;
 
 	constructor(
 		private client: Tx | Connection,
-		query: Query,
+		private queryString: string,
+		private params: unknown[],
 		private logger: Logger,
 		cache: Cache,
 		queryMetadata: {
@@ -40,6 +47,7 @@ export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig, TIs
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
+		private useJitMappers: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -48,21 +56,22 @@ export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig, TIs
 		// Keys that should be returned, it has the column with all properries + key from object
 		private returningIds?: SelectedFieldsOrdered,
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
-		super(query, cache, queryMetadata, cacheConfig);
+		super(cache, queryMetadata, cacheConfig);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
 
-		const params = fillPlaceholders(this.query.params, placeholderValues);
+		const params = fillPlaceholders(this.params, placeholderValues);
 
-		this.logger.logQuery(this.query.sql, params);
+		this.logger.logQuery(this.queryString, params);
 
-		const { fields, client, query, joinsNotNullableMap, customResultMapper, returningIds, generatedIds } = this;
+		const { fields, client, queryString, joinsNotNullableMap, customResultMapper, returningIds, generatedIds } = this;
 		if (!fields && !customResultMapper) {
-			const res = await this.queryWithCache(query.sql, params, async () => {
-				return await client.execute(query.sql, params, executeRawConfig) as FullResult;
+			const res = await this.queryWithCache(queryString, params, async () => {
+				return await client.execute(queryString, params, executeRawConfig) as FullResult;
 			});
 			const insertId = res.lastInsertId ?? 0;
 			const affectedRows = res.rowsAffected ?? 0;
@@ -92,54 +101,35 @@ export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig, TIs
 			return res;
 		}
 
-		const rows = await this.queryWithCache(query.sql, params, async () => {
-			return await client.execute(query.sql, params, queryConfig) as unknown[][];
+		const rows = await this.queryWithCache(queryString, params, async () => {
+			return await client.execute(queryString, params, queryConfig) as unknown[][];
 		});
 
 		if (customResultMapper) {
 			return (customResultMapper as (rows: unknown[][]) => T['execute'])(rows);
 		}
 
-		return rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+		return this.useJitMappers
+			? (this.jitMapper = this.jitMapper as RowsMapper<T['execute']>
+				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(rows)
+			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		const params = fillPlaceholders(this.query.params, placeholderValues);
+		const params = fillPlaceholders(this.params, placeholderValues);
 
-		this.logger.logQuery(this.query.sql, params);
+		this.logger.logQuery(this.queryString, params);
 
-		const { client, query, customResultMapper, returningIds, generatedIds } = this;
-		const res = await client.execute(query.sql, params, executeRawConfig) as FullResult;
-		const insertId = res.lastInsertId ?? 0;
-		const affectedRows = res.rowsAffected ?? 0;
-		// for each row, I need to check keys from
-		if (returningIds) {
-			const returningResponse = [];
-			let j = 0;
-			for (let i = insertId; i < insertId + affectedRows; i++) {
-				for (const column of returningIds) {
-					const key = returningIds[0]!.path[0]!;
-					if (is(column.field, Column)) {
-						// @ts-ignore
-						if (column.field.primary && column.field.autoIncrement) {
-							returningResponse.push({ [key]: i });
-						}
-						if (column.field.defaultFn && generatedIds) {
-							// generatedIds[rowIdx][key]
-							returningResponse.push({ [key]: generatedIds[j]![key] });
-						}
-					}
-				}
-				j++;
-			}
-
-			return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(returningResponse);
-		}
+		const { client, queryString, customResultMapper } = this;
+		const res = await client.execute(queryString, params, executeRawConfig) as FullResult;
 
 		const { rows } = res;
-		return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
-			(rows ?? []) as Record<string, any>[],
-		);
+		return this.useJitMappers
+			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
+				?? makeJitRqbMapper<T['execute']>(this.rqbConfig!))((rows ?? []) as Record<string, any>[])
+			: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
+				(rows ?? []) as Record<string, any>[],
+			);
 	}
 
 	override iterator(_placeholderValues?: Record<string, unknown>): AsyncGenerator<T['iterator']> {
@@ -150,6 +140,7 @@ export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig, TIs
 export interface TiDBServerlessSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMappers?: boolean;
 }
 
 export class TiDBServerlessSession<
@@ -197,12 +188,14 @@ export class TiDBServerlessSession<
 	): MySqlPreparedQuery<T> {
 		return new TiDBServerlessPreparedQuery(
 			this.client,
-			query,
+			query.sql,
+			query.params,
 			this.logger,
 			this.cache,
 			queryMetadata,
 			cacheConfig,
 			fields,
+			this.options.useJitMappers,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -213,21 +206,25 @@ export class TiDBServerlessSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		config: RelationalQueryMapperConfig,
 		generatedIds?: Record<string, unknown>[],
 		returningIds?: SelectedFieldsOrdered,
 	): MySqlPreparedQuery<T> {
 		return new TiDBServerlessPreparedQuery(
 			this.client,
-			query,
+			query.sql,
+			query.params,
 			this.logger,
 			this.cache,
 			undefined,
 			undefined,
 			fields,
+			this.options.useJitMappers,
 			customResultMapper,
 			generatedIds,
 			returningIds,
 			true,
+			config,
 		);
 	}
 

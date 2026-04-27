@@ -13,7 +13,7 @@ import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SingleStoreDatabase } from '~/singlestore-core/db.ts';
 import { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
 import { npmVersion } from '~/version.ts';
 import type {
 	SingleStoreDriverClient,
@@ -25,6 +25,7 @@ import { SingleStoreDriverSession } from './session.ts';
 export interface SingleStoreDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMappers?: boolean;
 }
 
 export class SingleStoreDriverDriver {
@@ -43,6 +44,7 @@ export class SingleStoreDriverDriver {
 	): SingleStoreDriverSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig> {
 		return new SingleStoreDriverSession(this.client, this.dialect, relations, schema, {
 			logger: this.options.logger,
+			useJitMappers: this.options.useJitMappers ?? false,
 			cache: this.options.cache,
 		});
 	}
@@ -74,7 +76,7 @@ function construct<
 ): SingleStoreDriverDatabase<TSchema, TRelations> & {
 	$client: AnySingleStoreDriverConnection extends TClient ? CallbackPool : TClient;
 } {
-	const dialect = new SingleStoreDialect({ casing: config.casing });
+	const dialect = new SingleStoreDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -101,6 +103,7 @@ function construct<
 	const driver = new SingleStoreDriverDriver(clientForInstance as SingleStoreDriverClient, dialect, {
 		logger,
 		cache: config.cache,
+		useJitMappers: jitCompatCheck(config.useJitMappers),
 	});
 	const session = driver.createSession(schema, relations);
 	const db = new SingleStoreDriverDatabase(dialect, session, relations, schema as any) as SingleStoreDriverDatabase<

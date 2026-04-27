@@ -5,12 +5,13 @@ import { CockroachDialect } from '~/cockroach-core/dialect.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
 import type { NodeCockroachClient, NodeCockroachQueryResultHKT } from './session.ts';
 import { NodeCockroachSession } from './session.ts';
 
 export interface CockroachDriverOptions {
 	logger?: Logger;
+	useJitMappers?: boolean;
 }
 
 export class NodeCockroachDriver {
@@ -26,7 +27,10 @@ export class NodeCockroachDriver {
 	createSession(
 		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
 	): NodeCockroachSession<Record<string, unknown>, V1.TablesRelationalConfig> {
-		return new NodeCockroachSession(this.client, this.dialect, schema, { logger: this.options.logger });
+		return new NodeCockroachSession(this.client, this.dialect, schema, {
+			logger: this.options.logger,
+			useJitMappers: this.options.useJitMappers,
+		});
 	}
 }
 
@@ -45,7 +49,7 @@ function construct<
 ): NodeCockroachDatabase<TSchema> & {
 	$client: TClient;
 } {
-	const dialect = new CockroachDialect({ casing: config.casing });
+	const dialect = new CockroachDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -66,7 +70,10 @@ function construct<
 		};
 	}
 
-	const driver = new NodeCockroachDriver(client, dialect, { logger });
+	const driver = new NodeCockroachDriver(client, dialect, {
+		logger,
+		useJitMappers: jitCompatCheck(config.useJitMappers),
+	});
 	const session = driver.createSession(schema);
 	const db = new NodeCockroachDatabase(dialect, session, schema as any) as NodeCockroachDatabase<TSchema>;
 	(<any> db).$client = client;

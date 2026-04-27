@@ -1,6 +1,6 @@
 import type { PgClient } from '@effect/sql-pg/PgClient';
-import type { SqlError } from 'effect/unstable/sql/SqlError';
 import type * as Effect from 'effect/Effect';
+import type { SqlError } from 'effect/unstable/sql/SqlError';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import type { EffectDrizzleQueryError, MigratorInitError } from '~/effect-core/errors.ts';
@@ -21,7 +21,7 @@ type AsEffect<T> = T extends Effect.Yieldable<infer Self, any, any, any> ? Self 
 	Expect<
 		Equal<
 			DbEffect,
-			Effect.Effect<EffectPgDatabase<Record<string, never>, EmptyRelations> & { $client: PgClient }, never, PgClient>
+			Effect.Effect<EffectPgDatabase<EmptyRelations> & { $client: PgClient }, never, PgClient>
 		>
 	>;
 }
@@ -34,7 +34,7 @@ type AsEffect<T> = T extends Effect.Yieldable<infer Self, any, any, any> ? Self 
 		Equal<
 			DbEffect,
 			Effect.Effect<
-				EffectPgDatabase<Record<string, never>, EmptyRelations> & { $client: PgClient },
+				EffectPgDatabase<EmptyRelations> & { $client: PgClient },
 				never,
 				import('~/effect-core/logger.ts').EffectLogger | import('~/cache/core/cache-effect.ts').EffectCache | PgClient
 			>
