@@ -1202,7 +1202,8 @@ export function makeJitRqbMapper<T = unknown>(
 	);
 
 	const lines: string[] = [];
-	lines.push(`\tconst { selection${mapColumnValue ? `, mapColumnValue` : ''} } = this;`);
+	lines.push(`\t"use strict";
+	const { selection${mapColumnValue ? `, mapColumnValue` : ''} } = this;`);
 	for (const p of preFn) lines.push(`\t${p}`);
 
 	if (arrayModeRoot) {
