@@ -5,6 +5,7 @@ import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import { jitCompatCheck } from '~/utils.ts';
 import { nodePgCodecs } from './codecs.ts';
 import type { NodePgClient, NodePgQueryResultHKT } from './session.ts';
 import { NodePgSession } from './session.ts';
@@ -25,7 +26,7 @@ function construct<
 	$client: NodePgClient extends TClient ? Pool : TClient;
 } {
 	const dialect = new PgDialect({
-		useJitMappers: config.useJitMappers,
+		useJitMappers: jitCompatCheck(config.useJitMappers),
 		codecs: config.codecs ?? nodePgCodecs,
 	});
 	let logger;

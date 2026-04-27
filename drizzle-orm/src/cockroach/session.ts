@@ -34,7 +34,7 @@ export class NodeCockroachPreparedQuery<T extends PreparedQueryConfig> extends C
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		private useJitMapper: boolean | undefined,
+		private useJitMappers: boolean | undefined,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super({ sql: queryString, params });
@@ -160,7 +160,7 @@ export class NodeCockroachPreparedQuery<T extends PreparedQueryConfig> extends C
 					return (customResultMapper as (rows: unknown[][]) => unknown)(result.rows);
 				}
 
-				return this.useJitMapper
+				return this.useJitMappers
 					? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(result.rows)
 					: result.rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 			});
@@ -185,7 +185,7 @@ export class NodeCockroachPreparedQuery<T extends PreparedQueryConfig> extends C
 
 export interface NodeCockroachSessionOptions {
 	logger?: Logger;
-	useJitMapper?: boolean;
+	useJitMappers?: boolean;
 }
 
 export class NodeCockroachSession<
@@ -219,7 +219,7 @@ export class NodeCockroachSession<
 			this.logger,
 			fields,
 			name,
-			this.options.useJitMapper,
+			this.options.useJitMappers,
 			customResultMapper,
 		);
 	}

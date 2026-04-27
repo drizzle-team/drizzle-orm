@@ -23,7 +23,7 @@ import { type DrizzleTypeError, makeJitQueryMapper, mapResultRow, type RowsMappe
 
 export interface SQLJsSessionOptions {
 	logger?: Logger;
-	useJitMapper?: boolean;
+	useJitMappers?: boolean;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -59,7 +59,7 @@ export class SQLJsSession<
 			this.logger,
 			fields,
 			executeMethod,
-			this.options.useJitMapper,
+			this.options.useJitMappers,
 		);
 	}
 
@@ -76,7 +76,7 @@ export class SQLJsSession<
 			this.logger,
 			fields,
 			executeMethod,
-			this.options.useJitMapper,
+			this.options.useJitMappers,
 			customResultMapper,
 			true,
 			config,
@@ -148,7 +148,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		private useJitMapper: boolean | undefined,
+		private useJitMappers: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 			mapColumnValue?: (value: unknown) => unknown,
@@ -199,7 +199,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 			) => unknown)(rows, normalizeFieldValue) as T['all'];
 		}
 
-		return this.useJitMapper
+		return this.useJitMappers
 			? (this.jitMapper = this.jitMapper as RowsMapper<T['all']>
 				?? makeJitQueryMapper<T['all']>(fields!, joinsNotNullableMap))(rows)
 			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
@@ -219,7 +219,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 
 		stmt.free();
 
-		return this.useJitMapper
+		return this.useJitMappers
 			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['all']>
 				?? makeJitRqbMapper<T['all']>(this.rqbConfig!))(rows)
 			: (customResultMapper as (
@@ -259,7 +259,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 			) => unknown)([row], normalizeFieldValue) as T['get'];
 		}
 
-		return this.useJitMapper
+		return this.useJitMappers
 			? (this.jitMapper = this.jitMapper as RowsMapper<T['get'][]>
 				?? makeJitQueryMapper<T['get'][]>(fields!, joinsNotNullableMap))(
 					[row],
@@ -292,7 +292,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 		}
 		if (!nonUndef) return undefined;
 
-		return this.useJitMapper
+		return this.useJitMappers
 			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['get'][]>
 				?? makeJitRqbMapper<T['get'][]>(this.rqbConfig!))([row])
 			: (customResultMapper as (

@@ -70,7 +70,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
-		private useJitMapper: boolean | undefined,
+		private useJitMappers: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -156,7 +156,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 			return customResultMapper(rows);
 		}
 
-		return this.useJitMapper
+		return this.useJitMappers
 			? (this.jitMapper =
 				this.jitMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
 					?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
@@ -212,7 +212,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 					throw row;
 				} else {
 					if (this.isRqbV2Query) {
-						if (this.useJitMapper) {
+						if (this.useJitMappers) {
 							yield (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
 								?? makeJitRqbMapper<T['execute']>(this.rqbConfig!))([row as Record<string, unknown>]);
 						} else {
@@ -227,7 +227,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 							const mappedRow = (customResultMapper as (rows: unknown[][]) => T['execute'])([row as unknown[]]);
 							yield (Array.isArray(mappedRow) ? mappedRow[0] : mappedRow);
 						} else {
-							yield this.useJitMapper
+							yield this.useJitMappers
 								? (this.jitMapper = this.jitMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number]
 									: T['execute'])[]>
 									?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
@@ -253,7 +253,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 export interface SingleStoreDriverSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
-	useJitMapper?: boolean;
+	useJitMappers?: boolean;
 }
 
 export class SingleStoreDriverSession<
@@ -307,7 +307,7 @@ export class SingleStoreDriverSession<
 			queryMetadata,
 			cacheConfig,
 			fields,
-			this.options.useJitMapper,
+			this.options.useJitMappers,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -333,7 +333,7 @@ export class SingleStoreDriverSession<
 			undefined,
 			undefined,
 			fields,
-			this.options.useJitMapper,
+			this.options.useJitMappers,
 			customResultMapper,
 			generatedIds,
 			returningIds,

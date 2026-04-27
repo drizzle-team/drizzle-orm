@@ -27,7 +27,7 @@ import { type DrizzleTypeError, makeJitQueryMapper, mapResultRow, type RowsMappe
 export interface BetterSQLiteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
-	useJitMapper?: boolean;
+	useJitMappers?: boolean;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -75,7 +75,7 @@ export class BetterSQLiteSession<
 			cacheConfig,
 			fields,
 			executeMethod,
-			this.options.useJitMapper,
+			this.options.useJitMappers,
 			customResultMapper,
 		);
 	}
@@ -97,7 +97,7 @@ export class BetterSQLiteSession<
 			undefined,
 			fields,
 			executeMethod,
-			this.options.useJitMapper,
+			this.options.useJitMappers,
 			customResultMapper,
 			true,
 			config,
@@ -168,7 +168,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		private useJitMapper: boolean | undefined,
+		private useJitMappers: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => unknown,
@@ -199,7 +199,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 			return (customResultMapper as (rows: unknown[][]) => unknown)(rows) as T['all'];
 		}
 
-		return this.useJitMapper
+		return this.useJitMappers
 			? (this.jitMapper = this.jitMapper as RowsMapper
 				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(rows)
 			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
@@ -226,7 +226,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 			return (customResultMapper as (rows: unknown[][]) => unknown)([row]) as T['get'];
 		}
 
-		return this.useJitMapper
+		return this.useJitMappers
 			? (this.jitMapper = this.jitMapper as RowsMapper
 				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(
 					[row],
@@ -242,7 +242,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 
 		const rows = stmt.all(...params) as Record<string, unknown>[];
 
-		return this.useJitMapper
+		return this.useJitMappers
 			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['all']>
 				?? makeJitRqbMapper<T['all']>(this.rqbConfig!))(rows)
 			: (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(
@@ -259,7 +259,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 		const row = stmt.get(...params) as Record<string, unknown>;
 		if (row === undefined) return row;
 
-		return this.useJitMapper
+		return this.useJitMappers
 			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['get'][]>
 				?? makeJitRqbMapper<T['get'][]>(this.rqbConfig!))([row])
 			: (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(

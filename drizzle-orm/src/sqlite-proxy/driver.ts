@@ -5,7 +5,7 @@ import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
 import { SQLiteRemoteSession } from './session.ts';
 
 export interface SqliteRemoteResult<T = unknown> {
@@ -109,7 +109,7 @@ export function drizzle<
 	const session = new SQLiteRemoteSession(callback, dialect, relations, schema, _batchCallback, {
 		logger,
 		cache,
-		useJitMapper: config?.useJitMappers,
+		useJitMappers: jitCompatCheck(_config.useJitMappers),
 	});
 	const db = new SqliteRemoteDatabase(
 		'async',

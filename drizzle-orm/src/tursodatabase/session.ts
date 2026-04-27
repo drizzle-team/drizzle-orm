@@ -29,7 +29,7 @@ import type { TursoDatabaseRunResult } from './driver-core.ts';
 export interface TursoDatabaseSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
-	useJitMapper?: boolean;
+	useJitMappers?: boolean;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -78,7 +78,7 @@ export class TursoDatabaseSession<
 			cacheConfig,
 			fields,
 			executeMethod,
-			this.options.useJitMapper,
+			this.options.useJitMappers,
 			customResultMapper,
 		);
 	}
@@ -101,7 +101,7 @@ export class TursoDatabaseSession<
 			undefined,
 			fields,
 			executeMethod,
-			this.options.useJitMapper,
+			this.options.useJitMappers,
 			customResultMapper,
 			true,
 			config,
@@ -238,7 +238,7 @@ export class TursoDatabasePreparedQuery<
 		cacheConfig: WithCacheConfig | undefined,
 		/** @internal */ public fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		private useJitMapper: boolean | undefined,
+		private useJitMappers: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 			mapColumnValue?: (value: unknown) => unknown,
@@ -272,7 +272,7 @@ export class TursoDatabasePreparedQuery<
 
 		const rows = await this.values(placeholderValues) as unknown[][];
 
-		return this.useJitMapper
+		return this.useJitMappers
 			? (this.jitMapper = this.jitMapper as RowsMapper<T['all']>
 				?? makeJitQueryMapper<T['all']>(fields!, joinsNotNullableMap))(rows)
 			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
@@ -286,7 +286,7 @@ export class TursoDatabasePreparedQuery<
 
 		const rows = await (params.length ? stmt.raw(false).all(...params) : stmt.raw(false).all());
 
-		return this.useJitMapper
+		return this.useJitMappers
 			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['all']>
 				?? makeJitRqbMapper<T['all']>(this.rqbConfig!))(rows)
 			: (customResultMapper as (
@@ -314,7 +314,7 @@ export class TursoDatabasePreparedQuery<
 
 		if (row === undefined) return row;
 
-		return this.useJitMapper
+		return this.useJitMappers
 			? (this.jitMapper = this.jitMapper as RowsMapper<T['get'][]>
 				?? makeJitQueryMapper<T['get'][]>(fields!, joinsNotNullableMap))(
 					[row],
@@ -332,7 +332,7 @@ export class TursoDatabasePreparedQuery<
 
 		if (row === undefined) return row;
 
-		return this.useJitMapper
+		return this.useJitMappers
 			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['get'][]>
 				?? makeJitRqbMapper<T['get'][]>(this.rqbConfig!))([row])
 			: (customResultMapper as (

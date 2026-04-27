@@ -5,6 +5,7 @@ import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import { jitCompatCheck } from '~/utils.ts';
 import { pgliteCodecs } from './codecs.ts';
 import type { PgliteClient, PgliteQueryResultHKT } from './session.ts';
 import { PgliteSession } from './session.ts';
@@ -22,7 +23,7 @@ function construct<TRelations extends AnyRelations = EmptyRelations>(
 	$client: PgliteClient;
 } {
 	const dialect = new PgDialect({
-		useJitMappers: config.useJitMappers,
+		useJitMappers: jitCompatCheck(config.useJitMappers),
 		codecs: config.codecs ?? pgliteCodecs,
 	});
 	let logger;

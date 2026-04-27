@@ -10,7 +10,7 @@ import type { PgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { isConfig } from '~/utils.ts';
+import { isConfig, jitCompatCheck } from '~/utils.ts';
 import { netlifyDbCodecs, netlifyDbTransactionCodecs } from './codecs.ts';
 import { type NetlifyDbClient, NetlifyDbSession } from './session.ts';
 
@@ -74,7 +74,7 @@ function construct<
 } {
 	const dialect = new PgDialect({
 		codecs: config.codecs ?? netlifyDbCodecs,
-		useJitMappers: config.useJitMappers,
+		useJitMappers: jitCompatCheck(config.useJitMappers),
 	});
 
 	let logger;

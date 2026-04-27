@@ -33,7 +33,7 @@ export type MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]];
 export interface MySqlRemoteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
-	useJitMapper?: boolean;
+	useJitMappers?: boolean;
 }
 
 export class MySqlRemoteSession<
@@ -85,7 +85,7 @@ export class MySqlRemoteSession<
 			queryMetadata,
 			cacheConfig,
 			fields,
-			this.options.useJitMapper,
+			this.options.useJitMappers,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -109,7 +109,7 @@ export class MySqlRemoteSession<
 			undefined,
 			undefined,
 			fields,
-			this.options.useJitMapper,
+			this.options.useJitMappers,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -170,7 +170,7 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends 
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
-		private useJitMapper: boolean | undefined,
+		private useJitMappers: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -236,7 +236,7 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends 
 			return customResultMapper(rows);
 		}
 
-		return this.useJitMapper
+		return this.useJitMappers
 			? (this.jitMapper = this.jitMapper as RowsMapper<T['execute']>
 				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(rows)
 			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
@@ -252,7 +252,7 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends 
 		const { rows: res } = await client(queryString, params, 'execute');
 		const rows = res[0];
 
-		return this.useJitMapper
+		return this.useJitMappers
 			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
 				?? makeJitRqbMapper<T['execute']>(this.rqbConfig!))(rows)
 			: customResultMapper!(rows);

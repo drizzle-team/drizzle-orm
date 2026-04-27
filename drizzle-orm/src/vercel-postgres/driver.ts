@@ -5,7 +5,7 @@ import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { isConfig } from '~/utils.ts';
+import { isConfig, jitCompatCheck } from '~/utils.ts';
 import { vercelPgCodecs } from './codecs.ts';
 import { type VercelPgClient, type VercelPgQueryResultHKT, VercelPgSession } from './session.ts';
 
@@ -22,7 +22,7 @@ function construct<TRelations extends AnyRelations = EmptyRelations>(
 	$client: VercelPgClient;
 } {
 	const dialect = new PgDialect({
-		useJitMappers: config.useJitMappers,
+		useJitMappers: jitCompatCheck(config.useJitMappers),
 		codecs: config.codecs ?? vercelPgCodecs,
 	});
 	let logger;

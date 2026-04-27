@@ -7,6 +7,7 @@ import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import { jitCompatCheck } from '~/utils.ts';
 import { bunSqlPgCodecs } from './codecs.ts';
 import type { BunSQLQueryResultHKT } from './session.ts';
 import { BunSQLSession } from './session.ts';
@@ -27,7 +28,7 @@ function construct<
 } {
 	client.options.bigint = true;
 	const dialect = new PgDialect({
-		useJitMappers: config.useJitMappers,
+		useJitMappers: jitCompatCheck(config.useJitMappers),
 		codecs: config.codecs ?? bunSqlPgCodecs,
 	});
 	let logger;

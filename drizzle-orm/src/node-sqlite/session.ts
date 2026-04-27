@@ -3,7 +3,12 @@ import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeJitRqbMapper,
+	type RelationalQueryMapperConfig,
+	type RelationalRowsMapper,
+} from '~/relations.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import type { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteTransaction } from '~/sqlite-core/index.ts';
@@ -14,10 +19,11 @@ import type {
 	SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session.ts';
-import { type DrizzleTypeError, mapResultRow } from '~/utils.ts';
+import { type DrizzleTypeError, makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
 
 export interface NodeSQLiteSessionOptions {
 	logger?: Logger;
+	useJitMappers?: boolean;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -36,7 +42,7 @@ export class NodeSQLiteSession<
 		dialect: SQLiteSyncDialect,
 		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
-		options: NodeSQLiteSessionOptions = {},
+		private options: NodeSQLiteSessionOptions = {},
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
@@ -49,7 +55,15 @@ export class NodeSQLiteSession<
 		customResultMapper: (rows: unknown[][]) => unknown,
 	): NodeSQLitePreparedQuery<T> {
 		const stmt = this.client.prepare(query.sql);
-		return new NodeSQLitePreparedQuery(stmt, query, this.logger, fields, executeMethod, customResultMapper);
+		return new NodeSQLitePreparedQuery(
+			stmt,
+			query,
+			this.logger,
+			fields,
+			executeMethod,
+			this.options.useJitMappers,
+			customResultMapper,
+		);
 	}
 
 	prepareRelationalQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
@@ -57,6 +71,7 @@ export class NodeSQLiteSession<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		customResultMapper: (rows: Record<string, unknown>[]) => unknown,
+		config: RelationalQueryMapperConfig,
 	): NodeSQLitePreparedQuery<T, true> {
 		const stmt = this.client.prepare(query.sql);
 		return new NodeSQLitePreparedQuery(
@@ -65,8 +80,10 @@ export class NodeSQLiteSession<
 			this.logger,
 			fields,
 			executeMethod,
+			this.options.useJitMappers,
 			customResultMapper,
 			true,
+			config,
 		);
 	}
 
@@ -128,6 +145,7 @@ export class NodeSQLitePreparedQuery<
 	{ type: 'sync'; run: void; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
 	static override readonly [entityKind]: string = 'SQLJsPreparedQuery';
+	private jitMapper?: RowsMapper<any> | RelationalRowsMapper<any>;
 
 	constructor(
 		private stmt: StatementSync,
@@ -135,11 +153,13 @@ export class NodeSQLitePreparedQuery<
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
+		private useJitMappers: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 			mapColumnValue?: (value: unknown) => unknown,
 		) => unknown,
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
 		super('sync', executeMethod, query);
 	}
@@ -180,7 +200,10 @@ export class NodeSQLitePreparedQuery<
 			) => unknown)(rows) as T['all'];
 		}
 
-		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
+		return this.useJitMappers
+			? (this.jitMapper = this.jitMapper as RowsMapper<T['all']>
+				?? makeJitQueryMapper<T['all']>(fields!, joinsNotNullableMap))(rows)
+			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
 	private allRqbV2(placeholderValues: Record<string, unknown> = {}): T['all'] {
@@ -193,10 +216,10 @@ export class NodeSQLitePreparedQuery<
 		stmt.setReturnArrays(false);
 		const rows = stmt.all(...params as SQLInputValue[]).map((row) => ({ ...row })); // [Object: null prototype] => Object
 
-		return (customResultMapper as (
-			rows: Record<string, unknown>[],
-			mapColumnValue?: (value: unknown) => unknown,
-		) => unknown)(rows) as T['all'];
+		return this.useJitMappers
+			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['all']>
+				?? makeJitRqbMapper<T['all']>(this.rqbConfig!))(rows)
+			: (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(rows);
 	}
 
 	get(placeholderValues: Record<string, unknown> = {}): T['get'] {
@@ -228,7 +251,12 @@ export class NodeSQLitePreparedQuery<
 			) => unknown)([row]) as T['get'];
 		}
 
-		return mapResultRow(fields!, row, joinsNotNullableMap);
+		return this.useJitMappers
+			? (this.jitMapper = this.jitMapper as RowsMapper<T['get'][]>
+				?? makeJitQueryMapper<T['get'][]>(fields!, joinsNotNullableMap))(
+					[row],
+				)[0]
+			: mapResultRow(fields!, row, joinsNotNullableMap);
 	}
 
 	private getRqbV2(placeholderValues: Record<string, unknown> = {}): T['get'] {
@@ -246,10 +274,12 @@ export class NodeSQLitePreparedQuery<
 			return undefined;
 		}
 
-		return (customResultMapper as (
-			rows: Record<string, unknown>[],
-			mapColumnValue?: (value: unknown) => unknown,
-		) => unknown)([{ ...row }]) as T['get']; // [Object: null prototype] => Object
+		return this.useJitMappers
+			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['get'][]>
+				?? makeJitRqbMapper<T['get'][]>(this.rqbConfig!))([row])
+			: (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(
+				[{ ...row }], // [Object: null prototype] => Object
+			);
 	}
 
 	values(placeholderValues: Record<string, unknown> = {}): T['values'] {

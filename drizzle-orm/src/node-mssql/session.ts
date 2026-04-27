@@ -42,7 +42,7 @@ export class NodeMsSqlPreparedQuery<
 		private params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
-		private useJitMapper: boolean | undefined,
+		private useJitMappers: boolean | undefined,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super();
@@ -86,7 +86,7 @@ export class NodeMsSqlPreparedQuery<
 			return customResultMapper(rows.recordset);
 		}
 
-		return this.useJitMapper
+		return this.useJitMappers
 			? (this.jitMapper =
 				this.jitMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
 					?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
@@ -160,7 +160,7 @@ export class NodeMsSqlPreparedQuery<
 							const mappedRow = customResultMapper([row as unknown[]]);
 							yield Array.isArray(mappedRow) ? mappedRow[0] : mappedRow;
 						} else {
-							yield this.useJitMapper
+							yield this.useJitMappers
 								? (this.jitMapper = this.jitMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number]
 									: T['execute'])[]>
 									?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
@@ -185,7 +185,7 @@ export class NodeMsSqlPreparedQuery<
 
 export interface NodeMsSqlSessionOptions {
 	logger?: Logger;
-	useJitMapper?: boolean;
+	useJitMappers?: boolean;
 }
 
 export class NodeMsSqlSession<
@@ -222,7 +222,7 @@ export class NodeMsSqlSession<
 			query.params,
 			this.logger,
 			fields,
-			this.options.useJitMapper,
+			this.options.useJitMappers,
 			customResultMapper,
 		) as PreparedQueryKind<NodeMsSqlPreparedQueryHKT, T>;
 	}

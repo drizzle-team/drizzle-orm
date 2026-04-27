@@ -8,6 +8,7 @@ import { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectDatabase } from '~/pg-core/effect/db.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import { jitCompatCheck } from '~/utils.ts';
 import { effectPgCodecs } from './codecs.ts';
 import { type EffectPgQueryEffectHKT, type EffectPgQueryResultHKT, EffectPgSession } from './session.ts';
 
@@ -61,7 +62,7 @@ export const make = Effect.fn('PgDrizzle.make')(
 		const logger = yield* EffectLogger;
 
 		const dialect = new PgDialect({
-			useJitMappers: config.useJitMappers,
+			useJitMappers: jitCompatCheck(config.useJitMappers),
 			codecs: config.codecs ?? effectPgCodecs,
 		});
 
@@ -69,7 +70,7 @@ export const make = Effect.fn('PgDrizzle.make')(
 		const session = new EffectPgSession(client, dialect, relations, {
 			logger,
 			cache,
-			useJitMapper: config.useJitMappers,
+			useJitMappers: jitCompatCheck(config.useJitMappers),
 		});
 		const db = new EffectPgDatabase(dialect, session, relations) as EffectPgDatabase<TRelations>;
 		(<any> db).$client = client;

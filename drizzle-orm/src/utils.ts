@@ -216,6 +216,29 @@ export function makeJitQueryMapper<TResult>(
 	return fn;
 }
 
+/** @internal */
+export function jitCompatCheck(isEnabled?: boolean): boolean {
+	if (!isEnabled) return false;
+
+	try {
+		const res = new FnConstructor('input', '"use strict"; return input;')(true);
+		if (res !== true) {
+			// In case it's broken in runtime but not forbidden
+			console.warn(
+				'Unable to use jit mappers due to incompatibility: corrupted jit function output.\nFalling back to premade mappers.\nError details:',
+			);
+			console.error(`Expected to receive \`true\`, got: ${res}`);
+		}
+		return true;
+	} catch (e) {
+		console.warn(
+			'Unable to use jit mappers due to incompatibility.\nFalling back to premade mappers.\nError details:',
+		);
+		console.error(e);
+		return false;
+	}
+}
+
 export function makeDefaultQueryMapper<TResult>(
 	columns: SelectedFieldsOrdered<AnyColumn>,
 	joinsNotNullableMap: Record<string, boolean> | undefined,

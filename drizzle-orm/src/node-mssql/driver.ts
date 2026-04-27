@@ -5,14 +5,14 @@ import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MsSqlDatabase } from '~/mssql-core/db.ts';
 import { MsSqlDialect } from '~/mssql-core/dialect.ts';
-import type { DrizzleConfig, Equal } from '~/utils.ts';
+import { type DrizzleConfig, type Equal, jitCompatCheck } from '~/utils.ts';
 import { AutoPool } from './pool.ts';
 import type { NodeMsSqlClient, NodeMsSqlPreparedQueryHKT, NodeMsSqlQueryResultHKT } from './session.ts';
 import { NodeMsSqlSession } from './session.ts';
 
 export interface MsSqlDriverOptions {
 	logger?: Logger;
-	useJitMapper?: boolean;
+	useJitMappers?: boolean;
 }
 
 export class NodeMsSqlDriver {
@@ -30,7 +30,7 @@ export class NodeMsSqlDriver {
 	): NodeMsSqlSession<Record<string, unknown>, V1.TablesRelationalConfig> {
 		return new NodeMsSqlSession(this.client, this.dialect, schema, {
 			logger: this.options.logger,
-			useJitMapper: this.options.useJitMapper,
+			useJitMappers: this.options.useJitMappers,
 		});
 	}
 }
@@ -80,7 +80,7 @@ function construct<
 
 	const driver = new NodeMsSqlDriver(client as NodeMsSqlClient, dialect, {
 		logger,
-		useJitMapper: config.useJitMappers,
+		useJitMappers: jitCompatCheck(config.useJitMappers),
 	});
 	const session = driver.createSession(schema);
 	const db = new MsSqlDatabase(dialect, session, schema) as NodeMsSqlDatabase<TSchema>;

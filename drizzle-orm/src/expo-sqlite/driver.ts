@@ -5,7 +5,7 @@ import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
 import { ExpoSQLiteSession } from './session.ts';
 
 export class ExpoSQLiteDatabase<
@@ -48,7 +48,7 @@ export function drizzle<
 	const relations = config.relations ?? {} as TRelations;
 	const session = new ExpoSQLiteSession(client, dialect, relations, schema, {
 		logger,
-		useJitMapper: config.useJitMappers,
+		useJitMappers: jitCompatCheck(config.useJitMappers),
 	});
 	const db = new ExpoSQLiteDatabase(
 		'sync',
