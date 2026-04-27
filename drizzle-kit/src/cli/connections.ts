@@ -281,8 +281,8 @@ export const preparePostgresDB = async (
 		const { migrate } = await import('drizzle-orm/postgres-js/migrator');
 
 		const client = 'url' in credentials
-			? postgres.default(credentials.url, { max: 1 })
-			: postgres.default({ ...credentials, max: 1 });
+			? postgres.default(credentials.url, { max: 1, onnotice: () => {} })
+			: postgres.default({ ...credentials, max: 1, onnotice: () => {} });
 
 		const transparentParser = (val: any) => val;
 
