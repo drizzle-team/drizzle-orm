@@ -24,7 +24,13 @@ const updateRule = createRule<Options, MessageIds>({
 			type: 'object',
 			properties: {
 				drizzleObjectName: {
-					type: ['string', 'array'],
+					oneOf: [
+						{ type: 'string' },
+						{
+							type: 'array',
+							items: { type: 'string' },
+						},
+					],
 				},
 			},
 			additionalProperties: false,
