@@ -1,6 +1,6 @@
 import type { PgClient } from '@effect/sql-pg/PgClient';
-import type { SqlError } from 'effect/unstable/sql/SqlError';
 import * as Effect from 'effect/Effect';
+import type { SqlError } from 'effect/unstable/sql/SqlError';
 import type * as V1 from '~/_relations.ts';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -33,8 +33,7 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 
 	constructor(
 		private client: PgClient,
-		private queryString: string,
-		private params: unknown[],
+		query: Query,
 		private logger: EffectLoggerShape,
 		cache: EffectCacheShape,
 		queryMetadata: {
@@ -50,7 +49,7 @@ export class EffectPgPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
 	) {
-		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
+		super(query, cache, queryMetadata, cacheConfig);
 	}
 
 	override execute(placeholderValues?: Record<string, unknown>) {
@@ -163,8 +162,7 @@ export class EffectPgSession<
 	): EffectPgPreparedQuery<T, false> {
 		return new EffectPgPreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			this.cache,
 			queryMetadata,
@@ -188,8 +186,7 @@ export class EffectPgSession<
 	): EffectPgPreparedQuery<T, true> {
 		return new EffectPgPreparedQuery<T, true>(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			this.cache,
 			undefined,

@@ -1,3 +1,4 @@
+/// <reference types="@cloudflare/workers-types" />
 import type { PGlite } from '@electric-sql/pglite';
 import type { SQLiteCloudRowset } from '@sqlitecloud/drivers';
 import type { AwsDataApiPgQueryResult, AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
@@ -1702,7 +1703,7 @@ const prepareSqliteParams = (params: any[], driver?: string) => {
 				? JSON.stringify(param.value)
 				: (param.value as string);
 
-			if (driver === 'd1-http') {
+			if (driver === 'd1-http' || driver === 'd1') {
 				return value;
 			}
 
@@ -1731,6 +1732,84 @@ const preparePGliteParams = (params: any[]) => {
 	});
 };
 
+export type D1Credentials = {
+	driver: 'd1';
+	binding: D1Database;
+};
+
+export const connectToD1 = async (
+	d1: D1Database,
+): Promise<
+	& SQLiteDB
+	& {
+		packageName: 'd1';
+		migrate: (config: MigrationConfig) => Promise<void | MigratorInitFailResponse>;
+		proxy: Proxy;
+		transactionProxy: TransactionProxy;
+	}
+> => {
+	const db: SQLiteDB = {
+		query: async <T>(sql: string, params?: any[]) => {
+			const stmt = d1.prepare(sql);
+			const boundStmt = params && params.length > 0 ? stmt.bind(...params) : stmt;
+			const result = await boundStmt.all<T>();
+			return (result.results ?? []) as T[];
+		},
+		run: async (query: string) => {
+			const stmt = d1.prepare(query);
+			await stmt.run();
+		},
+		batch: async (statements: string[]) => {
+			await d1.batch(statements.map((s) => d1.prepare(s)));
+		},
+	};
+
+	const proxy: Proxy = async (params) => {
+		const preparedParams = prepareSqliteParams(params.params || [], 'd1');
+		const stmt = d1.prepare(params.sql);
+		const boundStmt = preparedParams.length > 0 ? stmt.bind(...preparedParams) : stmt;
+
+		try {
+			if (params.mode === 'array') {
+				return await boundStmt.raw();
+			}
+			const result = await boundStmt.all();
+			return result.results ?? [];
+		} catch (error: any) {
+			// D1 doesn't allow certain introspection queries (sqlite_master with pragma functions)
+			// Return empty array for SQLITE_AUTH errors on these system queries
+			if (error?.message?.includes('SQLITE_AUTH') || error?.message?.includes('not authorized')) {
+				return [];
+			}
+			throw error;
+		}
+	};
+
+	const transactionProxy: TransactionProxy = async (queries) => {
+		const results: any[] = [];
+		try {
+			// D1 doesn't support true transactions via binding, use batch instead
+			const statements = queries.map((q) => d1.prepare(q.sql));
+			const batchResults = await d1.batch(statements);
+			for (const result of batchResults) {
+				results.push(result.results ?? []);
+			}
+		} catch (error) {
+			results.push(error as Error);
+		}
+		return results;
+	};
+
+	const { drizzle } = await import('drizzle-orm/d1');
+	const { migrate } = await import('drizzle-orm/d1/migrator');
+	const drzl = drizzle(d1);
+	const migrateFn = async (config: MigrationConfig) => {
+		return migrate(drzl, config);
+	};
+
+	return { ...db, packageName: 'd1', proxy, transactionProxy, migrate: migrateFn };
+};
+
 export const connectToSQLite = async (
 	credentials: SqliteCredentials,
 ): Promise<
@@ -1742,7 +1821,8 @@ export const connectToSQLite = async (
 			| 'better-sqlite3'
 			| '@sqlitecloud/drivers'
 			| '@tursodatabase/database'
-			| 'bun';
+			| 'bun'
+			| 'node:sqlite';
 		migrate: (config: string | MigrationConfig) => Promise<void | MigratorInitFailResponse>;
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
@@ -1851,8 +1931,9 @@ export const connectToSQLite = async (
 				return migrate(
 					drzl,
 					async (queries) => {
-						for (const query of queries) {
-							await remoteCallback(query, [], 'run');
+						// run migrations in transaction
+						if (queries.length > 0) {
+							await remoteBatchCallback(queries.map((sql) => ({ sql })));
 						}
 					},
 					config,
@@ -1865,6 +1946,9 @@ export const connectToSQLite = async (
 			};
 			const run = async (query: string) => {
 				await remoteCallback(query, [], 'run');
+			};
+			const batch = async (queries: string[]) => {
+				await remoteBatchCallback(queries.map((sql) => ({ sql })));
 			};
 
 			const proxy: Proxy = async (params) => {
@@ -1884,7 +1968,8 @@ export const connectToSQLite = async (
 				const result = await remoteBatchCallback(queries);
 				return result.rows;
 			};
-			return { query, run, packageName: 'd1-http', proxy, transactionProxy, migrate: migrateFn };
+
+			return { query, run, batch, packageName: 'd1-http', proxy, transactionProxy, migrate: migrateFn };
 		} else if (driver === 'sqlite-cloud') {
 			assertPackages('@sqlitecloud/drivers');
 			const { Database } = await import('@sqlitecloud/drivers');
@@ -1914,6 +1999,16 @@ export const connectToSQLite = async (
 						return resolve();
 					});
 				});
+			};
+			const batch = async (queries: string[]) => {
+				for (const query of queries) {
+					await new Promise<void>((resolve, reject) => {
+						client.exec(query, (e: Error | null) => {
+							if (e) return reject(e);
+							return resolve();
+						});
+					});
+				}
 			};
 
 			const proxy = async (params: ProxyParams) => {
@@ -1968,7 +2063,15 @@ export const connectToSQLite = async (
 				return results;
 			};
 
-			return { query, run, packageName: '@sqlitecloud/drivers', proxy, transactionProxy, migrate: migrateFn };
+			return {
+				query,
+				run,
+				batch,
+				packageName: '@sqlitecloud/drivers',
+				proxy,
+				transactionProxy,
+				migrate: migrateFn,
+			};
 		} else {
 			assertUnreachable(driver);
 		}
@@ -1994,6 +2097,9 @@ export const connectToSQLite = async (
 		};
 		const run = async (query: string) => {
 			await client.execute(query);
+		};
+		const batch = async (queries: string[]) => {
+			await client.migrate(queries);
 		};
 
 		type Transaction = Awaited<ReturnType<typeof client.transaction>>;
@@ -2033,7 +2139,7 @@ export const connectToSQLite = async (
 			return results;
 		};
 
-		return { query, run, packageName: '@libsql/client', proxy, transactionProxy, migrate: migrateFn };
+		return { query, run, batch, packageName: '@libsql/client', proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	if (await checkPackage('@tursodatabase/database')) {
@@ -2052,6 +2158,11 @@ export const connectToSQLite = async (
 			const stmt = client.prepare(sql).bind(preparePGliteParams(params || []));
 			const res = await stmt.all();
 			return res as T[];
+		};
+		const batch = async (queries: string[]) => {
+			for (const query of queries) {
+				await client.prepare(query).all();
+			}
 		};
 
 		const proxy = async (params: ProxyParams) => {
@@ -2079,6 +2190,7 @@ export const connectToSQLite = async (
 
 		return {
 			query,
+			batch,
 			packageName: '@tursodatabase/database',
 			proxy,
 			transactionProxy,
@@ -2111,6 +2223,11 @@ export const connectToSQLite = async (
 			},
 			run: async (query: string) => {
 				sqlite.prepare(query).run();
+			},
+			batch: async (queries: string[]) => {
+				for (const query of queries) {
+					sqlite.prepare(query).run();
+				}
 			},
 		};
 
@@ -2163,7 +2280,9 @@ export const connectToSQLite = async (
 		};
 
 		return {
-			...db,
+			query: db.query,
+			run: db.run,
+			batch: db.batch,
 			packageName: 'better-sqlite3',
 			proxy,
 			transactionProxy,
@@ -2194,6 +2313,11 @@ export const connectToSQLite = async (
 		const run = async (sql: string) => {
 			await client.unsafe(sql);
 		};
+		const batch = async (queries: string[]) => {
+			for (const query of queries) {
+				await client.unsafe(query);
+			}
+		};
 
 		const proxy: Proxy = async (params) => {
 			const query = client.unsafe(params.sql, params.params);
@@ -2222,6 +2346,90 @@ export const connectToSQLite = async (
 			packageName: 'bun',
 			query,
 			run,
+			batch,
+			proxy,
+			transactionProxy,
+			migrate: migrateFn,
+		};
+	}
+
+	if (await checkPackage('node:sqlite')) {
+		console.log(withStyle.info(`Using 'node:sqlite' driver for database querying`));
+		const { DatabaseSync } = await import('node:sqlite');
+		const { drizzle } = await import('drizzle-orm/node-sqlite');
+		const { migrate } = await import('drizzle-orm/node-sqlite/migrator');
+
+		const client = new DatabaseSync(credentials.url);
+
+		const db = drizzle({ client });
+		const migrateFn = async (config: MigrationConfig) => {
+			return migrate(db, config);
+		};
+
+		const query = async <T>(sql: string, params?: any[]) => {
+			const result = client.prepare(sql).all(...(params || []));
+			return result as T[];
+		};
+		const run = async (sql: string) => {
+			client.prepare(sql).run();
+		};
+		const batch = async (queries: string[]) => {
+			for (const query of queries) {
+				client.prepare(query).run();
+			}
+		};
+
+		const proxy: Proxy = async (params) => {
+			const preparedParams = prepareSqliteParams(params.params || []);
+
+			const stmt = client.prepare(params.sql);
+			if (
+				params.method === 'values'
+				|| params.method === 'get'
+				|| params.method === 'all'
+			) {
+				stmt.setReturnArrays(params.mode === 'array');
+				return stmt.all(...preparedParams);
+			}
+
+			stmt.run(...preparedParams);
+
+			return [];
+		};
+
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: (any[] | Error)[] = [];
+
+			try {
+				client.prepare('BEGIN').run();
+
+				for (const query of queries) {
+					const stmt = client.prepare(query.sql);
+					if (
+						query.method === 'values'
+						|| query.method === 'get'
+						|| query.method === 'all'
+					) {
+						const res = stmt.all();
+						results.push(res);
+					} else {
+						stmt.run();
+					}
+				}
+				client.prepare('COMMIT').run();
+			} catch (error: any) {
+				client.prepare('ROLLBACK').run();
+				results.push(error as Error);
+			}
+
+			return results;
+		};
+
+		return {
+			packageName: 'node:sqlite',
+			query,
+			run,
+			batch,
 			proxy,
 			transactionProxy,
 			migrate: migrateFn,
@@ -2229,7 +2437,9 @@ export const connectToSQLite = async (
 	}
 
 	console.log(
-		"Please install either 'better-sqlite3', 'bun', '@libsql/client' or '@tursodatabase/database' for Drizzle Kit to connect to SQLite databases",
+		"Please install either 'better-sqlite3', 'bun', '@libsql/client' or '@tursodatabase/database' for Drizzle Kit to connect to SQLite databases"
+			+ '\n'
+			+ "To use 'node:sqlite' driver, ensure you're running Node.js v22.5.0 or higher",
 	);
 	console.warn("For the 'bun' driver, run your script using: bun --bun");
 	process.exit(1);
@@ -2277,7 +2487,7 @@ export const connectToLibSQL = async (
 				throw new QueryError(e, query, []);
 			});
 		},
-		batchWithPragma: async (queries: string[]) => {
+		batch: async (queries: string[]) => {
 			await client.migrate(queries);
 		},
 	};
@@ -2317,5 +2527,13 @@ export const connectToLibSQL = async (
 		return results;
 	};
 
-	return { ...db, packageName: '@libsql/client', proxy, transactionProxy, migrate: migrateFn };
+	return {
+		query: db.query,
+		run: db.run,
+		batch: db.batch,
+		packageName: '@libsql/client',
+		proxy,
+		transactionProxy,
+		migrate: migrateFn,
+	};
 };

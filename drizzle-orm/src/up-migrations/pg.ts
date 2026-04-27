@@ -1,26 +1,18 @@
 import type { TablesRelationalConfig } from '~/_relations.ts';
+import type { BatchItem } from '~/batch.ts';
 import type { MigrationMeta } from '~/migrator.ts';
+import type { NeonHttpDatabase } from '~/neon-http/driver.ts';
 import type { NeonHttpSession } from '~/neon-http/session.ts';
-import type { PgAsyncSession } from '~/pg-core/async/session.ts';
+import type { PgAsyncDatabase } from '~/pg-core/async/db.ts';
+import type { PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
+import type { PgQueryResultHKT } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
+import { assertUnreachable } from '~/utils.ts';
 import type { XataHttpSession } from '~/xata-http/session.ts';
-
-const CURRENT_MIGRATION_TABLE_VERSION = 1;
-
-interface UpgradeResult {
-	newDb?: boolean;
-	prevVersion?: number;
-	currentVersion?: number;
-}
-
-function getVersion(columns: string[]) {
-	if (columns.includes('name')) return 1;
-	return 0;
-}
+import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResult } from './utils.ts';
 
 // postgres.js returns array of objects
-// pg-proxy returns arrays of objects
 // node-postgres returns { rows: array of objects }
 async function execute<T extends any[]>(
 	session:
@@ -43,11 +35,9 @@ const upgradeFunctions: Record<
 	(
 		migrationsSchema: string,
 		migrationsTable: string,
-		session:
-			| PgAsyncSession
-			| NeonHttpSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>
-			| XataHttpSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>,
+		db: PgAsyncDatabase<PgQueryResultHKT, any, any, any>,
 		localMigrations: MigrationMeta[],
+		mode: 'transaction' | 'batch' | 'execute',
 	) => Promise<void>
 > = {
 	/**
@@ -59,13 +49,13 @@ const upgradeFunctions: Record<
 	 * Not implemented for now -> If hash matching fails, fall back to serial id ordering
 	 * 5. Create extra column and backfill names for matched migrations
 	 */
-	0: async (migrationsSchema, migrationsTable, session, localMigrations) => {
+	0: async (migrationsSchema, migrationsTable, db, localMigrations, mode) => {
 		const table = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
 
 		// 1. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
 		const dbRows = await execute<{ id: number; hash: string; created_at: string }[]>(
-			session,
+			db.session,
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
 		);
 
@@ -122,28 +112,41 @@ const upgradeFunctions: Record<
 		}
 
 		// 5. Create extra column and backfill names for matched migrations
-		try {
-			await execute(session, sql`BEGIN`);
-			await execute(session, sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${sql.identifier('name')} text`);
-			await execute(
-				session,
-				sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${
-					sql.identifier('applied_at')
-				} timestamp with time zone DEFAULT now()`,
+		const sqls: SQL[] = [
+			sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${sql.identifier('name')} text`,
+			sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${
+				sql.identifier('applied_at')
+			} timestamp with time zone DEFAULT now()`,
+		];
+		for (const { id, name } of toApply) {
+			sqls.push(
+				sql`UPDATE ${table} SET ${sql.identifier('name')} = ${name}, ${sql.identifier('applied_at')} = NULL WHERE ${
+					sql.identifier('id')
+				} = ${id}`,
 			);
+		}
 
-			for (const backfillEntry of toApply) {
-				await execute(
-					session,
-					sql`UPDATE ${table} SET ${sql.identifier('name')} = ${backfillEntry.name}, ${
-						sql.identifier('applied_at')
-					} = NULL WHERE ${sql.identifier('id')} = ${backfillEntry.id}`,
-				);
+		// batch - neon http
+		// execute - xata http
+		// transaction -> other
+		if (mode === 'transaction') {
+			await db.transaction(async (tx: PgAsyncTransaction<any, any, any>) => {
+				for (const sql of sqls) {
+					await tx.execute(sql);
+				}
+			});
+		} else if (mode === 'batch') {
+			const database = db as NeonHttpDatabase;
+
+			await database.batch(
+				sqls.map((s) => database.execute(s)) as unknown as [BatchItem<'pg'>, ...BatchItem<'pg'>[]],
+			);
+		} else if (mode === 'execute') {
+			for (const sql of sqls) {
+				await db.session.execute(sql);
 			}
-			await execute(session, sql`COMMIT`);
-		} catch (err: any) {
-			await execute(session, sql`ROLLBACK`);
-			throw err;
+		} else {
+			assertUnreachable(mode);
 		}
 	},
 };
@@ -157,15 +160,16 @@ const upgradeFunctions: Record<
 export async function upgradeIfNeeded(
 	migrationsSchema: string,
 	migrationsTable: string,
-	session:
-		| PgAsyncSession
-		| NeonHttpSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>
-		| XataHttpSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>,
+	db: PgAsyncDatabase<PgQueryResultHKT, any, any, any>,
 	localMigrations: MigrationMeta[],
+	// batch - neon http
+	// execute - xata http
+	// transaction - all others
+	mode: 'transaction' | 'batch' | 'execute' = 'transaction',
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
 	const result = await execute<{ '1': 1 }[]>(
-		session,
+		db.session,
 		sql`SELECT 1 FROM information_schema.tables
 			WHERE table_schema = ${migrationsSchema}
 			AND table_name = ${migrationsTable}`,
@@ -179,7 +183,7 @@ export async function upgradeIfNeeded(
 	const rows = await execute<
 		{ schema: string; table_name: string; column_name: string; type: string }[]
 	>(
-		session,
+		db.session,
 		sql`SELECT
 			n.nspname AS "schema",
 			c.relname AS "table_name",
@@ -197,15 +201,15 @@ export async function upgradeIfNeeded(
 		ORDER BY a.attnum;`,
 	);
 
-	let version = getVersion(rows.map((r) => r.column_name));
+	let version = GET_VERSION_FOR.pg(rows.map((r) => r.column_name));
 
-	for (let v = version; v < CURRENT_MIGRATION_TABLE_VERSION; v++) {
+	for (let v = version; v < MIGRATIONS_TABLE_VERSIONS.pg; v++) {
 		const upgradeFn = upgradeFunctions[v];
 		if (!upgradeFn) {
 			throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
 		}
-		await upgradeFn(migrationsSchema, migrationsTable, session, localMigrations);
+		await upgradeFn(migrationsSchema, migrationsTable, db, localMigrations, mode);
 	}
 
-	return { prevVersion: version, currentVersion: CURRENT_MIGRATION_TABLE_VERSION };
+	return { newDb: false };
 }

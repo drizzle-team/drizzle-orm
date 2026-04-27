@@ -1,4 +1,5 @@
 import { test as brotest } from '@drizzle-team/brocli';
+import { join } from 'node:path';
 import { assert, expect, test } from 'vitest';
 import { generate } from '../../src/cli/schema';
 
@@ -23,6 +24,8 @@ import { generate } from '../../src/cli/schema';
 // #7 drizzle-kit generate --config=drizzle.config.ts --schema=schema.ts
 // #8 drizzle-kit generate --config=drizzle.config.ts --dialect=postgresql
 
+const filename = join(process.cwd(), 'tests/cli/schema.ts');
+
 test('generate #1', async (t) => {
 	const res = await brotest(
 		generate,
@@ -34,7 +37,7 @@ test('generate #1', async (t) => {
 		name: undefined,
 		custom: false,
 		breakpoints: true,
-		schema: 'schema.ts',
+		filenames: [filename],
 		out: 'drizzle',
 		bundle: false,
 		casing: undefined,
@@ -55,7 +58,7 @@ test('generate #2', async (t) => {
 		name: undefined,
 		custom: false,
 		breakpoints: true,
-		schema: 'schema.ts',
+		filenames: [filename],
 		out: 'out',
 		bundle: false,
 		casing: undefined,
@@ -73,7 +76,7 @@ test('generate #3', async (t) => {
 		name: undefined,
 		custom: false,
 		breakpoints: true,
-		schema: './schema.ts',
+		filenames: [filename],
 		out: 'drizzle',
 		bundle: false,
 		casing: undefined,
@@ -92,7 +95,7 @@ test('generate #4', async (t) => {
 		name: undefined,
 		custom: true,
 		breakpoints: true,
-		schema: './schema.ts',
+		filenames: [filename],
 		out: 'drizzle',
 		bundle: false,
 		casing: undefined,
@@ -110,7 +113,7 @@ test('generate #5', async (t) => {
 		name: 'custom',
 		custom: false,
 		breakpoints: true,
-		schema: './schema.ts',
+		filenames: [filename],
 		out: 'drizzle',
 		bundle: false,
 		casing: undefined,
@@ -128,7 +131,7 @@ test('generate #6', async (t) => {
 		name: undefined,
 		custom: false,
 		breakpoints: true,
-		schema: './schema.ts',
+		filenames: [filename],
 		out: 'drizzle',
 		bundle: false,
 		casing: undefined,
@@ -146,7 +149,7 @@ test('generate #7', async (t) => {
 		name: 'custom',
 		custom: true,
 		breakpoints: true,
-		schema: './schema.ts',
+		filenames: [filename],
 		out: 'drizzle',
 		bundle: false,
 		casing: undefined,
@@ -165,7 +168,7 @@ test('generate #8', async (t) => {
 		name: undefined,
 		custom: false,
 		breakpoints: true,
-		schema: './schema.ts',
+		filenames: [filename],
 		out: 'drizzle',
 		bundle: true, // expo driver
 		casing: undefined,
@@ -183,7 +186,7 @@ test('generate #9', async (t) => {
 		name: undefined,
 		custom: false,
 		breakpoints: true,
-		schema: './schema.ts',
+		filenames: [filename],
 		out: 'drizzle',
 		bundle: true, // expo driver
 		casing: undefined,
@@ -205,13 +208,42 @@ test('generate #9', async (t) => {
 		name: 'custom',
 		custom: true,
 		breakpoints: true,
-		schema: 'schema.ts',
+		filenames: [filename],
 		out: 'out',
 		bundle: false,
 		casing: undefined,
 		driver: undefined,
 		ignoreConflicts: false,
 	});
+});
+
+test('generate #10 tsconfig paths', async () => {
+	const originalPrefix = process.env.TEST_CONFIG_PATH_PREFIX;
+	process.env.TEST_CONFIG_PATH_PREFIX = './tests/fixtures/tsconfig-paths/';
+
+	const filename = join(process.cwd(), 'tests/fixtures/tsconfig-paths/entry.ts');
+	try {
+		const res = await brotest(generate, '--config=drizzle.config.ts');
+		if (res.type !== 'handler') assert.fail(res.type, 'handler');
+		expect(res.options).toStrictEqual({
+			dialect: 'postgresql',
+			ignoreConflicts: false,
+			name: undefined,
+			custom: false,
+			breakpoints: true,
+			out: 'drizzle',
+			bundle: false,
+			casing: undefined,
+			driver: undefined,
+			filenames: [filename],
+		});
+	} finally {
+		if (originalPrefix === undefined) {
+			delete process.env.TEST_CONFIG_PATH_PREFIX;
+		} else {
+			process.env.TEST_CONFIG_PATH_PREFIX = originalPrefix;
+		}
+	}
 });
 
 // --- errors ---

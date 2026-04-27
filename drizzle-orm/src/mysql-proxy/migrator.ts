@@ -3,7 +3,7 @@ import { readMigrationFiles } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
-import { upgradeIfNeeded } from '~/up-migrations/mysql.ts';
+import { upgradeIfNeeded } from '~/up-migrations/mysql-proxy.ts';
 import type { MySqlRemoteDatabase } from './driver.ts';
 
 export type ProxyMigrator = (migrationQueries: string[]) => Promise<void>;
@@ -18,7 +18,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 
 	// Detect DB version and upgrade table schema if needed
-	const { newDb } = await upgradeIfNeeded(migrationsTable, db.session, migrations);
+	const { newDb } = await upgradeIfNeeded(migrationsTable, db, callback, migrations);
 
 	if (newDb) {
 		const migrationTableCreate = sql`

@@ -1665,7 +1665,9 @@ export class IntrospectProgress extends TaskView {
 		super();
 		this.timeout = setInterval(() => {
 			this.spinner.tick();
-			this.requestLayout();
+			if (this.terminal) {
+				this.requestLayout();
+			}
 		}, 128);
 
 		this.on('detach', () => clearInterval(this.timeout));
@@ -1678,7 +1680,9 @@ export class IntrospectProgress extends TaskView {
 	) {
 		this.state[stage].count = count;
 		this.state[stage].status = status;
-		this.requestLayout();
+		if (this.terminal) {
+			this.requestLayout();
+		}
 	}
 
 	private formatCount = (count: number) => {
@@ -1704,7 +1708,13 @@ export class IntrospectProgress extends TaskView {
 		return `${prefix} ${suffix}\n`;
 	};
 
-	render(): string {
+	render(
+		status: 'pending' | 'done' | 'rejected' = 'pending',
+		error?: Error,
+	): string {
+		if (status === 'rejected' && error) {
+			return `[${chalk.red('✗')}] Error during introspection:\n${chalk.red(error.message)}\n${error.stack ?? ''}\n`;
+		}
 		let info = '';
 		const spin = this.spinner.value();
 		info += this.statusText(spin, this.state.tables);
@@ -1734,7 +1744,18 @@ export class MigrateProgress extends TaskView {
 		this.on('detach', () => clearInterval(this.timeout));
 	}
 
-	render(status: 'pending' | 'done'): string {
+	render(status: 'pending' | 'done' | 'rejected', error?: Error): string {
+		if (status === 'rejected') {
+			if (error?.cause) {
+				console.log('\n');
+				console.log(error.cause); // render full object
+			}
+
+			return `[${chalk.red('✗')}] Error during migration:\n${
+				chalk.red(error ? error.message : 'unknown error occured')
+			}\n`;
+		}
+
 		if (status === 'pending') {
 			const spin = this.spinner.value();
 			return `[${spin}] applying migrations...`;
@@ -1766,7 +1787,18 @@ export class ProgressView extends TaskView {
 		this.on('detach', () => clearInterval(this.timeout));
 	}
 
-	render(status: 'pending' | 'done'): string {
+	render(status: 'pending' | 'done' | 'rejected', error?: Error): string {
+		if (status === 'rejected') {
+			if (error?.cause) {
+				console.log('\n');
+				console.log(error.cause); // render full object
+			}
+
+			return `[${chalk.red('✗')}] ${this.progressText}\n${
+				chalk.red(error ? error.message : 'unknown error occured')
+			}\n`;
+		}
+
 		if (status === 'pending') {
 			const spin = this.spinner.value();
 			return `[${spin}] ${this.progressText}\n`;

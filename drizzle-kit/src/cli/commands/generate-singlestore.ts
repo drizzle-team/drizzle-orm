@@ -3,18 +3,16 @@ import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/singlestore/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/singlestore/drizzle';
 import { prepareSnapshot } from 'src/dialects/singlestore/serializer';
-import { prepareFilenames, prepareOutFolder } from 'src/utils/utils-node';
+import { prepareOutFolder } from 'src/utils/utils-node';
 import { resolver } from '../prompts';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
-	const outFolder = config.out;
-	const schemaPath = config.schema;
-	const casing = config.casing;
+	const { out: outFolder, casing, filenames } = config;
 
 	const { snapshots } = prepareOutFolder(outFolder);
-	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, schemaPath, casing);
+	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, filenames, casing);
 
 	if (config.custom) {
 		writeResult({
@@ -51,8 +49,7 @@ export const handle = async (config: GenerateConfig) => {
 };
 
 export const handleExport = async (config: ExportConfig) => {
-	const filenames = prepareFilenames(config.schema);
-	const res = await prepareFromSchemaFiles(filenames);
+	const res = await prepareFromSchemaFiles(config.filenames);
 	const schema = fromDrizzleSchema(res.tables, config.casing);
 	const { ddl } = interimToDDL(schema);
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl);

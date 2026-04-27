@@ -23,6 +23,10 @@ on:
         required: true
       SQLITE_MANY_CLOUD_CONNECTION_STRING:
         required: true
+      TURBO_TOKEN: 
+        required: true
+      NETLIFY_DB_URL: 
+        required: true
 
 concurrency:
   group: feature-${{ github.workflow }}-${{ github.ref }}
@@ -232,6 +236,7 @@ jobs:
           TEST_CONFIG_PATH_PREFIX: ./tests/cli/
           SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
           SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
+          NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
         working-directory: integration-tests
         shell: bash
         run: |
@@ -387,8 +392,12 @@ jobs:
           
           _version="$(tar -xOf ./artifacts/${{ matrix.package }}/package.tgz package/package.json | jq -r .version)"
           tag="${{ github.ref_name }}"
-          suffix=$(git rev-parse --short HEAD)
-          version="$_version-$suffix"
+          if [[ "$tag" == "beta" ]]; then
+            version="$_version"
+          else
+            suffix=$(git rev-parse --short HEAD)
+            version="$_version-$suffix"
+          fi
           tmpdir="$(mktemp -d)"
           tar -xzf ./artifacts/${{ matrix.package }}/package.tgz -C "$tmpdir"
 

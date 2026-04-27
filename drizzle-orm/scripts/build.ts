@@ -68,7 +68,6 @@ async function main() {
 		sourcemap: true,
 		dts: true,
 		clean: false,
-		silent: true,
 		alias: {
 			'~': './src',
 		},
@@ -96,4 +95,4 @@ async function main() {
 main().catch((e) => {
 	console.error(e);
 	process.exit(1);
-});
+}).then(() => process.exit(0));

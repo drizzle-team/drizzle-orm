@@ -23,6 +23,8 @@ on:
         required: true
       SQLITE_MANY_CLOUD_CONNECTION_STRING:
         required: true
+      TURBO_TOKEN: 
+        required: true
 
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
@@ -466,8 +468,8 @@ jobs:
 
   release:
     permissions:
-      contents: read
-      id-token: write
+      contents: write # for creating GitHub releases
+      id-token: write # for OIDC
     needs:
       - test
       - attw

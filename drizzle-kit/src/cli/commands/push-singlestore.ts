@@ -3,7 +3,6 @@ import { render, renderWithTask } from 'hanji';
 import type { Column, Table, View } from 'src/dialects/mysql/ddl';
 import { interimToDDL } from 'src/dialects/mysql/ddl';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
-import { prepareFilenames } from 'src/utils/utils-node';
 import { ddlDiff } from '../../dialects/singlestore/diff';
 import { highlightSQL } from '../highlighter';
 import { resolver } from '../prompts';
@@ -15,7 +14,7 @@ import { explain, ProgressView } from '../views';
 import { suggestions } from './push-mysql';
 
 export const handle = async (
-	schemaPath: string | string[],
+	filenames: string[],
 	credentials: MysqlCredentials,
 	filters: EntitiesFilterConfig,
 	verbose: boolean,
@@ -45,10 +44,6 @@ export const handle = async (
 		progress,
 		fromDatabaseForDrizzle(db, database, filter, () => {}, migrations),
 	);
-
-	const filenames = prepareFilenames(schemaPath);
-
-	console.log(chalk.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
 
 	const { prepareFromSchemaFiles, fromDrizzleSchema } = await import('../../dialects/singlestore/drizzle');
 

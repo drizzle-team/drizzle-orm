@@ -246,6 +246,26 @@ beforeAll(async () => {
 			);
 		`,
 	);
+
+	await db.execute(
+		sql`
+			create table "seeder_lib_pg"."casing_test"
+			(
+			    column_name1 integer,
+			    column_name2 integer
+			);
+		`,
+	);
+
+	await db.execute(
+		sql`
+			create table "casing_test"
+			(
+			    column_name1 integer,
+			    column_name2 integer
+			);
+		`,
+	);
 });
 
 afterEach(async () => {
@@ -257,7 +277,15 @@ afterAll(async () => {
 });
 
 test('basic seed test', async () => {
-	await seed(db, schema);
+	const currSchema = {
+		customers: schema.customers,
+		details: schema.details,
+		employees: schema.employees,
+		orders: schema.orders,
+		products: schema.products,
+		suppliers: schema.suppliers,
+	};
+	await seed(db, currSchema);
 
 	const customers = await db.select().from(schema.customers);
 	const details = await db.select().from(schema.details);
@@ -275,7 +303,15 @@ test('basic seed test', async () => {
 });
 
 test('seed with options.count:11 test', async () => {
-	await seed(db, schema, { count: 11 });
+	const currSchema = {
+		customers: schema.customers,
+		details: schema.details,
+		employees: schema.employees,
+		orders: schema.orders,
+		products: schema.products,
+		suppliers: schema.suppliers,
+	};
+	await seed(db, currSchema, { count: 11 });
 
 	const customers = await db.select().from(schema.customers);
 	const details = await db.select().from(schema.details);
@@ -293,7 +329,15 @@ test('seed with options.count:11 test', async () => {
 });
 
 test('redefine(refine) customers count', async () => {
-	await seed(db, schema, { count: 11 }).refine(() => ({
+	const currSchema = {
+		customers: schema.customers,
+		details: schema.details,
+		employees: schema.employees,
+		orders: schema.orders,
+		products: schema.products,
+		suppliers: schema.suppliers,
+	};
+	await seed(db, currSchema, { count: 11 }).refine(() => ({
 		customers: {
 			count: 12,
 		},
@@ -315,7 +359,15 @@ test('redefine(refine) customers count', async () => {
 });
 
 test('redefine(refine) all tables count', async () => {
-	await seed(db, schema, { count: 11 }).refine(() => ({
+	const currSchema = {
+		customers: schema.customers,
+		details: schema.details,
+		employees: schema.employees,
+		orders: schema.orders,
+		products: schema.products,
+		suppliers: schema.suppliers,
+	};
+	await seed(db, currSchema, { count: 11 }).refine(() => ({
 		customers: {
 			count: 12,
 		},
@@ -352,7 +404,15 @@ test('redefine(refine) all tables count', async () => {
 });
 
 test("redefine(refine) orders count using 'with' in customers", async () => {
-	await seed(db, schema, { count: 11 }).refine(() => ({
+	const currSchema = {
+		customers: schema.customers,
+		details: schema.details,
+		employees: schema.employees,
+		orders: schema.orders,
+		products: schema.products,
+		suppliers: schema.suppliers,
+	};
+	await seed(db, currSchema, { count: 11 }).refine(() => ({
 		customers: {
 			count: 4,
 			with: {
@@ -534,5 +594,30 @@ test('uuid with drizzle-validations/zod check', async () => {
 	];
 	for (const uuid of possibleUuids) {
 		uuidSelectSchema.parse({ col1: uuid });
+	}
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5470
+test('seed using db with casing', async () => {
+	const currSchema = { schemaCasingTest: schema.schemaCasingTest, casingTest: schema.casingTest };
+	const db = drizzle({ client, casing: 'snake_case' });
+	for (let i = 0; i < 2; i++) {
+		await seed(db, { schemaCasingTest: schema.schemaCasingTest });
+
+		const res = await db.select().from(schema.schemaCasingTest);
+		expect(res.length).toBe(10);
+		let predicate = res.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+		expect(predicate).toBe(true);
+		await reset(db, { schemaCasingTest: schema.schemaCasingTest });
+	}
+
+	for (let i = 0; i < 2; i++) {
+		await seed(db, { casingTest: schema.casingTest });
+
+		const res2 = await db.select().from(schema.casingTest);
+		expect(res2.length).toBe(10);
+		let predicate2 = res2.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+		expect(predicate2).toBe(true);
+		await reset(db, { casingTest: schema.casingTest });
 	}
 });

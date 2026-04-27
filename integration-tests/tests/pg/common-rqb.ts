@@ -1,5 +1,5 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { and, eq, inArray, isNotNull, not, or, sql } from 'drizzle-orm';
+import { and, defineRelations, eq, inArray, isNotNull, not, or, sql } from 'drizzle-orm';
 import type { AnyPgColumn, PgColumnBuilder } from 'drizzle-orm/pg-core';
 import { bigint, integer, numeric, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { describe, expect, expectTypeOf } from 'vitest';
@@ -966,7 +966,7 @@ export function tests(test: Test) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4169
 		// postpone
-		test.skipIf(Date.now() < +new Date('2026-03-15')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-04-26')).concurrent(
 			'RQB v2 find many - $count',
 			async ({ push, createDB }) => {
 				const users = pgTable('rqb_users_18', {
@@ -1028,7 +1028,7 @@ export function tests(test: Test) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4696
 		// postgresjs returns strings for itemCount but other drivers return numbers
-		test.skipIf(Date.now() < +new Date('2026-03-15')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-04-26')).concurrent(
 			'RQB v2 find many - extras',
 			async ({ push, createDB }) => {
 				const orderItemTable = pgTable('rqb_order_item_19', {
@@ -1101,6 +1101,41 @@ export function tests(test: Test) {
 				},
 			});
 			await query;
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/5350
+		test.concurrent('RQB v2 defineRelations error', () => {
+			const users = pgTable('users', { id: integer().primaryKey() });
+			const posts = pgTable('posts', { id: integer().primaryKey(), userId: integer() });
+			const blogs = pgTable('blogs', { id: integer().primaryKey() });
+
+			const throwFunc1 = () => {
+				defineRelations({ users, posts, blogs }, (r) => ({
+					users: {
+						posts: r.many.posts({
+							from: r.users.id,
+							to: r.blogs.id,
+						}),
+					},
+				}));
+			};
+			expect(throwFunc1).toThrowError(
+				/.+all "to" columns must belong to table "posts", found column of table "blogs"$/,
+			);
+
+			const throwFunc2 = () => {
+				defineRelations({ users, posts, blogs }, (r) => ({
+					users: {
+						posts: r.many.posts({
+							from: r.blogs.id,
+							to: r.posts.userId,
+						}),
+					},
+				}));
+			};
+			expect(throwFunc2).toThrowError(
+				/.+all "from" columns must belong to table "users", found column of table "blogs"$/,
+			);
 		});
 	});
 }

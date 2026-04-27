@@ -908,3 +908,152 @@ test('introspect cyclic foreign key', async () => {
 	expect(statements).toStrictEqual([]);
 	expect(sqlStatements).toStrictEqual([]);
 });
+
+test('double-quote-issue', async () => {
+	const content = mysqlTable('content', {
+		id: int('id').notNull(),
+		virtualPath: varchar('virtual_path', { length: 255 }).notNull(),
+		pid: varchar('pid', { length: 750 }).notNull(),
+		pageTitle: varchar('page_title', { length: 75 }).default('Untitled Document').notNull(),
+		navTitle: varchar('nav_title', { length: 25 }).default('NULL'),
+		protected: mysqlEnum('protected', ['Y', 'N']).default('N').notNull(),
+		metaData: varchar('meta_data', { length: 750 }).default('NULL'),
+		content: longtext('content').notNull(),
+		navPlacement: longtext('navPlacement').default('NULL'),
+		weight: decimal('weight', { precision: 10, scale: 2 }).notNull(),
+		dateRecorded: datetime('date_recorded', { mode: 'string' }).notNull(),
+		lastModified: timestamp('last_modified', { mode: 'string' }).default(sql`current_timestamp()`),
+	});
+
+	const { statements, sqlStatements } = await diffIntrospect(db, { content }, 'double-quote-issue');
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5546
+test('issue #5546', async () => {
+	await db.query(`CREATE TABLE my_table (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  col INT
+);`);
+	await db.query(`CREATE UNIQUE INDEX idx_functional 
+ON my_table ((CASE WHEN col = 1 THEN 1 ELSE NULL END));`);
+
+	await db.query(`CREATE TABLE base_table (
+  id INT, 
+  name VARCHAR(50)
+);
+`);
+
+	await db.query(`
+CREATE USER 'ghost_user'@'%' IDENTIFIED BY 'temp123';`);
+
+	await db.query(`CREATE DEFINER='ghost_user'@'%' VIEW broken_view AS SELECT * FROM base_table;`);
+
+	await db.query(`DROP USER 'ghost_user'@'%';`);
+
+	const { statements, sqlStatements, ddlAfterPull } = await diffIntrospect(db, {}, '#5546');
+
+	expect(ddlAfterPull.entities.list()).toStrictEqual([
+		{
+			entityType: 'tables',
+			name: 'base_table',
+		},
+		{
+			entityType: 'tables',
+			name: 'my_table',
+		},
+		{
+			autoIncrement: false,
+			charSet: null,
+			collation: null,
+			default: null,
+			entityType: 'columns',
+			generated: null,
+			name: 'id',
+			notNull: false,
+			onUpdateNow: false,
+			onUpdateNowFsp: null,
+			table: 'base_table',
+			type: 'int',
+		},
+		{
+			autoIncrement: false,
+			charSet: null,
+			collation: null,
+			default: null,
+			entityType: 'columns',
+			generated: null,
+			name: 'name',
+			notNull: false,
+			onUpdateNow: false,
+			onUpdateNowFsp: null,
+			table: 'base_table',
+			type: 'varchar(50)',
+		},
+		{
+			autoIncrement: true,
+			charSet: null,
+			collation: null,
+			default: null,
+			entityType: 'columns',
+			generated: null,
+			name: 'id',
+			notNull: true,
+			onUpdateNow: false,
+			onUpdateNowFsp: null,
+			table: 'my_table',
+			type: 'int',
+		},
+		{
+			autoIncrement: false,
+			charSet: null,
+			collation: null,
+			default: null,
+			entityType: 'columns',
+			generated: null,
+			name: 'col',
+			notNull: false,
+			onUpdateNow: false,
+			onUpdateNowFsp: null,
+			table: 'my_table',
+			type: 'int',
+		},
+		{
+			columns: [
+				'id',
+			],
+			entityType: 'pks',
+			name: 'PRIMARY',
+			table: 'my_table',
+		},
+		{
+			algorithm: null,
+			columns: [
+				{
+					isExpression: true,
+					value: '(case when (`col` = 1) then 1 else NULL end)',
+				},
+			],
+			entityType: 'indexes',
+			isUnique: true,
+			lock: null,
+			name: 'idx_functional',
+			nameExplicit: true,
+			table: 'my_table',
+			using: null,
+		},
+		{
+			algorithm: 'undefined',
+			definition:
+				'select `drizzle`.`base_table`.`id` AS `id`,`drizzle`.`base_table`.`name` AS `name` from `drizzle`.`base_table`',
+			entityType: 'views',
+			name: 'broken_view',
+			sqlSecurity: 'definer',
+			withCheckOption: null,
+		},
+	]);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});

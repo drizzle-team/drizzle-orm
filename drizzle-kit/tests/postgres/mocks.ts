@@ -1,6 +1,5 @@
 import { is } from 'drizzle-orm';
 import {
-	getViewConfig,
 	isPgEnum,
 	isPgMaterializedView,
 	isPgSequence,
@@ -31,7 +30,14 @@ import {
 	PgView as PgViewOld,
 } from 'orm044/pg-core';
 import { CasingType, configMigrations } from 'src/cli/validations/common';
-import { createDDL, fromEntities, interimToDDL, PostgresDDL, SchemaError } from 'src/dialects/postgres/ddl';
+import {
+	createDDL,
+	fromEntities,
+	interimToDDL,
+	PostgresDDL,
+	postgresToRelationsPull,
+	SchemaError,
+} from 'src/dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/postgres/diff';
 import {
 	defaultFromColumn,
@@ -59,18 +65,21 @@ import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { DB } from 'src/utils';
 import 'zx/globals';
+import { relationsToTypeScript } from 'src/cli/commands/pull-common';
 import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/cli';
 import { extractPostgresExisting } from 'src/dialects/drizzle';
-import { getReasonsFromStatements } from 'src/dialects/postgres/commutativity';
+import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
 import { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
 import { upToV8 } from 'src/dialects/postgres/versions';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { diff as legacyDiff } from 'src/legacy/postgres-v7/pgDiff';
 import { serializePg } from 'src/legacy/postgres-v7/serializer';
+import { loadModule } from 'src/utils/utils-node';
 import { tsc } from 'tests/utils';
 import { expect } from 'vitest';
 
-mkdirSync(`tests/postgres/tmp/`, { recursive: true });
+const tmpDir = 'tests/postgres/tmp';
+mkdirSync(tmpDir, { recursive: true });
 
 const { Client } = pg;
 
@@ -331,7 +340,7 @@ export const diffIntrospect = async (
 	testName: string,
 	schemas: string[] = ['public'],
 	entities?: EntitiesFilter,
-	casing?: CasingType | undefined,
+	casing?: CasingType,
 ) => {
 	const { ddl: initDDL } = drizzleToDDL(initSchema, casing);
 	const { sqlStatements: init } = await ddlDiffDry(createDDL(), initDDL, 'default');
@@ -350,12 +359,25 @@ export const diffIntrospect = async (
 	});
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
-	const filePath = `tests/postgres/tmp/${testName}.ts`;
+	// schema
+	const filePath = `${tmpDir}/${testName}.ts`;
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'pg');
 	writeFileSync(filePath, file.file);
-
 	await tsc(file.file).catch((e) => {
 		throw new Error(`tsc error in file ${filePath}`, { cause: e });
+	});
+
+	// relations
+	const relationsPath = `${tmpDir}/${testName}-relations.ts`;
+	const schemaAbsolutePath = path.resolve(tmpDir, testName);
+	const relationsForTsc = relationsToTypeScript(
+		postgresToRelationsPull(ddl1),
+		'camel',
+		schemaAbsolutePath,
+	);
+	writeFileSync(relationsPath, relationsForTsc.file);
+	await tsc(relationsForTsc.file).catch((e) => {
+		throw new Error(`tsc error in file ${relationsPath}`, { cause: e });
 	});
 
 	// generate snapshot from ts file
@@ -372,22 +394,47 @@ export const diffIntrospect = async (
 	// TODO: handle errors
 
 	const {
-		sqlStatements: afterFileSqlStatements,
-		statements: afterFileStatements,
-		groupedStatements,
+		sqlStatements: pushAfterFileSqlStatements,
+		statements: pushAfterFileStatements,
+		groupedStatements: pushAfterFileGroupedStatements,
 	} = await ddlDiffDry(ddl1, ddl2, 'push');
 
-	if (afterFileSqlStatements.length > 0) {
-		console.log(explain('postgres', groupedStatements, true, []));
+	if (pushAfterFileSqlStatements.length > 0) {
+		console.log(chalk.bgRed('After push: ') + '\n' + explain('postgres', pushAfterFileGroupedStatements, true, []));
 	}
 
-	rmSync(`tests/postgres/tmp/${testName}.ts`);
+	const {
+		sqlStatements: generateAfterFileSqlStatements,
+		statements: generateAfterFileStatements,
+		groupedStatements: generateAfterFileGroupedStatements,
+	} = await ddlDiffDry(ddl1, ddl2, 'default');
+
+	if (generateAfterFileSqlStatements.length > 0) {
+		console.log(
+			chalk.bgRed('After generate: ') + '\n' + explain('postgres', generateAfterFileGroupedStatements, true, []),
+		);
+	}
+
+	let relationsError: Error | null = null;
+	try {
+		await loadModule(path.relative(process.cwd(), relationsPath));
+		rmSync(relationsPath);
+	} catch (error: any) {
+		relationsError = error;
+	}
+
+	if ([...generateAfterFileSqlStatements, ...pushAfterFileSqlStatements].length === 0) {
+		rmSync(`tests/postgres/tmp/${testName}.ts`);
+	}
 
 	return {
-		sqlStatements: afterFileSqlStatements,
-		statements: afterFileStatements,
+		pushSqlStatements: pushAfterFileSqlStatements,
+		pushStatements: pushAfterFileStatements,
+		generateSqlStatements: generateAfterFileSqlStatements,
+		generateStatements: generateAfterFileStatements,
 		ddlAfterPull: ddl1,
 		schema2,
+		relationsError,
 	};
 };
 
@@ -821,7 +868,7 @@ export const preparePostgisTestDatabase = async (tx: boolean = true): Promise<Te
 type SchemaShape = {
 	id: string;
 	prevId?: string;
-	schema: Record<string, PgTable>;
+	schema: PostgresSchema;
 };
 
 export async function conflictsFromSchema(
@@ -831,32 +878,19 @@ export async function conflictsFromSchema(
 		child2: SchemaShape;
 	},
 ) {
-	const parentInterim = fromDrizzleSchema(
-		{
-			tables: Object.values(parent.schema),
-			schemas: [],
-			enums: [],
-			sequences: [],
-			roles: [],
-			policies: [],
-			views: [],
-			matViews: [],
-		},
-		undefined,
-		() => true,
-	);
+	const { ddl: parentDDL } = drizzleToDDL(parent.schema);
 
 	const parentSnapshot = {
 		version: '8',
 		dialect: 'postgres',
 		id: parent.id,
 		prevIds: parent.prevId ? [parent.prevId] : [],
-		ddl: interimToDDL(parentInterim.schema).ddl.entities.list(),
+		ddl: parentDDL.entities.list(),
 		renames: [],
 	} satisfies PostgresSnapshot;
 
 	const { statements: st1 } = await diff(parent.schema, child1.schema, []);
 	const { statements: st2 } = await diff(parent.schema, child2.schema, []);
 
-	return await getReasonsFromStatements(st1, st2, parentSnapshot);
+	return await postgresCommutativity.getReasonsFromStatements(st1, st2, parentSnapshot);
 }

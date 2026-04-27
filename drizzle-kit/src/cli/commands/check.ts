@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { readFileSync } from 'fs';
-import type { MigrationNode, NonCommutativityReport, UnifiedBranchConflict } from 'src/utils/commutativity';
-import { detectNonCommutative } from 'src/utils/commutativity';
+import { getCommutativityDialect } from 'src/commutativity';
+import type { MigrationNode, NonCommutativityReport, UnifiedBranchConflict } from 'src/commutativity/types';
 import type { Dialect } from '../../utils/schemaValidator';
 import { prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
 import { info } from '../views';
@@ -32,7 +32,29 @@ const selectOpenCommutativeBranch = (report: NonCommutativityReport) => {
 			&& branch.leafs.every((leaf) => leafSet.has(leaf.id)),
 	);
 
-	if (candidates.length !== 1) return null;
+	if (candidates.length === 0) return null;
+
+	// When multiple commutative branches match (e.g. both a root-level fork and a
+	// deeper fork resolve to the same set of leaves), pick the one closest to the
+	// leaves — i.e. the branch whose combined leaf statements are fewest, meaning
+	// the parent is the most recent common ancestor of the open leaves.
+	if (candidates.length > 1) {
+		let best = candidates[0];
+		let bestTotal = best.leafs.reduce((sum, l) => sum + l.statements.length, 0);
+
+		for (let i = 1; i < candidates.length; i++) {
+			const total = candidates[i].leafs.reduce(
+				(sum, l) => sum + l.statements.length,
+				0,
+			);
+			if (total < bestTotal) {
+				best = candidates[i];
+				bestTotal = total;
+			}
+		}
+		return best;
+	}
+
 	return candidates[0];
 };
 
@@ -171,34 +193,44 @@ export const checkHandler = async (
 		}
 	}
 
-	if (ignoreConflicts) {
-		return emptyResult();
-	}
-
 	try {
-		const response = await detectNonCommutative(snapshots, dialect);
-		if (response.conflicts.length > 0) {
-			const nonCommutativityMessage = generateReportDirectory(response);
-			console.log(nonCommutativityMessage);
-			if (shouldExitOnConflict) {
-				process.exit(1);
-			}
-			return emptyResult(nonCommutativityMessage);
-		}
-
-		const selectedBranch = selectOpenCommutativeBranch(response);
-		if (!selectedBranch) {
+		const commutativity = getCommutativityDialect(dialect);
+		if (!commutativity) {
 			return emptyResult();
 		}
 
-		// Maybe remove
-		const sortedLeafs = [...selectedBranch.leafs].sort((left, right) => left.id.localeCompare(right.id));
-		return {
-			statements: sortedLeafs.flatMap((leaf) => leaf.statements),
-			parentSnapshot: selectedBranch.parentSnapshot,
-			parentId: selectedBranch.parentId,
-			leafIds: sortedLeafs.map((leaf) => leaf.id),
-		};
+		const response = await commutativity.detectNonCommutative(snapshots);
+		if (response.conflicts.length > 0) {
+			const nonCommutativityMessage = generateReportDirectory(response);
+			if (!ignoreConflicts) {
+				console.log(nonCommutativityMessage);
+				if (shouldExitOnConflict) {
+					process.exit(1);
+				}
+				return emptyResult(nonCommutativityMessage);
+			}
+		}
+
+		const selectedBranch = selectOpenCommutativeBranch(response);
+		if (selectedBranch) {
+			const sortedLeafs = [...selectedBranch.leafs].sort((left, right) => left.id.localeCompare(right.id));
+			return {
+				statements: sortedLeafs.flatMap((leaf) => leaf.statements),
+				parentSnapshot: selectedBranch.parentSnapshot,
+				parentId: selectedBranch.parentId,
+				leafIds: sortedLeafs.map((leaf) => leaf.id),
+			};
+		}
+
+		if (ignoreConflicts && response.leafNodes.length > 1) {
+			return {
+				statements: [],
+				parentSnapshot: null,
+				leafIds: [...response.leafNodes].sort((left, right) => left.localeCompare(right)),
+			};
+		}
+
+		return emptyResult();
 	} catch (e) {
 		console.error(e);
 		return emptyResult();

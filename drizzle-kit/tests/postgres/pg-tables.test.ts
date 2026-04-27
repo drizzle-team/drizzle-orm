@@ -1,5 +1,5 @@
 import type { PGlite } from '@electric-sql/pglite';
-import { SQL, sql } from 'drizzle-orm';
+import { aliasedTable, SQL, sql } from 'drizzle-orm';
 import {
 	foreignKey,
 	geometry,
@@ -378,6 +378,28 @@ test('add table #15', async () => {
 
 	const st0 = [
 		`CREATE TABLE "users" (\n\t"name" text CONSTRAINT "name_unique" UNIQUE NULLS NOT DISTINCT\n);\n`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5603
+test.skipIf(Date.now() < +new Date('2026-04-26'))('add table #16', async () => {
+	const users = pgTable('users', {
+		name: text(),
+	}, (t) => [index('name_idx').on(t.name)]);
+	const u = aliasedTable(users, 'u');
+	const to = {
+		users,
+		u,
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
+		'CREATE TABLE "users" (\n\t"name" text\n);\n',
+		'CREATE INDEX "name_idx" ON "users" ("name");',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1500,7 +1522,7 @@ test('push with pscale_extensions schema', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5329
-test.skipIf(Date.now() < +new Date('2026-03-15'))(
+test(
 	'push empty schema with `schemaFilter` set to `["public"]`',
 	async () => {
 		await db.query(`CREATE SCHEMA "cron";`);
@@ -1518,3 +1540,34 @@ test.skipIf(Date.now() < +new Date('2026-03-15'))(
 		expect(pst2).toStrictEqual(expectedSt2);
 	},
 );
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4838
+test('rename table with identity column', async () => {
+	const from = {
+		Hello: pgTable('hello', {
+			id: integer().primaryKey().generatedAlwaysAsIdentity(),
+		}),
+	};
+
+	const to = {
+		Hello: pgTable('hello2', {
+			id: integer().primaryKey().generatedAlwaysAsIdentity(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, [`public.hello->public.hello2`]);
+
+	await push({ db, to: from, schemas: [] });
+
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		schemas: [],
+		renames: [`public.hello->public.hello2`],
+	});
+
+	const expectedSt: string[] = ['ALTER TABLE "hello" RENAME TO "hello2";'];
+
+	expect(st).toStrictEqual(expectedSt);
+	expect(pst).toStrictEqual(expectedSt);
+});

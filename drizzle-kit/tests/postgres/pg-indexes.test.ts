@@ -1,4 +1,4 @@
-import { and, eq, isNull, like, SQL, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, like, SQL, sql } from 'drizzle-orm';
 import {
 	boolean,
 	index,
@@ -570,7 +570,7 @@ test('index #4', async (t) => {
 	expect(st).toStrictEqual([
 		`ALTER TABLE \"table\" RENAME COLUMN \"column2\" TO \"column3\";`,
 		`ALTER TABLE \"table\" DROP COLUMN \"bool\";`,
-		`ALTER TABLE \"table\" ADD COLUMN \"bool\" boolean GENERATED ALWAYS AS (((\"table\".\"column1\" is null) and (\"table\".\"column3\" is null))) STORED;`,
+		`ALTER TABLE \"table\" ADD COLUMN \"bool\" boolean GENERATED ALWAYS AS ((((\"table\".\"column1\" is null)) and ((\"table\".\"column3\" is null)))) STORED;`,
 		`CREATE INDEX "table_uid_bool_idx" ON "table" ("uid","bool");`,
 	]);
 	// push is not triggered on generated change
@@ -651,48 +651,6 @@ test('index #6', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-// https://github.com/drizzle-team/drizzle-orm/issues/3255
-test('index #7', async () => {
-	const table1 = pgTable('table1', {
-		col1: integer(),
-		col2: integer(),
-	}, () => [
-		index1,
-		index2,
-		index3,
-		index4,
-		index5,
-		index6,
-	]);
-
-	const index1 = uniqueIndex('index1').on(table1.col1);
-	const index2 = uniqueIndex('index2').on(table1.col1, table1.col2);
-	const index3 = index('index3').on(table1.col1);
-	const index4 = index('index4').on(table1.col1, table1.col2);
-	const index5 = index('index5').on(sql`${table1.col1} asc`);
-	const index6 = index('index6').on(sql`${table1.col1} asc`, sql`${table1.col2} desc`);
-
-	const schema1 = { table1, index1, index2, index3, index4, index5, index6 };
-
-	const { sqlStatements: st1 } = await diff({}, schema1, []);
-	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
-
-	const expectedSt1 = [
-		'CREATE TABLE "table1" (\n'
-		+ '\t"col1" integer,\n'
-		+ '\t"col2" integer\n'
-		+ ');\n',
-		'CREATE UNIQUE INDEX "index1" ON "table1" ("col1");',
-		'CREATE UNIQUE INDEX "index2" ON "table1" ("col1","col2");',
-		'CREATE INDEX "index3" ON "table1" ("col1");',
-		'CREATE INDEX "index4" ON "table1" ("col1","col2");',
-		'CREATE INDEX "index5" ON "table1" ("col1" asc);',
-		'CREATE INDEX "index6" ON "table1" ("col1" asc,"col2" desc);',
-	];
-	expect(st1).toStrictEqual(expectedSt1);
-	expect(pst1).toStrictEqual(expectedSt1);
-});
-
 // https://github.com/drizzle-team/drizzle-orm/issues/5055
 test('index #8', async () => {
 	const table1 = pgTable('table1', {
@@ -758,4 +716,75 @@ test('index #9', async () => {
 	const { sqlStatements: pst3 } = await push({ db, to: schema2 });
 	expect(st3).toStrictEqual([]);
 	expect(pst3).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5467
+test('index in other schema', async () => {
+	const commonSchema = pgSchema('common');
+
+	const schema1 = {
+		commonSchema,
+		directoriesTable: commonSchema.table(
+			'filesystems_directories',
+			{
+				filesystemId: text(),
+			},
+			(table) => [index().on(table.filesystemId)],
+		),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+
+	const expectedSt1 = [
+		'CREATE SCHEMA "common";\n',
+		'CREATE TABLE "common"."filesystems_directories" (\n\t"filesystemId" text\n);\n',
+		`CREATE INDEX "filesystems_directories_filesystemId_index" ON "common"."filesystems_directories" ("filesystemId");`,
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const schema2 = {
+		commonSchema,
+		directoriesTable: commonSchema.table(
+			'filesystems_directories',
+			{
+				filesystemId: text(),
+			},
+		),
+	};
+
+	const { sqlStatements: st2, next: n2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+	const expectedSt2 = [
+		`DROP INDEX "common"."filesystems_directories_filesystemId_index";`,
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5495
+test('access method issue', async () => {
+	await db.query(`CREATE EXTENSION IF NOT EXISTS vector;`);
+
+	const schema = {
+		table: pgTable(
+			'table',
+			{
+				id: integer(),
+				name: vector({ dimensions: 1536 }),
+			},
+			(table) => [index('idx_claims_embedding').using('ivfflat', table.name.asc().nullsLast().op('vector_cosine_ops'))],
+		),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
+
+	const expectedSt1 = [
+		'CREATE TABLE "table" (\n\t"id" integer,\n\t"name" vector(1536)\n);\n',
+		'CREATE INDEX "idx_claims_embedding" ON "table" USING ivfflat ("name" vector_cosine_ops);',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
 });

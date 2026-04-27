@@ -31,8 +31,7 @@ export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig, TIs
 
 	constructor(
 		private client: Tx | Connection,
-		private queryString: string,
-		private params: unknown[],
+		query: Query,
 		private logger: Logger,
 		cache: Cache,
 		queryMetadata: {
@@ -50,20 +49,20 @@ export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig, TIs
 		private returningIds?: SelectedFieldsOrdered,
 		private isRqbV2Query?: TIsRqbV2,
 	) {
-		super(cache, queryMetadata, cacheConfig);
+		super(query, cache, queryMetadata, cacheConfig);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
 
-		const params = fillPlaceholders(this.params, placeholderValues);
+		const params = fillPlaceholders(this.query.params, placeholderValues);
 
-		this.logger.logQuery(this.queryString, params);
+		this.logger.logQuery(this.query.sql, params);
 
-		const { fields, client, queryString, joinsNotNullableMap, customResultMapper, returningIds, generatedIds } = this;
+		const { fields, client, query, joinsNotNullableMap, customResultMapper, returningIds, generatedIds } = this;
 		if (!fields && !customResultMapper) {
-			const res = await this.queryWithCache(queryString, params, async () => {
-				return await client.execute(queryString, params, executeRawConfig) as FullResult;
+			const res = await this.queryWithCache(query.sql, params, async () => {
+				return await client.execute(query.sql, params, executeRawConfig) as FullResult;
 			});
 			const insertId = res.lastInsertId ?? 0;
 			const affectedRows = res.rowsAffected ?? 0;
@@ -93,8 +92,8 @@ export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig, TIs
 			return res;
 		}
 
-		const rows = await this.queryWithCache(queryString, params, async () => {
-			return await client.execute(queryString, params, queryConfig) as unknown[][];
+		const rows = await this.queryWithCache(query.sql, params, async () => {
+			return await client.execute(query.sql, params, queryConfig) as unknown[][];
 		});
 
 		if (customResultMapper) {
@@ -105,12 +104,12 @@ export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig, TIs
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
+		const params = fillPlaceholders(this.query.params, placeholderValues);
 
-		this.logger.logQuery(this.queryString, params);
+		this.logger.logQuery(this.query.sql, params);
 
-		const { client, queryString, customResultMapper, returningIds, generatedIds } = this;
-		const res = await client.execute(queryString, params, executeRawConfig) as FullResult;
+		const { client, query, customResultMapper, returningIds, generatedIds } = this;
+		const res = await client.execute(query.sql, params, executeRawConfig) as FullResult;
 		const insertId = res.lastInsertId ?? 0;
 		const affectedRows = res.rowsAffected ?? 0;
 		// for each row, I need to check keys from
@@ -198,8 +197,7 @@ export class TiDBServerlessSession<
 	): MySqlPreparedQuery<T> {
 		return new TiDBServerlessPreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			this.cache,
 			queryMetadata,
@@ -220,8 +218,7 @@ export class TiDBServerlessSession<
 	): MySqlPreparedQuery<T> {
 		return new TiDBServerlessPreparedQuery(
 			this.client,
-			query.sql,
-			query.params,
+			query,
 			this.logger,
 			this.cache,
 			undefined,

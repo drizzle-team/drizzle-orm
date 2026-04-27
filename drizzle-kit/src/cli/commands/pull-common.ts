@@ -63,7 +63,10 @@ export const relationsToTypeScript = (
 			columnsThroughFrom?: string[];
 			columnsThroughTo?: string[];
 		}[]
-	> = {};
+	> =
+		// {} links to Object.prototype that has "constructor" property
+		// table can be named so
+		Object.create(null);
 
 	// Process all foreign keys as before.
 	schema.forEach((table) => {
@@ -112,9 +115,9 @@ export const relationsToTypeScript = (
 					// this type is used for .many() side of relation, when another side has .through() with from and to fields
 					type: 'many-through',
 					tableFrom: toTable2,
-					columnsFrom: fk2.columnsTo,
+					columnsFrom: columnsTo2,
 					tableTo: toTable1,
-					columnsTo: columnsTo2,
+					columnsTo: columnsTo1,
 					tableThrough,
 					columnsThroughFrom,
 					columnsThroughTo,
