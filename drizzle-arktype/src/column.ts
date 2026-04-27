@@ -18,6 +18,7 @@ import type {
 import type {
 	PgArray,
 	PgBigInt53,
+	PgNumericBigInt,
 	PgBigSerial53,
 	PgBinaryVector,
 	PgChar,
@@ -101,6 +102,18 @@ export function columnToSchema(column: Column): Type {
 			schema = type.unknown.array();
 		} else if (column.dataType === 'number') {
 			schema = numberColumnToSchema(column);
+		} else if (column.dataType === 'bigint' && isColumnType<PgNumericBigInt<any>>(column, ['PgNumericBigInt'])) {
+			const max = column.precision ? BigInt('9'.repeat(column.precision)) : null;
+			const min = max ? -max : null;
+			schema = type.bigint.narrow((v: bigint, ctx) => {
+				if (min !== null && v < min) {
+					return ctx.mustBe('greater than or equal to ' + min.toString());
+				}
+				if (max !== null && v > max) {
+					return ctx.mustBe('less than or equal to ' + max.toString());
+				}
+				return true;
+			});
 		} else if (column.dataType === 'bigint') {
 			schema = bigintColumnToSchema(column);
 		} else if (column.dataType === 'boolean') {
