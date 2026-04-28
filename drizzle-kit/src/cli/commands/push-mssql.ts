@@ -30,6 +30,7 @@ import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MssqlCredentials } from '../validations/mssql';
 import {
+	abortedJsonOutput,
 	explain as explainView,
 	explainJsonOutput,
 	humanLog,
@@ -113,7 +114,7 @@ export const handle = async (
 
 	if (sqlStatements.length === 0) {
 		if (json) {
-			printJsonOutput(explainJsonOutput('mssql', [], []), true);
+			printJsonOutput({ status: 'no_changes', dialect: 'mssql' });
 		} else {
 			render(`[${chalk.blue('i')}] No changes detected`);
 		}
@@ -128,7 +129,7 @@ export const handle = async (
 
 	if (explain) {
 		if (json) {
-			printJsonOutput(explainJsonOutput('mssql', jsonStatements, suggestionHints), true);
+			printJsonOutput(explainJsonOutput('mssql', jsonStatements, suggestionHints));
 		} else {
 			const explainMessage = explainView('mssql', groupedStatements, suggestionHints);
 			if (explainMessage) {
@@ -140,7 +141,7 @@ export const handle = async (
 
 	if (!force && suggestionHints.length > 0) {
 		if (json) {
-			printJsonOutput({ status: 'aborted', dialect: 'mssql' }, true);
+			printJsonOutput(abortedJsonOutput('mssql', suggestionHints));
 			process.exit(0);
 		}
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
@@ -159,7 +160,7 @@ export const handle = async (
 	}
 
 	if (json) {
-		printJsonOutput({ status: 'ok', dialect: 'mssql', message: 'Changes applied' }, true);
+		printJsonOutput({ status: 'ok', dialect: 'mssql', message: 'Changes applied' });
 	} else {
 		render(`[${chalk.green('\u2713')}] Changes applied`);
 	}

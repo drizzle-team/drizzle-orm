@@ -17,6 +17,7 @@ import { createDDL, interimToDDL } from '../../dialects/cockroach/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/cockroach/diff';
 import { prepareSnapshot } from '../../dialects/cockroach/serializer';
 import type { JsonStatement } from '../../dialects/cockroach/statements';
+import { isJsonMode } from '../context';
 import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import {
@@ -32,6 +33,7 @@ import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
 	const { out: outFolder, filenames, casing } = config;
+	const json = isJsonMode();
 
 	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, filenames, casing);
@@ -40,9 +42,9 @@ export const handle = async (config: GenerateConfig) => {
 			snapshot: custom,
 			sqlStatements: [],
 			outFolder,
-			json: config.json,
 			name: config.name,
 			breakpoints: config.breakpoints,
+			dialect: 'cockroach',
 			type: 'custom',
 			renames: [],
 			snapshots,
@@ -77,7 +79,7 @@ export const handle = async (config: GenerateConfig) => {
 	statements = diffResult.statements;
 	groupedStatements = diffResult.groupedStatements;
 
-	if (config.json && config.hints.hasMissingHints()) {
+	if (json && config.hints.hasMissingHints()) {
 		config.hints.emitAndExit();
 	}
 
@@ -86,17 +88,21 @@ export const handle = async (config: GenerateConfig) => {
 			snapshot: snapshot,
 			sqlStatements,
 			outFolder,
-			json: config.json,
 			name: config.name,
 			breakpoints: config.breakpoints,
+			dialect: 'cockroach',
 			renames,
 			snapshots,
 		});
 		return;
 	}
 
-	if (config.json) {
-		printJsonOutput(explainJsonOutput('cockroach', statements, []), true);
+	if (json) {
+		if (sqlStatements.length === 0) {
+			printJsonOutput({ status: 'no_changes', dialect: 'cockroach' });
+			return;
+		}
+		printJsonOutput(explainJsonOutput('cockroach', statements, []));
 		return;
 	}
 
@@ -134,6 +140,6 @@ export const handleExport = async (config: ExportConfig) => {
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
-	printJsonOutput({ sqlStatements }, config.json);
+	printJsonOutput({ status: 'ok', dialect: 'cockroach', sqlStatements });
 	humanLog(sqlStatements.join('\n'));
 };

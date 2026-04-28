@@ -5,6 +5,7 @@ import { ddlDiff, ddlDiffDry } from 'src/dialects/singlestore/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/singlestore/drizzle';
 import { prepareSnapshot } from 'src/dialects/singlestore/serializer';
 import { prepareOutFolder } from 'src/utils/utils-node';
+import { isJsonMode } from '../context';
 import { resolver } from '../prompts';
 import { explain, explainJsonOutput, humanLog, printJsonOutput } from '../views';
 import { writeResult } from './generate-common';
@@ -12,6 +13,7 @@ import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
 	const { out: outFolder, casing, filenames } = config;
+	const json = isJsonMode();
 	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, filenames, casing);
 
@@ -20,9 +22,9 @@ export const handle = async (config: GenerateConfig) => {
 			snapshot: custom,
 			sqlStatements: [],
 			outFolder,
-			json: config.json,
 			name: config.name,
 			breakpoints: config.breakpoints,
+			dialect: 'singlestore',
 			type: 'custom',
 			renames: [],
 			snapshots,
@@ -49,7 +51,7 @@ export const handle = async (config: GenerateConfig) => {
 	statements = diffResult.statements;
 	groupedStatements = diffResult.groupedStatements;
 
-	if (config.json && config.hints.hasMissingHints()) {
+	if (json && config.hints.hasMissingHints()) {
 		config.hints.emitAndExit();
 	}
 
@@ -58,17 +60,21 @@ export const handle = async (config: GenerateConfig) => {
 			snapshot,
 			sqlStatements,
 			outFolder,
-			json: config.json,
 			name: config.name,
 			breakpoints: config.breakpoints,
+			dialect: 'singlestore',
 			renames,
 			snapshots,
 		});
 		return;
 	}
 
-	if (config.json) {
-		printJsonOutput(explainJsonOutput('singlestore', statements, []), true);
+	if (json) {
+		if (sqlStatements.length === 0) {
+			printJsonOutput({ status: 'no_changes', dialect: 'singlestore' });
+			return;
+		}
+		printJsonOutput(explainJsonOutput('singlestore', statements, []));
 		return;
 	}
 
@@ -83,6 +89,6 @@ export const handleExport = async (config: ExportConfig) => {
 	const schema = fromDrizzleSchema(res.tables, config.casing);
 	const { ddl } = interimToDDL(schema);
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl);
-	printJsonOutput({ sqlStatements }, config.json);
+	printJsonOutput({ status: 'ok', dialect: 'singlestore', sqlStatements });
 	humanLog(sqlStatements.join('\n'));
 };

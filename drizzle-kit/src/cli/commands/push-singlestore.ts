@@ -12,7 +12,14 @@ import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
-import { explain as explainView, explainJsonOutput, humanLog, printJsonOutput, ProgressView } from '../views';
+import {
+	abortedJsonOutput,
+	explain as explainView,
+	explainJsonOutput,
+	humanLog,
+	printJsonOutput,
+	ProgressView,
+} from '../views';
 import { suggestions } from './push-mysql';
 
 export const handle = async (
@@ -82,7 +89,7 @@ export const handle = async (
 
 	if (sqlStatements.length === 0) {
 		if (json) {
-			printJsonOutput(explainJsonOutput('singlestore', [], []), true);
+			printJsonOutput({ status: 'no_changes', dialect: 'singlestore' });
 		} else {
 			render(`[${chalk.blue('i')}] No changes detected`);
 		}
@@ -97,7 +104,7 @@ export const handle = async (
 
 	if (explain) {
 		if (json) {
-			printJsonOutput(explainJsonOutput('singlestore', statements, suggestionHints), true);
+			printJsonOutput(explainJsonOutput('singlestore', statements, suggestionHints));
 		} else {
 			const explainMessage = explainView('singlestore', groupedStatements, suggestionHints);
 			if (explainMessage) {
@@ -109,7 +116,7 @@ export const handle = async (
 
 	if (!force && suggestionHints.length > 0) {
 		if (json) {
-			printJsonOutput({ status: 'aborted', dialect: 'singlestore' }, true);
+			printJsonOutput(abortedJsonOutput('singlestore', suggestionHints));
 			process.exit(0);
 		}
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
@@ -128,7 +135,7 @@ export const handle = async (
 	}
 
 	if (json) {
-		printJsonOutput({ status: 'ok', dialect: 'singlestore', message: 'Changes applied' }, true);
+		printJsonOutput({ status: 'ok', dialect: 'singlestore', message: 'Changes applied' });
 	} else {
 		render(`[${chalk.green('\u2713')}] Changes applied`);
 	}

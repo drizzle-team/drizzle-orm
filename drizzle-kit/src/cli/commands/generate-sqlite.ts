@@ -4,6 +4,7 @@ import type { JsonStatement } from 'src/dialects/sqlite/statements';
 import { prepareOutFolder } from 'src/utils/utils-node';
 import { type Column, createDDL, interimToDDL, type SqliteEntities } from '../../dialects/sqlite/ddl';
 import { prepareSqliteSnapshot } from '../../dialects/sqlite/serializer';
+import { isJsonMode } from '../context';
 import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import { explain, explainJsonOutput, humanLog, printJsonOutput, sqliteSchemaError, warning } from '../views';
@@ -12,6 +13,7 @@ import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
 	const dialect = config.dialect === 'turso' ? 'turso' : 'sqlite';
+	const json = isJsonMode();
 	const { out: outFolder, casing, filenames } = config;
 	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSqliteSnapshot(
@@ -24,9 +26,9 @@ export const handle = async (config: GenerateConfig) => {
 			snapshot: custom,
 			sqlStatements: [],
 			outFolder,
-			json: config.json,
 			name: config.name,
 			breakpoints: config.breakpoints,
+			dialect,
 			bundle: config.bundle,
 			type: 'custom',
 			renames: [],
@@ -54,11 +56,11 @@ export const handle = async (config: GenerateConfig) => {
 	statements = diffResult.statements;
 	groupedStatements = diffResult.groupedStatements;
 
-	if (config.json && config.hints.hasMissingHints()) {
+	if (json && config.hints.hasMissingHints()) {
 		config.hints.emitAndExit();
 	}
 
-	if (!config.json) {
+	if (!json) {
 		for (const w of warnings) {
 			warning(w);
 		}
@@ -70,9 +72,9 @@ export const handle = async (config: GenerateConfig) => {
 			sqlStatements,
 			renames,
 			outFolder,
-			json: config.json,
 			name: config.name,
 			breakpoints: config.breakpoints,
+			dialect,
 			bundle: config.bundle,
 			driver: config.driver,
 			snapshots,
@@ -80,8 +82,12 @@ export const handle = async (config: GenerateConfig) => {
 		return;
 	}
 
-	if (config.json) {
-		printJsonOutput(explainJsonOutput(dialect, statements, []), true);
+	if (json) {
+		if (sqlStatements.length === 0) {
+			printJsonOutput({ status: 'no_changes', dialect });
+			return;
+		}
+		printJsonOutput(explainJsonOutput(dialect, statements, []));
 		return;
 	}
 
@@ -92,6 +98,7 @@ export const handle = async (config: GenerateConfig) => {
 };
 
 export const handleExport = async (config: ExportConfig) => {
+	const dialect = config.dialect === 'turso' ? 'turso' : 'sqlite';
 	const res = await prepareFromSchemaFiles(config.filenames);
 	const schema = fromDrizzleSchema(res.tables, res.views, config.casing);
 	const { ddl, errors } = interimToDDL(schema);
@@ -99,11 +106,11 @@ export const handleExport = async (config: ExportConfig) => {
 	if (errors.length > 0) {
 		throw new CommandOutputCliError('export', errors.map((it) => sqliteSchemaError(it)).join('\n'), {
 			stage: 'ddl',
-			dialect: 'sqlite',
+			dialect,
 		});
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
-	printJsonOutput({ sqlStatements }, config.json);
+	printJsonOutput({ status: 'ok', dialect, sqlStatements });
 	humanLog(sqlStatements.join('\n'));
 };

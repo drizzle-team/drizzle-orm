@@ -28,7 +28,6 @@ test('export #1', async (t) => {
 		dialect: 'postgresql',
 		filenames: [filename],
 		sql: true,
-		json: false,
 		casing: undefined,
 	});
 });
@@ -41,7 +40,6 @@ test('export #2', async (t) => {
 		dialect: 'postgresql',
 		filenames: [filename],
 		sql: true,
-		json: false,
 		casing: undefined,
 	});
 });
@@ -55,7 +53,6 @@ test('export #3', async (t) => {
 		dialect: 'sqlite',
 		filenames: [filename],
 		sql: true,
-		json: false,
 		casing: undefined,
 	});
 });
