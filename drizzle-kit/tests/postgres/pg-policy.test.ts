@@ -1847,3 +1847,24 @@ $$;`);
 	expect(st2).toStrictEqual([]);
 	expect(pst2).toStrictEqual([]);
 });
+
+// Regression test for issue #5655
+test('schemaFilter: excluded schema policies are not dropped', async () => {
+	// Simulates a Supabase-style setup: storage schema with RLS policies exists in the DB
+	// but is not managed by drizzle-kit. push({ schemas: ['public'] }) must not touch it.
+	await db.query(`CREATE SCHEMA storage`);
+	await db.query(`CREATE TABLE storage.objects (id integer PRIMARY KEY, name text)`);
+	await db.query(`ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY`);
+	await db.query(`CREATE POLICY "storage_select" ON storage.objects AS PERMISSIVE FOR SELECT TO PUBLIC USING (true)`);
+
+	const usersTable = pgTable(
+		'users',
+		{ id: integer('id').primaryKey() },
+		() => [pgPolicy('public_select', { as: 'permissive', for: 'select' })],
+	);
+
+	const { sqlStatements: pst } = await push({ db, to: { usersTable }, schemas: ['public'] });
+
+	expect(pst.some((s) => s.toLowerCase().includes('storage'))).toBe(false);
+	expect(pst.some((s) => s.toLowerCase().includes('create table') && s.toLowerCase().includes('users'))).toBe(true);
+});

@@ -47,6 +47,12 @@ export class RelationalQueryBuilder<
 	findMany<TConfig extends DBQueryConfigWithComment<'many', TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfigWithComment<'many', TSchema, TFields>> & {
 			comment?: SqlCommenterInput;
+			where?:
+				| KnownKeysOnly<
+					NonNullable<TConfig['where']>,
+					NonNullable<DBQueryConfigWithComment<'many', TSchema, TFields>['where']>
+				>
+				| undefined;
 		},
 	): PgRelationalQueryKind<TBuilderHKT, BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new this.builder(
@@ -64,6 +70,12 @@ export class RelationalQueryBuilder<
 	findFirst<TConfig extends DBQueryConfigWithComment<'one', TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfigWithComment<'one', TSchema, TFields>> & {
 			comment?: SqlCommenterInput;
+			where?:
+				| KnownKeysOnly<
+					NonNullable<TConfig['where']>,
+					NonNullable<DBQueryConfigWithComment<'one', TSchema, TFields>['where']>
+				>
+				| undefined;
 		},
 	): PgRelationalQueryKind<TBuilderHKT, BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
 		return new this.builder(
