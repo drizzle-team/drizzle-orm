@@ -1,4 +1,5 @@
 import { Schema as s } from 'effect';
+import type { Top as SchemaTop } from 'effect/Schema';
 import { Column } from '~/column.ts';
 import { is } from '~/entity.ts';
 import type { PgEnum } from '~/pg-core/columns/enum.ts';
@@ -10,13 +11,13 @@ import { columnToSchema } from './column.ts';
 import type { Conditions } from './schema.types.internal.ts';
 import type { CreateInsertSchema, CreateSelectSchema, CreateUpdateSchema } from './schema.types.ts';
 
-function isOptional(schema: unknown): schema is s.optional<s.Schema.Any> {
+function isOptional(schema: unknown): schema is s.optional<SchemaTop> {
 	if ((typeof schema !== 'object' || schema === null) && typeof schema !== 'function') return false;
 
-	return !s.isSchema(schema) && 'from' in schema && s.isSchema(schema.from);
+	return s.isSchema(schema) && (schema as any).ast?.context?.isOptional === true;
 }
 
-function isStructField(schema: unknown): schema is s.optional<s.Schema.Any> | s.Schema.Any {
+function isStructField(schema: unknown): schema is s.optional<SchemaTop> | SchemaTop {
 	if (s.isSchema(schema)) return true;
 
 	return isOptional(schema);
@@ -26,8 +27,8 @@ function handleColumns(
 	columns: Record<string, any>,
 	refinements: Record<string, any>,
 	conditions: Conditions,
-): s.Schema.Any {
-	const columnSchemas: Record<string, s.Schema.Any | s.optional<s.Schema.Any>> = {};
+): SchemaTop {
+	const columnSchemas: Record<string, SchemaTop | s.optional<SchemaTop>> = {};
 	for (const [key, selected] of Object.entries(columns)) {
 		if (!is(selected, Column) && !is(selected, SQL) && !is(selected, SQL.Aliased) && typeof selected === 'object') {
 			const columns = isTable(selected) || isView(selected) ? getColumns(selected) : selected;
@@ -45,7 +46,7 @@ function handleColumns(
 		const column = is(selected, Column) ? selected : undefined;
 		const schema = column ? columnToSchema(column) : s.Any;
 		const _refined = isStructField(refinement) || typeof refinement !== 'function' ? schema : refinement(schema);
-		const refined = isOptional(_refined) ? _refined.from : _refined as s.Schema.Any;
+		const refined = isOptional(_refined) ? (_refined as any).schema : _refined as SchemaTop;
 
 		if (conditions.never(column)) {
 			continue;
@@ -55,11 +56,11 @@ function handleColumns(
 
 		if (column) {
 			if (conditions.nullable(column)) {
-				columnSchemas[key] = s.NullOr(columnSchemas[key]);
+				columnSchemas[key] = s.NullOr(columnSchemas[key] as SchemaTop);
 			}
 
 			if (conditions.optional(column)) {
-				columnSchemas[key] = s.optional(s.UndefinedOr(columnSchemas[key]));
+				columnSchemas[key] = s.optional(s.UndefinedOr(columnSchemas[key] as SchemaTop));
 			}
 		}
 	}
@@ -70,7 +71,7 @@ function handleColumns(
 function handleEnum(
 	enum_: PgEnum<[string, ...string[]]>,
 ) {
-	return s.Literal(...enum_.enumValues);
+	return s.Literals(enum_.enumValues);
 }
 
 const selectConditions: Conditions = {

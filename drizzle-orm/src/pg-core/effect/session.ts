@@ -1,12 +1,12 @@
-import type { SqlError } from '@effect/sql/SqlError';
 import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
-import { EffectCache } from '~/cache/core/cache-effect.ts';
+import type { SqlError } from 'effect/unstable/sql/SqlError';
+import { EffectCache, type EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import { NoopCache, strategyFor } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { MigratorInitError } from '~/effect-core/errors.ts';
 import { EffectDrizzleQueryError, EffectTransactionRollbackError } from '~/effect-core/errors.ts';
-import { EffectLogger } from '~/effect-core/logger.ts';
+import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase, QueryEffectKind } from '~/effect-core/query-effect.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
@@ -42,9 +42,9 @@ export class PgEffectPreparedQuery<
 		query: Query,
 		mapper: ((rows: any[]) => any) | undefined,
 		readonly mode: 'arrays' | 'objects' | 'raw',
-		private logger: EffectLogger,
+		private logger: EffectLoggerShape,
 		// cache instance
-		protected cache: EffectCache,
+		protected cache: EffectCacheShape,
 		// per query related metadata
 		protected queryMetadata: {
 			type: 'select' | 'update' | 'delete' | 'insert';
@@ -64,18 +64,18 @@ export class PgEffectPreparedQuery<
 	}
 
 	override execute(placeholderValues: Record<string, unknown> = {}): QueryEffectKind<TEffectHKT, T['execute']> {
-		return Effect.gen(this, function*() {
+		return Effect.gen({ self: this }, function*() {
 			const params = fillPlaceholders(this.query.params, placeholderValues);
-			const { query: { sql }, mapper } = this;
+			const { query: { sql }, mapper, logger } = this;
 
-			yield* EffectLogger.logQuery(sql, params);
+			yield* logger.logQuery(sql, params);
 
 			const query = this.queryWithCache(sql, params, Effect.suspend(() => this.executor(params)));
 
 			if (!mapper) return yield* query;
 
-			return yield* query.pipe(Effect.andThen((rows) => mapper(rows as unknown[])));
-		}).pipe(Effect.provideService(EffectLogger, this.logger));
+			return yield* query.pipe(Effect.map((rows) => mapper(rows as unknown[])));
+		});
 	}
 
 	protected override queryWithCache<A, E, R>(
@@ -83,7 +83,7 @@ export class PgEffectPreparedQuery<
 		params: any[],
 		query: Effect.Effect<A, E, R>,
 	) {
-		return Effect.gen(this, function*() {
+		return Effect.gen({ self: this }, function*() {
 			const { cacheConfig, queryMetadata } = this;
 			const cache = yield* EffectCache;
 
@@ -132,8 +132,8 @@ export class PgEffectPreparedQuery<
 			assertUnreachable(cacheStrat);
 		}).pipe(
 			Effect.provideService(EffectCache, this.cache),
-			Effect.catchAll((e) => {
-				return new EffectDrizzleQueryError({ query: queryString, params, cause: Cause.fail(e) });
+			Effect.catch((e) => {
+				return Effect.fail(new EffectDrizzleQueryError({ query: queryString, params, cause: Cause.fail(e) }));
 			}),
 		);
 	}
