@@ -51,7 +51,7 @@ export type BuildSchema<
 > = Struct<
 	Simplify<
 		{
-			[
+			readonly [
 				K in keyof TColumns as ColumnIsGeneratedAlwaysAs<TColumns[K]> extends true ? TType extends 'select' ? K
 					: never
 					: K

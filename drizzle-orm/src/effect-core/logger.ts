@@ -1,6 +1,6 @@
+import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
-import * as ServiceMap from 'effect/ServiceMap';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 
@@ -35,7 +35,7 @@ export interface EffectLoggerShape {
  * );
  * ```
  */
-export class EffectLogger extends ServiceMap.Service<EffectLogger>()('drizzle-orm/EffectLogger', {
+export class EffectLogger extends Context.Service<EffectLogger, EffectLoggerShape>()('drizzle-orm/EffectLogger', {
 	make: Effect.sync((): EffectLoggerShape => ({
 		logQuery: (_query: string, _params: unknown[]) => Effect.void,
 	})),

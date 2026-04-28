@@ -1,7 +1,7 @@
+import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
-import * as ServiceMap from 'effect/ServiceMap';
 import { entityKind } from '~/entity.ts';
 import { type Cache as DrizzleCache, type MutationOption, NoopCache } from './cache.ts';
 import type { CacheConfig } from './types.ts';
@@ -45,7 +45,7 @@ export interface EffectCacheShape {
  * );
  * ```
  */
-export class EffectCache extends ServiceMap.Service<EffectCache>()('drizzle-orm/EffectCache', {
+export class EffectCache extends Context.Service<EffectCache, EffectCacheShape>()('drizzle-orm/EffectCache', {
 	make: Effect.sync((): EffectCacheShape => make(new NoopCache())),
 }) {
 	static readonly [entityKind]: string = 'drizzle-orm/EffectCache';

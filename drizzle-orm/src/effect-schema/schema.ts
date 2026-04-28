@@ -14,7 +14,7 @@ import type { CreateInsertSchema, CreateSelectSchema, CreateUpdateSchema } from 
 function isOptional(schema: unknown): schema is s.optional<SchemaTop> {
 	if ((typeof schema !== 'object' || schema === null) && typeof schema !== 'function') return false;
 
-	return 'schema' in schema && s.isSchema((schema as any).schema);
+	return s.isSchema(schema) && (schema as any).ast?.context?.isOptional === true;
 }
 
 function isStructField(schema: unknown): schema is s.optional<SchemaTop> | SchemaTop {

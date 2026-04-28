@@ -74,7 +74,7 @@ export class PgEffectPreparedQuery<
 
 			if (!mapper) return yield* query;
 
-			return yield* query.pipe(Effect.andThen((rows) => mapper(rows as unknown[])));
+			return yield* query.pipe(Effect.map((rows) => mapper(rows as unknown[])));
 		});
 	}
 

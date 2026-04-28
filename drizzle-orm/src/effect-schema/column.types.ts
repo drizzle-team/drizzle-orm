@@ -1,5 +1,6 @@
 import type { Schema as s } from 'effect';
 import type { $Array, Literals, NullOr, optional, Struct, Top as SchemaTop, Tuple, UndefinedOr } from 'effect/Schema';
+import type { LiteralValue } from 'effect/SchemaAST';
 import type { ColumnTypeData, ExtractColumnTypeData } from '~/column-builder.ts';
 import type { Column } from '~/column.ts';
 import type { Assume } from '~/utils.ts';
@@ -34,8 +35,8 @@ type GetBaseEffectSchemaType<
 	TColumn extends Column<any>,
 	TType extends ColumnTypeData = ExtractColumnTypeData<TColumn['_']['dataType']>,
 > = TType['type'] extends 'array'
-	? TType['constraint'] extends 'geometry' | 'point' ? Tuple<[typeof s.Number, typeof s.Number]>
-	: TType['constraint'] extends 'line' ? Tuple<[typeof s.Number, typeof s.Number, typeof s.Number]>
+	? TType['constraint'] extends 'geometry' | 'point' ? Tuple<readonly [typeof s.Number, typeof s.Number]>
+	: TType['constraint'] extends 'line' ? Tuple<readonly [typeof s.Number, typeof s.Number, typeof s.Number]>
 	: TType['constraint'] extends 'vector' | 'halfvector' ? $Array<typeof s.Number>
 	: TType['constraint'] extends 'int64vector' ? $Array<typeof s.BigInt>
 	: TType['constraint'] extends 'basecolumn'
@@ -45,8 +46,10 @@ type GetBaseEffectSchemaType<
 	: $Array<typeof s.Any>
 	: TType['type'] extends 'object' ? TType['constraint'] extends 'date' ? typeof s.Date
 		: TType['constraint'] extends 'buffer' ? typeof bufferSchema
-		: TType['constraint'] extends 'point' | 'geometry' ? Struct<{ x: typeof s.Number; y: typeof s.Number }>
-		: TType['constraint'] extends 'line' ? Struct<{ a: typeof s.Number; b: typeof s.Number; c: typeof s.Number }>
+		: TType['constraint'] extends 'point' | 'geometry'
+			? Struct<{ readonly x: typeof s.Number; readonly y: typeof s.Number }>
+		: TType['constraint'] extends 'line'
+			? Struct<{ readonly a: typeof s.Number; readonly b: typeof s.Number; readonly c: typeof s.Number }>
 		: TType['constraint'] extends 'json' ? typeof jsonSchema
 		: typeof s.ObjectKeyword
 	: TType['type'] extends 'custom' ? typeof s.Any
@@ -58,7 +61,9 @@ type GetBaseEffectSchemaType<
 	: TType['type'] extends 'bigint' ? typeof s.BigInt
 	: TType['type'] extends 'boolean' ? typeof s.Boolean
 	: TType['type'] extends 'string' ? TType['constraint'] extends 'uuid' ? typeof s.String
-		: TType['constraint'] extends 'enum' ? Literals<TColumn['enumValues']>
+		: TType['constraint'] extends 'enum' ? Literals<
+				Readonly<TColumn['enumValues']> extends infer R extends readonly LiteralValue[] ? R : TColumn['enumValues']
+			>
 		: TType['constraint'] extends 'int64' ? typeof bigintStringModeSchema
 		: TType['constraint'] extends 'uint64' ? typeof unsignedBigintStringModeSchema
 		: typeof s.String
