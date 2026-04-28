@@ -9,6 +9,7 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/d
 import type { JsonStatement } from 'src/dialects/sqlite/statements';
 import type { SQLiteClient } from '../../utils';
 import { isJsonMode } from '../context';
+import { CommandOutputCliError } from '../errors';
 import { highlightSQL } from '../highlighter';
 import type { HintsHandler } from '../hints';
 import { resolver } from '../prompts';
@@ -17,6 +18,7 @@ import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { SqliteCredentials } from '../validations/sqlite';
 import {
+	abortedJsonOutput,
 	explain as explainView,
 	explainJsonOutput,
 	humanLog,
@@ -53,8 +55,10 @@ export const handle = async (
 	const { ddl: ddl2, errors: errors1 } = interimToDDL(fromDrizzleSchema(res.tables, res.views, casing));
 
 	if (errors1.length > 0) {
-		process.stderr.write(errors1.map((it) => sqliteSchemaError(it)).join('\n') + '\n');
-		process.exit(1);
+		throw new CommandOutputCliError('push', errors1.map((it) => sqliteSchemaError(it)).join('\n'), {
+			stage: 'ddl',
+			dialect,
+		});
 	}
 
 	const progress = new ProgressView(
@@ -78,7 +82,7 @@ export const handle = async (
 
 	if (sqlStatements.length === 0) {
 		if (json) {
-			printJsonOutput(explainJsonOutput(dialect, [], []), true);
+			printJsonOutput({ status: 'no_changes', dialect });
 		} else {
 			render(`\n[${chalk.blue('i')}] No changes detected`);
 		}
@@ -93,7 +97,7 @@ export const handle = async (
 
 	if (explain) {
 		if (json) {
-			printJsonOutput(explainJsonOutput(dialect, statements, suggestionHints), true);
+			printJsonOutput(explainJsonOutput(dialect, statements, suggestionHints));
 		} else {
 			const explainMessage = explainView('sqlite', groupedStatements, suggestionHints);
 			if (explainMessage) {
@@ -105,7 +109,7 @@ export const handle = async (
 
 	if (!force && suggestionHints.length > 0) {
 		if (json) {
-			printJsonOutput({ status: 'aborted', dialect }, true);
+			printJsonOutput(abortedJsonOutput(dialect, suggestionHints));
 			process.exit(0);
 		}
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
@@ -128,7 +132,7 @@ export const handle = async (
 	await db.batch(allStatements);
 
 	if (json) {
-		printJsonOutput({ status: 'ok', dialect, message: 'Changes applied' }, true);
+		printJsonOutput({ status: 'ok', dialect, message: 'Changes applied' });
 	} else {
 		render(`[${chalk.green('\u2713')}] Changes applied`);
 	}

@@ -6,8 +6,8 @@ import { dirname, join, resolve } from 'path';
 import { snapshotValidator as mysqlSnapshotValidator } from 'src/dialects/mysql/snapshot';
 import { snapshotValidator as singlestoreSnapshotValidator } from 'src/dialects/singlestore/snapshot';
 import { parse, pathToFileURL } from 'url';
-import { UnsupportedSnapshotVersionCliError } from '../cli/errors';
-import { error, humanLog } from '../cli/views';
+import { SchemaFilesNotFoundCliError, UnsupportedSnapshotVersionCliError } from '../cli/errors';
+import { humanLog } from '../cli/views';
 import { snapshotValidator as cockroachValidator } from '../dialects/cockroach/snapshot';
 import { snapshotValidator as mssqlValidatorSnapshot } from '../dialects/mssql/snapshot';
 import { snapshotValidator as pgSnapshotValidator } from '../dialects/postgres/snapshot';
@@ -71,21 +71,7 @@ export const prepareFilenames = (path: string | string[]) => {
 
 	// when schema: "./schema" and not "./schema.ts"
 	if (res.length === 0) {
-		humanLog(
-			error(
-				`No schema files found for path config [${
-					path
-						.map((it) => `'${it}'`)
-						.join(', ')
-				}]`,
-			),
-		);
-		humanLog(
-			error(
-				`If path represents a file - please make sure to use .ts or other extension in the path`,
-			),
-		);
-		process.exit(1);
+		throw new SchemaFilesNotFoundCliError(path);
 	}
 
 	return res;

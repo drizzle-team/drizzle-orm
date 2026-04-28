@@ -40,8 +40,8 @@ export const humanLog = (...args: Parameters<typeof console.log>) => {
 	console.log(...args);
 };
 
-export const printJsonOutput = (value: unknown, json = isJsonMode()) => {
-	if (!json) return;
+export const printJsonOutput = (value: unknown) => {
+	if (!isJsonMode()) return;
 	process.stdout.write(JSON.stringify(value) + '\n');
 };
 
@@ -883,6 +883,17 @@ export const explainJsonOutput = (
 		dialect,
 		statements,
 		hints: hints.map((h) => ({ hint: stripAnsi(h.hint) })),
+	};
+};
+
+export const abortedJsonOutput = (
+	dialect: string,
+	hints: { hint: string; statement?: string }[],
+) => {
+	return {
+		status: 'aborted' as const,
+		dialect,
+		warnings: hints.map((h) => stripAnsi(h.hint)),
 	};
 };
 

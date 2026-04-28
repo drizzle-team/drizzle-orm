@@ -20,6 +20,7 @@ import { createDDL, interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { prepareSnapshot } from '../../dialects/postgres/serializer';
 import type { JsonStatement } from '../../dialects/postgres/statements';
+import { isJsonMode } from '../context';
 import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import {
@@ -39,6 +40,7 @@ export const handle = async (
 	checkResult?: CheckHandlerResult,
 ) => {
 	const { out: outFolder, filenames, casing } = config;
+	const json = isJsonMode();
 
 	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(
@@ -53,9 +55,9 @@ export const handle = async (
 			snapshot: custom,
 			sqlStatements: [],
 			outFolder,
-			json: config.json,
 			name: config.name,
 			breakpoints: config.breakpoints,
+			dialect: 'postgresql',
 			type: 'custom',
 			renames: [],
 			snapshots,
@@ -93,7 +95,7 @@ export const handle = async (
 	groupedStatements = diffResult.groupedStatements;
 	jsonStatements = diffResult.statements;
 
-	if (config.json && config.hints.hasMissingHints()) {
+	if (json && config.hints.hasMissingHints()) {
 		config.hints.emitAndExit();
 	}
 
@@ -102,18 +104,22 @@ export const handle = async (
 			snapshot: snapshot,
 			sqlStatements,
 			outFolder,
-			json: config.json,
 			name: config.name,
 			breakpoints: config.breakpoints,
+			dialect: 'postgresql',
 			renames,
 			snapshots,
 		});
 		return;
 	}
 
-	if (config.json) {
+	if (json) {
+		if (sqlStatements.length === 0) {
+			printJsonOutput({ status: 'no_changes', dialect: 'postgresql' });
+			return;
+		}
 		const explainOutput = explainJsonOutput('postgres', jsonStatements, []);
-		printJsonOutput(explainOutput, true);
+		printJsonOutput(explainOutput);
 		return;
 	}
 
@@ -152,6 +158,6 @@ export const handleExport = async (config: ExportConfig) => {
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
-	printJsonOutput({ sqlStatements }, config.json);
+	printJsonOutput({ status: 'ok', dialect: 'postgresql', sqlStatements });
 	humanLog(sqlStatements.join('\n'));
 };

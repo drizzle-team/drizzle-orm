@@ -15,6 +15,8 @@ It is written for tools and services that call Drizzle Kit programmatically.
 
 When `--json` is enabled, callers should treat `stdout` as the JSON channel.
 
+Each command invocation writes a single JSON object to `stdout`, optionally followed by a trailing newline.
+
 ## Why hints exist
 
 Some schema changes are ambiguous or unsafe to apply automatically.
@@ -52,6 +54,7 @@ Supported `kind` values for `rename` and `create`:
 - `schema`
 - `role`
 - `table`
+- `default`
 - `enum`
 - `sequence`
 - `view`
@@ -127,6 +130,7 @@ Example:
 Used by:
 
 - `column`
+- `default`
 - `policy`
 - `check`
 - `index`
@@ -232,15 +236,12 @@ That means it is safe to:
 
 ## Response statuses
 
-JSON mode emits newline-delimited JSON payloads.
-
 ### `status: "ok"`
 
 Used when the command completed successfully.
 
 Depending on the command, this can mean:
 
-- there were no changes
 - explain mode completed successfully
 - changes were applied successfully
 - snapshots were upgraded
@@ -248,37 +249,49 @@ Depending on the command, this can mean:
 Examples:
 
 ```json
-{ "status": "ok", "message": "No schema changes, nothing to migrate" }
-```
-
-```json
 {
   "status": "ok",
-  "dialect": "postgres",
-  "statements": [],
-  "hints": []
+  "dialect": "postgresql",
+  "migration_path": "drizzle/20260427153000_name/migration.sql"
 }
 ```
 
 ```json
 {
   "status": "ok",
-  "dialect": "postgres",
-  "statements": [
-    {
-      "type": "alter_column",
-      "to": { "schema": "public", "table": "users", "name": "name" },
-      "diff": {
-        "notNull": { "from": false, "to": true }
-      }
-    }
-  ],
-  "hints": []
+  "dialect": "sqlite",
+  "migration_path": "drizzle/20260427153000_name/migration.sql"
+}
+```
+
+```json
+{
+  "status": "ok",
+  "dialect": "postgresql",
+  "sqlStatements": []
 }
 ```
 
 ```json
 { "status": "ok", "dialect": "mssql", "message": "Changes applied" }
+```
+
+For generate success and custom responses, `dialect` is always present.
+
+### `status: "no_changes"`
+
+Used when a command succeeds and there is nothing to do.
+
+This includes `generate --json`, `generate --json --explain`, `push --json`, and `push --json --explain` when the diff is empty.
+
+Current JSON-mode examples:
+
+```json
+{ "status": "no_changes", "dialect": "postgresql" }
+```
+
+```json
+{ "status": "no_changes", "dialect": "postgres" }
 ```
 
 ### `status: "missing_hints"`
@@ -294,7 +307,32 @@ Shape:
 }
 ```
 
-Examples of unresolved items:
+Missing hint shapes:
+
+- [type `MissingHint`](./src/cli/hints.ts)
+
+Example with inline unresolved items:
+
+```json
+{
+  "status": "missing_hints",
+  "unresolved": [
+    {
+      "type": "rename_or_create",
+      "kind": "schema",
+      "entity": ["next_schema"]
+    },
+    {
+      "type": "confirm_data_loss",
+      "kind": "table",
+      "entity": ["public", "users"],
+      "reason": "non_empty"
+    }
+  ]
+}
+```
+
+Individual unresolved item shapes:
 
 ```json
 {
@@ -323,13 +361,30 @@ When this response is emitted, the process exits with code `2`.
 
 ### `status: "aborted"`
 
-Used when a command reaches a confirmation boundary that would require approval in human mode and the caller did not allow it to continue.
+Used only by `push --json` after `missing_hints` handling is already clear, executable statements still remain, and the caller did not allow Drizzle Kit to continue.
 
-Example:
+Current behavior:
+
+- rename/create ambiguity and destructive non-empty entity checks return `status: "missing_hints"` first
+- `status: "aborted"` is reserved for push-only warning or suggestion states that Drizzle Kit can already describe without asking for more caller input
+- current resolution is to rerun the same command with `--force` if the caller approves execution
+- warning-only aborted cases will move into the existing hints system in the future
+
+Payload shape:
 
 ```json
-{ "status": "aborted", "dialect": "postgres" }
+{
+  "status": "aborted",
+  "dialect": "mysql",
+  "warnings": [
+    "You're about to change `name` column type in `users` from text to bigint"
+  ]
+}
 ```
+
+To inspect the full warning state without executing anything, rerun the same command with `--explain --json`.
+
+To override warnings and proceed, rerun the same command with `--force`.
 
 ### `status: "error"`
 
@@ -361,9 +416,9 @@ Examples:
 
 ## `--explain` in JSON mode
 
-`--explain` returns a dry-run result as structured JSON.
+`--explain --json` returns a dry-run result as structured JSON when the diff is non-empty.
 
-Shape:
+`push` and `generate` use the same payload shape:
 
 ```json
 {
@@ -374,21 +429,25 @@ Shape:
 }
 ```
 
+When the diff is empty, `push --json --explain` and `generate --json --explain` return `status: "no_changes"` instead of this payload.
+
 ### `statements`
 
 `statements` is the structured plan Drizzle Kit would execute.
 
 The exact statement objects depend on the dialect and the diff being produced.
 
+Object shapes:
+
+- [type `JsonStatement` for PostgreSQL](./src/dialects/postgres/statements.ts)
+- [type `JsonStatement` for MySQL](./src/dialects/mysql/statements.ts)
+- [type `JsonStatement` for SQLite](./src/dialects/sqlite/statements.ts)
+- [type `JsonStatement` for MSSQL](./src/dialects/mssql/statements.ts)
+- [type `JsonStatement` for CockroachDB](./src/dialects/cockroach/statements.ts)
+
 ### `hints`
 
 `hints` contains human-readable warnings that are safe to show in automation or UIs.
-
-In JSON mode:
-
-- hint text is plain text
-- ANSI formatting is removed
-- SQL preview text is not included inside hint objects
 
 Example:
 
@@ -405,29 +464,12 @@ Example:
 }
 ```
 
-## Empty diff responses
-
-When a command succeeds but there is nothing to do, JSON mode returns a successful structured response.
-
-For example, `push --json --explain` and no-op JSON push flows return:
-
-```json
-{
-  "status": "ok",
-  "dialect": "postgres",
-  "statements": [],
-  "hints": []
-}
-```
-
-Callers should treat an empty `statements` array as "no changes detected".
-
 ## Recommended automation flow
 
 1. Run the command with `--json`.
 2. If the response is `ok`, continue.
-3. If the response is `missing_hints`, inspect `unresolved`.
-4. Build the required hints.
-5. Retry the same command with `--hints` or `--hints-file`.
-
-This makes retries deterministic and keeps the workflow non-interactive.
+3. If the response is `no_changes`, stop successfully.
+4. If the response is `missing_hints`, inspect `unresolved`.
+5. Build the required hints.
+6. Retry the same command with `--hints` or `--hints-file`.
+7. If the response is `aborted`, inspect `warnings` (or rerun with `--explain --json` for the full warning state), then either stop or rerun with `--force` if the caller approves execution. In the future, these warning-only aborted cases will move into the hints system.

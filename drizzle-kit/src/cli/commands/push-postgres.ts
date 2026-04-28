@@ -24,6 +24,7 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgr
 import type { JsonStatement } from '../../dialects/postgres/statements';
 import type { DB } from '../../utils';
 import { isJsonMode } from '../context';
+import { CommandOutputCliError } from '../errors';
 import { highlightSQL } from '../highlighter';
 import type { HintsHandler } from '../hints';
 import { resolver } from '../prompts';
@@ -32,6 +33,7 @@ import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { PostgresCredentials } from '../validations/postgres';
 import {
+	abortedJsonOutput,
 	explain as explainView,
 	explainJsonOutput,
 	humanLog,
@@ -72,8 +74,10 @@ export const handle = async (
 	}
 
 	if (errors.length > 0) {
-		process.stderr.write(errors.map((it) => postgresSchemaError(it)).join('\n') + '\n');
-		process.exit(1);
+		throw new CommandOutputCliError('push', errors.map((it) => postgresSchemaError(it)).join('\n'), {
+			stage: 'schema',
+			dialect: 'postgresql',
+		});
 	}
 
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
@@ -91,8 +95,10 @@ export const handle = async (
 	// TODO: handle errors?
 
 	if (errors1.length > 0) {
-		process.stderr.write(errors1.map((it) => postgresSchemaError(it)).join('\n') + '\n');
-		process.exit(1);
+		throw new CommandOutputCliError('push', errors1.map((it) => postgresSchemaError(it)).join('\n'), {
+			stage: 'ddl',
+			dialect: 'postgresql',
+		});
 	}
 
 	// const blanks = new Set<string>();
@@ -122,7 +128,7 @@ export const handle = async (
 
 	if (sqlStatements.length === 0) {
 		if (json) {
-			printJsonOutput(explainJsonOutput('postgres', [], []), true);
+			printJsonOutput({ status: 'no_changes', dialect: 'postgres' });
 		} else {
 			render(`[${chalk.blue('i')}] No changes detected`);
 		}
@@ -138,7 +144,7 @@ export const handle = async (
 	if (explain) {
 		if (json) {
 			const explainOutput = explainJsonOutput('postgres', jsonStatements, dataLossHints);
-			printJsonOutput(explainOutput, true);
+			printJsonOutput(explainOutput);
 		} else {
 			const explainMessage = explainView('postgres', groupedStatements, dataLossHints);
 			if (explainMessage) {
@@ -150,7 +156,7 @@ export const handle = async (
 
 	if (!force && dataLossHints.length > 0) {
 		if (json) {
-			printJsonOutput({ status: 'aborted', dialect: 'postgres' }, true);
+			printJsonOutput(abortedJsonOutput('postgres', dataLossHints));
 			process.exit(0);
 		}
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
@@ -170,7 +176,7 @@ export const handle = async (
 	}
 
 	if (json) {
-		printJsonOutput({ status: 'ok', dialect: 'postgres', message: 'Changes applied' }, true);
+		printJsonOutput({ status: 'ok', dialect: 'postgres', message: 'Changes applied' });
 	} else {
 		render(`[${chalk.green('\u2713')}] Changes applied`);
 	}

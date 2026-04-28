@@ -4,6 +4,7 @@ import type { JsonStatement } from 'src/dialects/mysql/statements';
 import { prepareOutFolder } from 'src/utils/utils-node';
 import { type Column, createDDL, interimToDDL, type MysqlDDL, type Table, type View } from '../../dialects/mysql/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/mysql/diff';
+import { isJsonMode } from '../context';
 import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import { withStyle } from '../validations/outputs';
@@ -104,6 +105,7 @@ export const handle = async (
 	checkResult?: CheckHandlerResult,
 ) => {
 	const { out: outFolder, casing, filenames } = config;
+	const json = isJsonMode();
 
 	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(
@@ -118,9 +120,9 @@ export const handle = async (
 			snapshot: custom,
 			sqlStatements: [],
 			outFolder,
-			json: config.json,
 			name: config.name,
 			breakpoints: config.breakpoints,
+			dialect: 'mysql',
 			type: 'custom',
 			renames: [],
 			snapshots,
@@ -147,7 +149,7 @@ export const handle = async (
 	groupedStatements = diffResult.groupedStatements;
 	statements = diffResult.statements;
 
-	if (config.json && config.hints.hasMissingHints()) {
+	if (json && config.hints.hasMissingHints()) {
 		config.hints.emitAndExit();
 	}
 
@@ -160,9 +162,13 @@ export const handle = async (
 	}
 
 	if (config.explain) {
-		if (config.json) {
+		if (json) {
+			if (sqlStatements.length === 0) {
+				printJsonOutput({ status: 'no_changes', dialect: 'mysql' });
+				return;
+			}
 			const explainOutput = explainJsonOutput('mysql', statements, []);
-			printJsonOutput(explainOutput, true);
+			printJsonOutput(explainOutput);
 		} else {
 			const explainMessage = explain('mysql', groupedStatements, []);
 			if (explainMessage) {
@@ -176,9 +182,9 @@ export const handle = async (
 		snapshot,
 		sqlStatements,
 		outFolder,
-		json: config.json,
 		name: config.name,
 		breakpoints: config.breakpoints,
+		dialect: 'mysql',
 		renames,
 		snapshots,
 	});
@@ -197,6 +203,6 @@ export const handleExport = async (config: ExportConfig) => {
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
-	printJsonOutput({ sqlStatements }, config.json);
+	printJsonOutput({ status: 'ok', dialect: 'mysql', sqlStatements });
 	humanLog(sqlStatements.join('\n'));
 };

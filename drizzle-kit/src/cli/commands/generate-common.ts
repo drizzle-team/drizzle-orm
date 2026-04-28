@@ -22,8 +22,8 @@ export const writeResult = (config: {
 	name?: string;
 	bundle?: boolean;
 	type?: 'introspect' | 'custom' | 'none';
+	dialect?: string;
 	driver?: Driver;
-	json?: boolean;
 	renames: string[];
 	snapshots: string[];
 }) => {
@@ -36,15 +36,15 @@ export const writeResult = (config: {
 		renames,
 		bundle = false,
 		type = 'none',
+		dialect,
 		driver,
-		json: jsonOverride,
 		snapshots,
 	} = config;
-	const json = jsonOverride ?? isJsonMode();
+	const json = isJsonMode();
 
 	if (type === 'none') {
 		if (sqlStatements.length === 0) {
-			printJsonOutput({ status: 'ok', message: 'No schema changes, nothing to migrate' }, json);
+			printJsonOutput({ status: 'no_changes', dialect });
 			humanLog('No schema changes, nothing to migrate 😴');
 			return;
 		}
@@ -69,18 +69,26 @@ export const writeResult = (config: {
 	}
 
 	if (type === 'custom') {
-		printJsonOutput({ status: 'ok', message: 'Prepared empty file for your custom SQL migration' }, json);
 		humanLog('Prepared empty file for your custom SQL migration!');
 		sql = '-- Custom SQL migration file, put your code below! --';
 	}
 
 	fs.writeFileSync(join(outFolder, `${tag}/migration.sql`), sql);
+	const migrationPath = path.join(`${outFolder}/${tag}/migration.sql`);
 
 	// js file with .sql imports for React Native / Expo and Durable Sqlite Objects
 	if (bundle) {
 		// adding new migration to the list of all migrations
 		const js = embeddedMigrations([...snapshots || [], join(outFolder, `${tag}/snapshot.json`)], driver);
 		fs.writeFileSync(`${outFolder}/migrations.js`, js);
+	}
+
+	if (type !== 'introspect') {
+		printJsonOutput({
+			status: 'ok',
+			dialect,
+			migration_path: migrationPath,
+		});
 	}
 
 	if (!json) {
@@ -91,7 +99,7 @@ export const writeResult = (config: {
 				)
 			}] Your SQL migration ➜ ${
 				chalk.bold.underline.blue(
-					path.join(`${outFolder}/${tag}/migration.sql`),
+					migrationPath,
 				)
 			} 🚀`,
 		);
