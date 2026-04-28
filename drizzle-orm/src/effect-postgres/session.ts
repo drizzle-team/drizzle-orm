@@ -1,10 +1,10 @@
 import type { PgClient } from '@effect/sql-pg/PgClient';
-import type { SqlError } from '@effect/sql/SqlError';
 import * as Effect from 'effect/Effect';
-import type { EffectCache } from '~/cache/core/cache-effect.ts';
+import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
-import type { EffectLogger } from '~/effect-core/logger.ts';
+import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -24,8 +24,8 @@ export interface EffectPgQueryResultHKT extends PgQueryResultHKT {
 }
 
 export interface EffectPgSessionOptions {
-	logger: EffectLogger;
-	cache: EffectCache;
+	logger: EffectLoggerShape;
+	cache: EffectCacheShape;
 	useJitMappers?: boolean;
 }
 
@@ -81,7 +81,7 @@ export class EffectPgSession<
 	): Effect.Effect<A, E | SqlError, R> {
 		const { dialect, relations } = this;
 
-		return this.client.withTransaction(Effect.gen(this, function*() {
+		return this.client.withTransaction(Effect.gen({ self: this }, function*() {
 			const tx = new EffectPgTransaction<TQueryResult, TRelations>(
 				dialect,
 				this,

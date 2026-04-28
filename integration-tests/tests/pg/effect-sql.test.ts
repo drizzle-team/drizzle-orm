@@ -20,8 +20,8 @@ import {
 	RelationsBuilder,
 	sql,
 } from 'drizzle-orm';
-import { EffectCache } from 'drizzle-orm/cache/core/cache-effect';
-import { EffectLogger } from 'drizzle-orm/effect-core';
+import { EffectCache, type EffectCacheShape } from 'drizzle-orm/cache/core/cache-effect';
+import { EffectLogger, type EffectLoggerShape } from 'drizzle-orm/effect-core';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { migrate } from 'drizzle-orm/effect-postgres/migrator';
 import {
@@ -65,12 +65,11 @@ import {
 } from 'drizzle-orm/pg-core';
 import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
-import * as Either from 'effect/Either';
-import * as Fn from 'effect/Function';
 import * as Layer from 'effect/Layer';
 import * as Predicate from 'effect/Predicate';
 import * as Redacted from 'effect/Redacted';
 import * as Ref from 'effect/Ref';
+import * as Result from 'effect/Result';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { randomString } from '~/utils';
 import type { PostgresSchema } from './instrumentation';
@@ -86,7 +85,7 @@ const PgClientLive = PgClient.layer({
 });
 
 const dbEffect = PgDrizzle.make({ relations }).pipe(Effect.provide(PgDrizzle.DefaultServices));
-class DB extends Context.Tag('DB')<DB, Effect.Effect.Success<typeof dbEffect>>() {}
+class DB extends Context.Service<DB, Effect.Success<typeof dbEffect>>()('DB') {}
 const DBLive = Layer.effect(
 	DB,
 	Effect.gen(function*() {
@@ -121,10 +120,7 @@ const setupDb = Effect.gen(function*() {
 	yield* db.execute(sql`SET TIME ZONE 'UTC';`);
 });
 
-const TestLive = Fn.pipe(
-	DBLive,
-	Layer.provideMerge(PgClientLive),
-);
+const TestLive = Layer.merge(PgClientLive, DBLive.pipe(Layer.provide(PgClientLive)));
 
 let _diff!: (_: {}, schema: Record<string, unknown>, renames: []) => Promise<{ sqlStatements: string[] }>;
 const getDiff = async () => {
@@ -154,7 +150,7 @@ it.layer(TestLive)((it) => {
 	const _effect = it.effect;
 	const effect: typeof it.effect = Object.assign(
 		(name: string, fn: () => Effect.Effect<any, any, any>, timeout?: number) =>
-			_effect(name, () => Effect.zipRight(setupDb, fn()), timeout),
+			_effect(name, () => Effect.andThen(setupDb, fn()), timeout),
 		it.effect,
 	);
 	Object.assign(it, { effect });
@@ -1329,10 +1325,10 @@ it.layer(TestLive)((it) => {
 					yield* tx.insert(users).values({ balance: 100 });
 					yield* tx.rollback();
 				})
-			).pipe(Effect.either);
+			).pipe(Effect.result);
 
-			assert(Either.isLeft(res));
-			assert(Predicate.isTagged(res.left, 'EffectTransactionRollbackError'));
+			assert(Result.isFailure(res));
+			assert(Predicate.isTagged(res.failure, 'EffectTransactionRollbackError'));
 
 			const result = yield* db.select().from(users);
 
@@ -1387,10 +1383,10 @@ it.layer(TestLive)((it) => {
 							yield* tx.update(users).set({ balance: 200 });
 							yield* tx.rollback();
 						})
-					).pipe(Effect.either);
+					).pipe(Effect.result);
 
-					assert(Either.isLeft(res));
-					assert(Predicate.isTagged(res.left, 'EffectTransactionRollbackError'));
+					assert(Result.isFailure(res));
+					assert(Predicate.isTagged(res.failure, 'EffectTransactionRollbackError'));
 				})
 			);
 
@@ -1528,7 +1524,7 @@ it.layer(TestLive)((it) => {
 				migrationsSchema,
 				// @ts-ignore - internal param
 				init: true,
-			}).pipe(Effect.either);
+			}).pipe(Effect.result);
 
 			const meta = yield* db.select({
 				hash: sql<string>`${sql.identifier('hash')}`.as('hash'),
@@ -1543,9 +1539,9 @@ it.layer(TestLive)((it) => {
 			}
 					) as ${sql.identifier('tableExists')};`);
 
-			assert(Either.isLeft(migratorRes));
-			assert(Predicate.isTagged(migratorRes.left, 'MigratorInitError'));
-			expect(migratorRes.left.exitCode).toBe('localMigrations');
+			assert(Result.isFailure(migratorRes));
+			assert(Predicate.isTagged(migratorRes.failure, 'MigratorInitError'));
+			expect(migratorRes.failure.exitCode).toBe('localMigrations');
 			expect(meta.length).toStrictEqual(0);
 			expect(res[0]?.['tableExists']).toStrictEqual(false);
 		}));
@@ -1568,7 +1564,7 @@ it.layer(TestLive)((it) => {
 				migrationsSchema,
 				// @ts-ignore - internal param
 				init: true,
-			}).pipe(Effect.either);
+			}).pipe(Effect.result);
 
 			const meta = yield* db.select({
 				hash: sql<string>`${sql.identifier('hash')}`.as('hash'),
@@ -1583,9 +1579,9 @@ it.layer(TestLive)((it) => {
 			}
 					) as ${sql.identifier('tableExists')};`);
 
-			assert(Either.isLeft(migratorRes));
-			assert(Predicate.isTagged(migratorRes.left, 'MigratorInitError'));
-			expect(migratorRes.left.exitCode).toBe('databaseMigrations');
+			assert(Result.isFailure(migratorRes));
+			assert(Predicate.isTagged(migratorRes.failure, 'MigratorInitError'));
+			expect(migratorRes.failure.exitCode).toBe('databaseMigrations');
 			expect(meta.length).toStrictEqual(1);
 			expect(res[0]?.['tableExists']).toStrictEqual(true);
 		}));
@@ -2921,12 +2917,12 @@ it.layer(TestLive)((it) => {
 		Effect.gen(function*() {
 			const loggedQueries: Array<{ query: string; params: unknown[] }> = [];
 
-			const customLogger = new EffectLogger({
+			const customLogger: EffectLoggerShape = {
 				logQuery: (query: string, params: unknown[]) =>
 					Effect.sync(() => {
 						loggedQueries.push({ query, params });
 					}),
-			});
+			};
 			const customLoggerLayer = Layer.succeed(EffectLogger, customLogger);
 
 			const db = yield* PgDrizzle.make({ relations }).pipe(
@@ -2952,7 +2948,7 @@ it.layer(TestLive)((it) => {
 		Effect.gen(function*() {
 			const cacheOperations = yield* Ref.make<Array<{ op: 'get' | 'put' | 'mutate'; key?: string }>>([]);
 
-			const customCacheService = {
+			const customCacheService: EffectCacheShape = {
 				strategy: () => 'all' as const,
 				get: (key: string, _tables: string[], _isTag: boolean, _isAutoInvalidate?: boolean) =>
 					Effect.gen(function*() {
@@ -2976,7 +2972,7 @@ it.layer(TestLive)((it) => {
 					onMutate: async () => {},
 				},
 			};
-			const customCacheLayer = Layer.succeed(EffectCache, new EffectCache(customCacheService));
+			const customCacheLayer = Layer.succeed(EffectCache, customCacheService);
 
 			const db = yield* PgDrizzle.make({ relations }).pipe(
 				Effect.provide(customCacheLayer),
@@ -3056,9 +3052,9 @@ it.layer(TestLive)((it) => {
 			const res1 = yield* db.insert(users).values({ name: 'John', email: '', age: 30 }).returning();
 
 			// second migration was not applied yet
-			const insertResult = yield* db.insert(users2).values({ name: 'John', email: '', age: 30 }).pipe(Effect.either);
-			assert(Either.isLeft(insertResult));
-			assert(Predicate.isTagged(insertResult.left, 'EffectDrizzleQueryError'));
+			const insertResult = yield* db.insert(users2).values({ name: 'John', email: '', age: 30 }).pipe(Effect.result);
+			assert(Result.isFailure(insertResult));
+			assert(Predicate.isTagged(insertResult.failure, 'EffectDrizzleQueryError'));
 
 			// insert migration with earlier timestamp
 			mkdirSync(`${migrationDir}/20240202020202_second`, { recursive: true });
@@ -3428,7 +3424,7 @@ it.layer(TestLive)((it) => {
 
 				yield* db.insert(allTypesTable).values(testData);
 
-				const queryRes = yield* db.execute<ExpectedType>(db.select().from(allTypesTable)).pipe(Effect.andThen((e) =>
+				const queryRes = yield* db.execute<ExpectedType>(db.select().from(allTypesTable)).pipe(Effect.map((e) =>
 					normalizeDataWithDbCodecs({
 						db,
 						columns: getColumns(allTypesTable),
@@ -3452,7 +3448,7 @@ it.layer(TestLive)((it) => {
 					with: {
 						self: true,
 					},
-				})).pipe(Effect.andThen((e) => {
+				})).pipe(Effect.map((e) => {
 					const { self: relationRaw, ...rootRaw } = e[0]!;
 
 					return {
