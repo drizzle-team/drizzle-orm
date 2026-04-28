@@ -760,11 +760,10 @@ const column = (
 			: null;
 		length = length ? length : null;
 
-		const params = binaryConfig({ length });
+		const params = binaryConfig({ length, mode: "'string'" });
 
-		let out = params
-			? `${casing(name)}: binary(${dbColumnName({ name, casing: rawCasing, withMode: params !== undefined })}${params})`
-			: `${casing(name)}: binary(${dbColumnName({ name, casing: rawCasing })})`;
+		let out = `// you can use { mode: 'buffer' }, if you want to have Buffer as type for this column\n\t${
+			casing(name)}: binary(${dbColumnName({ name, casing: rawCasing, withMode: true })}${params})`;
 
 		defaultValue = defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
@@ -795,13 +794,10 @@ const column = (
 			: null;
 		length = length ? length : null;
 
-		const params = binaryConfig({ length });
+		const params = binaryConfig({ length, mode: "'string'" });
 
-		let out = params
-			? `${casing(name)}: varbinary(${
-				dbColumnName({ name, casing: rawCasing, withMode: params !== undefined })
-			}${params})`
-			: `${casing(name)}: varbinary(${dbColumnName({ name, casing: rawCasing })})`;
+		let out = `// you can use { mode: 'buffer' }, if you want to have Buffer as type for this column\n\t${
+			casing(name)}: varbinary(${dbColumnName({ name, casing: rawCasing, withMode: true })}${params})`;
 
 		defaultValue = defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
