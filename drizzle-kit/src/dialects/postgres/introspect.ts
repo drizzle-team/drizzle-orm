@@ -365,42 +365,41 @@ export const fromDatabase = async (
 			})
 		: [] as SequenceListItem[];
 
-	// I'm not yet aware of how we handle policies down the pipeline for push,
-	// and since postgres does not have any default policies, we can safely fetch all of them for now
-	// and filter them out in runtime, simplifying filterings
+	type PolicyListItem = {
+		schema: string;
+		table: string;
+		name: string;
+		as: Policy['as'];
+		to: string | string[];
+		for: Policy['for'];
+		using: string | undefined | null;
+		withCheck: string | undefined | null;
+	};
 	progressCallback('policies', 0, 'fetching');
-	const policiesQuery = db.query<
-		{
-			schema: string;
-			table: string;
-			name: string;
-			as: Policy['as'];
-			to: string | string[];
-			for: Policy['for'];
-			using: string | undefined | null;
-			withCheck: string | undefined | null;
-		}
-	>(`SELECT 
-			schemaname as "schema", 
-			tablename as "table", 
-			policyname as "name", 
-			permissive as "as", 
-			roles as "to", 
-			cmd as "for", 
-			qual as "using", 
-			with_check as "withCheck" 
-		FROM pg_catalog.pg_policies
-		ORDER BY
-			pg_catalog.lower(schemaname),
-			pg_catalog.lower(tablename),
-			pg_catalog.lower(policyname);
-	`).then((rows) => {
-		queryCallback('policies', rows, null);
-		return rows;
-	}).catch((err) => {
-		queryCallback('policies', [], err);
-		throw err;
-	});
+	const policiesQuery = filteredNamespacesStringForSQL
+		? db.query<PolicyListItem>(`SELECT
+				schemaname as "schema",
+				tablename as "table",
+				policyname as "name",
+				permissive as "as",
+				roles as "to",
+				cmd as "for",
+				qual as "using",
+				with_check as "withCheck"
+			FROM pg_catalog.pg_policies
+			WHERE schemaname IN (${filteredNamespacesStringForSQL})
+			ORDER BY
+				pg_catalog.lower(schemaname),
+				pg_catalog.lower(tablename),
+				pg_catalog.lower(policyname);
+		`).then((rows) => {
+			queryCallback('policies', rows, null);
+			return rows;
+		}).catch((err) => {
+			queryCallback('policies', [], err);
+			throw err;
+		})
+		: [] as PolicyListItem[];
 
 	const rolesQuery = db.query<
 		{

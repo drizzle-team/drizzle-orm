@@ -1847,3 +1847,35 @@ $$;`);
 	expect(st2).toStrictEqual([]);
 	expect(pst2).toStrictEqual([]);
 });
+
+// Regression test for issue #5655
+// schemaFilter: ['public'] must not generate DROP POLICY for policies in excluded schemas
+test('schemaFilter: excluded schema policies are not dropped', async () => {
+	// Set up storage schema with a table, RLS, and a policy in the DB directly.
+	// This simulates a Supabase-style setup where storage.objects has built-in policies
+	// that the user did not define and must never be touched by drizzle-kit push.
+	await db.query(`CREATE SCHEMA storage`);
+	await db.query(`CREATE TABLE storage.objects (id integer PRIMARY KEY, name text)`);
+	await db.query(`ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY`);
+	await db.query(`CREATE POLICY "storage_select" ON storage.objects AS PERMISSIVE FOR SELECT TO PUBLIC USING (true)`);
+
+	// User schema: only public schema tables with their own policy.
+	const usersTable = pgTable(
+		'users',
+		{ id: integer('id').primaryKey() },
+		() => [pgPolicy('public_select', { as: 'permissive', for: 'select' })],
+	);
+
+	const to = { usersTable };
+
+	// With schemas: ['public'], push must not generate any statement for storage.objects or its policy.
+	const { sqlStatements: pst } = await push({ db, to, schemas: ['public'] });
+
+	const dropsStorage = pst.some((s) => s.toLowerCase().includes('storage'));
+	expect(dropsStorage).toBe(false);
+
+	const dropsPolicies = pst.some(
+		(s) => s.toLowerCase().includes('drop policy') && s.toLowerCase().includes('storage'),
+	);
+	expect(dropsPolicies).toBe(false);
+});

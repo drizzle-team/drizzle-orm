@@ -1202,6 +1202,8 @@ export const fromDatabase = async (
 	progressCallback('checks', checksCount, 'done');
 	progressCallback('views', viewsCount, 'done');
 
+	const resultPolicies = policies.filter((p) => tables.some((t) => t.schema === p.schema && t.name === p.table));
+
 	return {
 		schemas,
 		tables,
@@ -1215,7 +1217,7 @@ export const fromDatabase = async (
 		sequences,
 		roles,
 		privileges,
-		policies,
+		policies: resultPolicies,
 		views,
 		viewColumns,
 	} satisfies InterimSchema;
