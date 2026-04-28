@@ -1,70 +1,33 @@
-import * as V1 from '~/_relations.ts';
-import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
-import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
+import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { jitCompatCheck } from '~/utils.ts';
+import { xataHttpCodecs } from './codecs.ts';
 import type { XataHttpClient, XataHttpQueryResultHKT } from './session.ts';
 import { XataHttpSession } from './session.ts';
 
-export interface XataDriverOptions {
-	logger?: Logger;
-	cache?: Cache;
-}
-
-export class XataHttpDriver {
-	static readonly [entityKind]: string = 'XataDriver';
-
-	constructor(
-		private client: XataHttpClient,
-		private dialect: PgDialect,
-		private options: XataDriverOptions = {},
-	) {
-		this.initMappers();
-	}
-
-	createSession(
-		relations: AnyRelations,
-		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
-	): XataHttpSession<Record<string, unknown>, AnyRelations, V1.TablesRelationalConfig> {
-		return new XataHttpSession(this.client, this.dialect, relations, schema, {
-			logger: this.options.logger,
-			cache: this.options.cache,
-		});
-	}
-
-	initMappers() {
-		// TODO: Add custom type parsers
-	}
-}
-
-export class XataHttpDatabase<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
-> extends PgAsyncDatabase<XataHttpQueryResultHKT, TSchema, TRelations> {
+export class XataHttpDatabase<TRelations extends AnyRelations = EmptyRelations>
+	extends PgAsyncDatabase<XataHttpQueryResultHKT, TRelations>
+{
 	static override readonly [entityKind]: string = 'XataHttpDatabase';
 
 	/** @internal */
-	declare readonly session: XataHttpSession<
-		TSchema,
-		TRelations,
-		V1.ExtractTablesWithRelations<TSchema>
-	>;
+	declare readonly session: XataHttpSession<TRelations>;
 }
 
-export function drizzle<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
->(
+export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	client: XataHttpClient,
-	config: DrizzleConfig<TSchema, TRelations> = {},
-): XataHttpDatabase<TSchema, TRelations> & {
+	config: DrizzlePgConfig<TRelations> = {},
+): XataHttpDatabase<TRelations> & {
 	$client: XataHttpClient;
 } {
-	const dialect = new PgDialect({ casing: config.casing });
+	const dialect = new PgDialect({
+		useJitMappers: jitCompatCheck(config.useJitMappers),
+		codecs: config.codecs ?? xataHttpCodecs,
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -72,25 +35,16 @@ export function drizzle<
 		logger = config.logger;
 	}
 
-	let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;
-	if (config.schema) {
-		const tablesConfig = V1.extractTablesRelationalConfig(config.schema, V1.createTableRelationsHelpers);
-		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
-			tableNamesMap: tablesConfig.tableNamesMap,
-		};
-	}
-
 	const relations = config.relations ?? {} as TRelations;
-	const driver = new XataHttpDriver(client, dialect, { logger, cache: config.cache });
-	const session = driver.createSession(relations, schema);
+	const session = new XataHttpSession(client, dialect, relations ?? {} as EmptyRelations, {
+		logger,
+		cache: config.cache,
+	});
 
 	const db = new XataHttpDatabase(
 		dialect,
 		session,
 		relations,
-		schema as V1.RelationalSchemaConfig<V1.ExtractTablesWithRelations<TSchema>> | undefined,
 	);
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;

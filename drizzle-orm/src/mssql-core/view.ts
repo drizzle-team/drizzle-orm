@@ -1,3 +1,4 @@
+import type { Casing } from '~/casing.ts';
 import type { BuildColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -8,7 +9,7 @@ import { getTableColumns } from '~/utils.ts';
 import type { MsSqlColumn } from './columns/index.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
-import { mssqlTable } from './table.ts';
+import { mssqlTableWithSchema } from './table.ts';
 import { MsSqlViewBase } from './view-base.ts';
 import { MsSqlViewConfig } from './view-common.ts';
 
@@ -92,9 +93,12 @@ export class ManualViewBuilder<
 		name: TName,
 		columns: TColumns,
 		schema: string | undefined,
+		casing: Casing | undefined,
 	) {
 		super(name, schema);
-		this.columns = getTableColumns(mssqlTable(name, columns)) as BuildColumns<TName, TColumns, 'mssql'>;
+		this.columns = getTableColumns(
+			mssqlTableWithSchema(name, columns, undefined, schema, casing),
+		) as BuildColumns<TName, TColumns, 'mssql'>;
 	}
 
 	existing(): MsSqlViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'mssql'>> {
@@ -174,21 +178,25 @@ export function mssqlViewWithSchema(
 	name: string,
 	selection: Record<string, ColumnBuilderBase> | undefined,
 	schema: string | undefined,
+	casing: Casing | undefined,
 ): ViewBuilder | ManualViewBuilder {
 	if (selection) {
-		return new ManualViewBuilder(name, selection, schema);
+		return new ManualViewBuilder(name, selection, schema, casing);
 	}
 	return new ViewBuilder(name, schema);
 }
 
-export function mssqlView<TName extends string>(name: TName): ViewBuilder<TName>;
-export function mssqlView<TName extends string, TColumns extends Record<string, ColumnBuilderBase>>(
-	name: TName,
-	columns: TColumns,
-): ManualViewBuilder<TName, TColumns>;
-export function mssqlView(
-	name: string,
-	selection?: Record<string, ColumnBuilderBase>,
-): ViewBuilder | ManualViewBuilder {
-	return mssqlViewWithSchema(name, selection, undefined);
+export interface MsSqlViewFn {
+	<TName extends string>(name: TName): ViewBuilder<TName>;
+	<TName extends string, TColumns extends Record<string, ColumnBuilderBase>>(
+		name: TName,
+		columns: TColumns,
+	): ManualViewBuilder<TName, TColumns>;
 }
+
+/** @internal */
+export function mssqlViewWithCasing(casing: Casing | undefined): MsSqlViewFn {
+	return ((name, columns) => mssqlViewWithSchema(name, columns, undefined, casing)) as MsSqlViewFn;
+}
+
+export const mssqlView = mssqlViewWithCasing(undefined);

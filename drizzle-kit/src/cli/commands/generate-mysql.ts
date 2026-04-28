@@ -102,13 +102,12 @@ export const handle = async (
 	config: GenerateConfig,
 	checkResult?: CheckHandlerResult,
 ) => {
-	const { out: outFolder, casing, filenames } = config;
+	const { out: outFolder, filenames } = config;
 
 	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(
 		snapshots,
 		filenames,
-		casing,
 		checkResult,
 	);
 
@@ -157,7 +156,7 @@ export const handle = async (
 
 export const handleExport = async (config: ExportConfig) => {
 	const res = await prepareFromSchemaFiles(config.filenames);
-	const schema = fromDrizzleSchema(res.tables, res.views, config.casing);
+	const schema = fromDrizzleSchema(res.tables, res.views);
 	const { ddl, errors } = interimToDDL(schema);
 
 	if (errors.length > 0) {

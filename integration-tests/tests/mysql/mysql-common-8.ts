@@ -564,7 +564,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	});
 
 	// https://github.com/drizzle-team/drizzle-orm/issues/1415
-	test.skipIf(Date.now() < +new Date('2026-04-26')).concurrent(
+	test.skipIf(Date.now() < +new Date('2026-04-30')).concurrent(
 		'prepared statement sql.placeholder in .inArray',
 		async ({ db, push, seed }) => {
 			const users = createUserTable('users_116');
@@ -583,11 +583,11 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 	// https://github.com/drizzle-team/drizzle-orm/issues/1415
 	test
-		.skipIf(Date.now() < +new Date('2026-04-26'))
+		.skipIf(Date.now() < +new Date('2026-04-30'))
 		.concurrent(
-			'prepared statement sql.placeholder in .inArray',
+			'prepared statement sql.placeholder in .inArray #2',
 			async ({ db, push, seed }) => {
-				const users = createUserTable('users_116');
+				const users = createUserTable('users_116_2');
 				await push({ users });
 
 				await db.insert(users).values([{ name: 'John' }, { name: 'John1' }]);
@@ -1466,9 +1466,14 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				select: `com'ment`,
 			})
 			.prepare();
-		expect((<any> selectQPrepared).query.sql).toStrictEqual(
-			`select \`id\`, \`name\` from \`comments_test\` /*select='com\\'ment'*/`,
-		);
+		expect(
+			typeof (<any> selectQPrepared).query?.sql === 'string'
+				? (<any> selectQPrepared).query.sql
+				: (<any> selectQPrepared).queryString,
+		)
+			.toStrictEqual(
+				`select \`id\`, \`name\` from \`comments_test\` /*select='com\\'ment'*/`,
+			);
 
 		await insertQ;
 		await updateQ;

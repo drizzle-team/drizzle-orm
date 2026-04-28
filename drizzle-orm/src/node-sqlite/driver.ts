@@ -5,7 +5,7 @@ import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
 import { NodeSQLiteSession } from './session.ts';
 
 export class NodeSQLiteDatabase<
@@ -31,7 +31,7 @@ function construct<
 ): NodeSQLiteDatabase<TSchema, TRelations> & {
 	$client: DatabaseSync;
 } {
-	const dialect = new SQLiteSyncDialect({ casing: config.casing });
+	const dialect = new SQLiteSyncDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -57,7 +57,10 @@ function construct<
 		TSchema,
 		TRelations,
 		V1.ExtractTablesWithRelations<TSchema>
-	>(client, dialect, relations, schema as V1.RelationalSchemaConfig<any>, { logger });
+	>(client, dialect, relations, schema as V1.RelationalSchemaConfig<any>, {
+		logger,
+		useJitMappers: jitCompatCheck(config.useJitMappers),
+	});
 	const db = new NodeSQLiteDatabase(
 		'sync',
 		dialect,

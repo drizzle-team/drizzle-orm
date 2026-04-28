@@ -34,6 +34,9 @@ export class PgTimeBuilder extends PgDateColumnBuilder<
 export class PgTime extends PgColumn<'string time'> {
 	static override readonly [entityKind]: string = 'PgTime';
 
+	/** @internal */
+	override readonly codec = 'time';
+
 	readonly withTimezone: boolean;
 	readonly precision: number | undefined;
 

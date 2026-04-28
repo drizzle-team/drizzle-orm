@@ -4,7 +4,7 @@ import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
 import { SQLJsSession } from './session.ts';
 
 export type SQLJsDatabase<
@@ -19,7 +19,7 @@ export function drizzle<
 	client: Database,
 	config: DrizzleConfig<TSchema, TRelations> = {},
 ): SQLJsDatabase<TSchema, TRelations> {
-	const dialect = new SQLiteSyncDialect({ casing: config.casing });
+	const dialect = new SQLiteSyncDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -41,7 +41,10 @@ export function drizzle<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const session = new SQLJsSession(client, dialect, relations, schema, { logger });
+	const session = new SQLJsSession(client, dialect, relations, schema, {
+		logger,
+		useJitMappers: jitCompatCheck(config.useJitMappers),
+	});
 	return new BaseSQLiteDatabase('sync', dialect, session, relations, schema) as SQLJsDatabase<
 		TSchema,
 		TRelations

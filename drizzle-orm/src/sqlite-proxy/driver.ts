@@ -5,7 +5,7 @@ import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
 import { SQLiteRemoteSession } from './session.ts';
 
 export interface SqliteRemoteResult<T = unknown> {
@@ -69,7 +69,7 @@ export function drizzle<
 	batchCallback?: AsyncBatchRemoteCallback | DrizzleConfig<TSchema, TRelations>,
 	config?: DrizzleConfig<TSchema, TRelations>,
 ): SqliteRemoteDatabase<TSchema, TRelations> {
-	const dialect = new SQLiteAsyncDialect({ casing: config?.casing });
+	const dialect = new SQLiteAsyncDialect();
 	let logger;
 	let cache;
 	let _batchCallback: AsyncBatchRemoteCallback | undefined;
@@ -106,7 +106,11 @@ export function drizzle<
 	}
 
 	const relations = _config.relations ?? {} as TRelations;
-	const session = new SQLiteRemoteSession(callback, dialect, relations, schema, _batchCallback, { logger, cache });
+	const session = new SQLiteRemoteSession(callback, dialect, relations, schema, _batchCallback, {
+		logger,
+		cache,
+		useJitMappers: jitCompatCheck(_config.useJitMappers),
+	});
 	const db = new SqliteRemoteDatabase(
 		'async',
 		dialect,

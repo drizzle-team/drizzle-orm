@@ -134,7 +134,7 @@ export class IndexBuilderOn {
 				it = it as PgColumn;
 
 				return new IndexedColumn(
-					it.name,
+					it.name!,
 					!!it.keyAsName,
 					it.columnType!,
 					{},
@@ -169,7 +169,7 @@ export class IndexBuilderOn {
 				it = it as PgColumn;
 
 				return new IndexedColumn(
-					it.name,
+					it.name!,
 					!!it.keyAsName,
 					it.columnType!,
 					{},
@@ -215,7 +215,7 @@ export class IndexBuilderOn {
 				it = it as PgColumn;
 
 				return new IndexedColumn(
-					it.name,
+					it.name!,
 					!!it.keyAsName,
 					it.columnType!,
 					{},

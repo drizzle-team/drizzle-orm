@@ -29,9 +29,9 @@ export class MsSqlReal<T extends ColumnBaseConfig<'number float'>> extends MsSql
 		return 'real';
 	}
 
-	override mapFromDriverValue(value: number): number {
+	override mapFromDriverValue = (value: number): number => {
 		return parseFloat(value.toPrecision(7));
-	}
+	};
 }
 
 export function real(name?: string) {

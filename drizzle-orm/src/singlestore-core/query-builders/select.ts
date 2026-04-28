@@ -930,6 +930,11 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 		) as this['_']['selectedFields'];
 	}
 
+	/** @internal */
+	override withoutSelectionCastCodecs(): this {
+		return this;
+	}
+
 	$dynamic(): SingleStoreSelectDynamic<this> {
 		return this as any;
 	}

@@ -89,9 +89,9 @@ export class MsSqlDateTimeOffsetString<T extends ColumnBaseConfig<'string dateti
 		return `datetimeoffset${precision}`;
 	}
 
-	override mapFromDriverValue(value: Date | string | null): string | null {
+	override mapFromDriverValue = (value: Date | string | null): string | null => {
 		return typeof value === 'string' ? value : value?.toISOString() ?? null;
-	}
+	};
 }
 
 export function datetimeoffset(): MsSqlDateTimeOffsetBuilder;

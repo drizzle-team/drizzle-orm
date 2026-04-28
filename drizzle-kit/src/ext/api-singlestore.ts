@@ -1,6 +1,5 @@
 import type { Relations } from 'drizzle-orm/_relations';
 import type { AnySingleStoreTable } from 'drizzle-orm/singlestore-core';
-import type { CasingType } from 'src/cli/validations/common';
 import type { SingleStoreCredentials } from 'src/cli/validations/singlestore';
 
 export const startStudioServer = async (
@@ -9,7 +8,6 @@ export const startStudioServer = async (
 	options?: {
 		host?: string;
 		port?: number;
-		casing?: CasingType;
 		key?: string;
 		cert?: string;
 	},
@@ -34,7 +32,7 @@ export const startStudioServer = async (
 		}
 	});
 
-	const setup = await drizzleForSingleStore(credentials, singleStoreSchema, relations, [], options?.casing);
+	const setup = await drizzleForSingleStore(credentials, singleStoreSchema, relations, []);
 	const server = await prepareServer(setup);
 
 	const host = options?.host || '127.0.0.1';

@@ -1,60 +1,101 @@
-import type * as V1 from '~/_relations.ts';
 import { type Cache, NoopCache, strategyFor } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { is } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
 import { DrizzleQueryError } from '~/errors.ts';
+import type { Logger } from '~/logger.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { type Query, type SQL, sql } from '~/sql/sql.ts';
-import { tracer } from '~/tracing.ts';
+import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
+import { hasTelemetry, tracer } from '~/tracing.ts';
 import { upgradeIfNeeded } from '~/up-migrations/pg.ts';
-import type { NeonAuthToken } from '~/utils.ts';
 import { assertUnreachable } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
-import type { SelectedFieldsOrdered } from '../query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '../session.ts';
 import { PgBasePreparedQuery, PgSession } from '../session.ts';
 import { PgAsyncDatabase } from './db.ts';
 
-export abstract class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBasePreparedQuery {
+export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBasePreparedQuery {
 	static override readonly [entityKind]: string = 'PgAsyncPreparedQuery';
 
+	/** @internal */
+	readonly mapper: {
+		(rows: any[]): any;
+		body?: string;
+	} | undefined;
+
+	private fastPath: boolean;
+
 	constructor(
+		protected executor: (params?: unknown[]) => Promise<any>,
 		query: Query,
+		mapper: ((rows: any[]) => any) | undefined,
+		readonly mode: 'arrays' | 'objects' | 'raw',
+		protected logger: Logger,
 		// cache instance
-		private cache: Cache | undefined,
+		protected cache: Cache | undefined,
 		// per query related metadata
-		private queryMetadata: {
+		protected queryMetadata: {
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
 		} | undefined,
 		// config that was passed through $withCache
-		private cacheConfig?: WithCacheConfig,
+		protected cacheConfig: WithCacheConfig | undefined,
 	) {
 		super(query);
+		this.mapper = mapper;
 		if (cache && cache.strategy() === 'all' && cacheConfig === undefined) {
 			this.cacheConfig = { enabled: true, autoInvalidate: true };
 		}
 		if (!this.cacheConfig?.enabled) {
 			this.cacheConfig = undefined;
 		}
+
+		this.fastPath = cacheConfig === undefined
+			&& (cache === undefined || is(cache, NoopCache))
+			&& !hasTelemetry;
 	}
 
-	/** @internal */
-	protected authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
+	override async execute(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
+		const { query, logger, executor, mapper, fastPath } = this;
+
+		if (fastPath) {
+			const params = query.params.length === 0
+				? query.params
+				: fillPlaceholders(query.params, placeholderValues);
+			logger.logQuery(query._sql ? query._sql.join(' ') : query.sql, params);
+			const res = await executor(params);
+			return mapper ? mapper(res) : res;
+		}
+
+		return tracer.startActiveSpan('drizzle.execute', async (span) => {
+			const params = fillPlaceholders(this.query.params, placeholderValues);
+			const { query: { sql }, mapper } = this;
+
+			span?.setAttributes({
+				'drizzle.query.text': sql,
+				'drizzle.query.params': JSON.stringify(params),
+			});
+
+			this.logger.logQuery(sql, params);
+
+			const query = tracer.startActiveSpan('drizzle.driver.execute', async (span) => {
+				span?.setAttributes({
+					'drizzle.query.text': sql,
+					'drizzle.query.params': JSON.stringify(params),
+				});
+
+				// return await so tracer captures time accurately
+				return await this.queryWithCache(sql, params, () => this.executor(params));
+			});
+
+			if (!mapper) return query;
+
+			return query.then((rows) => tracer.startActiveSpan('drizzle.mapResponse', () => mapper(rows as unknown[])));
+		});
 	}
-
-	abstract override execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
-
-	/** @internal */
-	abstract override all(placeholderValues?: Record<string, unknown>): Promise<T['all']>;
 
 	/** @internal */
 	protected async queryWithCache<T>(
@@ -119,22 +160,15 @@ export abstract class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extend
 
 export abstract class PgAsyncSession<
 	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > extends PgSession {
 	static override readonly [entityKind]: string = 'PgAsyncSession';
 
-	constructor(dialect: PgDialect) {
-		super(dialect);
-	}
-
 	abstract override prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		isResponseInArrayMode: boolean,
-		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
+		mode: 'arrays' | 'objects' | 'raw',
+		name: string | boolean,
+		mapper?: (rows: any[]) => any,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
@@ -142,71 +176,68 @@ export abstract class PgAsyncSession<
 		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T>;
 
-	abstract override prepareRelationalQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
-		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		customResultMapper: (
-			rows: Record<string, unknown>[],
-			mapColumnValue?: (value: unknown) => unknown,
-		) => T['execute'],
-	): PgAsyncPreparedQuery<T>;
-
-	override execute<T>(query: SQL): Promise<T>;
-	/** @internal */
-	override execute<T>(query: SQL, token?: NeonAuthToken): Promise<T>;
-	/** @internal */
-	override execute<T>(query: SQL, token?: NeonAuthToken): Promise<T> {
+	override execute<T>(query: SQL): Promise<T[]> {
 		return tracer.startActiveSpan('drizzle.operation', () => {
 			const prepared = tracer.startActiveSpan('drizzle.prepareQuery', () => {
-				return this.prepareQuery<PreparedQueryConfig & { execute: T }>(
+				return this.prepareQuery<PreparedQueryConfig & { execute: T[] }>(
 					this.dialect.sqlToQuery(query),
-					undefined,
-					undefined,
+					'raw',
 					false,
 				);
 			});
 
-			return prepared.setToken(token).execute();
+			return prepared.execute();
 		});
 	}
 
-	override all<T = unknown>(query: SQL): Promise<T[]> {
-		return this.prepareQuery<PreparedQueryConfig & { all: T[] }>(
-			this.dialect.sqlToQuery(query),
-			undefined,
-			undefined,
-			false,
-		).all();
+	override arrays<T>(query: SQL): Promise<T[]> {
+		return tracer.startActiveSpan('drizzle.operation', () => {
+			const prepared = tracer.startActiveSpan('drizzle.prepareQuery', () => {
+				return this.prepareQuery<PreparedQueryConfig & { execute: T[] }>(
+					this.dialect.sqlToQuery(query),
+					'arrays',
+					false,
+				);
+			});
+
+			return prepared.execute();
+		});
+	}
+
+	override objects<T>(query: SQL): Promise<T[]> {
+		return tracer.startActiveSpan('drizzle.operation', () => {
+			const prepared = tracer.startActiveSpan('drizzle.prepareQuery', () => {
+				return this.prepareQuery<PreparedQueryConfig & { execute: T[] }>(
+					this.dialect.sqlToQuery(query),
+					'objects',
+					false,
+				);
+			});
+
+			return prepared.execute();
+		});
 	}
 
 	abstract transaction<T>(
-		transaction: (tx: PgAsyncTransaction<TQueryResult, TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (tx: PgAsyncTransaction<TQueryResult, TRelations>) => Promise<T>,
 		config?: PgTransactionConfig,
 	): Promise<T>;
 }
 
 export abstract class PgAsyncTransaction<
 	TQueryResult extends PgQueryResultHKT,
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
-> extends PgAsyncDatabase<TQueryResult, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncDatabase<TQueryResult, TRelations> {
 	static override readonly [entityKind]: string = 'PgAsyncTransaction';
 
 	constructor(
 		dialect: PgDialect,
-		session: PgAsyncSession<any, any, any, any>,
-		protected relations: TRelations,
-		protected schema: {
-			fullSchema: Record<string, unknown>;
-			schema: TSchema;
-			tableNamesMap: Record<string, string>;
-		} | undefined,
+		session: PgAsyncSession<any, any>,
+		relations: TRelations,
 		protected readonly nestedIndex = 0,
-		parseRqbJson?: boolean,
+		parseRqbJson: boolean | undefined,
 	) {
-		super(dialect, session, relations, schema, parseRqbJson);
+		super(dialect, session, relations, parseRqbJson);
 	}
 
 	rollback(): never {
@@ -228,18 +259,18 @@ export abstract class PgAsyncTransaction<
 		return sql.raw(chunks.join(' '));
 	}
 
-	setTransaction(config: PgTransactionConfig): Promise<void> {
-		return this.session.execute(sql`set transaction ${this.getTransactionConfigSQL(config)}`);
+	setTransaction(config: PgTransactionConfig): Promise<unknown> {
+		return this.session.execute<void>(sql`set transaction ${this.getTransactionConfigSQL(config)}`);
 	}
 
-	abstract override transaction<T>(
-		transaction: (tx: PgAsyncTransaction<TQueryResult, TFullSchema, TRelations, TSchema>) => Promise<T>,
-	): Promise<T>;
+	abstract override transaction: <T>(
+		transaction: (tx: PgAsyncTransaction<TQueryResult, TRelations>) => Promise<T>,
+	) => Promise<T>;
 }
 
 export async function migrate(
 	migrations: MigrationMeta[],
-	db: PgAsyncDatabase<PgQueryResultHKT, any, any, any>,
+	db: PgAsyncDatabase<PgQueryResultHKT, any>,
 	config: string | MigrationConfig,
 ): Promise<void | MigratorInitFailResponse> {
 	const migrationsTable = typeof config === 'string'
@@ -266,7 +297,7 @@ export async function migrate(
 		await db.execute(migrationTableCreate);
 	}
 
-	const dbMigrations = await db.session.all<{ id: number; hash: string; created_at: string; name: string }>(
+	const dbMigrations = await db.session.objects<{ id: number; hash: string; created_at: string; name: string }>(
 		sql`select id, hash, created_at, name from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
 	);
 

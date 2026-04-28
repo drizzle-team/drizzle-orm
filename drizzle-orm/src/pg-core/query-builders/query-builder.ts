@@ -33,13 +33,14 @@ export class QueryBuilder {
 				qb = qb(queryBuilder);
 			}
 
+			const sql = ('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL();
 			return new Proxy(
 				new WithSubquery(
-					qb.getSQL(),
+					sql,
 					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
 					alias,
 					true,
-					qb.getSQL().usedTables ?? [],
+					sql.usedTables ?? [],
 				),
 				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 			) as any;

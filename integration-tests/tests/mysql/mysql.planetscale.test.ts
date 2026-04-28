@@ -28,7 +28,6 @@ beforeAll(async () => {
 			}),
 			relations,
 			logger: ENABLE_LOGGING,
-			casing: 'snake_case',
 		},
 	);
 

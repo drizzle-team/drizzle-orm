@@ -598,7 +598,6 @@ export class CockroachUpdateBase<
 			query,
 			this.config.returning,
 			name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-			true,
 		);
 		preparedQuery.joinsNotNullableMap = this.joinsNotNullableMap;
 		return preparedQuery;
@@ -626,6 +625,11 @@ export class CockroachUpdateBase<
 				)
 				: undefined
 		) as this['_']['selectedFields'];
+	}
+
+	/** @internal */
+	withoutSelectionCastCodecs(): this {
+		return this;
 	}
 
 	$dynamic(): CockroachUpdateDynamic<this> {

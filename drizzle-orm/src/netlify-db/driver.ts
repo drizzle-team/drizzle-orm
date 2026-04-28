@@ -1,17 +1,17 @@
-import { neon, Pool, types } from '@neondatabase/serverless';
-import * as V1 from '~/_relations.ts';
+import { type HTTPQueryOptions, neon, Pool, types } from '@neondatabase/serverless';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
-import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
-import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { NeonHttpClient, NeonHttpQueryResultHKT } from '~/neon-http/session.ts';
 import { drizzle as drizzleNodePg, type NodePgDatabase } from '~/node-postgres/driver.ts';
 import type { NodePgClient } from '~/node-postgres/session.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
+import type { PgCodecs } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
+import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { type DrizzleConfig, isConfig } from '~/utils.ts';
+import { isConfig, jitCompatCheck } from '~/utils.ts';
+import { netlifyDbCodecs, netlifyDbTransactionCodecs } from './codecs.ts';
 import { type NetlifyDbClient, NetlifyDbSession } from './session.ts';
 
 export interface ServerlessDrizzleClient {
@@ -29,102 +29,82 @@ export interface ServerDrizzleClient {
 
 export type DrizzleClient = ServerlessDrizzleClient | ServerDrizzleClient;
 
-export interface NetlifyDbDriverOptions {
-	logger?: Logger;
-	cache?: Cache;
-}
-
-export class NetlifyDbDriver {
-	static readonly [entityKind]: string = 'NetlifyDbDriver';
-
-	constructor(
-		private httpClient: NeonHttpClient,
-		private pool: Pool,
-		private dialect: PgDialect,
-		private options: NetlifyDbDriverOptions = {},
-	) {
-		this.initMappers();
-	}
-
-	createSession(
-		relations: AnyRelations | undefined,
-		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
-	): NetlifyDbSession<Record<string, unknown>, EmptyRelations, V1.TablesRelationalConfig> {
-		return new NetlifyDbSession(this.httpClient, this.pool, this.dialect, relations ?? {}, schema, {
-			logger: this.options.logger,
-			cache: this.options.cache,
-		});
-	}
-
-	initMappers() {
-		types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
-		types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
-		types.setTypeParser(types.builtins.DATE, (val) => val);
-		types.setTypeParser(types.builtins.INTERVAL, (val) => val);
-		types.setTypeParser(1231, (val) => val);
-		types.setTypeParser(1115, (val) => val);
-		types.setTypeParser(1185, (val) => val);
-		types.setTypeParser(1187, (val) => val);
-		types.setTypeParser(1182, (val) => val);
-	}
+export interface DrizzleNetlifyConfig<TRelations extends AnyRelations = EmptyRelations>
+	extends DrizzlePgConfig<TRelations>
+{
+	/** Netlify utilizes different driver for transactions, thus requiring separate set of codecs */
+	transactionCodecs?: PgCodecs | undefined;
 }
 
 export class NetlifyDbDatabase<
-	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-> extends PgAsyncDatabase<NeonHttpQueryResultHKT, TSchema, TRelations> {
+> extends PgAsyncDatabase<NeonHttpQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'NetlifyDbDatabase';
+
+	declare session: NetlifyDbSession<TRelations>;
+
+	$withAuth(
+		token: Exclude<HTTPQueryOptions<true, true>['authToken'], undefined>,
+	): Omit<this, '$withAuth'> {
+		const session = new NetlifyDbSession(this.session.httpClient, this.session.pool, this.dialect, this._.relations, {
+			...this.session.options,
+			authToken: token,
+		});
+
+		return new NetlifyDbDatabase(this.dialect, session, this._.relations) as any;
+	}
 
 	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(
 		batch: T,
 	): Promise<BatchResponse<T>> {
-		return (<NetlifyDbSession<TSchema, TRelations, V1.ExtractTablesWithRelations<TSchema>>> this.session).batch(
+		return this.session.batch(
 			batch,
 		) as Promise<BatchResponse<T>>;
 	}
 }
 
 function construct<
-	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 >(
 	httpClient: NeonHttpClient,
 	pool: Pool,
-	config: DrizzleConfig<TSchema, TRelations> = {},
-): NetlifyDbDatabase<TSchema, TRelations> & {
+	config: DrizzleNetlifyConfig<TRelations> = {},
+): NetlifyDbDatabase<TRelations> & {
 	$client: NetlifyDbClient;
 } {
-	const dialect = new PgDialect({ casing: config.casing });
+	const dialect = new PgDialect({
+		codecs: config.codecs ?? netlifyDbCodecs,
+		useJitMappers: jitCompatCheck(config.useJitMappers),
+	});
+
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
 	} else if (config.logger !== false) {
 		logger = config.logger;
 	}
-
-	let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;
-	if (config.schema) {
-		const tablesConfig = V1.extractTablesRelationalConfig(
-			config.schema,
-			V1.createTableRelationsHelpers,
-		);
-		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
-			tableNamesMap: tablesConfig.tableNamesMap,
-		};
-	}
-
 	const relations = config.relations ?? {} as TRelations;
 
-	const driver = new NetlifyDbDriver(httpClient, pool, dialect, { logger, cache: config.cache });
-	const session = driver.createSession(relations, schema);
+	const session = new NetlifyDbSession(httpClient, pool, dialect, relations ?? {}, {
+		logger: logger,
+		cache: config.cache,
+		transactionCodecs: config.transactionCodecs ?? netlifyDbTransactionCodecs,
+	});
+
+	types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
+	types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
+	types.setTypeParser(types.builtins.DATE, (val) => val);
+	types.setTypeParser(types.builtins.INTERVAL, (val) => val);
+	types.setTypeParser(1231, (val) => val);
+	types.setTypeParser(1115, (val) => val);
+	types.setTypeParser(1185, (val) => val);
+	types.setTypeParser(1187, (val) => val);
+	types.setTypeParser(1182, (val) => val);
 
 	const db = new NetlifyDbDatabase(
 		dialect,
 		session,
 		relations,
-		schema as V1.RelationalSchemaConfig<V1.ExtractTablesWithRelations<TSchema>> | undefined,
 	);
 	(<any> db).$client = { http: httpClient, pool } satisfies NetlifyDbClient;
 	(<any> db).$cache = config.cache;
@@ -136,56 +116,50 @@ function construct<
 }
 
 export function drizzle<
-	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 >():
-	| (NetlifyDbDatabase<TSchema, TRelations> & { $client: NetlifyDbClient })
-	| (NodePgDatabase<TSchema, TRelations> & { $client: NodePgClient });
+	| (NetlifyDbDatabase<TRelations> & { $client: NetlifyDbClient })
+	| (NodePgDatabase<TRelations> & { $client: NodePgClient });
 
 export function drizzle<
-	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 >(
-	config: DrizzleConfig<TSchema, TRelations>,
+	config: DrizzleNetlifyConfig<TRelations>,
 ):
-	| (NetlifyDbDatabase<TSchema, TRelations> & { $client: NetlifyDbClient })
-	| (NodePgDatabase<TSchema, TRelations> & { $client: NodePgClient });
+	| (NetlifyDbDatabase<TRelations> & { $client: NetlifyDbClient })
+	| (NodePgDatabase<TRelations> & { $client: NodePgClient });
 
 export function drizzle<
-	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 >(
-	config: DrizzleConfig<TSchema, TRelations> & { client: ServerlessDrizzleClient },
-): NetlifyDbDatabase<TSchema, TRelations> & { $client: NetlifyDbClient };
+	config: DrizzleNetlifyConfig<TRelations> & { client: ServerlessDrizzleClient },
+): NetlifyDbDatabase<TRelations> & { $client: NetlifyDbClient };
 
 export function drizzle<
-	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 >(
-	config: DrizzleConfig<TSchema, TRelations> & { client: ServerDrizzleClient },
-): NodePgDatabase<TSchema, TRelations> & { $client: NodePgClient };
+	config: DrizzleNetlifyConfig<TRelations> & { client: ServerDrizzleClient },
+): NodePgDatabase<TRelations> & { $client: NodePgClient };
 
 export function drizzle<
-	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 >(
-	config: DrizzleConfig<TSchema, TRelations> & { client: DrizzleClient },
+	config: DrizzleNetlifyConfig<TRelations> & { client: DrizzleClient },
 ):
-	| (NetlifyDbDatabase<TSchema, TRelations> & { $client: NetlifyDbClient })
-	| (NodePgDatabase<TSchema, TRelations> & { $client: NodePgClient });
+	| (NetlifyDbDatabase<TRelations> & { $client: NetlifyDbClient })
+	| (NodePgDatabase<TRelations> & { $client: NodePgClient });
 
 export function drizzle<
-	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 >(
 	...params: [
 		string,
 	] | [
 		string,
-		DrizzleConfig<TSchema, TRelations>,
+		DrizzleNetlifyConfig<TRelations>,
 	] | [
 		(
-			& DrizzleConfig<TSchema, TRelations>
+			& DrizzleNetlifyConfig<TRelations>
 			& ({
 				connection: string | { connectionString: string };
 			} | {
@@ -193,22 +167,19 @@ export function drizzle<
 			})
 		),
 	]
-): NetlifyDbDatabase<TSchema, TRelations> & { $client: NetlifyDbClient };
+): NetlifyDbDatabase<TRelations> & { $client: NetlifyDbClient };
 
-export function drizzle<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
->(
+export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	...params: [] | [
-		DrizzleConfig<TSchema>,
+		DrizzleNetlifyConfig<TRelations>,
 	] | [
 		string,
 	] | [
 		string,
-		DrizzleConfig<TSchema, TRelations>,
+		DrizzleNetlifyConfig<TRelations>,
 	] | [
 		(
-			& DrizzleConfig<TSchema, TRelations>
+			& DrizzleNetlifyConfig<TRelations>
 			& ({
 				connection: string | { connectionString: string };
 			} | {
@@ -217,8 +188,8 @@ export function drizzle<
 		),
 	]
 ):
-	| (NetlifyDbDatabase<TSchema, TRelations> & { $client: NetlifyDbClient })
-	| (NodePgDatabase<TSchema, TRelations> & { $client: NodePgClient })
+	| (NetlifyDbDatabase<TRelations> & { $client: NetlifyDbClient })
+	| (NodePgDatabase<TRelations> & { $client: NodePgClient })
 {
 	// Zero-config: read env vars
 	if (
@@ -226,7 +197,7 @@ export function drizzle<
 		|| (params.length === 1 && isConfig(params[0]) && !('connection' in (params[0] as any))
 			&& !('client' in (params[0] as any)))
 	) {
-		const drizzleConfig = (params[0] ?? {}) as DrizzleConfig<TSchema>;
+		const drizzleConfig = (params[0] ?? {}) as DrizzleNetlifyConfig<TRelations>;
 		const connectionString = process.env['NETLIFY_DB_URL'];
 
 		if (!connectionString) {
@@ -258,7 +229,7 @@ export function drizzle<
 		const { connection, client, ...drizzleConfig } = params[0] as {
 			connection?: { connectionString: string } | string;
 			client?: NetlifyDbClient | DrizzleClient;
-		} & DrizzleConfig<TSchema, TRelations>;
+		} & DrizzleNetlifyConfig<TRelations>;
 
 		if (client) {
 			if ('driver' in client) {
@@ -282,11 +253,10 @@ export function drizzle<
 
 export namespace drizzle {
 	export function mock<
-		TSchema extends Record<string, unknown> = Record<string, never>,
 		TRelations extends AnyRelations = EmptyRelations,
 	>(
-		config?: DrizzleConfig<TSchema, TRelations>,
-	): NetlifyDbDatabase<TSchema, TRelations> & {
+		config?: DrizzleNetlifyConfig<TRelations>,
+	): NetlifyDbDatabase<TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, {} as any, config) as any;

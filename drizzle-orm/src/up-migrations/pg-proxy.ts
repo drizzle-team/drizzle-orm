@@ -13,7 +13,7 @@ const upgradeFunctions: Record<
 	(
 		migrationsSchema: string,
 		migrationsTable: string,
-		db: PgRemoteDatabase<Record<string, unknown>>,
+		db: PgRemoteDatabase,
 		callback: ProxyMigrator,
 		localMigrations: MigrationMeta[],
 	) => Promise<void>
@@ -32,7 +32,7 @@ const upgradeFunctions: Record<
 
 		// 1. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
-		const dbRows = await db.session.execute<{ id: number; hash: string; created_at: string }[]>(
+		const dbRows = await db.session.objects<{ id: number; hash: string; created_at: string }>(
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
 		);
 
@@ -123,7 +123,7 @@ const upgradeFunctions: Record<
 export async function upgradeIfNeeded(
 	migrationsSchema: string,
 	migrationsTable: string,
-	db: PgRemoteDatabase<Record<string, unknown>>,
+	db: PgRemoteDatabase,
 	callback: ProxyMigrator,
 	localMigrations: MigrationMeta[],
 ): Promise<UpgradeResult> {
@@ -139,8 +139,8 @@ export async function upgradeIfNeeded(
 	}
 
 	// Table exists, check table shape
-	const rows = await db.session.execute<
-		{ schema: string; table_name: string; column_name: string; type: string }[]
+	const rows = await db.session.objects<
+		{ schema: string; table_name: string; column_name: string; type: string }
 	>(
 		sql`SELECT
 			n.nspname AS "schema",

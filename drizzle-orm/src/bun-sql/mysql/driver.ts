@@ -9,7 +9,7 @@ import { MySqlDatabase } from '~/mysql-core/db.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { Mode } from '~/mysql-core/session.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
 import type { BunMySqlPreparedQueryHKT, BunMySqlQueryResultHKT } from './session.ts';
 import { BunMySqlSession } from './session.ts';
 
@@ -36,7 +36,7 @@ function construct<
 ): BunMySqlDatabase<TSchema, TRelations> & {
 	$client: SQL;
 } {
-	const dialect = new MySqlDialect({ casing: config.casing });
+	const dialect = new MySqlDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -67,7 +67,12 @@ function construct<
 	const mode = config.mode ?? 'default';
 
 	const relations = config.relations ?? {} as TRelations;
-	const session = new BunMySqlSession(client, dialect, relations, schema, { logger, mode, cache: config.cache });
+	const session = new BunMySqlSession(client, dialect, relations, schema, {
+		logger,
+		mode,
+		cache: config.cache,
+		useJitMappers: jitCompatCheck(config.useJitMappers),
+	});
 	const db = new BunMySqlDatabase(dialect, session, relations, schema as any, mode) as BunMySqlDatabase<
 		TSchema,
 		TRelations
