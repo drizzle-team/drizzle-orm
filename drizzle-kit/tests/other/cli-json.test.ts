@@ -1,5 +1,5 @@
 import { spawnSync } from 'child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
@@ -139,20 +139,11 @@ test('root --version prints human-readable output', () => {
 	expect(() => JSON.parse(result.stdout.trim())).toThrow();
 });
 
-test('root -v prints human-readable output', () => {
-	const result = runCli(['-v']);
-
-	expect(result.status).toBe(0);
-	expect(result.stdout).toContain('drizzle-kit:');
-	expect(result.stdout).toContain('drizzle-orm:');
-	expect(() => JSON.parse(result.stdout.trim())).toThrow();
-});
-
 test('json error output includes structured cli error fields', () => {
-	const result = runCli(['up', '--json', '--config=foo.ts', '--dialect=postgresql']);
+	const result = runCli(['generate', '--json', '--config=foo.ts', '--dialect=postgresql']);
 
 	expect(result.status).not.toBeNull();
-	expect(result.stderr).toContain("You can't use both --config and other cli options for check command");
+	expect(result.stderr).toContain("You can't use both --config and other cli options for generate command");
 	expect(result.stdout.trim().startsWith('{')).toBe(true);
 	expect(result.stdout.trim().endsWith('}')).toBe(true);
 	const parsed = JSON.parse(result.stdout.trim());
@@ -160,7 +151,7 @@ test('json error output includes structured cli error fields', () => {
 		status: 'error',
 		error: {
 			code: 'ambiguous_params_error',
-			command: 'check',
+			command: 'generate',
 			configOption: 'config',
 		},
 	});
@@ -183,47 +174,9 @@ test('generate with config emits clean json stdout in json mode', () => {
 	});
 });
 
-test('up with config emits clean json stdout in json mode', () => {
-	const result = runCli(
-		['up', '--json', '--config=drizzle.config.ts'],
-		{ TEST_CONFIG_PATH_PREFIX: './tests/cli/' },
-	);
-
-	expect(result.status).toBe(0);
-	expect(result.stdout).not.toContain('Reading config file');
-	expect(result.stdout).not.toContain('No config path provided');
-	expect(result.stderr).not.toContain('Reading config file');
-	expect(result.stderr).not.toContain('No config path provided');
-	expect(JSON.parse(result.stdout.trim())).toStrictEqual({
-		status: 'ok',
-		upgradedFiles: [],
-	});
-});
-
 test('generate missing schema path emits structured json error', () => {
 	const result = runCli([
 		'generate',
-		'--json',
-		'--dialect=postgresql',
-		'--schema=tests/definitely-missing-schema.ts',
-	]);
-
-	expect(result.status).toBe(1);
-	expect(result.stdout.trim().startsWith('{')).toBe(true);
-	expect(result.stdout.trim().endsWith('}')).toBe(true);
-	const parsed = JSON.parse(result.stdout.trim());
-	expect(parsed).toMatchObject({
-		status: 'error',
-		error: {
-			code: 'schema_files_not_found_error',
-			paths: ['tests/definitely-missing-schema.ts'],
-		},
-	});
-});
-
-test('export missing schema path emits structured json error', () => {
-	const result = runCli([
-		'export',
 		'--json',
 		'--dialect=postgresql',
 		'--schema=tests/definitely-missing-schema.ts',
@@ -539,92 +492,6 @@ test('push cockroach ddl errors throw structured cli errors in json mode', async
 				dialect: 'cockroach',
 			},
 		});
-});
-
-test('up handler emits json summary and upgrades snapshot files', async () => {
-	vi.doMock('../../src/cli/utils', async () => {
-		const actual = await vi.importActual<typeof import('../../src/cli/utils')>('../../src/cli/utils');
-		return {
-			...actual,
-			assertOrmCoreVersion: vi.fn(async () => {}),
-			assertPackages: vi.fn(async () => {}),
-		};
-	});
-
-	const { up } = await import('../../src/cli/schema');
-	const tempDir = mkdtempSync(join(tmpdir(), 'drizzle-kit-up-json-'));
-	const migrationDir = join(tempDir, '1700000000000_init');
-	mkdirSync(migrationDir, { recursive: true });
-
-	const fixturePath = join(process.cwd(), 'tests/postgres/snapshots/snapshot05-0.23.2.json');
-	const snapshotTarget = join(migrationDir, 'snapshot.json');
-	writeFileSync(snapshotTarget, readFileSync(fixturePath, 'utf8'));
-
-	const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
-	const originalCwd = process.cwd();
-
-	process.chdir(tempDir);
-	try {
-		await withCliContext(true, async () => {
-			await up.handler?.({ out: '.', dialect: 'postgresql' });
-		});
-	} finally {
-		process.chdir(originalCwd);
-	}
-
-	const output = writeSpy.mock.calls.map((call) => String(call[0])).join('');
-	const parsed = JSON.parse(output);
-	const upgradedSnapshot = JSON.parse(readFileSync(snapshotTarget, 'utf8'));
-
-	expect(parsed).toStrictEqual({
-		status: 'ok',
-		upgradedFiles: ['1700000000000_init/snapshot.json'],
-	});
-	expect(output.trim().startsWith('{')).toBe(true);
-	expect(output.trim().endsWith('}')).toBe(true);
-	expect(upgradedSnapshot.version).toBe('8');
-	expect(upgradedSnapshot.dialect).toBe('postgres');
-});
-
-test('export command emits machine-readable json payload in json mode', async () => {
-	const { exportRaw } = await import('../../src/cli/schema');
-	const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
-	const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
-
-	await withCliContext(true, async () => {
-		await exportRaw.handler?.({
-			dialect: 'postgresql',
-			filenames: [join(process.cwd(), 'tests/cli/schema.ts')],
-			sql: true,
-			casing: undefined,
-		} as never);
-	});
-
-	const stdout = stdoutSpy.mock.calls.map((call) => String(call[0])).join('');
-	const stderr = stderrSpy.mock.calls.map((call) => String(call[0])).join('');
-	const parsed = JSON.parse(stdout.trim());
-
-	expect(stderr.trim()).toBe('');
-	expect(stdout.trim().startsWith('{')).toBe(true);
-	expect(stdout.trim().endsWith('}')).toBe(true);
-	expect(parsed).toMatchObject({
-		status: 'ok',
-		sqlStatements: [],
-	});
-});
-
-test('export turso command preserves turso dialect in json mode', async () => {
-	const result = runCli(
-		['export', '--json', '--config=turso.config.ts'],
-		{ TEST_CONFIG_PATH_PREFIX: './tests/cli/' },
-	);
-
-	expect(result.status).toBe(0);
-	expect(JSON.parse(result.stdout.trim())).toStrictEqual({
-		status: 'ok',
-		dialect: 'turso',
-		sqlStatements: [],
-	});
 });
 
 test('push postgres explain emits structured json payload in json mode', async () => {
@@ -1149,6 +1016,7 @@ test('generate writeResult emits json payload when a migration is written in jso
 			sqlStatements: ['CREATE TABLE "users" ("id" serial PRIMARY KEY);'],
 			outFolder,
 			breakpoints: false,
+			name: 'test',
 			dialect: 'postgresql',
 			renames: [],
 			snapshots: [],
@@ -1187,7 +1055,7 @@ test('generate sqlite custom emits json payload in json mode', async () => {
 				filenames: ['schema.ts'],
 				casing: undefined,
 				custom: true,
-				name: undefined,
+				name: 'test',
 				breakpoints: false,
 			} as never))
 	);
@@ -1200,6 +1068,59 @@ test('generate sqlite custom emits json payload in json mode', async () => {
 	});
 	expect(output.trim().startsWith('{')).toBe(true);
 	expect(output.trim().endsWith('}')).toBe(true);
+});
+
+test('generate sqlite emits missing_hints for unresolved table rename in json mode', async () => {
+	vi.doMock('../../src/dialects/sqlite/serializer', () => ({
+		prepareSqliteSnapshot: vi.fn(async () => ({
+			ddlCur: { cur: true },
+			ddlPrev: { prev: true },
+			snapshot: { version: '8', dialect: 'sqlite', id: 'snapshot' },
+			custom: { version: '8', dialect: 'sqlite', id: 'custom' },
+		})),
+	}));
+	vi.doMock('../../src/dialects/sqlite/diff', () => ({
+		ddlDiff: vi.fn(async (...args: unknown[]) => {
+			const tableResolver = args[2] as (
+				it: { created: { name: string }[]; deleted: { name: string }[] },
+			) => Promise<unknown>;
+			await tableResolver({
+				created: [{ name: 'users_new' }],
+				deleted: [{ name: 'users' }],
+			});
+			return {
+				sqlStatements: [],
+				warnings: [],
+				renames: [],
+				groupedStatements: [],
+				statements: [],
+			};
+		}),
+	}));
+
+	const generateSqlite = await import('../../src/cli/commands/generate-sqlite');
+	const { output, exitCode } = await captureJsonModeRun(() =>
+		withCliContext(true, () =>
+			generateSqlite.handle({
+				out: mkdtempSync(join(tmpdir(), 'drizzle-kit-generate-sqlite-missing-hints-')),
+				filenames: ['schema.ts'],
+				casing: undefined,
+				custom: false,
+				name: undefined,
+				breakpoints: false,
+				explain: true,
+				dialect: 'sqlite',
+				hints: new HintsHandler(),
+			} as never))
+	);
+
+	expect(exitCode).toBe(2);
+	expect(JSON.parse(output.trim())).toStrictEqual({
+		status: 'missing_hints',
+		unresolved: [
+			{ type: 'rename_or_create', kind: 'table', entity: ['public', 'users_new'] },
+		],
+	});
 });
 
 test('push postgres schema warnings do not leak to stdout in json mode', async () => {

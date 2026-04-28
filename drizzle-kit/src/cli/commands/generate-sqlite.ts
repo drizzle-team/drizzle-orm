@@ -1,11 +1,9 @@
 import { ddlDiff, ddlDiffDry } from 'src/dialects/sqlite/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
-import type { JsonStatement } from 'src/dialects/sqlite/statements';
 import { prepareOutFolder } from 'src/utils/utils-node';
 import { type Column, createDDL, interimToDDL, type SqliteEntities } from '../../dialects/sqlite/ddl';
 import { prepareSqliteSnapshot } from '../../dialects/sqlite/serializer';
 import { isJsonMode } from '../context';
-import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import { explain, explainJsonOutput, humanLog, printJsonOutput, sqliteSchemaError, warning } from '../views';
 import { writeResult } from './generate-common';
@@ -36,25 +34,14 @@ export const handle = async (config: GenerateConfig) => {
 		});
 		return;
 	}
-	let sqlStatements: string[] = [];
-	let warnings: string[] = [];
-	let renames: string[] = [];
-	let statements: JsonStatement[] = [];
-	let groupedStatements: { jsonStatement: JsonStatement; sqlStatements: string[] }[] = [];
 
-	const diffResult = await ddlDiff(
+	const { sqlStatements, warnings, renames, groupedStatements, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<SqliteEntities['tables']>('table', 'public', 'generate'),
-		resolver<Column>('column', 'public', 'generate'),
+		resolver<SqliteEntities['tables']>('table', 'public', 'generate', config.hints),
+		resolver<Column>('column', 'public', 'generate', config.hints),
 		'default',
 	);
-
-	sqlStatements = diffResult.sqlStatements;
-	warnings = diffResult.warnings;
-	renames = diffResult.renames;
-	statements = diffResult.statements;
-	groupedStatements = diffResult.groupedStatements;
 
 	if (json && config.hints.hasMissingHints()) {
 		config.hints.emitAndExit();
@@ -98,19 +85,15 @@ export const handle = async (config: GenerateConfig) => {
 };
 
 export const handleExport = async (config: ExportConfig) => {
-	const dialect = config.dialect === 'turso' ? 'turso' : 'sqlite';
 	const res = await prepareFromSchemaFiles(config.filenames);
 	const schema = fromDrizzleSchema(res.tables, res.views, config.casing);
 	const { ddl, errors } = interimToDDL(schema);
 
 	if (errors.length > 0) {
-		throw new CommandOutputCliError('export', errors.map((it) => sqliteSchemaError(it)).join('\n'), {
-			stage: 'ddl',
-			dialect,
-		});
+		console.log(errors.map((it) => sqliteSchemaError(it)).join('\n'));
+		process.exit(1);
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
-	printJsonOutput({ status: 'ok', dialect, sqlStatements });
-	humanLog(sqlStatements.join('\n'));
+	console.log(sqlStatements.join('\n'));
 };

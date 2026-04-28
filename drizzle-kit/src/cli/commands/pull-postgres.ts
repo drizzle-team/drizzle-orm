@@ -30,13 +30,12 @@ import { originUUID } from '../../utils';
 import type { DB } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
 import type { preparePostgresDB } from '../connections';
-import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { Casing } from '../validations/common';
 import type { PostgresCredentials } from '../validations/postgres';
 import type { IntrospectStage, IntrospectStatus } from '../views';
-import { humanLog, IntrospectProgress, postgresSchemaError } from '../views';
+import { IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
 import { relationsToTypeScript } from './pull-common';
 
@@ -76,9 +75,9 @@ export const handle = async (
 	const { ddl: ddl2, errors } = interimToDDL(res);
 
 	if (errors.length > 0) {
-		throw new CommandOutputCliError('pull', errors.map((it) => postgresSchemaError(it)).join('\n'), {
-			dialect: 'postgresql',
-		});
+		// TODO: print errors
+		console.error(errors);
+		process.exit(1);
 	}
 
 	const ts = postgresSchemaToTypeScript(ddl2, res.viewColumns, casing, 'pg');
@@ -88,7 +87,7 @@ export const handle = async (
 	writeFileSync(schemaFile, ts.file);
 	const relationsFile = join(out, 'relations.ts');
 	writeFileSync(relationsFile, relationsTs.file);
-	humanLog();
+	console.log();
 
 	const { snapshots } = prepareOutFolder(out);
 	if (snapshots.length === 0) {

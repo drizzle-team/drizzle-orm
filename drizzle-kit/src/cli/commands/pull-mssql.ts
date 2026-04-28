@@ -25,12 +25,11 @@ import { fromDatabaseForDrizzle } from '../../dialects/mssql/introspect';
 import { ddlToTypeScript } from '../../dialects/mssql/typescript';
 import { type DB, originUUID } from '../../utils';
 import type { connectToMsSQL } from '../connections';
-import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { Casing } from '../validations/common';
 import type { MssqlCredentials } from '../validations/mssql';
-import { humanLog, IntrospectProgress, mssqlSchemaError } from '../views';
+import { IntrospectProgress, mssqlSchemaError } from '../views';
 import { writeResult } from './generate-common';
 
 export const handle = async (
@@ -67,9 +66,8 @@ export const handle = async (
 	const { ddl: ddl2, errors } = interimToDDL(res);
 
 	if (errors.length > 0) {
-		throw new CommandOutputCliError('pull', errors.map((it) => mssqlSchemaError(it)).join('\n'), {
-			dialect: 'mssql',
-		});
+		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
+		process.exit(1);
 	}
 
 	const ts = ddlToTypeScript(ddl2, res.viewColumns, casing);
@@ -79,7 +77,7 @@ export const handle = async (
 	writeFileSync(schemaFile, ts.file);
 	// const relationsFile = join(out, 'relations.ts');
 	// writeFileSync(relationsFile, relationsTs.file);
-	humanLog();
+	console.log();
 
 	const { snapshots } = prepareOutFolder(out);
 	if (snapshots.length === 0) {

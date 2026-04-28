@@ -130,12 +130,7 @@ export const handle = async (
 		return;
 	}
 
-	let sqlStatements: string[] = [];
-	let renames: string[] = [];
-	let groupedStatements: { jsonStatement: JsonStatement; sqlStatements: string[] }[] = [];
-	let statements: JsonStatement[] = [];
-
-	const diffResult = await ddlDiff(
+	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
 		resolver<Table>('table', 'public', 'generate', config.hints),
@@ -143,11 +138,6 @@ export const handle = async (
 		resolver<View>('view', 'public', 'generate', config.hints),
 		'default',
 	);
-
-	sqlStatements = diffResult.sqlStatements;
-	renames = diffResult.renames;
-	groupedStatements = diffResult.groupedStatements;
-	statements = diffResult.statements;
 
 	if (json && config.hints.hasMissingHints()) {
 		config.hints.emitAndExit();
@@ -196,13 +186,10 @@ export const handleExport = async (config: ExportConfig) => {
 	const { ddl, errors } = interimToDDL(schema);
 
 	if (errors.length > 0) {
-		throw new CommandOutputCliError('export', errors.map((it) => mysqlSchemaError(it)).join('\n'), {
-			stage: 'ddl',
-			dialect: 'mysql',
-		});
+		console.log(errors.map((it) => mysqlSchemaError(it)).join('\n'));
+		process.exit(1);
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
-	printJsonOutput({ status: 'ok', dialect: 'mysql', sqlStatements });
-	humanLog(sqlStatements.join('\n'));
+	console.log(sqlStatements.join('\n'));
 };

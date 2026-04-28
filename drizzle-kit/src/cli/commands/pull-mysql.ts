@@ -19,7 +19,7 @@ import type { EntitiesFilterConfig } from '../validations/cli';
 import type { Casing } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
 import type { IntrospectStage, IntrospectStatus } from '../views';
-import { humanLog, IntrospectProgress } from '../views';
+import { IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
 import { relationsToTypeScript } from './pull-common';
 
@@ -62,7 +62,7 @@ export const handle = async (
 
 	const relationsFile = join(out, 'relations.ts');
 	writeFileSync(relationsFile, relations.file);
-	humanLog();
+	console.log();
 
 	const { snapshots } = prepareOutFolder(out);
 

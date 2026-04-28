@@ -17,7 +17,6 @@ import type {
 } from '../../dialects/mssql/ddl';
 import type { JsonStatement } from '../../dialects/mssql/statements';
 import { isJsonMode } from '../context';
-import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import { withStyle } from '../validations/outputs';
 import { explain, explainJsonOutput, humanLog, mssqlSchemaError, printJsonOutput } from '../views';
@@ -45,12 +44,7 @@ export const handle = async (config: GenerateConfig) => {
 		return;
 	}
 
-	let sqlStatements: string[] = [];
-	let renames: string[] = [];
-	let statements: JsonStatement[] = [];
-	let groupedStatements: { jsonStatement: JsonStatement; sqlStatements: string[] }[] = [];
-
-	const diffResult = await ddlDiff(
+	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
 		resolver<Schema>('schema', 'dbo', 'generate', config.hints),
@@ -65,11 +59,6 @@ export const handle = async (config: GenerateConfig) => {
 		resolver<DefaultConstraint>('default', 'dbo', 'generate', config.hints),
 		'default',
 	);
-
-	sqlStatements = diffResult.sqlStatements;
-	renames = diffResult.renames;
-	statements = diffResult.statements;
-	groupedStatements = diffResult.groupedStatements;
 
 	if (json && config.hints.hasMissingHints()) {
 		config.hints.emitAndExit();
@@ -132,21 +121,16 @@ export const handleExport = async (config: ExportConfig) => {
 	const { schema, errors } = fromDrizzleSchema(res, config.casing, () => true);
 
 	if (errors.length > 0) {
-		throw new CommandOutputCliError('export', errors.map((it) => mssqlSchemaError(it)).join('\n'), {
-			stage: 'schema',
-			dialect: 'mssql',
-		});
+		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
+		process.exit(1);
 	}
 
 	const { ddl, errors: errors2 } = interimToDDL(schema);
 	if (errors2.length > 0) {
-		throw new CommandOutputCliError('export', errors2.map((it) => mssqlSchemaError(it)).join('\n'), {
-			stage: 'ddl',
-			dialect: 'mssql',
-		});
+		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
+		process.exit(1);
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
-	printJsonOutput({ status: 'ok', dialect: 'mssql', sqlStatements });
-	humanLog(sqlStatements.join('\n'));
+	console.log(sqlStatements.join('\n'));
 };

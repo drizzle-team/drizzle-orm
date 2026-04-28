@@ -7,11 +7,10 @@ import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { fromDatabase } from '../../dialects/postgres/introspect';
 import type { prepareGelDB } from '../connections';
-import { CommandOutputCliError } from '../errors';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { Casing } from '../validations/common';
 import type { GelCredentials } from '../validations/gel';
-import { humanLog, IntrospectProgress, postgresSchemaError } from '../views';
+import { IntrospectProgress } from '../views';
 import { relationsToTypeScript } from './pull-common';
 
 export const handle = async (
@@ -39,9 +38,8 @@ export const handle = async (
 	const { ddl: ddl2, errors } = interimToDDL(res);
 
 	if (errors.length > 0) {
-		throw new CommandOutputCliError('pull', errors.map((it) => postgresSchemaError(it)).join('\n'), {
-			dialect: 'gel',
-		});
+		// TODO: print errors
+		process.exit(1);
 	}
 
 	const ts = ddlToTypeScript(ddl2, res.viewColumns, casing, 'gel');
@@ -51,7 +49,7 @@ export const handle = async (
 	writeFileSync(schemaFile, ts.file);
 	const relationsFile = join(out, 'relations.ts');
 	writeFileSync(relationsFile, relationsTs.file);
-	humanLog();
+	console.log();
 
 	render(
 		`[${

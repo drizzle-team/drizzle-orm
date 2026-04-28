@@ -17,7 +17,7 @@ import type { connectToSQLite } from '../connections';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { Casing } from '../validations/common';
 import type { SqliteCredentials } from '../validations/sqlite';
-import { humanLog, IntrospectProgress, type IntrospectStage, type IntrospectStatus } from '../views';
+import { IntrospectProgress, type IntrospectStage, type IntrospectStatus } from '../views';
 import { writeResult } from './generate-common';
 import { relationsToTypeScript } from './pull-common';
 
@@ -55,7 +55,7 @@ export const handle = async (
 	const relationsFile = join(out, 'relations.ts');
 	writeFileSync(relationsFile, relationsTs.file);
 
-	humanLog();
+	console.log();
 	const { snapshots } = prepareOutFolder(out);
 
 	if (snapshots.length === 0) {
