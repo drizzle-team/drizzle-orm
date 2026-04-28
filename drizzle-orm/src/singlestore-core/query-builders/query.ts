@@ -36,7 +36,14 @@ export class RelationalQueryBuilder<
 	) {}
 
 	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
+		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>> & {
+			where?:
+				| KnownKeysOnly<
+					NonNullable<TConfig['where']>,
+					NonNullable<DBQueryConfig<'many', TSchema, TFields>['where']>
+				>
+				| undefined;
+		},
 	): SingleStoreRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new SingleStoreRelationalQuery(
 			this.schema,
@@ -50,7 +57,14 @@ export class RelationalQueryBuilder<
 	}
 
 	findFirst<TSelection extends DBQueryConfig<'one', TSchema, TFields>>(
-		config?: KnownKeysOnly<TSelection, DBQueryConfig<'one', TSchema, TFields>>,
+		config?: KnownKeysOnly<TSelection, DBQueryConfig<'one', TSchema, TFields>> & {
+			where?:
+				| KnownKeysOnly<
+					NonNullable<TSelection['where']>,
+					NonNullable<DBQueryConfig<'one', TSchema, TFields>['where']>
+				>
+				| undefined;
+		},
 	): SingleStoreRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
 		return new SingleStoreRelationalQuery(
 			this.schema,
