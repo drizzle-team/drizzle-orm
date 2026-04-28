@@ -32,7 +32,14 @@ export class RelationalQueryBuilder<
 	) {}
 
 	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
+		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>> & {
+			where?:
+				| KnownKeysOnly<
+					NonNullable<TConfig['where']>,
+					NonNullable<DBQueryConfig<'many', TSchema, TFields>['where']>
+				>
+				| undefined;
+		},
 	): PgRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new PgRelationalQuery(
 			this.schema,
@@ -46,7 +53,14 @@ export class RelationalQueryBuilder<
 	}
 
 	findFirst<TConfig extends DBQueryConfig<'one', TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfig<'one', TSchema, TFields>>,
+		config?: KnownKeysOnly<TConfig, DBQueryConfig<'one', TSchema, TFields>> & {
+			where?:
+				| KnownKeysOnly<
+					NonNullable<TConfig['where']>,
+					NonNullable<DBQueryConfig<'one', TSchema, TFields>['where']>
+				>
+				| undefined;
+		},
 	): PgRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
 		return new PgRelationalQuery(
 			this.schema,

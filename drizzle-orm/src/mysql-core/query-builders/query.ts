@@ -33,6 +33,12 @@ export class RelationalQueryBuilder<
 	findMany<TConfig extends DBQueryConfigWithComment<'many', TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfigWithComment<'many', TSchema, TFields>> & {
 			comment?: SqlCommenterInput;
+			where?:
+				| KnownKeysOnly<
+					NonNullable<TConfig['where']>,
+					NonNullable<DBQueryConfigWithComment<'many', TSchema, TFields>['where']>
+				>
+				| undefined;
 		},
 	): MySqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new MySqlRelationalQuery(
@@ -49,6 +55,12 @@ export class RelationalQueryBuilder<
 	findFirst<TSelection extends DBQueryConfigWithComment<'one', TSchema, TFields>>(
 		config?: KnownKeysOnly<TSelection, DBQueryConfigWithComment<'one', TSchema, TFields>> & {
 			comment?: SqlCommenterInput;
+			where?:
+				| KnownKeysOnly<
+					NonNullable<TSelection['where']>,
+					NonNullable<DBQueryConfigWithComment<'one', TSchema, TFields>['where']>
+				>
+				| undefined;
 		},
 	): MySqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
 		return new MySqlRelationalQuery(
