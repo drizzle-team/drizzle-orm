@@ -10,8 +10,6 @@ It is written for tools and services that call Drizzle Kit programmatically.
 
 - `drizzle-kit generate --json`
 - `drizzle-kit push --json`
-- `drizzle-kit up --json`
-- `drizzle-kit export --json`
 
 When `--json` is enabled, callers should treat `stdout` as the JSON channel.
 
@@ -244,7 +242,6 @@ Depending on the command, this can mean:
 
 - explain mode completed successfully
 - changes were applied successfully
-- snapshots were upgraded
 
 Examples:
 
@@ -268,12 +265,9 @@ Examples:
 {
   "status": "ok",
   "dialect": "postgresql",
-  "sqlStatements": []
+  "statements": [],
+  "hints": []
 }
-```
-
-```json
-{ "status": "ok", "dialect": "mssql", "message": "Changes applied" }
 ```
 
 For generate success and custom responses, `dialect` is always present.

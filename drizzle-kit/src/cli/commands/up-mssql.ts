@@ -2,10 +2,8 @@ import chalk from 'chalk';
 import { writeFileSync } from 'fs';
 import { upToV2 } from 'src/dialects/mssql/versions';
 import { prepareOutFolder, validateWithReport } from '../../utils/utils-node';
-import { humanLog } from '../views';
-import type { UpJsonState } from './up-state';
 
-export const upMssqlHandler = (out: string, jsonState?: UpJsonState) => {
+export const upMssqlHandler = (out: string) => {
 	const { snapshots } = prepareOutFolder(out);
 	const report = validateWithReport(snapshots, 'mssql');
 
@@ -19,14 +17,10 @@ export const upMssqlHandler = (out: string, jsonState?: UpJsonState) => {
 
 			const { snapshot } = upToV2(it.raw);
 
-			if (jsonState) {
-				jsonState.addUpgradedFile(path);
-			}
-
-			humanLog(`[${chalk.green('✓')}] ${path}`);
+			console.log(`[${chalk.green('✓')}] ${path}`);
 
 			writeFileSync(path, JSON.stringify(snapshot, null, 2));
 		});
 
-	humanLog("Everything's fine 🐶🔥");
+	console.log("Everything's fine 🐶🔥");
 };

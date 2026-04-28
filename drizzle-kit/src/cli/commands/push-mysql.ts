@@ -70,11 +70,7 @@ export const handle = async (
 		});
 	}
 
-	let sqlStatements: string[] = [];
-	let statements: JsonStatement[] = [];
-	let groupedStatements: { jsonStatement: JsonStatement; sqlStatements: string[] }[] = [];
-
-	const diffResult = await ddlDiff(
+	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
 		resolver<Table>('table', 'public', 'push', hints),
@@ -82,10 +78,6 @@ export const handle = async (
 		resolver<View>('view', 'public', 'push', hints),
 		'push',
 	);
-
-	sqlStatements = diffResult.sqlStatements;
-	statements = diffResult.statements;
-	groupedStatements = diffResult.groupedStatements;
 
 	if (hints.hasMissingHints()) {
 		hints.emitAndExit();

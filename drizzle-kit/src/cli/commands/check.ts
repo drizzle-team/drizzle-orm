@@ -88,8 +88,7 @@ export const generateReportDirectory = (
 	// Group conflicts by parentId
 	const byParent: Record<string, UnifiedBranchConflict[]> = {};
 	for (const c of conflicts) {
-		byParent[c.parentId] ??= [];
-		byParent[c.parentId].push(c);
+		(byParent[c.parentId] ??= []).push(c);
 	}
 
 	const parentEntries = Object.entries(byParent);
