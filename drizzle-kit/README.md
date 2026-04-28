@@ -80,16 +80,3 @@ Running with CLI options:
 ```shell
 npm run generate
 ```
-
-### JSON mode for automation
-
-`drizzle-kit` supports per-command `--json` output for non-interactive callers on:
-
-- `generate`
-- `push`
-- `up`
-- `export`
-
-If a command needs rename or data-loss guidance in JSON mode, pass hints with `--hints` or `--hints-file`. If the command still cannot proceed, it returns `status: "missing_hints"` so the caller can retry with more explicit input.
-
-See [`JSON_CONTRACT.md`](./JSON_CONTRACT.md) for the supported payloads and response shapes.

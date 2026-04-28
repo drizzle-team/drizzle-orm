@@ -19,9 +19,7 @@ import type {
 import { createDDL, interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { prepareSnapshot } from '../../dialects/postgres/serializer';
-import type { JsonStatement } from '../../dialects/postgres/statements';
 import { isJsonMode } from '../context';
-import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import {
 	explain,
@@ -65,12 +63,7 @@ export const handle = async (
 		return;
 	}
 
-	let sqlStatements: string[] = [];
-	let renames: string[] = [];
-	let groupedStatements: { jsonStatement: JsonStatement; sqlStatements: string[] }[] = [];
-	let jsonStatements: JsonStatement[] = [];
-
-	const diffResult = await ddlDiff(
+	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
 		resolver<Schema>('schema', 'public', 'generate', config.hints),
@@ -89,11 +82,6 @@ export const handle = async (
 		resolver<ForeignKey>('foreign key', 'public', 'generate', config.hints),
 		'default',
 	);
-
-	sqlStatements = diffResult.sqlStatements;
-	renames = diffResult.renames;
-	groupedStatements = diffResult.groupedStatements;
-	jsonStatements = diffResult.statements;
 
 	if (json && config.hints.hasMissingHints()) {
 		config.hints.emitAndExit();
@@ -118,7 +106,7 @@ export const handle = async (
 			printJsonOutput({ status: 'no_changes', dialect: 'postgresql' });
 			return;
 		}
-		const explainOutput = explainJsonOutput('postgres', jsonStatements, []);
+		const explainOutput = explainJsonOutput('postgres', statements, []);
 		printJsonOutput(explainOutput);
 		return;
 	}
@@ -138,26 +126,21 @@ export const handleExport = async (config: ExportConfig) => {
 		() => true,
 	);
 	if (warnings.length > 0) {
-		humanLog(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
+		console.log(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
 	}
 
 	if (errors.length > 0) {
-		throw new CommandOutputCliError('export', errors.map((it) => postgresSchemaError(it)).join('\n'), {
-			stage: 'schema',
-			dialect: 'postgresql',
-		});
+		console.log(errors.map((it) => postgresSchemaError(it)).join('\n'));
+		process.exit(1);
 	}
 
 	const { ddl, errors: errors2 } = interimToDDL(schema);
 
 	if (errors2.length > 0) {
-		throw new CommandOutputCliError('export', errors2.map((it) => postgresSchemaError(it)).join('\n'), {
-			stage: 'ddl',
-			dialect: 'postgresql',
-		});
+		console.log(errors2.map((it) => postgresSchemaError(it)).join('\n'));
+		process.exit(1);
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
-	printJsonOutput({ status: 'ok', dialect: 'postgresql', sqlStatements });
-	humanLog(sqlStatements.join('\n'));
+	console.log(sqlStatements.join('\n'));
 };
