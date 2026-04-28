@@ -78,6 +78,19 @@ export class ConfigFileNotFoundCliError extends DrizzleCliError {
 	}
 }
 
+export class SchemaFilesNotFoundCliError extends DrizzleCliError {
+	constructor(paths: string[]) {
+		super(
+			'schema_files_not_found_error',
+			[
+				error(`No schema files found for path config [${paths.map((it) => `'${it}'`).join(', ')}]`),
+				error('If path represents a file - please make sure to use .ts or other extension in the path'),
+			].join('\n'),
+			{ paths },
+		);
+	}
+}
+
 export class ConfigValidationCliError extends DrizzleCliError {
 	constructor(humanMessage: string, issues?: JsonValue[], options?: ErrorOptions) {
 		super('config_validation_error', humanMessage, issues ? { issues } : undefined, options);

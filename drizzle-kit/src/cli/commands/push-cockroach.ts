@@ -21,6 +21,7 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/cockro
 import type { JsonStatement } from '../../dialects/cockroach/statements';
 import type { DB } from '../../utils';
 import { isJsonMode } from '../context';
+import { CommandOutputCliError } from '../errors';
 import { highlightSQL } from '../highlighter';
 import type { HintsHandler } from '../hints';
 import { resolver } from '../prompts';
@@ -29,6 +30,7 @@ import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
 import type { CasingType } from '../validations/common';
 import {
+	abortedJsonOutput,
 	cockroachSchemaError,
 	explain as explainView,
 	explainJsonOutput,
@@ -70,8 +72,10 @@ export const handle = async (
 	}
 
 	if (errors.length > 0) {
-		process.stderr.write(errors.map((it) => cockroachSchemaError(it)).join('\n') + '\n');
-		process.exit(1);
+		throw new CommandOutputCliError('push', errors.map((it) => cockroachSchemaError(it)).join('\n'), {
+			stage: 'schema',
+			dialect: 'cockroach',
+		});
 	}
 
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
@@ -88,8 +92,10 @@ export const handle = async (
 	// TODO: handle errors?
 
 	if (errors1.length > 0) {
-		process.stderr.write(errors1.map((it) => cockroachSchemaError(it)).join('\n') + '\n');
-		process.exit(1);
+		throw new CommandOutputCliError('push', errors1.map((it) => cockroachSchemaError(it)).join('\n'), {
+			stage: 'ddl',
+			dialect: 'cockroach',
+		});
 	}
 
 	let sqlStatements: string[] = [];
@@ -123,7 +129,7 @@ export const handle = async (
 
 	if (sqlStatements.length === 0) {
 		if (json) {
-			printJsonOutput(explainJsonOutput('cockroach', [], []), true);
+			printJsonOutput({ status: 'no_changes', dialect: 'cockroach' });
 		} else {
 			render(`[${chalk.blue('i')}] No changes detected`);
 		}
@@ -136,7 +142,7 @@ export const handle = async (
 	}
 	if (explain) {
 		if (json) {
-			printJsonOutput(explainJsonOutput('cockroach', jsonStatements, suggestionHints), true);
+			printJsonOutput(explainJsonOutput('cockroach', jsonStatements, suggestionHints));
 		} else {
 			const explainMessage = explainView('cockroach', groupedStatements, suggestionHints);
 			if (explainMessage) {
@@ -147,7 +153,7 @@ export const handle = async (
 	}
 	if (!force && suggestionHints.length > 0) {
 		if (json) {
-			printJsonOutput({ status: 'aborted', dialect: 'cockroach' }, true);
+			printJsonOutput(abortedJsonOutput('cockroach', suggestionHints));
 			process.exit(0);
 		}
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
@@ -166,7 +172,7 @@ export const handle = async (
 	}
 
 	if (json) {
-		printJsonOutput({ status: 'ok', dialect: 'cockroach', message: 'Changes applied' }, true);
+		printJsonOutput({ status: 'ok', dialect: 'cockroach', message: 'Changes applied' });
 	} else {
 		render(`[${chalk.green('\u2713')}] Changes applied`);
 	}

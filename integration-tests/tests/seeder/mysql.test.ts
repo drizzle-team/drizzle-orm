@@ -246,7 +246,7 @@ const createAllGeneratorsTables = async () => {
 };
 
 beforeAll(async () => {
-	const connectionString = await createDockerDB();
+	const connectionString = process.env['MYSQL_CONNECTION_STRING'] ?? await createDockerDB();
 
 	const sleep = 1000;
 	let timeLeft = 40000;

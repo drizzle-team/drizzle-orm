@@ -1,5 +1,6 @@
 import { type BroCliEvent, command, getCommandNameWithParents, run } from '@drizzle-team/brocli';
 import chalk from 'chalk';
+import { isJsonMode, runWithCliContext } from './context';
 import { DrizzleCliError } from './errors';
 import { highlightSQL } from './highlighter';
 import { check, exportRaw, generate, migrate, pull, push, studio, up } from './schema';
@@ -58,16 +59,11 @@ const getBroCliErrorMessage = (event: BroCliEvent & { type: 'error' }) => {
 	return `Invalid value for --${optionName}${offender ? `: ${offender}` : ''}`;
 };
 
-const version = async (json = false) => {
+const version = async () => {
 	const { npmVersion } = await ormCoreVersions();
 	const ormVersion = npmVersion ? `drizzle-orm: v${npmVersion}` : '';
 	const envVersion = process.env.DRIZZLE_KIT_VERSION;
 	const kitVersion = envVersion ? `v${envVersion}` : '--';
-	printJsonOutput({
-		kitVersion,
-		ormVersion: npmVersion ? `v${npmVersion}` : null,
-	}, json);
-	if (json) return;
 	const versions = `drizzle-kit: ${kitVersion}\n${ormVersion}`;
 	humanLog(chalk.gray(versions), '\n');
 };
@@ -115,80 +111,77 @@ const legacy = [
 ];
 
 const main = async () => {
-	const isJsonRequest = process.argv.includes('--json');
-	const isVersionRequest = process.argv.includes('--version') || process.argv.includes('-v');
+	await runWithCliContext(
+		{ json: process.argv.includes('--json') },
+		async () => {
+			await run([generate, migrate, pull, push, studio, up, check, exportRaw, ...legacy], {
+				name: 'drizzle-kit',
+				version: () => version(),
 
-	if (isJsonRequest && isVersionRequest) {
-		await version(true);
-		process.exit(0);
-	}
+				hook: (event, command) => {
+					if (event === 'after' && getCommandNameWithParents(command) !== 'studio') process.exit(0);
+				},
+				theme: (event) => {
+					if (event.type === 'error') {
+						if (isJsonMode()) {
+							if (event.violation === 'unknown_error' && event.error instanceof QueryError) {
+								writeStderr(formatQueryError(event.error));
+								printJsonOutput({
+									status: 'error',
+									error: {
+										code: 'query_error',
+										sql: event.error.sql,
+										params: event.error.params,
+									},
+								});
+								return true;
+							}
 
-	await run([generate, migrate, pull, push, studio, up, check, exportRaw, ...legacy], {
-		name: 'drizzle-kit',
-		version: () => version(false),
+							const err = event.violation === 'unknown_error' && event.error instanceof DrizzleCliError
+								? { code: event.error.code, ...event.error.meta }
+								: { code: event.violation, message: getBroCliErrorMessage(event) };
 
-		hook: (event, command) => {
-			if (event === 'after' && getCommandNameWithParents(command) !== 'studio') process.exit(0);
-		},
-		theme: (event) => {
-			if (event.type === 'error') {
-				if (isJsonRequest) {
-					if (event.violation === 'unknown_error' && event.error instanceof QueryError) {
-						writeStderr(formatQueryError(event.error));
-						printJsonOutput({
-							status: 'error',
-							error: {
-								code: 'query_error',
-								sql: event.error.sql,
-								params: event.error.params,
-							},
-						}, true);
+							if (event.violation === 'unknown_error' && event.error instanceof DrizzleCliError) {
+								writeStderr(event.error.humanMessage);
+							} else {
+								writeStderr(getBroCliErrorMessage(event));
+							}
+
+							printJsonOutput({
+								status: 'error',
+								error: err,
+							});
+							return true;
+						}
+
+						if (event.violation !== 'unknown_error') return false;
+
+						const e = event.error;
+						if (e instanceof QueryError) {
+							const msg = formatQueryError(e);
+							humanLog();
+							humanLog(msg);
+							return true;
+						}
+
+						if (e instanceof DrizzleCliError) {
+							humanLog(e.humanMessage);
+							return true;
+						}
+
+						if (
+							!(typeof e === 'object' && e !== null && 'message' in e && typeof e.message === 'string')
+						) return false;
+
+						humanLog(error(e.message));
 						return true;
 					}
 
-					const err = event.violation === 'unknown_error' && event.error instanceof DrizzleCliError
-						? { code: event.error.code, ...event.error.meta }
-						: { code: event.violation, message: getBroCliErrorMessage(event) };
-
-					if (event.violation === 'unknown_error' && event.error instanceof DrizzleCliError) {
-						writeStderr(event.error.humanMessage);
-					} else {
-						writeStderr(getBroCliErrorMessage(event));
-					}
-
-					printJsonOutput({
-						status: 'error',
-						error: err,
-					}, true);
-					return true;
-				}
-
-				if (event.violation !== 'unknown_error') return false;
-
-				const e = event.error;
-				if (e instanceof QueryError) {
-					const msg = formatQueryError(e);
-					humanLog();
-					humanLog(msg);
-					return true;
-				}
-
-				if (e instanceof DrizzleCliError) {
-					humanLog(e.humanMessage);
-					return true;
-				}
-
-				if (
-					!(typeof e === 'object' && e !== null && 'message' in e && typeof e.message === 'string')
-				) return false;
-
-				humanLog(error(e.message));
-				return true;
-			}
-
-			return false;
+					return false;
+				},
+			});
 		},
-	});
+	);
 };
 
 void main();
