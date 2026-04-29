@@ -15,18 +15,28 @@ When `--json` is enabled, callers should treat `stdout` as the JSON channel.
 
 Each command invocation writes a single JSON object to `stdout`, optionally followed by a trailing newline.
 
-## Why hints exist
+## Hints
 
 Some schema changes are ambiguous or unsafe to apply automatically.
 
 Typical examples:
 
-- an entity could be a rename or a brand new entity
+- an entity could be a rename, or it could be a brand new entity while the old one is deleted
 - an operation may drop data or fail on non-empty tables
 
-In interactive mode, Drizzle Kit asks the user what to do.
+Specifically, when one entity disappears and another entity of the same kind appears, Drizzle Kit cannot always tell whether the intended outcome is:
 
-In JSON mode, there are no prompts. Instead, callers can provide hints up front. If more guidance is still needed, Drizzle Kit returns `status: "missing_hints"` and includes the unresolved items.
+- one entity being renamed
+- one entity being deleted while a different entity is created
+
+In interactive mode, Drizzle Kit asks the user what to do via prompts.
+
+In JSON mode, there are no prompts. Instead, callers can provide hints explaining the actual intent behind ambiguous changes. If necessary hints weren't provided, Drizzle Kit returns `status: "missing_hints"` and includes the unresolved items.
+
+`rename` and `create` hints resolve this rename-vs-create+delete ambiguity:
+
+- `rename` means the `from` and `to` identifiers refer to the same logical entity
+- `create` means the new entity is truly new, so any removed predecessor stays a separate delete
 
 ## Providing hints
 
@@ -39,11 +49,15 @@ Both forms use the same JSON array format.
 
 ## Hint types
 
-There are three hint categories:
+### `rename` / `create`
 
-- `rename`: this entity should be treated as a rename
-- `create`: this entity should be treated as newly created
-- `confirm_data_loss`: this potentially destructive step is approved
+Provide a resolution whether a change should be treated as a rename or a create+delete, resolving the ambiguity.
+`rename` tells Drizzle Kit to treat a change as one logical entity moving from `from` to `to`.
+`create` tells Drizzle Kit to treat `entity` as newly created. When the diff also contains a removed entity of the same kind, this confirms the outcome is create+delete rather than a rename.
+
+### `confirm_data_loss`
+
+Approves a potentially destructive step, such as dropping a non-empty table or adding a `NOT NULL` constraint to a column that currently contains nulls.
 
 ### Rename/create kinds
 
@@ -185,6 +199,35 @@ Example:
 ]
 ```
 
+### Rename a column
+
+Treat `display_name` as the same column previously named `full_name`:
+
+```json
+[
+  {
+    "type": "rename",
+    "kind": "column",
+    "from": ["public", "users", "full_name"],
+    "to": ["public", "users", "display_name"]
+  }
+]
+```
+
+### Create + delete instead of rename
+
+Treat `display_name` as a truly new column. If `full_name` is also removed in the same diff, this means Drizzle Kit should create the new column and keep the old column as a separate delete instead of interpreting the change as a rename:
+
+```json
+[
+  {
+    "type": "create",
+    "kind": "column",
+    "entity": ["public", "users", "display_name"]
+  }
+]
+```
+
 ### Declare that a new schema is truly new
 
 ```json
@@ -208,6 +251,8 @@ Example:
   }
 ]
 ```
+
+Formal hint shapes are declared via the [`Hint` type](./src/cli/hints.ts).
 
 ## Proactive hints
 
@@ -355,14 +400,7 @@ When this response is emitted, the process exits with code `2`.
 
 ### `status: "aborted"`
 
-Used only by `push --json` after `missing_hints` handling is already clear, executable statements still remain, and the caller did not allow Drizzle Kit to continue.
-
-Current behavior:
-
-- rename/create ambiguity and destructive non-empty entity checks return `status: "missing_hints"` first
-- `status: "aborted"` is reserved for push-only warning or suggestion states that Drizzle Kit can already describe without asking for more caller input
-- current resolution is to rerun the same command with `--force` if the caller approves execution
-- warning-only aborted cases will move into the existing hints system in the future
+Used only by `push --json` for confirmations which are not yet supported by the hint system.
 
 Payload shape:
 
@@ -379,6 +417,8 @@ Payload shape:
 To inspect the full warning state without executing anything, rerun the same command with `--explain --json`.
 
 To override warnings and proceed, rerun the same command with `--force`.
+
+In the future, `aborted` status will be replaced by additional hint types.
 
 ### `status: "error"`
 
@@ -407,6 +447,8 @@ Examples:
   }
 }
 ```
+
+For full list of CLI errors, see [errors.ts](./src/cli/errors.ts).
 
 ## `--explain` in JSON mode
 
@@ -466,4 +508,4 @@ Example:
 4. If the response is `missing_hints`, inspect `unresolved`.
 5. Build the required hints.
 6. Retry the same command with `--hints` or `--hints-file`.
-7. If the response is `aborted`, inspect `warnings` (or rerun with `--explain --json` for the full warning state), then either stop or rerun with `--force` if the caller approves execution. In the future, these warning-only aborted cases will move into the hints system.
+7. If the response is `aborted`, inspect `warnings` (or rerun with `--explain --json` for the full warning state), then either stop or rerun with `--force` if the caller approves execution.
