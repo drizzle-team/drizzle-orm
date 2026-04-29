@@ -62,12 +62,17 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 		const { query, logger, executor, mapper, fastPath } = this;
 
 		if (fastPath) {
+			const queryString = query._sql ? query._sql.join(' ') : query.sql;
 			const params = query.params.length === 0
 				? query.params
 				: fillPlaceholders(query.params, placeholderValues);
-			logger.logQuery(query._sql ? query._sql.join(' ') : query.sql, params);
-			const res = await executor(params);
-			return mapper ? mapper(res) : res;
+			logger.logQuery(queryString, params);
+			const res = executor(params).catch((e) => {
+				throw new DrizzleQueryError(queryString, params, e as Error);
+			});
+			if (!mapper) return res;
+
+			return res.then((rows) => mapper(rows));
 		}
 
 		return tracer.startActiveSpan('drizzle.execute', async (span) => {
