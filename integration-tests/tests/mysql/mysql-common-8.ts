@@ -1,6 +1,18 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
-import { and, asc, eq, getColumns, getTableColumns, gt, inArray, isNull, Name, sql } from 'drizzle-orm';
+import {
+	and,
+	asc,
+	DrizzleQueryError,
+	eq,
+	getColumns,
+	getTableColumns,
+	gt,
+	inArray,
+	isNull,
+	Name,
+	sql,
+} from 'drizzle-orm';
 import {
 	alias,
 	bigint,
@@ -1377,6 +1389,17 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		expect(str.sql).toBe(
 			'SELECT * FROM `users` ORDER BY `id`` ASC, CAST((SELECT password_hash FROM users LIMIT 1) AS int)--` ASC',
 		);
+	});
+
+	test.concurrent('Query error wrapping', async ({ push, db }) => {
+		const table = mysqlTable('users_error_wrap', (t) => ({
+			id: t.int().primaryKey(),
+			name: t.text().notNull(),
+		}));
+
+		await push({ table });
+		await expect(db.insert(table).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]))
+			.rejects.toBeInstanceOf(DrizzleQueryError);
 	});
 
 	test.concurrent('comments', async ({ createDB, push }) => {

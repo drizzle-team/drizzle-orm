@@ -5,6 +5,7 @@ import {
 	avgDistinct,
 	count,
 	countDistinct,
+	DrizzleQueryError,
 	eq,
 	exists,
 	getColumns,
@@ -6030,5 +6031,13 @@ export function tests(test: Test, exclude: string[] = []) {
 			sql: 'select sum(3) from "users_115"',
 			params: [],
 		});
+	});
+
+	// Sync drivers don't wrap errors - TODO
+	test.skipIf(Date.now() < +new Date('2026-04-30'))('Query error wrapping', async ({ db }) => {
+		await expect(async () =>
+			await db.insert(usersTable).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]).run()
+		)
+			.rejects.toBeInstanceOf(DrizzleQueryError);
 	});
 }

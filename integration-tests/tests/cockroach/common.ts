@@ -10,6 +10,7 @@ import {
 	avgDistinct,
 	count,
 	countDistinct,
+	DrizzleQueryError,
 	eq,
 	Equal,
 	exists,
@@ -7640,6 +7641,11 @@ export function tests() {
 				sql: 'select sum(3) from "users_115"',
 				params: [],
 			});
+		});
+
+		test('Query error wrapping', async ({ cockroach: { db } }) => {
+			await expect(db.insert(users2Table).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]))
+				.rejects.toBeInstanceOf(DrizzleQueryError);
 		});
 	});
 }
