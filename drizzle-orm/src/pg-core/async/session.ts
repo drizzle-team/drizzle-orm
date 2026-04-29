@@ -62,13 +62,13 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 		const { query, logger, executor, mapper, fastPath } = this;
 
 		if (fastPath) {
-			const queryString = query._sql ? query._sql.join(' ') : query.sql;
+			const sql = query._sql ? query._sql.join(' ') : query.sql;
 			const params = query.params.length === 0
 				? query.params
 				: fillPlaceholders(query.params, placeholderValues);
-			logger.logQuery(queryString, params);
+			logger.logQuery(sql, params);
 			const res = executor(params).catch((e) => {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw new DrizzleQueryError(sql, params, e as Error);
 			});
 			if (!mapper) return res;
 
@@ -77,7 +77,8 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 
 		return tracer.startActiveSpan('drizzle.execute', async (span) => {
 			const params = fillPlaceholders(this.query.params, placeholderValues);
-			const { query: { sql }, mapper } = this;
+			const sql = this.query._sql ? this.query._sql.join(' ') : this.query.sql;
+			const { mapper } = this;
 
 			span?.setAttributes({
 				'drizzle.query.text': sql,
