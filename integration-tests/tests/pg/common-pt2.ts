@@ -8,6 +8,7 @@ import {
 	count,
 	countDistinct,
 	desc,
+	DrizzleQueryError,
 	eq,
 	getColumns,
 	getTableColumns,
@@ -6428,6 +6429,17 @@ export function tests(test: Test) {
 					sqlWrapper: 2,
 				},
 			]);
+		});
+
+		test.concurrent('Query error wrapping', async ({ db, push }) => {
+			const table = pgTable('users_error_wrap', (t) => ({
+				id: t.integer().primaryKey(),
+				name: t.text().notNull(),
+			}));
+
+			await push({ table });
+			await expect(db.insert(table).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]))
+				.rejects.toBeInstanceOf(DrizzleQueryError);
 		});
 
 		test.skipIf(Date.now() < +new Date('2026-04-30')).concurrent(

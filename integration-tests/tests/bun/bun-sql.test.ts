@@ -13,6 +13,7 @@ import {
 	count,
 	countDistinct,
 	defineRelations,
+	DrizzleQueryError,
 	eq,
 	Equal,
 	exists,
@@ -6846,4 +6847,11 @@ test('all types ~codecs~', async () => {
 	expect(queryRes).toStrictEqual(testData);
 	expect(relationRes).toStrictEqual(testData);
 	expect(rootRes).toStrictEqual(testData);
+});
+
+test('Query error wrapping', async () => {
+	let err: any;
+	// expect(...).rejects is broken
+	await (db.insert(usersTable).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]).catch((e) => err = e));
+	expect(err).toBeInstanceOf(DrizzleQueryError);
 });
