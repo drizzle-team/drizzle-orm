@@ -1,5 +1,5 @@
 import type { CasingType } from 'src/cli/validations/common';
-import { sqliteSchemaError } from '../../cli/views';
+import { humanLog, sqliteSchemaError } from '../../cli/views';
 import { findLeafSnapshotIds } from '../../utils/utils-node';
 import type { SQLiteDDL } from './ddl';
 import { createDDL, interimToDDL } from './ddl';
@@ -37,7 +37,7 @@ export const prepareSqliteSnapshot = async (
 	const { ddl: ddlCur, errors } = interimToDDL(interim);
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => sqliteSchemaError(it)).join('\n\n'));
+		humanLog(errors.map((it) => sqliteSchemaError(it)).join('\n\n'));
 		process.exit();
 	}
 

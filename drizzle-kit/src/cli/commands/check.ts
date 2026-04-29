@@ -4,7 +4,8 @@ import { getCommutativityDialect } from 'src/commutativity';
 import type { MigrationNode, NonCommutativityReport, UnifiedBranchConflict } from 'src/commutativity/types';
 import type { Dialect } from '../../utils/schemaValidator';
 import { prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
-import { info } from '../views';
+import { CheckCliError } from '../errors';
+import { humanLog, info } from '../views';
 
 export type CheckHandlerResult = {
 	statements: unknown[];
@@ -173,66 +174,59 @@ export const checkHandler = async (
 			case 'valid':
 				break;
 			case 'unsupported':
-				console.log(
-					info(
-						`${snapshot} snapshot is of unsupported version, please update drizzle-kit`,
-					),
+				throw new CheckCliError(
+					'unsupported',
+					info(`${snapshot} snapshot is of unsupported version, please update drizzle-kit`),
+					{ snapshot },
 				);
-				process.exit(0);
-				break;
 			case 'malformed':
-				console.log(`${snapshot} data is malformed`);
-				process.exit(1);
-				break;
+				throw new CheckCliError('malformed', `${snapshot} data is malformed`, { snapshot });
 			case 'nonLatest':
-				console.log(
+				throw new CheckCliError(
+					'non_latest',
 					`${snapshot} is not of the latest version, please run "drizzle-kit up"`,
+					{ snapshot },
 				);
-				process.exit(1);
-				break;
 		}
 	}
 
-	try {
-		const commutativity = getCommutativityDialect(dialect);
-		if (!commutativity) {
-			return emptyResult();
-		}
+	const commutativity = getCommutativityDialect(dialect);
+	if (!commutativity) {
+		return emptyResult();
+	}
 
-		const response = await commutativity.detectNonCommutative(snapshots);
-		if (response.conflicts.length > 0) {
-			const nonCommutativityMessage = generateReportDirectory(response);
-			if (!ignoreConflicts) {
-				console.log(nonCommutativityMessage);
-				if (shouldExitOnConflict) {
-					process.exit(1);
-				}
-				return emptyResult(nonCommutativityMessage);
+	const response = await commutativity.detectNonCommutative(snapshots);
+	if (response.conflicts.length > 0) {
+		const nonCommutativityMessage = generateReportDirectory(response);
+		if (!ignoreConflicts) {
+			humanLog(nonCommutativityMessage);
+			if (shouldExitOnConflict) {
+				throw new CheckCliError('conflicts', nonCommutativityMessage, {
+					conflicts: response.conflicts.length,
+				});
 			}
+			return emptyResult(nonCommutativityMessage);
 		}
-
-		const selectedBranch = selectOpenCommutativeBranch(response);
-		if (selectedBranch) {
-			const sortedLeafs = [...selectedBranch.leafs].sort((left, right) => left.id.localeCompare(right.id));
-			return {
-				statements: sortedLeafs.flatMap((leaf) => leaf.statements),
-				parentSnapshot: selectedBranch.parentSnapshot,
-				parentId: selectedBranch.parentId,
-				leafIds: sortedLeafs.map((leaf) => leaf.id),
-			};
-		}
-
-		if (ignoreConflicts && response.leafNodes.length > 1) {
-			return {
-				statements: [],
-				parentSnapshot: null,
-				leafIds: [...response.leafNodes].sort((left, right) => left.localeCompare(right)),
-			};
-		}
-
-		return emptyResult();
-	} catch (e) {
-		console.error(e);
-		return emptyResult();
 	}
+
+	const selectedBranch = selectOpenCommutativeBranch(response);
+	if (selectedBranch) {
+		const sortedLeafs = [...selectedBranch.leafs].sort((left, right) => left.id.localeCompare(right.id));
+		return {
+			statements: sortedLeafs.flatMap((leaf) => leaf.statements),
+			parentSnapshot: selectedBranch.parentSnapshot,
+			parentId: selectedBranch.parentId,
+			leafIds: sortedLeafs.map((leaf) => leaf.id),
+		};
+	}
+
+	if (ignoreConflicts && response.leafNodes.length > 1) {
+		return {
+			statements: [],
+			parentSnapshot: null,
+			leafIds: [...response.leafNodes].sort((left, right) => left.localeCompare(right)),
+		};
+	}
+
+	return emptyResult();
 };

@@ -110,7 +110,7 @@ jobs:
           - shard: int:other
             dbs: [mysql, postgres, postgres-postgis, postgres-vector]
           - shard: int:seeder
-            dbs: []
+            dbs: [mysql, postgres]
           - shard: int:imports
             dbs: []
           - shard: int:planetscale

@@ -36,6 +36,7 @@ import getPort from 'get-port';
 import { Pool, PoolClient } from 'pg';
 import { introspect } from 'src/cli/commands/pull-cockroach';
 import { suggestions } from 'src/cli/commands/push-cockroach';
+import { HintsHandler } from 'src/cli/hints';
 import { EmptyProgressView, explain } from 'src/cli/views';
 import { defaultToSQL, isSystemRole } from 'src/dialects/cockroach/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/cockroach/introspect';
@@ -242,10 +243,10 @@ export const push = async (
 		'push',
 	);
 
-	const hints = await suggestions(db, statements);
+	const hints = await suggestions(db, statements, new HintsHandler());
 
 	if (config.explain) {
-		const explainMessage = explain('cockroach', groupedStatements, false, []);
+		const explainMessage = explain('cockroach', groupedStatements, []);
 		console.log(explainMessage);
 		return { sqlStatements, statements, hints };
 	}

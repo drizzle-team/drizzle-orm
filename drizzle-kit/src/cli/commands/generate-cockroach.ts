@@ -16,13 +16,22 @@ import type {
 import { createDDL, interimToDDL } from '../../dialects/cockroach/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/cockroach/diff';
 import { prepareSnapshot } from '../../dialects/cockroach/serializer';
+import { isJsonMode } from '../context';
 import { resolver } from '../prompts';
-import { cockroachSchemaError, cockroachSchemaWarning } from '../views';
+import {
+	cockroachSchemaError,
+	cockroachSchemaWarning,
+	explain,
+	explainJsonOutput,
+	humanLog,
+	printJsonOutput,
+} from '../views';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
 	const { out: outFolder, filenames, casing } = config;
+	const json = isJsonMode();
 
 	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, filenames, casing);
@@ -33,6 +42,7 @@ export const handle = async (config: GenerateConfig) => {
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
+			dialect: 'cockroach',
 			type: 'custom',
 			renames: [],
 			snapshots,
@@ -40,32 +50,54 @@ export const handle = async (config: GenerateConfig) => {
 		return;
 	}
 
-	const { sqlStatements, renames } = await ddlDiff(
+	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<Schema>('schema'),
-		resolver<Enum>('enum'),
-		resolver<Sequence>('sequence'),
-		resolver<Policy>('policy'),
-		resolver<CockroachEntities['tables']>('table'),
-		resolver<Column>('column'),
-		resolver<View>('view'),
-		resolver<Index>('index'),
-		resolver<CheckConstraint>('check'),
-		resolver<PrimaryKey>('primary key'),
-		resolver<ForeignKey>('foreign key'),
+		resolver<Schema>('schema', 'public', 'generate', config.hints),
+		resolver<Enum>('enum', 'public', 'generate', config.hints),
+		resolver<Sequence>('sequence', 'public', 'generate', config.hints),
+		resolver<Policy>('policy', 'public', 'generate', config.hints),
+		resolver<CockroachEntities['tables']>('table', 'public', 'generate', config.hints),
+		resolver<Column>('column', 'public', 'generate', config.hints),
+		resolver<View>('view', 'public', 'generate', config.hints),
+		resolver<Index>('index', 'public', 'generate', config.hints),
+		resolver<CheckConstraint>('check', 'public', 'generate', config.hints),
+		resolver<PrimaryKey>('primary key', 'public', 'generate', config.hints),
+		resolver<ForeignKey>('foreign key', 'public', 'generate', config.hints),
 		'default',
 	);
 
-	writeResult({
-		snapshot: snapshot,
-		sqlStatements,
-		outFolder,
-		name: config.name,
-		breakpoints: config.breakpoints,
-		renames,
-		snapshots,
-	});
+	if (json && config.hints.hasMissingHints()) {
+		config.hints.emitAndExit();
+	}
+
+	if (!config.explain) {
+		writeResult({
+			snapshot: snapshot,
+			sqlStatements,
+			outFolder,
+			name: config.name,
+			breakpoints: config.breakpoints,
+			dialect: 'cockroach',
+			renames,
+			snapshots,
+		});
+		return;
+	}
+
+	if (json) {
+		if (sqlStatements.length === 0) {
+			printJsonOutput({ status: 'no_changes', dialect: 'cockroach' });
+			return;
+		}
+		printJsonOutput(explainJsonOutput('cockroach', statements, []));
+		return;
+	}
+
+	const explainMessage = explain('cockroach', groupedStatements, []);
+	if (explainMessage) {
+		humanLog(explainMessage);
+	}
 };
 
 export const handleExport = async (config: ExportConfig) => {

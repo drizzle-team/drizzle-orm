@@ -4,9 +4,11 @@ import type { JsonStatement } from 'src/dialects/mysql/statements';
 import { prepareOutFolder } from 'src/utils/utils-node';
 import { type Column, createDDL, interimToDDL, type MysqlDDL, type Table, type View } from '../../dialects/mysql/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/mysql/diff';
+import { isJsonMode } from '../context';
+import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import { withStyle } from '../validations/outputs';
-import { explain, mysqlSchemaError } from '../views';
+import { explain, explainJsonOutput, humanLog, mysqlSchemaError, printJsonOutput } from '../views';
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
@@ -45,7 +47,7 @@ export const suggestions = (
 
 			let composite = columnsTo.length > 1 ? 'composite ' : '';
 			grouped.errors.push(
-				`· You are trying to add reference from "${table}" ("${columns.join('", ')}") to "${tableTo}" ("${
+				`You are trying to add reference from "${table}" ("${columns.join('", ')}") to "${tableTo}" ("${
 					columnsTo.join(
 						'", ',
 					)
@@ -80,7 +82,7 @@ export const suggestions = (
 			if (indexesFound) continue;
 
 			grouped.errors.push(
-				`· You are trying to drop primary key from "${table}" ("${
+				`You are trying to drop primary key from "${table}" ("${
 					columns.join(
 						'", ',
 					)
@@ -103,6 +105,7 @@ export const handle = async (
 	checkResult?: CheckHandlerResult,
 ) => {
 	const { out: outFolder, casing, filenames } = config;
+	const json = isJsonMode();
 
 	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(
@@ -119,6 +122,7 @@ export const handle = async (
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
+			dialect: 'mysql',
 			type: 'custom',
 			renames: [],
 			snapshots,
@@ -129,20 +133,40 @@ export const handle = async (
 	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<Table>('table'),
-		resolver<Column>('column'),
-		resolver<View>('view'),
+		resolver<Table>('table', 'public', 'generate', config.hints),
+		resolver<Column>('column', 'public', 'generate', config.hints),
+		resolver<View>('view', 'public', 'generate', config.hints),
 		'default',
 	);
 
-	const { errors } = suggestions(statements, ddlCur);
-	if (errors.length) {
-		console.log(errors.map((err) => withStyle.errorWarning(err)).join('\n\n'));
-		process.exit(1);
+	if (json && config.hints.hasMissingHints()) {
+		config.hints.emitAndExit();
 	}
 
-	const explainMessage = explain('mysql', groupedStatements, false, []);
-	if (explainMessage) console.log(explainMessage);
+	const { errors } = suggestions(statements, ddlCur);
+	if (errors.length) {
+		throw new CommandOutputCliError('generate', errors.map((err) => withStyle.errorWarning(err)).join('\n\n'), {
+			stage: 'suggestions',
+			dialect: 'mysql',
+		});
+	}
+
+	if (config.explain) {
+		if (json) {
+			if (sqlStatements.length === 0) {
+				printJsonOutput({ status: 'no_changes', dialect: 'mysql' });
+				return;
+			}
+			const explainOutput = explainJsonOutput('mysql', statements, []);
+			printJsonOutput(explainOutput);
+		} else {
+			const explainMessage = explain('mysql', groupedStatements, []);
+			if (explainMessage) {
+				humanLog(explainMessage);
+			}
+		}
+		return;
+	}
 
 	writeResult({
 		snapshot,
@@ -150,6 +174,7 @@ export const handle = async (
 		outFolder,
 		name: config.name,
 		breakpoints: config.breakpoints,
+		dialect: 'mysql',
 		renames,
 		snapshots,
 	});

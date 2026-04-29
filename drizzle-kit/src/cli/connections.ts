@@ -17,6 +17,7 @@ import type { DB, Proxy, SQLiteDB } from '../utils';
 import { normaliseSQLiteUrl } from '../utils/utils-node';
 import { JSONB } from '../utils/when-json-met-bigint';
 import type { ProxyParams } from './commands/studio';
+import { ConnectionStringDatabaseCliError, DatabaseDriverCliError, GelProjectLinkCliError } from './errors';
 import { assertPackages, checkPackage, QueryError } from './utils';
 import type { DuckDbCredentials } from './validations/duckdb';
 import type { GelCredentials } from './validations/gel';
@@ -27,6 +28,7 @@ import { withStyle } from './validations/outputs';
 import type { PostgresCredentials } from './validations/postgres';
 import type { SingleStoreCredentials } from './validations/singlestore';
 import type { SqliteCredentials } from './validations/sqlite';
+import { humanLog } from './views';
 
 const ms = (a: bigint, b: bigint) => Number(b - a) / 1_000_000;
 
@@ -208,7 +210,7 @@ export const preparePostgresDB = async (
 	}
 
 	if (await checkPackage('pg')) {
-		console.log(withStyle.info(`Using 'pg' driver for database querying`));
+		humanLog(withStyle.info(`Using 'pg' driver for database querying`));
 		const { default: pg } = await import('pg');
 		const { drizzle } = await import('drizzle-orm/node-postgres');
 		const { migrate } = await import('drizzle-orm/node-postgres/migrator');
@@ -442,7 +444,7 @@ export const preparePostgresDB = async (
 	}
 
 	if (await checkPackage('postgres')) {
-		console.log(
+		humanLog(
 			withStyle.info(`Using 'postgres' driver for database querying`),
 		);
 		const postgres = await import('postgres');
@@ -512,10 +514,10 @@ export const preparePostgresDB = async (
 	}
 
 	if (await checkPackage('@vercel/postgres')) {
-		console.log(
+		humanLog(
 			withStyle.info(`Using '@vercel/postgres' driver for database querying`),
 		);
-		console.log(
+		humanLog(
 			withStyle.fullWarning(
 				"'@vercel/postgres' can only connect to remote Neon/Vercel Postgres/Supabase instances through a websocket",
 			),
@@ -620,12 +622,12 @@ export const preparePostgresDB = async (
 	}
 
 	if (await checkPackage('@neondatabase/serverless')) {
-		console.log(
+		humanLog(
 			withStyle.info(
 				`Using '@neondatabase/serverless' driver for database querying`,
 			),
 		);
-		console.log(
+		humanLog(
 			withStyle.fullWarning(
 				"'@neondatabase/serverless' can only connect to remote Neon/Vercel Postgres/Supabase instances through a websocket",
 			),
@@ -734,7 +736,7 @@ export const preparePostgresDB = async (
 	}
 
 	if (await checkPackage('bun')) {
-		console.log(withStyle.info(`Using 'bun' driver for database querying`));
+		humanLog(withStyle.info(`Using 'bun' driver for database querying`));
 		const { SQL } = await import('bun');
 		const { drizzle } = await import('drizzle-orm/bun-sql/postgres');
 		const { migrate } = await import('drizzle-orm/bun-sql/postgres/migrator');
@@ -789,11 +791,12 @@ export const preparePostgresDB = async (
 		return { packageName: 'bun', query, proxy, transactionProxy, migrate: migrateFn };
 	}
 
-	console.error(
-		"To connect to Postgres database - please install either of 'pg', 'postgres', 'bun', '@neondatabase/serverless' or '@vercel/postgres' drivers",
+	throw new DatabaseDriverCliError(
+		'postgresql',
+		['pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres'],
+		"To connect to Postgres database - please install either of 'pg', 'postgres', 'bun', '@neondatabase/serverless' or '@vercel/postgres' drivers\nFor the 'bun' driver, run your script using: bun --bun",
+		"For the 'bun' driver, run your script using: bun --bun",
 	);
-	console.warn("For the 'bun' driver, run your script using: bun --bun");
-	process.exit(1);
 };
 
 export const prepareDuckDb = async (
@@ -876,7 +879,7 @@ export const prepareDuckDb = async (
 	// }
 
 	if (await checkPackage('@duckdb/node-api')) {
-		console.log(
+		humanLog(
 			withStyle.info(`Using '@duckdb/node-api' driver for database querying`),
 		);
 		const { DuckDBInstance } = await import('@duckdb/node-api');
@@ -922,11 +925,11 @@ export const prepareDuckDb = async (
 		};
 	}
 
-	console.error(
-		// "To connect to DuckDb database - please install either of 'duckdb', '@duckdb/node-api' drivers",
+	throw new DatabaseDriverCliError(
+		'duckdb',
+		['@duckdb/node-api'],
 		"To connect to DuckDb database - please install '@duckdb/node-api' driver",
 	);
-	process.exit(1);
 };
 
 export const prepareCockroach = async (
@@ -1008,8 +1011,7 @@ export const prepareCockroach = async (
 		return { query, proxy, migrate: migrateFn };
 	}
 
-	console.error("To connect to Cockroach - please install 'pg' package");
-	process.exit(1);
+	throw new DatabaseDriverCliError('cockroach', ['pg'], "To connect to Cockroach - please install 'pg' package");
 };
 
 export const prepareGelDB = async (
@@ -1031,11 +1033,7 @@ export const prepareGelDB = async (
 				await client.querySQL(`select 1;`);
 			} catch (error: any) {
 				if (error instanceof gel.ClientConnectionError) {
-					console.error(
-						`It looks like you forgot to link the Gel project or provide the database credentials.
-To link your project, please refer https://docs.geldata.com/reference/cli/gel_instance/gel_instance_link, or add the dbCredentials to your configuration file.`,
-					);
-					process.exit(1);
+					throw new GelProjectLinkCliError();
 				}
 
 				throw error;
@@ -1093,8 +1091,7 @@ To link your project, please refer https://docs.geldata.com/reference/cli/gel_in
 		return { packageName: 'gel', query, proxy, transactionProxy };
 	}
 
-	console.error("To connect to gel database - please install 'edgedb' driver");
-	process.exit(1);
+	throw new DatabaseDriverCliError('gel', ['gel'], "To connect to gel database - please install 'edgedb' driver");
 };
 
 const parseSingleStoreCredentials = (credentials: SingleStoreCredentials) => {
@@ -1106,10 +1103,10 @@ const parseSingleStoreCredentials = (credentials: SingleStoreCredentials) => {
 
 		const database = pathname.split('/')[pathname.split('/').length - 1];
 		if (!database) {
-			console.error(
+			throw new ConnectionStringDatabaseCliError(
+				'singlestore',
 				'You should specify a database name in connection string (singlestore://USER:PASSWORD@HOST:PORT/DATABASE)',
 			);
-			process.exit(1);
 		}
 		return { database, url };
 	} else {
@@ -1190,10 +1187,11 @@ export const connectToSingleStore = async (
 		};
 	}
 
-	console.error(
+	throw new DatabaseDriverCliError(
+		'singlestore',
+		['mysql2'],
 		"To connect to SingleStore database - please install 'mysql2' driver",
 	);
-	process.exit(1);
 };
 
 const parseMysqlCredentials = (credentials: MysqlCredentials) => {
@@ -1205,10 +1203,10 @@ const parseMysqlCredentials = (credentials: MysqlCredentials) => {
 
 		const database = pathname.split('/')[pathname.split('/').length - 1];
 		if (!database) {
-			console.error(
+			throw new ConnectionStringDatabaseCliError(
+				'mysql',
 				'You should specify a database name in connection string (mysql://USER:PASSWORD@HOST:PORT/DATABASE)',
 			);
-			process.exit(1);
 		}
 		return { database, url };
 	} else {
@@ -1233,7 +1231,7 @@ export const connectToMySQL = async (
 	const result = parseMysqlCredentials(it);
 
 	if (await checkPackage('mysql2')) {
-		console.log(withStyle.info(`Using 'mysql2' driver for database querying`));
+		humanLog(withStyle.info(`Using 'mysql2' driver for database querying`));
 		const { createConnection } = await import('mysql2/promise');
 		const { drizzle } = await import('drizzle-orm/mysql2');
 		const { migrate } = await import('drizzle-orm/mysql2/migrator');
@@ -1488,7 +1486,7 @@ export const connectToMySQL = async (
 	}
 
 	if (await checkPackage('@planetscale/database')) {
-		console.log(withStyle.info(`Using '@planetscale/database' driver for database querying`));
+		humanLog(withStyle.info(`Using '@planetscale/database' driver for database querying`));
 		const { Client } = await import('@planetscale/database');
 		const { drizzle } = await import('drizzle-orm/planetscale-serverless');
 		const { migrate } = await import(
@@ -1545,7 +1543,7 @@ export const connectToMySQL = async (
 	}
 
 	if (await checkPackage('bun')) {
-		console.log(withStyle.info(`Using 'bun' driver for database querying`));
+		humanLog(withStyle.info(`Using 'bun' driver for database querying`));
 		const { SQL } = await import('bun');
 		const { drizzle } = await import('drizzle-orm/bun-sql/mysql');
 		const { migrate } = await import('drizzle-orm/bun-sql/mysql/migrator');
@@ -1609,11 +1607,12 @@ export const connectToMySQL = async (
 		};
 	}
 
-	console.error(
-		"To connect to MySQL database - please install either of 'mysql2', 'bun' or '@planetscale/database' drivers",
+	throw new DatabaseDriverCliError(
+		'mysql',
+		['mysql2', 'bun', '@planetscale/database'],
+		"To connect to MySQL database - please install either of 'mysql2', 'bun' or '@planetscale/database' drivers\nFor the 'bun' driver, run your script using: bun --bun",
+		"For the 'bun' driver, run your script using: bun --bun",
 	);
-	console.warn("For the 'bun' driver, run your script using: bun --bun");
-	process.exit(1);
 };
 
 function parseMssqlUrl(url: URL): config {
@@ -1686,8 +1685,7 @@ export const connectToMsSQL = async (
 		};
 	}
 
-	console.error("To connect to MsSQL database - please install 'mssql' driver");
-	process.exit(1);
+	throw new DatabaseDriverCliError('mssql', ['mssql'], "To connect to MsSQL database - please install 'mssql' driver");
 };
 
 const prepareSqliteParams = (params: any[], driver?: string) => {
@@ -2078,7 +2076,7 @@ export const connectToSQLite = async (
 	}
 
 	if (await checkPackage('@libsql/client')) {
-		console.log(withStyle.info(`Using '@libsql/client' driver for database querying`));
+		humanLog(withStyle.info(`Using '@libsql/client' driver for database querying`));
 		const { createClient } = await import('@libsql/client');
 		const { drizzle } = await import('drizzle-orm/libsql');
 		const { migrate } = await import('drizzle-orm/libsql/migrator');
@@ -2143,7 +2141,7 @@ export const connectToSQLite = async (
 	}
 
 	if (await checkPackage('@tursodatabase/database')) {
-		console.log(withStyle.info(`Using '@tursodatabase/database' driver for database querying`));
+		humanLog(withStyle.info(`Using '@tursodatabase/database' driver for database querying`));
 		const { Database } = await import('@tursodatabase/database');
 		const { drizzle } = await import('drizzle-orm/tursodatabase/database');
 		const { migrate } = await import('drizzle-orm/tursodatabase/migrator');
@@ -2204,7 +2202,7 @@ export const connectToSQLite = async (
 	}
 
 	if (await checkPackage('better-sqlite3')) {
-		console.log(withStyle.info(`Using 'better-sqlite3' driver for database querying`));
+		humanLog(withStyle.info(`Using 'better-sqlite3' driver for database querying`));
 		const { default: Database } = await import('better-sqlite3');
 		const { drizzle } = await import('drizzle-orm/better-sqlite3');
 		const { migrate } = await import('drizzle-orm/better-sqlite3/migrator');
@@ -2291,7 +2289,7 @@ export const connectToSQLite = async (
 	}
 
 	if (await checkPackage('bun')) {
-		console.log(withStyle.info(`Using 'bun' driver for database querying`));
+		humanLog(withStyle.info(`Using 'bun' driver for database querying`));
 		const { SQL } = await import('bun');
 		const { drizzle } = await import('drizzle-orm/bun-sql/sqlite');
 		const { migrate } = await import('drizzle-orm/bun-sql/sqlite/migrator');
@@ -2354,7 +2352,7 @@ export const connectToSQLite = async (
 	}
 
 	if (await checkPackage('node:sqlite')) {
-		console.log(withStyle.info(`Using 'node:sqlite' driver for database querying`));
+		humanLog(withStyle.info(`Using 'node:sqlite' driver for database querying`));
 		const { DatabaseSync } = await import('node:sqlite');
 		const { drizzle } = await import('drizzle-orm/node-sqlite');
 		const { migrate } = await import('drizzle-orm/node-sqlite/migrator');
@@ -2436,13 +2434,12 @@ export const connectToSQLite = async (
 		};
 	}
 
-	console.log(
-		"Please install either 'better-sqlite3', 'bun', '@libsql/client' or '@tursodatabase/database' for Drizzle Kit to connect to SQLite databases"
-			+ '\n'
-			+ "To use 'node:sqlite' driver, ensure you're running Node.js v22.5.0 or higher",
+	throw new DatabaseDriverCliError(
+		'sqlite',
+		['better-sqlite3', 'bun', '@libsql/client', '@tursodatabase/database', 'node:sqlite'],
+		"Please install either 'better-sqlite3', 'bun', '@libsql/client' or '@tursodatabase/database' for Drizzle Kit to connect to SQLite databases\nTo use 'node:sqlite' driver, ensure you're running Node.js v22.5.0 or higher\nFor the 'bun' driver, run your script using: bun --bun",
+		"To use 'node:sqlite' driver, ensure you're running Node.js v22.5.0 or higher",
 	);
-	console.warn("For the 'bun' driver, run your script using: bun --bun");
-	process.exit(1);
 };
 
 export const connectToLibSQL = async (
@@ -2456,10 +2453,11 @@ export const connectToLibSQL = async (
 	}
 > => {
 	if (!(await checkPackage('@libsql/client'))) {
-		console.log(
+		throw new DatabaseDriverCliError(
+			'turso',
+			['@libsql/client'],
 			"Please install '@libsql/client' for Drizzle Kit to connect to LibSQL databases",
 		);
-		process.exit(1);
 	}
 
 	const { createClient } = await import('@libsql/client');

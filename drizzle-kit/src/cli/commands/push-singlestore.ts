@@ -4,13 +4,22 @@ import type { Column, Table, View } from 'src/dialects/mysql/ddl';
 import { interimToDDL } from 'src/dialects/mysql/ddl';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { ddlDiff } from '../../dialects/singlestore/diff';
+import { isJsonMode } from '../context';
 import { highlightSQL } from '../highlighter';
+import type { HintsHandler } from '../hints';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
-import { explain, ProgressView } from '../views';
+import {
+	abortedJsonOutput,
+	explain as explainView,
+	explainJsonOutput,
+	humanLog,
+	printJsonOutput,
+	ProgressView,
+} from '../views';
 import { suggestions } from './push-mysql';
 
 export const handle = async (
@@ -20,12 +29,15 @@ export const handle = async (
 	verbose: boolean,
 	force: boolean,
 	casing: CasingType | undefined,
-	explainFlag: boolean,
+	explain: boolean,
 	migrations: {
 		table: string;
 		schema: string;
 	},
+	hints: HintsHandler,
 ) => {
+	const json = isJsonMode();
+
 	const { connectToSingleStore } = await import('../connections');
 	const { fromDatabaseForDrizzle } = await import('../../dialects/mysql/introspect');
 
@@ -57,44 +69,67 @@ export const handle = async (
 	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
-		resolver<Table>('table'),
-		resolver<Column>('column'),
-		resolver<View>('view'),
+		resolver<Table>('table', 'public', 'push', hints),
+		resolver<Column>('column', 'public', 'push', hints),
+		resolver<View>('view', 'public', 'push', hints),
 		'push',
 	);
 
-	const filteredStatements = statements;
-	if (filteredStatements.length === 0) {
-		render(`[${chalk.blue('i')}] No changes detected`);
+	if (hints.hasMissingHints()) {
+		hints.emitAndExit();
 	}
 
-	const hints = await suggestions(db, filteredStatements, ddl2);
-	const explainMessage = explain('singlestore', groupedStatements, explainFlag, hints);
+	if (sqlStatements.length === 0) {
+		if (json) {
+			printJsonOutput({ status: 'no_changes', dialect: 'singlestore' });
+		} else {
+			render(`[${chalk.blue('i')}] No changes detected`);
+		}
+		return;
+	}
 
-	if (explainMessage) console.log(explainMessage);
-	if (explainFlag) return;
+	const suggestionHints = await suggestions(db, statements, ddl2, hints);
 
-	if (!force && hints.length > 0) {
+	if (hints.hasMissingHints()) {
+		hints.emitAndExit();
+	}
+
+	if (explain) {
+		if (json) {
+			printJsonOutput(explainJsonOutput('singlestore', statements, suggestionHints));
+		} else {
+			const explainMessage = explainView('singlestore', groupedStatements, suggestionHints);
+			if (explainMessage) {
+				humanLog(explainMessage);
+			}
+		}
+		return;
+	}
+
+	if (!force && suggestionHints.length > 0) {
+		if (json) {
+			printJsonOutput(abortedJsonOutput('singlestore', suggestionHints));
+			process.exit(0);
+		}
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
-
 		if (data?.index === 0) {
 			render(`[${chalk.red('x')}] All changes were aborted`);
 			process.exit(0);
 		}
 	}
 
-	const lossStatements = hints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
+	const lossStatements = suggestionHints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
 
 	for (const statement of [...lossStatements, ...sqlStatements]) {
-		if (verbose) console.log(highlightSQL(statement));
+		if (verbose && !json) humanLog(highlightSQL(statement));
 
 		await db.query(statement);
 	}
 
-	if (filteredStatements.length > 0) {
-		render(`[${chalk.green('✓')}] Changes applied`);
+	if (json) {
+		printJsonOutput({ status: 'ok', dialect: 'singlestore', message: 'Changes applied' });
 	} else {
-		render(`[${chalk.blue('i')}] No changes detected`);
+		render(`[${chalk.green('\u2713')}] Changes applied`);
 	}
 };
 

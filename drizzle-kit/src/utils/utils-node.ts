@@ -6,7 +6,8 @@ import { dirname, join, resolve } from 'path';
 import { snapshotValidator as mysqlSnapshotValidator } from 'src/dialects/mysql/snapshot';
 import { snapshotValidator as singlestoreSnapshotValidator } from 'src/dialects/singlestore/snapshot';
 import { parse, pathToFileURL } from 'url';
-import { error, info } from '../cli/views';
+import { SchemaFilesNotFoundCliError, UnsupportedSnapshotVersionCliError } from '../cli/errors';
+import { humanLog } from '../cli/views';
 import { snapshotValidator as cockroachValidator } from '../dialects/cockroach/snapshot';
 import { snapshotValidator as mssqlValidatorSnapshot } from '../dialects/mssql/snapshot';
 import { snapshotValidator as pgSnapshotValidator } from '../dialects/postgres/snapshot';
@@ -70,21 +71,7 @@ export const prepareFilenames = (path: string | string[]) => {
 
 	// when schema: "./schema" and not "./schema.ts"
 	if (res.length === 0) {
-		console.log(
-			error(
-				`No schema files found for path config [${
-					path
-						.map((it) => `'${it}'`)
-						.join(', ')
-				}]`,
-			),
-		);
-		console.log(
-			error(
-				`If path represents a file - please make sure to use .ts or other extension in the path`,
-			),
-		);
-		process.exit(1);
+		throw new SchemaFilesNotFoundCliError(path);
 	}
 
 	return res;
@@ -98,7 +85,7 @@ export const assertV1OutFolder = (out: string) => {
 	);
 
 	if (oldMigrationFolders.length > 0) {
-		console.log(
+		humanLog(
 			`Your migrations folder format is outdated, please run ${
 				chalk.green.bold(
 					`drizzle-kit up`,
@@ -113,7 +100,7 @@ export const assertV3OutFolder = (out: string) => {
 	if (!existsSync(out)) return;
 
 	if (existsSync(join(out, 'meta/_journal.json'))) {
-		console.log(
+		humanLog(
 			`Your migrations folder format is outdated, please run ${
 				chalk.green.bold(
 					`drizzle-kit up`,
@@ -353,12 +340,7 @@ export const validateWithReport = (snapshots: string[], dialect: Dialect) => {
 
 			const res = validator(raw);
 			if (res.status === 'unsupported') {
-				console.log(
-					info(
-						`${it} snapshot is of unsupported version, please update drizzle-kit`,
-					),
-				);
-				process.exit(0);
+				throw new UnsupportedSnapshotVersionCliError(it);
 			}
 			if (res.status === 'malformed') {
 				accum.malformed.push(it);

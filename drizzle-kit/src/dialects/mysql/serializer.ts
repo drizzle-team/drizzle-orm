@@ -1,5 +1,5 @@
 import type { CheckHandlerResult } from 'src/cli/commands/check';
-import { mysqlSchemaError } from 'src/cli/views';
+import { humanLog, mysqlSchemaError } from 'src/cli/views';
 import type { CasingType } from '../../cli/validations/common';
 import { assertUnreachable } from '../../utils';
 import { findLeafSnapshotIds } from '../../utils/utils-node';
@@ -55,7 +55,7 @@ export const prepareSnapshot = async (
 	const { ddl: ddlCur, errors: errors2 } = interimToDDL(interim);
 
 	if (errors2.length > 0) {
-		console.log(errors2.map((it) => mysqlSchemaError(it)).join('\n'));
+		humanLog(errors2.map((it) => mysqlSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 

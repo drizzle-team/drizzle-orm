@@ -1,5 +1,6 @@
 import type { TypeOf } from 'zod';
 import { coerce, literal, object, string, undefined as undefinedType, union } from 'zod';
+import { ConfigConnectionCliError } from '../errors';
 import { error } from '../views';
 import { wrapParam } from './common';
 
@@ -50,30 +51,41 @@ export type GelCredentials = TypeOf<typeof gelCredentials>;
 
 export const printConfigConnectionIssues = (
 	options: Record<string, unknown>,
-) => {
+): never => {
 	if ('url' in options) {
 		let text = `Please provide required params for Gel driver:\n`;
-		console.log(error(text));
-		console.log(wrapParam('url', options.url, false, 'url'));
-		process.exit(1);
+		throw new ConfigConnectionCliError(
+			'gel',
+			['url'],
+			[
+				error(text),
+				wrapParam('url', options.url, false, 'url'),
+			].join('\n'),
+		);
 	}
 
 	if ('host' in options || 'database' in options) {
 		let text = `Please provide required params for Gel driver:\n`;
-		console.log(error(text));
-		console.log(wrapParam('host', options.host));
-		console.log(wrapParam('port', options.port, true));
-		console.log(wrapParam('user', options.user, true));
-		console.log(wrapParam('password', options.password, true, 'secret'));
-		console.log(wrapParam('database', options.database));
-		console.log(wrapParam('tlsSecurity', options.tlsSecurity, true));
-		process.exit(1);
+		throw new ConfigConnectionCliError(
+			'gel',
+			['host', 'database'],
+			[
+				error(text),
+				wrapParam('host', options.host),
+				wrapParam('port', options.port, true),
+				wrapParam('user', options.user, true),
+				wrapParam('password', options.password, true, 'secret'),
+				wrapParam('database', options.database),
+				wrapParam('tlsSecurity', options.tlsSecurity, true),
+			].join('\n'),
+		);
 	}
 
-	console.log(
+	throw new ConfigConnectionCliError(
+		'gel',
+		['url', 'host', 'database'],
 		error(
 			`Either connection "url" or "host", "database" are required for Gel database connection`,
 		),
 	);
-	process.exit(1);
 };

@@ -1,0 +1,511 @@
+# Drizzle Kit JSON contract
+
+This document describes the machine-readable contract for `drizzle-kit` commands that support `--json`.
+
+It is written for tools and services that call Drizzle Kit programmatically.
+
+## Supported commands
+
+`--json` is supported on:
+
+- `drizzle-kit generate --json`
+- `drizzle-kit push --json`
+
+When `--json` is enabled, callers should treat `stdout` as the JSON channel.
+
+Each command invocation writes a single JSON object to `stdout`, optionally followed by a trailing newline.
+
+## Hints
+
+Some schema changes are ambiguous or unsafe to apply automatically.
+
+Typical examples:
+
+- an entity could be a rename, or it could be a brand new entity while the old one is deleted
+- an operation may drop data or fail on non-empty tables
+
+Specifically, when one entity disappears and another entity of the same kind appears, Drizzle Kit cannot always tell whether the intended outcome is:
+
+- one entity being renamed
+- one entity being deleted while a different entity is created
+
+In interactive mode, Drizzle Kit asks the user what to do via prompts.
+
+In JSON mode, there are no prompts. Instead, callers can provide hints explaining the actual intent behind ambiguous changes. If necessary hints weren't provided, Drizzle Kit returns `status: "missing_hints"` and includes the unresolved items.
+
+`rename` and `create` hints resolve this rename-vs-create+delete ambiguity:
+
+- `rename` means the `from` and `to` identifiers refer to the same logical entity
+- `create` means the new entity is truly new, so any removed predecessor stays a separate delete
+
+## Providing hints
+
+Hints can be passed either inline or from a file:
+
+- `--hints '<json array>'`
+- `--hints-file ./hints.json`
+
+Both forms use the same JSON array format.
+
+## Hint types
+
+### `rename` / `create`
+
+Provide a resolution whether a change should be treated as a rename or a create+delete, resolving the ambiguity.
+`rename` tells Drizzle Kit to treat a change as one logical entity moving from `from` to `to`.
+`create` tells Drizzle Kit to treat `entity` as newly created. When the diff also contains a removed entity of the same kind, this confirms the outcome is create+delete rather than a rename.
+
+### `confirm_data_loss`
+
+Approves a potentially destructive step, such as dropping a non-empty table or adding a `NOT NULL` constraint to a column that currently contains nulls.
+
+### Rename/create kinds
+
+Supported `kind` values for `rename` and `create`:
+
+- `schema`
+- `role`
+- `table`
+- `default`
+- `enum`
+- `sequence`
+- `view`
+- `column`
+- `policy`
+- `privilege`
+- `check`
+- `index`
+- `unique`
+- `primary key`
+- `foreign key`
+
+### Confirm kinds
+
+Supported `kind` values for `confirm_data_loss`:
+
+- `table`
+- `column`
+- `schema`
+- `view`
+- `primary_key`
+- `add_not_null`
+- `add_unique`
+
+## How entities are described
+
+Each hint identifies an entity using an `entity`, `from`, or `to` tuple.
+
+The tuple shape depends on the entity kind.
+
+### One-part identifiers
+
+Used by:
+
+- `schema`
+- `role`
+
+Format:
+
+```json
+["name"]
+```
+
+Example:
+
+```json
+["tenant_a"]
+```
+
+### Two-part identifiers
+
+Used by:
+
+- `table`
+- `enum`
+- `sequence`
+- `view`
+
+Format:
+
+```json
+["schema", "name"]
+```
+
+Example:
+
+```json
+["public", "users"]
+```
+
+### Three-part identifiers
+
+Used by:
+
+- `column`
+- `default`
+- `policy`
+- `check`
+- `index`
+- `unique`
+- `primary key`
+- `foreign key`
+
+Format:
+
+```json
+["schema", "table", "name"]
+```
+
+Examples:
+
+```json
+["public", "users", "email"]
+```
+
+```json
+["dbo", "users", "users_pkey"]
+```
+
+### Five-part identifiers
+
+Used by:
+
+- `privilege`
+
+Format:
+
+```json
+["grantor", "grantee", "schema", "table", "type"]
+```
+
+Example:
+
+```json
+["postgres", "app_user", "public", "users", "select"]
+```
+
+## Hint payload examples
+
+### Rename a table
+
+```json
+[
+  {
+    "type": "rename",
+    "kind": "table",
+    "from": ["public", "orders_old"],
+    "to": ["public", "orders"]
+  }
+]
+```
+
+### Rename a column
+
+Treat `display_name` as the same column previously named `full_name`:
+
+```json
+[
+  {
+    "type": "rename",
+    "kind": "column",
+    "from": ["public", "users", "full_name"],
+    "to": ["public", "users", "display_name"]
+  }
+]
+```
+
+### Create + delete instead of rename
+
+Treat `display_name` as a truly new column. If `full_name` is also removed in the same diff, this means Drizzle Kit should create the new column and keep the old column as a separate delete instead of interpreting the change as a rename:
+
+```json
+[
+  {
+    "type": "create",
+    "kind": "column",
+    "entity": ["public", "users", "display_name"]
+  }
+]
+```
+
+### Declare that a new schema is truly new
+
+```json
+[
+  {
+    "type": "create",
+    "kind": "schema",
+    "entity": ["tenant_a"]
+  }
+]
+```
+
+### Confirm a destructive action
+
+```json
+[
+  {
+    "type": "confirm_data_loss",
+    "kind": "table",
+    "entity": ["public", "users"]
+  }
+]
+```
+
+Formal hint shapes are declared via the [`Hint` type](./src/cli/hints.ts).
+
+## Proactive hints
+
+Hints do not need to be provided only after receiving `missing_hints`.
+
+Callers can provide hints proactively when they already know the intended outcome. This is useful when:
+
+- replaying a migration workflow in CI
+- applying a previously reviewed rename plan
+- approving known data-loss steps in automation
+- retrying the same command with stable schema transitions
+
+## Redundant hints are safe
+
+Callers may provide more hints than the current command run needs.
+
+If a hint does not match an actual unresolved step in the current diff, it is ignored.
+
+That means it is safe to:
+
+- send a larger precomputed hint set
+- reuse the same hint file across retries
+- include hints for entities that are not part of the current run
+
+## Response statuses
+
+### `status: "ok"`
+
+Used when the command completed successfully.
+
+Depending on the command, this can mean:
+
+- explain mode completed successfully
+- changes were applied successfully
+
+Examples:
+
+```json
+{
+  "status": "ok",
+  "dialect": "postgresql",
+  "migration_path": "drizzle/20260427153000_name/migration.sql"
+}
+```
+
+```json
+{
+  "status": "ok",
+  "dialect": "sqlite",
+  "migration_path": "drizzle/20260427153000_name/migration.sql"
+}
+```
+
+```json
+{
+  "status": "ok",
+  "dialect": "postgresql",
+  "statements": [],
+  "hints": []
+}
+```
+
+For generate success and custom responses, `dialect` is always present.
+
+### `status: "no_changes"`
+
+Used when a command succeeds and there is nothing to do.
+
+This includes `generate --json`, `generate --json --explain`, `push --json`, and `push --json --explain` when the diff is empty.
+
+Current JSON-mode examples:
+
+```json
+{ "status": "no_changes", "dialect": "postgresql" }
+```
+
+```json
+{ "status": "no_changes", "dialect": "postgres" }
+```
+
+### `status: "missing_hints"`
+
+Used when JSON mode needs explicit caller guidance before it can continue.
+
+Shape:
+
+```json
+{
+  "status": "missing_hints",
+  "unresolved": []
+}
+```
+
+Missing hint shapes:
+
+- [type `MissingHint`](./src/cli/hints.ts)
+
+Example with inline unresolved items:
+
+```json
+{
+  "status": "missing_hints",
+  "unresolved": [
+    {
+      "type": "rename_or_create",
+      "kind": "schema",
+      "entity": ["next_schema"]
+    },
+    {
+      "type": "confirm_data_loss",
+      "kind": "table",
+      "entity": ["public", "users"],
+      "reason": "non_empty"
+    }
+  ]
+}
+```
+
+Individual unresolved item shapes:
+
+```json
+{
+  "type": "rename_or_create",
+  "kind": "table",
+  "entity": ["public", "orders"]
+}
+```
+
+```json
+{
+  "type": "confirm_data_loss",
+  "kind": "table",
+  "entity": ["public", "users"],
+  "reason": "non_empty"
+}
+```
+
+Current `reason` values:
+
+- `non_empty`
+- `nulls_present`
+- `duplicates_present`
+
+When this response is emitted, the process exits with code `2`.
+
+### `status: "aborted"`
+
+Used only by `push --json` for confirmations which are not yet supported by the hint system.
+
+Payload shape:
+
+```json
+{
+  "status": "aborted",
+  "dialect": "mysql",
+  "warnings": [
+    "You're about to change `name` column type in `users` from text to bigint"
+  ]
+}
+```
+
+To inspect the full warning state without executing anything, rerun the same command with `--explain --json`.
+
+To override warnings and proceed, rerun the same command with `--force`.
+
+In the future, `aborted` status will be replaced by additional hint types.
+
+### `status: "error"`
+
+Used for structured CLI or runtime errors that are surfaced through the JSON error path.
+
+Examples:
+
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "ambiguous_params_error",
+    "command": "check",
+    "configOption": "config"
+  }
+}
+```
+
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "query_error",
+    "sql": "select 1 from \"users\" limit 1",
+    "params": []
+  }
+}
+```
+
+For full list of CLI errors, see [errors.ts](./src/cli/errors.ts).
+
+## `--explain` in JSON mode
+
+`--explain --json` returns a dry-run result as structured JSON when the diff is non-empty.
+
+`push` and `generate` use the same payload shape:
+
+```json
+{
+  "status": "ok",
+  "dialect": "mysql",
+  "statements": [],
+  "hints": []
+}
+```
+
+When the diff is empty, `push --json --explain` and `generate --json --explain` return `status: "no_changes"` instead of this payload.
+
+### `statements`
+
+`statements` is the structured plan Drizzle Kit would execute.
+
+The exact statement objects depend on the dialect and the diff being produced.
+
+Object shapes:
+
+- [type `JsonStatement` for PostgreSQL](./src/dialects/postgres/statements.ts)
+- [type `JsonStatement` for MySQL](./src/dialects/mysql/statements.ts)
+- [type `JsonStatement` for SQLite](./src/dialects/sqlite/statements.ts)
+- [type `JsonStatement` for MSSQL](./src/dialects/mssql/statements.ts)
+- [type `JsonStatement` for CockroachDB](./src/dialects/cockroach/statements.ts)
+
+### `hints`
+
+`hints` contains human-readable warnings that are safe to show in automation or UIs.
+
+Example:
+
+```json
+{
+  "status": "ok",
+  "dialect": "postgres",
+  "statements": [],
+  "hints": [
+    {
+      "hint": "You're about to delete non-empty users table"
+    }
+  ]
+}
+```
+
+## Recommended automation flow
+
+1. Run the command with `--json`.
+2. If the response is `ok`, continue.
+3. If the response is `no_changes`, stop successfully.
+4. If the response is `missing_hints`, inspect `unresolved`.
+5. Build the required hints.
+6. Retry the same command with `--hints` or `--hints-file`.
+7. If the response is `aborted`, inspect `warnings` (or rerun with `--explain --json` for the full warning state), then either stop or rerun with `--force` if the caller approves execution.

@@ -34,7 +34,7 @@ export const generateDrizzleJson = async (
 	casing?: CasingType,
 ): Promise<PostgresSnapshot> => {
 	const { prepareEntityFilter } = await import('src/dialects/pull-utils');
-	const { postgresSchemaError, postgresSchemaWarning } = await import('../cli/views');
+	const { humanLog, postgresSchemaError, postgresSchemaWarning } = await import('../cli/views');
 	const { toJsonSnapshot } = await import('../dialects/postgres/snapshot');
 	const { fromDrizzleSchema, fromExports } = await import('../dialects/postgres/drizzle');
 	const { extractPostgresExisting } = await import('../dialects/drizzle');
@@ -54,16 +54,16 @@ export const generateDrizzleJson = async (
 
 	const { ddl, errors: err2 } = interimToDDL(interim);
 	if (warnings.length > 0) {
-		console.log(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
+		humanLog(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
 	}
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => postgresSchemaError(it)).join('\n'));
+		humanLog(errors.map((it) => postgresSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 
 	if (err2.length > 0) {
-		console.log(err2.map((it) => postgresSchemaError(it)).join('\n'));
+		humanLog(err2.map((it) => postgresSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 
@@ -181,7 +181,8 @@ export const pushSchema = async (
 		'push',
 	);
 
-	const hints = await suggestions(db, statements);
+	const { HintsHandler } = await import('../cli/hints');
+	const hints = await suggestions(db, statements, new HintsHandler());
 
 	return {
 		sqlStatements,
@@ -216,6 +217,7 @@ export const startStudioServer = async (
 	const { PgTable, getTableConfig } = await import('drizzle-orm/pg-core');
 	const { Relations } = await import('drizzle-orm/_relations');
 	const { drizzleForPostgres, prepareServer } = await import('../cli/commands/studio');
+	const { humanLog: studioLog } = await import('../cli/views');
 
 	const pgSchema: Record<string, Record<string, AnyPgTable>> = {};
 	const relations: Record<string, Relations> = {};
@@ -246,7 +248,7 @@ export const startStudioServer = async (
 			if (err) {
 				console.error(err);
 			} else {
-				console.log(`Studio is running at ${options?.key ? 'https' : 'http'}://${host}:${port}`);
+				studioLog(`Studio is running at ${options?.key ? 'https' : 'http'}://${host}:${port}`);
 			}
 		},
 	});

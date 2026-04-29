@@ -15,15 +15,17 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../../dialects/mssql/ddl';
+import type { JsonStatement } from '../../dialects/mssql/statements';
+import { isJsonMode } from '../context';
 import { resolver } from '../prompts';
 import { withStyle } from '../validations/outputs';
-import { mssqlSchemaError } from '../views';
+import { explain, explainJsonOutput, humanLog, mssqlSchemaError, printJsonOutput } from '../views';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
 	const { out: outFolder, filenames, casing } = config;
-
+	const json = isJsonMode();
 	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, filenames, casing);
 
@@ -34,6 +36,7 @@ export const handle = async (config: GenerateConfig) => {
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
+			dialect: 'mssql',
 			type: 'custom',
 			renames: [],
 			snapshots,
@@ -41,28 +44,34 @@ export const handle = async (config: GenerateConfig) => {
 		return;
 	}
 
-	const { sqlStatements, renames, statements } = await ddlDiff(
+	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<Schema>('schema', 'dbo'),
-		resolver<MssqlEntities['tables']>('table', 'dbo'),
-		resolver<Column>('column', 'dbo'),
-		resolver<View>('view', 'dbo'),
-		resolver<UniqueConstraint>('unique', 'dbo'), // uniques
-		resolver<Index>('index', 'dbo'), // indexes
-		resolver<CheckConstraint>('check', 'dbo'), // checks
-		resolver<PrimaryKey>('primary key', 'dbo'), // pks
-		resolver<ForeignKey>('foreign key', 'dbo'), // fks
-		resolver<DefaultConstraint>('default', 'dbo'), // fks
+		resolver<Schema>('schema', 'dbo', 'generate', config.hints),
+		resolver<MssqlEntities['tables']>('table', 'dbo', 'generate', config.hints),
+		resolver<Column>('column', 'dbo', 'generate', config.hints),
+		resolver<View>('view', 'dbo', 'generate', config.hints),
+		resolver<UniqueConstraint>('unique', 'dbo', 'generate', config.hints),
+		resolver<Index>('index', 'dbo', 'generate', config.hints),
+		resolver<CheckConstraint>('check', 'dbo', 'generate', config.hints),
+		resolver<PrimaryKey>('primary key', 'dbo', 'generate', config.hints),
+		resolver<ForeignKey>('foreign key', 'dbo', 'generate', config.hints),
+		resolver<DefaultConstraint>('default', 'dbo', 'generate', config.hints),
 		'default',
 	);
 
-	const recreateIdentity = statements.find((it) => it.type === 'recreate_identity_column');
+	if (json && config.hints.hasMissingHints()) {
+		config.hints.emitAndExit();
+	}
+
+	const recreateIdentity = statements.find((it): it is Extract<JsonStatement, { type: 'recreate_identity_column' }> =>
+		it.type === 'recreate_identity_column'
+	);
 	if (
 		recreateIdentity && Boolean(recreateIdentity.column.identity?.to)
 		&& !recreateIdentity.column.identity?.from
 	) {
-		console.log(
+		humanLog(
 			withStyle.warning(
 				chalk.red.bold('You are about to add an identity property to an existing column.')
 					+ '\n'
@@ -75,15 +84,33 @@ export const handle = async (config: GenerateConfig) => {
 		);
 	}
 
-	writeResult({
-		snapshot: snapshot,
-		sqlStatements,
-		outFolder,
-		name: config.name,
-		breakpoints: config.breakpoints,
-		renames,
-		snapshots,
-	});
+	if (!config.explain) {
+		writeResult({
+			snapshot: snapshot,
+			sqlStatements,
+			outFolder,
+			name: config.name,
+			breakpoints: config.breakpoints,
+			dialect: 'mssql',
+			renames,
+			snapshots,
+		});
+		return;
+	}
+
+	if (json) {
+		if (sqlStatements.length === 0) {
+			printJsonOutput({ status: 'no_changes', dialect: 'mssql' });
+			return;
+		}
+		printJsonOutput(explainJsonOutput('mssql', statements, []));
+		return;
+	}
+
+	const explainMessage = explain('mssql', groupedStatements, []);
+	if (explainMessage) {
+		humanLog(explainMessage);
+	}
 };
 
 export const handleExport = async (config: ExportConfig) => {
