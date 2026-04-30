@@ -651,22 +651,22 @@ const testFor = (
 					const relations = cb ? defineRelations(schema, cb) : defineRelations(schema);
 
 					if (vendor === 'neon-http') {
-						return drizzleNeonHttp({ client: kit.client, relations, useJitMappers });
+						return drizzleNeonHttp({ client: kit.client, relations, jit: useJitMappers });
 					}
 					if (vendor === 'neon-serverless') {
-						return drizzleNeonWs({ client: kit.client as any, relations, useJitMappers });
+						return drizzleNeonWs({ client: kit.client as any, relations, jit: useJitMappers });
 					}
 					if (vendor === 'pglite') {
-						return drizzlePglite({ client: kit.client as any, relations, useJitMappers });
+						return drizzlePglite({ client: kit.client as any, relations, jit: useJitMappers });
 					}
 					if (vendor === 'node-postgres') {
-						return drizzleNodePostgres({ client: kit.client as any, relations, useJitMappers });
+						return drizzleNodePostgres({ client: kit.client as any, relations, jit: useJitMappers });
 					}
 					if (vendor === 'postgresjs') {
-						return drizzlePostgresjs({ client: kit.client as any, relations, useJitMappers });
+						return drizzlePostgresjs({ client: kit.client as any, relations, jit: useJitMappers });
 					}
 					if (vendor === 'netlify-db') {
-						return drizzleNetlify({ client: kit.client as any, relations, useJitMappers });
+						return drizzleNetlify({ client: kit.client as any, relations, jit: useJitMappers });
 					}
 
 					if (vendor === 'proxy') {
@@ -685,7 +685,7 @@ const testFor = (
 								throw e;
 							}
 						};
-						return drizzleProxy(proxyHandler, { relations, codecs: nodePgCodecs, useJitMappers });
+						return drizzleProxy(proxyHandler, { relations, codecs: nodePgCodecs, jit: useJitMappers });
 					}
 					throw new Error();
 				};

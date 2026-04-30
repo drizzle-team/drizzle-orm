@@ -72,7 +72,7 @@ function construct<
 
 	const driver = new NodeCockroachDriver(client, dialect, {
 		logger,
-		useJitMappers: jitCompatCheck(config.useJitMappers),
+		useJitMappers: jitCompatCheck(config.jit),
 	});
 	const session = driver.createSession(schema);
 	const db = new NodeCockroachDatabase(dialect, session, schema as any) as NodeCockroachDatabase<TSchema>;

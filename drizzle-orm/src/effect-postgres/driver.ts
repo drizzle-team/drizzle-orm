@@ -62,7 +62,7 @@ export const make = Effect.fn('PgDrizzle.make')(
 		const logger = yield* EffectLogger;
 
 		const dialect = new PgDialect({
-			useJitMappers: jitCompatCheck(config.useJitMappers),
+			useJitMappers: jitCompatCheck(config.jit),
 			codecs: config.codecs ?? effectPgCodecs,
 		});
 
@@ -70,7 +70,7 @@ export const make = Effect.fn('PgDrizzle.make')(
 		const session = new EffectPgSession(client, dialect, relations, {
 			logger,
 			cache,
-			useJitMappers: jitCompatCheck(config.useJitMappers),
+			useJitMappers: jitCompatCheck(config.jit),
 		});
 		const db = new EffectPgDatabase(dialect, session, relations) as EffectPgDatabase<TRelations>;
 		(<any> db).$client = client;

@@ -26,7 +26,7 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	config: DrizzlePgConfig<TRelations> & { codecs?: PgCodecs } = {},
 	_dialect: () => PgDialect = () =>
 		new PgDialect({
-			useJitMappers: jitCompatCheck(config.useJitMappers),
+			useJitMappers: jitCompatCheck(config.jit),
 			codecs: config.codecs ?? genericPgCodecs,
 		}),
 ): PgRemoteDatabase<TRelations> {

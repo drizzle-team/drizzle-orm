@@ -109,7 +109,7 @@ export function drizzle<
 	const session = new SQLiteRemoteSession(callback, dialect, relations, schema, _batchCallback, {
 		logger,
 		cache,
-		useJitMappers: jitCompatCheck(_config.useJitMappers),
+		useJitMappers: jitCompatCheck(_config.jit),
 	});
 	const db = new SqliteRemoteDatabase(
 		'async',

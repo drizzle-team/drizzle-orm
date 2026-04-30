@@ -44,7 +44,7 @@ export function drizzle<
 	TClient extends AnyD1Database = AnyD1Database,
 >(
 	client: TClient,
-	config: Omit<DrizzleConfig<TSchema, TRelations>, 'useJitMappers'> = {},
+	config: Omit<DrizzleConfig<TSchema, TRelations>, 'jit'> = {},
 ): DrizzleD1Database<TSchema, TRelations> & {
 	$client: TClient;
 } {

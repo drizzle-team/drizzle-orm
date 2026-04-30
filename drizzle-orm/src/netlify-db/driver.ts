@@ -74,7 +74,7 @@ function construct<
 } {
 	const dialect = new PgDialect({
 		codecs: config.codecs ?? netlifyDbCodecs,
-		useJitMappers: jitCompatCheck(config.useJitMappers),
+		useJitMappers: jitCompatCheck(config.jit),
 	});
 
 	let logger;

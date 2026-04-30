@@ -104,7 +104,7 @@ const createDB = <S extends PostgresSchema, TConfig extends AnyRelationsBuilderC
 	never,
 	PgClient.PgClient
 > =>
-	PgDrizzle.make({ relations: defineRelations(schema, cb), useJitMappers }).pipe(
+	PgDrizzle.make({ relations: defineRelations(schema, cb), jit: useJitMappers }).pipe(
 		Effect.provide(PgDrizzle.DefaultServices),
 	) as any;
 

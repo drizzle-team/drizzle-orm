@@ -22,7 +22,7 @@ function construct<TRelations extends AnyRelations = EmptyRelations>(
 	$client: VercelPgClient;
 } {
 	const dialect = new PgDialect({
-		useJitMappers: jitCompatCheck(config.useJitMappers),
+		useJitMappers: jitCompatCheck(config.jit),
 		codecs: config.codecs ?? vercelPgCodecs,
 	});
 	let logger;

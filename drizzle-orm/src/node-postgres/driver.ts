@@ -26,7 +26,7 @@ function construct<
 	$client: NodePgClient extends TClient ? Pool : TClient;
 } {
 	const dialect = new PgDialect({
-		useJitMappers: jitCompatCheck(config.useJitMappers),
+		useJitMappers: jitCompatCheck(config.jit),
 		codecs: config.codecs ?? nodePgCodecs,
 	});
 	let logger;
