@@ -1722,7 +1722,7 @@ test('push mysql emits no_changes in json mode when diff is empty', async () => 
 	expect(JSON.parse(output.trim())).toStrictEqual({ status: 'no_changes', dialect: 'mysql' });
 });
 
-test('push mysql emits aborted in json mode for warning-only suggestion hints', async () => {
+test('push mysql emits missing_hints in json mode for unresolved type_change suggestion', async () => {
 	vi.doMock('../../src/cli/connections', () => ({
 		connectToMySQL: vi.fn(async () => ({ db: { query: vi.fn(async () => []) }, database: 'db' })),
 	}));
@@ -1775,12 +1775,17 @@ test('push mysql emits aborted in json mode for warning-only suggestion hints', 
 			))
 	);
 
-	expect(exitCode).toBe(0);
+	expect(exitCode).toBe(2);
 	expect(JSON.parse(output.trim())).toStrictEqual({
-		status: 'aborted',
-		dialect: 'mysql',
-		warnings: [
-			"You're about to change `name` column type in `users` from text to bigint",
+		status: 'missing_hints',
+		unresolved: [
+			{
+				type: 'confirm_data_loss',
+				kind: 'column',
+				entity: ['public', 'users', 'name'],
+				reason: 'type_change',
+				reason_details: { from: 'text', to: 'bigint' },
+			},
 		],
 	});
 });
@@ -1843,7 +1848,7 @@ test('push mssql emits aborted in json mode for warning-only suggestion hints', 
 	});
 });
 
-test('push singlestore emits aborted in json mode for warning-only suggestion hints', async () => {
+test('push singlestore emits missing_hints in json mode for unresolved type_change suggestion', async () => {
 	vi.doMock('hanji', async () => {
 		const actual = await vi.importActual<typeof import('hanji')>('hanji');
 		return {
@@ -1900,17 +1905,22 @@ test('push singlestore emits aborted in json mode for warning-only suggestion hi
 			))
 	);
 
-	expect(exitCode).toBe(0);
+	expect(exitCode).toBe(2);
 	expect(JSON.parse(output.trim())).toStrictEqual({
-		status: 'aborted',
-		dialect: 'singlestore',
-		warnings: [
-			"You're about to change `name` column type in `users` from text to bigint",
+		status: 'missing_hints',
+		unresolved: [
+			{
+				type: 'confirm_data_loss',
+				kind: 'column',
+				entity: ['public', 'users', 'name'],
+				reason: 'type_change',
+				reason_details: { from: 'text', to: 'bigint' },
+			},
 		],
 	});
 });
 
-test('push mysql with force bypasses aborted status in json mode', async () => {
+test('push mysql with force still emits missing_hints in json mode for unresolved type_change', async () => {
 	vi.doMock('../../src/cli/connections', () => ({
 		connectToMySQL: vi.fn(async () => ({ db: { query: vi.fn(async () => []) }, database: 'db' })),
 	}));
@@ -1963,11 +1973,18 @@ test('push mysql with force bypasses aborted status in json mode', async () => {
 			))
 	);
 
-	expect(exitCode).toBeUndefined();
+	expect(exitCode).toBe(2);
 	expect(JSON.parse(output.trim())).toStrictEqual({
-		status: 'ok',
-		dialect: 'mysql',
-		message: 'Changes applied',
+		status: 'missing_hints',
+		unresolved: [
+			{
+				type: 'confirm_data_loss',
+				kind: 'column',
+				entity: ['public', 'users', 'name'],
+				reason: 'type_change',
+				reason_details: { from: 'text', to: 'bigint' },
+			},
+		],
 	});
 });
 
