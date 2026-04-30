@@ -2,7 +2,7 @@ import { spawnSync } from 'child_process';
 import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { HintsHandler } from '../../src/cli/hints';
 
 class ExitCalled extends Error {
@@ -2437,4 +2437,876 @@ test('excess hints referencing non-existent entities are silently ignored', asyn
 	);
 
 	expect(exitCode).toBeUndefined();
+});
+
+describe('push postgres confirm_data_loss[table] in json mode', () => {
+	test('emits missing_hints when unresolved', async () => {
+		vi.doMock('../../src/cli/commands/pull-postgres', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [], matViews: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [], warnings: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['DROP TABLE "public"."users";'],
+				statements: [{ type: 'drop_table', table: { schema: 'public', name: 'users' }, key: '"public"."users"' }],
+				groupedStatements: [],
+			})),
+		}));
+
+		vi.doMock('../../src/cli/connections', () => ({
+			preparePostgresDB: vi.fn(async () => ({
+				query: vi.fn(async () => [1]),
+			})),
+		}));
+
+		const pushPostgres = await import('../../src/cli/commands/push-postgres');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushPostgres.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'public' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{ type: 'confirm_data_loss', kind: 'table', entity: ['public', 'users'], reason: 'non_empty' },
+			],
+		});
+	});
+
+	test('applies matching hint and runs to ok', async () => {
+		vi.doMock('../../src/cli/commands/pull-postgres', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [], matViews: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [], warnings: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['DROP TABLE "public"."users";'],
+				statements: [{ type: 'drop_table', table: { schema: 'public', name: 'users' }, key: '"public"."users"' }],
+				groupedStatements: [],
+			})),
+		}));
+
+		vi.doMock('../../src/cli/connections', () => ({
+			preparePostgresDB: vi.fn(async () => ({
+				query: vi.fn(async () => []),
+			})),
+		}));
+
+		const pushPostgres = await import('../../src/cli/commands/push-postgres');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'table', entity: ['public', 'users'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushPostgres.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'public' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'ok',
+			dialect: 'postgres',
+			message: 'Changes applied',
+		});
+	});
+});
+
+describe('push postgres confirm_data_loss[view] in json mode', () => {
+	test('emits missing_hints when unresolved', async () => {
+		vi.doMock('../../src/cli/commands/pull-postgres', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [], matViews: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [], warnings: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['DROP MATERIALIZED VIEW "public"."user_stats";'],
+				statements: [{ type: 'drop_view', view: { schema: 'public', name: 'user_stats', materialized: true } }],
+				groupedStatements: [],
+			})),
+		}));
+
+		vi.doMock('../../src/cli/connections', () => ({
+			preparePostgresDB: vi.fn(async () => ({
+				query: vi.fn(async () => [1]),
+			})),
+		}));
+
+		const pushPostgres = await import('../../src/cli/commands/push-postgres');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushPostgres.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'public' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{ type: 'confirm_data_loss', kind: 'view', entity: ['public', 'user_stats'], reason: 'non_empty' },
+			],
+		});
+	});
+
+	test('applies matching hint and runs to ok', async () => {
+		vi.doMock('../../src/cli/commands/pull-postgres', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [], matViews: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [], warnings: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['DROP MATERIALIZED VIEW "public"."user_stats";'],
+				statements: [{ type: 'drop_view', view: { schema: 'public', name: 'user_stats', materialized: true } }],
+				groupedStatements: [],
+			})),
+		}));
+
+		vi.doMock('../../src/cli/connections', () => ({
+			preparePostgresDB: vi.fn(async () => ({
+				query: vi.fn(async () => []),
+			})),
+		}));
+
+		const pushPostgres = await import('../../src/cli/commands/push-postgres');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'view', entity: ['public', 'user_stats'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushPostgres.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'public' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'ok',
+			dialect: 'postgres',
+			message: 'Changes applied',
+		});
+	});
+});
+
+describe('push postgres confirm_data_loss[column] in json mode', () => {
+	test('emits missing_hints when unresolved', async () => {
+		vi.doMock('../../src/cli/commands/pull-postgres', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [], matViews: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [], warnings: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE "public"."users" DROP COLUMN "legacy_id";'],
+				statements: [{ type: 'drop_column', column: { schema: 'public', table: 'users', name: 'legacy_id' } }],
+				groupedStatements: [],
+			})),
+		}));
+
+		vi.doMock('../../src/cli/connections', () => ({
+			preparePostgresDB: vi.fn(async () => ({
+				query: vi.fn(async () => [1]),
+			})),
+		}));
+
+		const pushPostgres = await import('../../src/cli/commands/push-postgres');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushPostgres.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'public' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{ type: 'confirm_data_loss', kind: 'column', entity: ['public', 'users', 'legacy_id'], reason: 'non_empty' },
+			],
+		});
+	});
+
+	test('applies matching hint and runs to ok', async () => {
+		vi.doMock('../../src/cli/commands/pull-postgres', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [], matViews: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [], warnings: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE "public"."users" DROP COLUMN "legacy_id";'],
+				statements: [{ type: 'drop_column', column: { schema: 'public', table: 'users', name: 'legacy_id' } }],
+				groupedStatements: [],
+			})),
+		}));
+
+		vi.doMock('../../src/cli/connections', () => ({
+			preparePostgresDB: vi.fn(async () => ({
+				query: vi.fn(async () => []),
+			})),
+		}));
+
+		const pushPostgres = await import('../../src/cli/commands/push-postgres');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'column', entity: ['public', 'users', 'legacy_id'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushPostgres.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'public' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'ok',
+			dialect: 'postgres',
+			message: 'Changes applied',
+		});
+	});
+});
+
+describe('push postgres confirm_data_loss[schema] in json mode', () => {
+	test('emits missing_hints when unresolved', async () => {
+		vi.doMock('../../src/cli/commands/pull-postgres', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [], matViews: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [], warnings: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['DROP SCHEMA "analytics";'],
+				statements: [{ type: 'drop_schema', name: 'analytics' }],
+				groupedStatements: [],
+			})),
+		}));
+
+		vi.doMock('../../src/cli/connections', () => ({
+			preparePostgresDB: vi.fn(async () => ({
+				query: vi.fn(async () => [{ count: 1 }]),
+			})),
+		}));
+
+		const pushPostgres = await import('../../src/cli/commands/push-postgres');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushPostgres.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'public' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{ type: 'confirm_data_loss', kind: 'schema', entity: ['analytics'], reason: 'non_empty' },
+			],
+		});
+	});
+
+	test('applies matching hint and runs to ok', async () => {
+		vi.doMock('../../src/cli/commands/pull-postgres', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [], matViews: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [], warnings: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['DROP SCHEMA "analytics";'],
+				statements: [{ type: 'drop_schema', name: 'analytics' }],
+				groupedStatements: [],
+			})),
+		}));
+
+		vi.doMock('../../src/cli/connections', () => ({
+			preparePostgresDB: vi.fn(async () => ({
+				query: vi.fn(async () => []),
+			})),
+		}));
+
+		const pushPostgres = await import('../../src/cli/commands/push-postgres');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'schema', entity: ['analytics'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushPostgres.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'public' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'ok',
+			dialect: 'postgres',
+			message: 'Changes applied',
+		});
+	});
+});
+
+describe('push postgres confirm_data_loss[primary_key] in json mode', () => {
+	test('emits missing_hints when unresolved', async () => {
+		vi.doMock('../../src/cli/commands/pull-postgres', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [], matViews: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [], warnings: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE "public"."users" DROP CONSTRAINT "users_pkey";'],
+				statements: [{
+					type: 'drop_pk',
+					pk: { schema: 'public', table: 'users', name: 'users_pkey', nameExplicit: true, columns: ['id'] },
+				}],
+				groupedStatements: [],
+			})),
+		}));
+
+		vi.doMock('../../src/cli/connections', () => ({
+			preparePostgresDB: vi.fn(async () => ({
+				query: vi.fn(async () => [1]),
+			})),
+		}));
+
+		const pushPostgres = await import('../../src/cli/commands/push-postgres');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushPostgres.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'public' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{
+					type: 'confirm_data_loss',
+					kind: 'primary_key',
+					entity: ['public', 'users', 'users_pkey'],
+					reason: 'non_empty',
+				},
+			],
+		});
+	});
+
+	test('applies matching hint and runs to ok', async () => {
+		vi.doMock('../../src/cli/commands/pull-postgres', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [], matViews: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [], warnings: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE "public"."users" DROP CONSTRAINT "users_pkey";'],
+				statements: [{
+					type: 'drop_pk',
+					pk: { schema: 'public', table: 'users', name: 'users_pkey', nameExplicit: true, columns: ['id'] },
+				}],
+				groupedStatements: [],
+			})),
+		}));
+
+		vi.doMock('../../src/cli/connections', () => ({
+			preparePostgresDB: vi.fn(async () => ({
+				query: vi.fn(async () => []),
+			})),
+		}));
+
+		const pushPostgres = await import('../../src/cli/commands/push-postgres');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'primary_key', entity: ['public', 'users', 'users_pkey'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushPostgres.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'public' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'ok',
+			dialect: 'postgres',
+			message: 'Changes applied',
+		});
+	});
+});
+
+describe('push postgres confirm_data_loss[add_not_null] in json mode', () => {
+	test('emits missing_hints when unresolved', async () => {
+		vi.doMock('../../src/cli/commands/pull-postgres', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [], matViews: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [], warnings: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE "public"."users" ADD COLUMN "email" text NOT NULL;'],
+				statements: [{
+					type: 'add_column',
+					column: {
+						schema: 'public',
+						table: 'users',
+						name: 'email',
+						notNull: true,
+						default: null,
+						generated: false,
+						identity: null,
+					},
+					isPK: false,
+					isCompositePK: false,
+				}],
+				groupedStatements: [],
+			})),
+		}));
+
+		vi.doMock('../../src/cli/connections', () => ({
+			preparePostgresDB: vi.fn(async () => ({
+				query: vi.fn(async () => [1]),
+			})),
+		}));
+
+		const pushPostgres = await import('../../src/cli/commands/push-postgres');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushPostgres.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'public' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{
+					type: 'confirm_data_loss',
+					kind: 'add_not_null',
+					entity: ['public', 'users', 'email'],
+					reason: 'nulls_present',
+				},
+			],
+		});
+	});
+
+	test('applies matching hint and runs to ok', async () => {
+		vi.doMock('../../src/cli/commands/pull-postgres', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [], matViews: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [], warnings: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE "public"."users" ADD COLUMN "email" text NOT NULL;'],
+				statements: [{
+					type: 'add_column',
+					column: {
+						schema: 'public',
+						table: 'users',
+						name: 'email',
+						notNull: true,
+						default: null,
+						generated: false,
+						identity: null,
+					},
+					isPK: false,
+					isCompositePK: false,
+				}],
+				groupedStatements: [],
+			})),
+		}));
+
+		vi.doMock('../../src/cli/connections', () => ({
+			preparePostgresDB: vi.fn(async () => ({
+				query: vi.fn(async () => []),
+			})),
+		}));
+
+		const pushPostgres = await import('../../src/cli/commands/push-postgres');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushPostgres.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'public' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'ok',
+			dialect: 'postgres',
+			message: 'Changes applied',
+		});
+	});
+});
+
+describe('push postgres confirm_data_loss[add_unique] in json mode', () => {
+	test('emits missing_hints when unresolved', async () => {
+		vi.doMock('../../src/cli/commands/pull-postgres', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [], matViews: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [], warnings: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE "public"."users" ADD CONSTRAINT "users_email_unique" UNIQUE("email");'],
+				statements: [{
+					type: 'add_unique',
+					unique: {
+						schema: 'public',
+						table: 'users',
+						name: 'users_email_unique',
+						columns: ['email'],
+						nameExplicit: true,
+						nullsNotDistinct: false,
+					},
+				}],
+				groupedStatements: [],
+			})),
+		}));
+
+		vi.doMock('../../src/cli/connections', () => ({
+			preparePostgresDB: vi.fn(async () => ({
+				query: vi.fn(async () => [1]),
+			})),
+		}));
+
+		const pushPostgres = await import('../../src/cli/commands/push-postgres');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushPostgres.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'public' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{
+					type: 'confirm_data_loss',
+					kind: 'add_unique',
+					entity: ['public', 'users', 'email'],
+					reason: 'duplicates_present',
+				},
+			],
+		});
+	});
+
+	test('applies matching hint and runs to ok', async () => {
+		vi.doMock('../../src/cli/commands/pull-postgres', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [], matViews: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [], warnings: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/postgres/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE "public"."users" ADD CONSTRAINT "users_email_unique" UNIQUE("email");'],
+				statements: [{
+					type: 'add_unique',
+					unique: {
+						schema: 'public',
+						table: 'users',
+						name: 'users_email_unique',
+						columns: ['email'],
+						nameExplicit: true,
+						nullsNotDistinct: false,
+					},
+				}],
+				groupedStatements: [],
+			})),
+		}));
+
+		vi.doMock('../../src/cli/connections', () => ({
+			preparePostgresDB: vi.fn(async () => ({
+				query: vi.fn(async () => []),
+			})),
+		}));
+
+		const pushPostgres = await import('../../src/cli/commands/push-postgres');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['public', 'users', 'email'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushPostgres.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'public' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'ok',
+			dialect: 'postgres',
+			message: 'Changes applied',
+		});
+	});
 });
