@@ -99,6 +99,7 @@
 		"minimatch": "^7.4.3",
 		"mysql2": "3.14.1",
 		"node-fetch": "^3.3.2",
+		"node-firebird": "^2.0.2",
 		"ohm-js": "^17.1.0",
 		"pg": "^8.11.5",
 		"pluralize": "^8.0.0",

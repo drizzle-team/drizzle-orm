@@ -539,8 +539,13 @@ export class MigrateProgress extends TaskView {
 		this.on('detach', () => clearInterval(this.timeout));
 	}
 
-	render(status: 'pending' | 'done' | 'rejected'): string {
-		if (status === 'pending' || status === 'rejected') {
+	render(status: 'pending' | 'done' | 'rejected', meta?: Error): string {
+		if (status === 'rejected') {
+			const message = meta?.message ?? 'Failed to apply migrations';
+			return error('Failed to apply migrations', grey(message));
+		}
+
+		if (status === 'pending') {
 			const spin = this.spinner.value();
 			return `[${spin}] applying migrations...`;
 		}
