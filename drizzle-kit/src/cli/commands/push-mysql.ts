@@ -9,7 +9,7 @@ import type { JsonStatement } from '../../dialects/mysql/statements';
 import type { DB } from '../../utils';
 import { connectToMySQL } from '../connections';
 import { isJsonMode } from '../context';
-import { CommandOutputCliError } from '../errors';
+import { CommandOutputCliError, UnsupportedSchemaChangeError } from '../errors';
 import { highlightSQL } from '../highlighter';
 import type { HintsHandler } from '../hints';
 import { resolver } from '../prompts';
@@ -227,14 +227,12 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 			if (indexesFound) continue;
 
-			grouped.push({
-				hint: `You are trying to drop primary key from "${table}" ("${
-					columns.join('", ')
-				}"), but there is an existing reference on this column. You must either add a UNIQUE constraint to ("${
-					columns.join('", ')
-				}") or drop the foreign key constraint that references this column.`,
+			throw new UnsupportedSchemaChangeError({
+				code: 'drop_pk_dependency',
+				table,
+				columns,
+				blocking_fks: fkFound.map((fk) => fk.name),
 			});
-			continue;
 		}
 
 		if (
