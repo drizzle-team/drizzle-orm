@@ -98,6 +98,7 @@ export class MySqlDialect {
 	}
 
 	escapeName(name: string): string {
+		if (name == null) return '``';
 		return `\`${name.replace(/`/g, '``')}\``;
 	}
 
