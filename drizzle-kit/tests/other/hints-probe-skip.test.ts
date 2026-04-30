@@ -269,7 +269,7 @@ test('tty mode keeps the existing drop-pk hint path, including the constraint-na
 		]);
 		expect(hints).toHaveLength(1);
 		expect(stripAnsi(hints[0]!.hint).replace(/^·\s*/, '')).toBe(
-			'You\'re about to drop "public"."orders" primary key, this statements may fail and your table may loose primary key',
+			'You\'re about to drop "public"."orders" primary key, this statements may fail and your table may lose primary key',
 		);
 		expect(hints[0]!.statement).toBe('ALTER TABLE "public"."orders" DROP CONSTRAINT "orders_actual_pkey"');
 	});
