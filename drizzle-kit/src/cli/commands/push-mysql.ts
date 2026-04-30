@@ -361,10 +361,10 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 			throw new UnsupportedSchemaChangeError({
 				code: 'fk_target_not_unique',
-				table: statement.fk.table,
-				columns: statement.fk.columns,
-				table_to: statement.fk.tableTo,
-				columns_to: statement.fk.columnsTo,
+				table,
+				columns,
+				table_to: tableTo,
+				columns_to: columnsTo,
 			});
 		}
 	}
