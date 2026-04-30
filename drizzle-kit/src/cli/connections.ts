@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 import type { PGlite } from '@electric-sql/pglite';
 import type { SQLiteCloudRowset } from '@sqlitecloud/drivers';
-import type { AwsDataApiPgQueryResult, AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
+import type { AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
 import type { config } from 'mssql';
@@ -19,7 +19,6 @@ import { JSONB } from '../utils/when-json-met-bigint';
 import type { ProxyParams } from './commands/studio';
 import { assertPackages, checkPackage, QueryError } from './utils';
 import type { DuckDbCredentials } from './validations/duckdb';
-import type { GelCredentials } from './validations/gel';
 import type { LibSQLCredentials } from './validations/libsql';
 import type { MssqlCredentials } from './validations/mssql';
 import type { MysqlCredentials } from './validations/mysql';
@@ -82,7 +81,6 @@ export const preparePostgresDB = async (
 				rdsClient,
 				new PgDialect(),
 				{},
-				undefined,
 				config,
 				undefined,
 			);
@@ -92,21 +90,24 @@ export const preparePostgresDB = async (
 				return migrate(db, config);
 			};
 
-			const query = async (sql: string, params: any[]) => {
-				const prepared = session.prepareQuery(
+			const query = async (sql: string, params: any[]): Promise<any[]> => {
+				const prepared = session.prepareQuery<
+					PreparedQueryConfig & {
+						execute: any[];
+					}
+				>(
 					{ sql, params: params ?? [] },
-					undefined,
-					undefined,
+					'objects',
 					false,
+					undefined,
 				);
-				const result = await prepared.all();
-				return result as any[];
+
+				return prepared.execute();
 			};
 			const proxy = async (params: ProxyParams) => {
 				const prepared = session.prepareQuery<
 					PreparedQueryConfig & {
-						execute: AwsDataApiPgQueryResult<unknown>;
-						values: AwsDataApiPgQueryResult<unknown[]>;
+						execute: unknown[];
 					}
 				>(
 					{
@@ -114,16 +115,12 @@ export const preparePostgresDB = async (
 						params: params.params ?? [],
 						typings: params.typings,
 					},
+					params.mode === 'array' ? 'arrays' : 'objects',
+					false,
 					undefined,
-					undefined,
-					params.mode === 'array',
 				);
-				if (params.mode === 'array') {
-					const result = await prepared.values();
-					return result.rows;
-				}
-				const result = await prepared.execute();
-				return result.rows;
+
+				return prepared.execute();
 			};
 			const transactionProxy: TransactionProxy = async (_queries) => {
 				throw new Error('Transaction not supported');
@@ -1009,91 +1006,6 @@ export const prepareCockroach = async (
 	}
 
 	console.error("To connect to Cockroach - please install 'pg' package");
-	process.exit(1);
-};
-
-export const prepareGelDB = async (
-	credentials?: GelCredentials,
-): Promise<
-	DB & {
-		packageName: 'gel';
-		proxy: Proxy;
-		transactionProxy: TransactionProxy;
-	}
-> => {
-	if (await checkPackage('gel')) {
-		const gel = await import('gel');
-
-		let client: ReturnType<typeof gel.createClient>;
-		if (!credentials) {
-			client = gel.createClient();
-			try {
-				await client.querySQL(`select 1;`);
-			} catch (error: any) {
-				if (error instanceof gel.ClientConnectionError) {
-					console.error(
-						`It looks like you forgot to link the Gel project or provide the database credentials.
-To link your project, please refer https://docs.geldata.com/reference/cli/gel_instance/gel_instance_link, or add the dbCredentials to your configuration file.`,
-					);
-					process.exit(1);
-				}
-
-				throw error;
-			}
-		} else if ('url' in credentials) {
-			client = 'tlsSecurity' in credentials
-				? gel.createClient({ dsn: credentials.url, tlsSecurity: credentials.tlsSecurity, concurrency: 1 })
-				: gel.createClient({ dsn: credentials.url, concurrency: 1 });
-		} else {
-			gel.createClient({ ...credentials, concurrency: 1 });
-		}
-
-		const query = async (sql: string, params?: any[]) => {
-			const result = params?.length
-				? await client.querySQL(sql, params)
-				: await client.querySQL(sql);
-			return result as any[];
-		};
-
-		const proxy: Proxy = async (params: ProxyParams) => {
-			const { mode, params: sqlParams, sql } = params;
-
-			let result: any[];
-			switch (mode) {
-				case 'array':
-					result = sqlParams?.length
-						? await client.withSQLRowMode('array').querySQL(sql, sqlParams)
-						: await client.withSQLRowMode('array').querySQL(sql);
-					break;
-				case 'object':
-					result = sqlParams?.length
-						? await client.querySQL(sql, sqlParams)
-						: await client.querySQL(sql);
-					break;
-			}
-
-			return result;
-		};
-
-		const transactionProxy: TransactionProxy = async (queries) => {
-			const result: any[] = [];
-			try {
-				await client.transaction(async (tx) => {
-					for (const query of queries) {
-						const res = await tx.querySQL(query.sql);
-						result.push(res);
-					}
-				});
-			} catch (error) {
-				result.push(error as Error);
-			}
-			return result;
-		};
-
-		return { packageName: 'gel', query, proxy, transactionProxy };
-	}
-
-	console.error("To connect to gel database - please install 'edgedb' driver");
 	process.exit(1);
 };
 

@@ -108,7 +108,7 @@ export class SQLiteTimestamp<T extends ColumnBaseConfig<'object date'>>
 
 	readonly mode: 'timestamp' | 'timestamp_ms' = this.config.mode;
 
-	override mapFromDriverValue(value: number | string): Date {
+	override mapFromDriverValue = (value: number | string): Date => {
 		// legacy issue if integer had string date format
 		// old kit generated defaults as quoted strings "<string>"
 		if (typeof value === 'string') return new Date(value.replaceAll('"', ''));
@@ -116,16 +116,16 @@ export class SQLiteTimestamp<T extends ColumnBaseConfig<'object date'>>
 			return new Date(value * 1000);
 		}
 		return new Date(value);
-	}
+	};
 
-	override mapToDriverValue(value: Date | number): number {
+	override mapToDriverValue = (value: Date | number): number => {
 		if (typeof value === 'number') return value;
 		const unix = value.getTime();
 		if (this.config.mode === 'timestamp') {
 			return Math.floor(unix / 1000);
 		}
 		return unix;
-	}
+	};
 }
 
 export class SQLiteBooleanBuilder extends SQLiteBaseIntegerBuilder<{
@@ -153,13 +153,13 @@ export class SQLiteBoolean<T extends ColumnBaseConfig<'boolean'>> extends SQLite
 
 	readonly mode: 'boolean' = this.config.mode;
 
-	override mapFromDriverValue(value: number): boolean {
+	override mapFromDriverValue = (value: number): boolean => {
 		return Number(value) === 1;
-	}
+	};
 
-	override mapToDriverValue(value: boolean): number {
+	override mapToDriverValue = (value: boolean): number => {
 		return value ? 1 : 0;
-	}
+	};
 }
 
 export interface IntegerConfig<

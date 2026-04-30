@@ -26,20 +26,18 @@ export class PgLineBuilder extends PgColumnBuilder<{
 export class PgLineTuple extends PgColumn<'array line'> {
 	static override readonly [entityKind]: string = 'PgLine';
 
+	/** @internal */
+	override readonly codec = 'line:tuple';
+
 	readonly mode = 'tuple';
 
 	getSQLType(): string {
 		return 'line';
 	}
 
-	override mapFromDriverValue(value: string): [number, number, number] {
-		const [a, b, c] = value.slice(1, -1).split(',');
-		return [Number.parseFloat(a!), Number.parseFloat(b!), Number.parseFloat(c!)];
-	}
-
-	override mapToDriverValue(value: [number, number, number]): string {
+	override mapToDriverValue = (value: [number, number, number]): string => {
 		return `{${value[0]},${value[1]},${value[2]}}`;
-	}
+	};
 }
 
 export class PgLineABCBuilder extends PgColumnBuilder<{
@@ -65,20 +63,18 @@ export class PgLineABCBuilder extends PgColumnBuilder<{
 export class PgLineABC extends PgColumn<'object line'> {
 	static override readonly [entityKind]: string = 'PgLineABC';
 
+	/** @internal */
+	override readonly codec = 'line';
+
 	readonly mode = 'abc';
 
 	getSQLType(): string {
 		return 'line';
 	}
 
-	override mapFromDriverValue(value: string): { a: number; b: number; c: number } {
-		const [a, b, c] = value.slice(1, -1).split(',');
-		return { a: Number.parseFloat(a!), b: Number.parseFloat(b!), c: Number.parseFloat(c!) };
-	}
-
-	override mapToDriverValue(value: { a: number; b: number; c: number }): string {
+	override mapToDriverValue = (value: { a: number; b: number; c: number }): string => {
 		return `{${value.a},${value.b},${value.c}}`;
-	}
+	};
 }
 
 export interface PgLineTypeConfig<T extends 'tuple' | 'abc' = 'tuple' | 'abc'> {

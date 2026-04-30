@@ -10,7 +10,7 @@ const { Client } = pg;
 const ENABLE_LOGGING = false;
 
 let client: pg.Client;
-let db: NodePgDatabase<never, typeof relations>;
+let db: NodePgDatabase<typeof relations>;
 
 const items = pgTable('items', {
 	id: bigserial('id', { mode: 'number' }).primaryKey(),

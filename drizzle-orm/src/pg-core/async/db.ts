@@ -1,4 +1,3 @@
-import type * as V1 from '~/_relations.ts';
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
@@ -11,9 +10,7 @@ import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
-import type { DrizzleTypeError, NeonAuthToken } from '~/utils.ts';
 import type { PgColumn } from '../columns/index.ts';
-import { _RelationalQueryBuilder } from '../query-builders/_query.ts';
 import { RelationalQueryBuilder } from '../query-builders/query.ts';
 import type { SelectedFields } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
@@ -31,26 +28,14 @@ import { PgAsyncUpdateBase, type PgAsyncUpdateHKT } from './update.ts';
 
 export class PgAsyncDatabase<
 	TQueryResult extends PgQueryResultHKT,
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > {
 	static readonly [entityKind]: string = 'PgAsyncDatabase';
 
 	declare readonly _: {
-		readonly schema: TSchema | undefined;
-		readonly fullSchema: TFullSchema;
-		readonly tableNamesMap: Record<string, string>;
 		readonly relations: TRelations;
-		readonly session: PgAsyncSession<TQueryResult, TFullSchema, TRelations, TSchema>;
+		readonly session: PgAsyncSession<TQueryResult, TRelations>;
 	};
-
-	/** @deprecated */
-	_query: TFullSchema extends Record<string, never>
-		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
-		: {
-			[K in keyof TSchema]: _RelationalQueryBuilder<TSchema, TSchema[K]>;
-		};
 
 	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
 	query: {
@@ -65,48 +50,21 @@ export class PgAsyncDatabase<
 		/** @internal */
 		readonly dialect: PgDialect,
 		/** @internal */
-		readonly session: PgAsyncSession<any, any, any, any>,
+		readonly session: PgAsyncSession<any, any>,
 		relations: TRelations,
-		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		parseRqbJson: boolean = false,
+		readonly tagged: boolean = false,
 	) {
-		this._ = schema
-			? {
-				schema: schema.schema,
-				fullSchema: schema.fullSchema as TFullSchema,
-				tableNamesMap: schema.tableNamesMap,
-				relations: relations,
-				session,
-			}
-			: {
-				schema: undefined,
-				fullSchema: {} as TFullSchema,
-				tableNamesMap: {},
-				relations: relations,
-				session,
-			};
-		this._query = {} as typeof this['_query'];
-		if (this._.schema) {
-			for (const [tableName, columns] of Object.entries(this._.schema)) {
-				(this._query as PgAsyncDatabase<TQueryResult, Record<string, any>>['_query'])[tableName] =
-					new _RelationalQueryBuilder(
-						schema!.fullSchema,
-						this._.schema,
-						this._.tableNamesMap,
-						schema!.fullSchema[tableName] as PgTable,
-						columns,
-						dialect,
-						session,
-					);
-			}
-		}
+		this._ = {
+			relations: relations,
+			session,
+		};
+
 		this.query = {} as typeof this['query'];
 		for (const [tableName, relation] of Object.entries(relations)) {
 			(this.query as PgAsyncDatabase<
 				TQueryResult,
-				TSchema,
-				AnyRelations,
-				V1.TablesRelationalConfig
+				AnyRelations
 			>['query'])[tableName] = new RelationalQueryBuilder(
 				relations,
 				relations[relation.name]!.table as PgTable,
@@ -154,7 +112,6 @@ export class PgAsyncDatabase<
 	 * ```
 	 */
 	$with: WithBuilder = (alias: string, selection?: ColumnsSelection) => {
-		const self = this;
 		const as = (
 			qb:
 				| TypedQueryBuilder<ColumnsSelection | undefined>
@@ -162,16 +119,17 @@ export class PgAsyncDatabase<
 				| ((qb: QueryBuilder) => TypedQueryBuilder<ColumnsSelection | undefined> | SQL),
 		) => {
 			if (typeof qb === 'function') {
-				qb = qb(new QueryBuilder(self.dialect));
+				qb = qb(new QueryBuilder(this.dialect));
 			}
 
+			const sql = ('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL();
 			return new Proxy(
 				new WithSubquery(
-					qb.getSQL(),
+					sql,
 					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
 					alias,
 					true,
-					qb.getSQL().usedTables ?? [],
+					sql.usedTables ?? [],
 				),
 				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 			);
@@ -256,6 +214,7 @@ export class PgAsyncDatabase<
 				session: self.session,
 				dialect: self.dialect,
 				withList: queries,
+				tagged: self.tagged,
 			});
 		}
 
@@ -479,6 +438,7 @@ export class PgAsyncDatabase<
 			fields: fields ?? undefined,
 			session: this.session,
 			dialect: this.dialect,
+			tagged: this.tagged,
 		}) as PgAsyncSelectBuilder<TSelection>;
 	}
 
@@ -516,6 +476,7 @@ export class PgAsyncDatabase<
 			session: this.session,
 			dialect: this.dialect,
 			distinct: true,
+			tagged: this.tagged,
 		});
 	}
 
@@ -558,6 +519,7 @@ export class PgAsyncDatabase<
 			session: this.session,
 			dialect: this.dialect,
 			distinct: { on },
+			tagged: this.tagged,
 		});
 	}
 
@@ -654,27 +616,12 @@ export class PgAsyncDatabase<
 
 	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
 		query: SQLWrapper | string,
-	): PgAsyncRaw<PgQueryResultKind<TQueryResult, TRow>>;
-	/** @internal */
-	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
-		query: SQLWrapper | string,
-		authToken: NeonAuthToken,
-	): PgAsyncRaw<PgQueryResultKind<TQueryResult, TRow>>;
-	/** @internal */
-	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
-		query: SQLWrapper | string,
-		authToken?: NeonAuthToken,
 	): PgAsyncRaw<PgQueryResultKind<TQueryResult, TRow>> {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sequel);
 		const prepared = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: PgQueryResultKind<TQueryResult, TRow> }
-		>(
-			builtQuery,
-			undefined,
-			undefined,
-			false,
-		).setToken(authToken);
+		>(builtQuery, 'raw', false);
 		return new PgAsyncRaw(
 			() => prepared.execute(),
 			sequel,
@@ -683,30 +630,18 @@ export class PgAsyncDatabase<
 		);
 	}
 
-	transaction<T>(
-		transaction: (tx: PgAsyncTransaction<TQueryResult, TFullSchema, TRelations, TSchema>) => Promise<T>,
+	transaction: <T>(
+		transaction: (tx: PgAsyncTransaction<TQueryResult, TRelations>) => Promise<T>,
 		config?: PgTransactionConfig,
-	): Promise<T> {
-		return this.session.transaction(
-			transaction,
-			config,
-		);
-	}
+	) => Promise<T> = (tx, cfg) => this.session.transaction(tx, cfg);
 }
 
 export type PgAsyncWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
 
 export const withReplicas = <
 	HKT extends PgQueryResultHKT,
-	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-	Q extends PgAsyncDatabase<
-		HKT,
-		TFullSchema,
-		TRelations,
-		TSchema extends Record<string, unknown> ? V1.ExtractTablesWithRelations<TFullSchema> : TSchema
-	>,
+	Q extends PgAsyncDatabase<HKT, TRelations>,
 >(
 	primary: Q,
 	replicas: [Q, ...Q[]],
@@ -724,6 +659,7 @@ export const withReplicas = <
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
 	const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
 	const transaction: Q['transaction'] = (...args: [any]) => primary.transaction(...args);
+
 	const refreshMaterializedView: Q['refreshMaterializedView'] = (...args: [any]) =>
 		primary.refreshMaterializedView(...args);
 
@@ -743,9 +679,6 @@ export const withReplicas = <
 		$count,
 		$with,
 		with: _with,
-		get _query() {
-			return getReplica(replicas)._query;
-		},
 		get query() {
 			return getReplica(replicas).query;
 		},

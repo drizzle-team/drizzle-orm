@@ -1,4 +1,3 @@
-import type { CasingType } from '../../cli/validations/common';
 import { cockroachSchemaError, cockroachSchemaWarning } from '../../cli/views';
 import { findLeafSnapshotIds } from '../../utils/utils-node';
 import type { CockroachDDL } from './ddl';
@@ -10,7 +9,6 @@ import { drySnapshot, snapshotValidator } from './snapshot';
 export const prepareSnapshot = async (
 	snapshots: string[],
 	filenames: string[],
-	casing: CasingType | undefined,
 ): Promise<{
 	ddlPrev: CockroachDDL;
 	ddlCur: CockroachDDL;
@@ -33,10 +31,9 @@ export const prepareSnapshot = async (
 
 	const res = await prepareFromSchemaFiles(filenames);
 
-	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
+	// TODO: do we want to export everything or ignore .existing and respect entity filters in config
 	const { schema, errors, warnings } = fromDrizzleSchema(
 		res,
-		casing,
 		() => true,
 	);
 

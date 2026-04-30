@@ -1,3 +1,4 @@
+import { type Casing, getCasingFn } from '~/casing.ts';
 import type { BuildColumns, BuildExtraConfigColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import {
@@ -94,6 +95,7 @@ export function cockroachTableWithSchema<
 		) => CockroachTableExtraConfig | CockroachTableExtraConfigValue[])
 		| undefined,
 	schema: TSchemaName,
+	casing: Casing | undefined,
 	baseName = name,
 ): CockroachTableWithColumns<{
 	name: TTableName;
@@ -101,6 +103,7 @@ export function cockroachTableWithSchema<
 	columns: BuildColumns<TTableName, TColumnsMap, 'cockroach'>;
 	dialect: 'cockroach';
 }> {
+	const casingFn = getCasingFn(casing);
 	const rawTable = new CockroachTable<{
 		name: TTableName;
 		schema: TSchemaName;
@@ -113,8 +116,8 @@ export function cockroachTableWithSchema<
 	const builtColumns = Object.fromEntries(
 		Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
 			const colBuilder = colBuilderBase as CockroachColumnWithArrayBuilder;
-			colBuilder.setName(name);
-			const column = colBuilder.build(rawTable);
+			colBuilder.setName(name, casingFn);
+			const column = colBuilder.build(rawTable).postBuild();
 			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
 		}),
@@ -123,7 +126,7 @@ export function cockroachTableWithSchema<
 	const builtColumnsForExtraConfig = Object.fromEntries(
 		Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
 			const colBuilder = colBuilderBase as CockroachColumnWithArrayBuilder;
-			colBuilder.setName(name);
+			colBuilder.setName(name, casingFn);
 			const column = colBuilder.buildExtraConfigColumn(rawTable);
 			return [name, column];
 		}),
@@ -191,24 +194,39 @@ export interface CockroachTableFn<TSchema extends string | undefined = undefined
 	withRLS: CockroachTableFnInternal<TSchema>;
 }
 
-const cockroachTableInternal: CockroachTableFnInternal = (name, columns, extraConfig) => {
-	return cockroachTableWithSchema(name, columns, extraConfig, undefined);
-};
+/** @internal */
+export function cockroachTableWithCasing(casing: Casing | undefined): CockroachTableFn {
+	const cockroachTableInternal: CockroachTableFnInternal = (name, columns, extraConfig) => {
+		return cockroachTableWithSchema(name, columns, extraConfig, undefined, casing);
+	};
 
-const cockroachTableWithRLS: CockroachTableFn['withRLS'] = (name, columns, extraConfig) => {
-	const table = cockroachTableWithSchema(name, columns, extraConfig, undefined);
-	table[EnableRLS] = true;
+	const cockroachTableWithRLS: CockroachTableFn['withRLS'] = (name, columns, extraConfig) => {
+		const table = cockroachTableWithSchema(name, columns, extraConfig, undefined, casing);
+		table[EnableRLS] = true;
 
-	return table;
-};
+		return table;
+	};
 
-export const cockroachTable: CockroachTableFn = Object.assign(cockroachTableInternal, {
-	withRLS: cockroachTableWithRLS,
-});
+	return Object.assign(cockroachTableInternal, {
+		withRLS: cockroachTableWithRLS,
+	});
+}
 
-export function cockroachTableCreator(customizeTableName: (name: string) => string): CockroachTableFn {
+export const cockroachTable = cockroachTableWithCasing(undefined);
+
+export function cockroachTableCreator(
+	customizeTableName: (name: string) => string,
+	casing?: Casing | undefined,
+): CockroachTableFn {
 	const fn: CockroachTableFnInternal = (name, columns, extraConfig) => {
-		return cockroachTableWithSchema(customizeTableName(name) as typeof name, columns, extraConfig, undefined, name);
+		return cockroachTableWithSchema(
+			customizeTableName(name) as typeof name,
+			columns,
+			extraConfig,
+			undefined,
+			casing,
+			name,
+		);
 	};
 
 	return Object.assign(fn, {
@@ -218,6 +236,7 @@ export function cockroachTableCreator(customizeTableName: (name: string) => stri
 				columns,
 				extraConfig,
 				undefined,
+				casing,
 				name,
 			);
 			table[EnableRLS] = true;

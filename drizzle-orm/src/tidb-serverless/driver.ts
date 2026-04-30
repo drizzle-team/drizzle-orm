@@ -6,13 +6,14 @@ import { DefaultLogger } from '~/logger.ts';
 import { MySqlDatabase } from '~/mysql-core/db.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
 import type { TiDBServerlessPreparedQueryHKT, TiDBServerlessQueryResultHKT } from './session.ts';
 import { TiDBServerlessSession } from './session.ts';
 
 export interface TiDBServerlessSDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMappers?: boolean;
 }
 
 export class TiDBServerlessDatabase<
@@ -31,7 +32,7 @@ function construct<
 ): TiDBServerlessDatabase<TSchema, TRelations> & {
 	$client: Connection;
 } {
-	const dialect = new MySqlDialect({ casing: config.casing });
+	const dialect = new MySqlDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -56,6 +57,7 @@ function construct<
 	const session = new TiDBServerlessSession(client, dialect, undefined, relations, schema, {
 		logger,
 		cache: config.cache,
+		useJitMappers: jitCompatCheck(config.jit),
 	});
 	const db = new TiDBServerlessDatabase(
 		dialect,

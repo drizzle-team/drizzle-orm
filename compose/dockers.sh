@@ -9,11 +9,6 @@ docker run -it -d -p 1433:1433 \
  -e 'MSSQL_SA_PASSWORD=drizzle123PASSWORD!' \
  mcr.microsoft.com/azure-sql-edge
 
- docker run -d --name gel -p 56565:5656 \
-  -e GEL_CLIENT_SECURITY=insecure_dev_mode \
-  -e GEL_SERVER_SECURITY=insecure_dev_mode \
-  -e GEL_CLIENT geldata/gel:latest
-
 docker run -d --name singlestore -p 33307:3306 \
   -e ROOT_PASSWORD=singlestore \
   -e TZ=UTC \
