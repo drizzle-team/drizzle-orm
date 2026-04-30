@@ -154,11 +154,7 @@ export const handle = async (
 		return;
 	}
 
-	if (!force && dataLossHints.length > 0) {
-		if (json) {
-			printJsonOutput(abortedJsonOutput('postgres', dataLossHints));
-			process.exit(0);
-		}
+	if (!force && !json && dataLossHints.length > 0) {
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
