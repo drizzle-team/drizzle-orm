@@ -1,3 +1,4 @@
+import type { NormalizeArrayCodec, NormalizeCodec } from './codecs.ts';
 import type { Column } from './column.ts';
 import type { SQL } from './sql/sql.ts';
 import type { Subquery } from './subquery.ts';
@@ -43,4 +44,6 @@ export type SelectedFields<TColumn extends Column, TTable extends Table> = Recor
 export type SelectedFieldsOrdered<TColumn extends Column> = {
 	path: string[];
 	field: TColumn | SQL | SQL.Aliased | Subquery;
+	codec?: NormalizeCodec | NormalizeArrayCodec;
+	arrayDimensions?: number;
 }[];

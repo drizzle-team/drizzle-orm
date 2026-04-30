@@ -28,6 +28,9 @@ export class PgIntervalBuilder extends PgColumnBuilder<{
 export class PgInterval extends PgColumn<'string interval'> {
 	static override readonly [entityKind]: string = 'PgInterval';
 
+	/** @internal */
+	override readonly codec = 'interval';
+
 	readonly fields: IntervalConfig['fields'];
 	readonly precision: IntervalConfig['precision'];
 

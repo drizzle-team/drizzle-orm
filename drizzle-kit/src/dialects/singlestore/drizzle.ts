@@ -1,12 +1,10 @@
-import type { Casing } from 'drizzle-orm';
 import { is, SQL } from 'drizzle-orm';
 import { Relations } from 'drizzle-orm/_relations';
 import type { AnySingleStoreColumn, AnySingleStoreTable } from 'drizzle-orm/singlestore-core';
 import { getTableConfig, SingleStoreDialect, SingleStoreTable, uniqueKeyName } from 'drizzle-orm/singlestore-core';
-import type { CasingType } from 'src/cli/validations/common';
 import { escapeSingleQuotes } from 'src/utils';
 import { loadModule } from '../../utils/utils-node';
-import { getColumnCasing, sqlToStr } from '../drizzle';
+import { sqlToStr } from '../drizzle';
 import type { Column, InterimSchema } from '../mysql/ddl';
 import { typeFor } from '../mysql/grammar';
 
@@ -17,11 +15,11 @@ const handleEnumType = (type: string) => {
 	return `enum(${values.join(',')})`;
 };
 
-export const defaultFromColumn = (column: AnySingleStoreColumn, casing?: Casing): Column['default'] => {
+export const defaultFromColumn = (column: AnySingleStoreColumn): Column['default'] => {
 	if (typeof column.default === 'undefined') return null;
 
 	if (is(column.default, SQL)) {
-		return sqlToStr(column.default, casing);
+		return sqlToStr(column.default);
 	}
 
 	const grammarType = typeFor(column.getSQLType().toLocaleLowerCase());
@@ -35,9 +33,8 @@ export const upper = <T extends string>(value: T | undefined): Uppercase<T> | nu
 
 export const fromDrizzleSchema = (
 	tables: AnySingleStoreTable[],
-	casing: CasingType | undefined,
 ): InterimSchema => {
-	const dialect = new SingleStoreDialect({ casing });
+	const dialect = new SingleStoreDialect();
 	const result: InterimSchema = {
 		tables: [],
 		columns: [],
@@ -67,7 +64,7 @@ export const fromDrizzleSchema = (
 		});
 
 		for (const column of columns) {
-			const name = getColumnCasing(column, casing);
+			const { name } = column;
 			const notNull: boolean = column.notNull;
 			const sqlType = column.getSQLType();
 			const autoIncrement = typeof (column as any).autoIncrement === 'undefined'
@@ -103,20 +100,14 @@ export const fromDrizzleSchema = (
 				generated,
 				isPK: column.primary,
 				isUnique: column.isUnique,
-				default: defaultFromColumn(column, casing),
+				default: defaultFromColumn(column),
 			});
 		}
 
 		for (const pk of primaryKeys) {
-			const originalColumnNames = pk.columns.map((c) => c.name);
-			const columnNames = pk.columns.map((c: any) => getColumnCasing(c, casing));
+			const columnNames = pk.columns.map((c: any) => c.name);
 
 			let name = pk.getName();
-			if (casing !== undefined) {
-				for (let i = 0; i < originalColumnNames.length; i++) {
-					name = name.replace(originalColumnNames[i], columnNames[i]);
-				}
-			}
 
 			result.pks.push({
 				entityType: 'pks',
@@ -132,7 +123,7 @@ export const fromDrizzleSchema = (
 					const sql = dialect.sqlToQuery(c).sql;
 					return { value: sql, isExpression: true };
 				}
-				return { value: getColumnCasing(c, casing), isExpression: false };
+				return { value: c.name, isExpression: false };
 			});
 
 			const name = unique.name ?? uniqueKeyName(table, unique.columns.filter((c) => !is(c, SQL)).map((c) => c.name));
@@ -163,7 +154,7 @@ export const fromDrizzleSchema = (
 						const sql = dialect.sqlToQuery(it, 'indexes').sql;
 						return { value: sql, isExpression: true };
 					} else {
-						return { value: `${getColumnCasing(it, casing)}`, isExpression: false };
+						return { value: it.name, isExpression: false };
 					}
 				}),
 				algorithm: index.config.algorithm ?? null,

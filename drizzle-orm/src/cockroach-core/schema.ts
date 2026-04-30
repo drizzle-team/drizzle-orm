@@ -1,3 +1,4 @@
+import type { Casing } from '~/casing.ts';
 import { entityKind, is } from '~/entity.ts';
 import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { NonArray, Writable } from '~/utils.ts';
@@ -22,10 +23,11 @@ export class CockroachSchema<TName extends string = string> implements SQLWrappe
 	isExisting: boolean = false;
 	constructor(
 		public readonly schemaName: TName,
+		protected casing: Casing | undefined,
 	) {
 		this.table = Object.assign(this.table, {
 			withRLS: ((name, columns, extraConfig) => {
-				const table = cockroachTableWithSchema(name, columns, extraConfig, this.schemaName);
+				const table = cockroachTableWithSchema(name, columns, extraConfig, this.schemaName, this.casing);
 				table[EnableRLS] = true;
 
 				return table;
@@ -34,15 +36,15 @@ export class CockroachSchema<TName extends string = string> implements SQLWrappe
 	}
 
 	table: CockroachTableFn<TName> = ((name, columns, extraConfig) => {
-		return cockroachTableWithSchema(name, columns, extraConfig, this.schemaName);
+		return cockroachTableWithSchema(name, columns, extraConfig, this.schemaName, this.casing);
 	}) as CockroachTableFn<TName>;
 
 	view = ((name, columns) => {
-		return cockroachViewWithSchema(name, columns, this.schemaName);
+		return cockroachViewWithSchema(name, columns, this.schemaName, this.casing);
 	}) as typeof cockroachView;
 
 	materializedView = ((name, columns) => {
-		return cockroachMaterializedViewWithSchema(name, columns, this.schemaName);
+		return cockroachMaterializedViewWithSchema(name, columns, this.schemaName, this.casing);
 	}) as typeof cockroachMaterializedView;
 
 	public enum<U extends string, T extends Readonly<[U, ...U[]]>>(
@@ -87,12 +89,16 @@ export function isCockroachSchema(obj: unknown): obj is CockroachSchema {
 	return is(obj, CockroachSchema);
 }
 
-export function cockroachSchema<T extends string>(name: T) {
+export function cockroachSchema<T extends string>(name: T): CockroachSchema<T>;
+/** @internal */
+export function cockroachSchema<T extends string>(name: T, casing?: Casing): CockroachSchema<T>;
+/** @internal */
+export function cockroachSchema<T extends string>(name: T, casing?: Casing): CockroachSchema<T> {
 	if (name === 'public') {
 		throw new Error(
 			`You can't specify 'public' as schema name. Postgres is using public schema by default. If you want to use 'public' schema, just use cockroachTable() instead of creating a schema`,
 		);
 	}
 
-	return new CockroachSchema(name);
+	return new CockroachSchema(name, casing);
 }

@@ -5,6 +5,7 @@ import {
 	avgDistinct,
 	count,
 	countDistinct,
+	DrizzleQueryError,
 	eq,
 	exists,
 	getColumns,
@@ -1283,7 +1284,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/2872
 		test
-			.skipIf(Date.now() < +new Date('2026-04-26'))
+			.skipIf(Date.now() < +new Date('2026-05-07'))
 			.concurrent(
 				'prepared statement with placeholder in .inArray',
 				async ({ db, push }) => {
@@ -6030,5 +6031,13 @@ export function tests(test: Test, exclude: string[] = []) {
 			sql: 'select sum(3) from "users_115"',
 			params: [],
 		});
+	});
+
+	// Sync drivers don't wrap errors - TODO
+	test.skipIf(Date.now() < +new Date('2026-05-07'))('Query error wrapping', async ({ db }) => {
+		await expect(async () =>
+			await db.insert(usersTable).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]).run()
+		)
+			.rejects.toBeInstanceOf(DrizzleQueryError);
 	});
 }

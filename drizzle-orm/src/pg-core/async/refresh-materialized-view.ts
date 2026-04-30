@@ -1,10 +1,9 @@
 import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { tracer } from '~/tracing.ts';
-import { applyMixins, type NeonAuthToken } from '~/utils.ts';
+import { applyMixins } from '~/utils.ts';
 import { PgRefreshMaterializedView } from '../query-builders/refresh-materialized-view.ts';
 import type { PgAsyncPreparedQuery, PgAsyncSession } from './session.ts';
 
@@ -31,11 +30,8 @@ export class PgAsyncRefreshMaterializedView<TQueryResult extends PgQueryResultHK
 			const query = this.dialect.sqlToQuery(this.getSQL());
 			return this.session.prepareQuery(
 				query,
-				undefined,
-				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-				true,
-			).setToken(
-				this.authToken,
+				'raw',
+				name ?? generateName,
 			);
 		});
 	}
@@ -46,14 +42,6 @@ export class PgAsyncRefreshMaterializedView<TQueryResult extends PgQueryResultHK
 		}
 	> {
 		return this._prepare(name, true);
-	}
-
-	/** @internal */
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token: NeonAuthToken) {
-		this.authToken = token;
-		return this;
 	}
 
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {

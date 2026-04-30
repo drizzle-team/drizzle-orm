@@ -42,6 +42,7 @@ export default defineConfig({
 					'js-tests/driver-init/module/vercel.test.mjs',
 				]
 				: []),
+			'tests/pg/awsdatapi.test.ts',
 			'tests/awsdatapi.alltypes.test.ts',
 			'tests/relational/vercel.test.ts',
 			'tests/relational/vercel-v1.test.ts',

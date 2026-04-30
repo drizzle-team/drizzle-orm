@@ -274,7 +274,7 @@ describe('conflict rule coverage (statement pairs)', () => {
 		expect(conflicts).not.toBeUndefined();
 	});
 
-	test.skip('check: alter vs drop', async () => {
+	test('check: alter vs drop', async () => {
 		const parent = {
 			t: mysqlTable('t', (t) => ({
 				c: t.int(),

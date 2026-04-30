@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { DrizzleQueryError, eq, sql } from 'drizzle-orm';
 import { alias, integer, pgTable } from 'drizzle-orm/pg-core';
 import { describe, expect, vi } from 'vitest';
 import type { Test } from './instrumentation';
@@ -327,6 +327,19 @@ export function tests(test: Test) {
 			await db.insert(shortLink).values({ id: 1, createdBy: 1 });
 
 			expect(spyInvalidate).toHaveBeenCalledTimes(2);
+		});
+
+		// Test itself passes, but breaks 'insert via db.execute w/ query builder' tests later on
+		// need to revisit test cleanup
+		test.skipIf(Date.now() < +new Date('2026-05-07'))('Query error wrapping', async ({ db, push }) => {
+			const table = pgTable('somethingelse_error_wrap_slowpath', (t) => ({
+				id: t.integer().primaryKey(),
+				name: t.text().notNull(),
+			}));
+
+			await push({ table });
+			await expect(db.insert(table).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]))
+				.rejects.toBeInstanceOf(DrizzleQueryError);
 		});
 	});
 }

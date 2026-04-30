@@ -1,12 +1,11 @@
 import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { applyMixins, type Assume, type NeonAuthToken } from '~/utils.ts';
+import { applyMixins, type Assume } from '~/utils.ts';
 import type { PgInsertHKTBase } from '../query-builders/insert.ts';
 import { PgInsertBase } from '../query-builders/insert.ts';
 import { extractUsedTable } from '../utils.ts';
@@ -76,37 +75,30 @@ export class PgAsyncInsertBase<
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgInsertPrepare<this> {
+		const { session, config, dialect, cacheConfig } = this;
+		const { returning: fields } = config;
+
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const query = this.dialect.sqlToQuery(this.getSQL());
-			return this.session.prepareQuery<
-				PreparedQueryConfig & {
-					execute: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];
-				}
-			>(
+			const query = dialect.sqlToQuery(this.getSQL());
+			const mapper = fields
+				? this.dialect.mapperGenerators.rows(fields, undefined)
+				: undefined;
+
+			const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
 				query,
-				this.config.returning,
-				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-				true,
-				undefined,
-				{
-					type: 'insert',
-					tables: extractUsedTable(this.config.table),
-				},
-				this.cacheConfig,
-			).setToken(this.authToken);
+				fields ? 'arrays' : 'raw',
+				name ?? generateName,
+				mapper,
+				{ type: 'insert', tables: [...extractUsedTable(this.config.table)] },
+				cacheConfig,
+			);
+
+			return preparedQuery;
 		});
 	}
 
 	prepare(name?: string): PgInsertPrepare<this> {
 		return this._prepare(name, true);
-	}
-
-	/** @internal */
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
 	}
 
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {

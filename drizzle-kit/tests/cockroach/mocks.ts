@@ -19,7 +19,7 @@ import {
 	isCockroachSequence,
 	isCockroachView,
 } from 'drizzle-orm/cockroach-core';
-import { CasingType, configMigrations } from 'src/cli/validations/common';
+import { configMigrations } from 'src/cli/validations/common';
 import { CockroachDDL, Column, createDDL, interimToDDL, SchemaError } from 'src/dialects/cockroach/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/cockroach/diff';
 import {
@@ -74,7 +74,6 @@ class MockError extends Error {
 
 export const drizzleToDDL = (
 	schema: CockroachDBSchema,
-	casing: CasingType | undefined,
 	filterConfig: EntitiesFilterConfig = {
 		schemas: undefined,
 		tables: undefined,
@@ -106,7 +105,6 @@ export const drizzleToDDL = (
 			views,
 			matViews: materializedViews,
 		},
-		casing,
 		filter,
 	);
 
@@ -122,14 +120,13 @@ export const diff = async (
 	left: CockroachDBSchema | CockroachDDL,
 	right: CockroachDBSchema | CockroachDDL,
 	renamesArr: string[],
-	casing?: CasingType | undefined,
 ) => {
 	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
 		? { ddl: left as CockroachDDL, errors: [] }
-		: drizzleToDDL(left, casing);
+		: drizzleToDDL(left);
 	const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
 		? { ddl: right as CockroachDDL, errors: [] }
-		: drizzleToDDL(right, casing);
+		: drizzleToDDL(right);
 
 	if (err1.length > 0 || err2.length > 0) {
 		throw new MockError([...err1, ...err2]);
@@ -161,7 +158,6 @@ export const pushM = async (config: {
 	to: CockroachDBSchema | CockroachDDL;
 	renames?: string[];
 	schemas?: string[];
-	casing?: CasingType;
 	log?: 'statements' | 'none';
 	entities?: EntitiesFilter;
 }) => {
@@ -174,7 +170,6 @@ export const push = async (
 		to: CockroachDBSchema | CockroachDDL;
 		renames?: string[];
 		schemas?: string[];
-		casing?: CasingType;
 		log?: 'statements' | 'none';
 		entities?: EntitiesFilter;
 		ignoreSubsequent?: boolean;
@@ -187,7 +182,6 @@ export const push = async (
 ) => {
 	const { db, to } = config;
 	const log = config.log ?? 'none';
-	const casing = config.casing;
 
 	const filterConfig: EntitiesFilterConfig = {
 		schemas: config.schemas,
@@ -200,7 +194,7 @@ export const push = async (
 
 	const { ddl: ddl2, errors: err3, existing } = 'entities' in to && '_' in to
 		? { ddl: to as CockroachDDL, errors: [], existing: [] }
-		: drizzleToDDL(to, casing, filterConfig);
+		: drizzleToDDL(to, filterConfig);
 
 	const filter = prepareEntityFilter('cockroach', filterConfig, existing);
 
@@ -302,7 +296,6 @@ export const diffIntrospect = async (
 	testName: string,
 	schemas: string[] = [],
 	entities?: EntitiesFilter,
-	casing?: CasingType | undefined,
 ) => {
 	const filterConfig: EntitiesFilterConfig = {
 		schemas,
@@ -310,7 +303,7 @@ export const diffIntrospect = async (
 		tables: [],
 		extensions: [],
 	};
-	const { ddl: initDDL, existing } = drizzleToDDL(initSchema, casing, filterConfig);
+	const { ddl: initDDL, existing } = drizzleToDDL(initSchema, filterConfig);
 	const { sqlStatements: init } = await ddlDiffDry(createDDL(), initDDL, 'default');
 
 	for (const st of init) await db.query(st);
@@ -330,7 +323,7 @@ export const diffIntrospect = async (
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([filePath]);
 
-	const { schema: schema2, errors: e2, warnings } = fromDrizzleSchema(response, casing, filter);
+	const { schema: schema2, errors: e2, warnings } = fromDrizzleSchema(response, filter);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(schema2);
 
 	const { sqlStatements: afterFileSqlStatements, statements: afterFileStatements } = await ddlDiffDry(
@@ -423,7 +416,7 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 
 	const response = await prepareFromSchemaFiles([path]);
 
-	const { schema: sch } = fromDrizzleSchema(response, 'camelCase', () => true);
+	const { schema: sch } = fromDrizzleSchema(response, () => true);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');

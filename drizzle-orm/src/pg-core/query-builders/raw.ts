@@ -31,9 +31,4 @@ export class PgRaw<TResult> implements SQLWrapper, PreparedQuery {
 	mapResult(result: unknown, isFromBatch?: boolean) {
 		return isFromBatch ? this.mapBatchResult(result) : result;
 	}
-
-	/** @internal */
-	isResponseInArrayMode() {
-		return false;
-	}
 }

@@ -7,6 +7,7 @@ import {
 	int,
 	integer,
 	primaryKey,
+	snakeCase,
 	sqliteTable,
 	text,
 	unique,
@@ -1767,33 +1768,32 @@ test('fk #15', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3653
 test('fk #16', async () => {
-	const services1 = sqliteTable('services', {
+	const services1 = snakeCase.table('services', {
 		id: integer().primaryKey(),
 	});
 
-	const serviceLinks1 = sqliteTable('service_links', {
+	const serviceLinks1 = snakeCase.table('service_links', {
 		id: integer().primaryKey(),
 		serviceId: integer().references(() => services1.id, { onUpdate: 'restrict', onDelete: 'cascade' }),
 	});
 	const schema1 = { services1, serviceLinks1 };
 
-	const casing = 'snake_case';
-	const { next: n1 } = await diff({}, schema1, [], casing);
-	await push({ db, to: schema1, casing });
+	const { next: n1 } = await diff({}, schema1, []);
+	await push({ db, to: schema1 });
 
-	const services2 = sqliteTable('services', {
+	const services2 = snakeCase.table('services', {
 		id: integer().primaryKey(),
 	});
 
-	const serviceLinks2 = sqliteTable('service_links', {
+	const serviceLinks2 = snakeCase.table('service_links', {
 		id: integer().primaryKey(),
 		clientId: integer().references(() => services2.id, { onUpdate: 'restrict', onDelete: 'cascade' }),
 	});
 	const schema2 = { services2, serviceLinks2 };
 
 	const renames = ['service_links.service_id->service_links.client_id'];
-	const { sqlStatements: st2 } = await diff(n1, schema2, renames, casing);
-	const { sqlStatements: pst2 } = await push({ db, to: schema2, casing, renames });
+	const { sqlStatements: st2 } = await diff(n1, schema2, renames);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2, renames });
 
 	const expectedSt2 = [
 		'ALTER TABLE `service_links` RENAME COLUMN `service_id` TO `client_id`;',

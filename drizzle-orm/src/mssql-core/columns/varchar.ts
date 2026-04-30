@@ -91,13 +91,13 @@ export class MsSqlVarCharJson<T extends ColumnBaseConfig<'object json'>>
 			: `nvarchar(${this.config.rawLength})`;
 	}
 
-	override mapFromDriverValue(value: string): T['data'] {
+	override mapFromDriverValue = (value: string): T['data'] => {
 		return JSON.parse(value);
-	}
+	};
 
-	override mapToDriverValue(value: T['data']): string {
+	override mapToDriverValue = (value: T['data']): string => {
 		return JSON.stringify(value);
-	}
+	};
 }
 
 export type MsSqlVarCharConfig<

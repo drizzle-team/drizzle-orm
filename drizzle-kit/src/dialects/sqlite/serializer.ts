@@ -1,4 +1,3 @@
-import type { CasingType } from 'src/cli/validations/common';
 import { sqliteSchemaError } from '../../cli/views';
 import { findLeafSnapshotIds } from '../../utils/utils-node';
 import type { SQLiteDDL } from './ddl';
@@ -10,7 +9,6 @@ import { drySqliteSnapshot, snapshotValidator } from './snapshot';
 export const prepareSqliteSnapshot = async (
 	snapshots: string[],
 	filenames: string[],
-	casing: CasingType | undefined,
 ): Promise<{
 	ddlPrev: SQLiteDDL;
 	ddlCur: SQLiteDDL;
@@ -32,7 +30,7 @@ export const prepareSqliteSnapshot = async (
 	}
 
 	const { tables, views } = await prepareFromSchemaFiles(filenames);
-	const interim = fromDrizzleSchema(tables, views, casing);
+	const interim = fromDrizzleSchema(tables, views);
 
 	const { ddl: ddlCur, errors } = interimToDDL(interim);
 

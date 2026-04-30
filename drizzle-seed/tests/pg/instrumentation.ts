@@ -114,7 +114,7 @@ const prepareTest = (dbType: 'pglite' | 'postgis') => {
 				batch: (statements: string[]) => Promise<any>;
 			};
 			client: any;
-			db: PgAsyncDatabase<any, any, any>;
+			db: PgAsyncDatabase<any, any>;
 			push: (schema: any) => Promise<void>;
 		}
 	>({

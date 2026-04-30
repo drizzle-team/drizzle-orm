@@ -22,6 +22,9 @@ export class PgInetBuilder extends PgColumnBuilder<{
 export class PgInet extends PgColumn<'string inet'> {
 	static override readonly [entityKind]: string = 'PgInet';
 
+	/** @internal */
+	override readonly codec = 'inet';
+
 	getSQLType(): string {
 		return 'inet';
 	}

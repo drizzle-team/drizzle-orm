@@ -24,6 +24,9 @@ export function runTsDiagnostics(folder: string, file: string, ormVer: 'beta' | 
 			extends: './tsconfig.json',
 			include: [targetPath],
 			exclude: ['./test/*', './lib/*'],
+			compilerOptions: {
+				allowImportingTsExtensions: true,
+			},
 		}),
 	);
 

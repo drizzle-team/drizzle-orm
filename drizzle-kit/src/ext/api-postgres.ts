@@ -4,7 +4,6 @@ import type { AnyPgTable } from 'drizzle-orm/pg-core';
 import type { PgAsyncDatabase } from 'drizzle-orm/pg-core/async';
 import type { EntitiesFilterConfig } from 'src/cli/validations/cli';
 import { upToV8 } from 'src/dialects/postgres/versions';
-import type { CasingType } from '../cli/validations/common';
 import type { PostgresCredentials } from '../cli/validations/postgres';
 import type {
 	CheckConstraint,
@@ -31,7 +30,6 @@ export const generateDrizzleJson = async (
 	imports: Record<string, unknown>,
 	prevId?: string,
 	schemaFilters?: string[],
-	casing?: CasingType,
 ): Promise<PostgresSnapshot> => {
 	const { prepareEntityFilter } = await import('src/dialects/pull-utils');
 	const { postgresSchemaError, postgresSchemaWarning } = await import('../cli/views');
@@ -50,7 +48,7 @@ export const generateDrizzleJson = async (
 	}, existing);
 
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
-	const { schema: interim, errors, warnings } = fromDrizzleSchema(prepared, casing, filter);
+	const { schema: interim, errors, warnings } = fromDrizzleSchema(prepared, filter);
 
 	const { ddl, errors: err2 } = interimToDDL(interim);
 	if (warnings.length > 0) {
@@ -112,7 +110,6 @@ export const generateMigration = async (
 export const pushSchema = async (
 	imports: Record<string, unknown>,
 	drizzleInstance: PgAsyncDatabase<any>,
-	casing?: CasingType,
 	entitiesConfig?: EntitiesFilterConfig,
 	migrationsConfig?: {
 		table?: string;
@@ -154,7 +151,7 @@ export const pushSchema = async (
 
 	// TODO: filter?
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
-	const { schema: cur } = fromDrizzleSchema(prepared, casing, filter);
+	const { schema: cur } = fromDrizzleSchema(prepared, filter);
 
 	const { ddl: from, errors: _err1 } = interimToDDL(prev);
 	const { ddl: to, errors: _err2 } = interimToDDL(cur);
@@ -207,7 +204,6 @@ export const startStudioServer = async (
 	options?: {
 		host?: string;
 		port?: number;
-		casing?: CasingType;
 		key?: string;
 		cert?: string;
 	},
@@ -232,7 +228,7 @@ export const startStudioServer = async (
 		}
 	});
 
-	const setup = await drizzleForPostgres(credentials, pgSchema, relations, [], options?.casing);
+	const setup = await drizzleForPostgres(credentials, pgSchema, relations, []);
 	const server = await prepareServer(setup);
 
 	const host = options?.host || '127.0.0.1';

@@ -26,23 +26,18 @@ export class PgPointTupleBuilder extends PgColumnBuilder<{
 export class PgPointTuple extends PgColumn<'array point'> {
 	static override readonly [entityKind]: string = 'PgPointTuple';
 
+	/** @internal */
+	override readonly codec = 'point:tuple';
+
 	readonly mode = 'tuple';
 
 	getSQLType(): string {
 		return 'point';
 	}
 
-	override mapFromDriverValue(value: string | { x: number; y: number }): [number, number] {
-		if (typeof value === 'string') {
-			const [x, y] = value.slice(1, -1).split(',');
-			return [Number.parseFloat(x!), Number.parseFloat(y!)];
-		}
-		return [value.x, value.y];
-	}
-
-	override mapToDriverValue(value: [number, number]): string {
+	override mapToDriverValue = (value: [number, number]): string => {
 		return `(${value[0]},${value[1]})`;
-	}
+	};
 }
 
 export class PgPointObjectBuilder extends PgColumnBuilder<{
@@ -68,23 +63,18 @@ export class PgPointObjectBuilder extends PgColumnBuilder<{
 export class PgPointObject extends PgColumn<'object point'> {
 	static override readonly [entityKind]: string = 'PgPointObject';
 
+	/** @internal */
+	override readonly codec = 'point';
+
 	readonly mode = 'xy';
 
 	getSQLType(): string {
 		return 'point';
 	}
 
-	override mapFromDriverValue(value: string | { x: number; y: number }): { x: number; y: number } {
-		if (typeof value === 'string') {
-			const [x, y] = value.slice(1, -1).split(',');
-			return { x: Number.parseFloat(x!), y: Number.parseFloat(y!) };
-		}
-		return value;
-	}
-
-	override mapToDriverValue(value: { x: number; y: number }): string {
+	override mapToDriverValue = (value: { x: number; y: number }): string => {
 		return `(${value.x},${value.y})`;
-	}
+	};
 }
 
 export interface PgPointConfig<T extends 'tuple' | 'xy' = 'tuple' | 'xy'> {

@@ -21,19 +21,28 @@ import {
 	type MySqlTransactionConfig,
 	type PreparedQueryKind,
 } from '~/mysql-core/session.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeJitRqbMapper,
+	type RelationalQueryMapperConfig,
+	type RelationalRowsMapper,
+} from '~/relations.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { type Assume, makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
 
 export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends boolean = false>
 	extends MySqlPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'BunMySqlPreparedQuery';
+	private jitMapper?:
+		| RowsMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
+		| RelationalRowsMapper<T['execute']>;
 
 	constructor(
 		private client: BunSQL,
-		query: Query,
+		private query: string,
+		private params: unknown[],
 		private logger: Logger,
 		cache: Cache,
 		queryMetadata: {
@@ -42,6 +51,7 @@ export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
+		private useJitMappers: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -50,8 +60,9 @@ export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 
 		// Keys that should be returned, it has the column with all properries + key from object
 		private returningIds?: SelectedFieldsOrdered,
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
-		super(query, cache, queryMetadata, cacheConfig);
+		super(cache, queryMetadata, cacheConfig);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
@@ -61,19 +72,20 @@ export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 
 			fields,
 			client,
 			logger,
+			params: rawParams,
 			query,
 			joinsNotNullableMap,
 			customResultMapper,
 			returningIds,
 			generatedIds,
 		} = this;
-		const params = fillPlaceholders(query.params, placeholderValues);
+		const params = fillPlaceholders(rawParams, placeholderValues);
 
-		logger.logQuery(query.sql, params);
+		logger.logQuery(query, params);
 
 		if (!fields && !customResultMapper) {
-			const res = await this.queryWithCache(query.sql, params, async () => {
-				return await client.unsafe(query.sql, params);
+			const res = await this.queryWithCache(query, params, async () => {
+				return await client.unsafe(query, params);
 			});
 
 			const insertId = res.lastInsertRowid;
@@ -105,51 +117,75 @@ export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 
 			return res;
 		}
 
-		const rows = await this.queryWithCache(query.sql, params, async () => {
-			return await client.unsafe(query.sql, params).values();
+		const rows = await this.queryWithCache(query, params, async () => {
+			return await client.unsafe(query, params).values();
 		});
 
 		if (customResultMapper) {
 			return customResultMapper(rows);
 		}
 
-		return rows.map((row: unknown[]) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+		return this.useJitMappers
+			? (this.jitMapper =
+				this.jitMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
+					?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
+						fields!,
+						joinsNotNullableMap,
+					))(rows)
+			: rows.map((row: unknown[]) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
-		const params = fillPlaceholders(this.query.params, placeholderValues);
+		const params = fillPlaceholders(this.params, placeholderValues);
 
-		this.logger.logQuery(this.query.sql, params);
+		this.logger.logQuery(this.query, params);
 
 		const { client, query, customResultMapper } = this;
-		const rows = await client.unsafe(query.sql, params);
+		const rows = await client.unsafe(query, params);
 
-		return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(rows);
+		return this.useJitMappers
+			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
+				?? makeJitRqbMapper<T['execute']>(this.rqbConfig!))(rows)
+			: (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(rows);
 	}
 
 	async *iterator(
 		placeholderValues: Record<string, unknown> = {},
 	): AsyncGenerator<T['execute'] extends any[] ? T['execute'][number] : T['execute']> {
-		const { fields, query, joinsNotNullableMap, client, customResultMapper } = this;
-		const params = fillPlaceholders(query.params, placeholderValues);
-		const hasRowsMapper = Boolean(fields || customResultMapper);
-		const rows = await this.queryWithCache(query.sql, params, async () => {
-			return await (hasRowsMapper && !this.isRqbV2Query
-				? client.unsafe(query.sql, params).values()
-				: client.unsafe(query.sql, params));
+		const { fields, params: queryParams, query, joinsNotNullableMap, client, customResultMapper } = this;
+		const params = fillPlaceholders(queryParams, placeholderValues);
+		const rows = await this.queryWithCache(query, params, async () => {
+			return await client.unsafe(query, params).values();
 		});
+		const hasRowsMapper = Boolean(fields || customResultMapper);
 
 		for (const row of rows) {
 			if (row === undefined || (Array.isArray(row) && row.length === 0)) {
 				break;
 			}
 
-			if (hasRowsMapper) {
+			if (this.isRqbV2Query) {
+				if (this.useJitMappers) {
+					yield (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
+						?? makeJitRqbMapper<T['execute']>(this.rqbConfig!))([row]);
+				} else {
+					const mapped = (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])([row]);
+					if (this.rqbConfig!.isFirst) yield mapped;
+					else yield ((<any[]> mapped)[0]);
+				}
+			} else if (hasRowsMapper) {
 				if (customResultMapper) {
 					const mappedRow = (customResultMapper as (rows: unknown[][]) => T['execute'])([row as unknown[]]);
 					yield (Array.isArray(mappedRow) ? mappedRow[0] : mappedRow);
 				} else {
-					yield mapResultRow(fields!, row as unknown[], joinsNotNullableMap);
+					yield this.useJitMappers
+						? (this.jitMapper = this.jitMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number]
+							: T['execute'])[]>
+							?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
+								fields!,
+								joinsNotNullableMap,
+							))([row])[0] as T['execute']
+						: mapResultRow(fields!, row, joinsNotNullableMap);
 				}
 			} else {
 				yield row as T['execute'];
@@ -161,6 +197,7 @@ export class BunMySqlPreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 
 export interface BunMySqlSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMappers?: boolean;
 	mode: Mode;
 }
 
@@ -205,12 +242,14 @@ export class BunMySqlSession<
 		// Each driver gets them from response from database
 		return new BunMySqlPreparedQuery(
 			this.client,
-			query,
+			query.sql,
+			query.params,
 			this.logger,
 			this.cache,
 			queryMetadata,
 			cacheConfig,
 			fields,
+			this.options.useJitMappers,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -221,6 +260,7 @@ export class BunMySqlSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		config: RelationalQueryMapperConfig,
 		generatedIds?: Record<string, unknown>[],
 		returningIds?: SelectedFieldsOrdered,
 	): PreparedQueryKind<BunMySqlPreparedQueryHKT, T> {
@@ -228,16 +268,19 @@ export class BunMySqlSession<
 		// Each driver gets them from response from database
 		return new BunMySqlPreparedQuery(
 			this.client,
-			query,
+			query.sql,
+			query.params,
 			this.logger,
 			this.cache,
 			undefined,
 			undefined,
 			fields,
+			this.options.useJitMappers,
 			customResultMapper,
 			generatedIds,
 			returningIds,
 			true,
+			config,
 		) as any;
 	}
 

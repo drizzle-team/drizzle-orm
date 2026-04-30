@@ -36,11 +36,11 @@ export class MsSqlNumeric<T extends ColumnBaseConfig<'string numeric'>>
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;
 
-	override mapFromDriverValue(value: unknown): string {
+	override mapFromDriverValue = (value: unknown): string => {
 		if (typeof value === 'string') return value;
 
 		return String(value);
-	}
+	};
 
 	getSQLType(): string {
 		if (this.precision !== undefined && this.scale !== undefined) {
@@ -85,11 +85,11 @@ export class MsSqlNumericNumber<T extends ColumnBaseConfig<'number'>>
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;
 
-	override mapFromDriverValue(value: unknown): number {
+	override mapFromDriverValue = (value: unknown): number => {
 		if (typeof value === 'number') return value;
 
 		return Number(value);
-	}
+	};
 
 	override mapToDriverValue = String;
 

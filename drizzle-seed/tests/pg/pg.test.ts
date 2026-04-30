@@ -600,7 +600,7 @@ test('uuid with drizzle-validations/zod check', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/5470
 test('seed using db with casing', async () => {
 	const currSchema = { schemaCasingTest: schema.schemaCasingTest, casingTest: schema.casingTest };
-	const db = drizzle({ client, casing: 'snake_case' });
+	const db = drizzle({ client });
 	for (let i = 0; i < 2; i++) {
 		await seed(db, { schemaCasingTest: schema.schemaCasingTest });
 

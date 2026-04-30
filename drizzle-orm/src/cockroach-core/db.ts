@@ -628,7 +628,6 @@ export class CockroachDatabase<
 			builtQuery,
 			undefined,
 			undefined,
-			false,
 		);
 		return new CockroachRaw(
 			() => prepared.execute(undefined, this.authToken),

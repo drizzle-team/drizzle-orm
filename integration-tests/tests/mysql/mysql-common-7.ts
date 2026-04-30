@@ -676,7 +676,6 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				eq(posts.text, 'David post'),
 			)).toSQL();
 
-		console.log(query.sql);
 		expect(query.sql).to.include('USE INDEX (`posts_user_id_index_76`, `posts_text_index_76`)');
 	});
 

@@ -845,6 +845,11 @@ export abstract class SQLiteSelectQueryBuilderBase<
 		) as this['_']['selectedFields'];
 	}
 
+	/** @internal */
+	override withoutSelectionCastCodecs(): this {
+		return this;
+	}
+
 	$dynamic(): SQLiteSelectDynamic<this> {
 		return this;
 	}
@@ -917,7 +922,6 @@ export class SQLiteSelectBase<
 			this.dialect.sqlToQuery(this.getSQL()),
 			fieldsList,
 			'all',
-			true,
 			undefined,
 			{
 				type: 'select',

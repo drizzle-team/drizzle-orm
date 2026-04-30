@@ -30,12 +30,12 @@ export class MySqlBoolean<T extends ColumnBaseConfig<'boolean'>> extends MySqlCo
 		return 'boolean';
 	}
 
-	override mapFromDriverValue(value: number | boolean): boolean {
+	override mapFromDriverValue = (value: number | boolean): boolean => {
 		if (typeof value === 'boolean') {
 			return value;
 		}
 		return value === 1;
-	}
+	};
 }
 
 export function boolean(name?: string): MySqlBooleanBuilder {

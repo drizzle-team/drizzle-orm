@@ -7,7 +7,6 @@ import type {
 	SelectMode,
 	SelectResult,
 } from '~/query-builders/select.types.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
 import { type Assume, orderSelectedFields } from '~/utils.ts';
 import type { PgColumn } from '../columns/index.ts';
@@ -106,7 +105,7 @@ export class PgEffectSelectBase<
 > {
 	static override readonly [entityKind]: string = 'PgEffectSelectQueryBuilder';
 
-	declare protected session: PgEffectSession<TEffectHKT, any, any, any, any>;
+	declare protected session: PgEffectSession<TEffectHKT, any, any>;
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgEffectSelectPrepare<this, TEffectHKT> {
@@ -114,24 +113,24 @@ export class PgEffectSelectBase<
 		const { fields } = config;
 
 		const query = dialect.sqlToQuery(this.getSQL());
-		const fieldsList = orderSelectedFields<PgColumn>(fields);
-		const preparedQUery = session.prepareQuery<
-			PreparedQueryConfig & { execute: TResult }
-		>(
-			query,
-			fieldsList,
-			name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-			true,
+		const fieldsList = orderSelectedFields<PgColumn>(
+			fields,
 			undefined,
-			{
-				type: 'select',
-				tables: [...usedTables],
-			},
+			this.dialect.codecs,
+		);
+
+		const mapper = this.dialect.mapperGenerators.rows(fieldsList, joinsNotNullableMap);
+
+		const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
+			query,
+			'arrays',
+			name ?? generateName,
+			mapper,
+			{ type: 'select', tables: [...usedTables] },
 			cacheConfig,
 		);
-		preparedQUery.joinsNotNullableMap = joinsNotNullableMap;
 
-		return preparedQUery;
+		return preparedQuery;
 	}
 
 	/**
