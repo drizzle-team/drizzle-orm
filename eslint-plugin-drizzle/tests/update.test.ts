@@ -27,6 +27,17 @@ ruleTester.run('enforce update with where (default options)', myRule, {
       .update()
       .set()
       .where()`,
+		// #5612: .from() between .set() and .where() should not trigger
+		`await tx
+      .update(table)
+      .set({ val: 1 })
+      .from(sql\`(VALUES ...) AS v(id)\`)
+      .where(eq(table.id, v.id))`,
+		// .where() before .set() should also be valid
+		`db
+      .update(table)
+      .where(eq(table.id, 1))
+      .set({ val: 2 })`,
 	],
 	invalid: [
 		{
