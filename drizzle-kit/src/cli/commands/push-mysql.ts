@@ -346,16 +346,13 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 			if (isPkFound || isUniqueFound) continue;
 
-			let composite = columnsTo.length > 1 ? 'composite ' : '';
-			grouped.push({
-				hint: `You are trying to add reference from "${table}" ("${columns.join('", ')}") to "${tableTo}" ("${
-					columnsTo.join(
-						'", ',
-					)
-				}"). The referenced columns are not guaranteed to be unique together. A foreign key must point to a PRIMARY KEY or a set of columns with a UNIQUE constraint. You should add a ${composite}unique constraint to the referenced columns`,
+			throw new UnsupportedSchemaChangeError({
+				code: 'fk_target_not_unique',
+				table: statement.fk.table,
+				columns: statement.fk.columns,
+				table_to: statement.fk.tableTo,
+				columns_to: statement.fk.columnsTo,
 			});
-
-			continue;
 		}
 	}
 
