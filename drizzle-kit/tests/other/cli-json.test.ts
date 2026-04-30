@@ -3805,7 +3805,12 @@ describe('push mysql confirm_data_loss[add_not_null] add_column in json mode', (
 		expect(parsed).toStrictEqual({
 			status: 'missing_hints',
 			unresolved: [
-				{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'], reason: 'nulls_present' },
+				{
+					type: 'confirm_data_loss',
+					kind: 'add_not_null',
+					entity: ['public', 'users', 'email'],
+					reason: 'nulls_present',
+				},
 			],
 		});
 	});
@@ -3948,7 +3953,12 @@ describe('push mysql confirm_data_loss[add_not_null] alter_column in json mode',
 		expect(parsed).toStrictEqual({
 			status: 'missing_hints',
 			unresolved: [
-				{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'], reason: 'nulls_present' },
+				{
+					type: 'confirm_data_loss',
+					kind: 'add_not_null',
+					entity: ['public', 'users', 'email'],
+					reason: 'nulls_present',
+				},
 			],
 		});
 	});
@@ -4056,7 +4066,14 @@ describe('push mysql confirm_data_loss[column] type_change in json mode', () => 
 				statements: [{
 					type: 'alter_column',
 					diff: { type: { from: 'varchar(100)', to: 'varchar(50)' } },
-					column: { table: 'users', name: 'name', type: 'varchar(50)', notNull: false, default: null, generated: false },
+					column: {
+						table: 'users',
+						name: 'name',
+						type: 'varchar(50)',
+						notNull: false,
+						default: null,
+						generated: false,
+					},
 					isPK: false,
 					wasPK: false,
 					origin: { table: 'users', column: 'name' },
@@ -4134,7 +4151,14 @@ describe('push mysql confirm_data_loss[column] type_change in json mode', () => 
 				statements: [{
 					type: 'alter_column',
 					diff: { type: { from: 'varchar(100)', to: 'varchar(50)' } },
-					column: { table: 'users', name: 'name', type: 'varchar(50)', notNull: false, default: null, generated: false },
+					column: {
+						table: 'users',
+						name: 'name',
+						type: 'varchar(50)',
+						notNull: false,
+						default: null,
+						generated: false,
+					},
 					isPK: false,
 					wasPK: false,
 					origin: { table: 'users', column: 'name' },
@@ -4253,7 +4277,12 @@ describe('push mysql confirm_data_loss[add_unique] in json mode', () => {
 		expect(parsed).toStrictEqual({
 			status: 'missing_hints',
 			unresolved: [
-				{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['public', 'users', 'email'], reason: 'duplicates_present' },
+				{
+					type: 'confirm_data_loss',
+					kind: 'add_unique',
+					entity: ['public', 'users', 'email'],
+					reason: 'duplicates_present',
+				},
 			],
 		});
 	});
@@ -4369,7 +4398,10 @@ test('push mysql throws drop_pk_dependency error in json mode', async () => {
 
 	vi.doMock('../../src/dialects/mysql/ddl', () => ({
 		interimToDDL: vi.fn()
-			.mockReturnValueOnce({ ddl: { fks: { list: () => [] }, indexes: { list: () => [] }, pks: { one: () => null } }, errors: [] })
+			.mockReturnValueOnce({
+				ddl: { fks: { list: () => [] }, indexes: { list: () => [] }, pks: { one: () => null } },
+				errors: [],
+			})
 			.mockReturnValueOnce({ ddl: ddl2, errors: [] }),
 	}));
 
@@ -4441,13 +4473,18 @@ test('push mysql throws fk_target_not_unique error in json mode', async () => {
 
 	vi.doMock('../../src/dialects/mysql/ddl', () => ({
 		interimToDDL: vi.fn()
-			.mockReturnValueOnce({ ddl: { fks: { list: () => [] }, indexes: { list: () => [] }, pks: { one: () => null } }, errors: [] })
+			.mockReturnValueOnce({
+				ddl: { fks: { list: () => [] }, indexes: { list: () => [] }, pks: { one: () => null } },
+				errors: [],
+			})
 			.mockReturnValueOnce({ ddl: ddl2, errors: [] }),
 	}));
 
 	vi.doMock('../../src/dialects/mysql/diff', () => ({
 		ddlDiff: vi.fn(async () => ({
-			sqlStatements: ['ALTER TABLE `orders` ADD CONSTRAINT `orders_user_email_users_email_fk` FOREIGN KEY (`user_email`) REFERENCES `users` (`email`);'],
+			sqlStatements: [
+				'ALTER TABLE `orders` ADD CONSTRAINT `orders_user_email_users_email_fk` FOREIGN KEY (`user_email`) REFERENCES `users` (`email`);',
+			],
 			statements: [{
 				type: 'create_fk',
 				cause: 'create',
