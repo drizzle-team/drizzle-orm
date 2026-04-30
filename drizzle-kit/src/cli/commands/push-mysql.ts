@@ -285,17 +285,30 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			}
 
 			if (statement.diff.type) {
-				const hint = `You're about to change ${
-					chalk.underline(
-						columnName,
-					)
-				} column type in ${tableName} from ${
-					chalk.underline(
-						statement.diff.type.from,
-					)
-				} to ${chalk.underline(statement.diff.type.to)}`;
+				const entity: [string, string, string] = ['public', statement.column.table, statement.column.name];
+				if (!hints.matchConfirm('column', entity)) {
+					if (json) {
+						hints.pushMissingHint({
+							type: 'confirm_data_loss',
+							kind: 'column',
+							entity,
+							reason: 'type_change',
+							reason_details: { from: statement.diff.type.from, to: statement.diff.type.to },
+						});
+					} else {
+						const hint = `You're about to change ${
+							chalk.underline(
+								columnName,
+							)
+						} column type in ${tableName} from ${
+							chalk.underline(
+								statement.diff.type.from,
+							)
+						} to ${chalk.underline(statement.diff.type.to)}`;
 
-				grouped.push({ hint });
+						grouped.push({ hint });
+					}
+				}
 			}
 
 			continue;
