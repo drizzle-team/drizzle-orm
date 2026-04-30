@@ -82,7 +82,7 @@ function construct<
 		V1.ExtractTablesWithRelations<TSchema>
 	>(client, dialect, relations, schema as V1.RelationalSchemaConfig<any>, {
 		logger,
-		useJitMappers: jitCompatCheck(config.useJitMappers),
+		useJitMappers: jitCompatCheck(config.jit),
 	});
 	const db = new SQLiteBunDatabase(
 		'sync',

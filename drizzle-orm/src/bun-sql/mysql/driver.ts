@@ -71,7 +71,7 @@ function construct<
 		logger,
 		mode,
 		cache: config.cache,
-		useJitMappers: jitCompatCheck(config.useJitMappers),
+		useJitMappers: jitCompatCheck(config.jit),
 	});
 	const db = new BunMySqlDatabase(dialect, session, relations, schema as any, mode) as BunMySqlDatabase<
 		TSchema,

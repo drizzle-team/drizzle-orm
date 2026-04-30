@@ -52,7 +52,7 @@ function construct<
 	const session = new BunSQLiteSession(client, dialect, relations, schema, {
 		logger,
 		cache: config.cache,
-		useJitMappers: jitCompatCheck(config.useJitMappers),
+		useJitMappers: jitCompatCheck(config.jit),
 	});
 	const db = new BunSQLiteDatabase('async', dialect, session, relations, schema as any) as BunSQLiteDatabase<
 		TSchema,

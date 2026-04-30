@@ -105,7 +105,7 @@ function construct<
 	const driver = new MySql2Driver(clientForInstance as MySql2Client, dialect, {
 		logger,
 		cache: config.cache,
-		useJitMappers: jitCompatCheck(config.useJitMappers),
+		useJitMappers: jitCompatCheck(config.jit),
 	});
 	const session = driver.createSession(relations, schema, mode);
 	const db = new MySql2Database(

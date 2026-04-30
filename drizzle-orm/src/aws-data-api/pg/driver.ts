@@ -97,7 +97,7 @@ function construct<TRelations extends AnyRelations = EmptyRelations>(
 	$client: AwsDataApiClient;
 } {
 	const dialect = new AwsPgDialect({
-		useJitMappers: jitCompatCheck(config.useJitMappers),
+		useJitMappers: jitCompatCheck(config.jit),
 		codecs: config.codecs ?? awsDataApiPgCodecs,
 	});
 	let logger;

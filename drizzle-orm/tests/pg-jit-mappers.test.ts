@@ -18,7 +18,7 @@ function createDB<S extends Record<string, unknown>, TConfig extends AnyRelation
 ): PgliteDatabase<ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>> {
 	return drizzle('memory://', {
 		relations: defineRelations(schema, cb),
-		useJitMappers: true,
+		jit: true,
 	});
 }
 

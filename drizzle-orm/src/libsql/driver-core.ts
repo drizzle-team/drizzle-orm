@@ -64,7 +64,7 @@ export function construct<
 	const session = new LibSQLSession(client, dialect, relations, schema, {
 		logger,
 		cache: config.cache,
-		useJitMappers: jitCompatCheck(config.useJitMappers),
+		useJitMappers: jitCompatCheck(config.jit),
 	}, undefined);
 	const db = new LibSQLDatabase(
 		'async',

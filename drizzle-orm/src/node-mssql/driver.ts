@@ -80,7 +80,7 @@ function construct<
 
 	const driver = new NodeMsSqlDriver(client as NodeMsSqlClient, dialect, {
 		logger,
-		useJitMappers: jitCompatCheck(config.useJitMappers),
+		useJitMappers: jitCompatCheck(config.jit),
 	});
 	const session = driver.createSession(schema);
 	const db = new MsSqlDatabase(dialect, session, schema) as NodeMsSqlDatabase<TSchema>;
