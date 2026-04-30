@@ -300,7 +300,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 
 			const hint = `You're about to drop ${
 				chalk.underline(id)
-			} primary key, this statements may fail and your table may loose primary key`;
+			} primary key, this statements may fail and your table may lose primary key`;
 
 			if (json) {
 				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'primary_key', entity, reason: 'non_empty' });
