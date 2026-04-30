@@ -839,6 +839,11 @@ export abstract class MsSqlSelectQueryBuilderBase<
 		) as this['_']['selectedFields'];
 	}
 
+	/** @internal */
+	override withoutSelectionCastCodecs(): this {
+		return this;
+	}
+
 	$dynamic(): MsSqlSelectDynamic<this> {
 		return this as any;
 	}

@@ -1,3 +1,4 @@
+import type { Casing } from '~/casing.ts';
 import type { BuildColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -7,7 +8,7 @@ import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
 import type { MySqlColumn } from './columns/index.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
-import { mysqlTable } from './table.ts';
+import { mysqlTableWithSchema } from './table.ts';
 import { MySqlViewBase } from './view-base.ts';
 import { MySqlViewConfig } from './view-common.ts';
 
@@ -97,9 +98,14 @@ export class ManualViewBuilder<
 		name: TName,
 		columns: TColumns,
 		schema: string | undefined,
+		casing: Casing | undefined,
 	) {
 		super(name, schema);
-		this.columns = getTableColumns(mysqlTable(name, columns)) as BuildColumns<TName, TColumns, 'mysql'>;
+		this.columns = getTableColumns(mysqlTableWithSchema(name, columns, undefined, schema, casing)) as BuildColumns<
+			TName,
+			TColumns,
+			'mysql'
+		>;
 	}
 
 	existing(): MySqlViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'mysql'>> {
@@ -179,21 +185,25 @@ export function mysqlViewWithSchema(
 	name: string,
 	selection: Record<string, ColumnBuilderBase> | undefined,
 	schema: string | undefined,
+	casing: Casing | undefined,
 ): ViewBuilder | ManualViewBuilder {
 	if (selection) {
-		return new ManualViewBuilder(name, selection, schema);
+		return new ManualViewBuilder(name, selection, schema, casing);
 	}
 	return new ViewBuilder(name, schema);
 }
 
-export function mysqlView<TName extends string>(name: TName): ViewBuilder<TName>;
-export function mysqlView<TName extends string, TColumns extends Record<string, ColumnBuilderBase>>(
-	name: TName,
-	columns: TColumns,
-): ManualViewBuilder<TName, TColumns>;
-export function mysqlView(
-	name: string,
-	selection?: Record<string, ColumnBuilderBase>,
-): ViewBuilder | ManualViewBuilder {
-	return mysqlViewWithSchema(name, selection, undefined);
+export interface MySqlViewFn {
+	<TName extends string>(name: TName): ViewBuilder<TName>;
+	<TName extends string, TColumns extends Record<string, ColumnBuilderBase>>(
+		name: TName,
+		columns: TColumns,
+	): ManualViewBuilder<TName, TColumns>;
 }
+
+/** @internal */
+export function mysqlViewWithCasing(casing: Casing | undefined): MySqlViewFn {
+	return ((name, columns) => mysqlViewWithSchema(name, columns, undefined, casing)) as MySqlViewFn;
+}
+
+export const mysqlView = mysqlViewWithCasing(undefined);

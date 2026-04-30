@@ -6,7 +6,7 @@ import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
 import { LibSQLSession } from './session.ts';
 
 export class LibSQLDatabase<
@@ -39,7 +39,7 @@ export function construct<
 ): LibSQLDatabase<TSchema, TRelations> & {
 	$client: Client;
 } {
-	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
+	const dialect = new SQLiteAsyncDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -61,7 +61,11 @@ export function construct<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const session = new LibSQLSession(client, dialect, relations, schema, { logger, cache: config.cache }, undefined);
+	const session = new LibSQLSession(client, dialect, relations, schema, {
+		logger,
+		cache: config.cache,
+		useJitMappers: jitCompatCheck(config.jit),
+	}, undefined);
 	const db = new LibSQLDatabase(
 		'async',
 		dialect,

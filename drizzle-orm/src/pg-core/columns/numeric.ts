@@ -31,6 +31,9 @@ export class PgNumericBuilder extends PgColumnBuilder<
 export class PgNumeric extends PgColumn<'string numeric'> {
 	static override readonly [entityKind]: string = 'PgNumeric';
 
+	/** @internal */
+	override readonly codec = 'numeric';
+
 	readonly precision: number | undefined;
 	readonly scale: number | undefined;
 
@@ -38,12 +41,6 @@ export class PgNumeric extends PgColumn<'string numeric'> {
 		super(table, config);
 		this.precision = config.precision;
 		this.scale = config.scale;
-	}
-
-	override mapFromDriverValue(value: unknown): string {
-		if (typeof value === 'string') return value;
-
-		return String(value);
 	}
 
 	getSQLType(): string {
@@ -88,6 +85,9 @@ export class PgNumericNumberBuilder extends PgColumnBuilder<
 export class PgNumericNumber extends PgColumn<'number'> {
 	static override readonly [entityKind]: string = 'PgNumericNumber';
 
+	/** @internal */
+	override readonly codec = 'numeric:number';
+
 	readonly precision: number | undefined;
 	readonly scale: number | undefined;
 
@@ -97,15 +97,7 @@ export class PgNumericNumber extends PgColumn<'number'> {
 		this.scale = config.scale;
 	}
 
-	override mapFromDriverValue(value: unknown): number {
-		if (typeof value === 'number') return value;
-
-		return Number(value);
-	}
-
-	override mapToDriverValue(value: number): string {
-		return String(value);
-	}
+	override mapToDriverValue = String;
 
 	getSQLType(): string {
 		if (this.precision !== undefined && this.scale !== undefined) {
@@ -149,6 +141,9 @@ export class PgNumericBigIntBuilder extends PgColumnBuilder<
 export class PgNumericBigInt extends PgColumn<'bigint int64'> {
 	static override readonly [entityKind]: string = 'PgNumericBigInt';
 
+	/** @internal */
+	override readonly codec = 'numeric:bigint';
+
 	readonly precision: number | undefined;
 	readonly scale: number | undefined;
 
@@ -158,13 +153,7 @@ export class PgNumericBigInt extends PgColumn<'bigint int64'> {
 		this.scale = config.scale;
 	}
 
-	override mapFromDriverValue(value: string | number): bigint {
-		return BigInt(value);
-	}
-
-	override mapToDriverValue(value: bigint): string {
-		return String(value);
-	}
+	override mapToDriverValue = String;
 
 	getSQLType(): string {
 		if (this.precision !== undefined && this.scale !== undefined) {

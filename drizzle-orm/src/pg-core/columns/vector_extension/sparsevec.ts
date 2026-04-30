@@ -33,6 +33,9 @@ export class PgSparseVector
 {
 	static override readonly [entityKind]: string = 'PgSparseVector';
 
+	/** @internal */
+	override readonly codec = 'sparsevec';
+
 	readonly vectorDimensions = this.config.vectorDimensions;
 
 	getSQLType(): string {

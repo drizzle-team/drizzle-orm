@@ -29,7 +29,7 @@ import {
 	PgTable as PgTableOld,
 	PgView as PgViewOld,
 } from 'orm044/pg-core';
-import { CasingType, configMigrations } from 'src/cli/validations/common';
+import { configMigrations } from 'src/cli/validations/common';
 import {
 	createDDL,
 	fromEntities,
@@ -119,7 +119,6 @@ class MockError extends Error {
 
 export const drizzleToDDL = (
 	schema: PostgresSchema,
-	casing?: CasingType | undefined,
 	filtersConfig: EntitiesFilterConfig = {
 		entities: undefined,
 		extensions: undefined,
@@ -145,7 +144,7 @@ export const drizzleToDDL = (
 		schema: res,
 		errors,
 		warnings,
-	} = fromDrizzleSchema(grouped, casing, filter);
+	} = fromDrizzleSchema(grouped, filter);
 
 	if (errors.length > 0) {
 		throw new Error();
@@ -159,14 +158,13 @@ export const diff = async (
 	left: PostgresSchema | PostgresDDL,
 	right: PostgresSchema | PostgresDDL,
 	renamesArr: string[],
-	casing?: CasingType | undefined,
 ) => {
 	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
 		? { ddl: left as PostgresDDL, errors: [] }
-		: drizzleToDDL(left, casing);
+		: drizzleToDDL(left);
 	const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
 		? { ddl: right as PostgresDDL, errors: [] }
-		: drizzleToDDL(right, casing);
+		: drizzleToDDL(right);
 
 	if (err1.length > 0 || err2.length > 0) {
 		throw new MockError([...err1, ...err2]);
@@ -203,7 +201,6 @@ export const push = async (config: {
 	renames?: string[];
 	schemas?: string[];
 	tables?: string[];
-	casing?: CasingType;
 	log?: 'statements' | 'none';
 	entities?: EntitiesFilter;
 	ignoreSubsequent?: boolean;
@@ -216,7 +213,6 @@ export const push = async (config: {
 	const { db, to } = config;
 
 	const log = config.log ?? 'none';
-	const casing = config.casing;
 	const schemas = config.schemas ?? [];
 	const tables = config.tables ?? [];
 
@@ -231,7 +227,7 @@ export const push = async (config: {
 
 	const { ddl: ddl2, errors: err2, existing } = 'entities' in to && '_' in to
 		? { ddl: to as PostgresDDL, errors: [], existing: [] }
-		: drizzleToDDL(to, casing, filterConfig);
+		: drizzleToDDL(to, filterConfig);
 
 	const filter = prepareEntityFilter('postgresql', filterConfig, existing);
 	const { schema } = await introspect(
@@ -340,9 +336,8 @@ export const diffIntrospect = async (
 	testName: string,
 	schemas: string[] = ['public'],
 	entities?: EntitiesFilter,
-	casing?: CasingType,
 ) => {
-	const { ddl: initDDL } = drizzleToDDL(initSchema, casing);
+	const { ddl: initDDL } = drizzleToDDL(initSchema);
 	const { sqlStatements: init } = await ddlDiffDry(createDDL(), initDDL, 'default');
 	for (const st of init) await db.query(st);
 
@@ -361,7 +356,7 @@ export const diffIntrospect = async (
 
 	// schema
 	const filePath = `${tmpDir}/${testName}.ts`;
-	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'pg');
+	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
 	writeFileSync(filePath, file.file);
 	await tsc(file.file).catch((e) => {
 		throw new Error(`tsc error in file ${filePath}`, { cause: e });
@@ -389,7 +384,7 @@ export const diffIntrospect = async (
 		schema: schema2,
 		errors: e2,
 		warnings,
-	} = fromDrizzleSchema(response, casing, () => true);
+	} = fromDrizzleSchema(response, () => true);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(schema2);
 	// TODO: handle errors
 
@@ -523,7 +518,7 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	);
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
-	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'pg');
+	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
 	const path = `tests/postgres/tmp/temp-${hash(String(Math.random()))}.ts`;
 
 	if (existsSync(path)) rmSync(path);
@@ -531,7 +526,7 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	await tsc(file.file);
 
 	const response = await prepareFromSchemaFiles([path]);
-	const { schema: sch } = fromDrizzleSchema(response, 'camelCase', () => true);
+	const { schema: sch } = fromDrizzleSchema(response, () => true);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');

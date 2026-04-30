@@ -35,7 +35,6 @@ jobs:
     strategy:
       matrix:
         shard:
-          - gel
           - planetscale
           - singlestore-core
           - singlestore-proxy
@@ -160,10 +159,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build Prisma client
-        working-directory: drizzle-orm
-        run: pnpm prisma generate --schema src/prisma/schema.prisma
-
       - name: Build
         run: pnpm build
 
@@ -192,10 +187,6 @@ jobs:
         working-directory: integration-tests
         run: |
           case ${{ matrix.shard }} in
-
-            gel)
-              pnpm --stream vitest --reporter=verbose --silent=false run tests/gel
-            ;;
 
             planetscale)
               pnpm --stream vitest --reporter=verbose --silent=false run \
@@ -266,7 +257,6 @@ jobs:
 
             other)
               pnpm --stream vitest --reporter=verbose --silent=false run \
-                --exclude tests/gel \
                 --exclude tests/mysql/mysql-planetscale.test.ts \
                 --exclude tests/relational/mysql.planetscale-v1.test.ts \
                 --exclude tests/relational/mysql.planetscale.test.ts \
@@ -350,11 +340,6 @@ jobs:
               echo "changelog_path=$changelogPath"
             } >> $GITHUB_OUTPUT
           fi
-
-      - name: Build Prisma client
-        if: steps.checks.outputs.has_new_release == 'true'
-        working-directory: drizzle-orm
-        run: pnpm prisma generate --schema src/prisma/schema.prisma
 
       - name: Build
         if: steps.checks.outputs.has_new_release == 'true'
@@ -444,11 +429,6 @@ jobs:
               echo "has_new_release=true"
             } >> $GITHUB_OUTPUT
           fi
-
-      - name: Build Prisma client
-        if: steps.checks.outputs.has_new_release == 'true'
-        working-directory: drizzle-orm
-        run: pnpm prisma generate --schema src/prisma/schema.prisma
 
       - name: Build
         if: steps.checks.outputs.has_new_release == 'true'
@@ -550,11 +530,6 @@ jobs:
             echo "Already up to date: $version"
             echo "\`$version\` is already latest on NPM" >> $GITHUB_STEP_SUMMARY
           fi
-
-      - name: Build Prisma client
-        if: steps.checks.outputs.has_new_release == 'true'
-        working-directory: drizzle-orm
-        run: pnpm prisma generate --schema src/prisma/schema.prisma
 
       - name: Build
         if: steps.checks.outputs.has_new_release == 'true'

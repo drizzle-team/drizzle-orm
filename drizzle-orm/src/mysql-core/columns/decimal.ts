@@ -36,11 +36,11 @@ export class MySqlDecimal<T extends ColumnBaseConfig<'string numeric' | 'string 
 	readonly scale: number | undefined = this.config.scale;
 	readonly unsigned: boolean | undefined = this.config.unsigned;
 
-	override mapFromDriverValue(value: unknown): string {
+	override mapFromDriverValue = (value: unknown): string => {
 		if (typeof value === 'string') return value;
 
 		return String(value);
-	}
+	};
 
 	getSQLType(): string {
 		let type = '';
@@ -90,11 +90,11 @@ export class MySqlDecimalNumber<T extends ColumnBaseConfig<'number' | 'number un
 	readonly scale: number | undefined = this.config.scale;
 	readonly unsigned: boolean | undefined = this.config.unsigned;
 
-	override mapFromDriverValue(value: unknown): number {
+	override mapFromDriverValue = (value: unknown): number => {
 		if (typeof value === 'number') return value;
 
 		return Number(value);
-	}
+	};
 
 	override mapToDriverValue = String;
 

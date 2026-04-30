@@ -1,6 +1,5 @@
 import { getTableName, is, SQL } from 'drizzle-orm';
 import { Relations } from 'drizzle-orm/_relations';
-import type { AnyGelColumn, GelDialect, GelPolicy } from 'drizzle-orm/gel-core';
 import type {
 	AnyPgColumn,
 	AnyPgTable,
@@ -36,10 +35,8 @@ import {
 	PgView,
 	uniqueKeyName,
 } from 'drizzle-orm/pg-core';
-import type { CasingType } from 'src/cli/validations/common';
 import { loadModule } from 'src/utils/utils-node';
 import { assertUnreachable } from '../../utils';
-import { getColumnCasing } from '../drizzle';
 import type { EntityFilter } from '../pull-utils';
 import { getOrNull } from '../utils';
 import type {
@@ -74,7 +71,7 @@ import {
 	typeFor,
 } from './grammar';
 
-export const policyFrom = (policy: PgPolicy | GelPolicy, dialect: PgDialect | GelDialect) => {
+export const policyFrom = (policy: PgPolicy, dialect: PgDialect) => {
 	const mappedTo = !policy.to
 		? ['public']
 		: typeof policy.to === 'string'
@@ -112,7 +109,7 @@ export const policyFrom = (policy: PgPolicy | GelPolicy, dialect: PgDialect | Ge
 	};
 };
 
-export const unwrapColumn = (column: AnyPgColumn | AnyGelColumn) => {
+export const unwrapColumn = (column: AnyPgColumn) => {
 	// In the new architecture, columns have a dimensions property directly
 	const dimensions = (column as any).dimensions ?? 0;
 	const baseColumn = column;
@@ -157,10 +154,10 @@ type JsonObject = { [key: string]: JsonValue };
 type JsonArray = JsonValue[];
 
 export const defaultFromColumn = (
-	base: AnyPgColumn | AnyGelColumn,
+	base: AnyPgColumn,
 	def: unknown,
 	dimensions: number,
-	dialect: PgDialect | GelDialect,
+	dialect: PgDialect,
 ): Column['default'] => {
 	if (typeof def === 'undefined') return null;
 
@@ -227,14 +224,13 @@ export const fromDrizzleSchema = (
 		views: PgView[];
 		matViews: PgMaterializedView[];
 	},
-	casing: CasingType | undefined,
 	filter: EntityFilter,
 ): {
 	schema: InterimSchema;
 	errors: SchemaError[];
 	warnings: SchemaWarning[];
 } => {
-	const dialect = new PgDialect({ casing });
+	const dialect = new PgDialect();
 	const errors: SchemaError[] = [];
 	const warnings: SchemaWarning[] = [];
 
@@ -331,7 +327,7 @@ export const fromDrizzleSchema = (
 
 		res.columns.push(
 			...drizzleColumns.map<InterimColumn>((column) => {
-				const name = getColumnCasing(column, casing);
+				const { name } = column;
 
 				const isPk = column.primary
 					|| config.primaryKeys.find((pk) =>
@@ -408,7 +404,7 @@ export const fromDrizzleSchema = (
 
 		res.pks.push(
 			...drizzlePKs.map<PrimaryKey>((pk) => {
-				const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
+				const columnNames = pk.columns.map((c) => c.name);
 
 				const name = pk.name || defaultNameForPK(tableName);
 
@@ -425,7 +421,7 @@ export const fromDrizzleSchema = (
 
 		res.uniques.push(
 			...drizzleUniques.map<UniqueConstraint>((unq) => {
-				const columnNames = unq.columns.map((c) => getColumnCasing(c, casing));
+				const columnNames = unq.columns.map((c) => c.name);
 				const name = unq.isNameExplicit ? unq.name! : uniqueKeyName(table, columnNames);
 				return {
 					entityType: 'uniques',
@@ -447,8 +443,8 @@ export const fromDrizzleSchema = (
 
 				const tableTo = getTableName(reference.foreignTable);
 				const schemaTo = getTableConfig(reference.foreignTable).schema || 'public';
-				const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
-				const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
+				const columnsFrom = reference.columns.map((it) => it.name);
+				const columnsTo = reference.foreignColumns.map((it) => it.name);
 
 				const name = fk.isNameExplicit() ? fk.getName() : defaultNameForFK(tableName, columnsFrom, tableTo, columnsTo);
 
@@ -488,7 +484,7 @@ export const fromDrizzleSchema = (
 					&& column.type === 'PgVector'
 					&& !column.indexConfig.opClass
 				) {
-					const columnName = getColumnCasing(column, casing);
+					const columnName = column.name;
 					errors.push({
 						type: 'pgvector_index_noop',
 						table: tableName,
@@ -505,7 +501,7 @@ export const fromDrizzleSchema = (
 				const columns = value.config.columns;
 
 				let indexColumnNames = columns.map((it) => {
-					const name = getColumnCasing(it as IndexedColumn, casing);
+					const name = (it as IndexedColumn).name;
 					return name;
 				});
 
@@ -529,7 +525,7 @@ export const fromDrizzleSchema = (
 						else nullsFirst = it.indexConfig?.nulls ? it.indexConfig.nulls === 'first' : nullsFirst;
 
 						return {
-							value: getColumnCasing(it as IndexedColumn, casing),
+							value: (it as IndexedColumn).name,
 							isExpression: false,
 							asc: asc,
 							nullsFirst: nullsFirst,

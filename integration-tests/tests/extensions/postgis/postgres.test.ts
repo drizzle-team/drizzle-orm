@@ -7,7 +7,7 @@ import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vit
 const ENABLE_LOGGING = false;
 
 let client: Sql;
-let db: PostgresJsDatabase<never, typeof relations>;
+let db: PostgresJsDatabase<typeof relations>;
 
 const items = pgTable('items', {
 	id: bigserial('id', { mode: 'number' }).primaryKey(),

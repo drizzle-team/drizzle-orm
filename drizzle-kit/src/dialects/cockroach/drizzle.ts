@@ -28,10 +28,8 @@ import {
 	isCockroachSequence,
 	isCockroachView,
 } from 'drizzle-orm/cockroach-core';
-import type { CasingType } from 'src/cli/validations/common';
 import { loadModule } from 'src/utils/utils-node';
 import { assertUnreachable } from '../../utils';
-import { getColumnCasing } from '../drizzle';
 import type { EntityFilter } from '../pull-utils';
 import type {
 	CheckConstraint,
@@ -207,14 +205,13 @@ export const fromDrizzleSchema = (
 		views: CockroachView[];
 		matViews: CockroachMaterializedView[];
 	},
-	casing: CasingType | undefined,
 	filter: EntityFilter,
 ): {
 	schema: InterimSchema;
 	errors: SchemaError[];
 	warnings: SchemaWarning[];
 } => {
-	const dialect = new CockroachDialect({ casing });
+	const dialect = new CockroachDialect();
 	const errors: SchemaError[] = [];
 	const warnings: SchemaWarning[] = [];
 
@@ -303,7 +300,7 @@ export const fromDrizzleSchema = (
 
 		res.pks.push(
 			...drizzlePKs.map<PrimaryKey>((pk) => {
-				const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
+				const columnNames = pk.columns.map((c) => c.name);
 
 				const name = pk.name || defaultNameForPK(tableName);
 				return {
@@ -319,7 +316,7 @@ export const fromDrizzleSchema = (
 
 		res.columns.push(
 			...drizzleColumns.map<InterimColumn>((column) => {
-				const name = getColumnCasing(column, casing);
+				const { name } = column;
 				const notNull = column.notNull;
 
 				const generated = column.generated;
@@ -395,8 +392,8 @@ export const fromDrizzleSchema = (
 				const tableTo = getTableName(reference.foreignTable);
 
 				const schemaTo = getTableConfig(reference.foreignTable).schema || 'public';
-				const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
-				const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
+				const columnsFrom = reference.columns.map((it) => it.name);
+				const columnsTo = reference.foreignColumns.map((it) => it.name);
 
 				const name = fk.getName() || defaultNameForFK(tableName, columnsFrom, tableTo, columnsTo);
 
@@ -439,7 +436,7 @@ export const fromDrizzleSchema = (
 					const sql = dialect.sqlToQuery(c).sql;
 					return { value: sql, isExpression: true, asc: true };
 				}
-				return { value: getColumnCasing(c, casing), isExpression: false, asc: true };
+				return { value: c.name, isExpression: false, asc: true };
 			});
 
 			const name = unique.name
@@ -464,7 +461,7 @@ export const fromDrizzleSchema = (
 				const columns = value.config.columns;
 
 				let indexColumnNames = columns.map((it) => {
-					const name = getColumnCasing(it as IndexedColumn, casing);
+					const name = (it as IndexedColumn).name;
 					return name;
 				});
 
@@ -486,7 +483,7 @@ export const fromDrizzleSchema = (
 
 						const asc = it.indexConfig?.order ? it.indexConfig.order === 'asc' : true;
 						return {
-							value: getColumnCasing(it as IndexedColumn, casing),
+							value: (it as IndexedColumn).name,
 							isExpression: false,
 							asc: asc,
 						} satisfies Index['columns'][number];

@@ -985,6 +985,11 @@ export abstract class CockroachSelectQueryBuilderBase<
 		) as this['_']['selectedFields'];
 	}
 
+	/** @internal */
+	override withoutSelectionCastCodecs(): this {
+		return this;
+	}
+
 	$dynamic(): CockroachSelectDynamic<this> {
 		return this;
 	}
@@ -1054,7 +1059,6 @@ export class CockroachSelectBase<
 				query,
 				fieldsList,
 				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-				true,
 			);
 			preparedQuery.joinsNotNullableMap = joinsNotNullableMap;
 

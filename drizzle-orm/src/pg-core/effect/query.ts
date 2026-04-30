@@ -1,8 +1,6 @@
 import type * as Effect from 'effect/Effect';
 import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
-import { mapRelationalRow } from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { PgRelationalQuery, type PgRelationalQueryHKTBase } from '../query-builders/query.ts';
 import type { PreparedQueryConfig } from '../session.ts';
@@ -25,7 +23,7 @@ export class PgEffectRelationalQuery<TResult, TEffectHKT extends QueryEffectHKTB
 {
 	static override readonly [entityKind]: string = 'PgEffectRelationalQueryV2';
 
-	declare protected session: PgEffectSession<TEffectHKT, any, any, any, any>;
+	declare protected session: PgEffectSession<TEffectHKT, any, any>;
 
 	/** @internal */
 	_prepare(
@@ -34,17 +32,20 @@ export class PgEffectRelationalQuery<TResult, TEffectHKT extends QueryEffectHKTB
 	): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }, TEffectHKT> {
 		const { query, builtQuery } = this._toSQL();
 
-		return this.session.prepareRelationalQuery<PreparedQueryConfig & { execute: TResult }>(
+		const mapper = this.dialect.mapperGenerators.relationalRows({
+			isFirst: this.mode === 'first',
+			parseJson: this.parseJson,
+			parseJsonIfString: false,
+			rootJsonMappers: false,
+			selection: query.selection,
+			arrayModeRoot: true,
+		});
+
+		return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
 			builtQuery,
-			undefined,
-			name ?? (generateName ? preparedStatementName(builtQuery.sql, builtQuery.params) : name),
-			(rawRows, mapColumnValue) => {
-				const rows = rawRows.map((row) => mapRelationalRow(row, query.selection, mapColumnValue, this.parseJson));
-				if (this.mode === 'first') {
-					return rows[0] as TResult;
-				}
-				return rows as TResult;
-			},
+			'arrays',
+			name ?? generateName,
+			mapper,
 		);
 	}
 

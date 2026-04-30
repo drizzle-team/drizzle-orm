@@ -1,7 +1,6 @@
 import { entityKind } from '~/entity.ts';
 import type { CockroachColumn, ExtraConfigColumn as CockroachExtraConfigColumn } from './cockroach-core/index.ts';
 import type { Column, ColumnBaseConfig } from './column.ts';
-import type { GelColumn, GelExtraConfigColumn } from './gel-core/index.ts';
 import type { MsSqlColumn } from './mssql-core/index.ts';
 import type { MySqlColumn } from './mysql-core/index.ts';
 import type { ExtraConfigColumn, PgColumn, PgSequenceOptions } from './pg-core/index.ts';
@@ -118,7 +117,7 @@ export function extractExtendedColumnType<TColumn extends Column>(
 	return { type, constraint } as any;
 }
 
-export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'mssql' | 'common' | 'gel' | 'cockroach';
+export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'mssql' | 'common' | 'cockroach';
 
 // TODO update description
 // 'virtual' | 'stored'  for postgres
@@ -385,9 +384,9 @@ export abstract class ColumnBuilder<
 	}>;
 
 	/** @internal Sets the name of the column to the key within the table definition if a name was not given. */
-	setName(name: string) {
+	setName(name: string, casingFn: (name: string) => string) {
 		if (this.config.name !== '') return;
-		this.config.name = name;
+		this.config.name = casingFn(name);
 	}
 }
 
@@ -402,7 +401,6 @@ export type BuildColumn<
 		: TDialect extends 'mssql' ? MsSqlColumn<TBuiltConfig, {}>
 		: TDialect extends 'sqlite' ? SQLiteColumn<TBuiltConfig, {}>
 		: TDialect extends 'singlestore' ? SingleStoreColumn<TBuiltConfig, {}>
-		: TDialect extends 'gel' ? GelColumn<TBuiltConfig, {}>
 		: TDialect extends 'cockroach' ? CockroachColumn<TBuiltConfig, {}>
 		: TDialect extends 'common' ? Column<TBuiltConfig, {}>
 		: never;
@@ -411,7 +409,6 @@ export type BuildIndexColumn<
 	TDialect extends Dialect,
 > = TDialect extends 'pg' ? ExtraConfigColumn
 	: TDialect extends 'cockroach' ? CockroachExtraConfigColumn
-	: TDialect extends 'gel' ? GelExtraConfigColumn
 	: never;
 
 // TODO
@@ -458,7 +455,6 @@ export type ChangeColumnTableName<
 		: TDialect extends 'mysql' ? MySqlColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'singlestore' ? SingleStoreColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TColumn['_'], TAlias>>
-		: TDialect extends 'gel' ? GelColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'mssql' ? MsSqlColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'cockroach' ? CockroachColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: never;

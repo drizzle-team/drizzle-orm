@@ -82,13 +82,13 @@ export class SQLiteTextJson<T extends ColumnBaseConfig<'object json'>>
 		return 'text';
 	}
 
-	override mapFromDriverValue(value: string): T['data'] {
+	override mapFromDriverValue = (value: string): T['data'] => {
 		return JSON.parse(value);
-	}
+	};
 
-	override mapToDriverValue(value: T['data']): string {
+	override mapToDriverValue = (value: T['data']): string => {
 		return JSON.stringify(value);
-	}
+	};
 }
 
 export type SQLiteTextConfig<

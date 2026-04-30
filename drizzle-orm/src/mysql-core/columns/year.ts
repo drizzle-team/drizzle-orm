@@ -29,11 +29,11 @@ export class MySqlYear<
 		return `year`;
 	}
 
-	override mapFromDriverValue(value: number | string): number {
+	override mapFromDriverValue = (value: number | string): number => {
 		if (typeof value === 'number') return value;
 
 		return Number(value);
-	}
+	};
 }
 
 export function year(name?: string): MySqlYearBuilder {

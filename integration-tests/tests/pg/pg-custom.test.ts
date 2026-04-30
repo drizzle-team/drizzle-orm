@@ -28,9 +28,6 @@ const customJsonb = <TData>(name: string) =>
 		dataType() {
 			return 'jsonb';
 		},
-		toDriver(value: TData): string {
-			return JSON.stringify(value);
-		},
 	})(name);
 
 const customTimestamp = customType<

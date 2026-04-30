@@ -27,9 +27,9 @@ export class MySqlJson<T extends ColumnBaseConfig<'object json'>> extends MySqlC
 		return 'json';
 	}
 
-	override mapToDriverValue(value: T['data']): string {
+	override mapToDriverValue = (value: T['data']): string => {
 		return JSON.stringify(value);
-	}
+	};
 }
 
 export function json(name?: string): MySqlJsonBuilder {

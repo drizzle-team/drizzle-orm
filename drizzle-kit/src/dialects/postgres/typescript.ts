@@ -60,14 +60,12 @@ const imports = [
 	'geometry',
 	'bit',
 	'pgEnum',
-	'gelEnum',
 	'customType',
 ] as const;
 export type Import = typeof imports[number];
 
 const pgImportsList = new Set([
 	'pgTable',
-	'gelTable',
 	...imports,
 ]);
 
@@ -241,9 +239,8 @@ export const ddlToTypeScript = (
 	ddl: PostgresDDL,
 	columnsForViews: ViewColumn[],
 	casing: Casing,
-	mode: 'pg' | 'gel',
 ) => {
-	const tableFn = `${mode}Table`;
+	const tableFn = `pgTable`;
 	for (const fk of ddl.fks.list()) {
 		relations.add(`${fk.table}-${fk.tableTo}`);
 	}

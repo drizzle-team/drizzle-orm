@@ -24,7 +24,6 @@ import { highlightSQL } from '../highlighter';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
-import type { CasingType } from '../validations/common';
 import type { MssqlCredentials } from '../validations/mssql';
 import { explain, mssqlSchemaError, ProgressView } from '../views';
 
@@ -34,7 +33,6 @@ export const handle = async (
 	credentials: MssqlCredentials,
 	filters: EntitiesFilterConfig,
 	force: boolean,
-	casing: CasingType | undefined,
 	explainFlag: boolean,
 	migrations: {
 		table: string;
@@ -50,7 +48,7 @@ export const handle = async (
 	const existing = extractMssqlExisting(res.schemas, res.views);
 	const filter = prepareEntityFilter('mssql', filters, existing);
 
-	const { schema: schemaTo, errors } = fromDrizzleSchema(res, casing, filter);
+	const { schema: schemaTo, errors } = fromDrizzleSchema(res, filter);
 
 	if (errors.length > 0) {
 		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));

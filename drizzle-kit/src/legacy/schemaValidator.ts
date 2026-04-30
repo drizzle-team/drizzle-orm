@@ -4,7 +4,7 @@ import { mysqlSchemaSquashed } from './mysql-v5/mysqlSchema';
 import { pgSchemaSquashed } from './postgres-v7/pgSchema';
 import { SQLiteSchemaSquashed } from './sqlite-v6/sqliteSchema';
 
-export const dialects = ['postgresql', 'mysql', 'sqlite', 'turso', 'singlestore', 'gel'] as const;
+export const dialects = ['postgresql', 'mysql', 'sqlite', 'turso', 'singlestore'] as const;
 export const dialect = enumType(dialects);
 
 export type Dialect = (typeof dialects)[number];

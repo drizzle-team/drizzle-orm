@@ -4,7 +4,6 @@ import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { JoinNullability } from '~/query-builders/select.types.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
@@ -114,26 +113,27 @@ export class PgEffectUpdateBase<
 > implements RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'> {
 	static override readonly [entityKind]: string = 'PgEffectUpdate';
 
-	declare protected session: PgEffectSession<TEffectHKT, any, any, any, any>;
+	declare protected session: PgEffectSession<TEffectHKT, any, any>;
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgEffectUpdatePrepare<this, TEffectHKT> {
-		const query = this.dialect.sqlToQuery(this.getSQL());
-		const preparedQuery = this.session.prepareQuery<
-			PreparedQueryConfig & { execute: TReturning[] }
-		>(
+		const { session, config, dialect, joinsNotNullableMap, cacheConfig } = this;
+		const { returning: fields } = config;
+
+		const query = dialect.sqlToQuery(this.getSQL());
+		const mapper = fields
+			? this.dialect.mapperGenerators.rows(fields, joinsNotNullableMap)
+			: undefined;
+
+		const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
 			query,
-			this.config.returning,
-			name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-			true,
-			undefined,
-			{
-				type: 'insert',
-				tables: extractUsedTable(this.config.table),
-			},
-			this.cacheConfig,
+			fields ? 'arrays' : 'raw',
+			name ?? generateName,
+			mapper,
+			{ type: 'update', tables: [...extractUsedTable(this.config.table)] },
+			cacheConfig,
 		);
-		preparedQuery.joinsNotNullableMap = this.joinsNotNullableMap;
+
 		return preparedQuery;
 	}
 

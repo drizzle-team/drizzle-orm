@@ -26,19 +26,15 @@ export class PgRealBuilder extends PgColumnBuilder<
 export class PgReal extends PgColumn<'number float'> {
 	static override readonly [entityKind]: string = 'PgReal';
 
+	/** @internal */
+	override readonly codec = 'float4';
+
 	constructor(table: PgTable<any>, config: PgRealBuilder['config']) {
 		super(table, config);
 	}
 
 	getSQLType(): string {
 		return 'real';
-	}
-
-	override mapFromDriverValue(value: string | number): number {
-		if (typeof value === 'string') {
-			return Number.parseFloat(value);
-		}
-		return value;
 	}
 }
 

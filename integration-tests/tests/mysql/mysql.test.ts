@@ -93,7 +93,7 @@ beforeAll(async () => {
 		await mysqlContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle({ client, relations, logger: ENABLE_LOGGING, mode: 'default', casing: 'snake_case' });
+	db = drizzle({ client, relations, logger: ENABLE_LOGGING, mode: 'default' });
 });
 
 afterAll(async () => {
@@ -12772,7 +12772,7 @@ test('[Find many] time column parsing', async () => {
 			}),
 		},
 	}));
-	const db = drizzle({ client, relations, casing: 'snake_case' });
+	const db = drizzle({ client, relations });
 	await db.execute(sql`DROP TABLE IF EXISTS \`notices\`;`);
 	await db.execute(sql`DROP TABLE IF EXISTS \`studios\`;`);
 	await db.execute(sql`

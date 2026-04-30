@@ -11,8 +11,7 @@ import {
 	SQLiteView,
 } from 'drizzle-orm/sqlite-core';
 import { loadModule } from 'src/utils/utils-node';
-import type { CasingType } from '../../cli/validations/common';
-import { getColumnCasing, sqlToStr } from '../drizzle';
+import { sqlToStr } from '../drizzle';
 import type {
 	CheckConstraint,
 	Column,
@@ -30,9 +29,8 @@ import { Int, nameForForeignKey, nameForPk, nameForUnique, transformOnUpdateDele
 export const fromDrizzleSchema = (
 	dTables: AnySQLiteTable[],
 	dViews: SQLiteView[],
-	casing: CasingType | undefined,
 ): InterimSchema => {
-	const dialect = new SQLiteSyncDialect({ casing });
+	const dialect = new SQLiteSyncDialect();
 	const tableConfigs = dTables.map((it) => ({ table: it, config: getTableConfig(it) }));
 	const tables: Table[] = tableConfigs.map((it) => {
 		return {
@@ -43,7 +41,7 @@ export const fromDrizzleSchema = (
 
 	const columns = tableConfigs.map((it) => {
 		return it.config.columns.map((column) => {
-			const name = getColumnCasing(column, casing);
+			const { name } = column;
 			const primaryKey: boolean = column.primary;
 			const generated = column.generated;
 
@@ -67,12 +65,12 @@ export const fromDrizzleSchema = (
 				}
 				: null;
 
-			const defalutValue = defaultFromColumn(column, casing);
+			const defalutValue = defaultFromColumn(column);
 
 			const hasUniqueIndex = Boolean(it.config.indexes.find((item) => {
 				const i = item.config;
 				const column = i.columns.length === 1 ? i.columns[0] : null;
-				return column && !is(column, SQL) && getColumnCasing(column, casing) === name;
+				return column && !is(column, SQL) && column.name === name;
 			}));
 
 			return {
@@ -96,7 +94,7 @@ export const fromDrizzleSchema = (
 
 	const pks = tableConfigs.map((it) => {
 		return it.config.primaryKeys.map((pk) => {
-			const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
+			const columnNames = pk.columns.map((c) => c.name);
 			return {
 				entityType: 'pks',
 				name: pk.name ?? nameForPk(getTableConfig(pk.table).name),
@@ -116,10 +114,10 @@ export const fromDrizzleSchema = (
 
 			const referenceFT = reference.foreignTable;
 			// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-			const tableTo = getTableName(referenceFT); // TODO: casing?
+			const tableTo = getTableName(referenceFT);
 
-			const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
-			const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
+			const columnsFrom = reference.columns.map((it) => it.name);
+			const columnsTo = reference.foreignColumns.map((it) => it.name);
 
 			const name = fk.isNameExplicit()
 				? fk.getName()
@@ -148,7 +146,7 @@ export const fromDrizzleSchema = (
 					const sql = dialect.sqlToQuery(it, 'indexes').sql;
 					return { value: sql, isExpression: true };
 				}
-				return { value: getColumnCasing(it, casing), isExpression: false };
+				return { value: it.name, isExpression: false };
 			});
 
 			let where: string | undefined;
@@ -171,7 +169,7 @@ export const fromDrizzleSchema = (
 
 	const uniques = tableConfigs.map((it) => {
 		return it.config.uniqueConstraints.map((unique) => {
-			const columnNames = unique.columns.map((c) => getColumnCasing(c, casing));
+			const columnNames = unique.columns.map((c) => c.name);
 			const name = unique.isNameExplicit ? unique.name : nameForUnique(it.config.name, columnNames);
 			return {
 				entityType: 'uniques',
@@ -267,11 +265,10 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 
 export const defaultFromColumn = (
 	column: AnySQLiteColumn,
-	casing: CasingType | undefined,
 ): Column['default'] => {
 	const def = column.default;
 	if (typeof def === 'undefined') return null; // '', 0, false, etc.
-	if (is(def, SQL)) return sqlToStr(def, casing);
+	if (is(def, SQL)) return sqlToStr(def);
 	if (is(column, SQLiteTimestamp)) return Int.defaultFromDrizzle(def, column.mode);
 	return typeFor(column.getSQLType()).defaultFromDrizzle(def);
 };

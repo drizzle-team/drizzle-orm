@@ -1,12 +1,12 @@
 import postgres from 'postgres';
-import { beforeEach, describe, it } from 'vitest';
+import { describe, it } from 'vitest';
 import { relations } from '~/_relations';
-import { alias, boolean, integer, pgSchema, pgTable, serial, text, union } from '~/pg-core';
+import { alias, boolean, camelCase, integer, serial, text, union } from '~/pg-core';
 import { drizzle } from '~/postgres-js';
 import { asc, eq, sql } from '~/sql';
 
-const testSchema = pgSchema('test');
-const users = pgTable('users', {
+const testSchema = camelCase.schema('test');
+const users = camelCase.table('users', {
 	id: serial().primaryKey(),
 	first_name: text().notNull(),
 	last_name: text().notNull(),
@@ -27,32 +27,12 @@ const developersRelations = relations(developers, ({ one }) => ({
 	}),
 }));
 const devs = alias(developers, 'devs');
-const schema = { users, usersRelations, developers, developersRelations };
 
-const db = drizzle({ client: postgres(''), schema, casing: 'camelCase' });
-
-const usersCache = {
-	'public.users.id': 'id',
-	'public.users.first_name': 'firstName',
-	'public.users.last_name': 'lastName',
-	'public.users.AGE': 'age',
-};
-const developersCache = {
-	'test.developers.user_id': 'userId',
-	'test.developers.uses_drizzle_orm': 'usesDrizzleOrm',
-};
-const cache = {
-	...usersCache,
-	...developersCache,
-};
+const db = drizzle({ client: postgres('') });
 
 const fullName = sql`${users.first_name} || ' ' || ${users.last_name}`.as('name');
 
 describe('postgres to camel case', () => {
-	beforeEach(() => {
-		db.dialect.casing.clearCache();
-	});
-
 	it('select', ({ expect }) => {
 		const query = db
 			.select({ name: fullName, age: users.age })
@@ -65,7 +45,6 @@ describe('postgres to camel case', () => {
 				'select "users"."firstName" || \' \' || "users"."lastName" as "name", "users"."AGE" from "users" left join "test"."developers" on "users"."id" = "test"."developers"."userId" order by "users"."firstName" asc',
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(cache);
 	});
 
 	it('select (with alias)', ({ expect }) => {
@@ -79,7 +58,6 @@ describe('postgres to camel case', () => {
 				'select "users"."firstName" from "users" left join "test"."developers" "devs" on "users"."id" = "devs"."userId"',
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(cache);
 	});
 
 	it('with CTE', ({ expect }) => {
@@ -90,7 +68,6 @@ describe('postgres to camel case', () => {
 			sql: 'with "cte" as (select "firstName" || \' \' || "lastName" as "name" from "users") select "name" from "cte"',
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('with CTE (with query builder)', ({ expect }) => {
@@ -101,7 +78,6 @@ describe('postgres to camel case', () => {
 			sql: 'with "cte" as (select "firstName" || \' \' || "lastName" as "name" from "users") select "name" from "cte"',
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('set operator', ({ expect }) => {
@@ -114,7 +90,6 @@ describe('postgres to camel case', () => {
 			sql: '(select "firstName" from "users") union (select "firstName" from "users")',
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('set operator (function)', ({ expect }) => {
@@ -127,63 +102,6 @@ describe('postgres to camel case', () => {
 			sql: '(select "firstName" from "users") union (select "firstName" from "users")',
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
-	});
-
-	it('query (find first)', ({ expect }) => {
-		const query = db._query.users.findFirst({
-			columns: {
-				id: true,
-				age: true,
-			},
-			extras: {
-				fullName,
-			},
-			where: eq(users.id, 1),
-			with: {
-				developers: {
-					columns: {
-						uses_drizzle_orm: true,
-					},
-				},
-			},
-		});
-
-		expect(query.toSQL()).toEqual({
-			sql:
-				'select "users"."id", "users"."AGE", "users"."firstName" || \' \' || "users"."lastName" as "name", "users_developers"."data" as "developers" from "users" "users" left join lateral (select json_build_array("users_developers"."usesDrizzleOrm") as "data" from (select * from "test"."developers" "users_developers" where "users_developers"."userId" = "users"."id" limit $1) "users_developers") "users_developers" on true where "users"."id" = $2 limit $3',
-			params: [1, 1, 1],
-			typings: ['none', 'none', 'none'],
-		});
-		expect(db.dialect.casing.cache).toEqual(cache);
-	});
-
-	it('query (find many)', ({ expect }) => {
-		const query = db._query.users.findMany({
-			columns: {
-				id: true,
-				age: true,
-			},
-			extras: {
-				fullName,
-			},
-			where: eq(users.id, 1),
-			with: {
-				developers: {
-					columns: {
-						uses_drizzle_orm: true,
-					},
-				},
-			},
-		});
-
-		expect(query.toSQL()).toEqual({
-			sql:
-				'select "users"."id", "users"."AGE", "users"."firstName" || \' \' || "users"."lastName" as "name", "users_developers"."data" as "developers" from "users" "users" left join lateral (select json_build_array("users_developers"."usesDrizzleOrm") as "data" from (select * from "test"."developers" "users_developers" where "users_developers"."userId" = "users"."id" limit $1) "users_developers") "users_developers" on true where "users"."id" = $2',
-			params: [1, 1],
-			typings: ['none', 'none'],
-		});
-		expect(db.dialect.casing.cache).toEqual(cache);
 	});
 
 	it('insert (on conflict do nothing)', ({ expect }) => {
@@ -198,7 +116,6 @@ describe('postgres to camel case', () => {
 				'insert into "users" ("id", "firstName", "lastName", "AGE") values (default, $1, $2, $3) on conflict ("firstName") do nothing returning "firstName", "AGE"',
 			params: ['John', 'Doe', 30],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('insert (on conflict do update)', ({ expect }) => {
@@ -213,7 +130,6 @@ describe('postgres to camel case', () => {
 				'insert into "users" ("id", "firstName", "lastName", "AGE") values (default, $1, $2, $3) on conflict ("firstName") do update set "AGE" = $4 returning "firstName", "AGE"',
 			params: ['John', 'Doe', 30, 31],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('update', ({ expect }) => {
@@ -228,7 +144,6 @@ describe('postgres to camel case', () => {
 				'update "users" set "firstName" = $1, "lastName" = $2, "AGE" = $3 where "users"."id" = $4 returning "firstName", "AGE"',
 			params: ['John', 'Doe', 30, 1],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('delete', ({ expect }) => {
@@ -241,7 +156,6 @@ describe('postgres to camel case', () => {
 			sql: 'delete from "users" where "users"."id" = $1 returning "firstName", "AGE"',
 			params: [1],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('select columns as', ({ expect }) => {

@@ -1,30 +1,12 @@
-import type { TablesRelationalConfig } from '~/_relations.ts';
 import type { BatchItem } from '~/batch.ts';
 import type { MigrationMeta } from '~/migrator.ts';
 import type { NeonHttpDatabase } from '~/neon-http/driver.ts';
-import type { NeonHttpSession } from '~/neon-http/session.ts';
 import type { PgAsyncDatabase } from '~/pg-core/async/db.ts';
-import type { PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
+import type { PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgQueryResultHKT } from '~/pg-core/session.ts';
-import type { AnyRelations } from '~/relations.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
 import { assertUnreachable } from '~/utils.ts';
-import type { XataHttpSession } from '~/xata-http/session.ts';
 import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResult } from './utils.ts';
-
-// postgres.js returns array of objects
-// node-postgres returns { rows: array of objects }
-async function execute<T extends any[]>(
-	session:
-		| PgAsyncSession
-		| NeonHttpSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>
-		| XataHttpSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig>,
-	sql: SQL,
-): Promise<T> {
-	const result: { rows: T } | T = await session.execute(sql);
-	if ('rows' in result) return result.rows;
-	return result;
-}
 
 /**
  * Map of upgrade functions. Each key is the version being upgraded FROM,
@@ -35,7 +17,7 @@ const upgradeFunctions: Record<
 	(
 		migrationsSchema: string,
 		migrationsTable: string,
-		db: PgAsyncDatabase<PgQueryResultHKT, any, any, any>,
+		db: PgAsyncDatabase<PgQueryResultHKT, any>,
 		localMigrations: MigrationMeta[],
 		mode: 'transaction' | 'batch' | 'execute',
 	) => Promise<void>
@@ -54,8 +36,7 @@ const upgradeFunctions: Record<
 
 		// 1. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
-		const dbRows = await execute<{ id: number; hash: string; created_at: string }[]>(
-			db.session,
+		const dbRows = await db.session.objects<{ id: number; hash: string; created_at: string }>(
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
 		);
 
@@ -130,7 +111,7 @@ const upgradeFunctions: Record<
 		// execute - xata http
 		// transaction -> other
 		if (mode === 'transaction') {
-			await db.transaction(async (tx: PgAsyncTransaction<any, any, any>) => {
+			await db.transaction(async (tx: PgAsyncTransaction<any, any>) => {
 				for (const sql of sqls) {
 					await tx.execute(sql);
 				}
@@ -160,7 +141,7 @@ const upgradeFunctions: Record<
 export async function upgradeIfNeeded(
 	migrationsSchema: string,
 	migrationsTable: string,
-	db: PgAsyncDatabase<PgQueryResultHKT, any, any, any>,
+	db: PgAsyncDatabase<PgQueryResultHKT, any>,
 	localMigrations: MigrationMeta[],
 	// batch - neon http
 	// execute - xata http
@@ -168,8 +149,7 @@ export async function upgradeIfNeeded(
 	mode: 'transaction' | 'batch' | 'execute' = 'transaction',
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
-	const result = await execute<{ '1': 1 }[]>(
-		db.session,
+	const result = await db.session.objects<{ '1': 1 }>(
 		sql`SELECT 1 FROM information_schema.tables
 			WHERE table_schema = ${migrationsSchema}
 			AND table_name = ${migrationsTable}`,
@@ -180,10 +160,9 @@ export async function upgradeIfNeeded(
 	}
 
 	// Table exists, check table shape
-	const rows = await execute<
-		{ schema: string; table_name: string; column_name: string; type: string }[]
+	const rows = await db.session.objects<
+		{ schema: string; table_name: string; column_name: string; type: string }
 	>(
-		db.session,
 		sql`SELECT
 			n.nspname AS "schema",
 			c.relname AS "table_name",

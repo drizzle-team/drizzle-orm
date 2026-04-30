@@ -15,14 +15,14 @@ export interface PgEffectCountBuilder<TEffectHKT extends QueryEffectHKTBase = Qu
 export class PgEffectCountBuilder<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase> extends PgCountBuilder {
 	static override readonly [entityKind]: string = 'PgEffectCountBuilder';
 
-	protected session: PgEffectSession<TEffectHKT, any, any, any, any>;
+	protected session: PgEffectSession<TEffectHKT, any, any>;
 
 	constructor(
 		{ source, dialect, filters, session }: {
 			source: PgTable | PgViewBase | SQL | SQLWrapper;
 			filters?: SQL<unknown>;
 			dialect: PgDialect;
-			session: PgEffectSession<TEffectHKT, any, any, any, any>;
+			session: PgEffectSession<TEffectHKT, any, any>;
 		},
 	) {
 		super({ source, dialect, filters });
@@ -32,13 +32,13 @@ export class PgEffectCountBuilder<TEffectHKT extends QueryEffectHKTBase = QueryE
 	execute(placeholderValues?: Record<string, unknown>) {
 		return this.session.prepareQuery<{
 			execute: number;
-			all: unknown;
-			values: unknown;
+			objects: unknown;
+			arrays: unknown;
+			raw: unknown;
 		}>(
 			this.build(),
-			undefined,
-			undefined,
-			true,
+			'arrays',
+			false,
 			(rows) => {
 				const v = rows[0]?.[0];
 				if (typeof v === 'number') return v;

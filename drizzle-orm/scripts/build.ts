@@ -52,8 +52,6 @@ async function updateAndCopyPackageJson() {
 async function main() {
 	const startTime = Date.now();
 
-	await $`pnpm p`.quiet();
-
 	rmSync('dist.new', { recursive: true, force: true });
 	mkdirSync('dist.new', { recursive: true });
 

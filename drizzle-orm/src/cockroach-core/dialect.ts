@@ -6,7 +6,6 @@ import {
 	mapColumnsInAliasedSQLToAlias,
 	mapColumnsInSQLToAlias,
 } from '~/alias.ts';
-import { CasingCache } from '~/casing.ts';
 import { CockroachColumn } from '~/cockroach-core/columns/index.ts';
 import type {
 	AnyCockroachSelectQueryBuilder,
@@ -27,25 +26,19 @@ import { type Name, Param, type QueryWithTypings, SQL, sql, type SQLChunk } from
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/cockroach.ts';
-import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { CockroachSession } from './session.ts';
 import { CockroachViewBase } from './view-base.ts';
 import type { CockroachMaterializedView } from './view.ts';
 
-export interface CockroachDialectConfig {
-	casing?: Casing;
-}
+// Will add codecs here, do not remove
+export interface CockroachDialectConfig {}
 
 export class CockroachDialect {
 	static readonly [entityKind]: string = 'CockroachDialect';
 
-	/** @internal */
-	readonly casing: CasingCache;
-
-	constructor(config?: CockroachDialectConfig) {
-		this.casing = new CasingCache(config?.casing);
-	}
+	constructor(_config?: CockroachDialectConfig) {}
 
 	async migrate(
 		migrations: MigrationMeta[],
@@ -204,7 +197,7 @@ export class CockroachDialect {
 					?? (is(onUpdateFnResult, SQL)
 						? onUpdateFnResult
 						: sql.param(onUpdateFnResult, col));
-				const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
+				const res = sql`${sql.identifier(col.name)} = ${value}`;
 
 				if (i < setSize - 1) {
 					return [res, sql.raw(', ')];
@@ -282,7 +275,7 @@ export class CockroachDialect {
 					const newSql = new SQL(
 						query.queryChunks.map((c) => {
 							if (is(c, CockroachColumn)) {
-								return sql.identifier(this.casing.getColumnCasing(c));
+								return sql.identifier(c.name);
 							}
 							return c;
 						}),
@@ -300,8 +293,8 @@ export class CockroachDialect {
 				if (isSingleTable) {
 					chunk.push(
 						field.isAlias
-							? sql`${sql.identifier(this.casing.getColumnCasing(getOriginalColumnFromAlias(field)))} as ${field}`
-							: sql.identifier(this.casing.getColumnCasing(field)),
+							? sql`${sql.identifier(getOriginalColumnFromAlias(field).name)} as ${field}`
+							: sql.identifier(field.name),
 					);
 				} else {
 					chunk.push(
@@ -615,7 +608,7 @@ export class CockroachDialect {
 			columns,
 		).filter(([_, col]) => !col.shouldDisableInsert());
 
-		const insertOrder = colEntries.map(([, column]) => sql.identifier(this.casing.getColumnCasing(column)));
+		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 
 		if (select) {
 			const select = valuesOrSelect as AnyCockroachSelectQueryBuilder | SQL;
@@ -698,7 +691,6 @@ export class CockroachDialect {
 
 	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
 		return sql.toQuery({
-			casing: this.casing,
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,

@@ -4,8 +4,8 @@ import { migrate as coreMigrate } from '~/pg-core/async/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { NeonDatabase } from './driver.ts';
 
-export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: NeonDatabase<TSchema, TRelations>,
+export async function migrate<TRelations extends AnyRelations>(
+	db: NeonDatabase<TRelations>,
 	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);

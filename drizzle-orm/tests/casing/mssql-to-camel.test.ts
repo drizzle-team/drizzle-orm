@@ -1,12 +1,12 @@
 import mssql from 'mssql';
-import { beforeEach, describe, it } from 'vitest';
+import { describe, it } from 'vitest';
 import { relations } from '~/_relations';
-import { alias, bit, int, mssqlSchema, mssqlTable, text, union } from '~/mssql-core';
+import { alias, bit, camelCase, int, text, union } from '~/mssql-core';
 import { drizzle } from '~/node-mssql';
 import { asc, eq, sql } from '~/sql';
 
-const testSchema = mssqlSchema('test');
-const users = mssqlTable('users', {
+const testSchema = camelCase.schema('test');
+const users = camelCase.table('users', {
 	// TODO: Investigate reasons for existence of next commented line
 	// id: int().primaryKey().identity(1, 1),
 	id: int().primaryKey().identity({
@@ -36,30 +36,11 @@ const developersRelations = relations(developers, ({ one }) => ({
 const devs = alias(developers, 'devs');
 const schema = { users, usersRelations, developers, developersRelations };
 
-const db = drizzle({ client: new mssql.ConnectionPool({ server: '' }), schema, casing: 'camelCase' });
-
-const usersCache = {
-	'public.users.id': 'id',
-	'public.users.first_name': 'firstName',
-	'public.users.last_name': 'lastName',
-	'public.users.AGE': 'age',
-};
-const developersCache = {
-	'test.developers.user_id': 'userId',
-	'test.developers.uses_drizzle_orm': 'usesDrizzleOrm',
-};
-const cache = {
-	...usersCache,
-	...developersCache,
-};
+const db = drizzle({ client: new mssql.ConnectionPool({ server: '' }), schema });
 
 const fullName = sql`${users.first_name} || ' ' || ${users.last_name}`.as('name');
 
 describe('mssql to camel case', () => {
-	beforeEach(() => {
-		db.dialect.casing.clearCache();
-	});
-
 	it('select', ({ expect }) => {
 		const query = db
 			.select({ name: fullName, age: users.age })
@@ -72,7 +53,6 @@ describe('mssql to camel case', () => {
 				"select [users].[firstName] || ' ' || [users].[lastName] as [name], [users].[AGE] from [users] left join [test].[developers] on [users].[id] = [test].[developers].[userId] order by [users].[firstName] asc",
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(cache);
 	});
 
 	it('select #2', ({ expect }) => {
@@ -88,7 +68,6 @@ describe('mssql to camel case', () => {
 				"select [users].[firstName] || ' ' || [users].[lastName] as [name], [users].[AGE] from [users] left join [test].[developers] on [users].[id] = [test].[developers].[userId] where [users].[id] = @par0 order by [users].[firstName] asc",
 			params: [15],
 		});
-		expect(db.dialect.casing.cache).toEqual(cache);
 	});
 
 	it('select (with alias)', ({ expect }) => {
@@ -102,7 +81,6 @@ describe('mssql to camel case', () => {
 				'select [users].[firstName] from [users] left join [test].[developers] [devs] on [users].[id] = [devs].[userId]',
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(cache);
 	});
 
 	it('with CTE', ({ expect }) => {
@@ -113,7 +91,6 @@ describe('mssql to camel case', () => {
 			sql: "with [cte] as (select [firstName] || ' ' || [lastName] as [name] from [users]) select [name] from [cte]",
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('with CTE (with query builder)', ({ expect }) => {
@@ -124,7 +101,6 @@ describe('mssql to camel case', () => {
 			sql: "with [cte] as (select [firstName] || ' ' || [lastName] as [name] from [users]) select [name] from [cte]",
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('set operator', ({ expect }) => {
@@ -137,7 +113,6 @@ describe('mssql to camel case', () => {
 			sql: '(select [firstName] from [users]) union (select [firstName] from [users])',
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('set operator (function)', ({ expect }) => {
@@ -150,7 +125,6 @@ describe('mssql to camel case', () => {
 			sql: '(select [firstName] from [users]) union (select [firstName] from [users])',
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('insert', ({ expect }) => {
@@ -162,7 +136,6 @@ describe('mssql to camel case', () => {
 			sql: 'insert into [users] ([firstName], [lastName], [AGE]) values (@par0, @par1, @par2)',
 			params: ['John', 'Doe', 30],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('update', ({ expect }) => {
@@ -175,7 +148,6 @@ describe('mssql to camel case', () => {
 			sql: 'update [users] set [firstName] = @par0, [lastName] = @par1, [AGE] = @par2 where [users].[id] = @par3',
 			params: ['John', 'Doe', 30, 1],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('delete', ({ expect }) => {
@@ -187,7 +159,6 @@ describe('mssql to camel case', () => {
 			sql: 'delete from [users] where [users].[id] = @par0',
 			params: [1],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('select columns as', ({ expect }) => {

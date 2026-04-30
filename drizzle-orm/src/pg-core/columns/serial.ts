@@ -27,6 +27,9 @@ export class PgSerialBuilder extends PgColumnBuilder<{
 export class PgSerial extends PgColumn<'number int32'> {
 	static override readonly [entityKind]: string = 'PgSerial';
 
+	/** @internal */
+	override readonly codec = 'serial';
+
 	getSQLType(): string {
 		return 'serial';
 	}

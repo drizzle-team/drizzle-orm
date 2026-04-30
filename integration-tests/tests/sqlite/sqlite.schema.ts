@@ -7,15 +7,14 @@ import {
 	numeric,
 	primaryKey,
 	real,
-	sqliteTable,
-	sqliteView,
+	snakeCase,
 	text,
 } from 'drizzle-orm/sqlite-core';
 
 import { eq, getTableColumns, ne, sql } from 'drizzle-orm';
 import { relations } from 'drizzle-orm/_relations';
 
-export const usersTable = sqliteTable('users', {
+export const usersTable = snakeCase.table('users', {
 	id: integer().primaryKey({ autoIncrement: true }),
 	name: text().notNull(),
 	verified: integer().notNull().default(0),
@@ -30,7 +29,7 @@ export const usersConfig = relations(usersTable, ({ one, many }) => ({
 	posts: many(postsTable),
 }));
 
-export const groupsTable = sqliteTable('groups', {
+export const groupsTable = snakeCase.table('groups', {
 	id: integer().primaryKey({ autoIncrement: true }),
 	name: text().notNull(),
 	description: text(),
@@ -39,7 +38,7 @@ export const groupsConfig = relations(groupsTable, ({ many }) => ({
 	usersToGroups: many(usersToGroupsTable),
 }));
 
-export const usersToGroupsTable = sqliteTable(
+export const usersToGroupsTable = snakeCase.table(
 	'users_to_groups',
 	{
 		id: integer().primaryKey({ autoIncrement: true }),
@@ -63,7 +62,7 @@ export const usersToGroupsConfig = relations(usersToGroupsTable, ({ one }) => ({
 	}),
 }));
 
-export const postsTable = sqliteTable('posts', {
+export const postsTable = snakeCase.table('posts', {
 	id: integer().primaryKey({ autoIncrement: true }),
 	content: text().notNull(),
 	ownerId: integer({ mode: 'number' }).references(
@@ -80,7 +79,7 @@ export const postsConfig = relations(postsTable, ({ one, many }) => ({
 	comments: many(commentsTable),
 }));
 
-export const usersView = sqliteView('users_view').as((qb) =>
+export const usersView = snakeCase.view('users_view').as((qb) =>
 	qb.select({
 		...getTableColumns(usersTable),
 		postContent: postsTable.content,
@@ -95,7 +94,7 @@ export const usersView = sqliteView('users_view').as((qb) =>
 		.from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.ownerId))
 );
 
-export const commentsTable = sqliteTable('comments', {
+export const commentsTable = snakeCase.table('comments', {
 	id: integer().primaryKey({ autoIncrement: true }),
 	content: text().notNull(),
 	creator: integer({ mode: 'number' }).references(
@@ -117,7 +116,7 @@ export const commentsConfig = relations(commentsTable, ({ one, many }) => ({
 	likes: many(commentLikesTable),
 }));
 
-export const commentLikesTable = sqliteTable('comment_likes', {
+export const commentLikesTable = snakeCase.table('comment_likes', {
 	id: integer().primaryKey({ autoIncrement: true }),
 	creator: integer({ mode: 'number' }).references(
 		() => usersTable.id,
@@ -139,7 +138,7 @@ export const commentLikesConfig = relations(commentLikesTable, ({ one }) => ({
 	}),
 }));
 
-export const allTypesTable = sqliteTable('all_types', {
+export const allTypesTable = snakeCase.table('all_types', {
 	int: integer({
 		mode: 'number',
 	}),
@@ -177,17 +176,17 @@ export const allTypesTable = sqliteTable('all_types', {
 	}),
 });
 
-export const students = sqliteTable('students', {
+export const students = snakeCase.table('students', {
 	studentId: integer('student_id').primaryKey().notNull(),
 	name: text().notNull(),
 });
 
-export const courseOfferings = sqliteTable('course_offerings', {
+export const courseOfferings = snakeCase.table('course_offerings', {
 	courseId: integer('course_id').notNull(),
 	semester: text().notNull(),
 });
 
-export const studentGrades = sqliteTable('student_grades', {
+export const studentGrades = snakeCase.table('student_grades', {
 	studentId: integer('student_id').notNull(),
 	courseId: integer('course_id').notNull(),
 	semester: text().notNull(),
@@ -244,7 +243,7 @@ const customInt = customType<{
 	dataType: () => 'integer',
 });
 
-export const customTypesTable = sqliteTable('custom_types', {
+export const customTypesTable = snakeCase.table('custom_types', {
 	id: integer('id'),
 	big: customBigInt(),
 	bytes: customBytes(),

@@ -33,14 +33,14 @@ declare module 'vitest' {
 	export interface TestContext {
 		docker: Docker;
 		pgContainer: Docker.Container;
-		pgDbV2: NodePgDatabase<never, typeof relations>;
+		pgDbV2: NodePgDatabase<typeof relations>;
 		pgClient: pg.Client;
 	}
 }
 
 let globalDocker: Docker;
 let pgContainer: Docker.Container;
-let db: NodePgDatabase<never, typeof relations>;
+let db: NodePgDatabase<typeof relations>;
 let client: pg.Client;
 
 async function createDockerDB(): Promise<string> {
@@ -99,7 +99,7 @@ beforeAll(async () => {
 		await pgContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle({ client, relations, logger: ENABLE_LOGGING, casing: 'snake_case' });
+	db = drizzle({ client, relations, logger: ENABLE_LOGGING });
 });
 
 afterAll(async () => {

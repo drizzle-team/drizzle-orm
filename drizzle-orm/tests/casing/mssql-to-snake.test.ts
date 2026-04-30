@@ -1,12 +1,12 @@
 import mssql from 'mssql';
-import { beforeEach, describe, it } from 'vitest';
+import { describe, it } from 'vitest';
 import { relations } from '~/_relations';
-import { alias, bit, int, mssqlSchema, mssqlTable, text, union } from '~/mssql-core';
+import { alias, bit, int, snakeCase, text, union } from '~/mssql-core';
 import { drizzle } from '~/node-mssql';
 import { asc, eq, sql } from '~/sql';
 
-const testSchema = mssqlSchema('test');
-const users = mssqlTable('users', {
+const testSchema = snakeCase.schema('test');
+const users = snakeCase.table('users', {
 	// TODO: Investigate reasons for existence of next commented line
 	// id: int().primaryKey().identity(1, 1),
 	id: int().primaryKey().identity({
@@ -36,30 +36,11 @@ const developersRelations = relations(developers, ({ one }) => ({
 const devs = alias(developers, 'devs');
 const schema = { users, usersRelations, developers, developersRelations };
 
-const db = drizzle({ client: new mssql.ConnectionPool({ server: '' }), schema, casing: 'snake_case' });
-
-const usersCache = {
-	'public.users.id': 'id',
-	'public.users.firstName': 'first_name',
-	'public.users.lastName': 'last_name',
-	'public.users.AGE': 'age',
-};
-const developersCache = {
-	'test.developers.userId': 'user_id',
-	'test.developers.usesDrizzleORM': 'uses_drizzle_orm',
-};
-const cache = {
-	...usersCache,
-	...developersCache,
-};
+const db = drizzle({ client: new mssql.ConnectionPool({ server: '' }), schema });
 
 const fullName = sql`${users.firstName} || ' ' || ${users.lastName}`.as('name');
 
 describe('mssql to snake case', () => {
-	beforeEach(() => {
-		db.dialect.casing.clearCache();
-	});
-
 	it('select', ({ expect }) => {
 		const query = db
 			.select({ name: fullName, age: users.age })
@@ -72,7 +53,6 @@ describe('mssql to snake case', () => {
 				"select [users].[first_name] || ' ' || [users].[last_name] as [name], [users].[AGE] from [users] left join [test].[developers] on [users].[id] = [test].[developers].[user_id] order by [users].[first_name] asc",
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(cache);
 	});
 
 	it('select (with alias)', ({ expect }) => {
@@ -86,7 +66,6 @@ describe('mssql to snake case', () => {
 				'select [users].[first_name] from [users] left join [test].[developers] [devs] on [users].[id] = [devs].[user_id]',
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(cache);
 	});
 
 	it('with CTE', ({ expect }) => {
@@ -97,7 +76,6 @@ describe('mssql to snake case', () => {
 			sql: "with [cte] as (select [first_name] || ' ' || [last_name] as [name] from [users]) select [name] from [cte]",
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('with CTE (with query builder)', ({ expect }) => {
@@ -108,7 +86,6 @@ describe('mssql to snake case', () => {
 			sql: "with [cte] as (select [first_name] || ' ' || [last_name] as [name] from [users]) select [name] from [cte]",
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('set operator', ({ expect }) => {
@@ -121,7 +98,6 @@ describe('mssql to snake case', () => {
 			sql: '(select [first_name] from [users]) union (select [first_name] from [users])',
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('set operator (function)', ({ expect }) => {
@@ -134,7 +110,6 @@ describe('mssql to snake case', () => {
 			sql: '(select [first_name] from [users]) union (select [first_name] from [users])',
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('insert', ({ expect }) => {
@@ -146,7 +121,6 @@ describe('mssql to snake case', () => {
 			sql: 'insert into [users] ([first_name], [last_name], [AGE]) values (@par0, @par1, @par2)',
 			params: ['John', 'Doe', 30],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('update', ({ expect }) => {
@@ -159,7 +133,6 @@ describe('mssql to snake case', () => {
 			sql: 'update [users] set [first_name] = @par0, [last_name] = @par1, [AGE] = @par2 where [users].[id] = @par3',
 			params: ['John', 'Doe', 30, 1],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('delete', ({ expect }) => {
@@ -171,7 +144,6 @@ describe('mssql to snake case', () => {
 			sql: 'delete from [users] where [users].[id] = @par0',
 			params: [1],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('select columns as', ({ expect }) => {

@@ -36,7 +36,7 @@ describe('Objects', (it) => {
 			isConfig({
 				casing: 'camelCase',
 			} as DrizzleConfig),
-		).toEqual(true);
+		).toEqual(false); // No more casings on DB
 
 		expect(
 			isConfig({
@@ -72,7 +72,7 @@ describe('Objects', (it) => {
 
 		expect(
 			isConfig({
-				casing: 'camelCase',
+				logger: true,
 				trash: true,
 			} as DrizzleConfig),
 		).toEqual(true);
