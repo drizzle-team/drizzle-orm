@@ -3327,3 +3327,555 @@ describe('push postgres confirm_data_loss[add_unique] in json mode', () => {
 		});
 	});
 });
+
+describe('push mysql confirm_data_loss[table] in json mode', () => {
+	test('emits missing_hints when unresolved', async () => {
+		vi.doMock('../../src/cli/commands/pull-mysql', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+
+		vi.doMock('../../src/dialects/drizzle', () => ({
+			extractMysqlExisting: vi.fn(() => ({})),
+		}));
+
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+
+		vi.doMock('../../src/dialects/mysql/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ tables: [], views: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' } })),
+		}));
+
+		vi.doMock('../../src/dialects/mysql/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/mysql/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['DROP TABLE `users`;'],
+				statements: [{ type: 'drop_table', table: 'users' }],
+				groupedStatements: [],
+			})),
+		}));
+
+		vi.doMock('../../src/cli/connections', () => ({
+			connectToMySQL: vi.fn(async () => ({
+				db: { query: vi.fn(async () => [1]) },
+				database: 'db',
+			})),
+		}));
+
+		const pushMysql = await import('../../src/cli/commands/push-mysql');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushMysql.handle(
+					['schema.ts'],
+					{} as never,
+					false,
+					false,
+					undefined,
+					{} as never,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{ type: 'confirm_data_loss', kind: 'table', entity: ['public', 'users'], reason: 'non_empty' },
+			],
+		});
+	});
+
+	test('applies matching hint and runs to ok', async () => {
+		vi.doMock('../../src/cli/commands/pull-mysql', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+
+		vi.doMock('../../src/dialects/drizzle', () => ({
+			extractMysqlExisting: vi.fn(() => ({})),
+		}));
+
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+
+		vi.doMock('../../src/dialects/mysql/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ tables: [], views: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' } })),
+		}));
+
+		vi.doMock('../../src/dialects/mysql/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/mysql/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['DROP TABLE `users`;'],
+				statements: [{ type: 'drop_table', table: 'users' }],
+				groupedStatements: [],
+			})),
+		}));
+
+		vi.doMock('../../src/cli/connections', () => ({
+			connectToMySQL: vi.fn(async () => ({
+				db: { query: vi.fn(async () => []) },
+				database: 'db',
+			})),
+		}));
+
+		const pushMysql = await import('../../src/cli/commands/push-mysql');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'table', entity: ['public', 'users'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushMysql.handle(
+					['schema.ts'],
+					{} as never,
+					false,
+					false,
+					undefined,
+					{} as never,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'ok',
+			dialect: 'mysql',
+			message: 'Changes applied',
+		});
+	});
+});
+
+describe('push mysql confirm_data_loss[column] non_empty in json mode', () => {
+	test('emits missing_hints when unresolved', async () => {
+		vi.doMock('../../src/cli/commands/pull-mysql', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+
+		vi.doMock('../../src/dialects/drizzle', () => ({
+			extractMysqlExisting: vi.fn(() => ({})),
+		}));
+
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+
+		vi.doMock('../../src/dialects/mysql/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ tables: [], views: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' } })),
+		}));
+
+		vi.doMock('../../src/dialects/mysql/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/mysql/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE `users` DROP COLUMN `legacy_id`;'],
+				statements: [{ type: 'drop_column', column: { table: 'users', name: 'legacy_id' } }],
+				groupedStatements: [],
+			})),
+		}));
+
+		vi.doMock('../../src/cli/connections', () => ({
+			connectToMySQL: vi.fn(async () => ({
+				db: { query: vi.fn(async () => [1]) },
+				database: 'db',
+			})),
+		}));
+
+		const pushMysql = await import('../../src/cli/commands/push-mysql');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushMysql.handle(
+					['schema.ts'],
+					{} as never,
+					false,
+					false,
+					undefined,
+					{} as never,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{ type: 'confirm_data_loss', kind: 'column', entity: ['public', 'users', 'legacy_id'], reason: 'non_empty' },
+			],
+		});
+	});
+
+	test('applies matching hint and runs to ok', async () => {
+		vi.doMock('../../src/cli/commands/pull-mysql', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+
+		vi.doMock('../../src/dialects/drizzle', () => ({
+			extractMysqlExisting: vi.fn(() => ({})),
+		}));
+
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+
+		vi.doMock('../../src/dialects/mysql/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ tables: [], views: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' } })),
+		}));
+
+		vi.doMock('../../src/dialects/mysql/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/mysql/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE `users` DROP COLUMN `legacy_id`;'],
+				statements: [{ type: 'drop_column', column: { table: 'users', name: 'legacy_id' } }],
+				groupedStatements: [],
+			})),
+		}));
+
+		vi.doMock('../../src/cli/connections', () => ({
+			connectToMySQL: vi.fn(async () => ({
+				db: { query: vi.fn(async () => []) },
+				database: 'db',
+			})),
+		}));
+
+		const pushMysql = await import('../../src/cli/commands/push-mysql');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'column', entity: ['public', 'users', 'legacy_id'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushMysql.handle(
+					['schema.ts'],
+					{} as never,
+					false,
+					false,
+					undefined,
+					{} as never,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'ok',
+			dialect: 'mysql',
+			message: 'Changes applied',
+		});
+	});
+});
+
+describe('push mysql confirm_data_loss[primary_key] in json mode', () => {
+	test('emits missing_hints when unresolved', async () => {
+		vi.doMock('../../src/cli/commands/pull-mysql', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+
+		vi.doMock('../../src/dialects/drizzle', () => ({
+			extractMysqlExisting: vi.fn(() => ({})),
+		}));
+
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+
+		vi.doMock('../../src/dialects/mysql/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ tables: [], views: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' } })),
+		}));
+
+		vi.doMock('../../src/dialects/mysql/ddl', () => ({
+			interimToDDL: vi.fn(() => ({
+				ddl: {
+					fks: { list: () => [] },
+					indexes: { list: () => [] },
+					pks: { one: () => null },
+				},
+				errors: [],
+			})),
+		}));
+
+		vi.doMock('../../src/dialects/mysql/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE `users` DROP PRIMARY KEY;'],
+				statements: [{ type: 'drop_pk', pk: { table: 'users', name: 'PRIMARY', columns: ['id'] } }],
+				groupedStatements: [],
+			})),
+		}));
+
+		vi.doMock('../../src/cli/connections', () => ({
+			connectToMySQL: vi.fn(async () => ({
+				db: { query: vi.fn(async () => [1]) },
+				database: 'db',
+			})),
+		}));
+
+		const pushMysql = await import('../../src/cli/commands/push-mysql');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushMysql.handle(
+					['schema.ts'],
+					{} as never,
+					false,
+					false,
+					undefined,
+					{} as never,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{ type: 'confirm_data_loss', kind: 'primary_key', entity: ['public', 'users', 'PRIMARY'], reason: 'non_empty' },
+			],
+		});
+	});
+
+	test('applies matching hint and runs to ok', async () => {
+		vi.doMock('../../src/cli/commands/pull-mysql', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+
+		vi.doMock('../../src/dialects/drizzle', () => ({
+			extractMysqlExisting: vi.fn(() => ({})),
+		}));
+
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+
+		vi.doMock('../../src/dialects/mysql/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ tables: [], views: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' } })),
+		}));
+
+		vi.doMock('../../src/dialects/mysql/ddl', () => ({
+			interimToDDL: vi.fn(() => ({
+				ddl: {
+					fks: { list: () => [] },
+					indexes: { list: () => [] },
+					pks: { one: () => null },
+				},
+				errors: [],
+			})),
+		}));
+
+		vi.doMock('../../src/dialects/mysql/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE `users` DROP PRIMARY KEY;'],
+				statements: [{ type: 'drop_pk', pk: { table: 'users', name: 'PRIMARY', columns: ['id'] } }],
+				groupedStatements: [],
+			})),
+		}));
+
+		vi.doMock('../../src/cli/connections', () => ({
+			connectToMySQL: vi.fn(async () => ({
+				db: { query: vi.fn(async () => []) },
+				database: 'db',
+			})),
+		}));
+
+		const pushMysql = await import('../../src/cli/commands/push-mysql');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'primary_key', entity: ['public', 'users', 'PRIMARY'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushMysql.handle(
+					['schema.ts'],
+					{} as never,
+					false,
+					false,
+					undefined,
+					{} as never,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'ok',
+			dialect: 'mysql',
+			message: 'Changes applied',
+		});
+	});
+});
+
+describe('push mysql confirm_data_loss[add_not_null] add_column in json mode', () => {
+	test('emits missing_hints when unresolved', async () => {
+		vi.doMock('../../src/cli/commands/pull-mysql', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+
+		vi.doMock('../../src/dialects/drizzle', () => ({
+			extractMysqlExisting: vi.fn(() => ({})),
+		}));
+
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+
+		vi.doMock('../../src/dialects/mysql/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ tables: [], views: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' } })),
+		}));
+
+		vi.doMock('../../src/dialects/mysql/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/mysql/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE `users` ADD COLUMN `email` varchar(191) NOT NULL;'],
+				statements: [{
+					type: 'add_column',
+					column: { table: 'users', name: 'email', notNull: true, default: null, generated: false },
+				}],
+				groupedStatements: [],
+			})),
+		}));
+
+		vi.doMock('../../src/cli/connections', () => ({
+			connectToMySQL: vi.fn(async () => ({
+				db: { query: vi.fn(async () => [1]) },
+				database: 'db',
+			})),
+		}));
+
+		const pushMysql = await import('../../src/cli/commands/push-mysql');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushMysql.handle(
+					['schema.ts'],
+					{} as never,
+					false,
+					false,
+					undefined,
+					{} as never,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'], reason: 'nulls_present' },
+			],
+		});
+	});
+
+	test('applies matching hint and runs to ok', async () => {
+		vi.doMock('../../src/cli/commands/pull-mysql', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+
+		vi.doMock('../../src/dialects/drizzle', () => ({
+			extractMysqlExisting: vi.fn(() => ({})),
+		}));
+
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+
+		vi.doMock('../../src/dialects/mysql/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ tables: [], views: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' } })),
+		}));
+
+		vi.doMock('../../src/dialects/mysql/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+
+		vi.doMock('../../src/dialects/mysql/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE `users` ADD COLUMN `email` varchar(191) NOT NULL;'],
+				statements: [{
+					type: 'add_column',
+					column: { table: 'users', name: 'email', notNull: true, default: null, generated: false },
+				}],
+				groupedStatements: [],
+			})),
+		}));
+
+		vi.doMock('../../src/cli/connections', () => ({
+			connectToMySQL: vi.fn(async () => ({
+				db: { query: vi.fn(async () => []) },
+				database: 'db',
+			})),
+		}));
+
+		const pushMysql = await import('../../src/cli/commands/push-mysql');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushMysql.handle(
+					['schema.ts'],
+					{} as never,
+					false,
+					false,
+					undefined,
+					{} as never,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'ok',
+			dialect: 'mysql',
+			message: 'Changes applied',
+		});
+	});
+});
