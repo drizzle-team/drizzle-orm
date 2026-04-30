@@ -112,11 +112,7 @@ export const handle = async (
 		return;
 	}
 
-	if (!force && suggestionHints.length > 0) {
-		if (json) {
-			printJsonOutput(abortedJsonOutput('mysql', suggestionHints));
-			process.exit(0);
-		}
+	if (!force && !json && suggestionHints.length > 0) {
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
