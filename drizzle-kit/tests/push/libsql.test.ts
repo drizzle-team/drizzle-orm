@@ -1398,3 +1398,123 @@ test('alter view ".as"', async () => {
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
+
+test('modify two columns on same table with index', async (t) => {
+	const turso = createClient({
+		url: ':memory:',
+	});
+
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+			age: int('age').notNull(),
+		}, (table) => ({
+			someIndex: index('users_name_index').on(table.name),
+		})),
+	};
+
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			name: text('name'),
+			age: int('age'),
+		}, (table) => ({
+			someIndex: index('users_name_index').on(table.name),
+		})),
+	};
+
+	const {
+		statements,
+		sqlStatements,
+	} = await diffTestSchemasPushLibSQL(
+		turso,
+		schema1,
+		schema2,
+		[],
+	);
+
+	// Each column mod triggers LibSQLModifyColumn which drops ALL indexes.
+	// Since both columns modify the same table with the same index,
+	// the second DROP/CREATE pair is deduplicated.
+	expect(sqlStatements.length).toBe(4);
+	expect(sqlStatements[0]).toBe(
+		`DROP INDEX IF EXISTS "users_name_index";`,
+	);
+	expect(sqlStatements[1]).toBe(
+		`ALTER TABLE \`users\` ALTER COLUMN "name" TO "name" text;`,
+	);
+	expect(sqlStatements[2]).toBe(
+		`CREATE INDEX \`users_name_index\` ON \`users\` (\`name\`);`,
+	);
+	expect(sqlStatements[3]).toBe(
+		`ALTER TABLE \`users\` ALTER COLUMN "age" TO "age" integer;`,
+	);
+});
+
+test('modify columns on two tables with indexes', async (t) => {
+	const turso = createClient({
+		url: ':memory:',
+	});
+
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+		}, (table) => ({
+			someIndex: index('users_name_index').on(table.name),
+		})),
+		posts: sqliteTable('posts', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			title: text('title').notNull(),
+		}, (table) => ({
+			someIndex: index('posts_title_index').on(table.title),
+		})),
+	};
+
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			name: text('name'),
+		}, (table) => ({
+			someIndex: index('users_name_index').on(table.name),
+		})),
+		posts: sqliteTable('posts', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			title: text('title'),
+		}, (table) => ({
+			someIndex: index('posts_title_index').on(table.title),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemasPushLibSQL(
+		turso,
+		schema1,
+		schema2,
+		[],
+	);
+
+	// Each table's column mod triggers a separate LibSQLModifyColumn call.
+	// LibSQLModifyColumn drops ALL indexes from ALL tables (the over-broad bug),
+	// then recreates them after the ALTER. The second call's DROP and CREATE
+	// statements are deduplicated because they match the first call's output.
+	expect(sqlStatements.length).toBe(6);
+	// First LibSQLModifyColumn (users.name): drops all indexes
+	expect(sqlStatements[0]).toBe(`DROP INDEX IF EXISTS "users_name_index";`);
+	expect(sqlStatements[1]).toBe(`DROP INDEX IF EXISTS "posts_title_index";`);
+	// First: alters users.name, recreates all indexes
+	expect(sqlStatements[2]).toBe(
+		`ALTER TABLE \`users\` ALTER COLUMN "name" TO "name" text;`,
+	);
+	expect(sqlStatements[3]).toBe(
+		`CREATE INDEX \`users_name_index\` ON \`users\` (\`name\`);`,
+	);
+	expect(sqlStatements[4]).toBe(
+		`CREATE INDEX \`posts_title_index\` ON \`posts\` (\`title\`);`,
+	);
+	// Second LibSQLModifyColumn (posts.title):
+	// DROP/CREATE pairs deduplicated, only the new ALTER remains
+	expect(sqlStatements[5]).toBe(
+		`ALTER TABLE \`posts\` ALTER COLUMN "title" TO "title" text;`,
+	);
+});
