@@ -1,6 +1,5 @@
 import { type Equal, Expect } from 'type-tests/utils';
 import { type InferInsertModel, type InferSelectModel, sql } from '~/index';
-import { drizzle } from '~/node-postgres';
 import { integer, pgTable, serial, text, varchar } from '~/pg-core';
 import { db } from './db';
 
@@ -93,46 +92,6 @@ const users = pgTable(
 				upperName: string | null;
 			}[],
 			typeof dbUsers
-		>
-	>();
-}
-
-{
-	const db = drizzle({} as any, { schema: { users } });
-
-	const dbUser = await db._query.users.findFirst();
-
-	Expect<
-		Equal<
-			{
-				id: number;
-				firstName: string | null;
-				lastName: string | null;
-				email: string;
-				fullName: string;
-				upperName: string | null;
-			} | undefined,
-			typeof dbUser
-		>
-	>();
-}
-
-{
-	const db = drizzle({} as any, { schema: { users } });
-
-	const dbUser = await db._query.users.findMany();
-
-	Expect<
-		Equal<
-			{
-				id: number;
-				firstName: string | null;
-				lastName: string | null;
-				email: string;
-				fullName: string;
-				upperName: string | null;
-			}[],
-			typeof dbUser
 		>
 	>();
 }

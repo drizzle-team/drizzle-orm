@@ -5,7 +5,7 @@ import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
 import { SQLiteDOSession } from './session.ts';
 
 export class DrizzleSqliteDODatabase<
@@ -32,7 +32,7 @@ export function drizzle<
 ): DrizzleSqliteDODatabase<TSchema, TRelations> & {
 	$client: TClient;
 } {
-	const dialect = new SQLiteSyncDialect({ casing: config.casing });
+	const dialect = new SQLiteSyncDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -54,7 +54,10 @@ export function drizzle<
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const session = new SQLiteDOSession(client as DurableObjectStorage, dialect, relations, schema, { logger });
+	const session = new SQLiteDOSession(client as DurableObjectStorage, dialect, relations, schema, {
+		logger,
+		useJitMappers: jitCompatCheck(config.jit),
+	});
 	const db = new DrizzleSqliteDODatabase(
 		'sync',
 		dialect,

@@ -33,14 +33,14 @@ declare module 'vitest' {
 	export interface TestContext {
 		docker: Docker;
 		pgContainer: Docker.Container;
-		pgjsDbV2: PostgresJsDatabase<never, typeof relations>;
+		pgjsDbV2: PostgresJsDatabase<typeof relations>;
 		pgjsClient: postgres.Sql<{}>;
 	}
 }
 
 let globalDocker: Docker;
 let pgContainer: Docker.Container;
-let db: PostgresJsDatabase<never, typeof relations>;
+let db: PostgresJsDatabase<typeof relations>;
 let client: postgres.Sql<{}>;
 
 async function createDockerDB(): Promise<string> {
@@ -104,7 +104,7 @@ beforeAll(async () => {
 		await pgContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle({ client, relations, logger: ENABLE_LOGGING, casing: 'snake_case' });
+	db = drizzle({ client, relations, logger: ENABLE_LOGGING });
 });
 
 afterAll(async () => {

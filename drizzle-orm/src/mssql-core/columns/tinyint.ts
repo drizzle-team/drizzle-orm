@@ -32,12 +32,12 @@ export class MsSqlTinyInt<T extends ColumnBaseConfig<'number uint8'>> extends Ms
 		return `tinyint`;
 	}
 
-	override mapFromDriverValue(value: number | string): number {
+	override mapFromDriverValue = (value: number | string): number => {
 		if (typeof value === 'string') {
 			return Number(value);
 		}
 		return value;
-	}
+	};
 }
 
 export function tinyint(name?: string) {

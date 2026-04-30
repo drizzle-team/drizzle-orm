@@ -80,7 +80,7 @@ export const handle = async (
 		process.exit(1);
 	}
 
-	const ts = postgresSchemaToTypeScript(ddl2, res.viewColumns, casing, 'pg');
+	const ts = postgresSchemaToTypeScript(ddl2, res.viewColumns, casing);
 	const relationsTs = relationsToTypeScript(postgresToRelationsPull(ddl2), casing);
 
 	const schemaFile = join(out, 'schema.ts');

@@ -1,7 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { SQL, SQLWrapper } from '~/sql/sql.ts';
-import { applyMixins, type NeonAuthToken } from '~/utils.ts';
+import { applyMixins } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
 import { PgCountBuilder } from '../query-builders/count.ts';
 import type { PgTable } from '../table.ts';
@@ -27,30 +27,22 @@ export class PgAsyncCountBuilder extends PgCountBuilder {
 		this.session = session;
 	}
 
-	/** @internal */
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
-	}
-
 	execute(placeholderValues?: Record<string, unknown>): Promise<number> {
 		return this.session.prepareQuery<{
 			execute: number;
-			all: unknown;
-			values: unknown;
+			objects: unknown;
+			arrays: unknown;
+			raw: unknown;
 		}>(
 			this.build(),
-			undefined,
-			undefined,
-			true,
+			'arrays',
+			false,
 			(rows) => {
 				const v = rows[0]?.[0];
 				if (typeof v === 'number') return v;
 				return v ? Number(v) : 0;
 			},
-		).setToken(this.authToken).execute(placeholderValues);
+		).execute(placeholderValues);
 	}
 }
 

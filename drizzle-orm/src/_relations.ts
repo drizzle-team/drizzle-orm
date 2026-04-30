@@ -281,70 +281,7 @@ export type DBQueryConfigWithComment<
 	TIsRoot extends boolean = boolean,
 	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
 	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
-> =
-	& {
-		columns?:
-			| {
-				[K in keyof TTableConfig['columns']]?: boolean;
-			}
-			| undefined;
-		with?:
-			| {
-				[K in keyof TTableConfig['relations']]?:
-					| true
-					| DBQueryConfig<
-						TTableConfig['relations'][K] extends One ? 'one' : 'many',
-						false,
-						TSchema,
-						FindTableByDBName<
-							TSchema,
-							TTableConfig['relations'][K]['referencedTableName']
-						>
-					>
-					| undefined;
-			}
-			| undefined;
-		extras?:
-			| Record<string, SQL.Aliased>
-			| ((
-				fields: Simplify<
-					[TTableConfig['columns']] extends [never] ? {}
-						: TTableConfig['columns']
-				>,
-				operators: { sql: Operators['sql'] },
-			) => Record<string, SQL.Aliased>)
-			| undefined;
-		comment?: CommentInput | undefined;
-	}
-	& (TRelationType extends 'many' ?
-			& {
-				where?:
-					| SQL
-					| undefined
-					| ((
-						fields: Simplify<
-							[TTableConfig['columns']] extends [never] ? {}
-								: TTableConfig['columns']
-						>,
-						operators: Operators,
-					) => SQL | undefined);
-				orderBy?:
-					| ValueOrArray<AnyColumn | SQL>
-					| ((
-						fields: Simplify<
-							[TTableConfig['columns']] extends [never] ? {}
-								: TTableConfig['columns']
-						>,
-						operators: OrderByOperators,
-					) => ValueOrArray<AnyColumn | SQL>)
-					| undefined;
-				limit?: number | Placeholder | undefined;
-			}
-			& (TIsRoot extends true ? {
-					offset?: number | Placeholder | undefined;
-				}
-				: {})
-		: {});
+> = DBQueryConfig<TRelationType, TIsRoot, TSchema, TTableConfig> & { comment?: CommentInput | undefined };
 
 export interface TableRelationalConfig {
 	tsName: string;

@@ -11,7 +11,7 @@ import type { Prettify } from './tables.ts';
 export type GeneratedValueType = number | bigint | string | Buffer | boolean | undefined | null;
 
 export type DbType =
-	| PgAsyncDatabase<any, any, any>
+	| PgAsyncDatabase<any, any>
 	| MySqlDatabase<any, any, any, any>
 	| BaseSQLiteDatabase<any, any, any, any>
 	| MsSqlDatabase<any, any, any, any>

@@ -32,12 +32,12 @@ export class MsSqlSmallInt<T extends ColumnBaseConfig<'number int16'>> extends M
 		return `smallint`;
 	}
 
-	override mapFromDriverValue(value: number | string): number {
+	override mapFromDriverValue = (value: number | string): number => {
 		if (typeof value === 'string') {
 			return Number(value);
 		}
 		return value;
-	}
+	};
 }
 
 export function smallint(name?: string) {

@@ -18,7 +18,7 @@ import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vit
 const ENABLE_LOGGING = false;
 
 let client: Sql;
-let db: PostgresJsDatabase<never, typeof relations>;
+let db: PostgresJsDatabase<typeof relations>;
 
 const items = pgTable('items', {
 	id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -388,12 +388,6 @@ test('select with getColumns spread containing custom type', async () => {
 		},
 		toDriver(value: number[]): string {
 			return `[${value.join(',')}]`;
-		},
-		fromDriver(value: string): number[] {
-			return value
-				.replace(/^\[|\]$/g, '')
-				.split(',')
-				.map(Number);
 		},
 	});
 

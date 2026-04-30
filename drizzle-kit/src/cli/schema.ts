@@ -35,7 +35,7 @@ import { error, grey, MigrateProgress } from './views';
 const optionDialect = string('dialect')
 	.enum(...dialects)
 	.desc(
-		`Database dialect: 'gel', 'postgresql', 'mysql', 'sqlite', 'turso', 'singlestore', 'duckdb' or 'mssql'`,
+		`Database dialect: 'postgresql', 'mysql', 'sqlite', 'turso', 'singlestore', 'duckdb' or 'mssql'`,
 	);
 const optionOut = string().desc("Output folder, 'drizzle' by default");
 const optionConfig = string().desc('Path to drizzle config file');
@@ -47,9 +47,6 @@ const optionDriver = string()
 	.enum(...drivers)
 	.desc('Database driver');
 
-const optionCasing = string()
-	.enum('camelCase', 'snake_case')
-	.desc('Casing for serialization');
 const optionIgnoreConflicts = boolean('ignore-conflicts').desc(
 	'Skip commutativity conflict checks',
 );
@@ -60,7 +57,6 @@ export const generate = command({
 		config: optionConfig,
 		dialect: optionDialect,
 		driver: optionDriver,
-		casing: optionCasing,
 		schema: string().desc('Path to a schema file or folder'),
 		out: optionOut,
 		name: string().desc('Migration file name'),
@@ -75,7 +71,7 @@ export const generate = command({
 			'generate',
 			opts,
 			['name', 'custom', 'ignoreConflicts'],
-			['driver', 'breakpoints', 'schema', 'out', 'dialect', 'casing'],
+			['driver', 'breakpoints', 'schema', 'out', 'dialect'],
 		);
 		return prepareGenerateConfig(opts, from);
 	},
@@ -107,8 +103,6 @@ export const generate = command({
 		} else if (dialect === 'singlestore') {
 			const { handle } = await import('./commands/generate-singlestore');
 			await handle(opts);
-		} else if (dialect === 'gel') {
-			throw new Error(`You can't use 'generate' command with Gel dialect`);
 		} else if (dialect === 'mssql') {
 			const { handle } = await import('./commands/generate-mssql');
 			await handle(opts);
@@ -248,8 +242,6 @@ export const migrate = command({
 					migrationsSchema: schema,
 				}),
 			);
-		} else if (dialect === 'gel') {
-			throw new Error(`You can't use 'migrate' command with Gel dialect`);
 		} else {
 			assertUnreachable(dialect);
 		}
@@ -285,7 +277,6 @@ export const push = command({
 	options: {
 		config: optionConfig,
 		dialect: optionDialect,
-		casing: optionCasing,
 		schema: string().desc('Path to a schema file or folder'),
 		...optionsFilters,
 		...optionsDatabaseCredentials,
@@ -322,7 +313,6 @@ export const push = command({
 				'schemaFilters',
 				'extensionsFilters',
 				'tablesFilter',
-				'casing',
 				'tlsSecurity',
 			],
 		);
@@ -347,7 +337,6 @@ export const push = command({
 			verbose,
 			credentials,
 			force,
-			casing,
 			filters,
 			explain,
 			migrations,
@@ -361,7 +350,6 @@ export const push = command({
 				credentials,
 				verbose,
 				force,
-				casing,
 				filters,
 				explain,
 				migrations,
@@ -390,7 +378,6 @@ export const push = command({
 				credentials,
 				filters,
 				force,
-				casing,
 				explain,
 				migrations,
 			);
@@ -408,7 +395,6 @@ export const push = command({
 				credentials,
 				filters,
 				force,
-				casing,
 				explain,
 				migrations,
 			);
@@ -420,7 +406,6 @@ export const push = command({
 				filters,
 				verbose,
 				force,
-				casing,
 				explain,
 				migrations,
 			);
@@ -432,7 +417,6 @@ export const push = command({
 				credentials,
 				filters,
 				force,
-				casing,
 				explain,
 				migrations,
 			);
@@ -444,12 +428,9 @@ export const push = command({
 				credentials,
 				filters,
 				force,
-				casing,
 				explain,
 				migrations,
 			);
-		} else if (dialect === 'gel') {
-			console.log(error(`You can't use 'push' command with Gel dialect`));
 		} else {
 			assertUnreachable(dialect);
 		}
@@ -505,32 +486,34 @@ export const up = command({
 		await assertPackages('drizzle-orm');
 
 		if (dialect === 'postgresql') {
-			upPgHandler(out);
+			return upPgHandler(out);
 		}
 
 		if (dialect === 'mysql') {
-			upMysqlHandler(out);
+			return upMysqlHandler(out);
 		}
 
 		if (dialect === 'sqlite' || dialect === 'turso') {
-			upSqliteHandler(out);
+			return upSqliteHandler(out);
 		}
 
 		if (dialect === 'singlestore') {
-			upSinglestoreHandler(out);
+			return upSinglestoreHandler(out);
 		}
 
 		if (dialect === 'cockroach') {
-			upCockroachHandler(out);
+			return upCockroachHandler(out);
 		}
 
 		if (dialect === 'mssql') {
-			upMssqlHandler(out);
+			return upMssqlHandler(out);
 		}
 
-		if (dialect === 'gel') {
-			throw new Error(`You can't use 'up' command with Gel dialect`);
+		if (dialect === 'duckdb') {
+			throw new Error(`You can't use 'pull' command with '${dialect}' dialect`);
 		}
+
+		assertUnreachable(dialect);
 	},
 });
 
@@ -695,13 +678,6 @@ export const pull = command({
 				migrations,
 				db,
 			);
-		} else if (dialect === 'gel') {
-			const { prepareGelDB } = await import('./connections');
-			const db = await prepareGelDB(credentials);
-			// migrate = db.migrate;
-
-			const { handle } = await import('./commands/pull-gel');
-			await handle(casing, out, breakpoints, credentials, filters, db);
 		} else if (dialect === 'mssql') {
 			const { connectToMsSQL } = await import('./connections');
 			const db = await connectToMsSQL(credentials);
@@ -790,7 +766,6 @@ export const studio = command({
 			port,
 			host,
 			credentials,
-			casing,
 		} = await prepareStudioConfig(opts);
 
 		const {
@@ -839,7 +814,6 @@ export const studio = command({
 				schema,
 				relations,
 				files,
-				casing,
 			);
 		} else if (dialect === 'mysql') {
 			const { schema, relations, files } = schemaPath
@@ -850,7 +824,6 @@ export const studio = command({
 				schema,
 				relations,
 				files,
-				casing,
 			);
 		} else if (dialect === 'sqlite') {
 			const { schema, relations, files } = schemaPath
@@ -861,7 +834,6 @@ export const studio = command({
 				schema,
 				relations,
 				files,
-				casing,
 			);
 		} else if (dialect === 'turso') {
 			const { schema, relations, files } = schemaPath
@@ -872,7 +844,6 @@ export const studio = command({
 				schema,
 				relations,
 				files,
-				casing,
 			);
 		} else if (dialect === 'singlestore') {
 			const { schema, relations, files } = schemaPath
@@ -883,7 +854,6 @@ export const studio = command({
 				schema,
 				relations,
 				files,
-				casing,
 			);
 		} else if (dialect === 'duckdb') {
 			setup = await drizzleForDuckDb(credentials);
@@ -975,8 +945,6 @@ export const exportRaw = command({
 		} else if (dialect === 'singlestore') {
 			const { handleExport } = await import('./commands/generate-singlestore');
 			await handleExport(opts);
-		} else if (dialect === 'gel') {
-			throw new Error(`You can't use 'export' command with Gel dialect`);
 		} else if (dialect === 'mssql') {
 			const { handleExport } = await import('./commands/generate-mssql');
 			await handleExport(opts);

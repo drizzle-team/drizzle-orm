@@ -3,7 +3,7 @@ import { type Cache, hashQuery, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
-import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations, RelationalQueryMapperConfig } from '~/relations.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
 import type { Assume, Equal } from '~/utils.ts';
 import { MySqlDatabase } from './db.ts';
@@ -49,7 +49,6 @@ export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 	static readonly [entityKind]: string = 'MySqlPreparedQuery';
 
 	constructor(
-		protected query: Query,
 		// cache instance
 		private cache: Cache | undefined,
 		// per query related metadata
@@ -198,6 +197,7 @@ export abstract class MySqlSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		config: RelationalQueryMapperConfig,
 		generatedIds?: Record<string, unknown>[],
 		returningIds?: SelectedFieldsOrdered,
 	): PreparedQueryKind<TPreparedQueryHKT, T>;

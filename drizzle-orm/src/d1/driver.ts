@@ -44,11 +44,11 @@ export function drizzle<
 	TClient extends AnyD1Database = AnyD1Database,
 >(
 	client: TClient,
-	config: DrizzleConfig<TSchema, TRelations> = {},
+	config: Omit<DrizzleConfig<TSchema, TRelations>, 'jit'> = {},
 ): DrizzleD1Database<TSchema, TRelations> & {
 	$client: TClient;
 } {
-	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
+	const dialect = new SQLiteAsyncDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

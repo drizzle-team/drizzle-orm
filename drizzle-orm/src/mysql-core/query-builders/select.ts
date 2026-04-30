@@ -1071,6 +1071,11 @@ export abstract class MySqlSelectQueryBuilderBase<
 		) as this['_']['selectedFields'];
 	}
 
+	/** @internal */
+	override withoutSelectionCastCodecs(): this {
+		return this;
+	}
+
 	$dynamic(): MySqlSelectDynamic<this> {
 		return this as any;
 	}

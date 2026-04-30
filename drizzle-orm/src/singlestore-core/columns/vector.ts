@@ -51,11 +51,11 @@ export class SingleStoreVector<T extends ColumnBaseConfig<'array vector'>>
 		return `vector(${this.config.length}, ${this.elementType || 'F32'})`;
 	}
 
-	override mapToDriverValue(value: Array<number>): string {
+	override mapToDriverValue = (value: Array<number>): string => {
 		return `[${value.map((e) => e.toString()).join(',')}]`;
-	}
+	};
 
-	override mapFromDriverValue(value: string | Buffer | Array<number>): Array<number> {
+	override mapFromDriverValue = (value: string | Buffer | Array<number>): Array<number> => {
 		if (typeof value === 'string') {
 			if (value.startsWith('[')) return value.slice(1, -1).split(',').map(Number);
 
@@ -90,7 +90,7 @@ export class SingleStoreVector<T extends ColumnBaseConfig<'array vector'>>
 		}
 
 		return value;
-	}
+	};
 }
 
 export class SingleStoreBigIntVectorBuilder extends SingleStoreColumnBuilder<{
@@ -137,11 +137,11 @@ export class SingleStoreBigIntVector<T extends ColumnBaseConfig<'array int64vect
 		return `vector(${this.config.length}, ${this.elementType})`;
 	}
 
-	override mapToDriverValue(value: Array<bigint>): string {
+	override mapToDriverValue = (value: Array<bigint>): string => {
 		return `[${value.map((e) => e.toString()).join(',')}]`;
-	}
+	};
 
-	override mapFromDriverValue(value: string | Buffer | Array<bigint>): Array<bigint> {
+	override mapFromDriverValue = (value: string | Buffer | Array<bigint>): Array<bigint> => {
 		if (typeof value === 'string') {
 			if (value.startsWith('[')) return value.slice(1, -1).split(',').map(BigInt);
 
@@ -155,7 +155,7 @@ export class SingleStoreBigIntVector<T extends ColumnBaseConfig<'array int64vect
 		}
 
 		return value;
-	}
+	};
 }
 
 type ElementType = 'I8' | 'I16' | 'I32' | 'I64' | 'F32' | 'F64';

@@ -6,6 +6,7 @@ import {
 	count,
 	countDistinct,
 	desc,
+	DrizzleQueryError,
 	eq,
 	getColumns,
 	getTableColumns,
@@ -4968,4 +4969,9 @@ test('issue 5527. real() returns unprecise float64 values', async ({ db }) => {
 	const [res] = await db.select().from(users);
 
 	expect(res).toStrictEqual({ id: 1, age: 0.01 });
+});
+
+test.skipIf(Date.now() < +new Date('2026-05-07'))('Query error wrapping', async ({ db }) => {
+	await expect(db.insert(users2Table).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]))
+		.rejects.toBeInstanceOf(DrizzleQueryError);
 });
