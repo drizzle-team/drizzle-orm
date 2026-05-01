@@ -39,8 +39,6 @@ const confirmEntitySchemas = [
 
 export type ConfirmEntityKind = typeof confirmEntitySchemas[number]['kind'];
 
-export type PromptEntityType = RenameCreateHintKind;
-
 type RenameCreateSchemaFor<K extends RenameCreateHintKind> = Extract<
 	typeof renameCreateEntitySchemas[number],
 	{ kind: K }
@@ -51,17 +49,17 @@ type ConfirmSchemaFor<K extends ConfirmEntityKind> = Extract<
 	{ kind: K }
 >['schema'];
 
-export type IdFor<K extends PromptEntityType> = Readonly<z.infer<RenameCreateSchemaFor<K>>>;
+export type IdFor<K extends RenameCreateHintKind> = Readonly<z.infer<RenameCreateSchemaFor<K>>>;
 
 export type ConfirmIdFor<K extends ConfirmEntityKind> = Readonly<z.infer<ConfirmSchemaFor<K>>>;
 
 export type RenameHint = {
-	[K in PromptEntityType]: { type: 'rename'; kind: K; from: IdFor<K>; to: IdFor<K> };
-}[PromptEntityType];
+	[K in RenameCreateHintKind]: { type: 'rename'; kind: K; from: IdFor<K>; to: IdFor<K> };
+}[RenameCreateHintKind];
 
 export type CreateHint = {
-	[K in PromptEntityType]: { type: 'create'; kind: K; entity: IdFor<K> };
-}[PromptEntityType];
+	[K in RenameCreateHintKind]: { type: 'create'; kind: K; entity: IdFor<K> };
+}[RenameCreateHintKind];
 
 export type ConfirmDataLossHint = {
 	[K in ConfirmEntityKind]: { type: 'confirm_data_loss'; kind: K; entity: ConfirmIdFor<K> };
@@ -89,8 +87,8 @@ type ConfirmDataLossMissingHint<K extends ConfirmEntityKind> = {
 
 export type MissingHint =
 	| {
-		[K in PromptEntityType]: RenameCreateMissingHint<K>;
-	}[PromptEntityType]
+		[K in RenameCreateHintKind]: RenameCreateMissingHint<K>;
+	}[RenameCreateHintKind]
 	| {
 		[K in ConfirmEntityKind]: ConfirmDataLossMissingHint<K>;
 	}[ConfirmEntityKind];
@@ -256,13 +254,13 @@ export class HintsHandler {
 		}
 	}
 
-	matchRename<K extends PromptEntityType>(kind: K, toId: IdFor<K>) {
+	matchRename<K extends RenameCreateHintKind>(kind: K, toId: IdFor<K>) {
 		return this.userHints.renames.find((hint): hint is Extract<RenameHint, { kind: K }> => {
 			return hint.kind === kind && tuplesEqual(hint.to, toId);
 		});
 	}
 
-	matchCreate<K extends PromptEntityType>(kind: K, entityId: IdFor<K>) {
+	matchCreate<K extends RenameCreateHintKind>(kind: K, entityId: IdFor<K>) {
 		return this.userHints.creates.find((hint): hint is Extract<CreateHint, { kind: K }> => {
 			return hint.kind === kind && tuplesEqual(hint.entity, entityId);
 		});
@@ -343,5 +341,3 @@ function tuplesEqual(left: readonly string[], right: readonly string[]): boolean
 
 	return left.every((segment, index) => segment === right[index]);
 }
-
-export const supportedRenameCreateHintKinds = renameCreateEntitySchemas.map((entry) => entry.kind);

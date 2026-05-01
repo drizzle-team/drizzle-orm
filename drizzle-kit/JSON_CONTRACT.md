@@ -85,7 +85,7 @@ Current JSON-mode examples:
 ```
 
 ```json
-{ "status": "no_changes", "dialect": "postgresql" }
+{ "status": "no_changes", "dialect": "sqlite" }
 ```
 
 ### `status: "missing_hints"`
@@ -318,6 +318,8 @@ Supported `reason` values (emitted on `MissingHint`; **not** accepted on caller-
 
 Caller-supplied `confirm_data_loss` hints are entity-only (`{ type, kind, entity }`); the `reason` is informational metadata that the runtime emits to explain *why* a `MissingHint` was raised.
 
+The §`status: "missing_hints"` reason list earlier in this document deliberately excludes `type_change` because that reason only appears on `confirm_data_loss / column` MissingHints (documented in the §`column` subsection below). All four reason values can appear in `MissingHint.reason`.
+
 #### Confirm a destructive action
 
 ```json
@@ -511,6 +513,9 @@ Used by:
 - `unique`
 - `primary key`
 - `foreign key`
+- `primary_key` (confirm_data_loss only)
+- `add_not_null` (confirm_data_loss only)
+- `add_unique` (confirm_data_loss only)
 
 Format:
 

@@ -2,13 +2,13 @@ import chalk from 'chalk';
 import { render } from 'hanji';
 import type { Resolver } from 'src/dialects/common';
 import { isJsonMode } from './context';
-import type { HintsHandler, IdFor, MissingHint, PromptEntityType } from './hints';
+import type { HintsHandler, IdFor, MissingHint, RenameCreateHintKind } from './hints';
 import type { RenamePromptItem } from './views';
 import { humanLog, isRenamePromptItem, ResolveSelect } from './views';
 
 type PromptEntityBase = { name: string; schema?: string; table?: string };
 
-const entityId = <K extends PromptEntityType>(
+const entityId = <K extends RenameCreateHintKind>(
 	kind: K,
 	entity: PromptEntityBase,
 	defaultSchema: 'dbo' | 'public',
@@ -60,7 +60,7 @@ const entityId = <K extends PromptEntityType>(
 };
 
 export const resolver = <T extends PromptEntityBase>(
-	entity: PromptEntityType,
+	entity: RenameCreateHintKind,
 	defaultSchema: 'public' | 'dbo' = 'public',
 	command: 'generate' | 'push' = 'generate',
 	hints?: HintsHandler,
@@ -183,7 +183,7 @@ const applySelection = <T extends PromptEntityBase>(
 		deleted: T[];
 		renamedOrMoved: { from: T; to: T }[];
 	},
-	entity: PromptEntityType,
+	entity: RenameCreateHintKind,
 	defaultSchema: 'dbo' | 'public',
 ): void => {
 	if (isRenamePromptItem(selection)) {
