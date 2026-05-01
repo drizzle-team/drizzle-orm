@@ -1004,7 +1004,7 @@ export const fromDatabase = async (
           pg_index.indexrelid OPERATOR(pg_catalog.=) pg_class.oid
       ) metadata ON TRUE
       WHERE
-        relkind OPERATOR(pg_catalog.=) 'i'
+        relkind OPERATOR(pg_catalog.=) ANY (ARRAY['i', 'I'])
 		AND ${filterByTableIds ? `metadata."tableId" IN ${filterByTableIds}` : 'false'}
 	  ORDER BY pg_catalog.lower(nspname), pg_catalog.lower(relname);
     `).then((rows) => {
