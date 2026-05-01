@@ -71,7 +71,7 @@ export class PgCustomColumn<T extends ColumnBuilderBaseConfig<'custom'>> extends
 		const cfgCodec =
 			typeof config.customTypeParams.codec === 'string' || typeof config.customTypeParams.codec === 'undefined'
 				? config.customTypeParams.codec
-				: config.customTypeParams.codec(this.config);
+				: config.customTypeParams.codec(config.fieldConfig);
 		this.codec = typeof cfgCodec === 'string'
 			? resolvePgTypeAlias(cfgCodec) as PostgresType // It it isn't `PostgresType`, codec search will simply resolve to no codec, which is supported behaviour
 			: undefined;
