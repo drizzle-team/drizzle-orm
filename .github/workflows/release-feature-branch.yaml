@@ -378,10 +378,12 @@ jobs:
           set -euxo pipefail
           
           _version="$(tar -xOf ./artifacts/${{ matrix.package }}/package.tgz package/package.json | jq -r .version)"
-          tag="${{ github.ref_name }}"
-          if [[ "$tag" == "beta" ]]; then
+          branch="${{ github.ref_name }}"
+          if [[ "$branch" == "beta" ]]; then
+            tag="rc"
             version="$_version"
           else
+            tag="$branch"
             suffix=$(git rev-parse --short HEAD)
             version="$_version-$suffix"
           fi
