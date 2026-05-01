@@ -39,12 +39,6 @@ const confirmEntitySchemas = [
 
 export type ConfirmEntityKind = typeof confirmEntitySchemas[number]['kind'];
 
-const allowRecreateEntitySchemas = [
-	{ kind: '_reserved', schema: pairTupleSchema },
-] as const satisfies readonly { readonly kind: string; readonly schema: z.ZodTypeAny }[];
-
-export type AllowRecreateKind = typeof allowRecreateEntitySchemas[number]['kind'];
-
 export type PromptEntityType = RenameCreateHintKind;
 
 type RenameCreateSchemaFor<K extends RenameCreateHintKind> = Extract<
@@ -61,13 +55,6 @@ export type IdFor<K extends PromptEntityType> = Readonly<z.infer<RenameCreateSch
 
 export type ConfirmIdFor<K extends ConfirmEntityKind> = Readonly<z.infer<ConfirmSchemaFor<K>>>;
 
-type AllowRecreateSchemaFor<K extends AllowRecreateKind> = Extract<
-	typeof allowRecreateEntitySchemas[number],
-	{ kind: K }
->['schema'];
-
-export type AllowRecreateIdFor<K extends AllowRecreateKind> = Readonly<z.infer<AllowRecreateSchemaFor<K>>>;
-
 export type RenameHint = {
 	[K in PromptEntityType]: { type: 'rename'; kind: K; from: IdFor<K>; to: IdFor<K> };
 }[PromptEntityType];
@@ -80,11 +67,7 @@ export type ConfirmDataLossHint = {
 	[K in ConfirmEntityKind]: { type: 'confirm_data_loss'; kind: K; entity: ConfirmIdFor<K> };
 }[ConfirmEntityKind];
 
-export type AllowRecreateHint = {
-	[K in AllowRecreateKind]: { type: 'allow_recreate'; kind: K; entity: AllowRecreateIdFor<K> };
-}[AllowRecreateKind];
-
-export type Hint = RenameHint | CreateHint | ConfirmDataLossHint | AllowRecreateHint;
+export type Hint = RenameHint | CreateHint | ConfirmDataLossHint;
 
 type RenameCreateMissingHint<K extends RenameCreateHintKind> = {
 	type: 'rename_or_create';
@@ -104,22 +87,13 @@ type ConfirmDataLossMissingHint<K extends ConfirmEntityKind> = {
 	entity: ConfirmIdFor<K>;
 } & ConfirmDataLossReasonDetails;
 
-type AllowRecreateMissingHint<K extends AllowRecreateKind> = {
-	type: 'allow_recreate';
-	kind: K;
-	entity: AllowRecreateIdFor<K>;
-};
-
 export type MissingHint =
 	| {
 		[K in PromptEntityType]: RenameCreateMissingHint<K>;
 	}[PromptEntityType]
 	| {
 		[K in ConfirmEntityKind]: ConfirmDataLossMissingHint<K>;
-	}[ConfirmEntityKind]
-	| {
-		[K in AllowRecreateKind]: AllowRecreateMissingHint<K>;
-	}[AllowRecreateKind];
+	}[ConfirmEntityKind];
 
 export type MissingHintsResponse = {
 	status: 'missing_hints';
@@ -130,7 +104,6 @@ type Hints = {
 	renames: RenameHint[];
 	creates: CreateHint[];
 	confirms: ConfirmDataLossHint[];
-	recreates: AllowRecreateHint[];
 };
 
 type InvalidHintShapeCliErrorMeta = {
@@ -174,20 +147,6 @@ type ConfirmHintMembers = {
 	-readonly [I in keyof typeof confirmEntitySchemas]: ConfirmHintMember<typeof confirmEntitySchemas[I]>;
 };
 
-type AllowRecreateHintMember<E> = E extends { kind: infer K extends string; schema: infer S extends z.ZodTypeAny }
-	? z.ZodObject<{
-		type: z.ZodLiteral<'allow_recreate'>;
-		kind: z.ZodLiteral<K>;
-		entity: S;
-	}, 'strict'>
-	: never;
-
-type AllowRecreateHintMembers = {
-	-readonly [I in keyof typeof allowRecreateEntitySchemas]: AllowRecreateHintMember<
-		typeof allowRecreateEntitySchemas[I]
-	>;
-};
-
 type UnionInput<T extends readonly z.ZodTypeAny[]> = T & [T[number], T[number], ...T[number][]];
 
 const renameHintSchema = z.union(
@@ -221,21 +180,10 @@ const confirmHintSchema = z.union(
 	) as unknown as UnionInput<ConfirmHintMembers>,
 );
 
-const allowRecreateHintSchema = z.union(
-	allowRecreateEntitySchemas.map(({ kind, schema }) =>
-		z.object({
-			type: z.literal('allow_recreate'),
-			kind: z.literal(kind),
-			entity: schema,
-		}).strict()
-	) as unknown as UnionInput<AllowRecreateHintMembers>,
-);
-
 const hintSchema = z.array(z.union([
 	renameHintSchema,
 	createHintSchema,
 	confirmHintSchema,
-	allowRecreateHintSchema,
 ]));
 
 export class InvalidHintShapeCliError extends Error {
@@ -326,12 +274,6 @@ export class HintsHandler {
 		});
 	}
 
-	matchAllowRecreate<K extends AllowRecreateKind>(kind: K, entityId: AllowRecreateIdFor<K>) {
-		return this.userHints.recreates.find((hint): hint is Extract<AllowRecreateHint, { kind: K }> => {
-			return hint.kind === kind && tuplesEqual(hint.entity, entityId);
-		});
-	}
-
 	pushMissingHint(hint: MissingHint): void {
 		this.missingHints.push(hint);
 	}
@@ -375,7 +317,6 @@ function buildHints(hints: readonly Hint[]): Hints {
 		renames: [],
 		creates: [],
 		confirms: [],
-		recreates: [],
 	};
 
 	for (const hint of hints) {
@@ -386,11 +327,6 @@ function buildHints(hints: readonly Hint[]): Hints {
 
 		if (hint.type === 'create') {
 			set.creates.push(hint);
-			continue;
-		}
-
-		if (hint.type === 'allow_recreate') {
-			set.recreates.push(hint);
 			continue;
 		}
 
@@ -409,5 +345,3 @@ function tuplesEqual(left: readonly string[], right: readonly string[]): boolean
 }
 
 export const supportedRenameCreateHintKinds = renameCreateEntitySchemas.map((entry) => entry.kind);
-
-export const supportedAllowRecreateHintKinds = allowRecreateEntitySchemas.map((entry) => entry.kind);
