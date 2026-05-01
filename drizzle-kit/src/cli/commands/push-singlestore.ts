@@ -116,7 +116,7 @@ export const handle = async (
 	}
 
 	if (json) {
-		printJsonOutput({ status: 'ok', dialect: 'singlestore', message: 'Changes applied' });
+		printJsonOutput({ status: 'ok', dialect: 'singlestore' });
 	} else {
 		render(`[${chalk.green('\u2713')}] Changes applied`);
 	}

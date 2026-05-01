@@ -37,7 +37,7 @@ Examples:
 ```json
 {
   "status": "ok",
-  "dialect": "postgres",
+  "dialect": "postgresql",
   "migration_path": "drizzle/20260427153000_name/migration.sql"
 }
 ```
@@ -55,7 +55,7 @@ Examples:
 ```json
 {
   "status": "ok",
-  "dialect": "postgres",
+  "dialect": "postgresql",
   "statements": [],
   "hints": []
 }
@@ -66,12 +66,11 @@ Examples:
 ```json
 {
   "status": "ok",
-  "dialect": "postgres",
-  "message": "Changes applied"
+  "dialect": "postgresql"
 }
 ```
 
-`dialect` is always present on `status: "ok"` responses. `push --json` non-explain success additionally includes a human-readable `message` field; the exact string is not part of the locked contract — clients must not pattern-match on it.
+`dialect` is always present on `status: "ok"` responses.
 
 ### `status: "no_changes"`
 
@@ -82,11 +81,11 @@ This includes `generate --json`, `generate --json --explain`, `push --json`, and
 Current JSON-mode examples:
 
 ```json
-{ "status": "no_changes", "dialect": "postgres" }
+{ "status": "no_changes", "dialect": "postgresql" }
 ```
 
 ```json
-{ "status": "no_changes", "dialect": "postgres" }
+{ "status": "no_changes", "dialect": "postgresql" }
 ```
 
 ### `status: "missing_hints"`
@@ -589,7 +588,7 @@ Example:
 ```json
 {
   "status": "ok",
-  "dialect": "postgres",
+  "dialect": "postgresql",
   "statements": [],
   "hints": [
     {

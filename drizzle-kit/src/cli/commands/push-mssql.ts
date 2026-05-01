@@ -147,7 +147,7 @@ export const handle = async (
 	}
 
 	if (json) {
-		printJsonOutput({ status: 'ok', dialect: 'mssql', message: 'Changes applied' });
+		printJsonOutput({ status: 'ok', dialect: 'mssql' });
 	} else {
 		render(`[${chalk.green('\u2713')}] Changes applied`);
 	}
