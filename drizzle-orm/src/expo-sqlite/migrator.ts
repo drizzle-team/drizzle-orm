@@ -63,7 +63,7 @@ type Action =
 	| { type: 'error'; payload: Error };
 
 export const useMigrations = (db: ExpoSQLiteDatabase<any, any>, migrations: {
-	journal: {
+	journal?: {
 		entries: { idx: number; when: number; tag: string; breakpoints: boolean }[];
 	};
 	migrations: Record<string, string>;
