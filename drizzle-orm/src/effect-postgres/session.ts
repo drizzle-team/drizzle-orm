@@ -99,9 +99,11 @@ export class EffectPgTransaction<
 > extends PgEffectTransaction<EffectPgQueryEffectHKT, TQueryResult, TRelations> {
 	static override readonly [entityKind]: string = 'EffectPgTransaction';
 
-	override transaction: <A, E, R>(
+	override transaction<A, E, R>(
 		transaction: (
 			tx: PgEffectTransaction<EffectPgQueryEffectHKT, TQueryResult, TRelations>,
 		) => Effect.Effect<A, E, R>,
-	) => Effect.Effect<A, SqlError | E, R> = (tx) => this.session.transaction(tx);
+	): Effect.Effect<A, SqlError | E, R> {
+		return this.session.transaction(transaction);
+	}
 }

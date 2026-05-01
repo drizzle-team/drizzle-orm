@@ -174,9 +174,9 @@ export class AwsDataApiTransaction<
 > extends PgAsyncTransaction<AwsDataApiPgQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'AwsDataApiTransaction';
 
-	override transaction = async <T>(
+	override async transaction<T>(
 		transaction: (tx: AwsDataApiTransaction<TRelations>) => Promise<T>,
-	): Promise<T> => {
+	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new AwsDataApiTransaction<TRelations>(
 			this.dialect,
@@ -194,7 +194,7 @@ export class AwsDataApiTransaction<
 			await this.session.execute(sql.raw(`rollback to savepoint ${savepointName}`));
 			throw e;
 		}
-	};
+	}
 }
 
 export type AwsDataApiPgQueryResult<T> = ExecuteStatementCommandOutput & { rows: T[] };

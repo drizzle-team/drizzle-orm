@@ -27,11 +27,11 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		normalizeArray: parsePgArray,
 		normalizeParamArray: makePgArray,
 	},
-	geometry: {
+	'geometry(point)': {
 		normalizeArray: parsePgArrayAndNormalize(parseGeometryXY),
 		normalizeParamArray: makePgArray,
 	},
-	'geometry:tuple': {
+	'geometry(point):tuple': {
 		normalizeArray: parsePgArrayAndNormalize(parseGeometryTuple),
 		normalizeParamArray: makePgArray,
 	},
@@ -81,7 +81,8 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 	datemultirange: { normalizeParamArray: makePgArray },
 	daterange: { normalizeParamArray: makePgArray },
 	float8: { normalizeParamArray: makePgArray },
-	geography: { normalizeParamArray: makePgArray },
+	'geography(point)': { normalizeParamArray: makePgArray },
+	'geography(point):tuple': { normalizeParamArray: makePgArray },
 	inet: { normalizeParamArray: makePgArray },
 	int4multirange: { normalizeParamArray: makePgArray },
 	int4range: { normalizeParamArray: makePgArray },
