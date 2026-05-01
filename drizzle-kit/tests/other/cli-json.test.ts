@@ -5399,12 +5399,7 @@ describe('push mssql confirm_data_loss[column] in json mode', () => {
 		expect(JSON.parse(output.trim())).toStrictEqual({
 			status: 'missing_hints',
 			unresolved: [
-				{
-					type: 'confirm_data_loss',
-					kind: 'column',
-					entity: ['dbo', 'users', 'legacy_col'],
-					reason: 'non_empty',
-				},
+				{ type: 'confirm_data_loss', kind: 'column', entity: ['dbo', 'users', 'legacy_col'], reason: 'non_empty' },
 			],
 		});
 	});
@@ -5636,12 +5631,7 @@ describe('push mssql confirm_data_loss[primary_key] in json mode', () => {
 		expect(JSON.parse(output.trim())).toStrictEqual({
 			status: 'missing_hints',
 			unresolved: [
-				{
-					type: 'confirm_data_loss',
-					kind: 'primary_key',
-					entity: ['dbo', 'users', 'PK_users'],
-					reason: 'non_empty',
-				},
+				{ type: 'confirm_data_loss', kind: 'primary_key', entity: ['dbo', 'users', 'PK_users'], reason: 'non_empty' },
 			],
 		});
 	});
@@ -5680,6 +5670,373 @@ describe('push mssql confirm_data_loss[primary_key] in json mode', () => {
 		const pushMssql = await import('../../src/cli/commands/push-mssql');
 		const hints = new HintsHandler([
 			{ type: 'confirm_data_loss', kind: 'primary_key', entity: ['dbo', 'users', 'PK_users'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushMssql.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'dbo' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		expect(JSON.parse(output.trim())).toStrictEqual({
+			status: 'ok',
+			dialect: 'mssql',
+			message: 'Changes applied',
+		});
+	});
+});
+
+describe('push mssql confirm_data_loss[add_not_null] add_column in json mode', () => {
+	test('emits missing_hints when unresolved', async () => {
+		vi.doMock('../../src/cli/connections', () => ({
+			connectToMsSQL: vi.fn(async () => ({ db: { query: vi.fn(async () => [1]) } })),
+		}));
+		vi.doMock('../../src/cli/commands/pull-mssql', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+		vi.doMock('../../src/dialects/drizzle', () => ({
+			extractMssqlExisting: vi.fn(() => ({})),
+		}));
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+		vi.doMock('../../src/dialects/mssql/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [] })),
+		}));
+		vi.doMock('../../src/dialects/mssql/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: { ...schema, defaults: { one: () => null } }, errors: [] })),
+		}));
+		vi.doMock('../../src/dialects/mssql/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE [users] ADD [email] varchar(255) NOT NULL;'],
+				statements: [{
+					type: 'add_column',
+					column: { schema: 'dbo', table: 'users', name: 'email', notNull: true },
+				}],
+				groupedStatements: [],
+			})),
+		}));
+
+		const pushMssql = await import('../../src/cli/commands/push-mssql');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushMssql.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'dbo' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		expect(JSON.parse(output.trim())).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['dbo', 'users', 'email'], reason: 'nulls_present' },
+			],
+		});
+	});
+
+	test('applies matching hint and runs to ok', async () => {
+		vi.doMock('../../src/cli/connections', () => ({
+			connectToMsSQL: vi.fn(async () => ({ db: { query: vi.fn(async () => []) } })),
+		}));
+		vi.doMock('../../src/cli/commands/pull-mssql', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+		vi.doMock('../../src/dialects/drizzle', () => ({
+			extractMssqlExisting: vi.fn(() => ({})),
+		}));
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+		vi.doMock('../../src/dialects/mssql/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [] })),
+		}));
+		vi.doMock('../../src/dialects/mssql/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: { ...schema, defaults: { one: () => null } }, errors: [] })),
+		}));
+		vi.doMock('../../src/dialects/mssql/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE [users] ADD [email] varchar(255) NOT NULL;'],
+				statements: [{
+					type: 'add_column',
+					column: { schema: 'dbo', table: 'users', name: 'email', notNull: true },
+				}],
+				groupedStatements: [],
+			})),
+		}));
+
+		const pushMssql = await import('../../src/cli/commands/push-mssql');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['dbo', 'users', 'email'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushMssql.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'dbo' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		expect(JSON.parse(output.trim())).toStrictEqual({
+			status: 'ok',
+			dialect: 'mssql',
+			message: 'Changes applied',
+		});
+	});
+});
+
+describe('push mssql confirm_data_loss[add_not_null] alter_column in json mode', () => {
+	test('emits missing_hints when unresolved', async () => {
+		vi.doMock('../../src/cli/connections', () => ({
+			connectToMsSQL: vi.fn(async () => ({ db: { query: vi.fn(async () => [1]) } })),
+		}));
+		vi.doMock('../../src/cli/commands/pull-mssql', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+		vi.doMock('../../src/dialects/drizzle', () => ({
+			extractMssqlExisting: vi.fn(() => ({})),
+		}));
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+		vi.doMock('../../src/dialects/mssql/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [] })),
+		}));
+		vi.doMock('../../src/dialects/mssql/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: { ...schema, defaults: { one: () => null } }, errors: [] })),
+		}));
+		vi.doMock('../../src/dialects/mssql/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE [users] ALTER COLUMN [email] varchar(255) NOT NULL;'],
+				statements: [{
+					type: 'alter_column',
+					diff: { $right: { schema: 'dbo', table: 'users', name: 'email', notNull: true } },
+				}],
+				groupedStatements: [],
+			})),
+		}));
+
+		const pushMssql = await import('../../src/cli/commands/push-mssql');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushMssql.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'dbo' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		expect(JSON.parse(output.trim())).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['dbo', 'users', 'email'], reason: 'nulls_present' },
+			],
+		});
+	});
+
+	test('applies matching hint and runs to ok', async () => {
+		vi.doMock('../../src/cli/connections', () => ({
+			connectToMsSQL: vi.fn(async () => ({ db: { query: vi.fn(async () => []) } })),
+		}));
+		vi.doMock('../../src/cli/commands/pull-mssql', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+		vi.doMock('../../src/dialects/drizzle', () => ({
+			extractMssqlExisting: vi.fn(() => ({})),
+		}));
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+		vi.doMock('../../src/dialects/mssql/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [] })),
+		}));
+		vi.doMock('../../src/dialects/mssql/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: { ...schema, defaults: { one: () => null } }, errors: [] })),
+		}));
+		vi.doMock('../../src/dialects/mssql/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE [users] ALTER COLUMN [email] varchar(255) NOT NULL;'],
+				statements: [{
+					type: 'alter_column',
+					diff: { $right: { schema: 'dbo', table: 'users', name: 'email', notNull: true } },
+				}],
+				groupedStatements: [],
+			})),
+		}));
+
+		const pushMssql = await import('../../src/cli/commands/push-mssql');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['dbo', 'users', 'email'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushMssql.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'dbo' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		expect(JSON.parse(output.trim())).toStrictEqual({
+			status: 'ok',
+			dialect: 'mssql',
+			message: 'Changes applied',
+		});
+	});
+});
+
+describe('push mssql confirm_data_loss[add_unique] in json mode', () => {
+	test('emits missing_hints when unresolved', async () => {
+		vi.doMock('../../src/cli/connections', () => ({
+			connectToMsSQL: vi.fn(async () => ({ db: { query: vi.fn(async () => [1]) } })),
+		}));
+		vi.doMock('../../src/cli/commands/pull-mssql', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+		vi.doMock('../../src/dialects/drizzle', () => ({
+			extractMssqlExisting: vi.fn(() => ({})),
+		}));
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+		vi.doMock('../../src/dialects/mssql/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [] })),
+		}));
+		vi.doMock('../../src/dialects/mssql/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+		vi.doMock('../../src/dialects/mssql/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE [users] ADD CONSTRAINT [users_email_unique] UNIQUE ([email]);'],
+				statements: [{
+					type: 'add_unique',
+					unique: {
+						schema: 'dbo',
+						table: 'users',
+						name: 'users_email_unique',
+						columns: ['email'],
+					},
+				}],
+				groupedStatements: [],
+			})),
+		}));
+
+		const pushMssql = await import('../../src/cli/commands/push-mssql');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushMssql.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'dbo' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		expect(JSON.parse(output.trim())).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['dbo', 'users', 'email'], reason: 'duplicates_present' },
+			],
+		});
+	});
+
+	test('applies matching hint and runs to ok', async () => {
+		vi.doMock('../../src/cli/connections', () => ({
+			connectToMsSQL: vi.fn(async () => ({ db: { query: vi.fn(async () => []) } })),
+		}));
+		vi.doMock('../../src/cli/commands/pull-mssql', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+		vi.doMock('../../src/dialects/drizzle', () => ({
+			extractMssqlExisting: vi.fn(() => ({})),
+		}));
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+		vi.doMock('../../src/dialects/mssql/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [] })),
+		}));
+		vi.doMock('../../src/dialects/mssql/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+		vi.doMock('../../src/dialects/mssql/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE [users] ADD CONSTRAINT [users_email_unique] UNIQUE ([email]);'],
+				statements: [{
+					type: 'add_unique',
+					unique: {
+						schema: 'dbo',
+						table: 'users',
+						name: 'users_email_unique',
+						columns: ['email'],
+					},
+				}],
+				groupedStatements: [],
+			})),
+		}));
+
+		const pushMssql = await import('../../src/cli/commands/push-mssql');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['dbo', 'users', 'email'] },
 		]);
 
 		const { output, exitCode } = await captureJsonModeRun(() =>
