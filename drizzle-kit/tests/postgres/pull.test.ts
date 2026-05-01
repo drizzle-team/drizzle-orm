@@ -12,6 +12,7 @@ import {
 	date,
 	doublePrecision,
 	foreignKey,
+	halfvec,
 	index,
 	inet,
 	integer,
@@ -2715,6 +2716,60 @@ test('relations issue', async () => {
 	expect(pushStatements).toStrictEqual([]);
 	expect(generateStatements).toStrictEqual([]);
 	expect(relationsError).toBeNull();
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5647
+test('vector column in custom schema does not produce spurious type diff', async () => {
+	await db.query(`CREATE EXTENSION IF NOT EXISTS vector;`);
+
+	const agentme = pgSchema('agentme');
+
+	const schema = {
+		agentme,
+		knowledge_chunk: agentme.table('knowledge_chunk', {
+			id: integer('id').primaryKey(),
+			embedding: vector('embedding', { dimensions: 1536 }).notNull(),
+		}),
+	};
+
+	const { generateSqlStatements, generateStatements, pushSqlStatements, pushStatements } = await diffIntrospect(
+		db,
+		schema,
+		'issue-5647-vector-custom-schema',
+		['agentme'],
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5647 (halfvec variant)
+test('halfvec column in custom schema does not produce spurious type diff', async () => {
+	await db.query(`CREATE EXTENSION IF NOT EXISTS vector;`);
+
+	const agentme = pgSchema('agentme');
+
+	const schema = {
+		agentme,
+		knowledge_chunk2: agentme.table('knowledge_chunk2', {
+			id: integer('id').primaryKey(),
+			embedding: halfvec('embedding', { dimensions: 768 }).notNull(),
+		}),
+	};
+
+	const { generateSqlStatements, generateStatements, pushSqlStatements, pushStatements } = await diffIntrospect(
+		db,
+		schema,
+		'issue-5647-halfvec-custom-schema',
+		['agentme'],
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5525
