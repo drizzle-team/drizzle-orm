@@ -6062,3 +6062,59 @@ describe('push mssql confirm_data_loss[add_unique] in json mode', () => {
 		});
 	});
 });
+
+test('push mssql throws rename_schema_unsupported error in json mode', async () => {
+	vi.doMock('../../src/cli/connections', () => ({
+		connectToMsSQL: vi.fn(async () => ({ db: { query: vi.fn(async () => []) } })),
+	}));
+	vi.doMock('../../src/cli/commands/pull-mssql', () => ({
+		introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+	}));
+	vi.doMock('../../src/dialects/drizzle', () => ({
+		extractMssqlExisting: vi.fn(() => ({})),
+	}));
+	vi.doMock('../../src/dialects/pull-utils', () => ({
+		prepareEntityFilter: vi.fn(() => () => true),
+	}));
+	vi.doMock('../../src/dialects/mssql/drizzle', () => ({
+		prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [] })),
+		fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [] })),
+	}));
+	vi.doMock('../../src/dialects/mssql/ddl', () => ({
+		interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+	}));
+	vi.doMock('../../src/dialects/mssql/diff', () => ({
+		ddlDiff: vi.fn(async () => ({
+			sqlStatements: ['/* mssql does not support rename_schema; this comment is the convertor placeholder */'],
+			statements: [{
+				type: 'rename_schema',
+				from: { name: 'old_analytics' },
+				to: { name: 'analytics' },
+			}],
+			groupedStatements: [],
+		})),
+	}));
+
+	const pushMssql = await import('../../src/cli/commands/push-mssql');
+
+	await expect(withCliContext(true, () =>
+		pushMssql.handle(
+			['schema.ts'],
+			false,
+			{} as never,
+			[] as never,
+			false,
+			undefined,
+			false,
+			{ table: '__drizzle_migrations', schema: 'dbo' },
+			new HintsHandler(),
+		))).rejects.toMatchObject({
+			code: 'rename_schema_unsupported',
+			meta: {
+				code: 'rename_schema_unsupported',
+				from: 'old_analytics',
+				to: 'analytics',
+				dialect: 'mssql',
+			},
+		});
+});
