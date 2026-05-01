@@ -6578,3 +6578,423 @@ describe('push cockroach confirm_data_loss[schema] in json mode', () => {
 		});
 	});
 });
+
+describe('push cockroach confirm_data_loss[primary_key] in json mode', () => {
+	test('emits missing_hints when unresolved', async () => {
+		vi.doMock('../../src/cli/connections', () => ({
+			prepareCockroach: vi.fn(async () => ({ query: vi.fn(async () => [1]) })),
+		}));
+		vi.doMock('../../src/cli/commands/pull-cockroach', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+		vi.doMock('../../src/dialects/drizzle', () => ({
+			extractCrdbExisting: vi.fn(() => ({})),
+		}));
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+		vi.doMock('../../src/dialects/cockroach/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [], matViews: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [], warnings: [] })),
+		}));
+		vi.doMock('../../src/dialects/cockroach/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+		vi.doMock('../../src/dialects/cockroach/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE "public"."users" DROP CONSTRAINT "users_pkey";'],
+				statements: [{
+					type: 'drop_pk',
+					pk: { schema: 'public', table: 'users', name: 'users_pkey', nameExplicit: true, columns: ['id'] },
+				}],
+				groupedStatements: [],
+			})),
+		}));
+
+		const pushCockroach = await import('../../src/cli/commands/push-cockroach');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushCockroach.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'public' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{
+					type: 'confirm_data_loss',
+					kind: 'primary_key',
+					entity: ['public', 'users', 'users_pkey'],
+					reason: 'non_empty',
+				},
+			],
+		});
+	});
+
+	test('applies matching hint and runs to ok', async () => {
+		vi.doMock('../../src/cli/connections', () => ({
+			prepareCockroach: vi.fn(async () => ({ query: vi.fn(async () => []) })),
+		}));
+		vi.doMock('../../src/cli/commands/pull-cockroach', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+		vi.doMock('../../src/dialects/drizzle', () => ({
+			extractCrdbExisting: vi.fn(() => ({})),
+		}));
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+		vi.doMock('../../src/dialects/cockroach/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [], matViews: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [], warnings: [] })),
+		}));
+		vi.doMock('../../src/dialects/cockroach/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+		vi.doMock('../../src/dialects/cockroach/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE "public"."users" DROP CONSTRAINT "users_pkey";'],
+				statements: [{
+					type: 'drop_pk',
+					pk: { schema: 'public', table: 'users', name: 'users_pkey', nameExplicit: true, columns: ['id'] },
+				}],
+				groupedStatements: [],
+			})),
+		}));
+
+		const pushCockroach = await import('../../src/cli/commands/push-cockroach');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'primary_key', entity: ['public', 'users', 'users_pkey'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushCockroach.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'public' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'ok',
+			dialect: 'cockroach',
+			message: 'Changes applied',
+		});
+	});
+});
+
+describe('push cockroach confirm_data_loss[add_not_null] in json mode', () => {
+	test('emits missing_hints when unresolved', async () => {
+		vi.doMock('../../src/cli/connections', () => ({
+			prepareCockroach: vi.fn(async () => ({ query: vi.fn(async () => [1]) })),
+		}));
+		vi.doMock('../../src/cli/commands/pull-cockroach', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+		vi.doMock('../../src/dialects/drizzle', () => ({
+			extractCrdbExisting: vi.fn(() => ({})),
+		}));
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+		vi.doMock('../../src/dialects/cockroach/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [], matViews: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [], warnings: [] })),
+		}));
+		vi.doMock('../../src/dialects/cockroach/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+		vi.doMock('../../src/dialects/cockroach/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE "public"."users" ADD COLUMN "email" text NOT NULL;'],
+				statements: [{
+					type: 'add_column',
+					column: {
+						schema: 'public',
+						table: 'users',
+						name: 'email',
+						notNull: true,
+						default: null,
+						generated: null,
+						identity: null,
+						type: 'text',
+						typeSchema: null,
+						dimensions: 0,
+					},
+				}],
+				groupedStatements: [],
+			})),
+		}));
+
+		const pushCockroach = await import('../../src/cli/commands/push-cockroach');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushCockroach.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'public' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{
+					type: 'confirm_data_loss',
+					kind: 'add_not_null',
+					entity: ['public', 'users', 'email'],
+					reason: 'nulls_present',
+				},
+			],
+		});
+	});
+
+	test('applies matching hint and runs to ok', async () => {
+		vi.doMock('../../src/cli/connections', () => ({
+			prepareCockroach: vi.fn(async () => ({ query: vi.fn(async () => []) })),
+		}));
+		vi.doMock('../../src/cli/commands/pull-cockroach', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+		vi.doMock('../../src/dialects/drizzle', () => ({
+			extractCrdbExisting: vi.fn(() => ({})),
+		}));
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+		vi.doMock('../../src/dialects/cockroach/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [], matViews: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [], warnings: [] })),
+		}));
+		vi.doMock('../../src/dialects/cockroach/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+		vi.doMock('../../src/dialects/cockroach/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE "public"."users" ADD COLUMN "email" text NOT NULL;'],
+				statements: [{
+					type: 'add_column',
+					column: {
+						schema: 'public',
+						table: 'users',
+						name: 'email',
+						notNull: true,
+						default: null,
+						generated: null,
+						identity: null,
+						type: 'text',
+						typeSchema: null,
+						dimensions: 0,
+					},
+				}],
+				groupedStatements: [],
+			})),
+		}));
+
+		const pushCockroach = await import('../../src/cli/commands/push-cockroach');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushCockroach.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'public' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'ok',
+			dialect: 'cockroach',
+			message: 'Changes applied',
+		});
+	});
+});
+
+describe('push cockroach confirm_data_loss[add_unique] in json mode', () => {
+	test('emits missing_hints when unresolved', async () => {
+		vi.doMock('../../src/cli/connections', () => ({
+			prepareCockroach: vi.fn(async () => ({ query: vi.fn(async () => [1]) })),
+		}));
+		vi.doMock('../../src/cli/commands/pull-cockroach', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+		vi.doMock('../../src/dialects/drizzle', () => ({
+			extractCrdbExisting: vi.fn(() => ({})),
+		}));
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+		vi.doMock('../../src/dialects/cockroach/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [], matViews: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [], warnings: [] })),
+		}));
+		vi.doMock('../../src/dialects/cockroach/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+		vi.doMock('../../src/dialects/cockroach/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['CREATE UNIQUE INDEX "users_email_idx" ON "public"."users" ("email");'],
+				statements: [{
+					type: 'create_index',
+					index: {
+						schema: 'public',
+						table: 'users',
+						name: 'users_email_idx',
+						isUnique: true,
+						nameExplicit: false,
+						columns: [{ value: 'email', isExpression: false, asc: true }],
+						where: null,
+						method: null,
+					},
+					newTable: false,
+				}],
+				groupedStatements: [],
+			})),
+		}));
+
+		const pushCockroach = await import('../../src/cli/commands/push-cockroach');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushCockroach.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'public' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{
+					type: 'confirm_data_loss',
+					kind: 'add_unique',
+					entity: ['public', 'users', 'email'],
+					reason: 'duplicates_present',
+				},
+			],
+		});
+	});
+
+	test('applies matching hint and runs to ok', async () => {
+		vi.doMock('../../src/cli/connections', () => ({
+			prepareCockroach: vi.fn(async () => ({ query: vi.fn(async () => []) })),
+		}));
+		vi.doMock('../../src/cli/commands/pull-cockroach', () => ({
+			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
+		}));
+		vi.doMock('../../src/dialects/drizzle', () => ({
+			extractCrdbExisting: vi.fn(() => ({})),
+		}));
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+		vi.doMock('../../src/dialects/cockroach/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [], matViews: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [], warnings: [] })),
+		}));
+		vi.doMock('../../src/dialects/cockroach/ddl', () => ({
+			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+		}));
+		vi.doMock('../../src/dialects/cockroach/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['CREATE UNIQUE INDEX "users_email_idx" ON "public"."users" ("email");'],
+				statements: [{
+					type: 'create_index',
+					index: {
+						schema: 'public',
+						table: 'users',
+						name: 'users_email_idx',
+						isUnique: true,
+						nameExplicit: false,
+						columns: [{ value: 'email', isExpression: false, asc: true }],
+						where: null,
+						method: null,
+					},
+					newTable: false,
+				}],
+				groupedStatements: [],
+			})),
+		}));
+
+		const pushCockroach = await import('../../src/cli/commands/push-cockroach');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['public', 'users', 'email'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushCockroach.handle(
+					['schema.ts'],
+					false,
+					{} as never,
+					[] as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: 'public' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'ok',
+			dialect: 'cockroach',
+			message: 'Changes applied',
+		});
+	});
+});
