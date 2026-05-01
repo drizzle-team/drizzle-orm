@@ -90,13 +90,13 @@ export const pgliteCodecs = refineGenericPgCodecs({
 		// Driver handles objects, other types need to be stringified
 		normalizeParam: (v) => typeof v === 'object' ? v : JSON.stringify(v),
 	},
-	geometry: {
+	'geometry(point)': {
 		normalizeArray: parsePgArrayAndNormalize(parseGeometryXY),
 		castParam: (name) => `${name}::geometry`,
 		castArrayParam: (name, dimensions) => `${name}::geometry${'[]'.repeat(dimensions)}`,
 		normalizeParamArray: makePgArray,
 	},
-	'geometry:tuple': {
+	'geometry(point):tuple': {
 		normalizeArray: parsePgArrayAndNormalize(parseGeometryTuple),
 		castParam: (name) => `${name}::geometry`,
 		castArrayParam: (name, dimensions) => `${name}::geometry${'[]'.repeat(dimensions)}`,

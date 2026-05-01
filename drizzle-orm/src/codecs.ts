@@ -62,7 +62,7 @@ const itemToArrayTypeCodecNameMap = {
 export class CodecsCollection<TTypeSet extends string = string> {
 	static readonly [entityKind]: string = 'CodecsCollection';
 
-	constructor(protected resolveTypes: (type: string) => TTypeSet, readonly codecs: Codecs<TTypeSet> = noopCodecs) {}
+	constructor(protected resolveTypes: (type: string) => string, readonly codecs: Codecs<TTypeSet> = noopCodecs) {}
 
 	get<TCodecType extends keyof Codec>(
 		column: Column,

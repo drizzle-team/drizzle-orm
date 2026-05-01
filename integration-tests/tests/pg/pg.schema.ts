@@ -324,6 +324,7 @@ const customBigInt = customType<{
 	driverOutput: string;
 	jsonData: string;
 }>({
+	codec: 'bigint',
 	dataType: () => 'bigint',
 	fromDriver: BigInt,
 	fromJson: BigInt,
@@ -334,6 +335,7 @@ const customBytes = customType<{
 	driverData: Buffer;
 	jsonData: string;
 }>({
+	codec: 'bytea',
 	dataType: () => 'bytea',
 	fromJson: (value) => {
 		return Buffer.from(value.slice(2, value.length), 'hex');
@@ -358,6 +360,7 @@ const customInt = customType<{
 	data: number;
 	driverData: number;
 }>({
+	codec: 'integer',
 	dataType: () => 'integer',
 });
 

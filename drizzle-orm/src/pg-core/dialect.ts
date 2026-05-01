@@ -65,7 +65,7 @@ import {
 	type UpdateSet,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
-import { type PgCodecs, type PostgresType, resolvePgType } from './codecs.ts';
+import { type PgCodecs, type PostgresType, resolvePgTypeAlias } from './codecs.ts';
 import { PgViewBase } from './view-base.ts';
 import type { PgMaterializedView, PgView } from './view.ts';
 
@@ -84,7 +84,7 @@ export class PgDialect {
 	};
 
 	constructor(config?: PgDialectConfig) {
-		this.codecs = new CodecsCollection<PostgresType>(resolvePgType, config?.codecs);
+		this.codecs = new CodecsCollection<PostgresType>(resolvePgTypeAlias, config?.codecs);
 		this.mapperGenerators = config?.useJitMappers
 			? {
 				rows: makeJitQueryMapper,

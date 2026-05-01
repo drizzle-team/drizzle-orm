@@ -109,9 +109,9 @@ export class BunSQLTransaction<
 		super(dialect, session, relations, nestedIndex, false);
 	}
 
-	override transaction = <T>(
+	override transaction<T>(
 		transaction: (tx: BunSQLTransaction<TRelations>) => Promise<T>,
-	): Promise<T> => {
+	): Promise<T> {
 		return (this.session.client as TransactionSQL).savepoint((client) => {
 			const session = new BunSQLSession<SavepointSQL, TRelations>(
 				client,
@@ -126,7 +126,7 @@ export class BunSQLTransaction<
 			);
 			return transaction(tx);
 		}) as Promise<T>;
-	};
+	}
 }
 
 export interface BunSQLQueryResultHKT extends PgQueryResultHKT {
