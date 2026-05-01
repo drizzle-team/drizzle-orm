@@ -32,6 +32,8 @@ Depending on the command, this can mean:
 
 Examples:
 
+`generate --json` success (non-explain):
+
 ```json
 {
   "status": "ok",
@@ -48,6 +50,8 @@ Examples:
 }
 ```
 
+`generate --json --explain` and `push --json --explain` success (non-empty diff):
+
 ```json
 {
   "status": "ok",
@@ -57,7 +61,17 @@ Examples:
 }
 ```
 
-For generate success and custom responses, `dialect` is always present.
+`push --json` success (non-explain):
+
+```json
+{
+  "status": "ok",
+  "dialect": "postgres",
+  "message": "Changes applied"
+}
+```
+
+`dialect` is always present on `status: "ok"` responses. `push --json` non-explain success additionally includes a human-readable `message` field; the exact string is not part of the locked contract — clients must not pattern-match on it.
 
 ### `status: "no_changes"`
 
@@ -296,12 +310,14 @@ Supported `kind` values for `confirm_data_loss`:
 - `add_not_null`
 - `add_unique`
 
-Supported `reason` values:
+Supported `reason` values (emitted on `MissingHint`; **not** accepted on caller-supplied `Hint` payloads — `confirmHintSchema` is `.strict()` and rejects extra keys):
 
 - `non_empty`
 - `nulls_present`
 - `duplicates_present`
 - `type_change`
+
+Caller-supplied `confirm_data_loss` hints are entity-only (`{ type, kind, entity }`); the `reason` is informational metadata that the runtime emits to explain *why* a `MissingHint` was raised.
 
 #### Confirm a destructive action
 
