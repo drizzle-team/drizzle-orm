@@ -122,6 +122,9 @@
 		"zod": "^3.20.2",
 		"zx": "^8.8.5"
 	},
+	"peerDependencies": {
+		"drizzle-orm": ">=1.0.0-beta.2"
+	},
 	"exports": {
 		".": {
 			"import": {
