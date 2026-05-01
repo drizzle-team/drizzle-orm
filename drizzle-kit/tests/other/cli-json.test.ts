@@ -1876,78 +1876,6 @@ test('push mssql throws rename_blocked_by_check_constraint error in json mode', 
 		});
 });
 
-test('push singlestore emits missing_hints in json mode for unresolved type_change suggestion', async () => {
-	vi.doMock('hanji', async () => {
-		const actual = await vi.importActual<typeof import('hanji')>('hanji');
-		return {
-			...actual,
-			renderWithTask: vi.fn(async (_view, promise: Promise<unknown>) => promise),
-		};
-	});
-	vi.doMock('../../src/cli/connections', () => ({
-		connectToSingleStore: vi.fn(async () => ({ db: { query: vi.fn(async () => []) }, database: 'db' })),
-	}));
-	vi.doMock('../../src/dialects/mysql/introspect', () => ({
-		fromDatabaseForDrizzle: vi.fn(async () => ({ from: 'db' })),
-	}));
-	vi.doMock('../../src/dialects/pull-utils', () => ({
-		prepareEntityFilter: vi.fn(() => () => true),
-	}));
-	vi.doMock('../../src/dialects/singlestore/drizzle', () => ({
-		prepareFromSchemaFiles: vi.fn(async () => ({ tables: [] })),
-		fromDrizzleSchema: vi.fn(() => ({ to: 'schema' })),
-	}));
-	vi.doMock('../../src/dialects/mysql/ddl', async () => {
-		const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>('../../src/dialects/mysql/ddl');
-		return {
-			...actual,
-			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
-		};
-	});
-	vi.doMock('../../src/dialects/singlestore/diff', () => ({
-		ddlDiff: vi.fn(async () => ({
-			sqlStatements: ['ALTER TABLE `users` MODIFY COLUMN `name` bigint;'],
-			statements: [{
-				type: 'alter_column',
-				origin: { table: 'users', column: 'name' },
-				column: { table: 'users', name: 'name', schema: 'public', default: null, generated: undefined },
-				diff: { type: { from: 'text', to: 'bigint' } },
-			}],
-			groupedStatements: [],
-		})),
-	}));
-
-	const pushSinglestore = await import('../../src/cli/commands/push-singlestore');
-	const { output, exitCode } = await captureJsonModeRun(() =>
-		withCliContext(true, () =>
-			pushSinglestore.handle(
-				['schema.ts'],
-				{} as never,
-				[] as never,
-				false,
-				false,
-				undefined,
-				false,
-				{ table: '__drizzle_migrations', schema: '' },
-				new HintsHandler(),
-			))
-	);
-
-	expect(exitCode).toBe(2);
-	expect(JSON.parse(output.trim())).toStrictEqual({
-		status: 'missing_hints',
-		unresolved: [
-			{
-				type: 'confirm_data_loss',
-				kind: 'column',
-				entity: ['public', 'users', 'name'],
-				reason: 'type_change',
-				reason_details: { from: 'text', to: 'bigint' },
-			},
-		],
-	});
-});
-
 test('push mysql with force still emits missing_hints in json mode for unresolved type_change', async () => {
 	vi.doMock('../../src/cli/connections', () => ({
 		connectToMySQL: vi.fn(async () => ({ db: { query: vi.fn(async () => []) }, database: 'db' })),
@@ -6994,6 +6922,547 @@ describe('push cockroach confirm_data_loss[add_unique] in json mode', () => {
 		expect(parsed).toStrictEqual({
 			status: 'ok',
 			dialect: 'cockroach',
+			message: 'Changes applied',
+		});
+	});
+});
+
+describe('push singlestore confirm_data_loss[table] in json mode', () => {
+	test('emits missing_hints when unresolved', async () => {
+		vi.doMock('hanji', async () => {
+			const actual = await vi.importActual<typeof import('hanji')>('hanji');
+			return {
+				...actual,
+				renderWithTask: vi.fn(async (_view, promise: Promise<unknown>) => promise),
+			};
+		});
+		vi.doMock('../../src/cli/connections', () => ({
+			connectToSingleStore: vi.fn(async () => ({ db: { query: vi.fn(async () => [1]) }, database: 'db' })),
+		}));
+		vi.doMock('../../src/dialects/mysql/introspect', () => ({
+			fromDatabaseForDrizzle: vi.fn(async () => ({ from: 'db' })),
+		}));
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+		vi.doMock('../../src/dialects/singlestore/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ tables: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ to: 'schema' })),
+		}));
+		vi.doMock('../../src/dialects/mysql/ddl', async () => {
+			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>('../../src/dialects/mysql/ddl');
+			return {
+				...actual,
+				interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+			};
+		});
+		vi.doMock('../../src/dialects/singlestore/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['DROP TABLE `users`;'],
+				statements: [{ type: 'drop_table', table: 'users' }],
+				groupedStatements: [],
+			})),
+		}));
+
+		const pushSinglestore = await import('../../src/cli/commands/push-singlestore');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushSinglestore.handle(
+					['schema.ts'],
+					{} as never,
+					[] as never,
+					false,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		expect(JSON.parse(output.trim())).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{ type: 'confirm_data_loss', kind: 'table', entity: ['public', 'users'], reason: 'non_empty' },
+			],
+		});
+	});
+
+	test('applies matching hint and runs to ok', async () => {
+		vi.doMock('hanji', async () => {
+			const actual = await vi.importActual<typeof import('hanji')>('hanji');
+			return {
+				...actual,
+				renderWithTask: vi.fn(async (_view, promise: Promise<unknown>) => promise),
+			};
+		});
+		vi.doMock('../../src/cli/connections', () => ({
+			connectToSingleStore: vi.fn(async () => ({ db: { query: vi.fn(async () => []) }, database: 'db' })),
+		}));
+		vi.doMock('../../src/dialects/mysql/introspect', () => ({
+			fromDatabaseForDrizzle: vi.fn(async () => ({ from: 'db' })),
+		}));
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+		vi.doMock('../../src/dialects/singlestore/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ tables: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ to: 'schema' })),
+		}));
+		vi.doMock('../../src/dialects/mysql/ddl', async () => {
+			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>('../../src/dialects/mysql/ddl');
+			return {
+				...actual,
+				interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+			};
+		});
+		vi.doMock('../../src/dialects/singlestore/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['DROP TABLE `users`;'],
+				statements: [{ type: 'drop_table', table: 'users' }],
+				groupedStatements: [],
+			})),
+		}));
+
+		const pushSinglestore = await import('../../src/cli/commands/push-singlestore');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'table', entity: ['public', 'users'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushSinglestore.handle(
+					['schema.ts'],
+					{} as never,
+					[] as never,
+					false,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		expect(JSON.parse(output.trim())).toStrictEqual({
+			status: 'ok',
+			dialect: 'singlestore',
+			message: 'Changes applied',
+		});
+	});
+});
+
+describe('push singlestore confirm_data_loss[column] in json mode', () => {
+	test('emits missing_hints when unresolved (drop_column non_empty)', async () => {
+		vi.doMock('hanji', async () => {
+			const actual = await vi.importActual<typeof import('hanji')>('hanji');
+			return {
+				...actual,
+				renderWithTask: vi.fn(async (_view, promise: Promise<unknown>) => promise),
+			};
+		});
+		vi.doMock('../../src/cli/connections', () => ({
+			connectToSingleStore: vi.fn(async () => ({ db: { query: vi.fn(async () => [1]) }, database: 'db' })),
+		}));
+		vi.doMock('../../src/dialects/mysql/introspect', () => ({
+			fromDatabaseForDrizzle: vi.fn(async () => ({ from: 'db' })),
+		}));
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+		vi.doMock('../../src/dialects/singlestore/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ tables: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ to: 'schema' })),
+		}));
+		vi.doMock('../../src/dialects/mysql/ddl', async () => {
+			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>('../../src/dialects/mysql/ddl');
+			return {
+				...actual,
+				interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+			};
+		});
+		vi.doMock('../../src/dialects/singlestore/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE `users` DROP COLUMN `legacy_id`;'],
+				statements: [{ type: 'drop_column', column: { table: 'users', name: 'legacy_id' } }],
+				groupedStatements: [],
+			})),
+		}));
+
+		const pushSinglestore = await import('../../src/cli/commands/push-singlestore');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushSinglestore.handle(
+					['schema.ts'],
+					{} as never,
+					[] as never,
+					false,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		expect(JSON.parse(output.trim())).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{ type: 'confirm_data_loss', kind: 'column', entity: ['public', 'users', 'legacy_id'], reason: 'non_empty' },
+			],
+		});
+	});
+
+	test('applies matching hint and runs to ok (drop_column)', async () => {
+		vi.doMock('hanji', async () => {
+			const actual = await vi.importActual<typeof import('hanji')>('hanji');
+			return {
+				...actual,
+				renderWithTask: vi.fn(async (_view, promise: Promise<unknown>) => promise),
+			};
+		});
+		vi.doMock('../../src/cli/connections', () => ({
+			connectToSingleStore: vi.fn(async () => ({ db: { query: vi.fn(async () => []) }, database: 'db' })),
+		}));
+		vi.doMock('../../src/dialects/mysql/introspect', () => ({
+			fromDatabaseForDrizzle: vi.fn(async () => ({ from: 'db' })),
+		}));
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+		vi.doMock('../../src/dialects/singlestore/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ tables: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ to: 'schema' })),
+		}));
+		vi.doMock('../../src/dialects/mysql/ddl', async () => {
+			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>('../../src/dialects/mysql/ddl');
+			return {
+				...actual,
+				interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+			};
+		});
+		vi.doMock('../../src/dialects/singlestore/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE `users` DROP COLUMN `legacy_id`;'],
+				statements: [{ type: 'drop_column', column: { table: 'users', name: 'legacy_id' } }],
+				groupedStatements: [],
+			})),
+		}));
+
+		const pushSinglestore = await import('../../src/cli/commands/push-singlestore');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'column', entity: ['public', 'users', 'legacy_id'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushSinglestore.handle(
+					['schema.ts'],
+					{} as never,
+					[] as never,
+					false,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		expect(JSON.parse(output.trim())).toStrictEqual({
+			status: 'ok',
+			dialect: 'singlestore',
+			message: 'Changes applied',
+		});
+	});
+
+	test('emits missing_hints when unresolved (alter_column type_change)', async () => {
+		vi.doMock('hanji', async () => {
+			const actual = await vi.importActual<typeof import('hanji')>('hanji');
+			return {
+				...actual,
+				renderWithTask: vi.fn(async (_view, promise: Promise<unknown>) => promise),
+			};
+		});
+		vi.doMock('../../src/cli/connections', () => ({
+			connectToSingleStore: vi.fn(async () => ({ db: { query: vi.fn(async () => []) }, database: 'db' })),
+		}));
+		vi.doMock('../../src/dialects/mysql/introspect', () => ({
+			fromDatabaseForDrizzle: vi.fn(async () => ({ from: 'db' })),
+		}));
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+		vi.doMock('../../src/dialects/singlestore/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ tables: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ to: 'schema' })),
+		}));
+		vi.doMock('../../src/dialects/mysql/ddl', async () => {
+			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>('../../src/dialects/mysql/ddl');
+			return {
+				...actual,
+				interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+			};
+		});
+		vi.doMock('../../src/dialects/singlestore/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE `users` MODIFY COLUMN `name` bigint;'],
+				statements: [{
+					type: 'alter_column',
+					origin: { table: 'users', column: 'name' },
+					column: { table: 'users', name: 'name', schema: 'public', default: null, generated: undefined },
+					diff: { type: { from: 'text', to: 'bigint' } },
+				}],
+				groupedStatements: [],
+			})),
+		}));
+
+		const pushSinglestore = await import('../../src/cli/commands/push-singlestore');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushSinglestore.handle(
+					['schema.ts'],
+					{} as never,
+					[] as never,
+					false,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		expect(JSON.parse(output.trim())).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{
+					type: 'confirm_data_loss',
+					kind: 'column',
+					entity: ['public', 'users', 'name'],
+					reason: 'type_change',
+					reason_details: { from: 'text', to: 'bigint' },
+				},
+			],
+		});
+	});
+
+	test('applies matching hint and runs to ok (alter_column type_change)', async () => {
+		vi.doMock('hanji', async () => {
+			const actual = await vi.importActual<typeof import('hanji')>('hanji');
+			return {
+				...actual,
+				renderWithTask: vi.fn(async (_view, promise: Promise<unknown>) => promise),
+			};
+		});
+		vi.doMock('../../src/cli/connections', () => ({
+			connectToSingleStore: vi.fn(async () => ({ db: { query: vi.fn(async () => []) }, database: 'db' })),
+		}));
+		vi.doMock('../../src/dialects/mysql/introspect', () => ({
+			fromDatabaseForDrizzle: vi.fn(async () => ({ from: 'db' })),
+		}));
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+		vi.doMock('../../src/dialects/singlestore/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ tables: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ to: 'schema' })),
+		}));
+		vi.doMock('../../src/dialects/mysql/ddl', async () => {
+			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>('../../src/dialects/mysql/ddl');
+			return {
+				...actual,
+				interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+			};
+		});
+		vi.doMock('../../src/dialects/singlestore/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE `users` MODIFY COLUMN `name` bigint;'],
+				statements: [{
+					type: 'alter_column',
+					origin: { table: 'users', column: 'name' },
+					column: { table: 'users', name: 'name', schema: 'public', default: null, generated: undefined },
+					diff: { type: { from: 'text', to: 'bigint' } },
+				}],
+				groupedStatements: [],
+			})),
+		}));
+
+		const pushSinglestore = await import('../../src/cli/commands/push-singlestore');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'column', entity: ['public', 'users', 'name'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushSinglestore.handle(
+					['schema.ts'],
+					{} as never,
+					[] as never,
+					false,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		expect(JSON.parse(output.trim())).toStrictEqual({
+			status: 'ok',
+			dialect: 'singlestore',
+			message: 'Changes applied',
+		});
+	});
+});
+
+describe('push singlestore confirm_data_loss[add_not_null] in json mode', () => {
+	test('emits missing_hints when unresolved', async () => {
+		vi.doMock('hanji', async () => {
+			const actual = await vi.importActual<typeof import('hanji')>('hanji');
+			return {
+				...actual,
+				renderWithTask: vi.fn(async (_view, promise: Promise<unknown>) => promise),
+			};
+		});
+		vi.doMock('../../src/cli/connections', () => ({
+			connectToSingleStore: vi.fn(async () => ({ db: { query: vi.fn(async () => [1]) }, database: 'db' })),
+		}));
+		vi.doMock('../../src/dialects/mysql/introspect', () => ({
+			fromDatabaseForDrizzle: vi.fn(async () => ({ from: 'db' })),
+		}));
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+		vi.doMock('../../src/dialects/singlestore/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ tables: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ to: 'schema' })),
+		}));
+		vi.doMock('../../src/dialects/mysql/ddl', async () => {
+			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>('../../src/dialects/mysql/ddl');
+			return {
+				...actual,
+				interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+			};
+		});
+		vi.doMock('../../src/dialects/singlestore/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE `users` ADD COLUMN `email` varchar(191) NOT NULL;'],
+				statements: [{
+					type: 'add_column',
+					column: { table: 'users', name: 'email', notNull: true, default: null, generated: false },
+				}],
+				groupedStatements: [],
+			})),
+		}));
+
+		const pushSinglestore = await import('../../src/cli/commands/push-singlestore');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushSinglestore.handle(
+					['schema.ts'],
+					{} as never,
+					[] as never,
+					false,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		expect(JSON.parse(output.trim())).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{
+					type: 'confirm_data_loss',
+					kind: 'add_not_null',
+					entity: ['public', 'users', 'email'],
+					reason: 'nulls_present',
+				},
+			],
+		});
+	});
+
+	test('applies matching hint and runs to ok', async () => {
+		vi.doMock('hanji', async () => {
+			const actual = await vi.importActual<typeof import('hanji')>('hanji');
+			return {
+				...actual,
+				renderWithTask: vi.fn(async (_view, promise: Promise<unknown>) => promise),
+			};
+		});
+		vi.doMock('../../src/cli/connections', () => ({
+			connectToSingleStore: vi.fn(async () => ({ db: { query: vi.fn(async () => []) }, database: 'db' })),
+		}));
+		vi.doMock('../../src/dialects/mysql/introspect', () => ({
+			fromDatabaseForDrizzle: vi.fn(async () => ({ from: 'db' })),
+		}));
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+		vi.doMock('../../src/dialects/singlestore/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ tables: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ to: 'schema' })),
+		}));
+		vi.doMock('../../src/dialects/mysql/ddl', async () => {
+			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>('../../src/dialects/mysql/ddl');
+			return {
+				...actual,
+				interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
+			};
+		});
+		vi.doMock('../../src/dialects/singlestore/diff', () => ({
+			ddlDiff: vi.fn(async () => ({
+				sqlStatements: ['ALTER TABLE `users` ADD COLUMN `email` varchar(191) NOT NULL;'],
+				statements: [{
+					type: 'add_column',
+					column: { table: 'users', name: 'email', notNull: true, default: null, generated: false },
+				}],
+				groupedStatements: [],
+			})),
+		}));
+
+		const pushSinglestore = await import('../../src/cli/commands/push-singlestore');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushSinglestore.handle(
+					['schema.ts'],
+					{} as never,
+					[] as never,
+					false,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		expect(JSON.parse(output.trim())).toStrictEqual({
+			status: 'ok',
+			dialect: 'singlestore',
 			message: 'Changes applied',
 		});
 	});
