@@ -7467,3 +7467,86 @@ describe('push singlestore confirm_data_loss[add_not_null] in json mode', () => 
 		});
 	});
 });
+
+test('push singlestore throws fk_target_not_unique error in json mode', async () => {
+	vi.doMock('hanji', async () => {
+		const actual = await vi.importActual<typeof import('hanji')>('hanji');
+		return {
+			...actual,
+			renderWithTask: vi.fn(async (_view, promise: Promise<unknown>) => promise),
+		};
+	});
+	vi.doMock('../../src/cli/connections', () => ({
+		connectToSingleStore: vi.fn(async () => ({ db: { query: vi.fn(async () => []) }, database: 'db' })),
+	}));
+	vi.doMock('../../src/dialects/mysql/introspect', () => ({
+		fromDatabaseForDrizzle: vi.fn(async () => ({ from: 'db' })),
+	}));
+	vi.doMock('../../src/dialects/pull-utils', () => ({
+		prepareEntityFilter: vi.fn(() => () => true),
+	}));
+	vi.doMock('../../src/dialects/singlestore/drizzle', () => ({
+		prepareFromSchemaFiles: vi.fn(async () => ({ tables: [] })),
+		fromDrizzleSchema: vi.fn(() => ({ to: 'schema' })),
+	}));
+
+	const ddl2 = {
+		fks: { list: vi.fn(() => []) },
+		indexes: { list: vi.fn(() => []) },
+		pks: { one: vi.fn(() => null) },
+	};
+	vi.doMock('../../src/dialects/mysql/ddl', async () => {
+		const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>('../../src/dialects/mysql/ddl');
+		return {
+			...actual,
+			interimToDDL: vi.fn()
+				.mockReturnValueOnce({
+					ddl: { fks: { list: () => [] }, indexes: { list: () => [] }, pks: { one: () => null } },
+					errors: [],
+				})
+				.mockReturnValueOnce({ ddl: ddl2, errors: [] }),
+		};
+	});
+	vi.doMock('../../src/dialects/singlestore/diff', () => ({
+		ddlDiff: vi.fn(async () => ({
+			sqlStatements: [
+				'ALTER TABLE `orders` ADD CONSTRAINT `orders_user_email_users_email_fk` FOREIGN KEY (`user_email`) REFERENCES `users` (`email`);',
+			],
+			statements: [{
+				type: 'create_fk',
+				cause: 'create',
+				fk: {
+					table: 'orders',
+					columns: ['user_email'],
+					tableTo: 'users',
+					columnsTo: ['email'],
+				},
+			}],
+			groupedStatements: [],
+		})),
+	}));
+
+	const pushSinglestore = await import('../../src/cli/commands/push-singlestore');
+
+	await expect(withCliContext(true, () =>
+		pushSinglestore.handle(
+			['schema.ts'],
+			{} as never,
+			[] as never,
+			false,
+			false,
+			undefined,
+			false,
+			{ table: '__drizzle_migrations', schema: '' },
+			new HintsHandler(),
+		))).rejects.toMatchObject({
+			code: 'fk_target_not_unique',
+			meta: {
+				code: 'fk_target_not_unique',
+				table: 'orders',
+				columns: ['user_email'],
+				table_to: 'users',
+				columns_to: ['email'],
+			},
+		});
+});
