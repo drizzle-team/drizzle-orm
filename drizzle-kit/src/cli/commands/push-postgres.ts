@@ -127,7 +127,7 @@ export const handle = async (
 
 	if (sqlStatements.length === 0) {
 		if (json) {
-			printJsonOutput({ status: 'no_changes', dialect: 'postgres' });
+			printJsonOutput({ status: 'no_changes', dialect: 'postgresql' });
 		} else {
 			render(`[${chalk.blue('i')}] No changes detected`);
 		}
@@ -142,7 +142,7 @@ export const handle = async (
 
 	if (explain) {
 		if (json) {
-			const explainOutput = explainJsonOutput('postgres', jsonStatements, dataLossHints);
+			const explainOutput = explainJsonOutput('postgresql', jsonStatements, dataLossHints);
 			printJsonOutput(explainOutput);
 		} else {
 			const explainMessage = explainView('postgres', groupedStatements, dataLossHints);
@@ -171,7 +171,7 @@ export const handle = async (
 	}
 
 	if (json) {
-		printJsonOutput({ status: 'ok', dialect: 'postgres', message: 'Changes applied' });
+		printJsonOutput({ status: 'ok', dialect: 'postgresql' });
 	} else {
 		render(`[${chalk.green('\u2713')}] Changes applied`);
 	}

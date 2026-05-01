@@ -127,7 +127,7 @@ export const handle = async (
 	await db.batch(allStatements);
 
 	if (json) {
-		printJsonOutput({ status: 'ok', dialect, message: 'Changes applied' });
+		printJsonOutput({ status: 'ok', dialect });
 	} else {
 		render(`[${chalk.green('\u2713')}] Changes applied`);
 	}

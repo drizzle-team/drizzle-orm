@@ -159,7 +159,7 @@ export const handle = async (
 	}
 
 	if (json) {
-		printJsonOutput({ status: 'ok', dialect: 'cockroach', message: 'Changes applied' });
+		printJsonOutput({ status: 'ok', dialect: 'cockroach' });
 	} else {
 		render(`[${chalk.green('\u2713')}] Changes applied`);
 	}
