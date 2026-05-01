@@ -30,7 +30,6 @@ import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
 import type { CasingType } from '../validations/common';
 import {
-	abortedJsonOutput,
 	cockroachSchemaError,
 	explain as explainView,
 	explainJsonOutput,
