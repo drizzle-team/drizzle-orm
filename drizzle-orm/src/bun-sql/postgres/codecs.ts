@@ -100,6 +100,8 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 	datemultirange: { normalizeParamArray: makePgArray },
 	daterange: { normalizeParamArray: makePgArray },
 	float8: { normalizeParamArray: makePgArray },
+	'geography(point)': { normalizeParamArray: makePgArray },
+	'geography(point):tuple': { normalizeParamArray: makePgArray },
 	inet: { normalizeParamArray: makePgArray },
 	int4multirange: { normalizeParamArray: makePgArray },
 	int4range: { normalizeParamArray: makePgArray },
