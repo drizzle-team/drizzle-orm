@@ -12,14 +12,7 @@ import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
-import {
-	abortedJsonOutput,
-	explain as explainView,
-	explainJsonOutput,
-	humanLog,
-	printJsonOutput,
-	ProgressView,
-} from '../views';
+import { explain as explainView, explainJsonOutput, humanLog, printJsonOutput, ProgressView } from '../views';
 import { suggestions } from './push-mysql';
 
 export const handle = async (

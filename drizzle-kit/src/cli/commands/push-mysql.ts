@@ -18,7 +18,6 @@ import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
 import {
-	abortedJsonOutput,
 	explain as explainView,
 	explainJsonOutput,
 	humanLog,
