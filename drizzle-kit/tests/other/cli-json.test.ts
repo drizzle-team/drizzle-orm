@@ -2,6 +2,9 @@ import { spawnSync } from 'child_process';
 import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import BetterSqlite3 from 'better-sqlite3';
+import { sql } from 'drizzle-orm';
+import { check, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { HintsHandler } from '../../src/cli/hints';
 
@@ -60,6 +63,32 @@ const captureJsonModeRun = async <T>(fn: () => Promise<T>) => {
 const withCliContext = async <T>(json: boolean, callback: () => Promise<T> | T): Promise<T> => {
 	const { runWithCliContext } = await import('../../src/cli/context');
 	return runWithCliContext({ json }, callback);
+};
+
+const sqliteDbFrom = (client: BetterSqlite3.Database) => {
+	return {
+		query: async <T>(query: string, params: unknown[] = []) => {
+			return client.prepare(query).bind(...params).all() as T[];
+		},
+		run: async (query: string) => {
+			client.prepare(query).run();
+		},
+		batch: async (sqlStatements: string[]) => {
+			for (const stmt of sqlStatements) {
+				client.prepare(stmt).run();
+			}
+		},
+	};
+};
+
+const mockSqliteViewsForLiveDb = () => {
+	vi.doMock('../../src/cli/views', async () => {
+		const actual = await vi.importActual<typeof import('../../src/cli/views')>('../../src/cli/views');
+		return {
+			...actual,
+			ProgressView: actual.EmptyProgressView,
+		};
+	});
 };
 
 const runCli = (argv: string[], env: NodeJS.ProcessEnv = {}) => {
@@ -4529,4 +4558,677 @@ test('push mysql throws fk_target_not_unique error in json mode', async () => {
 				columns_to: ['email'],
 			},
 		});
+});
+
+describe('push sqlite confirm_data_loss[table] in json mode', () => {
+	test('emits missing_hints when unresolved', async () => {
+		const sqlite = new BetterSqlite3(':memory:');
+		sqlite.exec('CREATE TABLE users (id INTEGER PRIMARY KEY);');
+		sqlite.prepare('INSERT INTO users (id) VALUES (1)').run();
+		const db = sqliteDbFrom(sqlite);
+
+		mockSqliteViewsForLiveDb();
+
+		vi.doMock('../../src/dialects/sqlite/drizzle', async () => {
+			const actual = await vi.importActual<typeof import('../../src/dialects/sqlite/drizzle')>(
+				'../../src/dialects/sqlite/drizzle',
+			);
+			return {
+				...actual,
+				prepareFromSchemaFiles: vi.fn(async () => ({ tables: [], views: [], relations: [] })),
+			};
+		});
+
+		const pushSqlite = await import('../../src/cli/commands/push-sqlite');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushSqlite.handle(
+					db as never,
+					['schema.ts'],
+					false,
+					{} as never,
+					{} as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					'sqlite',
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{ type: 'confirm_data_loss', kind: 'table', entity: ['public', 'users'], reason: 'non_empty' },
+			],
+		});
+
+		sqlite.close();
+	});
+
+	test('applies matching hint and runs to ok', async () => {
+		const sqlite = new BetterSqlite3(':memory:');
+		sqlite.exec('CREATE TABLE users (id INTEGER PRIMARY KEY);');
+		sqlite.prepare('INSERT INTO users (id) VALUES (1)').run();
+		const db = sqliteDbFrom(sqlite);
+
+		mockSqliteViewsForLiveDb();
+
+		vi.doMock('../../src/dialects/sqlite/drizzle', async () => {
+			const actual = await vi.importActual<typeof import('../../src/dialects/sqlite/drizzle')>(
+				'../../src/dialects/sqlite/drizzle',
+			);
+			return {
+				...actual,
+				prepareFromSchemaFiles: vi.fn(async () => ({ tables: [], views: [], relations: [] })),
+			};
+		});
+
+		const pushSqlite = await import('../../src/cli/commands/push-sqlite');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'table', entity: ['public', 'users'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushSqlite.handle(
+					db as never,
+					['schema.ts'],
+					false,
+					{} as never,
+					{} as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					'sqlite',
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'ok',
+			dialect: 'sqlite',
+			message: 'Changes applied',
+		});
+
+		const tables = sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").all();
+		expect(tables).toStrictEqual([]);
+
+		sqlite.close();
+	});
+});
+
+describe('push sqlite confirm_data_loss[column-drop] in json mode', () => {
+	test('emits missing_hints when unresolved', async () => {
+		const sqlite = new BetterSqlite3(':memory:');
+		sqlite.exec('CREATE TABLE users (id INTEGER PRIMARY KEY, legacy_id INTEGER);');
+		sqlite.prepare('INSERT INTO users (id, legacy_id) VALUES (1, 100)').run();
+		const db = sqliteDbFrom(sqlite);
+
+		const usersTable = sqliteTable('users', { id: integer().primaryKey() });
+
+		mockSqliteViewsForLiveDb();
+
+		vi.doMock('../../src/dialects/sqlite/drizzle', async () => {
+			const actual = await vi.importActual<typeof import('../../src/dialects/sqlite/drizzle')>(
+				'../../src/dialects/sqlite/drizzle',
+			);
+			return {
+				...actual,
+				prepareFromSchemaFiles: vi.fn(async () => ({ tables: [usersTable], views: [], relations: [] })),
+			};
+		});
+
+		const pushSqlite = await import('../../src/cli/commands/push-sqlite');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushSqlite.handle(
+					db as never,
+					['schema.ts'],
+					false,
+					{} as never,
+					{} as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					'sqlite',
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{ type: 'confirm_data_loss', kind: 'column', entity: ['public', 'users', 'legacy_id'], reason: 'non_empty' },
+			],
+		});
+
+		sqlite.close();
+	});
+
+	test('applies matching hint and runs to ok', async () => {
+		const sqlite = new BetterSqlite3(':memory:');
+		sqlite.exec('CREATE TABLE users (id INTEGER PRIMARY KEY, legacy_id INTEGER);');
+		sqlite.prepare('INSERT INTO users (id, legacy_id) VALUES (1, 100)').run();
+		const db = sqliteDbFrom(sqlite);
+
+		const usersTable = sqliteTable('users', { id: integer().primaryKey() });
+
+		mockSqliteViewsForLiveDb();
+
+		vi.doMock('../../src/dialects/sqlite/drizzle', async () => {
+			const actual = await vi.importActual<typeof import('../../src/dialects/sqlite/drizzle')>(
+				'../../src/dialects/sqlite/drizzle',
+			);
+			return {
+				...actual,
+				prepareFromSchemaFiles: vi.fn(async () => ({ tables: [usersTable], views: [], relations: [] })),
+			};
+		});
+
+		const pushSqlite = await import('../../src/cli/commands/push-sqlite');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'column', entity: ['public', 'users', 'legacy_id'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushSqlite.handle(
+					db as never,
+					['schema.ts'],
+					false,
+					{} as never,
+					{} as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					'sqlite',
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'ok',
+			dialect: 'sqlite',
+			message: 'Changes applied',
+		});
+
+		const cols = sqlite.prepare('PRAGMA table_info(users)').all() as { name: string }[];
+		expect(cols.map((c) => c.name)).toStrictEqual(['id']);
+
+		sqlite.close();
+	});
+});
+
+describe('push sqlite confirm_data_loss[add_not_null] in json mode', () => {
+	test('emits missing_hints when unresolved', async () => {
+		const sqlite = new BetterSqlite3(':memory:');
+		sqlite.exec('CREATE TABLE users (id INTEGER PRIMARY KEY);');
+		sqlite.prepare('INSERT INTO users (id) VALUES (1)').run();
+		const db = sqliteDbFrom(sqlite);
+
+		const usersTable = sqliteTable('users', {
+			id: integer().primaryKey(),
+			email: text().notNull(),
+		});
+
+		mockSqliteViewsForLiveDb();
+
+		vi.doMock('../../src/dialects/sqlite/drizzle', async () => {
+			const actual = await vi.importActual<typeof import('../../src/dialects/sqlite/drizzle')>(
+				'../../src/dialects/sqlite/drizzle',
+			);
+			return {
+				...actual,
+				prepareFromSchemaFiles: vi.fn(async () => ({ tables: [usersTable], views: [], relations: [] })),
+			};
+		});
+
+		const pushSqlite = await import('../../src/cli/commands/push-sqlite');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushSqlite.handle(
+					db as never,
+					['schema.ts'],
+					false,
+					{} as never,
+					{} as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					'sqlite',
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'], reason: 'nulls_present' },
+			],
+		});
+
+		sqlite.close();
+	});
+
+	test('applies matching hint and runs to ok with truncate on non-empty table', async () => {
+		const sqlite = new BetterSqlite3(':memory:');
+		sqlite.exec('CREATE TABLE users (id INTEGER PRIMARY KEY);');
+		sqlite.prepare('INSERT INTO users (id) VALUES (1)').run();
+		const db = sqliteDbFrom(sqlite);
+
+		const usersTable = sqliteTable('users', {
+			id: integer().primaryKey(),
+			email: text().notNull(),
+		});
+
+		mockSqliteViewsForLiveDb();
+
+		vi.doMock('../../src/dialects/sqlite/drizzle', async () => {
+			const actual = await vi.importActual<typeof import('../../src/dialects/sqlite/drizzle')>(
+				'../../src/dialects/sqlite/drizzle',
+			);
+			return {
+				...actual,
+				prepareFromSchemaFiles: vi.fn(async () => ({ tables: [usersTable], views: [], relations: [] })),
+			};
+		});
+
+		const pushSqlite = await import('../../src/cli/commands/push-sqlite');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushSqlite.handle(
+					db as never,
+					['schema.ts'],
+					false,
+					{} as never,
+					{} as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					'sqlite',
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'ok',
+			dialect: 'sqlite',
+			message: 'Changes applied',
+		});
+
+		const rows = sqlite.prepare('SELECT * FROM users').all();
+		expect(rows).toStrictEqual([]);
+
+		const cols = sqlite.prepare('PRAGMA table_info(users)').all() as {
+			name: string;
+			notnull: number;
+		}[];
+		const emailCol = cols.find((c) => c.name === 'email');
+		expect(emailCol).toBeDefined();
+		expect(emailCol!.notnull).toBe(1);
+
+		sqlite.close();
+	});
+
+	test('applies matching hint without truncate on empty table', async () => {
+		const sqlite = new BetterSqlite3(':memory:');
+		sqlite.exec('CREATE TABLE users (id INTEGER PRIMARY KEY);');
+		const db = sqliteDbFrom(sqlite);
+
+		const usersTable = sqliteTable('users', {
+			id: integer().primaryKey(),
+			email: text().notNull(),
+		});
+
+		mockSqliteViewsForLiveDb();
+
+		vi.doMock('../../src/dialects/sqlite/drizzle', async () => {
+			const actual = await vi.importActual<typeof import('../../src/dialects/sqlite/drizzle')>(
+				'../../src/dialects/sqlite/drizzle',
+			);
+			return {
+				...actual,
+				prepareFromSchemaFiles: vi.fn(async () => ({ tables: [usersTable], views: [], relations: [] })),
+			};
+		});
+
+		const pushSqlite = await import('../../src/cli/commands/push-sqlite');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushSqlite.handle(
+					db as never,
+					['schema.ts'],
+					false,
+					{} as never,
+					{} as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					'sqlite',
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'ok',
+			dialect: 'sqlite',
+			message: 'Changes applied',
+		});
+
+		const cols = sqlite.prepare('PRAGMA table_info(users)').all() as {
+			name: string;
+			notnull: number;
+		}[];
+		const emailCol = cols.find((c) => c.name === 'email');
+		expect(emailCol).toBeDefined();
+		expect(emailCol!.notnull).toBe(1);
+
+		sqlite.close();
+	});
+});
+
+describe('push sqlite confirm_data_loss[recreate_table-single] in json mode', () => {
+	test('emits missing_hints when unresolved', async () => {
+		const sqlite = new BetterSqlite3(':memory:');
+		sqlite.exec('CREATE TABLE users (id INTEGER PRIMARY KEY, legacy TEXT, email TEXT);');
+		sqlite.prepare("INSERT INTO users (id, legacy, email) VALUES (1, 'old', 'a@b.com')").run();
+		const db = sqliteDbFrom(sqlite);
+
+		const usersTable = sqliteTable(
+			'users',
+			{
+				id: integer().primaryKey(),
+				email: text(),
+			},
+			(t) => [check('ck_email_nonempty', sql`length(${t.email}) > 0`)],
+		);
+
+		mockSqliteViewsForLiveDb();
+
+		vi.doMock('../../src/dialects/sqlite/drizzle', async () => {
+			const actual = await vi.importActual<typeof import('../../src/dialects/sqlite/drizzle')>(
+				'../../src/dialects/sqlite/drizzle',
+			);
+			return {
+				...actual,
+				prepareFromSchemaFiles: vi.fn(async () => ({ tables: [usersTable], views: [], relations: [] })),
+			};
+		});
+
+		const pushSqlite = await import('../../src/cli/commands/push-sqlite');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushSqlite.handle(
+					db as never,
+					['schema.ts'],
+					false,
+					{} as never,
+					{} as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					'sqlite',
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'missing_hints',
+			unresolved: [
+				{ type: 'confirm_data_loss', kind: 'column', entity: ['public', 'users', 'legacy'], reason: 'non_empty' },
+			],
+		});
+
+		sqlite.close();
+	});
+
+	test('applies matching hint and runs to ok with check constraint', async () => {
+		const sqlite = new BetterSqlite3(':memory:');
+		sqlite.exec('CREATE TABLE users (id INTEGER PRIMARY KEY, legacy TEXT, email TEXT);');
+		sqlite.prepare("INSERT INTO users (id, legacy, email) VALUES (1, 'old', 'a@b.com')").run();
+		const db = sqliteDbFrom(sqlite);
+
+		const usersTable = sqliteTable(
+			'users',
+			{
+				id: integer().primaryKey(),
+				email: text(),
+			},
+			(t) => [check('ck_email_nonempty', sql`length(${t.email}) > 0`)],
+		);
+
+		mockSqliteViewsForLiveDb();
+
+		vi.doMock('../../src/dialects/sqlite/drizzle', async () => {
+			const actual = await vi.importActual<typeof import('../../src/dialects/sqlite/drizzle')>(
+				'../../src/dialects/sqlite/drizzle',
+			);
+			return {
+				...actual,
+				prepareFromSchemaFiles: vi.fn(async () => ({ tables: [usersTable], views: [], relations: [] })),
+			};
+		});
+
+		const pushSqlite = await import('../../src/cli/commands/push-sqlite');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'column', entity: ['public', 'users', 'legacy'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushSqlite.handle(
+					db as never,
+					['schema.ts'],
+					false,
+					{} as never,
+					{} as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					'sqlite',
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'ok',
+			dialect: 'sqlite',
+			message: 'Changes applied',
+		});
+
+		const cols = sqlite.prepare('PRAGMA table_info(users)').all() as { name: string }[];
+		expect(cols.map((c) => c.name).sort()).toStrictEqual(['email', 'id']);
+
+		const surviving = sqlite.prepare('SELECT id, email FROM users').all();
+		expect(surviving).toStrictEqual([{ id: 1, email: 'a@b.com' }]);
+
+		const tableSql = sqlite.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").get() as
+			| { sql: string }
+			| undefined;
+		expect(tableSql?.sql).toContain('CHECK');
+		expect(tableSql?.sql).toContain('length');
+
+		sqlite.close();
+	});
+});
+
+describe('push sqlite confirm_data_loss[recreate_table-multi] in json mode', () => {
+	test('emits missing_hints with one entry per dropped column', async () => {
+		const sqlite = new BetterSqlite3(':memory:');
+		sqlite.exec('CREATE TABLE users (id INTEGER PRIMARY KEY, legacy_a TEXT, legacy_b TEXT, email TEXT);');
+		sqlite.prepare("INSERT INTO users (id, legacy_a, legacy_b, email) VALUES (1, 'a', 'b', 'a@b.com')").run();
+		const db = sqliteDbFrom(sqlite);
+
+		const usersTable = sqliteTable(
+			'users',
+			{
+				id: integer().primaryKey(),
+				email: text(),
+			},
+			(t) => [check('ck_email_nonempty', sql`length(${t.email}) > 0`)],
+		);
+
+		mockSqliteViewsForLiveDb();
+
+		vi.doMock('../../src/dialects/sqlite/drizzle', async () => {
+			const actual = await vi.importActual<typeof import('../../src/dialects/sqlite/drizzle')>(
+				'../../src/dialects/sqlite/drizzle',
+			);
+			return {
+				...actual,
+				prepareFromSchemaFiles: vi.fn(async () => ({ tables: [usersTable], views: [], relations: [] })),
+			};
+		});
+
+		const pushSqlite = await import('../../src/cli/commands/push-sqlite');
+		const hints = new HintsHandler();
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushSqlite.handle(
+					db as never,
+					['schema.ts'],
+					false,
+					{} as never,
+					{} as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					'sqlite',
+					hints,
+				))
+		);
+
+		expect(exitCode).toBe(2);
+		const parsed = JSON.parse(output.trim());
+		expect(parsed.status).toBe('missing_hints');
+		expect(parsed.unresolved).toHaveLength(2);
+		const entities = (parsed.unresolved as Array<{ entity: [string, string, string] }>)
+			.map((u) => u.entity[2])
+			.sort();
+		expect(entities).toStrictEqual(['legacy_a', 'legacy_b']);
+		for (const u of parsed.unresolved) {
+			expect(u).toMatchObject({
+				type: 'confirm_data_loss',
+				kind: 'column',
+				reason: 'non_empty',
+			});
+			expect(u.entity[0]).toBe('public');
+			expect(u.entity[1]).toBe('users');
+		}
+
+		sqlite.close();
+	});
+
+	test('applies matching hints and preserves non-dropped column data', async () => {
+		const sqlite = new BetterSqlite3(':memory:');
+		sqlite.exec('CREATE TABLE users (id INTEGER PRIMARY KEY, legacy_a TEXT, legacy_b TEXT, email TEXT);');
+		sqlite.prepare("INSERT INTO users (id, legacy_a, legacy_b, email) VALUES (1, 'a', 'b', 'a@b.com')").run();
+		const db = sqliteDbFrom(sqlite);
+
+		const usersTable = sqliteTable(
+			'users',
+			{
+				id: integer().primaryKey(),
+				email: text(),
+			},
+			(t) => [check('ck_email_nonempty', sql`length(${t.email}) > 0`)],
+		);
+
+		mockSqliteViewsForLiveDb();
+
+		vi.doMock('../../src/dialects/sqlite/drizzle', async () => {
+			const actual = await vi.importActual<typeof import('../../src/dialects/sqlite/drizzle')>(
+				'../../src/dialects/sqlite/drizzle',
+			);
+			return {
+				...actual,
+				prepareFromSchemaFiles: vi.fn(async () => ({ tables: [usersTable], views: [], relations: [] })),
+			};
+		});
+
+		const pushSqlite = await import('../../src/cli/commands/push-sqlite');
+		const hints = new HintsHandler([
+			{ type: 'confirm_data_loss', kind: 'column', entity: ['public', 'users', 'legacy_a'] },
+			{ type: 'confirm_data_loss', kind: 'column', entity: ['public', 'users', 'legacy_b'] },
+		]);
+
+		const { output, exitCode } = await captureJsonModeRun(() =>
+			withCliContext(true, () =>
+				pushSqlite.handle(
+					db as never,
+					['schema.ts'],
+					false,
+					{} as never,
+					{} as never,
+					false,
+					undefined,
+					false,
+					{ table: '__drizzle_migrations', schema: '' },
+					'sqlite',
+					hints,
+				))
+		);
+
+		expect(exitCode).toBeUndefined();
+		const parsed = JSON.parse(output.trim());
+		expect(parsed).toStrictEqual({
+			status: 'ok',
+			dialect: 'sqlite',
+			message: 'Changes applied',
+		});
+
+		const cols = sqlite.prepare('PRAGMA table_info(users)').all() as { name: string }[];
+		expect(cols.map((c) => c.name).sort()).toStrictEqual(['email', 'id']);
+
+		const surviving = sqlite.prepare('SELECT id, email FROM users').all();
+		expect(surviving).toStrictEqual([{ id: 1, email: 'a@b.com' }]);
+
+		sqlite.close();
+	});
 });
