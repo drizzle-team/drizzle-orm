@@ -329,34 +329,26 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			continue;
 		}
 
-		// TODO should we abort process here?
 		if (
 			statement.type === 'rename_column'
 			&& ddl2.checks.one({ schema: statement.to.schema, table: statement.to.table })
 		) {
-			const left = statement.from;
-			const right = statement.to;
-
-			grouped.push({
-				hint:
-					`You are trying to rename column from ${left.name} to ${right.name}, but it is not possible to rename a column if it is used in a check constraint on the table.
-To rename the column, first drop the check constraint, then rename the column, and finally recreate the check constraint`,
+			throw new UnsupportedSchemaChangeError({
+				code: 'rename_blocked_by_check_constraint',
+				schema: statement.to.schema ?? 'dbo',
+				table: statement.to.table,
+				from: statement.from.name,
+				to: statement.to.name,
 			});
-
-			continue;
 		}
 
 		if (statement.type === 'rename_schema') {
-			const left = statement.from;
-			const right = statement.to;
-
-			grouped.push({
-				hint:
-					`You are trying to rename schema ${left.name} to ${right.name}, but it is not supported to rename a schema in mssql.
-You should create new schema and transfer everything to it`,
+			throw new UnsupportedSchemaChangeError({
+				code: 'rename_schema_unsupported',
+				from: statement.from.name,
+				to: statement.to.name,
+				dialect: 'mssql',
 			});
-
-			continue;
 		}
 	}
 
