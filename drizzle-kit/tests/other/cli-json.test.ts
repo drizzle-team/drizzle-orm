@@ -606,7 +606,7 @@ test('push postgres explain emits structured json payload in json mode', async (
 	expect(stdout.trim().endsWith('}')).toBe(true);
 	expect(parsed).toMatchObject({
 		status: 'ok',
-		dialect: 'postgres',
+		dialect: 'postgresql',
 		hints: [],
 	});
 	expect(parsed.statements).toHaveLength(1);
@@ -634,8 +634,8 @@ test('generate postgres explain emits structured json payload in json mode', asy
 		prepareSnapshot: vi.fn(async () => ({
 			ddlCur: { cur: true },
 			ddlPrev: { prev: true },
-			snapshot: { version: '8', dialect: 'postgres', id: 'snapshot' },
-			custom: { version: '8', dialect: 'postgres', id: 'custom' },
+			snapshot: { version: '8', dialect: 'postgresql', id: 'snapshot' },
+			custom: { version: '8', dialect: 'postgresql', id: 'custom' },
 		})),
 	}));
 
@@ -728,7 +728,7 @@ test('generate postgres explain emits structured json payload in json mode', asy
 	expect(stdout.trim().endsWith('}')).toBe(true);
 	expect(parsed).toMatchObject({
 		status: 'ok',
-		dialect: 'postgres',
+		dialect: 'postgresql',
 		hints: [],
 	});
 	expect(parsed.statements).toHaveLength(1);
@@ -756,8 +756,8 @@ test('generate postgres explain emits no_changes for empty diff in json mode', a
 		prepareSnapshot: vi.fn(async () => ({
 			ddlCur: { cur: true },
 			ddlPrev: { prev: true },
-			snapshot: { version: '8', dialect: 'postgres', id: 'snapshot' },
-			custom: { version: '8', dialect: 'postgres', id: 'custom' },
+			snapshot: { version: '8', dialect: 'postgresql', id: 'snapshot' },
+			custom: { version: '8', dialect: 'postgresql', id: 'custom' },
 		})),
 	}));
 
@@ -1223,7 +1223,7 @@ test('push postgres schema warnings do not leak to stdout in json mode', async (
 	// Should get clean JSON: no-op result since sqlStatements is empty
 	expect(parsed).toStrictEqual({
 		status: 'no_changes',
-		dialect: 'postgres',
+		dialect: 'postgresql',
 	});
 	// Warning text must NOT appear on stdout
 	expect(stdout).not.toContain('policy_not_linked');
@@ -1445,8 +1445,8 @@ test('generate postgres emits missing_hints for unresolved schema rename in json
 		prepareSnapshot: vi.fn(async () => ({
 			ddlCur: { cur: true },
 			ddlPrev: { prev: true },
-			snapshot: { version: '8', dialect: 'postgres', id: 'snapshot' },
-			custom: { version: '8', dialect: 'postgres', id: 'custom' },
+			snapshot: { version: '8', dialect: 'postgresql', id: 'snapshot' },
+			custom: { version: '8', dialect: 'postgresql', id: 'custom' },
 		})),
 	}));
 
@@ -1517,8 +1517,8 @@ test('generate postgres emits missing_hints for each unresolved schema independe
 		prepareSnapshot: vi.fn(async () => ({
 			ddlCur: { cur: true },
 			ddlPrev: { prev: true },
-			snapshot: { version: '8', dialect: 'postgres', id: 'snapshot' },
-			custom: { version: '8', dialect: 'postgres', id: 'custom' },
+			snapshot: { version: '8', dialect: 'postgresql', id: 'snapshot' },
+			custom: { version: '8', dialect: 'postgresql', id: 'custom' },
 		})),
 	}));
 
@@ -2167,7 +2167,7 @@ test('push postgres orders rename hint resolves create_or_rename and applies cha
 
 	expect(exitCode).toBeUndefined();
 	const parsed = JSON.parse(output.trim());
-	expect(parsed).toMatchObject({ status: 'ok', dialect: 'postgres' });
+	expect(parsed).toMatchObject({ status: 'ok', dialect: 'postgresql' });
 	const probeCalls = dbQuery.mock.calls.filter((call) => /select 1 from .*orders1/i.test(String(call[0])));
 	expect(probeCalls).toHaveLength(0);
 });
@@ -2244,8 +2244,8 @@ test('generate postgres with matching rename hint emits sql without missing_hint
 		prepareSnapshot: vi.fn(async () => ({
 			ddlCur: { cur: true },
 			ddlPrev: { prev: true },
-			snapshot: { version: '8', dialect: 'postgres', id: 'snapshot' },
-			custom: { version: '8', dialect: 'postgres', id: 'custom' },
+			snapshot: { version: '8', dialect: 'postgresql', id: 'snapshot' },
+			custom: { version: '8', dialect: 'postgresql', id: 'custom' },
 		})),
 	}));
 
@@ -2308,8 +2308,8 @@ test('generate silently ignores confirm_data_loss hints', async () => {
 		prepareSnapshot: vi.fn(async () => ({
 			ddlCur: { cur: true },
 			ddlPrev: { prev: true },
-			snapshot: { version: '8', dialect: 'postgres', id: 'snapshot' },
-			custom: { version: '8', dialect: 'postgres', id: 'custom' },
+			snapshot: { version: '8', dialect: 'postgresql', id: 'snapshot' },
+			custom: { version: '8', dialect: 'postgresql', id: 'custom' },
 		})),
 	}));
 
@@ -2366,8 +2366,8 @@ test('excess hints referencing non-existent entities are silently ignored', asyn
 		prepareSnapshot: vi.fn(async () => ({
 			ddlCur: { cur: true },
 			ddlPrev: { prev: true },
-			snapshot: { version: '8', dialect: 'postgres', id: 'snapshot' },
-			custom: { version: '8', dialect: 'postgres', id: 'custom' },
+			snapshot: { version: '8', dialect: 'postgresql', id: 'snapshot' },
+			custom: { version: '8', dialect: 'postgresql', id: 'custom' },
 		})),
 	}));
 
@@ -2521,8 +2521,7 @@ describe('push postgres confirm_data_loss[table] in json mode', () => {
 		const parsed = JSON.parse(output.trim());
 		expect(parsed).toStrictEqual({
 			status: 'ok',
-			dialect: 'postgres',
-			message: 'Changes applied',
+			dialect: 'postgresql',
 		});
 	});
 });
@@ -2636,8 +2635,7 @@ describe('push postgres confirm_data_loss[view] in json mode', () => {
 		const parsed = JSON.parse(output.trim());
 		expect(parsed).toStrictEqual({
 			status: 'ok',
-			dialect: 'postgres',
-			message: 'Changes applied',
+			dialect: 'postgresql',
 		});
 	});
 });
@@ -2751,8 +2749,7 @@ describe('push postgres confirm_data_loss[column] in json mode', () => {
 		const parsed = JSON.parse(output.trim());
 		expect(parsed).toStrictEqual({
 			status: 'ok',
-			dialect: 'postgres',
-			message: 'Changes applied',
+			dialect: 'postgresql',
 		});
 	});
 });
@@ -2866,8 +2863,7 @@ describe('push postgres confirm_data_loss[schema] in json mode', () => {
 		const parsed = JSON.parse(output.trim());
 		expect(parsed).toStrictEqual({
 			status: 'ok',
-			dialect: 'postgres',
-			message: 'Changes applied',
+			dialect: 'postgresql',
 		});
 	});
 });
@@ -2992,8 +2988,7 @@ describe('push postgres confirm_data_loss[primary_key] in json mode', () => {
 		const parsed = JSON.parse(output.trim());
 		expect(parsed).toStrictEqual({
 			status: 'ok',
-			dialect: 'postgres',
-			message: 'Changes applied',
+			dialect: 'postgresql',
 		});
 	});
 });
@@ -3138,8 +3133,7 @@ describe('push postgres confirm_data_loss[add_not_null] in json mode', () => {
 		const parsed = JSON.parse(output.trim());
 		expect(parsed).toStrictEqual({
 			status: 'ok',
-			dialect: 'postgres',
-			message: 'Changes applied',
+			dialect: 'postgresql',
 		});
 	});
 });
@@ -3278,8 +3272,7 @@ describe('push postgres confirm_data_loss[add_unique] in json mode', () => {
 		const parsed = JSON.parse(output.trim());
 		expect(parsed).toStrictEqual({
 			status: 'ok',
-			dialect: 'postgres',
-			message: 'Changes applied',
+			dialect: 'postgresql',
 		});
 	});
 });
@@ -3412,7 +3405,6 @@ describe('push mysql confirm_data_loss[table] in json mode', () => {
 		expect(parsed).toStrictEqual({
 			status: 'ok',
 			dialect: 'mysql',
-			message: 'Changes applied',
 		});
 	});
 });
@@ -3545,7 +3537,6 @@ describe('push mysql confirm_data_loss[column] non_empty in json mode', () => {
 		expect(parsed).toStrictEqual({
 			status: 'ok',
 			dialect: 'mysql',
-			message: 'Changes applied',
 		});
 	});
 });
@@ -3692,7 +3683,6 @@ describe('push mysql confirm_data_loss[primary_key] in json mode', () => {
 		expect(parsed).toStrictEqual({
 			status: 'ok',
 			dialect: 'mysql',
-			message: 'Changes applied',
 		});
 	});
 });
@@ -3836,7 +3826,6 @@ describe('push mysql confirm_data_loss[add_not_null] add_column in json mode', (
 		expect(parsed).toStrictEqual({
 			status: 'ok',
 			dialect: 'mysql',
-			message: 'Changes applied',
 		});
 	});
 });
@@ -3988,7 +3977,6 @@ describe('push mysql confirm_data_loss[add_not_null] alter_column in json mode',
 		expect(parsed).toStrictEqual({
 			status: 'ok',
 			dialect: 'mysql',
-			message: 'Changes applied',
 		});
 	});
 });
@@ -4155,7 +4143,6 @@ describe('push mysql confirm_data_loss[column] type_change in json mode', () => 
 		expect(parsed).toStrictEqual({
 			status: 'ok',
 			dialect: 'mysql',
-			message: 'Changes applied',
 		});
 	});
 });
@@ -4317,7 +4304,6 @@ describe('push mysql confirm_data_loss[add_unique] in json mode', () => {
 		expect(parsed).toStrictEqual({
 			status: 'ok',
 			dialect: 'mysql',
-			message: 'Changes applied',
 		});
 	});
 });
@@ -4583,7 +4569,6 @@ describe('push sqlite confirm_data_loss[table] in json mode', () => {
 		expect(parsed).toStrictEqual({
 			status: 'ok',
 			dialect: 'sqlite',
-			message: 'Changes applied',
 		});
 
 		const tables = sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").all();
@@ -4693,7 +4678,6 @@ describe('push sqlite confirm_data_loss[column-drop] in json mode', () => {
 		expect(parsed).toStrictEqual({
 			status: 'ok',
 			dialect: 'sqlite',
-			message: 'Changes applied',
 		});
 
 		const cols = sqlite.prepare('PRAGMA table_info(users)').all() as { name: string }[];
@@ -4814,7 +4798,6 @@ describe('push sqlite confirm_data_loss[add_not_null] in json mode', () => {
 		expect(parsed).toStrictEqual({
 			status: 'ok',
 			dialect: 'sqlite',
-			message: 'Changes applied',
 		});
 
 		const rows = sqlite.prepare('SELECT * FROM users').all();
@@ -4880,7 +4863,6 @@ describe('push sqlite confirm_data_loss[add_not_null] in json mode', () => {
 		expect(parsed).toStrictEqual({
 			status: 'ok',
 			dialect: 'sqlite',
-			message: 'Changes applied',
 		});
 
 		const cols = sqlite.prepare('PRAGMA table_info(users)').all() as {
@@ -5009,7 +4991,6 @@ describe('push sqlite confirm_data_loss[recreate_table-single] in json mode', ()
 		expect(parsed).toStrictEqual({
 			status: 'ok',
 			dialect: 'sqlite',
-			message: 'Changes applied',
 		});
 
 		const cols = sqlite.prepare('PRAGMA table_info(users)').all() as { name: string }[];
@@ -5152,7 +5133,6 @@ describe('push sqlite confirm_data_loss[recreate_table-multi] in json mode', () 
 		expect(parsed).toStrictEqual({
 			status: 'ok',
 			dialect: 'sqlite',
-			message: 'Changes applied',
 		});
 
 		const cols = sqlite.prepare('PRAGMA table_info(users)').all() as { name: string }[];
@@ -5273,7 +5253,6 @@ describe('push mssql confirm_data_loss[table] in json mode', () => {
 		expect(JSON.parse(output.trim())).toStrictEqual({
 			status: 'ok',
 			dialect: 'mssql',
-			message: 'Changes applied',
 		});
 	});
 });
@@ -5392,7 +5371,6 @@ describe('push mssql confirm_data_loss[column] in json mode', () => {
 		expect(JSON.parse(output.trim())).toStrictEqual({
 			status: 'ok',
 			dialect: 'mssql',
-			message: 'Changes applied',
 		});
 	});
 });
@@ -5505,7 +5483,6 @@ describe('push mssql confirm_data_loss[schema] in json mode', () => {
 		expect(JSON.parse(output.trim())).toStrictEqual({
 			status: 'ok',
 			dialect: 'mssql',
-			message: 'Changes applied',
 		});
 	});
 });
@@ -5624,7 +5601,6 @@ describe('push mssql confirm_data_loss[primary_key] in json mode', () => {
 		expect(JSON.parse(output.trim())).toStrictEqual({
 			status: 'ok',
 			dialect: 'mssql',
-			message: 'Changes applied',
 		});
 	});
 });
@@ -5743,7 +5719,6 @@ describe('push mssql confirm_data_loss[add_not_null] add_column in json mode', (
 		expect(JSON.parse(output.trim())).toStrictEqual({
 			status: 'ok',
 			dialect: 'mssql',
-			message: 'Changes applied',
 		});
 	});
 });
@@ -5862,7 +5837,6 @@ describe('push mssql confirm_data_loss[add_not_null] alter_column in json mode',
 		expect(JSON.parse(output.trim())).toStrictEqual({
 			status: 'ok',
 			dialect: 'mssql',
-			message: 'Changes applied',
 		});
 	});
 });
@@ -5996,7 +5970,6 @@ describe('push mssql confirm_data_loss[add_unique] in json mode', () => {
 		expect(JSON.parse(output.trim())).toStrictEqual({
 			status: 'ok',
 			dialect: 'mssql',
-			message: 'Changes applied',
 		});
 	});
 });
@@ -6167,7 +6140,6 @@ describe('push cockroach confirm_data_loss[table] in json mode', () => {
 		expect(parsed).toStrictEqual({
 			status: 'ok',
 			dialect: 'cockroach',
-			message: 'Changes applied',
 		});
 	});
 });
@@ -6282,7 +6254,6 @@ describe('push cockroach confirm_data_loss[view] in json mode', () => {
 		expect(parsed).toStrictEqual({
 			status: 'ok',
 			dialect: 'cockroach',
-			message: 'Changes applied',
 		});
 	});
 });
@@ -6397,7 +6368,6 @@ describe('push cockroach confirm_data_loss[column] in json mode', () => {
 		expect(parsed).toStrictEqual({
 			status: 'ok',
 			dialect: 'cockroach',
-			message: 'Changes applied',
 		});
 	});
 });
@@ -6512,7 +6482,6 @@ describe('push cockroach confirm_data_loss[schema] in json mode', () => {
 		expect(parsed).toStrictEqual({
 			status: 'ok',
 			dialect: 'cockroach',
-			message: 'Changes applied',
 		});
 	});
 });
@@ -6638,7 +6607,6 @@ describe('push cockroach confirm_data_loss[primary_key] in json mode', () => {
 		expect(parsed).toStrictEqual({
 			status: 'ok',
 			dialect: 'cockroach',
-			message: 'Changes applied',
 		});
 	});
 });
@@ -6786,7 +6754,6 @@ describe('push cockroach confirm_data_loss[add_not_null] in json mode', () => {
 		expect(parsed).toStrictEqual({
 			status: 'ok',
 			dialect: 'cockroach',
-			message: 'Changes applied',
 		});
 	});
 });
@@ -6932,7 +6899,6 @@ describe('push cockroach confirm_data_loss[add_unique] in json mode', () => {
 		expect(parsed).toStrictEqual({
 			status: 'ok',
 			dialect: 'cockroach',
-			message: 'Changes applied',
 		});
 	});
 });
@@ -7065,7 +7031,6 @@ describe('push singlestore confirm_data_loss[table] in json mode', () => {
 		expect(JSON.parse(output.trim())).toStrictEqual({
 			status: 'ok',
 			dialect: 'singlestore',
-			message: 'Changes applied',
 		});
 	});
 });
@@ -7198,7 +7163,6 @@ describe('push singlestore confirm_data_loss[column] in json mode', () => {
 		expect(JSON.parse(output.trim())).toStrictEqual({
 			status: 'ok',
 			dialect: 'singlestore',
-			message: 'Changes applied',
 		});
 	});
 
@@ -7345,7 +7309,6 @@ describe('push singlestore confirm_data_loss[column] in json mode', () => {
 		expect(JSON.parse(output.trim())).toStrictEqual({
 			status: 'ok',
 			dialect: 'singlestore',
-			message: 'Changes applied',
 		});
 	});
 });
@@ -7489,7 +7452,6 @@ describe('push singlestore confirm_data_loss[add_not_null] in json mode', () => 
 		expect(JSON.parse(output.trim())).toStrictEqual({
 			status: 'ok',
 			dialect: 'singlestore',
-			message: 'Changes applied',
 		});
 	});
 });

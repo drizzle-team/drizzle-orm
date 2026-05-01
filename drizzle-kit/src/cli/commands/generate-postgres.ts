@@ -55,7 +55,7 @@ export const handle = async (
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
-			dialect: 'postgres',
+			dialect: 'postgresql',
 			type: 'custom',
 			renames: [],
 			snapshots,
@@ -94,7 +94,7 @@ export const handle = async (
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
-			dialect: 'postgres',
+			dialect: 'postgresql',
 			renames,
 			snapshots,
 		});
@@ -103,10 +103,10 @@ export const handle = async (
 
 	if (json) {
 		if (sqlStatements.length === 0) {
-			printJsonOutput({ status: 'no_changes', dialect: 'postgres' });
+			printJsonOutput({ status: 'no_changes', dialect: 'postgresql' });
 			return;
 		}
-		const explainOutput = explainJsonOutput('postgres', statements, []);
+		const explainOutput = explainJsonOutput('postgresql', statements, []);
 		printJsonOutput(explainOutput);
 		return;
 	}
