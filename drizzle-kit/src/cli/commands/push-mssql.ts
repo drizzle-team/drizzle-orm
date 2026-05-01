@@ -21,7 +21,7 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/mssql/
 import type { JsonStatement } from '../../dialects/mssql/statements';
 import type { DB } from '../../utils';
 import { isJsonMode } from '../context';
-import { CommandOutputCliError } from '../errors';
+import { CommandOutputCliError, UnsupportedSchemaChangeError } from '../errors';
 import { highlightSQL } from '../highlighter';
 import type { HintsHandler } from '../hints';
 import { resolver } from '../prompts';
