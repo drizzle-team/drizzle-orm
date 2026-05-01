@@ -886,17 +886,6 @@ export const explainJsonOutput = (
 	};
 };
 
-export const abortedJsonOutput = (
-	dialect: string,
-	hints: { hint: string; statement?: string }[],
-) => {
-	return {
-		status: 'aborted' as const,
-		dialect,
-		warnings: hints.map((h) => stripAnsi(h.hint)),
-	};
-};
-
 export const postgresSchemaError = (error: PostgresSchemaError): string => {
 	if (error.type === 'constraint_name_duplicate') {
 		const { name, schema, table } = error;

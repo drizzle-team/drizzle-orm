@@ -1,10 +1,10 @@
+import BetterSqlite3 from 'better-sqlite3';
 import { spawnSync } from 'child_process';
+import { sql } from 'drizzle-orm';
+import { check, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import BetterSqlite3 from 'better-sqlite3';
-import { sql } from 'drizzle-orm';
-import { check, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { HintsHandler } from '../../src/cli/hints';
 
@@ -4752,7 +4752,12 @@ describe('push sqlite confirm_data_loss[add_not_null] in json mode', () => {
 		expect(parsed).toStrictEqual({
 			status: 'missing_hints',
 			unresolved: [
-				{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'], reason: 'nulls_present' },
+				{
+					type: 'confirm_data_loss',
+					kind: 'add_not_null',
+					entity: ['public', 'users', 'email'],
+					reason: 'nulls_present',
+				},
 			],
 		});
 
@@ -5921,7 +5926,12 @@ describe('push mssql confirm_data_loss[add_unique] in json mode', () => {
 		expect(JSON.parse(output.trim())).toStrictEqual({
 			status: 'missing_hints',
 			unresolved: [
-				{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['dbo', 'users', 'email'], reason: 'duplicates_present' },
+				{
+					type: 'confirm_data_loss',
+					kind: 'add_unique',
+					entity: ['dbo', 'users', 'email'],
+					reason: 'duplicates_present',
+				},
 			],
 		});
 	});
@@ -6950,7 +6960,9 @@ describe('push singlestore confirm_data_loss[table] in json mode', () => {
 			fromDrizzleSchema: vi.fn(() => ({ to: 'schema' })),
 		}));
 		vi.doMock('../../src/dialects/mysql/ddl', async () => {
-			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>('../../src/dialects/mysql/ddl');
+			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>(
+				'../../src/dialects/mysql/ddl',
+			);
 			return {
 				...actual,
 				interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
@@ -7013,7 +7025,9 @@ describe('push singlestore confirm_data_loss[table] in json mode', () => {
 			fromDrizzleSchema: vi.fn(() => ({ to: 'schema' })),
 		}));
 		vi.doMock('../../src/dialects/mysql/ddl', async () => {
-			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>('../../src/dialects/mysql/ddl');
+			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>(
+				'../../src/dialects/mysql/ddl',
+			);
 			return {
 				...actual,
 				interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
@@ -7079,7 +7093,9 @@ describe('push singlestore confirm_data_loss[column] in json mode', () => {
 			fromDrizzleSchema: vi.fn(() => ({ to: 'schema' })),
 		}));
 		vi.doMock('../../src/dialects/mysql/ddl', async () => {
-			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>('../../src/dialects/mysql/ddl');
+			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>(
+				'../../src/dialects/mysql/ddl',
+			);
 			return {
 				...actual,
 				interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
@@ -7142,7 +7158,9 @@ describe('push singlestore confirm_data_loss[column] in json mode', () => {
 			fromDrizzleSchema: vi.fn(() => ({ to: 'schema' })),
 		}));
 		vi.doMock('../../src/dialects/mysql/ddl', async () => {
-			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>('../../src/dialects/mysql/ddl');
+			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>(
+				'../../src/dialects/mysql/ddl',
+			);
 			return {
 				...actual,
 				interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
@@ -7206,7 +7224,9 @@ describe('push singlestore confirm_data_loss[column] in json mode', () => {
 			fromDrizzleSchema: vi.fn(() => ({ to: 'schema' })),
 		}));
 		vi.doMock('../../src/dialects/mysql/ddl', async () => {
-			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>('../../src/dialects/mysql/ddl');
+			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>(
+				'../../src/dialects/mysql/ddl',
+			);
 			return {
 				...actual,
 				interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
@@ -7280,7 +7300,9 @@ describe('push singlestore confirm_data_loss[column] in json mode', () => {
 			fromDrizzleSchema: vi.fn(() => ({ to: 'schema' })),
 		}));
 		vi.doMock('../../src/dialects/mysql/ddl', async () => {
-			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>('../../src/dialects/mysql/ddl');
+			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>(
+				'../../src/dialects/mysql/ddl',
+			);
 			return {
 				...actual,
 				interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
@@ -7351,7 +7373,9 @@ describe('push singlestore confirm_data_loss[add_not_null] in json mode', () => 
 			fromDrizzleSchema: vi.fn(() => ({ to: 'schema' })),
 		}));
 		vi.doMock('../../src/dialects/mysql/ddl', async () => {
-			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>('../../src/dialects/mysql/ddl');
+			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>(
+				'../../src/dialects/mysql/ddl',
+			);
 			return {
 				...actual,
 				interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
@@ -7422,7 +7446,9 @@ describe('push singlestore confirm_data_loss[add_not_null] in json mode', () => 
 			fromDrizzleSchema: vi.fn(() => ({ to: 'schema' })),
 		}));
 		vi.doMock('../../src/dialects/mysql/ddl', async () => {
-			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>('../../src/dialects/mysql/ddl');
+			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>(
+				'../../src/dialects/mysql/ddl',
+			);
 			return {
 				...actual,
 				interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),

@@ -17,7 +17,6 @@ import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
 import {
-	abortedJsonOutput,
 	explain as explainView,
 	explainJsonOutput,
 	humanLog,

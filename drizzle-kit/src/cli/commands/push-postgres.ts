@@ -33,7 +33,6 @@ import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { PostgresCredentials } from '../validations/postgres';
 import {
-	abortedJsonOutput,
 	explain as explainView,
 	explainJsonOutput,
 	humanLog,
