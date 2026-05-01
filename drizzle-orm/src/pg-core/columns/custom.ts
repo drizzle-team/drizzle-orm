@@ -331,7 +331,7 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	/**
 	 * Select which column type codec will be used for this column
 	 */
-	codec:
+	codec?:
 		| PostgresColumnType
 		| undefined
 		| ((
