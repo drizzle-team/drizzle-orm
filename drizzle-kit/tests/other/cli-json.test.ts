@@ -1819,7 +1819,7 @@ test('push mysql emits missing_hints in json mode for unresolved type_change sug
 	});
 });
 
-test('push mssql emits aborted in json mode for warning-only suggestion hints', async () => {
+test('push mssql throws rename_blocked_by_check_constraint error in json mode', async () => {
 	vi.doMock('../../src/cli/connections', () => ({
 		connectToMsSQL: vi.fn(async () => ({ db: { query: vi.fn(async () => []) } })),
 	}));
@@ -1852,29 +1852,28 @@ test('push mssql emits aborted in json mode for warning-only suggestion hints', 
 	}));
 
 	const pushMssql = await import('../../src/cli/commands/push-mssql');
-	const { output, exitCode } = await captureJsonModeRun(() =>
-		withCliContext(true, () =>
-			pushMssql.handle(
-				['schema.ts'],
-				false,
-				{} as never,
-				[] as never,
-				false,
-				undefined,
-				false,
-				{ table: '__drizzle_migrations', schema: 'dbo' },
-				new HintsHandler(),
-			))
-	);
 
-	expect(exitCode).toBe(0);
-	expect(JSON.parse(output.trim())).toStrictEqual({
-		status: 'aborted',
-		dialect: 'mssql',
-		warnings: [
-			'You are trying to rename column from old_name to new_name, but it is not possible to rename a column if it is used in a check constraint on the table.\nTo rename the column, first drop the check constraint, then rename the column, and finally recreate the check constraint',
-		],
-	});
+	await expect(withCliContext(true, () =>
+		pushMssql.handle(
+			['schema.ts'],
+			false,
+			{} as never,
+			[] as never,
+			false,
+			undefined,
+			false,
+			{ table: '__drizzle_migrations', schema: 'dbo' },
+			new HintsHandler(),
+		))).rejects.toMatchObject({
+			code: 'rename_blocked_by_check_constraint',
+			meta: {
+				code: 'rename_blocked_by_check_constraint',
+				schema: 'dbo',
+				table: 'users',
+				from: 'old_name',
+				to: 'new_name',
+			},
+		});
 });
 
 test('push singlestore emits missing_hints in json mode for unresolved type_change suggestion', async () => {
