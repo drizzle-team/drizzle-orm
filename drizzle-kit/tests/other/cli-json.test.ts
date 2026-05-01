@@ -2,6 +2,9 @@ import { spawnSync } from 'child_process';
 import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import BetterSqlite3 from 'better-sqlite3';
+import { sql } from 'drizzle-orm';
+import { check, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { HintsHandler } from '../../src/cli/hints';
 
@@ -60,6 +63,22 @@ const captureJsonModeRun = async <T>(fn: () => Promise<T>) => {
 const withCliContext = async <T>(json: boolean, callback: () => Promise<T> | T): Promise<T> => {
 	const { runWithCliContext } = await import('../../src/cli/context');
 	return runWithCliContext({ json }, callback);
+};
+
+const sqliteDbFrom = (client: BetterSqlite3.Database) => {
+	return {
+		query: async <T>(query: string, params: unknown[] = []) => {
+			return client.prepare(query).bind(...params).all() as T[];
+		},
+		run: async (query: string) => {
+			client.prepare(query).run();
+		},
+		batch: async (sqlStatements: string[]) => {
+			for (const stmt of sqlStatements) {
+				client.prepare(stmt).run();
+			}
+		},
+	};
 };
 
 const runCli = (argv: string[], env: NodeJS.ProcessEnv = {}) => {
