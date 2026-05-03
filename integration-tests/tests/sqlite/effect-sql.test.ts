@@ -104,6 +104,8 @@ const resetDb = Effect.gen(function*() {
 	yield* db.run(sql`drop table if exists ${cities}`);
 	yield* db.run(sql`drop table if exists ${usersMigratorTable}`);
 	yield* db.run(sql`drop table if exists ${anotherUsersMigratorTable}`);
+	yield* db.run(sql`drop table if exists effect_sqlite_deferred_child`);
+	yield* db.run(sql`drop table if exists effect_sqlite_deferred_parent`);
 	yield* db.run(sql`drop table if exists __drizzle_migrations`);
 
 	yield* createSchema(db);
@@ -362,6 +364,28 @@ it.layer(TestLive)((it) => {
 			expect(yield* db.select().from(users)).toStrictEqual([]);
 		}));
 
+	effect('surfaces commit errors as typed failures', () =>
+		Effect.gen(function*() {
+			const db = yield* DB;
+
+			yield* db.run(sql`pragma foreign_keys = on`);
+			yield* db.run(sql`create table effect_sqlite_deferred_parent (id integer primary key)`);
+			yield* db.run(sql`
+				create table effect_sqlite_deferred_child (
+					id integer primary key,
+					parent_id integer not null,
+					foreign key(parent_id) references effect_sqlite_deferred_parent(id) deferrable initially deferred
+				)
+			`);
+
+			const result = yield* db.transaction((tx) =>
+				tx.run(sql`insert into effect_sqlite_deferred_child (id, parent_id) values (1, 999)`)
+			).pipe(Effect.result);
+
+			assert(Result.isFailure(result));
+			assert(Predicate.isTagged(result.failure, 'SqlError'));
+		}));
+
 	effect('supports nested transaction commit and rollback', () =>
 		Effect.gen(function*() {
 			const db = yield* DB;
@@ -532,6 +556,12 @@ it.layer(TestLive)((it) => {
 			expect(yield* db.with(replicaUsers).select({ name: replicaUsers.name }).from(replicaUsers)).toStrictEqual([{
 				name: 'Replica',
 			}]);
+			const selectedReplicaUsers = db.$with('selected_replica_users', { name: users.name }).as(
+				sql`select name from ${users}`,
+			);
+			expect(
+				yield* db.with(selectedReplicaUsers).select({ name: selectedReplicaUsers.name }).from(selectedReplicaUsers),
+			).toStrictEqual([{ name: 'Replica' }]);
 			expect(yield* db.query.users.findMany()).toStrictEqual([{
 				id: 1,
 				name: 'Replica',

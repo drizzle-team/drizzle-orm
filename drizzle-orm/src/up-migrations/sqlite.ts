@@ -1,17 +1,13 @@
-import * as Effect from 'effect/Effect';
-import type { SqlError } from 'effect/unstable/sql/SqlError';
 import type { TablesRelationalConfig } from '~/_relations.ts';
-import { EffectDrizzleError } from '~/effect-core/errors.ts';
-import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import type { MigrationMeta } from '~/migrator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
-import type { SQLiteEffectSession } from '~/sqlite-core/effect/session.ts';
 import type { BaseSQLiteDatabase } from '~/sqlite-core/index.ts';
 import type { SQLiteSession } from '~/sqlite-core/session.ts';
 import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResult } from './utils.ts';
 
-type SQLiteMigrationTableRow = { id: number | null; hash: string; created_at: number };
+/** @internal */
+export type SQLiteMigrationTableRow = { id: number | null; hash: string; created_at: number };
 
 type SQLiteMigrationBackfillEntry = {
 	name: string;
@@ -21,14 +17,6 @@ type SQLiteMigrationBackfillEntry = {
 		| { column: 'hash'; value: string };
 };
 
-const migrationUpgradeError = (cause: unknown) =>
-	new EffectDrizzleError({
-		message: typeof cause === 'object' && cause !== null && 'message' in cause && typeof cause.message === 'string'
-			? cause.message
-			: String(cause),
-		cause,
-	});
-
 function unmatchedMigrationError(unmatched: SQLiteMigrationTableRow[]) {
 	return new Error(
 		`While upgrading your database migrations table we found ${unmatched.length} (${
@@ -37,7 +25,8 @@ function unmatchedMigrationError(unmatched: SQLiteMigrationTableRow[]) {
 	);
 }
 
-function prepareSQLiteMigrationBackfill(
+/** @internal */
+export function prepareSQLiteMigrationBackfill(
 	dbRows: SQLiteMigrationTableRow[],
 	localMigrations: MigrationMeta[],
 ): SQLiteMigrationBackfillEntry[] {
@@ -91,7 +80,8 @@ function prepareSQLiteMigrationBackfill(
 	return toApply;
 }
 
-function buildSQLiteMigrationBackfillStatements(
+/** @internal */
+export function buildSQLiteMigrationBackfillStatements(
 	migrationsTable: string,
 	backfillEntries: SQLiteMigrationBackfillEntry[],
 ) {
@@ -233,82 +223,6 @@ export async function upgradeAsyncIfNeeded(
 	}
 
 	return { newDb: false };
-}
-
-export function upgradeEffectIfNeeded<TEffectHKT extends QueryEffectHKTBase>(
-	migrationsTable: string,
-	session: SQLiteEffectSession<TEffectHKT>,
-	localMigrations: MigrationMeta[],
-): Effect.Effect<UpgradeResult, EffectDrizzleError | TEffectHKT['error'] | SqlError, TEffectHKT['context']> {
-	return Effect.gen(function*() {
-		const tableExists = yield* session.all(
-			sql`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ${migrationsTable}`,
-		);
-
-		if (tableExists.length === 0) {
-			return { newDb: true };
-		}
-
-		const rows = yield* session.all<{ column_name: string }>(
-			sql`SELECT name as column_name FROM pragma_table_info(${migrationsTable})`,
-		);
-
-		const version = GET_VERSION_FOR.sqlite(rows.map((r) => r.column_name));
-
-		for (let v = version; v < MIGRATIONS_TABLE_VERSIONS.sqlite; v++) {
-			const upgradeFn = upgradeEffectFunctions[v];
-			if (!upgradeFn) {
-				return yield* new EffectDrizzleError({
-					message: `No upgrade path from migration table version ${v} to ${v + 1}`,
-					cause: { version: v },
-				});
-			}
-			yield* upgradeFn(migrationsTable, session, localMigrations);
-		}
-
-		return { newDb: false };
-	});
-}
-
-const upgradeEffectFunctions: Record<
-	number,
-	<TEffectHKT extends QueryEffectHKTBase>(
-		migrationsTable: string,
-		session: SQLiteEffectSession<TEffectHKT>,
-		localMigrations: MigrationMeta[],
-	) => Effect.Effect<void, EffectDrizzleError | TEffectHKT['error'] | SqlError, TEffectHKT['context']>
-> = {
-	0: upgradeEffectFromV0,
-};
-
-function upgradeEffectFromV0<TEffectHKT extends QueryEffectHKTBase>(
-	migrationsTable: string,
-	session: SQLiteEffectSession<TEffectHKT>,
-	localMigrations: MigrationMeta[],
-): Effect.Effect<void, EffectDrizzleError | TEffectHKT['error'] | SqlError, TEffectHKT['context']> {
-	return Effect.gen(function*() {
-		const table = sql`${sql.identifier(migrationsTable)}`;
-
-		const dbRows = yield* session.all<SQLiteMigrationTableRow>(
-			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
-		);
-		const statements = yield* Effect.try({
-			try: () =>
-				buildSQLiteMigrationBackfillStatements(
-					migrationsTable,
-					prepareSQLiteMigrationBackfill(dbRows, localMigrations),
-				),
-			catch: migrationUpgradeError,
-		});
-
-		yield* session.transaction((tx) =>
-			Effect.gen(function*() {
-				for (const statement of statements) {
-					yield* tx.run(statement);
-				}
-			})
-		);
-	});
 }
 
 const upgradeAsyncFunctions: Record<
