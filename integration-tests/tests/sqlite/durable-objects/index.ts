@@ -3060,9 +3060,9 @@ export class MyDurableObject extends DurableObject {
 			const result2 = await this.db.select({ value: avg(table.nullOnly) }).from(table);
 			const result3 = await this.db.select({ value: avgDistinct(table.b) }).from(table);
 
-			expect(result1[0]?.value).eq('24');
+			expect(result1[0]?.value).eq(24);
 			expect(result2[0]?.value).eq(null);
-			expect(result3[0]?.value).eq('42.5');
+			expect(result3[0]?.value).eq(42.5);
 		} catch (error: any) {
 			console.error(error);
 			throw new Error(`aggregatFunctionAvg error`);
@@ -3079,9 +3079,9 @@ export class MyDurableObject extends DurableObject {
 			const result2 = await this.db.select({ value: sum(table.nullOnly) }).from(table);
 			const result3 = await this.db.select({ value: sumDistinct(table.b) }).from(table);
 
-			expect(result1[0]?.value).eq('200');
+			expect(result1[0]?.value).eq(200);
 			expect(result2[0]?.value).eq(null);
-			expect(result3[0]?.value).eq('170');
+			expect(result3[0]?.value).eq(170);
 		} catch (error: any) {
 			console.error(error);
 			throw new Error(`aggregateFunctionSum error`);
