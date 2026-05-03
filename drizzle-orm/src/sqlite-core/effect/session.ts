@@ -230,6 +230,10 @@ export class SQLiteEffectPreparedQuery<
 		mapResult?: (result: A) => B,
 	) {
 		return Effect.gen({ self: this }, function*() {
+			if (this.queryMetadata?.type === 'select' && this.cacheConfig?.enabled && (yield* this.isInTransaction)) {
+				return yield* this.mapCachedResult(yield* query, mapResult);
+			}
+
 			const cacheStrat: Awaited<ReturnType<typeof strategyFor>> = !is(this.cache.cache, NoopCache)
 				? yield* Effect.tryPromise(
 					() => strategyFor(queryString, params, this.queryMetadata, this.cacheConfig),
@@ -478,6 +482,7 @@ export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEf
 	}
 
 	const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
+	if (migrationsToRun.length === 0) return;
 
 	yield* session.transaction((tx) =>
 		Effect.gen(function*() {

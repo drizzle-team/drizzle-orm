@@ -13,7 +13,7 @@ type SQLiteMigrationBackfillEntry = {
 	name: string;
 	selector:
 		| { column: 'id'; value: number }
-		| { column: 'created_at'; value: string }
+		| { column: 'created_at'; value: number }
 		| { column: 'hash'; value: string };
 };
 
@@ -64,7 +64,7 @@ export function prepareSQLiteMigrationBackfill(
 				selector: dbRow.id !== null
 					? { column: 'id', value: dbRow.id }
 					: matchedByMillis
-					? { column: 'created_at', value: stringified }
+					? { column: 'created_at', value: dbRow.created_at }
 					: { column: 'hash', value: dbRow.hash },
 			});
 			continue;
