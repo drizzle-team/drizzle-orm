@@ -670,12 +670,14 @@ export const citiesCustom = customSchema.table('cities_table', {
 	const cities1 = gelTable('cities_table', {
 		id: integer('id').primaryKey(),
 		name: text('name').notNull().primaryKey(),
+		postalCode: text('postal_code').notNull().unique(),
 		role: text('role').$type<'admin' | 'user'>().default('user').notNull(),
 		population: integer('population').default(0),
 	});
 	const cities2 = gelTable('cities_table', ({ text, integer }) => ({
 		id: integer('id').primaryKey(),
 		name: text('name').notNull().primaryKey(),
+		postalCode: text('postal_code').notNull().unique(),
 		role: text('role').$type<'admin' | 'user'>().default('user').notNull(),
 		population: integer('population').default(0),
 	}));
@@ -719,6 +721,27 @@ export const citiesCustom = customSchema.table('cities_table', {
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
 			}>;
+			postalCode: GelColumn<
+				{
+					tableName: 'cities_table';
+					name: 'postal_code';
+					dataType: 'string';
+					columnType: 'GelText';
+					data: string;
+					driverParam: string;
+					notNull: true;
+					hasDefault: false;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+					enumValues: undefined;
+					baseColumn: never;
+					identity: undefined;
+					generated: undefined;
+				},
+				{},
+				{ isUnique: true }
+			>;
 			role: GelColumn<
 				{
 					tableName: 'cities_table';

@@ -170,10 +170,20 @@ export type IsIdentity<
 > = T & {
 	_: {
 		notNull: true;
+		isUnique: true;
 		hasDefault: true;
 		identity: TType;
 	};
 };
+
+export type IsUnique<
+	T extends ColumnBuilderBase,
+> = T & {
+	_: {
+		isUnique: true;
+	};
+};
+
 export interface ColumnBuilderBase<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TTypeConfig extends object = object,
