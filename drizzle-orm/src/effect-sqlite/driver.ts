@@ -29,8 +29,8 @@ export const DefaultServices = Layer.merge(
  * Creates an EffectSQLiteDatabase instance.
  *
  * Requires a generic Effect `SqlClient`, `EffectLogger`, and `EffectCache` services to be provided.
- * SQLite-specific clients from `@effect/sql-sqlite-node`, `@effect/sql-sqlite-bun`, and related packages
- * all provide the generic `SqlClient` service.
+ * Drizzle only depends on the generic `SqlClient`; install and provide a compatible SQLite provider such as
+ * `@effect/sql-sqlite-node`, `@effect/sql-sqlite-bun`, or another package that exposes `SqlClient`.
  *
  * @example
  * ```ts

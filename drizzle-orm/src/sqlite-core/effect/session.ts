@@ -18,7 +18,7 @@ import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types.ts';
 import type { PreparedQueryConfig, SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
-import { upgradeEffectIfNeeded } from '~/up-migrations/sqlite.ts';
+import { upgradeIfNeeded } from '~/up-migrations/effect-sqlite.ts';
 import { assertUnreachable, makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
 import { SQLiteEffectDatabase } from './db.ts';
 
@@ -436,7 +436,7 @@ export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEf
 		? '__drizzle_migrations'
 		: config.migrationsTable ?? '__drizzle_migrations';
 
-	const { newDb } = yield* upgradeEffectIfNeeded(migrationsTable, session, migrations);
+	const { newDb } = yield* upgradeIfNeeded(migrationsTable, session, migrations);
 
 	if (newDb) {
 		yield* session.run(sql`
