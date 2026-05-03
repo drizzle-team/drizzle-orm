@@ -1,7 +1,8 @@
 import type * as Effect from 'effect/Effect';
 import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
-import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
+import { SQL, type SQLWrapper } from '~/sql/sql.ts';
+import { buildSQLiteCount, buildSQLiteEmbeddedCount } from '../query-builders/count.ts';
 import type { SQLiteTable } from '../table.ts';
 import type { SQLiteView } from '../view.ts';
 import type { SQLiteEffectSession } from './session.ts';
@@ -16,20 +17,6 @@ export class SQLiteEffectCountBuilder<TEffectHKT extends QueryEffectHKTBase = Qu
 	private sql: SQL<number>;
 	private session: SQLiteEffectSession<TEffectHKT, any, any>;
 
-	private static buildEmbeddedCount(
-		source: SQLiteTable | SQLiteView | SQL | SQLWrapper,
-		filters?: SQL<unknown>,
-	): SQL<number> {
-		return sql<number>`(select count(*) from ${source}${sql.raw(' where ').if(filters)}${filters})`;
-	}
-
-	private static buildCount(
-		source: SQLiteTable | SQLiteView | SQL | SQLWrapper,
-		filters?: SQL<unknown>,
-	): SQL<number> {
-		return sql<number>`select count(*) from ${source}${sql.raw(' where ').if(filters)}${filters}`;
-	}
-
 	constructor(
 		params: {
 			source: SQLiteTable | SQLiteView | SQL | SQLWrapper;
@@ -37,10 +24,10 @@ export class SQLiteEffectCountBuilder<TEffectHKT extends QueryEffectHKTBase = Qu
 			session: SQLiteEffectSession<TEffectHKT, any, any>;
 		},
 	) {
-		super(SQLiteEffectCountBuilder.buildEmbeddedCount(params.source, params.filters).queryChunks);
+		super(buildSQLiteEmbeddedCount(params.source, params.filters).queryChunks);
 
 		this.session = params.session;
-		this.sql = SQLiteEffectCountBuilder.buildCount(params.source, params.filters);
+		this.sql = buildSQLiteCount(params.source, params.filters);
 	}
 
 	execute(placeholderValues?: Record<string, unknown>) {
