@@ -49,7 +49,7 @@ test('create table with check', async (t) => {
 );\n`);
 });
 
-test('add check contraint to existing table', async (t) => {
+test('add check constraint to existing table', async (t) => {
 	const to = {
 		users: sqliteTable('users', {
 			id: int('id').primaryKey(),
@@ -109,7 +109,7 @@ test('add check contraint to existing table', async (t) => {
 	expect(sqlStatements[5]).toBe(`PRAGMA foreign_keys=ON;`);
 });
 
-test('drop check contraint to existing table', async (t) => {
+test('drop check constraint to existing table', async (t) => {
 	const from = {
 		users: sqliteTable('users', {
 			id: int('id').primaryKey(),
