@@ -62,7 +62,6 @@ export const handle = async (
 
 	const { ddl: ddl1 } = interimToDDL(interimFromDB);
 	const { ddl: ddl2, errors: errors1 } = interimToDDL(interimFromFiles);
-	// TODO: handle errors
 
 	if (errors1.length > 0) {
 		throw new CommandOutputCliError('push', errors1.map((it) => mysqlSchemaError(it)).join('\n'), {
@@ -150,7 +149,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 	for (const statement of filtered) {
 		if (statement.type === 'drop_table') {
-			const entity: [string, string] = ['public', statement.table];
+			const entity = ['public', statement.table] as const;
 			if (hints.matchConfirm('table', entity)) continue;
 			const res = await db.query(`select 1 from ${identifier({ table: statement.table })} limit 1`);
 
@@ -166,7 +165,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 		if (statement.type === 'drop_column') {
 			const column = statement.column;
-			const entity: [string, string, string] = ['public', column.table, column.name];
+			const entity = ['public', column.table, column.name] as const;
 			if (hints.matchConfirm('column', entity)) continue;
 			const res = await db.query(`select 1 from ${identifier({ table: column.table })} limit 1`);
 			if (res.length === 0) continue;
@@ -187,7 +186,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 		if (statement.type === 'drop_pk') {
 			const { table, columns } = statement.pk;
 			const id = identifier({ table });
-			const entity: [string, string, string] = ['public', table, statement.pk.name];
+			const entity = ['public', table, statement.pk.name] as const;
 			if (hints.matchConfirm('primary_key', entity)) continue;
 			const res = await db.query(
 				`select 1 from ${id} limit 1`,
@@ -240,7 +239,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 		) {
 			const column = statement.column;
 			const id = identifier({ table: column.table });
-			const entity: [string, string, string] = ['public', column.table, column.name];
+			const entity = ['public', column.table, column.name] as const;
 			if (hints.matchConfirm('not_null_constraint', entity)) continue;
 			const res = await db.query(`select 1 from ${id} limit 1`);
 
@@ -271,7 +270,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 				statement.diff.notNull && statement.diff.notNull.to && statement.column.default === null
 				&& !statement.column.generated
 			) {
-				const entity: [string, string, string] = ['public', statement.column.table, statement.column.name];
+				const entity = ['public', statement.column.table, statement.column.name] as const;
 				if (hints.matchConfirm('not_null_constraint', entity)) continue;
 				const columnRes = await db.query(`select ${columnName} from ${tableName} WHERE ${columnName} IS NULL limit 1`);
 
@@ -294,7 +293,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			}
 
 			if (statement.diff.type) {
-				const entity: [string, string, string] = ['public', statement.column.table, statement.column.name];
+				const entity = ['public', statement.column.table, statement.column.name] as const;
 				if (!hints.matchConfirm('column', entity)) {
 					if (json) {
 						hints.pushMissingHint({
@@ -328,7 +327,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 			const unique = statement.index;
 			const id = identifier({ table: unique.table });
-			const entity: [string, string, string] = ['public', unique.table, unique.name];
+			const entity = ['public', unique.table, unique.name] as const;
 			if (hints.matchConfirm('unique_constraint', entity)) continue;
 
 			const res = await db.query(`select 1 from ${id} limit 1`);
