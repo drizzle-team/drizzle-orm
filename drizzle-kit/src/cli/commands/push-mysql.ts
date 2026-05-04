@@ -225,7 +225,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			if (indexesFound) continue;
 
 			throw new UnsupportedSchemaChangeError({
-				code: 'drop_pk_dependency',
+				kind: 'drop_pk_dependency',
 				table,
 				columns,
 				blocking_fks: fkFound.map((fk) => fk.name),
@@ -371,7 +371,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			if (isPkFound || isUniqueFound) continue;
 
 			throw new UnsupportedSchemaChangeError({
-				code: 'fk_target_not_unique',
+				kind: 'fk_target_not_unique',
 				table,
 				columns,
 				table_to: tableTo,

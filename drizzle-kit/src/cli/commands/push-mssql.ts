@@ -348,7 +348,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			&& ddl2.checks.one({ schema: statement.to.schema, table: statement.to.table })
 		) {
 			throw new UnsupportedSchemaChangeError({
-				code: 'rename_blocked_by_check_constraint',
+				kind: 'rename_blocked_by_check_constraint',
 				schema: statement.to.schema ?? 'dbo',
 				table: statement.to.table,
 				from: statement.from.name,
@@ -358,7 +358,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 		if (statement.type === 'rename_schema') {
 			throw new UnsupportedSchemaChangeError({
-				code: 'rename_schema_unsupported',
+				kind: 'rename_schema_unsupported',
 				from: statement.from.name,
 				to: statement.to.name,
 				dialect: 'mssql',
