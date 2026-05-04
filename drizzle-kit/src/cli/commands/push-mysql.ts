@@ -74,9 +74,9 @@ export const handle = async (
 	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
-		resolver<Table>('table', 'public', 'push', hints),
-		resolver<Column>('column', 'public', 'push', hints),
-		resolver<View>('view', 'public', 'push', hints),
+		resolver<Table>('table', 'public', hints),
+		resolver<Column>('column', 'public', hints),
+		resolver<View>('view', 'public', hints),
 		'push',
 	);
 
@@ -241,7 +241,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const column = statement.column;
 			const id = identifier({ table: column.table });
 			const entity: [string, string, string] = ['public', column.table, column.name];
-			if (hints.matchConfirm('add_not_null', entity)) continue;
+			if (hints.matchConfirm('not_null_constraint', entity)) continue;
 			const res = await db.query(`select 1 from ${id} limit 1`);
 
 			if (res.length === 0) continue;
@@ -250,7 +250,12 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			} column without default value to a non-empty ${chalk.underline(statement.column.table)} table`;
 
 			if (json) {
-				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'add_not_null', entity, reason: 'nulls_present' });
+				hints.pushMissingHint({
+					type: 'confirm_data_loss',
+					kind: 'not_null_constraint',
+					entity,
+					reason: 'nulls_present',
+				});
 			} else {
 				grouped.push({ hint });
 			}
@@ -267,7 +272,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 				&& !statement.column.generated
 			) {
 				const entity: [string, string, string] = ['public', statement.column.table, statement.column.name];
-				if (hints.matchConfirm('add_not_null', entity)) continue;
+				if (hints.matchConfirm('not_null_constraint', entity)) continue;
 				const columnRes = await db.query(`select ${columnName} from ${tableName} WHERE ${columnName} IS NULL limit 1`);
 
 				if (columnRes.length > 0) {
@@ -276,7 +281,12 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 					} column without default value in ${chalk.underline(statement.column.table)} table`;
 
 					if (json) {
-						hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'add_not_null', entity, reason: 'nulls_present' });
+						hints.pushMissingHint({
+							type: 'confirm_data_loss',
+							kind: 'not_null_constraint',
+							entity,
+							reason: 'nulls_present',
+						});
 					} else {
 						grouped.push({ hint });
 					}
@@ -319,13 +329,18 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const unique = statement.index;
 			const id = identifier({ table: unique.table });
 			const entity: [string, string, string] = ['public', unique.table, unique.name];
-			if (hints.matchConfirm('add_unique', entity)) continue;
+			if (hints.matchConfirm('unique_constraint', entity)) continue;
 
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
 
 			if (json) {
-				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'add_unique', entity, reason: 'duplicates_present' });
+				hints.pushMissingHint({
+					type: 'confirm_data_loss',
+					kind: 'unique_constraint',
+					entity,
+					reason: 'duplicates_present',
+				});
 			} else {
 				grouped.push({
 					hint: `You're about to add ${chalk.underline(unique.name)} unique index to a non-empty ${

@@ -70,8 +70,8 @@ export const handle = async (
 	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
-		resolver<Table>('table', 'public', 'push', hints),
-		resolver<Column>('column', 'public', 'push', hints),
+		resolver<Table>('table', 'public', hints),
+		resolver<Column>('column', 'public', hints),
 		'push',
 	);
 
@@ -181,7 +181,7 @@ export const suggestions = async (
 			const res = await connection.query(`select 1 from "${table}" limit 1`);
 			const tableNonEmpty = res.length > 0;
 
-			if (hints.matchConfirm('add_not_null', entity)) {
+			if (hints.matchConfirm('not_null_constraint', entity)) {
 				if (tableNonEmpty) {
 					grouped.push({ hint: '', statement: `DELETE FROM "${table}" where true;` });
 				}
@@ -190,7 +190,12 @@ export const suggestions = async (
 
 			if (tableNonEmpty) {
 				if (json) {
-					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'add_not_null', entity, reason: 'nulls_present' });
+					hints.pushMissingHint({
+						type: 'confirm_data_loss',
+						kind: 'not_null_constraint',
+						entity,
+						reason: 'nulls_present',
+					});
 				} else {
 					grouped.push(
 						{

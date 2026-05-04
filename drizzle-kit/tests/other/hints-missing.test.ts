@@ -67,8 +67,8 @@ test('HintsHandler.emitAndExit does not emit when missingHints is empty guard ch
 test('resolver aggregates unresolved items across repeated calls on the same HintsHandler', async () => {
 	const { hints, tableResult, columnResult } = await runWithCliContext({ json: true }, async () => {
 		const hints = new HintsHandler();
-		const resolveTables = resolver<Entity>('table', 'public', 'push', hints);
-		const resolveColumns = resolver<Entity>('column', 'public', 'push', hints);
+		const resolveTables = resolver<Entity>('table', 'public', hints);
+		const resolveColumns = resolver<Entity>('column', 'public', hints);
 
 		const tableResult = await resolveTables({
 			created: [table('members', 'public')],
@@ -102,8 +102,8 @@ test('each HintsHandler instance owns its own missing hints state', async () => 
 		const firstHints = new HintsHandler();
 		const secondHints = new HintsHandler();
 
-		const resolveFirst = resolver<Entity>('table', 'public', 'push', firstHints);
-		const resolveSecond = resolver<Entity>('table', 'public', 'push', secondHints);
+		const resolveFirst = resolver<Entity>('table', 'public', firstHints);
+		const resolveSecond = resolver<Entity>('table', 'public', secondHints);
 
 		await resolveFirst({
 			created: [table('members', 'public')],
