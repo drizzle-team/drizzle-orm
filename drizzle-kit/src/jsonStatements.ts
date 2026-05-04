@@ -23,6 +23,7 @@ import {
 	View as SqliteView,
 } from './serializer/sqliteSchema';
 import { AlteredColumn, Column, Sequence, Table } from './snapshotsDiffer';
+import { PgTable } from '../../drizzle-orm/src/pg-core/table';
 
 export interface JsonSqliteCreateTableStatement {
 	type: 'sqlite_create_table';
@@ -53,7 +54,8 @@ export interface JsonCreateTableStatement {
 	policies?: string[];
 	checkConstraints?: string[];
 	internals?: MySqlKitInternals | SingleStoreKitInternals;
-	isRLSEnabled?: boolean;
+  isRLSEnabled?: boolean;
+  isUnlogged?: boolean;
 }
 
 export interface JsonRecreateTableStatement {
@@ -912,7 +914,8 @@ export const preparePgCreateTableJson = (
 		uniqueConstraints: Object.values(uniqueConstraints),
 		policies: Object.values(policies),
 		checkConstraints: Object.values(checkConstraints),
-		isRLSEnabled: isRLSEnabled ?? false,
+    isRLSEnabled: isRLSEnabled ?? false,
+		isUnlogged: (table as any)[PgTable.Symbol.Unlogged] ?? false,
 	};
 };
 
