@@ -184,7 +184,7 @@ const hintSchema = z.array(z.union([
 	confirmHintSchema,
 ]));
 
-export class InvalidHintShapeCliError extends Error {
+class InvalidHintShapeCliError extends Error {
 	readonly code = 'invalid_hints' as const;
 	readonly meta: InvalidHintShapeCliErrorMeta;
 
@@ -343,7 +343,7 @@ function buildHints(hints: readonly Hint[]): Hints {
 	return set;
 }
 
-function tuplesEqual(left: readonly string[], right: readonly string[]): boolean {
+export function tuplesEqual(left: readonly string[], right: readonly string[]): boolean {
 	if (left.length !== right.length) {
 		return false;
 	}

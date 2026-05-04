@@ -145,7 +145,7 @@ export const suggestions = async (
 	for (const statement of jsonStatements) {
 		if (statement.type === 'drop_table') {
 			const name = statement.tableName;
-			const entity: [string, string] = ['public', name];
+			const entity = ['public', name] as const;
 			if (hints.matchConfirm('table', entity)) continue;
 			const res = await connection.query(`select 1 from "${name}" limit 1;`);
 
@@ -161,7 +161,7 @@ export const suggestions = async (
 
 		if (statement.type === 'drop_column') {
 			const { table, name } = statement.column;
-			const entity: [string, string, string] = ['public', table, name];
+			const entity = ['public', table, name] as const;
 			if (hints.matchConfirm('column', entity)) continue;
 
 			const res = await connection.query(`select 1 from "${table}" limit 1;`);
@@ -177,7 +177,7 @@ export const suggestions = async (
 
 		if (statement.type === 'add_column' && (statement.column.notNull && !statement.column.default)) {
 			const { table, name } = statement.column;
-			const entity: [string, string, string] = ['public', table, name];
+			const entity = ['public', table, name] as const;
 			const res = await connection.query(`select 1 from "${table}" limit 1`);
 			const tableNonEmpty = res.length > 0;
 
@@ -219,7 +219,7 @@ export const suggestions = async (
 			if (res.length > 0) {
 				if (json) {
 					for (const droppedColumn of droppedColumns) {
-						const entity: [string, string, string] = ['public', statement.from.name, droppedColumn.name];
+						const entity = ['public', statement.from.name, droppedColumn.name] as const;
 						if (hints.matchConfirm('column', entity)) continue;
 						hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'column', entity, reason: 'non_empty' });
 					}

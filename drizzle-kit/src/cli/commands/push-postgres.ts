@@ -91,7 +91,6 @@ export const handle = async (
 
 	const { ddl: ddl1 } = interimToDDL(schemaFrom);
 	const { ddl: ddl2, errors: errors1 } = interimToDDL(schemaTo);
-	// TODO: handle errors?
 
 	if (errors1.length > 0) {
 		throw new CommandOutputCliError('push', errors1.map((it) => postgresSchemaError(it)).join('\n'), {
@@ -247,7 +246,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 		if (statement.type === 'drop_column') {
 			const column = statement.column;
 			const id = identifier({ schema: column.schema, name: column.table });
-			const entity: [string, string, string] = [column.schema, column.table, column.name];
+			const entity = [column.schema, column.table, column.name] as const;
 			if (hints.matchConfirm('column', entity)) continue;
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
@@ -261,7 +260,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 		}
 
 		if (statement.type === 'drop_schema') {
-			const entity: [string] = [statement.name];
+			const entity = [statement.name] as const;
 			if (hints.matchConfirm('schema', entity)) continue;
 			// count tables in schema
 			const res = await db.query(
@@ -285,7 +284,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			const schema = statement.pk.schema ?? 'public';
 			const table = statement.pk.table;
 			const id = `"${schema}"."${table}"`;
-			const entity: [string, string, string] = [schema, table, statement.pk.name];
+			const entity = [schema, table, statement.pk.name] as const;
 			if (hints.matchConfirm('primary_key', entity)) continue;
 			const res = await db.query(
 				`select 1 from ${id} limit 1`,
@@ -326,7 +325,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 		) {
 			const column = statement.column;
 			const id = identifier({ schema: column.schema, name: column.table });
-			const entity: [string, string, string] = [column.schema, column.table, column.name];
+			const entity = [column.schema, column.table, column.name] as const;
 			if (hints.matchConfirm('not_null_constraint', entity)) continue;
 			const res = await db.query(`select 1 from ${id} limit 1`);
 
@@ -352,7 +351,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 		if (statement.type === 'add_unique') {
 			const unique = statement.unique;
 			const id = identifier({ schema: unique.schema, name: unique.table });
-			const entity: [string, string, string] = [unique.schema, unique.table, unique.name];
+			const entity = [unique.schema, unique.table, unique.name] as const;
 			if (hints.matchConfirm('unique_constraint', entity)) continue;
 
 			const res = await db.query(`select 1 from ${id} limit 1`);

@@ -3,6 +3,7 @@ import { render } from 'hanji';
 import type { Resolver } from 'src/dialects/common';
 import { isJsonMode } from './context';
 import { InvalidHintsCliError } from './errors';
+import { tuplesEqual } from './hints';
 import type { HintsHandler, IdFor, RenameCreateHintKind } from './hints';
 import type { RenamePromptItem } from './views';
 import { humanLog, isRenamePromptItem, ResolveSelect } from './views';
@@ -107,7 +108,7 @@ export const resolver = <T extends PromptEntityBase>(
 				const renameHint = hints.matchRename(kind, newItemId);
 				const createHint = hints.matchCreate(kind, newItemId);
 				const renameSource = renameHint
-					? leftMissing.find((item) => tupleEquals(entityId(kind, item, defaultSchema), renameHint.from))
+					? leftMissing.find((item) => tuplesEqual(entityId(kind, item, defaultSchema), renameHint.from))
 					: undefined;
 
 				if (renameSource) {
@@ -221,12 +222,4 @@ const applySelection = <T extends PromptEntityBase>(
 
 	humanLog(`${chalk.green('+')} ${newItem.name} ${chalk.gray(`${entity} will be created`)}`);
 	result.created.push(newItem);
-};
-
-const tupleEquals = (left: readonly string[], right: readonly string[]) => {
-	if (left.length !== right.length) {
-		return false;
-	}
-
-	return left.every((segment, index) => segment === right[index]);
 };

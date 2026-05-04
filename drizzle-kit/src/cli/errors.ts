@@ -240,5 +240,10 @@ function defaultMessage(meta: UnsupportedSchemaChangeMeta): string {
 			return `Cannot rename '${meta.schema}.${meta.table}.${meta.from}' to '${meta.to}': column is used in a check constraint`;
 		case 'rename_schema_unsupported':
 			return `Cannot rename schema '${meta.from}' to '${meta.to}': ${meta.dialect} does not support schema rename`;
+		// exhaustive: adding a kind here forces the new branch above
+		default: {
+			const _: never = meta;
+			return _;
+		}
 	}
 }
