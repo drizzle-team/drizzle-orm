@@ -237,7 +237,7 @@ test('json mode records only the risky probe sites when multiple probes have mix
 			{
 				type: 'confirm_data_loss',
 				kind: 'add_unique',
-				entity: ['public', 'users', 'email'],
+				entity: ['public', 'users', 'users_email_unique'],
 				reason: 'duplicates_present',
 			},
 		]);

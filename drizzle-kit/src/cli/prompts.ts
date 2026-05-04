@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import { render } from 'hanji';
 import type { Resolver } from 'src/dialects/common';
 import { isJsonMode } from './context';
+import { InvalidHintsCliError } from './errors';
 import type { HintsHandler, IdFor, MissingHint, RenameCreateHintKind } from './hints';
 import type { RenamePromptItem } from './views';
 import { humanLog, isRenamePromptItem, ResolveSelect } from './views';
@@ -115,6 +116,13 @@ export const resolver = <T extends PromptEntityBase>(
 					leftMissing = leftMissing.filter(Boolean);
 					index += 1;
 					continue;
+				}
+
+				if (renameHint) {
+					throw new InvalidHintsCliError(
+						`rename hint's \`from\` ${JSON.stringify(renameHint.from)} doesn't match any deleted ${kind}`,
+						{ kind, from: [...renameHint.from] },
+					);
 				}
 
 				if (!createHint && leftMissing.length > 0) {
