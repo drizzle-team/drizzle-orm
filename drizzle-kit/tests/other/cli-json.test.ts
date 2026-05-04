@@ -1865,9 +1865,9 @@ test('push mssql throws rename_blocked_by_check_constraint error in json mode', 
 			{ table: '__drizzle_migrations', schema: 'dbo' },
 			new HintsHandler(),
 		))).rejects.toMatchObject({
-			code: 'rename_blocked_by_check_constraint',
+			code: 'unsupported_schema_change',
 			meta: {
-				code: 'rename_blocked_by_check_constraint',
+				kind: 'rename_blocked_by_check_constraint',
 				schema: 'dbo',
 				table: 'users',
 				from: 'old_name',
@@ -4379,9 +4379,9 @@ test('push mysql throws drop_pk_dependency error in json mode', async () => {
 			{ table: '__drizzle_migrations', schema: '' },
 			new HintsHandler(),
 		))).rejects.toMatchObject({
-			code: 'drop_pk_dependency',
+			code: 'unsupported_schema_change',
 			meta: {
-				code: 'drop_pk_dependency',
+				kind: 'drop_pk_dependency',
 				table: 'users',
 				columns: ['id'],
 				blocking_fks: ['orders_user_id_fk'],
@@ -4462,9 +4462,9 @@ test('push mysql throws fk_target_not_unique error in json mode', async () => {
 			{ table: '__drizzle_migrations', schema: '' },
 			new HintsHandler(),
 		))).rejects.toMatchObject({
-			code: 'fk_target_not_unique',
+			code: 'unsupported_schema_change',
 			meta: {
-				code: 'fk_target_not_unique',
+				kind: 'fk_target_not_unique',
 				table: 'orders',
 				columns: ['user_email'],
 				table_to: 'users',
@@ -6030,9 +6030,9 @@ test('push mssql throws rename_schema_unsupported error in json mode', async () 
 			{ table: '__drizzle_migrations', schema: 'dbo' },
 			new HintsHandler(),
 		))).rejects.toMatchObject({
-			code: 'rename_schema_unsupported',
+			code: 'unsupported_schema_change',
 			meta: {
-				code: 'rename_schema_unsupported',
+				kind: 'rename_schema_unsupported',
 				from: 'old_analytics',
 				to: 'analytics',
 				dialect: 'mssql',
@@ -7538,9 +7538,9 @@ test('push singlestore throws fk_target_not_unique error in json mode', async ()
 			{ table: '__drizzle_migrations', schema: '' },
 			new HintsHandler(),
 		))).rejects.toMatchObject({
-			code: 'fk_target_not_unique',
+			code: 'unsupported_schema_change',
 			meta: {
-				code: 'fk_target_not_unique',
+				kind: 'fk_target_not_unique',
 				table: 'orders',
 				columns: ['user_email'],
 				table_to: 'users',
