@@ -272,8 +272,17 @@ export class HintsHandler {
 		});
 	}
 
-	pushMissingHint(hint: MissingHint): void {
-		this.missingHints.push(hint);
+	pushMissingHint<K extends RenameCreateHintKind>(kind: K, entity: IdFor<K>): void;
+	pushMissingHint(hint: MissingHint): void;
+	pushMissingHint(
+		...args: [MissingHint] | [RenameCreateHintKind, IdFor<RenameCreateHintKind>]
+	): void {
+		if (args.length === 1) {
+			this.missingHints.push(args[0]);
+			return;
+		}
+		const [kind, entity] = args;
+		this.missingHints.push({ type: 'rename_or_create', kind, entity } as MissingHint);
 	}
 
 	hasMissingHints(): boolean {
