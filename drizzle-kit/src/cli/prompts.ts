@@ -3,7 +3,7 @@ import { render } from 'hanji';
 import type { Resolver } from 'src/dialects/common';
 import { isJsonMode } from './context';
 import { InvalidHintsCliError } from './errors';
-import type { HintsHandler, IdFor, MissingHint, RenameCreateHintKind } from './hints';
+import type { HintsHandler, IdFor, RenameCreateHintKind } from './hints';
 import type { RenamePromptItem } from './views';
 import { humanLog, isRenamePromptItem, ResolveSelect } from './views';
 
@@ -125,7 +125,7 @@ export const resolver = <T extends PromptEntityBase>(
 				}
 
 				if (!createHint && leftMissing.length > 0) {
-					hints.pushMissingHint({ type: 'rename_or_create', kind, entity: newItemId } as MissingHint);
+					hints.pushMissingHint(kind, newItemId);
 				}
 
 				applySelection(newItem, newItem, leftMissing, result, entity, defaultSchema);
