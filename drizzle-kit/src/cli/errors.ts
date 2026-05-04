@@ -216,22 +216,22 @@ export class InvalidHintsCliError extends DrizzleCliError {
 }
 
 export type UnsupportedSchemaChangeMeta =
-	| { code: 'drop_pk_dependency'; table: string; columns: string[]; blocking_fks: string[] }
-	| { code: 'fk_target_not_unique'; table: string; columns: string[]; table_to: string; columns_to: string[] }
-	| { code: 'rename_blocked_by_check_constraint'; schema: string; table: string; from: string; to: string }
-	| { code: 'rename_schema_unsupported'; from: string; to: string; dialect: 'mssql' };
+	| { kind: 'drop_pk_dependency'; table: string; columns: string[]; blocking_fks: string[] }
+	| { kind: 'fk_target_not_unique'; table: string; columns: string[]; table_to: string; columns_to: string[] }
+	| { kind: 'rename_blocked_by_check_constraint'; schema: string; table: string; from: string; to: string }
+	| { kind: 'rename_schema_unsupported'; from: string; to: string; dialect: 'mssql' };
 
 export class UnsupportedSchemaChangeError extends DrizzleCliError {
 	override readonly meta: UnsupportedSchemaChangeMeta;
 
-	constructor(meta: UnsupportedSchemaChangeMeta, humanMessage?: string) {
-		super(meta.code, humanMessage ?? defaultMessage(meta), meta as DrizzleCliErrorMeta);
+	constructor(meta: UnsupportedSchemaChangeMeta) {
+		super('unsupported_schema_change', defaultMessage(meta), meta as DrizzleCliErrorMeta);
 		this.meta = meta;
 	}
 }
 
 function defaultMessage(meta: UnsupportedSchemaChangeMeta): string {
-	switch (meta.code) {
+	switch (meta.kind) {
 		case 'drop_pk_dependency':
 			return `Cannot drop primary key on '${meta.table}': blocked by foreign keys [${meta.blocking_fks.join(', ')}]`;
 		case 'fk_target_not_unique':
