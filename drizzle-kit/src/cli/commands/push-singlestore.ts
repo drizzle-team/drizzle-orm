@@ -5,6 +5,7 @@ import { interimToDDL } from 'src/dialects/mysql/ddl';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { ddlDiff } from '../../dialects/singlestore/diff';
 import { isJsonMode } from '../context';
+import { CommandOutputCliError } from '../errors';
 import { highlightSQL } from '../highlighter';
 import type { HintsHandler } from '../hints';
 import { resolver } from '../prompts';
@@ -12,7 +13,14 @@ import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
-import { explain as explainView, explainJsonOutput, humanLog, printJsonOutput, ProgressView } from '../views';
+import {
+	explain as explainView,
+	explainJsonOutput,
+	humanLog,
+	mysqlSchemaError,
+	printJsonOutput,
+	ProgressView,
+} from '../views';
 import { suggestions } from './push-mysql';
 
 export const handle = async (
@@ -56,8 +64,14 @@ export const handle = async (
 	const interimFromFiles = fromDrizzleSchema(res.tables, casing);
 
 	const { ddl: ddl1 } = interimToDDL(interimFromDB);
-	const { ddl: ddl2 } = interimToDDL(interimFromFiles);
-	// TODO: handle errors
+	const { ddl: ddl2, errors: errors1 } = interimToDDL(interimFromFiles);
+
+	if (errors1.length > 0) {
+		throw new CommandOutputCliError('push', errors1.map((it) => mysqlSchemaError(it)).join('\n'), {
+			stage: 'ddl',
+			dialect: 'singlestore',
+		});
+	}
 
 	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
