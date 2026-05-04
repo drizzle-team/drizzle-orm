@@ -347,9 +347,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 		if (statement.type === 'add_unique') {
 			const unique = statement.unique;
 			const id = identifier({ schema: unique.schema, name: unique.table });
-			const uniqueColumn = unique.columns[0];
-			if (!uniqueColumn) continue;
-			const entity: [string, string, string] = [unique.schema, unique.table, uniqueColumn];
+			const entity: [string, string, string] = [unique.schema, unique.table, unique.name];
 			if (hints.matchConfirm('add_unique', entity)) continue;
 
 			const res = await db.query(`select 1 from ${id} limit 1`);

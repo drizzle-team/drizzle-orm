@@ -309,7 +309,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 		if (statement.type === 'add_unique') {
 			const unique = statement.unique;
 			const id = identifier({ schema: unique.schema, table: unique.table });
-			const entity: [string, string, string] = [unique.schema ?? 'dbo', unique.table, unique.columns[0] ?? unique.name];
+			const entity: [string, string, string] = [unique.schema ?? 'dbo', unique.table, unique.name];
 			if (hints.matchConfirm('add_unique', entity)) continue;
 
 			const res = await db.query(`select top(1) 1 from ${id};`);

@@ -11,13 +11,7 @@ It is written for tools and services that call Drizzle Kit programmatically.
 - `drizzle-kit generate --json`
 - `drizzle-kit push --json`
 
-When `--json` is enabled, callers should treat `stdout` as the JSON channel.
-
-Each command invocation writes a single JSON object to `stdout`, optionally followed by a trailing newline.
-
-## Vocabulary lock notice
-
-**Vocabulary locked.** This document defines the v1-stable contract for `--json` mode. The set of hint types (`rename`, `create`, `confirm_data_loss`), confirm kinds (`table`, `column`, `schema`, `view`, `primary_key`, `add_not_null`, `add_unique`), confirm reasons (`non_empty`, `nulls_present`, `duplicates_present`, `type_change`), response statuses (`ok`, `no_changes`, `missing_hints`, `error`), and structured error codes documented below is locked as the v1 surface. Future changes are additive and follow Drizzle Kit's versioning policy.
+When `--json` is enabled, callers should treat `stdout` as the JSON channel. Each command invocation writes a single JSON object to `stdout`.
 
 ## Response statuses
 
@@ -38,14 +32,6 @@ Examples:
 {
   "status": "ok",
   "dialect": "postgresql",
-  "migration_path": "drizzle/20260427153000_name/migration.sql"
-}
-```
-
-```json
-{
-  "status": "ok",
-  "dialect": "sqlite",
   "migration_path": "drizzle/20260427153000_name/migration.sql"
 }
 ```
@@ -515,7 +501,7 @@ Used by:
 - `foreign key`
 - `primary_key` (confirm_data_loss only)
 - `add_not_null` (confirm_data_loss only)
-- `add_unique` (confirm_data_loss only)
+- `add_unique` (confirm_data_loss only — third slot is the constraint name, not a column name)
 
 Format:
 
@@ -532,6 +518,12 @@ Examples:
 ```json
 ["dbo", "users", "users_pkey"]
 ```
+
+```json
+["public", "users", "users_email_unique"]
+```
+
+For `add_unique` (confirm_data_loss), the third slot is the constraint name (e.g. `users_email_unique`), which uniquely identifies the constraint within the schema-qualified table. This disambiguates composite unique constraints that share a leading column.
 
 ### Five-part identifiers
 

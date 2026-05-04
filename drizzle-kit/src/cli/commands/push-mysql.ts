@@ -318,8 +318,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 			const unique = statement.index;
 			const id = identifier({ table: unique.table });
-			const uniqueColumn = unique.columns[0];
-			const entity: [string, string, string] = ['public', unique.table, uniqueColumn?.value ?? unique.name];
+			const entity: [string, string, string] = ['public', unique.table, unique.name];
 			if (hints.matchConfirm('add_unique', entity)) continue;
 
 			const res = await db.query(`select 1 from ${id} limit 1`);

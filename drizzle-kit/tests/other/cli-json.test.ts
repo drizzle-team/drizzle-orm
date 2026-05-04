@@ -3203,7 +3203,7 @@ describe('push postgres confirm_data_loss[add_unique] in json mode', () => {
 				{
 					type: 'confirm_data_loss',
 					kind: 'add_unique',
-					entity: ['public', 'users', 'email'],
+					entity: ['public', 'users', 'users_email_unique'],
 					reason: 'duplicates_present',
 				},
 			],
@@ -3250,7 +3250,7 @@ describe('push postgres confirm_data_loss[add_unique] in json mode', () => {
 
 		const pushPostgres = await import('../../src/cli/commands/push-postgres');
 		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['public', 'users', 'email'] },
+			{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['public', 'users', 'users_email_unique'] },
 		]);
 
 		const { output, exitCode } = await captureJsonModeRun(() =>
@@ -4223,7 +4223,7 @@ describe('push mysql confirm_data_loss[add_unique] in json mode', () => {
 				{
 					type: 'confirm_data_loss',
 					kind: 'add_unique',
-					entity: ['public', 'users', 'email'],
+					entity: ['public', 'users', 'users_email_idx'],
 					reason: 'duplicates_present',
 				},
 			],
@@ -4281,7 +4281,7 @@ describe('push mysql confirm_data_loss[add_unique] in json mode', () => {
 
 		const pushMysql = await import('../../src/cli/commands/push-mysql');
 		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['public', 'users', 'email'] },
+			{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['public', 'users', 'users_email_idx'] },
 		]);
 
 		const { output, exitCode } = await captureJsonModeRun(() =>
@@ -5903,7 +5903,7 @@ describe('push mssql confirm_data_loss[add_unique] in json mode', () => {
 				{
 					type: 'confirm_data_loss',
 					kind: 'add_unique',
-					entity: ['dbo', 'users', 'email'],
+					entity: ['dbo', 'users', 'users_email_unique'],
 					reason: 'duplicates_present',
 				},
 			],
@@ -5948,7 +5948,7 @@ describe('push mssql confirm_data_loss[add_unique] in json mode', () => {
 
 		const pushMssql = await import('../../src/cli/commands/push-mssql');
 		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['dbo', 'users', 'email'] },
+			{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['dbo', 'users', 'users_email_unique'] },
 		]);
 
 		const { output, exitCode } = await captureJsonModeRun(() =>
@@ -6826,7 +6826,7 @@ describe('push cockroach confirm_data_loss[add_unique] in json mode', () => {
 				{
 					type: 'confirm_data_loss',
 					kind: 'add_unique',
-					entity: ['public', 'users', 'email'],
+					entity: ['public', 'users', 'users_email_idx'],
 					reason: 'duplicates_present',
 				},
 			],
@@ -6876,7 +6876,7 @@ describe('push cockroach confirm_data_loss[add_unique] in json mode', () => {
 
 		const pushCockroach = await import('../../src/cli/commands/push-cockroach');
 		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['public', 'users', 'email'] },
+			{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['public', 'users', 'users_email_idx'] },
 		]);
 
 		const { output, exitCode } = await captureJsonModeRun(() =>
