@@ -103,22 +103,64 @@ When this response is emitted, the process exits with code `2`.
 
 #### Catalog: kinds in unresolved items
 
-`MissingHint.type: "rename_or_create"` may carry any of: `schema`, `role`, `table`, `enum`, `sequence`, `view`, `column`, `default`, `policy`, `check`, `index`, `unique`, `primary key`, `foreign key`, `privilege`.
+Tuple shape per `kind` is listed in [Identifier formats](#identifier-formats); these tables enumerate the kind set and per-dialect applicability only.
 
-`MissingHint.type: "confirm_data_loss"` may carry any of: `schema`, `table`, `view`, `column`, `primary_key`, `not_null_constraint`, `unique_constraint`.
+`MissingHint.type: "rename_or_create"` carries one of these `kind` values:
 
-See [Identifier formats](#identifier-formats) for the identifier tuple shape and an example for each kind.
+| `kind` | applicable dialects | description |
+|--------|---------------------|-------------|
+| `table` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Disambiguates a table addition between create-new and rename-existing. |
+| `column` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Disambiguates a column addition between create-new and rename-existing. |
+| `default` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Disambiguates a column-default addition between create-new and rename-existing. |
+| `schema` | `postgresql`, `mssql`, `cockroach` | Disambiguates a schema addition between create-new and rename-existing. |
+| `enum` | `postgresql`, `cockroach` | Disambiguates an enum-type addition between create-new and rename-existing. |
+| `sequence` | `postgresql`, `cockroach` | Disambiguates a sequence addition between create-new and rename-existing. |
+| `view` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Disambiguates a view addition between create-new and rename-existing. |
+| `policy` | `postgresql`, `cockroach` | Disambiguates an RLS policy addition between create-new and rename-existing. |
+| `role` | `postgresql`, `cockroach` | Disambiguates a role addition between create-new and rename-existing. |
+| `privilege` | `postgresql`, `cockroach` | Disambiguates a privilege grant between create-new and rename-existing. |
+| `check` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Disambiguates a check-constraint addition between create-new and rename-existing. |
+| `index` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Disambiguates an index addition between create-new and rename-existing. |
+| `unique` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Disambiguates a unique-constraint addition between create-new and rename-existing. |
+| `primary key` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Disambiguates a primary-key addition between create-new and rename-existing. |
+| `foreign key` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Disambiguates a foreign-key addition between create-new and rename-existing. |
+
+`MissingHint.type: "confirm_data_loss"` carries one of these `kind` values:
+
+| `kind` | applicable dialects | description |
+|--------|---------------------|-------------|
+| `table` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Approves dropping a non-empty table. |
+| `column` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Approves dropping a non-empty column, or — on `mysql` and `singlestore` — changing an existing column's SQL type via `alter_column`. |
+| `schema` | `postgresql`, `mssql`, `cockroach` | Approves dropping a non-empty schema (cascades over contained objects). |
+| `view` | `postgresql`, `cockroach`³ | Approves dropping a non-empty materialized view. |
+| `primary_key` | `postgresql`, `mysql`, `mssql`, `cockroach`, `singlestore` | Approves dropping a primary key on a non-empty table. |
+| `not_null_constraint` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Approves setting `NOT NULL` on a column that contains rows with `NULL` values. |
+| `unique_constraint` | `postgresql`, `mysql`, `mssql`, `cockroach`, `singlestore` | Approves adding a unique constraint or unique index on a column whose existing data contains duplicates. |
+
+³ Materialized-view drops only — `postgresql` and `cockroach`. mysql/mssql/sqlite do not emit `confirm_data_loss / view`.
 
 #### Catalog: reasons (`confirm_data_loss` only)
 
 `MissingHint` items of `type: "confirm_data_loss"` carry a `reason` field naming why approval is needed. `type_change` additionally carries a `reason_details: { from, to }` field.
 
-| `reason` | Applies to `kind` | When it fires | Approval authorizes | Extra meta |
-|----------|-------------------|---------------|---------------------|------------|
-| `non_empty` | `table`, `view`, `column`, `schema`, `primary_key` | Runtime detects at least one row in the affected entity | Data loss on the existing rows | — |
-| `nulls_present` | `not_null_constraint` | Target column has at least one `NULL` at probe time | Runtime to attempt the DDL; it will fail unless the caller backfills first | — |
-| `duplicates_present` | `unique_constraint` | Target columns have at least one duplicate value at probe time | Runtime to attempt the DDL; it will fail unless the caller deduplicates first | — |
-| `type_change` | `column` (MySQL / SingleStore only) | An existing column's SQL type would change via `alter_column` | Runtime to perform the type change | `reason_details: { from, to }` (source and target SQL types) |
+**`non_empty`** — Runtime probed the target entity (table, column, schema, primary key, or materialized view) and found at least one row of existing data. Approval authorizes the DDL to proceed and acknowledges that the existing rows will be lost.
+
+**`nulls_present`** — Runtime probed the target column and found at least one `NULL` value. The `NOT NULL` DDL would fail; approval authorizes the runtime to attempt the DDL anyway, which still requires the caller to backfill (or accept the failure).
+
+**`duplicates_present`** — Runtime probed the target column(s) and found at least one duplicate value. The `UNIQUE` constraint or unique index DDL would fail; approval authorizes the runtime to attempt the DDL anyway, which still requires the caller to deduplicate (or accept the failure).
+
+**`type_change`** — An existing column's SQL type would change via `alter_column` on MySQL or SingleStore. Approval authorizes the type change. Carries `reason_details: { from: string, to: string }` with dialect-native column-type spellings (e.g. `varchar(100)`, `int`, `decimal(10,4)`) sourced from the underlying `JsonStatement`.
+
+| `reason` | `reason_details` schema | applicable `kind`s | applicable dialects | explanation |
+|----------|-------------------------|--------------------|---------------------|-------------|
+| `non_empty` | — | `table` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Drop a non-empty table |
+| `non_empty` | — | `column` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Drop a non-empty column (or sqlite/turso `recreate_table` with column removal) |
+| `non_empty` | — | `schema` | `postgresql`, `mssql`, `cockroach` | Drop a non-empty schema (cascades) |
+| `non_empty` | — | `view` | `postgresql`, `cockroach` | Drop a non-empty materialized view |
+| `non_empty` | — | `primary_key` | `postgresql`, `mysql`, `mssql`, `cockroach`, `singlestore` | Drop a primary key on a non-empty table |
+| `nulls_present` | — | `not_null_constraint` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Set `NOT NULL` on a column with `NULL` values present |
+| `duplicates_present` | — | `unique_constraint` | `postgresql`, `mysql`, `mssql`, `cockroach`, `singlestore` | Add a unique constraint or unique index on a column with duplicate values |
+| `type_change` | `{ from: string, to: string }` | `column` | `mysql`, `singlestore` | Change an existing column's SQL type via `alter_column` |
 
 ### `status: "error"`
 
@@ -149,6 +191,22 @@ Examples:
   }
 }
 ```
+
+## Dialect values
+
+Every `--json` response that includes a `dialect` field carries one of the following locked literal strings. Each `applicable dialects` column in [Hint types](#hint-types) and [Error codes](#error-codes) references this set.
+
+| Literal | Notes |
+|---------|-------|
+| `postgresql` | PostgreSQL |
+| `mysql` | MySQL |
+| `sqlite` | SQLite (better-sqlite3, libsql, etc., except Turso — see below) |
+| `turso` | Turso (libsql managed) — emitted alongside `sqlite` from the same push handler, but the runtime `dialect` field reports `turso` when the caller's config selects it |
+| `mssql` | Microsoft SQL Server |
+| `cockroach` | CockroachDB |
+| `singlestore` | SingleStore |
+
+The order above is canonical. Tables that list multi-dialect cells use this order, not alphabetical.
 
 ## Hint types
 
@@ -319,15 +377,87 @@ That means it is safe to:
 
 Structured error responses with `status: "error"` use a `code` field to identify the specific failure. The codes below cover hint-related and impossible-operation paths emitted in JSON mode; for the full list of CLI error codes, see [errors.ts](./src/cli/errors.ts).
 
-| `code` | Dialect(s) | When it fires | Example payload |
-|--------|------------|---------------|-----------------|
-| `drop_pk_dependency` | MySQL | `ALTER TABLE … DROP PRIMARY KEY` would be rejected because a foreign key references the dropped columns and no covering UNIQUE index exists | `{"code":"drop_pk_dependency","table":"users","columns":["id"],"blocking_fks":["orders_user_id_fk"]}` |
-| `fk_target_not_unique` | MySQL | `CREATE FOREIGN KEY` would be rejected because the referenced columns are neither unique nor a primary key | `{"code":"fk_target_not_unique","table":"orders","columns":["user_email"],"table_to":"users","columns_to":["email"]}` |
-| `rename_blocked_by_check_constraint` | MSSQL | `sp_rename` of a column would be rejected because the column appears in a `CHECK` constraint | `{"code":"rename_blocked_by_check_constraint","schema":"dbo","table":"users","from":"old_email","to":"email"}` |
-| `rename_schema_unsupported` | MSSQL | A `rename_schema` operation was requested — MSSQL does not support schema rename at all | `{"code":"rename_schema_unsupported","from":"old_analytics","to":"analytics","dialect":"mssql"}` |
-| `invalid_hints` | (any) | Hints payload could not be loaded, parsed, validated, or applied — see [`invalid_hints`](#invalid_hints) below | (variant — see below) |
+| `code` | meta shape | applicable dialects | when emitted |
+|--------|------------|---------------------|--------------|
+| `unsupported_schema_change` | see [unsupported_schema_change variants](#unsupported_schema_change) | `mysql`, `mssql`, `singlestore` | The schema diff would emit a DDL operation that the target dialect cannot execute or rejects (per `meta.kind`) |
+| `invalid_hints` | see [invalid_hints variants](#invalid_hints) | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Hints payload could not be loaded, parsed, validated, or applied — see [`invalid_hints`](#invalid_hints) below |
 
-The example payloads above show only the `error` object; the full response wraps them in `{"status":"error","error":{…}}`.
+The example payloads in each variant sub-table show only the `error` object; the full response wraps them in `{"status":"error","error":{…}}`.
+
+### `unsupported_schema_change`
+
+`unsupported_schema_change` is emitted by several different push handlers when the schema diff would produce a DDL operation that the target dialect cannot execute or rejects. The `meta.kind` discriminator selects which of the four variants the response carries; the rest of the meta object follows the variant.
+
+| `meta.kind` | Meta keys | Dialect(s) | When it fires |
+|-------------|-----------|------------|---------------|
+| `drop_pk_dependency` | `kind`, `table`, `columns`, `blocking_fks` | `mysql`, `singlestore` | `ALTER TABLE … DROP PRIMARY KEY` would be rejected because a foreign key references the dropped columns and no covering UNIQUE index exists |
+| `fk_target_not_unique` | `kind`, `table`, `columns`, `table_to`, `columns_to` | `mysql`, `singlestore` | `CREATE FOREIGN KEY` would be rejected because the referenced columns are neither unique nor a primary key |
+| `rename_blocked_by_check_constraint` | `kind`, `schema`, `table`, `from`, `to` | `mssql` | `sp_rename` of a column would be rejected because the column appears in a `CHECK` constraint |
+| `rename_schema_unsupported` | `kind`, `from`, `to`, `dialect` | `mssql` | A `rename_schema` operation was requested — MSSQL does not support schema rename at all |
+
+Examples (one per variant, in table order):
+
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "unsupported_schema_change",
+    "meta": {
+      "kind": "drop_pk_dependency",
+      "table": "users",
+      "columns": ["id"],
+      "blocking_fks": ["orders_user_id_fk"]
+    }
+  }
+}
+```
+
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "unsupported_schema_change",
+    "meta": {
+      "kind": "fk_target_not_unique",
+      "table": "orders",
+      "columns": ["user_email"],
+      "table_to": "users",
+      "columns_to": ["email"]
+    }
+  }
+}
+```
+
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "unsupported_schema_change",
+    "meta": {
+      "kind": "rename_blocked_by_check_constraint",
+      "schema": "dbo",
+      "table": "users",
+      "from": "old_email",
+      "to": "email"
+    }
+  }
+}
+```
+
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "unsupported_schema_change",
+    "meta": {
+      "kind": "rename_schema_unsupported",
+      "from": "old_analytics",
+      "to": "analytics",
+      "dialect": "mssql"
+    }
+  }
+}
+```
 
 ### `invalid_hints`
 
