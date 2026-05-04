@@ -25,7 +25,7 @@ const runTableResolver = async (
 ) => {
 	return runWithCliContext({ json: true }, async () => {
 		const handler = new HintsHandler(hints);
-		const resolve = resolver<Entity>('table', 'public', 'generate', handler);
+		const resolve = resolver<Entity>('table', 'public', handler);
 		return { handler, result: await resolve(input) };
 	});
 };
@@ -77,7 +77,7 @@ test('resolver records a missing hint and keeps both entities when no hint match
 		const created = table('members', 'public');
 		const deleted = table('users', 'public');
 		const hints = new HintsHandler();
-		const resolve = resolver<Entity>('table', 'public', 'generate', hints);
+		const resolve = resolver<Entity>('table', 'public', hints);
 		const result = await resolve({ created: [created], deleted: [deleted] });
 
 		return { hints, result };
@@ -169,7 +169,6 @@ test('resolver matches primary key entity types against primary key hints', asyn
 		const resolve = resolver<Entity>(
 			'primary key',
 			'public',
-			'generate',
 			hints,
 		);
 
@@ -205,7 +204,6 @@ test('resolver matches default entity types against default hints', async () => 
 		const resolve = resolver<Entity>(
 			'default',
 			'dbo',
-			'generate',
 			hints,
 		);
 
@@ -228,7 +226,7 @@ test('resolver matches default entity types against default hints', async () => 
 
 test('resolver treats missing HintsHandler in json mode as an internal invariant failure', async () => {
 	await expect(runWithCliContext({ json: true }, async () => {
-		const resolve = resolver<Entity>('table', 'public', 'generate');
+		const resolve = resolver<Entity>('table', 'public');
 
 		return resolve({
 			created: [table('members', 'public')],
@@ -247,8 +245,8 @@ test('resolver is idempotent for matching rename hints', async () => {
 			deleted: [table('users', 'public')],
 		};
 
-		const first = await resolver<Entity>('table', 'public', 'generate', new HintsHandler([...hints]))(input);
-		const second = await resolver<Entity>('table', 'public', 'generate', new HintsHandler([...hints]))(input);
+		const first = await resolver<Entity>('table', 'public', new HintsHandler([...hints]))(input);
+		const second = await resolver<Entity>('table', 'public', new HintsHandler([...hints]))(input);
 
 		expect(second).toStrictEqual(first);
 	});
@@ -264,8 +262,8 @@ test('resolver is idempotent for matching create hints', async () => {
 			deleted: [table('users', 'public')],
 		};
 
-		const first = await resolver<Entity>('table', 'public', 'generate', new HintsHandler([...hints]))(input);
-		const second = await resolver<Entity>('table', 'public', 'generate', new HintsHandler([...hints]))(input);
+		const first = await resolver<Entity>('table', 'public', new HintsHandler([...hints]))(input);
+		const second = await resolver<Entity>('table', 'public', new HintsHandler([...hints]))(input);
 
 		expect(second).toStrictEqual(first);
 	});
@@ -276,8 +274,8 @@ test('resolver returns only newly added unresolved items when reusing a HintsHan
 		const hints = new HintsHandler();
 		hints.pushMissingHint({ type: 'rename_or_create', kind: 'table', entity: ['public', 'existing'] });
 
-		const resolveTables = resolver<Entity>('table', 'public', 'generate', hints);
-		const resolveColumns = resolver<Entity>('column', 'public', 'generate', hints);
+		const resolveTables = resolver<Entity>('table', 'public', hints);
+		const resolveColumns = resolver<Entity>('column', 'public', hints);
 		const tableResult = await resolveTables({
 			created: [table('members', 'public')],
 			deleted: [table('users', 'public')],

@@ -76,22 +76,9 @@ Current JSON-mode examples:
 
 ### `status: "missing_hints"`
 
-Used when JSON mode needs explicit caller guidance before it can continue.
+Used when JSON mode needs explicit caller guidance before it can continue. The full `MissingHint` type definition lives in [hints.ts](./src/cli/hints.ts).
 
-Shape:
-
-```json
-{
-  "status": "missing_hints",
-  "unresolved": []
-}
-```
-
-Missing hint shapes:
-
-- [type `MissingHint`](./src/cli/hints.ts)
-
-Example with inline unresolved items:
+Example response (one item of each `MissingHint.type`):
 
 ```json
 {
@@ -112,40 +99,32 @@ Example with inline unresolved items:
 }
 ```
 
-Individual unresolved item shapes:
-
-```json
-{
-  "type": "rename_or_create",
-  "kind": "table",
-  "entity": ["public", "orders"]
-}
-```
-
-```json
-{
-  "type": "confirm_data_loss",
-  "kind": "table",
-  "entity": ["public", "users"],
-  "reason": "non_empty"
-}
-```
-
-Current `reason` values:
-
-- `non_empty`
-- `nulls_present`
-- `duplicates_present`
-
-The `type_change` reason is also defined for `confirm_data_loss / column`; see [§Hint types → `confirm_data_loss` → `column`](#column) below for its `reason_details` shape.
-
 When this response is emitted, the process exits with code `2`.
+
+#### Catalog: kinds in unresolved items
+
+`MissingHint.type: "rename_or_create"` may carry any of: `schema`, `role`, `table`, `enum`, `sequence`, `view`, `column`, `default`, `policy`, `check`, `index`, `unique`, `primary key`, `foreign key`, `privilege`.
+
+`MissingHint.type: "confirm_data_loss"` may carry any of: `schema`, `table`, `view`, `column`, `primary_key`, `not_null_constraint`, `unique_constraint`.
+
+See [Identifier formats](#identifier-formats) for the identifier tuple shape and an example for each kind.
+
+#### Catalog: reasons (`confirm_data_loss` only)
+
+`MissingHint` items of `type: "confirm_data_loss"` carry a `reason` field naming why approval is needed. `type_change` additionally carries a `reason_details: { from, to }` field.
+
+| `reason` | Applies to `kind` | When it fires | Approval authorizes | Extra meta |
+|----------|-------------------|---------------|---------------------|------------|
+| `non_empty` | `table`, `view`, `column`, `schema`, `primary_key` | Runtime detects at least one row in the affected entity | Data loss on the existing rows | — |
+| `nulls_present` | `not_null_constraint` | Target column has at least one `NULL` at probe time | Runtime to attempt the DDL; it will fail unless the caller backfills first | — |
+| `duplicates_present` | `unique_constraint` | Target columns have at least one duplicate value at probe time | Runtime to attempt the DDL; it will fail unless the caller deduplicates first | — |
+| `type_change` | `column` (MySQL / SingleStore only) | An existing column's SQL type would change via `alter_column` | Runtime to perform the type change | `reason_details: { from, to }` (source and target SQL types) |
 
 ### `status: "error"`
 
 Used for structured CLI or runtime errors that are surfaced through the JSON error path.
 
-Specific error codes for hint-related impossible operations are enumerated in [§Error codes](#error-codes) below; for the full list of CLI error codes, see [errors.ts](./src/cli/errors.ts).
+Specific error codes for hint-related impossible operations are enumerated in [Error codes](#error-codes) below; for the full list of CLI error codes, see [errors.ts](./src/cli/errors.ts).
 
 Examples:
 
@@ -173,26 +152,16 @@ Examples:
 
 ## Hint types
 
-Some schema changes are ambiguous or unsafe to apply automatically.
+Some schema changes are ambiguous (rename vs. create+delete) or unsafe to apply automatically (drops on non-empty data, NOT NULL on nullable columns, etc.). In interactive mode, Drizzle Kit prompts the user. In JSON mode there are no prompts: callers either supply hints up front, or receive a `status: "missing_hints"` response and reply with hints.
 
-Typical examples:
+A caller's `Hint` resolves a runtime-emitted `MissingHint` by reusing its `kind` and `entity` (and, for `rename_or_create`, choosing a `rename` vs `create` resolution).
 
-- an entity could be a rename, or it could be a brand new entity while the old one is deleted
-- an operation may drop data or fail on non-empty tables
+| Unresolved item (`MissingHint`) | Caller responds with (`Hint`) | What's reused |
+|---------------------------------|------------------------------|---------------|
+| `{ type: "rename_or_create", kind, entity }` | `{ type: "rename", kind, from, to }` **or** `{ type: "create", kind, entity }` | Same `kind`. For `create`: same `entity`. For `rename`: pick `from` from a deleted entity (same `kind`); the unresolved item's `entity` becomes `to`. |
+| `{ type: "confirm_data_loss", kind, entity, reason, [reason_details] }` | `{ type: "confirm_data_loss", kind, entity }` | Same `kind` and `entity`. `reason` and `reason_details` are runtime-only metadata — callers do not include them. |
 
-Specifically, when one entity disappears and another entity of the same kind appears, Drizzle Kit cannot always tell whether the intended outcome is:
-
-- one entity being renamed
-- one entity being deleted while a different entity is created
-
-In interactive mode, Drizzle Kit asks the user what to do via prompts.
-
-In JSON mode, there are no prompts. Instead, callers can provide hints explaining the actual intent behind ambiguous changes. If necessary hints weren't provided, Drizzle Kit returns `status: "missing_hints"` and includes the unresolved items.
-
-`rename` and `create` hints resolve this rename-vs-create+delete ambiguity:
-
-- `rename` means the `from` and `to` identifiers refer to the same logical entity
-- `create` means the new entity is truly new, so any removed predecessor stays a separate delete
+Available `kind` values, identifier shapes, and `reason` semantics are catalogued under [`status: "missing_hints"`](#status-missing_hints).
 
 ### Providing hints
 
@@ -205,27 +174,9 @@ Both forms use the same JSON array format.
 
 ### `rename` / `create`
 
-Provide a resolution whether a change should be treated as a rename or a create+delete, resolving the ambiguity.
-`rename` tells Drizzle Kit to treat a change as one logical entity moving from `from` to `to`.
-`create` tells Drizzle Kit to treat `entity` as newly created. When the diff also contains a removed entity of the same kind, this confirms the outcome is create+delete rather than a rename.
+`rename` tells Drizzle Kit a change is one logical entity moving from `from` to `to`. `create` tells Drizzle Kit `entity` is newly created — if the diff also contains a removed entity of the same `kind`, the outcome stays create+delete instead of being interpreted as a rename.
 
-Supported `kind` values for `rename` and `create`:
-
-- `schema`
-- `role`
-- `table`
-- `default`
-- `enum`
-- `sequence`
-- `view`
-- `column`
-- `policy`
-- `privilege`
-- `check`
-- `index`
-- `unique`
-- `primary key`
-- `foreign key`
+Available `kind` values, identifier shapes, and which `MissingHint.type` each can resolve are listed under [`status: "missing_hints"` → Catalog: kinds](#catalog-kinds-in-unresolved-items).
 
 #### Rename a table
 
@@ -283,28 +234,9 @@ Treat `display_name` as a truly new column. If `full_name` is also removed in th
 
 ### `confirm_data_loss`
 
-Approves a potentially destructive step, such as dropping a non-empty table or adding a `NOT NULL` constraint to a column that currently contains nulls.
+Approves a potentially destructive step — dropping a non-empty entity, adding a `NOT NULL` constraint to a column that currently contains nulls, adding a `UNIQUE` constraint to columns with duplicates, or changing an existing column's SQL type.
 
-Supported `kind` values for `confirm_data_loss`:
-
-- `table`
-- `column`
-- `schema`
-- `view`
-- `primary_key`
-- `add_not_null`
-- `add_unique`
-
-Supported `reason` values (emitted on `MissingHint`; **not** accepted on caller-supplied `Hint` payloads — `confirmHintSchema` is `.strict()` and rejects extra keys):
-
-- `non_empty`
-- `nulls_present`
-- `duplicates_present`
-- `type_change`
-
-Caller-supplied `confirm_data_loss` hints are entity-only (`{ type, kind, entity }`); the `reason` is informational metadata that the runtime emits to explain *why* a `MissingHint` was raised.
-
-The §`status: "missing_hints"` reason list earlier in this document deliberately excludes `type_change` because that reason only appears on `confirm_data_loss / column` MissingHints (documented in the §`column` subsection below). All four reason values can appear in `MissingHint.reason`.
+Available `kind` values and the `reason` each can fire under are catalogued under [`status: "missing_hints"`](#status-missing_hints) (see [Catalog: kinds](#catalog-kinds-in-unresolved-items) and [Catalog: reasons](#catalog-reasons-confirm_data_loss-only)).
 
 #### Confirm a destructive action
 
@@ -320,19 +252,7 @@ The §`status: "missing_hints"` reason list earlier in this document deliberatel
 
 #### `column`
 
-When MySQL or SingleStore would change an existing column's SQL type via `alter_column`, the operation requires confirmation via `confirm_data_loss / column / type_change`. The runtime-emitted `MissingHint` includes a `reason_details` field with the source and target type strings; the caller-supplied `Hint` stays entity-only (the entity tuple identifies which column to approve). The `type_change` reason currently fires only on MySQL and SingleStore for the `column` kind.
-
-Caller-supplied `Hint` payload:
-
-```json
-{
-  "type": "confirm_data_loss",
-  "kind": "column",
-  "entity": ["public", "users", "name"]
-}
-```
-
-Runtime-emitted `MissingHint` payload (in `unresolved`):
+`type_change` is the only `reason` that carries `reason_details`. Example `MissingHint` payload (as emitted in `unresolved`):
 
 ```json
 {
@@ -357,6 +277,32 @@ Callers can provide hints proactively when they already know the intended outcom
 - approving known data-loss steps in automation
 - retrying the same command with stable schema transitions
 
+For example, when a caller knows ahead of time that a table is being renamed (`users` → `members`):
+
+```json
+[
+  {
+    "type": "rename",
+    "kind": "table",
+    "from": ["public", "users"],
+    "to": ["public", "members"]
+  }
+]
+```
+
+Or that a column is being renamed (`full_name` → `display_name`):
+
+```json
+[
+  {
+    "type": "rename",
+    "kind": "column",
+    "from": ["public", "users", "full_name"],
+    "to": ["public", "users", "display_name"]
+  }
+]
+```
+
 ### Redundant hints are safe
 
 Callers may provide more hints than the current command run needs.
@@ -371,177 +317,78 @@ That means it is safe to:
 
 ## Error codes
 
-Structured error responses with `status: "error"` use a `code` field to identify the specific failure. The four codes below are emitted on hint-related impossible operations — the caller cannot resolve them by supplying a hint, the schema must change.
+Structured error responses with `status: "error"` use a `code` field to identify the specific failure. The codes below cover hint-related and impossible-operation paths emitted in JSON mode; for the full list of CLI error codes, see [errors.ts](./src/cli/errors.ts).
 
-### `drop_pk_dependency`
+| `code` | Dialect(s) | When it fires | Example payload |
+|--------|------------|---------------|-----------------|
+| `drop_pk_dependency` | MySQL | `ALTER TABLE … DROP PRIMARY KEY` would be rejected because a foreign key references the dropped columns and no covering UNIQUE index exists | `{"code":"drop_pk_dependency","table":"users","columns":["id"],"blocking_fks":["orders_user_id_fk"]}` |
+| `fk_target_not_unique` | MySQL | `CREATE FOREIGN KEY` would be rejected because the referenced columns are neither unique nor a primary key | `{"code":"fk_target_not_unique","table":"orders","columns":["user_email"],"table_to":"users","columns_to":["email"]}` |
+| `rename_blocked_by_check_constraint` | MSSQL | `sp_rename` of a column would be rejected because the column appears in a `CHECK` constraint | `{"code":"rename_blocked_by_check_constraint","schema":"dbo","table":"users","from":"old_email","to":"email"}` |
+| `rename_schema_unsupported` | MSSQL | A `rename_schema` operation was requested — MSSQL does not support schema rename at all | `{"code":"rename_schema_unsupported","from":"old_analytics","to":"analytics","dialect":"mssql"}` |
+| `invalid_hints` | (any) | Hints payload could not be loaded, parsed, validated, or applied — see [`invalid_hints`](#invalid_hints) below | (variant — see below) |
 
-Fires when MySQL would reject `ALTER TABLE ... DROP PRIMARY KEY` because a foreign key references the dropped columns and no covering UNIQUE index exists.
+The example payloads above show only the `error` object; the full response wraps them in `{"status":"error","error":{…}}`.
 
-```json
-{
-  "status": "error",
-  "error": {
-    "code": "drop_pk_dependency",
-    "table": "users",
-    "columns": ["id"],
-    "blocking_fks": ["orders_user_id_fk"]
-  }
-}
-```
+### `invalid_hints`
 
-### `fk_target_not_unique`
+`invalid_hints` is emitted by several different runtime paths. The meta shape varies by cause; discriminate by checking which keys are present.
 
-Fires when MySQL would reject `CREATE FOREIGN KEY` because the referenced columns are neither unique nor a primary key.
+| Cause | Meta keys | When it fires |
+|-------|-----------|---------------|
+| File read failure | `source: "file"`, `path` | `--hints-file` was provided but the file could not be read |
+| JSON parse failure | `source: "file"` or `source: "inline"` | Hints JSON failed to parse |
+| Schema validation failure | `source: "file"` or `source: "inline"`, `issues` | One or more hints failed shape validation; `issues` is an array of zod-style issue records |
+| Rename `from` mismatch | `kind`, `from` | A `rename` hint's `from` tuple did not match any entity scheduled for deletion — re-running with the same hint won't change the outcome, so the caller must correct `from` |
 
-```json
-{
-  "status": "error",
-  "error": {
-    "code": "fk_target_not_unique",
-    "table": "orders",
-    "columns": ["user_email"],
-    "table_to": "users",
-    "columns_to": ["email"]
-  }
-}
-```
-
-### `rename_blocked_by_check_constraint`
-
-Fires when MSSQL would reject `sp_rename` of a column because the column appears in a CHECK constraint.
+Examples (one per variant, in table order):
 
 ```json
 {
   "status": "error",
   "error": {
-    "code": "rename_blocked_by_check_constraint",
-    "schema": "dbo",
-    "table": "users",
-    "from": "old_email",
-    "to": "email"
+    "code": "invalid_hints",
+    "source": "file",
+    "path": "hints.json"
   }
 }
 ```
-
-### `rename_schema_unsupported`
-
-Fires when the requested operation is `rename_schema` on MSSQL — MSSQL does not support schema rename at all.
 
 ```json
 {
   "status": "error",
   "error": {
-    "code": "rename_schema_unsupported",
-    "from": "old_analytics",
-    "to": "analytics",
-    "dialect": "mssql"
+    "code": "invalid_hints",
+    "source": "inline",
+    "issues": [{ "path": ["0", "kind"], "message": "Invalid enum value" }]
   }
 }
 ```
 
-For the full list of CLI error codes, see [errors.ts](./src/cli/errors.ts).
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "invalid_hints",
+    "kind": "table",
+    "from": ["public", "users"]
+  }
+}
+```
 
 ## Identifier formats
 
-Each hint identifies an entity using an `entity`, `from`, or `to` tuple.
+Each hint identifies an entity using an `entity`, `from`, or `to` tuple. The arity depends on the entity kind.
 
-The tuple shape depends on the entity kind.
+| Arity | Format | Used by `kind` | Example |
+|-------|--------|----------------|---------|
+| 1 | `[name]` | `schema`, `role` | `["tenant_a"]` |
+| 2 | `[schema, name]` | `table`, `enum`, `sequence`, `view` | `["public", "users"]` |
+| 3 | `[schema, table, name]` | `column`, `default`, `policy`, `check`, `index`, `unique`, `primary key`, `foreign key`, `primary_key`¹, `not_null_constraint`¹, `unique_constraint`¹ ² | `["public", "users", "email"]` |
+| 5 | `[grantor, grantee, schema, table, type]` | `privilege` | `["postgres", "app_user", "public", "users", "select"]` |
 
-### One-part identifiers
+¹ `confirm_data_loss` only.
 
-Used by:
-
-- `schema`
-- `role`
-
-Format:
-
-```json
-["name"]
-```
-
-Example:
-
-```json
-["tenant_a"]
-```
-
-### Two-part identifiers
-
-Used by:
-
-- `table`
-- `enum`
-- `sequence`
-- `view`
-
-Format:
-
-```json
-["schema", "name"]
-```
-
-Example:
-
-```json
-["public", "users"]
-```
-
-### Three-part identifiers
-
-Used by:
-
-- `column`
-- `default`
-- `policy`
-- `check`
-- `index`
-- `unique`
-- `primary key`
-- `foreign key`
-- `primary_key` (confirm_data_loss only)
-- `add_not_null` (confirm_data_loss only)
-- `add_unique` (confirm_data_loss only — third slot is the constraint name, not a column name)
-
-Format:
-
-```json
-["schema", "table", "name"]
-```
-
-Examples:
-
-```json
-["public", "users", "email"]
-```
-
-```json
-["dbo", "users", "users_pkey"]
-```
-
-```json
-["public", "users", "users_email_unique"]
-```
-
-For `add_unique` (confirm_data_loss), the third slot is the constraint name (e.g. `users_email_unique`), which uniquely identifies the constraint within the schema-qualified table. This disambiguates composite unique constraints that share a leading column.
-
-### Five-part identifiers
-
-Used by:
-
-- `privilege`
-
-Format:
-
-```json
-["grantor", "grantee", "schema", "table", "type"]
-```
-
-Example:
-
-```json
-["postgres", "app_user", "public", "users", "select"]
-```
+² For `unique_constraint` (`confirm_data_loss`), the third slot is the **constraint name** (e.g. `users_email_unique`), not a column name. This disambiguates composite unique constraints that share a leading column.
 
 ## `--explain` in JSON mode
 
@@ -568,13 +415,14 @@ The exact statement objects depend on the dialect and the diff being produced.
 
 Object shapes:
 
-- [type `JsonStatement` for PostgreSQL](./src/dialects/postgres/statements.ts)
-- [type `JsonStatement` for MySQL](./src/dialects/mysql/statements.ts)
-- [type `JsonStatement` for SQLite](./src/dialects/sqlite/statements.ts)
-- [type `JsonStatement` for MSSQL](./src/dialects/mssql/statements.ts)
-- [type `JsonStatement` for CockroachDB](./src/dialects/cockroach/statements.ts)
-
-SingleStore inherits MySQL's `JsonStatement` shape.
+| Dialect | `JsonStatement` definition |
+|---------|----------------------------|
+| PostgreSQL | [`src/dialects/postgres/statements.ts`](./src/dialects/postgres/statements.ts) |
+| MySQL | [`src/dialects/mysql/statements.ts`](./src/dialects/mysql/statements.ts) |
+| SQLite | [`src/dialects/sqlite/statements.ts`](./src/dialects/sqlite/statements.ts) |
+| MSSQL | [`src/dialects/mssql/statements.ts`](./src/dialects/mssql/statements.ts) |
+| CockroachDB | [`src/dialects/cockroach/statements.ts`](./src/dialects/cockroach/statements.ts) |
+| SingleStore | inherits MySQL's `JsonStatement` shape |
 
 ### `hints`
 

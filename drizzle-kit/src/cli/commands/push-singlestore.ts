@@ -76,9 +76,9 @@ export const handle = async (
 	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
-		resolver<Table>('table', 'public', 'push', hints),
-		resolver<Column>('column', 'public', 'push', hints),
-		resolver<View>('view', 'public', 'push', hints),
+		resolver<Table>('table', 'public', hints),
+		resolver<Column>('column', 'public', hints),
+		resolver<View>('view', 'public', hints),
 		'push',
 	);
 
