@@ -116,20 +116,20 @@ const runPushDiff = async (
 	const diffResult = await ddlDiff(
 		ddlFrom,
 		ddlTo,
-		resolver<Schema>('schema', 'public', 'push', hints),
-		resolver<Enum>('enum', 'public', 'push', hints),
-		resolver<Sequence>('sequence', 'public', 'push', hints),
-		resolver<Policy>('policy', 'public', 'push', hints),
-		resolver<Role>('role', 'public', 'push', hints),
-		resolver<Privilege>('privilege', 'public', 'push', hints),
-		resolver<PostgresEntities['tables']>('table', 'public', 'push', hints),
-		resolver<Column>('column', 'public', 'push', hints),
-		resolver<View>('view', 'public', 'push', hints),
-		resolver<UniqueConstraint>('unique', 'public', 'push', hints),
-		resolver<Index>('index', 'public', 'push', hints),
-		resolver<CheckConstraint>('check', 'public', 'push', hints),
-		resolver<PrimaryKey>('primary key', 'public', 'push', hints),
-		resolver<ForeignKey>('foreign key', 'public', 'push', hints),
+		resolver<Schema>('schema', 'public', hints),
+		resolver<Enum>('enum', 'public', hints),
+		resolver<Sequence>('sequence', 'public', hints),
+		resolver<Policy>('policy', 'public', hints),
+		resolver<Role>('role', 'public', hints),
+		resolver<Privilege>('privilege', 'public', hints),
+		resolver<PostgresEntities['tables']>('table', 'public', hints),
+		resolver<Column>('column', 'public', hints),
+		resolver<View>('view', 'public', hints),
+		resolver<UniqueConstraint>('unique', 'public', hints),
+		resolver<Index>('index', 'public', hints),
+		resolver<CheckConstraint>('check', 'public', hints),
+		resolver<PrimaryKey>('primary key', 'public', hints),
+		resolver<ForeignKey>('foreign key', 'public', hints),
 		'push',
 	);
 
@@ -175,7 +175,7 @@ test('json mode auto-authorizes an empty materialized-view probe without recordi
 	});
 });
 
-test('json mode records add_not_null confirmation when the target table is non-empty', async () => {
+test('json mode records not_null_constraint confirmation when the target table is non-empty', async () => {
 	await runWithCliContext({ json: true }, async () => {
 		const hints = new HintsHandler();
 		const { db, queries } = createDb(async () => [{}]);
@@ -193,7 +193,7 @@ test('json mode records add_not_null confirmation when the target table is non-e
 		expect(unresolved(hints)).toStrictEqual([
 			{
 				type: 'confirm_data_loss',
-				kind: 'add_not_null',
+				kind: 'not_null_constraint',
 				entity: ['public', 'orders', 'status'],
 				reason: 'nulls_present',
 			},
@@ -236,7 +236,7 @@ test('json mode records only the risky probe sites when multiple probes have mix
 			{ type: 'confirm_data_loss', kind: 'schema', entity: ['archive'], reason: 'non_empty' },
 			{
 				type: 'confirm_data_loss',
-				kind: 'add_unique',
+				kind: 'unique_constraint',
 				entity: ['public', 'users', 'users_email_unique'],
 				reason: 'duplicates_present',
 			},

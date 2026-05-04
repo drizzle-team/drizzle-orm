@@ -104,20 +104,20 @@ export const handle = async (
 	const { sqlStatements, statements: jsonStatements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
-		resolver<Schema>('schema', 'public', 'push', hints),
-		resolver<Enum>('enum', 'public', 'push', hints),
-		resolver<Sequence>('sequence', 'public', 'push', hints),
-		resolver<Policy>('policy', 'public', 'push', hints),
-		resolver<Role>('role', 'public', 'push', hints),
-		resolver<Privilege>('privilege', 'public', 'push', hints),
-		resolver<PostgresEntities['tables']>('table', 'public', 'push', hints),
-		resolver<Column>('column', 'public', 'push', hints),
-		resolver<View>('view', 'public', 'push', hints),
-		resolver<UniqueConstraint>('unique', 'public', 'push', hints),
-		resolver<Index>('index', 'public', 'push', hints),
-		resolver<CheckConstraint>('check', 'public', 'push', hints),
-		resolver<PrimaryKey>('primary key', 'public', 'push', hints),
-		resolver<ForeignKey>('foreign key', 'public', 'push', hints),
+		resolver<Schema>('schema', 'public', hints),
+		resolver<Enum>('enum', 'public', hints),
+		resolver<Sequence>('sequence', 'public', hints),
+		resolver<Policy>('policy', 'public', hints),
+		resolver<Role>('role', 'public', hints),
+		resolver<Privilege>('privilege', 'public', hints),
+		resolver<PostgresEntities['tables']>('table', 'public', hints),
+		resolver<Column>('column', 'public', hints),
+		resolver<View>('view', 'public', hints),
+		resolver<UniqueConstraint>('unique', 'public', hints),
+		resolver<Index>('index', 'public', hints),
+		resolver<CheckConstraint>('check', 'public', hints),
+		resolver<PrimaryKey>('primary key', 'public', hints),
+		resolver<ForeignKey>('foreign key', 'public', hints),
 		'push',
 	);
 
@@ -327,7 +327,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			const column = statement.column;
 			const id = identifier({ schema: column.schema, name: column.table });
 			const entity: [string, string, string] = [column.schema, column.table, column.name];
-			if (hints.matchConfirm('add_not_null', entity)) continue;
+			if (hints.matchConfirm('not_null_constraint', entity)) continue;
 			const res = await db.query(`select 1 from ${id} limit 1`);
 
 			if (res.length === 0) continue;
@@ -336,7 +336,12 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			} column without default value to a non-empty ${id} table`;
 
 			if (json) {
-				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'add_not_null', entity, reason: 'nulls_present' });
+				hints.pushMissingHint({
+					type: 'confirm_data_loss',
+					kind: 'not_null_constraint',
+					entity,
+					reason: 'nulls_present',
+				});
 			} else {
 				grouped.push({ hint });
 			}
@@ -348,13 +353,18 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			const unique = statement.unique;
 			const id = identifier({ schema: unique.schema, name: unique.table });
 			const entity: [string, string, string] = [unique.schema, unique.table, unique.name];
-			if (hints.matchConfirm('add_unique', entity)) continue;
+			if (hints.matchConfirm('unique_constraint', entity)) continue;
 
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
 
 			if (json) {
-				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'add_unique', entity, reason: 'duplicates_present' });
+				hints.pushMissingHint({
+					type: 'confirm_data_loss',
+					kind: 'unique_constraint',
+					entity,
+					reason: 'duplicates_present',
+				});
 			} else {
 				grouped.push({
 					hint: `You're about to add ${

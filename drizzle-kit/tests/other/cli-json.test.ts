@@ -3060,7 +3060,7 @@ describe('push postgres confirm_data_loss[add_not_null] in json mode', () => {
 			unresolved: [
 				{
 					type: 'confirm_data_loss',
-					kind: 'add_not_null',
+					kind: 'not_null_constraint',
 					entity: ['public', 'users', 'email'],
 					reason: 'nulls_present',
 				},
@@ -3111,7 +3111,7 @@ describe('push postgres confirm_data_loss[add_not_null] in json mode', () => {
 
 		const pushPostgres = await import('../../src/cli/commands/push-postgres');
 		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
+			{ type: 'confirm_data_loss', kind: 'not_null_constraint', entity: ['public', 'users', 'email'] },
 		]);
 
 		const { output, exitCode } = await captureJsonModeRun(() =>
@@ -3202,7 +3202,7 @@ describe('push postgres confirm_data_loss[add_unique] in json mode', () => {
 			unresolved: [
 				{
 					type: 'confirm_data_loss',
-					kind: 'add_unique',
+					kind: 'unique_constraint',
 					entity: ['public', 'users', 'users_email_unique'],
 					reason: 'duplicates_present',
 				},
@@ -3250,7 +3250,7 @@ describe('push postgres confirm_data_loss[add_unique] in json mode', () => {
 
 		const pushPostgres = await import('../../src/cli/commands/push-postgres');
 		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['public', 'users', 'users_email_unique'] },
+			{ type: 'confirm_data_loss', kind: 'unique_constraint', entity: ['public', 'users', 'users_email_unique'] },
 		]);
 
 		const { output, exitCode } = await captureJsonModeRun(() =>
@@ -3753,7 +3753,7 @@ describe('push mysql confirm_data_loss[add_not_null] add_column in json mode', (
 			unresolved: [
 				{
 					type: 'confirm_data_loss',
-					kind: 'add_not_null',
+					kind: 'not_null_constraint',
 					entity: ['public', 'users', 'email'],
 					reason: 'nulls_present',
 				},
@@ -3803,7 +3803,7 @@ describe('push mysql confirm_data_loss[add_not_null] add_column in json mode', (
 
 		const pushMysql = await import('../../src/cli/commands/push-mysql');
 		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
+			{ type: 'confirm_data_loss', kind: 'not_null_constraint', entity: ['public', 'users', 'email'] },
 		]);
 
 		const { output, exitCode } = await captureJsonModeRun(() =>
@@ -3900,7 +3900,7 @@ describe('push mysql confirm_data_loss[add_not_null] alter_column in json mode',
 			unresolved: [
 				{
 					type: 'confirm_data_loss',
-					kind: 'add_not_null',
+					kind: 'not_null_constraint',
 					entity: ['public', 'users', 'email'],
 					reason: 'nulls_present',
 				},
@@ -3954,7 +3954,7 @@ describe('push mysql confirm_data_loss[add_not_null] alter_column in json mode',
 
 		const pushMysql = await import('../../src/cli/commands/push-mysql');
 		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
+			{ type: 'confirm_data_loss', kind: 'not_null_constraint', entity: ['public', 'users', 'email'] },
 		]);
 
 		const { output, exitCode } = await captureJsonModeRun(() =>
@@ -4222,7 +4222,7 @@ describe('push mysql confirm_data_loss[add_unique] in json mode', () => {
 			unresolved: [
 				{
 					type: 'confirm_data_loss',
-					kind: 'add_unique',
+					kind: 'unique_constraint',
 					entity: ['public', 'users', 'users_email_idx'],
 					reason: 'duplicates_present',
 				},
@@ -4281,7 +4281,7 @@ describe('push mysql confirm_data_loss[add_unique] in json mode', () => {
 
 		const pushMysql = await import('../../src/cli/commands/push-mysql');
 		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['public', 'users', 'users_email_idx'] },
+			{ type: 'confirm_data_loss', kind: 'unique_constraint', entity: ['public', 'users', 'users_email_idx'] },
 		]);
 
 		const { output, exitCode } = await captureJsonModeRun(() =>
@@ -4738,7 +4738,7 @@ describe('push sqlite confirm_data_loss[add_not_null] in json mode', () => {
 			unresolved: [
 				{
 					type: 'confirm_data_loss',
-					kind: 'add_not_null',
+					kind: 'not_null_constraint',
 					entity: ['public', 'users', 'email'],
 					reason: 'nulls_present',
 				},
@@ -4773,7 +4773,7 @@ describe('push sqlite confirm_data_loss[add_not_null] in json mode', () => {
 
 		const pushSqlite = await import('../../src/cli/commands/push-sqlite');
 		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
+			{ type: 'confirm_data_loss', kind: 'not_null_constraint', entity: ['public', 'users', 'email'] },
 		]);
 
 		const { output, exitCode } = await captureJsonModeRun(() =>
@@ -4838,7 +4838,7 @@ describe('push sqlite confirm_data_loss[add_not_null] in json mode', () => {
 
 		const pushSqlite = await import('../../src/cli/commands/push-sqlite');
 		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
+			{ type: 'confirm_data_loss', kind: 'not_null_constraint', entity: ['public', 'users', 'email'] },
 		]);
 
 		const { output, exitCode } = await captureJsonModeRun(() =>
@@ -5659,7 +5659,12 @@ describe('push mssql confirm_data_loss[add_not_null] add_column in json mode', (
 		expect(JSON.parse(output.trim())).toStrictEqual({
 			status: 'missing_hints',
 			unresolved: [
-				{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['dbo', 'users', 'email'], reason: 'nulls_present' },
+				{
+					type: 'confirm_data_loss',
+					kind: 'not_null_constraint',
+					entity: ['dbo', 'users', 'email'],
+					reason: 'nulls_present',
+				},
 			],
 		});
 	});
@@ -5697,7 +5702,7 @@ describe('push mssql confirm_data_loss[add_not_null] add_column in json mode', (
 
 		const pushMssql = await import('../../src/cli/commands/push-mssql');
 		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['dbo', 'users', 'email'] },
+			{ type: 'confirm_data_loss', kind: 'not_null_constraint', entity: ['dbo', 'users', 'email'] },
 		]);
 
 		const { output, exitCode } = await captureJsonModeRun(() =>
@@ -5777,7 +5782,12 @@ describe('push mssql confirm_data_loss[add_not_null] alter_column in json mode',
 		expect(JSON.parse(output.trim())).toStrictEqual({
 			status: 'missing_hints',
 			unresolved: [
-				{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['dbo', 'users', 'email'], reason: 'nulls_present' },
+				{
+					type: 'confirm_data_loss',
+					kind: 'not_null_constraint',
+					entity: ['dbo', 'users', 'email'],
+					reason: 'nulls_present',
+				},
 			],
 		});
 	});
@@ -5815,7 +5825,7 @@ describe('push mssql confirm_data_loss[add_not_null] alter_column in json mode',
 
 		const pushMssql = await import('../../src/cli/commands/push-mssql');
 		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['dbo', 'users', 'email'] },
+			{ type: 'confirm_data_loss', kind: 'not_null_constraint', entity: ['dbo', 'users', 'email'] },
 		]);
 
 		const { output, exitCode } = await captureJsonModeRun(() =>
@@ -5902,7 +5912,7 @@ describe('push mssql confirm_data_loss[add_unique] in json mode', () => {
 			unresolved: [
 				{
 					type: 'confirm_data_loss',
-					kind: 'add_unique',
+					kind: 'unique_constraint',
 					entity: ['dbo', 'users', 'users_email_unique'],
 					reason: 'duplicates_present',
 				},
@@ -5948,7 +5958,7 @@ describe('push mssql confirm_data_loss[add_unique] in json mode', () => {
 
 		const pushMssql = await import('../../src/cli/commands/push-mssql');
 		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['dbo', 'users', 'users_email_unique'] },
+			{ type: 'confirm_data_loss', kind: 'unique_constraint', entity: ['dbo', 'users', 'users_email_unique'] },
 		]);
 
 		const { output, exitCode } = await captureJsonModeRun(() =>
@@ -6679,7 +6689,7 @@ describe('push cockroach confirm_data_loss[add_not_null] in json mode', () => {
 			unresolved: [
 				{
 					type: 'confirm_data_loss',
-					kind: 'add_not_null',
+					kind: 'not_null_constraint',
 					entity: ['public', 'users', 'email'],
 					reason: 'nulls_present',
 				},
@@ -6731,7 +6741,7 @@ describe('push cockroach confirm_data_loss[add_not_null] in json mode', () => {
 
 		const pushCockroach = await import('../../src/cli/commands/push-cockroach');
 		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
+			{ type: 'confirm_data_loss', kind: 'not_null_constraint', entity: ['public', 'users', 'email'] },
 		]);
 
 		const { output, exitCode } = await captureJsonModeRun(() =>
@@ -6825,7 +6835,7 @@ describe('push cockroach confirm_data_loss[add_unique] in json mode', () => {
 			unresolved: [
 				{
 					type: 'confirm_data_loss',
-					kind: 'add_unique',
+					kind: 'unique_constraint',
 					entity: ['public', 'users', 'users_email_idx'],
 					reason: 'duplicates_present',
 				},
@@ -6876,7 +6886,7 @@ describe('push cockroach confirm_data_loss[add_unique] in json mode', () => {
 
 		const pushCockroach = await import('../../src/cli/commands/push-cockroach');
 		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['public', 'users', 'users_email_idx'] },
+			{ type: 'confirm_data_loss', kind: 'unique_constraint', entity: ['public', 'users', 'users_email_idx'] },
 		]);
 
 		const { output, exitCode } = await captureJsonModeRun(() =>
@@ -7379,7 +7389,7 @@ describe('push singlestore confirm_data_loss[add_not_null] in json mode', () => 
 			unresolved: [
 				{
 					type: 'confirm_data_loss',
-					kind: 'add_not_null',
+					kind: 'not_null_constraint',
 					entity: ['public', 'users', 'email'],
 					reason: 'nulls_present',
 				},
@@ -7430,7 +7440,7 @@ describe('push singlestore confirm_data_loss[add_not_null] in json mode', () => 
 
 		const pushSinglestore = await import('../../src/cli/commands/push-singlestore');
 		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
+			{ type: 'confirm_data_loss', kind: 'not_null_constraint', entity: ['public', 'users', 'email'] },
 		]);
 
 		const { output, exitCode } = await captureJsonModeRun(() =>

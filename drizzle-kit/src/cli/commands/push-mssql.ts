@@ -86,16 +86,16 @@ export const handle = async (
 	const { sqlStatements, statements: jsonStatements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
-		resolver<Schema>('schema', 'dbo', 'push', hints),
-		resolver<MssqlEntities['tables']>('table', 'dbo', 'push', hints),
-		resolver<Column>('column', 'dbo', 'push', hints),
-		resolver<View>('view', 'dbo', 'push', hints),
-		resolver<UniqueConstraint>('unique', 'dbo', 'push', hints),
-		resolver<Index>('index', 'dbo', 'push', hints),
-		resolver<CheckConstraint>('check', 'dbo', 'push', hints),
-		resolver<PrimaryKey>('primary key', 'dbo', 'push', hints),
-		resolver<ForeignKey>('foreign key', 'dbo', 'push', hints),
-		resolver<DefaultConstraint>('default', 'dbo', 'push', hints),
+		resolver<Schema>('schema', 'dbo', hints),
+		resolver<MssqlEntities['tables']>('table', 'dbo', hints),
+		resolver<Column>('column', 'dbo', hints),
+		resolver<View>('view', 'dbo', hints),
+		resolver<UniqueConstraint>('unique', 'dbo', hints),
+		resolver<Index>('index', 'dbo', hints),
+		resolver<CheckConstraint>('check', 'dbo', hints),
+		resolver<PrimaryKey>('primary key', 'dbo', hints),
+		resolver<ForeignKey>('foreign key', 'dbo', hints),
+		resolver<DefaultConstraint>('default', 'dbo', hints),
 		'push',
 	);
 
@@ -238,7 +238,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const column = statement.diff.$right;
 			const key = identifier({ schema: column.schema, table: column.table });
 			const entity: [string, string, string] = [column.schema ?? 'dbo', column.table, column.name];
-			if (hints.matchConfirm('add_not_null', entity)) continue;
+			if (hints.matchConfirm('not_null_constraint', entity)) continue;
 			const res = await db.query(`select top(1) 1 from ${key};`);
 
 			if (res.length === 0) continue;
@@ -246,7 +246,12 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 				`You're about to add not-null to [${statement.diff.$right.name}] column without default value to a non-empty ${key} table`;
 
 			if (json) {
-				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'add_not_null', entity, reason: 'nulls_present' });
+				hints.pushMissingHint({
+					type: 'confirm_data_loss',
+					kind: 'not_null_constraint',
+					entity,
+					reason: 'nulls_present',
+				});
 			} else {
 				grouped.push({ hint });
 			}
@@ -265,7 +270,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const column = statement.column;
 			const key = identifier({ schema: column.schema, table: column.table });
 			const entity: [string, string, string] = [column.schema ?? 'dbo', column.table, column.name];
-			if (hints.matchConfirm('add_not_null', entity)) continue;
+			if (hints.matchConfirm('not_null_constraint', entity)) continue;
 			const res = await db.query(`select top(1) 1 from ${key};`);
 
 			if (res.length === 0) continue;
@@ -273,7 +278,12 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 				`You're about to add not-null [${statement.column.name}] column without default value to a non-empty ${key} table`;
 
 			if (json) {
-				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'add_not_null', entity, reason: 'nulls_present' });
+				hints.pushMissingHint({
+					type: 'confirm_data_loss',
+					kind: 'not_null_constraint',
+					entity,
+					reason: 'nulls_present',
+				});
 			} else {
 				grouped.push({ hint });
 			}
@@ -310,13 +320,18 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const unique = statement.unique;
 			const id = identifier({ schema: unique.schema, table: unique.table });
 			const entity: [string, string, string] = [unique.schema ?? 'dbo', unique.table, unique.name];
-			if (hints.matchConfirm('add_unique', entity)) continue;
+			if (hints.matchConfirm('unique_constraint', entity)) continue;
 
 			const res = await db.query(`select top(1) 1 from ${id};`);
 			if (res.length === 0) continue;
 
 			if (json) {
-				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'add_unique', entity, reason: 'duplicates_present' });
+				hints.pushMissingHint({
+					type: 'confirm_data_loss',
+					kind: 'unique_constraint',
+					entity,
+					reason: 'duplicates_present',
+				});
 			} else {
 				grouped.push({
 					hint: `You're about to add ${

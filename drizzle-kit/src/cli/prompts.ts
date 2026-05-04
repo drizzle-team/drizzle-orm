@@ -63,7 +63,6 @@ const entityId = <K extends RenameCreateHintKind>(
 export const resolver = <T extends PromptEntityBase>(
 	entity: RenameCreateHintKind,
 	defaultSchema: 'public' | 'dbo' = 'public',
-	command: 'generate' | 'push' = 'generate',
 	hints?: HintsHandler,
 ): Resolver<T> => {
 	/**
@@ -210,7 +209,13 @@ const applySelection = <T extends PromptEntityBase>(
 		);
 
 		result.renamedOrMoved.push(selection);
-		delete leftMissing[leftMissing.indexOf(selection.from)];
+		const idx = leftMissing.indexOf(selection.from);
+		if (idx === -1) {
+			throw new Error(
+				`applySelection: rename source not present in leftMissing for ${entity} ${selection.from.name}`,
+			);
+		}
+		delete leftMissing[idx];
 		return;
 	}
 
