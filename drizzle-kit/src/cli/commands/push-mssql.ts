@@ -134,7 +134,7 @@ export const handle = async (
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 		if (data?.index === 0) {
 			render(`[${chalk.red('x')}] All changes were aborted`);
-			return;
+			process.exit(0);
 		}
 	}
 
@@ -175,7 +175,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 	for (const statement of filtered) {
 		if (statement.type === 'drop_table') {
 			const tableName = identifier({ schema: statement.table.schema, table: statement.table.name });
-			const entity: [string, string] = [statement.table.schema ?? 'dbo', statement.table.name];
+			const entity = [statement.table.schema ?? 'dbo', statement.table.name] as const;
 			if (hints.matchConfirm('table', entity)) continue;
 			const res = await db.query(`select top(1) 1 from ${tableName};`);
 
@@ -193,7 +193,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const column = statement.column;
 
 			const key = identifier({ schema: column.schema, table: column.table });
-			const entity: [string, string, string] = [column.schema ?? 'dbo', column.table, column.name];
+			const entity = [column.schema ?? 'dbo', column.table, column.name] as const;
 			if (hints.matchConfirm('column', entity)) continue;
 
 			const res = await db.query(`SELECT TOP(1) 1 FROM ${key} WHERE [${column.name}] IS NOT NULL;`);
@@ -208,7 +208,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 		}
 
 		if (statement.type === 'drop_schema') {
-			const entity: [string] = [statement.name];
+			const entity = [statement.name] as const;
 			if (hints.matchConfirm('schema', entity)) continue;
 			// count tables in schema
 			const res = await db.query(
@@ -237,7 +237,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 		) {
 			const column = statement.diff.$right;
 			const key = identifier({ schema: column.schema, table: column.table });
-			const entity: [string, string, string] = [column.schema ?? 'dbo', column.table, column.name];
+			const entity = [column.schema ?? 'dbo', column.table, column.name] as const;
 			if (hints.matchConfirm('not_null_constraint', entity)) continue;
 			const res = await db.query(`select top(1) 1 from ${key};`);
 
@@ -269,7 +269,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 		) {
 			const column = statement.column;
 			const key = identifier({ schema: column.schema, table: column.table });
-			const entity: [string, string, string] = [column.schema ?? 'dbo', column.table, column.name];
+			const entity = [column.schema ?? 'dbo', column.table, column.name] as const;
 			if (hints.matchConfirm('not_null_constraint', entity)) continue;
 			const res = await db.query(`select top(1) 1 from ${key};`);
 
@@ -295,7 +295,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const schema = statement.pk.schema ?? 'dbo';
 			const table = statement.pk.table;
 			const id = identifier({ table: table, schema: schema });
-			const entity: [string, string, string] = [schema, table, statement.pk.name];
+			const entity = [schema, table, statement.pk.name] as const;
 			if (hints.matchConfirm('primary_key', entity)) continue;
 			const res = await db.query(
 				`select top(1) 1 from ${id};`,
@@ -319,7 +319,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 		if (statement.type === 'add_unique') {
 			const unique = statement.unique;
 			const id = identifier({ schema: unique.schema, table: unique.table });
-			const entity: [string, string, string] = [unique.schema ?? 'dbo', unique.table, unique.name];
+			const entity = [unique.schema ?? 'dbo', unique.table, unique.name] as const;
 			if (hints.matchConfirm('unique_constraint', entity)) continue;
 
 			const res = await db.query(`select top(1) 1 from ${id};`);
