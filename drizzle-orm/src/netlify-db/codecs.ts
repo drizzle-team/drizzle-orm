@@ -50,10 +50,10 @@ export const netlifyDbCodecs = refineGenericPgCodecs({
 	'timestamptz:string': {
 		castArray: castToTextArr,
 	},
-	geometry: {
+	'geometry(point)': {
 		normalizeArray: parsePgArrayAndNormalize(parseGeometryXY),
 	},
-	'geometry:tuple': {
+	'geometry(point):tuple': {
 		normalizeArray: parsePgArrayAndNormalize(parseGeometryTuple),
 	},
 	interval: {
@@ -126,10 +126,10 @@ export const netlifyDbTransactionCodecs = refineGenericPgCodecs({
 	'timestamptz:string': {
 		castArray: castToTextArr,
 	},
-	geometry: {
+	'geometry(point)': {
 		normalizeArray: parsePgArrayAndNormalize(parseGeometryXY),
 	},
-	'geometry:tuple': {
+	'geometry(point):tuple': {
 		normalizeArray: parsePgArrayAndNormalize(parseGeometryTuple),
 	},
 	interval: {

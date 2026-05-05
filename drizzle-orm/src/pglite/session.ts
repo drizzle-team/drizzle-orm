@@ -114,9 +114,9 @@ export class PgliteTransaction<
 > extends PgAsyncTransaction<PgliteQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'PgliteTransaction';
 
-	override transaction = async <T>(
+	override async transaction<T>(
 		transaction: (tx: PgliteTransaction<TRelations>) => Promise<T>,
-	): Promise<T> => {
+	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new PgliteTransaction<TRelations>(
 			this.dialect,
@@ -134,7 +134,7 @@ export class PgliteTransaction<
 			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
 			throw err;
 		}
-	};
+	}
 }
 
 export interface PgliteQueryResultHKT extends PgQueryResultHKT {

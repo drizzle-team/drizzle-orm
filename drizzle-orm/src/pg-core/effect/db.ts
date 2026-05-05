@@ -650,11 +650,13 @@ export class PgEffectDatabase<
 		);
 	}
 
-	transaction: <A, E, R>(
+	transaction<A, E, R>(
 		transaction: (
 			tx: PgEffectTransaction<TEffectHKT, TQueryResult, TRelations>,
 		) => Effect.Effect<A, E, R>,
-	) => Effect.Effect<A, E | SqlError, R> = (tx) => this.session.transaction(tx);
+	): Effect.Effect<A, E | SqlError, R> {
+		return this.session.transaction(transaction);
+	}
 }
 
 export type PgEffectWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };

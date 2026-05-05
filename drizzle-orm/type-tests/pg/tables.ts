@@ -394,6 +394,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		config: { length: number };
 		configRequired: true;
 	}>({
+		codec: 'varchar',
 		dataType(config) {
 			Expect<Equal<{ length: number }, typeof config>>;
 			return `varchar(${config.length})`;
@@ -424,6 +425,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		driverData: string;
 		config: { length: number };
 	}>({
+		codec: (config) => config ? 'varchar' : 'text',
 		dataType(config) {
 			Expect<Equal<{ length: number } | undefined, typeof config>>;
 			return config ? `varchar(${config.length})` : `text`;

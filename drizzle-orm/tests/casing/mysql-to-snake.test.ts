@@ -131,7 +131,6 @@ describe('mysql to snake case', () => {
 			sql:
 				"select `users`.`id`, `users`.`AGE`, `users`.`first_name` || ' ' || `users`.`last_name` as `name`, `users_developers`.`data` as `developers` from `users` `users` left join lateral (select json_array(`users_developers`.`uses_drizzle_orm`) as `data` from (select * from `test`.`developers` `users_developers` where `users_developers`.`user_id` = `users`.`id` limit ?) `users_developers`) `users_developers` on true where `users`.`id` = ? limit ?",
 			params: [1, 1, 1],
-			typings: ['none', 'none', 'none'],
 		});
 	});
 
@@ -158,7 +157,6 @@ describe('mysql to snake case', () => {
 			sql:
 				"select `id`, `AGE`, `first_name` || ' ' || `last_name` as `name`, (select json_array(`uses_drizzle_orm`) from (select * from `test`.`developers` `users_developers` where `users_developers`.`user_id` = `users`.`id` limit ?) `users_developers`) as `developers` from `users` `users` where `users`.`id` = ? limit ?",
 			params: [1, 1, 1],
-			typings: ['none', 'none', 'none'],
 		});
 	});
 
@@ -185,7 +183,6 @@ describe('mysql to snake case', () => {
 			sql:
 				"select `users`.`id`, `users`.`AGE`, `users`.`first_name` || ' ' || `users`.`last_name` as `name`, `users_developers`.`data` as `developers` from `users` `users` left join lateral (select json_array(`users_developers`.`uses_drizzle_orm`) as `data` from (select * from `test`.`developers` `users_developers` where `users_developers`.`user_id` = `users`.`id` limit ?) `users_developers`) `users_developers` on true where `users`.`id` = ?",
 			params: [1, 1],
-			typings: ['none', 'none'],
 		});
 	});
 
@@ -212,7 +209,6 @@ describe('mysql to snake case', () => {
 			sql:
 				"select `id`, `AGE`, `first_name` || ' ' || `last_name` as `name`, (select json_array(`uses_drizzle_orm`) from (select * from `test`.`developers` `users_developers` where `users_developers`.`user_id` = `users`.`id` limit ?) `users_developers`) as `developers` from `users` `users` where `users`.`id` = ?",
 			params: [1, 1],
-			typings: ['none', 'none'],
 		});
 	});
 

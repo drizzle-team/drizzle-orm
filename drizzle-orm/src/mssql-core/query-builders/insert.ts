@@ -211,8 +211,7 @@ export class MsSqlInsertBase<
 	}
 
 	toSQL(): Query {
-		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		return rest;
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	prepare(): MsSqlInsertPrepare<this> {

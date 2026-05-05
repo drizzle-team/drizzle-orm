@@ -1,7 +1,7 @@
 import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { Query, QueryWithTypings, SQL, SqlCommenterInput } from '~/sql/sql.ts';
+import type { Query, SQL, SqlCommenterInput } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { MySqlDialect } from '../dialect.ts';
 import type {
@@ -131,7 +131,7 @@ export class MySqlRelationalQuery<
 		return query;
 	}
 
-	private _toSQL(): { query: V1.BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+	private _toSQL(): { query: V1.BuildRelationalQueryResult; builtQuery: Query } {
 		const query = this._getQuery();
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
