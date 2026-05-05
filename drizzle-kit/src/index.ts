@@ -117,7 +117,6 @@ export type Config =
 		schema?: string | string[];
 		verbose?: boolean;
 		strict?: boolean;
-		casing?: 'camelCase' | 'snake_case';
 		migrations?: {
 			table?: string;
 			schema?: string;
@@ -231,29 +230,6 @@ export type Config =
 				| {
 					url: string;
 				};
-		}
-		| {
-			dialect: Verify<Dialect, 'gel'>;
-			dbCredentials?:
-				& {
-					tlsSecurity?:
-						| 'insecure'
-						| 'no_host_verification'
-						| 'strict'
-						| 'default';
-				}
-				& (
-					| {
-						url: string;
-					}
-					| ({
-						host: string;
-						port?: number;
-						user?: string;
-						password?: string;
-						database: string;
-					})
-				);
 		}
 		// TODO update?
 		| {

@@ -1,5 +1,4 @@
 import type { CheckHandlerResult } from '../../cli/commands/check';
-import type { CasingType } from '../../cli/validations/common';
 import { humanLog, postgresSchemaError, postgresSchemaWarning } from '../../cli/views';
 import { assertUnreachable } from '../../utils';
 import type { PostgresDDL } from './ddl';
@@ -12,7 +11,6 @@ import type { JsonStatement } from './statements';
 export const prepareSnapshot = async (
 	snapshots: string[],
 	filenames: string[],
-	casing: CasingType | undefined,
 	checkResult?: CheckHandlerResult,
 ): Promise<{
 	ddlPrev: PostgresDDL;
@@ -51,7 +49,6 @@ export const prepareSnapshot = async (
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
 	const { schema, errors, warnings } = fromDrizzleSchema(
 		res,
-		casing,
 		() => true,
 	);
 

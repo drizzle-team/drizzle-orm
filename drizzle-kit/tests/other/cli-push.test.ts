@@ -46,7 +46,7 @@ test('push #1', async (t) => {
 			extensions: undefined,
 		},
 		verbose: false,
-		casing: undefined,
+
 		migrations: {
 			schema: 'drizzle',
 			table: '__drizzle_migrations',
@@ -74,7 +74,7 @@ test('push #2', async (t) => {
 			extensions: undefined,
 		},
 		verbose: false,
-		casing: undefined,
+
 		migrations: {
 			schema: 'drizzle',
 			table: '__drizzle_migrations',
@@ -104,7 +104,7 @@ test('push #3', async (t) => {
 			extensions: undefined,
 		},
 		verbose: false,
-		casing: undefined,
+
 		migrations: {
 			schema: 'drizzle',
 			table: '__drizzle_migrations',
@@ -135,7 +135,7 @@ test('push #4', async (t) => {
 		},
 		filenames: [filename],
 		verbose: false,
-		casing: undefined,
+
 		migrations: {
 			schema: 'drizzle',
 			table: '__drizzle_migrations',
@@ -170,7 +170,7 @@ test('push #5', async (t) => {
 		},
 		force: false,
 		verbose: false,
-		casing: undefined,
+
 		migrations: {
 			schema: 'custom',
 			table: 'custom',

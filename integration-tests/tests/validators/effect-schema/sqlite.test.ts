@@ -4,15 +4,16 @@ import { bufferSchema, jsonSchema } from 'drizzle-orm/effect-schema';
 import { blob, customType, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
 import { CONSTANTS } from 'drizzle-orm/utils';
 import { Schema as s } from 'effect';
+import * as SchemaGetter from 'effect/SchemaGetter';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { Equal, Expect } from '~/utils';
 import { expectEnumValues, expectSchemaShape } from './utils';
 
-const intSchema = s.Int.pipe(
-	s.greaterThanOrEqualTo(Number.MIN_SAFE_INTEGER),
-	s.lessThanOrEqualTo(Number.MAX_SAFE_INTEGER),
-) as typeof s.Int;
+const intSchema = s.Int.check(
+	s.isGreaterThanOrEqualTo(Number.MIN_SAFE_INTEGER),
+	s.isLessThanOrEqualTo(Number.MAX_SAFE_INTEGER),
+);
 const intNullableSchema = s.NullOr(intSchema);
 const intOptionalSchema = s.optional(s.UndefinedOr(intSchema));
 const intNullableOptionalSchema = s.optional(s.UndefinedOr(s.NullOr(intSchema)));
@@ -22,18 +23,13 @@ const textOptionalSchema = s.optional(s.UndefinedOr(textSchema));
 
 const anySchema = s.Any;
 
-const extendedSchema = intSchema.pipe(s.lessThanOrEqualTo(1000));
+const extendedSchema = intSchema.check(s.isLessThanOrEqualTo(1000));
 const extendedNullableSchema = s.NullOr(extendedSchema);
 const extendedOptionalSchema = s.optional(s.UndefinedOr(extendedSchema));
 
-const customSchema = s.String.pipe(s.transform(s.Number, {
-	decode(v) {
-		return Number(v);
-	},
-	encode(v) {
-		return String(v);
-	},
-	strict: true,
+const customSchema = s.String.pipe(s.decodeTo(s.Number, {
+	decode: SchemaGetter.transform((v: string) => Number(v)),
+	encode: SchemaGetter.transform((v: number) => String(v)),
 }));
 
 test('table - select', (t) => {
@@ -196,15 +192,10 @@ test('refine table - select', (t) => {
 	});
 
 	const result = createSelectSchema(table, {
-		c2: (schema) => schema.pipe(s.lessThanOrEqualTo(1000)),
-		c3: s.String.pipe(s.transform(s.Number, {
-			decode(v) {
-				return Number(v);
-			},
-			encode(v) {
-				return String(v);
-			},
-			strict: true,
+		c2: (schema) => schema.check(s.isLessThanOrEqualTo(1000)),
+		c3: s.String.pipe(s.decodeTo(s.Number, {
+			decode: SchemaGetter.transform((v: string) => Number(v)),
+			encode: SchemaGetter.transform((v: number) => String(v)),
 		})),
 	});
 	const expected = s.Struct({
@@ -225,17 +216,12 @@ test('refine table - select with custom data type', (t) => {
 		c4: customText(),
 	});
 
-	const customTextSchema = s.String.pipe(s.minLength(1), s.maxLength(100));
+	const customTextSchema = s.String.check(s.isMinLength(1), s.isMaxLength(100));
 	const result = createSelectSchema(table, {
-		c2: (schema) => schema.pipe(s.lessThanOrEqualTo(1000)),
-		c3: s.String.pipe(s.transform(s.Number, {
-			decode(v) {
-				return Number(v);
-			},
-			encode(v) {
-				return String(v);
-			},
-			strict: true,
+		c2: (schema) => schema.check(s.isLessThanOrEqualTo(1000)),
+		c3: s.String.pipe(s.decodeTo(s.Number, {
+			decode: SchemaGetter.transform((v: string) => Number(v)),
+			encode: SchemaGetter.transform((v: number) => String(v)),
 		})),
 		c4: customTextSchema,
 	});
@@ -259,15 +245,10 @@ test('refine table - insert', (t) => {
 	});
 
 	const result = createInsertSchema(table, {
-		c2: (schema) => schema.pipe(s.lessThanOrEqualTo(1000)),
-		c3: s.String.pipe(s.transform(s.Number, {
-			decode(v) {
-				return Number(v);
-			},
-			encode(v) {
-				return String(v);
-			},
-			strict: true,
+		c2: (schema) => schema.check(s.isLessThanOrEqualTo(1000)),
+		c3: s.String.pipe(s.decodeTo(s.Number, {
+			decode: SchemaGetter.transform((v: string) => Number(v)),
+			encode: SchemaGetter.transform((v: number) => String(v)),
 		})),
 	});
 	const expected = s.Struct({
@@ -288,15 +269,10 @@ test('refine table - update', (t) => {
 	});
 
 	const result = createUpdateSchema(table, {
-		c2: (schema) => schema.pipe(s.lessThanOrEqualTo(1000)),
-		c3: s.String.pipe(s.transform(s.Number, {
-			decode(v) {
-				return Number(v);
-			},
-			encode(v) {
-				return String(v);
-			},
-			strict: true,
+		c2: (schema) => schema.check(s.isLessThanOrEqualTo(1000)),
+		c3: s.String.pipe(s.decodeTo(s.Number, {
+			decode: SchemaGetter.transform((v: string) => Number(v)),
+			encode: SchemaGetter.transform((v: number) => String(v)),
 		})),
 	});
 	const expected = s.Struct({
@@ -332,38 +308,23 @@ test('refine view - select', (t) => {
 	);
 
 	const result = createSelectSchema(view, {
-		c2: (schema) => schema.pipe(s.lessThanOrEqualTo(1000)),
-		c3: s.String.pipe(s.transform(s.Number, {
-			decode(v) {
-				return Number(v);
-			},
-			encode(v) {
-				return String(v);
-			},
-			strict: true,
+		c2: (schema) => schema.check(s.isLessThanOrEqualTo(1000)),
+		c3: s.String.pipe(s.decodeTo(s.Number, {
+			decode: SchemaGetter.transform((v: string) => Number(v)),
+			encode: SchemaGetter.transform((v: number) => String(v)),
 		})),
 		nested: {
-			c5: (schema) => schema.pipe(s.lessThanOrEqualTo(1000)),
-			c6: s.String.pipe(s.transform(s.Number, {
-				decode(v) {
-					return Number(v);
-				},
-				encode(v) {
-					return String(v);
-				},
-				strict: true,
+			c5: (schema) => schema.check(s.isLessThanOrEqualTo(1000)),
+			c6: s.String.pipe(s.decodeTo(s.Number, {
+				decode: SchemaGetter.transform((v: string) => Number(v)),
+				encode: SchemaGetter.transform((v: number) => String(v)),
 			})),
 		},
 		table: {
-			c2: (schema) => schema.pipe(s.lessThanOrEqualTo(1000)),
-			c3: s.String.pipe(s.transform(s.Number, {
-				decode(v) {
-					return Number(v);
-				},
-				encode(v) {
-					return String(v);
-				},
-				strict: true,
+			c2: (schema) => schema.check(s.isLessThanOrEqualTo(1000)),
+			c3: s.String.pipe(s.decodeTo(s.Number, {
+				decode: SchemaGetter.transform((v: string) => Number(v)),
+				encode: SchemaGetter.transform((v: number) => String(v)),
 			})),
 		},
 	});
@@ -417,34 +378,34 @@ test('all data types', (t) => {
 	const result = createSelectSchema(table);
 	const expected = s.Struct({
 		blob1: bufferSchema,
-		blob2: s.BigIntFromSelf.pipe(
-			s.greaterThanOrEqualToBigInt(CONSTANTS.INT64_MIN),
-			s.lessThanOrEqualToBigInt(CONSTANTS.INT64_MAX),
-		) as typeof s.BigIntFromSelf,
+		blob2: s.BigInt.check(
+			s.isGreaterThanOrEqualToBigInt(CONSTANTS.INT64_MIN),
+			s.isLessThanOrEqualToBigInt(CONSTANTS.INT64_MAX),
+		),
 		blob3: jsonSchema,
-		integer1: s.Int.pipe(
-			s.greaterThanOrEqualTo(Number.MIN_SAFE_INTEGER),
-			s.lessThanOrEqualTo(Number.MAX_SAFE_INTEGER),
-		) as typeof s.Int,
+		integer1: s.Int.check(
+			s.isGreaterThanOrEqualTo(Number.MIN_SAFE_INTEGER),
+			s.isLessThanOrEqualTo(Number.MAX_SAFE_INTEGER),
+		),
 		integer2: s.Boolean,
 		integer3: s.Date,
 		integer4: s.Date,
-		numeric1: s.Number.pipe(
-			s.greaterThanOrEqualTo(Number.MIN_SAFE_INTEGER),
-			s.lessThanOrEqualTo(Number.MAX_SAFE_INTEGER),
-		) as typeof s.Number,
-		numeric2: s.BigIntFromSelf.pipe(
-			s.greaterThanOrEqualToBigInt(CONSTANTS.INT64_MIN),
-			s.lessThanOrEqualToBigInt(CONSTANTS.INT64_MAX),
-		) as typeof s.BigIntFromSelf,
+		numeric1: s.Number.check(
+			s.isGreaterThanOrEqualTo(Number.MIN_SAFE_INTEGER),
+			s.isLessThanOrEqualTo(Number.MAX_SAFE_INTEGER),
+		),
+		numeric2: s.BigInt.check(
+			s.isGreaterThanOrEqualToBigInt(CONSTANTS.INT64_MIN),
+			s.isLessThanOrEqualToBigInt(CONSTANTS.INT64_MAX),
+		),
 		numeric3: s.String,
-		real: s.Number.pipe(
-			s.greaterThanOrEqualTo(CONSTANTS.INT48_MIN),
-			s.lessThanOrEqualTo(CONSTANTS.INT48_MAX),
-		) as typeof s.Number,
+		real: s.Number.check(
+			s.isGreaterThanOrEqualTo(CONSTANTS.INT48_MIN),
+			s.isLessThanOrEqualTo(CONSTANTS.INT48_MAX),
+		),
 		text1: s.String,
-		text2: s.String.pipe(s.maxLength(10)) as typeof s.String,
-		text3: s.Literal('a', 'b', 'c'),
+		text2: s.String.check(s.isMaxLength(10)),
+		text3: s.Literals(['a', 'b', 'c']),
 		text4: jsonSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -452,7 +413,9 @@ test('all data types', (t) => {
 });
 
 /* 'Infinitely recursive type'*/ {
-	const TopLevelCondition: s.Schema<TopLevelCondition> = s.Any.pipe(s.filter(() => true));
+	const TopLevelCondition: s.Schema<TopLevelCondition> = s.Any.check(
+		s.makeFilter(() => undefined), // oxlint-disable-line no-useless-undefined
+	) as unknown as s.Schema<TopLevelCondition>;
 
 	const column = customType<{
 		data: TopLevelCondition;
@@ -468,7 +431,7 @@ test('all data types', (t) => {
 	const expected = s.Struct({
 		tlc: TopLevelCondition,
 	});
-	Expect<Equal<s.Schema.Type<typeof result>, s.Schema.Type<typeof expected>>>();
+	Expect<Equal<typeof result, typeof expected>>();
 }
 
 /* Disallow unknown keys in table refinement - select */ {

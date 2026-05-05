@@ -15,7 +15,6 @@ import type { HintsHandler } from '../hints';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
-import type { CasingType } from '../validations/common';
 import type { SqliteCredentials } from '../validations/sqlite';
 import {
 	explain as explainView,
@@ -33,7 +32,6 @@ export const handle = async (
 	credentials: SqliteCredentials,
 	filters: EntitiesFilterConfig,
 	force: boolean,
-	casing: CasingType | undefined,
 	explain: boolean,
 	migrations: {
 		table: string;
@@ -51,7 +49,7 @@ export const handle = async (
 	const existing = extractSqliteExisting(res.views);
 	const filter = prepareEntityFilter('sqlite', filters, existing);
 
-	const { ddl: ddl2, errors: errors1 } = interimToDDL(fromDrizzleSchema(res.tables, res.views, casing));
+	const { ddl: ddl2, errors: errors1 } = interimToDDL(fromDrizzleSchema(res.tables, res.views));
 
 	if (errors1.length > 0) {
 		throw new CommandOutputCliError('push', errors1.map((it) => sqliteSchemaError(it)).join('\n'), {

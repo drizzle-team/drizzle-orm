@@ -24,10 +24,10 @@ import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
-	const { out: outFolder, filenames, casing } = config;
+	const { out: outFolder, filenames } = config;
 	const json = isJsonMode();
 	const { snapshots } = prepareOutFolder(outFolder);
-	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, filenames, casing);
+	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, filenames);
 
 	if (config.custom) {
 		writeResult({
@@ -118,7 +118,7 @@ export const handleExport = async (config: ExportConfig) => {
 
 	// TODO: do we want to respect config filter here?
 	// cc: @AleksandrSherman
-	const { schema, errors } = fromDrizzleSchema(res, config.casing, () => true);
+	const { schema, errors } = fromDrizzleSchema(res, () => true);
 
 	if (errors.length > 0) {
 		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));

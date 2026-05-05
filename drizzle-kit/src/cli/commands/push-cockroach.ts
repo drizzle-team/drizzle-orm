@@ -28,7 +28,6 @@ import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
-import type { CasingType } from '../validations/common';
 import {
 	cockroachSchemaError,
 	explain as explainView,
@@ -45,7 +44,6 @@ export const handle = async (
 	credentials: CockroachCredentials,
 	filters: EntitiesFilterConfig,
 	force: boolean,
-	casing: CasingType | undefined,
 	explain: boolean,
 	migrations: {
 		table: string;
@@ -64,7 +62,7 @@ export const handle = async (
 	const existing = extractCrdbExisting(res.schemas, res.views, res.matViews);
 	const filter = prepareEntityFilter('cockroach', filters, existing);
 
-	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, casing, filter);
+	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, filter);
 
 	if (warnings.length > 0) {
 		humanLog(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));

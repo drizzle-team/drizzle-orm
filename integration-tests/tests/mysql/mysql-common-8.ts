@@ -1,6 +1,18 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
-import { and, asc, eq, getColumns, getTableColumns, gt, inArray, isNull, Name, sql } from 'drizzle-orm';
+import {
+	and,
+	asc,
+	DrizzleQueryError,
+	eq,
+	getColumns,
+	getTableColumns,
+	gt,
+	inArray,
+	isNull,
+	Name,
+	sql,
+} from 'drizzle-orm';
 import {
 	alias,
 	bigint,
@@ -585,9 +597,9 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	test
 		.skipIf(Date.now() < +new Date('2026-06-01'))
 		.concurrent(
-			'prepared statement sql.placeholder in .inArray',
+			'prepared statement sql.placeholder in .inArray #2',
 			async ({ db, push, seed }) => {
-				const users = createUserTable('users_116');
+				const users = createUserTable('users_116_2');
 				await push({ users });
 
 				await db.insert(users).values([{ name: 'John' }, { name: 'John1' }]);
@@ -1379,6 +1391,17 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		);
 	});
 
+	test.concurrent('Query error wrapping', async ({ push, db }) => {
+		const table = mysqlTable('users_error_wrap', (t) => ({
+			id: t.int().primaryKey(),
+			name: t.text().notNull(),
+		}));
+
+		await push({ table });
+		await expect(db.insert(table).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]))
+			.rejects.toBeInstanceOf(DrizzleQueryError);
+	});
+
 	test.concurrent('comments', async ({ createDB, push }) => {
 		const ctbl = mysqlTable('comments_test', (t) => ({
 			id: t.int('id').primaryKey(),
@@ -1466,9 +1489,14 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				select: `com'ment`,
 			})
 			.prepare();
-		expect((<any> selectQPrepared).query.sql).toStrictEqual(
-			`select \`id\`, \`name\` from \`comments_test\` /*select='com\\'ment'*/`,
-		);
+		expect(
+			typeof (<any> selectQPrepared).query?.sql === 'string'
+				? (<any> selectQPrepared).query.sql
+				: (<any> selectQPrepared).queryString,
+		)
+			.toStrictEqual(
+				`select \`id\`, \`name\` from \`comments_test\` /*select='com\\'ment'*/`,
+			);
 
 		await insertQ;
 		await updateQ;

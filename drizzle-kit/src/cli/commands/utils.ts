@@ -23,11 +23,9 @@ import { pullParams, pushParams } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
 import { cockroachCredentials } from '../validations/cockroach';
 import { printConfigConnectionIssues as printCockroachIssues } from '../validations/cockroach';
-import type { Casing, CasingType, CliConfig, Driver } from '../validations/common';
+import type { Casing, CliConfig, Driver } from '../validations/common';
 import { configCommonSchema, configMigrations, wrapParam } from '../validations/common';
 import { duckdbCredentials, printConfigConnectionIssues as printIssuesDuckDb } from '../validations/duckdb';
-import type { GelCredentials } from '../validations/gel';
-import { gelCredentials, printConfigConnectionIssues as printIssuesGel } from '../validations/gel';
 import type { LibSQLCredentials } from '../validations/libsql';
 import { libSQLCredentials, printConfigConnectionIssues as printIssuesLibSQL } from '../validations/libsql';
 import { printConfigConnectionIssues as printMssqlIssues } from '../validations/mssql';
@@ -80,12 +78,6 @@ export const prepareDropParams = async (
 		? await drizzleConfigFromFile(options.config as string | undefined)
 		: options;
 
-	if (config.dialect === 'gel') {
-		throw new UnsupportedCommandCliError('drop', error(`You can't use 'drop' command with Gel dialect`), {
-			dialect: 'Gel',
-		});
-	}
-
 	return { out: config.out || 'drizzle', bundle: config.driver === 'expo' };
 };
 
@@ -97,7 +89,6 @@ export type GenerateConfig = {
 	name?: string;
 	custom: boolean;
 	bundle: boolean;
-	casing?: CasingType;
 	driver?: Driver;
 	ignoreConflicts?: boolean;
 	explain: boolean;
@@ -107,7 +98,6 @@ export type GenerateConfig = {
 export type ExportConfig = {
 	dialect: Dialect;
 	sql: boolean;
-	casing?: CasingType;
 	filenames: string[];
 };
 
@@ -121,7 +111,6 @@ export const prepareGenerateConfig = async (
 		name?: string;
 		dialect?: Dialect;
 		driver?: Driver;
-		casing?: CasingType;
 		ignoreConflicts?: boolean;
 		explain?: boolean;
 		hints?: string;
@@ -132,7 +121,7 @@ export const prepareGenerateConfig = async (
 	const config = from === 'config' ? await drizzleConfigFromFile(options.config) : options;
 	const hints = await HintsHandler.fromCli(options);
 
-	const { schema, out, breakpoints, dialect, driver, casing } = config;
+	const { schema, out, breakpoints, dialect, driver } = config;
 
 	if (!schema || !dialect) {
 		throw new RequiredParamsCliError(
@@ -156,7 +145,6 @@ export const prepareGenerateConfig = async (
 		filenames: fileNames,
 		out: out || 'drizzle',
 		bundle: driver === 'expo' || driver === 'durable-sqlite',
-		casing,
 		driver,
 		ignoreConflicts: options.ignoreConflicts !== undefined && options.ignoreConflicts,
 		explain: options.explain ?? false,
@@ -170,7 +158,6 @@ export const prepareExportConfig = async (
 		schema?: string;
 		dialect?: Dialect;
 		sql: boolean;
-		casing?: CasingType;
 	},
 	from: 'config' | 'cli',
 ): Promise<ExportConfig> => {
@@ -193,7 +180,6 @@ export const prepareExportConfig = async (
 
 	const fileNames = prepareFilenames(schema);
 	return {
-		casing: config.casing,
 		dialect: dialect,
 		sql: sql,
 		filenames: fileNames,
@@ -261,7 +247,6 @@ export const preparePushConfig = async (
 		force: boolean;
 		explain: boolean;
 		hints: HintsHandler;
-		casing?: CasingType;
 		filters: EntitiesFilterConfig;
 		migrations: {
 			table: string;
@@ -318,7 +303,6 @@ export const preparePushConfig = async (
 				verbose: config.verbose ?? false,
 				force: (options.force as boolean) ?? false,
 				credentials: parsed.data,
-				casing: config.casing,
 				filters,
 				migrations: config.migrations,
 				filenames: schemaFiles,
@@ -335,7 +319,6 @@ export const preparePushConfig = async (
 				verbose: config.verbose ?? false,
 				force: (options.force as boolean) ?? false,
 				credentials: parsed.data,
-				casing: config.casing,
 				filters,
 				explain: (options.explain as boolean) ?? false,
 				hints,
@@ -372,7 +355,6 @@ export const preparePushConfig = async (
 				verbose: config.verbose ?? false,
 				force: (options.force as boolean) ?? false,
 				credentials: parsed.data,
-				casing: config.casing,
 				filters,
 				explain: (options.explain as boolean) ?? false,
 				hints,
@@ -391,7 +373,6 @@ export const preparePushConfig = async (
 				verbose: config.verbose ?? false,
 				force: (options.force as boolean) ?? false,
 				credentials: parsed.data,
-				casing: config.casing,
 				filters,
 				explain: (options.explain as boolean) ?? false,
 				hints,
@@ -402,12 +383,6 @@ export const preparePushConfig = async (
 		printIssuesLibSQL(config, 'push');
 	}
 
-	if (config.dialect === 'gel') {
-		throw new UnsupportedCommandCliError('push', error(`You can't use 'push' command with Gel dialect`), {
-			dialect: 'Gel',
-		});
-	}
-
 	if (config.dialect === 'mssql') {
 		const parsed = mssqlCredentials.safeParse(config);
 		if (parsed.success) {
@@ -416,7 +391,6 @@ export const preparePushConfig = async (
 				verbose: config.verbose ?? false,
 				force: (options.force as boolean) ?? false,
 				credentials: parsed.data,
-				casing: config.casing,
 				filters,
 				explain: (options.explain as boolean) ?? false,
 				hints,
@@ -435,7 +409,6 @@ export const preparePushConfig = async (
 				verbose: config.verbose ?? false,
 				force: (options.force as boolean) ?? false,
 				credentials: parsed.data,
-				casing: config.casing,
 				filters,
 				explain: (options.explain as boolean) ?? false,
 				hints,
@@ -479,10 +452,6 @@ export const preparePullConfig = async (
 		| {
 			dialect: 'singlestore';
 			credentials: SingleStoreCredentials;
-		}
-		| {
-			dialect: 'gel';
-			credentials?: GelCredentials;
 		}
 		| {
 			dialect: 'mssql';
@@ -618,23 +587,6 @@ export const preparePullConfig = async (
 		printIssuesLibSQL(config, 'pull');
 	}
 
-	if (dialect === 'gel') {
-		const parsed = gelCredentials.safeParse(config);
-		if (parsed.success) {
-			return {
-				dialect,
-				out: config.out,
-				breakpoints: config.breakpoints,
-				casing: config.casing,
-				credentials: parsed.data,
-				init: !!options.init,
-				migrations,
-				filters,
-			};
-		}
-		printIssuesGel(config);
-	}
-
 	if (dialect === 'mssql') {
 		const parsed = mssqlCredentials.safeParse(config);
 		if (parsed.success) {
@@ -694,7 +646,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 		process.exit(1);
 	}
 	const { host, port } = params;
-	const { dialect, schema, casing } = result.data;
+	const { dialect, schema } = result.data;
 	const flattened = flattenDatabaseCredentials(config);
 
 	if (dialect === 'postgresql') {
@@ -710,7 +662,6 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
-			casing,
 		};
 	}
 
@@ -727,7 +678,6 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
-			casing,
 		};
 	}
 
@@ -744,7 +694,6 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
-			casing,
 		};
 	}
 
@@ -761,7 +710,6 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
-			casing,
 		};
 	}
 
@@ -778,7 +726,6 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			host,
 			port,
 			credentials,
-			casing,
 		};
 	}
 
@@ -796,10 +743,6 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			port,
 			credentials,
 		};
-	}
-
-	if (dialect === 'gel') {
-		throw new Error(`You can't use 'studio' command with Gel dialect`);
 	}
 
 	if (dialect === 'mssql') {
@@ -920,12 +863,6 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 			schema,
 			table,
 		};
-	}
-
-	if (dialect === 'gel') {
-		throw new UnsupportedCommandCliError('migrate', error(`You can't use 'migrate' command with Gel dialect`), {
-			dialect: 'Gel',
-		});
 	}
 
 	if (dialect === 'mssql') {

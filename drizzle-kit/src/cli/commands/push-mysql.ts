@@ -15,7 +15,6 @@ import type { HintsHandler } from '../hints';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
-import type { CasingType } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
 import {
 	explain as explainView,
@@ -32,7 +31,6 @@ export const handle = async (
 	credentials: MysqlCredentials,
 	verbose: boolean,
 	force: boolean,
-	casing: CasingType | undefined,
 	filters: EntitiesFilterConfig,
 	explain: boolean,
 	migrations: {
@@ -58,7 +56,7 @@ export const handle = async (
 
 	const { schema: interimFromDB } = await introspect({ db, database, progress, filter, migrations });
 
-	const interimFromFiles = fromDrizzleSchema(res.tables, res.views, casing);
+	const interimFromFiles = fromDrizzleSchema(res.tables, res.views);
 
 	const { ddl: ddl1 } = interimToDDL(interimFromDB);
 	const { ddl: ddl2, errors: errors1 } = interimToDDL(interimFromFiles);

@@ -146,7 +146,7 @@ function formatOptionChanges(
 }
 
 export const explain = (
-	dialect: 'postgres' | 'mysql' | 'sqlite' | 'singlestore' | 'mssql' | 'common' | 'gel' | 'cockroach',
+	dialect: 'postgres' | 'mysql' | 'sqlite' | 'singlestore' | 'mssql' | 'common' | 'cockroach',
 	grouped: {
 		jsonStatement: StatementPostgres | StatementSqlite | StatementMysql | StatementMssql | StatementCockroach;
 		sqlStatements: string[];

@@ -147,7 +147,6 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 			builtQuery,
 			undefined,
 			this.mode === 'first' ? 'get' : 'all',
-			true,
 			(rawRows, mapColumnValue) => {
 				const rows = rawRows.map((row) =>
 					V1.mapRelationalRow(this.schema, this.tableConfig, row, query.selection, mapColumnValue)

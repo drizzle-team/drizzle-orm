@@ -1,6 +1,5 @@
 import type { Relations } from 'drizzle-orm/_relations';
 import type { AnyMySqlTable } from 'drizzle-orm/mysql-core';
-import type { CasingType } from 'src/cli/validations/common';
 import type { MysqlCredentials } from 'src/cli/validations/mysql';
 
 export const startStudioServer = async (
@@ -9,7 +8,6 @@ export const startStudioServer = async (
 	options?: {
 		host?: string;
 		port?: number;
-		casing?: CasingType;
 		key?: string;
 		cert?: string;
 	},
@@ -35,7 +33,7 @@ export const startStudioServer = async (
 		}
 	});
 
-	const setup = await drizzleForMySQL(credentials, mysqlSchema, relations, [], options?.casing);
+	const setup = await drizzleForMySQL(credentials, mysqlSchema, relations, []);
 	const server = await prepareServer(setup);
 
 	const host = options?.host || '127.0.0.1';

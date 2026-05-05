@@ -31,12 +31,12 @@ export class MySqlInt<T extends ColumnBaseConfig<'number int32' | 'number uint32
 		return `int${this.config.unsigned ? ' unsigned' : ''}`;
 	}
 
-	override mapFromDriverValue(value: number | string): number {
+	override mapFromDriverValue = (value: number | string): number => {
 		if (typeof value === 'string') {
 			return Number(value);
 		}
 		return value;
-	}
+	};
 }
 
 export interface MySqlIntConfig<TUnsigned extends boolean | undefined = boolean | undefined> {

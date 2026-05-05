@@ -9,6 +9,7 @@ import {
 	serial,
 	smallint,
 	smallserial,
+	snakeCase,
 	text,
 	timestamp,
 	uuid,
@@ -160,12 +161,14 @@ export const uuidTest = schema.table('uuid_test', {
 	col1: uuid(),
 });
 
-export const schemaCasingTest = schema.table('casing_test', {
+const casingSchema = snakeCase.schema('seeder_lib_pg');
+
+export const schemaCasingTest = casingSchema.table('casing_test', {
 	columnName1: integer(),
 	columnName2: integer(),
 });
 
-export const casingTest = pgTable('casing_test', {
+export const casingTest = snakeCase.table('casing_test', {
 	columnName1: integer(),
 	columnName2: integer(),
 });

@@ -1,5 +1,15 @@
 import { and, eq, gt, or, sql } from 'drizzle-orm';
-import { integer, pgMaterializedView, pgSchema, pgTable, pgView, serial, text } from 'drizzle-orm/pg-core';
+import {
+	camelCase,
+	integer,
+	pgMaterializedView,
+	pgSchema,
+	pgTable,
+	pgView,
+	serial,
+	snakeCase,
+	text,
+} from 'drizzle-orm/pg-core';
 import { generate } from 'src/cli/schema';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
@@ -2105,8 +2115,8 @@ test('.as in view select', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4181
 // casing bug
-test.skipIf(Date.now() < +new Date('2026-06-01'))('create view with snake_case', async () => {
-	const test = pgTable('test', {
+test('create view with snake_case', async () => {
+	const test = snakeCase.table('test', {
 		testId: serial().primaryKey(),
 		testName: text().notNull(),
 	});
@@ -2120,10 +2130,9 @@ test.skipIf(Date.now() < +new Date('2026-06-01'))('create view with snake_case',
 			.from(test);
 	});
 	const schema = { test, testView };
-	const casing = 'snake_case';
 
-	const { sqlStatements: st1, next: n1 } = await diff({}, schema, [], casing);
-	const { sqlStatements: pst1 } = await push({ db, to: schema, casing });
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
 	const expectedSt1 = [
 		'CREATE TABLE "test" (\n'
 		+ '\t"test_id" serial PRIMARY KEY,\n'
@@ -2134,16 +2143,16 @@ test.skipIf(Date.now() < +new Date('2026-06-01'))('create view with snake_case',
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
 
-	const { sqlStatements: st2 } = await diff(n1, schema, [], casing);
-	const { sqlStatements: pst2 } = await push({ db, to: schema, casing });
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
 	expect(st2).toStrictEqual([]);
 	expect(pst2).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4181
 // casing bug
-test.skipIf(Date.now() < +new Date('2026-06-01'))('create view with camelCase', async () => {
-	const test = pgTable('test', {
+test('create view with camelCase', async () => {
+	const test = camelCase.table('test', {
 		test_id: serial().primaryKey(),
 		test_name: text().notNull(),
 	});
@@ -2157,10 +2166,9 @@ test.skipIf(Date.now() < +new Date('2026-06-01'))('create view with camelCase', 
 			.from(test);
 	});
 	const schema = { test, testView };
-	const casing = 'camelCase';
 
-	const { sqlStatements: st1, next: n1 } = await diff({}, schema, [], casing);
-	const { sqlStatements: pst1 } = await push({ db, to: schema, casing });
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
 	const expectedSt1 = [
 		'CREATE TABLE "test" (\n'
 		+ '\t"testId" serial PRIMARY KEY,\n'
@@ -2171,8 +2179,8 @@ test.skipIf(Date.now() < +new Date('2026-06-01'))('create view with camelCase', 
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
 
-	const { sqlStatements: st2 } = await diff(n1, schema, [], casing);
-	const { sqlStatements: pst2 } = await push({ db, to: schema, casing });
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
 	expect(st2).toStrictEqual([]);
 	expect(pst2).toStrictEqual([]);
 });

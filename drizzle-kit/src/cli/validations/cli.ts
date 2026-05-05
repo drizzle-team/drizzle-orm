@@ -1,7 +1,7 @@
 import type { TypeOf } from 'zod';
 import { boolean, intersection, literal, object, string, union } from 'zod';
 import { dialect } from '../../utils/schemaValidator';
-import { casing, casingType, configMigrations } from './common';
+import { casing, configMigrations } from './common';
 
 export const entitiesParams = {
 	tablesFilter: union([string(), string().array()]).optional(),
@@ -19,7 +19,6 @@ export const entitiesParams = {
 
 export const pushParams = object({
 	dialect: dialect,
-	casing: casingType.optional(),
 	schema: union([string(), string().array()]),
 	verbose: boolean().optional(),
 	strict: boolean().optional(),

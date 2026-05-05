@@ -316,8 +316,6 @@ export const validatorForDialect = (
 			return mssqlSnapshotValidator;
 		case 'cockroach':
 			return cockroachSnapshotValidator;
-		case 'gel':
-			throw Error('gel validator is not implemented yet'); // TODO
 		case 'duckdb':
 			throw Error('duckdb validator is not implemented yet'); // TODO
 		default:

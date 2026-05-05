@@ -1,10 +1,11 @@
-import type { Connection as CallbackConnection, TypeCast } from 'mysql2';
+import type { Connection as CallbackConnection } from 'mysql2';
 import type {
 	Connection,
 	FieldPacket,
 	OkPacket,
 	Pool,
 	PoolConnection,
+	QueryOptions,
 	ResultSetHeader,
 	RowDataPacket,
 } from 'mysql2/promise';
@@ -29,10 +30,15 @@ import {
 	type MySqlTransactionConfig,
 	type PreparedQueryKind,
 } from '~/mysql-core/session.ts';
-import type { AnyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	makeJitRqbMapper,
+	type RelationalQueryMapperConfig,
+	type RelationalRowsMapper,
+} from '~/relations.ts';
 import { fillPlaceholders, sql } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { type Assume, makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
 
 export type MySql2Client = Pool | Connection;
 
@@ -42,21 +48,21 @@ export type MySqlQueryResult<
 	T = any,
 > = [T extends ResultSetHeader ? T : T[], FieldPacket[]];
 
-const typeCast: TypeCast = function(field: any, next: any) {
-	if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
-		return field.string();
-	}
-	return next();
-};
-
 export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 extends boolean = false>
 	extends MySqlPreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'MySql2PreparedQuery';
 
+	private rawQuery: QueryOptions;
+	private query: QueryOptions;
+	private jitMapper?:
+		| RowsMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
+		| RelationalRowsMapper<T['execute']>;
+
 	constructor(
 		private client: MySql2Client,
-		query: Query,
+		queryString: string,
+		private params: unknown[],
 		private logger: Logger,
 		cache: Cache,
 		queryMetadata: {
@@ -65,6 +71,7 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
+		private useJitMappers: boolean | undefined,
 		private customResultMapper?: (
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 		) => T['execute'],
@@ -73,32 +80,43 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 		// Keys that should be returned, it has the column with all properries + key from object
 		private returningIds?: SelectedFieldsOrdered,
 		private isRqbV2Query?: TIsRqbV2,
+		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
-		super(query, cache, queryMetadata, cacheConfig);
+		super(cache, queryMetadata, cacheConfig);
+		this.rawQuery = {
+			sql: queryString,
+			// rowsAsArray: true,
+			typeCast: function(field: any, next: any) {
+				if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
+					return field.string();
+				}
+				return next();
+			},
+		};
+		this.query = {
+			sql: queryString,
+			rowsAsArray: true,
+			typeCast: function(field: any, next: any) {
+				if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
+					return field.string();
+				}
+				return next();
+			},
+		};
 	}
 
 	async execute(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
 		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
 
-		const params = fillPlaceholders(this.query.params, placeholderValues);
+		const params = fillPlaceholders(this.params, placeholderValues);
 
-		this.logger.logQuery(this.query.sql, params);
+		this.logger.logQuery(this.rawQuery.sql, params);
 
-		const {
-			fields,
-			client,
-			query,
-			joinsNotNullableMap,
-			customResultMapper,
-			returningIds,
-			generatedIds,
-		} = this;
+		const { fields, client, rawQuery, query, joinsNotNullableMap, customResultMapper, returningIds, generatedIds } =
+			this;
 		if (!fields && !customResultMapper) {
-			const res = await this.queryWithCache(query.sql, params, async () => {
-				return await client.query<any>({
-					sql: query.sql,
-					typeCast,
-				}, params);
+			const res = await this.queryWithCache(rawQuery.sql, params, async () => {
+				return await client.query<any>(rawQuery, params);
 			});
 
 			const insertId = res[0].insertId;
@@ -130,11 +148,7 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 		}
 
 		const result = await this.queryWithCache(query.sql, params, async () => {
-			return await client.query<any[]>({
-				sql: query.sql,
-				rowsAsArray: true,
-				typeCast,
-			}, params);
+			return await client.query<any[]>(query, params);
 		});
 
 		const rows = result[0];
@@ -143,19 +157,21 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 			return customResultMapper(rows);
 		}
 
-		return rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+		return this.useJitMappers
+			? (this.jitMapper = this.jitMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number]
+				: T['execute'])[]>
+				?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number]
+					: T['execute'])[]>(fields!, joinsNotNullableMap))(rows)
+			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
-		const params = fillPlaceholders(this.query.params, placeholderValues);
+		const params = fillPlaceholders(this.params, placeholderValues);
 
-		this.logger.logQuery(this.query.sql, params);
+		this.logger.logQuery(this.rawQuery.sql, params);
 
-		const { client, query, customResultMapper } = this;
-		const res = await client.query<any>({
-			sql: query.sql,
-			typeCast,
-		}, params);
+		const { client, rawQuery, customResultMapper } = this;
+		const res = await client.query<any>(rawQuery, params);
 
 		const rows = res[0];
 
@@ -165,18 +181,14 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 	async *iterator(
 		placeholderValues: Record<string, unknown> = {},
 	): AsyncGenerator<T['execute'] extends any[] ? T['execute'][number] : T['execute']> {
-		const params = fillPlaceholders(this.query.params, placeholderValues);
+		const params = fillPlaceholders(this.params, placeholderValues);
 		const conn = ((isPool(this.client) ? await this.client.getConnection() : this.client) as {} as {
 			connection: CallbackConnection;
 		}).connection;
 
-		const { fields, query, joinsNotNullableMap, client, customResultMapper } = this;
+		const { fields, query, rawQuery, joinsNotNullableMap, client, customResultMapper } = this;
 		const hasRowsMapper = Boolean(fields || customResultMapper);
-		const driverQuery = conn.query({
-			sql: query.sql,
-			rowsAsArray: hasRowsMapper,
-			typeCast,
-		}, params);
+		const driverQuery = hasRowsMapper ? conn.query(query, params) : conn.query(rawQuery, params);
 
 		const stream = driverQuery.stream();
 
@@ -198,12 +210,30 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 				} else if (row instanceof Error) { // oxlint-disable-line drizzle-internal/no-instanceof
 					throw row;
 				} else {
-					if (hasRowsMapper) {
+					if (this.isRqbV2Query) {
+						if (this.useJitMappers) {
+							yield (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
+								?? makeJitRqbMapper<T['execute']>(this.rqbConfig!))([row as Record<string, unknown>]);
+						} else {
+							const mapped = (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
+								[row] as Record<string, unknown>[],
+							);
+							if (this.rqbConfig!.isFirst) yield mapped;
+							else yield ((<any[]> mapped)[0]);
+						}
+					} else if (hasRowsMapper) {
 						if (customResultMapper) {
 							const mappedRow = (customResultMapper as (rows: unknown[][]) => T['execute'])([row as unknown[]]);
 							yield (Array.isArray(mappedRow) ? mappedRow[0] : mappedRow);
 						} else {
-							yield mapResultRow(fields!, row as unknown[], joinsNotNullableMap);
+							yield this.useJitMappers
+								? (this.jitMapper = this.jitMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number]
+									: T['execute'])[]>
+									?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
+										fields!,
+										joinsNotNullableMap,
+									))([row as unknown[]])[0] as T['execute']
+								: mapResultRow(fields!, row as unknown[], joinsNotNullableMap);
 						}
 					} else {
 						yield row as T['execute'];
@@ -222,6 +252,7 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig, TIsRqbV2 ex
 export interface MySql2SessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMappers?: boolean;
 	mode: Mode;
 }
 
@@ -265,12 +296,14 @@ export class MySql2Session<
 		// Each driver gets them from response from database
 		return new MySql2PreparedQuery(
 			this.client,
-			query,
+			query.sql,
+			query.params,
 			this.logger,
 			this.cache,
 			queryMetadata,
 			cacheConfig,
 			fields,
+			this.options.useJitMappers,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -281,6 +314,7 @@ export class MySql2Session<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		config: RelationalQueryMapperConfig,
 		generatedIds?: Record<string, unknown>[],
 		returningIds?: SelectedFieldsOrdered,
 	): PreparedQueryKind<MySql2PreparedQueryHKT, T> {
@@ -288,16 +322,19 @@ export class MySql2Session<
 		// Each driver gets them from response from database
 		return new MySql2PreparedQuery(
 			this.client,
-			query,
+			query.sql,
+			query.params,
 			this.logger,
 			this.cache,
 			undefined,
 			undefined,
 			fields,
+			this.options.useJitMappers,
 			customResultMapper,
 			generatedIds,
 			returningIds,
 			true,
+			config,
 		) as any;
 	}
 

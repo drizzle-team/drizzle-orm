@@ -36,12 +36,12 @@ export class SingleStoreBigInt53<T extends ColumnBaseConfig<'number int53' | 'nu
 		return `bigint${this.config.unsigned ? ' unsigned' : ''}`;
 	}
 
-	override mapFromDriverValue(value: number | string): number {
+	override mapFromDriverValue = (value: number | string): number => {
 		if (typeof value === 'number') {
 			return value;
 		}
 		return Number(value);
-	}
+	};
 }
 
 export class SingleStoreBigInt64Builder<TUnsigned extends boolean | undefined>
@@ -77,9 +77,9 @@ export class SingleStoreBigInt64<T extends ColumnBaseConfig<'bigint int64' | 'bi
 	}
 
 	// eslint-disable-next-line unicorn/prefer-native-coercion-functions
-	override mapFromDriverValue(value: string): bigint {
+	override mapFromDriverValue = (value: string): bigint => {
 		return BigInt(value);
-	}
+	};
 }
 
 export class SingleStoreBigIntStringBuilder<TUnsigned extends boolean | undefined>

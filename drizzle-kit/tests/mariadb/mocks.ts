@@ -57,24 +57,23 @@ export const fromEntities = (entities: MysqlEntity[]) => {
 	return ddl;
 };
 
-export const drizzleToDDL = (sch: MysqlSchema, casing?: CasingType | undefined) => {
+export const drizzleToDDL = (sch: MysqlSchema) => {
 	const tables = Object.values(sch).filter((it) => is(it, MySqlTable)) as MySqlTable[];
 	const views = Object.values(sch).filter((it) => is(it, MySqlView)) as MySqlView[];
-	return interimToDDL(fromDrizzleSchema(tables, views, casing));
+	return interimToDDL(fromDrizzleSchema(tables, views));
 };
 
 export const diff = async (
 	left: MysqlSchema | MysqlDDL,
 	right: MysqlSchema | MysqlDDL,
 	renamesArr: string[],
-	casing?: CasingType | undefined,
 ) => {
 	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
 		? { ddl: left as MysqlDDL, errors: [] }
-		: drizzleToDDL(left, casing);
+		: drizzleToDDL(left);
 	const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
 		? { ddl: right as MysqlDDL, errors: [] }
-		: drizzleToDDL(right, casing);
+		: drizzleToDDL(right);
 
 	const renames = new Set(renamesArr);
 
@@ -110,7 +109,7 @@ export const diffIntrospect = async (
 	testName: string,
 	casing?: CasingType | undefined,
 ) => {
-	const { ddl: initDDL } = drizzleToDDL(initSchema, casing);
+	const { ddl: initDDL } = drizzleToDDL(initSchema);
 	const { sqlStatements: init } = await ddlDiffDry(createDDL(), initDDL);
 	for (const st of init) await db.query(st);
 
@@ -140,7 +139,6 @@ export const diffIntrospect = async (
 	const interim = fromDrizzleSchema(
 		response.tables,
 		response.views,
-		casing,
 	);
 
 	const { ddl: ddl2, errors: e3 } = interimToDDL(interim);
@@ -196,7 +194,7 @@ export const push = async (config: {
 	const { ddl: ddl1, errors: err1 } = interimToDDL(schema);
 	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
 		? { ddl: to as MysqlDDL, errors: [] }
-		: drizzleToDDL(to, casing);
+		: drizzleToDDL(to);
 
 	if (err2.length > 0) {
 		for (const e of err2) {
@@ -279,7 +277,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 	const type = override?.type ?? column.getSQLType().replace(', ', ','); // real(6, 3)->real(6,3)
 	const ignoreSubsequent = override?.ignoreSubsequent ?? false;
 
-	const columnDefault = defaultFromColumn(column, 'camelCase');
+	const columnDefault = defaultFromColumn(column);
 	const defaultSql = override?.default ?? columnDefault;
 
 	const res = [] as string[];
@@ -316,7 +314,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 	await tsc(file.file);
 
 	const response = await prepareFromSchemaFiles([path]);
-	const sch = fromDrizzleSchema(response.tables, response.views, 'camelCase');
+	const sch = fromDrizzleSchema(response.tables, response.views);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');

@@ -52,7 +52,7 @@ test('generate #1', async (t) => {
 		filenames: [filename],
 		out: 'drizzle',
 		bundle: false,
-		casing: undefined,
+
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: false,
@@ -75,7 +75,7 @@ test('generate #2', async (t) => {
 		filenames: [filename],
 		out: 'out',
 		bundle: false,
-		casing: undefined,
+
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: false,
@@ -95,7 +95,7 @@ test('generate #3', async (t) => {
 		filenames: [filename],
 		out: 'drizzle',
 		bundle: false,
-		casing: undefined,
+
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: false,
@@ -116,7 +116,7 @@ test('generate #4', async (t) => {
 		filenames: [filename],
 		out: 'drizzle',
 		bundle: false,
-		casing: undefined,
+
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: false,
@@ -136,7 +136,7 @@ test('generate #5', async (t) => {
 		filenames: [filename],
 		out: 'drizzle',
 		bundle: false,
-		casing: undefined,
+
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: false,
@@ -156,7 +156,7 @@ test('generate #6', async (t) => {
 		filenames: [filename],
 		out: 'drizzle',
 		bundle: false,
-		casing: undefined,
+
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: false,
@@ -176,7 +176,7 @@ test('generate #7', async (t) => {
 		filenames: [filename],
 		out: 'drizzle',
 		bundle: false,
-		casing: undefined,
+
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: false,
@@ -197,7 +197,7 @@ test('generate #8', async (t) => {
 		filenames: [filename],
 		out: 'drizzle',
 		bundle: true, // expo driver
-		casing: undefined,
+
 		driver: 'expo',
 		ignoreConflicts: false,
 		explain: false,
@@ -217,7 +217,7 @@ test('generate #9', async (t) => {
 		filenames: [filename],
 		out: 'drizzle',
 		bundle: true, // expo driver
-		casing: undefined,
+
 		driver: 'durable-sqlite',
 		ignoreConflicts: false,
 		explain: false,
@@ -241,7 +241,7 @@ test('generate #9', async (t) => {
 		filenames: [filename],
 		out: 'out',
 		bundle: false,
-		casing: undefined,
+
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: false,
@@ -265,7 +265,7 @@ test('generate #10 tsconfig paths', async () => {
 			breakpoints: true,
 			out: 'drizzle',
 			bundle: false,
-			casing: undefined,
+
 			driver: undefined,
 			filenames: [filename],
 			explain: false,
@@ -294,7 +294,6 @@ test('generate --explain', async (t) => {
 		filenames: [filename],
 		out: 'drizzle',
 		bundle: false,
-		casing: undefined,
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: true,
