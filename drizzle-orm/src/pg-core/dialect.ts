@@ -3,19 +3,7 @@ import { CodecsCollection } from '~/codecs.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
-import {
-	PgColumn,
-	type PgCustomColumn,
-	PgDate,
-	PgDateString,
-	PgJson,
-	PgJsonb,
-	PgNumeric,
-	PgTime,
-	PgTimestamp,
-	PgTimestampString,
-	PgUUID,
-} from '~/pg-core/columns/index.ts';
+import { PgColumn, type PgCustomColumn } from '~/pg-core/columns/index.ts';
 import type {
 	AnyPgSelectQueryBuilder,
 	PgDeleteConfig,
@@ -45,16 +33,7 @@ import {
 	type WithContainer,
 } from '~/relations.ts';
 import { and, isSQLWrapper, type SQLWrapper, View } from '~/sql/index.ts';
-import {
-	type DriverValueEncoder,
-	type Name,
-	Param,
-	type QueryTypingsValue,
-	type QueryWithTypings,
-	SQL,
-	sql,
-	type SQLChunk,
-} from '~/sql/sql.ts';
+import { type Name, Param, type Query, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
 import {
@@ -674,42 +653,20 @@ export class PgDialect {
 		return sql`refresh materialized view${concurrentlySql} ${view}${withNoDataSql}`;
 	}
 
-	prepareTyping(
-		encoder: DriverValueEncoder<unknown, unknown>,
-	): QueryTypingsValue {
-		if (is(encoder, PgJsonb) || is(encoder, PgJson)) {
-			return 'json';
-		} else if (is(encoder, PgNumeric)) {
-			return 'decimal';
-		} else if (is(encoder, PgTime)) {
-			return 'time';
-		} else if (is(encoder, PgTimestamp) || is(encoder, PgTimestampString)) {
-			return 'timestamp';
-		} else if (is(encoder, PgDate) || is(encoder, PgDateString)) {
-			return 'date';
-		} else if (is(encoder, PgUUID)) {
-			return 'uuid';
-		} else {
-			return 'none';
-		}
-	}
-
-	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
+	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): Query {
 		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
-			prepareTyping: this.prepareTyping,
 			codecs: this.codecs,
 			invokeSource,
 		});
 	}
-	_sqlToQuery(sql: SQL): QueryWithTypings {
+	_sqlToQuery(sql: SQL): Query {
 		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
-			prepareTyping: this.prepareTyping,
 			codecs: this.codecs,
 			tagged: true,
 		});

@@ -93,29 +93,29 @@ export const pgliteCodecs = refineGenericPgCodecs({
 	'geometry(point)': {
 		normalizeArray: parsePgArrayAndNormalize(parseGeometryXY),
 		castParam: (name) => `${name}::geometry`,
-		castArrayParam: (name, dimensions) => `${name}::geometry${'[]'.repeat(dimensions)}`,
+		castArrayParam: (name, _column, dimensions) => `${name}::geometry${'[]'.repeat(dimensions)}`,
 		normalizeParamArray: makePgArray,
 	},
 	'geometry(point):tuple': {
 		normalizeArray: parsePgArrayAndNormalize(parseGeometryTuple),
 		castParam: (name) => `${name}::geometry`,
-		castArrayParam: (name, dimensions) => `${name}::geometry${'[]'.repeat(dimensions)}`,
+		castArrayParam: (name, _column, dimensions) => `${name}::geometry${'[]'.repeat(dimensions)}`,
 		normalizeParamArray: makePgArray,
 	},
 	halfvec: {
 		castParam: (name) => `${name}::halfvec`,
-		castArrayParam: (name, dimensions) => `${name}::halfvec${'[]'.repeat(dimensions)}`,
+		castArrayParam: (name, _column, dimensions) => `${name}::halfvec${'[]'.repeat(dimensions)}`,
 		normalizeParamArray: makePgArray,
 	},
 	vector: {
 		castParam: (name) => `${name}::vector`,
-		castArrayParam: (name, dimensions) => `${name}::vector${'[]'.repeat(dimensions)}`,
+		castArrayParam: (name, _column, dimensions) => `${name}::vector${'[]'.repeat(dimensions)}`,
 		normalizeParamArray: makePgArray,
 	},
 	sparsevec: {
 		normalizeArray: parsePgArray,
 		castParam: (name) => `${name}::sparsevec`,
-		castArrayParam: (name, dimensions) => `${name}::sparsevec${'[]'.repeat(dimensions)}`,
+		castArrayParam: (name, _column, dimensions) => `${name}::sparsevec${'[]'.repeat(dimensions)}`,
 		normalizeParamArray: makePgArray,
 	},
 });

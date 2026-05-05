@@ -2,7 +2,7 @@ import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
-import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { SQLiteDialect } from '../dialect.ts';
 import type { PreparedQueryConfig, SQLitePreparedQuery, SQLiteSession } from '../session.ts';
@@ -163,7 +163,7 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 		return this._prepare(false);
 	}
 
-	private _toSQL(): { query: V1.BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+	private _toSQL(): { query: V1.BuildRelationalQueryResult; builtQuery: Query } {
 		const query = this.dialect._buildRelationalQuery({
 			fullSchema: this.fullSchema,
 			schema: this.schema,

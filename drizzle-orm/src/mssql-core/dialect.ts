@@ -10,7 +10,7 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
-import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/sql/sql.ts';
+import { Param, type Query, SQL, sql, type SQLChunk, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/mssql.ts';
@@ -685,7 +685,7 @@ export class MsSqlDialect {
 	sqlToQuery(
 		sql: SQL,
 		invokeSource?: 'indexes' | 'mssql-check' | 'mssql-view-with-schemabinding',
-	): QueryWithTypings {
+	): Query {
 		const res = sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,

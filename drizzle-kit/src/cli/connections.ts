@@ -113,7 +113,6 @@ export const preparePostgresDB = async (
 					{
 						sql: params.sql,
 						params: params.params ?? [],
-						typings: params.typings,
 					},
 					params.mode === 'array' ? 'arrays' : 'objects',
 					false,
