@@ -1,4 +1,4 @@
-import type { ExecuteStatementCommandOutput, RDSDataClient } from '@aws-sdk/client-rds-data';
+import type { ExecuteStatementCommandOutput, Field, RDSDataClient } from '@aws-sdk/client-rds-data';
 import {
 	BeginTransactionCommand,
 	CommitTransactionCommand,
@@ -14,7 +14,7 @@ import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-c
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
-import { type QueryWithTypings, sql } from '~/sql/sql.ts';
+import { type Query, sql } from '~/sql/sql.ts';
 import { getValueFromDataApi, toValueParam } from '../common/index.ts';
 
 export type AwsDataApiClient = RDSDataClient;
@@ -63,7 +63,7 @@ export class AwsDataApiSession<
 	}
 
 	prepareQuery<T extends PreparedQueryConfig>(
-		query: QueryWithTypings,
+		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
@@ -79,7 +79,7 @@ export class AwsDataApiSession<
 				parameters: params
 					? params.map((param, index) => ({
 						name: `${index + 1}`,
-						...toValueParam(param, query.typings?.[index]),
+						value: toValueParam(param),
 					}))
 					: [],
 				secretArn: this.options.secretArn,
@@ -90,9 +90,15 @@ export class AwsDataApiSession<
 			});
 
 			const result = await this.client.send(command);
-			const rows = result.records?.map((row) => {
-				return row.map((field) => getValueFromDataApi(field));
-			}) ?? [];
+			const rows = result.records ?? [];
+			if (result.records) {
+				for (let i = 0; i < result.records.length; ++i) {
+					const row = rows[i] as unknown[];
+					for (let j = 0; j < row.length; ++j) {
+						row[j] = getValueFromDataApi(row[j] as Field);
+					}
+				}
+			}
 
 			if (mode === 'arrays') return rows;
 
@@ -174,9 +180,9 @@ export class AwsDataApiTransaction<
 > extends PgAsyncTransaction<AwsDataApiPgQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'AwsDataApiTransaction';
 
-	override transaction = async <T>(
+	override async transaction<T>(
 		transaction: (tx: AwsDataApiTransaction<TRelations>) => Promise<T>,
-	): Promise<T> => {
+	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new AwsDataApiTransaction<TRelations>(
 			this.dialect,
@@ -194,7 +200,7 @@ export class AwsDataApiTransaction<
 			await this.session.execute(sql.raw(`rollback to savepoint ${savepointName}`));
 			throw e;
 		}
-	};
+	}
 }
 
 export type AwsDataApiPgQueryResult<T> = ExecuteStatementCommandOutput & { rows: T[] };
