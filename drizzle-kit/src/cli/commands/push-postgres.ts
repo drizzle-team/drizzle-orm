@@ -326,7 +326,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			const column = statement.column;
 			const id = identifier({ schema: column.schema, name: column.table });
 			const entity = [column.schema, column.table, column.name] as const;
-			if (hints.matchConfirm('not_null_constraint', entity)) continue;
+			if (hints.matchConfirm('add_not_null', entity)) continue;
 			const res = await db.query(`select 1 from ${id} limit 1`);
 
 			if (res.length === 0) continue;
@@ -337,7 +337,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			if (json) {
 				hints.pushMissingHint({
 					type: 'confirm_data_loss',
-					kind: 'not_null_constraint',
+					kind: 'add_not_null',
 					entity,
 					reason: 'nulls_present',
 				});
@@ -352,7 +352,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			const unique = statement.unique;
 			const id = identifier({ schema: unique.schema, name: unique.table });
 			const entity = [unique.schema, unique.table, unique.name] as const;
-			if (hints.matchConfirm('unique_constraint', entity)) continue;
+			if (hints.matchConfirm('add_unique', entity)) continue;
 
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
@@ -360,7 +360,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			if (json) {
 				hints.pushMissingHint({
 					type: 'confirm_data_loss',
-					kind: 'unique_constraint',
+					kind: 'add_unique',
 					entity,
 					reason: 'duplicates_present',
 				});

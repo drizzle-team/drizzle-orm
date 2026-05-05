@@ -238,7 +238,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const column = statement.diff.$right;
 			const key = identifier({ schema: column.schema, table: column.table });
 			const entity = [column.schema ?? 'dbo', column.table, column.name] as const;
-			if (hints.matchConfirm('not_null_constraint', entity)) continue;
+			if (hints.matchConfirm('add_not_null', entity)) continue;
 			const res = await db.query(`select top(1) 1 from ${key};`);
 
 			if (res.length === 0) continue;
@@ -248,7 +248,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			if (json) {
 				hints.pushMissingHint({
 					type: 'confirm_data_loss',
-					kind: 'not_null_constraint',
+					kind: 'add_not_null',
 					entity,
 					reason: 'nulls_present',
 				});
@@ -270,7 +270,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const column = statement.column;
 			const key = identifier({ schema: column.schema, table: column.table });
 			const entity = [column.schema ?? 'dbo', column.table, column.name] as const;
-			if (hints.matchConfirm('not_null_constraint', entity)) continue;
+			if (hints.matchConfirm('add_not_null', entity)) continue;
 			const res = await db.query(`select top(1) 1 from ${key};`);
 
 			if (res.length === 0) continue;
@@ -280,7 +280,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			if (json) {
 				hints.pushMissingHint({
 					type: 'confirm_data_loss',
-					kind: 'not_null_constraint',
+					kind: 'add_not_null',
 					entity,
 					reason: 'nulls_present',
 				});
@@ -320,7 +320,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const unique = statement.unique;
 			const id = identifier({ schema: unique.schema, table: unique.table });
 			const entity = [unique.schema ?? 'dbo', unique.table, unique.name] as const;
-			if (hints.matchConfirm('unique_constraint', entity)) continue;
+			if (hints.matchConfirm('add_unique', entity)) continue;
 
 			const res = await db.query(`select top(1) 1 from ${id};`);
 			if (res.length === 0) continue;
@@ -328,7 +328,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			if (json) {
 				hints.pushMissingHint({
 					type: 'confirm_data_loss',
-					kind: 'unique_constraint',
+					kind: 'add_unique',
 					entity,
 					reason: 'duplicates_present',
 				});
