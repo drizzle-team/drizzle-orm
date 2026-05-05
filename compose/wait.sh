@@ -21,6 +21,7 @@ for db in "$@"; do
     postgres18)           wait_tcp 127.0.0.1 54325 "postgres" ;;
     postgres17)           wait_tcp 127.0.0.1 54324 "postgres" ;;
     postgres16)           wait_tcp 127.0.0.1 54323 "postgres" ;;
+    mariadb)              wait_tcp 127.0.0.1 33306 "mariadb" ;;
     mysql)                wait_tcp 127.0.0.1 3306  "mysql" ;;
     singlestore)          wait_tcp 127.0.0.1 33307 "singlestore" ;;
     singlestore-many)
