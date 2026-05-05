@@ -603,6 +603,9 @@ importers:
       '@effect/sql-pg':
         specifier: 4.0.0-beta.58
         version: 4.0.0-beta.58(effect@4.0.0-beta.58)
+      '@effect/sql-sqlite-node':
+        specifier: 4.0.0-beta.58
+        version: 4.0.0-beta.58(effect@4.0.0-beta.58)
       '@effect/vitest':
         specifier: 4.0.0-beta.58
         version: 4.0.0-beta.58(effect@4.0.0-beta.58)(vitest@4.0.13(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.3))
@@ -1742,6 +1745,11 @@ packages:
 
   '@effect/sql-pg@4.0.0-beta.58':
     resolution: {integrity: sha512-PxK5D0fyva3P9r0XIuhoEYG7ihP+ZbB5PLvowUBgxuyqRTg+Egwrt9siyL1/sSr+1Ni3WTRWtyzZ0NKC0kCvqw==}
+    peerDependencies:
+      effect: ^4.0.0-beta.58
+
+  '@effect/sql-sqlite-node@4.0.0-beta.58':
+    resolution: {integrity: sha512-9atmJ6FT/YT8P6HlWgzt3Vl5es+VzMomldMEiMMWjDRA6OkpbmvLKAQs38b6lhwSTb5ORlmmSSRk7cidNXLIpA==}
     peerDependencies:
       effect: ^4.0.0-beta.58
 
@@ -4196,6 +4204,9 @@ packages:
 
   better-sqlite3@12.6.2:
     resolution: {integrity: sha512-8VYKM3MjCa9WcaSAI3hzwhmyHVlH8tiGFwf0RlTsZPWJ1I5MkzjiudCo4KC4DxOaL/53A5B1sI/IbldNFDbsKA==}
+
+  better-sqlite3@12.9.0:
+    resolution: {integrity: sha512-wqUv4Gm3toFpHDQmaKD4QhZm3g1DjUBI0yzS4UBl6lElUmXFYdTQmmEDpAFa5o8FiFiymURypEnfVHzILKaxqQ==}
     engines: {node: 20.x || 22.x || 23.x || 24.x || 25.x}
 
   big-integer@1.6.52:
@@ -10483,6 +10494,11 @@ snapshots:
     transitivePeerDependencies:
       - pg-native
 
+  '@effect/sql-sqlite-node@4.0.0-beta.58(effect@4.0.0-beta.58)':
+    dependencies:
+      better-sqlite3: 12.9.0
+      effect: 4.0.0-beta.58
+
   '@effect/sql@0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-beta.58))(effect@4.0.0-beta.58))(@effect/platform@0.93.5(effect@4.0.0-beta.58))(effect@4.0.0-beta.58)':
     dependencies:
       '@effect/experimental': 0.57.8(@effect/platform@0.93.5(effect@4.0.0-beta.58))(effect@4.0.0-beta.58)
@@ -13313,6 +13329,11 @@ snapshots:
       bindings: 1.5.0
       prebuild-install: 7.1.3
     optional: true
+
+  better-sqlite3@12.9.0:
+    dependencies:
+      bindings: 1.5.0
+      prebuild-install: 7.1.3
 
   big-integer@1.6.52: {}
 

@@ -6,6 +6,104 @@ import type { BaseSQLiteDatabase } from '~/sqlite-core/index.ts';
 import type { SQLiteSession } from '~/sqlite-core/session.ts';
 import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResult } from './utils.ts';
 
+/** @internal */
+export type SQLiteMigrationTableRow = { id: number | null; hash: string; created_at: number };
+
+type SQLiteMigrationBackfillEntry = {
+	name: string;
+	selector:
+		| { column: 'id'; value: number }
+		| { column: 'created_at'; value: number }
+		| { column: 'hash'; value: string };
+};
+
+function unmatchedMigrationError(unmatched: SQLiteMigrationTableRow[]) {
+	return new Error(
+		`While upgrading your database migrations table we found ${unmatched.length} (${
+			unmatched.map((it) => `[id: ${it.id}, created_at: ${it.created_at}]`).join(', ')
+		}) migrations in the database that do not match any local migration. This means that some migrations were applied to the database but are missing from the local environment`,
+	);
+}
+
+/** @internal */
+export function prepareSQLiteMigrationBackfill(
+	dbRows: SQLiteMigrationTableRow[],
+	localMigrations: MigrationMeta[],
+): SQLiteMigrationBackfillEntry[] {
+	const sortedLocalMigrations = [...localMigrations].sort((a, b) =>
+		a.folderMillis !== b.folderMillis ? a.folderMillis - b.folderMillis : (a.name ?? '').localeCompare(b.name ?? '')
+	);
+	const byMillis = new Map<number, MigrationMeta[]>();
+	const byHash = new Map<string, MigrationMeta>();
+	for (const migration of sortedLocalMigrations) {
+		if (!byMillis.has(migration.folderMillis)) {
+			byMillis.set(migration.folderMillis, []);
+		}
+		byMillis.get(migration.folderMillis)!.push(migration);
+		byHash.set(migration.hash, migration);
+	}
+
+	const toApply: SQLiteMigrationBackfillEntry[] = [];
+	const unmatched: SQLiteMigrationTableRow[] = [];
+
+	for (const dbRow of dbRows) {
+		const stringified = String(dbRow.created_at);
+		const millis = Number(stringified.substring(0, stringified.length - 3) + '000');
+		const candidates = byMillis.get(millis);
+
+		const matchedByMillis = candidates?.length === 1 ? candidates[0] : undefined;
+		const matchedByCandidateHash = candidates && candidates.length > 1
+			? candidates.find((candidate) => candidate.hash && dbRow.hash && candidate.hash === dbRow.hash)
+			: undefined;
+		const matchedByHash = matchedByMillis || matchedByCandidateHash ? undefined : byHash.get(dbRow.hash);
+		const matched = matchedByMillis ?? matchedByCandidateHash ?? matchedByHash;
+
+		if (matched) {
+			toApply.push({
+				name: matched.name,
+				selector: dbRow.id !== null
+					? { column: 'id', value: dbRow.id }
+					: matchedByMillis
+					? { column: 'created_at', value: dbRow.created_at }
+					: { column: 'hash', value: dbRow.hash },
+			});
+			continue;
+		}
+
+		unmatched.push(dbRow);
+	}
+
+	if (unmatched.length > 0) {
+		throw unmatchedMigrationError(unmatched);
+	}
+
+	return toApply;
+}
+
+/** @internal */
+export function buildSQLiteMigrationBackfillStatements(
+	migrationsTable: string,
+	backfillEntries: SQLiteMigrationBackfillEntry[],
+) {
+	const table = sql`${sql.identifier(migrationsTable)}`;
+	const statements: SQL[] = [
+		sql`ALTER TABLE ${table} ADD COLUMN ${sql.identifier('name')} text`,
+		sql`ALTER TABLE ${table} ADD COLUMN ${sql.identifier('applied_at')} TEXT`,
+	];
+
+	for (const backfillEntry of backfillEntries) {
+		const updateQuery = sql`UPDATE ${table} SET ${sql.identifier('name')} = ${backfillEntry.name}, ${
+			sql.identifier('applied_at')
+		} = NULL WHERE`;
+
+		updateQuery.append(sql` ${sql.identifier(backfillEntry.selector.column)} = ${backfillEntry.selector.value}`);
+
+		statements.push(updateQuery);
+	}
+
+	return statements;
+}
+
 /**
  * Detects the current version of the migrations table schema and upgrades it if needed.
  *
@@ -74,108 +172,17 @@ const upgradeSyncFunctions: Record<
 	 */
 	0: (migrationsTable, session, localMigrations) => {
 		const table = sql`${sql.identifier(migrationsTable)}`;
-
-		// 1. Read all existing DB migrations
-		// Sort them by ids asc (order how they were applied)
-		// this can be null from legacy implementation where id was serial
-		const dbRows = session.all<{ id: number | null; hash: string; created_at: number }>(
+		const dbRows = session.all<SQLiteMigrationTableRow>(
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
 		);
-
-		// 2. Sort ASC by millis and if the same - sort by name
-		localMigrations.sort((a, b) =>
-			a.folderMillis !== b.folderMillis ? a.folderMillis - b.folderMillis : (a.name ?? '').localeCompare(b.name ?? '')
+		const statements = buildSQLiteMigrationBackfillStatements(
+			migrationsTable,
+			prepareSQLiteMigrationBackfill(dbRows, localMigrations),
 		);
 
-		const byMillis = new Map<number, MigrationMeta[]>();
-		const byHash = new Map<string, MigrationMeta>();
-		for (const lm of localMigrations) {
-			if (!byMillis.has(lm.folderMillis)) {
-				byMillis.set(lm.folderMillis, []);
-			}
-			byMillis.get(lm.folderMillis)!.push(lm);
-			byHash.set(lm.hash, lm);
-		}
-
-		// 	3. Match each DB row to a local migration
-		// 	Priority: millis -> hash
-
-		// id can be null from legacy implementation where id was serial
-		const toApply: {
-			id: number | null;
-			name: string;
-			hash: string;
-			created_at: string;
-			matchedBy: 'id' | 'hash' | 'millis';
-		}[] = [];
-
-		// id can be null from legacy implementation where id was serial
-		// hash can only be '' for bun-sqlite journal entries
-		let unmatched: { id: number | null; hash: string; created_at: number }[] = [];
-
-		for (const dbRow of dbRows) {
-			const stringified = String(dbRow.created_at);
-			const millis = Number(stringified.substring(0, stringified.length - 3) + '000');
-			const candidates = byMillis.get(millis);
-
-			let matched: MigrationMeta | undefined;
-			let matchedBy: 'hash' | 'millis' | null = null;
-			if (candidates && candidates.length === 1) {
-				matched = candidates[0];
-				matchedBy = 'millis';
-			} else if (candidates && candidates.length > 1) {
-				matched = candidates.find((c) => c.hash && dbRow.hash && c.hash === dbRow.hash); // for bun-sqlite cases (journal had empty hash)
-				if (matched) matchedBy = 'hash';
-			} else {
-				matched = byHash.get(dbRow.hash);
-				if (matched) matchedBy = 'hash';
-			}
-
-			if (matched) {
-				toApply.push({
-					id: dbRow.id,
-					name: matched.name,
-					hash: dbRow.hash,
-					created_at: stringified,
-					matchedBy: dbRow.id ? 'id' : matchedBy!,
-				});
-			} else unmatched.push(dbRow);
-		}
-
-		// 4. Check for unmatched
-		// Our assumption on this migration flow is that all DB entries should be matched to a local migration
-		// (if same seconds - fallback to hash, if hash fails - corner case)
-		// If there are unmatched entries, it means that the local environment is missing migrations that have been applied to the DB,
-		// which can lead to inconsistencies and potential issues when running future migrations
-		if (unmatched.length > 0) {
-			throw Error(
-				`While upgrading your database migrations table we found ${unmatched.length} (${
-					unmatched.map((it) => `[id: ${it.id}, created_at: ${it.created_at}]`).join(', ')
-				}) migrations in the database that do not match any local migration. This means that some migrations were applied to the database but are missing from the local environment`,
-			);
-		}
-
-		// 5. Create extra column and backfill names for matched migrations
 		session.transaction((tx) => {
-			tx.run(sql`ALTER TABLE ${table} ADD COLUMN ${sql.identifier('name')} text`);
-			tx.run(
-				sql`ALTER TABLE ${table} ADD COLUMN ${sql.identifier('applied_at')} TEXT`,
-			);
-
-			for (const backfillEntry of toApply) {
-				const updateQuery = sql`UPDATE ${table} SET ${sql.identifier('name')} = ${backfillEntry.name}, ${
-					sql.identifier('applied_at')
-				} = NULL WHERE`;
-
-				// id
-				// created_at
-				// hash
-				if (backfillEntry.id) updateQuery.append(sql` ${sql.identifier('id')} = ${backfillEntry.id}`);
-				else if (backfillEntry.matchedBy === 'millis') {
-					updateQuery.append(sql` ${sql.identifier('created_at')} = ${backfillEntry.created_at}`);
-				} else updateQuery.append(sql` ${sql.identifier('hash')} = ${backfillEntry.hash}`);
-
-				tx.run(updateQuery);
+			for (const statement of statements) {
+				tx.run(statement);
 			}
 		});
 	},
@@ -237,107 +244,13 @@ const upgradeAsyncFunctions: Record<
 	 */
 	0: async (migrationsTable, db, localMigrations) => {
 		const table = sql`${sql.identifier(migrationsTable)}`;
-
-		// 1. Read all existing DB migrations
-		// Sort them by ids asc (order how they were applied)
-		// this can be null from legacy implementation where id was serial
-		const dbRows = await db.session.all<{ id: number | null; hash: string; created_at: number }>(
+		const dbRows = await db.session.all<SQLiteMigrationTableRow>(
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
 		);
-
-		// 2. Sort ASC by millis and if the same - sort by name
-		localMigrations.sort((a, b) =>
-			a.folderMillis !== b.folderMillis ? a.folderMillis - b.folderMillis : (a.name ?? '').localeCompare(b.name ?? '')
+		const statements = buildSQLiteMigrationBackfillStatements(
+			migrationsTable,
+			prepareSQLiteMigrationBackfill(dbRows, localMigrations),
 		);
-
-		const byMillis = new Map<number, MigrationMeta[]>();
-		const byHash = new Map<string, MigrationMeta>();
-		for (const lm of localMigrations) {
-			if (!byMillis.has(lm.folderMillis)) {
-				byMillis.set(lm.folderMillis, []);
-			}
-			byMillis.get(lm.folderMillis)!.push(lm);
-			byHash.set(lm.hash, lm);
-		}
-
-		// 	3. Match each DB row to a local migration
-		// 	Priority: millis -> hash
-
-		// id can be null from legacy implementation where id was serial
-		const toApply: {
-			id: number | null;
-			name: string;
-			hash: string;
-			created_at: string;
-			matchedBy: 'id' | 'hash' | 'millis';
-		}[] = [];
-
-		// id can be null from legacy implementation where id was serial
-		// hash can only be '' for bun-sqlite journal entries
-		let unmatched: { id: number | null; hash: string; created_at: number }[] = [];
-
-		for (const dbRow of dbRows) {
-			const stringified = String(dbRow.created_at);
-			const millis = Number(stringified.substring(0, stringified.length - 3) + '000');
-			const candidates = byMillis.get(millis);
-
-			let matched: MigrationMeta | undefined;
-			let matchedBy: 'hash' | 'millis' | null = null;
-			if (candidates && candidates.length === 1) {
-				matched = candidates[0];
-				matchedBy = 'millis';
-			} else if (candidates && candidates.length > 1) {
-				matched = candidates.find((c) => c.hash && dbRow.hash && c.hash === dbRow.hash); // for bun-sqlite cases (journal had empty hash)
-				if (matched) matchedBy = 'hash';
-			} else {
-				matched = byHash.get(dbRow.hash);
-				if (matched) matchedBy = 'hash';
-			}
-
-			if (matched) {
-				toApply.push({
-					id: dbRow.id,
-					name: matched.name,
-					hash: dbRow.hash,
-					created_at: stringified,
-					matchedBy: dbRow.id ? 'id' : matchedBy!,
-				});
-			} else unmatched.push(dbRow);
-		}
-
-		// 4. Check for unmatched
-		// Our assumption on this migration flow is that all DB entries should be matched to a local migration
-		// (if same seconds - fallback to hash, if hash fails - corner case)
-		// If there are unmatched entries, it means that the local environment is missing migrations that have been applied to the DB,
-		// which can lead to inconsistencies and potential issues when running future migrations
-		if (unmatched.length > 0) {
-			throw Error(
-				`While upgrading your database migrations table we found ${unmatched.length} (${
-					unmatched.map((it) => `[id: ${it.id}, created_at: ${it.created_at}]`).join(', ')
-				}) migrations in the database that do not match any local migration. This means that some migrations were applied to the database but are missing from the local environment`,
-			);
-		}
-
-		// 5. Create extra column and backfill names for matched migrations
-		const statements: SQL[] = [
-			sql`ALTER TABLE ${table} ADD COLUMN ${sql.identifier('name')} text`,
-			sql`ALTER TABLE ${table} ADD COLUMN ${sql.identifier('applied_at')} TEXT`,
-		];
-		for (const backfillEntry of toApply) {
-			const updateQuery = sql`UPDATE ${table} SET ${sql.identifier('name')} = ${backfillEntry.name}, ${
-				sql.identifier('applied_at')
-			} = NULL WHERE`;
-
-			// id
-			// created_at
-			// hash
-			if (backfillEntry.id) updateQuery.append(sql` ${sql.identifier('id')} = ${backfillEntry.id}`);
-			else if (backfillEntry.matchedBy === 'millis') {
-				updateQuery.append(sql` ${sql.identifier('created_at')} = ${backfillEntry.created_at}`);
-			} else updateQuery.append(sql` ${sql.identifier('hash')} = ${backfillEntry.hash}`);
-
-			statements.push(updateQuery);
-		}
 
 		await db.transaction(async (tx) => {
 			for (const statement of statements) {

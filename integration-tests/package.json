@@ -50,6 +50,7 @@
 		"@aws-sdk/client-rds-data": "^3.549.0",
 		"@aws-sdk/credential-providers": "^3.549.0",
 		"@effect/sql-pg": "4.0.0-beta.58",
+		"@effect/sql-sqlite-node": "4.0.0-beta.58",
 		"@effect/vitest": "4.0.0-beta.58",
 		"@electric-sql/pglite": "0.2.12",
 		"@miniflare/d1": "^2.14.4",
