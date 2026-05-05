@@ -3,9 +3,13 @@ import type { PGlite } from '@electric-sql/pglite';
 import { serve } from '@hono/node-server';
 import { zValidator } from '@hono/zod-validator';
 import { createHash } from 'crypto';
-import { AnyColumn, AnyTable, is } from 'drizzle-orm';
-import { AnyMySqlTable, getTableConfig as mysqlTableConfig, MySqlTable } from 'drizzle-orm/mysql-core';
-import { AnyPgTable, getTableConfig as pgTableConfig, PgTable } from 'drizzle-orm/pg-core';
+import type { AnyColumn, AnyTable } from 'drizzle-orm';
+import { is } from 'drizzle-orm';
+import type { AnyMySqlTable } from 'drizzle-orm/mysql-core';
+import { getTableConfig as mysqlTableConfig, MySqlTable } from 'drizzle-orm/mysql-core';
+import type { AnyPgTable } from 'drizzle-orm/pg-core';
+import { getTableConfig as pgTableConfig, PgTable } from 'drizzle-orm/pg-core';
+import type { TablesRelationalConfig } from 'drizzle-orm/relations';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
@@ -13,21 +17,18 @@ import {
 	normalizeRelation,
 	One,
 	Relations,
-	TablesRelationalConfig,
 } from 'drizzle-orm/relations';
-import {
-	AnySingleStoreTable,
-	getTableConfig as singlestoreTableConfig,
-	SingleStoreTable,
-} from 'drizzle-orm/singlestore-core';
-import { AnySQLiteTable, getTableConfig as sqliteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
+import type { AnySingleStoreTable } from 'drizzle-orm/singlestore-core';
+import { getTableConfig as singlestoreTableConfig, SingleStoreTable } from 'drizzle-orm/singlestore-core';
+import type { AnySQLiteTable } from 'drizzle-orm/sqlite-core';
+import { getTableConfig as sqliteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import fs from 'fs';
 import { Hono } from 'hono';
 import { compress } from 'hono/compress';
 import { cors } from 'hono/cors';
 import { createServer } from 'node:https';
-import { CasingType } from 'src/cli/validations/common';
-import { LibSQLCredentials } from 'src/cli/validations/libsql';
+import type { CasingType } from 'src/cli/validations/common';
+import type { LibSQLCredentials } from 'src/cli/validations/libsql';
 import { assertUnreachable } from 'src/global';
 import { z } from 'zod';
 import { safeRegister } from '../cli/commands/utils';
@@ -99,26 +100,26 @@ export const preparePgSchema = async (path: string | string[]) => {
 		content: fs.readFileSync(it, 'utf-8'),
 	}));
 
-	const { unregister } = await safeRegister();
-	for (let i = 0; i < imports.length; i++) {
-		const it = imports[i];
+	await safeRegister(async () => {
+		for (let i = 0; i < imports.length; i++) {
+			const it = imports[i];
 
-		const i0: Record<string, unknown> = require(`${it}`);
-		const i0values = Object.entries(i0);
+			const i0: Record<string, unknown> = require(`${it}`);
+			const i0values = Object.entries(i0);
 
-		i0values.forEach(([k, t]) => {
-			if (is(t, PgTable)) {
-				const schema = pgTableConfig(t).schema || 'public';
-				pgSchema[schema] = pgSchema[schema] || {};
-				pgSchema[schema][k] = t;
-			}
+			i0values.forEach(([k, t]) => {
+				if (is(t, PgTable)) {
+					const schema = pgTableConfig(t).schema || 'public';
+					pgSchema[schema] = pgSchema[schema] || {};
+					pgSchema[schema][k] = t;
+				}
 
-			if (is(t, Relations)) {
-				relations[k] = t;
-			}
-		});
-	}
-	unregister();
+				if (is(t, Relations)) {
+					relations[k] = t;
+				}
+			});
+		}
+	});
 
 	return { schema: pgSchema, relations, files };
 };
@@ -137,25 +138,25 @@ export const prepareMySqlSchema = async (path: string | string[]) => {
 		content: fs.readFileSync(it, 'utf-8'),
 	}));
 
-	const { unregister } = await safeRegister();
-	for (let i = 0; i < imports.length; i++) {
-		const it = imports[i];
+	await safeRegister(async () => {
+		for (let i = 0; i < imports.length; i++) {
+			const it = imports[i];
 
-		const i0: Record<string, unknown> = require(`${it}`);
-		const i0values = Object.entries(i0);
+			const i0: Record<string, unknown> = require(`${it}`);
+			const i0values = Object.entries(i0);
 
-		i0values.forEach(([k, t]) => {
-			if (is(t, MySqlTable)) {
-				const schema = mysqlTableConfig(t).schema || 'public';
-				mysqlSchema[schema][k] = t;
-			}
+			i0values.forEach(([k, t]) => {
+				if (is(t, MySqlTable)) {
+					const schema = mysqlTableConfig(t).schema || 'public';
+					mysqlSchema[schema][k] = t;
+				}
 
-			if (is(t, Relations)) {
-				relations[k] = t;
-			}
-		});
-	}
-	unregister();
+				if (is(t, Relations)) {
+					relations[k] = t;
+				}
+			});
+		}
+	});
 
 	return { schema: mysqlSchema, relations, files };
 };
@@ -174,25 +175,25 @@ export const prepareSQLiteSchema = async (path: string | string[]) => {
 		content: fs.readFileSync(it, 'utf-8'),
 	}));
 
-	const { unregister } = await safeRegister();
-	for (let i = 0; i < imports.length; i++) {
-		const it = imports[i];
+	await safeRegister(async () => {
+		for (let i = 0; i < imports.length; i++) {
+			const it = imports[i];
 
-		const i0: Record<string, unknown> = require(`${it}`);
-		const i0values = Object.entries(i0);
+			const i0: Record<string, unknown> = require(`${it}`);
+			const i0values = Object.entries(i0);
 
-		i0values.forEach(([k, t]) => {
-			if (is(t, SQLiteTable)) {
-				const schema = 'public'; // sqlite does not have schemas
-				sqliteSchema[schema][k] = t;
-			}
+			i0values.forEach(([k, t]) => {
+				if (is(t, SQLiteTable)) {
+					const schema = 'public'; // sqlite does not have schemas
+					sqliteSchema[schema][k] = t;
+				}
 
-			if (is(t, Relations)) {
-				relations[k] = t;
-			}
-		});
-	}
-	unregister();
+				if (is(t, Relations)) {
+					relations[k] = t;
+				}
+			});
+		}
+	});
 
 	return { schema: sqliteSchema, relations, files };
 };
@@ -214,25 +215,25 @@ export const prepareSingleStoreSchema = async (path: string | string[]) => {
 		content: fs.readFileSync(it, 'utf-8'),
 	}));
 
-	const { unregister } = await safeRegister();
-	for (let i = 0; i < imports.length; i++) {
-		const it = imports[i];
+	await safeRegister(async () => {
+		for (let i = 0; i < imports.length; i++) {
+			const it = imports[i];
 
-		const i0: Record<string, unknown> = require(`${it}`);
-		const i0values = Object.entries(i0);
+			const i0: Record<string, unknown> = require(`${it}`);
+			const i0values = Object.entries(i0);
 
-		i0values.forEach(([k, t]) => {
-			if (is(t, SingleStoreTable)) {
-				const schema = singlestoreTableConfig(t).schema || 'public';
-				singlestoreSchema[schema][k] = t;
-			}
+			i0values.forEach(([k, t]) => {
+				if (is(t, SingleStoreTable)) {
+					const schema = singlestoreTableConfig(t).schema || 'public';
+					singlestoreSchema[schema][k] = t;
+				}
 
-			if (is(t, Relations)) {
-				relations[k] = t;
-			}
-		});
-	}
-	unregister();
+				if (is(t, Relations)) {
+					relations[k] = t;
+				}
+			});
+		}
+	});
 
 	return { schema: singlestoreSchema, relations, files };
 };
@@ -569,7 +570,7 @@ export const extractRelations = (
 						refSchema: refSchema || 'public',
 						refColumns: refColumns,
 					};
-				} catch (error) {
+				} catch {
 					throw new Error(
 						`Invalid relation "${relation.fieldName}" for table "${
 							it.schema ? `${it.schema}.${it.dbName}` : it.dbName
