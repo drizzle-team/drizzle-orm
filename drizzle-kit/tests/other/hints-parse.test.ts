@@ -87,8 +87,8 @@ const validConfirmHints = [
 	{ type: 'confirm_data_loss', kind: 'schema', entity: ['public'] as const },
 	{ type: 'confirm_data_loss', kind: 'view', entity: ['public', 'active_orders'] as const },
 	{ type: 'confirm_data_loss', kind: 'primary_key', entity: ['public', 'orders', 'orders_pkey'] as const },
-	{ type: 'confirm_data_loss', kind: 'not_null_constraint', entity: ['public', 'orders', 'status'] as const },
-	{ type: 'confirm_data_loss', kind: 'unique_constraint', entity: ['public', 'orders', 'email'] as const },
+	{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'orders', 'status'] as const },
+	{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['public', 'orders', 'email'] as const },
 ] satisfies readonly ConfirmDataLossHint[];
 
 async function expectInvalidHints(raw: unknown): Promise<InvalidHintsCliError> {

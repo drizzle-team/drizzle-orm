@@ -181,7 +181,7 @@ export const suggestions = async (
 			const res = await connection.query(`select 1 from "${table}" limit 1`);
 			const tableNonEmpty = res.length > 0;
 
-			if (hints.matchConfirm('not_null_constraint', entity)) {
+			if (hints.matchConfirm('add_not_null', entity)) {
 				if (tableNonEmpty) {
 					grouped.push({ hint: '', statement: `DELETE FROM "${table}" where true;` });
 				}
@@ -192,7 +192,7 @@ export const suggestions = async (
 				if (json) {
 					hints.pushMissingHint({
 						type: 'confirm_data_loss',
-						kind: 'not_null_constraint',
+						kind: 'add_not_null',
 						entity,
 						reason: 'nulls_present',
 					});
