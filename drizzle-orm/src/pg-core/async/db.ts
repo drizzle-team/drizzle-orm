@@ -630,10 +630,12 @@ export class PgAsyncDatabase<
 		);
 	}
 
-	transaction: <T>(
+	transaction<T>(
 		transaction: (tx: PgAsyncTransaction<TQueryResult, TRelations>) => Promise<T>,
 		config?: PgTransactionConfig,
-	) => Promise<T> = (tx, cfg) => this.session.transaction(tx, cfg);
+	): Promise<T> {
+		return this.session.transaction(transaction, config);
+	}
 }
 
 export type PgAsyncWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };

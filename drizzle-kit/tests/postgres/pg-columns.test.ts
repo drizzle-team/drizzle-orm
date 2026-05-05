@@ -186,6 +186,7 @@ test('alter column type to custom type', async (t) => {
 	};
 
 	const citext = customType<{ data: string }>({
+		codec: 'text',
 		dataType() {
 			return 'text';
 		},
@@ -1274,6 +1275,7 @@ test('no diff for enum and custom type in different schemas', async () => {
 		mySchemaTable: mySchema.table('my_schema_table', {
 			mySchemaEnum: mySchemaEnum().default('a'),
 			mySchemaCustomType: customType({
+				codec: 'tsvector',
 				dataType: () => 'tsvector',
 			})().default("to_tsvector('english'::regconfig, 'The Fat Rats'::text)"),
 		}),
@@ -1281,6 +1283,7 @@ test('no diff for enum and custom type in different schemas', async () => {
 		table: pgTable('table', {
 			enum: myEnum().default('a'),
 			customType: customType({
+				codec: 'tsvector',
 				dataType: () => 'tsvector',
 			})().default("to_tsvector('english'::regconfig, 'The Fat Rats'::text)"),
 		}),

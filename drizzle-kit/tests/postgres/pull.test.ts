@@ -482,6 +482,7 @@ test('introspect all column types', async () => {
 			macaddr8: macaddr8('macaddr8').default('00:00:00:ff:fe:00:00:00'),
 			interval: interval('interval').default('1 day 01:00:00'),
 			customType: customType({
+				codec: 'text',
 				dataType: () => 'tsvector',
 			})().default("to_tsvector('english', 'The Fat Rats')"),
 		}),

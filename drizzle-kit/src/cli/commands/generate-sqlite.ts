@@ -5,10 +5,14 @@ import { type Column, createDDL, interimToDDL, type SqliteEntities } from '../..
 import { prepareSqliteSnapshot } from '../../dialects/sqlite/serializer';
 import { resolver } from '../prompts';
 import { sqliteSchemaError, warning } from '../views';
+import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
-export const handle = async (config: GenerateConfig) => {
+export const handle = async (
+	config: GenerateConfig,
+	checkResult?: CheckHandlerResult,
+) => {
 	const { out: outFolder, filenames } = config;
 
 	try {
@@ -16,6 +20,7 @@ export const handle = async (config: GenerateConfig) => {
 		const { ddlCur, ddlPrev, snapshot, custom } = await prepareSqliteSnapshot(
 			snapshots,
 			filenames,
+			checkResult,
 		);
 		if (config.custom) {
 			writeResult({

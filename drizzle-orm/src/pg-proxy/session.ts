@@ -7,7 +7,7 @@ import { PgAsyncPreparedQuery, PgAsyncSession, type PgAsyncTransaction } from '~
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
-import type { QueryWithTypings } from '~/sql/sql.ts';
+import type { Query } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
 import type { RemoteCallback } from './driver.ts';
 
@@ -36,7 +36,7 @@ export class PgRemoteSession<
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
-		query: QueryWithTypings,
+		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
@@ -47,9 +47,9 @@ export class PgRemoteSession<
 		cacheConfig?: WithCacheConfig,
 	) {
 		const executor = async (params?: unknown[]) => {
-			if (mode === 'arrays') return this.client(query.sql, params as any[], 'all', query.typings).then((r) => r.rows);
+			if (mode === 'arrays') return this.client(query.sql, params as any[], 'all').then((r) => r.rows);
 
-			return this.client(query.sql, params as any[], 'execute', query.typings).then((r) => r.rows);
+			return this.client(query.sql, params as any[], 'execute').then((r) => r.rows);
 		};
 
 		return new PgAsyncPreparedQuery<T>(

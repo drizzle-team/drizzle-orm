@@ -269,9 +269,9 @@ export abstract class PgAsyncTransaction<
 		return this.session.execute<void>(sql`set transaction ${this.getTransactionConfigSQL(config)}`);
 	}
 
-	abstract override transaction: <T>(
+	abstract override transaction<T>(
 		transaction: (tx: PgAsyncTransaction<TQueryResult, TRelations>) => Promise<T>,
-	) => Promise<T>;
+	): Promise<T>;
 }
 
 export async function migrate(

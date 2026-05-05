@@ -22,7 +22,7 @@ import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import { and, eq, View } from '~/sql/index.ts';
-import { type Name, Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
+import { type Name, Param, type Query, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/cockroach.ts';
@@ -689,7 +689,7 @@ export class CockroachDialect {
 		return sql`refresh materialized view${concurrentlySql} ${view}${withNoDataSql}`;
 	}
 
-	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
+	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): Query {
 		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,

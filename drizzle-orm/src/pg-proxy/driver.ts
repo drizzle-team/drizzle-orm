@@ -18,7 +18,6 @@ export type RemoteCallback = (
 	sql: string,
 	params: any[],
 	method: 'all' | 'execute',
-	typings?: any[],
 ) => Promise<{ rows: any[] }>;
 
 export function drizzle<TRelations extends AnyRelations = EmptyRelations>(

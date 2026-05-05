@@ -1,17 +1,12 @@
 import { RDSDataClient, type RDSDataClientConfig } from '@aws-sdk/client-rds-data';
-import { entityKind, is } from '~/entity.ts';
+import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
-import { PgColumn } from '~/pg-core/columns/common.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgInsertConfig } from '~/pg-core/query-builders/insert.ts';
-import type { PgTable, TableConfig } from '~/pg-core/table.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { Param, type SQL, sql } from '~/sql/sql.ts';
-import { Table } from '~/table.ts';
-import { type DrizzleConfig, jitCompatCheck, type UpdateSet } from '~/utils.ts';
+import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
 import { awsDataApiPgCodecs } from './codecs.ts';
 import type { AwsDataApiClient, AwsDataApiPgQueryResultHKT } from './session.ts';
 import { AwsDataApiSession } from './session.ts';
@@ -43,50 +38,6 @@ export class AwsPgDialect extends PgDialect {
 
 	override escapeParam(num: number): string {
 		return `:${num + 1}`;
-	}
-
-	override buildInsertQuery(
-		{ table, values, onConflict, returning, select, withList }: PgInsertConfig<PgTable<TableConfig>>,
-	): SQL<unknown> {
-		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
-
-		if (!select) {
-			for (const value of (values as Record<string, Param | SQL>[])) {
-				for (const fieldName of Object.keys(columns)) {
-					const colValue = value[fieldName];
-					const column = columns[fieldName];
-					if (
-						is(colValue, Param) && colValue.value !== undefined
-						&& is(column, PgColumn) && column.dimensions
-						&& Array.isArray(colValue.value)
-					) {
-						value[fieldName] = sql`cast(${colValue} as ${sql.raw(column.getSQLType())}${
-							column.dimensions ? sql.raw('[]'.repeat(column.dimensions)) : undefined
-						})`;
-					}
-				}
-			}
-		}
-
-		return super.buildInsertQuery({ table, values, onConflict, returning, withList });
-	}
-
-	override buildUpdateSet(table: PgTable<TableConfig>, set: UpdateSet): SQL<unknown> {
-		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
-
-		for (const [colName, colValue] of Object.entries(set)) {
-			const currentColumn = columns[colName];
-			if (
-				currentColumn && is(colValue, Param) && colValue.value !== undefined
-				&& is(currentColumn, PgColumn) && currentColumn.dimensions
-				&& Array.isArray(colValue.value)
-			) {
-				set[colName] = sql`cast(${colValue} as ${sql.raw(currentColumn.getSQLType())}${
-					currentColumn.dimensions ? sql.raw('[]'.repeat(currentColumn.dimensions)) : undefined
-				})`;
-			}
-		}
-		return super.buildUpdateSet(table, set);
 	}
 }
 

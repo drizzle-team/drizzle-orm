@@ -139,9 +139,9 @@ export class VercelPgTransaction<
 > extends PgAsyncTransaction<VercelPgQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'VercelPgTransaction';
 
-	override transaction = async <T>(
+	override async transaction<T>(
 		transaction: (tx: VercelPgTransaction<TRelations>) => Promise<T>,
-	): Promise<T> => {
+	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new VercelPgTransaction<TRelations>(
 			this.dialect,
@@ -159,7 +159,7 @@ export class VercelPgTransaction<
 			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
 			throw err;
 		}
-	};
+	}
 }
 
 export interface VercelPgQueryResultHKT extends PgQueryResultHKT {

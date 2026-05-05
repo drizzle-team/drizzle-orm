@@ -30,7 +30,7 @@ import {
 	relationToSQL,
 } from '~/relations.ts';
 import { and, eq } from '~/sql/expressions/index.ts';
-import type { Name, Placeholder, QueryWithTypings, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
+import type { Name, Placeholder, Query, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
 import { isSQLWrapper, Param, SQL, sql, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
@@ -656,7 +656,7 @@ export class SingleStoreDialect {
 		};
 	}
 
-	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
+	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): Query {
 		return sql.toQuery({
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,

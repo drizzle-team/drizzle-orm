@@ -137,9 +137,9 @@ export class NeonTransaction<
 > extends PgAsyncTransaction<NeonQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'NeonTransaction';
 
-	override transaction = async <T>(
+	override async transaction<T>(
 		transaction: (tx: NeonTransaction<TRelations>) => Promise<T>,
-	): Promise<T> => {
+	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new NeonTransaction<TRelations>(
 			this.dialect,
@@ -157,7 +157,7 @@ export class NeonTransaction<
 			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
 			throw e;
 		}
-	};
+	}
 }
 
 export interface NeonQueryResultHKT extends PgQueryResultHKT {

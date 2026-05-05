@@ -131,7 +131,6 @@ describe('mysql to snake case', () => {
 			sql:
 				"select `users`.`id`, `users`.`AGE`, `users`.`firstName` || ' ' || `users`.`lastName` as `name`, `users_developers`.`data` as `developers` from `users` `users` left join lateral (select json_array(`users_developers`.`usesDrizzleOrm`) as `data` from (select * from `test`.`developers` `users_developers` where `users_developers`.`userId` = `users`.`id` limit ?) `users_developers`) `users_developers` on true where `users`.`id` = ? limit ?",
 			params: [1, 1, 1],
-			typings: ['none', 'none', 'none'],
 		});
 	});
 
@@ -158,7 +157,6 @@ describe('mysql to snake case', () => {
 			sql:
 				"select `id`, `AGE`, `firstName` || ' ' || `lastName` as `name`, (select json_array(`usesDrizzleOrm`) from (select * from `test`.`developers` `users_developers` where `users_developers`.`userId` = `users`.`id` limit ?) `users_developers`) as `developers` from `users` `users` where `users`.`id` = ? limit ?",
 			params: [1, 1, 1],
-			typings: ['none', 'none', 'none'],
 		});
 	});
 
@@ -185,7 +183,6 @@ describe('mysql to snake case', () => {
 			sql:
 				"select `users`.`id`, `users`.`AGE`, `users`.`firstName` || ' ' || `users`.`lastName` as `name`, `users_developers`.`data` as `developers` from `users` `users` left join lateral (select json_array(`users_developers`.`usesDrizzleOrm`) as `data` from (select * from `test`.`developers` `users_developers` where `users_developers`.`userId` = `users`.`id` limit ?) `users_developers`) `users_developers` on true where `users`.`id` = ?",
 			params: [1, 1],
-			typings: ['none', 'none'],
 		});
 	});
 
@@ -212,7 +209,6 @@ describe('mysql to snake case', () => {
 			sql:
 				"select `id`, `AGE`, `firstName` || ' ' || `lastName` as `name`, (select json_array(`usesDrizzleOrm`) from (select * from `test`.`developers` `users_developers` where `users_developers`.`userId` = `users`.`id` limit ?) `users_developers`) as `developers` from `users` `users` where `users`.`id` = ?",
 			params: [1, 1],
-			typings: ['none', 'none'],
 		});
 	});
 

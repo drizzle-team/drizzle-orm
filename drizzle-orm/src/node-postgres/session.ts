@@ -139,9 +139,9 @@ export class NodePgTransaction<
 > extends PgAsyncTransaction<NodePgQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'NodePgTransaction';
 
-	override transaction = async <T>(
+	override async transaction<T>(
 		transaction: (tx: NodePgTransaction<TRelations>) => Promise<T>,
-	): Promise<T> => {
+	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new NodePgTransaction<TRelations>(
 			this.dialect,
@@ -159,7 +159,7 @@ export class NodePgTransaction<
 			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
 			throw err;
 		}
-	};
+	}
 }
 
 export interface NodePgQueryResultHKT extends PgQueryResultHKT {

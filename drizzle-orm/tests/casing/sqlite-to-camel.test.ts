@@ -126,7 +126,6 @@ describe('sqlite to camel case', () => {
 			sql:
 				'select "id", "AGE", "firstName" || \' \' || "lastName" as "name", (select json_array("usesDrizzleOrm") as "data" from (select * from "developers" "users_developers" where "users_developers"."userId" = "users"."id" limit ?) "users_developers") as "developers" from "users" "users" where "users"."id" = ? limit ?',
 			params: [1, 1, 1],
-			typings: ['none', 'none', 'none'],
 		});
 	});
 
@@ -153,7 +152,6 @@ describe('sqlite to camel case', () => {
 			sql:
 				'select "id", "AGE", "firstName" || \' \' || "lastName" as "name", (select json_array("usesDrizzleOrm") as "data" from (select * from "developers" "users_developers" where "users_developers"."userId" = "users"."id" limit ?) "users_developers") as "developers" from "users" "users" where "users"."id" = ?',
 			params: [1, 1],
-			typings: ['none', 'none'],
 		});
 	});
 

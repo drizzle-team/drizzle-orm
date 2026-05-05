@@ -50,10 +50,10 @@ export const neonHttpCodecs = refineGenericPgCodecs({
 	'timestamptz:string': {
 		castArray: castToTextArr,
 	},
-	geometry: {
+	'geometry(point)': {
 		normalizeArray: parsePgArrayAndNormalize(parseGeometryXY),
 	},
-	'geometry:tuple': {
+	'geometry(point):tuple': {
 		normalizeArray: parsePgArrayAndNormalize(parseGeometryTuple),
 	},
 	interval: {

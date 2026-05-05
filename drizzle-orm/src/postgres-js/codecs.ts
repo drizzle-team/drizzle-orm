@@ -38,7 +38,8 @@ export const postgresJsCodecs = refineGenericPgCodecs({
 	datemultirange: { normalizeParamArray: makePgArray },
 	daterange: { normalizeParamArray: makePgArray },
 	float8: { normalizeParamArray: makePgArray },
-	geography: { normalizeParamArray: makePgArray },
+	'geography(point)': { normalizeParamArray: makePgArray },
+	'geography(point):tuple': { normalizeParamArray: makePgArray },
 	halfvec: {
 		normalize: parsePgVector,
 		normalizeArray: arrayCompatNormalize(parsePgVector),
@@ -91,11 +92,11 @@ export const postgresJsCodecs = refineGenericPgCodecs({
 	xml: { normalizeParamArray: makePgArray },
 	bytea: { normalizeParamArray: makePgArray },
 	enum: { normalizeParamArray: makePgArray },
-	geometry: {
+	'geometry(point)': {
 		normalizeArray: arrayCompatNormalize(parseGeometryXY),
 		normalizeParamArray: makePgArray,
 	},
-	'geometry:tuple': {
+	'geometry(point):tuple': {
 		normalizeArray: arrayCompatNormalize(parseGeometryTuple),
 		normalizeParamArray: makePgArray,
 	},

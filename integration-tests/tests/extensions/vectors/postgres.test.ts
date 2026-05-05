@@ -383,6 +383,7 @@ test('select with getColumns spread containing custom type', async () => {
 		driverData: string;
 		config: { dimensions: number };
 	}>({
+		codec: 'vector',
 		dataType(config) {
 			return `vector(${config?.dimensions ?? 3})`;
 		},
@@ -392,6 +393,7 @@ test('select with getColumns spread containing custom type', async () => {
 	});
 
 	const tsvector = customType<{ data: string }>({
+		codec: 'tsvector',
 		dataType() {
 			return 'tsvector';
 		},

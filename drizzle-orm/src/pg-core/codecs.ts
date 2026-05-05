@@ -11,6 +11,78 @@ import type { PartialWithUndefined } from '~/utils.ts';
 import { makePgArray, parsePgArray } from './array.ts';
 import { parseEWKB } from './columns/postgis_extension/utils.ts';
 
+export type PostGISType =
+	| 'geometry(point)'
+	| 'geometry(pointz)'
+	| 'geometry(pointm)'
+	| 'geometry(pointzm)'
+	| 'geometry(linestring)'
+	| 'geometry(linestringz)'
+	| 'geometry(linestringm)'
+	| 'geometry(linestringzm)'
+	| 'geometry(polygon)'
+	| 'geometry(polygonz)'
+	| 'geometry(polygonm)'
+	| 'geometry(polygonzm)'
+	| 'geometry(multipoint)'
+	| 'geometry(multipointz)'
+	| 'geometry(multipointm)'
+	| 'geometry(multipointzm)'
+	| 'geometry(multilinestring)'
+	| 'geometry(multilinestringz)'
+	| 'geometry(multilinestringm)'
+	| 'geometry(multilinestringzm)'
+	| 'geometry(multipolygon)'
+	| 'geometry(multipolygonz)'
+	| 'geometry(multipolygonm)'
+	| 'geometry(multipolygonzm)'
+	| 'geometry(geometrycollection)'
+	| 'geometry(geometrycollectionz)'
+	| 'geometry(geometrycollectionm)'
+	| 'geometry(geometrycollectionzm)'
+	| 'geometry(circularstring)'
+	| 'geometry(circularstringz)'
+	| 'geometry(circularstringm)'
+	| 'geometry(circularstringzm)'
+	| 'geometry(compoundcurve)'
+	| 'geometry(compoundcurvez)'
+	| 'geometry(compoundcurvem)'
+	| 'geometry(compoundcurvezm)'
+	| 'geometry(curvepolygon)'
+	| 'geometry(curvepolygonz)'
+	| 'geometry(curvepolygonm)'
+	| 'geometry(curvepolygonzm)'
+	| 'geometry(multicurve)'
+	| 'geometry(multicurvez)'
+	| 'geometry(multicurvem)'
+	| 'geometry(multicurvezm)'
+	| 'geometry(multisurface)'
+	| 'geometry(multisurfacez)'
+	| 'geometry(multisurfacem)'
+	| 'geometry(multisurfacezm)'
+	| 'geometry(polyhedralsurface)'
+	| 'geometry(polyhedralsurfacez)'
+	| 'geometry(polyhedralsurfacem)'
+	| 'geometry(polyhedralsurfacezm)'
+	| 'geometry(tin)'
+	| 'geometry(tinz)'
+	| 'geometry(tinm)'
+	| 'geometry(tinzm)'
+	| 'geometry(triangle)'
+	| 'geometry(trianglez)'
+	| 'geometry(trianglem)'
+	| 'geometry(trianglezm)'
+	| 'geography(point)'
+	| 'geography(linestring)'
+	| 'geography(polygon)'
+	| 'geography(multipoint)'
+	| 'geography(multilinestring)'
+	| 'geography(multipolygon)'
+	| 'geography(geometrycollection)'
+	| 'box2d'
+	| 'box3d'
+	| 'raster';
+
 export type PostgresType =
 	// Numeric
 	| 'smallint'
@@ -104,12 +176,8 @@ export type PostgresType =
 	| 'regconfig'
 	| 'regdictionary'
 	// PostGIS
-	| 'geometry'
-	| 'geometry:tuple'
-	| 'geography'
-	| 'box2d'
-	| 'box3d'
-	| 'raster'
+	| PostGISType
+	| `${PostGISType}:tuple`
 	// pgvector
 	| 'halfvec'
 	| 'sparsevec'
@@ -134,7 +202,9 @@ export type PostgresAliasType =
 	| 'character varying' // varchar
 	// Datetime
 	| 'time with time zone' // timetz
+	| 'time without time zone' // timetz
 	| 'timestamp with time zone' // timestamptz
+	| 'timestamp without time zone' // timestamptz
 	// Boolean
 	| 'boolean' // bool
 	// Bit String
@@ -159,13 +229,15 @@ const PG_ALIAS_TO_TYPE_MAP: Record<PostgresAliasType, PostgresType> = {
 	character: 'char',
 	'character varying': 'varchar',
 	'time with time zone': 'timetz',
+	'time without time zone': 'time',
 	'timestamp with time zone': 'timestamptz',
+	'timestamp without time zone': 'timestamp',
 	boolean: 'bool',
 	'bit varying': 'varbit',
 };
 
-export function resolvePgType(type: string) {
-	return PG_ALIAS_TO_TYPE_MAP[type as keyof typeof PG_ALIAS_TO_TYPE_MAP] ?? type;
+export function resolvePgTypeAlias(type: string) {
+	return (PG_ALIAS_TO_TYPE_MAP as Record<string, PostgresType | undefined>)[type] ?? type;
 }
 
 export type PgCodecs = Codecs<PostgresType>;
@@ -347,7 +419,7 @@ export const genericPgCodecs = {
 		castArray: castToTextArr,
 		normalizeParamArray: makePgArray,
 	},
-	geometry: {
+	'geometry(point)': {
 		castInJson: castToText,
 		castArrayInJson: castToTextArr,
 		normalize: parseGeometryXY,
@@ -355,7 +427,7 @@ export const genericPgCodecs = {
 		normalizeInJson: parseGeometryXY,
 		normalizeArrayInJson: arrayCompatNormalize(parseGeometryXY),
 	},
-	'geometry:tuple': {
+	'geometry(point):tuple': {
 		castInJson: castToText,
 		castArrayInJson: castToTextArr,
 		normalize: parseGeometryTuple,

@@ -1,5 +1,5 @@
 import { entityKind } from '~/entity.ts';
-import { type QueryWithTypings, SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
+import { type Query, SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { PgDialect } from '../dialect.ts';
 import type { PgTable } from '../table.ts';
 import type { PgViewBase } from '../view-base.ts';
@@ -36,7 +36,7 @@ export class PgCountBuilder extends SQL<number> implements SQLWrapper<number> {
 		});
 	}
 
-	protected build(): QueryWithTypings {
+	protected build(): Query {
 		const { filters, source } = this.countConfig;
 		const query = PgCountBuilder.buildEmbeddedCount(source, filters);
 

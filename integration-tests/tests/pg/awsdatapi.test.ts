@@ -1,11 +1,7 @@
 // import 'dotenv/config';
-
-import { test } from 'vitest';
-
 // import { RDSDataClient } from '@aws-sdk/client-rds-data';
 // import * as dotenv from 'dotenv';
 // import { asc, defineRelations, eq, getColumns, inArray, notInArray, sql, TransactionRollbackError } from 'drizzle-orm';
-// import { relations } from 'drizzle-orm/_relations';
 // import type { AwsDataApiPgDatabase } from 'drizzle-orm/aws-data-api/pg';
 // import { drizzle } from 'drizzle-orm/aws-data-api/pg';
 // import { migrate } from 'drizzle-orm/aws-data-api/pg/migrator';
@@ -13,6 +9,7 @@ import { test } from 'vitest';
 // 	alias,
 // 	bigint,
 // 	bigserial,
+// 	bit,
 // 	boolean,
 // 	bytea,
 // 	char,
@@ -76,66 +73,24 @@ import { test } from 'vitest';
 // 	email: text('email').notNull(),
 // });
 
-// const todo = pgTable('todo', {
-// 	id: uuid('id').primaryKey(),
-// 	title: text('title').notNull(),
-// 	description: text('description'),
-// });
-
-// const todoRelations = relations(todo, (ctx) => ({
-// 	user: ctx.many(todoUser),
-// }));
-
-// const user = pgTable('user', {
-// 	id: uuid('id').primaryKey(),
-// 	email: text('email').notNull(),
-// });
-
-// const userRelations = relations(user, (ctx) => ({
-// 	todos: ctx.many(todoUser),
-// }));
-
-// const todoUser = pgTable('todo_user', {
-// 	todoId: uuid('todo_id').references(() => todo.id),
-// 	userId: uuid('user_id').references(() => user.id),
-// });
-
-// const todoToGroupRelations = relations(todoUser, (ctx) => ({
-// 	todo: ctx.one(todo, {
-// 		fields: [todoUser.todoId],
-// 		references: [todo.id],
-// 	}),
-// 	user: ctx.one(user, {
-// 		fields: [todoUser.userId],
-// 		references: [user.id],
-// 	}),
-// }));
-
-// const schema = {
-// 	todo,
-// 	todoRelations,
-// 	user,
-// 	userRelations,
-// 	todoUser,
-// 	todoToGroupRelations,
-// };
-
-// let db: AwsDataApiPgDatabase<typeof schema, typeof relationsV2>;
+// let db: AwsDataApiPgDatabase<typeof relationsV2>;
 // let rdsClient: RDSDataClient;
+// const credentials = {
+// 	// @ts-ignore
+// 	database: Resource.Postgres.database as string,
+// 	// @ts-ignore
+// 	secretArn: Resource.Postgres.secretArn as string,
+// 	// @ts-ignore
+// 	resourceArn: Resource.Postgres.clusterArn as string,
+// };
 
 // beforeAll(async () => {
 // 	rdsClient = new RDSDataClient();
 
 // 	db = drizzle({
 // 		client: rdsClient,
-// 		// @ts-ignore
-// 		database: Resource.Postgres.database,
-// 		// @ts-ignore
-// 		secretArn: Resource.Postgres.secretArn,
-// 		// @ts-ignore
-// 		resourceArn: Resource.Postgres.clusterArn,
+// 		...credentials,
 // 		logger: ENABLE_LOGGING,
-// 		schema,
 // 		relations: relationsV2,
 // 	});
 // });
@@ -616,7 +571,6 @@ import { test } from 'vitest';
 // 	expect(query).toEqual({
 // 		sql: 'select "id", "name" from "users" group by "users"."id", "users"."name"',
 // 		params: [],
-// 		// typings: []
 // 	});
 // });
 
@@ -969,9 +923,8 @@ import { test } from 'vitest';
 
 // 	expect(query).toEqual({
 // 		sql:
-// 			'insert into "users" ("id", "name", "verified", "jsonb", "best_texts", "created_at") values (default, :1, default, :2, default, default) on conflict ("id") do update set "name" = :3',
+// 			'insert into "users" ("id", "name", "verified", "jsonb", "best_texts", "created_at") values (default, :1::text, default, :2::jsonb, default, default) on conflict ("id") do update set "name" = :3::text',
 // 		params: ['John', '["foo","bar"]', 'John1'],
-// 		// typings: ['none', 'json', 'none']
 // 	});
 // });
 
@@ -987,9 +940,8 @@ import { test } from 'vitest';
 
 // 	expect(query).toEqual({
 // 		sql:
-// 			'insert into "users" ("id", "name", "verified", "jsonb", "best_texts", "created_at") values (default, :1, default, :2, default, default) on conflict ("id","name") do update set "name" = :3',
+// 			'insert into "users" ("id", "name", "verified", "jsonb", "best_texts", "created_at") values (default, :1::text, default, :2::jsonb, default, default) on conflict ("id","name") do update set "name" = :3::text',
 // 		params: ['John', '["foo","bar"]', 'John1'],
-// 		// typings: ['none', 'json', 'none']
 // 	});
 // });
 
@@ -1002,9 +954,8 @@ import { test } from 'vitest';
 
 // 	expect(query).toEqual({
 // 		sql:
-// 			'insert into "users" ("id", "name", "verified", "jsonb", "best_texts", "created_at") values (default, :1, default, :2, default, default) on conflict do nothing',
+// 			'insert into "users" ("id", "name", "verified", "jsonb", "best_texts", "created_at") values (default, :1::text, default, :2::jsonb, default, default) on conflict do nothing',
 // 		params: ['John', '["foo","bar"]'],
-// 		// typings: ['none', 'json']
 // 	});
 // });
 
@@ -1017,9 +968,8 @@ import { test } from 'vitest';
 
 // 	expect(query).toEqual({
 // 		sql:
-// 			'insert into "users" ("id", "name", "verified", "jsonb", "best_texts", "created_at") values (default, :1, default, :2, default, default) on conflict ("id") do nothing',
+// 			'insert into "users" ("id", "name", "verified", "jsonb", "best_texts", "created_at") values (default, :1::text, default, :2::jsonb, default, default) on conflict ("id") do nothing',
 // 		params: ['John', '["foo","bar"]'],
-// 		// typings: ['none', 'json']
 // 	});
 // });
 
@@ -1409,7 +1359,7 @@ import { test } from 'vitest';
 // 	await db.execute(sql`drop table if exists ${table}`);
 // });
 
-// test.skip('all date and time columns with timezone', async () => {
+// test('all date and time columns with timezone', async () => {
 // 	const table = pgTable('all_columns', {
 // 		id: serial('id').primaryKey(),
 // 		timestamp: timestamp('timestamp_string', {
@@ -1418,10 +1368,12 @@ import { test } from 'vitest';
 // 			precision: 6,
 // 		}).notNull(),
 // 		timestampAsDate: timestamp('timestamp_date', {
+// 			mode: 'date',
 // 			withTimezone: true,
 // 			precision: 3,
 // 		}).notNull(),
 // 		timestampTimeZones: timestamp('timestamp_date_2', {
+// 			mode: 'date',
 // 			withTimezone: true,
 // 			precision: 3,
 // 		}).notNull(),
@@ -1460,12 +1412,13 @@ import { test } from 'vitest';
 // 	]);
 
 // 	const result = await db.select().from(table);
-// 	const result2 = await db.execute<{
-// 		id: number;
-// 		timestamp_string: string;
-// 		timestamp_date: string;
-// 		timestamp_date_2: string;
-// 	}>(sql`select * from ${table}`);
+// 	// Requires in-query casts performad by codecs to preserve all required data
+// 	// const result2 = await db.execute<{
+// 	// 	id: number;
+// 	// 	timestamp_string: string;
+// 	// 	timestamp_date: string;
+// 	// 	timestamp_date_2: string;
+// 	// }>(sql`select * from ${table}`);
 
 // 	// Whatever you put in, you get back when you're using the date mode
 // 	// But when using the string mode, postgres returns a string transformed into UTC
@@ -1484,26 +1437,26 @@ import { test } from 'vitest';
 // 		},
 // 	]);
 
-// 	expect(result2.rows).toEqual([
-// 		{
-// 			id: 1,
-// 			timestamp_string: '2022-01-01 02:00:00.123456+00',
-// 			timestamp_date: timestampDate.toISOString().replace('T', ' ').replace('Z', '') + '+00',
-// 			timestamp_date_2: timestampDateWTZ.toISOString().replace('T', ' ').replace('Z', '')
-// 				+ '+00',
-// 		},
-// 		{
-// 			id: 2,
-// 			timestamp_string: '2022-01-01 04:00:00.123456+00',
-// 			timestamp_date: timestampDate2.toISOString().replace('T', ' ').replace('Z', '') + '+00',
-// 			timestamp_date_2: timestampDateWTZ2.toISOString().replace('T', ' ').replace('Z', '')
-// 				+ '+00',
-// 		},
-// 	]);
+// 	// expect(result2.rows).toEqual([
+// 	// 	{
+// 	// 		id: 1,
+// 	// 		timestamp_string: '2022-01-01 02:00:00.123456+00',
+// 	// 		timestamp_date: timestampDate.toISOString().replace('T', ' ').replace('Z', '') + '+00',
+// 	// 		timestamp_date_2: timestampDateWTZ.toISOString().replace('T', ' ').replace('Z', '')
+// 	// 			+ '+00',
+// 	// 	},
+// 	// 	{
+// 	// 		id: 2,
+// 	// 		timestamp_string: '2022-01-01 04:00:00.123456+00',
+// 	// 		timestamp_date: timestampDate2.toISOString().replace('T', ' ').replace('Z', '') + '+00',
+// 	// 		timestamp_date_2: timestampDateWTZ2.toISOString().replace('T', ' ').replace('Z', '')
+// 	// 			+ '+00',
+// 	// 	},
+// 	// ]);
 
-// 	expect(result[0]?.timestampTimeZones.getTime()).toEqual(
-// 		new Date((result2.rows?.[0]?.timestamp_date_2) as any).getTime(),
-// 	);
+// 	// expect(result[0]?.timestampTimeZones.getTime()).toEqual(
+// 	// 	new Date((result2.rows?.[0]?.timestamp_date_2) as any).getTime(),
+// 	// );
 
 // 	await db.execute(sql`drop table if exists ${table}`);
 // });
@@ -1608,35 +1561,6 @@ import { test } from 'vitest';
 // 	).toEqual(timestampDate.getTime());
 
 // 	await db.execute(sql`drop table if exists ${table}`);
-// });
-
-// test('Typehints mix for RQB', async () => {
-// 	const uuid = 'd997d46d-5769-4c78-9a35-93acadbe6076';
-
-// 	const res = await db._query.user.findMany({
-// 		where: eq(user.id, uuid),
-// 		with: {
-// 			todos: {
-// 				with: {
-// 					todo: true,
-// 				},
-// 			},
-// 		},
-// 	});
-
-// 	expect(res).toStrictEqual([]);
-// });
-
-// test('Typehints mix for findFirst', async () => {
-// 	const uuid = 'd997d46d-5769-4c78-9a35-93acadbe6076';
-
-// 	await db.insert(user).values({ id: uuid, email: 'd' });
-
-// 	const res = await db._query.user.findFirst({
-// 		where: eq(user.id, uuid),
-// 	});
-
-// 	expect(res).toStrictEqual({ id: 'd997d46d-5769-4c78-9a35-93acadbe6076', email: 'd' });
 // });
 
 // test('RQB v2 simple find first - no rows', async () => {
@@ -2253,17 +2177,27 @@ import { test } from 'vitest';
 // 	}
 // });
 
-// test.only('all types ~codecs~', async () => {
-// 	const en = pgEnum('en_48', ['enVal1', 'enVal2']);
+// test('all types ~codecs~', async () => {
+// 	const en = pgEnum('en_49', ['enVal1', 'enVal2']);
 // 	const allTypesTable = pgTable('all_types_48_cdcs', {
 // 		serial: serial('serial'),
 // 		bigserial: bigserial('bigserial', {
 // 			mode: 'bigint',
 // 		}),
+// 		bigserialnum: bigserial('bigserialnum', {
+// 			mode: 'number',
+// 		}),
 // 		int: integer('int'),
 // 		bigint: bigint('bigint', {
 // 			mode: 'bigint',
 // 		}),
+// 		bigintnum: bigint('bigintnum', {
+// 			mode: 'number',
+// 		}),
+// 		bigintstr: bigint('bigintstr', {
+// 			mode: 'string',
+// 		}),
+// 		bit: bit('bit', { dimensions: 3 }),
 // 		bool: boolean('bool'),
 // 		bytea: bytea('bytea'),
 // 		char: char('char'),
@@ -2271,20 +2205,41 @@ import { test } from 'vitest';
 // 		date: date('date', {
 // 			mode: 'date',
 // 		}),
+// 		datestr: date('datestr', {
+// 			mode: 'string',
+// 		}),
 // 		double: doublePrecision('double'),
 // 		enum: en('enum'),
 // 		inet: inet('inet'),
 // 		interval: interval('interval'),
 // 		json: json('json'),
 // 		jsonb: jsonb('jsonb'),
+// 		json1: json('json1'),
+// 		jsonb1: jsonb('jsonb1'),
+// 		json2: json('json2'),
+// 		jsonb2: jsonb('jsonb2'),
+// 		json3: json('json3'),
+// 		jsonb3: jsonb('jsonb3'),
 // 		line: line('line', {
 // 			mode: 'abc',
+// 		}),
+// 		linetuple: line('linetuple', {
+// 			mode: 'tuple',
 // 		}),
 // 		macaddr: macaddr('macaddr'),
 // 		macaddr8: macaddr8('macaddr8'),
 // 		numeric: numeric('numeric'),
+// 		numericnum: numeric('numericnum', {
+// 			mode: 'number',
+// 		}),
+// 		numericbig: numeric('numericbig', {
+// 			mode: 'bigint',
+// 		}),
 // 		point: point('point', {
 // 			mode: 'xy',
+// 		}),
+// 		pointtuple: point('pointtuple', {
+// 			mode: 'tuple',
 // 		}),
 // 		real: real('real'),
 // 		smallint: smallint('smallint'),
@@ -2298,19 +2253,36 @@ import { test } from 'vitest';
 // 			mode: 'date',
 // 			withTimezone: true,
 // 		}),
+// 		timestampstr: timestamp('timestampstr', {
+// 			mode: 'string',
+// 		}),
+// 		timestampTzstr: timestamp('timestampTzstr', {
+// 			mode: 'string',
+// 			withTimezone: true,
+// 		}),
 // 		uuid: uuid('uuid'),
 // 		varchar: varchar('varchar'),
 // 		arrint: integer('arrint').array(),
 // 		arrbigint: bigint('arrbigint', {
 // 			mode: 'bigint',
 // 		}).array(),
+// 		arrbigintnum: bigint('arrbigintnum', {
+// 			mode: 'number',
+// 		}).array(),
+// 		arrbigintstr: bigint('arrbigintstr', {
+// 			mode: 'string',
+// 		}).array(),
+// 		arrbit: bit('arrbit', { dimensions: 3 }).array(),
 // 		arrbool: boolean('arrbool').array(),
 // 		arrbytea: bytea('arrbytea').array(),
-// 		mtxbytea: bytea('mtxbytea').array('[][]'),
+// 		// mtxbytea: bytea('mtxbytea').array('[][]'), // AWS Data API does not support multidimensional arrays in results
 // 		arrchar: char('arrchar').array(),
 // 		arrcidr: cidr('arrcidr').array(),
 // 		arrdate: date('arrdate', {
 // 			mode: 'date',
+// 		}).array(),
+// 		arrdatestr: date('arrdatestr', {
+// 			mode: 'string',
 // 		}).array(),
 // 		arrdouble: doublePrecision('arrdouble').array(),
 // 		arrenum: en('arrenum').array(),
@@ -2318,14 +2290,28 @@ import { test } from 'vitest';
 // 		arrinterval: interval('arrinterval').array(),
 // 		arrjson: json('arrjson').array(),
 // 		arrjsonb: jsonb('arrjsonb').array(),
+// 		arrjson1: json('arrjson1').array(),
+// 		arrjsonb1: jsonb('arrjsonb1').array(),
+// 		arrjson2: json('arrjson2').array(),
+// 		arrjsonb2: jsonb('arrjsonb2').array(),
+// 		arrjson3: json('arrjson3').array(),
+// 		arrjsonb3: jsonb('arrjsonb3').array(),
 // 		arrline: line('arrline', {
 // 			mode: 'abc',
+// 		}).array(),
+// 		arrlinetuple: line('arrlinetuple', {
+// 			mode: 'tuple',
 // 		}).array(),
 // 		arrmacaddr: macaddr('arrmacaddr').array(),
 // 		arrmacaddr8: macaddr8('arrmacaddr8').array(),
 // 		arrnumeric: numeric('arrnumeric').array(),
+// 		arrnumericnum: numeric('arrnumericnum', { mode: 'number' }).array(),
+// 		arrnumericbig: numeric('arrnumericbig', { mode: 'bigint' }).array(),
 // 		arrpoint: point('arrpoint', {
 // 			mode: 'xy',
+// 		}).array(),
+// 		arrpointtuple: point('arrpointtuple', {
+// 			mode: 'tuple',
 // 		}).array(),
 // 		arrreal: real('arrreal').array(),
 // 		arrsmallint: smallint('arrsmallint').array(),
@@ -2336,6 +2322,13 @@ import { test } from 'vitest';
 // 		}).array(),
 // 		arrtimestampTz: timestamp('arrtimestampTz', {
 // 			mode: 'date',
+// 			withTimezone: true,
+// 		}).array(),
+// 		arrtimestampstr: timestamp('arrtimestampstr', {
+// 			mode: 'string',
+// 		}).array(),
+// 		arrtimestampTzstr: timestamp('arrtimestampTzstr', {
+// 			mode: 'string',
 // 			withTimezone: true,
 // 		}).array(),
 // 		arruuid: uuid('arruuid').array(),
@@ -2351,243 +2344,212 @@ import { test } from 'vitest';
 // 		},
 // 	}));
 // 	const db = drizzle({
+// 		...credentials,
 // 		client: rdsClient,
-// 		// @ts-ignore
-// 		database: Resource.Postgres.database,
-// 		// @ts-ignore
-// 		secretArn: Resource.Postgres.secretArn,
-// 		// @ts-ignore
-// 		resourceArn: Resource.Postgres.clusterArn,
 // 		logger: ENABLE_LOGGING,
-// 		schema,
 // 		relations,
 // 	});
 
 // 	const { diff } = await import('../../../drizzle-kit/tests/postgres/mocks' as string);
-
 // 	const res = await diff({}, { en, allTypesTable }, []);
-
 // 	for (const s of res.sqlStatements) {
 // 		await db.execute(s);
 // 	}
 
-// 	await db.insert(allTypesTable).values({
-// 		serial: 1,
-// 		smallserial: 15,
-// 		bigint: 5044565289845416380n,
-// 		bigserial: 5044565289845416380n,
-// 		bool: true,
-// 		bytea: Buffer.from('BYTES'),
-// 		char: 'c',
-// 		cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
-// 		inet: '192.168.0.1/24',
-// 		macaddr: '08:00:2b:01:02:03',
-// 		macaddr8: '08:00:2b:01:02:03:04:05',
-// 		date: new Date(1741743161623),
-// 		double: 15.35325689124218,
-// 		enum: 'enVal1',
-// 		int: 621,
-// 		interval: '2 months ago',
-// 		json: {
-// 			str: 'strval',
-// 			arr: ['str', 10],
-// 		},
-// 		jsonb: {
-// 			str: 'strvalb',
-// 			arr: ['strb', 11],
-// 		},
-// 		line: {
-// 			a: 1,
-// 			b: 2,
-// 			c: 3,
-// 		},
-// 		numeric: '475452353476',
-// 		point: {
-// 			x: 24.5,
-// 			y: 49.6,
-// 		},
-// 		real: 1.048596,
-// 		smallint: 10,
-// 		text: 'TEXT STRING',
-// 		time: '13:59:28',
-// 		timestamp: new Date(1741743161623),
-// 		timestampTz: new Date(1741743161623),
-// 		uuid: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
-// 		varchar: 'C4-',
-// 		arrbigint: [5044565289845416380n],
-// 		arrbool: [true],
-// 		arrbytea: [Buffer.from('BYTES')],
-// 		mtxbytea: [[Buffer.from('BYTES'), Buffer.from('BYTES2')], [
-// 			Buffer.from('OTHERBYTES'),
-// 			Buffer.from('OTHERBYTES2'),
-// 		]],
-// 		arrchar: ['c'],
-// 		arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
-// 		arrinet: ['192.168.0.1/24'],
-// 		arrmacaddr: ['08:00:2b:01:02:03'],
-// 		arrmacaddr8: ['08:00:2b:01:02:03:04:05'],
-// 		arrdate: [new Date(1741743161623)],
-// 		arrdouble: [15.35325689124218],
-// 		arrenum: ['enVal1'],
-// 		arrint: [621],
-// 		arrinterval: ['2 months ago'],
-// 		arrjson: [{
-// 			str: 'strval',
-// 			arr: ['str', 10],
-// 		}],
-// 		arrjsonb: [{
-// 			str: 'strvalb',
-// 			arr: ['strb', 11],
-// 		}],
-// 		arrline: [{
-// 			a: 1,
-// 			b: 2,
-// 			c: 3,
-// 		}],
-// 		arrnumeric: ['475452353476'],
-// 		arrpoint: [{
-// 			x: 24.5,
-// 			y: 49.6,
-// 		}],
-// 		arrreal: [1.048596],
-// 		arrsmallint: [10],
-// 		arrtext: ['TEXT STRING'],
-// 		arrtime: ['13:59:28'],
-// 		arrtimestamp: [new Date(1741743161623)],
-// 		arrtimestampTz: [new Date(1741743161623)],
-// 		arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
-// 		arrvarchar: ['C4-'],
-// 	});
-
-// 	const buff: (from: string) => Buffer = (s: string) => Buffer.from(s);
-
 // 	type ExpectedType = {
 // 		serial: number;
 // 		bigserial: bigint;
+// 		bigserialnum: number;
 // 		int: number | null;
 // 		bigint: bigint | null;
+// 		bigintnum: number | null;
+// 		bigintstr: string | null;
+// 		bit: string | null;
 // 		bool: boolean | null;
-// 		bytea: Buffer | Uint8Array | null;
+// 		bytea: Buffer | null;
 // 		char: string | null;
 // 		cidr: string | null;
-// 		date: string | null;
+// 		date: Date | null;
+// 		datestr: string | null;
 // 		double: number | null;
 // 		enum: 'enVal1' | 'enVal2' | null;
 // 		inet: string | null;
 // 		interval: string | null;
 // 		json: unknown;
 // 		jsonb: unknown;
-// 		line: string | null;
+// 		json1: unknown;
+// 		jsonb1: unknown;
+// 		json2: unknown;
+// 		jsonb2: unknown;
+// 		json3: unknown;
+// 		jsonb3: unknown;
+// 		line: { a: number; b: number; c: number } | null;
+// 		linetuple: [number, number, number] | null;
 // 		macaddr: string | null;
 // 		macaddr8: string | null;
 // 		numeric: string | null;
-// 		point: string | null;
+// 		numericnum: number | null;
+// 		numericbig: bigint | null;
+// 		point: { x: number; y: number } | null;
+// 		pointtuple: [number, number] | null;
 // 		real: number | null;
 // 		smallint: number | null;
 // 		smallserial: number;
 // 		text: string | null;
 // 		time: string | null;
-// 		timestamp: string | null;
-// 		timestampTz: string | null;
+// 		timestamp: Date | null;
+// 		timestampTz: Date | null;
+// 		timestampstr: string | null;
+// 		timestampTzstr: string | null;
 // 		uuid: string | null;
 // 		varchar: string | null;
 // 		arrint: number[] | null;
 // 		arrbigint: bigint[] | null;
+// 		arrbigintnum: number[] | null;
+// 		arrbigintstr: string[] | null;
+// 		arrbit: string[] | null;
 // 		arrbool: boolean[] | null;
-// 		arrbytea: (Buffer | Uint8Array)[] | null;
-// 		mtxbytea: (Buffer | Uint8Array)[][] | null;
+// 		arrbytea: (Buffer)[] | null;
+// 		// mtxbytea: (Buffer)[][] | null;
 // 		arrchar: string[] | null;
 // 		arrcidr: string[] | null;
-// 		arrdate: string[] | null;
+// 		arrdate: Date[] | null;
+// 		arrdatestr: string[] | null;
 // 		arrdouble: number[] | null;
 // 		arrenum: ('enVal1' | 'enVal2')[] | null;
 // 		arrinet: string[] | null;
 // 		arrinterval: string[] | null;
 // 		arrjson: unknown[] | null;
 // 		arrjsonb: unknown[] | null;
-// 		arrline: string[] | null;
+// 		arrjson1: unknown[] | null;
+// 		arrjsonb1: unknown[] | null;
+// 		arrjson2: unknown[] | null;
+// 		arrjsonb2: unknown[] | null;
+// 		arrjson3: unknown[] | null;
+// 		arrjsonb3: unknown[] | null;
+// 		arrline: { a: number; b: number; c: number }[] | null;
+// 		arrlinetuple: [number, number, number][] | null;
 // 		arrmacaddr: string[] | null;
 // 		arrmacaddr8: string[] | null;
 // 		arrnumeric: string[] | null;
-// 		arrpoint: string[] | null;
+// 		arrnumericnum: number[] | null;
+// 		arrnumericbig: bigint[] | null;
+// 		arrpoint: { x: number; y: number }[] | null;
+// 		arrpointtuple: [number, number][] | null;
 // 		arrreal: number[] | null;
 // 		arrsmallint: number[] | null;
 // 		arrtext: string[] | null;
 // 		arrtime: string[] | null;
-// 		arrtimestamp: string[] | null;
-// 		arrtimestampTz: string[] | null;
+// 		arrtimestamp: Date[] | null;
+// 		arrtimestampTz: Date[] | null;
+// 		arrtimestampstr: string[] | null;
+// 		arrtimestampTzstr: string[] | null;
 // 		arruuid: string[] | null;
 // 		arrvarchar: string[] | null;
 // 	};
 
-// 	const expectedRes: ExpectedType = {
+// 	const testData: ExpectedType = {
 // 		serial: 1,
 // 		bigserial: 5044565289845416380n,
+// 		bigserialnum: 9007199254740991,
 // 		int: 621,
 // 		bigint: 5044565289845416380n,
+// 		bigintnum: 9007199254740991,
+// 		bigintstr: '5044565289845416380',
+// 		bit: '101',
 // 		bool: true,
-// 		bytea: buff('BYTES'),
+// 		bytea: Buffer.from('BYTES'),
 // 		char: 'c',
 // 		cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
-// 		date: '2025-03-12',
+// 		date: new Date('2025-03-12'),
+// 		datestr: '2025-03-12',
 // 		double: 15.35325689124218,
 // 		enum: 'enVal1',
 // 		inet: '192.168.0.1/24',
 // 		interval: '-2 mons',
 // 		json: { str: 'strval', arr: ['str', 10] },
 // 		jsonb: { arr: ['strb', 11], str: 'strvalb' },
-// 		line: '{1,2,3}',
+// 		json1: [{ key: 'value', num: 7 }, 'v', '11', 5],
+// 		jsonb1: [{ key: 'value', num: 8 }, 'x', '10', 3],
+// 		json2: 5,
+// 		jsonb2: 7,
+// 		json3: '5',
+// 		jsonb3: '7',
+// 		line: { a: 1, b: 2, c: 3 },
+// 		linetuple: [1, 2, 3],
 // 		macaddr: '08:00:2b:01:02:03',
 // 		macaddr8: '08:00:2b:01:02:03:04:05',
-// 		numeric: '475452353476',
-// 		point: '(24.5,49.6)',
+// 		numeric: '5044565289845416380',
+// 		numericnum: 9007199254740991,
+// 		numericbig: 5044565289845416380n,
+// 		point: { x: 24.5, y: 49.6 },
+// 		pointtuple: [24.5, 49.6],
 // 		real: 1.048596,
 // 		smallint: 10,
 // 		smallserial: 15,
 // 		text: 'TEXT STRING',
 // 		time: '13:59:28',
-// 		timestamp: '2025-03-12 01:32:41.623',
-// 		timestampTz: '2025-03-12 01:32:41.623+00',
+// 		timestamp: new Date('2025-03-12 01:32:41.623'),
+// 		timestampTz: new Date('2025-03-12 01:32:41.623+00'),
+// 		timestampstr: '2025-03-12 01:32:41.623',
+// 		timestampTzstr: '2025-03-12 01:32:41.623+00',
 // 		uuid: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
 // 		varchar: 'C4-',
 // 		arrint: [621],
 // 		arrbigint: [5044565289845416380n],
+// 		arrbigintnum: [9007199254740991],
+// 		arrbigintstr: ['5044565289845416380'],
+// 		arrbit: ['101'],
 // 		arrbool: [true],
-// 		arrbytea: [buff('BYTES')],
-// 		mtxbytea: [[buff('BYTES'), buff('BYTES2')], [
-// 			buff('OTHERBYTES'),
-// 			buff('OTHERBYTES2'),
-// 		]],
+// 		arrbytea: [Buffer.from('BYTES')],
+// 		// mtxbytea: [[Buffer.from('BYTES'), Buffer.from('BYTES2')], [
+// 		// 	Buffer.from('OTHERBYTES'),
+// 		// 	Buffer.from('OTHERBYTES2'),
+// 		// ]],
 // 		arrchar: ['c'],
 // 		arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
-// 		arrdate: ['2025-03-12'],
+// 		arrdate: [new Date('2025-03-12')],
+// 		arrdatestr: ['2025-03-12'],
 // 		arrdouble: [15.35325689124218],
 // 		arrenum: ['enVal1'],
 // 		arrinet: ['192.168.0.1/24'],
 // 		arrinterval: ['-2 mons'],
 // 		arrjson: [{ str: 'strval', arr: ['str', 10] }],
 // 		arrjsonb: [{ arr: ['strb', 11], str: 'strvalb' }],
-// 		arrline: ['{1,2,3}'],
+// 		arrjson1: [[{ key: 'value', num: 7 }, 'v', '11', 5]],
+// 		arrjsonb1: [[{ key: 'value', num: 8 }, 'x', '10', 3]],
+// 		arrjson2: [5],
+// 		arrjsonb2: [7],
+// 		arrjson3: ['5'],
+// 		arrjsonb3: ['7'],
+// 		arrline: [{ a: 1, b: 2, c: 3 }],
+// 		arrlinetuple: [[1, 2, 3]],
 // 		arrmacaddr: ['08:00:2b:01:02:03'],
 // 		arrmacaddr8: ['08:00:2b:01:02:03:04:05'],
-// 		arrnumeric: ['475452353476'],
-// 		arrpoint: ['(24.5,49.6)'],
+// 		arrnumeric: ['5044565289845416380'],
+// 		arrnumericnum: [9007199254740991],
+// 		arrnumericbig: [5044565289845416380n],
+// 		arrpoint: [{ x: 24.5, y: 49.6 }],
+// 		arrpointtuple: [[24.5, 49.6]],
 // 		arrreal: [1.048596],
 // 		arrsmallint: [10],
 // 		arrtext: ['TEXT STRING'],
 // 		arrtime: ['13:59:28'],
-// 		arrtimestamp: ['2025-03-12 01:32:41.623'],
-// 		arrtimestampTz: ['2025-03-12 01:32:41.623+00'],
+// 		arrtimestamp: [new Date('2025-03-12 01:32:41.623')],
+// 		arrtimestampTz: [new Date('2025-03-12 01:32:41.623+00')],
+// 		arrtimestampstr: ['2025-03-12 01:32:41.623'],
+// 		arrtimestampTzstr: ['2025-03-12 01:32:41.623+00'],
 // 		arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
 // 		arrvarchar: ['C4-'],
 // 	};
+// 	await db.insert(allTypesTable).values(testData);
 
 // 	const queryRes = await db.execute<ExpectedType>(db.select().from(allTypesTable)).then((e) =>
 // 		normalizeDataWithDbCodecs({
 // 			db,
 // 			columns: getColumns(allTypesTable),
 // 			data: e.rows ?? e,
-// 			mode: 'queryNormalize',
+// 			mode: 'query',
 // 		})[0]
 // 	);
 
@@ -2603,20 +2565,20 @@ import { test } from 'vitest';
 // 				db,
 // 				columns: getColumns(allTypesTable),
 // 				data: relationRaw,
-// 				mode: 'jsonNormalize',
+// 				mode: 'json',
 // 			})[0]!,
 // 			rootRes: normalizeDataWithDbCodecs({
 // 				db,
 // 				columns: getColumns(allTypesTable),
 // 				data: [rootRaw],
-// 				mode: 'queryNormalize',
+// 				mode: 'query',
 // 			})[0]!,
 // 		};
 // 	});
 
-// 	expect(queryRes).toStrictEqual(expectedRes);
-// 	expect(relationRes).toStrictEqual(expectedRes);
-// 	expect(rootRes).toStrictEqual(expectedRes);
+// 	expect(queryRes).toStrictEqual(testData);
+// 	expect(relationRes).toStrictEqual(testData);
+// 	expect(rootRes).toStrictEqual(testData);
 // });
 
 // afterAll(async () => {
@@ -2625,4 +2587,6 @@ import { test } from 'vitest';
 // 	await db.execute(sql`drop table if exists "user"`);
 // 	await db.execute(sql`drop table if exists "todo"`);
 // 	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
+// 	await db.execute(sql`drop table if exists all_types_48_cdcs`);
+// 	await db.execute(sql`drop type if exists en_49`);
 // });

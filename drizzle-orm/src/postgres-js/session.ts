@@ -110,9 +110,9 @@ export class PostgresJsTransaction<
 		super(dialect, session, relations, nestedIndex, false);
 	}
 
-	override transaction = <T>(
+	override transaction<T>(
 		transaction: (tx: PostgresJsTransaction<TRelations>) => Promise<T>,
-	): Promise<T> => {
+	): Promise<T> {
 		return this.session.client.savepoint((client) => {
 			const session = new PostgresJsSession<TransactionSql, TRelations>(
 				client,
@@ -127,7 +127,7 @@ export class PostgresJsTransaction<
 			);
 			return transaction(tx);
 		}) as Promise<T>;
-	};
+	}
 }
 
 export interface PostgresJsQueryResultHKT extends PgQueryResultHKT {

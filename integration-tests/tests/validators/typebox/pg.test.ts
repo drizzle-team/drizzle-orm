@@ -268,7 +268,7 @@ test('refine table - select', (tc) => {
 });
 
 test('refine table - select with custom data type', (tc) => {
-	const customText = customType({ dataType: () => 'text' });
+	const customText = customType({ codec: 'text', dataType: () => 'text' });
 	const table = pgTable('test', {
 		c1: integer(),
 		c2: integer().notNull(),
@@ -536,6 +536,7 @@ test('all data types', (tc) => {
 	const column = customType<{
 		data: TopLevelCondition;
 	}>({
+		codec: undefined,
 		dataType: () => 'object TopLevelCondition',
 	});
 	const table = pgTable('test', {

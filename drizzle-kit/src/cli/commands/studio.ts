@@ -89,7 +89,6 @@ export type Setup = {
 export type ProxyParams = {
 	sql: string;
 	params?: any[];
-	typings?: any[];
 	mode: 'array' | 'object';
 	method: 'values' | 'get' | 'all' | 'run' | 'execute';
 };
@@ -673,7 +672,6 @@ const proxySchema = z.object({
 	data: z.object({
 		sql: z.string(),
 		params: z.array(z.any()).optional(),
-		typings: z.string().array().optional(),
 		mode: z.enum(['array', 'object']).default('object'),
 		method: z.union([
 			z.literal('values'),

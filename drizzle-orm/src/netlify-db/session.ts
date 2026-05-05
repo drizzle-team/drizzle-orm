@@ -269,9 +269,9 @@ export class NetlifyDbTransaction<TRelations extends AnyRelations>
 {
 	static override readonly [entityKind]: string = 'NetlifyDbTransaction';
 
-	override transaction = async <T>(
+	override async transaction<T>(
 		transaction: (tx: NetlifyDbTransaction<TRelations>) => Promise<T>,
-	): Promise<T> => {
+	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new NetlifyDbTransaction<TRelations>(
 			this.dialect,
@@ -289,5 +289,5 @@ export class NetlifyDbTransaction<TRelations extends AnyRelations>
 			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
 			throw e;
 		}
-	};
+	}
 }
