@@ -33,8 +33,8 @@ const confirmEntitySchemas = [
 	{ kind: 'schema', schema: singleTupleSchema },
 	{ kind: 'view', schema: pairTupleSchema },
 	{ kind: 'primary_key', schema: tripleTupleSchema },
-	{ kind: 'not_null_constraint', schema: tripleTupleSchema },
-	{ kind: 'unique_constraint', schema: tripleTupleSchema },
+	{ kind: 'add_not_null', schema: tripleTupleSchema },
+	{ kind: 'add_unique', schema: tripleTupleSchema },
 ] as const satisfies readonly { readonly kind: string; readonly schema: z.ZodTypeAny }[];
 
 export type ConfirmEntityKind = typeof confirmEntitySchemas[number]['kind'];

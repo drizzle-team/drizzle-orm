@@ -13,204 +13,38 @@ It is written for tools and services that call Drizzle Kit programmatically.
 
 When `--json` is enabled, callers should treat `stdout` as the JSON channel. Each command invocation writes a single JSON object to `stdout`.
 
-## Response statuses
+## Hints flow
 
-### `status: "ok"`
+Some schema changes are ambiguous (rename vs. create+delete) or unsafe to apply automatically (drops on non-empty data, NOT NULL on nullable columns, etc.). In interactive mode, Drizzle Kit prompts the user. In JSON mode there are no prompts: callers either supply hints up front, or receive a `status: "missing_hints"` response and reply with hints.
 
-Used when the command completed successfully.
+For example, renaming a column in the schema:
 
-Depending on the command, this can mean:
-
-- explain mode completed successfully
-- changes were applied successfully
-
-Examples:
-
-`generate --json` success (non-explain):
-
-```json
-{
-  "status": "ok",
-  "dialect": "postgresql",
-  "migration_path": "drizzle/20260427153000_name/migration.sql"
-}
+```diff
+ export const users = pgTable('users', {
+   id: serial('id').primaryKey(),
+-  full_name: text('full_name'),
++  display_name: text('display_name'),
+ });
 ```
 
-`generate --json --explain` and `push --json --explain` success (non-empty diff):
+From the diff alone, Drizzle Kit cannot tell whether `display_name` is the renamed `full_name` or an unrelated new column whose addition coincides with `full_name`'s removal — hence `missing_hints`:
 
-```json
-{
-  "status": "ok",
-  "dialect": "postgresql",
-  "statements": [],
-  "hints": []
-}
-```
-
-`push --json` success (non-explain):
-
-```json
-{
-  "status": "ok",
-  "dialect": "postgresql"
-}
-```
-
-`dialect` is always present on `status: "ok"` responses.
-
-### `status: "no_changes"`
-
-Used when a command succeeds and there is nothing to do.
-
-This includes `generate --json`, `generate --json --explain`, `push --json`, and `push --json --explain` when the diff is empty.
-
-Current JSON-mode examples:
-
-```json
-{ "status": "no_changes", "dialect": "postgresql" }
-```
-
-```json
-{ "status": "no_changes", "dialect": "sqlite" }
-```
-
-### `status: "missing_hints"`
-
-Used when JSON mode needs explicit caller guidance before it can continue. The full `MissingHint` type definition lives in [hints.ts](./src/cli/hints.ts).
-
-Example response (one item of each `MissingHint.type`):
-
-```json
+```sh
+$ drizzle-kit push --json
 {
   "status": "missing_hints",
   "unresolved": [
     {
       "type": "rename_or_create",
-      "kind": "schema",
-      "entity": ["next_schema"]
-    },
-    {
-      "type": "confirm_data_loss",
-      "kind": "table",
-      "entity": ["public", "users"],
-      "reason": "non_empty"
+      "kind": "column",
+      "entity": ["public", "users", "display_name"]
     }
   ]
 }
+
+$ drizzle-kit push --json --hints '[{"type":"rename","kind":"column","from":["public","users","full_name"],"to":["public","users","display_name"]}]'
+{ "status": "ok", "dialect": "postgresql" }
 ```
-
-When this response is emitted, the process exits with code `2`.
-
-#### Catalog: kinds in unresolved items
-
-Tuple shape per `kind` is listed in [Identifier formats](#identifier-formats); these tables enumerate the kind set and per-dialect applicability only.
-
-`MissingHint.type: "rename_or_create"` carries one of these `kind` values:
-
-| `kind` | applicable dialects | description |
-|--------|---------------------|-------------|
-| `table` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Disambiguates a table addition between create-new and rename-existing. |
-| `column` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Disambiguates a column addition between create-new and rename-existing. |
-| `default` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Disambiguates a column-default addition between create-new and rename-existing. |
-| `schema` | `postgresql`, `mssql`, `cockroach` | Disambiguates a schema addition between create-new and rename-existing. |
-| `enum` | `postgresql`, `cockroach` | Disambiguates an enum-type addition between create-new and rename-existing. |
-| `sequence` | `postgresql`, `cockroach` | Disambiguates a sequence addition between create-new and rename-existing. |
-| `view` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Disambiguates a view addition between create-new and rename-existing. |
-| `policy` | `postgresql`, `cockroach` | Disambiguates an RLS policy addition between create-new and rename-existing. |
-| `role` | `postgresql`, `cockroach` | Disambiguates a role addition between create-new and rename-existing. |
-| `privilege` | `postgresql`, `cockroach` | Disambiguates a privilege grant between create-new and rename-existing. |
-| `check` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Disambiguates a check-constraint addition between create-new and rename-existing. |
-| `index` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Disambiguates an index addition between create-new and rename-existing. |
-| `unique` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Disambiguates a unique-constraint addition between create-new and rename-existing. |
-| `primary key` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Disambiguates a primary-key addition between create-new and rename-existing. |
-| `foreign key` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Disambiguates a foreign-key addition between create-new and rename-existing. |
-
-`MissingHint.type: "confirm_data_loss"` carries one of these `kind` values:
-
-| `kind` | applicable dialects | description |
-|--------|---------------------|-------------|
-| `table` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Approves dropping a non-empty table. |
-| `column` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Approves dropping a non-empty column, or — on `mysql` and `singlestore` — changing an existing column's SQL type via `alter_column`. |
-| `schema` | `postgresql`, `mssql`, `cockroach` | Approves dropping a non-empty schema (cascades over contained objects). |
-| `view` | `postgresql`, `cockroach`³ | Approves dropping a non-empty materialized view. |
-| `primary_key` | `postgresql`, `mysql`, `mssql`, `cockroach`, `singlestore` | Approves dropping a primary key on a non-empty table. |
-| `not_null_constraint` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Approves setting `NOT NULL` on a column that contains rows with `NULL` values. |
-| `unique_constraint` | `postgresql`, `mysql`, `mssql`, `cockroach`, `singlestore` | Approves adding a unique constraint or unique index on a column whose existing data contains duplicates. |
-
-³ Materialized-view drops only — `postgresql` and `cockroach`. mysql/mssql/sqlite do not emit `confirm_data_loss / view`.
-
-#### Catalog: reasons (`confirm_data_loss` only)
-
-`MissingHint` items of `type: "confirm_data_loss"` carry a `reason` field naming why approval is needed. `type_change` additionally carries a `reason_details: { from, to }` field.
-
-**`non_empty`** — Runtime probed the target entity (table, column, schema, primary key, or materialized view) and found at least one row of existing data. Approval authorizes the DDL to proceed and acknowledges that the existing rows will be lost.
-
-**`nulls_present`** — Runtime probed the target column and found at least one `NULL` value. The `NOT NULL` DDL would fail; approval authorizes the runtime to attempt the DDL anyway, which still requires the caller to backfill (or accept the failure).
-
-**`duplicates_present`** — Runtime probed the target column(s) and found at least one duplicate value. The `UNIQUE` constraint or unique index DDL would fail; approval authorizes the runtime to attempt the DDL anyway, which still requires the caller to deduplicate (or accept the failure).
-
-**`type_change`** — An existing column's SQL type would change via `alter_column` on MySQL or SingleStore. Approval authorizes the type change. Carries `reason_details: { from: string, to: string }` with dialect-native column-type spellings (e.g. `varchar(100)`, `int`, `decimal(10,4)`) sourced from the underlying `JsonStatement`.
-
-| `reason` | `reason_details` schema | applicable `kind`s | applicable dialects | explanation |
-|----------|-------------------------|--------------------|---------------------|-------------|
-| `non_empty` | — | `table` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Drop a non-empty table |
-| `non_empty` | — | `column` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Drop a non-empty column (or sqlite/turso `recreate_table` with column removal) |
-| `non_empty` | — | `schema` | `postgresql`, `mssql`, `cockroach` | Drop a non-empty schema (cascades) |
-| `non_empty` | — | `view` | `postgresql`, `cockroach` | Drop a non-empty materialized view |
-| `non_empty` | — | `primary_key` | `postgresql`, `mysql`, `mssql`, `cockroach`, `singlestore` | Drop a primary key on a non-empty table |
-| `nulls_present` | — | `not_null_constraint` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Set `NOT NULL` on a column with `NULL` values present |
-| `duplicates_present` | — | `unique_constraint` | `postgresql`, `mysql`, `mssql`, `cockroach`, `singlestore` | Add a unique constraint or unique index on a column with duplicate values |
-| `type_change` | `{ from: string, to: string }` | `column` | `mysql`, `singlestore` | Change an existing column's SQL type via `alter_column` |
-
-### `status: "error"`
-
-Used for structured CLI or runtime errors that are surfaced through the JSON error path.
-
-Specific error codes for hint-related impossible operations are enumerated in [Error codes](#error-codes) below; for the full list of CLI error codes, see [errors.ts](./src/cli/errors.ts).
-
-Examples:
-
-```json
-{
-  "status": "error",
-  "error": {
-    "code": "ambiguous_params_error",
-    "command": "check",
-    "configOption": "config"
-  }
-}
-```
-
-```json
-{
-  "status": "error",
-  "error": {
-    "code": "query_error",
-    "sql": "select 1 from \"users\" limit 1",
-    "params": []
-  }
-}
-```
-
-## Dialect values
-
-Every `--json` response that includes a `dialect` field carries one of the following locked literal strings. Each `applicable dialects` column in [Hint types](#hint-types) and [Error codes](#error-codes) references this set.
-
-| Literal | Notes |
-|---------|-------|
-| `postgresql` | PostgreSQL |
-| `mysql` | MySQL |
-| `sqlite` | SQLite (better-sqlite3, libsql, etc., except Turso — see below) |
-| `turso` | Turso (libsql managed) — emitted alongside `sqlite` from the same push handler, but the runtime `dialect` field reports `turso` when the caller's config selects it |
-| `mssql` | Microsoft SQL Server |
-| `cockroach` | CockroachDB |
-| `singlestore` | SingleStore |
-
-The order above is canonical. Tables that list multi-dialect cells use this order, not alphabetical.
-
-## Hint types
-
-Some schema changes are ambiguous (rename vs. create+delete) or unsafe to apply automatically (drops on non-empty data, NOT NULL on nullable columns, etc.). In interactive mode, Drizzle Kit prompts the user. In JSON mode there are no prompts: callers either supply hints up front, or receive a `status: "missing_hints"` response and reply with hints.
 
 A caller's `Hint` resolves a runtime-emitted `MissingHint` by reusing its `kind` and `entity` (and, for `rename_or_create`, choosing a `rename` vs `create` resolution).
 
@@ -373,6 +207,179 @@ That means it is safe to:
 - reuse the same hint file across retries
 - include hints for entities that are not part of the current run
 
+## Response statuses
+
+### `status: "ok"`
+
+Used when the command completed successfully.
+
+Depending on the command, this can mean:
+
+- explain mode completed successfully
+- changes were applied successfully
+
+Examples:
+
+`generate --json` success (non-explain):
+
+```json
+{
+  "status": "ok",
+  "dialect": "postgresql",
+  "migration_path": "drizzle/20260427153000_name/migration.sql"
+}
+```
+
+`generate --json --explain` and `push --json --explain` success (non-empty diff):
+
+```json
+{
+  "status": "ok",
+  "dialect": "postgresql",
+  "statements": [],
+  "hints": []
+}
+```
+
+`push --json` success (non-explain):
+
+```json
+{
+  "status": "ok",
+  "dialect": "postgresql"
+}
+```
+
+`dialect` is always present on `status: "ok"` responses.
+
+### `status: "no_changes"`
+
+Used when a command succeeds and there is nothing to do.
+
+This includes `generate --json`, `generate --json --explain`, `push --json`, and `push --json --explain` when the diff is empty.
+
+Current JSON-mode examples:
+
+```json
+{ "status": "no_changes", "dialect": "postgresql" }
+```
+
+```json
+{ "status": "no_changes", "dialect": "sqlite" }
+```
+
+### `status: "missing_hints"`
+
+Used when JSON mode needs explicit caller guidance before it can continue. The full `MissingHint` type definition lives in [hints.ts](./src/cli/hints.ts).
+
+Example response (one item of each `MissingHint.type`):
+
+```json
+{
+  "status": "missing_hints",
+  "unresolved": [
+    {
+      "type": "rename_or_create",
+      "kind": "schema",
+      "entity": ["next_schema"]
+    },
+    {
+      "type": "confirm_data_loss",
+      "kind": "table",
+      "entity": ["public", "users"],
+      "reason": "non_empty"
+    }
+  ]
+}
+```
+
+When this response is emitted, the process exits with code `2`.
+
+#### Catalog: kinds in unresolved items
+
+Tuple shape per `kind` is listed in [Identifier formats](#identifier-formats); these tables enumerate the kind set and per-dialect applicability only.
+
+Unmarked kinds apply to all dialects (`postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore`); footnotes call out dialect-restricted ones.
+
+`MissingHint.type: "rename_or_create"` carries one of these `kind` values:
+
+- `table`
+- `column`
+- `default`
+- `view`
+- `check`
+- `index`
+- `unique`
+- `primary key`
+- `foreign key`
+- `schema`¹
+- `enum`²
+- `sequence`²
+- `policy`²
+- `role`²
+- `privilege`²
+
+¹ `postgresql`, `mssql`, `cockroach` only.
+
+² `postgresql`, `cockroach` only.
+
+`MissingHint.type: "confirm_data_loss"` carries one of these `kind` values:
+
+- `table`
+- `column`
+- `add_not_null`
+- `schema`¹
+- `view`²
+- `primary_key`³
+- `add_unique`³
+
+¹ `postgresql`, `mssql`, `cockroach` only.
+
+² `postgresql`, `cockroach` only — materialized-view drops only; regular-view drops do not emit `confirm_data_loss`.
+
+³ `postgresql`, `mysql`, `mssql`, `cockroach`, `singlestore` only (no `sqlite`/`turso`).
+
+#### Catalog: reasons (`confirm_data_loss` only)
+
+`MissingHint` items of `type: "confirm_data_loss"` carry a `reason` field naming why approval is needed.
+
+| `reason` | applicable `kind`s | explanation | `reason_details` |
+|----------|--------------------|-------------|------------------|
+| `non_empty` | `table`, `column`, `schema`, `view`, `primary_key` | Runtime probed the target entity and found at least one row of existing data. Approval authorizes the DDL to proceed and acknowledges that existing rows will be lost. | — |
+| `nulls_present` | `add_not_null` | Runtime probed the target column and found at least one `NULL`. The `NOT NULL` DDL would fail; approval authorizes the runtime to attempt the DDL anyway, which still requires the caller to backfill (or accept the failure). | — |
+| `duplicates_present` | `add_unique` | Runtime probed the target column(s) and found at least one duplicate value. The `UNIQUE` DDL would fail; approval authorizes the runtime to attempt the DDL anyway, which still requires the caller to deduplicate (or accept the failure). | — |
+| `type_change` | `column` | An existing column's SQL type would change via `alter_column` on MySQL or SingleStore. Approval authorizes the type change. `from`/`to` carry dialect-native column-type spellings (e.g. `varchar(100)`, `int`, `decimal(10,4)`) sourced from the underlying `JsonStatement`. | `{ from: string, to: string }` |
+
+### `status: "error"`
+
+Used for structured CLI or runtime errors that are surfaced through the JSON error path.
+
+Specific error codes for hint-related impossible operations are enumerated in [Error codes](#error-codes) below; for the full list of CLI error codes, see [errors.ts](./src/cli/errors.ts).
+
+Examples:
+
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "ambiguous_params_error",
+    "command": "check",
+    "configOption": "config"
+  }
+}
+```
+
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "query_error",
+    "sql": "select 1 from \"users\" limit 1",
+    "params": []
+  }
+}
+```
+
 ## Error codes
 
 Structured error responses with `status: "error"` use a `code` field to identify the specific failure. The codes below cover hint-related and impossible-operation paths emitted in JSON mode; for the full list of CLI error codes, see [errors.ts](./src/cli/errors.ts).
@@ -395,7 +402,7 @@ The example payloads in each variant sub-table show only the `error` object; the
 | `rename_blocked_by_check_constraint` | `kind`, `schema`, `table`, `from`, `to` | `mssql` | `sp_rename` of a column would be rejected because the column appears in a `CHECK` constraint |
 | `rename_schema_unsupported` | `kind`, `from`, `to`, `dialect` | `mssql` | A `rename_schema` operation was requested — MSSQL does not support schema rename at all |
 
-Examples (one per variant, in table order):
+Examples:
 
 ```json
 {
@@ -470,7 +477,7 @@ Examples (one per variant, in table order):
 | Schema validation failure | `source: "file"` or `source: "inline"`, `issues` | One or more hints failed shape validation; `issues` is an array of zod-style issue records |
 | Rename `from` mismatch | `kind`, `from` | A `rename` hint's `from` tuple did not match any entity scheduled for deletion — re-running with the same hint won't change the outcome, so the caller must correct `from` |
 
-Examples (one per variant, in table order):
+Examples:
 
 ```json
 {
@@ -509,16 +516,16 @@ Examples (one per variant, in table order):
 
 Each hint identifies an entity using an `entity`, `from`, or `to` tuple. The arity depends on the entity kind.
 
-| Arity | Format | Used by `kind` | Example |
-|-------|--------|----------------|---------|
-| 1 | `[name]` | `schema`, `role` | `["tenant_a"]` |
-| 2 | `[schema, name]` | `table`, `enum`, `sequence`, `view` | `["public", "users"]` |
-| 3 | `[schema, table, name]` | `column`, `default`, `policy`, `check`, `index`, `unique`, `primary key`, `foreign key`, `primary_key`¹, `not_null_constraint`¹, `unique_constraint`¹ ² | `["public", "users", "email"]` |
-| 5 | `[grantor, grantee, schema, table, type]` | `privilege` | `["postgres", "app_user", "public", "users", "select"]` |
+| Format | Used by `kind` | Example |
+|--------|----------------|---------|
+| `[name]` | `schema`, `role` | `["tenant_a"]` |
+| `[schema, name]` | `table`, `enum`, `sequence`, `view` | `["public", "users"]` |
+| `[schema, table, name]` | `column`, `default`, `policy`, `check`, `index`, `unique`, `primary key`, `foreign key`, `primary_key`¹, `add_not_null`¹, `add_unique`¹ ² | `["public", "users", "email"]` |
+| `[grantor, grantee, schema, table, type]` | `privilege` | `["postgres", "app_user", "public", "users", "select"]` |
 
 ¹ `confirm_data_loss` only.
 
-² For `unique_constraint` (`confirm_data_loss`), the third slot is the **constraint name** (e.g. `users_email_unique`), not a column name. This disambiguates composite unique constraints that share a leading column.
+² For `add_unique` (`confirm_data_loss`), the third slot is the **constraint name** (e.g. `users_email_unique`), not a column name. This disambiguates composite unique constraints that share a leading column.
 
 ## `--explain` in JSON mode
 

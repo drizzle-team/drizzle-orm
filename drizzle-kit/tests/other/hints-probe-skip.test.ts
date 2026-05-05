@@ -175,7 +175,7 @@ test('json mode auto-authorizes an empty materialized-view probe without recordi
 	});
 });
 
-test('json mode records not_null_constraint confirmation when the target table is non-empty', async () => {
+test('json mode records add_not_null confirmation when the target table is non-empty', async () => {
 	await runWithCliContext({ json: true }, async () => {
 		const hints = new HintsHandler();
 		const { db, queries } = createDb(async () => [{}]);
@@ -193,7 +193,7 @@ test('json mode records not_null_constraint confirmation when the target table i
 		expect(unresolved(hints)).toStrictEqual([
 			{
 				type: 'confirm_data_loss',
-				kind: 'not_null_constraint',
+				kind: 'add_not_null',
 				entity: ['public', 'orders', 'status'],
 				reason: 'nulls_present',
 			},
@@ -236,7 +236,7 @@ test('json mode records only the risky probe sites when multiple probes have mix
 			{ type: 'confirm_data_loss', kind: 'schema', entity: ['archive'], reason: 'non_empty' },
 			{
 				type: 'confirm_data_loss',
-				kind: 'unique_constraint',
+				kind: 'add_unique',
 				entity: ['public', 'users', 'users_email_unique'],
 				reason: 'duplicates_present',
 			},
