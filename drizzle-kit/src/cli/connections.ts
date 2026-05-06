@@ -1745,6 +1745,7 @@ export const connectToSQLite = async (
 			| 'better-sqlite3'
 			| '@sqlitecloud/drivers'
 			| '@tursodatabase/database'
+			| '@tursodatabase/serverless'
 			| 'bun'
 			| 'node:sqlite';
 		migrate: (config: string | MigrationConfig) => Promise<void | MigratorInitFailResponse>;
@@ -2079,21 +2080,18 @@ export const connectToSQLite = async (
 		};
 
 		const query = async <T>(sql: string, params?: any[]) => {
-			const stmt = client.prepare(sql).bind(preparePGliteParams(params || []));
-			const res = await stmt.all();
+			const res = await client.prepare(sql).then((stmt) => stmt.bind(preparePGliteParams(params || [])).all());
 			return res as T[];
 		};
 		const batch = async (queries: string[]) => {
 			for (const query of queries) {
-				await client.prepare(query).all();
+				await client.prepare(query).then((stmt) => stmt.all());
 			}
 		};
 
 		const proxy = async (params: ProxyParams) => {
 			const preparedParams = prepareSqliteParams(params.params || []);
-			const stmt = client.prepare(params.sql).bind(preparedParams);
-
-			return stmt.raw(params.mode === 'array').all();
+			return client.prepare(params.sql).then((stmt) => stmt.bind(preparedParams).raw(params.mode === 'array').all());
 		};
 
 		const transactionProxy: TransactionProxy = async (queries) => {
@@ -2101,7 +2099,7 @@ export const connectToSQLite = async (
 			try {
 				const tx = client.transaction(async () => {
 					for (const query of queries) {
-						const result = await client.prepare(query.sql).all();
+						const result = await client.prepare(query.sql).then((stmt) => stmt.all());
 						results.push(result);
 					}
 				});
@@ -2116,6 +2114,64 @@ export const connectToSQLite = async (
 			query,
 			batch,
 			packageName: '@tursodatabase/database',
+			proxy,
+			transactionProxy,
+			migrate: migrateFn,
+			run: async (query: string) => {
+				await client.exec(query).catch((e) => {
+					throw new QueryError(e, query, []);
+				});
+			},
+		};
+	}
+
+	if (await checkPackage('@tursodatabase/serverless')) {
+		console.log(withStyle.info(`Using '@tursodatabase/serverless' driver for database querying`));
+		const { connect } = await import('@tursodatabase/serverless');
+		const { drizzle } = await import('drizzle-orm/tursodatabase-serverless');
+		const { migrate } = await import('drizzle-orm/tursodatabase/migrator');
+
+		const client = connect({ url: normaliseSQLiteUrl(credentials.url, '@tursodatabase/serverless') });
+		const drzl = drizzle({ client });
+		const migrateFn = async (config: MigrationConfig) => {
+			return migrate(drzl, config);
+		};
+
+		const query = async <T>(sql: string, params?: any[]) => {
+			const res = await client.prepare(sql).then((stmt) => stmt.all(preparePGliteParams(params || [])));
+			return res as T[];
+		};
+		const batch = async (queries: string[]) => {
+			for (const query of queries) {
+				await client.prepare(query).then((stmt) => stmt.all());
+			}
+		};
+
+		const proxy = async (params: ProxyParams) => {
+			const preparedParams = prepareSqliteParams(params.params || []);
+			return client.prepare(params.sql).then((stmt) => stmt.raw(params.mode === 'array').all(preparedParams));
+		};
+
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: (any[] | Error)[] = [];
+			try {
+				const tx = client.transaction(async () => {
+					for (const query of queries) {
+						const result = await client.prepare(query.sql).then((stmt) => stmt.all());
+						results.push(result);
+					}
+				});
+				await tx();
+			} catch (error) {
+				results.push(error as Error);
+			}
+			return results;
+		};
+
+		return {
+			query,
+			batch,
+			packageName: '@tursodatabase/serverless',
 			proxy,
 			transactionProxy,
 			migrate: migrateFn,
