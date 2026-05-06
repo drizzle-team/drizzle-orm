@@ -1615,7 +1615,7 @@ test('introspect table with self reference', async () => {
 	expect(generateSqlStatements).toStrictEqual([]);
 });
 
-test('introspect partitioned tables', async () => {
+test('introspect partitioned tables with indexes', async () => {
 	await db.query(`
 		CREATE TABLE measurement (
 			city_id         int not null,
@@ -1624,8 +1624,11 @@ test('introspect partitioned tables', async () => {
 			unitsales       int
 		) PARTITION BY RANGE (logdate);
 	`);
+	await db.query(`
+		CREATE INDEX measurement_city_id_idx ON measurement (city_id);
+	`);
 
-	const { tables } = await fromDatabase(db);
+	const { tables, indexes } = await fromDatabase(db);
 
 	expect(tables).toStrictEqual([
 		{
@@ -1634,6 +1637,31 @@ test('introspect partitioned tables', async () => {
 			entityType: 'tables',
 			isRlsEnabled: false,
 		} satisfies (typeof tables)[number],
+	]);
+	expect(indexes).toStrictEqual([
+		{
+			columns: [
+				{
+					asc: true,
+					isExpression: false,
+					nullsFirst: false,
+					opclass: null,
+					value: 'city_id',
+				},
+			],
+			concurrently: false,
+			entityType: 'indexes',
+			forPK: false,
+			forUnique: false,
+			isUnique: false,
+			method: 'btree',
+			name: 'measurement_city_id_idx',
+			nameExplicit: true,
+			schema: 'public',
+			table: 'measurement',
+			where: null,
+			with: '',
+		} satisfies (typeof indexes)[number],
 	]);
 });
 
