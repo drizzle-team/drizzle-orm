@@ -196,53 +196,9 @@ const skip: string[] = [
 	'sync transaction rollback',
 	'sync nested transaction rollback',
 
-	// Subquery in WHERE clause is not supported
-	'RQB v2 simple find many - with relation',
-	'RQB v2 transaction find many - with relation',
-	'RQB v2 simple find first - with relation',
-	'RQB v2 transaction find first - with relation',
-	'RQB v2 simple find many - with text pks',
-	'$count',
-	'$count embedded',
-	'$count embedded reuse',
-	'$count embedded with filters',
-	'select from a many subquery',
-	'select from a one subquery',
-	// CROSS JOIN is not supported
-	'cross join',
-	'sql.Aliased in cte',
-	// ORDER BY is not supported for compound SELECTs yet
-	'set operations (union) from query builder with subquery',
-	'set operations (union) as function',
-	'set operations (union all) from query builder',
-	'set operations (intersect) from query builder',
-	'set operations (except) as function',
-	'set operations (mixed all) as function with subquery',
 	// ORDER BY clause is not supported in DELETE
 	'delete with limit and order by',
-
-	// WITH clause is not supported in DELETE
-	'with ... delete',
-	// WITH clause is not supported
-	'with ... insert',
-	// WITH clause is not supported in UPDATE
-	'with ... update',
-	// IN (...subquery) in WHERE clause is not supported
-	'with ... select',
-	// EXISTS in WHERE clause is not supported
-	'select with exists',
-	// RETURNING currently not implemented for DELETE statements.
-	'delete with returning partial',
-	'delete with returning all fields',
-	'delete returning sql',
-	// FROM clause is not supported in UPDATE
-	'update ... from',
-	'update ... from with alias',
-	'update ... from with join',
 	// ORDER BY is not supported in UPDATE
 	'update with limit and order by',
-	// TBD
-	'join on aliased sql from with clause',
-	'join view as subquery',
 ];
 tests(test, skip);

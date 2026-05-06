@@ -2080,7 +2080,7 @@ export const connectToSQLite = async (
 		};
 
 		const query = async <T>(sql: string, params?: any[]) => {
-			return client.prepare(sql).then((stmt) => stmt.bind(...preparePGliteParams(params || [])).all()) as Promise<T[]>;
+			return client.all(sql, ...preparePGliteParams(params || [])) as Promise<T[]>;
 		};
 		const batch = async (queries: string[]) => {
 			for (const query of queries) {
@@ -2090,7 +2090,8 @@ export const connectToSQLite = async (
 
 		const proxy = async (params: ProxyParams) => {
 			const preparedParams = prepareSqliteParams(params.params || []);
-			return client.prepare(params.sql).then((stmt) => stmt.bind(...preparedParams).raw(params.mode === 'array').all());
+			const stmt = await client.prepare(params.sql);
+			return stmt.raw(params.mode === 'array').all(...preparedParams);
 		};
 
 		const transactionProxy: TransactionProxy = async (queries) => {
@@ -2098,7 +2099,7 @@ export const connectToSQLite = async (
 			try {
 				const tx = client.transaction(async () => {
 					for (const query of queries) {
-						const result = await client.prepare(query.sql).then((stmt) => stmt.all());
+						const result = await client.all(query.sql);
 						results.push(result);
 					}
 				});
@@ -2137,14 +2138,10 @@ export const connectToSQLite = async (
 		};
 
 		const query = async <T>(sql: string, params?: any[]) => {
-			const stmt = await client.prepare(sql);
-			return stmt.all(preparePGliteParams(params || [])) as Promise<T[]>;
+			return client.all(sql, ...preparePGliteParams(params || [])) as Promise<T[]>;
 		};
 		const batch = async (queries: string[]) => {
-			for (const query of queries) {
-				const stmt = await client.prepare(query);
-				await stmt.all();
-			}
+			await client.batch(queries);
 		};
 
 		const proxy = async (params: ProxyParams) => {
@@ -2158,8 +2155,7 @@ export const connectToSQLite = async (
 			try {
 				const tx = client.transaction(async () => {
 					for (const query of queries) {
-						const stmt = await client.prepare(query.sql);
-						const result = await stmt.all();
+						const result = await client.all(query.sql);
 						results.push(result);
 					}
 				});
