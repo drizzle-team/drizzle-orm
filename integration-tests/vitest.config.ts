@@ -25,6 +25,7 @@ export default defineConfig({
 					'tests/sqlite/libsql-sqlite3.test.ts',
 					'tests/sqlite/libsql-ws.test.ts',
 					'tests/sqlite/libsql-batch.test.ts',
+					'tests/sqlite/tursodatabase-serverless.test.ts',
 					'tests/pg/neon-http.test.ts',
 					'tests/pg/neon-http-batch.test.ts',
 					'tests/pg/netlify-db.test.ts',

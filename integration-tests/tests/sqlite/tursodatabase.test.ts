@@ -221,9 +221,6 @@ const skip = [
 	'set operations (mixed all) as function with subquery',
 	// ORDER BY clause is not supported in DELETE
 	'delete with limit and order by',
-	// SAVEPOINT not supported yet
-	'nested transaction',
-	'nested transaction rollback',
 	// WITH clause is not supported in DELETE
 	'with ... delete',
 	// WITH clause is not supported

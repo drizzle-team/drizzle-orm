@@ -12,7 +12,7 @@ import {
 	type RelationalQueryMapperConfig,
 	type RelationalRowsMapper,
 } from '~/relations.ts';
-import { fillPlaceholders, type Query, type SQL } from '~/sql/sql.ts';
+import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteTransaction } from '~/sqlite-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types.ts';
@@ -20,7 +20,6 @@ import type {
 	PreparedQueryConfig as PreparedQueryConfigBase,
 	Result,
 	SQLiteExecuteMethod,
-	SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
@@ -106,8 +105,6 @@ export class TursoDatabaseSession<
 
 	override async transaction<T>(
 		transaction: (db: TursoDatabaseTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
-		_config?: SQLiteTransactionConfig,
-		tx?: TursoDatabaseTransaction<TFullSchema, TRelations, TSchema>,
 	): Promise<T> {
 		const session = new TursoDatabaseSession<TFullSchema, TRelations, TSchema>(
 			this.client,
@@ -116,7 +113,7 @@ export class TursoDatabaseSession<
 			this.schema,
 			this.options,
 		);
-		const localTx = tx ?? new TursoDatabaseTransaction<TFullSchema, TRelations, TSchema>(
+		const localTx = new TursoDatabaseTransaction<TFullSchema, TRelations, TSchema>(
 			'async',
 			this.dialect,
 			session,
@@ -173,37 +170,28 @@ export class TursoDatabaseTransaction<
 	static override readonly [entityKind]: string = 'TursoDatabaseTransaction';
 
 	override async transaction<T>(
-		_transaction: (tx: TursoDatabaseTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
-		_config?: SQLiteTransactionConfig,
+		transaction: (tx: TursoDatabaseTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
-		// Not supported by driver
-		throw new Error('Nested transactions are not supported');
+		const savepointName = `sp${this.nestedIndex}`;
 
-		// const savepointName = `sp${this.nestedIndex}`;
+		const tx = new TursoDatabaseTransaction(
+			'async',
+			this.dialect,
+			this.session,
+			this.relations,
+			this.schema,
+			this.nestedIndex + 1,
+		);
 
-		// const tx = new TursoDatabaseTransaction(
-		// 	'async',
-		// 	this.dialect,
-		// 	this.session,
-		// 	this.relations,
-		// 	this.schema,
-		// 	this.nestedIndex + 1,
-		// );
-
-		// await this.session.run(sql.raw(`savepoint ${savepointName}`));
-		// try {
-		// 	const result = await (<TursoDatabaseSession<TFullSchema, TRelations, TSchema>> (this.session))
-		// 		.transaction(
-		// 			transaction,
-		// 			config,
-		// 			tx,
-		// 		);
-		// 	await this.session.run(sql.raw(`release savepoint ${savepointName}`));
-		// 	return result;
-		// } catch (err) {
-		// 	await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
-		// 	throw err;
-		// }
+		await this.session.run(sql.raw(`savepoint ${savepointName}`));
+		try {
+			const result = await transaction(tx);
+			await this.session.run(sql.raw(`release savepoint ${savepointName}`));
+			return result;
+		} catch (err) {
+			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			throw err;
+		}
 	}
 }
 
