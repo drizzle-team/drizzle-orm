@@ -223,12 +223,22 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 			if (indexesFound) continue;
 
-			throw new UnsupportedSchemaChangeError({
-				kind: 'drop_pk_dependency',
-				table,
-				columns,
-				blocking_fks: fkFound.map((fk) => fk.name),
+			if (json) {
+				throw new UnsupportedSchemaChangeError({
+					kind: 'drop_pk_dependency',
+					table,
+					columns,
+					blocking_fks: fkFound.map((fk) => fk.name),
+				});
+			}
+			grouped.push({
+				hint: `You are trying to drop primary key from "${table}" ("${
+					columns.join('", ')
+				}"), but there is an existing reference on this column. You must either add a UNIQUE constraint to ("${
+					columns.join('", ')
+				}") or drop the foreign key constraint that references this column.`,
 			});
+			continue;
 		}
 
 		if (
