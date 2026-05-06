@@ -96,10 +96,10 @@ export const generate = command({
 			await handle(opts, checkResult);
 		} else if (dialect === 'sqlite') {
 			const { handle } = await import('./commands/generate-sqlite');
-			await handle(opts);
+			await handle(opts, checkResult);
 		} else if (dialect === 'turso') {
 			const { handle } = await import('./commands/generate-libsql');
-			await handle(opts);
+			await handle(opts, checkResult);
 		} else if (dialect === 'singlestore') {
 			const { handle } = await import('./commands/generate-singlestore');
 			await handle(opts);

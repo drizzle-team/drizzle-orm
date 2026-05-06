@@ -33,7 +33,6 @@ export interface BuildQueryConfig {
 	escapeName(name: string): string;
 	escapeParam(num: number, value: unknown): string;
 	escapeString(str: string): string;
-	prepareTyping?: (encoder: DriverValueEncoder<unknown, unknown>) => QueryTypingsValue;
 	codecs?: CodecsCollection;
 	paramStartIndex?: { value: number };
 	inlineParams?: boolean;
@@ -41,18 +40,12 @@ export interface BuildQueryConfig {
 	tagged?: true;
 }
 
-export type QueryTypingsValue = 'json' | 'decimal' | 'time' | 'timestamp' | 'uuid' | 'date' | 'none';
-
 export interface Query {
 	sql: string;
 	params: unknown[];
 	_sql?: TemplateStringsArray;
 	// ^ TODO: revisit
 	// for Bun.SQL cache performance
-}
-
-export interface QueryWithTypings extends Query {
-	typings?: QueryTypingsValue[];
 }
 
 /**
@@ -75,33 +68,21 @@ export function isSQLWrapper(value: unknown): value is SQLWrapper {
 	return value !== null && value !== undefined && typeof (value as any).getSQL === 'function';
 }
 
-function mergeQueries(queries: QueryWithTypings[]): QueryWithTypings {
-	const result: QueryWithTypings = { sql: '', params: [] };
+function mergeQueries(queries: Query[]): Query {
+	const result: Query = { sql: '', params: [] };
 	for (const query of queries) {
 		result.sql += query.sql;
 		result.params.push(...query.params);
-		if (query.typings?.length) {
-			if (!result.typings) {
-				result.typings = [];
-			}
-			result.typings.push(...query.typings);
-		}
 	}
 	return result;
 }
 
-function _mergeQueries(queries: QueryWithTypings[]): QueryWithTypings {
-	const result: QueryWithTypings = { sql: '', params: [] };
+function _mergeQueries(queries: Query[]): Query {
+	const result: Query = { sql: '', params: [] };
 	const sqls = [] as string[];
 	for (const query of queries) {
 		sqls.push(query.sql);
 		result.params.push(...query.params);
-		if (query.typings?.length) {
-			if (!result.typings) {
-				result.typings = [];
-			}
-			result.typings.push(...query.typings);
-		}
 	}
 	result._sql = Object.assign(sqls, { raw: sqls }) as unknown as TemplateStringsArray;
 	return result;
@@ -156,7 +137,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 		return this;
 	}
 
-	toQuery(config: BuildQueryConfig): QueryWithTypings {
+	toQuery(config: BuildQueryConfig): Query {
 		return tracer.startActiveSpan('drizzle.buildSQL', (span) => {
 			const query = this.buildQueryFromSourceParams(this.queryChunks, config);
 			span?.setAttributes({
@@ -176,14 +157,13 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 		const {
 			escapeName,
 			escapeParam,
-			prepareTyping,
 			codecs,
 			inlineParams,
 			paramStartIndex,
 			invokeSource,
 		} = config;
 
-		const mappedChunks = chunks.map((chunk): QueryWithTypings => {
+		const mappedChunks = chunks.map((chunk): Query => {
 			if (is(chunk, StringChunk)) {
 				return { sql: chunk.value.join(''), params: [] };
 			}
@@ -279,7 +259,6 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 							? codecs.apply(chunk.encoder, 'castParam', escaped)
 							: escaped,
 						params: [chunk],
-						typings: ['none'],
 					};
 				}
 
@@ -308,23 +287,17 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 					return { sql: this.mapInlineParam(mappedValue, config), params: [] };
 				}
 
-				let typings: QueryTypingsValue[] = ['none'];
-				if (prepareTyping) {
-					typings = [prepareTyping(chunk.encoder)];
-				}
-
 				const escaped = escapeParam(paramStartIndex.value++, mappedValue);
 				return {
 					sql: useCodecs
 						? codecs.apply(chunk.encoder, 'castParam', escaped)
 						: escaped,
 					params: [mappedValue],
-					typings,
 				};
 			}
 
 			if (is(chunk, Placeholder)) {
-				return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
+				return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk] };
 			}
 
 			if (is(chunk, SQL.Aliased) && chunk.fieldAlias !== undefined) {
@@ -368,7 +341,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				return { sql: this.mapInlineParam(chunk, config), params: [] };
 			}
 
-			return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
+			return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk] };
 		});
 
 		if (_config.tagged) {
