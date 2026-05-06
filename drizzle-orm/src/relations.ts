@@ -1713,7 +1713,14 @@ function relationsFieldFilterToSQL(column: SQLWrapper, filter: RelationsFieldFil
 
 	const parts: (SQL)[] = [];
 	for (const [target, value] of entries) {
-		if (value === undefined) continue;
+		if (value === undefined) {
+			throw new DrizzleError({
+				message: `Undefined value passed to filter operator "${target}". `
+					+ `This is most likely a bug in your application — passing undefined to a filter silently removes the condition, `
+					+ `which can lead to security vulnerabilities (e.g., returning the first arbitrary row). `
+					+ `Use "isNull" / "isNotNull" operators to filter for null values, or explicitly check for undefined before passing values to the query builder.`,
+			});
+		}
 
 		switch (target as keyof RelationFieldsFilterInternals<unknown>) {
 			case 'NOT': {
@@ -1811,7 +1818,14 @@ export function relationsFilterToSQL(
 
 	const parts: SQL[] = [];
 	for (const [target, value] of entries) {
-		if (value === undefined) continue;
+		if (value === undefined) {
+			throw new DrizzleError({
+				message: `Undefined value passed to filter field "${target}". `
+					+ `This is most likely a bug in your application — passing undefined to a where filter silently removes the condition, `
+					+ `which can lead to security vulnerabilities (e.g., returning the first arbitrary row instead of no results). `
+					+ `Use "isNull" / "isNotNull" operators to filter for null values, or explicitly check for undefined before passing values to the query builder.`,
+			});
+		}
 
 		switch (target) {
 			case 'RAW': {
