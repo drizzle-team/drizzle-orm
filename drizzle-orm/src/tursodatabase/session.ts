@@ -3,7 +3,6 @@ import type * as V1 from '~/_relations.ts';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
-import { DrizzleError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import {
@@ -130,9 +129,7 @@ export class TursoDatabaseSession<
 	override async run(query: SQL): Result<'async', TursoDatabaseRunResult> {
 		const staticQuery = this.dialect.sqlToQuery(query);
 
-		return this.prepareOneTimeQuery(staticQuery, undefined, 'run').run().catch((err) => {
-			throw new DrizzleError({ cause: err, message: `Failed to run the query '${staticQuery.sql}'` });
-		}) as Result<
+		return this.prepareOneTimeQuery(staticQuery, undefined, 'run').run() as Result<
 			'async',
 			TursoDatabaseRunResult
 		>;
