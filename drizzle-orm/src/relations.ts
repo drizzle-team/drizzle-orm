@@ -1371,7 +1371,10 @@ export interface RelationFieldsFilterInternals<T> {
 export type RelationsFieldFilter<T = unknown> =
 	| RelationFieldsFilterInternals<T>
 	| (
-		unknown extends T ? never : T extends object ? never : T
+		unknown extends T ? never
+			: T extends object ? [T] extends [string | number | boolean | bigint | null | undefined] ? T
+				: never
+			: T
 	)
 	// Bleeds into filters - discuss removal
 	| Placeholder;
