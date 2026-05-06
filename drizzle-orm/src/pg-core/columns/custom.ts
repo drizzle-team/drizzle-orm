@@ -4,7 +4,7 @@ import type { PgTable } from '~/pg-core/table.ts';
 import type { SQL, SQLGenerator } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { parsePgArray } from '../array.ts';
-import { type PostgresColumnType, type PostgresType, resolvePgType } from '../codecs.ts';
+import { type PostgresColumnType, type PostgresType, resolvePgTypeAlias } from '../codecs.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type ConvertCustomConfig<T extends Partial<CustomTypeValues>> =
@@ -52,7 +52,7 @@ export class PgCustomColumn<T extends ColumnBuilderBaseConfig<'custom'>> extends
 	static override readonly [entityKind]: string = 'PgCustomColumn';
 
 	/** @internal */
-	override readonly codec: PostgresType;
+	override readonly codec?: PostgresType | undefined;
 
 	private sqlName: string;
 	readonly mapFromJsonValue?: (value: unknown) => T['data'];
@@ -68,13 +68,13 @@ export class PgCustomColumn<T extends ColumnBuilderBaseConfig<'custom'>> extends
 		this.mapFromDriverValue = config.customTypeParams.fromDriver ?? this.mapFromDriverValue;
 		this.mapFromJsonValue = config.customTypeParams.fromJson;
 		this.jsonSelectIdentifier = config.customTypeParams.forJsonSelect;
-		this.codec = resolvePgType(
-			config.customTypeParams.codec
-				?? this.sqlName.slice(
-					0,
-					Math.min(...[this.sqlName.indexOf('('), this.sqlName.indexOf('[')].filter((e) => e !== -1)),
-				),
-		);
+		const cfgCodec =
+			typeof config.customTypeParams.codec === 'string' || typeof config.customTypeParams.codec === 'undefined'
+				? config.customTypeParams.codec
+				: config.customTypeParams.codec(config.fieldConfig);
+		this.codec = typeof cfgCodec === 'string'
+			? resolvePgTypeAlias(cfgCodec) as PostgresType // If it isn't `PostgresType`, codec search will simply resolve to no codec, which is supported behaviour
+			: undefined;
 
 		if (this.dimensions && config.customTypeParams.fromJson) {
 			this.mapFromJsonValue = (value: unknown): unknown => {
@@ -330,10 +330,13 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 
 	/**
 	 * Select which column type codec will be used for this column
-	 *
-	 * Defaults to {@link dataType}
 	 */
-	codec?: PostgresColumnType;
+	codec?:
+		| PostgresColumnType
+		| undefined
+		| ((
+			config: T['config'] | (Equal<T['configRequired'], true> extends true ? never : undefined),
+		) => PostgresColumnType | undefined);
 }
 
 /**

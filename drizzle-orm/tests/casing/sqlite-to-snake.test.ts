@@ -143,7 +143,6 @@ describe('sqlite to snake case', () => {
 			sql:
 				'select "id", "AGE", "first_name" || \' \' || "last_name" as "name", (select json_array("uses_drizzle_orm") as "data" from (select * from "developers" "users_developers" where "users_developers"."user_id" = "users"."id" limit ?) "users_developers") as "developers" from "users" "users" where "users"."id" = ? limit ?',
 			params: [1, 1, 1],
-			typings: ['none', 'none', 'none'],
 		});
 	});
 
@@ -170,7 +169,6 @@ describe('sqlite to snake case', () => {
 			sql:
 				'select "id", "AGE", "first_name" || \' \' || "last_name" as "name", (select json_array("uses_drizzle_orm") as "data" from (select * from "developers" "users_developers" where "users_developers"."user_id" = "users"."id" limit ?) "users_developers") as "developers" from "users" "users" where "users"."id" = ?',
 			params: [1, 1],
-			typings: ['none', 'none'],
 		});
 	});
 

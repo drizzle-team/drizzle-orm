@@ -1021,7 +1021,6 @@ export function tests(test: Test) {
 					sql:
 						'select "d0"."id" as "id", ((select count(*) from "rqb_orders_18" where ("rqb_orders_18"."user_id" = "d0"."id" and not "rqb_orders_18"."status" in ($1, $2)))) as "activeOrders" from "rqb_users_18" as "d0"',
 					params: ['CANCELED', 'CLOSED'],
-					typings: ['none', 'none'],
 				});
 			},
 		);

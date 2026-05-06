@@ -7,8 +7,8 @@ export type NormalizeCodec = (value: any) => any;
 export type NormalizeArrayCodec = (value: any, arrayDimensions: number) => any;
 export type CastCodec = (name: SQLChunk) => SQLChunk;
 export type CastArrayCodec = (name: SQLChunk, arrayDimensions: number) => SQLChunk;
-export type CastParamCodec = (name: string) => string;
-export type CastArrayParamCodec = (name: string, arrayDimensions: number) => string;
+export type CastParamCodec = (name: string, column: Column) => string;
+export type CastArrayParamCodec = (name: string, column: Column, arrayDimensions: number) => string;
 
 export interface Codec {
 	cast?: CastCodec | undefined;
@@ -62,7 +62,7 @@ const itemToArrayTypeCodecNameMap = {
 export class CodecsCollection<TTypeSet extends string = string> {
 	static readonly [entityKind]: string = 'CodecsCollection';
 
-	constructor(protected resolveTypes: (type: string) => TTypeSet, readonly codecs: Codecs<TTypeSet> = noopCodecs) {}
+	constructor(protected resolveTypes: (type: string) => string, readonly codecs: Codecs<TTypeSet> = noopCodecs) {}
 
 	get<TCodecType extends keyof Codec>(
 		column: Column,
@@ -94,7 +94,16 @@ export class CodecsCollection<TTypeSet extends string = string> {
 			: arrayToItemTypeCodecNameMap[type];
 
 		const codec = this.codecs[sqlType]?.[codecType];
-		return (codec ? codec(value as any, (<any> column).dimensions) : value) as any;
+		if (!codec) return value as any;
+
+		if (codecType === 'castParam' || codecType === 'castArrayParam') {
+			return (<CastParamCodec | CastArrayParamCodec> codec)(value as string, column, (<any> column).dimensions) as any;
+		}
+
+		return (<NormalizeCodec | NormalizeArrayCodec | CastCodec | CastArrayCodec> codec)(
+			value as any,
+			(<any> column).dimensions,
+		);
 	}
 }
 

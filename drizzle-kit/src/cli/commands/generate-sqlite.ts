@@ -6,10 +6,14 @@ import { prepareSqliteSnapshot } from '../../dialects/sqlite/serializer';
 import { isJsonMode } from '../context';
 import { resolver } from '../prompts';
 import { explain, explainJsonOutput, humanLog, printJsonOutput, sqliteSchemaError, warning } from '../views';
+import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
-export const handle = async (config: GenerateConfig) => {
+export const handle = async (
+	config: GenerateConfig,
+	checkResult?: CheckHandlerResult,
+) => {
 	const dialect = config.dialect === 'turso' ? 'turso' : 'sqlite';
 	const json = isJsonMode();
 	const { out: outFolder, filenames } = config;
@@ -17,6 +21,7 @@ export const handle = async (config: GenerateConfig) => {
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSqliteSnapshot(
 		snapshots,
 		filenames,
+		checkResult,
 	);
 	if (config.custom) {
 		writeResult({
