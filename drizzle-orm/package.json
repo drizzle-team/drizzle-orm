@@ -59,9 +59,10 @@
 		"@sinclair/typebox": ">=0.34.8",
 		"@sqlitecloud/drivers": ">=1.0.653",
 		"@tidbcloud/serverless": "*",
-		"@tursodatabase/database": ">=0.2.1",
-		"@tursodatabase/database-common": ">=0.2.1",
-		"@tursodatabase/database-wasm": ">=0.2.1",
+		"@tursodatabase/database": ">=0.6.0-pre.28 || >=0.6.0",
+		"@tursodatabase/database-common": ">=0.6.0-pre.28 || >=0.6.0",
+		"@tursodatabase/database-wasm": ">=0.6.0-pre.28 || >=0.6.0",
+		"@tursodatabase/serverless": ">=1.1.3",
 		"@types/better-sqlite3": "*",
 		"@types/mssql": "^9.1.4",
 		"@types/pg": "*",
@@ -178,6 +179,9 @@
 		"@tursodatabase/database-common": {
 			"optional": true
 		},
+		"@tursodatabase/serverless": {
+			"optional": true
+		},
 		"@upstash/redis": {
 			"optional": true
 		},
@@ -215,9 +219,10 @@
 		"@sinclair/typebox": "^0.34.48",
 		"@sqlitecloud/drivers": "^1.0.653",
 		"@tidbcloud/serverless": "^0.1.1",
-		"@tursodatabase/database": "0.2.1",
-		"@tursodatabase/database-common": "^0.2.1",
-		"@tursodatabase/database-wasm": "^0.2.1",
+		"@tursodatabase/database": "0.6.0-pre.28",
+		"@tursodatabase/database-common": "0.6.0-pre.28",
+		"@tursodatabase/database-wasm": "0.6.0-pre.28",
+		"@tursodatabase/serverless": "1.1.3",
 		"@types/better-sqlite3": "^7.6.12",
 		"@types/node": "^25.4.0",
 		"@types/pg": "^8.10.1",
