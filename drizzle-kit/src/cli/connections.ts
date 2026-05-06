@@ -2129,7 +2129,7 @@ export const connectToSQLite = async (
 		console.log(withStyle.info(`Using '@tursodatabase/serverless' driver for database querying`));
 		const { connect } = await import('@tursodatabase/serverless');
 		const { drizzle } = await import('drizzle-orm/tursodatabase-serverless');
-		const { migrate } = await import('drizzle-orm/tursodatabase/migrator');
+		const { migrate } = await import('drizzle-orm/tursodatabase-serverless/migrator');
 
 		const client = connect({ url: normaliseSQLiteUrl(credentials.url, '@tursodatabase/serverless') });
 		const drzl = drizzle({ client });
