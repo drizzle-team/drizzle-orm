@@ -362,12 +362,19 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 		}
 
 		if (statement.type === 'rename_schema') {
-			throw new UnsupportedSchemaChangeError({
-				kind: 'rename_schema_unsupported',
-				from: statement.from.name,
-				to: statement.to.name,
-				dialect: 'mssql',
+			if (json) {
+				throw new UnsupportedSchemaChangeError({
+					kind: 'rename_schema_unsupported',
+					from: statement.from.name,
+					to: statement.to.name,
+					dialect: 'mssql',
+				});
+			}
+			grouped.push({
+				hint:
+					`You are trying to rename schema ${statement.from.name} to ${statement.to.name}, but it is not supported to rename a schema in mssql.\nYou should create new schema and transfer everything to it`,
 			});
+			continue;
 		}
 	}
 
