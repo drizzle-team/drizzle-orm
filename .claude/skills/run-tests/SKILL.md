@@ -99,10 +99,31 @@ bash compose/dockers.sh down               # all dialects
 
 `down` uses `-v` to wipe volumes — test DBs are ephemeral and `mocks.ts` `clear()` recreates the schema each run, so persistent volumes have no value here. Leaving DBs running between iterations is fine and the common workflow during active development.
 
+## Before debugging a failing test: check for expired `.skipIf` postpones
+
+Many tests in this repo are wrapped in a date-gated postpone:
+
+```ts
+test.skipIf(Date.now() < +new Date('2026-06-01'))('add table #16', async () => { ... })
+```
+
+The convention: a known-failing test gets postponed to a future date instead of being fixed immediately. While `Date.now() < +new Date(...)` the test is skipped; once the date passes, the test runs again. **If a test starts failing and you don't recognize it as a recent change, grep for it first** — it's very likely an expired postpone, not a regression you introduced.
+
+```bash
+grep -rn "skipIf" --include="*.ts" drizzle-kit/tests integration-tests/tests drizzle-orm/tests
+```
+
+When the failing test has an expired `.skipIf` date (i.e., today's date ≥ the date in the call), **bump the date to one month from today** rather than try to fix it in-band — that's the established workflow for this repo. Use the actual calendar date (the global context provides today's date), not a relative offset, and use the same `'YYYY-MM-DD'` format already in the file.
+
+If the same test also has a `// @ts-ignore skipIf(Date.now() < +new Date('YYYY-MM-DD')) - just to make it searchable` comment nearby (see `integration-tests/tests/pg/common-pt2.ts:6674` for the pattern), bump the date in the comment too so the search stays consistent.
+
+Only after ruling out an expired postpone should you start debugging the test logic, the schema, or the dialect.
+
 ## Common failure patterns and the fix
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
+| A previously-passing test suddenly fails with no obvious code change | Expired `.skipIf(Date.now() < +new Date('YYYY-MM-DD'))` postpone — the gate just opened | See "Before debugging" section above; bump the date(s) to one month from today |
 | `process.env.PG18_URL is not set` (or any `_URL`/`_CONNECTION_STRING`) | `drizzle-kit/.env` missing or env var commented out | Run step 1; check the line is uncommented in `drizzle-kit/.env` |
 | `connect ECONNREFUSED 127.0.0.1:55433` (or any port) | DB container not running, or running on the wrong port | `bash compose/dockers.sh up <dialect>`; if it's already up, check `bash compose/dockers.sh ps <dialect>` shows it healthy on the expected port |
 | Tests hang after starting | Older `dockers.sh` was inline `docker run` with mismatched ports — `git pull` first; the new dispatcher gates on `wait.sh` | `git status` to confirm `compose/dockers.sh` is the dispatcher form, not the old inline form |
