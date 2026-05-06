@@ -1,7 +1,18 @@
 import { test as brotest } from '@drizzle-team/brocli';
 import { join } from 'node:path';
-import { assert, expect, test } from 'vitest';
+import { afterEach, assert, expect, test } from 'vitest';
 import { exportRaw } from '../../src/cli/schema';
+
+const originalPrefix = process.env.TEST_CONFIG_PATH_PREFIX;
+process.env.TEST_CONFIG_PATH_PREFIX = './tests/cli/';
+
+afterEach(() => {
+	if (originalPrefix === undefined) {
+		process.env.TEST_CONFIG_PATH_PREFIX = './tests/cli/';
+	} else {
+		process.env.TEST_CONFIG_PATH_PREFIX = originalPrefix;
+	}
+});
 
 // good:
 // #1 drizzle-kit export --dialect=postgresql --schema=schema.ts
