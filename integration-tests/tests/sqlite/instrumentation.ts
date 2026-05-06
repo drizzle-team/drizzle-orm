@@ -24,6 +24,7 @@ import { D1Database, D1DatabaseAPI } from '@miniflare/d1';
 import { createSQLiteDB } from '@miniflare/shared';
 import { Database as SqliteCloudDatabase, SQLiteCloudRowset } from '@sqlitecloud/drivers';
 import { Database as TursoDatabase } from '@tursodatabase/database';
+import { connect } from '@tursodatabase/serverless';
 import type BetterSqlite3 from 'better-sqlite3';
 import Client from 'better-sqlite3';
 import {
@@ -253,12 +254,12 @@ export const prepareTursoDatabaseClient = () => {
 	const client = new TursoDatabase(':memory:');
 
 	const all = async (sql: string, params: any[] = []) => {
-		const stmt = client.prepare(sql);
+		const stmt = await client.prepare(sql);
 		return stmt.all(...params);
 	};
 
 	const run = async (sql: string, params: any[] = []) => {
-		const stmt = client.prepare(sql);
+		const stmt = await client.prepare(sql);
 		return stmt.run(...params) as any;
 	};
 
@@ -271,17 +272,20 @@ export const prepareTursoDatabaseClient = () => {
 	return { client, all, run, batch };
 };
 
-export const prepareTursoDatabaseServerlessClient = () => {
-	const client = new TursoDatabase(':memory:');
+export const prepareTursoDatabaseServerlessClient = (url: string, authToken: string | undefined) => {
+	const client = connect({
+		url,
+		authToken,
+	});
 
 	const all = async (sql: string, params: any[] = []) => {
-		const stmt = client.prepare(sql);
-		return stmt.all(...params);
+		const stmt = await client.prepare(sql);
+		return stmt.all(params) as any;
 	};
 
 	const run = async (sql: string, params: any[] = []) => {
-		const stmt = client.prepare(sql);
-		return stmt.run(...params) as any;
+		const stmt = await client.prepare(sql);
+		return stmt.run(params) as any;
 	};
 
 	const batch = async (statements: string[]) => {
@@ -545,8 +549,15 @@ export const providerForTursoDatabase = async () => {
 };
 
 export const providerForTursoDatabaseServerless = async () => {
-	const clients = [prepareTursoDatabaseServerlessClient()];
-
+	const url = process.env['LIBSQL_REMOTE_MANY_URL'];
+	const authToken = process.env['LIBSQL_REMOTE_TOKEN'];
+	if (url === undefined) {
+		throw new Error('LIBSQL_REMOTE_MANY_URL is not set.');
+	}
+	const uris = url.split(';').filter((val) => val !== '');
+	const clients = await Promise.all(
+		uris.map(async (urlI) => await prepareTursoDatabaseServerlessClient(urlI, authToken)),
+	);
 	return providerClosure(clients);
 };
 

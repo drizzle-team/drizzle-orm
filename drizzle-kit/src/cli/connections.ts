@@ -2080,8 +2080,7 @@ export const connectToSQLite = async (
 		};
 
 		const query = async <T>(sql: string, params?: any[]) => {
-			const res = await client.prepare(sql).then((stmt) => stmt.bind(preparePGliteParams(params || [])).all());
-			return res as T[];
+			return client.prepare(sql).then((stmt) => stmt.bind(...preparePGliteParams(params || [])).all()) as Promise<T[]>;
 		};
 		const batch = async (queries: string[]) => {
 			for (const query of queries) {
@@ -2091,7 +2090,7 @@ export const connectToSQLite = async (
 
 		const proxy = async (params: ProxyParams) => {
 			const preparedParams = prepareSqliteParams(params.params || []);
-			return client.prepare(params.sql).then((stmt) => stmt.bind(preparedParams).raw(params.mode === 'array').all());
+			return client.prepare(params.sql).then((stmt) => stmt.bind(...preparedParams).raw(params.mode === 'array').all());
 		};
 
 		const transactionProxy: TransactionProxy = async (queries) => {
@@ -2138,18 +2137,20 @@ export const connectToSQLite = async (
 		};
 
 		const query = async <T>(sql: string, params?: any[]) => {
-			const res = await client.prepare(sql).then((stmt) => stmt.all(preparePGliteParams(params || [])));
-			return res as T[];
+			const stmt = await client.prepare(sql);
+			return stmt.all(preparePGliteParams(params || [])) as Promise<T[]>;
 		};
 		const batch = async (queries: string[]) => {
 			for (const query of queries) {
-				await client.prepare(query).then((stmt) => stmt.all());
+				const stmt = await client.prepare(query);
+				await stmt.all();
 			}
 		};
 
 		const proxy = async (params: ProxyParams) => {
 			const preparedParams = prepareSqliteParams(params.params || []);
-			return client.prepare(params.sql).then((stmt) => stmt.raw(params.mode === 'array').all(preparedParams));
+			const stmt = await client.prepare(params.sql);
+			return stmt.raw(params.mode === 'array').all(preparedParams);
 		};
 
 		const transactionProxy: TransactionProxy = async (queries) => {
@@ -2157,7 +2158,8 @@ export const connectToSQLite = async (
 			try {
 				const tx = client.transaction(async () => {
 					for (const query of queries) {
-						const result = await client.prepare(query.sql).then((stmt) => stmt.all());
+						const stmt = await client.prepare(query.sql);
+						const result = await stmt.all();
 						results.push(result);
 					}
 				});

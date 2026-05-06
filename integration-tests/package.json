@@ -61,7 +61,7 @@
 		"@tidbcloud/serverless": "^0.1.1",
 		"@tursodatabase/database": "0.6.0-pre.28",
 		"@tursodatabase/database-wasm": "0.6.0-pre.28",
-		"@tursodatabase/serverless": "^1.1.3",
+		"@tursodatabase/serverless": "1.2.0-pre.1",
 		"@types/chai": "^5.2.2",
 		"@typescript/analyze-trace": "^0.10.0",
 		"@vercel/postgres": "^0.8.0",

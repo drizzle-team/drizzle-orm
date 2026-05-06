@@ -252,7 +252,7 @@ export class TursoDatabaseServerlessPreparedQuery<
 		logger.logQuery(query.sql, params);
 		return this.queryWithCache(query.sql, params, async () => {
 			this.stmt ??= await this.client.prepare(query.sql);
-			return (params.length ? this.stmt.run(...params) : this.stmt.run());
+			return this.stmt.run(params);
 		});
 	}
 
@@ -265,7 +265,7 @@ export class TursoDatabaseServerlessPreparedQuery<
 			logger.logQuery(query.sql, params);
 			return this.queryWithCache(query.sql, params, async () => {
 				this.stmt ??= await this.client.prepare(query.sql);
-				return (params.length ? this.stmt.raw(false).all(...params) : this.stmt.raw(false).all());
+				return this.stmt.raw(false).all(params);
 			});
 		}
 
@@ -285,7 +285,7 @@ export class TursoDatabaseServerlessPreparedQuery<
 
 		const rows = await this.queryWithCache(query.sql, params, async () => {
 			this.stmt ??= await this.client.prepare(query.sql);
-			return (params.length ? this.stmt.raw(false).all(...params) : this.stmt.raw(false).all());
+			return this.stmt.raw(false).all(params);
 		});
 
 		return this.useJitMappers
@@ -307,13 +307,13 @@ export class TursoDatabaseServerlessPreparedQuery<
 			logger.logQuery(query.sql, params);
 			return this.queryWithCache(query.sql, params, async () => {
 				this.stmt ??= await this.client.prepare(query.sql);
-				return (params.length ? this.stmt.raw(false).get(...params) : this.stmt.raw(false).get());
+				return this.stmt.raw(false).get(params);
 			});
 		}
 
 		const row = await this.queryWithCache(query.sql, params, async () => {
 			this.stmt ??= await this.client.prepare(query.sql);
-			return (params.length ? this.stmt.raw(true).get(...params) : this.stmt.raw(true).get());
+			return this.stmt.raw(true).get(params);
 		});
 
 		if (row === undefined) return row;
@@ -334,7 +334,7 @@ export class TursoDatabaseServerlessPreparedQuery<
 
 		const row = await this.queryWithCache(query.sql, params, async () => {
 			this.stmt ??= await this.client.prepare(query.sql);
-			return (params.length ? this.stmt.raw(false).get(...params) : this.stmt.raw(false).get());
+			return this.stmt.raw(false).get(params);
 		});
 
 		if (row === undefined) return row;
@@ -354,7 +354,7 @@ export class TursoDatabaseServerlessPreparedQuery<
 		logger.logQuery(query.sql, params);
 		return this.queryWithCache(query.sql, params, async () => {
 			this.stmt ??= await this.client.prepare(query.sql);
-			return (params.length ? this.stmt.raw(true).all(...params) : this.stmt.raw(true).all());
+			return this.stmt.raw(true).all(params);
 		});
 	}
 }
