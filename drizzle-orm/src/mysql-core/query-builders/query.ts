@@ -1,22 +1,20 @@
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import {
-	type BuildQueryResult,
-	type BuildRelationalQueryResult,
-	type DBQueryConfigWithComment,
-	makeDefaultRqbMapper,
-	type TableRelationalConfig,
-	type TablesRelationalConfig,
+import type {
+	BuildQueryResult,
+	BuildRelationalQueryResult,
+	DBQueryConfigWithComment,
+	TableRelationalConfig,
+	TablesRelationalConfig,
 } from '~/relations.ts';
 import type { Query, SQL, SqlCommenterInput } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { MySqlDialect } from '../dialect.ts';
-import type { MySqlPreparedQueryConfig, MySqlSession, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
+import type { MySqlPreparedQuery, MySqlPreparedQueryConfig, MySqlSession } from '../session.ts';
 import type { MySqlTable } from '../table.ts';
 import type { MySqlView } from '../view.ts';
 
 export class RelationalQueryBuilder<
-	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TSchema extends TablesRelationalConfig,
 	TFields extends TableRelationalConfig,
 > {
@@ -34,7 +32,7 @@ export class RelationalQueryBuilder<
 		config?: KnownKeysOnly<TConfig, DBQueryConfigWithComment<'many', TSchema, TFields>> & {
 			comment?: SqlCommenterInput;
 		},
-	): MySqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TConfig>[]> {
+	): MySqlRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new MySqlRelationalQuery(
 			this.schema,
 			this.table,
@@ -50,7 +48,7 @@ export class RelationalQueryBuilder<
 		config?: KnownKeysOnly<TSelection, DBQueryConfigWithComment<'one', TSchema, TFields>> & {
 			comment?: SqlCommenterInput;
 		},
-	): MySqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
+	): MySqlRelationalQuery<BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
 		return new MySqlRelationalQuery(
 			this.schema,
 			this.table,
@@ -64,7 +62,6 @@ export class RelationalQueryBuilder<
 }
 
 export class MySqlRelationalQuery<
-	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TResult,
 > extends QueryPromise<TResult> {
 	static override readonly [entityKind]: string = 'MySqlRelationalQueryV2';
@@ -85,24 +82,19 @@ export class MySqlRelationalQuery<
 
 	prepare() {
 		const { query, builtQuery } = this._toSQL();
-		return this.session.prepareRelationalQuery(
+		const mapper = this.dialect.mapperGenerators.relationalRows({
+			isFirst: this.mode === 'first',
+			parseJson: false,
+			parseJsonIfString: false,
+			rootJsonMappers: true,
+			selection: query.selection,
+		});
+
+		return this.session.prepareQuery(
 			builtQuery,
-			undefined,
-			makeDefaultRqbMapper({
-				isFirst: this.mode === 'first',
-				parseJson: false,
-				parseJsonIfString: false,
-				rootJsonMappers: true,
-				selection: query.selection,
-			}),
-			{
-				isFirst: this.mode === 'first',
-				parseJson: false,
-				parseJsonIfString: false,
-				rootJsonMappers: true,
-				selection: query.selection,
-			},
-		) as PreparedQueryKind<TPreparedQueryHKT, MySqlPreparedQueryConfig & { execute: TResult }, true>;
+			'objects',
+			mapper,
+		) as MySqlPreparedQuery<MySqlPreparedQueryConfig & { execute: TResult }>;
 	}
 
 	private _getQuery() {

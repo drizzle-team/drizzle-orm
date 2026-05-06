@@ -257,7 +257,7 @@ export class PlanetscaleSession<
 		return this.client.execute(query, params, { as: 'object' });
 	}
 
-	override all<T = unknown>(query: SQL): Promise<T[]> {
+	override objects<T = unknown>(query: SQL): Promise<T[]> {
 		const querySql = this.dialect.sqlToQuery(query);
 		this.logger.logQuery(querySql.sql, querySql.params);
 

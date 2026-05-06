@@ -29,7 +29,7 @@ const upgradeFunctions: Record<
 
 		// 1. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
-		const dbRows = await session.all<{ id: number; hash: string; created_at: string }>(
+		const dbRows = await session.objects<{ id: number; hash: string; created_at: string }>(
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
 		);
 
@@ -86,13 +86,13 @@ const upgradeFunctions: Record<
 		}
 
 		// 5. Create extra column and backfill names for matched migrations
-		await session.all(sql`ALTER TABLE ${table} ADD ${sql.identifier('name')} text`);
-		await session.all(
+		await session.objects(sql`ALTER TABLE ${table} ADD ${sql.identifier('name')} text`);
+		await session.objects(
 			sql`ALTER TABLE ${table} ADD ${sql.identifier('applied_at')} TIMESTAMP DEFAULT CURRENT_TIMESTAMP`,
 		);
 
 		for (const backfillEntry of toApply) {
-			await session.all(
+			await session.objects(
 				sql`UPDATE ${table} SET ${sql.identifier('name')} = ${backfillEntry.name}, ${
 					sql.identifier('applied_at')
 				} = NULL WHERE ${sql.identifier('id')} = ${backfillEntry.id}`,
@@ -113,7 +113,7 @@ export async function upgradeIfNeeded(
 	localMigrations: MigrationMeta[],
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
-	const result = await session.all<{ '1': 1 }>(
+	const result = await session.objects<{ '1': 1 }>(
 		sql`SELECT 1 FROM information_schema.tables 
 			WHERE table_name = ${migrationsTable}
 			AND table_schema = DATABASE()`,
@@ -124,7 +124,7 @@ export async function upgradeIfNeeded(
 	}
 
 	// Table exists, check table shape
-	const rows = await session.all<{ column_name: string }>(
+	const rows = await session.objects<{ column_name: string }>(
 		sql`SELECT column_name as \`column_name\`
 		FROM information_schema.columns
 		WHERE table_name = ${migrationsTable}

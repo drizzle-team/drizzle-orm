@@ -228,7 +228,7 @@ export class TiDBServerlessSession<
 		);
 	}
 
-	override all<T = unknown>(query: SQL): Promise<T[]> {
+	override objects<T = unknown>(query: SQL): Promise<T[]> {
 		const querySql = this.dialect.sqlToQuery(query);
 		this.logger.logQuery(querySql.sql, querySql.params);
 		return this.client.execute(querySql.sql, querySql.params) as Promise<T[]>;

@@ -31,7 +31,7 @@ const upgradeFunctions: Record<
 
 		// 1. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
-		const dbRows = (await db.session.all<[number, string, string]>(
+		const dbRows = (await db.session.objects<[number, string, string]>(
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
 		)).map((it) => ({
 			id: it[0],
@@ -128,7 +128,7 @@ export async function upgradeIfNeeded(
 	localMigrations: MigrationMeta[],
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
-	const result = await db.session.all<[1]>(
+	const result = await db.session.objects<[1]>(
 		sql`SELECT 1 FROM information_schema.tables 
 			WHERE table_name = ${migrationsTable}
 			AND table_schema = DATABASE()`,
@@ -139,7 +139,7 @@ export async function upgradeIfNeeded(
 	}
 
 	// Table exists, check table shape
-	const rows = await db.session.all<[string]>(
+	const rows = await db.session.objects<[string]>(
 		sql`SELECT column_name as \`column_name\`
 		FROM information_schema.columns
 		WHERE table_name = ${migrationsTable}
