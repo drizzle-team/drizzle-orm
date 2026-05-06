@@ -549,10 +549,10 @@ export const providerForTursoDatabase = async () => {
 };
 
 export const providerForTursoDatabaseServerless = async () => {
-	const url = process.env['LIBSQL_REMOTE_MANY_URL'];
+	const url = process.env['LIBSQL_URL'];
 	const authToken = process.env['LIBSQL_REMOTE_TOKEN'];
 	if (url === undefined) {
-		throw new Error('LIBSQL_REMOTE_MANY_URL is not set.');
+		throw new Error('LIBSQL_URL is not set.');
 	}
 	const uris = url.split(';').filter((val) => val !== '');
 	const clients = await Promise.all(
