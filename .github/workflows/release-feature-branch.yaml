@@ -102,6 +102,8 @@ jobs:
             dbs: [postgres]
           - shard: int:sqlite
             dbs: []
+          - shard: int:turso-serverless
+            dbs: []
           - shard: int:other
             dbs: [mysql, postgres, postgres-postgis, postgres-vector]
           - shard: int:seeder
@@ -260,8 +262,8 @@ jobs:
             ;;
             int:cockroach) pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
             int:mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
-            int:sqlite) pnpm --stream vitest --reporter=verbose --silent=false run tests/sqlite ;;
-            
+            int:sqlite) pnpm --stream test:sqlite ;;
+            int:turso-serverless) pnpm --stream vitest --reporter=verbose --silent=false --test-timeout=200000 run tests/sqlite/tursodatabase-serverless.test.ts
             kit:other) cd ../drizzle-kit && pnpm --stream run test:other ;;
             kit:postgres) cd ../drizzle-kit && pnpm --stream run test:postgres ;;
             kit:postgres18) cd ../drizzle-kit && PG_VERSION=18 pnpm --stream run test:postgres ;;
@@ -278,9 +280,9 @@ jobs:
             
             int:bun)  bun test ./tests/bun/ ;;
 
-            int:seeder) pnpm test:seeder ;;
-            int:imports) pnpm test:imports ;;
-            int:other) pnpm test:other ;;
+            int:seeder) pnpm --stream test:seeder ;;
+            int:imports) pnpm --stream test:imports ;;
+            int:other) pnpm --stream test:other ;;
 
             *) echo "Unknown shard: ${{matrix.shard}}"; exit 1 ;;
           esac

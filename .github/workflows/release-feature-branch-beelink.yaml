@@ -112,6 +112,8 @@ jobs:
             dbs: [postgres]
           - shard: int:sqlite
             dbs: []
+          - shard: int:turso-serverless
+            dbs: []
           - shard: int:other
             dbs: [mysql, mssql, cockroach, postgres, postgres-postgis, postgres-vector]
           - shard: int:planetscale
@@ -249,8 +251,8 @@ jobs:
             ;;
             int:cockroach) pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
             int:mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
-            int:sqlite) pnpm --stream vitest --reporter=verbose --silent=false run tests/sqlite ;;
-            
+            int:sqlite) pnpm --stream test:sqlite ;;
+            int:turso-serverless) pnpm --stream vitest --reporter=verbose --silent=false --test-timeout=200000 run tests/sqlite/tursodatabase-serverless.test.ts
             kit:other) cd ../drizzle-kit && pnpm --stream run test:other ;;
             kit:postgres) cd ../drizzle-kit && pnpm --stream run test:postgres ;;
             kit:cockroach)
