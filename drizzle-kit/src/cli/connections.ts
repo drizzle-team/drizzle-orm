@@ -1,6 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 import type { PGlite } from '@electric-sql/pglite';
 import type { SQLiteCloudRowset } from '@sqlitecloud/drivers';
+import { DrizzleQueryError, is } from 'drizzle-orm';
 import type { AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
@@ -102,7 +103,13 @@ export const preparePostgresDB = async (
 					undefined,
 				);
 
-				return prepared.execute();
+				return prepared.execute().catch((e) => {
+					// * AwsDataApiSession wraps all errors into DrizzleQueryError, so we need to check the cause
+					if (e instanceof DrizzleQueryError && e.cause instanceof Error) {
+						throw new QueryError(e.cause, sql, params);
+					}
+					throw new QueryError(e, sql, params);
+				});
 			};
 			const proxy = async (params: ProxyParams) => {
 				const prepared = session.prepareQuery<
@@ -119,7 +126,13 @@ export const preparePostgresDB = async (
 					undefined,
 				);
 
-				return prepared.execute();
+				return prepared.execute().catch((e) => {
+					// * AwsDataApiSession wraps all errors into DrizzleQueryError, so we need to check the cause
+					if (is(e, DrizzleQueryError) && e.cause instanceof Error) {
+						throw new QueryError(e.cause, params.sql, params.params || []);
+					}
+					throw new QueryError(e, params.sql, params.params || []);
+				});
 			};
 			const transactionProxy: TransactionProxy = async (_queries) => {
 				throw new Error('Transaction not supported');
