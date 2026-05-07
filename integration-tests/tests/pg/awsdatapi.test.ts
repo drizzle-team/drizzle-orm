@@ -12,6 +12,7 @@ import {
 	date,
 	integer,
 	jsonb,
+	pgEnum,
 	pgTable,
 	pgTableCreator,
 	serial,
@@ -72,6 +73,19 @@ const userRelations = relations(user, (ctx) => ({
 const todoUser = pgTable('todo_user', {
 	todoId: uuid('todo_id').references(() => todo.id),
 	userId: uuid('user_id').references(() => user.id),
+});
+
+// Regression coverage for #2583 / #3409: AWS Data API has no `typeHint` for enums or arrays,
+// so column-bound params must be cast explicitly in the SQL.
+const accountRole = pgEnum('account_role', ['admin', 'member', 'guest']);
+
+const account = pgTable('account', {
+	id: uuid('id').primaryKey(),
+	role: accountRole('role').notNull(),
+	tags: text('tags')
+		.array()
+		.notNull()
+		.default(sql`'{}'`),
 });
 
 const todoToGroupRelations = relations(todoUser, (ctx) => ({
@@ -152,6 +166,17 @@ beforeEach(async () => {
 			create table todo_user (
 				todo_id uuid references todo(id),
 				user_id uuid references "user"(id)
+			)
+		`,
+	);
+
+	await db.execute(sql`create type account_role as enum ('admin', 'member', 'guest')`);
+	await db.execute(
+		sql`
+			create table account (
+				id uuid primary key,
+				role account_role not null,
+				tags text[] not null default '{}'
 			)
 		`,
 	);
@@ -1610,7 +1635,43 @@ test('Typehints mix for findFirst', async () => {
 	expect(res).toStrictEqual({ id: 'd997d46d-5769-4c78-9a35-93acadbe6076', email: 'd' });
 });
 
+// Regression tests for #2583 / #3409.
+// AWS RDS Data API exposes typeHint values only for JSON, UUID, TIMESTAMP, DATE, TIME, DECIMAL
+// (https://docs.aws.amazon.com/rdsdataservice/latest/APIReference/API_SqlParameter.html).
+// Without an explicit `cast(...)`, params for enums, arrays, and other custom types arrive at
+// Postgres as `text` and the comparison fails with "operator does not exist: <T> = text".
+test('aws data api: insert + select-where with enum and uuid columns', async () => {
+	const id = '00000000-0000-0000-0000-000000000001';
+	await db.insert(account).values({ id, role: 'admin', tags: ['a', 'b'] });
+
+	const rows = await db.select().from(account).where(eq(account.role, 'admin'));
+
+	expect(rows).toEqual([{ id, role: 'admin', tags: ['a', 'b'] }]);
+});
+
+test('aws data api: update set + where on enum/uuid columns', async () => {
+	const id = '00000000-0000-0000-0000-000000000002';
+	await db.insert(account).values({ id, role: 'member' });
+
+	await db.update(account).set({ role: 'admin' }).where(eq(account.id, id));
+
+	const rows = await db.select().from(account).where(eq(account.id, id));
+	expect(rows[0]?.role).toBe('admin');
+});
+
+test('aws data api: delete where on enum predicate', async () => {
+	const id = '00000000-0000-0000-0000-000000000003';
+	await db.insert(account).values({ id, role: 'guest' });
+
+	await db.delete(account).where(eq(account.role, 'guest'));
+
+	const rows = await db.select().from(account);
+	expect(rows.length).toBe(0);
+});
+
 afterAll(async () => {
+	await db.execute(sql`drop table if exists "account"`);
+	await db.execute(sql`drop type if exists "account_role"`);
 	await db.execute(sql`drop table if exists "users"`);
 	await db.execute(sql`drop table if exists "todo_user"`);
 	await db.execute(sql`drop table if exists "user"`);
