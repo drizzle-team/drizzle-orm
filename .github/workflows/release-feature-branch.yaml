@@ -19,6 +19,10 @@ on:
         required: true
       LIBSQL_REMOTE_TOKEN:
         required: true
+      TURSODATABASE_REMOTE_URL:
+        required: true
+      TURSODATABASE_REMOTE_TOKEN:
+        required: true
       SQLITE_CLOUD_CONNECTION_STRING:
         required: true
       SQLITE_MANY_CLOUD_CONNECTION_STRING:
@@ -223,6 +227,8 @@ jobs:
           LIBSQL_URL: file:local.db
           LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
           LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
+          TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
+          TURSODATABASE_REMOTE_TOKEN: ${{ secrets.TURSODATABASE_REMOTE_TOKEN }}
           SINGLESTORE_CONNECTION_STRING: singlestore://root:singlestore@localhost:33307/
           SINGLESTORE_MANY_CONNECTION_STRING: singlestore://root:singlestore@localhost:3308/;singlestore://root:singlestore@localhost:3309/;singlestore://root:singlestore@localhost:3310/;singlestore://root:singlestore@localhost:3311/
           COCKROACH_CONNECTION_STRING: postgresql://root@127.0.0.1:26257/defaultdb?sslmode=disable

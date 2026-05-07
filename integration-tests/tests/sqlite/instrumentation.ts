@@ -549,14 +549,18 @@ export const providerForTursoDatabase = async () => {
 };
 
 export const providerForTursoDatabaseServerless = async () => {
-	const url = process.env['LIBSQL_REMOTE_URL'];
-	const authToken = process.env['LIBSQL_REMOTE_TOKEN'];
+	const url = process.env['TURSODATABASE_REMOTE_URL'];
+	const authToken = process.env['TURSODATABASE_REMOTE_TOKEN'];
 	if (url === undefined) {
-		throw new Error('LIBSQL_REMOTE_URL is not set.');
+		throw new Error('TURSODATABASE_REMOTE_URL is not set.');
+	}
+	if (authToken === undefined) {
+		throw new Error('TURSODATABASE_REMOTE_TOKEN is not set.');
 	}
 	const uris = url.split(';').filter((val) => val !== '');
+	const tokens = authToken.split(';').filter((val) => val !== '');
 	const clients = await Promise.all(
-		uris.map(async (urlI) => await prepareTursoDatabaseServerlessClient(urlI, authToken)),
+		uris.map(async (urlI, i) => await prepareTursoDatabaseServerlessClient(urlI, tokens[i])),
 	);
 	return providerClosure(clients);
 };
