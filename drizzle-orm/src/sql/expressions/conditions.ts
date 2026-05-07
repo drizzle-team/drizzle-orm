@@ -17,9 +17,8 @@ import {
 export function bindIfParam(value: unknown, column: SQLWrapper): SQLChunk {
 	if (
 		isDriverValueEncoder(column)
-		&& !isSQLWrapper(value)
+		&& (!isSQLWrapper(value) || is(value, Placeholder))
 		&& !is(value, Param)
-		&& !is(value, Placeholder)
 		&& !is(value, Column)
 		&& !is(value, Table)
 		&& !is(value, View)
