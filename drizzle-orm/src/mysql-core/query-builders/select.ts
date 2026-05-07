@@ -1143,7 +1143,7 @@ export class MySqlSelectBase<
 
 		const preparedQuery = this.session.prepareQuery<
 			MySqlPreparedQueryConfig & { execute: TResult[] }
-		>(this.dialect.sqlToQuery(this.getSQL()), 'arrays', mapper, undefined, undefined, {
+		>(this.dialect.sqlToQuery(this.getSQL()), 'arrays', mapper, {
 			type: 'select',
 			tables: [...this.usedTables],
 		}, this.cacheConfig);

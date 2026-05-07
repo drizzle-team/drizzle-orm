@@ -86,13 +86,13 @@ const upgradeFunctions: Record<
 		}
 
 		// 5. Create extra column and backfill names for matched migrations
-		await session.objects(sql`ALTER TABLE ${table} ADD ${sql.identifier('name')} text`);
-		await session.objects(
+		await session.execute(sql`ALTER TABLE ${table} ADD ${sql.identifier('name')} text`);
+		await session.execute(
 			sql`ALTER TABLE ${table} ADD ${sql.identifier('applied_at')} TIMESTAMP DEFAULT CURRENT_TIMESTAMP`,
 		);
 
 		for (const backfillEntry of toApply) {
-			await session.objects(
+			await session.execute(
 				sql`UPDATE ${table} SET ${sql.identifier('name')} = ${backfillEntry.name}, ${
 					sql.identifier('applied_at')
 				} = NULL WHERE ${sql.identifier('id')} = ${backfillEntry.id}`,

@@ -310,9 +310,7 @@ export class MySqlInsertBase<
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(sql),
 			'raw',
-			undefined,
-			generatedIds,
-			this.config.returning,
+			this.dialect.mapperGenerators.$returning(this.config.returning, generatedIds),
 			{
 				type: 'insert',
 				tables: extractUsedTable(this.config.table),

@@ -213,13 +213,13 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 			// proxyHandler: (sql: string, params: any[], method: any) => Promise<{
 			// 	rows: any;
 			// }>;
-			db: MySqlDatabase<any, any, never, typeof relations>;
+			db: MySqlDatabase<any, typeof relations>;
 			createDB: {
 				<S extends MysqlSchema, TConfig extends AnyRelationsBuilderConfig>(config: {
 					schema?: S;
 					cb?: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig;
 					proxyClient?: mysql.Connection;
-				}): MySqlDatabase<any, any, S, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
+				}): MySqlDatabase<any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
 			};
 			push: (schema: any) => Promise<void>;
 			seed: <Schema extends MysqlSchema>(
@@ -372,12 +372,12 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 					const relations = schema ? cb ? defineRelations(schema, cb) : defineRelations(schema) : undefined;
 
 					if (vendor === 'mysql') {
-						return mysql2Drizzle({ client: client.client as any, relations, mode: 'default', schema: schema ?? {} });
+						return mysql2Drizzle({ client: client.client as any, relations });
 					}
-					if (vendor === 'tidb') return drizzleTidb({ client: client.client as any, relations, schema });
-					if (vendor === 'planetscale') return psDrizzle({ client: client.client as any, relations, schema });
+					if (vendor === 'tidb') return drizzleTidb({ client: client.client as any, relations });
+					if (vendor === 'planetscale') return psDrizzle({ client: client.client as any, relations });
 					if (vendor === 'mysql-proxy') {
-						return proxyDrizzle(createProxyHandler(proxyClient ?? client.client as any), { relations, schema }) as any;
+						return proxyDrizzle(createProxyHandler(proxyClient ?? client.client as any), { relations }) as any;
 					}
 					throw new Error();
 				};

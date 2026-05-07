@@ -31,14 +31,14 @@ declare module 'vitest' {
 	export interface TestContext {
 		docker: Docker;
 		mysqlContainer: Docker.Container;
-		mysqlDbV2: MySql2Database<never, typeof relations>;
+		mysqlDbV2: MySql2Database<typeof relations>;
 		mysqlClient: mysql.Connection;
 	}
 }
 
 let globalDocker: Docker;
 let mysqlContainer: Docker.Container;
-let db: MySql2Database<never, typeof relations>;
+let db: MySql2Database<typeof relations>;
 let client: mysql.Connection;
 
 async function createDockerDB(): Promise<string> {
@@ -93,7 +93,7 @@ beforeAll(async () => {
 		await mysqlContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle({ client, relations, logger: ENABLE_LOGGING, mode: 'default' });
+	db = drizzle({ client, relations, logger: ENABLE_LOGGING });
 });
 
 afterAll(async () => {

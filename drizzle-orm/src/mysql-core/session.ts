@@ -8,7 +8,6 @@ import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { assertUnreachable } from '~/utils.ts';
 import { MySqlDatabase } from './db.ts';
 import type { MySqlDialect } from './dialect.ts';
-import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
 
 export interface MySqlQueryResultHKT {
 	readonly $brand: 'MySqlQueryResultHKT';
@@ -35,6 +34,10 @@ export interface MySqlPreparedQueryHKT {
 	readonly type: unknown;
 }
 
+export type AnyMySqlMapper = (
+	response: Record<string, unknown>[] | unknown[][] | { insertId: number; affectedRows: number },
+) => any;
+
 export class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 	static readonly [entityKind]: string = 'MySqlPreparedQuery';
 
@@ -50,7 +53,9 @@ export class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 		protected executor: (params?: unknown[]) => Promise<any>,
 		protected _iterator: ((params?: unknown[]) => AsyncGenerator<any[]>) | undefined,
 		protected query: Query,
-		mapper: ((rows: any[]) => any) | undefined,
+		mapper:
+			| AnyMySqlMapper
+			| undefined,
 		readonly mode: 'arrays' | 'objects' | 'raw',
 		protected logger: Logger,
 		// cache instance
@@ -218,11 +223,7 @@ export abstract class MySqlSession<
 	abstract prepareQuery<T extends MySqlPreparedQueryConfig>(
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
-		mapper?: (rows: any[]) => any,
-		// Keys that were used in $default and the value that was generated for them
-		generatedIds?: Record<string, unknown>[],
-		// Keys that should be returned, it has the column with all properties + key from object
-		returningIds?: SelectedFieldsOrdered,
+		mapper?: (rows: any) => any,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];

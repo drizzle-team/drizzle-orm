@@ -8,6 +8,8 @@ import type { MySqlSession } from '../session.ts';
 import type { MySqlTable } from '../table.ts';
 import type { MySqlViewBase } from '../view-base.ts';
 
+export interface MySqlCountBuilder extends SQL<number>, SQLWrapper<number>, QueryPromise<number> {}
+
 export class MySqlCountBuilder extends SQL<number> implements SQLWrapper<number> {
 	static override readonly [entityKind]: string = 'MySqlCountBuilder';
 
@@ -57,7 +59,6 @@ export class MySqlCountBuilder extends SQL<number> implements SQLWrapper<number>
 		}>(
 			this.build(),
 			'arrays',
-			false,
 			(rows) => {
 				const v = rows[0]?.[0];
 				if (typeof v === 'number') return v;

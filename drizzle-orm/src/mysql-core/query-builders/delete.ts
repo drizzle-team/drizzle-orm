@@ -37,7 +37,7 @@ export type MySqlDeleteWithout<
 export type MySqlDelete<
 	TTable extends MySqlTable = MySqlTable,
 	TQueryResult extends MySqlQueryResultHKT = AnyMySqlQueryResultHKT,
-> = MySqlDeleteBase<TTable, TQueryResult, never>;
+> = MySqlDeleteBase<TTable, TQueryResult, true, never>;
 
 export type MySqlDeletePrepare<T extends AnyMySqlDeleteBase> = MySqlPreparedQuery<
 	MySqlPreparedQueryConfig & {
@@ -184,9 +184,7 @@ export class MySqlDeleteBase<
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
 			'raw',
-			undefined,
-			undefined,
-			this.config.returning,
+			this.dialect.mapperGenerators.$returning(this.config.returning),
 			{
 				type: 'delete',
 				tables: extractUsedTable(this.config.table),

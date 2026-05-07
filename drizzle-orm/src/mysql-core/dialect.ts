@@ -33,6 +33,7 @@ import { Subquery } from '~/subquery.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/mysql.ts';
 import {
+	make$ReturningResponseMapper,
 	makeDefaultQueryMapper,
 	makeJitQueryMapper,
 	orderSelectedFields,
@@ -66,6 +67,7 @@ export class MySqlDialect {
 	readonly mapperGenerators: {
 		rows: RowsMapperGenerator;
 		relationalRows: RelationalRowsMapperGenerator;
+		$returning: typeof make$ReturningResponseMapper; // TODO: jit ver
 	};
 
 	constructor(config?: MySqlDialectConfig) {
@@ -77,10 +79,12 @@ export class MySqlDialect {
 			? {
 				rows: makeJitQueryMapper,
 				relationalRows: makeJitRqbMapper,
+				$returning: make$ReturningResponseMapper,
 			}
 			: {
 				rows: makeDefaultQueryMapper,
 				relationalRows: makeDefaultRqbMapper,
+				$returning: make$ReturningResponseMapper,
 			};
 	}
 

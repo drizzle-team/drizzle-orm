@@ -228,9 +228,7 @@ export class MySqlUpdateBase<
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
 			'raw',
-			undefined,
-			undefined,
-			this.config.returning,
+			this.dialect.mapperGenerators.$returning(this.config.returning, undefined),
 			{
 				type: 'insert',
 				tables: extractUsedTable(this.config.table),

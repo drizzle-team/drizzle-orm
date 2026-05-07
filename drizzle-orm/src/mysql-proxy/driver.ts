@@ -2,8 +2,9 @@ import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MySqlDatabase } from '~/mysql-core/db.ts';
 import { MySqlDialect, type MySqlDialectConfig } from '~/mysql-core/dialect.ts';
+import type { DrizzleMySqlConfig } from '~/mysql-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
+import { jitCompatCheck } from '~/utils.ts';
 import { type MySqlRemoteQueryResultHKT, MySqlRemoteSession } from './session.ts';
 
 export class MySqlRemoteDatabase<
@@ -20,7 +21,7 @@ export type RemoteCallback = (
 
 export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	callback: RemoteCallback,
-	config: DrizzleConfig<TRelations> = {},
+	config: DrizzleMySqlConfig<TRelations> = {},
 	_dialect: (config?: MySqlDialectConfig) => MySqlDialect = (config) => new MySqlDialect(config),
 ): MySqlRemoteDatabase<TRelations> {
 	const dialect = _dialect({
@@ -36,7 +37,6 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	const relations = config.relations ?? {} as TRelations;
 	const session = new MySqlRemoteSession(callback, dialect, relations, {
 		logger,
-		useJitMappers: jitCompatCheck(config.jit),
 	});
 	return new MySqlRemoteDatabase(
 		dialect,
