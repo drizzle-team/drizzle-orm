@@ -25,7 +25,7 @@ let db: BetterSQLite3Database<never, typeof relations>;
 beforeAll(() => {
 	const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
 
-	db = drizzle({ client: new Database(dbPath), relations, logger: ENABLE_LOGGING, casing: 'snake_case' });
+	db = drizzle({ client: new Database(dbPath), relations, logger: ENABLE_LOGGING });
 });
 
 beforeEach(() => {
@@ -10433,7 +10433,6 @@ test('[Find First] Relationless querying', async () => {
 
 	const d1 = drizzle(':memory:', {
 		relations: rels,
-		casing: 'snake_case',
 	});
 
 	d1.run(sql`DROP TABLE IF EXISTS \`users\``);
@@ -10486,7 +10485,6 @@ test('[Find Many] Relationless querying', async () => {
 
 	const d1 = drizzle(':memory:', {
 		relations: rels,
-		casing: 'snake_case',
 	});
 
 	d1.run(sql`DROP TABLE IF EXISTS \`users\``);

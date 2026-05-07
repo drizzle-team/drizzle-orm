@@ -6,7 +6,6 @@ import {
 	mapColumnsInAliasedSQLToAlias,
 	mapColumnsInSQLToAlias,
 } from '~/alias.ts';
-import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
@@ -31,12 +30,12 @@ import {
 	relationToSQL,
 } from '~/relations.ts';
 import { and, eq } from '~/sql/expressions/index.ts';
-import type { Name, Placeholder, QueryWithTypings, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
+import type { Name, Placeholder, Query, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
 import { isSQLWrapper, Param, SQL, sql, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/singlestore.ts';
-import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { SingleStoreColumn } from './columns/common.ts';
 import type { SingleStoreCustomColumn } from './columns/custom.ts';
@@ -52,9 +51,8 @@ import type { SingleStoreSession } from './session.ts';
 import { SingleStoreTable } from './table.ts';
 import type { SingleStoreView } from './view.ts';
 
-export interface SingleStoreDialectConfig {
-	casing?: Casing;
-}
+// Will add codecs here, do not remove
+export interface SingleStoreDialectConfig {}
 
 interface BuildRelationalQueryResultWithOrder extends BuildRelationalQueryResult {
 	order?: SQL;
@@ -63,12 +61,7 @@ interface BuildRelationalQueryResultWithOrder extends BuildRelationalQueryResult
 export class SingleStoreDialect {
 	static readonly [entityKind]: string = 'SingleStoreDialect';
 
-	/** @internal */
-	readonly casing: CasingCache;
-
-	constructor(config?: SingleStoreDialectConfig) {
-		this.casing = new CasingCache(config?.casing);
-	}
+	constructor(_config?: SingleStoreDialectConfig) {}
 
 	async migrate(
 		migrations: MigrationMeta[],
@@ -218,7 +211,7 @@ export class SingleStoreDialect {
 					?? (is(onUpdateFnResult, SQL)
 						? onUpdateFnResult
 						: sql.param(onUpdateFnResult, col));
-				const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
+				const res = sql`${sql.identifier(col.name)} = ${value}`;
 
 				if (i < setLength - 1) {
 					return [res, sql.raw(', ')];
@@ -286,7 +279,7 @@ export class SingleStoreDialect {
 					const newSql = new SQL(
 						query.queryChunks.map((c) => {
 							if (is(c, SingleStoreColumn)) {
-								return sql.identifier(this.casing.getColumnCasing(c));
+								return sql.identifier(c.name);
 							}
 							return c;
 						}),
@@ -304,8 +297,8 @@ export class SingleStoreDialect {
 				if (isSingleTable) {
 					chunk.push(
 						field.isAlias
-							? sql`${sql.identifier(this.casing.getColumnCasing(getOriginalColumnFromAlias(field)))} as ${field}`
-							: sql.identifier(this.casing.getColumnCasing(field)),
+							? sql`${sql.identifier(getOriginalColumnFromAlias(field).name)} as ${field}`
+							: sql.identifier(field.name),
 					);
 				} else {
 					chunk.push(
@@ -556,16 +549,14 @@ export class SingleStoreDialect {
 			for (const orderByUnit of orderBy) {
 				if (is(orderByUnit, SingleStoreColumn)) {
 					orderByValues.push(
-						sql.identifier(this.casing.getColumnCasing(orderByUnit)),
+						sql.identifier(orderByUnit.name),
 					);
 				} else if (is(orderByUnit, SQL)) {
 					for (let i = 0; i < orderByUnit.queryChunks.length; i++) {
 						const chunk = orderByUnit.queryChunks[i];
 
 						if (is(chunk, SingleStoreColumn)) {
-							orderByUnit.queryChunks[i] = sql.identifier(
-								this.casing.getColumnCasing(chunk),
-							);
+							orderByUnit.queryChunks[i] = sql.identifier(chunk.name);
 						}
 					}
 
@@ -605,7 +596,7 @@ export class SingleStoreDialect {
 			columns,
 		).filter(([_, col]) => !col.shouldDisableInsert());
 
-		const insertOrder = colEntries.map(([, column]) => sql.identifier(this.casing.getColumnCasing(column)));
+		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 		const generatedIdsResponse: Record<string, unknown>[] = [];
 
 		for (const [valueIndex, value] of values.entries()) {
@@ -665,9 +656,8 @@ export class SingleStoreDialect {
 		};
 	}
 
-	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
+	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): Query {
 		return sql.toQuery({
-			casing: this.casing,
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
@@ -1028,7 +1018,7 @@ export class SingleStoreDialect {
 
 	private buildRqbColumn(table: Table | View, column: unknown, key: string) {
 		if (is(column, Column)) {
-			const name = sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))}`;
+			const name = sql`${table}.${sql.identifier(column.name)}`;
 
 			switch (column.columnType) {
 				case 'SingleStoreBinary':
@@ -1199,7 +1189,6 @@ export class SingleStoreDialect {
 					params.where,
 					tableConfig.relations,
 					schema,
-					this.casing,
 				),
 				relationWhere,
 			)
@@ -1209,7 +1198,6 @@ export class SingleStoreDialect {
 				params.where,
 				tableConfig.relations,
 				schema,
-				this.casing,
 			)
 			: relationWhere;
 		const order = params?.orderBy
@@ -1221,6 +1209,7 @@ export class SingleStoreDialect {
 		if (extras) selection.push(...extras.selection);
 
 		const selectionArr: SQL[] = columns ? [columns] : [];
+		if (extras?.sql) selectionArr.push(extras.sql);
 
 		const joins = params
 			? (() => {
@@ -1251,7 +1240,6 @@ export class SingleStoreDialect {
 							? aliasedTable(relation.throughTable, `tr${currentDepth}`)
 							: undefined;
 						const { filter, joinCondition } = relationToSQL(
-							this.casing,
 							relation,
 							table,
 							targetTable,
@@ -1313,7 +1301,6 @@ export class SingleStoreDialect {
 			})()
 			: undefined;
 
-		if (extras?.sql) selectionArr.push(extras.sql);
 		if (!selectionArr.length) {
 			throw new DrizzleError({
 				message: `No fields selected for table "${tableConfig.name}"${currentPath ? ` ("${currentPath}")` : ''}`,

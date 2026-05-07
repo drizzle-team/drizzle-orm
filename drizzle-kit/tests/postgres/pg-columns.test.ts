@@ -25,6 +25,7 @@ import {
 	serial,
 	smallint,
 	smallserial,
+	snakeCase,
 	text,
 	time,
 	timestamp,
@@ -185,6 +186,7 @@ test('alter column type to custom type', async (t) => {
 	};
 
 	const citext = customType<{ data: string }>({
+		codec: 'text',
 		dataType() {
 			return 'text';
 		},
@@ -323,7 +325,7 @@ test('alter text type to enum type', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3589
 // After discussion it was decided to postpone this feature
-test.skipIf(Date.now() < +new Date('2026-04-26'))('alter integer type to text type with fk constraints', async () => {
+test.skipIf(Date.now() < +new Date('2026-05-07'))('alter integer type to text type with fk constraints', async () => {
 	const users1 = pgTable('users', {
 		id: serial().primaryKey(),
 	});
@@ -1273,6 +1275,7 @@ test('no diff for enum and custom type in different schemas', async () => {
 		mySchemaTable: mySchema.table('my_schema_table', {
 			mySchemaEnum: mySchemaEnum().default('a'),
 			mySchemaCustomType: customType({
+				codec: 'tsvector',
 				dataType: () => 'tsvector',
 			})().default("to_tsvector('english'::regconfig, 'The Fat Rats'::text)"),
 		}),
@@ -1280,6 +1283,7 @@ test('no diff for enum and custom type in different schemas', async () => {
 		table: pgTable('table', {
 			enum: myEnum().default('a'),
 			customType: customType({
+				codec: 'tsvector',
 				dataType: () => 'tsvector',
 			})().default("to_tsvector('english'::regconfig, 'The Fat Rats'::text)"),
 		}),
@@ -1534,8 +1538,8 @@ test('same column names in two tables. Check for correct not null creation #3. c
 
 	// order matters here
 	const schema1 = { departments, userHasDepartmentFilter, users };
-	const { sqlStatements: st } = await diff({}, schema1, [], 'camelCase');
-	const { sqlStatements: pst } = await push({ db, to: schema1, casing: 'camelCase' });
+	const { sqlStatements: st } = await diff({}, schema1, []);
+	const { sqlStatements: pst } = await push({ db, to: schema1 });
 
 	const st0 = [
 		`CREATE TABLE "departments" (
@@ -1559,14 +1563,14 @@ test('same column names in two tables. Check for correct not null creation #3. c
 	expect(pst).toStrictEqual(st0);
 });
 test('same column names in two tables. Check for correct not null creation #4. snake_case', async (t) => {
-	const users = pgTable(
+	const users = snakeCase.table(
 		'users',
 		{
 			id: integer().primaryKey(),
 			departmentId: integer().references(() => departments.id, { onDelete: 'set null' }),
 		},
 	);
-	const userHasDepartmentFilter = pgTable(
+	const userHasDepartmentFilter = snakeCase.table(
 		'user_has_department_filter',
 		{
 			userId: integer().references(() => users.id),
@@ -1576,7 +1580,7 @@ test('same column names in two tables. Check for correct not null creation #4. s
 			return [primaryKey({ columns: [table.userId, table.departmentId] })];
 		},
 	);
-	const departments = pgTable(
+	const departments = snakeCase.table(
 		'departments',
 		{
 			id: integer().primaryKey(),
@@ -1585,8 +1589,8 @@ test('same column names in two tables. Check for correct not null creation #4. s
 
 	// order matters here
 	const schema1 = { departments, userHasDepartmentFilter, users };
-	const { sqlStatements: st } = await diff({}, schema1, [], 'snake_case');
-	const { sqlStatements: pst } = await push({ db, to: schema1, casing: 'snake_case' });
+	const { sqlStatements: st } = await diff({}, schema1, []);
+	const { sqlStatements: pst } = await push({ db, to: schema1 });
 
 	const st0 = [
 		`CREATE TABLE "departments" (

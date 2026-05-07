@@ -964,8 +964,7 @@ export abstract class CockroachSelectQueryBuilderBase<
 	}
 
 	toSQL(): Query {
-		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		return rest;
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	as<TAlias extends string>(
@@ -983,6 +982,11 @@ export abstract class CockroachSelectQueryBuilderBase<
 			this.config.fields,
 			new SelectionProxyHandler({ alias: this.tableName, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as this['_']['selectedFields'];
+	}
+
+	/** @internal */
+	override withoutSelectionCastCodecs(): this {
+		return this;
 	}
 
 	$dynamic(): CockroachSelectDynamic<this> {
@@ -1054,7 +1058,6 @@ export class CockroachSelectBase<
 				query,
 				fieldsList,
 				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-				true,
 			);
 			preparedQuery.joinsNotNullableMap = joinsNotNullableMap;
 

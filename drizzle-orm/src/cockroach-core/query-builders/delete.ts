@@ -240,8 +240,7 @@ export class CockroachDeleteBase<
 	}
 
 	toSQL(): Query {
-		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		return rest;
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	/** @internal */
@@ -256,12 +255,11 @@ export class CockroachDeleteBase<
 				query,
 				this.config.returning,
 				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-				true,
 			);
 		});
 	}
 
-	prepare(name?: string): CockroachDeletePrepare<this> {
+	prepare(name: string): CockroachDeletePrepare<this> {
 		return this._prepare(name, true);
 	}
 
@@ -285,6 +283,11 @@ export class CockroachDeleteBase<
 				)
 				: undefined
 		) as this['_']['selectedFields'];
+	}
+
+	/** @internal */
+	withoutSelectionCastCodecs(): this {
+		return this;
 	}
 
 	$dynamic(): CockroachDeleteDynamic<this> {

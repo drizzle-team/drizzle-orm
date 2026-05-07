@@ -1,13 +1,5 @@
-import type {
-	FullQueryResults,
-	NeonQueryPromise,
-	Pool,
-	PoolClient,
-	QueryResult,
-	QueryResultRow,
-} from '@neondatabase/serverless';
-import { neonConfig } from '@neondatabase/serverless';
-import type * as V1 from '~/_relations.ts';
+import type { CustomTypesConfig, FullQueryResults, NeonQueryPromise, Pool, PoolClient } from '@neondatabase/serverless';
+import { neonConfig, types } from '@neondatabase/serverless';
 import type { BatchItem } from '~/batch.ts';
 import type { Cache } from '~/cache/core/cache.ts';
 import { NoopCache } from '~/cache/core/cache.ts';
@@ -16,14 +8,12 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { NeonHttpClient, NeonHttpQueryResultHKT, NeonHttpSessionOptions } from '~/neon-http/session.ts';
-import { NeonHttpPreparedQuery } from '~/neon-http/session.ts';
-import { NeonPreparedQuery } from '~/neon-serverless/session.ts';
-import { type PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
-import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
+import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
+import type { PgCodecs } from '~/pg-core/codecs.ts';
+import { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import { preparedStatementName } from '~/query-name-generator.ts';
 import type { AnyRelations } from '~/relations.ts';
-import type { PreparedQuery } from '~/session.ts';
 import type { Query } from '~/sql/sql.ts';
 import { sql } from '~/sql/sql.ts';
 
@@ -46,16 +36,14 @@ export type NetlifyDbClient = {
 	pool: Pool;
 };
 
-const queryConfig = {
-	arrayMode: true,
-	fullResults: true,
-} as const;
+export interface NetlifyDbSessionOptions extends NeonHttpSessionOptions {
+	useJitMappers?: boolean | undefined;
+	transactionCodecs?: PgCodecs | undefined;
+}
 
-export class NetlifyDbSession<
-	TFullSchema extends Record<string, unknown>,
-	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends PgAsyncSession<NeonHttpQueryResultHKT, TFullSchema, TRelations, TSchema> {
+export class NetlifyDbSession<TRelations extends AnyRelations>
+	extends PgAsyncSession<NeonHttpQueryResultHKT, TRelations>
+{
 	static override readonly [entityKind]: string = 'NetlifyDbSession';
 
 	private clientQuery: (sql: string, params: any[], opts: Record<string, any>) => NeonQueryPromise<any, any>;
@@ -63,12 +51,11 @@ export class NetlifyDbSession<
 	private cache: Cache;
 
 	constructor(
-		private httpClient: NeonHttpClient,
-		private pool: Pool,
+		readonly httpClient: NeonHttpClient,
+		readonly pool: Pool,
 		dialect: PgDialect,
 		private relations: TRelations,
-		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
-		private options: NeonHttpSessionOptions = {},
+		readonly options: NetlifyDbSessionOptions,
 	) {
 		super(dialect);
 		// `httpClient.query` is for @neondatabase/serverless v1.0.0 and up, where the
@@ -81,69 +68,61 @@ export class NetlifyDbSession<
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		isResponseInArrayMode: boolean,
-		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		mode: 'arrays' | 'objects' | 'raw',
+		_name: string | boolean,
+		mapper: ((rows: any[]) => any) | undefined,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
-		return new NeonHttpPreparedQuery(
-			this.httpClient,
-			query,
-			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
-			fields,
-			isResponseInArrayMode,
-			customResultMapper,
-		);
+		const executor = (params?: unknown[]) => {
+			if (mode === 'raw') {
+				// otherwise raw queries with .then crash due to .then not existing on raw mode queries
+				return (async () =>
+					this.httpClient(query.sql, params, {
+						arrayMode: false,
+						fullResults: true,
+						authToken: this.options.authToken,
+					}))();
+			}
+
+			return this.httpClient(query.sql, params, {
+				arrayMode: mode === 'arrays',
+				fullResults: true,
+				authToken: this.options.authToken,
+			}).then((it: any) => it.rows);
+		};
+
+		return new PgAsyncPreparedQuery(executor, query, mapper, mode, this.logger, this.cache, queryMetadata, cacheConfig);
 	}
 
-	prepareRelationalQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
-		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
-	): PgAsyncPreparedQuery<T> {
-		return new NeonHttpPreparedQuery(
-			this.httpClient,
-			query,
-			this.logger,
-			this.cache,
-			undefined,
-			undefined,
-			fields,
-			false,
-			customResultMapper,
-			true,
-		);
-	}
-
-	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(
-		queries: T,
-	) {
-		const preparedQueries: PreparedQuery[] = [];
+	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(queries: T) {
+		const preparedQueries: PgAsyncPreparedQuery<any>[] = [];
 		const builtQueries: NeonQueryPromise<any, true>[] = [];
+		const q = this.httpClient;
+
 		for (const query of queries) {
-			const preparedQuery = query._prepare();
+			const preparedQuery = query._prepare() as PgAsyncPreparedQuery<any>;
 			const builtQuery = preparedQuery.getQuery();
 			preparedQueries.push(preparedQuery);
 			builtQueries.push(
-				this.clientQuery(builtQuery.sql, builtQuery.params, {
+				q(builtQuery.sql, builtQuery.params, {
 					fullResults: true,
-					arrayMode: preparedQuery.isResponseInArrayMode(),
+					arrayMode: preparedQuery.mode === 'arrays',
 				}),
 			);
 		}
 
-		const batchResults = await this.httpClient.transaction(builtQueries, queryConfig);
-
-		return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true)) as any;
+		const batchResults = await this.httpClient.transaction(builtQueries, {
+			authToken: this.options.authToken,
+			fullResults: true,
+			arrayMode: true,
+		});
+		return batchResults.map((result, i) =>
+			preparedQueries[i]!.mapper ? preparedQueries[i]!.mapper(result.rows) : result
+		) as any;
 	}
 
 	async query(query: string, params: unknown[]): Promise<FullQueryResults<true>> {
@@ -160,23 +139,27 @@ export class NetlifyDbSession<
 	}
 
 	override async transaction<T>(
-		transaction: (tx: NetlifyDbTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (tx: NetlifyDbTransaction<TRelations>) => Promise<T>,
 		config: PgTransactionConfig = {},
 	): Promise<T> {
 		ensureWebSocket();
 		const poolClient = await this.pool.connect();
-		const session = new NetlifyDbWsSession<TFullSchema, TRelations, TSchema>(
+		const dialect = new PgDialect({
+			useJitMappers: this.options.useJitMappers,
+			codecs: this.options.transactionCodecs,
+		});
+		const session = new NetlifyDbWsSession<TRelations>(
 			poolClient,
-			this.dialect,
+			dialect,
 			this.relations,
-			this.schema,
 			this.options,
 		);
-		const tx = new NetlifyDbTransaction<TFullSchema, TRelations, TSchema>(
-			this.dialect,
+		const tx = new NetlifyDbTransaction<TRelations>(
+			dialect,
 			session,
 			this.relations,
-			this.schema,
+			undefined,
+			false,
 		);
 		await tx.execute(sql`begin ${tx.getTransactionConfigSQL(config)}`);
 		try {
@@ -192,16 +175,34 @@ export class NetlifyDbSession<
 	}
 }
 
+const noop = (val: any) => val;
+const typeConfig: CustomTypesConfig = {
+	getTypeParser: <CustomTypesConfig['getTypeParser']> ((typeId, format) => {
+		switch (typeId as number) {
+			case types.builtins.TIMESTAMPTZ:
+			case types.builtins.TIMESTAMP:
+			case types.builtins.DATE:
+			case types.builtins.INTERVAL:
+			case 1231: // numeric[]
+			case 1115: // timestamp[]
+			case 1185: // timestamp with timezone[]
+			case 1187: // interval[]
+			case 1182: // date[]
+				return noop;
+			default:
+				return types.getTypeParser(typeId, format as any);
+		}
+	}),
+};
+
 /**
  * Internal WebSocket-based session used only within transactions.
  * Delegates all queries to a PoolClient over WebSocket, using
  * NeonPreparedQuery from the neon-serverless adapter.
  */
-export class NetlifyDbWsSession<
-	TFullSchema extends Record<string, unknown>,
-	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends PgAsyncSession<NeonHttpQueryResultHKT, TFullSchema, TRelations, TSchema> {
+export class NetlifyDbWsSession<TRelations extends AnyRelations>
+	extends PgAsyncSession<NeonHttpQueryResultHKT, TRelations>
+{
 	static override readonly [entityKind]: string = 'NetlifyDbWsSession';
 
 	private logger: Logger;
@@ -211,7 +212,6 @@ export class NetlifyDbWsSession<
 		private client: PoolClient,
 		dialect: PgDialect,
 		private relations: TRelations,
-		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		options: NeonHttpSessionOptions = {},
 	) {
 		super(dialect);
@@ -221,93 +221,64 @@ export class NetlifyDbWsSession<
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		isResponseInArrayMode: boolean,
-		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		mode: 'arrays' | 'objects' | 'raw',
+		name: string | boolean,
+		mapper: ((rows: any[]) => any) | undefined,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
-		return new NeonPreparedQuery(
-			this.client,
+		const queryName = typeof name === 'string'
+			? name
+			: name === true
+			? preparedStatementName(query.sql, query.params)
+			: undefined;
+
+		const executor = async (params?: unknown[]) => {
+			return this.client.query({
+				name: queryName,
+				rowMode: mode === 'arrays' ? 'array' : undefined as any,
+				text: query.sql,
+				types: typeConfig,
+			}, params).then((r) => mode === 'raw' ? r : r.rows);
+		};
+
+		return new PgAsyncPreparedQuery<T>(
+			executor,
 			query,
+			mapper,
+			mode,
 			this.logger,
 			this.cache,
 			queryMetadata,
 			cacheConfig,
-			fields,
-			name,
-			isResponseInArrayMode,
-			customResultMapper,
 		);
 	}
-
-	prepareRelationalQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
-		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		customResultMapper?: (rows: Record<string, unknown>[]) => T['execute'],
-	): PgAsyncPreparedQuery<T> {
-		return new NeonPreparedQuery(
-			this.client,
-			query,
-			this.logger,
-			this.cache,
-			undefined,
-			undefined,
-			fields,
-			name,
-			false,
-			customResultMapper,
-			true,
-		);
-	}
-
-	async query(query: string, params: unknown[]): Promise<QueryResult> {
-		this.logger.logQuery(query, params);
-		const result = await this.client.query({
-			rowMode: 'array',
-			text: query,
-			values: params,
-		});
-		return result;
-	}
-
-	async queryObjects<T extends QueryResultRow>(
-		query: string,
-		params: unknown[],
-	): Promise<QueryResult<T>> {
-		return this.client.query<T>(query, params);
-	}
-
 	override async transaction<T>(
-		_transaction: (tx: NetlifyDbTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		_transaction: (tx: NetlifyDbTransaction<TRelations>) => Promise<T>,
 		_config?: PgTransactionConfig,
 	): Promise<T> {
 		throw new Error('Nested transactions are handled by NetlifyDbTransaction via savepoints');
 	}
 }
 
-export class NetlifyDbTransaction<
-	TFullSchema extends Record<string, unknown>,
-	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends PgAsyncTransaction<NeonHttpQueryResultHKT, TFullSchema, TRelations, TSchema> {
+export class NetlifyDbTransaction<TRelations extends AnyRelations>
+	extends PgAsyncTransaction<NeonHttpQueryResultHKT, TRelations>
+{
 	static override readonly [entityKind]: string = 'NetlifyDbTransaction';
 
 	override async transaction<T>(
-		transaction: (tx: NetlifyDbTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (tx: NetlifyDbTransaction<TRelations>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new NetlifyDbTransaction<TFullSchema, TRelations, TSchema>(
+		const tx = new NetlifyDbTransaction<TRelations>(
 			this.dialect,
 			this.session,
-			this.relations,
-			this.schema,
+			this._.relations,
 			this.nestedIndex + 1,
+			false,
 		);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {

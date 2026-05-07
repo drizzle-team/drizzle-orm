@@ -1,4 +1,4 @@
-import type { CasingCache } from '~/casing.ts';
+import type { CodecsCollection } from '~/codecs.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { SelectResult } from '~/query-builders/select.types.ts';
 import { Subquery } from '~/subquery.ts';
@@ -30,25 +30,22 @@ export type Chunk =
 	| SQL;
 
 export interface BuildQueryConfig {
-	casing: CasingCache;
 	escapeName(name: string): string;
 	escapeParam(num: number, value: unknown): string;
 	escapeString(str: string): string;
-	prepareTyping?: (encoder: DriverValueEncoder<unknown, unknown>) => QueryTypingsValue;
+	codecs?: CodecsCollection;
 	paramStartIndex?: { value: number };
 	inlineParams?: boolean;
 	invokeSource?: 'indexes' | 'mssql-check' | 'mssql-view-with-schemabinding' | undefined;
+	tagged?: true;
 }
-
-export type QueryTypingsValue = 'json' | 'decimal' | 'time' | 'timestamp' | 'uuid' | 'date' | 'none';
 
 export interface Query {
 	sql: string;
 	params: unknown[];
-}
-
-export interface QueryWithTypings extends Query {
-	typings?: QueryTypingsValue[];
+	_sql?: TemplateStringsArray;
+	// ^ TODO: revisit
+	// for Bun.SQL cache performance
 }
 
 /**
@@ -71,18 +68,23 @@ export function isSQLWrapper(value: unknown): value is SQLWrapper {
 	return value !== null && value !== undefined && typeof (value as any).getSQL === 'function';
 }
 
-function mergeQueries(queries: QueryWithTypings[]): QueryWithTypings {
-	const result: QueryWithTypings = { sql: '', params: [] };
+function mergeQueries(queries: Query[]): Query {
+	const result: Query = { sql: '', params: [] };
 	for (const query of queries) {
 		result.sql += query.sql;
 		result.params.push(...query.params);
-		if (query.typings?.length) {
-			if (!result.typings) {
-				result.typings = [];
-			}
-			result.typings.push(...query.typings);
-		}
 	}
+	return result;
+}
+
+function _mergeQueries(queries: Query[]): Query {
+	const result: Query = { sql: '', params: [] };
+	const sqls = [] as string[];
+	for (const query of queries) {
+		sqls.push(query.sql);
+		result.params.push(...query.params);
+	}
+	result._sql = Object.assign(sqls, { raw: sqls }) as unknown as TemplateStringsArray;
 	return result;
 }
 
@@ -135,7 +137,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 		return this;
 	}
 
-	toQuery(config: BuildQueryConfig): QueryWithTypings {
+	toQuery(config: BuildQueryConfig): Query {
 		return tracer.startActiveSpan('drizzle.buildSQL', (span) => {
 			const query = this.buildQueryFromSourceParams(this.queryChunks, config);
 			span?.setAttributes({
@@ -153,16 +155,15 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 		});
 
 		const {
-			casing,
 			escapeName,
 			escapeParam,
-			prepareTyping,
+			codecs,
 			inlineParams,
 			paramStartIndex,
 			invokeSource,
 		} = config;
 
-		return mergeQueries(chunks.map((chunk): QueryWithTypings => {
+		const mappedChunks = chunks.map((chunk): Query => {
 			if (is(chunk, StringChunk)) {
 				return { sql: chunk.value.join(''), params: [] };
 			}
@@ -215,7 +216,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 			}
 
 			if (is(chunk, Column)) {
-				const columnName = casing.getColumnCasing(chunk);
+				const columnName = chunk.name;
 				if (_config.invokeSource === 'indexes') {
 					return { sql: escapeName(columnName), params: [] };
 				}
@@ -242,30 +243,61 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 			}
 
 			if (is(chunk, Param)) {
-				if (is(chunk.value, Placeholder)) {
-					return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
+				if (is(chunk.value, SQL)) {
+					return this.buildQueryFromSourceParams([chunk.value], config);
 				}
 
-				const mappedValue = chunk.value === null ? null : chunk.encoder.mapToDriverValue(chunk.value);
+				const useCodecs = codecs && is(chunk.encoder, Column);
 
-				if (is(mappedValue, SQL)) {
-					return this.buildQueryFromSourceParams([mappedValue], config);
+				if (is(chunk.value, Placeholder)) {
+					const escaped = escapeParam(paramStartIndex.value++, chunk);
+					chunk.codec = useCodecs
+						? (value) => codecs.apply(chunk.encoder as Column, 'normalizeParam', value)
+						: undefined;
+					return {
+						sql: useCodecs
+							? codecs.apply(chunk.encoder, 'castParam', escaped)
+							: escaped,
+						params: [chunk],
+					};
+				}
+
+				let mappedValue: any;
+				if (chunk.value === null) {
+					mappedValue = chunk.value;
+				} else {
+					mappedValue = chunk.encoder.mapToDriverValue.isNoop
+						? chunk.value
+						: chunk.encoder.mapToDriverValue(chunk.value);
+
+					if (is(mappedValue, SQL)) {
+						return this.buildQueryFromSourceParams([mappedValue], config);
+					}
+
+					if (useCodecs) {
+						mappedValue = codecs.apply(
+							chunk.encoder,
+							'normalizeParam',
+							mappedValue,
+						);
+					}
 				}
 
 				if (inlineParams) {
 					return { sql: this.mapInlineParam(mappedValue, config), params: [] };
 				}
 
-				let typings: QueryTypingsValue[] = ['none'];
-				if (prepareTyping) {
-					typings = [prepareTyping(chunk.encoder)];
-				}
-
-				return { sql: escapeParam(paramStartIndex.value++, mappedValue), params: [mappedValue], typings };
+				const escaped = escapeParam(paramStartIndex.value++, mappedValue);
+				return {
+					sql: useCodecs
+						? codecs.apply(chunk.encoder, 'castParam', escaped)
+						: escaped,
+					params: [mappedValue],
+				};
 			}
 
 			if (is(chunk, Placeholder)) {
-				return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
+				return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk] };
 			}
 
 			if (is(chunk, SQL.Aliased) && chunk.fieldAlias !== undefined) {
@@ -309,8 +341,14 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				return { sql: this.mapInlineParam(chunk, config), params: [] };
 			}
 
-			return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
-		}));
+			return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk] };
+		});
+
+		if (_config.tagged) {
+			return _mergeQueries(mappedChunks);
+		}
+
+		return mergeQueries(mappedChunks);
 	}
 
 	private mapInlineParam(
@@ -413,12 +451,24 @@ export function name(value: string): Name {
 	return new Name(value);
 }
 
+export interface DriverValueDecoderFn<TData, TDriverParam> {
+	(value: TDriverParam): TData;
+	/** @internal */
+	isNoop?: true | undefined;
+}
+
 export interface DriverValueDecoder<TData, TDriverParam> {
-	mapFromDriverValue(value: TDriverParam): TData;
+	mapFromDriverValue: DriverValueDecoderFn<TData, TDriverParam>;
+}
+
+export interface DriverValueEncoderFn<TData, TDriverParam> {
+	(value: TData): TDriverParam;
+	/** @internal */
+	isNoop?: true | undefined;
 }
 
 export interface DriverValueEncoder<TData, TDriverParam> {
-	mapToDriverValue(value: TData): TDriverParam | SQL;
+	mapToDriverValue: DriverValueEncoderFn<TData, TDriverParam>;
 }
 
 export function isDriverValueEncoder(value: unknown): value is DriverValueEncoder<any, any> {
@@ -430,13 +480,21 @@ export const noopDecoder: DriverValueDecoder<any, any> = {
 	mapFromDriverValue: (value) => value,
 };
 
+noopDecoder.mapFromDriverValue.isNoop = true;
+
 export const noopEncoder: DriverValueEncoder<any, any> = {
 	mapToDriverValue: (value) => value,
 };
 
+noopEncoder.mapToDriverValue.isNoop = true;
+
 export interface DriverValueMapper<TData, TDriverParam>
 	extends DriverValueDecoder<TData, TDriverParam>, DriverValueEncoder<TData, TDriverParam>
 {}
+
+export function isNoop(mapper: DriverValueEncoderFn<any, any> | DriverValueDecoderFn<any, any>) {
+	return mapper.isNoop;
+}
 
 export const noopMapper: DriverValueMapper<any, any> = {
 	...noopDecoder,
@@ -444,7 +502,7 @@ export const noopMapper: DriverValueMapper<any, any> = {
 };
 
 /** Parameter value that is optionally bound to an encoder (for example, a column). */
-export class Param<TDataType = unknown, TDriverParamType = TDataType> implements SQLWrapper {
+export class Param<TDataType = any, TDriverParamType = TDataType> implements SQLWrapper {
 	static readonly [entityKind]: string = 'Param';
 
 	protected brand!: 'BoundParamValue';
@@ -456,6 +514,7 @@ export class Param<TDataType = unknown, TDriverParamType = TDataType> implements
 	constructor(
 		readonly value: TDataType,
 		readonly encoder: DriverValueEncoder<TDataType, TDriverParamType> = noopEncoder,
+		public codec?: (value: any) => any,
 	) {}
 
 	getSQL(): SQL<unknown> {
@@ -719,7 +778,13 @@ export function fillPlaceholders(params: unknown[], values: Record<string, unkno
 				throw new Error(`No value for placeholder "${p.value.name}" was provided`);
 			}
 
-			return p.encoder.mapToDriverValue(values[p.value.name]);
+			if (values[p.value.name] === null) return values[p.value.name];
+
+			const mapped = p.encoder.mapToDriverValue.isNoop
+				? values[p.value.name]
+				: p.encoder.mapToDriverValue(values[p.value.name]);
+
+			return p.codec ? p.codec(mapped) : mapped;
 		}
 
 		return p;

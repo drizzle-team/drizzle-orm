@@ -6,7 +6,6 @@ import {
 	mapColumnsInAliasedSQLToAlias,
 	mapColumnsInSQLToAlias,
 } from '~/alias.ts';
-import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
@@ -33,11 +32,11 @@ import {
 } from '~/relations.ts';
 import { and, eq } from '~/sql/expressions/index.ts';
 import { isSQLWrapper, Param, SQL, sql, View } from '~/sql/sql.ts';
-import type { Name, Placeholder, QueryWithTypings, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
+import type { Name, Placeholder, Query, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/mysql.ts';
-import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlCustomColumn } from './columns/custom.ts';
@@ -56,19 +55,13 @@ import { MySqlViewBase } from './view-base.ts';
 import type { MySqlView } from './view.ts';
 
 export interface MySqlDialectConfig {
-	casing?: Casing;
 	escapeParam?: (num: number) => string;
 }
 
 export class MySqlDialect {
 	static readonly [entityKind]: string = 'MySqlDialect';
 
-	/** @internal */
-	readonly casing: CasingCache;
-
 	constructor(config?: MySqlDialectConfig) {
-		this.casing = new CasingCache(config?.casing);
-
 		if (config?.escapeParam) {
 			this.escapeParam = config.escapeParam;
 		}
@@ -225,7 +218,7 @@ export class MySqlDialect {
 					?? (is(onUpdateFnResult, SQL)
 						? onUpdateFnResult
 						: sql.param(onUpdateFnResult, col));
-				const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
+				const res = sql`${sql.identifier(col.name)} = ${value}`;
 
 				if (i < setLength - 1) {
 					return [res, sql.raw(', ')];
@@ -296,7 +289,7 @@ export class MySqlDialect {
 					const newSql = new SQL(
 						query.queryChunks.map((c) => {
 							if (is(c, MySqlColumn)) {
-								return sql.identifier(this.casing.getColumnCasing(c));
+								return sql.identifier(c.name);
 							}
 							return c;
 						}),
@@ -314,8 +307,8 @@ export class MySqlDialect {
 				if (isSingleTable) {
 					chunk.push(
 						field.isAlias
-							? sql`${sql.identifier(this.casing.getColumnCasing(getOriginalColumnFromAlias(field)))} as ${field}`
-							: sql.identifier(this.casing.getColumnCasing(field)),
+							? sql`${sql.identifier(getOriginalColumnFromAlias(field).name)} as ${field}`
+							: sql.identifier(field.name),
 					);
 				} else {
 					chunk.push(
@@ -610,16 +603,14 @@ export class MySqlDialect {
 			for (const orderByUnit of orderBy) {
 				if (is(orderByUnit, MySqlColumn)) {
 					orderByValues.push(
-						sql.identifier(this.casing.getColumnCasing(orderByUnit)),
+						sql.identifier(orderByUnit.name),
 					);
 				} else if (is(orderByUnit, SQL)) {
 					for (let i = 0; i < orderByUnit.queryChunks.length; i++) {
 						const chunk = orderByUnit.queryChunks[i];
 
 						if (is(chunk, MySqlColumn)) {
-							orderByUnit.queryChunks[i] = sql.identifier(
-								this.casing.getColumnCasing(chunk),
-							);
+							orderByUnit.queryChunks[i] = sql.identifier(chunk.name);
 						}
 					}
 
@@ -658,7 +649,7 @@ export class MySqlDialect {
 			([_, col]) => !col.shouldDisableInsert(),
 		);
 
-		const insertOrder = colEntries.map(([, column]) => sql.identifier(this.casing.getColumnCasing(column)));
+		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 		const generatedIdsResponse: Record<string, unknown>[] = [];
 
 		if (select) {
@@ -733,9 +724,8 @@ export class MySqlDialect {
 		};
 	}
 
-	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
+	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): Query {
 		return sql.toQuery({
-			casing: this.casing,
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
@@ -1330,7 +1320,7 @@ export class MySqlDialect {
 				sql.join(
 					selection.map(({ field }) =>
 						is(field, MySqlColumn)
-							? sql.identifier(this.casing.getColumnCasing(field))
+							? sql.identifier(field.name)
 							: is(field, SQL.Aliased)
 							? field.sql
 							: field
@@ -1441,7 +1431,7 @@ export class MySqlDialect {
 
 	private buildRqbColumn(table: Table | View, column: unknown, key: string) {
 		if (is(column, Column)) {
-			const name = sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))}`;
+			const name = sql`${table}.${sql.identifier(column.name)}`;
 
 			switch (column.columnType) {
 				case 'MySqlBinary':
@@ -1607,7 +1597,6 @@ export class MySqlDialect {
 					params.where,
 					tableConfig.relations,
 					schema,
-					this.casing,
 				),
 				relationWhere,
 			)
@@ -1617,7 +1606,6 @@ export class MySqlDialect {
 				params.where,
 				tableConfig.relations,
 				schema,
-				this.casing,
 			)
 			: relationWhere;
 		const order = params?.orderBy
@@ -1629,6 +1617,7 @@ export class MySqlDialect {
 		if (extras) selection.push(...extras.selection);
 
 		const selectionArr: SQL[] = columns ? [columns] : [];
+		if (extras?.sql) selectionArr.push(extras.sql);
 
 		const joins = params
 			? (() => {
@@ -1667,7 +1656,6 @@ export class MySqlDialect {
 							? aliasedTable(relation.throughTable, `tr${currentDepth}`)
 							: undefined;
 						const { filter, joinCondition } = relationToSQL(
-							this.casing,
 							relation,
 							table,
 							targetTable,
@@ -1725,7 +1713,6 @@ export class MySqlDialect {
 			})()
 			: undefined;
 
-		if (extras?.sql) selectionArr.push(extras.sql);
 		if (!selectionArr.length) {
 			throw new DrizzleError({
 				message: `No fields selected for table "${tableConfig.name}"${currentPath ? ` ("${currentPath}")` : ''}`,

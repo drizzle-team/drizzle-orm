@@ -9,7 +9,7 @@ import { MySqlDatabase } from '~/mysql-core/db.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { Mode } from '~/mysql-core/session.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
 import { DrizzleError } from '../errors.ts';
 import type { MySql2Client, MySql2PreparedQueryHKT, MySql2QueryResultHKT } from './session.ts';
 import { MySql2Session } from './session.ts';
@@ -17,6 +17,7 @@ import { MySql2Session } from './session.ts';
 export interface MySqlDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	useJitMappers?: boolean;
 }
 
 export class MySql2Driver {
@@ -68,7 +69,7 @@ function construct<
 ): MySql2Database<TSchema, TRelations> & {
 	$client: AnyMySql2Connection extends TClient ? Pool : TClient;
 } {
-	const dialect = new MySqlDialect({ casing: config.casing });
+	const dialect = new MySqlDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -101,7 +102,11 @@ function construct<
 	const mode = config.mode ?? 'default';
 
 	const relations = config.relations ?? {} as TRelations;
-	const driver = new MySql2Driver(clientForInstance as MySql2Client, dialect, { logger, cache: config.cache });
+	const driver = new MySql2Driver(clientForInstance as MySql2Client, dialect, {
+		logger,
+		cache: config.cache,
+		useJitMappers: jitCompatCheck(config.jit),
+	});
 	const session = driver.createSession(relations, schema, mode);
 	const db = new MySql2Database(
 		dialect,

@@ -1,3 +1,4 @@
+import type { Casing } from '~/casing.ts';
 import type { BuildColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -7,7 +8,7 @@ import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
 import type { CockroachColumn } from './columns/common.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
-import { cockroachTable } from './table.ts';
+import { cockroachTableWithSchema } from './table.ts';
 import { CockroachViewBase } from './view-base.ts';
 
 export class DefaultViewBuilderCore<TConfig extends { name: string; columns?: unknown }> {
@@ -66,9 +67,10 @@ export class ManualViewBuilder<
 		name: TName,
 		columns: TColumns,
 		schema: string | undefined,
+		casing: Casing | undefined,
 	) {
 		super(name, schema);
-		this.columns = getTableColumns(cockroachTable(name, columns));
+		this.columns = getTableColumns(cockroachTableWithSchema(name, columns, undefined, schema, casing));
 	}
 
 	existing(): CockroachViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'cockroach'>> {
@@ -188,9 +190,10 @@ export class ManualMaterializedViewBuilder<
 		name: TName,
 		columns: TColumns,
 		schema: string | undefined,
+		casing: Casing | undefined,
 	) {
 		super(name, schema);
-		this.columns = getTableColumns(cockroachTable(name, columns));
+		this.columns = getTableColumns(cockroachTableWithSchema(name, columns, undefined, schema, casing));
 	}
 
 	existing(): CockroachMaterializedViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'cockroach'>> {
@@ -305,9 +308,10 @@ export function cockroachViewWithSchema(
 	name: string,
 	selection: Record<string, ColumnBuilderBase> | undefined,
 	schema: string | undefined,
+	casing: Casing | undefined,
 ): ViewBuilder | ManualViewBuilder {
 	if (selection) {
-		return new ManualViewBuilder(name, selection, schema);
+		return new ManualViewBuilder(name, selection, schema, casing);
 	}
 	return new ViewBuilder(name, schema);
 }
@@ -317,39 +321,43 @@ export function cockroachMaterializedViewWithSchema(
 	name: string,
 	selection: Record<string, ColumnBuilderBase> | undefined,
 	schema: string | undefined,
+	casing: Casing | undefined,
 ): MaterializedViewBuilder | ManualMaterializedViewBuilder {
 	if (selection) {
-		return new ManualMaterializedViewBuilder(name, selection, schema);
+		return new ManualMaterializedViewBuilder(name, selection, schema, casing);
 	}
 	return new MaterializedViewBuilder(name, schema);
 }
 
-export function cockroachView<TName extends string>(name: TName): ViewBuilder<TName>;
-export function cockroachView<TName extends string, TColumns extends Record<string, ColumnBuilderBase>>(
-	name: TName,
-	columns: TColumns,
-): ManualViewBuilder<TName, TColumns>;
-export function cockroachView(
-	name: string,
-	columns?: Record<string, ColumnBuilderBase>,
-): ViewBuilder | ManualViewBuilder {
-	return cockroachViewWithSchema(name, columns, undefined);
+export interface CockroachViewFn {
+	<TName extends string>(name: TName): ViewBuilder<TName>;
+	<TName extends string, TColumns extends Record<string, ColumnBuilderBase>>(
+		name: TName,
+		columns: TColumns,
+	): ManualViewBuilder<TName, TColumns>;
 }
 
-export function cockroachMaterializedView<TName extends string>(name: TName): MaterializedViewBuilder<TName>;
-export function cockroachMaterializedView<
-	TName extends string,
-	TColumns extends Record<string, ColumnBuilderBase>,
->(
-	name: TName,
-	columns: TColumns,
-): ManualMaterializedViewBuilder<TName, TColumns>;
-export function cockroachMaterializedView(
-	name: string,
-	columns?: Record<string, ColumnBuilderBase>,
-): MaterializedViewBuilder | ManualMaterializedViewBuilder {
-	return cockroachMaterializedViewWithSchema(name, columns, undefined);
+export interface CockroachMaterializedViewFn {
+	<TName extends string>(name: TName): MaterializedViewBuilder<TName>;
+	<TName extends string, TColumns extends Record<string, ColumnBuilderBase>>(
+		name: TName,
+		columns: TColumns,
+	): ManualMaterializedViewBuilder<TName, TColumns>;
 }
+
+export function cockroachViewWithCasing(casing: Casing | undefined): CockroachViewFn {
+	return ((name, columns) => cockroachViewWithSchema(name, columns, undefined, casing)) as CockroachViewFn;
+}
+
+/** @internal */
+export function cockroachMaterializedViewWithCasing(casing: Casing | undefined): CockroachMaterializedViewFn {
+	return ((name, columns) =>
+		cockroachMaterializedViewWithSchema(name, columns, undefined, casing)) as CockroachMaterializedViewFn;
+}
+
+export const cockroachView = cockroachViewWithCasing(undefined);
+
+export const cockroachMaterializedView = cockroachMaterializedViewWithCasing(undefined);
 
 export function isCockroachView(obj: unknown): obj is CockroachView {
 	return is(obj, CockroachView);

@@ -328,8 +328,8 @@ export class CockroachInsertBase<
 		} else {
 			let targetColumn = '';
 			targetColumn = Array.isArray(config.target)
-				? config.target.map((it) => this.dialect.escapeName(this.dialect.casing.getColumnCasing(it))).join(',')
-				: this.dialect.escapeName(this.dialect.casing.getColumnCasing(config.target));
+				? config.target.map((it) => this.dialect.escapeName(it.name)).join(',')
+				: this.dialect.escapeName(config.target.name);
 
 			const whereSql = config.where ? sql` where ${config.where}` : undefined;
 			this.config.onConflict = sql`(${sql.raw(targetColumn)})${whereSql} do nothing`;
@@ -380,8 +380,8 @@ export class CockroachInsertBase<
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
 		let targetColumn = '';
 		targetColumn = Array.isArray(config.target)
-			? config.target.map((it) => this.dialect.escapeName(this.dialect.casing.getColumnCasing(it))).join(',')
-			: this.dialect.escapeName(this.dialect.casing.getColumnCasing(config.target));
+			? config.target.map((it) => this.dialect.escapeName(it.name)).join(',')
+			: this.dialect.escapeName(config.target.name);
 		this.config.onConflict = sql`(${
 			sql.raw(targetColumn)
 		})${targetWhereSql} do update set ${setSql}${whereSql}${setWhereSql}`;
@@ -394,8 +394,7 @@ export class CockroachInsertBase<
 	}
 
 	toSQL(): Query {
-		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		return rest;
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	/** @internal */
@@ -410,7 +409,6 @@ export class CockroachInsertBase<
 				query,
 				this.config.returning,
 				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-				true,
 			);
 		});
 	}
@@ -446,6 +444,11 @@ export class CockroachInsertBase<
 				)
 				: undefined
 		) as this['_']['selectedFields'];
+	}
+
+	/** @internal */
+	withoutSelectionCastCodecs(): this {
+		return this;
 	}
 
 	$dynamic(): CockroachInsertDynamic<this> {

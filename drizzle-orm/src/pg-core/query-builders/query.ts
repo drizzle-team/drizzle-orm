@@ -6,7 +6,7 @@ import type {
 	TableRelationalConfig,
 	TablesRelationalConfig,
 } from '~/relations.ts';
-import type { Query, QueryWithTypings, SQL, SqlCommenterInput, SQLWrapper } from '~/sql/sql.ts';
+import type { Query, SQL, SqlCommenterInput, SQLWrapper } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
 import type { PgSession } from '../session.ts';
@@ -125,12 +125,11 @@ export class PgRelationalQuery<THKT extends PgRelationalQueryHKTBase, TResult> i
 		});
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this._getQuery().sql;
 	}
 
-	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
 		const query = this._getQuery();
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql);

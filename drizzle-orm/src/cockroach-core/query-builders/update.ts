@@ -585,8 +585,7 @@ export class CockroachUpdateBase<
 	}
 
 	toSQL(): Query {
-		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		return rest;
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	/** @internal */
@@ -598,7 +597,6 @@ export class CockroachUpdateBase<
 			query,
 			this.config.returning,
 			name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-			true,
 		);
 		preparedQuery.joinsNotNullableMap = this.joinsNotNullableMap;
 		return preparedQuery;
@@ -626,6 +624,11 @@ export class CockroachUpdateBase<
 				)
 				: undefined
 		) as this['_']['selectedFields'];
+	}
+
+	/** @internal */
+	withoutSelectionCastCodecs(): this {
+		return this;
 	}
 
 	$dynamic(): CockroachUpdateDynamic<this> {

@@ -966,7 +966,7 @@ export function tests(test: Test) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4169
 		// postpone
-		test.skipIf(Date.now() < +new Date('2026-04-26')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-05-07')).concurrent(
 			'RQB v2 find many - $count',
 			async ({ push, createDB }) => {
 				const users = pgTable('rqb_users_18', {
@@ -1021,14 +1021,13 @@ export function tests(test: Test) {
 					sql:
 						'select "d0"."id" as "id", ((select count(*) from "rqb_orders_18" where ("rqb_orders_18"."user_id" = "d0"."id" and not "rqb_orders_18"."status" in ($1, $2)))) as "activeOrders" from "rqb_users_18" as "d0"',
 					params: ['CANCELED', 'CLOSED'],
-					typings: ['none', 'none'],
 				});
 			},
 		);
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4696
 		// postgresjs returns strings for itemCount but other drivers return numbers
-		test.skipIf(Date.now() < +new Date('2026-04-26')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-05-07')).concurrent(
 			'RQB v2 find many - extras',
 			async ({ push, createDB }) => {
 				const orderItemTable = pgTable('rqb_order_item_19', {

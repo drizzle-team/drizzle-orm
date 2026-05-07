@@ -4,11 +4,11 @@ import {
 	type BuildQueryResult,
 	type BuildRelationalQueryResult,
 	type DBQueryConfigWithComment,
-	mapRelationalRow,
+	makeDefaultRqbMapper,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import type { Query, QueryWithTypings, SQL, SqlCommenterInput } from '~/sql/sql.ts';
+import type { Query, SQL, SqlCommenterInput } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { MySqlDialect } from '../dialect.ts';
 import type { MySqlPreparedQueryConfig, MySqlSession, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
@@ -88,12 +88,19 @@ export class MySqlRelationalQuery<
 		return this.session.prepareRelationalQuery(
 			builtQuery,
 			undefined,
-			(rawRows) => {
-				const rows = rawRows.map((row) => mapRelationalRow(row, query.selection));
-				if (this.mode === 'first') {
-					return rows[0] as TResult;
-				}
-				return rows as TResult;
+			makeDefaultRqbMapper({
+				isFirst: this.mode === 'first',
+				parseJson: false,
+				parseJsonIfString: false,
+				rootJsonMappers: true,
+				selection: query.selection,
+			}),
+			{
+				isFirst: this.mode === 'first',
+				parseJson: false,
+				parseJsonIfString: false,
+				rootJsonMappers: true,
+				selection: query.selection,
 			},
 		) as PreparedQueryKind<TPreparedQueryHKT, MySqlPreparedQueryConfig & { execute: TResult }, true>;
 	}
@@ -108,7 +115,7 @@ export class MySqlRelationalQuery<
 		});
 	}
 
-	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
 		const query = this._getQuery();
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql);

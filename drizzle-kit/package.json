@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-kit",
-	"version": "1.0.0-beta.23",
+	"version": "1.0.0-rc.2",
 	"homepage": "https://orm.drizzle.team",
 	"keywords": [
 		"drizzle",
@@ -49,7 +49,6 @@
 		"test:other": "vitest run ./mysql/ ./sqlite/ ./other",
 		"test:cockroach": "vitest run ./cockroach",
 		"test:mssql": "vitest run ./mssql",
-		"test:gel": "vitest run ./gel",
 		"test:singlestore": "vitest run ./singlestore"
 	},
 	"dependencies": {
@@ -99,7 +98,6 @@
 		"drizzle-kit": "^0.31.6",
 		"drizzle-orm": "workspace:./drizzle-orm/dist",
 		"env-paths": "^3.0.0",
-		"gel": "^2.0.0",
 		"get-port": "^6.1.2",
 		"glob": "^8.1.0",
 		"hanji": "^0.0.8",

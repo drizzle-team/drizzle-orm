@@ -28,6 +28,7 @@ export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	select?: boolean;
 	overridingSystemValue_?: boolean;
 	comment?: SQL;
+	ignoreSelectionCastCodecs?: boolean;
 }
 
 export type PgInsertValue<
@@ -141,6 +142,7 @@ export class PgInsertBuilder<
 			| ((qb: QueryBuilder) => PgInsertSelectQueryBuilder<TTable> | SQL),
 	): PgInsertKind<TBuilderHKT, TTable, TQueryResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
+		if ('withoutSelectionCastCodecs' in select) select.withoutSelectionCastCodecs();
 
 		if (
 			!is(select, SQL)
@@ -370,7 +372,11 @@ export class PgInsertBase<
 		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
 	): PgInsertReturningAll<this, TDynamic> | PgInsertReturning<this, TDynamic, SelectedFieldsFlat> {
 		this.config.returningFields = fields;
-		this.config.returning = orderSelectedFields<PgColumn>(this.config.returningFields);
+		this.config.returning = orderSelectedFields<PgColumn>(
+			this.config.returningFields,
+			undefined,
+			this.dialect.codecs,
+		);
 		return this as any;
 	}
 
@@ -404,8 +410,8 @@ export class PgInsertBase<
 		} else {
 			let targetColumn = '';
 			targetColumn = Array.isArray(config.target)
-				? config.target.map((it) => this.dialect.escapeName(this.dialect.casing.getColumnCasing(it))).join(',')
-				: this.dialect.escapeName(this.dialect.casing.getColumnCasing(config.target));
+				? config.target.map((it) => this.dialect.escapeName(it.name)).join(',')
+				: this.dialect.escapeName(config.target.name);
 
 			const whereSql = config.where ? sql` where ${config.where}` : undefined;
 			this.config.onConflict = sql`(${sql.raw(targetColumn)})${whereSql} do nothing`;
@@ -456,8 +462,8 @@ export class PgInsertBase<
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
 		let targetColumn = '';
 		targetColumn = Array.isArray(config.target)
-			? config.target.map((it) => this.dialect.escapeName(this.dialect.casing.getColumnCasing(it))).join(',')
-			: this.dialect.escapeName(this.dialect.casing.getColumnCasing(config.target));
+			? config.target.map((it) => this.dialect.escapeName(it.name)).join(',')
+			: this.dialect.escapeName(config.target.name);
 		this.config.onConflict = sql`(${
 			sql.raw(targetColumn)
 		})${targetWhereSql} do update set ${setSql}${whereSql}${setWhereSql}`;
@@ -472,14 +478,12 @@ export class PgInsertBase<
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildInsertQuery(this.config);
 	}
 
 	toSQL(): Query {
-		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		return rest;
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	/** @internal */
@@ -496,6 +500,12 @@ export class PgInsertBase<
 				)
 				: undefined
 		) as this['_']['selectedFields'];
+	}
+
+	/** @internal */
+	withoutSelectionCastCodecs() {
+		this.config.ignoreSelectionCastCodecs = true;
+		return this;
 	}
 
 	$dynamic(): PgInsertDynamic<this> {

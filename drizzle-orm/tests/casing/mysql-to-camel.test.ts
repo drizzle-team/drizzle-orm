@@ -1,14 +1,14 @@
 import { Client } from '@planetscale/database';
 import { connect } from '@tidbcloud/serverless';
-import { beforeEach, describe, it } from 'vitest';
+import { describe, it } from 'vitest';
 import { relations } from '~/_relations';
-import { alias, boolean, int, mysqlSchema, mysqlTable, serial, text, union } from '~/mysql-core';
+import { alias, boolean, camelCase, int, serial, text, union } from '~/mysql-core';
 import { drizzle as planetscale } from '~/planetscale-serverless';
 import { asc, eq, sql } from '~/sql';
 import { drizzle as mysql } from '~/tidb-serverless';
 
-const testSchema = mysqlSchema('test');
-const users = mysqlTable('users', {
+const testSchema = camelCase.schema('test');
+const users = camelCase.table('users', {
 	id: serial().primaryKey(),
 	first_name: text().notNull(),
 	last_name: text().notNull(),
@@ -31,32 +31,12 @@ const developersRelations = relations(developers, ({ one }) => ({
 const devs = alias(developers, 'devs');
 const schema = { users, usersRelations, developers, developersRelations };
 
-const db = mysql({ client: connect({}), schema, casing: 'camelCase' });
-const ps = planetscale({ client: new Client({}), schema, casing: 'camelCase' });
-
-const usersCache = {
-	'public.users.id': 'id',
-	'public.users.first_name': 'firstName',
-	'public.users.last_name': 'lastName',
-	'public.users.AGE': 'age',
-};
-const developersCache = {
-	'test.developers.user_id': 'userId',
-	'test.developers.uses_drizzle_orm': 'usesDrizzleOrm',
-};
-const cache = {
-	...usersCache,
-	...developersCache,
-};
+const db = mysql({ client: connect({}), schema });
+const ps = planetscale({ client: new Client({}), schema });
 
 const fullName = sql`${users.first_name} || ' ' || ${users.last_name}`.as('name');
 
 describe('mysql to snake case', () => {
-	beforeEach(() => {
-		ps.dialect.casing.clearCache();
-		db.dialect.casing.clearCache();
-	});
-
 	it('select', ({ expect }) => {
 		const query = db
 			.select({ name: fullName, age: users.age })
@@ -69,7 +49,6 @@ describe('mysql to snake case', () => {
 				"select `users`.`firstName` || ' ' || `users`.`lastName` as `name`, `users`.`AGE` from `users` left join `test`.`developers` on `users`.`id` = `test`.`developers`.`userId` order by `users`.`firstName` asc",
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(cache);
 	});
 
 	it('select (with alias)', ({ expect }) => {
@@ -83,7 +62,6 @@ describe('mysql to snake case', () => {
 				'select `users`.`firstName` from `users` left join `test`.`developers` `devs` on `users`.`id` = `devs`.`userId`',
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(cache);
 	});
 
 	it('with CTE', ({ expect }) => {
@@ -94,7 +72,6 @@ describe('mysql to snake case', () => {
 			sql: "with `cte` as (select `firstName` || ' ' || `lastName` as `name` from `users`) select `name` from `cte`",
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('with CTE (with query builder)', ({ expect }) => {
@@ -105,7 +82,6 @@ describe('mysql to snake case', () => {
 			sql: "with `cte` as (select `firstName` || ' ' || `lastName` as `name` from `users`) select `name` from `cte`",
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('set operator', ({ expect }) => {
@@ -118,7 +94,6 @@ describe('mysql to snake case', () => {
 			sql: '(select `firstName` from `users`) union (select `firstName` from `users`)',
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('set operator (function)', ({ expect }) => {
@@ -131,7 +106,6 @@ describe('mysql to snake case', () => {
 			sql: '(select `firstName` from `users`) union (select `firstName` from `users`)',
 			params: [],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('query (find first)', ({ expect }) => {
@@ -157,9 +131,7 @@ describe('mysql to snake case', () => {
 			sql:
 				"select `users`.`id`, `users`.`AGE`, `users`.`firstName` || ' ' || `users`.`lastName` as `name`, `users_developers`.`data` as `developers` from `users` `users` left join lateral (select json_array(`users_developers`.`usesDrizzleOrm`) as `data` from (select * from `test`.`developers` `users_developers` where `users_developers`.`userId` = `users`.`id` limit ?) `users_developers`) `users_developers` on true where `users`.`id` = ? limit ?",
 			params: [1, 1, 1],
-			typings: ['none', 'none', 'none'],
 		});
-		expect(db.dialect.casing.cache).toEqual(cache);
 	});
 
 	it('query (find first, planetscale)', ({ expect }) => {
@@ -185,9 +157,7 @@ describe('mysql to snake case', () => {
 			sql:
 				"select `id`, `AGE`, `firstName` || ' ' || `lastName` as `name`, (select json_array(`usesDrizzleOrm`) from (select * from `test`.`developers` `users_developers` where `users_developers`.`userId` = `users`.`id` limit ?) `users_developers`) as `developers` from `users` `users` where `users`.`id` = ? limit ?",
 			params: [1, 1, 1],
-			typings: ['none', 'none', 'none'],
 		});
-		expect(ps.dialect.casing.cache).toEqual(cache);
 	});
 
 	it('query (find many)', ({ expect }) => {
@@ -213,9 +183,7 @@ describe('mysql to snake case', () => {
 			sql:
 				"select `users`.`id`, `users`.`AGE`, `users`.`firstName` || ' ' || `users`.`lastName` as `name`, `users_developers`.`data` as `developers` from `users` `users` left join lateral (select json_array(`users_developers`.`usesDrizzleOrm`) as `data` from (select * from `test`.`developers` `users_developers` where `users_developers`.`userId` = `users`.`id` limit ?) `users_developers`) `users_developers` on true where `users`.`id` = ?",
 			params: [1, 1],
-			typings: ['none', 'none'],
 		});
-		expect(db.dialect.casing.cache).toEqual(cache);
 	});
 
 	it('query (find many, planetscale)', ({ expect }) => {
@@ -241,9 +209,7 @@ describe('mysql to snake case', () => {
 			sql:
 				"select `id`, `AGE`, `firstName` || ' ' || `lastName` as `name`, (select json_array(`usesDrizzleOrm`) from (select * from `test`.`developers` `users_developers` where `users_developers`.`userId` = `users`.`id` limit ?) `users_developers`) as `developers` from `users` `users` where `users`.`id` = ?",
 			params: [1, 1],
-			typings: ['none', 'none'],
 		});
-		expect(ps.dialect.casing.cache).toEqual(cache);
 	});
 
 	it('insert', ({ expect }) => {
@@ -255,7 +221,6 @@ describe('mysql to snake case', () => {
 			sql: 'insert into `users` (`id`, `firstName`, `lastName`, `AGE`) values (default, ?, ?, ?)',
 			params: ['John', 'Doe', 30],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('insert (on duplicate key update)', ({ expect }) => {
@@ -269,7 +234,6 @@ describe('mysql to snake case', () => {
 				'insert into `users` (`id`, `firstName`, `lastName`, `AGE`) values (default, ?, ?, ?) on duplicate key update `AGE` = ?',
 			params: ['John', 'Doe', 30, 31],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('update', ({ expect }) => {
@@ -282,7 +246,6 @@ describe('mysql to snake case', () => {
 			sql: 'update `users` set `firstName` = ?, `lastName` = ?, `AGE` = ? where `users`.`id` = ?',
 			params: ['John', 'Doe', 30, 1],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('delete', ({ expect }) => {
@@ -294,7 +257,6 @@ describe('mysql to snake case', () => {
 			sql: 'delete from `users` where `users`.`id` = ?',
 			params: [1],
 		});
-		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
 	it('select columns as', ({ expect }) => {

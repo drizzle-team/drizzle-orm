@@ -1,68 +1,112 @@
-import type { ColumnMetadata, ExecuteStatementCommandOutput, Field, RDSDataClient } from '@aws-sdk/client-rds-data';
+import type { ExecuteStatementCommandOutput, Field, RDSDataClient } from '@aws-sdk/client-rds-data';
 import {
 	BeginTransactionCommand,
 	CommitTransactionCommand,
 	ExecuteStatementCommand,
 	RollbackTransactionCommand,
 } from '@aws-sdk/client-rds-data';
-import type * as V1 from '~/_relations.ts';
 import type { Cache } from '~/cache/core/cache.ts';
 import { NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
-import type { Logger } from '~/logger.ts';
+import { type Logger, NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
-import { fillPlaceholders, type QueryWithTypings, type SQL, sql } from '~/sql/sql.ts';
-import { mapResultRow } from '~/utils.ts';
+import { type Query, sql } from '~/sql/sql.ts';
 import { getValueFromDataApi, toValueParam } from '../common/index.ts';
 
 export type AwsDataApiClient = RDSDataClient;
 
-export class AwsDataApiPreparedQuery<
-	T extends PreparedQueryConfig & { values: AwsDataApiPgQueryResult<unknown[]> },
-	TIsRqbV2 extends boolean = false,
-> extends PgAsyncPreparedQuery<T> {
-	static override readonly [entityKind]: string = 'AwsDataApiPreparedQuery';
+export interface AwsDataApiSessionOptions {
+	logger?: Logger;
+	cache?: Cache;
+	database: string;
+	resourceArn: string;
+	secretArn: string;
+}
 
-	declare protected query: QueryWithTypings;
+interface AwsDataApiQueryBase {
+	resourceArn: string;
+	secretArn: string;
+	database: string;
+}
+
+export class AwsDataApiSession<
+	TRelations extends AnyRelations,
+> extends PgAsyncSession<AwsDataApiPgQueryResultHKT, TRelations> {
+	static override readonly [entityKind]: string = 'AwsDataApiSession';
+
+	/** @internal */
+	readonly rawQuery: AwsDataApiQueryBase;
+	private cache: Cache;
+	private logger: Logger;
 
 	constructor(
-		private client: AwsDataApiClient,
-		query: QueryWithTypings,
+		/** @internal */
+		readonly client: AwsDataApiClient,
+		dialect: PgDialect,
+		private relations: TRelations,
 		private options: AwsDataApiSessionOptions,
-		cache: Cache,
-		queryMetadata: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		} | undefined,
-		cacheConfig: WithCacheConfig | undefined,
-		private fields: SelectedFieldsOrdered | undefined,
 		/** @internal */
 		readonly transactionId: string | undefined,
-		private _isResponseInArrayMode: boolean,
-		private customResultMapper?: (
-			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
-		) => T['execute'],
-		private isRqbV2Query?: TIsRqbV2,
 	) {
-		super(query, cache, queryMetadata, cacheConfig);
+		super(dialect);
+		this.rawQuery = {
+			secretArn: options.secretArn,
+			resourceArn: options.resourceArn,
+			database: options.database,
+		};
+		this.cache = options.cache ?? new NoopCache();
+		this.logger = options.logger ?? new NoopLogger();
 	}
 
-	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
+	prepareQuery<T extends PreparedQueryConfig>(
+		query: Query,
+		mode: 'arrays' | 'objects' | 'raw',
+		_name: string | boolean,
+		mapper: ((rows: any[]) => any) | undefined,
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
+	): PgAsyncPreparedQuery<T> {
+		const executor = async (params?: unknown[]) => {
+			const command = new ExecuteStatementCommand({
+				sql: query.sql,
+				parameters: params
+					? params.map((param, index) => ({
+						name: `${index + 1}`,
+						value: toValueParam(param),
+					}))
+					: [],
+				secretArn: this.options.secretArn,
+				resourceArn: this.options.resourceArn,
+				database: this.options.database,
+				transactionId: this.transactionId,
+				includeResultMetadata: mode === 'objects' || mode === 'raw',
+			});
 
-		const { fields, joinsNotNullableMap, customResultMapper } = this;
-
-		const result = await this.values(placeholderValues);
-		if (!fields && !customResultMapper) {
-			const { columnMetadata, rows } = result;
-			if (!columnMetadata) {
-				return result;
+			const result = await this.client.send(command);
+			const rows = result.records ?? [];
+			if (result.records) {
+				for (let i = 0; i < result.records.length; ++i) {
+					const row = rows[i] as unknown[];
+					for (let j = 0; j < row.length; ++j) {
+						row[j] = getValueFromDataApi(row[j] as Field);
+					}
+				}
 			}
+
+			if (mode === 'arrays') return rows;
+
+			const { columnMetadata } = result;
+			if (!columnMetadata) {
+				return Object.assign(result, { rows });
+			}
+
 			const mappedRows = rows.map((sourceRow) => {
 				const row: Record<string, unknown> = {};
 				for (const [index, value] of sourceRow.entries()) {
@@ -81,218 +125,25 @@ export class AwsDataApiPreparedQuery<
 				}
 				return row;
 			});
+
+			if (mode === 'objects') return mappedRows;
 			return Object.assign(result, { rows: mappedRows });
-		}
-
-		return customResultMapper
-			? (customResultMapper as (rows: unknown[][]) => T['execute'])(result.rows!)
-			: result.rows!.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
-	}
-
-	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		const { customResultMapper } = this;
-
-		const result = await this.values(placeholderValues);
-		const { columnMetadata, rows } = result;
-		if (!columnMetadata) {
-			return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
-				rows as [],
-			);
-		}
-		const mappedRows = rows.map((sourceRow) => {
-			const row: Record<string, unknown> = {};
-			for (const [index, value] of sourceRow.entries()) {
-				const metadata = columnMetadata[index];
-				if (!metadata) {
-					throw new Error(
-						`Unexpected state: no column metadata found for index ${index}. Please report this issue on GitHub: https://github.com/drizzle-team/drizzle-orm/issues/new/choose`,
-					);
-				}
-				if (!metadata.name) {
-					throw new Error(
-						`Unexpected state: no column name for index ${index} found in the column metadata. Please report this issue on GitHub: https://github.com/drizzle-team/drizzle-orm/issues/new/choose`,
-					);
-				}
-				row[metadata.name] = value;
-			}
-			return row;
-		});
-
-		return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(
-			mappedRows,
-		);
-	}
-
-	async all(placeholderValues?: Record<string, unknown> | undefined): Promise<T['all']> {
-		const result = await this.execute(placeholderValues);
-		if (!this.fields && !this.customResultMapper) {
-			return (result as AwsDataApiPgQueryResult<unknown>).rows;
-		}
-		return result;
-	}
-
-	async values(placeholderValues: Record<string, unknown> = {}): Promise<T['values']> {
-		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-
-		const command = new ExecuteStatementCommand({
-			sql: this.query.sql,
-			parameters: [],
-			secretArn: this.options.secretArn,
-			resourceArn: this.options.resourceArn,
-			database: this.options.database,
-			transactionId: this.transactionId,
-			includeResultMetadata: this.isRqbV2Query || (!this.fields && !this.customResultMapper),
-		});
-
-		command.input.parameters = params.map((param, index) => ({
-			name: `${index + 1}`,
-			...toValueParam(param, this.query.typings?.[index]),
-		}));
-
-		this.options.logger?.logQuery(command.input.sql!, command.input.parameters);
-
-		const result = await this.queryWithCache(this.query.sql, params, async () => {
-			return await this.client.send(command);
-		});
-		const rows = result.records?.map((row) => {
-			return row.map((field) => getValueFromDataApi(field));
-		}) ?? [];
-
-		return {
-			...result,
-			rows,
 		};
-	}
 
-	/** @internal */
-	mapResultRows(records: Field[][], columnMetadata: ColumnMetadata[]) {
-		return records.map((record) => {
-			const row: Record<string, unknown> = {};
-			for (const [index, field] of record.entries()) {
-				const { name } = columnMetadata[index]!;
-				row[name ?? index] = getValueFromDataApi(field); // not what to default if name is undefined
-			}
-			return row;
-		});
-	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
-	}
-}
-
-export interface AwsDataApiSessionOptions {
-	logger?: Logger;
-	cache?: Cache;
-	database: string;
-	resourceArn: string;
-	secretArn: string;
-}
-
-interface AwsDataApiQueryBase {
-	resourceArn: string;
-	secretArn: string;
-	database: string;
-}
-
-export class AwsDataApiSession<
-	TFullSchema extends Record<string, unknown>,
-	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends PgAsyncSession<AwsDataApiPgQueryResultHKT, TFullSchema, TRelations, TSchema> {
-	static override readonly [entityKind]: string = 'AwsDataApiSession';
-
-	/** @internal */
-	readonly rawQuery: AwsDataApiQueryBase;
-	private cache: Cache;
-
-	constructor(
-		/** @internal */
-		readonly client: AwsDataApiClient,
-		dialect: PgDialect,
-		private relations: TRelations,
-		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
-		private options: AwsDataApiSessionOptions,
-		/** @internal */
-		readonly transactionId: string | undefined,
-	) {
-		super(dialect);
-		this.rawQuery = {
-			secretArn: options.secretArn,
-			resourceArn: options.resourceArn,
-			database: options.database,
-		};
-		this.cache = options.cache ?? new NoopCache();
-	}
-
-	prepareQuery<
-		T extends PreparedQueryConfig & {
-			values: AwsDataApiPgQueryResult<unknown[]>;
-		} = PreparedQueryConfig & {
-			values: AwsDataApiPgQueryResult<unknown[]>;
-		},
-	>(
-		query: QueryWithTypings,
-		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		isResponseInArrayMode: boolean,
-		customResultMapper?: (rows: unknown[][]) => T['execute'],
-		queryMetadata?: { type: 'select' | 'update' | 'delete' | 'insert'; tables: string[] },
-		cacheConfig?: WithCacheConfig,
-		transactionId?: string,
-	): AwsDataApiPreparedQuery<T> {
-		return new AwsDataApiPreparedQuery(
-			this.client,
+		return new PgAsyncPreparedQuery<T>(
+			executor,
 			query,
-			this.options,
+			mapper,
+			mode,
+			this.logger,
 			this.cache,
 			queryMetadata,
 			cacheConfig,
-			fields,
-			transactionId ?? this.transactionId,
-			isResponseInArrayMode,
-			customResultMapper,
 		);
-	}
-
-	prepareRelationalQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
-		query: QueryWithTypings,
-		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
-		transactionId?: string,
-	): PgAsyncPreparedQuery<T> {
-		return new AwsDataApiPreparedQuery(
-			this.client,
-			query,
-			this.options,
-			this.cache,
-			undefined,
-			undefined,
-			fields,
-			transactionId ?? this.transactionId,
-			false,
-			customResultMapper,
-			true,
-		);
-	}
-
-	override execute<T>(query: SQL): Promise<T> {
-		return this.prepareQuery<PreparedQueryConfig & { execute: T; values: AwsDataApiPgQueryResult<unknown[]> }>(
-			this.dialect.sqlToQuery(query),
-			undefined,
-			undefined,
-			false,
-			undefined,
-			undefined,
-			undefined,
-			this.transactionId,
-		).execute();
 	}
 
 	override async transaction<T>(
-		transaction: (tx: AwsDataApiTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (tx: AwsDataApiTransaction<TRelations>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
 		const { transactionId } = await this.client.send(new BeginTransactionCommand(this.rawQuery));
@@ -300,15 +151,13 @@ export class AwsDataApiSession<
 			this.client,
 			this.dialect,
 			this.relations,
-			this.schema,
 			this.options,
 			transactionId,
 		);
-		const tx = new AwsDataApiTransaction<TFullSchema, TRelations, TSchema>(
+		const tx = new AwsDataApiTransaction<TRelations>(
 			this.dialect,
 			session,
 			this.relations,
-			this.schema,
 			undefined,
 			true,
 		);
@@ -327,22 +176,20 @@ export class AwsDataApiSession<
 }
 
 export class AwsDataApiTransaction<
-	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends PgAsyncTransaction<AwsDataApiPgQueryResultHKT, TFullSchema, TRelations, TSchema> {
+> extends PgAsyncTransaction<AwsDataApiPgQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'AwsDataApiTransaction';
 
 	override async transaction<T>(
-		transaction: (tx: AwsDataApiTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (tx: AwsDataApiTransaction<TRelations>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new AwsDataApiTransaction<TFullSchema, TRelations, TSchema>(
+		const tx = new AwsDataApiTransaction<TRelations>(
 			this.dialect,
 			this.session,
-			this.relations,
-			this.schema,
+			this._.relations,
 			this.nestedIndex + 1,
+			true,
 		);
 		await this.session.execute(sql.raw(`savepoint ${savepointName}`));
 		try {
@@ -359,5 +206,5 @@ export class AwsDataApiTransaction<
 export type AwsDataApiPgQueryResult<T> = ExecuteStatementCommandOutput & { rows: T[] };
 
 export interface AwsDataApiPgQueryResultHKT extends PgQueryResultHKT {
-	type: AwsDataApiPgQueryResult<any>;
+	type: AwsDataApiPgQueryResult<this['row']>;
 }

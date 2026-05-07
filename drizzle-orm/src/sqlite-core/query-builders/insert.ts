@@ -377,8 +377,7 @@ export class SQLiteInsertBase<
 	}
 
 	toSQL(): Query {
-		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		return rest;
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	/** @internal */
@@ -387,7 +386,6 @@ export class SQLiteInsertBase<
 			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.returning,
 			this.config.returning ? 'all' : 'run',
-			true,
 			undefined,
 			{
 				type: 'insert',

@@ -52,6 +52,7 @@ export interface PgDeleteConfig {
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
 	comment?: SQL;
+	ignoreSelectionCastCodecs?: boolean;
 }
 
 export type PgDeleteReturningAll<
@@ -263,7 +264,11 @@ export class PgDeleteBase<
 		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
 	): PgDeleteReturning<this, TDynamic, any> | PgDeleteReturningAll<this, TDynamic> {
 		this.config.returningFields = fields;
-		this.config.returning = orderSelectedFields<PgColumn>(fields);
+		this.config.returning = orderSelectedFields<PgColumn>(
+			fields,
+			undefined,
+			this.dialect.codecs,
+		);
 		return this as any;
 	}
 
@@ -275,14 +280,12 @@ export class PgDeleteBase<
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildDeleteQuery(this.config);
 	}
 
 	toSQL(): Query {
-		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		return rest;
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	/** @internal */
@@ -299,6 +302,12 @@ export class PgDeleteBase<
 				)
 				: undefined
 		) as this['_']['selectedFields'];
+	}
+
+	/** @internal */
+	withoutSelectionCastCodecs() {
+		this.config.ignoreSelectionCastCodecs = true;
+		return this;
 	}
 
 	$dynamic(): PgDeleteDynamic<this> {

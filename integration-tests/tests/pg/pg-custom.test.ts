@@ -6,18 +6,21 @@ import { randomString } from '~/utils';
 import { nodePostgresTest as test } from './instrumentation';
 
 const customSerial = customType<{ data: number; notNull: true; default: true }>({
+	codec: 'serial',
 	dataType() {
 		return 'serial';
 	},
 });
 
 const customText = customType<{ data: string }>({
+	codec: 'text',
 	dataType() {
 		return 'text';
 	},
 });
 
 const customBoolean = customType<{ data: boolean }>({
+	codec: 'boolean',
 	dataType() {
 		return 'boolean';
 	},
@@ -25,17 +28,16 @@ const customBoolean = customType<{ data: boolean }>({
 
 const customJsonb = <TData>(name: string) =>
 	customType<{ data: TData; driverData: string }>({
+		codec: 'jsonb',
 		dataType() {
 			return 'jsonb';
-		},
-		toDriver(value: TData): string {
-			return JSON.stringify(value);
 		},
 	})(name);
 
 const customTimestamp = customType<
 	{ data: Date; driverData: string; config: { withTimezone: boolean; precision?: number } }
 >({
+	codec: (config) => `timestamp${config?.withTimezone ? 'tz' : ''}`,
 	dataType(config) {
 		const precision = config?.precision === undefined ? '' : ` (${config.precision})`;
 		return `timestamp${precision}${config?.withTimezone ? ' with time zone' : ''}`;
