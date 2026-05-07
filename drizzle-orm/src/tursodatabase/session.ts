@@ -79,6 +79,32 @@ export class TursoDatabaseSession<
 		);
 	}
 
+	override prepareOneTimeQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
+		query: Query,
+		fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
+		customResultMapper?: (rows: unknown[][]) => unknown,
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
+	): TursoDatabasePreparedQuery<T> {
+		return new TursoDatabasePreparedQuery(
+			this.client,
+			query,
+			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
+			fields,
+			executeMethod,
+			this.options.useJitMappers,
+			customResultMapper,
+			true,
+		);
+	}
+
 	prepareRelationalQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
@@ -97,6 +123,31 @@ export class TursoDatabaseSession<
 			executeMethod,
 			this.options.useJitMappers,
 			customResultMapper,
+			false,
+			true,
+			config,
+		);
+	}
+
+	override prepareOneTimeRelationalQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
+		query: Query,
+		fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
+		customResultMapper: (rows: Record<string, unknown>[]) => unknown,
+		config: RelationalQueryMapperConfig,
+	): TursoDatabasePreparedQuery<T, true> {
+		return new TursoDatabasePreparedQuery(
+			this.client,
+			query,
+			this.logger,
+			this.cache,
+			undefined,
+			undefined,
+			fields,
+			executeMethod,
+			this.options.useJitMappers,
+			customResultMapper,
+			true,
 			true,
 			config,
 		);
@@ -226,6 +277,7 @@ export class TursoDatabasePreparedQuery<
 			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
 			mapColumnValue?: (value: unknown) => unknown,
 		) => unknown,
+		private isOneTimeQuery?: boolean,
 		private isRqbV2Query?: TIsRqbV2,
 		private rqbConfig?: RelationalQueryMapperConfig,
 	) {
@@ -237,8 +289,10 @@ export class TursoDatabasePreparedQuery<
 		const params = fillPlaceholders(query.params, placeholderValues ?? {});
 		logger.logQuery(query.sql, params);
 		return this.queryWithCache(query.sql, params, async () => {
+			if (this.isOneTimeQuery) return this.client.run(query.sql, ...params);
+
 			this.stmt ??= await this.client.prepare(query.sql);
-			return (params.length ? this.stmt.run(...params) : this.stmt.run());
+			return (this.stmt.run(...params));
 		});
 	}
 
@@ -250,8 +304,10 @@ export class TursoDatabasePreparedQuery<
 			const params = fillPlaceholders(query.params, placeholderValues ?? {});
 			logger.logQuery(query.sql, params);
 			return this.queryWithCache(query.sql, params, async () => {
+				if (this.isOneTimeQuery) return this.client.all(query.sql, ...params);
+
 				this.stmt ??= await this.client.prepare(query.sql);
-				return (params.length ? this.stmt.raw(false).all(...params) : this.stmt.raw(false).all());
+				return (this.stmt.raw(false).all(...params));
 			});
 		}
 
@@ -270,8 +326,10 @@ export class TursoDatabasePreparedQuery<
 		logger.logQuery(query.sql, params);
 
 		const rows = await this.queryWithCache(query.sql, params, async () => {
+			if (this.isOneTimeQuery) return this.client.all(query.sql, ...params);
+
 			this.stmt ??= await this.client.prepare(query.sql);
-			return (params.length ? this.stmt.raw(false).all(...params) : this.stmt.raw(false).all());
+			return (this.stmt.raw(false).all(...params));
 		});
 
 		return this.useJitMappers
@@ -292,14 +350,16 @@ export class TursoDatabasePreparedQuery<
 		if (!fields && !customResultMapper) {
 			logger.logQuery(query.sql, params);
 			return this.queryWithCache(query.sql, params, async () => {
+				if (this.isOneTimeQuery) return this.client.get(query.sql, ...params);
+
 				this.stmt ??= await this.client.prepare(query.sql);
-				return (params.length ? this.stmt.raw(false).get(...params) : this.stmt.raw(false).get());
+				return (this.stmt.raw(false).get(...params));
 			});
 		}
 
 		const row = await this.queryWithCache(query.sql, params, async () => {
 			this.stmt ??= await this.client.prepare(query.sql);
-			return (params.length ? this.stmt.raw(true).get(...params) : this.stmt.raw(true).get());
+			return (this.stmt.raw(true).get(...params));
 		});
 
 		if (row === undefined) return row;
@@ -319,8 +379,10 @@ export class TursoDatabasePreparedQuery<
 		logger.logQuery(query.sql, params);
 
 		const row = await this.queryWithCache(query.sql, params, async () => {
+			if (this.isOneTimeQuery) return this.client.get(query.sql, ...params);
+
 			this.stmt ??= await this.client.prepare(query.sql);
-			return (params.length ? this.stmt.raw(false).get(...params) : this.stmt.raw(false).get());
+			return (this.stmt.raw(false).get(...params));
 		});
 
 		if (row === undefined) return row;
@@ -340,7 +402,7 @@ export class TursoDatabasePreparedQuery<
 		logger.logQuery(query.sql, params);
 		return this.queryWithCache(query.sql, params, async () => {
 			this.stmt ??= await this.client.prepare(query.sql);
-			return (params.length ? this.stmt.raw(true).all(...params) : this.stmt.raw(true).all());
+			return (this.stmt.raw(true).all(...params));
 		});
 	}
 }
