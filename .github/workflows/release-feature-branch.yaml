@@ -263,7 +263,7 @@ jobs:
             int:cockroach) pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
             int:mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
             int:sqlite) pnpm --stream test:sqlite ;;
-            int:turso-serverless) pnpm --stream vitest --reporter=verbose --silent=false --test-timeout=200000 run tests/sqlite/tursodatabase-serverless.test.ts ;;
+            int:turso-serverless) pnpm --stream vitest --reporter=verbose --silent=false --test-timeout=200000 --hook-timeout=200000 run tests/sqlite/tursodatabase-serverless.test.ts ;;
             kit:other) cd ../drizzle-kit && pnpm --stream run test:other ;;
             kit:postgres) cd ../drizzle-kit && pnpm --stream run test:postgres ;;
             kit:postgres18) cd ../drizzle-kit && PG_VERSION=18 pnpm --stream run test:postgres ;;
