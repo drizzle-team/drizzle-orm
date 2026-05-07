@@ -23,6 +23,7 @@ import { resolver } from '../prompts';
 import { explain, postgresSchemaError, postgresSchemaWarning } from '../views';
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
+import { makeInverseResolver, withCapture } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (
@@ -45,6 +46,7 @@ export const handle = async (
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
+			generateDownMigrations: config.generateDownMigrations,
 			type: 'custom',
 			renames: [],
 			snapshots,
@@ -52,25 +54,62 @@ export const handle = async (
 		return;
 	}
 
+	const schemaRenames: { from: Schema; to: Schema }[] = [];
+	const enumRenames: { from: Enum; to: Enum }[] = [];
+	const seqRenames: { from: Sequence; to: Sequence }[] = [];
+	const policyRenames: { from: Policy; to: Policy }[] = [];
+	const roleRenames: { from: Role; to: Role }[] = [];
+	const privilegeRenames: { from: Privilege; to: Privilege }[] = [];
+	const tableRenames: { from: PostgresEntities['tables']; to: PostgresEntities['tables'] }[] = [];
+	const columnRenames: { from: Column; to: Column }[] = [];
+	const viewRenames: { from: View; to: View }[] = [];
+	const uniqueRenames: { from: UniqueConstraint; to: UniqueConstraint }[] = [];
+	const indexRenames: { from: Index; to: Index }[] = [];
+	const checkRenames: { from: CheckConstraint; to: CheckConstraint }[] = [];
+	const pkRenames: { from: PrimaryKey; to: PrimaryKey }[] = [];
+	const fkRenames: { from: ForeignKey; to: ForeignKey }[] = [];
+
 	const { sqlStatements, renames, groupedStatements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<Schema>('schema'),
-		resolver<Enum>('enum'),
-		resolver<Sequence>('sequence'),
-		resolver<Policy>('policy'),
-		resolver<Role>('role'),
-		resolver<Privilege>('privilege'),
-		resolver<PostgresEntities['tables']>('table'),
-		resolver<Column>('column'),
-		resolver<View>('view'),
-		resolver<UniqueConstraint>('unique'),
-		resolver<Index>('index'),
-		resolver<CheckConstraint>('check'),
-		resolver<PrimaryKey>('primary key'),
-		resolver<ForeignKey>('foreign key'),
+		withCapture(resolver<Schema>('schema'), schemaRenames),
+		withCapture(resolver<Enum>('enum'), enumRenames),
+		withCapture(resolver<Sequence>('sequence'), seqRenames),
+		withCapture(resolver<Policy>('policy'), policyRenames),
+		withCapture(resolver<Role>('role'), roleRenames),
+		withCapture(resolver<Privilege>('privilege'), privilegeRenames),
+		withCapture(resolver<PostgresEntities['tables']>('table'), tableRenames),
+		withCapture(resolver<Column>('column'), columnRenames),
+		withCapture(resolver<View>('view'), viewRenames),
+		withCapture(resolver<UniqueConstraint>('unique'), uniqueRenames),
+		withCapture(resolver<Index>('index'), indexRenames),
+		withCapture(resolver<CheckConstraint>('check'), checkRenames),
+		withCapture(resolver<PrimaryKey>('primary key'), pkRenames),
+		withCapture(resolver<ForeignKey>('foreign key'), fkRenames),
 		'default',
 	);
+
+	const downSqlStatements = config.generateDownMigrations
+		? (await ddlDiff(
+			ddlCur,
+			ddlPrev,
+			makeInverseResolver(schemaRenames),
+			makeInverseResolver(enumRenames),
+			makeInverseResolver(seqRenames),
+			makeInverseResolver(policyRenames),
+			makeInverseResolver(roleRenames),
+			makeInverseResolver(privilegeRenames),
+			makeInverseResolver(tableRenames),
+			makeInverseResolver(columnRenames),
+			makeInverseResolver(viewRenames),
+			makeInverseResolver(uniqueRenames),
+			makeInverseResolver(indexRenames),
+			makeInverseResolver(checkRenames),
+			makeInverseResolver(pkRenames),
+			makeInverseResolver(fkRenames),
+			'default',
+		)).sqlStatements
+		: undefined;
 
 	const explainMessage = explain('postgres', groupedStatements, false, []);
 	if (explainMessage) console.log(explainMessage);
@@ -78,9 +117,11 @@ export const handle = async (
 	writeResult({
 		snapshot: snapshot,
 		sqlStatements,
+		downSqlStatements,
 		outFolder,
 		name: config.name,
 		breakpoints: config.breakpoints,
+		generateDownMigrations: config.generateDownMigrations,
 		renames,
 		snapshots,
 	});

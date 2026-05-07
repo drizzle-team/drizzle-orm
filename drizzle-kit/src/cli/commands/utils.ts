@@ -77,6 +77,7 @@ export type GenerateConfig = {
 	filenames: string[];
 	out: string;
 	breakpoints: boolean;
+	generateDownMigrations: boolean;
 	name?: string;
 	custom: boolean;
 	bundle: boolean;
@@ -96,6 +97,7 @@ export const prepareGenerateConfig = async (
 		schema?: string;
 		out?: string;
 		breakpoints?: boolean;
+		generateDownMigrations?: boolean;
 		custom?: boolean;
 		name?: string;
 		dialect?: Dialect;
@@ -106,7 +108,7 @@ export const prepareGenerateConfig = async (
 ): Promise<GenerateConfig> => {
 	const config = from === 'config' ? await drizzleConfigFromFile(options.config) : options;
 
-	const { schema, out, breakpoints, dialect, driver } = config;
+	const { schema, out, breakpoints, generateDownMigrations, dialect, driver, casing } = config;
 
 	if (!schema || !dialect) {
 		console.log(error('Please provide required params:'));
@@ -127,6 +129,7 @@ export const prepareGenerateConfig = async (
 		name: options.name,
 		custom: options.custom || false,
 		breakpoints: breakpoints ?? true,
+		generateDownMigrations: generateDownMigrations ?? true,
 		filenames: fileNames,
 		out: out || 'drizzle',
 		bundle: driver === 'expo' || driver === 'durable-sqlite',
