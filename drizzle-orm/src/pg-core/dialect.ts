@@ -1,6 +1,6 @@
 import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
 import { CasingCache } from '~/casing.ts';
-import { Column } from '~/column.ts';
+import { type AnyColumn, Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
@@ -606,6 +606,19 @@ export class PgDialect {
 		}
 	}
 
+	/**
+	 * Hook a subclass can override to wrap each emitted parameter (e.g. to inject an
+	 * explicit `cast(...)` for drivers that can't rely on parameter type negotiation,
+	 * such as AWS RDS Data API — see `AwsPgDialect.wrapParam` and
+	 * https://docs.aws.amazon.com/rdsdataservice/latest/APIReference/API_SqlParameter.html).
+	 * `column` is the column the param is bound to, or `undefined` for params without
+	 * a column encoder (e.g. literals in a `sql` tag).
+	 * The default implementation is a no-op.
+	 */
+	wrapParam(paramSql: string, _column?: AnyColumn): string {
+		return paramSql;
+	}
+
 	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
 		return sql.toQuery({
 			casing: this.casing,
@@ -613,6 +626,7 @@ export class PgDialect {
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
 			prepareTyping: this.prepareTyping,
+			wrapParam: this.wrapParam.bind(this),
 			invokeSource,
 		});
 	}
