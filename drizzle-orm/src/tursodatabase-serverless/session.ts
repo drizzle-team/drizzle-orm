@@ -1,4 +1,4 @@
-import type { DatabasePromise, StatementPromise } from '@tursodatabase/database-common';
+import type { Connection, Statement } from '@tursodatabase/serverless';
 import type * as V1 from '~/_relations.ts';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -22,9 +22,9 @@ import type {
 } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
-import type { TursoDatabaseRunResult } from './driver-core.ts';
+import type { TursoDatabaseServerlessRunResult } from './driver.ts';
 
-export interface TursoDatabaseSessionOptions {
+export interface TursoDatabaseServerlessSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
 	useJitMappers?: boolean;
@@ -32,22 +32,22 @@ export interface TursoDatabaseSessionOptions {
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
-export class TursoDatabaseSession<
+export class TursoDatabaseServerlessSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends SQLiteSession<'async', TursoDatabaseRunResult, TFullSchema, TRelations, TSchema> {
-	static override readonly [entityKind]: string = 'TursoDatabaseSession';
+> extends SQLiteSession<'async', TursoDatabaseServerlessRunResult, TFullSchema, TRelations, TSchema> {
+	static override readonly [entityKind]: string = 'TursoDatabaseServerlessSession';
 
 	private logger: Logger;
 	private cache: Cache;
 
 	constructor(
-		private client: DatabasePromise,
+		private client: Connection,
 		dialect: SQLiteAsyncDialect,
 		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
-		private options: TursoDatabaseSessionOptions,
+		private options: TursoDatabaseServerlessSessionOptions,
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
@@ -64,8 +64,8 @@ export class TursoDatabaseSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): TursoDatabasePreparedQuery<T> {
-		return new TursoDatabasePreparedQuery(
+	): TursoDatabaseServerlessPreparedQuery<T> {
+		return new TursoDatabaseServerlessPreparedQuery(
 			this.client,
 			query,
 			this.logger,
@@ -89,8 +89,8 @@ export class TursoDatabaseSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): TursoDatabasePreparedQuery<T> {
-		return new TursoDatabasePreparedQuery(
+	): TursoDatabaseServerlessPreparedQuery<T> {
+		return new TursoDatabaseServerlessPreparedQuery(
 			this.client,
 			query,
 			this.logger,
@@ -111,8 +111,8 @@ export class TursoDatabaseSession<
 		executeMethod: SQLiteExecuteMethod,
 		customResultMapper: (rows: Record<string, unknown>[]) => unknown,
 		config: RelationalQueryMapperConfig,
-	): TursoDatabasePreparedQuery<T, true> {
-		return new TursoDatabasePreparedQuery(
+	): TursoDatabaseServerlessPreparedQuery<T, true> {
+		return new TursoDatabaseServerlessPreparedQuery(
 			this.client,
 			query,
 			this.logger,
@@ -135,8 +135,8 @@ export class TursoDatabaseSession<
 		executeMethod: SQLiteExecuteMethod,
 		customResultMapper: (rows: Record<string, unknown>[]) => unknown,
 		config: RelationalQueryMapperConfig,
-	): TursoDatabasePreparedQuery<T, true> {
-		return new TursoDatabasePreparedQuery(
+	): TursoDatabaseServerlessPreparedQuery<T, true> {
+		return new TursoDatabaseServerlessPreparedQuery(
 			this.client,
 			query,
 			this.logger,
@@ -154,16 +154,16 @@ export class TursoDatabaseSession<
 	}
 
 	override async transaction<T>(
-		transaction: (db: TursoDatabaseTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (db: TursoDatabaseServerlessTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
-		const session = new TursoDatabaseSession<TFullSchema, TRelations, TSchema>(
+		const session = new TursoDatabaseServerlessSession<TFullSchema, TRelations, TSchema>(
 			this.client,
 			this.dialect,
 			this.relations,
 			this.schema,
 			this.options,
 		);
-		const localTx = new TursoDatabaseTransaction<TFullSchema, TRelations, TSchema>(
+		const localTx = new TursoDatabaseServerlessTransaction<TFullSchema, TRelations, TSchema>(
 			'async',
 			this.dialect,
 			session,
@@ -177,12 +177,11 @@ export class TursoDatabaseSession<
 		return result;
 	}
 
-	override async run(query: SQL): Result<'async', TursoDatabaseRunResult> {
+	override async run(query: SQL): Result<'async', TursoDatabaseServerlessRunResult> {
 		const staticQuery = this.dialect.sqlToQuery(query);
-
 		return this.prepareOneTimeQuery(staticQuery, undefined, 'run').run() as Result<
 			'async',
-			TursoDatabaseRunResult
+			TursoDatabaseServerlessRunResult
 		>;
 	}
 
@@ -210,19 +209,19 @@ export class TursoDatabaseSession<
 	}
 }
 
-export class TursoDatabaseTransaction<
+export class TursoDatabaseServerlessTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends SQLiteTransaction<'async', TursoDatabaseRunResult, TFullSchema, TRelations, TSchema> {
-	static override readonly [entityKind]: string = 'TursoDatabaseTransaction';
+> extends SQLiteTransaction<'async', TursoDatabaseServerlessRunResult, TFullSchema, TRelations, TSchema> {
+	static override readonly [entityKind]: string = 'TursoDatabaseServerlessTransaction';
 
 	override async transaction<T>(
-		transaction: (tx: TursoDatabaseTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (tx: TursoDatabaseServerlessTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex}`;
 
-		const tx = new TursoDatabaseTransaction(
+		const tx = new TursoDatabaseServerlessTransaction(
 			'async',
 			this.dialect,
 			this.session,
@@ -243,25 +242,25 @@ export class TursoDatabaseTransaction<
 	}
 }
 
-export class TursoDatabasePreparedQuery<
+export class TursoDatabaseServerlessPreparedQuery<
 	T extends PreparedQueryConfig = PreparedQueryConfig,
 	TIsRqbV2 extends boolean = false,
 > extends SQLitePreparedQuery<
 	{
 		type: 'async';
-		run: TursoDatabaseRunResult;
+		run: TursoDatabaseServerlessRunResult;
 		all: T['all'];
 		get: T['get'];
 		values: T['values'];
 		execute: T['execute'];
 	}
 > {
-	static override readonly [entityKind]: string = 'TursoDatabasePreparedQuery';
+	static override readonly [entityKind]: string = 'TursoDatabaseServerlessPreparedQuery';
 	private jitMapper?: RowsMapper<any> | RelationalRowsMapper<any>;
-	private stmt?: StatementPromise;
+	private stmt?: Statement;
 
 	constructor(
-		private client: DatabasePromise,
+		private client: Connection,
 		query: Query,
 		private logger: Logger,
 		cache: Cache,
@@ -284,7 +283,7 @@ export class TursoDatabasePreparedQuery<
 		super('async', executeMethod, query, cache, queryMetadata, cacheConfig);
 	}
 
-	async run(placeholderValues?: Record<string, unknown>): Promise<TursoDatabaseRunResult> {
+	async run(placeholderValues?: Record<string, unknown>): Promise<TursoDatabaseServerlessRunResult> {
 		const { query, logger } = this;
 		const params = fillPlaceholders(query.params, placeholderValues ?? {});
 		logger.logQuery(query.sql, params);
@@ -292,7 +291,7 @@ export class TursoDatabasePreparedQuery<
 			if (this.isOneTimeQuery) return this.client.run(query.sql, ...params);
 
 			this.stmt ??= await this.client.prepare(query.sql);
-			return (this.stmt.run(...params));
+			return this.stmt.run(params);
 		});
 	}
 
@@ -307,7 +306,7 @@ export class TursoDatabasePreparedQuery<
 				if (this.isOneTimeQuery) return this.client.all(query.sql, ...params);
 
 				this.stmt ??= await this.client.prepare(query.sql);
-				return (this.stmt.raw(false).all(...params));
+				return this.stmt.raw(false).all(params);
 			});
 		}
 
@@ -329,7 +328,7 @@ export class TursoDatabasePreparedQuery<
 			if (this.isOneTimeQuery) return this.client.all(query.sql, ...params);
 
 			this.stmt ??= await this.client.prepare(query.sql);
-			return (this.stmt.raw(false).all(...params));
+			return this.stmt.raw(false).all(params);
 		});
 
 		return this.useJitMappers
@@ -353,13 +352,13 @@ export class TursoDatabasePreparedQuery<
 				if (this.isOneTimeQuery) return this.client.get(query.sql, ...params);
 
 				this.stmt ??= await this.client.prepare(query.sql);
-				return (this.stmt.raw(false).get(...params));
+				return this.stmt.raw(false).get(params);
 			});
 		}
 
 		const row = await this.queryWithCache(query.sql, params, async () => {
 			this.stmt ??= await this.client.prepare(query.sql);
-			return (this.stmt.raw(true).get(...params));
+			return this.stmt.raw(true).get(params);
 		});
 
 		if (row === undefined) return row;
@@ -382,7 +381,7 @@ export class TursoDatabasePreparedQuery<
 			if (this.isOneTimeQuery) return this.client.get(query.sql, ...params);
 
 			this.stmt ??= await this.client.prepare(query.sql);
-			return (this.stmt.raw(false).get(...params));
+			return this.stmt.raw(false).get(params);
 		});
 
 		if (row === undefined) return row;
@@ -402,7 +401,7 @@ export class TursoDatabasePreparedQuery<
 		logger.logQuery(query.sql, params);
 		return this.queryWithCache(query.sql, params, async () => {
 			this.stmt ??= await this.client.prepare(query.sql);
-			return (this.stmt.raw(true).all(...params));
+			return this.stmt.raw(true).all(params);
 		});
 	}
 }

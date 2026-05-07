@@ -19,6 +19,10 @@ on:
         required: true
       LIBSQL_REMOTE_TOKEN:
         required: true
+      TURSODATABASE_REMOTE_URL:
+        required: true
+      TURSODATABASE_REMOTE_TOKEN:
+        required: true
       SQLITE_CLOUD_CONNECTION_STRING:
         required: true
       SQLITE_MANY_CLOUD_CONNECTION_STRING:
@@ -111,6 +115,8 @@ jobs:
           - shard: int:postgres
             dbs: [postgres]
           - shard: int:sqlite
+            dbs: []
+          - shard: int:turso-serverless
             dbs: []
           - shard: int:other
             dbs: [mysql, mssql, cockroach, postgres, postgres-postgis, postgres-vector]
@@ -216,6 +222,8 @@ jobs:
           LIBSQL_URL: file:local.db
           LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
           LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
+          TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
+          TURSODATABASE_REMOTE_TOKEN: ${{ secrets.TURSODATABASE_REMOTE_TOKEN }}
           COCKROACH_CONNECTION_STRING: postgresql://root@127.0.0.1:26257/defaultdb?sslmode=disable
           MSSQL_CONNECTION_STRING: mssql://SA:drizzle123PASSWORD!@localhost:1433?encrypt=true&trustServerCertificate=true
           TEST_CONFIG_PATH_PREFIX: ./tests/cli/
@@ -249,8 +257,8 @@ jobs:
             ;;
             int:cockroach) pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
             int:mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
-            int:sqlite) pnpm --stream vitest --reporter=verbose --silent=false run tests/sqlite ;;
-            
+            int:sqlite) pnpm --stream test:sqlite ;;
+            int:turso-serverless) pnpm --stream vitest --reporter=verbose --silent=false --test-timeout=200000 --hook-timeout=200000 run tests/sqlite/tursodatabase-serverless.test.ts ;;
             kit:other) cd ../drizzle-kit && pnpm --stream run test:other ;;
             kit:postgres) cd ../drizzle-kit && pnpm --stream run test:postgres ;;
             kit:cockroach)
