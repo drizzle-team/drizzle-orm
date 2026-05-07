@@ -57,10 +57,9 @@ export class MySqlRemoteSession<
 		cacheConfig?: WithCacheConfig,
 	): MySqlPreparedQuery<T> {
 		const executor = async (params: any[] = []) => {
-			if (mode === 'arrays') return this.client(query.sql, params, 'all');
+			const raw = this.client(query.sql, params, mode === 'arrays' ? 'all' : 'execute');
 
-			const raw = this.client(query.sql, params, 'execute');
-			if (mode === 'objects') return raw.then((r) => r.rows);
+			if (mode !== 'raw') return raw.then(({ rows }) => rows);
 			if (!mapper) return raw;
 
 			return raw.then(({ rows: [data] }) => ({

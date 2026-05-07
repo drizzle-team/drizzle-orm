@@ -55,7 +55,7 @@ export class MySqlCountBuilder extends SQL<number> implements SQLWrapper<number>
 	execute(placeholderValues?: Record<string, unknown>): Promise<number> {
 		return this.session.prepareQuery<{
 			execute: number;
-			iterator: unknown;
+			iterator: never;
 		}>(
 			this.build(),
 			'arrays',
