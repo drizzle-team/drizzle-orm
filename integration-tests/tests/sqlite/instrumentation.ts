@@ -551,10 +551,10 @@ export const providerForTursoDatabase = async () => {
 export const providerForTursoDatabaseServerless = async () => {
 	const url = process.env['TURSODATABASE_REMOTE_URL'];
 	const authToken = process.env['TURSODATABASE_REMOTE_TOKEN'];
-	if (url === undefined) {
+	if (!url) {
 		throw new Error('TURSODATABASE_REMOTE_URL is not set.');
 	}
-	if (authToken === undefined) {
+	if (!authToken) {
 		throw new Error('TURSODATABASE_REMOTE_TOKEN is not set.');
 	}
 	const uris = url.split(';').filter((val) => val !== '');
