@@ -1703,3 +1703,52 @@ test('filter out system tables created by analyze', async () => {
 	const expectedSql1 = ['CREATE TABLE `table` (\n\t`id` integer PRIMARY KEY\n);\n'];
 	expect(pst1).toStrictEqual(expectedSql1);
 });
+
+test('add column with reference', async (t) => {
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+		}),
+	};
+
+	const some = sqliteTable('some', {
+		id: int().unique(),
+	});
+	const users = sqliteTable(
+		'users',
+		{
+			id: int('id').primaryKey({ autoIncrement: true }),
+			reporteeId: int('report_to').references((): AnySQLiteColumn => users.id, {
+				onDelete: 'cascade',
+				onUpdate: 'restrict',
+			}),
+			reporteeId2: int('report_to2').references((): AnySQLiteColumn => users.id, {
+				onDelete: 'no action',
+				onUpdate: 'no action',
+			}),
+			reporteeId3: int('report_to3'),
+		},
+		(
+			t,
+		) => [
+			foreignKey({ columns: [t.reporteeId3], foreignColumns: [some.id], name: 'test_name' }).onDelete('set default'),
+		],
+	);
+
+	const schema2 = {
+		users,
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		'ALTER TABLE `users` ADD `report_to` integer REFERENCES users(id) ON UPDATE RESTRICT ON DELETE CASCADE;',
+		'ALTER TABLE `users` ADD `report_to2` integer REFERENCES users(id);',
+		'ALTER TABLE `users` ADD `report_to3` integer CONSTRAINT `test_name` REFERENCES some(id) ON DELETE SET DEFAULT;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
