@@ -62,9 +62,9 @@ export class MySqlRemoteSession<
 			if (mode !== 'raw') return raw.then(({ rows }) => rows);
 			if (!mapper) return raw;
 
-			return raw.then(({ rows: [data] }) => ({
-				insertId: data.insertId,
-				affectedRows: data.affectedRows,
+			return raw.then(({ affectedRows, insertId }) => ({
+				insertId: insertId!,
+				affectedRows: affectedRows!,
 			}));
 		};
 
