@@ -1138,12 +1138,14 @@ export class MySqlSelectBase<
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
 
+		const query = this.dialect.sqlToQuery(this.getSQL());
+		// Important to build query before acquiring fields list because build mutates fields
 		const fieldsList = orderSelectedFields<MySqlColumn>(this.config.fields);
 		const mapper = this.dialect.mapperGenerators.rows(fieldsList, this.joinsNotNullableMap);
 
 		const preparedQuery = this.session.prepareQuery<
 			MySqlPreparedQueryConfig & { execute: TResult[] }
-		>(this.dialect.sqlToQuery(this.getSQL()), 'arrays', mapper, {
+		>(query, 'arrays', mapper, {
 			type: 'select',
 			tables: [...this.usedTables],
 		}, this.cacheConfig);
