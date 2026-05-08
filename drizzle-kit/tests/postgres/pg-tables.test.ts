@@ -1568,3 +1568,57 @@ test('rename table with identity column', async () => {
 	expect(st).toStrictEqual(expectedSt);
 	expect(pst).toStrictEqual(expectedSt);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5585
+test('alter unique constraint: add nullsNotDistinct', async () => {
+	const from = {
+		table: pgTable('table', {
+			name: text('name').notNull(),
+		}, (t) => [unique('table_unique').on(t.name)]),
+	};
+	const to = {
+		table: pgTable('table', {
+			name: text('name').notNull(),
+		}, (t) => [unique('table_unique').on(t.name).nullsNotDistinct()]),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
+		'ALTER TABLE "table" DROP CONSTRAINT "table_unique";',
+		'ALTER TABLE "table" ADD CONSTRAINT "table_unique" UNIQUE NULLS NOT DISTINCT("name");',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5585
+test('alter unique constraint: add column', async () => {
+	const from = {
+		table: pgTable('table', {
+			foo: text('foo').notNull(),
+			bar: text('bar').notNull(),
+		}, (t) => [unique('table_unique').on(t.foo)]),
+	};
+	const to = {
+		table: pgTable('table', {
+			foo: text('foo').notNull(),
+			bar: text('bar').notNull(),
+		}, (t) => [unique('table_unique').on(t.foo, t.bar)]),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
+		'ALTER TABLE "table" DROP CONSTRAINT "table_unique";',
+		'ALTER TABLE "table" ADD CONSTRAINT "table_unique" UNIQUE("foo","bar");',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
