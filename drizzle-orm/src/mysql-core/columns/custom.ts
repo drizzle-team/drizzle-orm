@@ -63,6 +63,7 @@ export class MySqlCustomColumn<T extends ColumnBaseConfig<'custom', 'MySqlCustom
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
+	private wrapFn?: (column: SQL) => SQL;
 
 	constructor(
 		table: AnyMySqlTable<{ name: T['tableName'] }>,
@@ -72,6 +73,7 @@ export class MySqlCustomColumn<T extends ColumnBaseConfig<'custom', 'MySqlCustom
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
 		this.mapTo = config.customTypeParams.toDriver;
 		this.mapFrom = config.customTypeParams.fromDriver;
+		this.wrapFn = config.customTypeParams.wrap;
 	}
 
 	getSQLType(): string {
@@ -84,6 +86,10 @@ export class MySqlCustomColumn<T extends ColumnBaseConfig<'custom', 'MySqlCustom
 
 	override mapToDriverValue(value: T['data']): T['driverParam'] {
 		return typeof this.mapTo === 'function' ? this.mapTo(value) : value as T['data'];
+	}
+
+	getWrappedSQL(column: SQL): SQL {
+		return this.wrapFn ? this.wrapFn(column) : column;
 	}
 }
 
@@ -116,7 +122,7 @@ export type CustomTypeValues = {
 	configRequired?: boolean;
 
 	/**
-	 * If your custom data type should be notNull by default you can use `notNull: true`
+	 * If your custom data type should be notNull by notNull: true
 	 *
 	 * @example
 	 * const customSerial = customType<{ data: number, notNull: true, default: true }>({
@@ -195,6 +201,17 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	fromDriver?: (value: T['driverData']) => T['data'];
+
+	/**
+	 * Optional function to wrap the column in a custom SQL function
+	 * @example
+	 * ```ts
+	 * wrap(column) {
+	 *   return sql`lower(${column})`;
+	 * }
+	 * ```
+	 */
+	wrap?: (column: SQL) => SQL;
 }
 
 /**
@@ -205,28 +222,10 @@ export function customType<T extends CustomTypeValues = CustomTypeValues>(
 ): Equal<T['configRequired'], true> extends true ? {
 		<TConfig extends Record<string, any> & T['config']>(
 			fieldConfig: TConfig,
-		): MySqlCustomColumnBuilder<ConvertCustomConfig<'', T>>;
-		<TName extends string>(
-			dbName: TName,
-			fieldConfig: T['config'],
-		): MySqlCustomColumnBuilder<ConvertCustomConfig<TName, T>>;
+		): MySqlCustomColumnBuilder<ConvertCustomConfig<'', T>>
 	}
 	: {
-		(): MySqlCustomColumnBuilder<ConvertCustomConfig<'', T>>;
 		<TConfig extends Record<string, any> & T['config']>(
 			fieldConfig?: TConfig,
 		): MySqlCustomColumnBuilder<ConvertCustomConfig<'', T>>;
-		<TName extends string>(
-			dbName: TName,
-			fieldConfig?: T['config'],
-		): MySqlCustomColumnBuilder<ConvertCustomConfig<TName, T>>;
-	}
-{
-	return <TName extends string>(
-		a?: TName | T['config'],
-		b?: T['config'],
-	): MySqlCustomColumnBuilder<ConvertCustomConfig<TName, T>> => {
-		const { name, config } = getColumnNameAndConfig<T['config']>(a, b);
-		return new MySqlCustomColumnBuilder(name as ConvertCustomConfig<TName, T>['name'], config, customTypeParams);
 	};
-}
