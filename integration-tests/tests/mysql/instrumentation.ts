@@ -194,7 +194,7 @@ const createProxyHandler = (client: mysql.Connection) => {
 			if (response.error !== undefined) {
 				throw response.error;
 			}
-			return { rows: response.data };
+			return response.data;
 		} catch (e: any) {
 			console.error('Error from mysql proxy server:', e.message);
 			throw e;
