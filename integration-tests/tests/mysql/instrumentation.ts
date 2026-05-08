@@ -15,7 +15,7 @@ import type { MutationOption } from 'drizzle-orm/cache/core';
 import { Cache } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import type { MySqlDatabase, MySqlSchema, MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
-import { drizzle as proxyDrizzle } from 'drizzle-orm/mysql-proxy';
+import { drizzle as proxyDrizzle, RemoteCallback } from 'drizzle-orm/mysql-proxy';
 import type { AnyMySql2Connection } from 'drizzle-orm/mysql2';
 import { drizzle as mysql2Drizzle } from 'drizzle-orm/mysql2';
 import { drizzle as psDrizzle } from 'drizzle-orm/planetscale-serverless';
@@ -188,13 +188,18 @@ const _seed = async <Schema extends MysqlSchema>(
 
 const createProxyHandler = (client: mysql.Connection) => {
 	const serverSimulator = new ServerSimulator(client);
-	const proxyHandler = async (sql: string, params: any[], method: any) => {
+	const proxyHandler: RemoteCallback = async (sql: string, params: any[], method: any) => {
 		try {
 			const response = await serverSimulator.query(sql, params, method);
 			if (response.error !== undefined) {
 				throw response.error;
 			}
-			return response.data;
+			return {
+				rows: response.data,
+				...(Array.isArray(response.data[0])
+					? {}
+					: { insertId: response.data.lastInsertRowId, affectedRows: response.data.affectedRows }),
+			};
 		} catch (e: any) {
 			console.error('Error from mysql proxy server:', e.message);
 			throw e;

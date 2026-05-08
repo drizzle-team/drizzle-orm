@@ -59,12 +59,12 @@ export class MySqlRemoteSession<
 		const executor = async (params: any[] = []) => {
 			const raw = this.client(query.sql, params, mode === 'arrays' ? 'all' : 'execute');
 
-			if (mode !== 'raw') return raw.then(({ rows }) => rows);
-			if (!mapper) return raw;
-
-			return raw.then(({ affectedRows, insertId }) => ({
-				insertId: insertId!,
-				affectedRows: affectedRows!,
+			if (mode === 'objects') return raw.then(({ rows }) => rows[0]);
+			if (mode === 'arrays' || !mapper) return raw.then(({ rows }) => rows);
+			return raw.then(({ rows, insertId, affectedRows }) => ({
+				// Backwards compat with old implementation (types remain unaffected)
+				insertId: insertId ?? rows[0]?.insertId,
+				affectedRows: affectedRows ?? rows[0]?.affectedRows,
 			}));
 		};
 

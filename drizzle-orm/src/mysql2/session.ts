@@ -114,6 +114,8 @@ export class MySql2Session<
 				const onEnd = once(stream, 'end');
 				const onError = once(stream, 'error');
 				while (true) {
+					stream.resume();
+
 					const row = await Promise.race([onEnd, onError, new Promise((resolve) => stream.once('data', resolve))]);
 					if (row === undefined || (Array.isArray(row) && row.length === 0)) {
 						break;

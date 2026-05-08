@@ -159,7 +159,7 @@ export class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 	}
 
 	async *iterator(placeholderValues: Record<string, unknown> = {}): AsyncGenerator<T['iterator']> {
-		const { query, logger, executor, _iterator, mapper } = this;
+		const { query, logger, executor, _iterator, mapper, fastPath } = this;
 		const sql = query._sql ? query._sql.join(' ') : query.sql;
 		const params = query.params.length === 0
 			? query.params
@@ -186,9 +186,12 @@ export class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 			}
 		}
 
-		const rows = await executor(params).catch((e) => {
-			throw new DrizzleQueryError(sql, params, e as Error);
-		}) as T['iterator'][];
+		// Fallback for compatibility between drivers
+		const rows = await (fastPath
+			? executor(params).catch((e) => {
+				throw new DrizzleQueryError(sql, params, e as Error);
+			})
+			: this.queryWithCache(sql, params, () => executor(params)));
 
 		if (mapper) {
 			for (const row of rows) {
