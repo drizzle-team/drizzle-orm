@@ -86,13 +86,14 @@ export class MySqlRelationalQuery<
 			isFirst: this.mode === 'first',
 			parseJson: false,
 			parseJsonIfString: false,
-			rootJsonMappers: true,
+			rootJsonMappers: false,
+			arrayModeRoot: true,
 			selection: query.selection,
 		});
 
 		return this.session.prepareQuery(
 			builtQuery,
-			'objects',
+			'arrays',
 			mapper,
 		) as MySqlPreparedQuery<MySqlPreparedQueryConfig & { execute: TResult }>;
 	}

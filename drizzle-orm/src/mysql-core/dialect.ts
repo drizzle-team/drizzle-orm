@@ -760,9 +760,10 @@ export class MySqlDialect {
 		});
 	}
 
-	private buildRqbColumn(table: Table | View, column: unknown, key: string) {
+	private buildRqbColumn(table: Table | View, column: unknown, key: string, inJson: boolean) {
 		if (is(column, Column)) {
 			const name = sql`${table}.${sql.identifier(column.name)}`;
+			if (!inJson) return sql`${name} as ${sql.identifier(key)}`;
 
 			switch (column.columnType) {
 				case 'MySqlBinary':
@@ -806,6 +807,7 @@ export class MySqlDialect {
 	private unwrapAllColumns = (
 		table: Table | View,
 		selection: BuildRelationalQueryResult['selection'],
+		inJson: boolean,
 	) => {
 		return sql.join(
 			Object.entries(table[TableColumns]).map(([k, v]) => {
@@ -814,7 +816,7 @@ export class MySqlDialect {
 					field: v as Column | SQL | SQLWrapper | SQL.Aliased,
 				});
 
-				return this.buildRqbColumn(table, v, k);
+				return this.buildRqbColumn(table, v, k, inJson);
 			}),
 			sql`, `,
 		);
@@ -860,6 +862,7 @@ export class MySqlDialect {
 	private buildColumns = (
 		table: MySqlTable | MySqlView,
 		selection: BuildRelationalQueryResult['selection'],
+		inJson: boolean,
 		params?: DBQueryConfigWithComment<'many'>,
 	) =>
 		params?.columns
@@ -872,7 +875,7 @@ export class MySqlDialect {
 				);
 
 				for (const { column, tsName } of selectedColumns) {
-					columnIdentifiers.push(this.buildRqbColumn(table, column, tsName));
+					columnIdentifiers.push(this.buildRqbColumn(table, column, tsName, inJson));
 
 					selection.push({
 						key: tsName,
@@ -884,7 +887,7 @@ export class MySqlDialect {
 					? sql.join(columnIdentifiers, sql`, `)
 					: undefined;
 			})()
-			: this.unwrapAllColumns(table, selection);
+			: this.unwrapAllColumns(table, selection, inJson);
 
 	buildRelationalQuery({
 		schema,
@@ -897,6 +900,7 @@ export class MySqlDialect {
 		depth,
 		isNestedMany,
 		throughJoin,
+		nested,
 	}: {
 		schema: TablesRelationalConfig;
 		table: MySqlTable | MySqlView;
@@ -908,6 +912,7 @@ export class MySqlDialect {
 		depth?: number;
 		isNestedMany?: boolean;
 		throughJoin?: SQL;
+		nested?: boolean;
 	}): BuildRelationalQueryResult {
 		const selection: BuildRelationalQueryResult['selection'] = [];
 		const isSingle = mode === 'first';
@@ -919,7 +924,7 @@ export class MySqlDialect {
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
 
-		const columns = this.buildColumns(table, selection, params);
+		const columns = this.buildColumns(table, selection, !!nested, params);
 
 		const where: SQL | undefined = params?.where && relationWhere
 			? and(
@@ -1008,6 +1013,7 @@ export class MySqlDialect {
 							depth: currentDepth + 1,
 							isNestedMany: !isSingle,
 							throughJoin,
+							nested: true,
 						});
 
 						selection.push({

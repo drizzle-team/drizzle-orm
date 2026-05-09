@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import Docker from 'dockerode';
 import { defineRelations, DrizzleError, eq, sql, TransactionRollbackError } from 'drizzle-orm';
-import { alias, int, mysqlTable, time } from 'drizzle-orm/mysql-core';
+import { alias, int, mysqlTable, snakeCase, time } from 'drizzle-orm/mysql-core';
 import { drizzle, type MySql2Database } from 'drizzle-orm/mysql2';
 import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
@@ -12750,12 +12750,12 @@ test('[Find Many .through] Through with uneven relation column count - reverse',
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4539
 test('[Find many] time column parsing', async () => {
-	const studios = mysqlTable('studios', {
+	const studios = snakeCase.table('studios', {
 		id: int().primaryKey(),
 		openTime: time(),
 	});
 
-	const notices = mysqlTable('notices', {
+	const notices = snakeCase.table('notices', {
 		studioId: int().references(() => studios.id),
 	});
 	const relations = defineRelations({ studios, notices }, (r) => ({
