@@ -346,8 +346,8 @@ importers:
         specifier: ^4.20241112.0
         version: 4.20250529.0
       '@electric-sql/pglite':
-        specifier: ^0.2.12
-        version: 0.2.12
+        specifier: ^0.4.5
+        version: 0.4.5
       '@libsql/client':
         specifier: ^0.10.0
         version: 0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
@@ -362,7 +362,7 @@ importers:
         version: 0.10.0
       '@netlify/db':
         specifier: ^0.4.0
-        version: 0.4.0(@cloudflare/workers-types@4.20250529.0)(@electric-sql/pglite@0.2.12)(@libsql/client-wasm@0.10.0)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.10.0)(@op-engineering/op-sqlite@2.0.22(react-native@0.79.2(@babel/core@7.27.3)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(@planetscale/database@1.19.0)(@tidbcloud/serverless@0.1.1)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@5.6.3))(better-sqlite3@11.10.0)(bufferutil@4.0.8)(bun-types@1.2.15)(gel@2.1.0)(mysql2@3.14.1)(pg@8.16.0)(postgres@3.4.7)(utf-8-validate@6.0.3)
+        version: 0.4.0(@cloudflare/workers-types@4.20250529.0)(@electric-sql/pglite@0.4.5)(@libsql/client-wasm@0.10.0)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.10.0)(@op-engineering/op-sqlite@2.0.22(react-native@0.79.2(@babel/core@7.27.3)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(@planetscale/database@1.19.0)(@tidbcloud/serverless@0.1.1)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@5.6.3))(better-sqlite3@11.10.0)(bufferutil@4.0.8)(bun-types@1.2.15)(gel@2.1.0)(mysql2@3.14.1)(pg@8.16.0)(postgres@3.4.7)(utf-8-validate@6.0.3)
       '@op-engineering/op-sqlite':
         specifier: ^2.0.16
         version: 2.0.22(react-native@0.79.2(@babel/core@7.27.3)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
@@ -698,8 +698,8 @@ importers:
         specifier: ^3.549.0
         version: 3.817.0
       '@electric-sql/pglite':
-        specifier: 0.2.12
-        version: 0.2.12
+        specifier: 0.4.5
+        version: 0.4.5
       '@libsql/client':
         specifier: ^0.10.0
         version: 0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
@@ -711,7 +711,7 @@ importers:
         version: 2.14.4
       '@netlify/db':
         specifier: ^0.4.0
-        version: 0.4.0(@cloudflare/workers-types@4.20250529.0)(@electric-sql/pglite@0.2.12)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.10.0)(@planetscale/database@1.19.0)(@tidbcloud/serverless@0.1.1)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@5.6.3))(better-sqlite3@11.9.1)(bufferutil@4.0.8)(bun-types@1.2.15)(gel@2.1.0)(mysql2@3.14.1)(pg@8.16.0)(postgres@3.4.7)(utf-8-validate@6.0.3)
+        version: 0.4.0(@cloudflare/workers-types@4.20250529.0)(@electric-sql/pglite@0.4.5)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.10.0)(@planetscale/database@1.19.0)(@tidbcloud/serverless@0.1.1)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@5.6.3))(better-sqlite3@11.9.1)(bufferutil@4.0.8)(bun-types@1.2.15)(gel@2.1.0)(mysql2@3.14.1)(pg@8.16.0)(postgres@3.4.7)(utf-8-validate@6.0.3)
       '@planetscale/database':
         specifier: ^1.16.0
         version: 1.19.0
@@ -1607,6 +1607,9 @@ packages:
 
   '@electric-sql/pglite@0.2.12':
     resolution: {integrity: sha512-J/X42ujcoFEbOkgRyoNqZB5qcqrnJRWVlwpH3fKYoJkTz49N91uAK/rDSSG/85WRas9nC9mdV4FnMTxnQWE/rw==}
+
+  '@electric-sql/pglite@0.4.5':
+    resolution: {integrity: sha512-aGG2zGEyZzGWKy8P+9ZoNUV0jxt1+hgbeTf+bVAYyxVZZLXg3/9aFlfLxb08AYZVAfAkQlQIysmWjhc5hwDG8g==}
 
   '@esbuild-kit/core-utils@3.3.2':
     resolution: {integrity: sha512-sPRAnw9CdSsRmEtnsl2WXWdyquogVpB3yZ3dgwJfe8zrOzTsV7cJvmwrKVa+0ma5BoiGJ+BoqkMvawbayKUsqQ==}
@@ -9873,6 +9876,8 @@ snapshots:
 
   '@electric-sql/pglite@0.2.12': {}
 
+  '@electric-sql/pglite@0.4.5': {}
+
   '@esbuild-kit/core-utils@3.3.2':
     dependencies:
       esbuild: 0.18.20
@@ -10828,12 +10833,12 @@ snapshots:
     dependencies:
       '@types/pg': 8.11.6
 
-  '@netlify/db@0.4.0(@cloudflare/workers-types@4.20250529.0)(@electric-sql/pglite@0.2.12)(@libsql/client-wasm@0.10.0)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.10.0)(@op-engineering/op-sqlite@2.0.22(react-native@0.79.2(@babel/core@7.27.3)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(@planetscale/database@1.19.0)(@tidbcloud/serverless@0.1.1)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@5.6.3))(better-sqlite3@11.10.0)(bufferutil@4.0.8)(bun-types@1.2.15)(gel@2.1.0)(mysql2@3.14.1)(pg@8.16.0)(postgres@3.4.7)(utf-8-validate@6.0.3)':
+  '@netlify/db@0.4.0(@cloudflare/workers-types@4.20250529.0)(@electric-sql/pglite@0.4.5)(@libsql/client-wasm@0.10.0)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.10.0)(@op-engineering/op-sqlite@2.0.22(react-native@0.79.2(@babel/core@7.27.3)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(@planetscale/database@1.19.0)(@tidbcloud/serverless@0.1.1)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@5.6.3))(better-sqlite3@11.10.0)(bufferutil@4.0.8)(bun-types@1.2.15)(gel@2.1.0)(mysql2@3.14.1)(pg@8.16.0)(postgres@3.4.7)(utf-8-validate@6.0.3)':
     dependencies:
       '@neondatabase/serverless': 0.10.0
       '@netlify/runtime-utils': 2.3.0
       pg: 8.16.0
-      waddler: 0.1.1(@cloudflare/workers-types@4.20250529.0)(@electric-sql/pglite@0.2.12)(@libsql/client-wasm@0.10.0)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.10.0)(@op-engineering/op-sqlite@2.0.22(react-native@0.79.2(@babel/core@7.27.3)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(@planetscale/database@1.19.0)(@tidbcloud/serverless@0.1.1)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@5.6.3))(better-sqlite3@11.10.0)(bun-types@1.2.15)(gel@2.1.0)(mysql2@3.14.1)(pg@8.16.0)(postgres@3.4.7)
+      waddler: 0.1.1(@cloudflare/workers-types@4.20250529.0)(@electric-sql/pglite@0.4.5)(@libsql/client-wasm@0.10.0)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.10.0)(@op-engineering/op-sqlite@2.0.22(react-native@0.79.2(@babel/core@7.27.3)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(@planetscale/database@1.19.0)(@tidbcloud/serverless@0.1.1)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@5.6.3))(better-sqlite3@11.10.0)(bun-types@1.2.15)(gel@2.1.0)(mysql2@3.14.1)(pg@8.16.0)(postgres@3.4.7)
       ws: 8.18.2(bufferutil@4.0.8)(utf-8-validate@6.0.3)
     transitivePeerDependencies:
       - '@clickhouse/client'
@@ -10857,12 +10862,12 @@ snapshots:
       - postgres
       - utf-8-validate
 
-  '@netlify/db@0.4.0(@cloudflare/workers-types@4.20250529.0)(@electric-sql/pglite@0.2.12)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.10.0)(@planetscale/database@1.19.0)(@tidbcloud/serverless@0.1.1)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@5.6.3))(better-sqlite3@11.9.1)(bufferutil@4.0.8)(bun-types@1.2.15)(gel@2.1.0)(mysql2@3.14.1)(pg@8.16.0)(postgres@3.4.7)(utf-8-validate@6.0.3)':
+  '@netlify/db@0.4.0(@cloudflare/workers-types@4.20250529.0)(@electric-sql/pglite@0.4.5)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.10.0)(@planetscale/database@1.19.0)(@tidbcloud/serverless@0.1.1)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@5.6.3))(better-sqlite3@11.9.1)(bufferutil@4.0.8)(bun-types@1.2.15)(gel@2.1.0)(mysql2@3.14.1)(pg@8.16.0)(postgres@3.4.7)(utf-8-validate@6.0.3)':
     dependencies:
       '@neondatabase/serverless': 0.10.0
       '@netlify/runtime-utils': 2.3.0
       pg: 8.16.0
-      waddler: 0.1.1(@cloudflare/workers-types@4.20250529.0)(@electric-sql/pglite@0.2.12)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.10.0)(@planetscale/database@1.19.0)(@tidbcloud/serverless@0.1.1)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@5.6.3))(better-sqlite3@11.9.1)(bun-types@1.2.15)(gel@2.1.0)(mysql2@3.14.1)(pg@8.16.0)(postgres@3.4.7)
+      waddler: 0.1.1(@cloudflare/workers-types@4.20250529.0)(@electric-sql/pglite@0.4.5)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.10.0)(@planetscale/database@1.19.0)(@tidbcloud/serverless@0.1.1)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@5.6.3))(better-sqlite3@11.9.1)(bun-types@1.2.15)(gel@2.1.0)(mysql2@3.14.1)(pg@8.16.0)(postgres@3.4.7)
       ws: 8.18.2(bufferutil@4.0.8)(utf-8-validate@6.0.3)
     transitivePeerDependencies:
       - '@clickhouse/client'
@@ -17587,10 +17592,10 @@ snapshots:
 
   vlq@1.0.1: {}
 
-  waddler@0.1.1(@cloudflare/workers-types@4.20250529.0)(@electric-sql/pglite@0.2.12)(@libsql/client-wasm@0.10.0)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.10.0)(@op-engineering/op-sqlite@2.0.22(react-native@0.79.2(@babel/core@7.27.3)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(@planetscale/database@1.19.0)(@tidbcloud/serverless@0.1.1)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@5.6.3))(better-sqlite3@11.10.0)(bun-types@1.2.15)(gel@2.1.0)(mysql2@3.14.1)(pg@8.16.0)(postgres@3.4.7):
+  waddler@0.1.1(@cloudflare/workers-types@4.20250529.0)(@electric-sql/pglite@0.4.5)(@libsql/client-wasm@0.10.0)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.10.0)(@op-engineering/op-sqlite@2.0.22(react-native@0.79.2(@babel/core@7.27.3)(@types/react@18.3.23)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(@planetscale/database@1.19.0)(@tidbcloud/serverless@0.1.1)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@5.6.3))(better-sqlite3@11.10.0)(bun-types@1.2.15)(gel@2.1.0)(mysql2@3.14.1)(pg@8.16.0)(postgres@3.4.7):
     optionalDependencies:
       '@cloudflare/workers-types': 4.20250529.0
-      '@electric-sql/pglite': 0.2.12
+      '@electric-sql/pglite': 0.4.5
       '@libsql/client': 0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       '@libsql/client-wasm': 0.10.0
       '@neondatabase/serverless': 0.10.0
@@ -17606,10 +17611,10 @@ snapshots:
       pg: 8.16.0
       postgres: 3.4.7
 
-  waddler@0.1.1(@cloudflare/workers-types@4.20250529.0)(@electric-sql/pglite@0.2.12)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.10.0)(@planetscale/database@1.19.0)(@tidbcloud/serverless@0.1.1)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@5.6.3))(better-sqlite3@11.9.1)(bun-types@1.2.15)(gel@2.1.0)(mysql2@3.14.1)(pg@8.16.0)(postgres@3.4.7):
+  waddler@0.1.1(@cloudflare/workers-types@4.20250529.0)(@electric-sql/pglite@0.4.5)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@0.10.0)(@planetscale/database@1.19.0)(@tidbcloud/serverless@0.1.1)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.5(typescript@5.6.3))(better-sqlite3@11.9.1)(bun-types@1.2.15)(gel@2.1.0)(mysql2@3.14.1)(pg@8.16.0)(postgres@3.4.7):
     optionalDependencies:
       '@cloudflare/workers-types': 4.20250529.0
-      '@electric-sql/pglite': 0.2.12
+      '@electric-sql/pglite': 0.4.5
       '@libsql/client': 0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       '@neondatabase/serverless': 0.10.0
       '@planetscale/database': 1.19.0
