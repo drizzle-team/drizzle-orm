@@ -344,7 +344,25 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 				codec: codecs?.get(field, 'normalize'),
 				arrayDimensions: (<any> field).dimensions,
 			});
-		} else if (is(field, Column) || is(field, SQL) || is(field, SQL.Aliased) || is(field, Subquery)) {
+		} else if (is(field, SQL)) {
+			const decoder = field.decoder;
+			const decoderColumn = is(decoder, Column) ? decoder : undefined;
+			result.push({
+				path: newPath,
+				field,
+				codec: codecs && decoderColumn ? codecs.get(decoderColumn, 'normalize') : undefined,
+				arrayDimensions: decoderColumn ? (<any> decoderColumn).dimensions : undefined,
+			});
+		} else if (is(field, SQL.Aliased)) {
+			const decoder = field.sql.decoder;
+			const decoderColumn = is(decoder, Column) ? decoder : undefined;
+			result.push({
+				path: newPath,
+				field,
+				codec: codecs && decoderColumn ? codecs.get(decoderColumn, 'normalize') : undefined,
+				arrayDimensions: decoderColumn ? (<any> decoderColumn).dimensions : undefined,
+			});
+		} else if (is(field, Subquery)) {
 			result.push({ path: newPath, field });
 		} else if (is(field, Table)) {
 			result.push(...orderSelectedFields(field[Table.Symbol.Columns], newPath, codecs));
