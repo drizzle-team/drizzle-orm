@@ -1,5 +1,6 @@
 export * from './delete.ts';
 export * from './insert.ts';
+export * from './merge.ts';
 export * from './query-builder.ts';
 export * from './refresh-materialized-view.ts';
 export * from './select.ts';
