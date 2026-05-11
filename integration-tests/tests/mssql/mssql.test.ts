@@ -17,6 +17,7 @@ import {
 	max,
 	min,
 	Name,
+	notInArray,
 	sql,
 	sum,
 	sumDistinct,
@@ -4974,4 +4975,35 @@ test('issue 5527. real() returns unprecise float64 values', async ({ db }) => {
 test.skipIf(Date.now() < +new Date('2026-05-07'))('Query error wrapping', async ({ db }) => {
 	await expect(db.insert(users2Table).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]))
 		.rejects.toBeInstanceOf(DrizzleQueryError);
+});
+
+// Regression tests for https://github.com/drizzle-team/drizzle-orm/issues/5632
+// T-SQL does not support bare `false`/`true` in WHERE clauses; verify that inArray/notInArray
+// with an empty array generate ANSI-compatible expressions that SQL Server accepts.
+test('select with empty array in inArray', async ({ db }) => {
+	const tbl = mssqlTable('users_117', {
+		id: int('id').primaryKey(),
+		name: varchar('name', { length: 30 }).notNull(),
+	});
+
+	await db.execute(sql`CREATE TABLE [users_117] (id int primary key, name varchar(30) not null)`);
+	await db.insert(tbl).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+
+	const result = await db.select().from(tbl).where(inArray(tbl.id, []));
+
+	expect(result).toEqual([]);
+});
+
+test('select with empty array in notInArray', async ({ db }) => {
+	const tbl = mssqlTable('users_118', {
+		id: int('id').primaryKey(),
+		name: varchar('name', { length: 30 }).notNull(),
+	});
+
+	await db.execute(sql`CREATE TABLE [users_118] (id int primary key, name varchar(30) not null)`);
+	await db.insert(tbl).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+
+	const result = await db.select().from(tbl).where(notInArray(tbl.id, []));
+
+	expect(result).toEqual([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
 });
