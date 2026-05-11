@@ -66,8 +66,7 @@ test.skipIf(Date.now() < +new Date('2026-05-07'))('NOT conditions deep filter em
 	expect(query).toBeUndefined();
 });
 
-// Regression tests for https://github.com/drizzle-team/drizzle-orm/issues/5632
-// T-SQL does not support bare `false`/`true` keywords; use ANSI-compatible expressions.
+// https://github.com/drizzle-team/drizzle-orm/issues/5632
 test('inArray with empty array generates 1 = 0', () => {
 	const query = inArray(users.id, []);
 	const { sql: text } = dialect.sqlToQuery(query.inlineParams());

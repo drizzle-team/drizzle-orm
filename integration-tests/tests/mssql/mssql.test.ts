@@ -4977,10 +4977,7 @@ test.skipIf(Date.now() < +new Date('2026-05-07'))('Query error wrapping', async 
 		.rejects.toBeInstanceOf(DrizzleQueryError);
 });
 
-// Regression tests for https://github.com/drizzle-team/drizzle-orm/issues/5632
-// T-SQL does not support bare `false`/`true` in WHERE clauses; verify that inArray/notInArray
-// with an empty array generate ANSI-compatible expressions that SQL Server accepts.
-test('select with empty array in inArray', async ({ db }) => {
+test('issue 5632. inArray with empty array does not crash on SQL Server', async ({ db }) => {
 	const tbl = mssqlTable('users_117', {
 		id: int('id').primaryKey(),
 		name: varchar('name', { length: 30 }).notNull(),
@@ -4994,7 +4991,7 @@ test('select with empty array in inArray', async ({ db }) => {
 	expect(result).toEqual([]);
 });
 
-test('select with empty array in notInArray', async ({ db }) => {
+test('issue 5632. notInArray with empty array does not crash on SQL Server', async ({ db }) => {
 	const tbl = mssqlTable('users_118', {
 		id: int('id').primaryKey(),
 		name: varchar('name', { length: 30 }).notNull(),
