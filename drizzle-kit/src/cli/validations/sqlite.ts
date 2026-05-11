@@ -1,6 +1,7 @@
 import type { TypeOf } from 'zod';
 import { literal, object, string, undefined as zUndefined, union } from 'zod';
 import { softAssertUnreachable } from '../../utils';
+import { ConfigConnectionCliError, UnsupportedCommandCliError } from '../errors';
 import { error } from '../views';
 import { sqliteDriver, wrapParam } from './common';
 
@@ -46,70 +47,107 @@ const _: SqliteCredentials = {} as TypeOf<typeof sqliteCredentials>;
 export const printConfigConnectionIssues = (
 	options: Record<string, unknown>,
 	command: 'generate' | 'migrate' | 'push' | 'pull' | 'studio',
-) => {
+): never => {
 	const parsedDriver = sqliteDriver.safeParse(options.driver);
 	const driver = parsedDriver.success ? parsedDriver.data : ('' as never);
 
 	if (driver === 'expo') {
 		if (command === 'migrate') {
-			console.log(
+			throw new UnsupportedCommandCliError(
+				'migrate',
 				error(
 					`You can't use 'migrate' command with Expo SQLite, please follow migration instructions in our docs - https://orm.drizzle.team/docs/get-started-sqlite#expo-sqlite`,
 				),
+				{ dialect: 'Expo SQLite' },
 			);
 		} else if (command === 'studio') {
-			console.log(
+			throw new UnsupportedCommandCliError(
+				'studio',
 				error(
 					`You can't use 'studio' command with Expo SQLite, please use Expo Plugin https://www.npmjs.com/package/expo-drizzle-studio-plugin`,
 				),
+				{ dialect: 'Expo SQLite' },
 			);
 		} else if (command === 'pull') {
-			console.log(error("You can't use 'pull' command with Expo SQLite"));
+			throw new UnsupportedCommandCliError('pull', error("You can't use 'pull' command with Expo SQLite"), {
+				dialect: 'Expo SQLite',
+			});
 		} else if (command === 'push') {
-			console.log(error("You can't use 'push' command with Expo SQLite"));
+			throw new UnsupportedCommandCliError('push', error("You can't use 'push' command with Expo SQLite"), {
+				dialect: 'Expo SQLite',
+			});
 		} else {
-			console.log(error('Unexpected error with expo driver 🤔'));
+			throw new ConfigConnectionCliError('expo', ['driver'], error('Unexpected error with expo driver 🤔'), command);
 		}
-		process.exit(1);
 	} else if (driver === 'd1-http') {
 		let text = `Please provide required params for D1 HTTP driver:\n`;
-		console.log(error(text));
-		console.log(wrapParam('accountId', options.accountId));
-		console.log(wrapParam('databaseId', options.databaseId));
-		console.log(wrapParam('token', options.token, false, 'secret'));
-		process.exit(1);
+		throw new ConfigConnectionCliError(
+			'd1-http',
+			['accountId', 'databaseId', 'token'],
+			[
+				error(text),
+				wrapParam('accountId', options.accountId),
+				wrapParam('databaseId', options.databaseId),
+				wrapParam('token', options.token, false, 'secret'),
+			].join('\n'),
+			command,
+		);
 	} else if (driver === 'durable-sqlite') {
 		if (command === 'migrate') {
-			console.log(
-				error(
-					`You can't use 'migrate' command with SQLite Durable Objects`,
-				),
+			throw new UnsupportedCommandCliError(
+				'migrate',
+				error(`You can't use 'migrate' command with SQLite Durable Objects`),
+				{
+					dialect: 'SQLite Durable Objects',
+				},
 			);
 		} else if (command === 'studio') {
-			console.log(
-				error(
-					`You can't use 'studio' command with SQLite Durable Objects`,
-				),
+			throw new UnsupportedCommandCliError(
+				'studio',
+				error(`You can't use 'studio' command with SQLite Durable Objects`),
+				{
+					dialect: 'SQLite Durable Objects',
+				},
 			);
 		} else if (command === 'pull') {
-			console.log(error("You can't use 'pull' command with SQLite Durable Objects"));
+			throw new UnsupportedCommandCliError('pull', error("You can't use 'pull' command with SQLite Durable Objects"), {
+				dialect: 'SQLite Durable Objects',
+			});
 		} else if (command === 'push') {
-			console.log(error("You can't use 'push' command with SQLite Durable Objects"));
+			throw new UnsupportedCommandCliError('push', error("You can't use 'push' command with SQLite Durable Objects"), {
+				dialect: 'SQLite Durable Objects',
+			});
 		} else {
-			console.log(error('Unexpected error with SQLite Durable Object driver 🤔'));
+			throw new ConfigConnectionCliError(
+				'durable-sqlite',
+				['driver'],
+				error('Unexpected error with SQLite Durable Object driver 🤔'),
+				command,
+			);
 		}
-		process.exit(1);
 	} else if (driver === 'sqlite-cloud') {
 		let text = `Please provide required params for SQLite Cloud driver:\n`;
-		console.log(error(text));
-		console.log(wrapParam('url', options.url));
-		process.exit(1);
+		throw new ConfigConnectionCliError(
+			'sqlite-cloud',
+			['url'],
+			[
+				error(text),
+				wrapParam('url', options.url),
+			].join('\n'),
+			command,
+		);
 	} else {
 		softAssertUnreachable(driver);
 	}
 
 	let text = `Please provide required params:\n`;
-	console.log(error(text));
-	console.log(wrapParam('url', options.url));
-	process.exit(1);
+	throw new ConfigConnectionCliError(
+		'sqlite',
+		['url'],
+		[
+			error(text),
+			wrapParam('url', options.url),
+		].join('\n'),
+		command,
+	);
 };

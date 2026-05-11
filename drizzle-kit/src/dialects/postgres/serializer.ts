@@ -1,5 +1,5 @@
 import type { CheckHandlerResult } from '../../cli/commands/check';
-import { postgresSchemaError, postgresSchemaWarning } from '../../cli/views';
+import { humanLog, postgresSchemaError, postgresSchemaWarning } from '../../cli/views';
 import { assertUnreachable } from '../../utils';
 import type { PostgresDDL } from './ddl';
 import { createDDL, fromEntities, interimToDDL } from './ddl';
@@ -53,18 +53,18 @@ export const prepareSnapshot = async (
 	);
 
 	if (warnings.length > 0) {
-		console.log(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
+		humanLog(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
 	}
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => postgresSchemaError(it)).join('\n'));
+		humanLog(errors.map((it) => postgresSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 
 	const { ddl: ddlCur, errors: errors2 } = interimToDDL(schema);
 
 	if (errors2.length > 0) {
-		console.log(errors2.map((it) => postgresSchemaError(it)).join('\n'));
+		humanLog(errors2.map((it) => postgresSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 

@@ -23,6 +23,8 @@ export const pushParams = object({
 	verbose: boolean().optional(),
 	strict: boolean().optional(),
 	explain: boolean().optional(),
+	hints: string().optional(),
+	hintsFile: string().optional(),
 	migrations: configMigrations,
 	...entitiesParams,
 }).passthrough();

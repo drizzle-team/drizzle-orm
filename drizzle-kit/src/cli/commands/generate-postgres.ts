@@ -19,8 +19,16 @@ import type {
 import { createDDL, interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { prepareSnapshot } from '../../dialects/postgres/serializer';
+import { isJsonMode } from '../context';
 import { resolver } from '../prompts';
-import { explain, postgresSchemaError, postgresSchemaWarning } from '../views';
+import {
+	explain,
+	explainJsonOutput,
+	humanLog,
+	postgresSchemaError,
+	postgresSchemaWarning,
+	printJsonOutput,
+} from '../views';
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
@@ -30,6 +38,7 @@ export const handle = async (
 	checkResult?: CheckHandlerResult,
 ) => {
 	const { out: outFolder, filenames } = config;
+	const json = isJsonMode();
 
 	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(
@@ -45,6 +54,7 @@ export const handle = async (
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
+			dialect: 'postgresql',
 			type: 'custom',
 			renames: [],
 			snapshots,
@@ -52,38 +62,58 @@ export const handle = async (
 		return;
 	}
 
-	const { sqlStatements, renames, groupedStatements } = await ddlDiff(
+	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<Schema>('schema'),
-		resolver<Enum>('enum'),
-		resolver<Sequence>('sequence'),
-		resolver<Policy>('policy'),
-		resolver<Role>('role'),
-		resolver<Privilege>('privilege'),
-		resolver<PostgresEntities['tables']>('table'),
-		resolver<Column>('column'),
-		resolver<View>('view'),
-		resolver<UniqueConstraint>('unique'),
-		resolver<Index>('index'),
-		resolver<CheckConstraint>('check'),
-		resolver<PrimaryKey>('primary key'),
-		resolver<ForeignKey>('foreign key'),
+		resolver<Schema>('schema', 'public', config.hints),
+		resolver<Enum>('enum', 'public', config.hints),
+		resolver<Sequence>('sequence', 'public', config.hints),
+		resolver<Policy>('policy', 'public', config.hints),
+		resolver<Role>('role', 'public', config.hints),
+		resolver<Privilege>('privilege', 'public', config.hints),
+		resolver<PostgresEntities['tables']>('table', 'public', config.hints),
+		resolver<Column>('column', 'public', config.hints),
+		resolver<View>('view', 'public', config.hints),
+		resolver<UniqueConstraint>('unique', 'public', config.hints),
+		resolver<Index>('index', 'public', config.hints),
+		resolver<CheckConstraint>('check', 'public', config.hints),
+		resolver<PrimaryKey>('primary key', 'public', config.hints),
+		resolver<ForeignKey>('foreign key', 'public', config.hints),
 		'default',
 	);
 
-	const explainMessage = explain('postgres', groupedStatements, false, []);
-	if (explainMessage) console.log(explainMessage);
+	if (json && config.hints.hasMissingHints()) {
+		config.hints.emitAndExit();
+	}
 
-	writeResult({
-		snapshot: snapshot,
-		sqlStatements,
-		outFolder,
-		name: config.name,
-		breakpoints: config.breakpoints,
-		renames,
-		snapshots,
-	});
+	if (!config.explain) {
+		writeResult({
+			snapshot: snapshot,
+			sqlStatements,
+			outFolder,
+			name: config.name,
+			breakpoints: config.breakpoints,
+			dialect: 'postgresql',
+			renames,
+			snapshots,
+		});
+		return;
+	}
+
+	if (json) {
+		if (sqlStatements.length === 0) {
+			printJsonOutput({ status: 'no_changes', dialect: 'postgresql' });
+			return;
+		}
+		const explainOutput = explainJsonOutput('postgresql', statements, []);
+		printJsonOutput(explainOutput);
+		return;
+	}
+
+	const explainMessage = explain('postgres', groupedStatements, []);
+	if (explainMessage) {
+		humanLog(explainMessage);
+	}
 };
 
 export const handleExport = async (config: ExportConfig) => {

@@ -10,7 +10,9 @@ import type { MysqlSnapshot } from '../../dialects/mysql/snapshot';
 import type { SqliteSnapshot } from '../../dialects/sqlite/snapshot';
 import { BREAKPOINT } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
+import { isJsonMode } from '../context';
 import type { Driver } from '../validations/common';
+import { humanLog, printJsonOutput } from '../views';
 
 export const writeResult = (config: {
 	snapshot: SqliteSnapshot | PostgresSnapshot | MysqlSnapshot | MssqlSnapshot | CockroachSnapshot | SingleStoreSnapshot;
@@ -20,6 +22,7 @@ export const writeResult = (config: {
 	name?: string;
 	bundle?: boolean;
 	type?: 'introspect' | 'custom' | 'none';
+	dialect?: string;
 	driver?: Driver;
 	renames: string[];
 	snapshots: string[];
@@ -33,13 +36,16 @@ export const writeResult = (config: {
 		renames,
 		bundle = false,
 		type = 'none',
+		dialect,
 		driver,
 		snapshots,
 	} = config;
+	const json = isJsonMode();
 
 	if (type === 'none') {
 		if (sqlStatements.length === 0) {
-			console.log('No schema changes, nothing to migrate 😴');
+			printJsonOutput({ status: 'no_changes', dialect });
+			humanLog('No schema changes, nothing to migrate 😴');
 			return;
 		}
 	}
@@ -63,11 +69,12 @@ export const writeResult = (config: {
 	}
 
 	if (type === 'custom') {
-		console.log('Prepared empty file for your custom SQL migration!');
+		humanLog('Prepared empty file for your custom SQL migration!');
 		sql = '-- Custom SQL migration file, put your code below! --';
 	}
 
 	fs.writeFileSync(join(outFolder, `${tag}/migration.sql`), sql);
+	const migrationPath = path.join(`${outFolder}/${tag}/migration.sql`);
 
 	// js file with .sql imports for React Native / Expo and Durable Sqlite Objects
 	if (bundle) {
@@ -76,17 +83,27 @@ export const writeResult = (config: {
 		fs.writeFileSync(`${outFolder}/migrations.js`, js);
 	}
 
-	render(
-		`[${
-			chalk.green(
-				'✓',
-			)
-		}] Your SQL migration ➜ ${
-			chalk.bold.underline.blue(
-				path.join(`${outFolder}/${tag}/migration.sql`),
-			)
-		} 🚀`,
-	);
+	if (type !== 'introspect') {
+		printJsonOutput({
+			status: 'ok',
+			dialect,
+			migration_path: migrationPath,
+		});
+	}
+
+	if (!json) {
+		render(
+			`[${
+				chalk.green(
+					'✓',
+				)
+			}] Your SQL migration ➜ ${
+				chalk.bold.underline.blue(
+					migrationPath,
+				)
+			} 🚀`,
+		);
+	}
 };
 
 export const embeddedMigrations = (snapshots: string[], driver?: Driver) => {

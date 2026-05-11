@@ -7,6 +7,8 @@ Drizzle Kit is a CLI migrator tool for Drizzle ORM. It is probably the one and o
 
 Check the full documentation on [the website](https://orm.drizzle.team/kit-docs/overview).
 
+For machine-readable CLI behavior in non-interactive workflows, see [JSON mode and hints contract](./JSON_CONTRACT.md).
+
 
 ### How it works
 

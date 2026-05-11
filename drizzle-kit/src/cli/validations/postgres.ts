@@ -1,5 +1,6 @@
 import type { TypeOf } from 'zod';
 import { boolean, coerce, literal, object, string, undefined as zUndefined, union } from 'zod';
+import { ConfigConnectionCliError } from '../errors';
 import { error } from '../views';
 import { wrapParam } from './common';
 
@@ -46,39 +47,55 @@ export type PostgresCredentials = TypeOf<typeof postgresCredentials>;
 
 export const printConfigConnectionIssues = (
 	options: Record<string, unknown>,
-) => {
+): never => {
 	if (options.driver === 'aws-data-api') {
 		let text = `Please provide required params for AWS Data API driver:\n`;
-		console.log(error(text));
-		console.log(wrapParam('database', options.database));
-		console.log(wrapParam('secretArn', options.secretArn, false, 'secret'));
-		console.log(wrapParam('resourceArn', options.resourceArn, false, 'secret'));
-		process.exit(1);
+		throw new ConfigConnectionCliError(
+			'aws-data-api',
+			['database', 'secretArn', 'resourceArn'],
+			[
+				error(text),
+				wrapParam('database', options.database),
+				wrapParam('secretArn', options.secretArn, false, 'secret'),
+				wrapParam('resourceArn', options.resourceArn, false, 'secret'),
+			].join('\n'),
+		);
 	}
 
 	if ('url' in options) {
 		let text = `Please provide required params for Postgres driver:\n`;
-		console.log(error(text));
-		console.log(wrapParam('url', options.url, false, 'url'));
-		process.exit(1);
+		throw new ConfigConnectionCliError(
+			'postgresql',
+			['url'],
+			[
+				error(text),
+				wrapParam('url', options.url, false, 'url'),
+			].join('\n'),
+		);
 	}
 
 	if ('host' in options || 'database' in options) {
 		let text = `Please provide required params for Postgres driver:\n`;
-		console.log(error(text));
-		console.log(wrapParam('host', options.host));
-		console.log(wrapParam('port', options.port, true));
-		console.log(wrapParam('user', options.user, true));
-		console.log(wrapParam('password', options.password, true, 'secret'));
-		console.log(wrapParam('database', options.database));
-		console.log(wrapParam('ssl', options.ssl, true));
-		process.exit(1);
+		throw new ConfigConnectionCliError(
+			'postgresql',
+			['host', 'database'],
+			[
+				error(text),
+				wrapParam('host', options.host),
+				wrapParam('port', options.port, true),
+				wrapParam('user', options.user, true),
+				wrapParam('password', options.password, true, 'secret'),
+				wrapParam('database', options.database),
+				wrapParam('ssl', options.ssl, true),
+			].join('\n'),
+		);
 	}
 
-	console.log(
+	throw new ConfigConnectionCliError(
+		'postgresql',
+		['url', 'host', 'database'],
 		error(
 			`Either connection "url" or "host", "database" are required for PostgreSQL database connection`,
 		),
 	);
-	process.exit(1);
 };

@@ -5,6 +5,7 @@ import { mkdirSync, writeFileSync } from 'fs';
 import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
 import { suggestions } from 'src/cli/commands/push-mysql';
+import { HintsHandler } from 'src/cli/hints';
 import { configMigrations } from 'src/cli/validations/common';
 import { explain } from 'src/cli/views';
 import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
@@ -151,10 +152,11 @@ export const diffPush = async (config: {
 		'push',
 	);
 
-	const explainMessage = explain('singlestore', groupedStatements, false, []);
+	const hints = await suggestions(db, statements, ddl2, new HintsHandler());
+	const explainMessage = explain('singlestore', groupedStatements, []);
 	if (explainMessage) console.log(explainMessage);
 
-	return { sqlStatements, statements, hints: [] };
+	return { sqlStatements, statements, hints };
 };
 
 async function createDockerDB(): Promise<{ url: string; container: Container }> {

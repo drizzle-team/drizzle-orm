@@ -18,9 +18,11 @@ for db in "$@"; do
   case "$db" in
     postgres)             wait_tcp 127.0.0.1 55433 "postgres" ;;
     postgres-postgis)     wait_tcp 127.0.0.1 54322 "postgres" ;;
+    postgres-vector)      wait_tcp 127.0.0.1 54321 "postgres" ;;
     postgres18)           wait_tcp 127.0.0.1 54325 "postgres" ;;
     postgres17)           wait_tcp 127.0.0.1 54324 "postgres" ;;
     postgres16)           wait_tcp 127.0.0.1 54323 "postgres" ;;
+    mariadb)              wait_tcp 127.0.0.1 33306 "mariadb" ;;
     mysql)                wait_tcp 127.0.0.1 3306  "mysql" ;;
     singlestore)          wait_tcp 127.0.0.1 33307 "singlestore" ;;
     singlestore-many)
@@ -37,6 +39,6 @@ for db in "$@"; do
       done
       ;;
     neon)                 wait_tcp 127.0.0.1 5446  "neon-serverless" ;;
-    *) echo "Unknown db '$db'";;
+    *) echo "Unknown db '$db'" >&2; exit 1 ;;
   esac
 done

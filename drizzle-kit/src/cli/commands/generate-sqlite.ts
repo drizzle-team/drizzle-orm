@@ -3,8 +3,9 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/d
 import { prepareOutFolder } from 'src/utils/utils-node';
 import { type Column, createDDL, interimToDDL, type SqliteEntities } from '../../dialects/sqlite/ddl';
 import { prepareSqliteSnapshot } from '../../dialects/sqlite/serializer';
+import { isJsonMode } from '../context';
 import { resolver } from '../prompts';
-import { sqliteSchemaError, warning } from '../views';
+import { explain, explainJsonOutput, humanLog, printJsonOutput, sqliteSchemaError, warning } from '../views';
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
@@ -13,41 +14,50 @@ export const handle = async (
 	config: GenerateConfig,
 	checkResult?: CheckHandlerResult,
 ) => {
+	const dialect = config.dialect === 'turso' ? 'turso' : 'sqlite';
+	const json = isJsonMode();
 	const { out: outFolder, filenames } = config;
-
-	try {
-		const { snapshots } = prepareOutFolder(outFolder);
-		const { ddlCur, ddlPrev, snapshot, custom } = await prepareSqliteSnapshot(
+	const { snapshots } = prepareOutFolder(outFolder);
+	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSqliteSnapshot(
+		snapshots,
+		filenames,
+		checkResult,
+	);
+	if (config.custom) {
+		writeResult({
+			snapshot: custom,
+			sqlStatements: [],
+			outFolder,
+			name: config.name,
+			breakpoints: config.breakpoints,
+			dialect,
+			bundle: config.bundle,
+			type: 'custom',
+			renames: [],
 			snapshots,
-			filenames,
-			checkResult,
-		);
-		if (config.custom) {
-			writeResult({
-				snapshot: custom,
-				sqlStatements: [],
-				outFolder,
-				name: config.name,
-				breakpoints: config.breakpoints,
-				bundle: config.bundle,
-				type: 'custom',
-				renames: [],
-				snapshots,
-			});
-			return;
-		}
-		const { sqlStatements, warnings, renames } = await ddlDiff(
-			ddlPrev,
-			ddlCur,
-			resolver<SqliteEntities['tables']>('table'),
-			resolver<Column>('column'),
-			'default',
-		);
+		});
+		return;
+	}
 
+	const { sqlStatements, warnings, renames, groupedStatements, statements } = await ddlDiff(
+		ddlPrev,
+		ddlCur,
+		resolver<SqliteEntities['tables']>('table', 'public', config.hints),
+		resolver<Column>('column', 'public', config.hints),
+		'default',
+	);
+
+	if (json && config.hints.hasMissingHints()) {
+		config.hints.emitAndExit();
+	}
+
+	if (!json) {
 		for (const w of warnings) {
 			warning(w);
 		}
+	}
 
+	if (!config.explain) {
 		writeResult({
 			snapshot: snapshot,
 			sqlStatements,
@@ -55,12 +65,26 @@ export const handle = async (
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
+			dialect,
 			bundle: config.bundle,
 			driver: config.driver,
 			snapshots,
 		});
-	} catch (e) {
-		console.error(e);
+		return;
+	}
+
+	if (json) {
+		if (sqlStatements.length === 0) {
+			printJsonOutput({ status: 'no_changes', dialect });
+			return;
+		}
+		printJsonOutput(explainJsonOutput(dialect, statements, []));
+		return;
+	}
+
+	const explainMessage = explain('sqlite', groupedStatements, []);
+	if (explainMessage) {
+		humanLog(explainMessage);
 	}
 };
 

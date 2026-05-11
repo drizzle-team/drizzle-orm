@@ -668,7 +668,7 @@ test('drop table with data', async (t) => {
 	});
 
 	expect(sqlStatements).toStrictEqual([`DROP TABLE \`users\`;`]);
-	expect(hints).toStrictEqual([`· You're about to delete ${chalk.underline('users')} table with 1 items`]);
+	expect(hints).toStrictEqual([{ hint: `You're about to delete ${chalk.underline('users')} table with 1 items` }]);
 });
 
 test('change data type. db has indexes. table does not have values', async (t) => {
@@ -763,9 +763,11 @@ test('change data type. db has indexes. table has values', async (t) => {
 		`CREATE INDEX \`index\` ON \`users\` (\`name\`);`,
 	]);
 	expect(hints).toStrictEqual([
-		`· You're about recreate ${chalk.underline('users')} table with data type changing for ${
-			chalk.underline('name')
-		} column, which contains 1 items`,
+		{
+			hint: `You're about recreate ${chalk.underline('users')} table with data type changing for ${
+				chalk.underline('name')
+			} column, which contains 1 items`,
+		},
 	]);
 });
 

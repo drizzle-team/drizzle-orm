@@ -1,12 +1,23 @@
 import chalk from 'chalk';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'fs';
-import { render } from 'hanji';
 import { join, resolve } from 'path';
+import { inspect } from 'util';
 import { object, string } from 'zod';
 import { assertUnreachable, type Journal } from '../../utils';
 import { type Dialect, dialect } from '../../utils/schemaValidator';
 import { prepareFilenames } from '../../utils/utils-node';
 import { loadModule } from '../../utils/utils-node';
+import {
+	ConfigFileNotFoundCliError,
+	ConfigValidationCliError,
+	MigrationSnapshotNotFoundCliError,
+	MigrationSqlFilesConflictCliError,
+	MissingConfigDialectCliError,
+	MissingDialectCliError,
+	RequiredParamsCliError,
+	UnsupportedCommandCliError,
+} from '../errors';
+import { HintsHandler } from '../hints';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import { pullParams, pushParams } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
@@ -33,7 +44,7 @@ import {
 import type { SqliteCredentials } from '../validations/sqlite';
 import { printConfigConnectionIssues as printIssuesSqlite, sqliteCredentials } from '../validations/sqlite';
 import { studioCliParams, studioConfig } from '../validations/studio';
-import { error } from '../views';
+import { error, humanLog } from '../views';
 import { prepareSnapshotFolderName } from './generate-common';
 
 export const prepareCheckParams = async (
@@ -49,9 +60,7 @@ export const prepareCheckParams = async (
 		: options;
 
 	if (!config.dialect) {
-		console.log(error('Please provide required params:'));
-		console.log(wrapParam('dialect', dialect));
-		process.exit(1);
+		throw new MissingDialectCliError(`${error('Please provide required params:')}\n${wrapParam('dialect', dialect)}`);
 	}
 	return { out: config.out || 'drizzle', dialect: config.dialect };
 };
@@ -82,6 +91,8 @@ export type GenerateConfig = {
 	bundle: boolean;
 	driver?: Driver;
 	ignoreConflicts?: boolean;
+	explain: boolean;
+	hints: HintsHandler;
 };
 
 export type ExportConfig = {
@@ -101,26 +112,30 @@ export const prepareGenerateConfig = async (
 		dialect?: Dialect;
 		driver?: Driver;
 		ignoreConflicts?: boolean;
+		explain?: boolean;
+		hints?: string;
+		hintsFile?: string;
 	},
 	from: 'config' | 'cli',
 ): Promise<GenerateConfig> => {
 	const config = from === 'config' ? await drizzleConfigFromFile(options.config) : options;
+	const hints = await HintsHandler.fromCli(options);
 
 	const { schema, out, breakpoints, dialect, driver } = config;
 
 	if (!schema || !dialect) {
-		console.log(error('Please provide required params:'));
-		console.log(wrapParam('schema', schema));
-		console.log(wrapParam('dialect', dialect));
-		console.log(wrapParam('out', out, true));
-		process.exit(1);
+		throw new RequiredParamsCliError(
+			['schema', 'dialect'],
+			[
+				error('Please provide required params:'),
+				wrapParam('schema', schema),
+				wrapParam('dialect', dialect),
+				wrapParam('out', out, true),
+			].join('\n'),
+		);
 	}
 
 	const fileNames = prepareFilenames(schema);
-	if (fileNames.length === 0) {
-		render(`[${chalk.blue('i')}] No schema file in ${schema} was found`);
-		process.exit(0);
-	}
 
 	return {
 		dialect: dialect,
@@ -132,6 +147,8 @@ export const prepareGenerateConfig = async (
 		bundle: driver === 'expo' || driver === 'durable-sqlite',
 		driver,
 		ignoreConflicts: options.ignoreConflicts !== undefined && options.ignoreConflicts,
+		explain: options.explain ?? false,
+		hints,
 	};
 };
 
@@ -151,17 +168,17 @@ export const prepareExportConfig = async (
 	const { schema, dialect, sql } = config;
 
 	if (!schema || !dialect) {
-		console.log(error('Please provide required params:'));
-		console.log(wrapParam('schema', schema));
-		console.log(wrapParam('dialect', dialect));
-		process.exit(1);
+		throw new RequiredParamsCliError(
+			['schema', 'dialect'],
+			[
+				error('Please provide required params:'),
+				wrapParam('schema', schema),
+				wrapParam('dialect', dialect),
+			].join('\n'),
+		);
 	}
 
 	const fileNames = prepareFilenames(schema);
-	if (fileNames.length === 0) {
-		render(`[${chalk.blue('i')}] No schema file in ${schema} was found`);
-		process.exit(0);
-	}
 	return {
 		dialect: dialect,
 		sql: sql,
@@ -229,6 +246,7 @@ export const preparePushConfig = async (
 		verbose: boolean;
 		force: boolean;
 		explain: boolean;
+		hints: HintsHandler;
 		filters: EntitiesFilterConfig;
 		migrations: {
 			table: string;
@@ -237,6 +255,10 @@ export const preparePushConfig = async (
 		filenames: string[];
 	}
 > => {
+	const hints = await HintsHandler.fromCli({
+		hints: options.hints as string | undefined,
+		hintsFile: options.hintsFile as string | undefined,
+	});
 	const raw = flattenDatabaseCredentials(
 		from === 'config'
 			? await drizzleConfigFromFile(options.config as string | undefined)
@@ -249,20 +271,20 @@ export const preparePushConfig = async (
 	const parsed = pushParams.safeParse(raw);
 
 	if (parsed.error) {
-		console.log(error('Please provide required params:'));
-		console.log(wrapParam('dialect', raw.dialect));
-		console.log(wrapParam('schema', raw.schema));
-		process.exit(1);
+		throw new RequiredParamsCliError(
+			['dialect', 'schema'],
+			[
+				error('Please provide required params:'),
+				wrapParam('dialect', raw.dialect),
+				wrapParam('schema', raw.schema),
+			].join('\n'),
+		);
 	}
 
 	const config = parsed.data;
 
 	const schemaFiles = prepareFilenames(config.schema);
-	console.log(chalk.gray(`Reading schema files:\n${schemaFiles.join('\n')}\n`));
-	if (schemaFiles.length === 0) {
-		render(`[${chalk.blue('i')}] No schema file in ${config.schema} was found`);
-		process.exit(0);
-	}
+	humanLog(chalk.gray(`Reading schema files:\n${schemaFiles.join('\n')}\n`));
 
 	const filters = {
 		tables: config.tablesFilter,
@@ -273,139 +295,137 @@ export const preparePushConfig = async (
 
 	if (config.dialect === 'postgresql') {
 		const parsed = postgresCredentials.safeParse(config);
-		if (!parsed.success) {
-			printIssuesPg(config);
-			process.exit(1);
+		if (parsed.success) {
+			return {
+				dialect: 'postgresql',
+				explain: (options.explain as boolean) ?? false,
+				hints,
+				verbose: config.verbose ?? false,
+				force: (options.force as boolean) ?? false,
+				credentials: parsed.data,
+				filters,
+				migrations: config.migrations,
+				filenames: schemaFiles,
+			};
 		}
-
-		return {
-			dialect: 'postgresql',
-			explain: (options.explain as boolean) ?? false,
-			verbose: config.verbose ?? false,
-			force: (options.force as boolean) ?? false,
-			credentials: parsed.data,
-			filters,
-			migrations: config.migrations,
-			filenames: schemaFiles,
-		};
+		printIssuesPg(config);
 	}
 
 	if (config.dialect === 'mysql') {
 		const parsed = mysqlCredentials.safeParse(config);
-		if (!parsed.success) {
-			printIssuesMysql(config);
-			process.exit(1);
+		if (parsed.success) {
+			return {
+				dialect: 'mysql',
+				verbose: config.verbose ?? false,
+				force: (options.force as boolean) ?? false,
+				credentials: parsed.data,
+				filters,
+				explain: (options.explain as boolean) ?? false,
+				hints,
+				migrations: config.migrations,
+				filenames: schemaFiles,
+			};
 		}
-		return {
-			dialect: 'mysql',
-			verbose: config.verbose ?? false,
-			force: (options.force as boolean) ?? false,
-			credentials: parsed.data,
-			filters,
-			explain: (options.explain as boolean) ?? false,
-			migrations: config.migrations,
-			filenames: schemaFiles,
-		};
+		printIssuesMysql(config);
 	}
 
 	if (config.dialect === 'singlestore') {
 		const parsed = singlestoreCredentials.safeParse(config);
-		if (!parsed.success) {
-			printIssuesSingleStore(config);
-			process.exit(1);
+		if (parsed.success) {
+			return {
+				dialect: 'singlestore',
+				verbose: config.verbose ?? false,
+				force: (options.force as boolean) ?? false,
+				credentials: parsed.data,
+				filters,
+				explain: (options.explain as boolean) ?? false,
+				hints,
+				migrations: config.migrations,
+				filenames: schemaFiles,
+			};
 		}
-
-		return {
-			dialect: 'singlestore',
-			verbose: config.verbose ?? false,
-			force: (options.force as boolean) ?? false,
-			credentials: parsed.data,
-			filters,
-			explain: (options.explain as boolean) ?? false,
-			migrations: config.migrations,
-			filenames: schemaFiles,
-		};
+		printIssuesSingleStore(config);
 	}
 
 	if (config.dialect === 'sqlite') {
 		const parsed = sqliteCredentials.safeParse(config);
-		if (!parsed.success) {
-			printIssuesSqlite(config, 'push');
-			process.exit(1);
+		if (parsed.success) {
+			return {
+				dialect: 'sqlite',
+				verbose: config.verbose ?? false,
+				force: (options.force as boolean) ?? false,
+				credentials: parsed.data,
+				filters,
+				explain: (options.explain as boolean) ?? false,
+				hints,
+				migrations: config.migrations,
+				filenames: schemaFiles,
+			};
 		}
-		return {
-			dialect: 'sqlite',
-			verbose: config.verbose ?? false,
-			force: (options.force as boolean) ?? false,
-			credentials: parsed.data,
-			filters,
-			explain: (options.explain as boolean) ?? false,
-			migrations: config.migrations,
-			filenames: schemaFiles,
-		};
+		printIssuesSqlite(config, 'push');
 	}
 
 	if (config.dialect === 'turso') {
 		const parsed = libSQLCredentials.safeParse(config);
-		if (!parsed.success) {
-			printIssuesSqlite(config, 'push');
-			process.exit(1);
+		if (parsed.success) {
+			return {
+				dialect: 'turso',
+				verbose: config.verbose ?? false,
+				force: (options.force as boolean) ?? false,
+				credentials: parsed.data,
+				filters,
+				explain: (options.explain as boolean) ?? false,
+				hints,
+				migrations: config.migrations,
+				filenames: schemaFiles,
+			};
 		}
-		return {
-			dialect: 'turso',
-			verbose: config.verbose ?? false,
-			force: (options.force as boolean) ?? false,
-			credentials: parsed.data,
-			filters,
-			explain: (options.explain as boolean) ?? false,
-			migrations: config.migrations,
-			filenames: schemaFiles,
-		};
+		printIssuesLibSQL(config, 'push');
 	}
 
 	if (config.dialect === 'mssql') {
 		const parsed = mssqlCredentials.safeParse(config);
-		if (!parsed.success) {
-			// printIssuesSqlite(config, 'push'); // TODO print issues
-			process.exit(1);
+		if (parsed.success) {
+			return {
+				dialect: 'mssql',
+				verbose: config.verbose ?? false,
+				force: (options.force as boolean) ?? false,
+				credentials: parsed.data,
+				filters,
+				explain: (options.explain as boolean) ?? false,
+				hints,
+				migrations: config.migrations,
+				filenames: schemaFiles,
+			};
 		}
-		return {
-			dialect: 'mssql',
-			verbose: config.verbose ?? false,
-			force: (options.force as boolean) ?? false,
-			credentials: parsed.data,
-			filters,
-			explain: (options.explain as boolean) ?? false,
-			migrations: config.migrations,
-			filenames: schemaFiles,
-		};
+		printMssqlIssues(config);
 	}
 
 	if (config.dialect === 'cockroach') {
 		const parsed = cockroachCredentials.safeParse(config);
-		if (!parsed.success) {
-			printCockroachIssues(config);
-			process.exit(1);
+		if (parsed.success) {
+			return {
+				dialect: 'cockroach',
+				verbose: config.verbose ?? false,
+				force: (options.force as boolean) ?? false,
+				credentials: parsed.data,
+				filters,
+				explain: (options.explain as boolean) ?? false,
+				hints,
+				migrations: config.migrations,
+				filenames: schemaFiles,
+			};
 		}
-
-		return {
-			dialect: 'cockroach',
-			verbose: config.verbose ?? false,
-			force: (options.force as boolean) ?? false,
-			credentials: parsed.data,
-			filters,
-			explain: (options.explain as boolean) ?? false,
-			migrations: config.migrations,
-			filenames: schemaFiles,
-		};
+		printCockroachIssues(config);
 	}
 
 	if (config.dialect === 'duckdb') {
-		console.log(error(`You can't use 'push' command with DuckDb dialect`));
-		process.exit(1);
+		throw new UnsupportedCommandCliError('push', error(`You can't use 'push' command with DuckDb dialect`), {
+			dialect: 'DuckDb',
+		});
 	}
 
-	assertUnreachable(config.dialect);
+	throw new Error(`Unexpected dialect: ${config.dialect}`);
 };
 
 export const preparePullConfig = async (
@@ -461,9 +481,13 @@ export const preparePullConfig = async (
 	const parsed = pullParams.safeParse(raw);
 
 	if (parsed.error) {
-		console.log(error('Please provide required params:'));
-		console.log(wrapParam('dialect', raw.dialect));
-		process.exit(1);
+		throw new RequiredParamsCliError(
+			['dialect'],
+			[
+				error('Please provide required params:'),
+				wrapParam('dialect', raw.dialect),
+			].join('\n'),
+		);
 	}
 
 	const config = parsed.data;
@@ -480,140 +504,130 @@ export const preparePullConfig = async (
 
 	if (dialect === 'postgresql') {
 		const parsed = postgresCredentials.safeParse(config);
-		if (!parsed.success) {
-			printIssuesPg(config);
-			process.exit(1);
+		if (parsed.success) {
+			return {
+				dialect: 'postgresql',
+				out: config.out,
+				breakpoints: config.breakpoints,
+				casing: config.casing,
+				credentials: parsed.data,
+				filters,
+				init: !!options.init,
+				migrations,
+			};
 		}
-
-		return {
-			dialect: 'postgresql',
-			out: config.out,
-			breakpoints: config.breakpoints,
-			casing: config.casing,
-			credentials: parsed.data,
-			filters,
-			init: !!options.init,
-			migrations,
-		};
+		printIssuesPg(config);
 	}
 
 	if (dialect === 'mysql') {
 		const parsed = mysqlCredentials.safeParse(config);
-		if (!parsed.success) {
-			printIssuesMysql(config);
-			process.exit(1);
+		if (parsed.success) {
+			return {
+				dialect: 'mysql',
+				out: config.out,
+				breakpoints: config.breakpoints,
+				casing: config.casing,
+				credentials: parsed.data,
+				filters,
+				init: !!options.init,
+				migrations,
+			};
 		}
-		return {
-			dialect: 'mysql',
-			out: config.out,
-			breakpoints: config.breakpoints,
-			casing: config.casing,
-			credentials: parsed.data,
-			filters,
-			init: !!options.init,
-			migrations,
-		};
+		printIssuesMysql(config);
 	}
 
 	if (dialect === 'singlestore') {
 		const parsed = singlestoreCredentials.safeParse(config);
-		if (!parsed.success) {
-			printIssuesSingleStore(config);
-			process.exit(1);
+		if (parsed.success) {
+			return {
+				dialect: 'singlestore',
+				out: config.out,
+				breakpoints: config.breakpoints,
+				casing: config.casing,
+				credentials: parsed.data,
+				filters,
+				init: !!options.init,
+				migrations,
+			};
 		}
-
-		return {
-			dialect: 'singlestore',
-			out: config.out,
-			breakpoints: config.breakpoints,
-			casing: config.casing,
-			credentials: parsed.data,
-			filters,
-			init: !!options.init,
-			migrations,
-		};
+		printIssuesSingleStore(config);
 	}
 
 	if (dialect === 'sqlite') {
 		const parsed = sqliteCredentials.safeParse(config);
-		if (!parsed.success) {
-			printIssuesSqlite(config, 'pull');
-			process.exit(1);
+		if (parsed.success) {
+			return {
+				dialect: 'sqlite',
+				out: config.out,
+				breakpoints: config.breakpoints,
+				casing: config.casing,
+				credentials: parsed.data,
+				filters,
+				init: !!options.init,
+				migrations,
+			};
 		}
-		return {
-			dialect: 'sqlite',
-			out: config.out,
-			breakpoints: config.breakpoints,
-			casing: config.casing,
-			credentials: parsed.data,
-			filters,
-			init: !!options.init,
-			migrations,
-		};
+		printIssuesSqlite(config, 'pull');
 	}
 
 	if (dialect === 'turso') {
 		const parsed = libSQLCredentials.safeParse(config);
-		if (!parsed.success) {
-			printIssuesLibSQL(config, 'pull');
-			process.exit(1);
+		if (parsed.success) {
+			return {
+				dialect,
+				out: config.out,
+				breakpoints: config.breakpoints,
+				casing: config.casing,
+				credentials: parsed.data,
+				filters,
+				init: !!options.init,
+				migrations,
+			};
 		}
-		return {
-			dialect,
-			out: config.out,
-			breakpoints: config.breakpoints,
-			casing: config.casing,
-			credentials: parsed.data,
-			filters,
-			init: !!options.init,
-			migrations,
-		};
+		printIssuesLibSQL(config, 'pull');
 	}
 
 	if (dialect === 'mssql') {
 		const parsed = mssqlCredentials.safeParse(config);
-		if (!parsed.success) {
-			// printIssuesPg(config); // TODO add issues printing
-			process.exit(1);
+		if (parsed.success) {
+			return {
+				dialect,
+				out: config.out,
+				breakpoints: config.breakpoints,
+				casing: config.casing,
+				credentials: parsed.data,
+				filters,
+				init: !!options.init,
+				migrations,
+			};
 		}
-
-		return {
-			dialect,
-			out: config.out,
-			breakpoints: config.breakpoints,
-			casing: config.casing,
-			credentials: parsed.data,
-			filters,
-			init: !!options.init,
-			migrations,
-		};
+		printMssqlIssues(config);
 	}
 
 	if (dialect === 'cockroach') {
 		const parsed = cockroachCredentials.safeParse(config);
-		if (!parsed.success) {
-			printCockroachIssues(config);
-			process.exit(1);
+		if (parsed.success) {
+			return {
+				dialect,
+				out: config.out,
+				breakpoints: config.breakpoints,
+				casing: config.casing,
+				credentials: parsed.data,
+				filters,
+				init: !!options.init,
+				migrations,
+			};
 		}
-
-		return {
-			dialect,
-			out: config.out,
-			breakpoints: config.breakpoints,
-			casing: config.casing,
-			credentials: parsed.data,
-			filters,
-			init: !!options.init,
-			migrations,
-		};
+		printCockroachIssues(config);
 	}
 
 	if (dialect === 'duckdb') {
-		console.log(error(`You can't use 'pull' command with DuckDb dialect`));
-		process.exit(1);
+		throw new UnsupportedCommandCliError('pull', error(`You can't use 'pull' command with DuckDb dialect`), {
+			dialect: 'DuckDb',
+		});
 	}
 
-	assertUnreachable(dialect);
+	throw new Error(`Unexpected dialect: ${dialect}`);
 };
 
 export const prepareStudioConfig = async (options: Record<string, unknown>) => {
@@ -622,13 +636,13 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 	const result = studioConfig.safeParse(config);
 	if (!result.success) {
 		if (!('dialect' in config)) {
-			console.log(outputs.studio.noDialect());
+			humanLog(outputs.studio.noDialect());
 		}
 		process.exit(1);
 	}
 
 	if (!('dbCredentials' in config)) {
-		console.log(outputs.studio.noCredentials());
+		humanLog(outputs.studio.noCredentials());
 		process.exit(1);
 	}
 	const { host, port } = params;
@@ -764,9 +778,13 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	const config = await drizzleConfigFromFile(configPath);
 	const parsed = migrateConfig.safeParse(config);
 	if (parsed.error) {
-		console.log(error('Please provide required params:'));
-		console.log(wrapParam('dialect', config.dialect));
-		process.exit(1);
+		throw new RequiredParamsCliError(
+			['dialect'],
+			[
+				error('Please provide required params:'),
+				wrapParam('dialect', config.dialect),
+			].join('\n'),
+		);
 	}
 
 	const { dialect, out } = parsed.data;
@@ -776,8 +794,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	if (dialect === 'postgresql') {
 		const parsed = postgresCredentials.safeParse(flattened);
 		if (!parsed.success) {
-			printIssuesPg(flattened as Record<string, unknown>);
-			process.exit(1);
+			return printIssuesPg(flattened as Record<string, unknown>);
 		}
 		const credentials = parsed.data;
 		return {
@@ -792,8 +809,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	if (dialect === 'mysql') {
 		const parsed = mysqlCredentials.safeParse(flattened);
 		if (!parsed.success) {
-			printIssuesMysql(flattened as Record<string, unknown>);
-			process.exit(1);
+			return printIssuesMysql(flattened as Record<string, unknown>);
 		}
 		const credentials = parsed.data;
 		return {
@@ -808,8 +824,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	if (dialect === 'singlestore') {
 		const parsed = singlestoreCredentials.safeParse(flattened);
 		if (!parsed.success) {
-			printIssuesSingleStore(flattened as Record<string, unknown>);
-			process.exit(1);
+			return printIssuesSingleStore(flattened as Record<string, unknown>);
 		}
 		const credentials = parsed.data;
 		return {
@@ -824,8 +839,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	if (dialect === 'sqlite') {
 		const parsed = sqliteCredentials.safeParse(flattened);
 		if (!parsed.success) {
-			printIssuesSqlite(flattened as Record<string, unknown>, 'migrate');
-			process.exit(1);
+			return printIssuesSqlite(flattened as Record<string, unknown>, 'migrate');
 		}
 		const credentials = parsed.data;
 		return {
@@ -839,8 +853,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	if (dialect === 'turso') {
 		const parsed = libSQLCredentials.safeParse(flattened);
 		if (!parsed.success) {
-			printIssuesLibSQL(flattened as Record<string, unknown>, 'migrate');
-			process.exit(1);
+			return printIssuesLibSQL(flattened as Record<string, unknown>, 'migrate');
 		}
 		const credentials = parsed.data;
 		return {
@@ -855,8 +868,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	if (dialect === 'mssql') {
 		const parsed = mssqlCredentials.safeParse(flattened);
 		if (!parsed.success) {
-			printMssqlIssues(flattened as Record<string, unknown>);
-			process.exit(1);
+			return printMssqlIssues(flattened as Record<string, unknown>);
 		}
 		const credentials = parsed.data;
 		return {
@@ -871,8 +883,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	if (dialect === 'cockroach') {
 		const parsed = cockroachCredentials.safeParse(flattened);
 		if (!parsed.success) {
-			printCockroachIssues(flattened as Record<string, unknown>);
-			process.exit(1);
+			return printCockroachIssues(flattened as Record<string, unknown>);
 		}
 		const credentials = parsed.data;
 		return {
@@ -885,8 +896,9 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	}
 
 	if (dialect === 'duckdb') {
-		console.log(error(`You can't use 'migrate' command with DuckDb dialect`));
-		process.exit(1);
+		throw new UnsupportedCommandCliError('migrate', error(`You can't use 'migrate' command with DuckDb dialect`), {
+			dialect: 'DuckDb',
+		});
 	}
 
 	assertUnreachable(dialect);
@@ -915,7 +927,7 @@ export const drizzleConfigFromFile = async (
 		: 'drizzle.config.json';
 
 	if (!configPath && !isExport) {
-		console.log(
+		humanLog(
 			chalk.gray(
 				`No config path provided, using default '${defaultConfigPath}'`,
 			),
@@ -925,22 +937,20 @@ export const drizzleConfigFromFile = async (
 	const path: string = resolve(join(prefix, configPath ?? defaultConfigPath));
 
 	if (!existsSync(path)) {
-		console.log(`${path} file does not exist`);
-		process.exit(1);
+		throw new ConfigFileNotFoundCliError(path);
 	}
 
-	if (!isExport) console.log(chalk.grey(`Reading config file '${path}'`));
+	if (!isExport) humanLog(chalk.grey(`Reading config file '${path}'`));
 
 	const content = await loadModule<any>(path);
 
 	// --- get response and then check by each dialect independently
 	const res = configCommonSchema.safeParse(content);
 	if (!res.success) {
-		console.log(res.error);
 		if (!('dialect' in content)) {
-			console.log(error("Please specify 'dialect' param in config file"));
+			throw new MissingConfigDialectCliError();
 		}
-		process.exit(1);
+		throw new ConfigValidationCliError(inspect(res.error), res.error.issues as never, { cause: res.error });
 	}
 
 	return res.data;
@@ -963,8 +973,7 @@ export const migrateToFoldersV3 = (out: string) => {
 			if (!existsSync(oldSnapshotPath)) {
 				// If for some reason this happens we need to throw an error
 				// This can't happen unless there were wrong drizzle-kit migrations usage
-				console.error('No snapshot was found');
-				process.exit(1);
+				throw new MigrationSnapshotNotFoundCliError(oldSnapshotPath);
 			}
 
 			const oldSnapshot = readFileSync(oldSnapshotPath);
@@ -978,8 +987,7 @@ export const migrateToFoldersV3 = (out: string) => {
 				const sqlFileName = sqlFiles.find((file) => file.startsWith(snapshotPrefix));
 				if (!sqlFileName) continue;
 				if (sqlFileName?.length > 1) {
-					console.error('Several sql files were found');
-					process.exit(1);
+					throw new MigrationSqlFilesConflictCliError(snapshotPrefix);
 				}
 			}
 			const oldSql = readFileSync(oldSqlPath);

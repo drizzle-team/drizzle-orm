@@ -8,12 +8,22 @@ import { ddlDiff } from '../../dialects/mysql/diff';
 import type { JsonStatement } from '../../dialects/mysql/statements';
 import type { DB } from '../../utils';
 import { connectToMySQL } from '../connections';
+import { isJsonMode } from '../context';
+import { CommandOutputCliError, UnsupportedSchemaChangeError } from '../errors';
 import { highlightSQL } from '../highlighter';
+import type { HintsHandler } from '../hints';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { MysqlCredentials } from '../validations/mysql';
-import { explain, mysqlSchemaError, ProgressView } from '../views';
+import {
+	explain as explainView,
+	explainJsonOutput,
+	humanLog,
+	mysqlSchemaError,
+	printJsonOutput,
+	ProgressView,
+} from '../views';
 import { introspect } from './pull-mysql';
 
 export const handle = async (
@@ -22,12 +32,15 @@ export const handle = async (
 	verbose: boolean,
 	force: boolean,
 	filters: EntitiesFilterConfig,
-	explainFlag: boolean,
+	explain: boolean,
 	migrations: {
 		table: string;
 		schema: string;
 	},
+	hints: HintsHandler,
 ) => {
+	const json = isJsonMode();
+
 	const { prepareFromSchemaFiles, fromDrizzleSchema } = await import('../../dialects/mysql/drizzle');
 
 	const res = await prepareFromSchemaFiles(filenames);
@@ -47,34 +60,55 @@ export const handle = async (
 
 	const { ddl: ddl1 } = interimToDDL(interimFromDB);
 	const { ddl: ddl2, errors: errors1 } = interimToDDL(interimFromFiles);
-	// TODO: handle errors
 
 	if (errors1.length > 0) {
-		console.log(errors1.map((it) => mysqlSchemaError(it)).join('\n'));
-		process.exit(1);
+		throw new CommandOutputCliError('push', errors1.map((it) => mysqlSchemaError(it)).join('\n'), {
+			stage: 'ddl',
+			dialect: 'mysql',
+		});
 	}
 
 	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
-		resolver<Table>('table'),
-		resolver<Column>('column'),
-		resolver<View>('view'),
+		resolver<Table>('table', 'public', hints),
+		resolver<Column>('column', 'public', hints),
+		resolver<View>('view', 'public', hints),
 		'push',
 	);
 
-	const filteredStatements = statements;
-	if (filteredStatements.length === 0) {
-		render(`[${chalk.blue('i')}] No changes detected`);
+	if (hints.hasMissingHints()) {
+		hints.emitAndExit();
 	}
 
-	const hints = await suggestions(db, filteredStatements, ddl2);
-	const explainMessage = explain('mysql', groupedStatements, explainFlag, hints);
+	if (sqlStatements.length === 0) {
+		if (json) {
+			printJsonOutput({ status: 'no_changes', dialect: 'mysql' });
+		} else {
+			render(`[${chalk.blue('i')}] No changes detected`);
+		}
+		return;
+	}
 
-	if (explainMessage) console.log(explainMessage);
-	if (explainFlag) return;
+	const suggestionHints = await suggestions(db, statements, ddl2, hints);
 
-	if (!force && hints.length > 0) {
+	if (hints.hasMissingHints()) {
+		hints.emitAndExit();
+	}
+
+	if (explain) {
+		if (json) {
+			printJsonOutput(explainJsonOutput('mysql', statements, suggestionHints));
+		} else {
+			const explainMessage = explainView('mysql', groupedStatements, suggestionHints);
+			if (explainMessage) {
+				humanLog(explainMessage);
+			}
+		}
+		return;
+	}
+
+	if (!force && !json && suggestionHints.length > 0) {
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
@@ -83,25 +117,26 @@ export const handle = async (
 		}
 	}
 
-	const lossStatements = hints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
+	const lossStatements = suggestionHints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
 
 	for (const statement of [...lossStatements, ...sqlStatements]) {
-		if (verbose) console.log(highlightSQL(statement));
+		if (verbose && !json) humanLog(highlightSQL(statement));
 
 		await db.query(statement);
 	}
 
-	if (filteredStatements.length > 0) {
-		render(`[${chalk.green('✓')}] Changes applied`);
+	if (json) {
+		printJsonOutput({ status: 'ok', dialect: 'mysql' });
 	} else {
-		render(`[${chalk.blue('i')}] No changes detected`);
+		render(`[${chalk.green('\u2713')}] Changes applied`);
 	}
 };
 
 const identifier = ({ table, column }: { table?: string; column?: string }) => {
 	return [table, column].filter(Boolean).map((t) => `\`${t}\``).join('.');
 };
-export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2: MysqlDDL) => {
+export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2: MysqlDDL, hints: HintsHandler) => {
+	const json = isJsonMode();
 	const grouped: { hint: string; statement?: string }[] = [];
 
 	const filtered = jsonStatements.filter((it) => {
@@ -112,24 +147,36 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 	for (const statement of filtered) {
 		if (statement.type === 'drop_table') {
+			const entity = ['public', statement.table] as const;
+			if (hints.matchConfirm('table', entity)) continue;
 			const res = await db.query(`select 1 from ${identifier({ table: statement.table })} limit 1`);
 
 			if (res.length > 0) {
-				grouped.push({ hint: `· You're about to delete non-empty ${chalk.underline(statement.table)} table` });
+				if (json) {
+					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'table', entity, reason: 'non_empty' });
+				} else {
+					grouped.push({ hint: `You're about to delete non-empty ${chalk.underline(statement.table)} table` });
+				}
 			}
 			continue;
 		}
 
 		if (statement.type === 'drop_column') {
 			const column = statement.column;
+			const entity = ['public', column.table, column.name] as const;
+			if (hints.matchConfirm('column', entity)) continue;
 			const res = await db.query(`select 1 from ${identifier({ table: column.table })} limit 1`);
 			if (res.length === 0) continue;
 
-			grouped.push({
-				hint: `· You're about to delete non-empty ${chalk.underline(column.name)} column in ${
-					chalk.underline(column.table)
-				} table`,
-			});
+			if (json) {
+				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'column', entity, reason: 'non_empty' });
+			} else {
+				grouped.push({
+					hint: `You're about to delete non-empty ${chalk.underline(column.name)} column in ${
+						chalk.underline(column.table)
+					} table`,
+				});
+			}
 			continue;
 		}
 
@@ -137,16 +184,22 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 		if (statement.type === 'drop_pk') {
 			const { table, columns } = statement.pk;
 			const id = identifier({ table });
+			const entity = ['public', table, statement.pk.name] as const;
+			if (hints.matchConfirm('primary_key', entity)) continue;
 			const res = await db.query(
 				`select 1 from ${id} limit 1`,
 			);
 
 			if (res.length > 0) {
-				const hint = `· You're about to drop ${
+				const hint = `You're about to drop ${
 					chalk.underline(table)
-				} primary key, this statements may fail and your table may loose primary key`;
+				} primary key, this statements may fail and your table may lose primary key`;
 
-				grouped.push({ hint });
+				if (json) {
+					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'primary_key', entity, reason: 'non_empty' });
+				} else {
+					grouped.push({ hint });
+				}
 			}
 
 			const fks = ddl2.fks.list({ tableTo: table });
@@ -170,8 +223,16 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 			if (indexesFound) continue;
 
+			if (json) {
+				throw new UnsupportedSchemaChangeError({
+					kind: 'drop_pk_dependency',
+					table,
+					columns,
+					blocking_fks: fkFound.map((fk) => fk.name),
+				});
+			}
 			grouped.push({
-				hint: `· You are trying to drop primary key from "${table}" ("${
+				hint: `You are trying to drop primary key from "${table}" ("${
 					columns.join('", ')
 				}"), but there is an existing reference on this column. You must either add a UNIQUE constraint to ("${
 					columns.join('", ')
@@ -186,14 +247,25 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 		) {
 			const column = statement.column;
 			const id = identifier({ table: column.table });
+			const entity = ['public', column.table, column.name] as const;
+			if (hints.matchConfirm('add_not_null', entity)) continue;
 			const res = await db.query(`select 1 from ${id} limit 1`);
 
 			if (res.length === 0) continue;
-			const hint = `· You're about to add not-null ${
+			const hint = `You're about to add not-null ${
 				chalk.underline(statement.column.name)
 			} column without default value to a non-empty ${chalk.underline(statement.column.table)} table`;
 
-			grouped.push({ hint });
+			if (json) {
+				hints.pushMissingHint({
+					type: 'confirm_data_loss',
+					kind: 'add_not_null',
+					entity,
+					reason: 'nulls_present',
+				});
+			} else {
+				grouped.push({ hint });
+			}
 			continue;
 		}
 
@@ -206,29 +278,53 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 				statement.diff.notNull && statement.diff.notNull.to && statement.column.default === null
 				&& !statement.column.generated
 			) {
+				const entity = ['public', statement.column.table, statement.column.name] as const;
+				if (hints.matchConfirm('add_not_null', entity)) continue;
 				const columnRes = await db.query(`select ${columnName} from ${tableName} WHERE ${columnName} IS NULL limit 1`);
 
 				if (columnRes.length > 0) {
-					const hint = `· You're about to add not-null to a non-empty ${
+					const hint = `You're about to add not-null to a non-empty ${
 						chalk.underline(columnName)
 					} column without default value in ${chalk.underline(statement.column.table)} table`;
 
-					grouped.push({ hint });
+					if (json) {
+						hints.pushMissingHint({
+							type: 'confirm_data_loss',
+							kind: 'add_not_null',
+							entity,
+							reason: 'nulls_present',
+						});
+					} else {
+						grouped.push({ hint });
+					}
 				}
 			}
 
 			if (statement.diff.type) {
-				const hint = `· You're about to change ${
-					chalk.underline(
-						columnName,
-					)
-				} column type in ${tableName} from ${
-					chalk.underline(
-						statement.diff.type.from,
-					)
-				} to ${chalk.underline(statement.diff.type.to)}`;
+				const entity = ['public', statement.column.table, statement.column.name] as const;
+				if (!hints.matchConfirm('column', entity)) {
+					if (json) {
+						hints.pushMissingHint({
+							type: 'confirm_data_loss',
+							kind: 'column',
+							entity,
+							reason: 'type_change',
+							reason_details: { from: statement.diff.type.from, to: statement.diff.type.to },
+						});
+					} else {
+						const hint = `You're about to change ${
+							chalk.underline(
+								columnName,
+							)
+						} column type in ${tableName} from ${
+							chalk.underline(
+								statement.diff.type.from,
+							)
+						} to ${chalk.underline(statement.diff.type.to)}`;
 
-				grouped.push({ hint });
+						grouped.push({ hint });
+					}
+				}
 			}
 
 			continue;
@@ -239,15 +335,26 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 			const unique = statement.index;
 			const id = identifier({ table: unique.table });
+			const entity = ['public', unique.table, unique.name] as const;
+			if (hints.matchConfirm('add_unique', entity)) continue;
 
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
 
-			grouped.push({
-				hint: `· You're about to add ${chalk.underline(unique.name)} unique index to a non-empty ${
-					chalk.underline(unique.table)
-				} table which may fail`,
-			});
+			if (json) {
+				hints.pushMissingHint({
+					type: 'confirm_data_loss',
+					kind: 'add_unique',
+					entity,
+					reason: 'duplicates_present',
+				});
+			} else {
+				grouped.push({
+					hint: `You're about to add ${chalk.underline(unique.name)} unique index to a non-empty ${
+						chalk.underline(unique.table)
+					} table which may fail`,
+				});
+			}
 			continue;
 		}
 
@@ -272,16 +379,13 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 			if (isPkFound || isUniqueFound) continue;
 
-			let composite = columnsTo.length > 1 ? 'composite ' : '';
-			grouped.push({
-				hint: `· You are trying to add reference from "${table}" ("${columns.join('", ')}") to "${tableTo}" ("${
-					columnsTo.join(
-						'", ',
-					)
-				}"). The referenced columns are not guaranteed to be unique together. A foreign key must point to a PRIMARY KEY or a set of columns with a UNIQUE constraint. You should add a ${composite}unique constraint to the referenced columns`,
+			throw new UnsupportedSchemaChangeError({
+				kind: 'fk_target_not_unique',
+				table,
+				columns,
+				table_to: tableTo,
+				columns_to: columnsTo,
 			});
-
-			continue;
 		}
 	}
 

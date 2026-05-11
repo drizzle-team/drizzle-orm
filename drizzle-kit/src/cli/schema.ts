@@ -25,6 +25,7 @@ import {
 	preparePushConfig,
 	prepareStudioConfig,
 } from './commands/utils';
+import { OrmDriverVersionCliError, UnsupportedCommandCliError } from './errors';
 import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersionGt } from './utils';
 import { assertCollisions, drivers } from './validations/common';
 import type { LibSQLCredentials } from './validations/libsql';
@@ -50,6 +51,9 @@ const optionDriver = string()
 const optionIgnoreConflicts = boolean('ignore-conflicts').desc(
 	'Skip commutativity conflict checks',
 );
+const optionHints = string().desc('Inline JSON array of hints for --json mode');
+const optionHintsFile = string('hints-file').desc('Path to a JSON file containing a hints array');
+const optionJson = boolean('json').desc('Output as JSON').default(false);
 
 export const generate = command({
 	name: 'generate',
@@ -65,12 +69,18 @@ export const generate = command({
 			.desc('Prepare empty migration file for custom SQL')
 			.default(false),
 		ignoreConflicts: optionIgnoreConflicts,
+		explain: boolean()
+			.desc('Print the planned SQL changes (dry run)')
+			.default(false),
+		json: optionJson,
+		hints: optionHints,
+		hintsFile: optionHintsFile,
 	},
 	transform: async (opts) => {
 		const from = assertCollisions(
 			'generate',
 			opts,
-			['name', 'custom', 'ignoreConflicts'],
+			['name', 'custom', 'ignoreConflicts', 'explain', 'json', 'hints', 'hintsFile'],
 			['driver', 'breakpoints', 'schema', 'out', 'dialect'],
 		);
 		return prepareGenerateConfig(opts, from);
@@ -110,10 +120,13 @@ export const generate = command({
 			const { handle } = await import('./commands/generate-cockroach');
 			await handle(opts);
 		} else if (dialect === 'duckdb') {
-			console.log(
+			throw new UnsupportedCommandCliError(
+				'generate',
 				error(`You can't use 'generate' command with DuckDb dialect`),
+				{
+					dialect: 'DuckDb',
+				},
 			);
-			process.exit(1);
 		} else {
 			assertUnreachable(dialect);
 		}
@@ -138,9 +151,7 @@ export const migrate = command({
 	handler: async (opts) => {
 		await assertOrmCoreVersion();
 		await assertPackages('drizzle-orm');
-
 		assertV3OutFolder(opts.out);
-
 		const { dialect, schema, table, out, credentials, ignoreConflicts } = opts;
 
 		await checkHandler(out, dialect, ignoreConflicts);
@@ -289,15 +300,18 @@ export const push = command({
 				'Auto-approve all data loss statements. Note: Data loss statements may truncate your tables and data',
 			)
 			.default(false),
+		json: optionJson,
 		explain: boolean()
 			.desc('Print the planned SQL changes (dry run)')
 			.default(false),
+		hints: optionHints,
+		hintsFile: optionHintsFile,
 	},
 	transform: async (opts) => {
 		const from = assertCollisions(
 			'push',
 			opts,
-			['force', 'verbose', 'strict', 'explain'],
+			['force', 'verbose', 'strict', 'explain', 'json', 'hints', 'hintsFile'],
 			[
 				'schema',
 				'dialect',
@@ -318,12 +332,11 @@ export const push = command({
 		);
 
 		if (typeof opts.strict !== 'undefined') {
-			console.log(
-				withStyle.fullWarning(
-					"⚠️ Deprecated: Do not use 'strict' flag. Use 'explain' instead",
-				),
+			throw new UnsupportedCommandCliError(
+				'push',
+				withStyle.fullWarning("⚠️ Deprecated: Do not use 'strict' flag. Use 'explain' instead"),
+				{ option: 'strict' },
 			);
-			process.exit(1);
 		}
 
 		return preparePushConfig(opts, from);
@@ -341,6 +354,7 @@ export const push = command({
 			explain,
 			migrations,
 			filenames,
+			hints,
 		} = config;
 
 		if (dialect === 'mysql') {
@@ -353,21 +367,24 @@ export const push = command({
 				filters,
 				explain,
 				migrations,
+				hints,
 			);
 		} else if (dialect === 'postgresql') {
 			if ('driver' in credentials) {
 				const { driver } = credentials;
 				if (driver === 'aws-data-api' && !(await ormVersionGt('0.30.10'))) {
-					console.log(
+					throw new OrmDriverVersionCliError(
+						'aws-data-api',
+						'0.30.10',
 						"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
 					);
-					process.exit(1);
 				}
 				if (driver === 'pglite' && !(await ormVersionGt('0.30.6'))) {
-					console.log(
+					throw new OrmDriverVersionCliError(
+						'pglite',
+						'0.30.6',
 						"To use 'pglite' driver - please update drizzle-orm to the latest version",
 					);
-					process.exit(1);
 				}
 			}
 
@@ -380,6 +397,7 @@ export const push = command({
 				force,
 				explain,
 				migrations,
+				hints,
 			);
 		} else if (dialect === 'sqlite' || dialect === 'turso') {
 			const { connectToSQLite, connectToLibSQL } = await import('./connections');
@@ -397,6 +415,8 @@ export const push = command({
 				force,
 				explain,
 				migrations,
+				dialect === 'turso' ? 'turso' : 'sqlite',
+				hints,
 			);
 		} else if (dialect === 'singlestore') {
 			const { handle } = await import('./commands/push-singlestore');
@@ -408,6 +428,7 @@ export const push = command({
 				force,
 				explain,
 				migrations,
+				hints,
 			);
 		} else if (dialect === 'cockroach') {
 			const { handle } = await import('./commands/push-cockroach');
@@ -419,6 +440,7 @@ export const push = command({
 				force,
 				explain,
 				migrations,
+				hints,
 			);
 		} else if (dialect === 'mssql') {
 			const { handle } = await import('./commands/push-mssql');
@@ -430,6 +452,7 @@ export const push = command({
 				force,
 				explain,
 				migrations,
+				hints,
 			);
 		} else {
 			assertUnreachable(dialect);

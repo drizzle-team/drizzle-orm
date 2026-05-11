@@ -1,5 +1,5 @@
 import type { CheckHandlerResult } from '../../cli/commands/check';
-import { sqliteSchemaError } from '../../cli/views';
+import { humanLog, sqliteSchemaError } from '../../cli/views';
 import { assertUnreachable } from '../../utils';
 import { findLeafSnapshotIds } from '../../utils/utils-node';
 import type { Column, ForeignKey, Index, PrimaryKey, SQLiteDDL, UniqueConstraint } from './ddl';
@@ -52,7 +52,7 @@ export const prepareSqliteSnapshot = async (
 	const { ddl: ddlCur, errors } = interimToDDL(interim);
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => sqliteSchemaError(it)).join('\n\n'));
+		humanLog(errors.map((it) => sqliteSchemaError(it)).join('\n\n'));
 		process.exit();
 	}
 

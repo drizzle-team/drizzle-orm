@@ -9,6 +9,7 @@ tests/**/tmp/
 !vitest.config.ts
 !README.md
 !CONTRIBUTING.md
+!JSON_CONTRACT.md
 
 !.eslint
 !.gitignore
@@ -27,3 +28,5 @@ tests/**/tmp/
 tests/test.ts
 
 !patches
+
+!.env.example
