@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { PgDialect, pgTable, serial, text } from '~/pg-core';
-import { and, eq, not, or, sql } from '~/sql';
+import { and, eq, inArray, not, notInArray, or, sql } from '~/sql';
 
 const users = pgTable('users', {
 	id: serial('id').primaryKey(),
@@ -64,4 +64,19 @@ test.skipIf(Date.now() < +new Date('2026-05-07'))('NOT conditions deep filter em
 	const query = not(sql`${sql`never`.if(false)}`);
 
 	expect(query).toBeUndefined();
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5632
+test('inArray with empty array generates 1 = 0', () => {
+	const query = inArray(users.id, []);
+	const { sql: text } = dialect.sqlToQuery(query.inlineParams());
+
+	expect(text).toStrictEqual('1 = 0');
+});
+
+test('notInArray with empty array generates 1 = 1', () => {
+	const query = notInArray(users.id, []);
+	const { sql: text } = dialect.sqlToQuery(query.inlineParams());
+
+	expect(text).toStrictEqual('1 = 1');
 });
