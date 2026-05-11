@@ -1,6 +1,6 @@
 ---
-name: run-tests
-description: How to run, set up, or debug the drizzle-orm monorepo test suite — picking the right `pnpm test:*` target, ensuring `drizzle-kit/.env` exists, and bringing up the right Docker DBs via `bash compose/dockers.sh up` before any test that touches a database. Use this skill whenever the user asks to run tests, says "tests are failing" or "tests hang", asks why a `_CONNECTION_STRING` is undefined, asks how to start a postgres/mysql/cockroach/mssql/singlestore container for tests, mentions `compose/dockers.sh` or `compose/wait.sh`, or is about to invoke `pnpm test`, `pnpm test:postgres`, `pnpm test:mysql`, `pnpm test:cockroach`, `pnpm test:mssql`, `pnpm test:singlestore`, `pnpm test:other`, `vitest`, etc. — even if they don't explicitly say "skill" or "how to". Most failures here are environmental (missing `.env`, DB not running on the canonical port, wrong dialect started); follow this workflow first instead of debugging the test code.
+name: tests
+description: Anything test-related in the drizzle-orm monorepo — running, writing, debugging, or fixing tests. Use whenever the user mentions tests in any way.
 ---
 
 # Running tests in drizzle-orm
