@@ -707,3 +707,32 @@ test('pull after migrate with custom migrations table #3', async () => {
 		},
 	]);
 });
+
+// Regression test for https://github.com/drizzle-team/drizzle-orm/issues/5726
+// sys.default_constraints.definition can be null at runtime; pull must not crash
+test('pull does not crash when sys.default_constraints.definition is null', async () => {
+	await db.query(
+		`CREATE TABLE [test_null_def] ([amount] decimal(10,2) CONSTRAINT [DF_test_null_def_amount] DEFAULT ((3.14)))`,
+	);
+
+	const nullingDb: DB = {
+		query: async <T extends any = any>(queryStr: string, params?: any[]): Promise<T[]> => {
+			const rows = await db.query<T>(queryStr, params);
+			if (queryStr.includes('sys.default_constraints')) {
+				return rows.map((row: any) => ({ ...row, definition: null })) as T[];
+			}
+			return rows;
+		},
+	};
+
+	const schema = await fromDatabaseForDrizzle(nullingDb, () => true, () => true, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
+
+	const constraint = schema.defaults.find(
+		(d) => d.table === 'test_null_def' && d.column === 'amount',
+	);
+	expect(constraint).toBeDefined();
+	expect(constraint!.default).toBeNull();
+});
