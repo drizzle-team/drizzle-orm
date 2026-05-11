@@ -5003,7 +5003,7 @@ test('select with empty array in notInArray', async ({ db }) => {
 	await db.execute(sql`CREATE TABLE [users_118] (id int primary key, name varchar(30) not null)`);
 	await db.insert(tbl).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
 
-	const result = await db.select().from(tbl).where(notInArray(tbl.id, []));
+	const result = await db.select().from(tbl).where(notInArray(tbl.id, [])).orderBy(asc(tbl.id));
 
 	expect(result).toEqual([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
 });
