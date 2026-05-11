@@ -199,16 +199,16 @@ ORDER BY lower(name)
 		schema_id: number;
 		parent_table_id: number;
 		parent_column_id: number;
-		definition: string;
+		definition: string | null;
 		is_system_named: boolean;
 	}>(`
-SELECT 
-	name as name, 
-	schema_id as schema_id, 
-	parent_object_id as parent_table_id, 
-	parent_column_id as parent_column_id, 
-	definition as definition, 
-	is_system_named as is_system_named 
+SELECT
+	name as name,
+	schema_id as schema_id,
+	parent_object_id as parent_table_id,
+	parent_column_id as parent_column_id,
+	definition as definition,
+	is_system_named as is_system_named
 FROM sys.default_constraints
 ${filterByTableIds ? 'WHERE parent_object_id in ' + filterByTableIds : ''}
 ORDER BY lower(name)
