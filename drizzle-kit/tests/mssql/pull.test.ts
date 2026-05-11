@@ -716,7 +716,7 @@ test('pull does not crash when sys.default_constraints.definition is null', asyn
 	);
 
 	const nullingDb: DB = {
-		query: async <T = any>(queryStr: string, params?: any[]): Promise<T[]> => {
+		query: async <T extends any = any>(queryStr: string, params?: any[]): Promise<T[]> => {
 			const rows = await db.query<T>(queryStr, params);
 			if (queryStr.includes('sys.default_constraints')) {
 				return rows.map((row: any) => ({ ...row, definition: null })) as T[];
