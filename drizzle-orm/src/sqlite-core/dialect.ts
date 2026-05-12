@@ -30,7 +30,13 @@ import type {
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
-import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import {
+	type Casing,
+	getColumnExpressionForRelationalJson,
+	getColumnSelectionExpression,
+	orderSelectedFields,
+	type UpdateSet,
+} from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type {
 	SelectedFieldsOrdered,
@@ -212,19 +218,28 @@ export abstract class SQLiteDialect {
 				if (field.columnType === 'SQLiteNumericBigInt') {
 					if (isSingleTable) {
 						chunk.push(
-							sql`cast(${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
+							getColumnSelectionExpression(
+								field,
+								sql`cast(${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
+							),
 						);
 					} else {
 						chunk.push(
-							sql`cast(${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
+							getColumnSelectionExpression(
+								field,
+								sql`cast(${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
+							),
 						);
 					}
 				} else {
 					if (isSingleTable) {
-						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+						chunk.push(getColumnSelectionExpression(field, sql`${sql.identifier(this.casing.getColumnCasing(field))}`));
 					} else {
 						chunk.push(
-							sql`${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))}`,
+							getColumnSelectionExpression(
+								field,
+								sql`${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))}`,
+							),
 						);
 					}
 				}
@@ -839,7 +854,10 @@ export abstract class SQLiteDialect {
 				sql.join(
 					selection.map(({ field }) =>
 						is(field, SQLiteColumn)
-							? sql.identifier(this.casing.getColumnCasing(field))
+							? getColumnExpressionForRelationalJson(
+								field,
+								sql`${sql.identifier(this.casing.getColumnCasing(field))}`,
+							)
 							: is(field, SQL.Aliased)
 							? field.sql
 							: field

@@ -50,7 +50,13 @@ import {
 } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
-import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import {
+	type Casing,
+	getColumnExpressionForRelationalJson,
+	getColumnSelectionExpression,
+	orderSelectedFields,
+	type UpdateSet,
+} from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgSession } from './session.ts';
 import { PgViewBase } from './view-base.ts';
@@ -243,9 +249,9 @@ export class PgDialect {
 					}
 				} else if (is(field, Column)) {
 					if (isSingleTable) {
-						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+						chunk.push(getColumnSelectionExpression(field, sql`${sql.identifier(this.casing.getColumnCasing(field))}`));
 					} else {
-						chunk.push(field);
+						chunk.push(getColumnSelectionExpression(field, sql`${field}`));
 					}
 				} else if (is(field, Subquery)) {
 					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
@@ -1360,6 +1366,8 @@ export class PgDialect {
 							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
 							: is(field, SQL.Aliased)
 							? field.sql
+							: is(field, Column)
+							? getColumnExpressionForRelationalJson(field, sql`${field}`)
 							: field
 					),
 					sql`, `,

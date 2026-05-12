@@ -38,7 +38,13 @@ import {
 } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
-import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import {
+	type Casing,
+	getColumnExpressionForRelationalJson,
+	getColumnSelectionExpression,
+	orderSelectedFields,
+	type UpdateSet,
+} from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { GelTimestamp } from './columns/timestamp.ts';
 import { GelViewBase } from './view-base.ts';
@@ -240,7 +246,7 @@ export class GelDialect {
 					// if (isSingleTable) {
 					// 	chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
 					// } else {
-					chunk.push(field);
+					chunk.push(getColumnSelectionExpression(field, sql`${field}`));
 					// }
 				} else if (is(field, Subquery)) {
 					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
@@ -1351,6 +1357,8 @@ export class GelDialect {
 							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
 							: is(field, SQL.Aliased)
 							? field.sql
+							: is(field, Column)
+							? getColumnExpressionForRelationalJson(field, sql`${field}`)
 							: field
 					),
 					sql`, `,
