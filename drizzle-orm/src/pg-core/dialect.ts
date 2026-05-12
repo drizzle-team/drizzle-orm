@@ -87,8 +87,9 @@ export class PgDialect {
 		await session.execute(migrationTableCreate);
 
 		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
-			sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)
-				} order by created_at desc limit 1`,
+			sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${
+				sql.identifier(migrationsTable)
+			} order by created_at desc limit 1`,
 		);
 
 		const lastDbMigration = dbMigrations[0];
@@ -102,8 +103,9 @@ export class PgDialect {
 						await tx.execute(sql.raw(stmt));
 					}
 					await tx.execute(
-						sql`insert into ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)
-							} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
+						sql`insert into ${sql.identifier(migrationsSchema)}.${
+							sql.identifier(migrationsTable)
+						} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
 					);
 				}
 			}
@@ -177,8 +179,9 @@ export class PgDialect {
 		const tableSchema = table[PgTable.Symbol.Schema];
 		const origTableName = table[PgTable.Symbol.OriginalName];
 		const alias = tableName === origTableName ? undefined : tableName;
-		const tableSql = sql`${tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined}${sql.identifier(origTableName)
-			}${alias && sql` ${sql.identifier(alias)}`}`;
+		const tableSql = sql`${tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined}${
+			sql.identifier(origTableName)
+		}${alias && sql` ${sql.identifier(alias)}`}`;
 
 		const setSql = this.buildUpdateSet(table, set);
 
@@ -254,8 +257,8 @@ export class PgDialect {
 						const fieldDecoder = is(entry, SQL)
 							? entry.decoder
 							: is(entry, Column)
-								? { mapFromDriverValue: (v: any) => entry.mapFromDriverValue(v) }
-								: entry.sql.decoder;
+							? { mapFromDriverValue: (v: any) => entry.mapFromDriverValue(v) }
+							: entry.sql.decoder;
 
 						if (fieldDecoder) {
 							field._.sql.decoder = fieldDecoder;
@@ -295,8 +298,9 @@ export class PgDialect {
 				const origTableName = table[PgTable.Symbol.OriginalName];
 				const alias = tableName === origTableName ? undefined : joinMeta.alias;
 				joinsArray.push(
-					sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
-						}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
+					sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
+						tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
+					}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 				);
 			} else if (is(table, View)) {
 				const viewName = table[ViewBaseConfig].name;
@@ -304,8 +308,9 @@ export class PgDialect {
 				const origViewName = table[ViewBaseConfig].originalName;
 				const alias = viewName === origViewName ? undefined : joinMeta.alias;
 				joinsArray.push(
-					sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${viewSchema ? sql`${sql.identifier(viewSchema)}.` : undefined
-						}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
+					sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
+						viewSchema ? sql`${sql.identifier(viewSchema)}.` : undefined
+					}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 				);
 			} else {
 				joinsArray.push(
@@ -357,13 +362,13 @@ export class PgDialect {
 			if (
 				is(f.field, Column)
 				&& getTableName(f.field.table)
-				!== (is(table, Subquery)
-					? table._.alias
-					: is(table, PgViewBase)
+					!== (is(table, Subquery)
+						? table._.alias
+						: is(table, PgViewBase)
 						? table[ViewBaseConfig].name
 						: is(table, SQL)
-							? undefined
-							: getTableName(table))
+						? undefined
+						: getTableName(table))
 				&& !((table) =>
 					joins?.some(({ alias }) =>
 						alias === (table[Table.Symbol.IsAlias] ? getTableName(table) : table[Table.Symbol.BaseName])
@@ -371,7 +376,8 @@ export class PgDialect {
 			) {
 				const tableName = getTableName(f.field.table);
 				throw new Error(
-					`Your "${f.path.join('->')
+					`Your "${
+						f.path.join('->')
 					}" field references a column "${tableName}"."${f.field.name}", but the table "${tableName}" is not part of the query! Did you forget to join it?`,
 				);
 			}
@@ -417,11 +423,12 @@ export class PgDialect {
 			const clauseSql = sql` for ${sql.raw(lockingClause.strength)}`;
 			if (lockingClause.config.of) {
 				clauseSql.append(
-					sql` of ${sql.join(
-						Array.isArray(lockingClause.config.of) ? lockingClause.config.of : [lockingClause.config.of],
-						sql`, `,
-					)
-						}`,
+					sql` of ${
+						sql.join(
+							Array.isArray(lockingClause.config.of) ? lockingClause.config.of : [lockingClause.config.of],
+							sql`, `,
+						)
+					}`,
 				);
 			}
 			if (lockingClause.config.noWait) {
@@ -1388,20 +1395,22 @@ export class PgDialect {
 		where = and(joinOn, where);
 
 		if (nestedQueryRelation) {
-			let field = sql`json_build_array(${sql.join(
-				selection.map(({ field, tsKey, isJson }) =>
-					isJson
-						? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
-						: is(field, SQL.Aliased)
+			let field = sql`json_build_array(${
+				sql.join(
+					selection.map(({ field, tsKey, isJson }) =>
+						isJson
+							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
+							: is(field, SQL.Aliased)
 							? field.sql
 							: field
-				),
-				sql`, `,
-			)
-				})`;
+					),
+					sql`, `,
+				)
+			})`;
 			if (is(nestedQueryRelation, Many)) {
-				field = sql`coalesce(json_agg(${field}${orderBy.length > 0 ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined
-					}), '[]'::json)`;
+				field = sql`coalesce(json_agg(${field}${
+					orderBy.length > 0 ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined
+				}), '[]'::json)`;
 				// orderBy = [];
 			}
 			const nestedSelection = [{
