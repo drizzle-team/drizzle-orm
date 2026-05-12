@@ -1,5 +1,5 @@
-import { expect, test, describe } from 'vitest';
-import { PgDialect, pgTable, integer, text } from '~/pg-core/index.ts';
+import { describe, expect, test } from 'vitest';
+import { integer, PgDialect, pgTable, text } from '~/pg-core/index.ts';
 import { PgMergeBuilder, QueryBuilder } from '~/pg-core/query-builders/index.ts';
 import { eq, isNotNull, sql } from '~/sql/index.ts';
 
@@ -98,8 +98,8 @@ describe('MERGE SQL generation', () => {
 
 		expect(query).toBe(
 			'merge into "users" using "source_users" on "users"."id" = "source_users"."id"'
-			+ ' when matched then update set "name" = "source_users"."name"'
-			+ ' when not matched then insert ("id", "name") values ("source_users"."id", "source_users"."name")',
+				+ ' when matched then update set "name" = "source_users"."name"'
+				+ ' when not matched then insert ("id", "name") values ("source_users"."id", "source_users"."name")',
 		);
 	});
 
@@ -143,8 +143,8 @@ describe('MERGE SQL generation', () => {
 
 		expect(query).toBe(
 			'merge into "users" using "source_users" on "users"."id" = "source_users"."id"'
-			+ ' when matched and "source_users"."name" = $1 then delete'
-			+ ' when matched then update set "name" = "source_users"."name"',
+				+ ' when matched and "source_users"."name" = $1 then delete'
+				+ ' when matched then update set "name" = "source_users"."name"',
 		);
 		expect(params).toEqual(['delete-me']);
 	});
@@ -203,9 +203,9 @@ describe('MERGE SQL generation', () => {
 
 		expect(query).toBe(
 			'merge into "users" using "source_users" on "users"."id" = "source_users"."id"'
-			+ ' when matched then update set "name" = "source_users"."name"'
-			+ ' when not matched then insert ("id", "name") values ("source_users"."id", "source_users"."name")'
-			+ ' returning "id", "name"',
+				+ ' when matched then update set "name" = "source_users"."name"'
+				+ ' when not matched then insert ("id", "name") values ("source_users"."id", "source_users"."name")'
+				+ ' returning "id", "name"',
 		);
 	});
 
@@ -220,8 +220,8 @@ describe('MERGE SQL generation', () => {
 
 		expect(query).toBe(
 			'merge into "users" using "source_users" on "users"."id" = "source_users"."id"'
-			+ ' when matched then update set "name" = "source_users"."name"'
-			+ ' returning "id"',
+				+ ' when matched then update set "name" = "source_users"."name"'
+				+ ' returning "id"',
 		);
 	});
 
@@ -239,9 +239,9 @@ describe('MERGE SQL generation', () => {
 
 		expect(query).toBe(
 			'merge into "users"'
-			+ ' using (select * from "source_users" where "source_users"."name" is not null) as "filtered"'
-			+ ' on "users"."id" = "filtered"."id"'
-			+ ' when matched then update set "name" = "filtered"."name"',
+				+ ' using (select * from "source_users" where "source_users"."name" is not null) as "filtered"'
+				+ ' on "users"."id" = "filtered"."id"'
+				+ ' when matched then update set "name" = "filtered"."name"',
 		);
 	});
 
@@ -264,10 +264,10 @@ describe('MERGE SQL generation', () => {
 
 		expect(query).toBe(
 			'merge into "users"'
-			+ ' using (select "id", "name" from "source_users" where "source_users"."name" is not null) "filtered_source"'
-			+ ' on "users"."id" = "filtered_source"."id"'
-			+ ' when matched then update set "name" = "filtered_source"."name"'
-			+ ' when not matched then insert ("id", "name") values ("filtered_source"."id", "filtered_source"."name")',
+				+ ' using (select "id", "name" from "source_users" where "source_users"."name" is not null) "filtered_source"'
+				+ ' on "users"."id" = "filtered_source"."id"'
+				+ ' when matched then update set "name" = "filtered_source"."name"'
+				+ ' when not matched then insert ("id", "name") values ("filtered_source"."id", "filtered_source"."name")',
 		);
 	});
 });

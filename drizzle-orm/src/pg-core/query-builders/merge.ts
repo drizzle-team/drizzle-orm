@@ -15,7 +15,7 @@ import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import { type ColumnsSelection, type Query, SQL, type SQLWrapper, Param } from '~/sql/sql.ts';
+import { type ColumnsSelection, Param, type Query, SQL, type SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { mapUpdateSet, type NeonAuthToken, orderSelectedFields, type UpdateSet } from '~/utils.ts';
@@ -27,26 +27,30 @@ import type { PgUpdateSetSource } from './update.ts';
 export type PgMergeInsertValue<TTable extends PgTable> =
 	& {
 		[Key in keyof TTable['$inferInsert']]?:
-		| GetColumnData<TTable['_']['columns'][Key]>
-		| SQL
-		| PgColumn
-		| undefined;
+			| GetColumnData<TTable['_']['columns'][Key]>
+			| SQL
+			| PgColumn
+			| undefined;
 	}
 	& {};
 
-export type PgMergeWhenMatchedClause = {
-	type: 'matched';
-	predicate?: SQL;
-} & (
+export type PgMergeWhenMatchedClause =
+	& {
+		type: 'matched';
+		predicate?: SQL;
+	}
+	& (
 		| { action: 'update'; set: UpdateSet }
 		| { action: 'delete' }
 		| { action: 'do_nothing' }
 	);
 
-export type PgMergeWhenNotMatchedClause = {
-	type: 'not_matched';
-	predicate?: SQL;
-} & (
+export type PgMergeWhenNotMatchedClause =
+	& {
+		type: 'not_matched';
+		predicate?: SQL;
+	}
+	& (
 		| { action: 'insert'; values: Record<string, SQL | Param | AnyColumn> }
 		| { action: 'do_nothing' }
 	);
@@ -66,7 +70,7 @@ export interface PgMergeConfig {
 export type PgMergePrepare<T extends AnyPgMerge> = PgPreparedQuery<
 	PreparedQueryConfig & {
 		execute: T['_']['returning'] extends undefined ? PgQueryResultKind<T['_']['queryResult'], never>
-		: T['_']['returning'][];
+			: T['_']['returning'][];
 	}
 >;
 
@@ -94,7 +98,8 @@ export interface PgMergeBase<
 	>,
 	QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>,
 	RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
-	SQLWrapper {
+	SQLWrapper
+{
 	readonly _: {
 		readonly dialect: 'pg';
 		readonly table: TTarget;
@@ -118,8 +123,9 @@ export class PgMergeBase<
 	TDynamic extends boolean = false,
 > extends QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>
 	implements
-	RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
-	SQLWrapper {
+		RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
+		SQLWrapper
+{
 	static override readonly [entityKind]: string = 'PgMerge';
 
 	/** @internal */
@@ -322,7 +328,7 @@ export class PgMergeMatchedActionBuilder<
 	constructor(
 		private parent: TParent,
 		private predicate?: SQL,
-	) { }
+	) {}
 
 	/**
 	 * Updates the matched row with the provided values.
@@ -397,7 +403,7 @@ export class PgMergeNotMatchedActionBuilder<
 	constructor(
 		private parent: TParent,
 		private predicate?: SQL,
-	) { }
+	) {}
 
 	/**
 	 * Inserts the unmatched source row into the target table.
@@ -462,7 +468,7 @@ export class PgMergeBuilder<TTarget extends PgTable, TQueryResult extends PgQuer
 		private session: PgSession,
 		private dialect: PgDialect,
 		private withList?: Subquery[],
-	) { }
+	) {}
 
 	private authToken?: NeonAuthToken;
 	setToken(token?: NeonAuthToken) {
