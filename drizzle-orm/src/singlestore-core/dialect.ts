@@ -21,7 +21,13 @@ import type { Name, Placeholder, QueryWithTypings, SQLChunk } from '~/sql/sql.ts
 import { Param, SQL, sql, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
-import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import {
+	type Casing,
+	getColumnExpressionForRelationalJson,
+	getColumnSelectionExpression,
+	orderSelectedFields,
+	type UpdateSet,
+} from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { SingleStoreColumn } from './columns/common.ts';
 import type { SingleStoreDeleteConfig } from './query-builders/delete.ts';
@@ -245,9 +251,9 @@ export class SingleStoreDialect {
 				}
 			} else if (is(field, Column)) {
 				if (isSingleTable) {
-					chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+					chunk.push(getColumnSelectionExpression(field, sql`${sql.identifier(this.casing.getColumnCasing(field))}`));
 				} else {
-					chunk.push(field);
+					chunk.push(getColumnSelectionExpression(field, sql`${field}`));
 				}
 			} else if (is(field, Subquery)) {
 				const entries = Object.entries(field._.selectedFields) as [
@@ -848,6 +854,8 @@ export class SingleStoreDialect {
 							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
 							: is(field, SQL.Aliased)
 							? field.sql
+							: is(field, Column)
+							? getColumnExpressionForRelationalJson(field, sql`${field}`)
 							: field
 					),
 					sql`, `,

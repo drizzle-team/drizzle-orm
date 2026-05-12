@@ -112,6 +112,10 @@ export abstract class Column<
 
 	abstract getSQLType(): string;
 
+	getSQLForSelect(column: SQL<T['driverParam']>): SQL | SQL.Aliased {
+		return column;
+	}
+
 	mapFromDriverValue(value: unknown): unknown {
 		return value;
 	}

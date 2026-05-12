@@ -81,6 +81,30 @@ const customTimestamp = customType<
 });
 ```
 
+#### **Custom select SQL**
+
+```typescript
+type Point = {
+  lat: number;
+  lng: number;
+};
+
+const customPoint = customType<{ data: Point; driverData: string }>({
+  dataType() {
+    return 'geometry(Point,4326)';
+  },
+  fromDriver(value: string): Point {
+    const matches = value.match(/POINT\((?<lng>[\d.-]+) (?<lat>[\d.-]+)\)/);
+    const { lat, lng } = matches?.groups ?? {};
+
+    return { lat: Number(lat), lng: Number(lng) };
+  },
+  selectFromDb(column, decoder, columnName) {
+    return sql`st_astext(${column})`.mapWith(decoder).as(columnName);
+  },
+});
+```
+
 #### Usage for all types will be same as defined functions in Drizzle ORM
 
 ```typescript
@@ -293,5 +317,15 @@ export interface CustomTypeParams<T extends Partial<CustomTypeValues>> {
    * ```
    */
   fromDriver?: (value: T['driverData']) => T['data'];
+
+  /**
+   * Optional SQL wrapper for selecting this custom type from the database.
+   * The returned SQL is used before the selected value is passed to `fromDriver`.
+   */
+  selectFromDb?: (
+    column: SQL<T['driverData']>,
+    decoder: DriverValueMapper<T['data'], T['driverData']>,
+    columnName: string,
+  ) => SQL | SQL.Aliased;
 }
 ````

@@ -1,7 +1,7 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { SQL } from '~/sql/sql.ts';
+import type { DriverValueMapper, SQL } from '~/sql/sql.ts';
 import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
@@ -63,6 +63,11 @@ export class SQLiteCustomColumn<T extends ColumnBaseConfig<'custom', 'SQLiteCust
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
+	private selectFromDb?: (
+		column: SQL<T['driverParam']>,
+		decoder: DriverValueMapper<T['data'], T['driverParam']>,
+		columnName: string,
+	) => SQL | SQL.Aliased;
 
 	constructor(
 		table: AnySQLiteTable<{ name: T['tableName'] }>,
@@ -72,6 +77,7 @@ export class SQLiteCustomColumn<T extends ColumnBaseConfig<'custom', 'SQLiteCust
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
 		this.mapTo = config.customTypeParams.toDriver;
 		this.mapFrom = config.customTypeParams.fromDriver;
+		this.selectFromDb = config.customTypeParams.selectFromDb;
 	}
 
 	getSQLType(): string {
@@ -84,6 +90,10 @@ export class SQLiteCustomColumn<T extends ColumnBaseConfig<'custom', 'SQLiteCust
 
 	override mapToDriverValue(value: T['data']): T['driverParam'] {
 		return typeof this.mapTo === 'function' ? this.mapTo(value) : value as T['data'];
+	}
+
+	override getSQLForSelect(column: SQL<T['driverParam']>): SQL | SQL.Aliased {
+		return typeof this.selectFromDb === 'function' ? this.selectFromDb(column, this, this.name) : column;
 	}
 }
 
@@ -195,6 +205,18 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	fromDriver?: (value: T['driverData']) => T['data'];
+
+	/**
+	 * Optional SQL wrapper for selecting this custom type from the database.
+	 *
+	 * This is useful when the database returns a custom type in a format that should be converted
+	 * by SQL before the value is passed to `fromDriver`.
+	 */
+	selectFromDb?: (
+		column: SQL<T['driverData']>,
+		decoder: DriverValueMapper<T['data'], T['driverData']>,
+		columnName: string,
+	) => SQL | SQL.Aliased;
 }
 
 /**

@@ -5,7 +5,7 @@ import { is } from './entity.ts';
 import type { Logger } from './logger.ts';
 import type { SelectedFieldsOrdered } from './operations.ts';
 import type { TableLike } from './query-builders/select.types.ts';
-import { Param, SQL, View } from './sql/sql.ts';
+import { Param, SQL, sql, View } from './sql/sql.ts';
 import type { DriverValueDecoder } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
 import { getTableName, Table } from './table.ts';
@@ -92,6 +92,20 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 		}
 		return result;
 	}, []) as SelectedFieldsOrdered<TColumn>;
+}
+
+/** @internal */
+export function getColumnSelectionExpression(column: AnyColumn, expression: SQL): SQL {
+	const selectedExpression = column.getSQLForSelect(expression);
+	return is(selectedExpression, SQL.Aliased)
+		? sql`${selectedExpression.sql} as ${sql.identifier(selectedExpression.fieldAlias)}`
+		: selectedExpression;
+}
+
+/** @internal */
+export function getColumnExpressionForRelationalJson(column: AnyColumn, expression: SQL): SQL {
+	const selectedExpression = column.getSQLForSelect(expression);
+	return is(selectedExpression, SQL.Aliased) ? selectedExpression.sql : selectedExpression;
 }
 
 export function haveSameKeys(left: Record<string, unknown>, right: Record<string, unknown>) {
