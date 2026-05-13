@@ -1,6 +1,6 @@
 import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
 import { CasingCache } from '~/casing.ts';
-import { Column } from '~/column.ts';
+import { Column, mapColumnSelection } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import { GelColumn, GelDecimal, GelJson, GelUUID } from '~/gel-core/columns/index.ts';
@@ -240,7 +240,13 @@ export class GelDialect {
 					// if (isSingleTable) {
 					// 	chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
 					// } else {
-					chunk.push(field);
+					const columnSql = field.getSQL();
+					const selectionSql = mapColumnSelection(field, columnSql);
+					chunk.push(selectionSql);
+
+					if (selectionSql !== columnSql) {
+						chunk.push(sql` as ${sql.identifier(this.casing.getColumnCasing(field))}`);
+					}
 					// }
 				} else if (is(field, Subquery)) {
 					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
