@@ -490,13 +490,23 @@ export const loadModule = async <T = unknown>(
 		// oxlint-disable-next-line consistent-type-imports
 		const { createJiti } = require('jiti') as typeof import('jiti');
 		const jiti = createJiti(baseDir, {
-			interopDefault: true,
+			// interopDefault: true,
 			alias: aliases,
 			requireCache: false,
 		});
-		return jiti.import(absoluteModulePath);
-	}
+		const mod: any = await jiti.import(absoluteModulePath);
 
+		// With `interopDefault: true`, jiti merges named and default exports via a Proxy:
+		//   mod.version  // '1.0'  ← named export
+		//   mod.name     // 'app'  ← default export (transparently)
+		//   mod.default  // { name: 'app', port: 3000 }  ← still accessible
+		//
+		// Zod's `.passthrough` doesn't see through the Proxy and keeps `default` as a key,
+		// returning `{ ...parsed, default: <import> }`. That broken shape goes to the
+		// first validation (configCommonSchema in drizzle-kit/src/cli/commands/utils.ts) and returns incorrect shape,
+		// that is soon passes to the push/pull/generate config zod checks), so we unwrap `mod.default` here
+		return mod.default ?? mod;
+	}
 	const fileUrl = pathToFileURL(absoluteModulePath).href;
 	const mod = await import(fileUrl);
 	return mod.default ?? mod;
