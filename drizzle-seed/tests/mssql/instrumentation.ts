@@ -1,5 +1,4 @@
-import type { MySqlDatabase } from 'drizzle-orm/mysql-core';
-import { drizzle } from 'drizzle-orm/node-mssql';
+import { drizzle, MsSqlDatabase } from 'drizzle-orm/node-mssql';
 import mssql from 'mssql';
 import { test as base } from 'vitest';
 import { parseMssqlUrl } from './utils';
@@ -28,7 +27,7 @@ const prepareTest = () => {
 				query: (sql: string, params: any[]) => Promise<any[]>;
 				batch: (statements: string[]) => Promise<void>;
 			};
-			db: MySqlDatabase<any, any, any, any>;
+			db: MsSqlDatabase<any, any, any, any>;
 			push: (schema: any) => Promise<void>;
 		}
 	>({

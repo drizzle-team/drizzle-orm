@@ -15,7 +15,7 @@ import type { MutationOption } from 'drizzle-orm/cache/core';
 import { Cache } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import type { MySqlDatabase, MySqlSchema, MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
-import { drizzle as proxyDrizzle } from 'drizzle-orm/mysql-proxy';
+import { drizzle as proxyDrizzle, RemoteCallback } from 'drizzle-orm/mysql-proxy';
 import type { AnyMySql2Connection } from 'drizzle-orm/mysql2';
 import { drizzle as mysql2Drizzle } from 'drizzle-orm/mysql2';
 import { drizzle as psDrizzle } from 'drizzle-orm/planetscale-serverless';
@@ -188,13 +188,18 @@ const _seed = async <Schema extends MysqlSchema>(
 
 const createProxyHandler = (client: mysql.Connection) => {
 	const serverSimulator = new ServerSimulator(client);
-	const proxyHandler = async (sql: string, params: any[], method: any) => {
+	const proxyHandler: RemoteCallback = async (sql: string, params: any[], method: any) => {
 		try {
 			const response = await serverSimulator.query(sql, params, method);
 			if (response.error !== undefined) {
 				throw response.error;
 			}
-			return { rows: response.data };
+			return {
+				rows: response.data,
+				...(Array.isArray(response.data[0])
+					? {}
+					: { insertId: response.data.lastInsertRowId, affectedRows: response.data.affectedRows }),
+			};
 		} catch (e: any) {
 			console.error('Error from mysql proxy server:', e.message);
 			throw e;
@@ -213,13 +218,13 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 			// proxyHandler: (sql: string, params: any[], method: any) => Promise<{
 			// 	rows: any;
 			// }>;
-			db: MySqlDatabase<any, any, never, typeof relations>;
+			db: MySqlDatabase<any, typeof relations>;
 			createDB: {
 				<S extends MysqlSchema, TConfig extends AnyRelationsBuilderConfig>(config: {
 					schema?: S;
 					cb?: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig;
 					proxyClient?: mysql.Connection;
-				}): MySqlDatabase<any, any, S, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
+				}): MySqlDatabase<any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
 			};
 			push: (schema: any) => Promise<void>;
 			seed: <Schema extends MysqlSchema>(
@@ -372,12 +377,12 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 					const relations = schema ? cb ? defineRelations(schema, cb) : defineRelations(schema) : undefined;
 
 					if (vendor === 'mysql') {
-						return mysql2Drizzle({ client: client.client as any, relations, mode: 'default', schema: schema ?? {} });
+						return mysql2Drizzle({ client: client.client as any, relations });
 					}
-					if (vendor === 'tidb') return drizzleTidb({ client: client.client as any, relations, schema });
-					if (vendor === 'planetscale') return psDrizzle({ client: client.client as any, relations, schema });
+					if (vendor === 'tidb') return drizzleTidb({ client: client.client as any, relations });
+					if (vendor === 'planetscale') return psDrizzle({ client: client.client as any, relations });
 					if (vendor === 'mysql-proxy') {
-						return proxyDrizzle(createProxyHandler(proxyClient ?? client.client as any), { relations, schema }) as any;
+						return proxyDrizzle(createProxyHandler(proxyClient ?? client.client as any), { relations }) as any;
 					}
 					throw new Error();
 				};

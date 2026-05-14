@@ -325,6 +325,40 @@ export function makeDefaultQueryMapper<TResult>(
 			return result as TResult;
 		})) as RowsMapper<TResult>;
 }
+
+export function make$ReturningResponseMapper(
+	returningIds: SelectedFieldsOrdered<Column> | undefined,
+	generatedIds?: Record<string, unknown>[],
+) {
+	if (!returningIds) return;
+
+	return ({ insertId, affectedRows }: {
+		insertId: number;
+		affectedRows: number;
+	}) => {
+		const returningResponse = [];
+		let j = 0;
+		for (let i = insertId; i < insertId + affectedRows; i++) {
+			for (const column of returningIds) {
+				const key = returningIds[0]!.path[0]!;
+				if (is(column.field, Column)) {
+					// @ts-ignore
+					if (column.field.primary && column.field.autoIncrement) {
+						returningResponse.push({ [key]: i });
+					}
+					if (column.field.defaultFn && generatedIds) {
+						// generatedIds[rowIdx][key]
+						returningResponse.push({ [key]: generatedIds[j]![key] });
+					}
+				}
+			}
+			j++;
+		}
+
+		return returningResponse;
+	};
+}
+
 /** @internal */
 export function orderSelectedFields<TColumn extends AnyColumn>(
 	fields: Record<string, unknown>,
@@ -589,12 +623,6 @@ export function isConfig(data: any): boolean {
 	if ('relations' in data) {
 		const type = typeof data['relations'];
 		if (type !== 'object' && type !== 'undefined') return false;
-
-		return true;
-	}
-
-	if ('mode' in data) {
-		if (data['mode'] !== 'default' && data['mode'] !== 'planetscale' && data['mode'] !== undefined) return false;
 
 		return true;
 	}
