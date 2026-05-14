@@ -504,7 +504,7 @@ export const loadModule = async <T = unknown>(
 		// Zod's `.passthrough` doesn't see through the Proxy and keeps `default` as a key,
 		// returning `{ ...parsed, default: <import> }`. That broken shape goes from the
 		// first validation (configCommonSchema in drizzle-kit/src/cli/commands/utils.ts) and passes incorrect shape to the
-		// preparePushConfig/pull/generate/... config zod checks in drizzle-kit/src/cli/commands/utils.ts, so we unwrap `mod.default` here
+		// preparePushConfig/pull/generate/... config that zod checks in drizzle-kit/src/cli/commands/utils.ts, so we unwrap `mod.default` here
 		return mod.default ?? mod;
 	}
 	const fileUrl = pathToFileURL(absoluteModulePath).href;
