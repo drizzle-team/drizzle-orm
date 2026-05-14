@@ -170,6 +170,18 @@
 			},
 			"types": "./api-sqlite.d.mts",
 			"default": "./api-sqlite.mjs"
+		},
+		"./api-mssql": {
+			"import": {
+				"types": "./api-mssql.d.mts",
+				"default": "./api-mssql.mjs"
+			},
+			"require": {
+				"types": "./api-mssql.d.ts",
+				"default": "./api-mssql.js"
+			},
+			"types": "./api-mssql.d.mts",
+			"default": "./api-mssql.mjs"
 		}
 	}
 }

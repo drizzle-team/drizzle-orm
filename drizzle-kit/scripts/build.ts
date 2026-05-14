@@ -22,6 +22,8 @@ const driversPackages = [
 	'@sqlitecloud/drivers',
 	'@tursodatabase/database',
 	'bun',
+	// mssql drivers
+	'mssql',
 	// duckdb drivers
 	'duckdb',
 	'@duckdb/node-api',
@@ -108,7 +110,7 @@ async function buildDeclarations() {
 	});
 
 	await tsdown({
-		entry: ['./src/ext/api-postgres.ts', './src/ext/api-mysql.ts', './src/ext/api-sqlite.ts'],
+		entry: ['./src/ext/api-postgres.ts', './src/ext/api-mysql.ts', './src/ext/api-sqlite.ts', './src/ext/api-mssql.ts'],
 		outDir: './dist',
 		external: ['esbuild', 'drizzle-orm', ...driversPackages, /^drizzle-orm\/?/],
 		dts: { emitDtsOnly: true },
@@ -127,7 +129,7 @@ async function buildDeclarations() {
 }
 
 async function postProcessApiFiles() {
-	const apiFiles = ['dist/api-postgres.js', 'dist/api-mysql.js', 'dist/api-sqlite.js'];
+	const apiFiles = ['dist/api-postgres.js', 'dist/api-mysql.js', 'dist/api-sqlite.js', 'dist/api-mssql.js'];
 	await Promise.all(
 		apiFiles.map(async (file) => {
 			if (existsSync(file)) {
@@ -190,6 +192,18 @@ async function main() {
 			name: 'api-sqlite-esm',
 			input: './src/ext/api-sqlite.ts',
 			outputName: 'api-sqlite.mjs',
+			format: 'esm',
+		}),
+		buildBundle({
+			name: 'api-mssql-cjs',
+			input: './src/ext/api-mssql.ts',
+			outputName: 'api-mssql.js',
+			format: 'cjs',
+		}),
+		buildBundle({
+			name: 'api-mssql-esm',
+			input: './src/ext/api-mssql.ts',
+			outputName: 'api-mssql.mjs',
 			format: 'esm',
 		}),
 		buildDeclarations(),

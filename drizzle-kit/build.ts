@@ -21,6 +21,8 @@ const driversPackages = [
 	'@sqlitecloud/drivers',
 	'@tursodatabase/database',
 	'bun',
+	// mssql drivers
+	'mssql',
 	// duckdb drivers
 	'duckdb',
 	'@duckdb/node-api',
@@ -69,7 +71,7 @@ const main = async () => {
 	});
 
 	await tsup.build({
-		entryPoints: ['./src/ext/api-postgres.ts', './src/ext/api-mysql.ts', './src/ext/api-sqlite.ts'],
+		entryPoints: ['./src/ext/api-postgres.ts', './src/ext/api-mysql.ts', './src/ext/api-sqlite.ts', './src/ext/api-mssql.ts'],
 		outDir: './dist',
 		external: [
 			'esbuild',
@@ -184,6 +186,11 @@ const main = async () => {
 	writeFileSync(
 		'./dist/api-sqlite.js',
 		readFileSync('./dist/api-sqlite.js', 'utf8').replace(/await import\(/g, 'require('),
+	);
+
+	writeFileSync(
+		'./dist/api-mssql.js',
+		readFileSync('./dist/api-mssql.js', 'utf8').replace(/await import\(/g, 'require('),
 	);
 
 	// await tsup.build({

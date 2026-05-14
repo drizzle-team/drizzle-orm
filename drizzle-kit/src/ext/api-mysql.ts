@@ -1,6 +1,115 @@
 import type { Relations } from 'drizzle-orm/_relations';
 import type { AnyMySqlTable } from 'drizzle-orm/mysql-core';
+import type { Column, Table, View } from '../dialects/mysql/ddl';
+import { createDDL, interimToDDL } from '../dialects/mysql/ddl';
+import type { MysqlSnapshot } from '../dialects/mysql/snapshot';
+import { originUUID } from '../utils';
+import type { DB } from '../utils';
 import type { MysqlCredentials } from 'src/cli/validations/mysql';
+
+export const generateDrizzleJson = async (
+	imports: Record<string, unknown>,
+	prevId?: string,
+): Promise<MysqlSnapshot> => {
+	const { mysqlSchemaError } = await import('../cli/views');
+	const { toJsonSnapshot } = await import('../dialects/mysql/snapshot');
+	const { fromDrizzleSchema } = await import('../dialects/mysql/drizzle');
+	const { prepareFromExports } = await import('../dialects/mysql/drizzle');
+	const prepared = prepareFromExports(imports);
+
+	const interim = fromDrizzleSchema(prepared.tables, prepared.views);
+
+	const { ddl, errors } = interimToDDL(interim);
+
+	if (errors.length > 0) {
+		console.log(errors.map((it) => mysqlSchemaError(it)).join('\n'));
+		process.exit(1);
+	}
+
+	return toJsonSnapshot(ddl, prevId ? [prevId] : [originUUID], []);
+};
+
+export const generateMigration = async (
+	prev: MysqlSnapshot,
+	cur: MysqlSnapshot,
+) => {
+	const { resolver } = await import('../cli/prompts');
+	const { ddlDiff } = await import('../dialects/mysql/diff');
+	const from = createDDL();
+	const to = createDDL();
+
+	for (const it of prev.ddl) {
+		from.entities.push(it);
+	}
+	for (const it of cur.ddl) {
+		to.entities.push(it);
+	}
+
+	const { sqlStatements } = await ddlDiff(
+		from,
+		to,
+		resolver<Table>('table'),
+		resolver<Column>('column'),
+		resolver<View>('view'),
+		'default',
+	);
+
+	return sqlStatements;
+};
+
+export const pushSchema = async (
+	imports: Record<string, unknown>,
+	db: DB,
+	database: string,
+	migrationsConfig?: {
+		table?: string;
+		schema?: string;
+	},
+) => {
+	const { resolver } = await import('../cli/prompts');
+	const { fromDatabaseForDrizzle } = await import('src/dialects/mysql/introspect');
+	const { fromDrizzleSchema, prepareFromExports } = await import('../dialects/mysql/drizzle');
+	const { suggestions } = await import('../cli/commands/push-mysql');
+	const { ddlDiff } = await import('../dialects/mysql/diff');
+
+	const migrations = {
+		schema: migrationsConfig?.schema || '',
+		table: migrationsConfig?.table || '__drizzle_migrations',
+	};
+
+	const prepared = prepareFromExports(imports);
+
+	const prev = await fromDatabaseForDrizzle(db, database, () => true, () => {}, migrations);
+	const cur = fromDrizzleSchema(prepared.tables, prepared.views);
+
+	const { ddl: from } = interimToDDL(prev);
+	const { ddl: to, errors: _err2 } = interimToDDL(cur);
+
+	const { sqlStatements, statements } = await ddlDiff(
+		from,
+		to,
+		resolver<Table>('table'),
+		resolver<Column>('column'),
+		resolver<View>('view'),
+		'push',
+	);
+
+	const hints = await suggestions(db, statements, to);
+
+	return {
+		sqlStatements,
+		hints,
+		apply: async () => {
+			const losses = hints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
+			for (const st of losses) {
+				await db.query(st);
+			}
+			for (const st of sqlStatements) {
+				await db.query(st);
+			}
+		},
+	};
+};
 
 export const startStudioServer = async (
 	imports: Record<string, unknown>,
@@ -51,3 +160,5 @@ export const startStudioServer = async (
 		},
 	});
 };
+
+export { upToV6 as up } from '../cli/commands/up-mysql';
