@@ -12,7 +12,6 @@ export const measure = <T>(prom: Promise<T>, label: string): Promise<T> => {
 	});
 };
 
-import { Table } from 'drizzle-orm';
 import * as ts from 'typescript';
 
 const options = {

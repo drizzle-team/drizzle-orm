@@ -2,108 +2,97 @@ import { test as brotest } from '@drizzle-team/brocli';
 import { unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { assert, expect, test, vi } from 'vitest';
-import { push } from '../../src/cli/schema';
+import { pull } from '../../src/cli/schema';
 import { createConfig } from './utils';
 
-// good:
-// #1 drizzle-kit push
-// #2 drizzle-kit push --config=turso.config.ts
-// #3 drizzle-kit push --config=d1http.config.ts
-// #4 drizzle-kit push --config=postgres.config.ts ## spread connection params
-// #5 drizzle-kit push --config=drizzle2.config.ts ## custom schema and table for migrations journal
-
-// errors:
-// #1 drizzle-kit push --config=expo.config.ts
-// TODO: missing required params in config?
-
-const filename = join(process.cwd(), 'tests/cli/schema.ts');
-test('push #1', async (t) => {
-	const res = await brotest(push, '');
+test('pull #1', async (t) => {
+	const res = await brotest(pull, '');
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+
 	expect(res.options).toStrictEqual({
 		dialect: 'postgresql',
+		out: 'drizzle',
+		breakpoints: true,
+		casing: 'camel',
 		credentials: {
 			url: 'postgresql://postgres:postgres@127.0.0.1:5432/db',
 		},
-		force: false,
-		filenames: [filename],
-		explain: false,
 		filters: {
-			schemas: undefined,
-			tables: undefined,
 			entities: undefined,
 			extensions: undefined,
+			schemas: undefined,
+			tables: undefined,
 		},
-		verbose: false,
-
+		init: false,
 		migrations: {
-			schema: 'drizzle',
 			table: '__drizzle_migrations',
+			schema: 'drizzle',
 		},
 	});
 });
 
-test('push #2', async (t) => {
-	const res = await brotest(push, '--config=turso.config.ts');
+test('pull #2', async (t) => {
+	const res = await brotest(pull, '--config=turso.config.ts');
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
 	expect(res.options).toStrictEqual({
 		dialect: 'turso',
+		out: 'drizzle',
+		breakpoints: true,
+		casing: 'camel',
 		credentials: {
 			authToken: 'token',
 			url: 'turso.dev',
 		},
-		force: false,
-		filenames: [filename],
-		explain: false,
 		filters: {
-			schemas: undefined,
-			tables: undefined,
 			entities: undefined,
 			extensions: undefined,
+			schemas: undefined,
+			tables: undefined,
 		},
-		verbose: false,
-
+		init: false,
 		migrations: {
-			schema: 'drizzle',
 			table: '__drizzle_migrations',
+			schema: 'drizzle',
 		},
 	});
 });
 
-test('push #3', async (t) => {
-	const res = await brotest(push, '--config=d1http.config.ts');
+test('pull #3', async (t) => {
+	const res = await brotest(pull, '--config=d1http.config.ts');
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
 	expect(res.options).toStrictEqual({
 		dialect: 'sqlite',
+		out: 'drizzle',
+		breakpoints: true,
+		casing: 'camel',
 		credentials: {
 			driver: 'd1-http',
 			accountId: 'accid',
 			databaseId: 'dbid',
 			token: 'token',
 		},
-		force: false,
-		filenames: [filename],
-		explain: false,
 		filters: {
-			schemas: undefined,
-			tables: undefined,
 			entities: undefined,
 			extensions: undefined,
+			schemas: undefined,
+			tables: undefined,
 		},
-		verbose: false,
-
+		init: false,
 		migrations: {
-			schema: 'drizzle',
 			table: '__drizzle_migrations',
+			schema: 'drizzle',
 		},
 	});
 });
 
-test('push #4', async (t) => {
-	const res = await brotest(push, '--config=postgres.config.ts');
+test('pull #4', async (t) => {
+	const res = await brotest(pull, '--config=postgres.config.ts');
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
 	expect(res.options).toStrictEqual({
 		dialect: 'postgresql',
+		out: 'drizzle',
+		breakpoints: true,
+		casing: 'camel',
 		credentials: {
 			database: 'db',
 			host: '127.0.0.1',
@@ -111,61 +100,23 @@ test('push #4', async (t) => {
 			port: 5432,
 			user: 'postgresql',
 		},
-		force: false,
-		explain: false,
 		filters: {
-			schemas: undefined,
-			tables: undefined,
 			entities: undefined,
 			extensions: undefined,
+			schemas: undefined,
+			tables: undefined,
 		},
-		filenames: [filename],
-		verbose: false,
-
+		init: false,
 		migrations: {
-			schema: 'drizzle',
 			table: '__drizzle_migrations',
-		},
-	});
-});
-
-// catched a bug
-test('push #5', async (t) => {
-	const res = await brotest(push, '--config=postgres2.config.ts');
-	if (res.type !== 'handler') {
-		assert.fail(res.type, 'handler');
-	}
-
-	expect(res.options).toStrictEqual({
-		dialect: 'postgresql',
-		credentials: {
-			database: 'db',
-			host: '127.0.0.1',
-			password: 'postgres',
-			port: 5432,
-			user: 'postgresql',
-		},
-		filenames: [filename],
-		explain: false,
-		filters: {
-			schemas: undefined,
-			tables: undefined,
-			entities: undefined,
-			extensions: undefined,
-		},
-		force: false,
-		verbose: false,
-
-		migrations: {
-			schema: 'custom',
-			table: 'custom',
+			schema: 'drizzle',
 		},
 	});
 });
 
 // --- errors ---
 test('err #1', async (t) => {
-	const res = await brotest(push, '--config=expo.config.ts');
+	const res = await brotest(pull, '--config=expo.config.ts');
 	assert.equal(res.type, 'error');
 });
 
@@ -193,7 +144,7 @@ test('validate config #1', async (t) => {
 		verbose: false,
 	}, prefix);
 
-	const res = await brotest(push, `--config=${name}`);
+	const res = await brotest(pull, `--config=${name}`);
 
 	unlinkSync(path);
 	assert.equal(res.type, 'handler');
@@ -201,9 +152,9 @@ test('validate config #1', async (t) => {
 
 	const expected = {
 		dialect: 'postgresql',
-		explain: false,
-		verbose: false,
-		force: false,
+		out: 'drizzle2',
+		breakpoints: false,
+		casing: 'preserve',
 		credentials: {
 			driver: 'pglite',
 			url: 'test_url',
@@ -222,20 +173,20 @@ test('validate config #1', async (t) => {
 				'test',
 			],
 		},
+		init: false,
 		migrations: {
 			schema: 'new_schema',
 			table: '__drizzle_migrations',
 		},
-		filenames: [filename],
 	};
 	expect(res.options).toStrictEqual(expected);
 });
 
 test('validate config #2', async (t) => {
 	const { path, name } = createConfig({
-		dialect: 'postgresql',
+		dialect: 'mssql',
 		schema: 'schema.ts',
-		dbCredentials: { database: 'db', host: 'host' },
+		dbCredentials: { database: 'db', server: 'host', password: 'SA', port: 123, user: 'SA' },
 		introspect: { casing: 'preserve' },
 		strict: true,
 		// schemaFilter: ['public'],
@@ -255,20 +206,23 @@ test('validate config #2', async (t) => {
 		verbose: false,
 	}, prefix);
 
-	const res = await brotest(push, `--config=${name} --explain=true`);
+	const res = await brotest(pull, `--config=${name} --init=true`);
 
 	unlinkSync(path);
 	assert.equal(res.type, 'handler');
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
 
 	const expected = {
-		dialect: 'postgresql',
-		explain: true,
-		verbose: false,
-		force: false,
+		dialect: 'mssql',
+		out: 'drizzle2',
+		breakpoints: false,
+		casing: 'preserve',
 		credentials: {
 			database: 'db',
-			host: 'host',
+			password: 'SA',
+			port: 123,
+			server: 'host',
+			user: 'SA',
 		},
 		filters: {
 			entities: {
@@ -282,11 +236,11 @@ test('validate config #2', async (t) => {
 				'test',
 			],
 		},
+		init: true,
 		migrations: {
 			schema: 'new_schema',
 			table: '__drizzle_migrations',
 		},
-		filenames: [filename],
 	};
 	expect(res.options).toStrictEqual(expected);
 });
@@ -301,7 +255,9 @@ test('validate config #3', async (t) => {
 		schemaFilter: ['public'],
 		breakpoints: false,
 		entities: {
-			roles: true,
+			roles: {
+				include: ['admin'],
+			},
 		},
 		extensionsFilters: ['postgis'],
 		tablesFilter: 'test',
@@ -312,7 +268,7 @@ test('validate config #3', async (t) => {
 		out: 'out2',
 	}, prefix);
 
-	const res = await brotest(push, `--config=${name}`);
+	const res = await brotest(pull, `--config=${name}`);
 
 	unlinkSync(path);
 	assert.equal(res.type, 'handler');
@@ -320,9 +276,9 @@ test('validate config #3', async (t) => {
 
 	const expected = {
 		dialect: 'sqlite',
-		explain: false,
-		verbose: false,
-		force: false,
+		out: 'out2',
+		breakpoints: false,
+		casing: 'preserve',
 		credentials: {
 			driver: 'd1-http',
 			accountId: '1',
@@ -331,17 +287,19 @@ test('validate config #3', async (t) => {
 		},
 		filters: {
 			entities: {
-				roles: true,
+				roles: {
+					include: ['admin'],
+				},
 			},
 			extensions: ['postgis'],
 			schemas: ['public'],
 			tables: 'test',
 		},
+		init: false,
 		migrations: {
 			schema: 'drizzle',
 			table: 'test_table',
 		},
-		filenames: [filename],
 	};
 	expect(res.options).toStrictEqual(expected);
 });
@@ -349,13 +307,12 @@ test('validate config #3', async (t) => {
 test('validate config #4', async (t) => {
 	const { path, name } = createConfig({
 		dialect: 'mysql',
-		schema: 'schema.ts',
 		dbCredentials: {
 			url: 'url',
 		},
 	}, prefix);
 
-	const res = await brotest(push, `--config=${name}`);
+	const res = await brotest(pull, `--config=${name}`);
 
 	unlinkSync(path);
 	assert.equal(res.type, 'handler');
@@ -363,9 +320,9 @@ test('validate config #4', async (t) => {
 
 	const expected = {
 		dialect: 'mysql',
-		explain: false,
-		verbose: false,
-		force: false,
+		out: 'drizzle',
+		breakpoints: true,
+		casing: 'camel',
 		credentials: {
 			url: 'url',
 		},
@@ -375,11 +332,11 @@ test('validate config #4', async (t) => {
 			schemas: undefined,
 			tables: undefined,
 		},
+		init: false,
 		migrations: {
 			schema: 'drizzle',
 			table: '__drizzle_migrations',
 		},
-		filenames: [filename],
 	};
 	expect(res.options).toStrictEqual(expected);
 });
@@ -387,15 +344,15 @@ test('validate config #4', async (t) => {
 test('validate config #5', async (t) => {
 	const spy = vi.spyOn(console, 'log');
 
+	// @ts-expect-error
 	const { path, name } = createConfig({
-		dialect: 'mysql',
-		// schema: 'schema.ts',
+		// dialect: 'mysql',
 		dbCredentials: {
 			url: 'url',
 		},
 	}, prefix);
 
-	const res = await brotest(push, `--config=${name}`);
+	const res = await brotest(pull, `--config=${name}`);
 
 	unlinkSync(path);
 
@@ -405,8 +362,7 @@ test('validate config #5', async (t) => {
 	expect(spy).toHaveBeenNthCalledWith(
 		2,
 		`Error  Please provide required params:
-    [✓] dialect: 'mysql'
-    [x] schema: undefined`,
+    [x] dialect: undefined`,
 	);
 
 	let error: any = res.type === 'error' ? res.error : undefined;
@@ -421,14 +377,13 @@ test('validate config #6', async (t) => {
 	const spy = vi.spyOn(console, 'log');
 
 	const { path, name } = createConfig({
-		dialect: 'postgresql',
-		schema: 'schema.ts',
-		// dbCredentials: {
-		// 	url: 'url',
-		// },
+		dialect: 'mysql',
+		dbCredentials: {
+			url: '',
+		},
 	}, prefix);
 
-	const res = await brotest(push, `--config=${name}`);
+	const res = await brotest(pull, `--config=${name}`);
 
 	unlinkSync(path);
 
@@ -437,11 +392,7 @@ test('validate config #6', async (t) => {
 	expect(spy).toHaveBeenNthCalledWith(1, `Reading config file '${path}'`);
 	expect(spy).toHaveBeenNthCalledWith(
 		2,
-		`Reading schema files:\n${join(process.cwd(), prefix, 'schema.ts')}\n`,
-	);
-	expect(spy).toHaveBeenNthCalledWith(
-		3,
-		'Error  Either connection "url" or "host", "database" are required for PostgreSQL database connection',
+		'Error  Please provide required params for MySQL driver:',
 	);
 
 	let error: any = res.type === 'error' ? res.error : undefined;
