@@ -152,9 +152,11 @@ export function diffColumns(left, right) {
 					deleted: deletedColumns,
 				};
 				const table = left[tableEntry[0]];
+				// spread first so explicit strings win over any
+				// `{__old, __new}` from json-diff when name/schema changed.
 				return [
 					tableEntry[0],
-					{ name: table.name, schema: table.schema, ...tableEntry[1] },
+					{ ...tableEntry[1], name: table.name, schema: table.schema },
 				];
 			}),
 	);
@@ -197,7 +199,7 @@ export function diffPolicies(left, right) {
 				const table = left[tableEntry[0]];
 				return [
 					tableEntry[0],
-					{ name: table.name, schema: table.schema, ...tableEntry[1] },
+					{ ...tableEntry[1], name: table.name, schema: table.schema },
 				];
 			}),
 	);
@@ -238,12 +240,14 @@ export function applyJsonDiff(json1, json2) {
 			continue;
 		}
 
-		// supply table name and schema for altered tables
+		// supply table name and schema for altered tables. spread first so
+		// the explicit strings override any `{__old, __new}` from json-diff
+		// when name/schema themselves changed.
 		const table = json1.tables[key];
 		difference.tables[key] = {
+			...difference.tables[key],
 			name: table.name,
 			schema: table.schema,
-			...difference.tables[key],
 		};
 	}
 
