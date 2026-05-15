@@ -11,7 +11,7 @@ import { toJsonSnapshot } from 'src/dialects/singlestore/snapshot';
 import { mockResolver } from 'src/utils/mocks';
 import { prepareOutFolder } from '../../utils/utils-node';
 import type { connectToSingleStore } from '../connections';
-import type { EntitiesFilterConfig } from '../validations/cli';
+import type { EntitiesFilterConfig } from '../validations/common';
 import type { Casing } from '../validations/common';
 import type { SingleStoreCredentials } from '../validations/singlestore';
 import { IntrospectProgress } from '../views';
