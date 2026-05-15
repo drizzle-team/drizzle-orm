@@ -28,7 +28,7 @@ const prepareTest = () => {
 				query: (sql: string, params: any[]) => Promise<any[]>;
 				batch: (statements: string[]) => Promise<void>;
 			};
-			db: MySqlDatabase<any, any, any, any>;
+			db: MySqlDatabase<any, any>;
 			push: (schema: any) => Promise<void>;
 		}
 	>({

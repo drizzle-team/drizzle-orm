@@ -1,9 +1,6 @@
-import { Client } from '@planetscale/database';
 import { connect } from '@tidbcloud/serverless';
 import { describe, it } from 'vitest';
-import { relations } from '~/_relations';
 import { alias, boolean, camelCase, int, serial, text, union } from '~/mysql-core';
-import { drizzle as planetscale } from '~/planetscale-serverless';
 import { asc, eq, sql } from '~/sql';
 import { drizzle as mysql } from '~/tidb-serverless';
 
@@ -15,24 +12,15 @@ const users = camelCase.table('users', {
 	// Test that custom aliases remain
 	age: int('AGE'),
 });
-const usersRelations = relations(users, ({ one }) => ({
-	developers: one(developers),
-}));
+
 const developers = testSchema.table('developers', {
 	user_id: serial().primaryKey().references(() => users.id),
 	uses_drizzle_orm: boolean().notNull(),
 });
-const developersRelations = relations(developers, ({ one }) => ({
-	user: one(users, {
-		fields: [developers.user_id],
-		references: [users.id],
-	}),
-}));
-const devs = alias(developers, 'devs');
-const schema = { users, usersRelations, developers, developersRelations };
 
-const db = mysql({ client: connect({}), schema });
-const ps = planetscale({ client: new Client({}), schema });
+const devs = alias(developers, 'devs');
+
+const db = mysql({ client: connect({}) });
 
 const fullName = sql`${users.first_name} || ' ' || ${users.last_name}`.as('name');
 
@@ -105,110 +93,6 @@ describe('mysql to snake case', () => {
 		expect(query.toSQL()).toEqual({
 			sql: '(select `firstName` from `users`) union (select `firstName` from `users`)',
 			params: [],
-		});
-	});
-
-	it('query (find first)', ({ expect }) => {
-		const query = db._query.users.findFirst({
-			columns: {
-				id: true,
-				age: true,
-			},
-			extras: {
-				fullName,
-			},
-			where: eq(users.id, 1),
-			with: {
-				developers: {
-					columns: {
-						uses_drizzle_orm: true,
-					},
-				},
-			},
-		});
-
-		expect(query.toSQL()).toEqual({
-			sql:
-				"select `users`.`id`, `users`.`AGE`, `users`.`firstName` || ' ' || `users`.`lastName` as `name`, `users_developers`.`data` as `developers` from `users` `users` left join lateral (select json_array(`users_developers`.`usesDrizzleOrm`) as `data` from (select * from `test`.`developers` `users_developers` where `users_developers`.`userId` = `users`.`id` limit ?) `users_developers`) `users_developers` on true where `users`.`id` = ? limit ?",
-			params: [1, 1, 1],
-		});
-	});
-
-	it('query (find first, planetscale)', ({ expect }) => {
-		const query = ps._query.users.findFirst({
-			columns: {
-				id: true,
-				age: true,
-			},
-			extras: {
-				fullName,
-			},
-			where: eq(users.id, 1),
-			with: {
-				developers: {
-					columns: {
-						uses_drizzle_orm: true,
-					},
-				},
-			},
-		});
-
-		expect(query.toSQL()).toEqual({
-			sql:
-				"select `id`, `AGE`, `firstName` || ' ' || `lastName` as `name`, (select json_array(`usesDrizzleOrm`) from (select * from `test`.`developers` `users_developers` where `users_developers`.`userId` = `users`.`id` limit ?) `users_developers`) as `developers` from `users` `users` where `users`.`id` = ? limit ?",
-			params: [1, 1, 1],
-		});
-	});
-
-	it('query (find many)', ({ expect }) => {
-		const query = db._query.users.findMany({
-			columns: {
-				id: true,
-				age: true,
-			},
-			extras: {
-				fullName,
-			},
-			where: eq(users.id, 1),
-			with: {
-				developers: {
-					columns: {
-						uses_drizzle_orm: true,
-					},
-				},
-			},
-		});
-
-		expect(query.toSQL()).toEqual({
-			sql:
-				"select `users`.`id`, `users`.`AGE`, `users`.`firstName` || ' ' || `users`.`lastName` as `name`, `users_developers`.`data` as `developers` from `users` `users` left join lateral (select json_array(`users_developers`.`usesDrizzleOrm`) as `data` from (select * from `test`.`developers` `users_developers` where `users_developers`.`userId` = `users`.`id` limit ?) `users_developers`) `users_developers` on true where `users`.`id` = ?",
-			params: [1, 1],
-		});
-	});
-
-	it('query (find many, planetscale)', ({ expect }) => {
-		const query = ps._query.users.findMany({
-			columns: {
-				id: true,
-				age: true,
-			},
-			extras: {
-				fullName,
-			},
-			where: eq(users.id, 1),
-			with: {
-				developers: {
-					columns: {
-						uses_drizzle_orm: true,
-					},
-				},
-			},
-		});
-
-		expect(query.toSQL()).toEqual({
-			sql:
-				"select `id`, `AGE`, `firstName` || ' ' || `lastName` as `name`, (select json_array(`usesDrizzleOrm`) from (select * from `test`.`developers` `users_developers` where `users_developers`.`userId` = `users`.`id` limit ?) `users_developers`) as `developers` from `users` `users` where `users`.`id` = ?",
-			params: [1, 1],
 		});
 	});
 

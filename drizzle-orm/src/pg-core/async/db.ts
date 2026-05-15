@@ -2,7 +2,7 @@ import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import { PgInsertBuilder, PgUpdateBuilder, QueryBuilder } from '~/pg-core/query-builders/index.ts';
+import { PgInsertBuilder, PgSelectBuilder, PgUpdateBuilder, QueryBuilder } from '~/pg-core/query-builders/index.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PgTransactionConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -209,13 +209,13 @@ export class PgAsyncDatabase<
 		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
 		): PgAsyncSelectBuilder<TSelection | undefined> {
-			return new PgAsyncSelectBase({
+			return new PgSelectBuilder({
 				fields: fields ?? undefined,
 				session: self.session,
 				dialect: self.dialect,
 				withList: queries,
 				tagged: self.tagged,
-			});
+			}, PgAsyncSelectBase);
 		}
 
 		/**
@@ -249,13 +249,14 @@ export class PgAsyncDatabase<
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields?: TSelection,
 		): PgAsyncSelectBuilder<TSelection | undefined> {
-			return new PgAsyncSelectBase({
+			return new PgSelectBuilder({
 				fields: fields ?? undefined,
 				session: self.session,
 				dialect: self.dialect,
 				withList: queries,
 				distinct: true,
-			});
+				tagged: self.tagged,
+			}, PgAsyncSelectBase);
 		}
 
 		/**
@@ -292,13 +293,14 @@ export class PgAsyncDatabase<
 			on: (PgColumn | SQLWrapper)[],
 			fields?: TSelection,
 		): PgAsyncSelectBuilder<TSelection | undefined> {
-			return new PgAsyncSelectBase({
+			return new PgSelectBuilder({
 				fields: fields ?? undefined,
 				session: self.session,
 				dialect: self.dialect,
 				withList: queries,
 				distinct: { on },
-			});
+				tagged: self.tagged,
+			}, PgAsyncSelectBase);
 		}
 
 		/**
@@ -434,12 +436,12 @@ export class PgAsyncDatabase<
 	select<TSelection extends SelectedFields | undefined>(
 		fields?: TSelection,
 	): PgAsyncSelectBuilder<TSelection> {
-		return new PgAsyncSelectBase({
+		return new PgSelectBuilder({
 			fields: fields ?? undefined,
 			session: this.session,
 			dialect: this.dialect,
 			tagged: this.tagged,
-		}) as PgAsyncSelectBuilder<TSelection>;
+		}, PgAsyncSelectBase) as PgAsyncSelectBuilder<TSelection>;
 	}
 
 	/**
@@ -471,13 +473,13 @@ export class PgAsyncDatabase<
 	selectDistinct<TSelection extends SelectedFields | undefined>(
 		fields?: TSelection,
 	): PgAsyncSelectBuilder<TSelection | undefined> {
-		return new PgAsyncSelectBase({
+		return new PgSelectBuilder({
 			fields: fields ?? undefined,
 			session: this.session,
 			dialect: this.dialect,
 			distinct: true,
 			tagged: this.tagged,
-		});
+		}, PgAsyncSelectBase);
 	}
 
 	/**
@@ -514,13 +516,13 @@ export class PgAsyncDatabase<
 		on: (PgColumn | SQLWrapper)[],
 		fields?: TSelection,
 	): PgAsyncSelectBuilder<TSelection> {
-		return new PgAsyncSelectBase({
+		return new PgSelectBuilder({
 			fields: fields ?? undefined,
 			session: this.session,
 			dialect: this.dialect,
 			distinct: { on },
 			tagged: this.tagged,
-		});
+		}, PgAsyncSelectBase) as PgAsyncSelectBuilder<TSelection>;
 	}
 
 	/**
