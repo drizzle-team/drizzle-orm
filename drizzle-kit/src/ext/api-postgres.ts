@@ -2,7 +2,7 @@ import type { PGlite } from '@electric-sql/pglite';
 import type { Relations } from 'drizzle-orm/_relations';
 import type { AnyPgTable } from 'drizzle-orm/pg-core';
 import type { PgAsyncDatabase } from 'drizzle-orm/pg-core/async';
-import type { EntitiesFilterConfig } from 'src/cli/validations/cli';
+import type { EntitiesFilterConfig } from 'src/cli/validations/common';
 import { upToV8 } from 'src/dialects/postgres/versions';
 import type { PostgresCredentials } from '../cli/validations/postgres';
 import type {

@@ -2,18 +2,25 @@ import chalk from 'chalk';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'fs';
 import { render } from 'hanji';
 import { join, resolve } from 'path';
-import { object, string } from 'zod';
 import { assertUnreachable, type Journal } from '../../utils';
-import { type Dialect, dialect } from '../../utils/schemaValidator';
+import type { Dialect } from '../../utils/schemaValidator';
 import { prepareFilenames } from '../../utils/utils-node';
 import { loadModule } from '../../utils/utils-node';
-import type { EntitiesFilterConfig } from '../validations/cli';
-import { pullParams, pushParams } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
 import { cockroachCredentials } from '../validations/cockroach';
 import { printConfigConnectionIssues as printCockroachIssues } from '../validations/cockroach';
-import type { Casing, CliConfig, Driver } from '../validations/common';
-import { configCommonSchema, configMigrations, wrapParam } from '../validations/common';
+import type { Casing, Driver, EntitiesFilterConfig } from '../validations/common';
+import {
+	configCheck,
+	configExport,
+	configGenerate,
+	configMigrate,
+	configPull,
+	configPush,
+	configStudio,
+	studioCliParams,
+	wrapParam,
+} from '../validations/common';
 import { duckdbCredentials, printConfigConnectionIssues as printIssuesDuckDb } from '../validations/duckdb';
 import type { LibSQLCredentials } from '../validations/libsql';
 import { libSQLCredentials, printConfigConnectionIssues as printIssuesLibSQL } from '../validations/libsql';
@@ -32,7 +39,6 @@ import {
 } from '../validations/singlestore';
 import type { SqliteCredentials } from '../validations/sqlite';
 import { printConfigConnectionIssues as printIssuesSqlite, sqliteCredentials } from '../validations/sqlite';
-import { studioCliParams, studioConfig } from '../validations/studio';
 import { error } from '../views';
 import { prepareSnapshotFolderName } from './generate-common';
 
@@ -49,27 +55,23 @@ export const prepareCheckParams = async (
 		: options;
 
 	if (!config.dialect) {
-		console.log(error('Please provide required params:'));
-		console.log(wrapParam('dialect', dialect));
+		let message = error('Please provide required params:');
+		message += '\n' + wrapParam('dialect', config.dialect);
+
+		console.log(message);
 		process.exit(1);
 	}
-	return { out: config.out || 'drizzle', dialect: config.dialect };
-};
 
-export const prepareDropParams = async (
-	options: {
-		config?: string;
-		out?: string;
-		driver?: Driver;
-		dialect?: Dialect;
-	},
-	from: 'cli' | 'config',
-): Promise<{ out: string; bundle: boolean }> => {
-	const config = from === 'config'
-		? await drizzleConfigFromFile(options.config as string | undefined)
-		: options;
+	const parsed = configCheck.safeParse(config);
 
-	return { out: config.out || 'drizzle', bundle: config.driver === 'expo' };
+	if (!parsed.success) {
+		console.error(parsed.error);
+		process.exit(1);
+	}
+
+	const data = parsed.data;
+
+	return { out: data.out, dialect: data.dialect };
 };
 
 export type GenerateConfig = {
@@ -90,6 +92,8 @@ export type ExportConfig = {
 	filenames: string[];
 };
 
+export type CheckConfig = { out: string; dialect: Dialect; ignoreConflicts: boolean | undefined };
+
 export const prepareGenerateConfig = async (
 	options: {
 		config?: string;
@@ -106,15 +110,22 @@ export const prepareGenerateConfig = async (
 ): Promise<GenerateConfig> => {
 	const config = from === 'config' ? await drizzleConfigFromFile(options.config) : options;
 
-	const { schema, out, breakpoints, dialect, driver } = config;
+	if (!config.dialect || !config.schema) {
+		let message = error('Please provide required params:');
+		message += '\n' + wrapParam('dialect', config.dialect);
+		message += '\n' + wrapParam('schema', config.schema);
 
-	if (!schema || !dialect) {
-		console.log(error('Please provide required params:'));
-		console.log(wrapParam('schema', schema));
-		console.log(wrapParam('dialect', dialect));
-		console.log(wrapParam('out', out, true));
+		console.log(message);
 		process.exit(1);
 	}
+
+	const parsed = configGenerate.safeParse(config);
+	if (!parsed.success) {
+		console.error(parsed.error);
+		process.exit(1);
+	}
+
+	const { schema, out, breakpoints, dialect, driver } = parsed.data;
 
 	const fileNames = prepareFilenames(schema);
 	if (fileNames.length === 0) {
@@ -126,9 +137,9 @@ export const prepareGenerateConfig = async (
 		dialect: dialect,
 		name: options.name,
 		custom: options.custom || false,
-		breakpoints: breakpoints ?? true,
+		breakpoints: breakpoints,
 		filenames: fileNames,
-		out: out || 'drizzle',
+		out: out,
 		bundle: driver === 'expo' || driver === 'durable-sqlite',
 		driver,
 		ignoreConflicts: options.ignoreConflicts !== undefined && options.ignoreConflicts,
@@ -148,23 +159,31 @@ export const prepareExportConfig = async (
 		? await drizzleConfigFromFile(options.config, true)
 		: options;
 
-	const { schema, dialect, sql } = config;
+	if (!config.schema || !config.dialect) {
+		let message = error('Please provide required params:');
+		message += '\n' + wrapParam('dialect', config.dialect);
+		message += '\n' + wrapParam('schema', config.schema);
 
-	if (!schema || !dialect) {
-		console.log(error('Please provide required params:'));
-		console.log(wrapParam('schema', schema));
-		console.log(wrapParam('dialect', dialect));
+		console.log(message);
 		process.exit(1);
 	}
+	const parsed = configExport.safeParse(config);
+	if (!parsed.success) {
+		console.error(parsed.error);
+		process.exit(1);
+	}
+
+	const { schema, dialect } = parsed.data;
 
 	const fileNames = prepareFilenames(schema);
 	if (fileNames.length === 0) {
 		render(`[${chalk.blue('i')}] No schema file in ${schema} was found`);
 		process.exit(0);
 	}
+
 	return {
 		dialect: dialect,
-		sql: sql,
+		sql: !!options.sql,
 		filenames: fileNames,
 	};
 };
@@ -244,14 +263,20 @@ export const preparePushConfig = async (
 	);
 
 	raw.verbose ||= options.verbose; // if provided in cli to debug
-	raw.strict ||= options.strict; // if provided in cli only
 
-	const parsed = pushParams.safeParse(raw);
+	if (!raw.dialect || !raw.schema) {
+		let message = error('Please provide required params:');
+		message += '\n' + wrapParam('dialect', raw.dialect);
+		message += '\n' + wrapParam('schema', raw.schema);
 
-	if (parsed.error) {
-		console.log(error('Please provide required params:'));
-		console.log(wrapParam('dialect', raw.dialect));
-		console.log(wrapParam('schema', raw.schema));
+		console.log(message);
+		process.exit(1);
+	}
+
+	const parsed = configPush.safeParse(raw);
+
+	if (!parsed.success) {
+		console.error(parsed.error);
 		process.exit(1);
 	}
 
@@ -272,7 +297,7 @@ export const preparePushConfig = async (
 	} as const;
 
 	if (config.dialect === 'postgresql') {
-		const parsed = postgresCredentials.safeParse(config);
+		const parsed = postgresCredentials.safeParse(raw);
 		if (!parsed.success) {
 			printIssuesPg(config);
 			process.exit(1);
@@ -291,7 +316,7 @@ export const preparePushConfig = async (
 	}
 
 	if (config.dialect === 'mysql') {
-		const parsed = mysqlCredentials.safeParse(config);
+		const parsed = mysqlCredentials.safeParse(raw);
 		if (!parsed.success) {
 			printIssuesMysql(config);
 			process.exit(1);
@@ -309,7 +334,7 @@ export const preparePushConfig = async (
 	}
 
 	if (config.dialect === 'singlestore') {
-		const parsed = singlestoreCredentials.safeParse(config);
+		const parsed = singlestoreCredentials.safeParse(raw);
 		if (!parsed.success) {
 			printIssuesSingleStore(config);
 			process.exit(1);
@@ -328,7 +353,7 @@ export const preparePushConfig = async (
 	}
 
 	if (config.dialect === 'sqlite') {
-		const parsed = sqliteCredentials.safeParse(config);
+		const parsed = sqliteCredentials.safeParse(raw);
 		if (!parsed.success) {
 			printIssuesSqlite(config, 'push');
 			process.exit(1);
@@ -346,7 +371,7 @@ export const preparePushConfig = async (
 	}
 
 	if (config.dialect === 'turso') {
-		const parsed = libSQLCredentials.safeParse(config);
+		const parsed = libSQLCredentials.safeParse(raw);
 		if (!parsed.success) {
 			printIssuesSqlite(config, 'push');
 			process.exit(1);
@@ -364,9 +389,9 @@ export const preparePushConfig = async (
 	}
 
 	if (config.dialect === 'mssql') {
-		const parsed = mssqlCredentials.safeParse(config);
+		const parsed = mssqlCredentials.safeParse(raw);
 		if (!parsed.success) {
-			// printIssuesSqlite(config, 'push'); // TODO print issues
+			printMssqlIssues(config);
 			process.exit(1);
 		}
 		return {
@@ -382,7 +407,7 @@ export const preparePushConfig = async (
 	}
 
 	if (config.dialect === 'cockroach') {
-		const parsed = cockroachCredentials.safeParse(config);
+		const parsed = cockroachCredentials.safeParse(raw);
 		if (!parsed.success) {
 			printCockroachIssues(config);
 			process.exit(1);
@@ -458,11 +483,18 @@ export const preparePullConfig = async (
 			? await drizzleConfigFromFile(options.config as string | undefined)
 			: options,
 	);
-	const parsed = pullParams.safeParse(raw);
 
-	if (parsed.error) {
-		console.log(error('Please provide required params:'));
-		console.log(wrapParam('dialect', raw.dialect));
+	if (!raw.dialect) {
+		let message = error('Please provide required params:');
+		message += '\n' + wrapParam('dialect', raw.dialect);
+
+		console.log(message);
+		process.exit(1);
+	}
+
+	const parsed = configPull.safeParse(raw);
+	if (!parsed.success) {
+		console.error(parsed.error);
 		process.exit(1);
 	}
 
@@ -479,7 +511,7 @@ export const preparePullConfig = async (
 	} as const;
 
 	if (dialect === 'postgresql') {
-		const parsed = postgresCredentials.safeParse(config);
+		const parsed = postgresCredentials.safeParse(raw);
 		if (!parsed.success) {
 			printIssuesPg(config);
 			process.exit(1);
@@ -498,7 +530,7 @@ export const preparePullConfig = async (
 	}
 
 	if (dialect === 'mysql') {
-		const parsed = mysqlCredentials.safeParse(config);
+		const parsed = mysqlCredentials.safeParse(raw);
 		if (!parsed.success) {
 			printIssuesMysql(config);
 			process.exit(1);
@@ -516,7 +548,7 @@ export const preparePullConfig = async (
 	}
 
 	if (dialect === 'singlestore') {
-		const parsed = singlestoreCredentials.safeParse(config);
+		const parsed = singlestoreCredentials.safeParse(raw);
 		if (!parsed.success) {
 			printIssuesSingleStore(config);
 			process.exit(1);
@@ -535,7 +567,7 @@ export const preparePullConfig = async (
 	}
 
 	if (dialect === 'sqlite') {
-		const parsed = sqliteCredentials.safeParse(config);
+		const parsed = sqliteCredentials.safeParse(raw);
 		if (!parsed.success) {
 			printIssuesSqlite(config, 'pull');
 			process.exit(1);
@@ -553,9 +585,9 @@ export const preparePullConfig = async (
 	}
 
 	if (dialect === 'turso') {
-		const parsed = libSQLCredentials.safeParse(config);
+		const parsed = libSQLCredentials.safeParse(raw);
 		if (!parsed.success) {
-			printIssuesLibSQL(config, 'pull');
+			printIssuesLibSQL(config);
 			process.exit(1);
 		}
 		return {
@@ -571,9 +603,9 @@ export const preparePullConfig = async (
 	}
 
 	if (dialect === 'mssql') {
-		const parsed = mssqlCredentials.safeParse(config);
+		const parsed = mssqlCredentials.safeParse(raw);
 		if (!parsed.success) {
-			// printIssuesPg(config); // TODO add issues printing
+			printMssqlIssues(config);
 			process.exit(1);
 		}
 
@@ -590,7 +622,7 @@ export const preparePullConfig = async (
 	}
 
 	if (dialect === 'cockroach') {
-		const parsed = cockroachCredentials.safeParse(config);
+		const parsed = cockroachCredentials.safeParse(raw);
 		if (!parsed.success) {
 			printCockroachIssues(config);
 			process.exit(1);
@@ -619,7 +651,8 @@ export const preparePullConfig = async (
 export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 	const params = studioCliParams.parse(options);
 	const config = await drizzleConfigFromFile(params.config);
-	const result = studioConfig.safeParse(config);
+	const result = configStudio.safeParse(config);
+
 	if (!result.success) {
 		if (!('dialect' in config)) {
 			console.log(outputs.studio.noDialect());
@@ -631,6 +664,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 		console.log(outputs.studio.noCredentials());
 		process.exit(1);
 	}
+
 	const { host, port } = params;
 	const { dialect, schema } = result.data;
 	const flattened = flattenDatabaseCredentials(config);
@@ -702,7 +736,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 	if (dialect === 'turso') {
 		const parsed = libSQLCredentials.safeParse(flattened);
 		if (!parsed.success) {
-			printIssuesLibSQL(flattened as Record<string, unknown>, 'studio');
+			printIssuesLibSQL(flattened as Record<string, unknown>);
 			process.exit(1);
 		}
 		const credentials = parsed.data;
@@ -754,23 +788,25 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 	assertUnreachable(dialect);
 };
 
-export const migrateConfig = object({
-	dialect,
-	out: string().optional().default('drizzle'),
-	migrations: configMigrations,
-});
-
 export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	const config = await drizzleConfigFromFile(configPath);
-	const parsed = migrateConfig.safeParse(config);
-	if (parsed.error) {
-		console.log(error('Please provide required params:'));
-		console.log(wrapParam('dialect', config.dialect));
+
+	if (!config.dialect) {
+		let message = error('Please provide required params:');
+		message += '\n' + wrapParam('dialect', config.dialect);
+
+		console.log(message);
+		process.exit(1);
+	}
+
+	const parsed = configMigrate.safeParse(config);
+	if (!parsed.success) {
+		console.error(parsed.error);
 		process.exit(1);
 	}
 
 	const { dialect, out } = parsed.data;
-	const { schema, table } = parsed.data.migrations || {};
+	const { schema, table } = parsed.data.migrations;
 	const flattened = flattenDatabaseCredentials(config);
 
 	if (dialect === 'postgresql') {
@@ -839,7 +875,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	if (dialect === 'turso') {
 		const parsed = libSQLCredentials.safeParse(flattened);
 		if (!parsed.success) {
-			printIssuesLibSQL(flattened as Record<string, unknown>, 'migrate');
+			printIssuesLibSQL(flattened as Record<string, unknown>);
 			process.exit(1);
 		}
 		const credentials = parsed.data;
@@ -895,7 +931,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 export const drizzleConfigFromFile = async (
 	configPath?: string,
 	isExport?: boolean,
-): Promise<CliConfig> => {
+) => {
 	const prefix = process.env.TEST_CONFIG_PATH_PREFIX || '';
 
 	const defaultTsConfigExists = existsSync(
@@ -931,19 +967,17 @@ export const drizzleConfigFromFile = async (
 
 	if (!isExport) console.log(chalk.grey(`Reading config file '${path}'`));
 
+	// we always expect config is defined with "export default defineConfig({})"
 	const content = await loadModule<any>(path);
 
-	// --- get response and then check by each dialect independently
-	const res = configCommonSchema.safeParse(content);
-	if (!res.success) {
-		console.log(res.error);
-		if (!('dialect' in content)) {
-			console.log(error("Please specify 'dialect' param in config file"));
-		}
-		process.exit(1);
-	}
-
-	return res.data;
+	// Bun, Deno, and .js files return { ... } from content
+	// (
+	//   const mod = await import(fileUrl);
+	//   return mod.default ?? mod;
+	// )
+	// But .ts returns { default: ... } or { ... }
+	// So we need to check content.default first and than return content if not found
+	return content.default ?? content;
 };
 
 export const migrateToFoldersV3 = (out: string) => {

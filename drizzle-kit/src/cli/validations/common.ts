@@ -1,8 +1,8 @@
 import chalk from 'chalk';
 import type { UnionToIntersection } from 'hono/utils/types';
+import { dialect } from 'src/utils/schemaValidator';
 import type { TypeOf } from 'zod';
-import { any, boolean, enum as enum_, literal, object, string, union } from 'zod';
-import { dialect } from '../../utils/schemaValidator';
+import { any, boolean, coerce, enum as enum_, literal, object, string, union } from 'zod';
 import { outputs } from './outputs';
 
 export type Commands =
@@ -82,76 +82,90 @@ export const sqliteDriver = union(sqliteDriversLiterals);
 export const postgresDriver = union(postgresqlDriversLiterals);
 export const driver = union([sqliteDriver, postgresDriver]);
 
+export const drivers = ['d1-http', 'expo', 'aws-data-api', 'pglite', 'durable-sqlite', 'sqlite-cloud'] as const;
+
+export type Casing = TypeOf<typeof casing>;
+
 export const configMigrations = object({
 	table: string().default('__drizzle_migrations'),
 	schema: string().default('drizzle'),
 }).default({ table: '__drizzle_migrations', schema: 'drizzle' });
 
-export const configCommonSchema = object({
-	dialect: dialect,
-	schema: union([string(), string().array()]).optional(),
-	out: string().default('drizzle'),
-	breakpoints: boolean().optional().default(true),
-	verbose: boolean().optional().default(false),
-	driver: driver.optional(),
-	tablesFilter: union([string(), string().array()]).optional(),
-	schemaFilter: union([string(), string().array()]).optional(),
-	migrations: configMigrations,
-	dbCredentials: any().optional(),
-	sql: boolean().default(true),
-}).passthrough();
-
 export const casing = union([literal('camel'), literal('preserve')]).default(
 	'camel',
 );
 
-export const introspectParams = object({
-	schema: union([string(), string().array()]).optional(),
-	out: string().optional().default('./drizzle'),
-	breakpoints: boolean().default(true),
-	tablesFilter: union([string(), string().array()]).optional(),
-	schemaFilter: union([string(), string().array()]).default(['public']),
-	introspect: object({
-		casing,
-	}).default({ casing: 'camel' }),
-});
-
-export type IntrospectParams = TypeOf<typeof introspectParams>;
-export type Casing = TypeOf<typeof casing>;
-
-export const configIntrospectCliSchema = object({
-	schema: union([string(), string().array()]).optional(),
-	out: string().optional().default('./drizzle'),
-	breakpoints: boolean().default(true),
-	tablesFilter: union([string(), string().array()]).optional(),
-	schemaFilter: union([string(), string().array()]).default(['public']),
-	introspectCasing: union([literal('camel'), literal('preserve')]).default(
-		'camel',
-	),
-});
-
-export const configGenerateSchema = object({
-	schema: union([string(), string().array()]),
-	out: string().optional().default('./drizzle'),
-	breakpoints: boolean().default(true),
-});
-
-export type GenerateSchema = TypeOf<typeof configGenerateSchema>;
-
-export const configPushSchema = object({
-	dialect: dialect,
-	schema: union([string(), string().array()]),
-	tablesFilter: union([string(), string().array()]).optional(),
-	schemaFilter: union([string(), string().array()]).default(['public']),
-	verbose: boolean().default(false),
-	strict: boolean().default(false),
-	out: string().optional(),
-});
-
-export type CliConfig = TypeOf<typeof configCommonSchema>;
-export const drivers = ['d1-http', 'expo', 'aws-data-api', 'pglite', 'durable-sqlite', 'sqlite-cloud'] as const;
 export type Driver = (typeof drivers)[number];
-const _: Driver = '' as TypeOf<typeof driver>;
+
+export const entitiesParams = {
+	tablesFilter: union([string(), string().array()]).optional(),
+	schemaFilter: union([string(), string().array()])
+		.optional(),
+	extensionsFilters: literal('postgis').array().optional(),
+	entities: object({
+		roles: boolean().or(object({
+			provider: string().optional(),
+			include: string().array().optional(),
+			exclude: string().array().optional(),
+		})).optional().default(false),
+	}).optional(),
+};
+export type EntitiesFilter = TypeOf<typeof entitiesParams['entities']>;
+export type TablesFilter = TypeOf<typeof entitiesParams['tablesFilter']>;
+export type SchemasFilter = TypeOf<typeof entitiesParams['schemaFilter']>;
+export type ExtensionsFilter = TypeOf<typeof entitiesParams['extensionsFilters']>;
+export type EntitiesFilterConfig = {
+	schemas: SchemasFilter;
+	tables: TablesFilter;
+	entities: EntitiesFilter;
+	extensions: ExtensionsFilter;
+};
+
+export const configCommonSchema = object({
+	dialect: dialect,
+	out: string().default('drizzle'),
+	breakpoints: boolean().optional().default(true),
+	verbose: boolean().optional().default(false),
+	driver: driver.optional(),
+	dbCredentials: any().optional(),
+});
+
+export const configPull = configCommonSchema.extend({
+	casing,
+	migrations: configMigrations,
+	...entitiesParams,
+});
+
+export const configCheck = configCommonSchema;
+
+export const configGenerate = configCommonSchema.extend({
+	schema: union([string(), string().array()]),
+});
+
+export const configPush = configCommonSchema.extend({
+	schema: union([string(), string().array()]),
+	explain: boolean().optional(),
+	migrations: configMigrations,
+	...entitiesParams,
+});
+
+export const configExport = configCommonSchema.extend({
+	schema: union([string(), string().array()]),
+});
+
+export const studioCliParams = object({
+	port: coerce.number().optional().default(4983),
+	host: string().optional().default('127.0.0.1'),
+	config: string().optional(),
+});
+
+export const configStudio = configCommonSchema.extend({
+	schema: union([string(), string().array()]).optional(),
+});
+
+export const configMigrate = configCommonSchema.extend({
+	migrations: configMigrations,
+});
 
 export const wrapParam = (
 	name: string,

@@ -26,7 +26,7 @@ import type { DB } from '../../utils';
 import { highlightSQL } from '../highlighter';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
-import type { EntitiesFilterConfig } from '../validations/cli';
+import type { EntitiesFilterConfig } from '../validations/common';
 import type { PostgresCredentials } from '../validations/postgres';
 import { explain, postgresSchemaError, postgresSchemaWarning, ProgressView } from '../views';
 
