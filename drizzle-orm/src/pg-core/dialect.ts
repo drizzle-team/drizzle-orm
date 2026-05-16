@@ -1355,13 +1355,19 @@ export class PgDialect {
 		if (nestedQueryRelation) {
 			let field = sql`json_build_array(${
 				sql.join(
-					selection.map(({ field, tsKey, isJson }) =>
-						isJson
-							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
-							: is(field, SQL.Aliased)
-							? field.sql
-							: field
-					),
+					selection.map(({ field, tsKey, isJson }) => {
+						if (isJson) {
+							return sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`;
+						}
+						const fieldSql = is(field, SQL.Aliased) ? field.sql : field;
+						// Cast bigint-mode columns to text so JSON output keeps full
+						// precision past Number.MAX_SAFE_INTEGER; mapFromDriverValue
+						// converts the resulting JSON string back to BigInt. #5760
+						if (is(field, Column) && field.dataType === 'bigint') {
+							return sql`${fieldSql}::text`;
+						}
+						return fieldSql;
+					}),
 					sql`, `,
 				)
 			})`;
