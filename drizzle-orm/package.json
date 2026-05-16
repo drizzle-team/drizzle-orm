@@ -195,6 +195,12 @@
 		},
 		"zod": {
 			"optional": true
+		},
+		"mssql": {
+			"optional": true
+		},
+		"@types/mssql": {
+			"optional": true
 		}
 	},
 	"devDependencies": {
