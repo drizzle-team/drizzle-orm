@@ -79,12 +79,13 @@ export class EffectPgSession<
 			tx: EffectPgTransaction<TQueryResult, TRelations>,
 		) => Effect.Effect<A, E, R>,
 	): Effect.Effect<A, E | SqlError, R> {
-		const { dialect, relations } = this;
+		const self = this;
+		const { dialect, relations } = self;
 
-		return this.client.withTransaction(Effect.gen({ self: this }, function*() {
+		return self.client.withTransaction(Effect.gen(function*() {
 			const tx = new EffectPgTransaction<TQueryResult, TRelations>(
 				dialect,
-				this,
+				self,
 				relations,
 			);
 

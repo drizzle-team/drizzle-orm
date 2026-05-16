@@ -64,13 +64,14 @@ export class PgEffectPreparedQuery<
 	}
 
 	override execute(placeholderValues: Record<string, unknown> = {}): QueryEffectKind<TEffectHKT, T['execute']> {
-		return Effect.gen({ self: this }, function*() {
-			const params = fillPlaceholders(this.query.params, placeholderValues);
-			const { query: { sql }, mapper, logger } = this;
+		const self = this;
+		return Effect.gen(function*() {
+			const params = fillPlaceholders(self.query.params, placeholderValues);
+			const { query: { sql }, mapper, logger } = self;
 
 			yield* logger.logQuery(sql, params);
 
-			const query = this.queryWithCache(sql, params, Effect.suspend(() => this.executor(params)));
+			const query = self.queryWithCache(sql, params, Effect.suspend(() => self.executor(params)));
 
 			if (!mapper) return yield* query;
 
@@ -83,8 +84,9 @@ export class PgEffectPreparedQuery<
 		params: any[],
 		query: Effect.Effect<A, E, R>,
 	) {
-		return Effect.gen({ self: this }, function*() {
-			const { cacheConfig, queryMetadata } = this;
+		const self = this;
+		return Effect.gen(function*() {
+			const { cacheConfig, queryMetadata } = self;
 			const cache = yield* EffectCache;
 
 			const cacheStrat: Awaited<ReturnType<typeof strategyFor>> = cache && !is(cache.cache, NoopCache)
@@ -131,7 +133,7 @@ export class PgEffectPreparedQuery<
 
 			assertUnreachable(cacheStrat);
 		}).pipe(
-			Effect.provideService(EffectCache, this.cache),
+			Effect.provideService(EffectCache, self.cache),
 			Effect.catch((e) => {
 				return Effect.fail(new EffectDrizzleQueryError({ query: queryString, params, cause: Cause.fail(e) }));
 			}),
