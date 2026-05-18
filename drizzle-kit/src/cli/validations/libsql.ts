@@ -17,7 +17,6 @@ const _: LibSQLCredentials = {} as TypeOf<typeof libSQLCredentials>;
 
 export const printConfigConnectionIssues = (
 	options: Record<string, unknown>,
-	_command: 'generate' | 'migrate' | 'push' | 'pull' | 'studio',
 ) => {
 	let text = `Please provide required params for 'turso' dialect:\n`;
 	console.log(error(text));
