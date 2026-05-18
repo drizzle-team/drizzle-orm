@@ -24,7 +24,6 @@ describe('mysql2', async (it) => {
 			process.env['MYSQL_CONNECTION_STRING'],
 			{
 				schema,
-				mode: 'default',
 			},
 		);
 		await db.$client.execute('SELECT 1;');
@@ -37,7 +36,6 @@ describe('mysql2', async (it) => {
 		const db = drizzle({
 			connection: process.env['MYSQL_CONNECTION_STRING'],
 			schema,
-			mode: 'default',
 		});
 
 		await db.$client.execute('SELECT 1;');
@@ -52,7 +50,6 @@ describe('mysql2', async (it) => {
 				uri: process.env['MYSQL_CONNECTION_STRING'],
 			},
 			schema,
-			mode: 'default',
 		});
 
 		await db.$client.execute('SELECT 1;');
@@ -81,7 +78,6 @@ describe('mysql2', async (it) => {
 		const db = drizzle({
 			client,
 			schema,
-			mode: 'default',
 		});
 
 		await db.$client.execute('SELECT 1;');
@@ -112,7 +108,6 @@ describe('mysql2:connection', async (it) => {
 		const db = drizzle({
 			client,
 			schema,
-			mode: 'default',
 		});
 
 		await db.$client.execute('SELECT 1;');

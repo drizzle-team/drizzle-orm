@@ -17,6 +17,7 @@ import { upPgHandler } from './commands/up-postgres';
 import { upSinglestoreHandler } from './commands/up-singlestore';
 import { upSqliteHandler } from './commands/up-sqlite';
 import {
+	type CheckConfig,
 	prepareCheckParams,
 	prepareExportConfig,
 	prepareGenerateConfig,
@@ -452,10 +453,11 @@ export const check = command({
 			['ignoreConflicts'],
 			['dialect', 'out'],
 		);
-		return {
+		const config: CheckConfig = {
 			...(await prepareCheckParams(opts, from)),
 			ignoreConflicts: opts.ignoreConflicts,
 		};
+		return config;
 	},
 	handler: async (config) => {
 		await assertOrmCoreVersion();
@@ -754,19 +756,16 @@ export const studio = command({
 			.default(false)
 			.desc('Print all stataments that are executed by Studio'),
 	},
+	transform: async (opts) => {
+		return await prepareStudioConfig(opts);
+	},
 	handler: async (opts) => {
 		await assertOrmCoreVersion();
 		await assertPackages('drizzle-orm');
 
 		assertStudioNodeVersion();
 
-		const {
-			dialect,
-			schema: schemaPath,
-			port,
-			host,
-			credentials,
-		} = await prepareStudioConfig(opts);
+		const { credentials, dialect, host, port, schema: schemaPath } = opts;
 
 		const {
 			drizzleForPostgres,

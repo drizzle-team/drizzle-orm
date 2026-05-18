@@ -1,6 +1,7 @@
 import type { MigrationMeta } from '~/migrator.ts';
 import type { MySqlRemoteDatabase } from '~/mysql-proxy/index.ts';
 import type { ProxyMigrator } from '~/mysql-proxy/migrator.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
 import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResult } from './utils.ts';
 
@@ -12,7 +13,7 @@ const upgradeFunctions: Record<
 	number,
 	(
 		migrationsTable: string,
-		db: MySqlRemoteDatabase<Record<string, unknown>>,
+		db: MySqlRemoteDatabase<AnyRelations>,
 		callback: ProxyMigrator,
 		localMigrations: MigrationMeta[],
 	) => Promise<void>
@@ -31,7 +32,7 @@ const upgradeFunctions: Record<
 
 		// 1. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
-		const dbRows = (await db.session.all<[number, string, string]>(
+		const dbRows = (await db.session.arrays<[number, string, string]>(
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
 		)).map((it) => ({
 			id: it[0],
@@ -123,12 +124,12 @@ const upgradeFunctions: Record<
  */
 export async function upgradeIfNeeded(
 	migrationsTable: string,
-	db: MySqlRemoteDatabase<Record<string, unknown>>,
+	db: MySqlRemoteDatabase<AnyRelations>,
 	callback: ProxyMigrator,
 	localMigrations: MigrationMeta[],
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
-	const result = await db.session.all<[1]>(
+	const result = await db.session.arrays<[1]>(
 		sql`SELECT 1 FROM information_schema.tables 
 			WHERE table_name = ${migrationsTable}
 			AND table_schema = DATABASE()`,
@@ -139,7 +140,7 @@ export async function upgradeIfNeeded(
 	}
 
 	// Table exists, check table shape
-	const rows = await db.session.all<[string]>(
+	const rows = await db.session.arrays<[string]>(
 		sql`SELECT column_name as \`column_name\`
 		FROM information_schema.columns
 		WHERE table_name = ${migrationsTable}
