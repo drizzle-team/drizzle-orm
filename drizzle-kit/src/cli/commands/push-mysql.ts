@@ -11,7 +11,7 @@ import { connectToMySQL } from '../connections';
 import { highlightSQL } from '../highlighter';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
-import type { EntitiesFilterConfig } from '../validations/cli';
+import type { EntitiesFilterConfig } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
 import { explain, mysqlSchemaError, ProgressView } from '../views';
 import { introspect } from './pull-mysql';

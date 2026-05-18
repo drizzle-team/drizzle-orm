@@ -7,7 +7,7 @@ import { ddlDiff } from '../../dialects/singlestore/diff';
 import { highlightSQL } from '../highlighter';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
-import type { EntitiesFilterConfig } from '../validations/cli';
+import type { EntitiesFilterConfig } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
 import { explain, ProgressView } from '../views';
 import { suggestions } from './push-mysql';

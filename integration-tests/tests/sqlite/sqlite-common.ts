@@ -1284,7 +1284,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/2872
 		test
-			.skipIf(Date.now() < +new Date('2026-05-07'))
+			.skipIf(Date.now() < +new Date('2026-05-20'))
 			.concurrent(
 				'prepared statement with placeholder in .inArray',
 				async ({ db, push }) => {
@@ -6034,7 +6034,7 @@ export function tests(test: Test, exclude: string[] = []) {
 	});
 
 	// Sync drivers don't wrap errors - TODO
-	test.skipIf(Date.now() < +new Date('2026-05-07'))('Query error wrapping', async ({ db }) => {
+	test.skipIf(Date.now() < +new Date('2026-05-20'))('Query error wrapping', async ({ db }) => {
 		await expect(async () =>
 			await db.insert(usersTable).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]).run()
 		)

@@ -14,7 +14,7 @@ import { originUUID } from '../../utils';
 import type { SQLiteDB } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
 import type { connectToSQLite } from '../connections';
-import type { EntitiesFilterConfig } from '../validations/cli';
+import type { EntitiesFilterConfig } from '../validations/common';
 import type { Casing } from '../validations/common';
 import type { SqliteCredentials } from '../validations/sqlite';
 import { IntrospectProgress, type IntrospectStage, type IntrospectStatus } from '../views';

@@ -9,8 +9,6 @@ import { tests } from '../mysql-common';
 import { usersMigratorTable } from '../schema2';
 
 const omit = new Set([
-	'select iterator w/ prepared statement',
-	'select iterator',
 	'nested transaction rollback',
 	'nested transaction',
 	'transaction rollback',
