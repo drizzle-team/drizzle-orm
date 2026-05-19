@@ -1,8 +1,8 @@
 import chalk from 'chalk';
 import { render, renderWithTask } from 'hanji';
-import type { Column, Table, View } from 'src/dialects/mysql/ddl';
-import { interimToDDL } from 'src/dialects/mysql/ddl';
-import { prepareEntityFilter } from 'src/dialects/pull-utils';
+import type { Column, Table, View } from '../../dialects/mysql/ddl';
+import { interimToDDL } from '../../dialects/mysql/ddl';
+import { prepareEntityFilter } from '../../dialects/pull-utils';
 import { ddlDiff } from '../../dialects/singlestore/diff';
 import { isJsonMode } from '../context';
 import { CommandOutputCliError } from '../errors';
@@ -13,14 +13,7 @@ import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
-import {
-	explain as explainView,
-	explainJsonOutput,
-	humanLog,
-	mysqlSchemaError,
-	printJsonOutput,
-	ProgressView,
-} from '../views';
+import { explain as explainView, explainJsonOutput, humanLog, mysqlSchemaError, ProgressView } from '../views';
 import { suggestions } from './push-mysql';
 
 export const handle = async (
@@ -83,34 +76,31 @@ export const handle = async (
 	);
 
 	if (hints.hasMissingHints()) {
-		hints.emitAndExit();
+		return hints.toResponse();
 	}
 
 	if (sqlStatements.length === 0) {
-		if (json) {
-			printJsonOutput({ status: 'no_changes', dialect: 'singlestore' });
-		} else {
+		if (!json) {
 			render(`[${chalk.blue('i')}] No changes detected`);
 		}
-		return;
+		return { status: 'no_changes' as const, dialect: 'singlestore' };
 	}
 
 	const suggestionHints = await suggestions(db, statements, ddl2, hints);
 
 	if (hints.hasMissingHints()) {
-		hints.emitAndExit();
+		return hints.toResponse();
 	}
 
 	if (explain) {
 		if (json) {
-			printJsonOutput(explainJsonOutput('singlestore', statements, suggestionHints));
-		} else {
-			const explainMessage = explainView('singlestore', groupedStatements, suggestionHints);
-			if (explainMessage) {
-				humanLog(explainMessage);
-			}
+			return explainJsonOutput('singlestore', statements, suggestionHints);
 		}
-		return;
+		const explainMessage = explainView('singlestore', groupedStatements, suggestionHints);
+		if (explainMessage) {
+			humanLog(explainMessage);
+		}
+		return { status: 'ok' as const, dialect: 'singlestore' };
 	}
 
 	if (!force && !json && suggestionHints.length > 0) {
@@ -129,11 +119,10 @@ export const handle = async (
 		await db.query(statement);
 	}
 
-	if (json) {
-		printJsonOutput({ status: 'ok', dialect: 'singlestore' });
-	} else {
+	if (!json) {
 		render(`[${chalk.green('\u2713')}] Changes applied`);
 	}
+	return { status: 'ok' as const, dialect: 'singlestore' };
 };
 
 // TODO: check

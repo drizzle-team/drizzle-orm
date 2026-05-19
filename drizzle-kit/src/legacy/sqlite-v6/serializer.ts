@@ -1,6 +1,6 @@
 import { is } from 'orm044';
 import { SQLiteTable, SQLiteView } from 'orm044/sqlite-core';
-import type { SQLiteSchemaV6 } from 'src/dialects/sqlite/snapshot';
+import type { SQLiteSchemaV6 } from '../../dialects/sqlite/snapshot';
 import type { CasingType } from '../common';
 import { generateSqliteSnapshot } from './sqliteSerializer';
 

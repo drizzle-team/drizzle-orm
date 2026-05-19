@@ -1,6 +1,5 @@
 import { SQL as BunSQL } from 'bun';
-import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'bun:test';
-import type Docker from 'dockerode';
+import { afterEach, beforeAll, beforeEach, expect, test } from 'bun:test';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import {
 	and,
@@ -356,17 +355,15 @@ const allTypesTable = pgTable('all_types', {
 	arrvarchar: varchar('arrvarchar').array(),
 });
 
-// oxlint-disable-next-line no-unassigned-vars
-let pgContainer: Docker.Container | undefined; // oxlint-disable-line no-unassigned-vars
-
-afterAll(async () => {
-	await pgContainer?.stop().catch(console.error);
-});
-
 let db: BunSQLDatabase<typeof relations>;
 
 beforeAll(async () => {
-	const connectionString = process.env['PG_CONNECTION_STRING']!;
+	const connectionString = process.env['PG_CONNECTION_STRING'];
+	if (!connectionString) {
+		throw new Error(
+			'PG_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up postgres` and export the connection string before running tests.',
+		);
+	}
 	const connClient = new BunSQL(connectionString, { max: 1 });
 	await connClient.unsafe(`select 1`);
 

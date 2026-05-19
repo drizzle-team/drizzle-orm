@@ -1,4 +1,4 @@
-import { fromDatabase as fd } from 'src/dialects/sqlite/introspect';
+import { fromDatabase as fd } from '../dialects/sqlite/introspect';
 import type {
 	CheckConstraint,
 	Column,

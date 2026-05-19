@@ -1,26 +1,31 @@
-import { ddlDiff, ddlDiffDry } from 'src/dialects/sqlite/diff';
-import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
-import { prepareOutFolder } from 'src/utils/utils-node';
 import { type Column, createDDL, interimToDDL, type SqliteEntities } from '../../dialects/sqlite/ddl';
+import { ddlDiff, ddlDiffDry } from '../../dialects/sqlite/diff';
+import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/sqlite/drizzle';
 import { prepareSqliteSnapshot } from '../../dialects/sqlite/serializer';
+import { prepareOutFolder } from '../../utils/utils-node';
 import { isJsonMode } from '../context';
+import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
-import { explain, explainJsonOutput, humanLog, printJsonOutput, sqliteSchemaError, warning } from '../views';
+import { explain, explainJsonOutput, humanLog, sqliteSchemaError, warning } from '../views';
+import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
-export const handle = async (config: GenerateConfig) => {
+export const handle = async (
+	config: GenerateConfig,
+	checkResult?: CheckHandlerResult,
+) => {
 	const dialect = config.dialect === 'turso' ? 'turso' : 'sqlite';
 	const json = isJsonMode();
-	const { out: outFolder, casing, filenames } = config;
+	const { out: outFolder, filenames } = config;
 	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSqliteSnapshot(
 		snapshots,
 		filenames,
-		casing,
+		checkResult,
 	);
 	if (config.custom) {
-		writeResult({
+		return writeResult({
 			snapshot: custom,
 			sqlStatements: [],
 			outFolder,
@@ -32,7 +37,6 @@ export const handle = async (config: GenerateConfig) => {
 			renames: [],
 			snapshots,
 		});
-		return;
 	}
 
 	const { sqlStatements, warnings, renames, groupedStatements, statements } = await ddlDiff(
@@ -44,7 +48,7 @@ export const handle = async (config: GenerateConfig) => {
 	);
 
 	if (json && config.hints.hasMissingHints()) {
-		config.hints.emitAndExit();
+		return config.hints.toResponse();
 	}
 
 	if (!json) {
@@ -54,7 +58,7 @@ export const handle = async (config: GenerateConfig) => {
 	}
 
 	if (!config.explain) {
-		writeResult({
+		return writeResult({
 			snapshot: snapshot,
 			sqlStatements,
 			renames,
@@ -66,32 +70,33 @@ export const handle = async (config: GenerateConfig) => {
 			driver: config.driver,
 			snapshots,
 		});
-		return;
 	}
 
 	if (json) {
 		if (sqlStatements.length === 0) {
-			printJsonOutput({ status: 'no_changes', dialect });
-			return;
+			return { status: 'no_changes' as const, dialect };
 		}
-		printJsonOutput(explainJsonOutput(dialect, statements, []));
-		return;
+		return explainJsonOutput(dialect, statements, []);
 	}
 
 	const explainMessage = explain('sqlite', groupedStatements, []);
 	if (explainMessage) {
 		humanLog(explainMessage);
 	}
+
+	return { status: 'ok' as const, dialect };
 };
 
 export const handleExport = async (config: ExportConfig) => {
 	const res = await prepareFromSchemaFiles(config.filenames);
-	const schema = fromDrizzleSchema(res.tables, res.views, config.casing);
+	const schema = fromDrizzleSchema(res.tables, res.views);
 	const { ddl, errors } = interimToDDL(schema);
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => sqliteSchemaError(it)).join('\n'));
-		process.exit(1);
+		throw new CommandOutputCliError('generate', errors.map((it) => sqliteSchemaError(it)).join('\n'), {
+			stage: 'ddl',
+			dialect: 'sqlite',
+		});
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');

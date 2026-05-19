@@ -1,12 +1,12 @@
-import type { Column, Table, View } from 'src/dialects/mysql/ddl';
-import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
-import { ddlDiff, ddlDiffDry } from 'src/dialects/singlestore/diff';
-import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/singlestore/drizzle';
-import { prepareSnapshot } from 'src/dialects/singlestore/serializer';
-import { prepareOutFolder } from 'src/utils/utils-node';
+import type { Column, Table, View } from '../../dialects/mysql/ddl';
+import { createDDL, interimToDDL } from '../../dialects/mysql/ddl';
+import { ddlDiff, ddlDiffDry } from '../../dialects/singlestore/diff';
+import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/singlestore/drizzle';
+import { prepareSnapshot } from '../../dialects/singlestore/serializer';
+import { prepareOutFolder } from '../../utils/utils-node';
 import { isJsonMode } from '../context';
 import { resolver } from '../prompts';
-import { explain, explainJsonOutput, humanLog, printJsonOutput } from '../views';
+import { explain, explainJsonOutput, humanLog } from '../views';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
@@ -17,7 +17,7 @@ export const handle = async (config: GenerateConfig) => {
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, filenames, casing);
 
 	if (config.custom) {
-		writeResult({
+		return writeResult({
 			snapshot: custom,
 			sqlStatements: [],
 			outFolder,
@@ -28,7 +28,6 @@ export const handle = async (config: GenerateConfig) => {
 			renames: [],
 			snapshots,
 		});
-		return;
 	}
 
 	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
@@ -41,11 +40,11 @@ export const handle = async (config: GenerateConfig) => {
 	);
 
 	if (json && config.hints.hasMissingHints()) {
-		config.hints.emitAndExit();
+		return config.hints.toResponse();
 	}
 
 	if (!config.explain) {
-		writeResult({
+		return writeResult({
 			snapshot,
 			sqlStatements,
 			outFolder,
@@ -55,22 +54,21 @@ export const handle = async (config: GenerateConfig) => {
 			renames,
 			snapshots,
 		});
-		return;
 	}
 
 	if (json) {
 		if (sqlStatements.length === 0) {
-			printJsonOutput({ status: 'no_changes', dialect: 'singlestore' });
-			return;
+			return { status: 'no_changes' as const, dialect: 'singlestore' };
 		}
-		printJsonOutput(explainJsonOutput('singlestore', statements, []));
-		return;
+		return explainJsonOutput('singlestore', statements, []);
 	}
 
 	const explainMessage = explain('singlestore', groupedStatements, []);
 	if (explainMessage) {
 		humanLog(explainMessage);
 	}
+
+	return { status: 'ok' as const, dialect: 'singlestore' };
 };
 
 export const handleExport = async (config: ExportConfig) => {

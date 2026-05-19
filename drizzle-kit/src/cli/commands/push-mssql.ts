@@ -1,7 +1,6 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
-import { extractMssqlExisting } from 'src/dialects/drizzle';
-import { prepareEntityFilter } from 'src/dialects/pull-utils';
+import { extractMssqlExisting } from '../../dialects/drizzle';
 import type {
 	CheckConstraint,
 	Column,
@@ -19,6 +18,7 @@ import { interimToDDL } from '../../dialects/mssql/ddl';
 import { ddlDiff } from '../../dialects/mssql/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/mssql/drizzle';
 import type { JsonStatement } from '../../dialects/mssql/statements';
+import { prepareEntityFilter } from '../../dialects/pull-utils';
 import type { DB } from '../../utils';
 import { isJsonMode } from '../context';
 import { CommandOutputCliError, UnsupportedSchemaChangeError } from '../errors';
@@ -29,14 +29,7 @@ import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CasingType } from '../validations/common';
 import type { MssqlCredentials } from '../validations/mssql';
-import {
-	explain as explainView,
-	explainJsonOutput,
-	humanLog,
-	mssqlSchemaError,
-	printJsonOutput,
-	ProgressView,
-} from '../views';
+import { explain as explainView, explainJsonOutput, humanLog, mssqlSchemaError, ProgressView } from '../views';
 
 export const handle = async (
 	filenames: string[],
@@ -100,34 +93,31 @@ export const handle = async (
 	);
 
 	if (hints.hasMissingHints()) {
-		hints.emitAndExit();
+		return hints.toResponse();
 	}
 
 	if (sqlStatements.length === 0) {
-		if (json) {
-			printJsonOutput({ status: 'no_changes', dialect: 'mssql' });
-		} else {
+		if (!json) {
 			render(`[${chalk.blue('i')}] No changes detected`);
 		}
-		return;
+		return { status: 'no_changes' as const, dialect: 'mssql' };
 	}
 
 	const suggestionHints = await suggestions(db, jsonStatements, ddl2, hints);
 
 	if (hints.hasMissingHints()) {
-		hints.emitAndExit();
+		return hints.toResponse();
 	}
 
 	if (explain) {
 		if (json) {
-			printJsonOutput(explainJsonOutput('mssql', jsonStatements, suggestionHints));
-		} else {
-			const explainMessage = explainView('mssql', groupedStatements, suggestionHints);
-			if (explainMessage) {
-				humanLog(explainMessage);
-			}
+			return explainJsonOutput('mssql', jsonStatements, suggestionHints);
 		}
-		return;
+		const explainMessage = explainView('mssql', groupedStatements, suggestionHints);
+		if (explainMessage) {
+			humanLog(explainMessage);
+		}
+		return { status: 'ok' as const, dialect: 'mssql' };
 	}
 
 	if (!force && !json && suggestionHints.length > 0) {
@@ -146,11 +136,10 @@ export const handle = async (
 		await db.query(statement);
 	}
 
-	if (json) {
-		printJsonOutput({ status: 'ok', dialect: 'mssql' });
-	} else {
+	if (!json) {
 		render(`[${chalk.green('\u2713')}] Changes applied`);
 	}
+	return { status: 'ok' as const, dialect: 'mssql' };
 };
 
 const identifier = (it: { schema?: string; table: string }) => {

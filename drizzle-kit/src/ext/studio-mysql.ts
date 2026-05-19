@@ -1,4 +1,4 @@
-import { fromDatabase as fd } from 'src/dialects/mysql/introspect';
+import { fromDatabase as fd } from '../dialects/mysql/introspect';
 import type {
 	CheckConstraint,
 	Column,

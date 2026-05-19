@@ -1,11 +1,12 @@
+import 'dotenv/config';
 import { type BroCliEvent, command, getCommandNameWithParents, run } from '@drizzle-team/brocli';
 import chalk from 'chalk';
 import { isJsonMode, runWithCliContext } from './context';
-import { DrizzleCliError } from './errors';
+import { DrizzleCliError, errorToEnvelope } from './errors';
 import { highlightSQL } from './highlighter';
 import { check, exportRaw, generate, migrate, pull, push, studio, up } from './schema';
 import { ormCoreVersions, QueryError } from './utils';
-import { error, humanLog, printJsonOutput } from './views';
+import { error, humanLog } from './views';
 
 const writeStderr = (message: string) => {
 	process.stderr.write(`${message}\n`);
@@ -126,31 +127,23 @@ const main = async () => {
 						if (isJsonMode()) {
 							if (event.violation === 'unknown_error' && event.error instanceof QueryError) {
 								writeStderr(formatQueryError(event.error));
-								printJsonOutput({
-									status: 'error',
-									error: {
-										code: 'query_error',
-										sql: event.error.sql,
-										params: event.error.params,
-									},
-								});
+								process.stdout.write(JSON.stringify(errorToEnvelope(event.error)) + '\n');
 								return true;
 							}
 
-							const err = event.violation === 'unknown_error' && event.error instanceof DrizzleCliError
-								? { code: event.error.code, ...event.error.meta }
-								: { code: event.violation, message: getBroCliErrorMessage(event) };
-
 							if (event.violation === 'unknown_error' && event.error instanceof DrizzleCliError) {
 								writeStderr(event.error.humanMessage);
-							} else {
-								writeStderr(getBroCliErrorMessage(event));
+								process.stdout.write(JSON.stringify(errorToEnvelope(event.error)) + '\n');
+								return true;
 							}
 
-							printJsonOutput({
-								status: 'error',
-								error: err,
-							});
+							writeStderr(getBroCliErrorMessage(event));
+							process.stdout.write(
+								JSON.stringify({
+									status: 'error',
+									error: { code: event.violation, message: getBroCliErrorMessage(event) },
+								}) + '\n',
+							);
 							return true;
 						}
 

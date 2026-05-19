@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
-import type { SchemaV1, SingleStoreSnapshot } from 'src/dialects/singlestore/snapshot';
-import { prepareOutFolder, validateWithReport } from 'src/utils/utils-node';
+import type { SchemaV1, SingleStoreSnapshot } from '../../dialects/singlestore/snapshot';
+import { prepareOutFolder, validateWithReport } from '../../utils/utils-node';
 import { createDDL } from '../../dialects/mysql/ddl';
 import { Binary, Varbinary } from '../../dialects/mysql/grammar';
 import { trimChar } from '../../utils';

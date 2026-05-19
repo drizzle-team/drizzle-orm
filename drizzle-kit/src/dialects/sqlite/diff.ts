@@ -1,4 +1,4 @@
-import { mockResolver } from 'src/utils/mocks';
+import { mockResolver } from '../../utils/mocks';
 import { prepareMigrationRenames } from '../../utils';
 import type { Resolver } from '../common';
 import { diff } from '../dialect';

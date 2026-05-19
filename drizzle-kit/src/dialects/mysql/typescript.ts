@@ -1,5 +1,5 @@
 import { toCamelCase } from 'drizzle-orm/casing';
-import type { Casing } from 'src/cli/validations/common';
+import type { Casing } from '../../cli/validations/common';
 import { assertUnreachable } from '../../utils';
 import { inspect } from '../utils';
 import type { CheckConstraint, Column, ForeignKey, Index, MysqlDDL, PrimaryKey, ViewColumn } from './ddl';

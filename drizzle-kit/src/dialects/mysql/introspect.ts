@@ -1,4 +1,4 @@
-import type { IntrospectStage, IntrospectStatus } from 'src/cli/views';
+import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import type { DB } from '../../utils';
 import type { EntityFilter } from '../pull-utils';
 import { batchQuery, filterMigrationsSchema } from '../utils';

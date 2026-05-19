@@ -89,11 +89,17 @@ async function buildCli() {
 	console.log('  Built bin.cjs');
 }
 
+// tsdown's `emitDtsOnly: true` still emits chunked .js files alongside the
+// declarations. If tsdown writes to ./dist it overwrites rolldown's clean
+// single-file bundles and produces a CJS entry that fails to load. Direct
+// tsdown's output at a temp dir and copy only .d.ts / .d.mts back into ./dist.
+const TSDOWN_TEMP_DIR = './dist/__dts-temp';
+
 async function buildDeclarations() {
 	// Use tsdown for declaration bundling - it handles path resolution and creates bundled .d.ts files
 	await tsdown({
 		entry: ['./src/index.ts'],
-		outDir: './dist',
+		outDir: TSDOWN_TEMP_DIR,
 		external: [...driversPackages, /^drizzle-orm\/?/],
 		dts: { emitDtsOnly: true },
 		format: ['cjs', 'es'],
@@ -109,7 +115,7 @@ async function buildDeclarations() {
 
 	await tsdown({
 		entry: ['./src/ext/api-postgres.ts', './src/ext/api-mysql.ts', './src/ext/api-sqlite.ts'],
-		outDir: './dist',
+		outDir: TSDOWN_TEMP_DIR,
 		external: ['esbuild', 'drizzle-orm', ...driversPackages, /^drizzle-orm\/?/],
 		dts: { emitDtsOnly: true },
 		format: ['cjs', 'es'],
@@ -124,6 +130,16 @@ async function buildDeclarations() {
 	});
 
 	console.log('  Built declarations');
+}
+
+async function copyDeclarationsAndCleanTemp() {
+	const entries = await fs.readdir(TSDOWN_TEMP_DIR);
+	await Promise.all(
+		entries
+			.filter((f) => f.endsWith('.d.ts') || f.endsWith('.d.mts'))
+			.map((f) => fs.copyFile(`${TSDOWN_TEMP_DIR}/${f}`, `dist/${f}`)),
+	);
+	rmSync(TSDOWN_TEMP_DIR, { recursive: true, force: true });
 }
 
 async function postProcessApiFiles() {
@@ -195,6 +211,7 @@ async function main() {
 		buildDeclarations(),
 	]);
 
+	await copyDeclarationsAndCleanTemp();
 	await Promise.all([
 		postProcessApiFiles(),
 		fs.copyFile('package.json', 'dist/package.json'),

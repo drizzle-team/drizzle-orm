@@ -1,6 +1,6 @@
 import type { Relations } from 'drizzle-orm/_relations';
 import type { AnyMySqlTable } from 'drizzle-orm/mysql-core';
-import type { MysqlCredentials } from 'src/cli/validations/mysql';
+import type { MysqlCredentials } from '../cli/validations/mysql';
 
 export const startStudioServer = async (
 	imports: Record<string, unknown>,

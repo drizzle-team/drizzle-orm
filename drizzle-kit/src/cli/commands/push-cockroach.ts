@@ -1,7 +1,5 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
-import { extractCrdbExisting } from 'src/dialects/drizzle';
-import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import type {
 	CheckConstraint,
 	CockroachEntities,
@@ -19,6 +17,8 @@ import { interimToDDL } from '../../dialects/cockroach/ddl';
 import { ddlDiff } from '../../dialects/cockroach/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/cockroach/drizzle';
 import type { JsonStatement } from '../../dialects/cockroach/statements';
+import { extractCrdbExisting } from '../../dialects/drizzle';
+import { prepareEntityFilter } from '../../dialects/pull-utils';
 import type { DB } from '../../utils';
 import { isJsonMode } from '../context';
 import { CommandOutputCliError } from '../errors';
@@ -35,7 +35,6 @@ import {
 	explainJsonOutput,
 	humanLog,
 	postgresSchemaWarning,
-	printJsonOutput,
 	ProgressView,
 } from '../views';
 
@@ -114,32 +113,29 @@ export const handle = async (
 	);
 
 	if (hints.hasMissingHints()) {
-		hints.emitAndExit();
+		return hints.toResponse();
 	}
 
 	if (sqlStatements.length === 0) {
-		if (json) {
-			printJsonOutput({ status: 'no_changes', dialect: 'cockroach' });
-		} else {
+		if (!json) {
 			render(`[${chalk.blue('i')}] No changes detected`);
 		}
-		return;
+		return { status: 'no_changes' as const, dialect: 'cockroach' };
 	}
 
 	const suggestionHints = await suggestions(db, jsonStatements, hints);
 	if (hints.hasMissingHints()) {
-		hints.emitAndExit();
+		return hints.toResponse();
 	}
 	if (explain) {
 		if (json) {
-			printJsonOutput(explainJsonOutput('cockroach', jsonStatements, suggestionHints));
-		} else {
-			const explainMessage = explainView('cockroach', groupedStatements, suggestionHints);
-			if (explainMessage) {
-				humanLog(explainMessage);
-			}
+			return explainJsonOutput('cockroach', jsonStatements, suggestionHints);
 		}
-		return;
+		const explainMessage = explainView('cockroach', groupedStatements, suggestionHints);
+		if (explainMessage) {
+			humanLog(explainMessage);
+		}
+		return { status: 'ok' as const, dialect: 'cockroach' };
 	}
 	if (!force && !json && suggestionHints.length > 0) {
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
@@ -157,11 +153,10 @@ export const handle = async (
 		await db.query(statement);
 	}
 
-	if (json) {
-		printJsonOutput({ status: 'ok', dialect: 'cockroach' });
-	} else {
+	if (!json) {
 		render(`[${chalk.green('\u2713')}] Changes applied`);
 	}
+	return { status: 'ok' as const, dialect: 'cockroach' };
 };
 
 const identifier = (it: { schema?: string; name: string }) => {

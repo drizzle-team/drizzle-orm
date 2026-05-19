@@ -289,11 +289,6 @@ export class HintsHandler {
 		return this.missingHints.length > 0;
 	}
 
-	emitAndExit(): never {
-		process.stdout.write(JSON.stringify(this.toResponse()) + '\n');
-		process.exit(2);
-	}
-
 	toResponse(): MissingHintsResponse {
 		return {
 			status: 'missing_hints',

@@ -4,17 +4,17 @@ import { stripAnsi } from 'hanji/utils';
 import type {
 	SchemaError as CockroachSchemaError,
 	SchemaWarning as CockroachSchemaWarning,
-} from 'src/dialects/cockroach/ddl';
-import type { SchemaError as MssqlSchemaError } from 'src/dialects/mssql/ddl';
-import type { SchemaError as MysqlSchemaError } from 'src/dialects/mysql/ddl';
+} from '../dialects/cockroach/ddl';
+import type { JsonStatement as StatementCockroach } from '../dialects/cockroach/statements';
+import type { SchemaError as MssqlSchemaError } from '../dialects/mssql/ddl';
+import type { JsonStatement as StatementMssql } from '../dialects/mssql/statements';
+import type { SchemaError as MysqlSchemaError } from '../dialects/mysql/ddl';
+import type { JsonStatement as StatementMysql } from '../dialects/mysql/statements';
 import type {
 	SchemaError as PostgresSchemaError,
 	SchemaWarning as PostgresSchemaWarning,
 	View,
-} from 'src/dialects/postgres/ddl';
-import type { JsonStatement as StatementCockroach } from '../dialects/cockroach/statements';
-import type { JsonStatement as StatementMssql } from '../dialects/mssql/statements';
-import type { JsonStatement as StatementMysql } from '../dialects/mysql/statements';
+} from '../dialects/postgres/ddl';
 import { vectorOps } from '../dialects/postgres/grammar';
 import type { JsonStatement as StatementPostgres } from '../dialects/postgres/statements';
 import type { SchemaError as SqliteSchemaError } from '../dialects/sqlite/ddl';
@@ -38,11 +38,6 @@ export const errText = (msg: string) => `${chalk.bold.red('Error')} ${msg}`;
 export const humanLog = (...args: Parameters<typeof console.log>) => {
 	if (isJsonMode()) return;
 	console.log(...args);
-};
-
-export const printJsonOutput = (value: unknown) => {
-	if (!isJsonMode()) return;
-	process.stdout.write(JSON.stringify(value) + '\n');
 };
 
 export const info = (msg: string, greyMsg: string = ''): string => {

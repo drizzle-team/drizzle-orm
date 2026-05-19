@@ -1,6 +1,6 @@
 import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
-import { assertUnreachable } from 'src/utils';
+import { assertUnreachable } from '../../utils';
 import type { Casing } from '../../cli/validations/common';
 import type {
 	CheckConstraint,

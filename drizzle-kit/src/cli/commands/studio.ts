@@ -29,7 +29,7 @@ import { Hono } from 'hono';
 import { compress } from 'hono/compress';
 import { cors } from 'hono/cors';
 import { createServer } from 'node:https';
-import type { LibSQLCredentials } from 'src/cli/validations/libsql';
+import type { LibSQLCredentials } from '../validations/libsql';
 import { z } from 'zod';
 import type { BenchmarkProxy, Proxy, TransactionProxy } from '../../utils';
 import { assertUnreachable } from '../../utils';
