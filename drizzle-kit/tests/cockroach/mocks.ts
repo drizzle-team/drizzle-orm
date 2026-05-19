@@ -30,9 +30,7 @@ import {
 } from 'src/dialects/cockroach/drizzle';
 import { mockResolver } from 'src/utils/mocks';
 import '../../src/@types/utils';
-import Docker from 'dockerode';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import getPort from 'get-port';
 import { Pool, PoolClient } from 'pg';
 import { introspect } from 'src/cli/commands/pull-cockroach';
 import { suggestions } from 'src/cli/commands/push-cockroach';
@@ -42,7 +40,6 @@ import { defaultToSQL, isSystemRole } from 'src/dialects/cockroach/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/cockroach/introspect';
 import { ddlToTypeScript } from 'src/dialects/cockroach/typescript';
 import { DB } from 'src/utils';
-import { v4 as uuidV4 } from 'uuid';
 import 'zx/globals';
 import { randomUUID } from 'crypto';
 import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/common';
@@ -489,36 +486,6 @@ export type TestDatabaseKit = {
 	close: () => Promise<void>;
 };
 
-export async function createDockerDB() {
-	const docker = new Docker();
-	const port = await getPort({ port: 26257 });
-	const image = 'cockroachdb/cockroach:v25.2.0';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	);
-
-	const container = await docker.createContainer({
-		Image: image,
-		Cmd: ['start-single-node', '--insecure'],
-		name: `drizzle-integration-tests-${uuidV4()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'26257/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await container.start();
-
-	return {
-		url: `postgresql://root@127.0.0.1:${port}/defaultdb?sslmode=disable`,
-		container,
-	};
-}
-
 const prepareClient = async (url: string, n: string, tx: boolean) => {
 	const name = `${n}${hash(String(Math.random()), 10)}`;
 
@@ -581,24 +548,21 @@ const prepareClient = async (url: string, n: string, tx: boolean) => {
 
 export const prepareTestDatabase = async (): Promise<TestDatabaseKit> => {
 	const envUrl = process.env.COCKROACH_CONNECTION_STRING;
+	if (!envUrl) {
+		throw new Error(
+			'COCKROACH_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up cockroach` and export the connection string before running tests.',
+		);
+	}
 
 	let url: string;
-	let container: Docker.Container | null = null;
-
-	if (envUrl) {
-		// Support multiple connection strings separated by ';'
-		const urls = envUrl.split(';').filter(Boolean);
-		if (urls.length > 1) {
-			// Use VITEST_POOL_ID to distribute workers across containers
-			const poolId = parseInt(process.env.VITEST_POOL_ID || '1', 10);
-			url = urls[poolId % urls.length]!;
-		} else {
-			url = urls[0]!;
-		}
+	// Support multiple connection strings separated by ';'
+	const urls = envUrl.split(';').filter(Boolean);
+	if (urls.length > 1) {
+		// Use VITEST_POOL_ID to distribute workers across containers
+		const poolId = parseInt(process.env.VITEST_POOL_ID || '1', 10);
+		url = urls[poolId % urls.length]!;
 	} else {
-		const dockerResult = await createDockerDB();
-		url = dockerResult.url;
-		container = dockerResult.container;
+		url = urls[0]!;
 	}
 
 	const clients = [
@@ -656,7 +620,6 @@ export const prepareTestDatabase = async (): Promise<TestDatabaseKit> => {
 			for (const c of clients) {
 				c.close();
 			}
-			await container?.stop();
 		},
 	};
 };

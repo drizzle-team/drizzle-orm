@@ -19,47 +19,11 @@ const column = (tableName: string, name: string, schema?: string): Entity => ({
 	schema,
 });
 
-class ExitCalled extends Error {
-	constructor(readonly code: string | number | null | undefined) {
-		super(`process.exit:${String(code)}`);
-	}
-}
-
-const captureMissingHintsEmission = (hints: HintsHandler) => {
-	const chunks: string[] = [];
-	const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation((chunk: string | Uint8Array) => {
-		chunks.push(String(chunk));
-		return true;
-	});
-	const exitSpy = vi.spyOn(process, 'exit').mockImplementation((code?: string | number | null) => {
-		throw new ExitCalled(code);
-	});
-
-	let exitCode: string | number | null | undefined;
-	try {
-		hints.emitAndExit();
-	} catch (error) {
-		if (!(error instanceof ExitCalled)) {
-			throw error;
-		}
-
-		exitCode = error.code;
-	} finally {
-		writeSpy.mockRestore();
-		exitSpy.mockRestore();
-	}
-
-	return {
-		output: chunks.join(''),
-		exitCode,
-	};
-};
-
 afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-test('HintsHandler.emitAndExit does not emit when missingHints is empty guard check', () => {
+test('new HintsHandler reports no missing hints', () => {
 	const hints = new HintsHandler();
 	expect(hints.hasMissingHints()).toBe(false);
 });
@@ -127,7 +91,7 @@ test('each HintsHandler instance owns its own missing hints state', async () => 
 	});
 });
 
-test('emitAndExit writes the missing_hints payload to stdout and exits with code 2', () => {
+test('toResponse renders the accumulated missing_hints payload', () => {
 	const hints = new HintsHandler();
 	hints.pushMissingHint({ type: 'rename_or_create', kind: 'table', entity: ['public', 'orders'] });
 	hints.pushMissingHint({
@@ -137,19 +101,7 @@ test('emitAndExit writes the missing_hints payload to stdout and exits with code
 		reason: 'non_empty',
 	});
 
-	const { output, exitCode } = captureMissingHintsEmission(hints);
-
-	expect(exitCode).toBe(2);
-	expect(output).toBe(
-		JSON.stringify({
-			status: 'missing_hints',
-			unresolved: [
-				{ type: 'rename_or_create', kind: 'table', entity: ['public', 'orders'] },
-				{ type: 'confirm_data_loss', kind: 'table', entity: ['public', 'customers'], reason: 'non_empty' },
-			],
-		}) + '\n',
-	);
-	expect(JSON.parse(output)).toStrictEqual({
+	expect(hints.toResponse()).toStrictEqual({
 		status: 'missing_hints',
 		unresolved: [
 			{ type: 'rename_or_create', kind: 'table', entity: ['public', 'orders'] },
@@ -158,12 +110,12 @@ test('emitAndExit writes the missing_hints payload to stdout and exits with code
 	});
 });
 
-test('emitAndExit is idempotent for the same HintsHandler state', () => {
+test('toResponse is stable across repeated calls on the same HintsHandler', () => {
 	const hints = new HintsHandler();
 	hints.pushMissingHint({ type: 'rename_or_create', kind: 'column', entity: ['public', 'users', 'legacy_flag'] });
 
-	const first = captureMissingHintsEmission(hints);
-	const second = captureMissingHintsEmission(hints);
+	const first = hints.toResponse();
+	const second = hints.toResponse();
 
 	expect(second).toStrictEqual(first);
 });

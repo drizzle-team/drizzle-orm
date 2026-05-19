@@ -1,8 +1,4 @@
 import chalk from 'chalk';
-import { ddlDiff, ddlDiffDry } from 'src/dialects/mssql/diff';
-import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mssql/drizzle';
-import { prepareSnapshot } from 'src/dialects/mssql/serializer';
-import { prepareOutFolder } from 'src/utils/utils-node';
 import { createDDL, type DefaultConstraint, interimToDDL } from '../../dialects/mssql/ddl';
 import type {
 	CheckConstraint,
@@ -15,11 +11,16 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../../dialects/mssql/ddl';
+import { ddlDiff, ddlDiffDry } from '../../dialects/mssql/diff';
+import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/mssql/drizzle';
+import { prepareSnapshot } from '../../dialects/mssql/serializer';
 import type { JsonStatement } from '../../dialects/mssql/statements';
+import { prepareOutFolder } from '../../utils/utils-node';
 import { isJsonMode } from '../context';
+import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import { withStyle } from '../validations/outputs';
-import { explain, explainJsonOutput, humanLog, mssqlSchemaError, printJsonOutput } from '../views';
+import { explain, explainJsonOutput, humanLog, mssqlSchemaError } from '../views';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
@@ -30,7 +31,7 @@ export const handle = async (config: GenerateConfig) => {
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, filenames, casing);
 
 	if (config.custom) {
-		writeResult({
+		return writeResult({
 			snapshot: custom,
 			sqlStatements: [],
 			outFolder,
@@ -41,7 +42,6 @@ export const handle = async (config: GenerateConfig) => {
 			renames: [],
 			snapshots,
 		});
-		return;
 	}
 
 	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
@@ -61,7 +61,7 @@ export const handle = async (config: GenerateConfig) => {
 	);
 
 	if (json && config.hints.hasMissingHints()) {
-		config.hints.emitAndExit();
+		return config.hints.toResponse();
 	}
 
 	const recreateIdentity = statements.find((it): it is Extract<JsonStatement, { type: 'recreate_identity_column' }> =>
@@ -85,7 +85,7 @@ export const handle = async (config: GenerateConfig) => {
 	}
 
 	if (!config.explain) {
-		writeResult({
+		return writeResult({
 			snapshot: snapshot,
 			sqlStatements,
 			outFolder,
@@ -95,22 +95,21 @@ export const handle = async (config: GenerateConfig) => {
 			renames,
 			snapshots,
 		});
-		return;
 	}
 
 	if (json) {
 		if (sqlStatements.length === 0) {
-			printJsonOutput({ status: 'no_changes', dialect: 'mssql' });
-			return;
+			return { status: 'no_changes' as const, dialect: 'mssql' };
 		}
-		printJsonOutput(explainJsonOutput('mssql', statements, []));
-		return;
+		return explainJsonOutput('mssql', statements, []);
 	}
 
 	const explainMessage = explain('mssql', groupedStatements, []);
 	if (explainMessage) {
 		humanLog(explainMessage);
 	}
+
+	return { status: 'ok' as const, dialect: 'mssql' };
 };
 
 export const handleExport = async (config: ExportConfig) => {
@@ -121,14 +120,18 @@ export const handleExport = async (config: ExportConfig) => {
 	const { schema, errors } = fromDrizzleSchema(res, config.casing, () => true);
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
-		process.exit(1);
+		throw new CommandOutputCliError('generate', errors.map((it) => mssqlSchemaError(it)).join('\n'), {
+			stage: 'schema',
+			dialect: 'mssql',
+		});
 	}
 
 	const { ddl, errors: errors2 } = interimToDDL(schema);
 	if (errors2.length > 0) {
-		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
-		process.exit(1);
+		throw new CommandOutputCliError('generate', errors.map((it) => mssqlSchemaError(it)).join('\n'), {
+			stage: 'ddl',
+			dialect: 'mssql',
+		});
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');

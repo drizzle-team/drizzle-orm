@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
-import { prepareOutFolder, validateWithReport } from 'src/utils/utils-node';
+import { prepareOutFolder, validateWithReport } from '../../utils/utils-node';
 import { createDDL } from '../../dialects/mysql/ddl';
 import { Binary, Varbinary } from '../../dialects/mysql/grammar';
 import type { MysqlSchemaV6, MysqlSnapshot } from '../../dialects/mysql/snapshot';

@@ -1,11 +1,8 @@
 import 'dotenv/config';
-import Docker from 'dockerode';
 import { DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
 import { alias } from 'drizzle-orm/singlestore-core';
-import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
-import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 import relations from './singlestore.relations';
 import {
@@ -29,48 +26,21 @@ const ENABLE_LOGGING = false;
 
 declare module 'vitest' {
 	export interface TestContext {
-		docker: Docker;
-		singlestoreContainer: Docker.Container;
 		singlestoreDbV2: SingleStoreDriverDatabase<never, typeof relations>;
 		singlestoreClient: mysql.Connection;
 	}
 }
 
-let globalDocker: Docker;
-let singlestoreContainer: Docker.Container;
 let db: SingleStoreDriverDatabase<never, typeof relations>;
 let client: mysql.Connection;
 
-export async function createDockerDB() {
-	globalDocker = new Docker();
-	const port = await getPort({ port: 3306 });
-	const image = 'ghcr.io/singlestore-labs/singlestoredb-dev:0.2.67';
-
-	const pullStream = await globalDocker.pull(image);
-	await new Promise((resolve, reject) =>
-		globalDocker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	);
-
-	singlestoreContainer = await globalDocker.createContainer({
-		Image: image,
-		Env: ['ROOT_PASSWORD=singlestore'],
-		name: `drizzle-integration-tests-${uuid()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'3306/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await singlestoreContainer.start();
-	await new Promise((resolve) => setTimeout(resolve, 4000));
-
-	return `singlestore://root:singlestore@localhost:${port}`;
-}
-
 beforeAll(async () => {
-	const connectionString = process.env['SINGLESTORE_CONNECTION_STRING'] ?? await createDockerDB();
+	const connectionString = process.env['SINGLESTORE_CONNECTION_STRING'];
+	if (!connectionString) {
+		throw new Error(
+			'SINGLESTORE_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up singlestore` and export the connection string before running tests.',
+		);
+	}
 
 	const sleep = 1000;
 	let timeLeft = 30000;
@@ -95,7 +65,6 @@ beforeAll(async () => {
 	if (!connected) {
 		console.error('Cannot connect to MySQL');
 		await client?.end().catch(console.error);
-		await singlestoreContainer?.stop().catch(console.error);
 		throw lastError;
 	}
 	await client.query(`CREATE DATABASE IF NOT EXISTS drizzle_rqb;`);
@@ -105,14 +74,11 @@ beforeAll(async () => {
 
 afterAll(async () => {
 	await client?.end().catch(console.error);
-	await singlestoreContainer?.stop().catch(console.error);
 });
 
 beforeEach(async (ctx) => {
 	ctx.singlestoreDbV2 = db;
 	ctx.singlestoreClient = client;
-	ctx.docker = globalDocker;
-	ctx.singlestoreContainer = singlestoreContainer;
 
 	await ctx.singlestoreDbV2.execute(sql`drop table if exists \`users\``);
 	await ctx.singlestoreDbV2.execute(sql`drop table if exists \`rqb_test_schema\`.\`users\``);

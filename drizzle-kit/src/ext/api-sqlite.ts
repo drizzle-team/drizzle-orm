@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 import type { Relations } from 'drizzle-orm/_relations';
 import type { AnySQLiteTable } from 'drizzle-orm/sqlite-core';
-import type { SqliteCredentials } from 'src/cli/validations/sqlite';
+import type { SqliteCredentials } from '../cli/validations/sqlite';
 
 export const startStudioServer = async (
 	imports: Record<string, unknown>,

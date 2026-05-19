@@ -1,7 +1,6 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
-import { extractPostgresExisting } from 'src/dialects/drizzle';
-import { prepareEntityFilter } from 'src/dialects/pull-utils';
+import { extractPostgresExisting } from '../../dialects/drizzle';
 import type {
 	CheckConstraint,
 	Column,
@@ -22,6 +21,7 @@ import { interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff } from '../../dialects/postgres/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import type { JsonStatement } from '../../dialects/postgres/statements';
+import { prepareEntityFilter } from '../../dialects/pull-utils';
 import type { DB } from '../../utils';
 import { isJsonMode } from '../context';
 import { CommandOutputCliError } from '../errors';
@@ -38,7 +38,6 @@ import {
 	humanLog,
 	postgresSchemaError,
 	postgresSchemaWarning,
-	printJsonOutput,
 	ProgressView,
 } from '../views';
 
@@ -121,35 +120,31 @@ export const handle = async (
 	);
 
 	if (hints.hasMissingHints()) {
-		hints.emitAndExit();
+		return hints.toResponse();
 	}
 
 	if (sqlStatements.length === 0) {
-		if (json) {
-			printJsonOutput({ status: 'no_changes', dialect: 'postgresql' });
-		} else {
+		if (!json) {
 			render(`[${chalk.blue('i')}] No changes detected`);
 		}
-		return;
+		return { status: 'no_changes' as const, dialect: 'postgresql' };
 	}
 
 	const dataLossHints = await suggestions(db, jsonStatements, hints);
 
 	if (hints.hasMissingHints()) {
-		hints.emitAndExit();
+		return hints.toResponse();
 	}
 
 	if (explain) {
 		if (json) {
-			const explainOutput = explainJsonOutput('postgresql', jsonStatements, dataLossHints);
-			printJsonOutput(explainOutput);
-		} else {
-			const explainMessage = explainView('postgres', groupedStatements, dataLossHints);
-			if (explainMessage) {
-				humanLog(explainMessage);
-			}
+			return explainJsonOutput('postgresql', jsonStatements, dataLossHints);
 		}
-		return;
+		const explainMessage = explainView('postgres', groupedStatements, dataLossHints);
+		if (explainMessage) {
+			humanLog(explainMessage);
+		}
+		return { status: 'ok' as const, dialect: 'postgresql' };
 	}
 
 	if (!force && !json && dataLossHints.length > 0) {
@@ -169,11 +164,10 @@ export const handle = async (
 		await db.query(statement);
 	}
 
-	if (json) {
-		printJsonOutput({ status: 'ok', dialect: 'postgresql' });
-	} else {
+	if (!json) {
 		render(`[${chalk.green('\u2713')}] Changes applied`);
 	}
+	return { status: 'ok' as const, dialect: 'postgresql' };
 };
 
 const identifier = (it: { schema?: string; name: string }) => {

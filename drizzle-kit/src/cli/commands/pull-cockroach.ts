@@ -3,9 +3,9 @@ import { writeFileSync } from 'fs';
 import type { TaskView } from 'hanji';
 import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
-import { toJsonSnapshot } from 'src/dialects/cockroach/snapshot';
-import type { EntityFilter } from 'src/dialects/pull-utils';
-import { prepareEntityFilter } from 'src/dialects/pull-utils';
+import { toJsonSnapshot } from '../../dialects/cockroach/snapshot';
+import type { EntityFilter } from '../../dialects/pull-utils';
+import { prepareEntityFilter } from '../../dialects/pull-utils';
 import type {
 	CheckConstraint,
 	CockroachEntities,

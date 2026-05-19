@@ -2,31 +2,40 @@ import chalk from 'chalk';
 import fs from 'fs';
 import { render } from 'hanji';
 import path, { join } from 'path';
-import type { CockroachSnapshot } from 'src/dialects/cockroach/snapshot';
-import type { MssqlSnapshot } from 'src/dialects/mssql/snapshot';
-import type { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
-import type { SingleStoreSnapshot } from 'src/dialects/singlestore/snapshot';
+import type { CockroachSnapshot } from '../../dialects/cockroach/snapshot';
+import type { MssqlSnapshot } from '../../dialects/mssql/snapshot';
 import type { MysqlSnapshot } from '../../dialects/mysql/snapshot';
+import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
+import type { SingleStoreSnapshot } from '../../dialects/singlestore/snapshot';
 import type { SqliteSnapshot } from '../../dialects/sqlite/snapshot';
 import { BREAKPOINT } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
 import { isJsonMode } from '../context';
 import type { Driver } from '../validations/common';
-import { humanLog, printJsonOutput } from '../views';
+import { humanLog } from '../views';
 
-export const writeResult = (config: {
+type WriteResultConfigBase = {
 	snapshot: SqliteSnapshot | PostgresSnapshot | MysqlSnapshot | MssqlSnapshot | CockroachSnapshot | SingleStoreSnapshot;
 	sqlStatements: string[];
 	outFolder: string;
 	breakpoints: boolean;
 	name?: string;
 	bundle?: boolean;
-	type?: 'introspect' | 'custom' | 'none';
 	dialect?: string;
 	driver?: Driver;
 	renames: string[];
 	snapshots: string[];
-}) => {
+};
+
+export function writeResult(config: WriteResultConfigBase & { type: 'introspect' }): void;
+export function writeResult(
+	config: WriteResultConfigBase & { type?: 'custom' | 'none' },
+):
+	| { status: 'no_changes'; dialect: string | undefined }
+	| { status: 'ok'; dialect: string | undefined; migration_path: string };
+export function writeResult(
+	config: WriteResultConfigBase & { type?: 'introspect' | 'custom' | 'none' },
+) {
 	const {
 		snapshot,
 		sqlStatements,
@@ -44,9 +53,8 @@ export const writeResult = (config: {
 
 	if (type === 'none') {
 		if (sqlStatements.length === 0) {
-			printJsonOutput({ status: 'no_changes', dialect });
 			humanLog('No schema changes, nothing to migrate 😴');
-			return;
+			return { status: 'no_changes' as const, dialect };
 		}
 	}
 
@@ -83,14 +91,6 @@ export const writeResult = (config: {
 		fs.writeFileSync(`${outFolder}/migrations.js`, js);
 	}
 
-	if (type !== 'introspect') {
-		printJsonOutput({
-			status: 'ok',
-			dialect,
-			migration_path: migrationPath,
-		});
-	}
-
 	if (!json) {
 		render(
 			`[${
@@ -104,7 +104,11 @@ export const writeResult = (config: {
 			} 🚀`,
 		);
 	}
-};
+
+	if (type === 'introspect') return;
+
+	return { status: 'ok' as const, dialect, migration_path: migrationPath };
+}
 
 export const embeddedMigrations = (snapshots: string[], driver?: Driver) => {
 	let content = driver === 'expo'

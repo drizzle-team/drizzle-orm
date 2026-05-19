@@ -2,9 +2,9 @@ import chalk from 'chalk';
 import type { UpdateDeleteAction } from 'drizzle-orm/sqlite-core';
 import { existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { transformOnUpdateDelete } from 'src/dialects/sqlite/grammar';
-import { nameForPk } from 'src/dialects/sqlite/grammar';
-import { prepareOutFolder, validateWithReport } from 'src/utils/utils-node';
+import { transformOnUpdateDelete } from '../../dialects/sqlite/grammar';
+import { nameForPk } from '../../dialects/sqlite/grammar';
+import { prepareOutFolder, validateWithReport } from '../../utils/utils-node';
 import { createDDL } from '../../dialects/sqlite/ddl';
 import {
 	sqliteSchemaV5,

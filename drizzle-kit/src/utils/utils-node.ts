@@ -3,11 +3,14 @@ import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync } from 'fs'
 import { getTsconfig } from 'get-tsconfig';
 import { sync as globSync } from 'glob';
 import { dirname, join, resolve } from 'path';
-import { snapshotValidator as mysqlSnapshotValidator } from 'src/dialects/mysql/snapshot';
-import { snapshotValidator as singlestoreSnapshotValidator } from 'src/dialects/singlestore/snapshot';
+import { snapshotValidator as mysqlSnapshotValidator } from '../dialects/mysql/snapshot';
+import { snapshotValidator as singlestoreSnapshotValidator } from '../dialects/singlestore/snapshot';
 import { parse, pathToFileURL } from 'url';
-import { SchemaFilesNotFoundCliError, UnsupportedSnapshotVersionCliError } from '../cli/errors';
-import { humanLog } from '../cli/views';
+import {
+	MigrationsOutdatedCliError,
+	SchemaFilesNotFoundCliError,
+	UnsupportedSnapshotVersionCliError,
+} from '../cli/errors';
 import { snapshotValidator as cockroachValidator } from '../dialects/cockroach/snapshot';
 import { snapshotValidator as mssqlValidatorSnapshot } from '../dialects/mssql/snapshot';
 import { snapshotValidator as pgSnapshotValidator } from '../dialects/postgres/snapshot';
@@ -85,14 +88,7 @@ export const assertV1OutFolder = (out: string) => {
 	);
 
 	if (oldMigrationFolders.length > 0) {
-		humanLog(
-			`Your migrations folder format is outdated, please run ${
-				chalk.green.bold(
-					`drizzle-kit up`,
-				)
-			}`,
-		);
-		process.exit(1);
+		throw new MigrationsOutdatedCliError(out);
 	}
 };
 
@@ -100,14 +96,7 @@ export const assertV3OutFolder = (out: string) => {
 	if (!existsSync(out)) return;
 
 	if (existsSync(join(out, 'meta/_journal.json'))) {
-		humanLog(
-			`Your migrations folder format is outdated, please run ${
-				chalk.green.bold(
-					`drizzle-kit up`,
-				)
-			}`,
-		);
-		process.exit(1);
+		throw new MigrationsOutdatedCliError(out);
 	}
 };
 

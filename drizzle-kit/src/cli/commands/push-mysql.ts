@@ -1,11 +1,11 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
-import { extractMysqlExisting } from 'src/dialects/drizzle';
-import { prepareEntityFilter } from 'src/dialects/pull-utils';
+import { extractMysqlExisting } from '../../dialects/drizzle';
 import type { Column, MysqlDDL, Table, View } from '../../dialects/mysql/ddl';
 import { interimToDDL } from '../../dialects/mysql/ddl';
 import { ddlDiff } from '../../dialects/mysql/diff';
 import type { JsonStatement } from '../../dialects/mysql/statements';
+import { prepareEntityFilter } from '../../dialects/pull-utils';
 import type { DB } from '../../utils';
 import { connectToMySQL } from '../connections';
 import { isJsonMode } from '../context';
@@ -16,14 +16,7 @@ import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
-import {
-	explain as explainView,
-	explainJsonOutput,
-	humanLog,
-	mysqlSchemaError,
-	printJsonOutput,
-	ProgressView,
-} from '../views';
+import { explain as explainView, explainJsonOutput, humanLog, mysqlSchemaError, ProgressView } from '../views';
 import { introspect } from './pull-mysql';
 
 export const handle = async (
@@ -78,34 +71,31 @@ export const handle = async (
 	);
 
 	if (hints.hasMissingHints()) {
-		hints.emitAndExit();
+		return hints.toResponse();
 	}
 
 	if (sqlStatements.length === 0) {
-		if (json) {
-			printJsonOutput({ status: 'no_changes', dialect: 'mysql' });
-		} else {
+		if (!json) {
 			render(`[${chalk.blue('i')}] No changes detected`);
 		}
-		return;
+		return { status: 'no_changes' as const, dialect: 'mysql' };
 	}
 
 	const suggestionHints = await suggestions(db, statements, ddl2, hints);
 
 	if (hints.hasMissingHints()) {
-		hints.emitAndExit();
+		return hints.toResponse();
 	}
 
 	if (explain) {
 		if (json) {
-			printJsonOutput(explainJsonOutput('mysql', statements, suggestionHints));
-		} else {
-			const explainMessage = explainView('mysql', groupedStatements, suggestionHints);
-			if (explainMessage) {
-				humanLog(explainMessage);
-			}
+			return explainJsonOutput('mysql', statements, suggestionHints);
 		}
-		return;
+		const explainMessage = explainView('mysql', groupedStatements, suggestionHints);
+		if (explainMessage) {
+			humanLog(explainMessage);
+		}
+		return { status: 'ok' as const, dialect: 'mysql' };
 	}
 
 	if (!force && !json && suggestionHints.length > 0) {
@@ -125,11 +115,10 @@ export const handle = async (
 		await db.query(statement);
 	}
 
-	if (json) {
-		printJsonOutput({ status: 'ok', dialect: 'mysql' });
-	} else {
+	if (!json) {
 		render(`[${chalk.green('\u2713')}] Changes applied`);
 	}
+	return { status: 'ok' as const, dialect: 'mysql' };
 };
 
 const identifier = ({ table, column }: { table?: string; column?: string }) => {

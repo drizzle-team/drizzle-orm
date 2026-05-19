@@ -1,7 +1,7 @@
 import { Minimatch } from 'minimatch';
-import type { EntitiesFilter, ExtensionsFilter, SchemasFilter, TablesFilter } from 'src/cli/validations/common';
-import { assertUnreachable } from 'src/utils';
-import type { Dialect } from 'src/utils/schemaValidator';
+import type { EntitiesFilter, ExtensionsFilter, SchemasFilter, TablesFilter } from '../cli/validations/cli';
+import { assertUnreachable } from '../utils';
+import type { Dialect } from '../utils/schemaValidator';
 
 export type Schema = { type: 'schema'; name: string };
 export type Table = { type: 'table'; schema: string | false; name: string };

@@ -1,4 +1,4 @@
-import { parse } from 'src/utils/when-json-met-bigint';
+import { parse } from '../../utils/when-json-met-bigint';
 import { prepareMigrationRenames, trimChar } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import { deepStrictEqual } from '../../utils/node-assert/deep-strict-equal';

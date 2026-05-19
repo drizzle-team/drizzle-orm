@@ -9,6 +9,8 @@ Check the full documentation on [the website](https://orm.drizzle.team/kit-docs/
 
 For machine-readable CLI behavior in non-interactive workflows, see [JSON mode and hints contract](./JSON_CONTRACT.md).
 
+For programmatic / agent consumption, see the [SDK documentation](./SDK.md) — the same JSON contract is available as typed root-level exports (`import { generate, push } from 'drizzle-kit'`).
+
 
 ### How it works
 

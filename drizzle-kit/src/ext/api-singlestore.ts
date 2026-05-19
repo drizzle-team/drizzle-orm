@@ -1,6 +1,6 @@
 import type { Relations } from 'drizzle-orm/_relations';
 import type { AnySingleStoreTable } from 'drizzle-orm/singlestore-core';
-import type { SingleStoreCredentials } from 'src/cli/validations/singlestore';
+import type { SingleStoreCredentials } from '../cli/validations/singlestore';
 
 export const startStudioServer = async (
 	imports: Record<string, unknown>,

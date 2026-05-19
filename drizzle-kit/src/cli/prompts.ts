@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
-import type { Resolver } from 'src/dialects/common';
+import type { Resolver } from '../dialects/common';
 import { isJsonMode } from './context';
 import { InvalidHintsCliError } from './errors';
 import { tuplesEqual } from './hints';

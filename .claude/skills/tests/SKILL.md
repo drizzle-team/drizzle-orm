@@ -7,6 +7,18 @@ description: Anything test-related in the drizzle-orm monorepo — running, writ
 
 This monorepo's tests fall into two buckets: **unit-style** (no DB, run anywhere) and **DB-backed** (need a real Postgres / MySQL / MariaDB / CockroachDB / MSSQL / SingleStore on a specific port). The DB-backed ones read connection-string env vars from `drizzle-kit/.env`, which itself maps to ports owned by `compose/*.yml`. If any of those three layers is missing — env file, DB container, port match — the test fails with a confusing error (most often `connect ECONNREFUSED` or `process.env.X is not set`). This skill is the fast path through the setup so the user doesn't waste time debugging environment instead of code.
 
+## ⛔ Hard rule — never spawn Docker from test code, test runs, or agent narration
+
+**This rule has four halves. Violating any one of them reads to the user as "tests spawned Docker again".**
+
+**1. Test code must not spawn containers.** Never `import Docker`/`dockerode`/`testcontainers`/`GenericContainer` and never `execSync('docker ...')` in a new test file. The legacy `drizzle-kit/tests/<dialect>/mocks.ts::createDockerDB()` and `integration-tests/tests/{pg,mysql,cockroach,mssql,bun,seeder}/*.test.ts::createDockerDB()` paths exist for historical reasons — DO NOT add new ones, and DO NOT call existing ones from new tests. Wrap new DB-backed tests in `describe.skipIf(!process.env.X)` so a missing env var skips silently.
+
+**2. Latent trigger: legacy `?? createDockerDB()` fallbacks are still wired up.** Many `integration-tests/tests/{pg,mysql,cockroach,mssql,bun,seeder}/*.test.ts` files contain `process.env.X ?? await createDockerDB()`. Running `pnpm --filter integration-tests test:*` without the matching env var will silently spin up a container via `dockerode` — even if you've already brought DBs up via `compose/dockers.sh`. The same fallthrough exists in `drizzle-kit/tests/<dialect>/mocks.ts::prepareTestDatabase()`. **Setting env vars is not optional — it is what prevents Docker spawn.** Always export the connection string before invoking these scripts, even when "just running the suite to see what passes". If you discover a new test using this pattern, flag it as tech debt — do not extend it.
+
+**3. Agent narration must not tempt operators into `docker run`.** When you (or a spawned subagent) summarize how to run a new DB-backed test, **always** reference `bash compose/dockers.sh up <dialect>` plus the connection-string env var. Never write "this test starts a postgres container" or suggest `docker run` in a final message — the user pattern-matches that as "tests spawned Docker again", even when the underlying code is well-behaved.
+
+**4. Spawned subagents do not inherit this skill.** When delegating any test-writing or test-running work via the Agent tool, paste rules 1–3 verbatim into the subagent prompt. Subagents only see the prompt you give them, not the project's `.claude/skills/` directory. If a subagent's diff adds `import Docker` or its summary tells the operator to `docker run`, that's the failure mode this rule prevents.
+
 ## Workflow (always run in this order)
 
 ### 1. Ensure `drizzle-kit/.env` exists

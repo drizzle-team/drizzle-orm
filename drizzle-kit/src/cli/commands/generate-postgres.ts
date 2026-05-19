@@ -1,5 +1,3 @@
-import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/postgres/drizzle';
-import { prepareOutFolder } from 'src/utils/utils-node';
 import type {
 	CheckConstraint,
 	Column,
@@ -18,17 +16,13 @@ import type {
 } from '../../dialects/postgres/ddl';
 import { createDDL, interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
+import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import { prepareSnapshot } from '../../dialects/postgres/serializer';
+import { prepareOutFolder } from '../../utils/utils-node';
 import { isJsonMode } from '../context';
+import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
-import {
-	explain,
-	explainJsonOutput,
-	humanLog,
-	postgresSchemaError,
-	postgresSchemaWarning,
-	printJsonOutput,
-} from '../views';
+import { explain, explainJsonOutput, humanLog, postgresSchemaError, postgresSchemaWarning } from '../views';
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
@@ -49,7 +43,7 @@ export const handle = async (
 	);
 
 	if (config.custom) {
-		writeResult({
+		return writeResult({
 			snapshot: custom,
 			sqlStatements: [],
 			outFolder,
@@ -60,7 +54,6 @@ export const handle = async (
 			renames: [],
 			snapshots,
 		});
-		return;
 	}
 
 	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
@@ -84,11 +77,11 @@ export const handle = async (
 	);
 
 	if (json && config.hints.hasMissingHints()) {
-		config.hints.emitAndExit();
+		return config.hints.toResponse();
 	}
 
 	if (!config.explain) {
-		writeResult({
+		return writeResult({
 			snapshot: snapshot,
 			sqlStatements,
 			outFolder,
@@ -98,23 +91,21 @@ export const handle = async (
 			renames,
 			snapshots,
 		});
-		return;
 	}
 
 	if (json) {
 		if (sqlStatements.length === 0) {
-			printJsonOutput({ status: 'no_changes', dialect: 'postgresql' });
-			return;
+			return { status: 'no_changes' as const, dialect: 'postgresql' };
 		}
-		const explainOutput = explainJsonOutput('postgresql', statements, []);
-		printJsonOutput(explainOutput);
-		return;
+		return explainJsonOutput('postgresql', statements, []);
 	}
 
 	const explainMessage = explain('postgres', groupedStatements, []);
 	if (explainMessage) {
 		humanLog(explainMessage);
 	}
+
+	return { status: 'ok' as const, dialect: 'postgresql' };
 };
 
 export const handleExport = async (config: ExportConfig) => {
@@ -130,15 +121,19 @@ export const handleExport = async (config: ExportConfig) => {
 	}
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => postgresSchemaError(it)).join('\n'));
-		process.exit(1);
+		throw new CommandOutputCliError('generate', errors.map((it) => postgresSchemaError(it)).join('\n'), {
+			stage: 'schema',
+			dialect: 'postgresql',
+		});
 	}
 
 	const { ddl, errors: errors2 } = interimToDDL(schema);
 
 	if (errors2.length > 0) {
-		console.log(errors2.map((it) => postgresSchemaError(it)).join('\n'));
-		process.exit(1);
+		throw new CommandOutputCliError('generate', errors2.map((it) => postgresSchemaError(it)).join('\n'), {
+			stage: 'ddl',
+			dialect: 'postgresql',
+		});
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');

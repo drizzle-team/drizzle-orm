@@ -1,14 +1,14 @@
-import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mysql/drizzle';
-import { prepareSnapshot } from 'src/dialects/mysql/serializer';
-import type { JsonStatement } from 'src/dialects/mysql/statements';
-import { prepareOutFolder } from 'src/utils/utils-node';
 import { type Column, createDDL, interimToDDL, type MysqlDDL, type Table, type View } from '../../dialects/mysql/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/mysql/diff';
+import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/mysql/drizzle';
+import { prepareSnapshot } from '../../dialects/mysql/serializer';
+import type { JsonStatement } from '../../dialects/mysql/statements';
+import { prepareOutFolder } from '../../utils/utils-node';
 import { isJsonMode } from '../context';
 import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import { withStyle } from '../validations/outputs';
-import { explain, explainJsonOutput, humanLog, mysqlSchemaError, printJsonOutput } from '../views';
+import { explain, explainJsonOutput, humanLog, mysqlSchemaError } from '../views';
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
@@ -116,7 +116,7 @@ export const handle = async (
 	);
 
 	if (config.custom) {
-		writeResult({
+		return writeResult({
 			snapshot: custom,
 			sqlStatements: [],
 			outFolder,
@@ -127,7 +127,6 @@ export const handle = async (
 			renames: [],
 			snapshots,
 		});
-		return;
 	}
 
 	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
@@ -140,7 +139,7 @@ export const handle = async (
 	);
 
 	if (json && config.hints.hasMissingHints()) {
-		config.hints.emitAndExit();
+		return config.hints.toResponse();
 	}
 
 	const { errors } = suggestions(statements, ddlCur);
@@ -154,21 +153,18 @@ export const handle = async (
 	if (config.explain) {
 		if (json) {
 			if (sqlStatements.length === 0) {
-				printJsonOutput({ status: 'no_changes', dialect: 'mysql' });
-				return;
+				return { status: 'no_changes' as const, dialect: 'mysql' };
 			}
-			const explainOutput = explainJsonOutput('mysql', statements, []);
-			printJsonOutput(explainOutput);
-		} else {
-			const explainMessage = explain('mysql', groupedStatements, []);
-			if (explainMessage) {
-				humanLog(explainMessage);
-			}
+			return explainJsonOutput('mysql', statements, []);
 		}
-		return;
+		const explainMessage = explain('mysql', groupedStatements, []);
+		if (explainMessage) {
+			humanLog(explainMessage);
+		}
+		return { status: 'ok' as const, dialect: 'mysql' };
 	}
 
-	writeResult({
+	return writeResult({
 		snapshot,
 		sqlStatements,
 		outFolder,
@@ -186,8 +182,10 @@ export const handleExport = async (config: ExportConfig) => {
 	const { ddl, errors } = interimToDDL(schema);
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => mysqlSchemaError(it)).join('\n'));
-		process.exit(1);
+		throw new CommandOutputCliError('generate', errors.map((it) => mysqlSchemaError(it)).join('\n'), {
+			stage: 'ddl',
+			dialect: 'mysql',
+		});
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');

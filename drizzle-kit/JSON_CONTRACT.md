@@ -13,6 +13,41 @@ It is written for tools and services that call Drizzle Kit programmatically.
 
 When `--json` is enabled, callers should treat `stdout` as the JSON channel. Each command invocation writes a single JSON object to `stdout`.
 
+## Programmatic API
+
+The same JSON contract documented in this file is available as typed root-level exports of the `drizzle-kit` package for programmatic callers — agents, build tools, custom orchestrators. The CLI and SDK share one implementation; the response shapes, status discriminator, hint vocabulary, and error codes documented below apply identically to SDK return values.
+
+```typescript
+import { generate, push } from 'drizzle-kit';
+import type { GenerateJsonResponse } from 'drizzle-kit';
+
+const response: GenerateJsonResponse = await generate({
+  dialect: 'postgresql',
+  schema: './src/db/schema.ts',
+  out: './drizzle',
+});
+
+if (response.status === 'missing_hints') {
+  // Resolve unresolved items and re-invoke with `hints`. See SDK.md for the full pattern.
+}
+```
+
+What the SDK gives you over the CLI:
+
+- Typed inputs (`GenerateOptions`, `PushOptions`) — your editor narrows option names and types
+- Typed responses (`GenerateJsonResponse`, `PushJsonResponse`) — the union discriminator on `status` lets TypeScript narrow into the `ok`, `no_changes`, `missing_hints`, and `error` branches
+- No `--json` flag handling, no stdout parsing — the response object is what the JSON mode would have printed
+
+Cross-reference map:
+
+- All `status` values — see [Response statuses](#response-statuses)
+- All `kind` values inside `unresolved` — see [Hints flow](#hints-flow) and the kinds catalog under [status: "missing_hints"](#status-missing_hints)
+- All `error.code` values — see [Error codes](#error-codes)
+- The `--explain` envelope (SDK callers receive the same payload when `explain: true` is passed) — see [`--explain` in JSON mode](#--explain-in-json-mode)
+- The recommended retry-with-hints flow (the SDK equivalent) — see [Recommended automation flow](#recommended-automation-flow)
+
+For a full end-to-end example including `missing_hints` handling, see [SDK.md](./SDK.md).
+
 ## Hints flow
 
 Some schema changes are ambiguous (rename vs. create+delete) or unsafe to apply automatically (drops on non-empty data, NOT NULL on nullable columns, etc.). In interactive mode, Drizzle Kit prompts the user. In JSON mode there are no prompts: callers either supply hints up front, or receive a `status: "missing_hints"` response and reply with hints.

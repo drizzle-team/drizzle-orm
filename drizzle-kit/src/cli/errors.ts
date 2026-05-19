@@ -1,4 +1,5 @@
 import { error, errText, info } from './views';
+import { QueryError } from './utils';
 
 type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
@@ -215,6 +216,16 @@ export class InvalidHintsCliError extends DrizzleCliError {
 	}
 }
 
+export class MigrationsOutdatedCliError extends DrizzleCliError {
+	constructor(out: string) {
+		super(
+			'migrations_outdated_error',
+			`Your migrations folder format is outdated, please run drizzle-kit up`,
+			{ out },
+		);
+	}
+}
+
 export type UnsupportedSchemaChangeMeta =
 	| { kind: 'drop_pk_dependency'; table: string; columns: string[]; blocking_fks: string[] }
 	| { kind: 'fk_target_not_unique'; table: string; columns: string[]; table_to: string; columns_to: string[] }
@@ -229,6 +240,22 @@ export class UnsupportedSchemaChangeError extends DrizzleCliError {
 		this.meta = meta;
 	}
 }
+
+export const errorToEnvelope = (e: unknown) => {
+	if (e instanceof DrizzleCliError) {
+		return { status: 'error' as const, error: { code: e.code, ...e.meta } };
+	}
+	if (e instanceof QueryError) {
+		return {
+			status: 'error' as const,
+			error: { code: 'query_error', sql: e.sql, params: e.params },
+		};
+	}
+	return {
+		status: 'error' as const,
+		error: { code: 'internal_error', message: e instanceof Error ? e.message : String(e) },
+	};
+};
 
 function defaultMessage(meta: UnsupportedSchemaChangeMeta): string {
 	switch (meta.kind) {

@@ -10,6 +10,7 @@ tests/**/tmp/
 !README.md
 !CONTRIBUTING.md
 !JSON_CONTRACT.md
+!SDK.md
 
 !.eslint
 !.gitignore

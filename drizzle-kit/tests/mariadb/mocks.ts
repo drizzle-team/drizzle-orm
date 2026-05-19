@@ -1,15 +1,12 @@
-import Docker, { Container } from 'dockerode';
 import { is } from 'drizzle-orm';
 import { int, MySqlColumnBuilder, MySqlSchema, MySqlTable, mysqlTable, MySqlView } from 'drizzle-orm/mysql-core';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
 import {
 	MySqlSchema as MySqlSchemaOld,
 	MySqlTable as MysqlTableOld,
 	MySqlView as MysqlViewOld,
 } from 'orm044/mysql-core';
-import { v4 as uuid } from 'uuid';
 import { suggestions as diffSuggestions } from '../../src/cli/commands/generate-mysql';
 import { introspect } from '../../src/cli/commands/pull-mysql';
 import { suggestions } from '../../src/cli/commands/push-mysql';
@@ -371,34 +368,6 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 	return res;
 };
 
-export const createDockerDB = async (): Promise<{ url: string; container: Container }> => {
-	const docker = new Docker();
-	const port = await getPort({ port: 3306 });
-	const image = 'mariadb:11.8';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-		docker.modem.followProgress(pullStream, (err) => err ? reject(err) : resolve(err))
-	);
-
-	const mysqlContainer = await docker.createContainer({
-		Image: image,
-		Env: ['MARIADB_ROOT_PASSWORD=mariadb', 'MARIADB_DATABASE=drizzle'],
-		name: `drizzle-integration-tests-${uuid()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'3306/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await mysqlContainer.start();
-
-	return { url: `mariadb://root:mariadb@127.0.0.1:${port}/drizzle`, container: mysqlContainer };
-};
-
 export type TestDatabase = {
 	db: DB;
 	client: Connection;
@@ -408,8 +377,12 @@ export type TestDatabase = {
 };
 
 export const prepareTestDatabase = async (): Promise<TestDatabase> => {
-	const envUrl = process.env['MARIADB_CONNECTION_STRING'];
-	const { url, container } = envUrl ? { url: envUrl, container: null } : await createDockerDB();
+	const url = process.env['MARIADB_CONNECTION_STRING'];
+	if (!url) {
+		throw new Error(
+			'MARIADB_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up mariadb` (or your own mariadb container) and export the connection string before running tests.',
+		);
+	}
 
 	const sleep = 1000;
 	let timeLeft = 20000;
@@ -429,7 +402,6 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 			};
 			const close = async () => {
 				await client?.end().catch(console.error);
-				await container?.stop().catch(console.error);
 			};
 			const clear = async () => {
 				await client.query(`drop database if exists \`drizzle\`;`);
