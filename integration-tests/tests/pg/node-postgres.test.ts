@@ -1,5 +1,6 @@
 import retry from 'async-retry';
 import { sql } from 'drizzle-orm';
+import type { MigrationMeta } from 'drizzle-orm/migrator';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -148,6 +149,48 @@ test('migrator : migrate with custom table and custom schema', async () => {
 	await db.execute(sql`drop table all_columns`);
 	await db.execute(sql`drop table users12`);
 	await db.execute(sql`drop table ${sql.identifier(customSchema)}.${sql.identifier(customTable)}`);
+});
+
+test('migrator : applies pending migration whose folderMillis predates the latest applied one', async () => {
+	// Regression for #5769. The original gate compared the max created_at in
+	// __drizzle_migrations against each pending entry's folderMillis and skipped
+	// anything older. Cherry-picking a feature branch (whose journal `when` is
+	// older than what's already applied on main) produced silent skips. The gate
+	// is now hash-membership.
+	await db.execute(sql`drop table if exists out_of_order_users`);
+	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
+
+	const createTable: MigrationMeta = {
+		sql: ['create table "out_of_order_users" (id serial primary key)'],
+		bps: false,
+		folderMillis: 2000,
+		hash: 'create-table-newer-when',
+	};
+	const addColumn: MigrationMeta = {
+		sql: ['alter table "out_of_order_users" add column "name" text'],
+		bps: false,
+		folderMillis: 1000,
+		hash: 'add-column-older-when',
+	};
+
+	await db.dialect.migrate([createTable], db.session, { migrationsFolder: '' });
+	await db.dialect.migrate([createTable, addColumn], db.session, { migrationsFolder: '' });
+
+	const applied = await db.execute<{ hash: string }>(
+		sql`select hash from "drizzle"."__drizzle_migrations"`,
+	);
+	const appliedHashes = applied.rows.map((r) => r.hash);
+	expect(appliedHashes).toContain('create-table-newer-when');
+	expect(appliedHashes).toContain('add-column-older-when');
+
+	const { rows } = await db.execute<{ column_name: string }>(
+		sql`select column_name from information_schema.columns where table_name = 'out_of_order_users'`,
+	);
+	const cols = rows.map((r) => r.column_name);
+	expect(cols).toContain('name');
+
+	await db.execute(sql`drop table "out_of_order_users"`);
+	await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
 });
 
 test('all date and time columns without timezone first case mode string', async () => {

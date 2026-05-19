@@ -88,16 +88,13 @@ export class PgDialect {
 		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
 			sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${
 				sql.identifier(migrationsTable)
-			} order by created_at desc limit 1`,
+			}`,
 		);
 
-		const lastDbMigration = dbMigrations[0];
+		const appliedHashes = new Set(dbMigrations.map((m) => m.hash));
 		await session.transaction(async (tx) => {
 			for await (const migration of migrations) {
-				if (
-					!lastDbMigration
-					|| Number(lastDbMigration.created_at) < migration.folderMillis
-				) {
+				if (!appliedHashes.has(migration.hash)) {
 					for (const stmt of migration.sql) {
 						await tx.execute(sql.raw(stmt));
 					}
