@@ -428,11 +428,12 @@ const isDeno = typeof (globalThis as any).Deno !== 'undefined';
 
 export const loadModule = async <T = unknown>(
 	modulePath: string,
+	{ defaultExport = false }: { defaultExport?: boolean } = {},
 ): Promise<T> => {
 	if (isBun || isDeno) {
 		const fileUrl = pathToFileURL(modulePath).href;
 		const mod = await import(fileUrl);
-		return mod.default ?? mod;
+		return defaultExport ? (mod?.default ?? mod) : mod;
 	}
 
 	const [major, minor] = process.versions.node.split('.').map(Number);
@@ -466,9 +467,9 @@ export const loadModule = async <T = unknown>(
 			requireCache: false,
 		});
 		const mod = await jiti.import<any>(absoluteModulePath);
-		return mod?.default ?? mod;
+		return defaultExport ? (mod?.default ?? mod) : mod;
 	}
 	const fileUrl = pathToFileURL(absoluteModulePath).href;
 	const mod = await import(fileUrl);
-	return mod.default ?? mod;
+	return defaultExport ? (mod?.default ?? mod) : mod;
 };
