@@ -39,7 +39,7 @@ describe('SDK does not invoke process.stdout.write or process.exit', () => {
 			stdoutCalls.push(args);
 			return true;
 		}) as unknown as typeof process.stdout.write);
-		const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+		const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((() => {}) as unknown) as never);
 
 		const { dir, schemaPath } = setupFixture('generate-no-stdout');
 		try {
@@ -70,7 +70,7 @@ describe('SDK does not invoke process.stdout.write or process.exit', () => {
 			stdoutCalls.push(args);
 			return true;
 		}) as unknown as typeof process.stdout.write);
-		const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+		const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((() => {}) as unknown) as never);
 
 		try {
 			// Use a missing schema path — push surfaces a schema_files_not_found_error envelope from
