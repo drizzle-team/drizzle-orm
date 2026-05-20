@@ -273,6 +273,12 @@ export class SQLiteCloudPreparedQuery<
 		}
 
 		const rows = await this.values(placeholderValues) as unknown[][];
+		if (customResultMapper) {
+			return (customResultMapper as (
+				rows: unknown[][],
+				mapColumnValue?: (value: unknown) => unknown,
+			) => unknown)([rows]);
+		}
 
 		return this.useJitMappers
 			? (this.jitMapper = this.jitMapper as RowsMapper<T['all']>
@@ -333,6 +339,12 @@ export class SQLiteCloudPreparedQuery<
 		});
 
 		if (row === undefined) return row;
+		if (customResultMapper) {
+			return (customResultMapper as (
+				rows: unknown[][],
+				mapColumnValue?: (value: unknown) => unknown,
+			) => unknown)([row]);
+		}
 
 		return this.useJitMappers
 			? (this.jitMapper = this.jitMapper as RowsMapper<T['get'][]>

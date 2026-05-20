@@ -52,6 +52,7 @@ export class SQLJsSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
+		customResultMapper: (rows: unknown[][]) => unknown,
 	): PreparedQuery<T> {
 		return new PreparedQuery(
 			this.client,
@@ -60,6 +61,7 @@ export class SQLJsSession<
 			fields,
 			executeMethod,
 			this.options.useJitMappers,
+			customResultMapper,
 		);
 	}
 

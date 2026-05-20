@@ -70,11 +70,12 @@ export class SQLiteCountBuilder extends SQL<number> implements SQLWrapper<number
 				if (typeof v === 'number') return v;
 				return v ? Number(v) : 0;
 			},
-		).execute(placeholderValues) as any;
+		).get(placeholderValues) as any;
 	}
 
-	execute(placeholderValues?: Record<string, unknown>): Promise<number> {
-		return this.executeRaw(placeholderValues) as Promise<number>;
+	// async-await to avoid crashing when used on sync drivers with .then(), .catch() for compatibility
+	async execute(placeholderValues?: Record<string, unknown>): Promise<number> {
+		return await (this.executeRaw(placeholderValues));
 	}
 }
 
