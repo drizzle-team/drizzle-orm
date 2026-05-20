@@ -12,7 +12,6 @@ import {
 	ConfigValidationCliError,
 	MigrationSnapshotNotFoundCliError,
 	MigrationSqlFilesConflictCliError,
-	MissingConfigDialectCliError,
 	MissingDialectCliError,
 	RequiredParamsCliError,
 	UnsupportedCommandCliError,
@@ -62,7 +61,9 @@ export const prepareCheckParams = async (
 		: options;
 
 	if (!config.dialect) {
-		throw new MissingDialectCliError(`${error('Please provide required params:')}\n${wrapParam('dialect', dialect)}`);
+		throw new MissingDialectCliError(
+			[error('Please provide required params:'), wrapParam('dialect', config.dialect)].join('\n'),
+		);
 	}
 	return { out: config.out || 'drizzle', dialect: config.dialect };
 };
@@ -136,12 +137,11 @@ export const prepareGenerateConfig = async (
 
 	if (!schema || !dialect) {
 		throw new RequiredParamsCliError(
-			['schema', 'dialect'],
+			['dialect', 'schema'],
 			[
 				error('Please provide required params:'),
-				wrapParam('schema', schema),
 				wrapParam('dialect', dialect),
-				wrapParam('out', out, true),
+				wrapParam('schema', schema),
 			].join('\n'),
 		);
 	}
@@ -183,11 +183,11 @@ export const prepareExportConfig = async (
 
 	if (!schema || !dialect) {
 		throw new RequiredParamsCliError(
-			['schema', 'dialect'],
+			['dialect', 'schema'],
 			[
 				error('Please provide required params:'),
-				wrapParam('schema', schema),
 				wrapParam('dialect', dialect),
+				wrapParam('schema', schema),
 			].join('\n'),
 		);
 	}
@@ -1004,16 +1004,13 @@ export const drizzleConfigFromFile = async (
 		throw new ConfigFileNotFoundCliError(path);
 	}
 
-	if (!isExport) humanLog(chalk.grey(`Reading config file '${path}'`));
+	if (!isExport) humanLog(`Reading config file '${path}'`);
 
 	const content = await loadModule<any>(path);
 
 	// --- get response and then check by each dialect independently
 	const res = configCommonSchema.safeParse(content);
 	if (!res.success) {
-		if (!('dialect' in content)) {
-			throw new MissingConfigDialectCliError();
-		}
 		throw new ConfigValidationCliError(inspect(res.error), res.error.issues as never, { cause: res.error });
 	}
 

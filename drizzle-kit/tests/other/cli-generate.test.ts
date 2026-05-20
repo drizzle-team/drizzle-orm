@@ -443,9 +443,8 @@ test('validate config #3', async (t) => {
 	expect((res.error as Error).message).toBe(
 		[
 			error('Please provide required params:'),
-			wrapParam('schema', undefined),
 			wrapParam('dialect', 'postgresql'),
-			wrapParam('out', 'test', true),
+			wrapParam('schema', undefined),
 		].join('\n'),
 	);
 });
@@ -461,7 +460,6 @@ test('validate config #4', async (t) => {
 
 	unlinkSync(path);
 
-	// wrong dialect data type → ConfigValidationCliError
 	expect(res.type).toBe('error');
 	if (res.type !== 'error') return;
 	expect((res.error as Error).name).toBe('ConfigValidationCliError');
