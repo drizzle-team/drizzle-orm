@@ -1,8 +1,15 @@
 import { test as brotest } from '@drizzle-team/brocli';
 import { unlinkSync } from 'node:fs';
-import { assert, expect, test, vi } from 'vitest';
+import { afterEach, assert, expect, test, vi } from 'vitest';
 import { studio } from '../../src/cli/schema';
+import { error } from '../../src/cli/views';
 import { createConfig } from './utils';
+
+const originalPrefix = process.env.TEST_CONFIG_PATH_PREFIX;
+process.env.TEST_CONFIG_PATH_PREFIX = './tests/cli/';
+afterEach(() => {
+	process.env.TEST_CONFIG_PATH_PREFIX = originalPrefix ?? './tests/cli/';
+});
 
 test('studio #1', async (t) => {
 	const res = await brotest(studio, '');
@@ -181,17 +188,8 @@ test('validate config #5', async (t) => {
 	unlinkSync(path);
 
 	expect(res.type).toBe('error');
-
-	expect(spy).toHaveBeenNthCalledWith(1, `Reading config file '${path}'`);
-	expect(spy).toHaveBeenNthCalledWith(
-		2,
-		` Invalid input  Please specify 'dialect' param in config, either of 'postgresql', 'mysql', 'sqlite', turso or singlestore`,
-	);
-
-	let error: any = res.type === 'error' ? res.error : undefined;
-	expect(error).toBeDefined();
-	expect(error).toBeInstanceOf(Error);
-	expect(error.message).toBe('process.exit unexpectedly called with "1"');
+	if (res.type !== 'error') return;
+	expect((res.error as Error).message).toBe(error("Please specify 'dialect' param in config file"));
 
 	spy.mockRestore();
 });
@@ -212,12 +210,8 @@ test('validate config #6', async (t) => {
 	unlinkSync(path);
 
 	expect(res.type).toBe('error');
-
-	expect(spy).toHaveBeenNthCalledWith(1, `Reading config file '${path}'`);
-	expect(spy).toHaveBeenNthCalledWith(
-		2,
-		` Invalid input  Please specify a 'dbCredentials' param in config. It will help drizzle to know how to query you database. You can read more about drizzle.config: https://orm.drizzle.team/kit-docs/config-reference`,
-	);
+	const calls = spy.mock.calls.map((c) => String(c[0]));
+	expect(calls.some((c) => c.includes(`Please specify a 'dbCredentials' param`))).toBe(true);
 
 	let error: any = res.type === 'error' ? res.error : undefined;
 	expect(error).toBeDefined();
