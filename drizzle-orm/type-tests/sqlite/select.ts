@@ -31,7 +31,7 @@ import type { SQLiteSelect, SQLiteSelectQueryBuilder } from '~/sqlite-core/query
 import { sqliteTable } from '~/sqlite-core/table.ts';
 import { sqliteView } from '~/sqlite-core/view.ts';
 import { db } from './db.ts';
-import { cities, classes, newYorkers, users } from './tables.ts';
+import { cities, classes, newYorkers, newYorkersWithSubquery, users } from './tables.ts';
 
 const city = alias(cities, 'city');
 const city1 = alias(cities, 'city1');
@@ -655,6 +655,35 @@ Expect<
 		Equal<
 			{
 				userId: number;
+			}[],
+			typeof result
+		>
+	>;
+}
+
+{
+	const result = db.select().from(newYorkersWithSubquery).all();
+	Expect<
+		Equal<
+			{
+				id: number;
+				class: 'A' | 'C';
+				cityCount: number;
+				lastCityId: number;
+			}[],
+			typeof result
+		>
+	>;
+	Expect<Equal<typeof result, typeof newYorkersWithSubquery.$inferSelect[]>>;
+	Expect<Equal<typeof result, InferSelectViewModel<typeof newYorkersWithSubquery>[]>>;
+}
+
+{
+	const result = db.select({ cityCount: newYorkersWithSubquery.cityCount }).from(newYorkersWithSubquery).all();
+	Expect<
+		Equal<
+			{
+				cityCount: number;
 			}[],
 			typeof result
 		>

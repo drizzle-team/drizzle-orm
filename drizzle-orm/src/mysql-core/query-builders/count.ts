@@ -16,7 +16,7 @@ export class MySqlCountBuilder extends SQL<number> implements SQLWrapper<number>
 	protected dialect: MySqlDialect;
 	protected session: MySqlSession;
 
-	private static buildEmbeddedCount(
+	private static buildCount(
 		source: MySqlTable | MySqlViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 		parens?: boolean,
@@ -35,7 +35,7 @@ export class MySqlCountBuilder extends SQL<number> implements SQLWrapper<number>
 			session: MySqlSession;
 		},
 	) {
-		super(MySqlCountBuilder.buildEmbeddedCount(countConfig.source, countConfig.filters, true).queryChunks);
+		super(MySqlCountBuilder.buildCount(countConfig.source, countConfig.filters, true).queryChunks);
 		this.dialect = countConfig.dialect;
 		this.session = countConfig.session;
 		this.mapWith((e) => {
@@ -45,11 +45,14 @@ export class MySqlCountBuilder extends SQL<number> implements SQLWrapper<number>
 		});
 	}
 
+	private executableSql: SQL<number> | undefined;
 	protected build(): Query {
-		const { filters, source } = this.countConfig;
-		const query = MySqlCountBuilder.buildEmbeddedCount(source, filters);
+		if (!this.executableSql) {
+			const { source, filters } = this.countConfig;
+			this.executableSql = MySqlCountBuilder.buildCount(source, filters);
+		}
 
-		return this.dialect.sqlToQuery(query);
+		return this.dialect.sqlToQuery(this.executableSql);
 	}
 
 	execute(placeholderValues?: Record<string, unknown>): Promise<number> {

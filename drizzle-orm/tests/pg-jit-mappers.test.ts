@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { integer, pgTable } from '~/pg-core';
+import { customType, integer, pgTable, pgView } from '~/pg-core';
 import { drizzle, PgliteDatabase } from '~/pglite';
 import {
 	AnyRelationsBuilderConfig,
@@ -9,8 +9,8 @@ import {
 	makeJitRqbMapper,
 	RelationsBuilder,
 } from '~/relations';
-import { eq, sql } from '~/sql';
-import { getTableColumns } from '~/utils';
+import { eq, max, sql } from '~/sql';
+import { getColumns, getTableColumns } from '~/utils';
 
 function createDB<S extends Record<string, unknown>, TConfig extends AnyRelationsBuilderConfig>(
 	schema: S,
@@ -1039,6 +1039,344 @@ test('Jit mappers: relational - array mode', async () => {
 		mapped[i] = { "id": c0 === null ? null : codec6(c0, 0), "name": c1, "createdAt": c2 === null ? null : codec7(c2, 0), "isBanned": c3, "sql": c4 === null ? null : dec8.mapFromDriverValue(c4), "post": c5 };
 	}
 	return mapped;
+	//# sourceURL=drizzle:jit-relational-query-mapper
+}`);
+});
+
+test('Jit mappers: SQLWrapper', () => {
+	const cus = customType<{ data: Date; driverData: string; jsonData: string }>({
+		codec: 'timestamptz',
+		dataType: () => 'timestamptz',
+		forJsonSelect: (id, s) => s`${id}::text`,
+		fromJson: (v) => new Date(v as string),
+		toDriver: (v) => v.toISOString(),
+	});
+	const t = pgTable('jit_sqlw_regression', {
+		id: integer('id').primaryKey(),
+		c: cus('c').notNull(),
+	});
+
+	const jsonWrapper = { getSQL: () => sql`select 1`.mapWith(t.c) };
+	const numberWrapper = { getSQL: () => sql`select 1`.mapWith(Number) };
+	const noopWrapper = { getSQL: () => sql`select 1` };
+
+	const jsonFirst = makeJitRqbMapper({
+		selection: [{ key: 'val', field: jsonWrapper }],
+		isFirst: true,
+		parseJson: false,
+		parseJsonIfString: false,
+		rootJsonMappers: true,
+		arrayModeRoot: false,
+	});
+	expect(jsonFirst.body).toStrictEqual(`function jitRqbMapper (rows) {
+	"use strict";
+	const { selection } = this;
+	const dec1 = selection[0].field.getSQL().decoder;
+	const row = rows[0];
+	if (!row) return undefined;
+	let { "val": c0 } = row;
+	rows[0] = { "val": c0 === null ? null : dec1.mapFromJsonValue(c0) };
+	return rows[0];
+	//# sourceURL=drizzle:jit-relational-query-mapper
+}`);
+	expect(jsonFirst([{ val: '2024-01-02T03:04:05.000Z' }])).toStrictEqual({
+		val: new Date('2024-01-02T03:04:05.000Z'),
+	});
+	expect(jsonFirst([{ val: null }])).toStrictEqual({ val: null });
+	expect(jsonFirst([])).toBeUndefined();
+
+	const jsonMany = makeJitRqbMapper({
+		selection: [{ key: 'val', field: jsonWrapper as any }],
+		isFirst: false,
+		parseJson: false,
+		parseJsonIfString: false,
+		rootJsonMappers: true,
+		arrayModeRoot: false,
+	});
+	expect(jsonMany.body).toStrictEqual(`function jitRqbMapper (rows) {
+	"use strict";
+	const { selection } = this;
+	const dec1 = selection[0].field.getSQL().decoder;
+	for (let i = 0; i < rows.length; ++i) {
+		const row = rows[i];
+		let { "val": c0 } = row;
+		rows[i] = { "val": c0 === null ? null : dec1.mapFromJsonValue(c0) };
+	}
+	return rows;
+	//# sourceURL=drizzle:jit-relational-query-mapper
+}`);
+	expect(jsonMany([{ val: '2024-01-02T03:04:05.000Z' }, { val: null }])).toStrictEqual([
+		{ val: new Date('2024-01-02T03:04:05.000Z') },
+		{ val: null },
+	]);
+
+	const driverFirst = makeJitRqbMapper({
+		selection: [{ key: 'val', field: numberWrapper }],
+		isFirst: true,
+		parseJson: false,
+		parseJsonIfString: false,
+		rootJsonMappers: false,
+		arrayModeRoot: false,
+	});
+	expect(driverFirst.body).toStrictEqual(`function jitRqbMapper (rows) {
+	"use strict";
+	const { selection } = this;
+	const dec1 = selection[0].field.getSQL().decoder;
+	const row = rows[0];
+	if (!row) return undefined;
+	let { "val": c0 } = row;
+	rows[0] = { "val": c0 === null ? null : dec1.mapFromDriverValue(c0) };
+	return rows[0];
+	//# sourceURL=drizzle:jit-relational-query-mapper
+}`);
+	expect(driverFirst([{ val: '42' }])).toStrictEqual({ val: 42 });
+	expect(driverFirst([{ val: null }])).toStrictEqual({ val: null });
+
+	const noopMapper = makeJitRqbMapper({
+		selection: [{ key: 'val', field: noopWrapper }],
+		isFirst: true,
+		parseJson: false,
+		parseJsonIfString: false,
+		rootJsonMappers: true,
+		arrayModeRoot: false,
+	});
+	expect(noopMapper.body).toStrictEqual(`function jitRqbMapper (rows) {
+	"use strict";
+	const { selection } = this;
+	return rows[0];
+	//# sourceURL=drizzle:jit-relational-query-mapper
+}`);
+	expect(noopMapper([{ val: 'raw' }])).toStrictEqual({ val: 'raw' });
+
+	const mixed = makeJitRqbMapper({
+		selection: [
+			{ key: 'id', field: t.id },
+			{ key: 'val', field: jsonWrapper },
+		],
+		isFirst: true,
+		parseJson: false,
+		parseJsonIfString: false,
+		rootJsonMappers: true,
+		arrayModeRoot: false,
+	});
+	expect(mixed.body).toStrictEqual(`function jitRqbMapper (rows) {
+	"use strict";
+	const { selection } = this;
+	const dec2 = selection[1].field.getSQL().decoder;
+	const row = rows[0];
+	if (!row) return undefined;
+	let { "id": c0, "val": c1 } = row;
+	rows[0] = { "id": c0, "val": c1 === null ? null : dec2.mapFromJsonValue(c1) };
+	return rows[0];
+	//# sourceURL=drizzle:jit-relational-query-mapper
+}`);
+	expect(mixed([{ id: 7, val: '2024-01-02T03:04:05.000Z' }])).toStrictEqual({
+		id: 7,
+		val: new Date('2024-01-02T03:04:05.000Z'),
+	});
+
+	const arrayMode = makeJitRqbMapper({
+		selection: [{ key: 'val', field: jsonWrapper }],
+		isFirst: true,
+		parseJson: false,
+		parseJsonIfString: false,
+		rootJsonMappers: true,
+		arrayModeRoot: true,
+	});
+	expect(arrayMode.body).toStrictEqual(`function jitRqbMapper (rows) {
+	"use strict";
+	const { selection } = this;
+	const row = rows[0];
+	if (!row) return undefined;
+	let [ c0 ] = row;
+	return { "val": c0 };
+	//# sourceURL=drizzle:jit-relational-query-mapper
+}`);
+	expect(arrayMode([['raw']])).toStrictEqual({ val: 'raw' });
+});
+
+const codecBypass = customType<{ data: Date; driverData: string; jsonData: string }>({
+	codec: 'timestamptz',
+	dataType: () => 'timestamptz(3)',
+	forJsonSelect: (id, s, arrayDimensions) =>
+		s`${id}::text${arrayDimensions ? s.raw('[]'.repeat(arrayDimensions)) : undefined}`,
+	fromJson: (v) => new Date(v as string),
+	toDriver: (v) => v.toISOString(),
+});
+
+const codecUsers = pgTable('codec_users_jit', (t) => ({
+	id: t.integer().primaryKey(),
+	name: t.text().notNull(),
+	createdAt: t.timestamp('created_at').notNull(),
+	createdAtStr: t.timestamp('created_at_str', { mode: 'string' }).notNull(),
+	arrCreatedAt: t.timestamp('arr_created_at').notNull().array(),
+	cus: codecBypass('cus').notNull(),
+	arrCus: codecBypass('arr_cus').notNull().array(),
+}));
+
+const codecUsersView = pgView('codec_users_v_jit').as((qb) =>
+	qb.select({
+		...getColumns(codecUsers),
+		max: max(codecUsers.createdAt).as('max'),
+		maxStr: max(codecUsers.createdAtStr).as('max_str'),
+		arrMax: max(codecUsers.arrCreatedAt).as('arr_max'),
+		sq: qb.select({ createdAt: codecUsers.createdAt }).from(codecUsers).as('sq'),
+	}).from(codecUsers).groupBy(codecUsers.id)
+);
+
+const codecDb = createDB({ codecUsers, codecUsersView }, (r) => ({
+	codecUsers: { self: r.one.codecUsers({ from: r.codecUsers.id, to: r.codecUsers.id }) },
+	codecUsersView: { self: r.one.codecUsersView({ from: r.codecUsersView.id, to: r.codecUsersView.id }) },
+}));
+
+test('Jit mappers: codecs from columns as SQL decoders', () => {
+	const tableBody = codecDb.select({
+		...getColumns(codecUsers),
+		max: max(codecUsers.createdAt).as('max'),
+		maxStr: max(codecUsers.createdAtStr).as('max_str'),
+		arrMax: max(codecUsers.arrCreatedAt).as('arr_max'),
+		sq: codecDb.select({ createdAt: codecUsers.createdAt }).from(codecUsers).as('sq'),
+	}).from(codecUsers).groupBy(codecUsers.id).prepare().mapper?.body;
+
+	expect(tableBody).toStrictEqual(`function jitQueryMapper (rows) {
+	"use strict";
+	const { columns } = this;
+	const { length } = rows;
+	const mapped = Array.from({ length });
+	const { codec: codec2 } = columns[2];
+	const { codec: codec4 } = columns[4];
+	const { codec: codec5 } = columns[5];
+	const { codec: codec6 } = columns[6];
+	const { codec: codec7 } = columns[7];
+	const { codec: codec9 } = columns[9];
+	const { codec: codec10 } = columns[10];
+	for (let i = 0; i < length; ++i) {
+		const [ c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10 ] = rows[i];
+		mapped[i] = {
+			"id": c0,
+			"name": c1,
+			"createdAt": c2 === null ? c2 : codec2(c2, 0),
+			"createdAtStr": c3,
+			"arrCreatedAt": c4 === null ? c4 : codec4(c4, 1),
+			"cus": c5 === null ? c5 : codec5(c5, 0),
+			"arrCus": c6 === null ? c6 : codec6(c6, 1),
+			"max": c7 === null ? c7 : codec7(c7, 0),
+			"maxStr": c8,
+			"arrMax": c9 === null ? c9 : codec9(c9, 1),
+			"sq": c10 === null ? c10 : codec10(c10, 0),
+		};
+	}
+	return mapped;
+	//# sourceURL=drizzle:jit-query-mapper
+}`);
+});
+
+test('Jit mappers: codecs from columns as SQL decoders - view', () => {
+	const viewBody = codecDb.select().from(codecUsersView).prepare().mapper?.body;
+
+	expect(viewBody).toStrictEqual(`function jitQueryMapper (rows) {
+	"use strict";
+	const { columns } = this;
+	const { length } = rows;
+	const mapped = Array.from({ length });
+	const { codec: codec2 } = columns[2];
+	const { codec: codec4 } = columns[4];
+	const { codec: codec5 } = columns[5];
+	const { codec: codec6 } = columns[6];
+	const { codec: codec7 } = columns[7];
+	const { codec: codec9 } = columns[9];
+	const { codec: codec10 } = columns[10];
+	for (let i = 0; i < length; ++i) {
+		const [ c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10 ] = rows[i];
+		mapped[i] = {
+			"id": c0,
+			"name": c1,
+			"createdAt": c2 === null ? c2 : codec2(c2, 0),
+			"createdAtStr": c3,
+			"arrCreatedAt": c4 === null ? c4 : codec4(c4, 1),
+			"cus": c5 === null ? c5 : codec5(c5, 0),
+			"arrCus": c6 === null ? c6 : codec6(c6, 1),
+			"max": c7 === null ? c7 : codec7(c7, 0),
+			"maxStr": c8,
+			"arrMax": c9 === null ? c9 : codec9(c9, 1),
+			"sq": c10 === null ? c10 : codec10(c10, 0),
+		};
+	}
+	return mapped;
+	//# sourceURL=drizzle:jit-query-mapper
+}`);
+});
+
+test('Jit mappers: codecs from columns as SQL decoders, codec bypass - RQB', () => {
+	const tableBody = codecDb.query.codecUsers.findFirst({
+		with: {
+			self: {
+				extras: {
+					max: () => sql`select max(${codecUsers.createdAt}) from ${codecUsers}`.mapWith(codecUsers.createdAt),
+				},
+			},
+		},
+		extras: {
+			max: () => sql`select max(${codecUsers.createdAt}) from ${codecUsers}`.mapWith(codecUsers.createdAt),
+		},
+	}).prepare().mapper?.body;
+
+	expect(tableBody).toStrictEqual(`function jitRqbMapper (rows) {
+	"use strict";
+	const { selection } = this;
+	const { codec: codec9 } = selection[2];
+	const { codec: codec10 } = selection[4];
+	const { codec: codec11 } = selection[5];
+	const { codec: codec12 } = selection[6];
+	const { codec: codec13 } = selection[7];
+	const { selection: s14 } = selection[8];
+	const { codec: codec23 } = s14[2];
+	const { codec: codec24 } = s14[4];
+	const { field: dec25 } = s14[5];
+	const { field: dec26 } = s14[6];
+	const { codec: codec27 } = s14[7];
+	const row = rows[0];
+	if (!row) return undefined;
+	let [ c0, c1, c2, c3, c4, c5, c6, c7, c8 ] = row;
+	if (c8 !== null) {
+		let { "id": c15, "name": c16, "createdAt": c17, "createdAtStr": c18, "arrCreatedAt": c19, "cus": c20, "arrCus": c21, "max": c22 } = c8;
+		c8 = { "id": c15, "name": c16, "createdAt": c17 === null ? null : codec23(c17, 0), "createdAtStr": c18, "arrCreatedAt": c19 === null ? null : codec24(c19, 1), "cus": c20 === null ? null : dec25.mapFromJsonValue(c20), "arrCus": c21 === null ? null : dec26.mapFromJsonValue(c21), "max": c22 === null ? null : codec27(c22, 0) };
+	}
+	return { "id": c0, "name": c1, "createdAt": c2 === null ? null : codec9(c2, 0), "createdAtStr": c3, "arrCreatedAt": c4 === null ? null : codec10(c4, 1), "cus": c5 === null ? null : codec11(c5, 0), "arrCus": c6 === null ? null : codec12(c6, 1), "max": c7 === null ? null : codec13(c7, 0), "self": c8 };
+	//# sourceURL=drizzle:jit-relational-query-mapper
+}`);
+});
+
+test('Jit mappers: codecs from columns as SQL decoders, codec bypass - view, RQB', () => {
+	const viewNestedBody = codecDb.query.codecUsersView.findFirst({
+		columns: { sq: false }, // TODO: re-enable after supporting Subquery in RQB
+		with: { self: { columns: { sq: false } } }, // TODO: re-enable after supporting Subquery in RQB
+	}).prepare().mapper?.body;
+
+	expect(viewNestedBody).toStrictEqual(`function jitRqbMapper (rows) {
+	"use strict";
+	const { selection } = this;
+	const { codec: codec11 } = selection[2];
+	const { codec: codec12 } = selection[4];
+	const { codec: codec13 } = selection[5];
+	const { codec: codec14 } = selection[6];
+	const { codec: codec15 } = selection[7];
+	const { codec: codec16 } = selection[9];
+	const { selection: s17 } = selection[10];
+	const { codec: codec28 } = s17[2];
+	const { codec: codec29 } = s17[4];
+	const { field: dec30 } = s17[5];
+	const { field: dec31 } = s17[6];
+	const { codec: codec32 } = s17[7];
+	const { codec: codec33 } = s17[9];
+	const row = rows[0];
+	if (!row) return undefined;
+	let [ c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10 ] = row;
+	if (c10 !== null) {
+		let { "id": c18, "name": c19, "createdAt": c20, "createdAtStr": c21, "arrCreatedAt": c22, "cus": c23, "arrCus": c24, "max": c25, "maxStr": c26, "arrMax": c27 } = c10;
+		c10 = { "id": c18, "name": c19, "createdAt": c20 === null ? null : codec28(c20, 0), "createdAtStr": c21, "arrCreatedAt": c22 === null ? null : codec29(c22, 1), "cus": c23 === null ? null : dec30.mapFromJsonValue(c23), "arrCus": c24 === null ? null : dec31.mapFromJsonValue(c24), "max": c25 === null ? null : codec32(c25, 0), "maxStr": c26, "arrMax": c27 === null ? null : codec33(c27, 1) };
+	}
+	return { "id": c0, "name": c1, "createdAt": c2 === null ? null : codec11(c2, 0), "createdAtStr": c3, "arrCreatedAt": c4 === null ? null : codec12(c4, 1), "cus": c5 === null ? null : codec13(c5, 0), "arrCus": c6 === null ? null : codec14(c6, 1), "max": c7 === null ? null : codec15(c7, 0), "maxStr": c8, "arrMax": c9 === null ? null : codec16(c9, 1), "self": c10 };
 	//# sourceURL=drizzle:jit-relational-query-mapper
 }`);
 });

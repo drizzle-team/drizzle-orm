@@ -891,7 +891,7 @@ export type InferSelectViewModel<TView extends View> =
 Column.prototype.getSQL = function() {
 	return new SQL([this]);
 };
-// Defined separately from the Column class to resolve circular dependency
+// Defined separately from the Subquery class to resolve circular dependency
 Subquery.prototype.getSQL = function() {
 	return new SQL([this]);
 };
