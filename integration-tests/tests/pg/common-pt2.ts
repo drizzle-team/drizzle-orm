@@ -42,6 +42,7 @@ import {
 	bytea,
 	char,
 	cidr,
+	customType,
 	date,
 	doublePrecision,
 	except,
@@ -4539,7 +4540,7 @@ export function tests(test: Test) {
 		// https://github.com/drizzle-team/drizzle-orm/issues/5253
 		// enhancement
 		// allow select which columns to insert in insert...select
-		test.skipIf(Date.now() < +new Date('2026-05-20')).concurrent('insert into ... select #2', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-05-27')).concurrent('insert into ... select #2', async ({ db, push }) => {
 			const users = pgTable('users_114', {
 				id: integer('id').primaryKey(),
 				name: text('name').notNull(),
@@ -4628,7 +4629,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4596
-		test.skipIf(Date.now() < +new Date('2026-05-20'))(
+		test.skipIf(Date.now() < +new Date('2026-05-27'))(
 			'functional index; onConflict do update',
 			async ({ db, push }) => {
 				throw new Error('SKIP. commented below because of type error');
@@ -4715,7 +4716,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4419
-		test.skipIf(Date.now() < +new Date('2026-05-20'))('db/js timestamp comparison', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-05-27'))('db/js timestamp comparison', async ({ db, push }) => {
 			const table1 = pgTable('table1', {
 				id: integer(),
 				// default config equal to: { mode: 'date' }
@@ -6442,7 +6443,7 @@ export function tests(test: Test) {
 				.rejects.toBeInstanceOf(DrizzleQueryError);
 		});
 
-		test.skipIf(Date.now() < +new Date('2026-05-20')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-05-27')).concurrent(
 			'Mappers: deep nullification',
 			async ({ db, push }) => {
 				const users = pgTable('mappers_users_dn', (t) => ({
@@ -6541,7 +6542,7 @@ export function tests(test: Test) {
 			},
 		);
 
-		test.skipIf(Date.now() < +new Date('2026-05-20')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-05-27')).concurrent(
 			'Jit mappers: deep nullification',
 			async ({ createDB, push }) => {
 				const users = pgTable('mappers_users_jdn', (t) => ({
@@ -6641,7 +6642,443 @@ export function tests(test: Test) {
 			},
 		);
 
-		test.skipIf(Date.now() < +new Date('2026-05-20')).concurrent(
+		test.concurrent('Column as decoder applies codecs', async ({ createDB, push }) => {
+			let customCast = false;
+			let customMap = false;
+
+			const codecBypass = customType<{
+				data: Date;
+				driverData: string;
+				jsonData: string;
+			}>({
+				codec: 'timestamptz',
+				dataType: () => 'timestamptz(3)',
+				forJsonSelect: (identifier, sql, arrayDimensions) => {
+					customCast = true;
+					return sql`${identifier}::text${arrayDimensions ? sql.raw('[]'.repeat(arrayDimensions)) : undefined}`;
+				},
+				fromJson: (v) => {
+					customMap = true;
+					return new Date(v);
+				},
+				toDriver: (v) => v.toISOString(),
+			});
+
+			const users = pgTable('users_823', (t) => ({
+				id: t.integer().primaryKey(),
+				name: t.text().notNull(),
+				createdAt: t.timestamp('created_at').notNull(),
+				createdAtStr: t.timestamp('created_at_str', { mode: 'string' }).notNull(),
+				arrCreatedAt: t.timestamp('arr_created_at').notNull().array(),
+				arrCreatedAtStr: t.timestamp('arr_created_at_str', { mode: 'string' }).notNull().array(),
+				cus: codecBypass('custom').notNull(),
+				arrCus: codecBypass('arr_custom').notNull().array(),
+			}));
+
+			const usersView = pgView('users_823_v').as((qb) =>
+				qb.select({
+					...getColumns(users),
+					max: max(users.createdAt).as('max'),
+					maxStr: max(users.createdAtStr).as('max_str'),
+					arrMax: max(users.arrCreatedAt).as('arr_max'),
+					arrMaxStr: max(users.arrCreatedAtStr).as('arr_max_str'),
+					sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+				}).from(users).groupBy(users.id)
+			);
+
+			await push({ users, usersView });
+
+			const db = createDB({ users, usersView }, (r) => ({
+				users: {
+					self: r.one.users({
+						from: r.users.id,
+						to: r.users.id,
+					}),
+				},
+				usersView: {
+					self: r.one.usersView({
+						from: r.usersView.id,
+						to: r.usersView.id,
+					}),
+				},
+			}));
+
+			const exDateStr = '1970-01-16 16:45:46.351';
+			const exDate = new Date(exDateStr);
+
+			await db.insert(users).values({
+				id: 1,
+				name: 'First',
+				createdAt: exDate,
+				createdAtStr: exDateStr,
+				arrCreatedAt: [exDate],
+				arrCreatedAtStr: [exDateStr],
+				cus: exDate,
+				arrCus: [exDate],
+			});
+
+			const res = await db.select({
+				...getColumns(users),
+				max: max(users.createdAt).as('max'),
+				maxStr: max(users.createdAtStr).as('max_str'),
+				arrMax: max(users.arrCreatedAt).as('arr_max'),
+				arrMaxStr: max(users.arrCreatedAtStr).as('arr_max_str'),
+				sq: db.select({ createdAt: users.createdAt }).from(users).as('sq'),
+			}).from(users).groupBy(users.id);
+
+			const viewRes = await db.select().from(usersView);
+
+			const nested = await db.query.users.findFirst({
+				with: {
+					self: {
+						extras: {
+							max: () => sql`select max(${users.createdAt}) from ${users}`.mapWith(users.createdAt),
+							maxStr: () => sql`select max(${users.createdAtStr}) from ${users}`.mapWith(users.createdAtStr),
+							arrMax: () => sql`select max(${users.arrCreatedAt}) from ${users}`.mapWith(users.arrCreatedAt),
+							arrMaxStr: () => sql`select max(${users.arrCreatedAtStr}) from ${users}`.mapWith(users.arrCreatedAtStr),
+						},
+					},
+				},
+				extras: {
+					max: () => sql`select max(${users.createdAt}) from ${users}`.mapWith(users.createdAt),
+					maxStr: () => sql`select max(${users.createdAtStr}) from ${users}`.mapWith(users.createdAtStr),
+					arrMax: () => sql`select max(${users.arrCreatedAt}) from ${users}`.mapWith(users.arrCreatedAt),
+					arrMaxStr: () => sql`select max(${users.arrCreatedAtStr}) from ${users}`.mapWith(users.arrCreatedAtStr),
+				},
+			});
+
+			const viewNested = await db.query.usersView.findFirst({
+				columns: {
+					sq: false, // TODO: re-enable when supported in RQBv2
+				},
+				with: {
+					self: {
+						columns: {
+							sq: false, // TODO: re-enable when supported in RQBv2
+						},
+					},
+				},
+			});
+
+			expect(res).toStrictEqual([
+				{
+					id: 1,
+					name: 'First',
+					createdAt: exDate,
+					createdAtStr: exDateStr,
+					arrCreatedAt: [exDate],
+					arrCreatedAtStr: [exDateStr],
+					max: exDate,
+					maxStr: exDateStr,
+					arrMax: [exDate],
+					arrMaxStr: [exDateStr],
+					sq: exDate,
+					cus: exDate,
+					arrCus: [exDate],
+				},
+			]);
+			expect(viewRes).toStrictEqual([
+				{
+					id: 1,
+					name: 'First',
+					createdAt: exDate,
+					createdAtStr: exDateStr,
+					arrCreatedAt: [exDate],
+					arrCreatedAtStr: [exDateStr],
+					max: exDate,
+					maxStr: exDateStr,
+					arrMax: [exDate],
+					arrMaxStr: [exDateStr],
+					sq: exDate,
+					cus: exDate,
+					arrCus: [exDate],
+				},
+			]);
+
+			expect(customCast).toBeTruthy();
+			expect(customMap).toBeTruthy();
+
+			expect(nested).toStrictEqual(
+				{
+					id: 1,
+					name: 'First',
+					createdAt: exDate,
+					createdAtStr: exDateStr,
+					arrCreatedAt: [exDate],
+					arrCreatedAtStr: [exDateStr],
+					max: exDate,
+					maxStr: exDateStr,
+					arrMax: [exDate],
+					arrMaxStr: [exDateStr],
+					cus: exDate,
+					arrCus: [exDate],
+					self: {
+						id: 1,
+						name: 'First',
+						createdAt: exDate,
+						createdAtStr: exDateStr,
+						arrCreatedAt: [exDate],
+						arrCreatedAtStr: [exDateStr],
+						max: exDate,
+						maxStr: exDateStr,
+						arrMax: [exDate],
+						arrMaxStr: [exDateStr],
+						cus: exDate,
+						arrCus: [exDate],
+					},
+				},
+			);
+			expect(viewNested).toStrictEqual(
+				{
+					id: 1,
+					name: 'First',
+					createdAt: exDate,
+					createdAtStr: exDateStr,
+					arrCreatedAt: [exDate],
+					arrCreatedAtStr: [exDateStr],
+					max: exDate,
+					maxStr: exDateStr,
+					arrMax: [exDate],
+					arrMaxStr: [exDateStr],
+					cus: exDate,
+					arrCus: [exDate],
+					self: {
+						id: 1,
+						name: 'First',
+						createdAt: exDate,
+						createdAtStr: exDateStr,
+						arrCreatedAt: [exDate],
+						arrCreatedAtStr: [exDateStr],
+						max: exDate,
+						maxStr: exDateStr,
+						arrMax: [exDate],
+						arrMaxStr: [exDateStr],
+						cus: exDate,
+						arrCus: [exDate],
+					},
+				},
+			);
+		});
+
+		test.concurrent('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }) => {
+			let customCast = false;
+			let customMap = false;
+
+			const codecBypass = customType<{
+				data: Date;
+				driverData: string;
+				jsonData: string;
+			}>({
+				codec: 'timestamptz',
+				dataType: () => 'timestamptz(3)',
+				forJsonSelect: (identifier, sql, arrayDimensions) => {
+					customCast = true;
+					return sql`${identifier}::text${arrayDimensions ? sql.raw('[]'.repeat(arrayDimensions)) : undefined}`;
+				},
+				fromJson: (v) => {
+					customMap = true;
+					return new Date(v);
+				},
+				toDriver: (v) => v.toISOString(),
+			});
+
+			const users = pgTable('users_823_jit', (t) => ({
+				id: t.integer().primaryKey(),
+				name: t.text().notNull(),
+				createdAt: t.timestamp('created_at').notNull(),
+				createdAtStr: t.timestamp('created_at_str', { mode: 'string' }).notNull(),
+				arrCreatedAt: t.timestamp('arr_created_at').notNull().array(),
+				arrCreatedAtStr: t.timestamp('arr_created_at_str', { mode: 'string' }).notNull().array(),
+				cus: codecBypass('custom').notNull(),
+				arrCus: codecBypass('arr_custom').notNull().array(),
+			}));
+
+			const usersView = pgView('users_823_v_jit').as((qb) =>
+				qb.select({
+					...getColumns(users),
+					max: max(users.createdAt).as('max'),
+					maxStr: max(users.createdAtStr).as('max_str'),
+					arrMax: max(users.arrCreatedAt).as('arr_max'),
+					arrMaxStr: max(users.arrCreatedAtStr).as('arr_max_str'),
+					sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+				}).from(users).groupBy(users.id)
+			);
+
+			await push({ users, usersView });
+
+			const db = createDB({ users, usersView }, (r) => ({
+				users: {
+					self: r.one.users({
+						from: r.users.id,
+						to: r.users.id,
+					}),
+				},
+				usersView: {
+					self: r.one.usersView({
+						from: r.usersView.id,
+						to: r.usersView.id,
+					}),
+				},
+			}), true);
+
+			const exDateStr = '1970-01-16 16:45:46.351';
+			const exDate = new Date(exDateStr);
+
+			await db.insert(users).values({
+				id: 1,
+				name: 'First',
+				createdAt: exDate,
+				createdAtStr: exDateStr,
+				arrCreatedAt: [exDate],
+				arrCreatedAtStr: [exDateStr],
+				cus: exDate,
+				arrCus: [exDate],
+			});
+
+			const res = await db.select({
+				...getColumns(users),
+				max: max(users.createdAt).as('max'),
+				maxStr: max(users.createdAtStr).as('max_str'),
+				arrMax: max(users.arrCreatedAt).as('arr_max'),
+				arrMaxStr: max(users.arrCreatedAtStr).as('arr_max_str'),
+				sq: db.select({ createdAt: users.createdAt }).from(users).as('sq'),
+			}).from(users).groupBy(users.id);
+
+			const viewRes = await db.select().from(usersView);
+
+			const nested = await db.query.users.findFirst({
+				with: {
+					self: {
+						extras: {
+							max: () => sql`select max(${users.createdAt}) from ${users}`.mapWith(users.createdAt),
+							maxStr: () => sql`select max(${users.createdAtStr}) from ${users}`.mapWith(users.createdAtStr),
+							arrMax: () => sql`select max(${users.arrCreatedAt}) from ${users}`.mapWith(users.arrCreatedAt),
+							arrMaxStr: () => sql`select max(${users.arrCreatedAtStr}) from ${users}`.mapWith(users.arrCreatedAtStr),
+						},
+					},
+				},
+				extras: {
+					max: () => sql`select max(${users.createdAt}) from ${users}`.mapWith(users.createdAt),
+					maxStr: () => sql`select max(${users.createdAtStr}) from ${users}`.mapWith(users.createdAtStr),
+					arrMax: () => sql`select max(${users.arrCreatedAt}) from ${users}`.mapWith(users.arrCreatedAt),
+					arrMaxStr: () => sql`select max(${users.arrCreatedAtStr}) from ${users}`.mapWith(users.arrCreatedAtStr),
+				},
+			});
+
+			const viewNested = await db.query.usersView.findFirst({
+				columns: {
+					sq: false, // TODO: re-enable when supported in RQBv2
+				},
+				with: {
+					self: {
+						columns: {
+							sq: false, // TODO: re-enable when supported in RQBv2
+						},
+					},
+				},
+			});
+
+			expect(res).toStrictEqual([
+				{
+					id: 1,
+					name: 'First',
+					createdAt: exDate,
+					createdAtStr: exDateStr,
+					arrCreatedAt: [exDate],
+					arrCreatedAtStr: [exDateStr],
+					max: exDate,
+					maxStr: exDateStr,
+					arrMax: [exDate],
+					arrMaxStr: [exDateStr],
+					sq: exDate,
+					cus: exDate,
+					arrCus: [exDate],
+				},
+			]);
+			expect(viewRes).toStrictEqual([
+				{
+					id: 1,
+					name: 'First',
+					createdAt: exDate,
+					createdAtStr: exDateStr,
+					arrCreatedAt: [exDate],
+					arrCreatedAtStr: [exDateStr],
+					max: exDate,
+					maxStr: exDateStr,
+					arrMax: [exDate],
+					arrMaxStr: [exDateStr],
+					sq: exDate,
+					cus: exDate,
+					arrCus: [exDate],
+				},
+			]);
+
+			expect(customCast).toBeTruthy();
+			expect(customMap).toBeTruthy();
+
+			expect(nested).toStrictEqual(
+				{
+					id: 1,
+					name: 'First',
+					createdAt: exDate,
+					createdAtStr: exDateStr,
+					arrCreatedAt: [exDate],
+					arrCreatedAtStr: [exDateStr],
+					max: exDate,
+					maxStr: exDateStr,
+					arrMax: [exDate],
+					arrMaxStr: [exDateStr],
+					cus: exDate,
+					arrCus: [exDate],
+					self: {
+						id: 1,
+						name: 'First',
+						createdAt: exDate,
+						createdAtStr: exDateStr,
+						arrCreatedAt: [exDate],
+						arrCreatedAtStr: [exDateStr],
+						max: exDate,
+						maxStr: exDateStr,
+						arrMax: [exDate],
+						arrMaxStr: [exDateStr],
+						cus: exDate,
+						arrCus: [exDate],
+					},
+				},
+			);
+			expect(viewNested).toStrictEqual(
+				{
+					id: 1,
+					name: 'First',
+					createdAt: exDate,
+					createdAtStr: exDateStr,
+					arrCreatedAt: [exDate],
+					arrCreatedAtStr: [exDateStr],
+					max: exDate,
+					maxStr: exDateStr,
+					arrMax: [exDate],
+					arrMaxStr: [exDateStr],
+					cus: exDate,
+					arrCus: [exDate],
+					self: {
+						id: 1,
+						name: 'First',
+						createdAt: exDate,
+						createdAtStr: exDateStr,
+						arrCreatedAt: [exDate],
+						arrCreatedAtStr: [exDateStr],
+						max: exDate,
+						maxStr: exDateStr,
+						arrMax: [exDate],
+						arrMaxStr: [exDateStr],
+						cus: exDate,
+						arrCus: [exDate],
+					},
+				},
+			);
+		});
+
+		test.skipIf(Date.now() < +new Date('2026-05-27')).concurrent(
 			'Same table name joined between schemas',
 			async ({ db }) => {
 				const users1 = pgTable('users_cs_join_1', (t) => ({
@@ -6671,7 +7108,7 @@ export function tests(test: Test) {
 					u2: users2,
 				}).from(users1).leftJoin(users2, eq(users1.id, users2.id));
 
-				// @ts-ignore skipIf(Date.now() < +new Date('2026-05-20')) - just to make it searchable
+				// @ts-ignore skipIf(Date.now() < +new Date('2026-05-27')) - just to make it searchable
 				expectTypeOf(res).toEqualTypeOf<{
 					u1: {
 						id: number;

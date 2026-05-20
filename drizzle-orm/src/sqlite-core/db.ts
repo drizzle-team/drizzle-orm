@@ -24,7 +24,7 @@ import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 import { _RelationalQueryBuilder } from './query-builders/_query.ts';
-import { SQLiteCountBuilder } from './query-builders/count.ts';
+import { SQLiteCountBuilder, type SQLiteCountBuilderKind, SQLiteSyncCountBuilder } from './query-builders/count.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import { SQLiteRaw } from './query-builders/raw.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
@@ -188,8 +188,20 @@ export class BaseSQLiteDatabase<
 	$count(
 		source: SQLiteTable | SQLiteViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
-	) {
-		return new SQLiteCountBuilder({ source, filters, session: this.session });
+	): SQLiteCountBuilderKind<TResultKind> {
+		return this.resultKind === 'async'
+			? new SQLiteCountBuilder({
+				source,
+				filters,
+				session: this.session,
+				dialect: this.dialect,
+			}) as SQLiteCountBuilderKind<TResultKind>
+			: new SQLiteSyncCountBuilder({
+				source,
+				filters,
+				session: this.session,
+				dialect: this.dialect,
+			});
 	}
 
 	/**

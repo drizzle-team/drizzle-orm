@@ -1,6 +1,6 @@
 import { IsAlias, OriginalName, Table, TableColumns, TableSchema } from '~/table.ts';
 import { aliasedTable } from './alias.ts';
-import type { NormalizeArrayCodec, NormalizeCodec } from './codecs.ts';
+import type { CodecsCollection, NormalizeArrayCodec, NormalizeCodec } from './codecs.ts';
 import { type AnyColumn, Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
 import { DrizzleError } from './errors.ts';
@@ -38,6 +38,7 @@ import {
 	type DrizzleTypeError,
 	type Equal,
 	FnConstructor,
+	getColumnFromDecoder,
 	type Simplify,
 	type ValueOrArray,
 } from './utils.ts';
@@ -769,11 +770,6 @@ export function mapRelationalRow(
 		({ field, codec, arrayDimensions }) => {
 			let decoder;
 			if (is(field, Column)) {
-				// Support for old custom column JSON field API
-				if (useJsonMappers && (<any> field).mapFromJsonValue) {
-					return (v) => (<(value: unknown) => unknown> (<any> field).mapFromJsonValue)(v);
-				}
-
 				decoder = field;
 			} else if (is(field, SQL)) {
 				decoder = field.decoder;
@@ -783,6 +779,11 @@ export function mapRelationalRow(
 				decoder = noopDecoder;
 			} else {
 				decoder = field.getSQL().decoder;
+			}
+
+			// Support for old custom column JSON field API
+			if (useJsonMappers && (<any> field).mapFromJsonValue) {
+				return (v) => (<(value: unknown) => unknown> (<any> field).mapFromJsonValue)(v);
 			}
 
 			return decoder.mapFromDriverValue.isNoop
@@ -1108,13 +1109,23 @@ function makeJitRqbMapperInner(
 				decoderExpr = `dec${id}.mapFromDriverValue`;
 			}
 		} else if (is(field, SQL)) {
-			if (!field.decoder.mapFromDriverValue.isNoop) {
+			if (useJsonMappers && (<any> field.decoder).mapFromJsonValue) {
+				bypassCodecs = true;
+				const id = counter.n++;
+				destructure = `field: { decoder: dec${id} }`;
+				decoderExpr = `dec${id}.mapFromJsonValue`;
+			} else if (!field.decoder.mapFromDriverValue.isNoop) {
 				const id = counter.n++;
 				destructure = `field: { decoder: dec${id} }`;
 				decoderExpr = `dec${id}.mapFromDriverValue`;
 			}
 		} else if (is(field, SQL.Aliased)) {
-			if (!field.sql.decoder.mapFromDriverValue.isNoop) {
+			if (useJsonMappers && (<any> field.sql.decoder).mapFromJsonValue) {
+				bypassCodecs = true;
+				const id = counter.n++;
+				destructure = `field: { sql: { decoder: dec${id} } }`;
+				decoderExpr = `dec${id}.mapFromJsonValue`;
+			} else if (!field.sql.decoder.mapFromDriverValue.isNoop) {
 				const id = counter.n++;
 				destructure = `field: { sql: { decoder: dec${id} } }`;
 				decoderExpr = `dec${id}.mapFromDriverValue`;
@@ -1122,7 +1133,14 @@ function makeJitRqbMapperInner(
 		} else if (is(field, Table) || is(field, View)) {
 			// no decoder
 		} else {
-			if (!field.getSQL().decoder.mapFromDriverValue.isNoop) {
+			const sqlExpr = field.getSQL();
+
+			if (useJsonMappers && (<any> sqlExpr.decoder).mapFromJsonValue) {
+				bypassCodecs = true;
+				const id = counter.n++;
+				preFn.push(`const dec${id} = ${sel}.field.getSQL().decoder;`);
+				decoderExpr = `dec${id}.mapFromJsonValue`;
+			} else if (!sqlExpr.decoder.mapFromDriverValue.isNoop) {
 				const id = counter.n++;
 				preFn.push(`const dec${id} = ${sel}.field.getSQL().decoder;`);
 				decoderExpr = `dec${id}.mapFromDriverValue`;
@@ -1949,6 +1967,8 @@ export function relationsOrderToSQL(
 export function relationExtrasToSQL(
 	table: SchemaEntry,
 	extras: Extras,
+	codecs?: CodecsCollection,
+	inJson?: boolean,
 ) {
 	const subqueries: SQL[] = [];
 	const selection: BuildRelationalQueryResult['selection'] = [];
@@ -1959,15 +1979,29 @@ export function relationExtrasToSQL(
 		if (!field) continue;
 		const extra = typeof field === 'function' ? field(table as any, { sql: operators.sql }) : field;
 
-		const query = sql`(${extra.getSQL()}) as ${sql.identifier(key)}`;
-
-		query.decoder = extra.getSQL().decoder;
+		const subq = extra.getSQL();
+		const column = codecs ? getColumnFromDecoder(subq) : undefined;
+		// Codec bypass for custom columns with enabled legacy JSON api
+		const query = column && (!inJson || !(<any> column).jsonSelectIdentifier)
+			? sql`${codecs!.apply(column, inJson ? 'castInJson' : 'cast', sql`(${subq})`)} as ${sql.identifier(key)}`
+			: sql`(${subq}) as ${sql.identifier(key)}`;
+		query.decoder = subq.decoder;
 
 		subqueries.push(query);
-		selection.push({
-			key,
-			field: query,
-		});
+		selection.push(
+			// Codec bypass for custom columns with enabled legacy JSON api
+			column && (!inJson || !(<any> column).mapFromJsonValue)
+				? {
+					key,
+					field: query,
+					codec: codecs!.get(column, inJson ? 'normalizeInJson' : 'normalize'),
+					arrayDimensions: (<any> column).dimensions,
+				}
+				: {
+					key,
+					field: query,
+				},
+		);
 	}
 
 	return {

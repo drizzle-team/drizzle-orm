@@ -99,7 +99,7 @@ export class PgSelectBuilder<
 			this.withList = config.withList;
 		}
 		this.distinct = config.distinct;
-		this.tagged = config.tagged;
+		// this.tagged = config.tagged; // TODO: bugged, to be remade
 	}
 
 	/**
@@ -159,7 +159,7 @@ export class PgSelectBuilder<
 			dialect: this.dialect,
 			withList: this.withList,
 			distinct: this.distinct,
-			tagged: this.tagged,
+			// tagged: this.tagged,  // TODO: bugged, to be remade
 		}) as any;
 	}
 }
@@ -260,7 +260,7 @@ export class PgSelectBase<
 			fields: { ...config.fields },
 			distinct: config.distinct,
 			setOperators: [],
-			_tagged: config.tagged,
+			// tagged: config.tagged, // TODO: bugged, to be remade
 		};
 		this.isPartialSelect = config.isPartialSelect;
 		this._ = {

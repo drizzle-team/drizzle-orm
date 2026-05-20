@@ -1,4 +1,5 @@
 import type { PgClient } from '@effect/sql-pg/PgClient';
+import { Context } from 'effect';
 import type * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/unstable/sql/SqlError';
 import type { Equal } from 'type-tests/utils.ts';
@@ -7,6 +8,7 @@ import type { EffectDrizzleQueryError, MigratorInitError } from '~/effect-core/e
 import type { EffectPgDatabase } from '~/effect-postgres/index.ts';
 import { make, makeWithDefaults } from '~/effect-postgres/index.ts';
 import { migrate } from '~/effect-postgres/migrator.ts';
+import type { PgEffectSelect } from '~/pg-core/effect';
 import type { EmptyRelations } from '~/relations.ts';
 import { eq } from '~/sql/expressions/index.ts';
 import { cities, users } from './tables.ts';

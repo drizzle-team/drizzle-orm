@@ -1,76 +1,89 @@
 import { entityKind } from '~/entity.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import type { Query } from '~/sql/sql.ts';
 import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
+import { applyMixins } from '~/utils.ts';
+import type { SQLiteDialect } from '../dialect.ts';
 import type { SQLiteSession } from '../session.ts';
 import type { SQLiteTable } from '../table.ts';
-import type { SQLiteView } from '../view.ts';
+import type { SQLiteViewBase } from '../view-base.ts';
 
-export class SQLiteCountBuilder<
-	TSession extends SQLiteSession<any, any, any, any>,
-> extends SQL<number> implements Promise<number>, SQLWrapper<number> {
-	private sql: SQL<number>;
+export type SQLiteCountBuilderKind<TMode extends 'sync' | 'async'> = TMode extends 'async' ? SQLiteCountBuilder
+	: SQLiteSyncCountBuilder;
 
-	static override readonly [entityKind]: string = 'SQLiteCountBuilderAsync';
-	[Symbol.toStringTag] = 'SQLiteCountBuilderAsync';
+// oxlint-disable-next-line no-unused-vars
+export interface SQLiteCountBuilder extends SQL<number>, SQLWrapper<number>, QueryPromise<number> {}
 
-	private session: TSession;
+export class SQLiteCountBuilder extends SQL<number> implements SQLWrapper<number> {
+	static override readonly [entityKind]: string = 'SQLiteCountBuilder';
 
-	private static buildEmbeddedCount(
-		source: SQLiteTable | SQLiteView | SQL | SQLWrapper,
-		filters?: SQL<unknown>,
-	): SQL<number> {
-		return sql<number>`(select count(*) from ${source}${sql.raw(' where ').if(filters)}${filters})`;
-	}
+	protected dialect: SQLiteDialect;
+	protected session: SQLiteSession<any, any, any, any, any>;
 
 	private static buildCount(
-		source: SQLiteTable | SQLiteView | SQL | SQLWrapper,
+		source: SQLiteTable | SQLiteViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
+		parens?: boolean,
 	): SQL<number> {
-		return sql<number>`select count(*) from ${source}${sql.raw(' where ').if(filters)}${filters}`;
+		const where = sql` where ${filters}`.if(filters);
+		const query = sql<number>`select count(*) from ${source}${where}`;
+
+		return parens ? sql`(${query})` : query;
 	}
 
 	constructor(
-		readonly params: {
-			source: SQLiteTable | SQLiteView | SQL | SQLWrapper;
+		protected countConfig: {
+			source: SQLiteTable | SQLiteViewBase | SQL | SQLWrapper;
 			filters?: SQL<unknown>;
-			session: TSession;
+			dialect: SQLiteDialect;
+			session: SQLiteSession<any, any, any, any, any>;
 		},
 	) {
-		super(SQLiteCountBuilder.buildEmbeddedCount(params.source, params.filters).queryChunks);
+		super(SQLiteCountBuilder.buildCount(countConfig.source, countConfig.filters, true).queryChunks);
+		this.dialect = countConfig.dialect;
+		this.session = countConfig.session;
+		this.mapWith((e) => {
+			if (typeof e === 'number') return e;
 
-		this.session = params.session;
-
-		this.sql = SQLiteCountBuilder.buildCount(
-			params.source,
-			params.filters,
-		);
+			return Number(e ?? 0);
+		});
 	}
 
-	then<TResult1 = number, TResult2 = never>(
-		onfulfilled?: ((value: number) => TResult1 | PromiseLike<TResult1>) | null | undefined,
-		onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null | undefined,
-	): Promise<TResult1 | TResult2> {
-		return Promise.resolve(this.session.count(this.sql)).then(
-			onfulfilled,
-			onrejected,
-		);
+	private executableSql: SQL<number> | undefined;
+	protected build(): Query {
+		if (!this.executableSql) {
+			const { source, filters } = this.countConfig;
+			this.executableSql = SQLiteCountBuilder.buildCount(source, filters);
+		}
+
+		return this.dialect.sqlToQuery(this.executableSql);
 	}
 
-	catch(
-		onRejected?: ((reason: any) => never | PromiseLike<never>) | null | undefined,
-	): Promise<number> {
-		return this.then(undefined, onRejected);
-	}
-
-	finally(onFinally?: (() => void) | null | undefined): Promise<number> {
-		return this.then(
-			(value) => {
-				onFinally?.();
-				return value;
+	/** @internal */
+	executeRaw(placeholderValues?: Record<string, unknown>): Promise<number> | number {
+		return this.session.prepareOneTimeQuery(
+			this.build(),
+			undefined,
+			'get',
+			(rows) => {
+				const v = rows[0]?.[0];
+				if (typeof v === 'number') return v;
+				return v ? Number(v) : 0;
 			},
-			(reason) => {
-				onFinally?.();
-				throw reason;
-			},
-		);
+		).execute(placeholderValues) as any;
+	}
+
+	execute(placeholderValues?: Record<string, unknown>): Promise<number> {
+		return this.executeRaw(placeholderValues) as Promise<number>;
 	}
 }
+
+export class SQLiteSyncCountBuilder extends SQLiteCountBuilder {
+	static override readonly [entityKind]: string = 'SQLiteSyncCountBuilder';
+
+	sync(placeholderValues?: Record<string, unknown>): number {
+		return this.executeRaw(placeholderValues) as number;
+	}
+}
+
+applyMixins(SQLiteCountBuilder, [QueryPromise]);

@@ -33,10 +33,11 @@ import {
 	type WithContainer,
 } from '~/relations.ts';
 import { and, isSQLWrapper, type SQLWrapper, View } from '~/sql/index.ts';
-import { type Name, Param, type Query, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
+import { type DriverValueDecoder, type Name, Param, type Query, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
 import {
+	getColumnFromDecoder,
 	makeDefaultQueryMapper,
 	makeJitQueryMapper,
 	orderSelectedFields,
@@ -219,12 +220,15 @@ export class PgDialect {
 			const chunk: SQLChunk[] = [];
 
 			if (is(field, SQL.Aliased) && field.isSelectionField) {
-				if (!isSingleTable && field.origin !== undefined) {
-					chunk.push(sql.identifier(field.origin), sql.raw('.'));
-				}
-				chunk.push(sql.identifier(field.fieldAlias));
+				const column = ignoreCastCodecs ? undefined : getColumnFromDecoder(field);
+				const query = !isSingleTable && field.origin !== undefined
+					? sql`${sql.identifier(field.origin)}.${sql.identifier(field.fieldAlias)}`
+					: sql.identifier(field.fieldAlias);
+				if (!column) chunk.push(query);
+				else chunk.push(this.codecs.apply(column, 'cast', query));
 			} else if (is(field, SQL.Aliased) || is(field, SQL)) {
 				const query = is(field, SQL.Aliased) ? field.sql : field;
+				const column = ignoreCastCodecs ? undefined : getColumnFromDecoder(query);
 
 				if (isSingleTable) {
 					const newSql = new SQL(
@@ -236,9 +240,12 @@ export class PgDialect {
 						}),
 					);
 
-					chunk.push(query.shouldInlineParams ? newSql.inlineParams() : newSql);
+					if (query.shouldInlineParams) newSql.inlineParams();
+					const wrapped = column ? this.codecs.apply(column, 'cast', newSql) : newSql;
+
+					chunk.push(wrapped);
 				} else {
-					chunk.push(query);
+					chunk.push(column ? this.codecs.apply(column, 'cast', query) : query);
 				}
 
 				if (is(field, SQL.Aliased)) {
@@ -258,21 +265,29 @@ export class PgDialect {
 				chunk.push(field.isAlias ? sql`${casted} as ${field}` : casted);
 			} else if (is(field, Subquery)) {
 				const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
+				let column: Column | undefined;
 
 				if (entries.length === 1) {
 					const entry = entries[0]![1];
 
-					const fieldDecoder = is(entry, SQL)
-						? entry.decoder
-						: is(entry, Column)
-						? { mapFromDriverValue: (v: any) => entry.mapFromDriverValue(v) }
-						: entry.sql.decoder;
+					let fieldDecoder: DriverValueDecoder<any, any>;
+					if (is(entry, Column)) {
+						column = entry;
+						fieldDecoder = entry;
+					} else if (is(entry, SQL)) {
+						column = !ignoreCastCodecs ? getColumnFromDecoder(entry) : undefined;
+						fieldDecoder = entry.decoder;
+					} else {
+						column = !ignoreCastCodecs ? getColumnFromDecoder(entry) : undefined;
+						fieldDecoder = entry.sql.decoder;
+					}
 
 					if (fieldDecoder) {
 						field._.sql.decoder = fieldDecoder;
 					}
 				}
-				chunk.push(field);
+
+				chunk.push(column ? this.codecs.apply(column, 'cast', field) : field);
 			}
 
 			if (i < columnsLen - 1) {
@@ -678,23 +693,59 @@ export class PgDialect {
 		});
 	}
 
-	private buildRqbColumn(table: Table | View, column: unknown, key: string, inJson: boolean) {
-		if (is(column, Column)) {
-			const name = sql`${table}.${sql.identifier(column.name)}`;
-			const casted = inJson && (<PgCustomColumn<any>> column).jsonSelectIdentifier
-				? (<PgCustomColumn<any>> column).jsonSelectIdentifier!(name, sql, (<PgCustomColumn<any>> column).dimensions)
-				: this.codecs.apply(column, inJson ? 'castInJson' : 'cast', name);
+	private buildRqbColumn(table: Table | View, field: unknown, key: string, inJson: boolean) {
+		if (is(field, Column)) {
+			const name = sql`${table}.${sql.identifier(field.name)}`;
+			const casted = inJson && (<PgCustomColumn<any>> field).jsonSelectIdentifier
+				? (<PgCustomColumn<any>> field).jsonSelectIdentifier!(name, sql, (<PgCustomColumn<any>> field).dimensions)
+				: this.codecs.apply(field, inJson ? 'castInJson' : 'cast', name);
 
 			return sql`${casted} as ${sql.identifier(key)}`;
 		}
 
-		return sql`${table}.${
-			is(column, SQL.Aliased)
-				? sql.identifier(column.fieldAlias)
-				: isSQLWrapper(column)
-				? sql.identifier(key)
-				: this.nestedSelectionerror()
-		} as ${sql.identifier(key)}`;
+		if (is(field, SQL.Aliased)) {
+			const column = getColumnFromDecoder(field);
+			const q = sql`${table}.${sql.identifier(field.fieldAlias)}`;
+			return sql`${column ? this.codecs.apply(column, inJson ? 'castInJson' : 'cast', q) : q} as ${
+				sql.identifier(key)
+			}`;
+		}
+
+		if (isSQLWrapper(field)) {
+			const column = getColumnFromDecoder(field);
+			const q = sql`${table}.${sql.identifier(key)}`;
+			return sql`${column ? this.codecs.apply(column, inJson ? 'castInJson' : 'cast', q) : q} as ${
+				sql.identifier(key)
+			}`;
+		}
+
+		throw this.nestedSelectionerror();
+	}
+
+	private resolveSelection(field: unknown, key: string, inJson: boolean) {
+		if (is(field, Column)) {
+			return {
+				key,
+				field: field,
+				codec: this.codecs.get(field, inJson ? 'normalizeInJson' : 'normalize'),
+				arrayDimensions: (<PgColumn> field).dimensions,
+			};
+		}
+
+		const decoderColumn = getColumnFromDecoder(field as SQL | SQLWrapper | SQL.Aliased);
+		return decoderColumn
+			? {
+				key,
+				field: field as SQL | SQLWrapper | SQL.Aliased,
+				codec: decoderColumn && (!inJson || !(<PgCustomColumn<any>> decoderColumn).mapFromJsonValue)
+					? this.codecs.get(decoderColumn, inJson ? 'normalizeInJson' : 'normalize')
+					: undefined,
+				arrayDimensions: (<PgColumn> decoderColumn).dimensions,
+			}
+			: {
+				key,
+				field: field as SQL | SQLWrapper | SQL.Aliased,
+			};
 	}
 
 	private unwrapAllColumns = (
@@ -704,19 +755,7 @@ export class PgDialect {
 	) => {
 		return sql.join(
 			Object.entries(table[TableColumns]).map(([k, v]) => {
-				selection.push(
-					is(v, Column)
-						? {
-							key: k,
-							codec: this.codecs.get(v, inJson ? 'normalizeInJson' : 'normalize'),
-							arrayDimensions: (<PgColumn> v).dimensions,
-							field: v,
-						}
-						: {
-							key: k,
-							field: v as SQL | SQLWrapper | SQL.Aliased,
-						},
-				);
+				selection.push(this.resolveSelection(v, k, inJson));
 
 				return this.buildRqbColumn(table, v, k, inJson);
 			}),
@@ -745,19 +784,7 @@ export class PgDialect {
 						const column = columnContainer[k];
 						columnIdentifiers.push(this.buildRqbColumn(table, column, k, inJson));
 
-						selection.push(
-							is(column, Column)
-								? {
-									key: k,
-									codec: this.codecs.get(column, inJson ? 'normalizeInJson' : 'normalize'),
-									arrayDimensions: (<PgColumn> column).dimensions,
-									field: column,
-								}
-								: {
-									key: k,
-									field: column as SQL | SQLWrapper | SQL.Aliased,
-								},
-						);
+						selection.push(this.resolveSelection(column, k, inJson));
 					}
 				}
 
@@ -766,19 +793,7 @@ export class PgDialect {
 						if (config.columns[k] === false) continue;
 						columnIdentifiers.push(this.buildRqbColumn(table, v, k, inJson));
 
-						selection.push(
-							is(v, Column)
-								? {
-									key: k,
-									codec: this.codecs.get(v, inJson ? 'normalizeInJson' : 'normalize'),
-									arrayDimensions: (<PgColumn> v).dimensions,
-									field: v,
-								}
-								: {
-									key: k,
-									field: v as SQL | SQLWrapper | SQL.Aliased,
-								},
-						);
+						selection.push(this.resolveSelection(v, k, inJson));
 					}
 				}
 
@@ -845,7 +860,7 @@ export class PgDialect {
 			: undefined;
 		const columns = this.buildColumns(table, selection, !!nested, params);
 		const extras = params?.extras
-			? relationExtrasToSQL(table, params.extras)
+			? relationExtrasToSQL(table, params.extras, this.codecs, nested)
 			: undefined;
 		if (extras) selection.push(...extras.selection);
 
