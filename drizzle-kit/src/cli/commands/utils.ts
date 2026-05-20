@@ -1006,7 +1006,7 @@ export const drizzleConfigFromFile = async (
 
 	if (!isExport) humanLog(`Reading config file '${path}'`);
 
-	const content = await loadModule<any>(path);
+	const content = await loadModule<any>(path, { defaultExport: true });
 
 	// --- get response and then check by each dialect independently
 	const res = configCommonSchema.safeParse(content);
