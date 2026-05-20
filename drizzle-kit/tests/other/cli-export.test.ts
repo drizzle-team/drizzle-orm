@@ -149,8 +149,8 @@ test('validate config #3', async (t) => {
 	expect((res.error as Error).message).toBe(
 		[
 			error('Please provide required params:'),
-			wrapParam('schema', undefined),
 			wrapParam('dialect', 'postgresql'),
+			wrapParam('schema', undefined),
 		].join('\n'),
 	);
 });
@@ -168,5 +168,11 @@ test('validate config #4', async (t) => {
 
 	expect(res.type).toBe('error');
 	if (res.type !== 'error') return;
-	expect((res.error as Error).message).toBe(error("Please specify 'dialect' param in config file"));
+	expect((res.error as Error).message).toBe(
+		[
+			error('Please provide required params:'),
+			wrapParam('dialect', undefined),
+			wrapParam('schema', 'schema.ts'),
+		].join('\n'),
+	);
 });

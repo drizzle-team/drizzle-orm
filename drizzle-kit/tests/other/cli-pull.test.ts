@@ -364,7 +364,9 @@ test('validate config #5', async (t) => {
 
 	expect(res.type).toBe('error');
 	if (res.type !== 'error') return;
-	expect((res.error as Error).message).toBe(error("Please specify 'dialect' param in config file"));
+	expect((res.error as Error).message).toBe(
+		[error('Please provide required params:'), wrapParam('dialect', undefined)].join('\n'),
+	);
 });
 
 test('validate config #6', async (t) => {

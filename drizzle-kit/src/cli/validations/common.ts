@@ -122,7 +122,7 @@ export type EntitiesFilterConfig = {
 };
 
 export const configCommonSchema = object({
-	dialect: dialect,
+	dialect: dialect.optional(),
 	out: string().default('drizzle'),
 	breakpoints: boolean().optional().default(true),
 	verbose: boolean().optional().default(false),

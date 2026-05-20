@@ -1,8 +1,8 @@
 import { test as brotest } from '@drizzle-team/brocli';
+import { stripAnsi } from 'hanji/utils';
 import { unlinkSync } from 'node:fs';
 import { afterEach, assert, expect, test, vi } from 'vitest';
 import { studio } from '../../src/cli/schema';
-import { error } from '../../src/cli/views';
 import { createConfig } from './utils';
 
 const originalPrefix = process.env.TEST_CONFIG_PATH_PREFIX;
@@ -188,8 +188,17 @@ test('validate config #5', async (t) => {
 	unlinkSync(path);
 
 	expect(res.type).toBe('error');
-	if (res.type !== 'error') return;
-	expect((res.error as Error).message).toBe(error("Please specify 'dialect' param in config file"));
+
+	const calls = spy.mock.calls.map((c) => stripAnsi(String(c[0])));
+	expect(calls[0]).toBe(`Reading config file '${path}'`);
+	expect(calls[1]).toBe(
+		` Invalid input  Please specify 'dialect' param in config, either of 'postgresql', 'mysql', 'sqlite', turso or singlestore`,
+	);
+
+	let error: any = res.type === 'error' ? res.error : undefined;
+	expect(error).toBeDefined();
+	expect(error).toBeInstanceOf(Error);
+	expect(error.message).toBe('process.exit unexpectedly called with "1"');
 
 	spy.mockRestore();
 });
@@ -210,8 +219,12 @@ test('validate config #6', async (t) => {
 	unlinkSync(path);
 
 	expect(res.type).toBe('error');
-	const calls = spy.mock.calls.map((c) => String(c[0]));
-	expect(calls.some((c) => c.includes(`Please specify a 'dbCredentials' param`))).toBe(true);
+
+	const calls = spy.mock.calls.map((c) => stripAnsi(String(c[0])));
+	expect(calls[0]).toBe(`Reading config file '${path}'`);
+	expect(calls[1]).toBe(
+		` Invalid input  Please specify a 'dbCredentials' param in config. It will help drizzle to know how to query you database. You can read more about drizzle.config: https://orm.drizzle.team/kit-docs/config-reference`,
+	);
 
 	let error: any = res.type === 'error' ? res.error : undefined;
 	expect(error).toBeDefined();
