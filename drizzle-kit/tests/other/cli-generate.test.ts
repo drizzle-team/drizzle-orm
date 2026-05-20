@@ -1,8 +1,13 @@
 import { test as brotest } from '@drizzle-team/brocli';
+import { unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { afterEach, assert, expect, test } from 'vitest';
+import { afterEach, assert, expect, test, vi } from 'vitest';
+import { GenerateConfig } from '../../src/cli/commands/utils';
 import { HintsHandler } from '../../src/cli/hints';
 import { generate } from '../../src/cli/schema';
+import { wrapParam } from '../../src/cli/validations/common';
+import { error } from '../../src/cli/views';
+import { createConfig } from './utils';
 
 const originalPrefix = process.env.TEST_CONFIG_PATH_PREFIX;
 process.env.TEST_CONFIG_PATH_PREFIX = './tests/cli/';
@@ -52,7 +57,7 @@ test('generate #1', async (t) => {
 		filenames: [filename],
 		out: 'drizzle',
 		bundle: false,
-		casing: undefined,
+
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: false,
@@ -75,7 +80,7 @@ test('generate #2', async (t) => {
 		filenames: [filename],
 		out: 'out',
 		bundle: false,
-		casing: undefined,
+
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: false,
@@ -95,7 +100,7 @@ test('generate #3', async (t) => {
 		filenames: [filename],
 		out: 'drizzle',
 		bundle: false,
-		casing: undefined,
+
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: false,
@@ -116,7 +121,7 @@ test('generate #4', async (t) => {
 		filenames: [filename],
 		out: 'drizzle',
 		bundle: false,
-		casing: undefined,
+
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: false,
@@ -136,7 +141,7 @@ test('generate #5', async (t) => {
 		filenames: [filename],
 		out: 'drizzle',
 		bundle: false,
-		casing: undefined,
+
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: false,
@@ -156,7 +161,7 @@ test('generate #6', async (t) => {
 		filenames: [filename],
 		out: 'drizzle',
 		bundle: false,
-		casing: undefined,
+
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: false,
@@ -176,7 +181,7 @@ test('generate #7', async (t) => {
 		filenames: [filename],
 		out: 'drizzle',
 		bundle: false,
-		casing: undefined,
+
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: false,
@@ -197,7 +202,7 @@ test('generate #8', async (t) => {
 		filenames: [filename],
 		out: 'drizzle',
 		bundle: true, // expo driver
-		casing: undefined,
+
 		driver: 'expo',
 		ignoreConflicts: false,
 		explain: false,
@@ -217,7 +222,7 @@ test('generate #9', async (t) => {
 		filenames: [filename],
 		out: 'drizzle',
 		bundle: true, // expo driver
-		casing: undefined,
+
 		driver: 'durable-sqlite',
 		ignoreConflicts: false,
 		explain: false,
@@ -241,7 +246,7 @@ test('generate #9', async (t) => {
 		filenames: [filename],
 		out: 'out',
 		bundle: false,
-		casing: undefined,
+
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: false,
@@ -265,7 +270,7 @@ test('generate #10 tsconfig paths', async () => {
 			breakpoints: true,
 			out: 'drizzle',
 			bundle: false,
-			casing: undefined,
+
 			driver: undefined,
 			filenames: [filename],
 			explain: false,
@@ -294,7 +299,6 @@ test('generate --explain', async (t) => {
 		filenames: [filename],
 		out: 'drizzle',
 		bundle: false,
-		casing: undefined,
 		driver: undefined,
 		ignoreConflicts: false,
 		explain: true,
@@ -347,4 +351,147 @@ test('err #8', async (t) => {
 		'--config=drizzle.config.ts --dialect=postgresql',
 	);
 	assert.equal(res.type, 'error');
+});
+
+// should point to test/cli
+const prefix = process.env.TEST_CONFIG_PATH_PREFIX || '';
+test('validate config #1', async (t) => {
+	const { path, name } = createConfig({
+		dialect: 'postgresql',
+		schema: 'schema.ts',
+		dbCredentials: { url: '' },
+		introspect: { casing: 'preserve' },
+		strict: true,
+		schemaFilter: ['public'],
+		breakpoints: false,
+	}, prefix);
+
+	const res = await brotest(generate, `--config=${name}`);
+
+	unlinkSync(path);
+	assert.equal(res.type, 'handler');
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+
+	const expected: GenerateConfig = {
+		dialect: 'postgresql',
+		filenames: [filename],
+		breakpoints: false,
+		bundle: false,
+		custom: false,
+		out: 'drizzle',
+		driver: undefined,
+		ignoreConflicts: false,
+		name: undefined,
+		explain: false,
+		hints: expect.any(HintsHandler) as any,
+	};
+	expect(res.options).toStrictEqual(expected);
+});
+
+test('validate config #2', async (t) => {
+	const { path, name } = createConfig({
+		dialect: 'postgresql',
+		schema: 'schema.ts',
+		dbCredentials: { url: '' },
+		introspect: { casing: 'preserve' },
+		strict: true,
+		schemaFilter: ['public'],
+		breakpoints: true,
+		driver: 'pglite',
+		out: 'test',
+		entities: {
+			roles: true,
+		},
+		extensionsFilters: ['postgis'],
+		verbose: false,
+	}, prefix);
+
+	const res = await brotest(generate, `--config=${name}`);
+
+	unlinkSync(path);
+	assert.equal(res.type, 'handler');
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+
+	const expected: GenerateConfig = {
+		dialect: 'postgresql',
+		filenames: [filename],
+		breakpoints: true,
+		bundle: false,
+		custom: false,
+		out: 'test',
+		driver: 'pglite',
+		ignoreConflicts: false,
+		name: undefined,
+		explain: false,
+		hints: expect.any(HintsHandler) as any,
+	};
+	expect(res.options).toStrictEqual(expected);
+});
+
+test('validate config #3', async (t) => {
+	const { path, name } = createConfig(
+		{ dialect: 'postgresql', driver: 'aws-data-api', out: 'test' },
+		prefix,
+	);
+
+	const res = await brotest(generate, `--config=${name}`);
+
+	unlinkSync(path);
+
+	expect(res.type).toBe('error');
+	if (res.type !== 'error') return;
+	expect((res.error as Error).message).toBe(
+		[
+			error('Please provide required params:'),
+			wrapParam('schema', undefined),
+			wrapParam('dialect', 'postgresql'),
+			wrapParam('out', 'test', true),
+		].join('\n'),
+	);
+});
+
+test('validate config #4', async (t) => {
+	const { path, name } = createConfig(
+		// @ts-expect-error
+		{ dialect: 1, schema: 'path-to-schema' },
+		prefix,
+	);
+
+	const res = await brotest(generate, `--config=${name}`);
+
+	unlinkSync(path);
+
+	// wrong dialect data type → ConfigValidationCliError
+	expect(res.type).toBe('error');
+	if (res.type !== 'error') return;
+	expect((res.error as Error).name).toBe('ConfigValidationCliError');
+});
+
+test('validate config #5', async (t) => {
+	const { path, name } = createConfig({
+		dialect: 'sqlite',
+		driver: 'd1-http',
+		schema: 'schema.ts',
+	}, prefix);
+
+	const res = await brotest(generate, `--config=${name}`);
+
+	unlinkSync(path);
+	assert.equal(res.type, 'handler');
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+
+	const expected: GenerateConfig = {
+		dialect: 'sqlite',
+		filenames: [filename],
+		breakpoints: true,
+		bundle: false,
+		custom: false,
+		out: 'drizzle',
+		driver: 'd1-http',
+		ignoreConflicts: false,
+		name: undefined,
+		explain: false,
+		hints: expect.any(HintsHandler) as any,
+	};
+	expect(res.options).toStrictEqual(expected);
 });

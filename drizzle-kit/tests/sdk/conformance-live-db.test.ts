@@ -249,6 +249,27 @@ export const t = pgTable('${tableName}', {
 });
 
 describe.skipIf(!mysqlUrl)('push mysql (live DB)', () => {
+	// Drop all tables before the suite so the diff engine sees a truly empty DB.
+	// Without this, leftover tables from prior mysql test files (e.g. tests/mysql/*.test.ts)
+	// confuse the diff and produce rename_or_create missing_hints when a plain create_table
+	// is expected.
+	beforeAll(async () => {
+		const mysql = await import('mysql2/promise');
+		const conn = await mysql.createConnection(mysqlUrl!);
+		try {
+			const [rows] = await conn.query<{ TABLE_NAME: string }[] & any[]>(
+				"SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()",
+			);
+			await conn.query('SET FOREIGN_KEY_CHECKS = 0');
+			for (const row of rows as Array<{ TABLE_NAME: string }>) {
+				await conn.query(`DROP TABLE IF EXISTS \`${row.TABLE_NAME}\``);
+			}
+			await conn.query('SET FOREIGN_KEY_CHECKS = 1');
+		} finally {
+			await conn.end();
+		}
+	});
+
 	/**
 	 * Parity invariant: CLI envelope equals SDK envelope for the no_changes status.
 	 * Pre-state: a placeholder table is seeded by an initial CLI push so both subsequent

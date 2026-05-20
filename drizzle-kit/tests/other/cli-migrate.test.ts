@@ -1,6 +1,10 @@
 import { test as brotest } from '@drizzle-team/brocli';
-import { afterEach, assert, expect, test } from 'vitest';
+import { unlinkSync } from 'fs';
+import { afterEach, assert, expect, test, vi } from 'vitest';
 import { migrate } from '../../src/cli/schema';
+import { wrapParam } from '../../src/cli/validations/common';
+import { error } from '../../src/cli/views';
+import { createConfig } from './utils';
 
 const originalPrefix = process.env.TEST_CONFIG_PATH_PREFIX;
 process.env.TEST_CONFIG_PATH_PREFIX = './tests/cli/';
@@ -111,4 +115,125 @@ test('migrate #5', async (t) => {
 test('err #1', async (t) => {
 	const res = await brotest(migrate, '--config=expo.config.ts');
 	assert.equal(res.type, 'error');
+});
+
+// should point to test/cli
+const prefix = process.env.TEST_CONFIG_PATH_PREFIX || '';
+test('validate config #1', async (t) => {
+	const { path, name } = createConfig({
+		dialect: 'postgresql',
+		schema: 'schema.ts',
+		dbCredentials: { url: 'test_url' },
+		introspect: { casing: 'preserve' },
+		strict: true,
+		schemaFilter: ['public'],
+		breakpoints: false,
+	}, prefix);
+
+	const res = await brotest(migrate, `--config=${name}`);
+
+	unlinkSync(path);
+	assert.equal(res.type, 'handler');
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+
+	const expected = {
+		dialect: 'postgresql',
+		out: 'drizzle',
+		credentials: {
+			url: 'test_url',
+		},
+		schema: 'drizzle',
+		table: '__drizzle_migrations',
+	};
+	expect(res.options).toStrictEqual(expected);
+});
+
+test('validate config #2', async (t) => {
+	const { path, name } = createConfig({
+		dialect: 'mssql',
+		schema: 'schema.ts',
+		dbCredentials: { url: 'test_url' },
+		introspect: { casing: 'preserve' },
+		strict: true,
+		schemaFilter: ['public'],
+		breakpoints: false,
+		entities: {
+			roles: true,
+		},
+		extensionsFilters: ['postgis'],
+		tablesFilter: 'test',
+		migrations: {
+			table: 'test_table',
+		},
+	}, prefix);
+
+	const res = await brotest(migrate, `--config=${name}`);
+
+	unlinkSync(path);
+	assert.equal(res.type, 'handler');
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+
+	const expected = {
+		dialect: 'mssql',
+		out: 'drizzle',
+		credentials: {
+			url: 'test_url',
+		},
+		schema: 'drizzle',
+		table: 'test_table',
+	};
+	expect(res.options).toStrictEqual(expected);
+});
+
+test('validate config #3', async (t) => {
+	const { path, name } = createConfig({
+		dialect: 'mysql',
+		// schema: 'schema.ts',
+		dbCredentials: { url: 'test_url' },
+		introspect: { casing: 'preserve' },
+		strict: true,
+		schemaFilter: ['public'],
+		breakpoints: false,
+		entities: {
+			roles: true,
+		},
+		extensionsFilters: ['postgis'],
+		tablesFilter: 'test',
+		migrations: {
+			table: 'test_table',
+		},
+	}, prefix);
+
+	const res = await brotest(migrate, `--config=${name}`);
+
+	unlinkSync(path);
+	assert.equal(res.type, 'handler');
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+
+	const expected = {
+		dialect: 'mysql',
+		out: 'drizzle',
+		credentials: {
+			url: 'test_url',
+		},
+		schema: 'drizzle',
+		table: 'test_table',
+	};
+	expect(res.options).toStrictEqual(expected);
+});
+
+test('validate config #3', async (t) => {
+	const { path, name } = createConfig(
+		// @ts-expect-error
+		{ driver: 'aws-data-api', out: 'test' },
+		prefix,
+	);
+
+	const res = await brotest(migrate, `--config=${name}`);
+
+	unlinkSync(path);
+
+	expect(res.type).toBe('error');
+	if (res.type !== 'error') return;
+	expect((res.error as Error).message).toBe(error("Please specify 'dialect' param in config file"));
 });
