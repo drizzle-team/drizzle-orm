@@ -440,6 +440,26 @@ export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEf
 		? '__drizzle_migrations'
 		: config.migrationsTable ?? '__drizzle_migrations';
 
+	if (typeof config === 'object' && config.init) {
+		const tableExists = yield* session.all(
+			sql`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ${migrationsTable}`,
+		);
+
+		if (tableExists.length) {
+			const dbMigrations = yield* session.all(
+				sql`SELECT 1 FROM ${sql.identifier(migrationsTable)} LIMIT 1`,
+			);
+
+			if (dbMigrations.length) {
+				return yield* new MigratorInitError({ exitCode: 'databaseMigrations' });
+			}
+		}
+
+		if (migrations.length > 1) {
+			return yield* new MigratorInitError({ exitCode: 'localMigrations' });
+		}
+	}
+
 	const { newDb } = yield* upgradeIfNeeded(migrationsTable, session, migrations);
 
 	if (newDb) {
@@ -459,14 +479,6 @@ export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEf
 	);
 
 	if (typeof config === 'object' && config.init) {
-		if (dbMigrations.length) {
-			return yield* new MigratorInitError({ exitCode: 'databaseMigrations' });
-		}
-
-		if (migrations.length > 1) {
-			return yield* new MigratorInitError({ exitCode: 'localMigrations' });
-		}
-
 		const [migration] = migrations;
 		if (!migration) return;
 

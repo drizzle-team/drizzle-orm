@@ -364,6 +364,22 @@ it.layer(TestLive)((it) => {
 			expect(yield* db.select().from(users)).toStrictEqual([]);
 		}));
 
+	effect('uses the active transaction for queries created from the root db', () =>
+		Effect.gen(function*() {
+			const db = yield* DB;
+
+			const result = yield* db.transaction(() =>
+				Effect.gen(function*() {
+					yield* db.insert(users).values({ name: 'Ada' });
+					expect(yield* db.select({ name: users.name }).from(users)).toStrictEqual([{ name: 'Ada' }]);
+					return yield* Effect.fail(new Error('rollback'));
+				})
+			).pipe(Effect.result);
+
+			assert(Result.isFailure(result));
+			expect(yield* db.select().from(users)).toStrictEqual([]);
+		}));
+
 	effect('surfaces commit errors as typed failures', () =>
 		Effect.gen(function*() {
 			const db = yield* DB;
@@ -630,6 +646,29 @@ it.layer(TestLive)((it) => {
 			assert(Result.isFailure(result));
 			assert(Predicate.isTagged(result.failure, 'MigratorInitError'));
 			expect(result.failure.exitCode).toBe('databaseMigrations');
+		}));
+
+	effect('does not upgrade legacy sqlite migration tables when init fails', () =>
+		Effect.gen(function*() {
+			const db = yield* DB;
+
+			yield* db.run(sql`
+				create table __drizzle_migrations (
+					id integer primary key,
+					hash text not null,
+					created_at numeric
+				)
+			`);
+			yield* db.run(sql`insert into __drizzle_migrations (hash, created_at) values ('hash', 1)`);
+
+			const result = yield* migrate(db, migrationInitConfig).pipe(Effect.result);
+
+			assert(Result.isFailure(result));
+			assert(Predicate.isTagged(result.failure, 'MigratorInitError'));
+			expect(result.failure.exitCode).toBe('databaseMigrations');
+			expect(
+				yield* db.all<{ name: string }>(sql`select name from pragma_table_info('__drizzle_migrations')`),
+			).toStrictEqual([{ name: 'id' }, { name: 'hash' }, { name: 'created_at' }]);
 		}));
 
 	effect('upgrades legacy sqlite migration tables', () =>

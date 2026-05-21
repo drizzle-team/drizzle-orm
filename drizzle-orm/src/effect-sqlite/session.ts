@@ -3,6 +3,7 @@ import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
 import * as Scope from 'effect/Scope';
 import type { SqlClient } from 'effect/unstable/sql/SqlClient';
+import type { Row } from 'effect/unstable/sql/SqlConnection';
 import type { SqlError } from 'effect/unstable/sql/SqlError';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -27,7 +28,7 @@ export interface EffectSQLiteQueryEffectHKT extends QueryEffectHKTBase {
 	readonly context: never;
 }
 
-export type EffectSQLiteRunResult = readonly never[];
+export type EffectSQLiteRunResult = readonly Row[];
 
 export interface EffectSQLiteSessionOptions {
 	logger: EffectLoggerShape;

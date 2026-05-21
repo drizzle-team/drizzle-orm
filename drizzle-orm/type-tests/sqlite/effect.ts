@@ -1,5 +1,6 @@
 import type * as Effect from 'effect/Effect';
 import type { SqlClient } from 'effect/unstable/sql/SqlClient';
+import type { Row } from 'effect/unstable/sql/SqlConnection';
 import type { SqlError } from 'effect/unstable/sql/SqlError';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
@@ -16,6 +17,7 @@ import { withReplicas } from '~/sqlite-core/effect/index.ts';
 import { cities, users } from './tables.ts';
 
 type AsEffect<T> = T extends Effect.Yieldable<infer Self, unknown, unknown, unknown> ? Self : T;
+type RunResult = readonly Row[];
 
 {
 	const dbEffect = makeWithDefaults();
@@ -111,7 +113,7 @@ declare const replica: EffectSQLiteDatabase<Record<string, never>>;
 	type ReplicaWriteEffect = AsEffect<typeof write>;
 
 	Expect<Equal<ReplicaReadEffect, Effect.Effect<(typeof users.$inferSelect)[], EffectDrizzleQueryError, never>>>;
-	Expect<Equal<ReplicaWriteEffect, Effect.Effect<readonly never[], EffectDrizzleQueryError, never>>>;
+	Expect<Equal<ReplicaWriteEffect, Effect.Effect<RunResult, EffectDrizzleQueryError, never>>>;
 }
 
 {
@@ -124,7 +126,7 @@ declare const replica: EffectSQLiteDatabase<Record<string, never>>;
 	});
 	type InsertOneEffect = AsEffect<typeof insertOne>;
 
-	Expect<Equal<InsertOneEffect, Effect.Effect<readonly never[], EffectDrizzleQueryError, never>>>;
+	Expect<Equal<InsertOneEffect, Effect.Effect<RunResult, EffectDrizzleQueryError, never>>>;
 }
 
 {
@@ -162,7 +164,7 @@ declare const replica: EffectSQLiteDatabase<Record<string, never>>;
 	const updateAll = db.update(users).set({ name: 'updated' });
 	type UpdateAllEffect = AsEffect<typeof updateAll>;
 
-	Expect<Equal<UpdateAllEffect, Effect.Effect<readonly never[], EffectDrizzleQueryError, never>>>;
+	Expect<Equal<UpdateAllEffect, Effect.Effect<RunResult, EffectDrizzleQueryError, never>>>;
 }
 
 {
@@ -181,7 +183,7 @@ declare const replica: EffectSQLiteDatabase<Record<string, never>>;
 	const deleteAll = db.delete(users);
 	type DeleteAllEffect = AsEffect<typeof deleteAll>;
 
-	Expect<Equal<DeleteAllEffect, Effect.Effect<readonly never[], EffectDrizzleQueryError, never>>>;
+	Expect<Equal<DeleteAllEffect, Effect.Effect<RunResult, EffectDrizzleQueryError, never>>>;
 }
 
 {
@@ -206,7 +208,7 @@ declare const replica: EffectSQLiteDatabase<Record<string, never>>;
 		.leftJoin(users, (_users, city) => eq(city.id, 1));
 	type UpdateJoinEffect = AsEffect<typeof updateJoin>;
 
-	Expect<Equal<UpdateJoinEffect, Effect.Effect<readonly never[], EffectDrizzleQueryError, never>>>;
+	Expect<Equal<UpdateJoinEffect, Effect.Effect<RunResult, EffectDrizzleQueryError, never>>>;
 }
 
 {
@@ -240,7 +242,7 @@ declare const replica: EffectSQLiteDatabase<Record<string, never>>;
 	Expect<Equal<AsEffect<typeof all>, Effect.Effect<{ id: number }[], EffectDrizzleQueryError, never>>>;
 	Expect<Equal<AsEffect<typeof get>, Effect.Effect<{ id: number } | undefined, EffectDrizzleQueryError, never>>>;
 	Expect<Equal<AsEffect<typeof values>, Effect.Effect<[number][], EffectDrizzleQueryError, never>>>;
-	Expect<Equal<AsEffect<typeof run>, Effect.Effect<readonly never[], EffectDrizzleQueryError, never>>>;
+	Expect<Equal<AsEffect<typeof run>, Effect.Effect<RunResult, EffectDrizzleQueryError, never>>>;
 }
 
 {

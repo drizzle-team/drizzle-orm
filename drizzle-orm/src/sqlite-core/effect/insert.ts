@@ -294,8 +294,7 @@ export class SQLiteEffectInsertBase<
 	}
 
 	toSQL(): Query {
-		const { typings: _typings, ...rest } = this.effectDialect.sqlToQuery(this.getSQL());
-		return rest;
+		return this.effectDialect.sqlToQuery(this.getSQL());
 	}
 
 	/** @internal */

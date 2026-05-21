@@ -10,7 +10,7 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
-import { type Query, type QueryWithTypings, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
+import { type Query, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { SQLiteDialect } from '../dialect.ts';
 import type { PreparedQueryConfig } from '../session.ts';
@@ -180,7 +180,7 @@ export class SQLiteEffectRelationalQuery<TResult, TEffectHKT extends QueryEffect
 		return query;
 	}
 
-	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
 		const query = this._getQuery();
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql);
