@@ -1,4 +1,4 @@
-import { is } from 'drizzle-orm';
+import { getTableColumns, is } from 'drizzle-orm';
 import type { AnyPgTable, PgEnum, PgMaterializedView, PgSequence, PgView } from 'drizzle-orm/pg-core';
 import {
 	isPgEnum,
@@ -62,6 +62,18 @@ export const prepareFromExports = (exports: Record<string, unknown>) => {
 			relations.push(t);
 		}
 	});
+
+	// Collect enums referenced by table columns that were not directly exported.
+	// This handles the case where enums are defined in a separate file and imported
+	// into the schema file without being re-exported.
+	for (const table of tables) {
+		for (const column of Object.values(getTableColumns(table))) {
+			const enumCol = column as any;
+			if (enumCol.enum !== undefined && isPgEnum(enumCol.enum) && !enums.includes(enumCol.enum)) {
+				enums.push(enumCol.enum);
+			}
+		}
+	}
 
 	return { tables, enums, schemas, sequences, views, matViews, roles, policies, relations };
 };
