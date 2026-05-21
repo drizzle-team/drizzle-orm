@@ -40,6 +40,8 @@ export const humanLog = (...args: Parameters<typeof console.log>) => {
 	console.log(...args);
 };
 
+export const humanizeKind = (kind: string): string => kind.replaceAll('_', ' ');
+
 export const info = (msg: string, greyMsg: string = ''): string => {
 	return `${chalk.blue.bold('Info:')} ${msg} ${greyMsg ? chalk.grey(greyMsg) : ''}`.trim();
 };
@@ -1378,8 +1380,9 @@ export class ResolveSelectNamed<T extends Named> extends Prompt<
 			return '';
 		}
 		const key = this.base.name;
+		const humanType = humanizeKind(this.entityType);
 
-		let text = `\nIs ${chalk.bold.blue(key)} ${this.entityType} created or renamed from another ${this.entityType}?\n`;
+		let text = `\nIs ${chalk.bold.blue(key)} ${humanType} created or renamed from another ${humanType}?\n`;
 
 		const isSelectedRenamed = isRenamePromptItem(
 			this.state.items[this.state.selectedIdx],
@@ -1403,7 +1406,7 @@ export class ResolveSelectNamed<T extends Named> extends Prompt<
 				return b;
 			}, 0);
 
-		const entityType = this.entityType;
+		const entityType = humanizeKind(this.entityType);
 		this.state.items.forEach((it, idx) => {
 			const isSelected = idx === this.state.selectedIdx;
 			const isRenamed = isRenamePromptItem(it);
@@ -1457,7 +1460,7 @@ export class ResolveSelect<T extends EntityBase> extends Prompt<
 			| 'check'
 			| 'index'
 			| 'unique'
-			| 'primary key'
+			| 'primary_key'
 			| 'foreign key',
 		private defaultSchema: 'dbo' | 'public' = 'public',
 	) {
@@ -1473,7 +1476,8 @@ export class ResolveSelect<T extends EntityBase> extends Prompt<
 		}
 
 		const key = keyFor(this.base, this.defaultSchema);
-		let text = `\nIs ${chalk.bold.blue(key)} ${this.entityType} created or renamed from another ${this.entityType}?\n`;
+		const humanType = humanizeKind(this.entityType);
+		let text = `\nIs ${chalk.bold.blue(key)} ${humanType} created or renamed from another ${humanType}?\n`;
 
 		const isSelectedRenamed = isRenamePromptItem(
 			this.state.items[this.state.selectedIdx],
@@ -1497,7 +1501,7 @@ export class ResolveSelect<T extends EntityBase> extends Prompt<
 				return b;
 			}, 0);
 
-		const entityType = this.entityType;
+		const entityType = humanizeKind(this.entityType);
 		this.state.items.forEach((it, idx) => {
 			const isSelected = idx === this.state.selectedIdx;
 			const isRenamed = isRenamePromptItem(it);

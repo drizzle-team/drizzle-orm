@@ -6,7 +6,7 @@ import { InvalidHintsCliError } from './errors';
 import { tuplesEqual } from './hints';
 import type { HintsHandler, IdFor, RenameCreateHintKind } from './hints';
 import type { RenamePromptItem } from './views';
-import { humanLog, isRenamePromptItem, ResolveSelect } from './views';
+import { humanizeKind, humanLog, isRenamePromptItem, ResolveSelect } from './views';
 
 type PromptEntityBase = { name: string; schema?: string; table?: string };
 
@@ -31,7 +31,7 @@ const entityId = <K extends RenameCreateHintKind>(
 		case 'check':
 		case 'index':
 		case 'unique':
-		case 'primary key':
+		case 'primary_key':
 		case 'foreign key': {
 			if (typeof entity.table !== 'string') {
 				throw new Error(`Expected ${kind} resolver entity to include a table name`);
@@ -134,7 +134,7 @@ export const resolver = <T extends PromptEntityBase>(
 			} while (index < created.length);
 
 			// Any deleted entities left over were not matched during this resolution pass.
-			humanLog(chalk.gray(`--- all ${entity} conflicts resolved ---\n`));
+			humanLog(chalk.gray(`--- all ${humanizeKind(entity)} conflicts resolved ---\n`));
 			result.deleted.push(...leftMissing);
 
 			return {
@@ -169,7 +169,7 @@ export const resolver = <T extends PromptEntityBase>(
 			} while (index < created.length);
 
 			// Any deleted entities still present were not chosen during prompting.
-			humanLog(chalk.gray(`--- all ${entity} conflicts resolved ---\n`));
+			humanLog(chalk.gray(`--- all ${humanizeKind(entity)} conflicts resolved ---\n`));
 			result.deleted.push(...leftMissing);
 
 			return {
@@ -206,7 +206,7 @@ const applySelection = <T extends PromptEntityBase>(
 		const toEntity = `${schemaToPrefix}${tableToPrefix}${to.name}`;
 
 		humanLog(
-			`${chalk.yellow('~')} ${fromEntity} › ${toEntity} ${chalk.gray(`${entity} will be renamed/moved`)}`,
+			`${chalk.yellow('~')} ${fromEntity} › ${toEntity} ${chalk.gray(`${humanizeKind(entity)} will be renamed/moved`)}`,
 		);
 
 		result.renamedOrMoved.push(selection);
@@ -220,6 +220,6 @@ const applySelection = <T extends PromptEntityBase>(
 		return;
 	}
 
-	humanLog(`${chalk.green('+')} ${newItem.name} ${chalk.gray(`${entity} will be created`)}`);
+	humanLog(`${chalk.green('+')} ${newItem.name} ${chalk.gray(`${humanizeKind(entity)} will be created`)}`);
 	result.created.push(newItem);
 };

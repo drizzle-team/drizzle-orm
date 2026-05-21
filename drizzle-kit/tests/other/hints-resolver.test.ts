@@ -161,13 +161,13 @@ test('resolver matches primary key entity types against primary key hints', asyn
 		const hints = new HintsHandler([
 			{
 				type: 'rename',
-				kind: 'primary key',
+				kind: 'primary_key',
 				from: ['public', 'users', 'users_pkey'] as const,
 				to: ['public', 'users', 'members_pkey'] as const,
 			},
 		]);
 		const resolve = resolver<Entity>(
-			'primary key',
+			'primary_key',
 			'public',
 			hints,
 		);

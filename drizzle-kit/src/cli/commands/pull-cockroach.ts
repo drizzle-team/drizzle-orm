@@ -3,9 +3,6 @@ import { writeFileSync } from 'fs';
 import type { TaskView } from 'hanji';
 import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
-import { toJsonSnapshot } from '../../dialects/cockroach/snapshot';
-import type { EntityFilter } from '../../dialects/pull-utils';
-import { prepareEntityFilter } from '../../dialects/pull-utils';
 import type {
 	CheckConstraint,
 	CockroachEntities,
@@ -22,7 +19,10 @@ import type {
 import { cockroachToRelationsPull, createDDL, interimToDDL } from '../../dialects/cockroach/ddl';
 import { ddlDiff } from '../../dialects/cockroach/diff';
 import { fromDatabaseForDrizzle } from '../../dialects/cockroach/introspect';
+import { toJsonSnapshot } from '../../dialects/cockroach/snapshot';
 import { ddlToTypeScript as cockroachSequenceSchemaToTypeScript } from '../../dialects/cockroach/typescript';
+import type { EntityFilter } from '../../dialects/pull-utils';
+import { prepareEntityFilter } from '../../dialects/pull-utils';
 import { originUUID } from '../../utils';
 import type { DB } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
@@ -96,7 +96,7 @@ export const handle = async (
 			resolver<View>('view'),
 			resolver<Index>('index'),
 			resolver<CheckConstraint>('check'),
-			resolver<PrimaryKey>('primary key'),
+			resolver<PrimaryKey>('primary_key'),
 			resolver<ForeignKey>('foreign key'),
 			'push',
 		);

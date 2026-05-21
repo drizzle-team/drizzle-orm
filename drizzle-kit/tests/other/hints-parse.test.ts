@@ -52,7 +52,7 @@ const validRenameHints = [
 	},
 	{
 		type: 'rename',
-		kind: 'primary key',
+		kind: 'primary_key',
 		from: ['public', 'orders', 'orders_pkey'] as const,
 		to: ['public', 'orders', 'orders_v2_pkey'] as const,
 	},
@@ -77,7 +77,7 @@ const validCreateHints = [
 	{ type: 'create', kind: 'check', entity: ['public', 'orders', 'orders_check'] as const },
 	{ type: 'create', kind: 'index', entity: ['public', 'orders', 'orders_idx'] as const },
 	{ type: 'create', kind: 'unique', entity: ['public', 'orders', 'orders_unique'] as const },
-	{ type: 'create', kind: 'primary key', entity: ['public', 'orders', 'orders_pkey'] as const },
+	{ type: 'create', kind: 'primary_key', entity: ['public', 'orders', 'orders_pkey'] as const },
 	{ type: 'create', kind: 'foreign key', entity: ['public', 'orders', 'orders_user_id_fkey'] as const },
 ] satisfies readonly CreateHint[];
 

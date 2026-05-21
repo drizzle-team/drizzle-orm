@@ -345,7 +345,7 @@ Unmarked kinds apply to all dialects (`postgresql`, `mysql`, `sqlite`, `turso`, 
 - `check`
 - `index`
 - `unique`
-- `primary key`
+- `primary_key`
 - `foreign key`
 - `schema`¹
 - `enum`²
@@ -555,7 +555,7 @@ Each hint identifies an entity using an `entity`, `from`, or `to` tuple. The ari
 |--------|----------------|---------|
 | `[name]` | `schema`, `role` | `["tenant_a"]` |
 | `[schema, name]` | `table`, `enum`, `sequence`, `view` | `["public", "users"]` |
-| `[schema, table, name]` | `column`, `default`, `policy`, `check`, `index`, `unique`, `primary key`, `foreign key`, `primary_key`¹, `add_not_null`¹, `add_unique`¹ ² | `["public", "users", "email"]` |
+| `[schema, table, name]` | `column`, `default`, `policy`, `check`, `index`, `unique`, `primary_key`, `foreign key`, `add_not_null`¹, `add_unique`¹ ² | `["public", "users", "email"]` |
 | `[grantor, grantee, schema, table, type]` | `privilege` | `["postgres", "app_user", "public", "users", "select"]` |
 
 ¹ `confirm_data_loss` only.

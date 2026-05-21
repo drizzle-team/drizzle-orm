@@ -215,6 +215,7 @@ async function main() {
 	await Promise.all([
 		postProcessApiFiles(),
 		fs.copyFile('package.json', 'dist/package.json'),
+		fs.cp('skills', 'dist/skills', { recursive: true }),
 	]);
 
 	const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);

@@ -11,6 +11,17 @@ For machine-readable CLI behavior in non-interactive workflows, see [JSON mode a
 
 For programmatic / agent consumption, see the [SDK documentation](./SDK.md) — the same JSON contract is available as typed root-level exports (`import { generate, push } from 'drizzle-kit'`).
 
+### AI agent skills
+
+Drizzle Kit ships installable [Agent Skills](https://agentskills.io) for AI coding assistants — Claude Code, Cursor, GitHub Copilot, OpenAI Codex CLI, Gemini CLI, OpenCode, and any other tool that loads the open standard. The catalog covers the day-to-day workflow: configuration, generating migrations, pushing schema directly, resolving rename / data-loss hints, and decoding response envelopes and errors.
+
+Install into your project's agent config:
+
+```sh
+npx drizzle-kit skills
+```
+
+Under the hood the command runs [TanStack Intent](https://tanstack.com/intent), which writes a managed block into whichever agent config file your project uses — `AGENTS.md`, `CLAUDE.md`, `.cursorrules`, or `.github/copilot-instructions.md`.
 
 ### How it works
 

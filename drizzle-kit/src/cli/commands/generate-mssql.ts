@@ -54,7 +54,7 @@ export const handle = async (config: GenerateConfig) => {
 		resolver<UniqueConstraint>('unique', 'dbo', config.hints),
 		resolver<Index>('index', 'dbo', config.hints),
 		resolver<CheckConstraint>('check', 'dbo', config.hints),
-		resolver<PrimaryKey>('primary key', 'dbo', config.hints),
+		resolver<PrimaryKey>('primary_key', 'dbo', config.hints),
 		resolver<ForeignKey>('foreign key', 'dbo', config.hints),
 		resolver<DefaultConstraint>('default', 'dbo', config.hints),
 		'default',

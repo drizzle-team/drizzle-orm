@@ -2,6 +2,7 @@ import { boolean, command, type GenericBuilderInternals, number, string } from '
 import chalk from 'chalk';
 import { mkdirSync } from 'fs';
 import { renderWithTask } from 'hanji';
+import { spawn } from 'node:child_process';
 import { dialects } from '../utils/schemaValidator';
 import '../@types/utils';
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
@@ -1040,5 +1041,28 @@ export const exportRaw = command({
 		} else {
 			assertUnreachable(dialect);
 		}
+	},
+});
+
+export const skills = command({
+	name: 'skills',
+	options: {},
+	handler: async () => {
+		process.stderr.write('Installing via @tanstack/intent…\n');
+		const child = spawn('npx', ['-y', '@tanstack/intent@latest', 'install'], {
+			stdio: 'inherit',
+			shell: process.platform === 'win32',
+		});
+		// Awaiting child exit prevents the outer brocli `after` hook from racing process.exit(0)
+		// past a non-zero child exit code.
+		await new Promise<never>(() => {
+			child.on('error', () => {
+				process.stderr.write('Failed to spawn npx. Make sure Node.js is installed and on PATH.\n');
+				process.exit(1);
+			});
+			child.on('exit', (code, signal) => {
+				process.exit(signal ? 1 : (code ?? 1));
+			});
+		});
 	},
 });

@@ -86,7 +86,7 @@ export const handle = async (
 		resolver<UniqueConstraint>('unique', 'dbo', hints),
 		resolver<Index>('index', 'dbo', hints),
 		resolver<CheckConstraint>('check', 'dbo', hints),
-		resolver<PrimaryKey>('primary key', 'dbo', hints),
+		resolver<PrimaryKey>('primary_key', 'dbo', hints),
 		resolver<ForeignKey>('foreign key', 'dbo', hints),
 		resolver<DefaultConstraint>('default', 'dbo', hints),
 		'push',
