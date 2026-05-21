@@ -52,21 +52,28 @@ test('migrator', async () => {
 test('migrator: table-rebuild migration preserves child rows with ON DELETE CASCADE FK', () => {
 	const migrationDir = './migrations/sqlite-fk-cascade-test';
 	if (existsSync(migrationDir)) rmSync(migrationDir, { recursive: true });
-	mkdirSync(migrationDir, { recursive: true });
+	mkdirSync(`${migrationDir}/meta`, { recursive: true });
 
 	db.run(sql`drop table if exists \`child_fk_test\``);
 	db.run(sql`drop table if exists \`parent_fk_test\``);
 	db.run(sql`drop table if exists \`__drizzle_migrations\``);
 
 	// Initial schema: parent + child with ON DELETE CASCADE
-	mkdirSync(`${migrationDir}/20240101000000_initial`, { recursive: true });
 	writeFileSync(
-		`${migrationDir}/20240101000000_initial/migration.sql`,
+		`${migrationDir}/0000_initial.sql`,
 		[
 			"CREATE TABLE `parent_fk_test` (`id` integer PRIMARY KEY NOT NULL, `mode` text DEFAULT 'a');",
 			'--> statement-breakpoint',
 			"CREATE TABLE `child_fk_test` (`id` integer PRIMARY KEY NOT NULL, `parent_id` integer NOT NULL REFERENCES `parent_fk_test`(`id`) ON DELETE CASCADE);",
 		].join('\n'),
+	);
+	writeFileSync(
+		`${migrationDir}/meta/_journal.json`,
+		JSON.stringify({
+			version: '5',
+			dialect: 'sqlite',
+			entries: [{ idx: 0, version: '5', when: 1704067200000, tag: '0000_initial', breakpoints: true }],
+		}),
 	);
 	migrate(db, { migrationsFolder: migrationDir });
 
@@ -75,9 +82,8 @@ test('migrator: table-rebuild migration preserves child rows with ON DELETE CASC
 	db.run(sql`INSERT INTO child_fk_test VALUES (1, 1), (2, 1)`);
 
 	// Table-rebuild migration in the exact drizzle-kit output shape
-	mkdirSync(`${migrationDir}/20240102000000_rebuild`, { recursive: true });
 	writeFileSync(
-		`${migrationDir}/20240102000000_rebuild/migration.sql`,
+		`${migrationDir}/0001_rebuild.sql`,
 		[
 			'PRAGMA foreign_keys=OFF;',
 			'--> statement-breakpoint',
@@ -91,6 +97,17 @@ test('migrator: table-rebuild migration preserves child rows with ON DELETE CASC
 			'--> statement-breakpoint',
 			'PRAGMA foreign_keys=ON;',
 		].join('\n'),
+	);
+	writeFileSync(
+		`${migrationDir}/meta/_journal.json`,
+		JSON.stringify({
+			version: '5',
+			dialect: 'sqlite',
+			entries: [
+				{ idx: 0, version: '5', when: 1704067200000, tag: '0000_initial', breakpoints: true },
+				{ idx: 1, version: '5', when: 1704153600000, tag: '0001_rebuild', breakpoints: true },
+			],
+		}),
 	);
 	migrate(db, { migrationsFolder: migrationDir });
 
