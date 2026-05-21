@@ -35,8 +35,8 @@ import {
 	PgView,
 	uniqueKeyName,
 } from 'drizzle-orm/pg-core';
-import { loadModule } from '../../utils/utils-node';
 import { assertUnreachable } from '../../utils';
+import { loadModule } from '../../utils/utils-node';
 import type { EntityFilter } from '../pull-utils';
 import { getOrNull } from '../utils';
 import type {

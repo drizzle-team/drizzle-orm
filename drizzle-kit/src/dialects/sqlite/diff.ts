@@ -1,5 +1,5 @@
-import { mockResolver } from '../../utils/mocks';
 import { prepareMigrationRenames } from '../../utils';
+import { mockResolver } from '../../utils/mocks';
 import type { Resolver } from '../common';
 import { diff } from '../dialect';
 import { groupDiffs, preserveEntityNames } from '../utils';

@@ -1,5 +1,5 @@
-import { error, errText, info } from './views';
 import { QueryError } from './utils';
+import { error, errText, info } from './views';
 
 type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };

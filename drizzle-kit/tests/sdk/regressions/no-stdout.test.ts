@@ -35,10 +35,12 @@ describe('SDK does not invoke process.stdout.write or process.exit', () => {
 
 	test('generate (no_changes smoke) does not call process.stdout.write or process.exit', async () => {
 		const stdoutCalls: unknown[][] = [];
-		const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(((...args: unknown[]) => {
-			stdoutCalls.push(args);
-			return true;
-		}) as unknown as typeof process.stdout.write);
+		const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(
+			((...args: unknown[]) => {
+				stdoutCalls.push(args);
+				return true;
+			}) as unknown as typeof process.stdout.write,
+		);
 		const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((() => {}) as unknown) as never);
 
 		const { dir, schemaPath } = setupFixture('generate-no-stdout');
@@ -66,10 +68,12 @@ describe('SDK does not invoke process.stdout.write or process.exit', () => {
 
 	test('push (missing-schema error smoke) does not call process.stdout.write or process.exit', async () => {
 		const stdoutCalls: unknown[][] = [];
-		const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(((...args: unknown[]) => {
-			stdoutCalls.push(args);
-			return true;
-		}) as unknown as typeof process.stdout.write);
+		const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(
+			((...args: unknown[]) => {
+				stdoutCalls.push(args);
+				return true;
+			}) as unknown as typeof process.stdout.write,
+		);
 		const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((() => {}) as unknown) as never);
 
 		try {
