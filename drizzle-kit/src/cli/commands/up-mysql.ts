@@ -1,10 +1,10 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
-import { prepareOutFolder, validateWithReport } from '../../utils/utils-node';
 import { createDDL } from '../../dialects/mysql/ddl';
 import { Binary, Varbinary } from '../../dialects/mysql/grammar';
 import type { MysqlSchemaV6, MysqlSnapshot } from '../../dialects/mysql/snapshot';
 import { trimChar } from '../../utils';
+import { prepareOutFolder, validateWithReport } from '../../utils/utils-node';
 import { migrateToFoldersV3 } from './utils';
 
 export const upMysqlHandler = (out: string) => {

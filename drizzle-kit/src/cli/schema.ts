@@ -3,6 +3,8 @@ import chalk from 'chalk';
 import { mkdirSync } from 'fs';
 import { renderWithTask } from 'hanji';
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { dialects } from '../utils/schemaValidator';
 import '../@types/utils';
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
@@ -1044,25 +1046,53 @@ export const exportRaw = command({
 	},
 });
 
+const detectInstaller = (): { cmd: 'pnpm' | 'bunx' | 'yarn' | 'npx'; args: string[] } => {
+	const userAgent = process.env.npm_config_user_agent ?? '';
+	const token = userAgent.split(' ')[0] ?? '';
+	const [name, version] = token.split('/');
+
+	if (name === 'pnpm') return { cmd: 'pnpm', args: ['dlx'] };
+	if (name === 'bun') return { cmd: 'bunx', args: [] };
+	if (name === 'yarn') {
+		const major = Number.parseInt(version ?? '', 10);
+		if (Number.isFinite(major) && major >= 2) return { cmd: 'yarn', args: ['dlx'] };
+		return { cmd: 'npx', args: ['-y'] };
+	}
+	return { cmd: 'npx', args: ['-y'] };
+};
+
 export const skills = command({
 	name: 'skills',
 	options: {},
 	handler: async () => {
-		process.stderr.write('Installing via @tanstack/intent…\n');
-		const child = spawn('npx', ['-y', '@tanstack/intent@latest', 'install'], {
+		const candidates = [resolve(__dirname, 'skills'), resolve(__dirname, '../../skills')];
+		const skillsDir = candidates.find((p) => existsSync(p));
+		if (!skillsDir) {
+			process.stderr.write('Could not locate bundled skills directory.\n');
+			process.exit(1);
+		}
+
+		const { cmd, args } = detectInstaller();
+		process.stderr.write(`Installing via ${cmd}…\n`);
+		// On Windows `shell: true` re-tokenizes argv via cmd.exe, so a `skillsDir` with spaces
+		// (e.g. `C:\Program Files\…`) would split across args. Quote the path to neutralize that.
+		const onWindows = process.platform === 'win32';
+		const skillsArg = onWindows ? `"${skillsDir}"` : skillsDir;
+		const child = spawn(cmd, [...args, 'skills@latest', 'add', skillsArg], {
 			stdio: 'inherit',
-			shell: process.platform === 'win32',
+			shell: onWindows,
 		});
 		// Awaiting child exit prevents the outer brocli `after` hook from racing process.exit(0)
 		// past a non-zero child exit code.
-		await new Promise<never>(() => {
+		const exitCode = await new Promise<number>((resolve) => {
 			child.on('error', () => {
-				process.stderr.write('Failed to spawn npx. Make sure Node.js is installed and on PATH.\n');
-				process.exit(1);
+				process.stderr.write(`Failed to spawn ${cmd}. Make sure ${cmd} is installed and on PATH.\n`);
+				resolve(1);
 			});
 			child.on('exit', (code, signal) => {
-				process.exit(signal ? 1 : (code ?? 1));
+				resolve(signal ? 1 : (code ?? 0));
 			});
 		});
+		process.exit(exitCode);
 	},
 });

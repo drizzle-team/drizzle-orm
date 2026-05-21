@@ -1,6 +1,6 @@
 ---
 name: drizzle-responses-and-errors
-description: Decode the drizzle-kit response JSON envelope and any error code or exit code surfaced by CLI (--json) or SDK (generate, push).
+description: Decode the drizzle-kit response JSON envelope, error codes, and exit codes from the CLI `--json` flag or the SDK `generate(...)` / `push(...)` functions. Use whenever the user is debugging a drizzle-kit failure, asks what an error code means, or hits codes like `config_validation_error`, `database_driver_error`, `invalid_hints`, or `unsupported_schema_change`.
 metadata:
   version: "1.0.0"
 ---

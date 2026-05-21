@@ -1,3 +1,5 @@
+import { stripAnsi } from 'hanji/utils';
+import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
@@ -39,4 +41,36 @@ describe('skill catalog', () => {
 			seenNames.add(nameMatch![1]!);
 		}
 	});
+
+	// The regex-based frontmatter check above passes even when YAML semantics make a SKILL.md unparseable —
+	// e.g. an unquoted `description:` value containing a colon-space (`status: 'missing_hints'`) is a valid line
+	// match but a nested-mapping error to a real YAML parser, and the upstream `skills` package silently drops
+	// such skills via `parseSkillMd`'s try/catch. Run the real `skills` CLI to catch that class of regression.
+	test('npx skills add --list discovers every catalog entry', () => {
+		const slugs = listSkillSlugs();
+
+		const result = spawnSync('npx', ['-y', 'skills@latest', 'add', skillsDir, '--list'], {
+			encoding: 'utf8',
+			timeout: 120_000,
+		});
+
+		expect(result.error, `failed to spawn npx skills: ${result.error?.message}`).toBeUndefined();
+		expect(result.status, `npx skills exited ${result.status}\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`)
+			.toBe(0);
+
+		const output = stripAnsi(`${result.stdout}\n${result.stderr}`);
+		const foundMatch = output.match(/Found (\d+) skills?/);
+
+		expect(foundMatch, `'Found N skills' line missing from skills CLI output:\n${output}`).not.toBeNull();
+		expect(
+			Number(foundMatch![1]),
+			`skills CLI discovered ${foundMatch![1]} skills but ${slugs.length} <slug>/SKILL.md exist on disk — `
+				+ `usually a malformed SKILL.md frontmatter (e.g. unquoted colon-space in description). Output:\n${output}`,
+		).toBe(slugs.length);
+
+		for (const slug of slugs) {
+			expect(output, `skills CLI did not list '${slug}' — likely a SKILL.md parse failure. Output:\n${output}`)
+				.toContain(slug);
+		}
+	}, 180_000);
 });

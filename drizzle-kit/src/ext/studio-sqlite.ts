@@ -1,4 +1,3 @@
-import { fromDatabase as fd } from '../dialects/sqlite/introspect';
 import type {
 	CheckConstraint,
 	Column,
@@ -13,6 +12,7 @@ import type {
 } from '../dialects/sqlite/ddl';
 import { interimToDDL } from '../dialects/sqlite/ddl';
 import { ddlDiff } from '../dialects/sqlite/diff';
+import { fromDatabase as fd } from '../dialects/sqlite/introspect';
 import { mockResolver } from '../utils/mocks';
 
 export type Interim<T> = Omit<T, 'entityType'>;

@@ -13,7 +13,7 @@ For programmatic / agent consumption, see the [SDK documentation](./SDK.md) — 
 
 ### AI agent skills
 
-Drizzle Kit ships installable [Agent Skills](https://agentskills.io) for AI coding assistants — Claude Code, Cursor, GitHub Copilot, OpenAI Codex CLI, Gemini CLI, OpenCode, and any other tool that loads the open standard. The catalog covers the day-to-day workflow: configuration, generating migrations, pushing schema directly, resolving rename / data-loss hints, and decoding response envelopes and errors.
+Drizzle Kit ships installable [Agent Skills](https://skills.sh) for AI coding assistants — Claude Code, Cursor, GitHub Copilot, OpenAI Codex CLI, Gemini CLI, OpenCode, and any other tool that loads the open standard.
 
 Install into your project's agent config:
 
@@ -21,7 +21,9 @@ Install into your project's agent config:
 npx drizzle-kit skills
 ```
 
-Under the hood the command runs [TanStack Intent](https://tanstack.com/intent), which writes a managed block into whichever agent config file your project uses — `AGENTS.md`, `CLAUDE.md`, `.cursorrules`, or `.github/copilot-instructions.md`.
+Under the hood the command runs the [skills](https://skills.sh) CLI against drizzle-kit's bundled skill catalog and installs `SKILL.md` files directly into your agent's native skills directory — `.claude/skills/<slug>/SKILL.md` for Claude Code, and `.agents/skills/<slug>/SKILL.md` for Codex, Cursor, Gemini CLI, Cline, GitHub Copilot, and any other agent that follows the universal `AGENTS.md` skills convention.
+
+TanStack Intent users can still surface the same skills via `intent list` — `SKILL.md` files remain bundled in the npm tarball.
 
 ### How it works
 

@@ -1,6 +1,6 @@
 ---
 name: drizzle-generate
-description: Run drizzle-kit generate (CLI --json or SDK generate function) to emit a migration SQL file from a schema diff.
+description: Create a new drizzle migration SQL file by diffing the schema against the latest snapshot. Use whenever the user wants to generate, create, make, or scaffold a new drizzle migration after schema edits, or invoke `drizzle-kit generate` / the `generate(...)` SDK function.
 metadata:
   version: "1.0.0"
 ---

@@ -28,8 +28,8 @@ import {
 	isCockroachSequence,
 	isCockroachView,
 } from 'drizzle-orm/cockroach-core';
-import { loadModule } from '../../utils/utils-node';
 import { assertUnreachable } from '../../utils';
+import { loadModule } from '../../utils/utils-node';
 import type { EntityFilter } from '../pull-utils';
 import type {
 	CheckConstraint,

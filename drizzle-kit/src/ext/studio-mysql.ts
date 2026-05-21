@@ -1,4 +1,3 @@
-import { fromDatabase as fd } from '../dialects/mysql/introspect';
 import type {
 	CheckConstraint,
 	Column,
@@ -13,6 +12,7 @@ import type {
 } from '../dialects/mysql/ddl';
 import { interimToDDL } from '../dialects/mysql/ddl';
 import { ddlDiff } from '../dialects/mysql/diff';
+import { fromDatabase as fd } from '../dialects/mysql/introspect';
 import { mockResolver } from '../utils/mocks';
 
 export type Interim<T> = Omit<T, 'entityType'>;

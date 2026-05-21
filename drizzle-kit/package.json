@@ -18,7 +18,9 @@
 		"drizzle-kit",
 		"migrations",
 		"schema",
-		"tanstack-intent"
+		"tanstack-intent",
+		"skills",
+		"agent-skills"
 	],
 	"publishConfig": {
 		"provenance": true

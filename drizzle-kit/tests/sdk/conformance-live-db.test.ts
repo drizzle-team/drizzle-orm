@@ -258,7 +258,7 @@ describe.skipIf(!mysqlUrl)('push mysql (live DB)', () => {
 		const conn = await mysql.createConnection(mysqlUrl!);
 		try {
 			const [rows] = await conn.query<{ TABLE_NAME: string }[] & any[]>(
-				"SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()",
+				'SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()',
 			);
 			await conn.query('SET FOREIGN_KEY_CHECKS = 0');
 			for (const row of rows as Array<{ TABLE_NAME: string }>) {

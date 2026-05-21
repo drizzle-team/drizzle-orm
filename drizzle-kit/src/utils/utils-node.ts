@@ -3,8 +3,6 @@ import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync } from 'fs'
 import { getTsconfig } from 'get-tsconfig';
 import { sync as globSync } from 'glob';
 import { dirname, join, resolve } from 'path';
-import { snapshotValidator as mysqlSnapshotValidator } from '../dialects/mysql/snapshot';
-import { snapshotValidator as singlestoreSnapshotValidator } from '../dialects/singlestore/snapshot';
 import { parse, pathToFileURL } from 'url';
 import {
 	MigrationsOutdatedCliError,
@@ -13,7 +11,9 @@ import {
 } from '../cli/errors';
 import { snapshotValidator as cockroachValidator } from '../dialects/cockroach/snapshot';
 import { snapshotValidator as mssqlValidatorSnapshot } from '../dialects/mssql/snapshot';
+import { snapshotValidator as mysqlSnapshotValidator } from '../dialects/mysql/snapshot';
 import { snapshotValidator as pgSnapshotValidator } from '../dialects/postgres/snapshot';
+import { snapshotValidator as singlestoreSnapshotValidator } from '../dialects/singlestore/snapshot';
 import { snapshotValidator as sqliteStapshotValidator } from '../dialects/sqlite/snapshot';
 import { assertUnreachable } from '.';
 import type { Journal } from '.';
