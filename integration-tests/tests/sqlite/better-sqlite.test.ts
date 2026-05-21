@@ -186,6 +186,79 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 	rmSync(migrationDir, { recursive: true });
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5782
+test('migrator: fk with onDelete: cascade', async ({ db }) => {
+	const parent1 = sqliteTable('parent', {
+		id: text('id').primaryKey(),
+		// Some attribute we'll change later to force a rebuild
+		mode: text('mode').notNull().default('a'),
+	});
+
+	const child = sqliteTable('child', {
+		id: text('id').primaryKey(),
+		parentId: text('parent_id')
+			.notNull()
+			.references(() => parent1.id, { onDelete: 'cascade' }),
+		payload: text('payload').notNull(),
+	});
+
+	await db.run(sql`drop table if exists \`__drizzle_migrations\`;`);
+	await db.run(sql`drop table if exists ${parent1}`);
+	await db.run(sql`drop table if exists ${child}`);
+
+	// create migration directory
+	const migrationDir = './migrations/bettersqlite3';
+	if (existsSync(migrationDir)) rmSync(migrationDir, { recursive: true });
+	mkdirSync(migrationDir, { recursive: true });
+
+	// first migration
+	mkdirSync(`${migrationDir}/20240101010101_initial`, { recursive: true });
+	writeFileSync(
+		`${migrationDir}/20240101010101_initial/migration.sql`,
+		[
+			'CREATE TABLE `parent` (\n'
+			+ '\t`id` text PRIMARY KEY,\n'
+			+ "\t`mode` text DEFAULT 'a' NOT NULL\n"
+			+ ');\n',
+			'CREATE TABLE `child` (\n'
+			+ '\t`id` text PRIMARY KEY,\n'
+			+ '\t`parent_id` text NOT NULL,\n'
+			+ '\t`payload` text NOT NULL,\n'
+			+ '\tCONSTRAINT `fk_child_parent_id_parent_id_fk` FOREIGN KEY (`parent_id`) REFERENCES `parent`(`id`) ON DELETE CASCADE\n'
+			+ ');\n',
+		].join('--> statement-breakpoint\n'),
+	);
+
+	migrate(db as BetterSQLite3Database, { migrationsFolder: migrationDir });
+	const res11 = await db.insert(parent1).values({ id: 'a' }).returning();
+	const res12 = await db.insert(child).values({ id: 'a', parentId: 'a', payload: 'b' }).returning();
+
+	mkdirSync(`${migrationDir}/20240202020202_second`, { recursive: true });
+	writeFileSync(
+		`${migrationDir}/20240202020202_second/migration.sql`,
+		[
+			'PRAGMA foreign_keys=OFF;',
+			'CREATE TABLE `__new_parent` (\n'
+			+ '\t`id` text PRIMARY KEY,\n'
+			+ "\t`mode` text DEFAULT 'b' NOT NULL\n"
+			+ ');\n',
+			'INSERT INTO `__new_parent`(`id`, `mode`) SELECT `id`, `mode` FROM `parent`;',
+			'DROP TABLE `parent`;',
+			'ALTER TABLE `__new_parent` RENAME TO `parent`;',
+			'PRAGMA foreign_keys=ON;',
+		].join('--> statement-breakpoint\n'),
+	);
+	migrate(db as BetterSQLite3Database, { migrationsFolder: migrationDir });
+
+	const res21 = await db.select().from(parent1);
+	const res22 = await db.select().from(child);
+
+	expect(res21).toStrictEqual(res11);
+	expect(res22).toStrictEqual(res12);
+
+	rmSync(migrationDir, { recursive: true });
+});
+
 const skip = [
 	// Uses sync versions
 	'transaction rollback',

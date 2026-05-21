@@ -235,6 +235,21 @@ test('view #2', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5571
+test('view #3', async () => {
+	await db.query(`CREATE TABLE base_table (
+    	id INT,
+    	name VARCHAR(50)
+	);`);
+
+	await db.query(`CREATE VIEW broken_view AS SELECT * FROM base_table;`);
+
+	const { statements, sqlStatements } = await diffIntrospect(db, {}, 'view-3');
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/3285
 test('handle float type', async () => {
 	const schema = {

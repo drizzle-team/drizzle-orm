@@ -1802,6 +1802,66 @@ test('fk #16', async () => {
 	expect(pst2).toStrictEqual(expectedSt2);
 });
 
+test('fk #17', async () => {
+	const parent1 = sqliteTable('parent', {
+		id: text('id').primaryKey(),
+		// Some attribute we'll change later to force a rebuild
+		mode: text('mode').notNull().default('a'),
+	});
+
+	const schema1 = {
+		parent1,
+		child: sqliteTable('child', {
+			id: text('id').primaryKey(),
+			parentId: text('parent_id')
+				.notNull()
+				.references(() => parent1.id, { onDelete: 'cascade' }),
+			payload: text('payload').notNull(),
+		}),
+	};
+
+	const { next: n1, sqlStatements: st1 } = await diff({}, schema1, []);
+	await push({ db, to: schema1 });
+	await db.run(`insert into "parent"("id") values ('a');`);
+	await db.run(`insert into "child" values ('a','a','b');`);
+
+	const parent2 = sqliteTable('parent', {
+		id: text('id').primaryKey(),
+		mode: text('mode').notNull().default('b'),
+	});
+
+	const schema2 = {
+		parent2,
+		child: sqliteTable('child', {
+			id: text('id').primaryKey(),
+			parentId: text('parent_id')
+				.notNull()
+				.references(() => parent2.id, { onDelete: 'cascade' }),
+			payload: text('payload').notNull(),
+		}),
+	};
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+
+	const expectedSt2 = [
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_parent` (\n'
+		+ '\t`id` text PRIMARY KEY,\n'
+		+ "\t`mode` text DEFAULT 'b' NOT NULL\n"
+		+ ');\n',
+		'INSERT INTO `__new_parent`(`id`, `mode`) SELECT `id`, `mode` FROM `parent`;',
+		'DROP TABLE `parent`;',
+		'ALTER TABLE `__new_parent` RENAME TO `parent`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+
+	const res2 = await db.query('select * from child;');
+	expect(res2).toStrictEqual([{ id: 'a', parent_id: 'a', payload: 'b' }]);
+});
+
 test('fk multistep #1', async () => {
 	const users = sqliteTable('users', {
 		id: int().primaryKey(),

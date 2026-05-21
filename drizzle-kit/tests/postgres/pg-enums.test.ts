@@ -696,6 +696,30 @@ test('enums #24', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5569
+test('enums #25; hyphen in name', async () => {
+	const userRole = pgEnum('user-role', ['admin', 'operator', 'customer']);
+
+	const to = {
+		userRole,
+		user: pgTable('user', (t) => ({
+			role: userRole().default('customer'),
+		})),
+	};
+
+	const { next: n1 } = await diff({}, to, []);
+	const { sqlStatements: st2 } = await diff(n1, to, []);
+
+	await push({ db, to });
+	const { sqlStatements: pst2 } = await push({
+		db,
+		to,
+	});
+
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
+});
+
 test('drop enum value', async () => {
 	const enum1 = pgEnum('enum', ['value1', 'value2', 'value3']);
 

@@ -645,6 +645,30 @@ test.concurrent('enums #23', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5569
+test('enums #24; hyphen in name', async ({ db }) => {
+	const userRole = cockroachEnum('user-role', ['admin', 'operator', 'customer']);
+
+	const to = {
+		userRole,
+		user: cockroachTable('user', (t) => ({
+			role: userRole().default('customer'),
+		})),
+	};
+
+	const { next: n1 } = await diff({}, to, []);
+	const { sqlStatements: st2 } = await diff(n1, to, []);
+
+	await push({ db, to });
+	const { sqlStatements: pst2 } = await push({
+		db,
+		to,
+	});
+
+	expect(st2).toStrictEqual([]);
+	expect(pst2).toStrictEqual([]);
+});
+
 test.concurrent('drop enum value', async ({ db }) => {
 	const enum1 = cockroachEnum('enum', ['value1', 'value2', 'value3']);
 
