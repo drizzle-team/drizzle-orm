@@ -164,11 +164,8 @@ const upgradeSyncFunctions: Record<
 	/**
 	 * Upgrade from version 0 to version 1:
 	 * 1. Read all existing DB migrations
-	 * 2. Sort localMigrations ASC by millis and if the same - sort by name
-	 * 3. Match each DB row to a local migration
-	 * If multiple migrations share the same second, use hash matching as a tiebreaker
-	 * Not implemented for now -> If hash matching fails, fall back to serial id ordering
-	 * 5. Create extra column and backfill names for matched migrations
+	 * 2. Match each DB row to a local migration by id, unique timestamp, or hash tiebreaker
+	 * 3. Create extra columns and backfill names for matched migrations
 	 */
 	0: (migrationsTable, session, localMigrations) => {
 		const table = sql`${sql.identifier(migrationsTable)}`;

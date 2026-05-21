@@ -230,7 +230,9 @@ export class SQLiteEffectPreparedQuery<
 		mapResult?: (result: A) => B,
 	) {
 		return Effect.gen({ self: this }, function*() {
-			if (this.queryMetadata?.type === 'select' && this.cacheConfig?.enabled && (yield* this.isInTransaction)) {
+			const inTransaction = yield* this.isInTransaction;
+
+			if (this.queryMetadata?.type === 'select' && this.cacheConfig?.enabled && inTransaction) {
 				return yield* this.mapCachedResult(yield* query, mapResult);
 			}
 
@@ -251,7 +253,7 @@ export class SQLiteEffectPreparedQuery<
 			}
 
 			if (cacheStrat.type === 'try') {
-				if (yield* this.isInTransaction) {
+				if (inTransaction) {
 					return yield* this.mapCachedResult(yield* query, mapResult);
 				}
 
@@ -474,10 +476,6 @@ export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEf
 	`);
 	}
 
-	const dbMigrations = yield* session.all<{ id: number; hash: string; created_at: string; name: string | null }>(
-		sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)}`,
-	);
-
 	if (typeof config === 'object' && config.init) {
 		const [migration] = migrations;
 		if (!migration) return;
@@ -492,6 +490,10 @@ export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEf
 
 		return;
 	}
+
+	const dbMigrations = yield* session.all<{ id: number; hash: string; created_at: string; name: string | null }>(
+		sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)}`,
+	);
 
 	const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
 	if (migrationsToRun.length === 0) return;
