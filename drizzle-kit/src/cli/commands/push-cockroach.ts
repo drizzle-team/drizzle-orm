@@ -107,7 +107,7 @@ export const handle = async (
 		resolver<View>('view', 'public', hints),
 		resolver<Index>('index', 'public', hints),
 		resolver<CheckConstraint>('check', 'public', hints),
-		resolver<PrimaryKey>('primary key', 'public', hints),
+		resolver<PrimaryKey>('primary_key', 'public', hints),
 		resolver<ForeignKey>('foreign key', 'public', hints),
 		'push',
 	);

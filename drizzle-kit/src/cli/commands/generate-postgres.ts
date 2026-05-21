@@ -71,7 +71,7 @@ export const handle = async (
 		resolver<UniqueConstraint>('unique', 'public', config.hints),
 		resolver<Index>('index', 'public', config.hints),
 		resolver<CheckConstraint>('check', 'public', config.hints),
-		resolver<PrimaryKey>('primary key', 'public', config.hints),
+		resolver<PrimaryKey>('primary_key', 'public', config.hints),
 		resolver<ForeignKey>('foreign key', 'public', config.hints),
 		'default',
 	);

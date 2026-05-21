@@ -17,7 +17,8 @@
 		"ts",
 		"drizzle-kit",
 		"migrations",
-		"schema"
+		"schema",
+		"tanstack-intent"
 	],
 	"publishConfig": {
 		"provenance": true

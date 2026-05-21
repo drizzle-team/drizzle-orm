@@ -4,7 +4,7 @@ import chalk from 'chalk';
 import { isJsonMode, runWithCliContext } from './context';
 import { DrizzleCliError, errorToEnvelope } from './errors';
 import { highlightSQL } from './highlighter';
-import { check, exportRaw, generate, migrate, pull, push, studio, up } from './schema';
+import { check, exportRaw, generate, migrate, pull, push, skills, studio, up } from './schema';
 import { ormCoreVersions, QueryError } from './utils';
 import { error, humanLog } from './views';
 
@@ -115,7 +115,7 @@ const main = async () => {
 	await runWithCliContext(
 		{ json: process.argv.includes('--json') },
 		async () => {
-			await run([generate, migrate, pull, push, studio, up, check, exportRaw, ...legacy], {
+			await run([generate, migrate, pull, push, studio, up, check, exportRaw, skills, ...legacy], {
 				name: 'drizzle-kit',
 				version: () => version(),
 

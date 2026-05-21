@@ -3,10 +3,6 @@ import { writeFileSync } from 'fs';
 import type { TaskView } from 'hanji';
 import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
-import { toJsonSnapshot } from '../../dialects/mssql/snapshot';
-import type { EntityFilter } from '../../dialects/pull-utils';
-import { prepareEntityFilter } from '../../dialects/pull-utils';
-import { prepareOutFolder } from '../../utils/utils-node';
 import type {
 	CheckConstraint,
 	Column,
@@ -22,8 +18,12 @@ import type {
 import { createDDL, interimToDDL } from '../../dialects/mssql/ddl';
 import { ddlDiff } from '../../dialects/mssql/diff';
 import { fromDatabaseForDrizzle } from '../../dialects/mssql/introspect';
+import { toJsonSnapshot } from '../../dialects/mssql/snapshot';
 import { ddlToTypeScript } from '../../dialects/mssql/typescript';
+import type { EntityFilter } from '../../dialects/pull-utils';
+import { prepareEntityFilter } from '../../dialects/pull-utils';
 import { type DB, originUUID } from '../../utils';
+import { prepareOutFolder } from '../../utils/utils-node';
 import type { connectToMsSQL } from '../connections';
 import { resolver } from '../prompts';
 import type { Casing, EntitiesFilterConfig } from '../validations/common';
@@ -90,7 +90,7 @@ export const handle = async (
 			resolver<UniqueConstraint>('unique', 'dbo'), // uniques
 			resolver<Index>('index', 'dbo'), // indexes
 			resolver<CheckConstraint>('check', 'dbo'), // checks
-			resolver<PrimaryKey>('primary key', 'dbo'), // pks
+			resolver<PrimaryKey>('primary_key', 'dbo'), // pks
 			resolver<ForeignKey>('foreign key', 'dbo'), // fks
 			resolver<DefaultConstraint>('default', 'dbo'), // defaults
 			'default',

@@ -21,7 +21,7 @@ const renameCreateEntitySchemas = [
 	{ kind: 'check', schema: tripleTupleSchema },
 	{ kind: 'index', schema: tripleTupleSchema },
 	{ kind: 'unique', schema: tripleTupleSchema },
-	{ kind: 'primary key', schema: tripleTupleSchema },
+	{ kind: 'primary_key', schema: tripleTupleSchema },
 	{ kind: 'foreign key', schema: tripleTupleSchema },
 ] as const satisfies readonly { readonly kind: string; readonly schema: z.ZodTypeAny }[];
 

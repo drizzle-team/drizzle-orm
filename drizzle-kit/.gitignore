@@ -4,6 +4,7 @@
 !src
 !imports-checker
 !scripts
+!skills
 !tests
 tests/**/tmp/
 !vitest.config.ts

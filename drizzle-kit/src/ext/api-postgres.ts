@@ -2,8 +2,7 @@ import type { PGlite } from '@electric-sql/pglite';
 import type { Relations } from 'drizzle-orm/_relations';
 import type { AnyPgTable } from 'drizzle-orm/pg-core';
 import type { PgAsyncDatabase } from 'drizzle-orm/pg-core/async';
-import type { EntitiesFilterConfig } from '../cli/validations/cli';
-import { upToV8 } from '../dialects/postgres/versions';
+import type { EntitiesFilterConfig } from '../cli/validations/common';
 import type { PostgresCredentials } from '../cli/validations/postgres';
 import type {
 	CheckConstraint,
@@ -23,6 +22,7 @@ import type {
 } from '../dialects/postgres/ddl';
 import { createDDL, interimToDDL } from '../dialects/postgres/ddl';
 import type { PostgresSnapshot } from '../dialects/postgres/snapshot';
+import { upToV8 } from '../dialects/postgres/versions';
 import { originUUID } from '../utils';
 import type { DB } from '../utils';
 
@@ -99,7 +99,7 @@ export const generateMigration = async (
 		resolver<UniqueConstraint>('unique'),
 		resolver<Index>('index'),
 		resolver<CheckConstraint>('check'),
-		resolver<PrimaryKey>('primary key'),
+		resolver<PrimaryKey>('primary_key'),
 		resolver<ForeignKey>('foreign key'),
 		'default',
 	);
@@ -173,7 +173,7 @@ export const pushSchema = async (
 		resolver<UniqueConstraint>('unique'),
 		resolver<Index>('index'),
 		resolver<CheckConstraint>('check'),
-		resolver<PrimaryKey>('primary key'),
+		resolver<PrimaryKey>('primary_key'),
 		resolver<ForeignKey>('foreign key'),
 		'push',
 	);
