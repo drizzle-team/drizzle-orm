@@ -136,6 +136,7 @@ const parseType = (schemaPrefix: string, type: string) => {
 		'char',
 		'vector',
 		'geometry',
+		'geography',
 		'halfvec',
 		'sparsevec',
 		'bit',
