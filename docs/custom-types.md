@@ -54,6 +54,10 @@ Column class has set of types/functions, that could be overridden to get needed 
 
 - `mapFromDriverValue()` - interceptor between database and select query execution. If you want to modify/map/change value for specific data type, it could be done here
 
+> [!NOTE]
+> If the driver returns a value that can only be decoded after applying an SQL transform (for example, PostGIS geometries),
+> use `selectFromDb` in `customType(...)` to customize how the column is selected.
+
 #### Usage example for jsonb type
 
 ```typescript

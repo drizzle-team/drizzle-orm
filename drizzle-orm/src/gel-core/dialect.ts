@@ -240,7 +240,8 @@ export class GelDialect {
 					// if (isSingleTable) {
 					// 	chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
 					// } else {
-					chunk.push(field);
+					const fieldSelectSql = (field as any).getSQLSelect?.() as SQL | undefined;
+					chunk.push(fieldSelectSql ?? field);
 					// }
 				} else if (is(field, Subquery)) {
 					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
