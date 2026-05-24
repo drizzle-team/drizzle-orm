@@ -323,13 +323,13 @@ export const fromDatabase = async (
 
 	// PRIMARY KEYS
 
-	// progressCallback('pks', 0, 'fetching');
-	const pks = await db.query<{
+	progressCallback('pks', 0, 'fetching');
+	const pks = await batchQuery<{
 		CONSTRAINT_NAME: string;
 		TABLE_NAME: string;
 		COLUMN_NAME: string;
 		ORDINAL_POSITION: number;
-	}>(`
+	}>(db, ({ limit, cursor }) => `
 		SELECT
 			CONSTRAINT_NAME,
 			TABLE_NAME,
@@ -339,8 +339,16 @@ export const fromDatabase = async (
 		LEFT JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE k USING(CONSTRAINT_NAME, TABLE_SCHEMA, TABLE_NAME)
 		WHERE t.CONSTRAINT_TYPE='PRIMARY KEY'
 			AND t.TABLE_SCHEMA = '${schema}'
-		ORDER BY ORDINAL_POSITION
-	`).then((rows) => {
+			${
+		cursor
+			? `AND (TABLE_NAME > '${cursor.TABLE_NAME}' OR (TABLE_NAME = '${cursor.TABLE_NAME}' AND ORDINAL_POSITION > ${cursor.ORDINAL_POSITION}))`
+			: ''
+	}
+		ORDER BY TABLE_NAME, ORDINAL_POSITION
+		LIMIT ${limit}
+	`, (count) => {
+		progressCallback('pks', count, 'fetching');
+	}).then((rows) => {
 		queryCallback('pks', rows, null);
 		return rows;
 	}).catch((err) => {
@@ -372,7 +380,7 @@ export const fromDatabase = async (
 	for (const pk of Object.values(tableToPKs)) {
 		res.pks.push(pk);
 	}
-	// progressCallback('pks', res.pks.length, 'done');
+	progressCallback('pks', res.pks.length, 'done');
 
 	// FOREIGN KEYS
 
