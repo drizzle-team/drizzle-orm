@@ -1061,9 +1061,19 @@ const detectInstaller = (): { cmd: 'pnpm' | 'bunx' | 'yarn' | 'npx'; args: strin
 	return { cmd: 'npx', args: ['-y'] };
 };
 
+const skillsVersion = command({
+	name: 'version',
+	options: {},
+	handler: () => {
+		const revision = process.env.DRIZZLE_KIT_SKILLS_REVISION;
+		process.stdout.write(`${revision ? revision : '--'}\n`);
+	},
+});
+
 export const skills = command({
 	name: 'skills',
 	options: {},
+	subcommands: [skillsVersion],
 	handler: async () => {
 		const candidates = [resolve(__dirname, 'skills'), resolve(__dirname, '../../skills')];
 		const skillsDir = candidates.find((p) => existsSync(p));

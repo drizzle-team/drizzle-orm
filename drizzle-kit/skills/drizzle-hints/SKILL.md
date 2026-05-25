@@ -1,6 +1,6 @@
 ---
 name: drizzle-hints
-description: Resolve `missing_hints` responses from drizzle-kit `generate` or `push` — covers rename-vs-create disambiguation, `confirm_data_loss` approvals, and the `Hint` reply array shape for the retry. Use whenever drizzle returns a `missing_hints` status, prompts to confirm a rename or destructive change, or the user is building the hints array for a retry.
+description: Resolve `missing_hints` responses from drizzle-kit `generate` or `push` — covers rename-vs-create disambiguation, `confirm_data_loss` approvals, and the `Hint` reply array shape for the retry. Load whenever drizzle-kit output shows `missing_hints` status, prompts to confirm a rename or destructive change, or the next step is constructing a `hints` array for a retry call.
 metadata:
   version: "1.0.0"
 ---

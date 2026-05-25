@@ -452,6 +452,23 @@ jobs:
         env:
           ATTW_FORMAT: concise
 
+  skills-revision-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with: { fetch-depth: 0 }
+      - uses: pnpm/action-setup@v3
+        with: { run_install: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: '24', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Skills revision gate
+        working-directory: drizzle-kit
+        env:
+          GH_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: pnpm skills:revision:check
+
   release:
     permissions:
       contents: write # for creating GitHub releases
@@ -460,6 +477,7 @@ jobs:
       - test
       - attw
       - attw-orm
+      - skills-revision-gate
     strategy:
       fail-fast: false
       matrix:

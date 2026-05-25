@@ -52,7 +52,8 @@
 		"test:other": "vitest run ./mysql/ ./sqlite/ ./other",
 		"test:cockroach": "vitest run ./cockroach",
 		"test:mssql": "vitest run ./mssql",
-		"test:singlestore": "vitest run ./singlestore"
+		"test:singlestore": "vitest run ./singlestore",
+		"skills:revision:check": "tsx scripts/check-skills-revision.ts"
 	},
 	"dependencies": {
 		"@drizzle-team/brocli": "^0.12.0",

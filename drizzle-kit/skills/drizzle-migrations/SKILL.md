@@ -1,6 +1,6 @@
 ---
 name: drizzle-migrations
-description: Orient to the drizzle-kit migration workflow — `defineConfig`, `generate` vs `push`, and per-dialect quirks across postgresql, mysql, sqlite, mssql, cockroach, and singlestore. Use whenever the user is setting up drizzle migrations, configuring `drizzle.config.ts`, choosing between generate and push, or asking dialect-specific migration questions. Also load this skill right after any drizzle schema edit — every schema change must be synced via `generate` (offline SQL file) or `push` (live DB), and this skill picks the right one.
+description: Orient to the drizzle-kit migration workflow — `defineConfig`, `generate` vs `push`, and per-dialect quirks across postgresql, mysql, sqlite, mssql, cockroach, and singlestore. Load whenever drizzle migrations are being set up or modified, `drizzle.config.ts` is being read or edited, the generate-vs-push choice is being made, or any Drizzle schema file has just been edited.
 metadata:
   version: "1.0.0"
 ---

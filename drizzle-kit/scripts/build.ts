@@ -4,6 +4,7 @@ import * as fs from 'node:fs/promises';
 import { rolldown } from 'rolldown';
 import { build as tsdown } from 'tsdown';
 import pkg from '../package.json';
+import { readSkillsRevisionFromDisk } from './lib/read-skills-revision';
 
 const driversPackages = [
 	// postgres drivers
@@ -78,13 +79,10 @@ async function buildCli() {
 	await build.close();
 
 	const binContent = await fs.readFile('dist/bin.cjs', 'utf8');
-	await fs.writeFile(
-		'dist/bin.cjs',
-		binContent.replace(
-			/process\.env\.DRIZZLE_KIT_VERSION/g,
-			JSON.stringify(pkg.version),
-		),
-	);
+	const patched = binContent
+		.replace(/process\.env\.DRIZZLE_KIT_VERSION/g, JSON.stringify(pkg.version))
+		.replace(/process\.env\.DRIZZLE_KIT_SKILLS_REVISION/g, JSON.stringify(readSkillsRevisionFromDisk('./skills')));
+	await fs.writeFile('dist/bin.cjs', patched);
 
 	console.log('  Built bin.cjs');
 }
