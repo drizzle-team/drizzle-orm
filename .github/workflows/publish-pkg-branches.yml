@@ -1,0 +1,70 @@
+# Builds drizzle-orm / drizzle-kit dist and force-pushes orphan branches for Bun/git installs.
+# App usage: "drizzle-orm": "github:younes200/drizzle-orm#pkg-drizzle-orm"
+name: Publish package branches
+
+on:
+  push:
+    branches: [beta]
+    paths:
+      - 'drizzle-orm/**'
+      - 'drizzle-kit/**'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - 'turbo.json'
+      - '.github/workflows/publish-pkg-branches.yml'
+      - '.github/scripts/publish-pkg-branch.sh'
+  workflow_dispatch:
+
+concurrency:
+  group: publish-pkg-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Build drizzle-orm and drizzle-kit
+        run: pnpm exec turbo run build --filter drizzle-orm --filter drizzle-kit --color
+
+      - name: Publish pkg-drizzle-orm
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          bash .github/scripts/publish-pkg-branch.sh \
+            pkg-drizzle-orm \
+            drizzle-orm/dist \
+            "chore: publish drizzle-orm dist from ${GITHUB_SHA}"
+
+      - name: Publish pkg-drizzle-kit
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          bash .github/scripts/publish-pkg-branch.sh \
+            pkg-drizzle-kit \
+            drizzle-kit/dist \
+            "chore: publish drizzle-kit dist from ${GITHUB_SHA}"

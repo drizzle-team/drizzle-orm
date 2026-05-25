@@ -5,6 +5,8 @@
 	"scripts": {
 		"postinstall": "pnpm husky",
 		"build:orm": "turbo run build --filter drizzle-orm --color",
+		"build:kit": "turbo run build --filter drizzle-kit --color",
+		"build:pkg": "turbo run build --filter drizzle-orm --filter drizzle-kit --color",
 		"build": "turbo run build test:types //#lint --color",
 		"build:artifact": "turbo run build:artifact --color",
 		"b": "pnpm build",
