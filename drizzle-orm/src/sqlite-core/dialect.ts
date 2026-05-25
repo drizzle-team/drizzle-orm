@@ -934,7 +934,10 @@ export abstract class SQLiteDialect {
 }
 
 // SQLite ignores PRAGMA foreign_keys inside a transaction; hoist it before BEGIN when needed.
-// fkOffRe / fkPragmaRe match drizzle-kit's table-rebuild output shape — update both if drizzle-kit changes its FK pragma format.
+// fkOffRe / fkPragmaRe assume drizzle-kit's current rebuild signature: OFF/ON pragmas in a
+// single migration file, outside any savepoint. If drizzle-kit ever splits the pragmas
+// across files or wraps the rebuild in a savepoint, the hoist-to-session strategy below
+// needs revisiting.
 const fkOffRe = /^\s*PRAGMA\s+foreign_keys\s*=\s*(OFF|0)\s*;?\s*$/i;
 const fkPragmaRe = /^\s*PRAGMA\s+foreign_keys\s*=/i;
 const hasFkOffPragma = (migrations: MigrationMeta[]) => migrations.some((m) => m.sql.some((s) => fkOffRe.test(s)));
