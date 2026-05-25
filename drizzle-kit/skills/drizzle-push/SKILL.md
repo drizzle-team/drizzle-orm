@@ -1,6 +1,6 @@
 ---
 name: drizzle-push
-description: Apply drizzle schema changes directly to a live database without writing a migration file. Use whenever the user wants to push, sync, apply, or deploy a drizzle schema against the database, or invoke `drizzle-kit push` / the `push(...)` SDK function.
+description: Apply drizzle schema changes directly to a live database without writing a migration file. Load before running `drizzle-kit push` or calling the `push(...)` SDK, when syncing a Drizzle schema directly to a live DB (prototyping, dev resets, ephemeral test databases), or when the task is to push, sync, apply, or deploy a schema.
 metadata:
   version: "1.0.0"
 ---

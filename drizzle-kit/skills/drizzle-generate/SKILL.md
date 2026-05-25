@@ -1,6 +1,6 @@
 ---
 name: drizzle-generate
-description: Create a new drizzle migration SQL file by diffing the schema against the latest snapshot. Use whenever the user wants to generate, create, make, or scaffold a new drizzle migration after schema edits, or invoke `drizzle-kit generate` / the `generate(...)` SDK function.
+description: Create a new drizzle migration SQL file by diffing the schema against the latest snapshot. Load before running `drizzle-kit generate` or calling the `generate(...)` SDK, after any Drizzle schema edit when the next step is producing migration SQL, or when the task is to generate, scaffold, or make a new migration.
 metadata:
   version: "1.0.0"
 ---

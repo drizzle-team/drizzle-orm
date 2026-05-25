@@ -343,8 +343,33 @@ jobs:
         env:
           ATTW_FORMAT: concise
 
+  skills-revision-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Skip on non-pull-request events
+        if: github.event_name != 'pull_request'
+        run: echo "Not a pull request — skills revision gate does not apply"
+      - if: github.event_name == 'pull_request'
+        uses: actions/checkout@v5
+        with: { fetch-depth: 0 }
+      - if: github.event_name == 'pull_request'
+        uses: pnpm/action-setup@v4
+        with: { run_install: false }
+      - if: github.event_name == 'pull_request'
+        uses: actions/setup-node@v6
+        with: { node-version: '24', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+      - name: Skills revision gate
+        if: github.event_name == 'pull_request'
+        working-directory: drizzle-kit
+        env:
+          GH_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          pnpm install --frozen-lockfile --prefer-offline
+          pnpm skills:revision:check
+
   release:
-    needs: [test, prepare, attw, attw-orm]
+    needs: [test, prepare, attw, attw-orm, skills-revision-gate]
     # workflow_dispatch only: this job holds `id-token: write` and is the sole path to
     # the publish step, so PR/push events must never enter it — that would both expose
     # OIDC minting to untrusted PR code and auto-publish on push.

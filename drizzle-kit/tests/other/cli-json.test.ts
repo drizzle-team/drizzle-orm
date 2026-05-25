@@ -3,6 +3,7 @@ import { spawnSync } from 'child_process';
 import { sql } from 'drizzle-orm';
 import { check, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { mkdtempSync } from 'fs';
+import { stripAnsi } from 'hanji/utils';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
@@ -135,7 +136,15 @@ test('root --version prints human-readable output', () => {
 	expect(result.status).toBe(0);
 	expect(result.stdout).toContain('drizzle-kit:');
 	expect(result.stdout).toContain('drizzle-orm:');
+	expect(result.stdout).not.toContain('skills:');
 	expect(() => JSON.parse(result.stdout.trim())).toThrow();
+});
+
+test('skills version prints the bundled revision on a single line', () => {
+	const result = runCli(['skills', 'version'], { DRIZZLE_KIT_SKILLS_REVISION: '42' });
+
+	expect(result.status).toBe(0);
+	expect(stripAnsi(result.stdout).trim()).toBe('42');
 });
 
 test('json error output includes structured cli error fields', () => {
