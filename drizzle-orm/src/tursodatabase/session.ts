@@ -128,10 +128,9 @@ export class TursoDatabaseSession<
 			this.schema,
 		);
 
-		const clientTx = this.client.transaction(async () => await transaction(localTx));
+		const txOrRunner = this.client.transaction(async () => await transaction(localTx));
 
-		const result = await clientTx();
-		return result;
+		return typeof txOrRunner === 'function' ? await txOrRunner() : await txOrRunner;
 	}
 
 	override async run(query: SQL): Result<'async', TursoDatabaseRunResult> {
