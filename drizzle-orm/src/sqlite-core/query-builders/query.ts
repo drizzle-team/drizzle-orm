@@ -150,7 +150,7 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 			builtQuery,
 			this.rowMode ? 'arrays' : 'objects',
 			prepare,
-			this.mode === 'first' ? 'get' : 'all',
+			'all', // Do not use 'get' - mapper returns an item instead of an array, would break on session's destructuring; query itself is already limited to 1 item, so no performance overhead occurs.
 			this.dialect.mapperGenerators.relationalRows({
 				isFirst: this.mode === 'first',
 				parseJson: !this.rowMode,
@@ -218,6 +218,6 @@ export class SQLiteSyncRelationalQuery<TResult> extends SQLiteRelationalQuery<'s
 	static override readonly [entityKind]: string = 'SQLiteSyncRelationalQueryV2';
 
 	sync(): TResult {
-		return this._prepare().execute() as TResult;
+		return this._prepare().execute().sync() as TResult;
 	}
 }

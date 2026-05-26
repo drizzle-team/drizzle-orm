@@ -416,7 +416,7 @@ export class SQLiteInsertBase<
 	};
 
 	override async execute(): Promise<SQLiteInsertExecute<this>> {
-		return this.execute() as SQLiteInsertExecute<this>;
+		return this._prepare().execute() as SQLiteInsertExecute<this>;
 	}
 
 	$dynamic(): SQLiteInsertDynamic<this> {

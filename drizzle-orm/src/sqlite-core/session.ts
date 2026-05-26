@@ -150,7 +150,7 @@ export class SQLitePreparedQuery<T extends PreparedQueryConfig> implements Prepa
 	}
 
 	run(placeholderValues: Record<string, unknown> = {}): Result<T['type'], T['run']> {
-		const { query, logger, executors, mapper, fastPath, resultKind } = this;
+		const { query, logger, executors, fastPath, resultKind } = this;
 		const sql = query._sql ? query._sql.join(' ') : query.sql;
 		const params = query.params.length === 0
 			? query.params
@@ -159,10 +159,7 @@ export class SQLitePreparedQuery<T extends PreparedQueryConfig> implements Prepa
 
 		if (resultKind === 'sync') {
 			try {
-				const res = (<SQLiteQueryExecutors<'sync'>> executors).run(params);
-				if (!mapper) return res;
-
-				return mapper(res);
+				return (<SQLiteQueryExecutors<'sync'>> executors).run(params);
 			} catch (e) {
 				throw new DrizzleQueryError(sql, params, e as Error);
 			}
@@ -184,14 +181,15 @@ export class SQLitePreparedQuery<T extends PreparedQueryConfig> implements Prepa
 		logger.logQuery(sql, params);
 
 		if (resultKind === 'sync') {
+			let res: any;
 			try {
-				const res = (<SQLiteQueryExecutors<'sync'>> executors).all(params);
-				if (!mapper) return res;
-
-				return mapper(res);
+				res = (<SQLiteQueryExecutors<'sync'>> executors).all(params);
 			} catch (e) {
 				throw new DrizzleQueryError(sql, params, e as Error);
 			}
+
+			if (!mapper) return res;
+			return mapper(res);
 		}
 
 		const res = fastPath
@@ -213,14 +211,17 @@ export class SQLitePreparedQuery<T extends PreparedQueryConfig> implements Prepa
 		logger.logQuery(sql, params);
 
 		if (resultKind === 'sync') {
+			let res: any;
 			try {
-				const res = (<SQLiteQueryExecutors<'sync'>> executors).get(params);
-				if (!mapper) return res;
-
-				return mapper(res);
+				res = (<SQLiteQueryExecutors<'sync'>> executors).get(params);
 			} catch (e) {
 				throw new DrizzleQueryError(sql, params, e as Error);
 			}
+
+			if (!res) return undefined as Result<T['type'], T['get']>;
+			if (!mapper) return res;
+
+			return mapper([res])[0];
 		}
 
 		const res = fastPath

@@ -44,7 +44,7 @@ export class BetterSQLiteSession<TRelations extends AnyRelations>
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
-		prepare: boolean,
+		_prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
 		queryMetadata?: {
@@ -52,43 +52,24 @@ export class BetterSQLiteSession<TRelations extends AnyRelations>
 			tables: string[];
 		},
 	): SQLitePreparedQuery<T & { run: BetterSQLite3RunResult }> {
-		let executors: SQLiteQueryExecutors<'sync'>;
-		if (prepare) {
-			const stmt = this.client.prepare(query.sql);
-			executors = {
-				all: (params) => {
-					if (mode === 'arrays') return stmt.raw().all(...params as any[]);
-					return stmt.all(...params as any[]);
-				},
-				get: (params) => {
-					if (mode === 'arrays') return stmt.raw().get(...params as any[]);
-					return stmt.get(...params as any[]);
-				},
-				run: (params) => {
-					return stmt.run(...params as any[]);
-				},
-				values: (params) => {
-					return stmt.raw().all(...params as any[]);
-				},
-			};
-		} else {
-			executors = {
-				all: (params) => {
-					if (mode === 'arrays') return this.client.prepare(query.sql).raw().all(...params as any[]);
-					return this.client.prepare(query.sql).all(...params as any[]);
-				},
-				get: (params) => {
-					if (mode === 'arrays') return this.client.prepare(query.sql).raw().get(...params as any[]);
-					return this.client.prepare(query.sql).get(...params as any[]);
-				},
-				run: (params) => {
-					return this.client.prepare(query.sql).run(...params as any[]);
-				},
-				values: (params) => {
-					return this.client.prepare(query.sql).raw().all(...params as any[]);
-				},
-			};
-		}
+		const stmt = this.client.prepare(query.sql);
+		const executors: SQLiteQueryExecutors<'sync'> = {
+			all: (params) => {
+				if (mode === 'arrays') return stmt.raw().all(...params as any[]);
+				return stmt.all(...params as any[]);
+			},
+			get: (params) => {
+				if (mode === 'arrays') return stmt.raw().get(...params as any[]);
+				return stmt.get(...params as any[]);
+			},
+			run: (params) => {
+				return stmt.run(...params as any[]);
+			},
+			values: (params) => {
+				return stmt.raw().all(...params as any[]);
+			},
+		};
+
 		return new SQLitePreparedQuery(
 			'sync',
 			executeMethod,
