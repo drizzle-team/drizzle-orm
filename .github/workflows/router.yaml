@@ -1,9 +1,6 @@
 name: Release Router
 
 on:
-  push:
-    branches-ignore:
-      - main
   pull_request:
   workflow_dispatch:
 
@@ -21,10 +18,10 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "${GITHUB_REF##*/}" == "main" ]]; then
             echo "target=latest" >> $GITHUB_OUTPUT
           else
-            # workflow_dispatch on a non-main ref, any pull request (same-repo or fork),
-            # and pushes to non-main branches all run the feature pipeline. Fork PRs run
-            # via the standard pull-request event so they get no repo secrets; the publish
-            # step is separately gated to workflow_dispatch only.
+            # workflow_dispatch on a non-main ref and any pull request (same-repo or
+            # fork) run the feature pipeline. Fork PRs run via the standard pull-request
+            # event so they get no repo secrets; the publish step is separately gated to
+            # workflow_dispatch only.
             echo "target=feature" >> $GITHUB_OUTPUT
           fi
 
