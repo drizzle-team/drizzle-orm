@@ -166,7 +166,7 @@ export class SQLitePreparedQuery<T extends PreparedQueryConfig> implements Prepa
 		}
 
 		return fastPath
-			? (<SQLiteQueryExecutors<'async'>> executors).all(params).catch((e) => {
+			? (<SQLiteQueryExecutors<'async'>> executors).run(params).catch((e) => {
 				throw new DrizzleQueryError(sql, params, e as Error);
 			})
 			: this.queryWithCache(sql, params, () => (<SQLiteQueryExecutors<'async'>> executors).run(params));
@@ -228,7 +228,7 @@ export class SQLitePreparedQuery<T extends PreparedQueryConfig> implements Prepa
 			? (<SQLiteQueryExecutors<'async'>> executors).get(params).catch((e) => {
 				throw new DrizzleQueryError(sql, params, e as Error);
 			})
-			: this.queryWithCache(sql, params, () => (<SQLiteQueryExecutors<'async'>> executors).all(params));
+			: this.queryWithCache(sql, params, () => (<SQLiteQueryExecutors<'async'>> executors).get(params));
 
 		if (!mapper) return res;
 
@@ -252,10 +252,10 @@ export class SQLitePreparedQuery<T extends PreparedQueryConfig> implements Prepa
 		}
 
 		const res = fastPath
-			? (<SQLiteQueryExecutors<'async'>> executors).all(params).catch((e) => {
+			? (<SQLiteQueryExecutors<'async'>> executors).values(params).catch((e) => {
 				throw new DrizzleQueryError(sql, params, e as Error);
 			})
-			: this.queryWithCache(sql, params, () => (<SQLiteQueryExecutors<'async'>> executors).all(params));
+			: this.queryWithCache(sql, params, () => (<SQLiteQueryExecutors<'async'>> executors).values(params));
 
 		return res;
 	}
