@@ -1,7 +1,108 @@
 /// <reference types="@cloudflare/workers-types" />
 import type { Relations } from 'drizzle-orm/_relations';
 import type { AnySQLiteTable } from 'drizzle-orm/sqlite-core';
+import type { Column, Table } from '../dialects/sqlite/ddl';
+import { createDDL, interimToDDL } from '../dialects/sqlite/ddl';
+import type { SqliteSnapshot } from '../dialects/sqlite/snapshot';
+import { originUUID } from '../utils';
+import type { SQLiteClient } from '../utils';
 import type { SqliteCredentials } from 'src/cli/validations/sqlite';
+
+export const generateDrizzleJson = async (
+	imports: Record<string, unknown>,
+	prevId?: string,
+): Promise<SqliteSnapshot> => {
+	const { randomUUID } = await import('crypto');
+	const { sqliteSchemaError } = await import('../cli/views');
+	const { toJsonSnapshot } = await import('../dialects/sqlite/snapshot');
+	const { fromDrizzleSchema, fromExports } = await import('../dialects/sqlite/drizzle');
+	const prepared = fromExports(imports);
+
+	const interim = fromDrizzleSchema(prepared.tables, prepared.views);
+
+	const { ddl, errors } = interimToDDL(interim);
+
+	if (errors.length > 0) {
+		console.log(errors.map((it) => sqliteSchemaError(it)).join('\n'));
+		process.exit(1);
+	}
+
+	return toJsonSnapshot(ddl, randomUUID(), prevId ? [prevId] : [originUUID], []);
+};
+
+export const generateMigration = async (
+	prev: SqliteSnapshot,
+	cur: SqliteSnapshot,
+) => {
+	const { resolver } = await import('../cli/prompts');
+	const { ddlDiff } = await import('../dialects/sqlite/diff');
+	const from = createDDL();
+	const to = createDDL();
+
+	for (const it of prev.ddl) {
+		from.entities.push(it);
+	}
+	for (const it of cur.ddl) {
+		to.entities.push(it);
+	}
+
+	const { sqlStatements } = await ddlDiff(
+		from,
+		to,
+		resolver<Table>('table'),
+		resolver<Column>('column'),
+		'default',
+	);
+
+	return sqlStatements;
+};
+
+export const pushSchema = async (
+	imports: Record<string, unknown>,
+	db: SQLiteClient,
+	migrationsConfig?: {
+		table?: string;
+		schema?: string;
+	},
+) => {
+	const { resolver } = await import('../cli/prompts');
+	const { fromDatabaseForDrizzle } = await import('src/dialects/sqlite/introspect');
+	const { fromDrizzleSchema, fromExports } = await import('../dialects/sqlite/drizzle');
+	const { suggestions } = await import('../cli/commands/push-sqlite');
+	const { ddlDiff } = await import('../dialects/sqlite/diff');
+
+	const migrations = {
+		schema: migrationsConfig?.schema || '',
+		table: migrationsConfig?.table || '__drizzle_migrations',
+	};
+
+	const prepared = fromExports(imports);
+
+	const prev = await fromDatabaseForDrizzle(db, () => true, () => {}, migrations);
+	const cur = fromDrizzleSchema(prepared.tables, prepared.views);
+
+	const { ddl: from } = interimToDDL(prev);
+	const { ddl: to, errors: _err2 } = interimToDDL(cur);
+
+	const { sqlStatements, statements } = await ddlDiff(
+		from,
+		to,
+		resolver<Table>('table'),
+		resolver<Column>('column'),
+		'push',
+	);
+
+	const hints = await suggestions(db, statements);
+
+	return {
+		sqlStatements,
+		hints,
+		apply: async () => {
+			const losses = hints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
+			await db.batch([...losses, ...sqlStatements]);
+		},
+	};
+};
 
 export const startStudioServer = async (
 	imports: Record<string, unknown>,
@@ -55,3 +156,5 @@ export const startStudioServer = async (
 		},
 	});
 };
+
+export { updateToV7 as up } from '../cli/commands/up-sqlite';
