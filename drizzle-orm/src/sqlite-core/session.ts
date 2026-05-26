@@ -230,10 +230,9 @@ export class SQLitePreparedQuery<T extends PreparedQueryConfig> implements Prepa
 			})
 			: this.queryWithCache(sql, params, () => (<SQLiteQueryExecutors<'async'>> executors).all(params));
 
-		if (!res) return undefined as Result<T['type'], T['get']>;
 		if (!mapper) return res;
 
-		return res.then((row) => mapper([row])[0]) as Result<T['type'], T['get']>;
+		return res.then((row) => row ? mapper([row])[0] : undefined) as Result<T['type'], T['get']>;
 	}
 
 	values(placeholderValues: Record<string, unknown> = {}): Result<T['type'], T['values']> {
