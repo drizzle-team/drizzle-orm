@@ -4,7 +4,7 @@ import type { Query } from '~/sql/sql.ts';
 import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { applyMixins } from '~/utils.ts';
 import type { SQLiteDialect } from '../dialect.ts';
-import type { SQLiteSession } from '../session.ts';
+import type { ExecuteResultSync, SQLiteSession } from '../session.ts';
 import type { SQLiteTable } from '../table.ts';
 import type { SQLiteViewBase } from '../view-base.ts';
 
@@ -60,17 +60,17 @@ export class SQLiteCountBuilder extends SQL<number> implements SQLWrapper<number
 	}
 
 	/** @internal */
-	executeRaw(placeholderValues?: Record<string, unknown>): Promise<number> | number {
+	executeRaw(placeholderValues?: Record<string, unknown>): Promise<number> | ExecuteResultSync<number> {
 		return this.session.prepareOneTimeQuery(
 			this.build(),
 			undefined,
-			'get',
+			'all',
 			(rows) => {
 				const v = rows[0]?.[0];
 				if (typeof v === 'number') return v;
 				return v ? Number(v) : 0;
 			},
-		).get(placeholderValues) as any;
+		).execute(placeholderValues) as any;
 	}
 
 	// async-await to avoid crashing when used on sync drivers with .then(), .catch() for compatibility
@@ -83,7 +83,7 @@ export class SQLiteSyncCountBuilder extends SQLiteCountBuilder {
 	static override readonly [entityKind]: string = 'SQLiteSyncCountBuilder';
 
 	sync(placeholderValues?: Record<string, unknown>): number {
-		return this.executeRaw(placeholderValues) as number;
+		return (this.executeRaw(placeholderValues) as ExecuteResultSync<number>).sync();
 	}
 }
 
