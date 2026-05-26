@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import { readFileSync } from 'fs';
 import { getCommutativityDialect } from 'src/commutativity';
+import type { ParsedSnapshotInput } from 'src/commutativity/engine';
 import type { MigrationNode, NonCommutativityReport, UnifiedBranchConflict } from 'src/commutativity/types';
 import type { Dialect } from '../../utils/schemaValidator';
 import { prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
@@ -165,12 +166,14 @@ export const checkHandler = async (
 	const { snapshots } = prepareOutFolder(out);
 	const validator = validatorForDialect(dialect);
 
+	const parsedInputs: ParsedSnapshotInput[] = [];
 	for (const snapshot of snapshots) {
 		const raw = JSON.parse(readFileSync(snapshot).toString());
 
 		const res = validator(raw);
 		switch (res.status) {
 			case 'valid':
+				parsedInputs.push({ path: snapshot, snapshot: raw });
 				break;
 			case 'unsupported':
 				console.log(
@@ -199,7 +202,7 @@ export const checkHandler = async (
 			return emptyResult();
 		}
 
-		const response = await commutativity.detectNonCommutative(snapshots);
+		const response = await commutativity.detectNonCommutative(parsedInputs);
 		if (response.conflicts.length > 0) {
 			const nonCommutativityMessage = generateReportDirectory(response);
 			if (!ignoreConflicts) {

@@ -9,6 +9,53 @@ type SnapshotNode<TSnapshot extends { id: string; prevIds: string[] }> = {
 	folderPath: string;
 	raw: TSnapshot;
 };
+export type SnapshotHeader = {
+	id: string;
+	prevIds: string[];
+};
+
+export type ParsedSnapshotInput<TSnapshot extends SnapshotHeader = SnapshotHeader> = {
+	path: string;
+	snapshot: TSnapshot;
+};
+
+function buildPrevToChildren<TNode extends { id: string; prevIds: string[] }>(
+	nodes: Record<string, TNode>,
+): Record<string, string[]> {
+	const prevToChildren: Record<string, string[]> = {};
+	for (const node of Object.values(nodes)) {
+		for (const parentId of node.prevIds) {
+			(prevToChildren[parentId] ??= []).push(node.id);
+		}
+	}
+	return prevToChildren;
+}
+
+function collectLeaves(
+	prevToChildren: Record<string, string[]>,
+	startId: string,
+): string[] {
+	const leaves: string[] = [];
+	const visited = new Set<string>();
+	const stack: string[] = [startId];
+
+	while (stack.length) {
+		const id = stack.pop()!;
+		if (visited.has(id)) continue;
+		visited.add(id);
+
+		const children = prevToChildren[id];
+		if (!children || children.length === 0) {
+			leaves.push(id);
+			continue;
+		}
+		for (const child of children) {
+			if (!visited.has(child)) stack.push(child);
+		}
+	}
+
+	return leaves;
+}
 
 export type CommutativityStatementInfo<
 	TStatement extends { type: string },
@@ -130,18 +177,24 @@ export abstract class AbstractCommutativity<
 	}
 
 	public async detectNonCommutative(
-		snapshots: string[],
+		snapshots: string[] | ParsedSnapshotInput[],
 	): Promise<NonCommutativityReport> {
 		const nodes = this.buildSnapshotGraph(snapshots);
-		const prevToChildren: Record<string, string[]> = {};
+		const prevToChildren = buildPrevToChildren(nodes);
 
-		for (const node of Object.values(nodes)) {
-			for (const parentId of node.prevIds) {
-				const arr = prevToChildren[parentId] ?? [];
-				arr.push(node.id);
-				prevToChildren[parentId] = arr;
-			}
-		}
+		const diffCache = new Map<string, Promise<{ statements: TStatement[] }>>();
+		const drySnapshot = this.getDrySnapshot();
+		const drySnapshotId = '__dry__';
+
+		const diffOnce = (from: TSnapshot, to: TSnapshot) => {
+			const fromId = from === drySnapshot ? drySnapshotId : from.id;
+			const key = `${fromId}::${to.id}`;
+			const cached = diffCache.get(key);
+			if (cached) return cached;
+			const pending = this.diffSnapshots(from, to);
+			diffCache.set(key, pending);
+			return pending;
+		};
 
 		const conflicts: UnifiedBranchConflict[] = [];
 		const commutativeBranches: NonCommutativityReport['commutativeBranches'] = [];
@@ -150,33 +203,31 @@ export abstract class AbstractCommutativity<
 			if (childIds.length <= 1) continue;
 
 			const parentNode = nodes[prevId];
+			const parentSnapshot = parentNode ? parentNode.raw : drySnapshot;
 			const childToLeaves: Record<string, string[]> = {};
 
 			for (const childId of childIds) {
-				childToLeaves[childId] = this.collectLeaves(nodes, childId);
+				childToLeaves[childId] = collectLeaves(prevToChildren, childId);
 			}
 
-			const leafStatements: Record<
+			const uniqueLeafIds = Array.from(new Set(Object.values(childToLeaves).flat()));
+
+			const leafStatementsCache: Record<
 				string,
-				{ statements: TStatement[]; path: string }
+				Promise<{ statements: TStatement[]; path: string }>
 			> = {};
 
-			for (const leaves of Object.values(childToLeaves)) {
-				for (const leafId of leaves) {
-					const leafNode = nodes[leafId]!;
-					const parentSnapshot = parentNode
-						? parentNode.raw
-						: this.getDrySnapshot();
-					const { statements } = await this.diffSnapshots(
-						parentSnapshot,
-						leafNode.raw,
-					);
-					leafStatements[leafId] = {
-						statements,
-						path: leafNode.folderPath,
-					};
-				}
-			}
+			const resolveLeaf = (leafId: string) => {
+				const cached = leafStatementsCache[leafId];
+				if (cached) return cached;
+				const leafNode = nodes[leafId]!;
+				const pending = diffOnce(parentSnapshot, leafNode.raw).then((d) => ({
+					statements: d.statements,
+					path: leafNode.folderPath,
+				}));
+				leafStatementsCache[leafId] = pending;
+				return pending;
+			};
 
 			let hasConflict = false;
 
@@ -192,11 +243,10 @@ export abstract class AbstractCommutativity<
 						for (const bId of groupB) {
 							if (aId === bId) continue;
 
-							const aStatements = leafStatements[aId]!.statements;
-							const bStatements = leafStatements[bId]!.statements;
-							const parentSnapshot = parentNode
-								? parentNode.raw
-								: this.getDrySnapshot();
+							const [{ statements: aStatements }, { statements: bStatements }] = await Promise.all([
+								resolveLeaf(aId),
+								resolveLeaf(bId),
+							]);
 
 							const intersected = await this.getReasonsFromStatements(
 								aStatements,
@@ -243,17 +293,24 @@ export abstract class AbstractCommutativity<
 				}
 			}
 
-			const uniqueLeafIds = Array.from(new Set(Object.values(childToLeaves).flat()));
 			if (hasConflict || uniqueLeafIds.length <= 1) {
 				continue;
 			}
 
-			const parentSnapshot = parentNode ? parentNode.raw : this.getDrySnapshot();
-			const leafs = uniqueLeafIds.map((leafId) => ({
-				id: leafId,
-				path: leafStatements[leafId]?.path ?? nodes[leafId]?.folderPath ?? leafId,
-				statements: leafStatements[leafId]?.statements ?? [],
-			}));
+			// Reached only when the fork is genuinely open (multiple distinct leaves)
+			// and free of conflicts. The `commutativeBranches` payload needs the
+			// full per-leaf statements list, so we materialize the remaining diffs
+			// here (cached ones are free).
+			const leafs = await Promise.all(
+				uniqueLeafIds.map(async (leafId) => {
+					const resolved = await resolveLeaf(leafId);
+					return {
+						id: leafId,
+						path: resolved.path ?? nodes[leafId]?.folderPath ?? leafId,
+						statements: resolved.statements,
+					};
+				}),
+			);
 
 			commutativeBranches.push({
 				parentId: prevId,
@@ -263,9 +320,10 @@ export abstract class AbstractCommutativity<
 			});
 		}
 
-		const allNodeIds = new Set(Object.keys(nodes));
-		const parentIds = new Set(Object.keys(prevToChildren));
-		const leafNodes = Array.from(allNodeIds).filter((id) => !parentIds.has(id));
+		const leafNodes: string[] = [];
+		for (const id of Object.keys(nodes)) {
+			if (!prevToChildren[id]) leafNodes.push(id);
+		}
 
 		return { conflicts, leafNodes, commutativeBranches };
 	}
@@ -324,36 +382,46 @@ export abstract class AbstractCommutativity<
 		branchBHashes: Array<{ hash: string; statement: TStatement }>,
 		branchBConflicts: Array<{ hash: string; statement: TStatement }>,
 	) {
-		for (const hashInfoA of branchAHashes) {
-			for (const conflictInfoB of branchBConflicts) {
-				if (hashInfoA.hash === conflictInfoB.hash) {
-					return {
-						leftStatement: hashInfoA.statement,
-						rightStatement: conflictInfoB.statement,
-					};
-				}
+		const branchAConflictByHash = new Map<string, TStatement>();
+		for (const c of branchAConflicts) branchAConflictByHash.set(c.hash, c.statement);
+
+		const branchBConflictByHash = new Map<string, TStatement>();
+		for (const c of branchBConflicts) branchBConflictByHash.set(c.hash, c.statement);
+
+		for (const a of branchAHashes) {
+			const match = branchBConflictByHash.get(a.hash);
+			if (match) {
+				return { leftStatement: a.statement, rightStatement: match };
 			}
 		}
 
-		for (const hashInfoB of branchBHashes) {
-			for (const conflictInfoA of branchAConflicts) {
-				if (hashInfoB.hash === conflictInfoA.hash) {
-					return {
-						leftStatement: hashInfoB.statement,
-						rightStatement: conflictInfoA.statement,
-					};
-				}
+		for (const b of branchBHashes) {
+			const match = branchAConflictByHash.get(b.hash);
+			if (match) {
+				return { leftStatement: b.statement, rightStatement: match };
 			}
 		}
 	}
 
 	private buildSnapshotGraph(
-		snapshotFiles: string[],
+		snapshots: string[] | ParsedSnapshotInput[],
 	): Record<string, SnapshotNode<TSnapshot>> {
 		const byId: Record<string, SnapshotNode<TSnapshot>> = {};
-		for (const file of snapshotFiles) {
-			if (!existsSync(file)) continue;
-			const raw = JSON.parse(readFileSync(file, 'utf8')) as TSnapshot;
+		for (const input of snapshots) {
+			let file: string;
+			// The engine accepts snapshots whose shape we only know to have `id`
+			// and `prevIds`. The full snapshot is then handed to the dialect's
+			// `diffSnapshots`, which is the only place that requires the rest
+			// of `TSnapshot` and is responsible for that contract.
+			let raw: TSnapshot;
+			if (typeof input === 'string') {
+				file = input;
+				if (!existsSync(file)) continue;
+				raw = JSON.parse(readFileSync(file, 'utf8')) as TSnapshot;
+			} else {
+				file = input.path;
+				raw = input.snapshot as TSnapshot;
+			}
 			byId[raw.id] = {
 				id: raw.id,
 				prevIds: raw.prevIds,
@@ -364,35 +432,6 @@ export abstract class AbstractCommutativity<
 		}
 
 		return byId;
-	}
-
-	private collectLeaves(
-		graph: Record<string, SnapshotNode<TSnapshot>>,
-		startId: string,
-	): string[] {
-		const leaves: string[] = [];
-		const stack: string[] = [startId];
-		const prevToChildren: Record<string, string[]> = {};
-
-		for (const node of Object.values(graph)) {
-			for (const parentId of node.prevIds) {
-				const arr = prevToChildren[parentId] ?? [];
-				arr.push(node.id);
-				prevToChildren[parentId] = arr;
-			}
-		}
-
-		while (stack.length) {
-			const id = stack.pop()!;
-			const children = prevToChildren[id] ?? [];
-			if (children.length === 0) {
-				leaves.push(id);
-			} else {
-				for (const child of children) stack.push(child);
-			}
-		}
-
-		return leaves;
 	}
 
 	private buildChain(
