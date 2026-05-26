@@ -4,6 +4,22 @@ import type { SQLiteSession } from '../session.ts';
 import type { SQLiteTable } from '../table.ts';
 import type { SQLiteView } from '../view.ts';
 
+/** @internal */
+export function buildSQLiteEmbeddedCount(
+	source: SQLiteTable | SQLiteView | SQL | SQLWrapper,
+	filters?: SQL<unknown>,
+): SQL<number> {
+	return sql<number>`(select count(*) from ${source}${sql.raw(' where ').if(filters)}${filters})`;
+}
+
+/** @internal */
+export function buildSQLiteCount(
+	source: SQLiteTable | SQLiteView | SQL | SQLWrapper,
+	filters?: SQL<unknown>,
+): SQL<number> {
+	return sql<number>`select count(*) from ${source}${sql.raw(' where ').if(filters)}${filters}`;
+}
+
 export class SQLiteCountBuilder<
 	TSession extends SQLiteSession<any, any, any, any>,
 > extends SQL<number> implements Promise<number>, SQLWrapper<number> {
@@ -14,20 +30,6 @@ export class SQLiteCountBuilder<
 
 	private session: TSession;
 
-	private static buildEmbeddedCount(
-		source: SQLiteTable | SQLiteView | SQL | SQLWrapper,
-		filters?: SQL<unknown>,
-	): SQL<number> {
-		return sql<number>`(select count(*) from ${source}${sql.raw(' where ').if(filters)}${filters})`;
-	}
-
-	private static buildCount(
-		source: SQLiteTable | SQLiteView | SQL | SQLWrapper,
-		filters?: SQL<unknown>,
-	): SQL<number> {
-		return sql<number>`select count(*) from ${source}${sql.raw(' where ').if(filters)}${filters}`;
-	}
-
 	constructor(
 		readonly params: {
 			source: SQLiteTable | SQLiteView | SQL | SQLWrapper;
@@ -35,11 +37,11 @@ export class SQLiteCountBuilder<
 			session: TSession;
 		},
 	) {
-		super(SQLiteCountBuilder.buildEmbeddedCount(params.source, params.filters).queryChunks);
+		super(buildSQLiteEmbeddedCount(params.source, params.filters).queryChunks);
 
 		this.session = params.session;
 
-		this.sql = SQLiteCountBuilder.buildCount(
+		this.sql = buildSQLiteCount(
 			params.source,
 			params.filters,
 		);
