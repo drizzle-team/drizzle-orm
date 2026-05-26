@@ -229,7 +229,7 @@ const aggregateTable = sqliteTable('aggregate_table', {
 
 const ENABLE_LOGGING = false;
 
-let db: BunSQLiteDatabase<never, typeof relations> & { $client: SQL };
+let db: BunSQLiteDatabase<typeof relations> & { $client: SQL };
 let dbGlobalCached: BunSQLiteDatabase & { $client: SQL };
 let cachedDb: BunSQLiteDatabase & { $client: SQL };
 let client: SQL;
@@ -434,7 +434,7 @@ describe('common', () => {
 		`);
 	});
 
-	async function setupSetOperationTest(db: BaseSQLiteDatabase<any, any, any, any, any>) {
+	async function setupSetOperationTest(db: BaseSQLiteDatabase<any, any, any>) {
 		await db.run(sql`drop table if exists users2`);
 		await db.run(sql`drop table if exists cities`);
 		await db.run(sql`
@@ -470,7 +470,7 @@ describe('common', () => {
 		]);
 	}
 
-	async function setupAggregateFunctionsTest(db: BaseSQLiteDatabase<any, any, any, any, any>) {
+	async function setupAggregateFunctionsTest(db: BaseSQLiteDatabase<any, any, any>) {
 		await db.run(sql`drop table if exists "aggregate_table"`);
 		await db.run(
 			sql`

@@ -1,4 +1,3 @@
-import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { IndexColumn } from '~/pg-core/indexes.ts';
@@ -330,7 +329,6 @@ export class PgInsertBase<
 	static readonly [entityKind]: string = 'PgInsert';
 
 	protected config: PgInsertConfig<TTable>;
-	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		table: TTable,

@@ -1,4 +1,3 @@
-import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { GetColumnData } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
@@ -125,7 +124,6 @@ export class MySqlUpdateBase<
 	static override readonly [entityKind]: string = 'MySqlUpdate';
 
 	private config: MySqlUpdateConfig;
-	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		table: TTable,
@@ -230,10 +228,9 @@ export class MySqlUpdateBase<
 			'raw',
 			this.dialect.mapperGenerators.$returning(this.config.returning, undefined),
 			{
-				type: 'insert',
+				type: 'update',
 				tables: extractUsedTable(this.config.table),
 			},
-			this.cacheConfig,
 		) as MySqlUpdatePrepare<this>;
 	}
 

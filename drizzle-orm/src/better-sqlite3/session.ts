@@ -1,129 +1,126 @@
-import type { Database, RunResult, Statement } from 'better-sqlite3';
-import type * as V1 from '~/_relations.ts';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { Database, RunResult } from 'better-sqlite3';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import {
-	type AnyRelations,
-	makeJitRqbMapper,
-	type RelationalQueryMapperConfig,
-	type RelationalRowsMapper,
-} from '~/relations.ts';
-import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
+import type { AnyRelations } from '~/relations.ts';
+import { type Query, sql } from '~/sql/sql.ts';
 import type { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteTransaction } from '~/sqlite-core/index.ts';
-import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types.ts';
 import {
 	type PreparedQueryConfig as PreparedQueryConfigBase,
 	type SQLiteExecuteMethod,
-	SQLitePreparedQuery as PreparedQueryBase,
+	SQLitePreparedQuery,
+	type SQLiteQueryExecutors,
 	SQLiteSession,
 	type SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
-import { type DrizzleTypeError, makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
+import type { DrizzleTypeError } from '~/utils.ts';
 
 export interface BetterSQLiteSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
-	useJitMappers?: boolean;
 }
+
+export type BetterSQLite3RunResult = RunResult;
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
-export class BetterSQLiteSession<
-	TFullSchema extends Record<string, unknown>,
-	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends SQLiteSession<'sync', RunResult, TFullSchema, TRelations, TSchema> {
+export class BetterSQLiteSession<TRelations extends AnyRelations>
+	extends SQLiteSession<'sync', BetterSQLite3RunResult, TRelations>
+{
 	static override readonly [entityKind]: string = 'BetterSQLiteSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		private client: Database,
 		dialect: SQLiteSyncDialect,
 		private relations: TRelations,
-		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: BetterSQLiteSessionOptions = {},
 	) {
-		super(dialect);
+		super(dialect, 'sync');
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		executeMethod: SQLiteExecuteMethod,
-		customResultMapper?: (rows: unknown[][]) => unknown,
+		mode: 'arrays' | 'objects' | 'raw',
+		prepare: boolean,
+		executeMethod?: SQLiteExecuteMethod,
+		mapper?: (rows: any[]) => any,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
 		},
-		cacheConfig?: WithCacheConfig,
-	): PreparedQuery<T> {
-		const stmt = this.client.prepare(query.sql);
-		return new PreparedQuery(
-			stmt,
+	): SQLitePreparedQuery<T & { run: BetterSQLite3RunResult }> {
+		let executors: SQLiteQueryExecutors<'sync'>;
+		if (prepare) {
+			const stmt = this.client.prepare(query.sql);
+			executors = {
+				all: (params) => {
+					if (mode === 'arrays') return stmt.raw().all(...params as any[]);
+					return stmt.all(...params as any[]);
+				},
+				get: (params) => {
+					if (mode === 'arrays') return stmt.raw().get(...params as any[]);
+					return stmt.get(...params as any[]);
+				},
+				run: (params) => {
+					return stmt.run(...params as any[]);
+				},
+				values: (params) => {
+					return stmt.raw().all(...params as any[]);
+				},
+			};
+		} else {
+			executors = {
+				all: (params) => {
+					if (mode === 'arrays') return this.client.prepare(query.sql).raw().all(...params as any[]);
+					return this.client.prepare(query.sql).all(...params as any[]);
+				},
+				get: (params) => {
+					if (mode === 'arrays') return this.client.prepare(query.sql).raw().get(...params as any[]);
+					return this.client.prepare(query.sql).get(...params as any[]);
+				},
+				run: (params) => {
+					return this.client.prepare(query.sql).run(...params as any[]);
+				},
+				values: (params) => {
+					return this.client.prepare(query.sql).raw().all(...params as any[]);
+				},
+			};
+		}
+		return new SQLitePreparedQuery(
+			'sync',
+			executeMethod,
+			executors,
 			query,
+			mapper,
+			mode,
 			this.logger,
-			this.cache,
+			undefined,
 			queryMetadata,
-			cacheConfig,
-			fields,
-			executeMethod,
-			this.options.useJitMappers,
-			customResultMapper,
-		);
-	}
-
-	prepareRelationalQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
-		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		executeMethod: SQLiteExecuteMethod,
-		customResultMapper: (rows: Record<string, unknown>[]) => unknown,
-		config: RelationalQueryMapperConfig,
-	): PreparedQuery<T, true> {
-		const stmt = this.client.prepare(query.sql);
-		return new PreparedQuery(
-			stmt,
-			query,
-			this.logger,
-			this.cache,
 			undefined,
-			undefined,
-			fields,
-			executeMethod,
-			this.options.useJitMappers,
-			customResultMapper,
-			true,
-			config,
 		);
 	}
 
 	override transaction<T>(
-		transaction: (tx: BetterSQLiteTransaction<TFullSchema, TRelations, TSchema>) => T,
+		transaction: (tx: BetterSQLiteTransaction<TRelations>) => T,
 		config: SQLiteTransactionConfig = {},
 	): T {
-		const tx = new BetterSQLiteTransaction('sync', this.dialect, this, this.relations, this.schema);
+		const tx = new BetterSQLiteTransaction('sync', this.dialect, this, this.relations);
 		const nativeTx = this.client.transaction(transaction);
 		return nativeTx[config.behavior ?? 'deferred'](tx);
 	}
 }
 
-export class BetterSQLiteTransaction<
-	TFullSchema extends Record<string, unknown>,
-	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends SQLiteTransaction<'sync', RunResult, TFullSchema, TRelations, TSchema> {
+export class BetterSQLiteTransaction<TRelations extends AnyRelations>
+	extends SQLiteTransaction<'sync', BetterSQLite3RunResult, TRelations>
+{
 	static override readonly [entityKind]: string = 'BetterSQLiteTransaction';
 
 	override transaction<T>(
 		transaction: (
-			tx: BetterSQLiteTransaction<TFullSchema, TRelations, TSchema>,
+			tx: BetterSQLiteTransaction<TRelations>,
 		) => T extends Promise<any> ? DrizzleTypeError<"Sync drivers can't use async functions in transactions!">
 			: T,
 	): T {
@@ -132,8 +129,7 @@ export class BetterSQLiteTransaction<
 			'sync',
 			this.dialect,
 			this.session,
-			this.relations,
-			this.schema,
+			this._.relations,
 			this.nestedIndex + 1,
 		);
 		this.session.run(sql.raw(`savepoint ${savepointName}`));
@@ -145,131 +141,5 @@ export class BetterSQLiteTransaction<
 			this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
 			throw err;
 		}
-	}
-}
-
-export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, TIsRqbV2 extends boolean = false>
-	extends PreparedQueryBase<
-		{ type: 'sync'; run: RunResult; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
-	>
-{
-	static override readonly [entityKind]: string = 'BetterSQLitePreparedQuery';
-	private jitMapper?: RowsMapper | RelationalRowsMapper;
-
-	constructor(
-		private stmt: Statement,
-		query: Query,
-		private logger: Logger,
-		cache: Cache,
-		queryMetadata: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		} | undefined,
-		cacheConfig: WithCacheConfig | undefined,
-		private fields: SelectedFieldsOrdered | undefined,
-		executeMethod: SQLiteExecuteMethod,
-		private useJitMappers: boolean | undefined,
-		private customResultMapper?: (
-			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
-		) => unknown,
-		private isRqbV2Query?: TIsRqbV2,
-		private rqbConfig?: RelationalQueryMapperConfig,
-	) {
-		super('sync', executeMethod, query, cache, queryMetadata, cacheConfig);
-	}
-
-	run(placeholderValues?: Record<string, unknown>): RunResult {
-		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-		this.logger.logQuery(this.query.sql, params);
-		return this.stmt.run(...params);
-	}
-
-	all(placeholderValues?: Record<string, unknown>): T['all'] {
-		if (this.isRqbV2Query) return this.allRqbV2(placeholderValues);
-
-		const { fields, joinsNotNullableMap, query, logger, stmt, customResultMapper } = this;
-		if (!fields && !customResultMapper) {
-			const params = fillPlaceholders(query.params, placeholderValues ?? {});
-			logger.logQuery(query.sql, params);
-			return stmt.all(...params);
-		}
-
-		const rows = this.values(placeholderValues) as unknown[][];
-		if (customResultMapper) {
-			return (customResultMapper as (rows: unknown[][]) => unknown)(rows) as T['all'];
-		}
-
-		return this.useJitMappers
-			? (this.jitMapper = this.jitMapper as RowsMapper
-				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(rows)
-			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
-	}
-
-	get(placeholderValues?: Record<string, unknown>): T['get'] {
-		if (this.isRqbV2Query) return this.getRqbV2(placeholderValues);
-
-		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-		this.logger.logQuery(this.query.sql, params);
-
-		const { fields, stmt, joinsNotNullableMap, customResultMapper } = this;
-		if (!fields && !customResultMapper) {
-			return stmt.get(...params);
-		}
-
-		const row = stmt.raw().get(...params) as unknown[];
-
-		if (!row) {
-			return undefined;
-		}
-
-		if (customResultMapper) {
-			return (customResultMapper as (rows: unknown[][]) => unknown)([row]) as T['get'];
-		}
-
-		return this.useJitMappers
-			? (this.jitMapper = this.jitMapper as RowsMapper
-				?? makeJitQueryMapper<T['execute']>(fields!, joinsNotNullableMap))(
-					[row],
-				)[0]
-			: mapResultRow(fields!, row, joinsNotNullableMap);
-	}
-
-	private allRqbV2(placeholderValues?: Record<string, unknown>): T['all'] {
-		const { query, logger, stmt, customResultMapper } = this;
-
-		const params = fillPlaceholders(query.params, placeholderValues ?? {});
-		logger.logQuery(query.sql, params);
-
-		const rows = stmt.all(...params) as Record<string, unknown>[];
-
-		return this.useJitMappers
-			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['all']>
-				?? makeJitRqbMapper<T['all']>(this.rqbConfig!))(rows)
-			: (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(
-				rows,
-			);
-	}
-
-	private getRqbV2(placeholderValues?: Record<string, unknown>): T['get'] {
-		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-		this.logger.logQuery(this.query.sql, params);
-
-		const { stmt, customResultMapper } = this;
-
-		const row = stmt.get(...params) as Record<string, unknown>;
-		if (row === undefined) return row;
-
-		return this.useJitMappers
-			? (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['get'][]>
-				?? makeJitRqbMapper<T['get'][]>(this.rqbConfig!))([row])
-			: (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(
-				[row],
-			);
-	}
-
-	values(placeholderValues?: Record<string, unknown>): T['values'] {
-		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-		this.logger.logQuery(this.query.sql, params);
-		return this.stmt.raw().all(...params) as T['values'];
 	}
 }

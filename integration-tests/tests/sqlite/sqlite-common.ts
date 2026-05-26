@@ -296,7 +296,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		});
 
 		async function setupSetOperationTest(
-			db: BaseSQLiteDatabase<any, any, any, any, any>,
+			db: BaseSQLiteDatabase<any, any, any>,
 		) {
 			await db.run(sql`drop table if exists users2`);
 			await db.run(sql`drop table if exists cities`);
@@ -334,7 +334,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		}
 
 		async function setupAggregateFunctionsTest(
-			db: BaseSQLiteDatabase<any, any, any, any, any>,
+			db: BaseSQLiteDatabase<any, any, any>,
 		) {
 			await db.run(sql`drop table if exists "aggregate_table"`);
 			await db.run(

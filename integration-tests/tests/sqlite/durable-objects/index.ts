@@ -157,7 +157,7 @@ export const relations = defineRelations({ rqbUser, rqbPost }, (r) => ({
 	},
 }));
 
-async function setupSetOperationTest(db: BaseSQLiteDatabase<any, any, any, typeof relations>) {
+async function setupSetOperationTest(db: BaseSQLiteDatabase<any, any, typeof relations>) {
 	await db.run(sql`drop table if exists users2`);
 	await db.run(sql`drop table if exists cities`);
 	await db.run(sql`
@@ -193,7 +193,7 @@ async function setupSetOperationTest(db: BaseSQLiteDatabase<any, any, any, typeo
 	]);
 }
 
-async function setupAggregateFunctionsTest(db: BaseSQLiteDatabase<any, any, any, typeof relations>) {
+async function setupAggregateFunctionsTest(db: BaseSQLiteDatabase<any, any, typeof relations>) {
 	await db.run(sql`drop table if exists "aggregate_table"`);
 	await db.run(
 		sql`
@@ -221,7 +221,7 @@ async function setupAggregateFunctionsTest(db: BaseSQLiteDatabase<any, any, any,
 // eslint-disable-next-line drizzle-internal/require-entity-kind
 export class MyDurableObject extends DurableObject {
 	storage: DurableObjectStorage;
-	db: DrizzleSqliteDODatabase<any, typeof relations>;
+	db: DrizzleSqliteDODatabase<typeof relations>;
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
 		this.storage = ctx.storage;

@@ -757,7 +757,6 @@ export function mapRelationalRow(
 	rows: Record<string, unknown> | Record<string, unknown>[],
 	isOne: boolean,
 	buildQueryResultSelection: BuildRelationalQueryResult['selection'],
-	mapColumnValue?: (value: unknown) => unknown,
 	/** Needed for SQLite as it returns JSON values as strings */
 	parseJson: boolean = false,
 	/** Needed for SingleStore as it returns JSON arrays as strings */
@@ -817,7 +816,6 @@ export function mapRelationalRow(
 						row[selectionItem.key] as Array<Record<string, unknown>>,
 						false,
 						selectionItem.selection!,
-						mapColumnValue,
 						false,
 						parseJsonIfString,
 					);
@@ -829,7 +827,6 @@ export function mapRelationalRow(
 					row[selectionItem.key] as Record<string, unknown>,
 					true,
 					selectionItem.selection!,
-					mapColumnValue,
 					false,
 					parseJsonIfString,
 				);
@@ -837,7 +834,6 @@ export function mapRelationalRow(
 				continue;
 			}
 
-			if (mapColumnValue) row[selectionItem.key] = mapColumnValue(row[selectionItem.key]);
 			if (row[selectionItem.key] === null) continue;
 
 			const decoder = decoders[selectionItemIdx];
@@ -854,7 +850,6 @@ export function mapRelationalRowFromArrays(
 	rows: unknown[][] | unknown[],
 	isOne: boolean,
 	buildQueryResultSelection: BuildRelationalQueryResult['selection'],
-	mapColumnValue?: (value: unknown) => unknown,
 	/** Needed for SQLite as it returns JSON values as strings */
 	parseJson: boolean = false,
 	/** Needed for SingleStore as it returns JSON arrays as strings */
@@ -917,7 +912,6 @@ export function mapRelationalRowFromArrays(
 						value as Array<Record<string, unknown>>,
 						false,
 						selectionItem.selection!,
-						mapColumnValue,
 						false,
 						parseJsonIfString,
 					);
@@ -926,7 +920,6 @@ export function mapRelationalRowFromArrays(
 						value as Record<string, unknown>,
 						true,
 						selectionItem.selection!,
-						mapColumnValue,
 						false,
 						parseJsonIfString,
 					);
@@ -936,7 +929,6 @@ export function mapRelationalRowFromArrays(
 				continue;
 			}
 
-			if (mapColumnValue) value = mapColumnValue(value);
 			if (value === null) {
 				result[selectionItem.key] = null;
 				continue;
@@ -960,12 +952,10 @@ export interface RelationalRowsMapper<T = any> {
 
 export type RelationalRowsMapperGenerator<T = any> = (
 	config: RelationalQueryMapperConfig,
-	mapColumnValue?: (value: unknown) => unknown,
 ) => RelationalRowsMapper<T>;
 
 export function makeDefaultRqbMapper<T = any>(
 	{ selection, isFirst, parseJson, parseJsonIfString, rootJsonMappers, arrayModeRoot }: RelationalQueryMapperConfig,
-	mapColumnValue?: (value: unknown) => unknown,
 ): RelationalRowsMapper<T> {
 	return ((rows) => {
 		if (isFirst && !rows[0]) return rows[0];
@@ -975,7 +965,6 @@ export function makeDefaultRqbMapper<T = any>(
 				(isFirst ? rows[0]! : rows) as unknown[][] | unknown[],
 				isFirst,
 				selection,
-				mapColumnValue,
 				parseJson,
 				parseJsonIfString,
 			)
@@ -983,7 +972,6 @@ export function makeDefaultRqbMapper<T = any>(
 				(isFirst ? rows[0]! : rows) as Record<string, unknown>[] | Record<string, unknown>,
 				isFirst,
 				selection,
-				mapColumnValue,
 				parseJson,
 				parseJsonIfString,
 				rootJsonMappers,
@@ -995,7 +983,6 @@ function makeJitRqbMapperInner(
 	selection: BuildRelationalQueryResult['selection'],
 	rowExpr: string,
 	selectionVar: string,
-	mapColumnValue: ((value: unknown) => unknown) | undefined,
 	/** Needed for SQLite as it returns JSON values as strings */
 	parseJson: boolean,
 	/** Needed for SingleStore as it returns JSON arrays as strings */
@@ -1047,7 +1034,6 @@ function makeJitRqbMapperInner(
 					innerSelection,
 					`${slot}[${j}]`,
 					nestedSelVar,
-					mapColumnValue,
 					false,
 					parseJsonIfString,
 					true,
@@ -1071,7 +1057,6 @@ function makeJitRqbMapperInner(
 					innerSelection,
 					slot,
 					nestedSelVar,
-					mapColumnValue,
 					false,
 					parseJsonIfString,
 					true,
@@ -1159,17 +1144,7 @@ function makeJitRqbMapperInner(
 			preFn.push(`const { ${parts.join(', ')} } = ${sel};`);
 		}
 
-		if (mapColumnValue) {
-			hasWork = true;
-			bodyStmts.push(`${slot} = mapColumnValue(${slot});`);
-			if (decoderExpr || codecVar) {
-				let decoded = slot;
-				if (codecVar) decoded = `${codecVar}(${decoded}, ${arrayDimensions})`;
-				if (decoderExpr) decoded = `${decoderExpr}(${decoded})`;
-				bodyStmts.push(`if (${slot} !== null) ${slot} = ${decoded};`);
-			}
-			literalEntries.push(`${keyStr}: ${slot}`);
-		} else if (decoderExpr || codecVar) {
+		if (decoderExpr || codecVar) {
 			hasWork = true;
 			let decoded = slot;
 			if (codecVar) decoded = `${codecVar}(${decoded}, ${arrayDimensions})`;
@@ -1201,7 +1176,6 @@ export interface RelationalQueryMapperConfig {
 
 export function makeJitRqbMapper<T = unknown>(
 	{ selection, isFirst, parseJson, parseJsonIfString, rootJsonMappers, arrayModeRoot }: RelationalQueryMapperConfig,
-	mapColumnValue?: (value: unknown) => unknown,
 ): RelationalRowsMapper<T> {
 	const preFn: string[] = [];
 	const counter = { n: 0 };
@@ -1210,7 +1184,6 @@ export function makeJitRqbMapper<T = unknown>(
 		selection,
 		'row',
 		'selection',
-		mapColumnValue,
 		parseJson,
 		parseJsonIfString,
 		arrayModeRoot ? false : rootJsonMappers,
@@ -1221,7 +1194,7 @@ export function makeJitRqbMapper<T = unknown>(
 
 	const lines: string[] = [];
 	lines.push(`\t"use strict";
-	const { selection${mapColumnValue ? `, mapColumnValue` : ''} } = this;`);
+	const { selection } = this;`);
 	for (const p of preFn) lines.push(`\t${p}`);
 
 	if (arrayModeRoot) {
@@ -1266,7 +1239,6 @@ export function makeJitRqbMapper<T = unknown>(
 			compiled,
 		).bind({
 			selection,
-			mapColumnValue,
 		}),
 		{ body: `function jitRqbMapper (rows) {\n${compiled}\n}` },
 	) as RelationalRowsMapper<T>;

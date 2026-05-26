@@ -1,12 +1,11 @@
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import {
-	type BuildQueryResult,
-	type BuildRelationalQueryResult,
-	type DBQueryConfig,
-	makeDefaultRqbMapper,
-	type TableRelationalConfig,
-	type TablesRelationalConfig,
+import type {
+	BuildQueryResult,
+	BuildRelationalQueryResult,
+	DBQueryConfig,
+	TableRelationalConfig,
+	TablesRelationalConfig,
 } from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { type Query, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
@@ -32,7 +31,7 @@ export class RelationalQueryBuilder<
 		private table: SQLiteTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: SQLiteDialect,
-		private session: SQLiteSession<any, any, any, any, any>,
+		private session: SQLiteSession<any, any, any>,
 		private rowMode?: boolean,
 		private forbidJsonb?: boolean,
 	) {
@@ -116,7 +115,7 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 		table: SQLiteTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: SQLiteDialect,
-		private session: SQLiteSession<TType, any, any, any, any>,
+		private session: SQLiteSession<TType, any, any>,
 		private config: DBQueryConfig<'many' | 'one'> | true,
 		mode: 'many' | 'first',
 		private rowMode?: boolean,
@@ -143,33 +142,27 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 
 	/** @internal */
 	_prepare(
-		isOneTimeQuery = true,
+		prepare = false,
 	): SQLitePreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }> {
 		const { query, builtQuery } = this._toSQL();
 
-		return this.session[isOneTimeQuery ? 'prepareOneTimeRelationalQuery' : 'prepareRelationalQuery'](
+		return this.session.prepareQuery(
 			builtQuery,
-			undefined,
+			this.rowMode ? 'arrays' : 'objects',
+			prepare,
 			this.mode === 'first' ? 'get' : 'all',
-			makeDefaultRqbMapper({
+			this.dialect.mapperGenerators.relationalRows({
 				isFirst: this.mode === 'first',
 				parseJson: !this.rowMode,
 				parseJsonIfString: false,
 				rootJsonMappers: true,
 				selection: query.selection,
 			}),
-			{
-				isFirst: this.mode === 'first',
-				parseJson: !this.rowMode,
-				parseJsonIfString: false,
-				rootJsonMappers: true,
-				selection: query.selection,
-			},
 		) as SQLitePreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }>;
 	}
 
 	prepare(): SQLitePreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }> {
-		return this._prepare(false);
+		return this._prepare(true);
 	}
 
 	private _getQuery() {
@@ -185,6 +178,7 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 			jsonb,
 		});
 
+		// TODO: nuke & migrate to rowMode for all cases
 		if (this.rowMode) {
 			const jsonColumns = sql.join(
 				query.selection.map((s) => {
@@ -215,16 +209,8 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 		return this._toSQL().builtQuery;
 	}
 
-	/** @internal */
-	executeRaw(): TResult {
-		if (this.mode === 'first') {
-			return this._prepare().get() as TResult;
-		}
-		return this._prepare().all() as TResult;
-	}
-
 	override async execute(): Promise<TResult> {
-		return this.executeRaw();
+		return this._prepare().execute() as Promise<TResult>;
 	}
 }
 
@@ -232,6 +218,6 @@ export class SQLiteSyncRelationalQuery<TResult> extends SQLiteRelationalQuery<'s
 	static override readonly [entityKind]: string = 'SQLiteSyncRelationalQueryV2';
 
 	sync(): TResult {
-		return this.executeRaw();
+		return this._prepare().execute() as TResult;
 	}
 }

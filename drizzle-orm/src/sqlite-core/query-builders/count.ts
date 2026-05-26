@@ -18,7 +18,7 @@ export class SQLiteCountBuilder extends SQL<number> implements SQLWrapper<number
 	static override readonly [entityKind]: string = 'SQLiteCountBuilder';
 
 	protected dialect: SQLiteDialect;
-	protected session: SQLiteSession<any, any, any, any, any>;
+	protected session: SQLiteSession<any, any, any>;
 
 	private static buildCount(
 		source: SQLiteTable | SQLiteViewBase | SQL | SQLWrapper,
@@ -36,7 +36,7 @@ export class SQLiteCountBuilder extends SQL<number> implements SQLWrapper<number
 			source: SQLiteTable | SQLiteViewBase | SQL | SQLWrapper;
 			filters?: SQL<unknown>;
 			dialect: SQLiteDialect;
-			session: SQLiteSession<any, any, any, any, any>;
+			session: SQLiteSession<any, any, any>;
 		},
 	) {
 		super(SQLiteCountBuilder.buildCount(countConfig.source, countConfig.filters, true).queryChunks);
@@ -61,9 +61,10 @@ export class SQLiteCountBuilder extends SQL<number> implements SQLWrapper<number
 
 	/** @internal */
 	executeRaw(placeholderValues?: Record<string, unknown>): Promise<number> | number {
-		return this.session.prepareOneTimeQuery(
+		return this.session.prepareQuery(
 			this.build(),
-			undefined,
+			'arrays',
+			false,
 			'get',
 			(rows) => {
 				const v = rows[0]?.[0];

@@ -1,4 +1,3 @@
-import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { GetColumnData } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -468,7 +467,6 @@ export class PgUpdateBase<
 	protected config: PgUpdateConfig;
 	protected tableName: string | undefined;
 	protected joinsNotNullableMap: Record<string, boolean>;
-	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		table: TTable,

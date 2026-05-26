@@ -1,4 +1,3 @@
-import type * as V1 from '~/_relations.ts';
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -23,7 +22,6 @@ import type {
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
-import { _RelationalQueryBuilder } from './query-builders/_query.ts';
 import { SQLiteCountBuilder, type SQLiteCountBuilderKind, SQLiteSyncCountBuilder } from './query-builders/count.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import { SQLiteRaw } from './query-builders/raw.ts';
@@ -34,25 +32,14 @@ import type { SQLiteViewBase } from './view-base.ts';
 export class BaseSQLiteDatabase<
 	TResultKind extends 'sync' | 'async',
 	TRunResult,
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > {
 	static readonly [entityKind]: string = 'BaseSQLiteDatabase';
 
 	declare readonly _: {
-		readonly schema: TSchema | undefined;
-		readonly fullSchema: TFullSchema;
-		readonly tableNamesMap: Record<string, string>;
 		readonly relations: TRelations;
+		readonly session: SQLiteSession<TResultKind, TRunResult, TRelations>;
 	};
-
-	/** @deprecated */
-	_query: TFullSchema extends Record<string, never>
-		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
-		: {
-			[K in keyof TSchema]: _RelationalQueryBuilder<TResultKind, TFullSchema, TSchema, TSchema[K]>;
-		};
 
 	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
 	query: {
@@ -68,59 +55,28 @@ export class BaseSQLiteDatabase<
 		/** @internal */
 		readonly dialect: { sync: SQLiteSyncDialect; async: SQLiteAsyncDialect }[TResultKind],
 		/** @internal */
-		readonly session: SQLiteSession<TResultKind, TRunResult, TFullSchema, TRelations, TSchema>,
+		readonly session: SQLiteSession<TResultKind, TRunResult, TRelations>,
 		relations: TRelations,
-		_schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		readonly rowModeRQB?: boolean,
 		readonly forbidJsonb?: boolean,
 	) {
-		this._ = _schema
-			? {
-				schema: _schema.schema,
-				fullSchema: _schema.fullSchema as TFullSchema,
-				tableNamesMap: _schema.tableNamesMap,
-				relations,
-			}
-			: {
-				schema: undefined,
-				fullSchema: {} as TFullSchema,
-				tableNamesMap: {},
-				relations,
-			};
-
-		this._query = {} as typeof this['_query'];
-		const query = this._query as {
-			[K in keyof TSchema]: _RelationalQueryBuilder<TResultKind, TFullSchema, TSchema, TSchema[K]>;
+		this._ = {
+			relations,
+			session,
 		};
-		if (this._.schema) {
-			for (const [tableName, columns] of Object.entries(this._.schema)) {
-				query[tableName as keyof TSchema] = new _RelationalQueryBuilder(
-					resultKind,
-					_schema!.fullSchema,
-					this._.schema,
-					this._.tableNamesMap,
-					_schema!.fullSchema[tableName] as SQLiteTable,
-					columns,
-					dialect,
-					session as SQLiteSession<any, any, any, any, any>,
-				) as typeof query[keyof TSchema];
-			}
-		}
 		this.query = {} as typeof this['query'];
 		for (const [tableName, relation] of Object.entries(relations)) {
 			(this.query as BaseSQLiteDatabase<
 				TResultKind,
 				TRunResult,
-				TSchema,
-				AnyRelations,
-				V1.TablesRelationalConfig
+				AnyRelations
 			>['query'])[tableName] = new RelationalQueryBuilder(
 				resultKind,
 				relations,
 				relations[relation.name]!.table as SQLiteTable,
 				relation,
 				dialect,
-				session as SQLiteSession<any, any, any, any, any>,
+				session as SQLiteSession<any, any, any>,
 				rowModeRQB,
 				forbidJsonb,
 			);
@@ -583,63 +539,47 @@ export class BaseSQLiteDatabase<
 
 	run(query: SQLWrapper | string): DBResult<TResultKind, TRunResult> {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
+		const builtQuery = this.dialect.sqlToQuery(sequel);
+		const prepared = this.session.prepareQuery(builtQuery, 'raw', false, 'run');
 		if (this.resultKind === 'async') {
-			return new SQLiteRaw(
-				async () => this.session.run(sequel),
-				() => sequel,
-				'run',
-				this.dialect as SQLiteAsyncDialect,
-				this.session.extractRawRunValueFromBatchResult.bind(this.session),
-			) as DBResult<TResultKind, TRunResult>;
+			return new SQLiteRaw(prepared, sequel, builtQuery) as DBResult<TResultKind, TRunResult>;
 		}
 		return this.session.run(sequel) as DBResult<TResultKind, TRunResult>;
 	}
 
 	all<T = unknown>(query: SQLWrapper | string): DBResult<TResultKind, T[]> {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
+		const builtQuery = this.dialect.sqlToQuery(sequel);
+		const prepared = this.session.prepareQuery(builtQuery, 'objects', false, 'all');
 		if (this.resultKind === 'async') {
-			return new SQLiteRaw(
-				async () => this.session.all(sequel),
-				() => sequel,
-				'all',
-				this.dialect as SQLiteAsyncDialect,
-				this.session.extractRawAllValueFromBatchResult.bind(this.session),
-			) as any;
+			return new SQLiteRaw(prepared, sequel, builtQuery) as DBResult<TResultKind, T[]>;
 		}
-		return this.session.all(sequel) as DBResult<TResultKind, T[]>;
+		return this.session.objects(sequel) as DBResult<TResultKind, T[]>;
 	}
 
 	get<T = unknown>(query: SQLWrapper | string): DBResult<TResultKind, T> {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
+		const builtQuery = this.dialect.sqlToQuery(sequel);
+		const prepared = this.session.prepareQuery(builtQuery, 'objects', false, 'get');
 		if (this.resultKind === 'async') {
-			return new SQLiteRaw(
-				async () => this.session.get(sequel),
-				() => sequel,
-				'get',
-				this.dialect as SQLiteAsyncDialect,
-				this.session.extractRawGetValueFromBatchResult.bind(this.session),
-			) as DBResult<TResultKind, T>;
+			return new SQLiteRaw(prepared, sequel, builtQuery) as DBResult<TResultKind, T>;
 		}
-		return this.session.get(sequel) as DBResult<TResultKind, T>;
+		return this.session.object(sequel) as DBResult<TResultKind, T>;
 	}
 
 	values<T extends unknown[] = unknown[]>(query: SQLWrapper | string): DBResult<TResultKind, T[]> {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
+		const builtQuery = this.dialect.sqlToQuery(sequel);
+		const prepared = this.session.prepareQuery(builtQuery, 'objects', false, 'values');
 		if (this.resultKind === 'async') {
-			return new SQLiteRaw(
-				async () => this.session.values(sequel),
-				() => sequel,
-				'values',
-				this.dialect as SQLiteAsyncDialect,
-				this.session.extractRawValuesValueFromBatchResult.bind(this.session),
-			) as any;
+			return new SQLiteRaw(prepared, sequel, builtQuery) as DBResult<TResultKind, T[]>;
 		}
-		return this.session.values(sequel) as DBResult<TResultKind, T[]>;
+		return this.session.arrays(sequel) as DBResult<TResultKind, T[]>;
 	}
 
 	transaction<T>(
 		transaction: (
-			tx: SQLiteTransaction<TResultKind, TRunResult, TFullSchema, TRelations, TSchema>,
+			tx: SQLiteTransaction<TResultKind, TRunResult, TRelations>,
 		) => TResultKind extends 'sync'
 			? T extends Promise<any> ? DrizzleTypeError<"Sync drivers can't use async functions in transactions!"> : T
 			: Result<TResultKind, T>,
@@ -647,7 +587,7 @@ export class BaseSQLiteDatabase<
 	): Result<TResultKind, T> {
 		return this.session.transaction(
 			transaction as (
-				tx: SQLiteTransaction<TResultKind, TRunResult, TFullSchema, TRelations, TSchema>,
+				tx: SQLiteTransaction<TResultKind, TRunResult, TRelations>,
 			) => Result<TResultKind, T>,
 			config,
 		);
@@ -659,15 +599,11 @@ export type SQLiteWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
 export const withReplicas = <
 	TResultKind extends 'sync' | 'async',
 	TRunResult,
-	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
 	Q extends BaseSQLiteDatabase<
 		TResultKind,
 		TRunResult,
-		TFullSchema,
-		TRelations,
-		TSchema extends Record<string, unknown> ? V1.ExtractTablesWithRelations<TFullSchema> : TSchema
+		TRelations
 	>,
 >(
 	primary: Q,
@@ -704,9 +640,6 @@ export const withReplicas = <
 		selectDistinct,
 		$count,
 		with: $with,
-		get _query() {
-			return getReplica(replicas)._query;
-		},
 		get query() {
 			return getReplica(replicas).query;
 		},

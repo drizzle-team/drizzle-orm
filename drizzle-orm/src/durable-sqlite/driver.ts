@@ -1,35 +1,28 @@
 /// <reference types="@cloudflare/workers-types" />
-import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
-import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
-import { SQLiteDOSession } from './session.ts';
+import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
+import { type DurableSQLiteRunResult, SQLiteDOSession } from './session.ts';
 
-export class DrizzleSqliteDODatabase<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
-> extends BaseSQLiteDatabase<'sync', SqlStorageCursor<Record<string, SqlStorageValue>>, TSchema, TRelations> {
+export class DrizzleSqliteDODatabase<TRelations extends AnyRelations = EmptyRelations>
+	extends BaseSQLiteDatabase<'sync', DurableSQLiteRunResult, TRelations>
+{
 	static override readonly [entityKind]: string = 'DrizzleSqliteDODatabase';
 
 	/** @internal */
-	declare readonly session: SQLiteDOSession<
-		TSchema,
-		TRelations,
-		V1.ExtractTablesWithRelations<TSchema>
-	>;
+	declare readonly session: SQLiteDOSession<TRelations>;
 }
 
 export function drizzle<
-	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends DurableObjectStorage = DurableObjectStorage,
 >(
 	client: TClient,
-	config: DrizzleConfig<TSchema, TRelations> = {},
-): DrizzleSqliteDODatabase<TSchema, TRelations> & {
+	config: Omit<DrizzleSQLiteConfig<TRelations>, 'jit'> = {},
+): DrizzleSqliteDODatabase<TRelations> & {
 	$client: TClient;
 } {
 	const dialect = new SQLiteSyncDialect();
@@ -40,36 +33,18 @@ export function drizzle<
 		logger = config.logger;
 	}
 
-	let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;
-	if (config.schema) {
-		const tablesConfig = V1.extractTablesRelationalConfig(
-			config.schema,
-			V1.createTableRelationsHelpers,
-		);
-		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
-			tableNamesMap: tablesConfig.tableNamesMap,
-		};
-	}
-
 	const relations = config.relations ?? {} as TRelations;
-	const session = new SQLiteDOSession(client as DurableObjectStorage, dialect, relations, schema, {
+	const session = new SQLiteDOSession(client as DurableObjectStorage, dialect, relations, {
 		logger,
-		useJitMappers: jitCompatCheck(config.jit),
 	});
 	const db = new DrizzleSqliteDODatabase(
 		'sync',
 		dialect,
 		session,
 		relations,
-		schema as V1.RelationalSchemaConfig<any>,
 		false,
 		true,
-	) as DrizzleSqliteDODatabase<
-		TSchema,
-		TRelations
-	>;
+	);
 	(<any> db).$client = client;
 
 	return db as any;

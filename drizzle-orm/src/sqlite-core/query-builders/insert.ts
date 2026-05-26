@@ -52,7 +52,7 @@ export class SQLiteInsertBuilder<
 
 	constructor(
 		protected table: TTable,
-		protected session: SQLiteSession<any, any, any, any, any>,
+		protected session: SQLiteSession<any, any, any>,
 		protected dialect: SQLiteDialect,
 		private withList?: Subquery[],
 	) {}
@@ -247,7 +247,7 @@ export class SQLiteInsertBase<
 	constructor(
 		table: TTable,
 		values: SQLiteInsertConfig['values'],
-		private session: SQLiteSession<any, any, any, any, any>,
+		private session: SQLiteSession<any, any, any>,
 		private dialect: SQLiteDialect,
 		withList?: Subquery[],
 		select?: boolean,
@@ -381,12 +381,13 @@ export class SQLiteInsertBase<
 	}
 
 	/** @internal */
-	_prepare(isOneTimeQuery = true): SQLiteInsertPrepare<this> {
-		return this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
+	_prepare(prepare = false): SQLiteInsertPrepare<this> {
+		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
-			this.config.returning,
+			'arrays',
+			prepare,
 			this.config.returning ? 'all' : 'run',
-			undefined,
+			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
 			{
 				type: 'insert',
 				tables: extractUsedTable(this.config.table),
@@ -395,7 +396,7 @@ export class SQLiteInsertBase<
 	}
 
 	prepare(): SQLiteInsertPrepare<this> {
-		return this._prepare(false);
+		return this._prepare(true);
 	}
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
@@ -415,7 +416,7 @@ export class SQLiteInsertBase<
 	};
 
 	override async execute(): Promise<SQLiteInsertExecute<this>> {
-		return (this.config.returning ? this.all() : this.run()) as SQLiteInsertExecute<this>;
+		return this.execute() as SQLiteInsertExecute<this>;
 	}
 
 	$dynamic(): SQLiteInsertDynamic<this> {
