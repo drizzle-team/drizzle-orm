@@ -25,7 +25,9 @@ export const jsonSchema = S.Union([
 	S.Array(S.Any),
 ]) satisfies Schema<Json>;
 
-export const bufferSchema = S.instanceOf(Buffer) satisfies Schema<Buffer>;
+export const bufferSchema: Schema<Buffer> = S.declare( // oxlint-disable-line no-instanceof-builtins drizzle-internal/no-instanceof
+	(input: unknown): input is Buffer => input instanceof Buffer,
+);
 
 export function columnToSchema(
 	column: Column,
