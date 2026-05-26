@@ -655,7 +655,7 @@ export abstract class SQLiteDialect {
 		});
 	}
 
-	private buildRqbColumn(table: Table | View, column: unknown, key: string) {
+	private buildRqbColumn(table: Table | View, column: unknown, key: string, inJson: boolean) {
 		if (is(column, Column)) {
 			const name = sql`${table}.${sql.identifier(column.name)}`;
 
@@ -663,16 +663,20 @@ export abstract class SQLiteDialect {
 				case 'SQLiteBigInt':
 				case 'SQLiteBlobJson':
 				case 'SQLiteBlobBuffer': {
+					if (!inJson) return sql`${name} as ${sql.identifier(key)}`;
 					return sql`hex(${name}) as ${sql.identifier(key)}`;
 				}
 
 				case 'SQLiteNumeric':
 				case 'SQLiteNumericNumber':
 				case 'SQLiteNumericBigInt': {
+					// Special case - needs casting in root of query as well for drivers chop it down to number by default
+					// TODO: handle with codecs
 					return sql`cast(${name} as text) as ${sql.identifier(key)}`;
 				}
 
 				case 'SQLiteCustomColumn': {
+					if (!inJson) return sql`${name} as ${sql.identifier(key)}`;
 					return sql`${(<SQLiteCustomColumn<any>> column).jsonSelectIdentifier(name, sql)} as ${sql.identifier(key)}`;
 				}
 
@@ -694,6 +698,7 @@ export abstract class SQLiteDialect {
 	private unwrapAllColumns = (
 		table: Table | View,
 		selection: BuildRelationalQueryResult['selection'],
+		inJson: boolean,
 	) => {
 		return sql.join(
 			Object.entries(table[TableColumns]).map(([k, v]) => {
@@ -702,7 +707,7 @@ export abstract class SQLiteDialect {
 					field: v as Column | SQL | SQLWrapper | SQL.Aliased,
 				});
 
-				return this.buildRqbColumn(table, v, k);
+				return this.buildRqbColumn(table, v, k, inJson);
 			}),
 			sql`, `,
 		);
@@ -748,6 +753,7 @@ export abstract class SQLiteDialect {
 	private buildColumns = (
 		table: SQLiteTable | SQLiteView,
 		selection: BuildRelationalQueryResult['selection'],
+		inJson: boolean,
 		params?: DBQueryConfig<'many'>,
 	) =>
 		params?.columns
@@ -760,7 +766,7 @@ export abstract class SQLiteDialect {
 				);
 
 				for (const { column, tsName } of selectedColumns) {
-					columnIdentifiers.push(this.buildRqbColumn(table, column, tsName));
+					columnIdentifiers.push(this.buildRqbColumn(table, column, tsName, inJson));
 					selection.push({
 						key: tsName,
 						field: column,
@@ -771,7 +777,7 @@ export abstract class SQLiteDialect {
 					? sql.join(columnIdentifiers, sql`, `)
 					: undefined;
 			})()
-			: this.unwrapAllColumns(table, selection);
+			: this.unwrapAllColumns(table, selection, inJson);
 
 	buildRelationalQuery({
 		schema,
@@ -808,7 +814,7 @@ export abstract class SQLiteDialect {
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
 
-		const columns = this.buildColumns(table, selection, params);
+		const columns = this.buildColumns(table, selection, !!isNested, params);
 
 		const where: SQL | undefined = params?.where && relationWhere
 			? and(
