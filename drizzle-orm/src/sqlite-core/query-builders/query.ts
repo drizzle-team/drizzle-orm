@@ -146,18 +146,23 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 	): SQLitePreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }> {
 		const { query, builtQuery } = this._toSQL();
 
+		// TODO: switch to array mode for all drivers
+		const mapper = this.dialect.mapperGenerators.relationalRows({
+			isFirst: this.mode === 'first',
+			parseJson: true,
+			parseJsonIfString: false,
+			rootJsonMappers: true,
+			selection: query.selection,
+			arrayModeRoot: this.rowMode,
+		});
+
 		return this.session.prepareQuery(
 			builtQuery,
 			this.rowMode ? 'arrays' : 'objects',
 			prepare,
+			// TODO: add flag to mapper for .get() and iterators to not destructure such responses
 			'all', // Do not use 'get' - mapper returns an item instead of an array, would break on session's destructuring; query itself is already limited to 1 item, so no performance overhead occurs.
-			this.dialect.mapperGenerators.relationalRows({
-				isFirst: this.mode === 'first',
-				parseJson: !this.rowMode,
-				parseJsonIfString: false,
-				rootJsonMappers: true,
-				selection: query.selection,
-			}),
+			mapper,
 		) as SQLitePreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }>;
 	}
 
@@ -168,33 +173,14 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 	private _getQuery() {
 		const jsonb = this.forbidJsonb ? sql`json` : sql`jsonb`;
 
-		const query = this.dialect.buildRelationalQuery({
+		return this.dialect.buildRelationalQuery({
 			schema: this.schema,
 			table: this.table,
 			tableConfig: this.tableConfig,
 			queryConfig: this.config,
 			mode: this.mode,
-			isNested: this.rowMode,
 			jsonb,
 		});
-
-		// TODO: nuke & migrate to rowMode for all cases
-		if (this.rowMode) {
-			const jsonColumns = sql.join(
-				query.selection.map((s) => {
-					return sql`${sql.raw(this.dialect.escapeString(s.key))}, ${
-						s.selection ? sql`${jsonb}(${sql.identifier(s.key)})` : sql.identifier(s.key)
-					}`;
-				}),
-				sql`, `,
-			);
-
-			query.sql = sql`select json_object(${jsonColumns}) as ${sql.identifier('r')} from (${query.sql}) as ${
-				sql.identifier('t')
-			}`;
-		}
-
-		return query;
 	}
 
 	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {

@@ -58,10 +58,10 @@ export class SQLiteRemoteSession<
 	): SQLitePreparedQuery<T & { run: SqliteRemoteResult }> {
 		// TODO: client doesn't support object mode querying - revisit api
 		const executors: SQLiteQueryExecutors<'async'> = {
-			all: (params) => this.client(query.sql, params, 'all'),
-			get: (params) => this.client(query.sql, params, 'get'),
+			all: (params) => this.client(query.sql, params, 'all').then(({ rows }) => rows),
+			get: (params) => this.client(query.sql, params, 'get').then(({ rows }) => rows),
 			run: (params) => this.client(query.sql, params, 'run'),
-			values: (params) => this.client(query.sql, params, 'all'),
+			values: (params) => this.client(query.sql, params, 'all').then(({ rows }) => rows),
 		};
 		return new SQLitePreparedQuery(
 			'async',
