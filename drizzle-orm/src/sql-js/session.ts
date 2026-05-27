@@ -72,25 +72,8 @@ export class SQLJsSession<TRelations extends AnyRelations> extends SQLiteSession
 				const stmt = this.client.prepare(query.sql);
 				stmt.bind(params as BindParams);
 				let row;
-				if (mode === 'arrays') {
-					row = stmt.get();
-
-					if (!row || (!row.length /*&& fields!.length > 0 - how would a query run with no fields? */)) {
-						row = undefined;
-					}
-				} else {
-					row = stmt.getAsObject();
-
-					if (mode === 'objects') {
-						let nonUndef = false;
-						for (const v of Object.values(row)) {
-							if (v !== undefined) {
-								nonUndef = true;
-								break;
-							}
-						}
-						if (!nonUndef) row = undefined;
-					}
+				if (stmt.step()) {
+					row = mode === 'arrays' ? stmt.get() : stmt.getAsObject();
 				}
 
 				stmt.free();
@@ -98,10 +81,9 @@ export class SQLJsSession<TRelations extends AnyRelations> extends SQLiteSession
 			},
 			run: (params) => {
 				const stmt = this.client.prepare(query.sql);
-				stmt.bind(params as BindParams);
-				const res = stmt.run(...params as any[]);
-
+				const res = stmt.run(params as BindParams);
 				stmt.free();
+
 				return res;
 			},
 			values: (params) => {
