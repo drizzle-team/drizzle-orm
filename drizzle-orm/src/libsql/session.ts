@@ -59,16 +59,16 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteSessio
 		const client = this.tx ?? this.client;
 
 		const executors: SQLiteQueryExecutors<'async'> = {
-			all: (params) =>
+			all: async (params) =>
 				client.execute({ sql: query.sql, args: params as InArgs }).then(({ rows }) =>
 					mode === 'arrays' ? rows : rows.map(normalizeRow)
 				),
-			get: (params) =>
+			get: async (params) =>
 				client.execute({ sql: query.sql, args: params as InArgs }).then(({ rows }) =>
 					mode === 'arrays' ? rows[0] : rows[0] ? normalizeRow(rows[0]) : rows[0]
 				),
-			run: (params) => client.execute({ sql: query.sql, args: params as InArgs }),
-			values: (params) => client.execute({ sql: query.sql, args: params as InArgs }).then(({ rows }) => rows),
+			run: async (params) => client.execute({ sql: query.sql, args: params as InArgs }),
+			values: async (params) => client.execute({ sql: query.sql, args: params as InArgs }).then(({ rows }) => rows),
 		};
 
 		return new SQLitePreparedQuery(
