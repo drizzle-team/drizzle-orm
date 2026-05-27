@@ -501,13 +501,14 @@ test('insert + findMany + findFirst', async () => {
 	);
 });
 
-test.skip('insert + db.all + db.get + db.values + db.run', async () => {
+// TODO: swap arrays for objects after adding object-mode querying support to proxy
+test('insert + db.all + db.get + db.values + db.run', async () => {
 	const batchResponse = await db.batch([
 		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 		db.run(sql`insert into users (id, name) values (2, 'Dan')`),
-		db.all<typeof usersTable.$inferSelect>(sql`select * from users`),
+		db.all<[number, string, number, number | null]>(sql`select * from users`),
 		db.values(sql`select * from users`),
-		db.get<typeof usersTable.$inferSelect>(sql`select * from users`),
+		db.get<[number, string, number, number | null]>(sql`select * from users`),
 	]);
 
 	expectTypeOf(batchResponse).toEqualTypeOf<[
@@ -515,19 +516,9 @@ test.skip('insert + db.all + db.get + db.values + db.run', async () => {
 			id: number;
 		}[],
 		SqliteRemoteResult,
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		}[],
+		[number, string, number, number | null][],
 		unknown[][],
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		},
+		[number, string, number, number | null],
 	]>();
 
 	expect(batchResponse.length).eq(5);
@@ -539,17 +530,27 @@ test.skip('insert + db.all + db.get + db.values + db.run', async () => {
 	expect(batchResponse[1]).toEqual({ changes: 1, lastInsertRowid: 2 });
 
 	expect(batchResponse[2]).toEqual([
-		{ id: 1, name: 'John', verified: 0, invited_by: null },
-		{ id: 2, name: 'Dan', verified: 0, invited_by: null },
+		[
+			1,
+			'John',
+			0,
+			null,
+		],
+		[
+			2,
+			'Dan',
+			0,
+			null,
+		],
 	]);
 
-	expect(batchResponse[3].map((row) => Array.prototype.slice.call(row))).toEqual([
+	expect(batchResponse[3]).toEqual([
 		[1, 'John', 0, null],
 		[2, 'Dan', 0, null],
 	]);
 
 	expect(batchResponse[4]).toEqual(
-		{ id: 1, name: 'John', verified: 0, invited_by: null },
+		[1, 'John', 0, null],
 	);
 });
 

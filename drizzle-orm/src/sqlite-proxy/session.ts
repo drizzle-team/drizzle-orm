@@ -100,7 +100,8 @@ export class SQLiteRemoteSession<
 		return batchResults.map((result, i) => {
 			const { executeMethod, mapper } = preparedQueries[i]!;
 
-			if (executeMethod === 'run' || executeMethod === 'values') return result;
+			if (executeMethod === 'run') return result;
+			if (executeMethod === 'values') return result.rows;
 
 			const { rows } = result;
 			if (executeMethod === 'get') {
