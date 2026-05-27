@@ -68,8 +68,8 @@ export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteSess
 					: this.client.sql.exec(query.sql);
 
 				if (mode === 'objects') return res.one();
-				// @ts-ignore .raw().one() exists
-				return res.raw().one();
+
+				return res.raw().next().value;
 			},
 			run: (params) => {
 				return params.length > 0
