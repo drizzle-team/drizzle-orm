@@ -230,7 +230,8 @@ export class SQLitePreparedQuery<T extends PreparedQueryConfig> implements Prepa
 			})
 			: this.queryWithCache(sql, params, () => (<SQLiteQueryExecutors<'async'>> executors).get(params));
 
-		if (!mapper) return res;
+		// Convert potential nulls from drivers to undefined
+		if (!mapper) return res.then((row) => row ? row : undefined);
 
 		return res.then((row) => row ? mapper([row])[0] : undefined) as Result<T['type'], T['get']>;
 	}

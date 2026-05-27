@@ -70,10 +70,14 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 				return stmt.executeSync(params as any[]).getFirstSync();
 			},
 			run: (params) => {
-				return stmt.executeSync(...params as any[]);
+				const res = stmt.executeSync(params as any[]);
+				return {
+					changes: res.changes,
+					lastInsertRowId: res.lastInsertRowId,
+				};
 			},
 			values: (params) => {
-				return stmt.executeForRawResultSync(params as any[]);
+				return stmt.executeForRawResultSync(params as any[]).getAllSync();
 			},
 		};
 

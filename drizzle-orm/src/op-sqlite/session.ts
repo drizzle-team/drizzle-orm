@@ -60,7 +60,7 @@ export class OPSQLiteSession<TRelations extends AnyRelations>
 		const executors: SQLiteQueryExecutors<'async'> = {
 			all: (params) => {
 				if (mode === 'arrays') return this.client.executeRawAsync(query.sql, params);
-				return this.client.executeAsync(query.sql, params).then(({ rows }) => rows?._array);
+				return this.client.executeAsync(query.sql, params).then(({ rows }) => rows?._array || []);
 			},
 			get: (params) => {
 				if (mode === 'arrays') return this.client.executeRawAsync(query.sql, params).then((rows) => rows[0]);
