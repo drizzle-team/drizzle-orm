@@ -2,6 +2,7 @@ import { type Casing, getCasingFn } from '~/casing.ts';
 import type { BuildColumns, BuildExtraConfigColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import {
+	type Comment,
 	type InferTableColumnsModels,
 	Table,
 	type TableConfig as TableConfigBase,
@@ -14,13 +15,15 @@ import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
 import type { UniqueConstraintBuilder } from './unique-constraint.ts';
+export { comment } from '~/table.ts';
 
 export type MySqlTableExtraConfigValue =
 	| AnyIndexBuilder
 	| CheckBuilder
 	| ForeignKeyBuilder
 	| PrimaryKeyBuilder
-	| UniqueConstraintBuilder;
+	| UniqueConstraintBuilder
+	| Comment;
 
 export type MySqlTableExtraConfig = Record<
 	string,

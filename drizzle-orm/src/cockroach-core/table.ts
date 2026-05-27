@@ -1,12 +1,7 @@
 import { type Casing, getCasingFn } from '~/casing.ts';
 import type { BuildColumns, BuildExtraConfigColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
-import {
-	type InferTableColumnsModels,
-	Table,
-	type TableConfig as TableConfigBase,
-	type UpdateTableConfig,
-} from '~/table.ts';
+import { type Comment, Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
 import { type CockroachColumnsBuilders, getCockroachColumnBuilders } from './columns/all.ts';
 import type {
@@ -20,6 +15,7 @@ import type { AnyIndexBuilder } from './indexes.ts';
 import type { CockroachPolicy } from './policies.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
 import type { UniqueConstraintBuilder } from './unique-constraint.ts';
+export { comment } from '~/table.ts';
 
 export type CockroachTableExtraConfigValue =
 	| AnyIndexBuilder
@@ -27,7 +23,8 @@ export type CockroachTableExtraConfigValue =
 	| ForeignKeyBuilder
 	| PrimaryKeyBuilder
 	| UniqueConstraintBuilder
-	| CockroachPolicy;
+	| CockroachPolicy
+	| Comment;
 
 export type CockroachTableExtraConfig = Record<
 	string,

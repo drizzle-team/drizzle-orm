@@ -2,7 +2,7 @@ import { is } from '~/entity.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { SQL } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { Table } from '~/table.ts';
+import { Comment, Table } from '~/table.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { Check } from './checks.ts';
@@ -45,11 +45,12 @@ export function getTableConfig(table: MySqlTable) {
 	const baseName = table[Table.Symbol.BaseName];
 
 	const extraConfigBuilder = table[MySqlTable.Symbol.ExtraConfigBuilder];
+	let comment: string | undefined;
 
 	if (extraConfigBuilder !== undefined) {
 		const extraConfig = extraConfigBuilder(table[MySqlTable.Symbol.Columns]);
-		const extraValues = Array.isArray(extraConfig) ? extraConfig.flat(1) as any[] : Object.values(extraConfig);
-		for (const builder of Object.values(extraValues)) {
+		const extraValues = Array.isArray(extraConfig) ? extraConfig.flat(1) : Object.values(extraConfig);
+		for (const builder of extraValues) {
 			if (is(builder, IndexBuilder)) {
 				indexes.push(builder.build(table));
 			} else if (is(builder, CheckBuilder)) {
@@ -60,6 +61,8 @@ export function getTableConfig(table: MySqlTable) {
 				primaryKeys.push(builder.build(table));
 			} else if (is(builder, ForeignKeyBuilder)) {
 				foreignKeys.push(builder.build(table));
+			} else if (is(builder, Comment)) {
+				comment = builder.value;
 			}
 		}
 	}
@@ -74,6 +77,7 @@ export function getTableConfig(table: MySqlTable) {
 		name,
 		schema,
 		baseName,
+		comment,
 	};
 }
 

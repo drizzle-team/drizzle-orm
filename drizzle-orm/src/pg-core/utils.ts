@@ -3,7 +3,7 @@ import { PgTable } from '~/pg-core/table.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { SQL } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { Table, TableSchema } from '~/table.ts';
+import { Comment, Table, TableSchema } from '~/table.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { type Check, CheckBuilder } from './checks.ts';
@@ -31,6 +31,7 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 	const enableRLS: boolean = table[PgTable.Symbol.EnableRLS];
 
 	const extraConfigBuilder = table[PgTable.Symbol.ExtraConfigBuilder];
+	let comment: string | undefined;
 
 	if (extraConfigBuilder !== undefined) {
 		const extraConfig = extraConfigBuilder(table[Table.Symbol.ExtraConfigColumns]);
@@ -48,6 +49,8 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 				foreignKeys.push(builder.build(table));
 			} else if (is(builder, PgPolicy)) {
 				policies.push(builder);
+			} else if (is(builder, Comment)) {
+				comment = builder.value;
 			}
 		}
 	}
@@ -63,6 +66,7 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 		schema,
 		policies,
 		enableRLS,
+		comment,
 	};
 }
 

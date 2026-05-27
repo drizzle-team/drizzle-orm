@@ -1,7 +1,7 @@
 import { is } from '~/entity.ts';
 import { SQL } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { Table } from '~/table.ts';
+import { Comment, Table } from '~/table.ts';
 import type { Index } from './indexes.ts';
 import { IndexBuilder } from './indexes.ts';
 import type { PrimaryKey } from './primary-keys.ts';
@@ -34,17 +34,20 @@ export function getTableConfig(table: SingleStoreTable) {
 	const baseName = table[Table.Symbol.BaseName];
 
 	const extraConfigBuilder = table[SingleStoreTable.Symbol.ExtraConfigBuilder];
+	let comment: string | undefined;
 
 	if (extraConfigBuilder !== undefined) {
 		const extraConfig = extraConfigBuilder(table[SingleStoreTable.Symbol.Columns]);
-		const extraValues = Array.isArray(extraConfig) ? extraConfig.flat(1) as any[] : Object.values(extraConfig);
-		for (const builder of Object.values(extraValues)) {
+		const extraValues = Array.isArray(extraConfig) ? extraConfig.flat(1) : Object.values(extraConfig);
+		for (const builder of extraValues) {
 			if (is(builder, IndexBuilder)) {
 				indexes.push(builder.build(table));
 			} else if (is(builder, UniqueConstraintBuilder)) {
 				uniqueConstraints.push(builder.build(table));
 			} else if (is(builder, PrimaryKeyBuilder)) {
 				primaryKeys.push(builder.build(table));
+			} else if (is(builder, Comment)) {
+				comment = builder.value;
 			}
 		}
 	}
@@ -57,6 +60,7 @@ export function getTableConfig(table: SingleStoreTable) {
 		name,
 		schema,
 		baseName,
+		comment,
 	};
 }
 

@@ -1,5 +1,5 @@
 import { is } from '~/entity.ts';
-import { Table } from '~/table.ts';
+import { Comment, Table } from '~/table.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { Check } from './checks.ts';
 import { CheckBuilder } from './checks.ts';
@@ -26,10 +26,12 @@ export function getTableConfig(table: MsSqlTable) {
 	const baseName = table[Table.Symbol.BaseName];
 
 	const extraConfigBuilder = table[MsSqlTable.Symbol.ExtraConfigBuilder];
+	let comment: string | undefined;
 
 	if (extraConfigBuilder !== undefined) {
 		const extraConfig = extraConfigBuilder(table[MsSqlTable.Symbol.Columns]);
-		for (const builder of Object.values(extraConfig)) {
+		const extraValues = Array.isArray(extraConfig) ? extraConfig.flat(1) : Object.values(extraConfig);
+		for (const builder of extraValues) {
 			if (is(builder, IndexBuilder)) {
 				indexes.push(builder.build(table));
 			} else if (is(builder, CheckBuilder)) {
@@ -40,6 +42,8 @@ export function getTableConfig(table: MsSqlTable) {
 				primaryKeys.push(builder.build(table));
 			} else if (is(builder, ForeignKeyBuilder)) {
 				foreignKeys.push(builder.build(table));
+			} else if (is(builder, Comment)) {
+				comment = builder.value;
 			}
 		}
 	}
@@ -54,6 +58,7 @@ export function getTableConfig(table: MsSqlTable) {
 		name,
 		schema,
 		baseName,
+		comment,
 	};
 }
 
