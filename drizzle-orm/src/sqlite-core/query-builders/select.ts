@@ -63,7 +63,7 @@ export class SQLiteSelectBuilder<
 	static readonly [entityKind]: string = 'SQLiteSelectBuilder';
 
 	private fields: TSelection;
-	private session: SQLiteSession<any, any, any, any, any> | undefined;
+	private session: SQLiteSession<any, any, any> | undefined;
 	private dialect: SQLiteDialect;
 	private withList: Subquery[] | undefined;
 	private distinct: boolean | undefined;
@@ -71,7 +71,7 @@ export class SQLiteSelectBuilder<
 	constructor(
 		config: {
 			fields: TSelection;
-			session: SQLiteSession<any, any, any, any, any> | undefined;
+			session: SQLiteSession<any, any, any> | undefined;
 			dialect: SQLiteDialect;
 			withList?: Subquery[];
 			distinct?: boolean;
@@ -163,7 +163,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	protected joinsNotNullableMap: Record<string, boolean>;
 	private tableName: string | undefined;
 	private isPartialSelect: boolean;
-	protected session: SQLiteSession<any, any, any, any, any> | undefined;
+	protected session: SQLiteSession<any, any, any> | undefined;
 	protected dialect: SQLiteDialect;
 	protected cacheConfig?: WithCacheConfig = undefined;
 	protected usedTables: Set<string> = new Set();
@@ -173,7 +173,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 			table: SQLiteSelectConfig['table'];
 			fields: SQLiteSelectConfig['fields'];
 			isPartialSelect: boolean;
-			session: SQLiteSession<any, any, any, any, any> | undefined;
+			session: SQLiteSession<any, any, any> | undefined;
 			dialect: SQLiteDialect;
 			withList: Subquery[] | undefined;
 			distinct: boolean | undefined;
@@ -912,23 +912,23 @@ export class SQLiteSelectBase<
 	static override readonly [entityKind]: string = 'SQLiteSelect';
 
 	/** @internal */
-	_prepare(isOneTimeQuery = true): SQLiteSelectPrepare<this> {
+	_prepare(prepare = false): SQLiteSelectPrepare<this> {
 		if (!this.session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
 		const fieldsList = orderSelectedFields<SQLiteColumn>(this.config.fields);
-		const query = this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
+		const query = this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
-			fieldsList,
+			'arrays',
+			prepare,
 			'all',
-			undefined,
+			this.dialect.mapperGenerators.rows(fieldsList, this.joinsNotNullableMap),
 			{
 				type: 'select',
 				tables: [...this.usedTables],
 			},
 			this.cacheConfig,
 		);
-		query.joinsNotNullableMap = this.joinsNotNullableMap;
 		return query as ReturnType<this['prepare']>;
 	}
 
@@ -942,7 +942,7 @@ export class SQLiteSelectBase<
 	}
 
 	prepare(): SQLiteSelectPrepare<this> {
-		return this._prepare(false);
+		return this._prepare(true);
 	}
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
@@ -962,7 +962,7 @@ export class SQLiteSelectBase<
 	};
 
 	async execute(): Promise<SQLiteSelectExecute<this>> {
-		return this.all() as SQLiteSelectExecute<this>;
+		return this._prepare().execute() as Promise<SQLiteSelectExecute<this>>;
 	}
 }
 

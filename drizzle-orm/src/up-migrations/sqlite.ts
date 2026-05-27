@@ -1,4 +1,3 @@
-import type { TablesRelationalConfig } from '~/_relations.ts';
 import type { MigrationMeta } from '~/migrator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
@@ -17,13 +16,11 @@ export function upgradeSyncIfNeeded(
 	session: SQLiteSession<
 		'sync',
 		unknown,
-		Record<string, unknown>,
-		AnyRelations,
-		TablesRelationalConfig
+		AnyRelations
 	>,
 	localMigrations: MigrationMeta[],
 ): UpgradeResult {
-	const tableExists = session.all(
+	const tableExists = session.objects(
 		sql`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ${migrationsTable}`,
 	);
 
@@ -32,7 +29,7 @@ export function upgradeSyncIfNeeded(
 	}
 
 	// Table exists, check table shape
-	const rows = session.all<{ column_name: string }>(
+	const rows = session.objects<{ column_name: string }>(
 		sql`SELECT name as column_name FROM pragma_table_info(${migrationsTable})`,
 	);
 
@@ -56,9 +53,7 @@ const upgradeSyncFunctions: Record<
 		session: SQLiteSession<
 			'sync',
 			unknown,
-			Record<string, unknown>,
-			AnyRelations,
-			TablesRelationalConfig
+			AnyRelations
 		>,
 		localMigrations: MigrationMeta[],
 	) => void
@@ -78,7 +73,7 @@ const upgradeSyncFunctions: Record<
 		// 1. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
 		// this can be null from legacy implementation where id was serial
-		const dbRows = session.all<{ id: number | null; hash: string; created_at: number }>(
+		const dbRows = session.objects<{ id: number | null; hash: string; created_at: number }>(
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
 		);
 
@@ -189,11 +184,11 @@ const upgradeSyncFunctions: Record<
  */
 export async function upgradeAsyncIfNeeded(
 	migrationsTable: string,
-	db: BaseSQLiteDatabase<'async', unknown, Record<string, unknown>>,
+	db: BaseSQLiteDatabase<'async', unknown, AnyRelations>,
 	localMigrations: MigrationMeta[],
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
-	const tableExists = await db.session.all(
+	const tableExists = await db.session.objects(
 		sql`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ${migrationsTable}`,
 	);
 
@@ -201,7 +196,7 @@ export async function upgradeAsyncIfNeeded(
 		return { newDb: true };
 	}
 
-	const rows = await db.session.all<{ column_name: string }>(
+	const rows = await db.session.objects<{ column_name: string }>(
 		sql`SELECT name as column_name FROM pragma_table_info(${migrationsTable})`,
 	);
 
@@ -222,7 +217,7 @@ const upgradeAsyncFunctions: Record<
 	number,
 	(
 		migrationsTable: string,
-		db: BaseSQLiteDatabase<'async', unknown, Record<string, unknown>>,
+		db: BaseSQLiteDatabase<'async', unknown, AnyRelations>,
 		localMigrations: MigrationMeta[],
 	) => Promise<void>
 > = {
@@ -241,7 +236,7 @@ const upgradeAsyncFunctions: Record<
 		// 1. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
 		// this can be null from legacy implementation where id was serial
-		const dbRows = await db.session.all<{ id: number | null; hash: string; created_at: number }>(
+		const dbRows = await db.session.objects<{ id: number | null; hash: string; created_at: number }>(
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
 		);
 

@@ -15,11 +15,6 @@ export abstract class PgBasePreparedQuery implements PreparedQuery {
 		protected query: Query,
 	) {}
 
-	// TODO: remove after rewriting all dialects - bound to core interface
-	mapResult(_: unknown, __?: boolean): unknown {
-		throw new Error('Method not implemented.');
-	}
-
 	getQuery(): Query {
 		return this.query;
 	}

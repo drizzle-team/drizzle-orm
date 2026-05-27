@@ -18,7 +18,7 @@ export class SQLiteCountBuilder extends SQL<number> implements SQLWrapper<number
 	static override readonly [entityKind]: string = 'SQLiteCountBuilder';
 
 	protected dialect: SQLiteDialect;
-	protected session: SQLiteSession<any, any, any, any, any>;
+	protected session: SQLiteSession<any, any, any>;
 
 	private static buildCount(
 		source: SQLiteTable | SQLiteViewBase | SQL | SQLWrapper,
@@ -36,7 +36,7 @@ export class SQLiteCountBuilder extends SQL<number> implements SQLWrapper<number
 			source: SQLiteTable | SQLiteViewBase | SQL | SQLWrapper;
 			filters?: SQL<unknown>;
 			dialect: SQLiteDialect;
-			session: SQLiteSession<any, any, any, any, any>;
+			session: SQLiteSession<any, any, any>;
 		},
 	) {
 		super(SQLiteCountBuilder.buildCount(countConfig.source, countConfig.filters, true).queryChunks);
@@ -61,10 +61,11 @@ export class SQLiteCountBuilder extends SQL<number> implements SQLWrapper<number
 
 	/** @internal */
 	executeRaw(placeholderValues?: Record<string, unknown>): Promise<number> | ExecuteResultSync<number> {
-		return this.session.prepareOneTimeQuery(
+		return this.session.prepareQuery(
 			this.build(),
-			undefined,
-			'all',
+			'arrays',
+			false,
+			'all', // Do not use 'get' - mapper returns an item instead of an array, would break on session's destructuring; query itself is already aggregated into 1 item, so no performance overhead occurs.
 			(rows) => {
 				const v = rows[0]?.[0];
 				if (typeof v === 'number') return v;
