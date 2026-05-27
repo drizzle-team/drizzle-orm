@@ -2,6 +2,7 @@
 
 import type { Changes, Database } from 'bun:sqlite';
 import { entityKind } from '~/entity.ts';
+import { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
@@ -58,7 +59,12 @@ export class SQLiteBunSession<TRelations extends AnyRelations>
 			tables: string[];
 		},
 	): SQLitePreparedQuery<T & { run: SQLiteBunRunResult }> {
-		const stmt = this.client.query(query.sql);
+		let stmt: ReturnType<typeof this.client.query>;
+		try {
+			stmt = this.client.query(query.sql);
+		} catch (e) {
+			throw new DrizzleQueryError(query.sql, query.params, e as Error);
+		}
 		const executors: SQLiteQueryExecutors<'sync'> = {
 			all: (params) => {
 				if (mode === 'arrays') return stmt.values(...params as any[]);

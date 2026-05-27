@@ -1,5 +1,6 @@
-import type { Database, RunResult } from 'better-sqlite3';
+import type { Database, RunResult, Statement } from 'better-sqlite3';
 import { entityKind } from '~/entity.ts';
+import { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
@@ -52,7 +53,12 @@ export class BetterSQLiteSession<TRelations extends AnyRelations>
 			tables: string[];
 		},
 	): SQLitePreparedQuery<T & { run: BetterSQLite3RunResult }> {
-		const stmt = this.client.prepare(query.sql);
+		let stmt: Statement;
+		try {
+			stmt = this.client.prepare(query.sql);
+		} catch (e) {
+			throw new DrizzleQueryError(query.sql, query.params, e as Error);
+		}
 		const executors: SQLiteQueryExecutors<'sync'> = {
 			all: (params) => {
 				if (mode === 'arrays') return stmt.raw().all(...params as any[]);

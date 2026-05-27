@@ -2,6 +2,7 @@ import type { Database, SQLiteCloudRow, SQLiteCloudRowset } from '@sqlitecloud/d
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
@@ -55,7 +56,13 @@ export class SQLiteCloudSession<TRelations extends AnyRelations>
 		},
 		cacheConfig?: WithCacheConfig,
 	): SQLitePreparedQuery<T & { run: SQLiteCloudRunResult }> {
-		const stmt = this.client.prepare(query.sql);
+		let stmt: ReturnType<typeof this.client.prepare>;
+		try {
+			stmt = this.client.prepare(query.sql);
+		} catch (e) {
+			throw new DrizzleQueryError(query.sql, query.params, e as Error);
+		}
+
 		const executors: SQLiteQueryExecutors<'async'> = {
 			all: (params) => {
 				if (mode === 'arrays') {

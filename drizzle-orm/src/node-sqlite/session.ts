@@ -1,5 +1,6 @@
 import type { DatabaseSync, SQLInputValue, StatementResultingChanges } from 'node:sqlite';
 import { entityKind } from '~/entity.ts';
+import { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
@@ -52,7 +53,13 @@ export class NodeSQLiteSession<TRelations extends AnyRelations>
 			tables: string[];
 		},
 	): SQLitePreparedQuery<T & { run: NodeSQLiteRunResult }> {
-		const stmt = this.client.prepare(query.sql);
+		let stmt: ReturnType<typeof this.client.prepare>;
+		try {
+			stmt = this.client.prepare(query.sql);
+		} catch (e) {
+			throw new DrizzleQueryError(query.sql, query.params, e as Error);
+		}
+
 		const executors: SQLiteQueryExecutors<'sync'> = {
 			all: (params) => {
 				stmt.setReturnArrays(mode === 'arrays');

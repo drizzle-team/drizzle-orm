@@ -1,5 +1,6 @@
-import type { SQLiteDatabase, SQLiteRunResult } from 'expo-sqlite';
+import type { SQLiteDatabase, SQLiteRunResult, SQLiteStatement } from 'expo-sqlite';
 import { entityKind } from '~/entity.ts';
+import { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
@@ -52,7 +53,13 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 			tables: string[];
 		},
 	): SQLitePreparedQuery<T & { run: ExpoSQLiteRunResult }> {
-		const stmt = this.client.prepareSync(query.sql);
+		let stmt: SQLiteStatement;
+		try {
+			stmt = this.client.prepareSync(query.sql);
+		} catch (e) {
+			throw new DrizzleQueryError(query.sql, query.params, e as Error);
+		}
+
 		const executors: SQLiteQueryExecutors<'sync'> = {
 			all: (params) => {
 				if (mode === 'arrays') return stmt.executeForRawResultSync(params as any[]).getAllSync();
