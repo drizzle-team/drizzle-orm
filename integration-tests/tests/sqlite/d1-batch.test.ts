@@ -298,7 +298,17 @@ test('insert + findMany', async () => {
 		id: 1,
 	}]);
 
-	expect(batchResponse[1]).toEqual({ columns: [], rows: [], rowsAffected: 1, lastInsertRowid: 2n });
+	expect(batchResponse[1]).toEqual({
+		meta: {
+			changes: 1,
+			duration: expect.toSatisfy((v) => typeof v === 'number', 'expected number'),
+			internal_stats: null,
+			last_row_id: 2,
+			served_by: 'miniflare.db',
+		},
+		results: [],
+		success: true,
+	});
 
 	expect(batchResponse[2]).toEqual([
 		{ id: 1, name: 'John', verified: 0, invitedBy: null },
@@ -340,7 +350,17 @@ test('insert + findMany + findFirst', async () => {
 		id: 1,
 	}]);
 
-	expect(batchResponse[1]).toEqual({ columns: [], rows: [], rowsAffected: 1, lastInsertRowid: 2n });
+	expect(batchResponse[1]).toEqual({
+		meta: {
+			changes: 1,
+			duration: expect.toSatisfy((v) => typeof v === 'number', 'expected number'),
+			internal_stats: null,
+			last_row_id: 2,
+			served_by: 'miniflare.db',
+		},
+		results: [],
+		success: true,
+	});
 
 	expect(batchResponse[2]).toEqual([
 		{ id: 1, name: 'John', verified: 0, invitedBy: null },
@@ -387,7 +407,17 @@ test('insert + db.all + db.get + db.values + db.run', async () => {
 		id: 1,
 	}]);
 
-	// expect(batchResponse[1]).toEqual({ columns: [], rows: [], rowsAffected: 1, lastInsertRowid: 2n });
+	expect(batchResponse[1]).toEqual({
+		meta: {
+			changes: 1,
+			duration: expect.toSatisfy((v) => typeof v === 'number', 'expected number'),
+			internal_stats: null,
+			last_row_id: 2,
+			served_by: 'miniflare.db',
+		},
+		results: [],
+		success: true,
+	});
 
 	expect(batchResponse[2], 'all').toEqual([
 		{ id: 1, name: 'John', verified: 0, invited_by: null },
@@ -435,7 +465,17 @@ test('insert + findManyWith + db.all', async () => {
 		id: 1,
 	}]);
 
-	expect(batchResponse[1]).toEqual({ columns: [], rows: [], rowsAffected: 1, lastInsertRowid: 2n });
+	expect(batchResponse[1]).toEqual({
+		meta: {
+			changes: 1,
+			duration: expect.toSatisfy((v) => typeof v === 'number', 'expected number'),
+			internal_stats: null,
+			last_row_id: 2,
+			served_by: 'miniflare.db',
+		},
+		results: [],
+		success: true,
+	});
 
 	expect(batchResponse[2]).toEqual([
 		{ id: 1, name: 'John', verified: 0, invitedBy: null },
@@ -487,7 +527,17 @@ test('insert + update + select + select partial', async () => {
 		id: 1,
 	}]);
 
-	expect(batchResponse[1]).toEqual({ columns: [], rows: [], rowsAffected: 1, lastInsertRowid: 1n });
+	expect(batchResponse[1]).toEqual({
+		meta: {
+			changes: 1,
+			duration: expect.toSatisfy((v) => typeof v === 'number', 'expected number'),
+			internal_stats: null,
+			last_row_id: 1,
+			served_by: 'miniflare.db',
+		},
+		results: [],
+		success: true,
+	});
 
 	expect(batchResponse[2]).toEqual([
 		{ id: 1, name: 'Dan', verified: 0, invitedBy: null },
@@ -537,7 +587,17 @@ test('insert + delete + select + select partial', async () => {
 		id: 1,
 	}]);
 
-	expect(batchResponse[1]).toEqual({ columns: [], rows: [], rowsAffected: 1, lastInsertRowid: 2n });
+	expect(batchResponse[1]).toEqual({
+		meta: {
+			changes: 1,
+			duration: expect.toSatisfy((v) => typeof v === 'number', 'expected number'),
+			internal_stats: null,
+			last_row_id: 2,
+			served_by: 'miniflare.db',
+		},
+		results: [],
+		success: true,
+	});
 
 	expect(batchResponse[2]).toEqual([
 		{ id: 1, invitedBy: null },

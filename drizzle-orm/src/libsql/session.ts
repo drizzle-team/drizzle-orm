@@ -106,7 +106,9 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteSessio
 			builtQueries.push({ sql: builtQuery.sql, args: builtQuery.params as InArgs });
 		}
 
-		const batchResults = await (isMigration ? this.client.migrate : this.client.batch)(builtQueries);
+		const batchResults = await (isMigration
+			? this.client.migrate(builtQueries)
+			: (this.tx ?? this.client).batch(builtQueries));
 		return batchResults.map((result, i) => {
 			const { executeMethod, mapper, mode } = preparedQueries[i]!;
 

@@ -60,22 +60,18 @@ export class SQLiteD1Session<TRelations extends AnyRelations> extends SQLiteSess
 		const stmt = this.client.prepare(query.sql);
 		const executors: SQLiteQueryExecutors<'async'> = {
 			all: (params) => {
-				stmt.bind(...params);
-				if (mode === 'arrays') return stmt.raw();
-				return stmt.all().then(({ results }) => results);
+				if (mode === 'arrays') return stmt.bind(...params).raw();
+				return stmt.bind(...params).all().then(({ results }) => results);
 			},
 			get: (params) => {
-				stmt.bind(...params);
-				if (mode === 'arrays') return stmt.raw().then((rows) => rows[0]);
-				return stmt.first();
+				if (mode === 'arrays') return stmt.bind(...params).raw().then((rows) => rows[0]);
+				return stmt.bind(...params).first();
 			},
 			run: (params) => {
-				stmt.bind(...params);
-				return stmt.run();
+				return stmt.bind(...params).run();
 			},
 			values: (params) => {
-				stmt.bind(...params);
-				return stmt.raw();
+				return stmt.bind(...params).raw();
 			},
 		};
 		return new D1PreparedQuery(
@@ -113,7 +109,7 @@ export class SQLiteD1Session<TRelations extends AnyRelations> extends SQLiteSess
 
 		const batchResults = await this.client.batch<any>(builtQueries);
 		return batchResults.map((result, i) => {
-			const { executeMethod, mapper } = preparedQueries[i]!;
+			const { executeMethod, mapper, mode } = preparedQueries[i]!;
 
 			if (executeMethod === 'run') return result;
 
@@ -122,13 +118,12 @@ export class SQLiteD1Session<TRelations extends AnyRelations> extends SQLiteSess
 			if (executeMethod === 'get') {
 				if (!values[0]) return;
 
-				values = d1ToRawMapping([values])[0];
-				if (!mapper) return values;
+				if (!mapper) return mode === 'arrays' ? d1ToRawMapping([values[0]])[0] : values[0];
 
-				return mapper([values])[0];
+				return mapper(mode === 'arrays' ? d1ToRawMapping([values[0]]) : [values[0]])[0];
 			}
 
-			values = d1ToRawMapping(values);
+			values = mode === 'arrays' ? d1ToRawMapping(values) : values;
 			if (!mapper) return values;
 
 			return mapper(values);

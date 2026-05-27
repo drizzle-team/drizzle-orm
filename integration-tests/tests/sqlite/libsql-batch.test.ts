@@ -572,7 +572,7 @@ test('insert + delete + select + select partial', async () => {
 		} | undefined,
 	]>();
 
-	expect(batchResponse.length).eq(5);
+	expect(batchResponse.length).eq(4);
 
 	expect(batchResponse[0]).toEqual([{
 		id: 1,
