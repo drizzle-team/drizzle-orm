@@ -60,7 +60,7 @@ export class SQLiteCountBuilder extends SQL<number> implements SQLWrapper<number
 	}
 
 	/** @internal */
-	executeRaw(placeholderValues?: Record<string, unknown>): Promise<number> | number {
+	executeRaw(placeholderValues?: Record<string, unknown>): Promise<number> | ExecuteResultSync<number> {
 		return this.session.prepareQuery(
 			this.build(),
 			'arrays',
