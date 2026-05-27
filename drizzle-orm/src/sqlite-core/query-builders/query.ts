@@ -32,7 +32,6 @@ export class RelationalQueryBuilder<
 		private tableConfig: TableRelationalConfig,
 		private dialect: SQLiteDialect,
 		private session: SQLiteSession<any, any, any>,
-		private rowMode?: boolean,
 		private forbidJsonb?: boolean,
 	) {
 	}
@@ -49,7 +48,6 @@ export class RelationalQueryBuilder<
 				this.session,
 				config as DBQueryConfig<'many'> | undefined ?? true,
 				'many',
-				this.rowMode,
 				this.forbidJsonb,
 			) as SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig>[]>
 			: new SQLiteRelationalQuery(
@@ -60,7 +58,6 @@ export class RelationalQueryBuilder<
 				this.session,
 				config as DBQueryConfig<'many'> | undefined ?? true,
 				'many',
-				this.rowMode,
 				this.forbidJsonb,
 			) as SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig>[]>;
 	}
@@ -77,7 +74,6 @@ export class RelationalQueryBuilder<
 				this.session,
 				config as DBQueryConfig<'one'> | undefined ?? true,
 				'first',
-				this.rowMode,
 				this.forbidJsonb,
 			) as SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig> | undefined>
 			: new SQLiteRelationalQuery(
@@ -88,7 +84,6 @@ export class RelationalQueryBuilder<
 				this.session,
 				config as DBQueryConfig<'one'> | undefined ?? true,
 				'first',
-				this.rowMode,
 				this.forbidJsonb,
 			) as SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig> | undefined>;
 	}
@@ -118,7 +113,6 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 		private session: SQLiteSession<TType, any, any>,
 		private config: DBQueryConfig<'many' | 'one'> | true,
 		mode: 'many' | 'first',
-		private rowMode?: boolean,
 		private forbidJsonb?: boolean,
 	) {
 		super();
@@ -146,19 +140,18 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 	): SQLitePreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }> {
 		const { query, builtQuery } = this._toSQL();
 
-		// TODO: switch to array mode for all drivers
 		const mapper = this.dialect.mapperGenerators.relationalRows({
 			isFirst: this.mode === 'first',
 			parseJson: true,
 			parseJsonIfString: false,
 			rootJsonMappers: false,
 			selection: query.selection,
-			arrayModeRoot: this.rowMode,
+			arrayModeRoot: true,
 		});
 
 		return this.session.prepareQuery(
 			builtQuery,
-			this.rowMode ? 'arrays' : 'objects',
+			'arrays',
 			prepare,
 			// TODO: add flag to mapper for .get() and iterators to not destructure such responses
 			'all', // Do not use 'get' - mapper returns an item instead of an array, would break on session's destructuring; query itself is already limited to 1 item, so no performance overhead occurs.

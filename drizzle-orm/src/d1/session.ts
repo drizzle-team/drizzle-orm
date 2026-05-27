@@ -140,7 +140,7 @@ export class SQLiteD1Session<TRelations extends AnyRelations> extends SQLiteSess
 		transaction: (tx: D1Transaction<TRelations>) => T | Promise<T>,
 		config?: SQLiteTransactionConfig,
 	): Promise<T> {
-		const tx = new D1Transaction('async', this.dialect, this, this.relations, undefined, undefined, true);
+		const tx = new D1Transaction('async', this.dialect, this, this.relations, undefined, true);
 		await this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
 		try {
 			const result = await transaction(tx);
@@ -168,7 +168,6 @@ export class D1Transaction<TRelations extends AnyRelations>
 			this.session,
 			this._.relations,
 			this.nestedIndex + 1,
-			undefined,
 			this.forbidJsonb,
 		);
 		await this.session.run(sql.raw(`savepoint ${savepointName}`));

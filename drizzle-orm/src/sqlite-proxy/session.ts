@@ -121,7 +121,7 @@ export class SQLiteRemoteSession<
 		transaction: (tx: SQLiteProxyTransaction<TRelations>) => Promise<T>,
 		config?: SQLiteTransactionConfig,
 	): Promise<T> {
-		const tx = new SQLiteProxyTransaction('async', this.dialect, this, this.relations, undefined, true);
+		const tx = new SQLiteProxyTransaction('async', this.dialect, this, this.relations);
 		await this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
 		try {
 			const result = await transaction(tx);
@@ -149,7 +149,6 @@ export class SQLiteProxyTransaction<TRelations extends AnyRelations>
 			this.session,
 			this._.relations,
 			this.nestedIndex + 1,
-			true,
 		);
 		await this.session.run(sql.raw(`savepoint ${savepointName}`));
 		try {

@@ -60,7 +60,6 @@ export function drizzle<
 		dialect,
 		session,
 		relations,
-		undefined,
 		true,
 	);
 	(<any> db).$client = client;

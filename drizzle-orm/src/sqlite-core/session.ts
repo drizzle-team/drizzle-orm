@@ -368,10 +368,9 @@ export abstract class SQLiteTransaction<
 		session: SQLiteSession<TResultType, TRunResult, TRelations>,
 		relations: TRelations,
 		protected readonly nestedIndex = 0,
-		rowModeRQB?: boolean,
 		forbidJsonb?: boolean,
 	) {
-		super(resultType, dialect, session, relations, rowModeRQB, forbidJsonb);
+		super(resultType, dialect, session, relations, forbidJsonb);
 	}
 
 	rollback(): never {

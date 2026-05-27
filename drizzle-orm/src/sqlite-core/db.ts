@@ -57,7 +57,6 @@ export class BaseSQLiteDatabase<
 		/** @internal */
 		readonly session: SQLiteSession<TResultKind, TRunResult, TRelations>,
 		relations: TRelations,
-		readonly rowModeRQB?: boolean,
 		readonly forbidJsonb?: boolean,
 	) {
 		this._ = {
@@ -77,7 +76,6 @@ export class BaseSQLiteDatabase<
 				relation,
 				dialect,
 				session as SQLiteSession<any, any, any>,
-				rowModeRQB,
 				forbidJsonb,
 			);
 		}

@@ -110,7 +110,7 @@ export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteSess
 		) => T,
 		_config?: SQLiteTransactionConfig,
 	): T {
-		const tx = new SQLiteDOTransaction('sync', this.dialect, this, this.relations, undefined, false, true);
+		const tx = new SQLiteDOTransaction('sync', this.dialect, this, this.relations, undefined, true);
 		return this.client.transactionSync(() => transaction(tx));
 	}
 }
@@ -132,7 +132,6 @@ export class SQLiteDOTransaction<TRelations extends AnyRelations>
 			this.session,
 			this._.relations,
 			this.nestedIndex + 1,
-			false,
 			true,
 		);
 		return this.session.transaction(() => transaction(tx)) as T;

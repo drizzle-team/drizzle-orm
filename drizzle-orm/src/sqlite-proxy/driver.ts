@@ -92,7 +92,6 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 		dialect,
 		session,
 		relations,
-		true,
 	);
 	(<any> db).$cache = cache;
 	if ((<any> db).$cache) {
