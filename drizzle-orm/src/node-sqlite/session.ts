@@ -56,12 +56,19 @@ export class NodeSQLiteSession<TRelations extends AnyRelations>
 		const executors: SQLiteQueryExecutors<'sync'> = {
 			all: (params) => {
 				stmt.setReturnArrays(mode === 'arrays');
-				return stmt.all(...params as SQLInputValue[]);
+				const res = stmt.all(...params as SQLInputValue[]);
+
+				// Null-prototype object => object
+				if (mode === 'objects') return res.map((row) => ({ ...row }));
+				return res;
 			},
 			get: (params) => {
 				stmt.setReturnArrays(mode === 'arrays');
+				const res = stmt.get(...params as SQLInputValue[]);
+
 				// Null-prototype object => object
-				return { ...stmt.get(...params as SQLInputValue[]) };
+				if (res && mode === 'objects') return { ...res };
+				return res;
 			},
 			run: (params) => {
 				stmt.setReturnArrays(false);

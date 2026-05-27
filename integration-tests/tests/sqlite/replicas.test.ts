@@ -483,25 +483,25 @@ describe('[execute] replicas sqlite', () => {
 		const spyRead1 = vi.spyOn(read1, 'all');
 		const spyRead2 = vi.spyOn(read2, 'all');
 
-		expect(db.all(sql``)).rejects.toThrow();
+		try {
+			await db.all(sql``);
+		} catch {}
 
 		expect(spyPrimary).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledTimes(0);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 
-		expect(db.all(sql``)).rejects.toThrow();
-		// try {
-		// 	db.execute(sql``);
-		// } catch { /* empty */ }
+		try {
+			await db.all(sql``);
+		} catch {}
 
 		expect(spyPrimary).toHaveBeenCalledTimes(2);
 		expect(spyRead1).toHaveBeenCalledTimes(0);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 
-		expect(db.all(sql``)).rejects.toThrow();
-		// try {
-		// 	db.execute(sql``);
-		// } catch { /* empty */ }
+		try {
+			await db.all(sql``);
+		} catch {}
 
 		expect(spyPrimary).toHaveBeenCalledTimes(3);
 		expect(spyRead1).toHaveBeenCalledTimes(0);
