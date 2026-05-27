@@ -44,7 +44,8 @@ import {
 	union,
 	unionAll,
 } from 'drizzle-orm/sqlite-core';
-import { expect } from 'vitest';
+// Can't use 'vitest' due to it having setTimeout in code, thus breaking workers
+import { expect } from 'chai';
 import { type Equal, Expect } from '~/utils';
 import migrations from './drizzle/migrations';
 
@@ -3935,7 +3936,7 @@ export class MyDurableObject extends DurableObject {
 
 			const result = query.execute({
 				filter: 2,
-			});
+			}).sync();
 
 			expect(result).deep.equal({
 				id: 2,
@@ -4226,58 +4227,26 @@ export default {
 			// 	throw new Error('Insert undefined error');
 			// });
 
-			await stub.testRqbV2SimpleFindFirstMultipleRows().catch(() => {
-				throw new Error('RQBv2 SimpleFindFirstMultipleRows error');
-			});
-			await stub.testRqbV2SimpleFindFirstNoRows().catch(() => {
-				throw new Error('RQBv2 SimpleFindFirstNoRows error');
-			});
-			await stub.testRqbV2SimpleFindFirstPlaceholders().catch(() => {
-				throw new Error('RQBv2 SimpleFindFirstPlaceholders error');
-			});
-			await stub.testRqbV2SimpleFindFirstWithRelation().catch(() => {
-				throw new Error('RQBv2 SimpleFindFirstWithRelation error');
-			});
-			await stub.testRqbV2SimpleFindManyMultipleRows().catch(() => {
-				throw new Error('RQBv2 SimpleFindManyMultipleRows error');
-			});
-			await stub.testRqbV2SimpleFindManyNoRows().catch(() => {
-				throw new Error('RQBv2 SimpleFindManyNoRows error');
-			});
-			await stub.testRqbV2SimpleFindManyPlaceholders().catch(() => {
-				throw new Error('RQBv2 SimpleFindManyPlaceholders error');
-			});
-			await stub.testRqbV2SimpleFindManyWithRelation().catch(() => {
-				throw new Error('RQBv2 SimpleFindManyWithRelation error');
-			});
-			await stub.testRqbV2TransactionFindFirstMultipleRows().catch(() => {
-				throw new Error('RQBv2 TransactionFindFirstMultipleRows error');
-			});
-			await stub.testRqbV2TransactionFindFirstNoRows().catch(() => {
-				throw new Error('RQBv2 TransactionFindFirstNoRows error');
-			});
-			await stub.testRqbV2TransactionFindFirstPlaceholders().catch(() => {
-				throw new Error('RQBv2 TransactionFindFirstPlaceholders error');
-			});
-			await stub.testRqbV2TransactionFindFirstWithRelation().catch(() => {
-				throw new Error('RQBv2 TransactionFindFirstWithRelation error');
-			});
-			await stub.testRqbV2TransactionFindManyMultipleRows().catch(() => {
-				throw new Error('RQBv2 TransactionFindManyMultipleRows error');
-			});
-			await stub.testRqbV2TransactionFindManyNoRows().catch(() => {
-				throw new Error('RQBv2 TransactionFindManyNoRows error');
-			});
-			await stub.testRqbV2TransactionFindManyPlaceholders().catch(() => {
-				throw new Error('RQBv2 TransactionFindManyPlaceholders error');
-			});
-			await stub.testRqbV2TransactionFindManyWithRelation().catch(() => {
-				throw new Error('RQBv2 TransactionFindManyWithRelation error');
-			});
+			await stub.testRqbV2SimpleFindFirstMultipleRows();
+			await stub.testRqbV2SimpleFindFirstNoRows();
+			await stub.testRqbV2SimpleFindFirstPlaceholders();
+			await stub.testRqbV2SimpleFindFirstWithRelation();
+			await stub.testRqbV2SimpleFindManyMultipleRows();
+			await stub.testRqbV2SimpleFindManyNoRows();
+			await stub.testRqbV2SimpleFindManyPlaceholders();
+			await stub.testRqbV2SimpleFindManyWithRelation();
+			await stub.testRqbV2TransactionFindFirstMultipleRows();
+			await stub.testRqbV2TransactionFindFirstNoRows();
+			await stub.testRqbV2TransactionFindFirstPlaceholders();
+			await stub.testRqbV2TransactionFindFirstWithRelation();
+			await stub.testRqbV2TransactionFindManyMultipleRows();
+			await stub.testRqbV2TransactionFindManyNoRows();
+			await stub.testRqbV2TransactionFindManyPlaceholders();
+			await stub.testRqbV2TransactionFindManyWithRelation();
 
 			return new Response('OK');
 		} catch (error: any) {
-			return new Response(error.message, {
+			return new Response(`${error?.message ?? error}\n\n${error?.stack ?? ''}`, {
 				status: 500,
 			});
 		}
