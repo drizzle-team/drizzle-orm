@@ -94,7 +94,7 @@ export class PgEffectDeleteBase<
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgEffectDeletePrepare<this, TEffectHKT> {
-		const { session, config, dialect, cacheConfig } = this;
+		const { session, config, dialect } = this;
 		const { returning: fields } = config;
 
 		const query = dialect.sqlToQuery(this.getSQL());
@@ -108,7 +108,6 @@ export class PgEffectDeleteBase<
 			name ?? generateName,
 			mapper,
 			{ type: 'delete', tables: [...extractUsedTable(this.config.table)] },
-			cacheConfig,
 		);
 
 		return preparedQuery;

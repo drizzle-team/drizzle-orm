@@ -1,4 +1,3 @@
-import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PgSession } from '~/pg-core/session.ts';
@@ -191,7 +190,6 @@ export class PgDeleteBase<
 	static readonly [entityKind]: string = 'PgDelete';
 
 	protected config: PgDeleteConfig;
-	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		table: TTable,

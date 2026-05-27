@@ -1,4 +1,3 @@
-import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type {
@@ -225,7 +224,6 @@ export class MySqlInsertBase<
 	declare protected $table: TTable;
 
 	private config: MySqlInsertConfig<TTable>;
-	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		table: TTable,
@@ -315,7 +313,6 @@ export class MySqlInsertBase<
 				type: 'insert',
 				tables: extractUsedTable(this.config.table),
 			},
-			this.cacheConfig,
 		) as MySqlInsertPrepare<this, TReturning>;
 	}
 

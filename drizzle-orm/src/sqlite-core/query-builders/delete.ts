@@ -148,7 +148,7 @@ export class SQLiteDeleteBase<
 
 	constructor(
 		private table: TTable,
-		private session: SQLiteSession<any, any, any, any, any>,
+		private session: SQLiteSession<any, any, any>,
 		private dialect: SQLiteDialect,
 		withList?: Subquery[],
 	) {
@@ -262,12 +262,13 @@ export class SQLiteDeleteBase<
 	}
 
 	/** @internal */
-	_prepare(isOneTimeQuery = true): SQLiteDeletePrepare<this> {
-		return this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
+	_prepare(prepare = false): SQLiteDeletePrepare<this> {
+		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
-			this.config.returning,
+			'arrays',
+			prepare,
 			this.config.returning ? 'all' : 'run',
-			undefined,
+			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
 			{
 				type: 'delete',
 				tables: extractUsedTable(this.config.table),
@@ -276,7 +277,7 @@ export class SQLiteDeleteBase<
 	}
 
 	prepare(): SQLiteDeletePrepare<this> {
-		return this._prepare(false);
+		return this._prepare(true);
 	}
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {

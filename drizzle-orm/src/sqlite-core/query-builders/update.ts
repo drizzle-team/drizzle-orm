@@ -63,7 +63,7 @@ export class SQLiteUpdateBuilder<
 
 	constructor(
 		protected table: TTable,
-		protected session: SQLiteSession<any, any, any, any, any>,
+		protected session: SQLiteSession<any, any, any>,
 		protected dialect: SQLiteDialect,
 		private withList?: Subquery[],
 	) {}
@@ -248,7 +248,7 @@ export class SQLiteUpdateBase<
 	constructor(
 		table: TTable,
 		set: UpdateSet,
-		private session: SQLiteSession<any, any, any, any, any>,
+		private session: SQLiteSession<any, any, any>,
 		private dialect: SQLiteDialect,
 		withList?: Subquery[],
 	) {
@@ -424,21 +424,22 @@ export class SQLiteUpdateBase<
 	}
 
 	/** @internal */
-	_prepare(isOneTimeQuery = true): SQLiteUpdatePrepare<this> {
-		return this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
+	_prepare(prepare = false): SQLiteUpdatePrepare<this> {
+		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
-			this.config.returning,
+			'arrays',
+			prepare,
 			this.config.returning ? 'all' : 'run',
-			undefined,
+			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
 			{
-				type: 'insert',
+				type: 'update',
 				tables: extractUsedTable(this.config.table),
 			},
 		) as SQLiteUpdatePrepare<this>;
 	}
 
 	prepare(): SQLiteUpdatePrepare<this> {
-		return this._prepare(false);
+		return this._prepare(true);
 	}
 
 	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {

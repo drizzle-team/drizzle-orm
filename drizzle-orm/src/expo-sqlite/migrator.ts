@@ -41,11 +41,8 @@ async function readMigrationFiles({ migrations }: MigrationConfig): Promise<Migr
 	return migrationQueries;
 }
 
-export async function migrate<
-	TSchema extends Record<string, unknown>,
-	TRelations extends AnyRelations = EmptyRelations,
->(
-	db: ExpoSQLiteDatabase<TSchema, TRelations>,
+export async function migrate<TRelations extends AnyRelations = EmptyRelations>(
+	db: ExpoSQLiteDatabase<TRelations>,
 	config: MigrationConfig,
 ) {
 	const migrations = await readMigrationFiles(config);
@@ -62,7 +59,7 @@ type Action =
 	| { type: 'migrated'; payload: true }
 	| { type: 'error'; payload: Error };
 
-export const useMigrations = (db: ExpoSQLiteDatabase<any, any>, migrations: {
+export const useMigrations = (db: ExpoSQLiteDatabase<any>, migrations: {
 	journal: {
 		entries: { idx: number; when: number; tag: string; breakpoints: boolean }[];
 	};

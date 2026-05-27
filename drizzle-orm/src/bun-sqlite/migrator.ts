@@ -9,19 +9,16 @@ import { readMigrationFiles } from '~/migrator.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { SQLiteBunDatabase } from './driver.ts';
 
-export function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations = EmptyRelations>(
-	db: SQLiteBunDatabase<TSchema, TRelations>,
+export function migrate<TRelations extends AnyRelations = EmptyRelations>(
+	db: SQLiteBunDatabase<TRelations>,
 	config: MigrationConfig,
 ): void | MigratorInitFailResponse;
-export function migrate<
-	TSchema extends Record<string, unknown>,
-	TRelations extends AnyRelations = EmptyRelations,
->(
-	db: SQLiteBunDatabase<TSchema, TRelations>,
+export function migrate<TRelations extends AnyRelations = EmptyRelations>(
+	db: SQLiteBunDatabase<TRelations>,
 	config: MigrationFromJournalConfig | MigrationsJournal,
 ): void;
-export function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations = EmptyRelations>(
-	db: SQLiteBunDatabase<TSchema, TRelations>,
+export function migrate<TRelations extends AnyRelations = EmptyRelations>(
+	db: SQLiteBunDatabase<TRelations>,
 	config: MigrationConfig | MigrationFromJournalConfig | MigrationsJournal,
 ): void | MigratorInitFailResponse {
 	if (Array.isArray(config) || 'migrationsJournal' in config) {

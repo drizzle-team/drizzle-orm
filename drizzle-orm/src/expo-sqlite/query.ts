@@ -4,21 +4,19 @@ import { is } from '~/entity.ts';
 import { SQL } from '~/sql/sql.ts';
 import type { AnySQLiteSelect } from '~/sqlite-core/index.ts';
 import { getTableConfig, getViewConfig, SQLiteTable, SQLiteView } from '~/sqlite-core/index.ts';
-import * as V1 from '~/sqlite-core/query-builders/_query.ts';
 import { SQLiteRelationalQuery } from '~/sqlite-core/query-builders/query.ts';
 import { Subquery } from '~/subquery.ts';
 
 export const useLiveQuery = <
 	T extends
 		| Pick<AnySQLiteSelect, '_' | 'then'>
-		| SQLiteRelationalQuery<'sync', unknown>
-		| V1.SQLiteRelationalQuery<'sync', unknown>,
+		| SQLiteRelationalQuery<'sync', unknown>,
 >(
 	query: T,
 	deps: unknown[] = [],
 ) => {
 	const [data, setData] = useState<Awaited<T>>(
-		(is(query, V1.SQLiteRelationalQuery) || is(query, SQLiteRelationalQuery) && query.mode === 'first'
+		(is(query, SQLiteRelationalQuery) && query.mode === 'first'
 			? undefined
 			: []) as Awaited<T>,
 	);
@@ -26,7 +24,7 @@ export const useLiveQuery = <
 	const [updatedAt, setUpdatedAt] = useState<Date>();
 
 	useEffect(() => {
-		const entity = is(query, V1.SQLiteRelationalQuery) || is(query, SQLiteRelationalQuery)
+		const entity = is(query, SQLiteRelationalQuery)
 			? query.table
 			: (query as AnySQLiteSelect).config.table;
 

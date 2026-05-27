@@ -41,8 +41,8 @@ async function readMigrationFiles({ migrations }: MigrationConfig): Promise<Migr
 	return migrationQueries;
 }
 
-export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: OPSQLiteDatabase<TSchema, TRelations>,
+export async function migrate<TRelations extends AnyRelations>(
+	db: OPSQLiteDatabase<TRelations>,
 	config: MigrationConfig,
 ) {
 	const migrations = await readMigrationFiles(config);
@@ -59,7 +59,7 @@ type Action =
 	| { type: 'migrated'; payload: true }
 	| { type: 'error'; payload: Error };
 
-export const useMigrations = (db: OPSQLiteDatabase<any, any>, migrations: {
+export const useMigrations = (db: OPSQLiteDatabase<any>, migrations: {
 	migrations: Record<string, string>;
 }): State => {
 	const initialState: State = {

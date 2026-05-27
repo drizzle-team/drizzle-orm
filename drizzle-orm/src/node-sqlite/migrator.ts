@@ -3,8 +3,8 @@ import { readMigrationFiles } from '~/migrator.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { NodeSQLiteDatabase } from './driver.ts';
 
-export function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations = EmptyRelations>(
-	db: NodeSQLiteDatabase<TSchema, TRelations>,
+export function migrate<TRelations extends AnyRelations = EmptyRelations>(
+	db: NodeSQLiteDatabase<TRelations>,
 	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);

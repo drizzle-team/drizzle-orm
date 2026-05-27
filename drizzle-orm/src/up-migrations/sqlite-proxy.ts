@@ -1,4 +1,5 @@
 import type { MigrationMeta } from '~/migrator.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
 import type { BaseSQLiteDatabase } from '~/sqlite-core/index.ts';
 import type { SqliteRemoteDatabase } from '~/sqlite-proxy/index.ts';
@@ -13,12 +14,12 @@ import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResult } from '
  */
 export async function upgradeAsyncIfNeeded(
 	migrationsTable: string,
-	db: SqliteRemoteDatabase<Record<string, unknown>>,
+	db: SqliteRemoteDatabase<AnyRelations>,
 	callback: ProxyMigrator,
 	localMigrations: MigrationMeta[],
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all
-	const tableExists = await db.session.values<[1]>(
+	const tableExists = await db.session.arrays<[1]>(
 		sql`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ${migrationsTable}`,
 	);
 
@@ -27,7 +28,7 @@ export async function upgradeAsyncIfNeeded(
 	}
 
 	// Table exists, check table shape
-	const rows = await db.session.values<[string]>(
+	const rows = await db.session.arrays<[string]>(
 		sql`SELECT name as column_name FROM pragma_table_info(${migrationsTable})`,
 	);
 
@@ -48,7 +49,7 @@ const upgradeAsyncFunctions: Record<
 	number,
 	(
 		migrationsTable: string,
-		db: BaseSQLiteDatabase<'async', unknown, Record<string, unknown>>,
+		db: BaseSQLiteDatabase<'async', unknown, AnyRelations>,
 		callback: ProxyMigrator,
 		localMigrations: MigrationMeta[],
 	) => Promise<void>
@@ -68,7 +69,7 @@ const upgradeAsyncFunctions: Record<
 		// 1. Read all existing DB migrations
 		// Sort them by ids asc (order how they were applied)
 		// this can be null from legacy implementation where id was serial
-		const dbRows = (await db.session.values<[number | null, string, number]>(
+		const dbRows = (await db.session.arrays<[number | null, string, number]>(
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
 		)).map((row) => ({
 			id: row[0],

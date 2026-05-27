@@ -3,8 +3,8 @@ import { readMigrationFiles } from '~/migrator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { BunSQLiteDatabase } from './driver.ts';
 
-export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: BunSQLiteDatabase<TSchema, TRelations>,
+export async function migrate<TRelations extends AnyRelations>(
+	db: BunSQLiteDatabase<TRelations>,
 	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);
