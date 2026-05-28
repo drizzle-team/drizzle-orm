@@ -42,6 +42,7 @@ const fromInterims = (tables: InterimTable[], views: InterimView[]): InterimSche
 	const tbls: SqliteEntities['tables'][] = tables.map((it) => ({
 		entityType: 'tables',
 		name: it.name,
+		comment: null,
 	}));
 	const columns: InterimColumn[] = tables.map((table) => {
 		return table.columns.map((it) => {

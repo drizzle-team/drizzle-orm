@@ -50,6 +50,7 @@ const column = object({
 		type: enumType(['stored', 'virtual']),
 		as: string(),
 	}).optional(),
+	comment: string().nullable().optional(),
 }).strict();
 
 const uniqueConstraint = object({
@@ -70,6 +71,7 @@ const table = object({
 	compositePrimaryKeys: record(string(), compositePK),
 	uniqueConstraints: record(string(), uniqueConstraint).default({}),
 	checkConstraints: record(string(), checkConstraint).default({}),
+	comment: string().nullable().optional(),
 }).strict();
 
 export const view = object({

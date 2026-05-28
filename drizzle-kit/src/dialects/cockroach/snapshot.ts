@@ -78,6 +78,7 @@ const column = object({
 		as: string(),
 	}).optional(),
 	identity: identitySchema.optional(),
+	comment: string().nullable().optional(),
 }).strict();
 
 const checkConstraint = object({
@@ -160,6 +161,7 @@ const table = object({
 	policies: record(string(), policy).default({}),
 	checkConstraints: record(string(), checkConstraint).default({}),
 	isRLSEnabled: boolean().default(false).optional(),
+	comment: string().nullable().optional(),
 }).strict();
 
 const schemaHash = object({

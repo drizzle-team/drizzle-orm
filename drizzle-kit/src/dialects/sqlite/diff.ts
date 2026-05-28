@@ -260,15 +260,21 @@ export const ddlDiff = async (
 	const checksAlters = updates.filter((it) => it.entityType === 'checks');
 
 	const alteredColumns = updates.filter((it) => it.entityType === 'columns').filter((it) => {
-		if (it.notNull && ddl2.pks.one({ table: it.table, columns: [it.name] })) {
-			delete it.notNull;
+		const clean = { ...it };
+
+		if (clean.notNull && ddl2.pks.one({ table: clean.table, columns: [clean.name] })) {
+			delete clean.notNull;
 		}
 
-		if (it.default && defaultsCommutative(it.default, it.$right.type)) {
-			delete it.default;
+		if (clean.default && defaultsCommutative(clean.default, clean.$right.type)) {
+			delete clean.default;
 		}
 
-		return ddl2.columns.hasDiff(it);
+		if ('comment' in clean) {
+			delete clean.comment;
+		}
+
+		return ddl2.columns.hasDiff(clean);
 	});
 	const alteredColumnsBecameGenerated = alteredColumns.filter((it) => it.generated?.to?.type === 'stored');
 	const newStoredColumns = columnsToCreate.filter((it) => it.generated && it.generated.type === 'stored');

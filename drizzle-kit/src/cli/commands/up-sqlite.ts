@@ -56,6 +56,7 @@ export const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 	for (const table of Object.values(snapshot.tables)) {
 		ddl.tables.push({
 			name: table.name,
+			comment: null,
 		});
 
 		for (const column of Object.values(table.columns)) {
@@ -69,6 +70,7 @@ export const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 				default: def,
 				autoincrement: column.autoincrement,
 				generated: column.generated ?? null,
+				comment: null,
 			});
 
 			if (column.primaryKey) {

@@ -191,6 +191,7 @@ export const fromDatabase = async (
 			schema: table.schema,
 			name: table.name,
 			isRlsEnabled: table.rlsEnabled,
+			comment: null,
 		});
 	}
 
@@ -556,6 +557,31 @@ export const fromDatabase = async (
 			throw err;
 		});
 
+	const commentsQuery = db
+		.query<{
+			objoid: number;
+			objsubid: number;
+			description: string;
+		}>(
+			`SELECT
+				objoid,
+				objsubid,
+				description
+			FROM
+				pg_catalog.pg_description
+			WHERE ${filterByTableAndViewIds ? ` objoid IN ${filterByTableAndViewIds}` : 'false'}
+				AND classoid = 'pg_class'::regclass
+			`,
+		)
+		.then((rows) => {
+			queryCallback('comments', rows, null);
+			return rows;
+		})
+		.catch((err) => {
+			queryCallback('comments', [], err);
+			throw err;
+		});
+
 	const [
 		dependList,
 		enumsList,
@@ -566,6 +592,7 @@ export const fromDatabase = async (
 		columnsList,
 		extraColumnDataTypesList,
 		defaultsList,
+		commentsList,
 	] = await Promise.all([
 		dependQuery,
 		enumsQuery,
@@ -576,6 +603,7 @@ export const fromDatabase = async (
 		columnsQuery,
 		extraColumnDataTypesQuery,
 		defaultsQuery,
+		commentsQuery,
 	]);
 
 	const groupedEnums = enumsList.reduce(
@@ -746,6 +774,10 @@ export const fromDatabase = async (
 
 		const sequence = metadata?.seqId ? (sequencesList.find((it) => it.oid === Number(metadata.seqId)) ?? null) : null;
 
+		const columnComment = commentsList.find(
+			(c) => c.objoid === column.tableId && c.objsubid === column.ordinality,
+		)?.description ?? null;
+
 		columns.push({
 			entityType: 'columns',
 			schema: table.schema,
@@ -771,7 +803,19 @@ export const fromDatabase = async (
 					cache: Number(sequence?.cacheSize ?? 1),
 				}
 				: null,
+			comment: columnComment,
 		});
+	}
+
+	// Apply table comments from pg_description
+	for (const table of filteredTables) {
+		const tableEntry = tables.find((t) => t.schema === table.schema && t.name === table.name);
+		if (tableEntry) {
+			const tableComment = commentsList.find(
+				(c) => c.objoid === table.oid && c.objsubid === 0,
+			)?.description ?? null;
+			tableEntry.comment = tableComment;
+		}
 	}
 
 	for (const pk of constraintsList.filter((it) => it.type === 'p')) {

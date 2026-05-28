@@ -273,7 +273,9 @@ const column = (
 	}
 
 	if (lowered === 'serial') {
-		return `${casing(name)}: serial(${dbColumnName({ name, casing: rawCasing })})`;
+		let res = `${casing(name)}: serial(${dbColumnName({ name, casing: rawCasing })})`;
+		res += comment !== null ? `.comment("${escapeTsString(comment)}")` : '';
+		return res;
 	}
 
 	const grammarType = typeFor(lowered);

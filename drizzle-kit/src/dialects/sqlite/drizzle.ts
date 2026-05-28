@@ -36,6 +36,7 @@ export const fromDrizzleSchema = (
 		return {
 			entityType: 'tables',
 			name: it.config.name,
+			comment: it.config.comment ?? null,
 		} satisfies Table;
 	});
 
@@ -88,6 +89,7 @@ export const fromDrizzleSchema = (
 				generated: generatedObj,
 				isUnique: !hasUniqueIndex && column.isUnique,
 				uniqueName: column.uniqueName ?? null,
+				comment: column.comment ?? null,
 			} satisfies InterimColumn;
 		});
 	}).flat();
