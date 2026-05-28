@@ -17,7 +17,7 @@ import type {
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, Placeholder, Query, SqlCommenterInput } from '~/sql/sql.ts';
+import type { ColumnsSelection, CommentInput, Placeholder, Query } from '~/sql/sql.ts';
 import { SQL, sql, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
@@ -1031,7 +1031,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	/**
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
-	comment(comment: SqlCommenterInput): MySqlSelectWithout<this, TDynamic, 'comment'> {
+	comment(comment: CommentInput): MySqlSelectWithout<this, TDynamic, 'comment'> {
 		this.config.comment = sql.comment(comment);
 		return this as any;
 	}
