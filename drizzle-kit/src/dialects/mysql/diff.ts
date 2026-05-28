@@ -235,7 +235,7 @@ export const ddlDiff = async (
 	const alterTableStatements = alters
 		.filter((it) => it.entityType === 'tables')
 		.map((it) => {
-			if (!it.comment) return null;
+			if (!it.comment || it.comment.from === it.comment.to) return null;
 			return prepareStatement('alter_table', {
 				table: it.name,
 				comment: it.comment.to,

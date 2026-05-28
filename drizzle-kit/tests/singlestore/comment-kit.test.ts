@@ -89,7 +89,7 @@ describe('singlestore comment kit tests', () => {
 			columns: ['id'],
 		});
 		const ts = ddlToTypeScript(ddl, [], 'camel', 'singlestore');
-		expect(ts.file).toContain('import { signlestoreTable');
+		expect(ts.file).toContain('import { singlestoreTable');
 		expect(ts.file).toContain('comment');
 		expect(ts.file).toContain('serial');
 		expect(ts.file).toContain('text');

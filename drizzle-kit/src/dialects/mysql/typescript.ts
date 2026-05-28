@@ -108,9 +108,9 @@ export const ddlToTypeScript = (
 	}
 
 	const imports = new Set<string>([
-		vendor === 'mysql' ? 'mysqlTable' : 'signlestoreTable',
+		vendor === 'mysql' ? 'mysqlTable' : 'singlestoreTable',
 		vendor === 'mysql' ? 'mysqlSchema' : 'singlestoreSchema',
-		vendor === 'mysql' ? 'AnyMySqlColumn' : 'AnySinsgleStoreColumn',
+		vendor === 'mysql' ? 'AnyMySqlColumn' : 'AnySingleStoreColumn',
 	]);
 
 	const viewEntities = viewColumns.map((it) => {
@@ -126,7 +126,7 @@ export const ddlToTypeScript = (
 		if (it.entityType === 'pks' && (it.columns.length > 1)) imports.add('primaryKey');
 		if (it.entityType === 'checks') imports.add('check');
 		if (it.entityType === 'views') imports.add(vendor === 'mysql' ? 'mysqlView' : 'singlestoreView');
-		if (it.entityType === 'tables' && it.comment) imports.add('comment');
+		if (it.entityType === 'tables' && it.comment !== null) imports.add('comment');
 
 		if (it.entityType === 'columns' || it.entityType === 'viewColumn') {
 			const grammarType = typeFor(it.type);
@@ -162,7 +162,7 @@ export const ddlToTypeScript = (
 		const hasFKs = filteredFKs.length > 0;
 		const hasPK = pk && pk.columns.length > 1;
 		const hasChecks = checks.length > 0;
-		const hasComment = !!table.comment;
+		const hasComment = table.comment !== null;
 		const hasCallbackParams = hasIndexes || hasFKs || hasPK || hasChecks || hasComment;
 
 		if (hasCallbackParams) {
@@ -267,7 +267,7 @@ const column = (
 		out += def ? `.default(${def})` : '';
 		out += charSet ? `.charSet("${charSet}")` : '';
 		out += collation ? `.collate("${collation}")` : '';
-		out += comment ? `.comment("${escapeTsString(comment)}")` : '';
+		out += comment !== null ? `.comment("${escapeTsString(comment)}")` : '';
 
 		return out;
 	}
@@ -297,7 +297,7 @@ const column = (
 	res += onUpdateNow ? `.onUpdateNow(${onUpdateNowFsp ? '{ fsp: ' + onUpdateNowFsp + ' }' : ''})` : '';
 	res += charSet ? `.charSet("${charSet}")` : '';
 	res += collation ? `.collate("${collation}")` : '';
-	res += comment ? `.comment("${escapeTsString(comment)}")` : '';
+	res += comment !== null ? `.comment("${escapeTsString(comment)}")` : '';
 
 	return res;
 };
@@ -350,7 +350,7 @@ const createTableColumns = (
 			const onUpdate = fk.onUpdate !== 'NO ACTION' ? fk.onUpdate?.toLowerCase() : null;
 			const params = { onDelete, onUpdate };
 
-			const typeSuffix = isCyclic(fk) ? vendor === 'mysql' ? ': AnyMySqlColumn' : ': AnySinsgleStoreColumn' : '';
+			const typeSuffix = isCyclic(fk) ? vendor === 'mysql' ? ': AnyMySqlColumn' : ': AnySingleStoreColumn' : '';
 
 			const paramsStr = objToStatement2(params);
 			if (paramsStr) {

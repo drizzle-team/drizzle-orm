@@ -1,5 +1,5 @@
 import { describe, test } from 'vitest';
-import { comment, getTableConfig, integer, sqliteTable } from '~/sqlite-core/index.ts';
+import { comment, getTableConfig, integer, sqliteTable, uniqueIndex } from '~/sqlite-core/index.ts';
 
 describe.concurrent('sqlite table comment', () => {
 	test('sqlite table with comment in extra config', ({ expect }) => {
@@ -14,6 +14,7 @@ describe.concurrent('sqlite table comment', () => {
 			id: integer('id').primaryKey(),
 			email: integer('email'),
 		}, (table) => [
+			uniqueIndex('email_idx').on(table.email),
 			comment('Application users'),
 		]);
 		expect(getTableConfig(users).comment).toBe('Application users');

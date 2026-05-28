@@ -775,7 +775,7 @@ export const fromDatabase = async (
 		const sequence = metadata?.seqId ? (sequencesList.find((it) => it.oid === Number(metadata.seqId)) ?? null) : null;
 
 		const columnComment = commentsList.find(
-			(c) => c.objoid === column.tableId && c.objsubid === column.ordinality,
+			(c) => Number(c.objoid) === Number(column.tableId) && Number(c.objsubid) === Number(column.ordinality),
 		)?.description ?? null;
 
 		columns.push({
@@ -812,7 +812,7 @@ export const fromDatabase = async (
 		const tableEntry = tables.find((t) => t.schema === table.schema && t.name === table.name);
 		if (tableEntry) {
 			const tableComment = commentsList.find(
-				(c) => c.objoid === table.oid && c.objsubid === 0,
+				(c) => Number(c.objoid) === Number(table.oid) && Number(c.objsubid) === 0,
 			)?.description ?? null;
 			tableEntry.comment = tableComment;
 		}
