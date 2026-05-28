@@ -3,7 +3,6 @@ import { toCamelCase } from 'drizzle-orm/casing';
 import '../../@types/utils';
 import type { Casing } from '../../cli/validations/common';
 import { assertUnreachable } from '../../utils';
-import { escapeForTsLiteral } from '../utils';
 import type {
 	CheckConstraint,
 	Column,
@@ -93,7 +92,6 @@ export const ddlToTypeScript = (
 			imports.add('foreignKey');
 			if (it.columns.length > 1 || isCyclic(it) || isSelf(it)) imports.add('type AnySQLiteColumn');
 		}
-		if (it.entityType === 'tables' && it.comment !== null) imports.add('comment');
 	}
 
 	for (const it of Array.from(columnTypes.values())) {
@@ -124,14 +122,12 @@ export const ddlToTypeScript = (
 			return it.columns.length > 1;
 		});
 
-		const hasComment = table.comment !== null;
 		if (
 			indexes.length > 0
 			|| filteredFKs.length > 0
 			|| pk && pk.columns.length > 1
 			|| uniqies.length > 0
 			|| checks.length > 0
-			|| hasComment
 		) {
 			statement += ',\n(table) => [';
 			statement += createTableIndexes(table.name, indexes, casing);
@@ -139,7 +135,6 @@ export const ddlToTypeScript = (
 			statement += pk && pk.columns.length > 1 ? createTablePK(pk, casing) : '';
 			statement += createTableUniques(uniqies, casing);
 			statement += createTableChecks(checks, casing);
-			statement += table.comment !== null ? `\tcomment(${escapeForTsLiteral(table.comment)}),\n` : '';
 			statement += ']';
 		}
 		statement += ');';
@@ -229,7 +224,6 @@ const column = (
 	name: string,
 	defaultValue: Column['default'],
 	casing: Casing,
-	comment: Column['comment'],
 ) => {
 	let lowered = type;
 
@@ -241,11 +235,9 @@ const column = (
 
 		const defaultStatement = def ? `.default(${def})` : '';
 		const opts = options ? `${JSON.stringify(options)}` : '';
-		let out = `${withCasing(name, casing)}: ${drizzleType}${
-			customType ? `({ dataType: () => '${customType}' })` : ''
-		}(${dbColumnName({ name, casing, withMode: Boolean(opts) })}${opts})${defaultStatement}`;
-		out += comment !== null ? `.comment(${escapeForTsLiteral(comment)})` : '';
-		return out;
+		return `${withCasing(name, casing)}: ${drizzleType}${customType ? `({ dataType: () => '${customType}' })` : ''}(${
+			dbColumnName({ name, casing, withMode: Boolean(opts) })
+		}${opts})${defaultStatement}`;
 	}
 
 	// TODO: ??
@@ -261,7 +253,6 @@ const column = (
 		}
 
 		out += defaultValue ? `.default("${mapColumnDefault(defaultValue)}")` : '';
-		out += comment !== null ? `.comment(${escapeForTsLiteral(comment)})` : '';
 		return out;
 	}
 
@@ -279,7 +270,7 @@ const createTableColumns = (
 		const isPrimary = pk && pk.columns.length === 1 && pk.columns[0] === it.name && pk.table === it.table;
 
 		statement += '\t';
-		statement += column(it.type, it.name, it.default, casing, it.comment);
+		statement += column(it.type, it.name, it.default, casing);
 		statement += isPrimary ? `.primaryKey(${it.autoincrement ? '{ autoIncrement: true }' : ''})` : '';
 		statement += it.notNull && !isPrimary ? '.notNull()' : '';
 		statement += it.generated

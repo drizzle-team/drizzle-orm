@@ -4,9 +4,7 @@ import { nameForPk, nameForUnique } from './grammar';
 
 export const createDDL = () => {
 	return create({
-		tables: {
-			comment: 'string?',
-		},
+		tables: {},
 		columns: {
 			table: 'required',
 			type: 'string',
@@ -17,7 +15,6 @@ export const createDDL = () => {
 				type: ['stored', 'virtual'],
 				as: 'string',
 			},
-			comment: 'string?',
 		},
 		indexes: {
 			table: 'required',
@@ -108,7 +105,6 @@ export type TableFull = {
 	uniques: UniqueConstraint[];
 	pk: PrimaryKey | null;
 	fks: ForeignKey[];
-	comment: string | null;
 };
 
 export const tableFromDDL = (name: string, ddl: SQLiteDDL): TableFull => {
@@ -119,7 +115,6 @@ export const tableFromDDL = (name: string, ddl: SQLiteDDL): TableFull => {
 	const uniques = ddl.uniques.list(filter);
 	const checks = ddl.checks.list(filter);
 	const indexes = ddl.indexes.list(filter);
-	const table = ddl.tables.one({ name });
 	return {
 		name,
 		columns,
@@ -128,7 +123,6 @@ export const tableFromDDL = (name: string, ddl: SQLiteDDL): TableFull => {
 		uniques,
 		checks,
 		indexes,
-		comment: table?.comment ?? null,
 	};
 };
 

@@ -538,7 +538,6 @@ test('pull after migrate with custom migrations table #1', async () => {
 		{
 			entityType: 'tables',
 			name: 'users',
-			comment: null,
 		},
 	]);
 });
@@ -575,7 +574,6 @@ test('pull after migrate with custom migrations table #2', async () => {
 		{
 			entityType: 'tables',
 			name: 'users',
-			comment: null,
 		},
 	]);
 });

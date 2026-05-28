@@ -366,7 +366,6 @@ export const fromDatabase = async (
 	].map((it) => ({
 		entityType: 'tables',
 		name: it,
-		comment: null,
 	}));
 
 	const pks: PrimaryKey[] = [];
@@ -458,7 +457,6 @@ export const fromDatabase = async (
 			generated,
 			isUnique: !!unique,
 			uniqueName: unique?.name ?? null,
-			comment: null,
 		});
 	}
 

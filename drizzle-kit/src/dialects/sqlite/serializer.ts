@@ -152,9 +152,8 @@ export function generateLatestSnapshot(
 		fks: ForeignKey[];
 		uniques: UniqueConstraint[];
 		checks: { table: string; value: string; name?: string }[];
-		comment: string | null;
 	}) => {
-		ddl.tables.push({ name: table.name, comment: table.comment ?? null });
+		ddl.tables.push({ name: table.name });
 		for (const column of table.columns) push(ddl.columns, column);
 		for (const index of table.indexes) push(ddl.indexes, index);
 		if (table.pk) push(ddl.pks, table.pk);
