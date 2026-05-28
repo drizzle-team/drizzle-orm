@@ -1,7 +1,13 @@
 import { type Casing, getCasingFn } from '~/casing.ts';
 import type { BuildColumns, BuildExtraConfigColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
-import { type Comment, Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
+import {
+	type Comment,
+	type InferTableColumnsModels,
+	Table,
+	type TableConfig as TableConfigBase,
+	type UpdateTableConfig,
+} from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
 import { type CockroachColumnsBuilders, getCockroachColumnBuilders } from './columns/all.ts';
 import type {
