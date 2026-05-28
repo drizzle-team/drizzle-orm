@@ -2,6 +2,38 @@ import type { Simplify } from '../../utils';
 import type { DefaultConstraint } from './ddl';
 import type { DropColumn, JsonStatement, RenameColumn } from './statements';
 
+const escapeString = (value: string) => value.replaceAll("'", "''");
+
+const extendedProperty = (
+	schema: string,
+	table: string,
+	column: string | null,
+	comment: string | null,
+	isUpdate: boolean,
+) => {
+	const schemaPart = `N'${escapeString(schema)}'`;
+	const tablePart = `N'${escapeString(table)}'`;
+
+	if (comment === null) {
+		const proc = 'sp_dropextendedproperty';
+		if (column) {
+			return `EXEC ${proc} @name = N'MS_Description', @level0type = N'SCHEMA', @level0name = ${schemaPart}, @level1type = N'TABLE', @level1name = ${tablePart}, @level2type = N'COLUMN', @level2name = N'${
+				escapeString(column)
+			}';`;
+		}
+		return `EXEC ${proc} @name = N'MS_Description', @level0type = N'SCHEMA', @level0name = ${schemaPart}, @level1type = N'TABLE', @level1name = ${tablePart};`;
+	}
+
+	const proc = isUpdate ? 'sp_updateextendedproperty' : 'sp_addextendedproperty';
+	const value = escapeString(comment);
+	if (column) {
+		return `EXEC ${proc} @name = N'MS_Description', @value = N'${value}', @level0type = N'SCHEMA', @level0name = ${schemaPart}, @level1type = N'TABLE', @level1name = ${tablePart}, @level2type = N'COLUMN', @level2name = N'${
+			escapeString(column)
+		}';`;
+	}
+	return `EXEC ${proc} @name = N'MS_Description', @value = N'${value}', @level0type = N'SCHEMA', @level0name = ${schemaPart}, @level1type = N'TABLE', @level1name = ${tablePart};`;
+};
+
 export const convertor = <
 	TType extends JsonStatement['type'],
 	TStatement extends Extract<JsonStatement, { type: TType }>,
@@ -75,7 +107,20 @@ const createTable = convertor('create_table', (st) => {
 
 	statement += `\n);`;
 	statement += `\n`;
-	return statement;
+
+	const statements = [statement];
+
+	if (st.table.comment !== null) {
+		statements.push(extendedProperty(schema, name, null, st.table.comment, false));
+	}
+
+	for (const column of columns) {
+		if (column.comment !== null) {
+			statements.push(extendedProperty(schema, name, column.name, column.comment, false));
+		}
+	}
+
+	return statements;
 });
 
 const dropTable = convertor('drop_table', (st) => {
@@ -128,7 +173,13 @@ const addColumn = convertor('add_column', (st) => {
 	if (!generated) statement += ` ${column.type}`;
 	statement += `${identityStatement}${generatedStatement}${notNullStatement}${defaultStatement};`;
 
-	return statement;
+	const statements = [statement];
+
+	if (column.comment !== null) {
+		statements.push(extendedProperty(schema, table, name, column.comment, false));
+	}
+
+	return statements;
 });
 
 const dropColumn = convertor('drop_column', (st) => {
@@ -159,10 +210,14 @@ const alterColumn = convertor('alter_column', (st) => {
 });
 
 const recreateColumn = convertor('recreate_column', (st) => {
-	return [
-		dropColumn.convert({ column: st.diff.$left }) as string,
-		addColumn.convert({ column: st.diff.$right, defaults: [], isPK: false }) as string,
+	const addColumnResult = addColumn.convert({ column: st.diff.$right, defaults: [], isPK: false });
+	const dropResult = dropColumn.convert({ column: st.diff.$left });
+	const statements = [
+		...(typeof dropResult === 'string' ? [dropResult] : dropResult),
+		...(typeof addColumnResult === 'string' ? [addColumnResult] : addColumnResult),
 	];
+
+	return statements;
 });
 
 const recreateIdentityColumn = convertor('recreate_identity_column', (st) => {
@@ -189,7 +244,8 @@ const recreateIdentityColumn = convertor('recreate_identity_column', (st) => {
 	);
 
 	const defaultsToCreate: DefaultConstraint[] = constraintsToCreate.filter((it) => it.entityType === 'defaults');
-	statements.push(addColumn.convert({ column: column.$right, defaults: defaultsToCreate, isPK: false }) as string);
+	const addColumnResult = addColumn.convert({ column: column.$right, defaults: defaultsToCreate, isPK: false });
+	statements.push(...(typeof addColumnResult === 'string' ? [addColumnResult] : addColumnResult));
 
 	if (shouldTransferData) {
 		statements.push(
@@ -497,6 +553,14 @@ const renameDefault = convertor('recreate_default', (st) => {
 	return [dropDefault.convert({ default: from }) as string, addDefault.convert({ default: to }) as string];
 });
 
+const commentOnTable = convertor('comment_on_table', (st) => {
+	return extendedProperty(st.schema, st.table, null, st.comment, st.from !== null);
+});
+
+const commentOnColumn = convertor('comment_on_column', (st) => {
+	return extendedProperty(st.schema, st.table, st.column, st.comment, st.from !== null);
+});
+
 const convertors = [
 	createTable,
 	dropTable,
@@ -536,6 +600,8 @@ const convertors = [
 	addDefault,
 	dropDefault,
 	renameDefault,
+	commentOnTable,
+	commentOnColumn,
 ];
 
 export function fromJson(

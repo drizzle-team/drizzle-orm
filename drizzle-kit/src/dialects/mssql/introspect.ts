@@ -167,6 +167,7 @@ ORDER BY lower(views.name);
 			entityType: 'tables',
 			schema: table.schema,
 			name: table.name,
+			comment: null,
 		});
 	}
 
@@ -358,12 +359,34 @@ WHERE obj.type in ('U', 'V')
 	let checksCount = 0;
 	let viewsCount = 0;
 
+	const extendedPropertiesQuery = await db.query<{
+		major_id: number;
+		minor_id: number;
+		value: string;
+	}>(`
+SELECT
+	major_id,
+	minor_id,
+	CAST(value AS nvarchar(max)) AS value
+FROM sys.extended_properties
+WHERE class = 1
+  AND name = 'MS_Description'
+  ${filterByTableIds ? 'AND major_id IN ' + filterByTableIds : ''}
+`).then((rows) => {
+			queryCallback('extended_properties', rows, null);
+			return rows;
+		}).catch((error) => {
+			queryCallback('extended_properties', [], error);
+			throw error;
+		});
+
 	const [
 		checkConstraintList,
 		defaultsConstraintList,
 		fkCostraintList,
 		pksUniquesAndIdxsList,
 		columnsList,
+		extendedPropertiesList,
 	] = await Promise
 		.all([
 			checkConstraintQuery,
@@ -371,6 +394,7 @@ WHERE obj.type in ('U', 'V')
 			fkCostraintQuery,
 			pksUniquesAndIdxsQuery,
 			columnsQuery,
+			extendedPropertiesQuery,
 		]);
 
 	columnsCount = columnsList.length;
@@ -426,6 +450,10 @@ WHERE obj.type in ('U', 'V')
 			return it.table_id === table.object_id && it.column_id === column.column_id;
 		}) ?? null;
 
+		const columnComment = extendedPropertiesList.find(
+			(ep) => ep.major_id === table.object_id && ep.minor_id === column.column_id,
+		)?.value ?? null;
+
 		columns.push({
 			entityType: 'columns',
 			schema: schema.schema_name,
@@ -449,6 +477,7 @@ WHERE obj.type in ('U', 'V')
 					seed: column.seed_value,
 				}
 				: null,
+			comment: columnComment,
 		});
 	}
 
@@ -704,6 +733,17 @@ WHERE obj.type in ('U', 'V')
 	progressCallback('fks', foreignKeysCount, 'done');
 	progressCallback('checks', checksCount, 'done');
 	progressCallback('views', viewsCount, 'done');
+
+	// Apply table comments from extended_properties
+	for (const table of filteredTables) {
+		const tableEntry = tables.find((t) => t.schema === table.schema && t.name === table.name);
+		if (tableEntry) {
+			const tableComment = extendedPropertiesList.find(
+				(ep) => ep.major_id === table.object_id && ep.minor_id === 0,
+			)?.value ?? null;
+			tableEntry.comment = tableComment;
+		}
+	}
 
 	return {
 		schemas,

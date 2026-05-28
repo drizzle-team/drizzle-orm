@@ -223,6 +223,23 @@ export interface RecreateDefault {
 	to: DefaultConstraint;
 }
 
+export interface CommentOnTable {
+	type: 'comment_on_table';
+	schema: string;
+	table: string;
+	comment: string | null;
+	from: string | null;
+}
+
+export interface CommentOnColumn {
+	type: 'comment_on_column';
+	schema: string;
+	table: string;
+	column: string;
+	comment: string | null;
+	from: string | null;
+}
+
 export type JsonStatement =
 	| CreateSchema
 	| DropSchema
@@ -261,7 +278,9 @@ export type JsonStatement =
 	| RenameUnique
 	| CreateDefault
 	| DropDefault
-	| RecreateDefault;
+	| RecreateDefault
+	| CommentOnTable
+	| CommentOnColumn;
 
 export const prepareStatement = <
 	TType extends JsonStatement['type'],

@@ -2,6 +2,7 @@ import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import { assertUnreachable } from 'src/utils';
 import type { Casing } from '../../cli/validations/common';
+import { escapeForTsLiteral } from '../utils';
 import type {
 	CheckConstraint,
 	Column,
@@ -165,6 +166,9 @@ export const ddlToTypeScript = (
 		if (x.entityType === 'uniques') imports.add('unique');
 		if (x.entityType === 'checks') imports.add('check');
 		if (x.entityType === 'views' && x.schema === 'dbo') imports.add('mssqlView');
+		if (
+			(x.entityType === 'tables' || x.entityType === 'columns') && x.comment !== null
+		) imports.add('comment');
 
 		if (x.entityType === 'columns' || x.entityType === 'viewColumns') {
 			const grammarType = typeFor(x.type);
@@ -206,7 +210,8 @@ export const ddlToTypeScript = (
 			|| filteredFKs.length > 0
 			|| table.pk
 			|| table.uniques.length > 0
-			|| table.checks.length > 0;
+			|| table.checks.length > 0
+			|| table.comment !== null;
 
 		if (hasCallback) {
 			statement += ', ';
@@ -216,6 +221,9 @@ export const ddlToTypeScript = (
 			statement += createTableIndexes(table.name, table.indexes, casing);
 			statement += createTableUniques(table.uniques, casing);
 			statement += createTableChecks(table.checks);
+			statement += table.comment !== null
+				? `\tcomment(${escapeForTsLiteral(table.comment)}),\n`
+				: '';
 			statement += ']';
 		}
 
@@ -302,6 +310,7 @@ const column = (
 	name: string,
 	casing: Casing,
 	def: DefaultConstraint['default'],
+	comment: Column['comment'],
 ) => {
 	const lowered = type.toLowerCase();
 
@@ -315,6 +324,7 @@ const column = (
 		inspect(optionsToSet)
 	})`;
 	res += defToSet ? defToSet.startsWith('.') ? defToSet : `.default(${defToSet})` : '';
+	res += comment !== null ? `.comment(${escapeForTsLiteral(comment)})` : '';
 	return res;
 };
 
@@ -329,6 +339,7 @@ const createViewColumns = (
 			it.type,
 			it.name,
 			casing,
+			null,
 			null,
 		);
 		statement += '\t';
@@ -372,6 +383,7 @@ const createTableColumns = (
 			it.name,
 			casing,
 			def ? def.default : null,
+			it.comment,
 		);
 		const pk = primaryKey && primaryKey.columns.length === 1 && primaryKey.columns[0] === it.name
 			? primaryKey

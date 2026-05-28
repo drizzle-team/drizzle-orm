@@ -5,7 +5,7 @@ import { defaultNameForPK, defaultNameForUnique } from './grammar';
 export const createDDLV1 = () => {
 	return create({
 		schemas: {},
-		tables: { schema: 'required' },
+		tables: { schema: 'required', comment: 'string?' },
 		columns: {
 			schema: 'required',
 			table: 'required',
@@ -19,6 +19,7 @@ export const createDDLV1 = () => {
 				increment: 'number',
 				seed: 'number',
 			},
+			comment: 'string?',
 		},
 		pks: {
 			schema: 'required',
@@ -77,7 +78,7 @@ export const createDDLV1 = () => {
 export const createDDL = () => {
 	return create({
 		schemas: {},
-		tables: { schema: 'required' },
+		tables: { schema: 'required', comment: 'string?' },
 		columns: {
 			schema: 'required',
 			table: 'required',
@@ -91,6 +92,7 @@ export const createDDL = () => {
 				increment: 'number',
 				seed: 'number',
 			},
+			comment: 'string?',
 		},
 		pks: {
 			schema: 'required',
@@ -212,6 +214,7 @@ export type TableFull = {
 	checks: CheckConstraint[];
 	indexes: Index[];
 	defaults: DefaultConstraint[];
+	comment: string | null;
 };
 
 export const fullTableFromDDL = (table: Table, ddl: MssqlDDL): TableFull => {
