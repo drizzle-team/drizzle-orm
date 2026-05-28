@@ -232,6 +232,17 @@ export const ddlDiff = async (
 		return prepareStatement('rename_table', { from: it.from.name, to: it.to.name });
 	});
 
+	const alterTableStatements = alters
+		.filter((it) => it.entityType === 'tables')
+		.map((it) => {
+			if (!it.comment) return null;
+			return prepareStatement('alter_table', {
+				table: it.name,
+				comment: it.comment.to,
+			});
+		})
+		.filter((it) => it !== null);
+
 	const renameColumnsStatement = columnRenames.map((it) => {
 		return prepareStatement('rename_column', {
 			table: it.to.table,
@@ -481,6 +492,7 @@ export const ddlDiff = async (
 			...dropFKStatements,
 			...dropTableStatements,
 			...renameTableStatements,
+			...alterTableStatements,
 
 			...renameColumnsStatement,
 

@@ -126,6 +126,7 @@ export const ddlToTypeScript = (
 		if (it.entityType === 'pks' && (it.columns.length > 1)) imports.add('primaryKey');
 		if (it.entityType === 'checks') imports.add('check');
 		if (it.entityType === 'views') imports.add(vendor === 'mysql' ? 'mysqlView' : 'singlestoreView');
+		if (it.entityType === 'tables' && it.comment) imports.add('comment');
 
 		if (it.entityType === 'columns' || it.entityType === 'viewColumn') {
 			const grammarType = typeFor(it.type);
@@ -161,7 +162,8 @@ export const ddlToTypeScript = (
 		const hasFKs = filteredFKs.length > 0;
 		const hasPK = pk && pk.columns.length > 1;
 		const hasChecks = checks.length > 0;
-		const hasCallbackParams = hasIndexes || hasFKs || hasPK || hasChecks;
+		const hasComment = !!table.comment;
+		const hasCallbackParams = hasIndexes || hasFKs || hasPK || hasChecks || hasComment;
 
 		if (hasCallbackParams) {
 			statement += ',\n';
@@ -170,6 +172,7 @@ export const ddlToTypeScript = (
 			statement += createTableIndexes(indexes, withCasing);
 			statement += createTableFKs(filteredFKs, withCasing);
 			statement += createTableChecks(checks);
+			statement += hasComment ? `\tcomment("${escapeTsString(table.comment ?? '')}"),\n` : '';
 			statement += ']';
 		}
 
@@ -237,6 +240,10 @@ const isSelf = (fk: ForeignKey) => {
 	return fk.table === fk.tableTo;
 };
 
+const escapeTsString = (value: string) =>
+	value.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('\n', '\\n').replaceAll('\r', '\\r')
+		.replaceAll('\t', '\\t');
+
 const column = (
 	type: string,
 	name: string,
@@ -248,6 +255,7 @@ const column = (
 	onUpdateNowFsp: Column['onUpdateNowFsp'],
 	collation: Column['collation'],
 	charSet: Column['charSet'],
+	comment: Column['comment'],
 	vendor: 'mysql' | 'singlestore',
 ) => {
 	let lowered = type.startsWith('enum(') ? type : type.toLowerCase();
@@ -259,6 +267,7 @@ const column = (
 		out += def ? `.default(${def})` : '';
 		out += charSet ? `.charSet("${charSet}")` : '';
 		out += collation ? `.collate("${collation}")` : '';
+		out += comment ? `.comment("${escapeTsString(comment)}")` : '';
 
 		return out;
 	}
@@ -286,6 +295,7 @@ const column = (
 	res += onUpdateNow ? `.onUpdateNow(${onUpdateNowFsp ? '{ fsp: ' + onUpdateNowFsp + ' }' : ''})` : '';
 	res += charSet ? `.charSet("${charSet}")` : '';
 	res += collation ? `.collate("${collation}")` : '';
+	res += comment ? `.comment("${escapeTsString(comment)}")` : '';
 
 	return res;
 };
@@ -315,6 +325,7 @@ const createTableColumns = (
 			it.onUpdateNowFsp,
 			it.collation,
 			it.charSet,
+			it.comment,
 			vendor,
 		);
 
@@ -370,7 +381,7 @@ const createViewColumns = (
 
 	for (const it of columns) {
 		statement += '\n';
-		statement += column(it.type, it.name, casing, rawCasing, null, false, false, null, null, null, vendor);
+		statement += column(it.type, it.name, casing, rawCasing, null, false, false, null, null, null, null, vendor);
 		statement += it.notNull ? '.notNull()' : '';
 		statement += ',\n';
 	}

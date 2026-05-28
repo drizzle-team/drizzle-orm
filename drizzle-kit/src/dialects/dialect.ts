@@ -439,6 +439,7 @@ function validate(data: any, schema: Config, deep = false): boolean {
 			if (!data[k].every((e) => typeof e === 'string')) return false;
 		} else if (typeof schema[k] === 'string') {
 			const isNullable = schema[k].endsWith('?');
+			if (data[k] === undefined && isNullable) continue;
 			if (data[k] === null && !isNullable) return false;
 			if (data[k] !== null && typeof data[k] !== removeQuestionMark(schema[k])) return false;
 		} else if (Array.isArray(schema[k])) {
