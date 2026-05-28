@@ -11,7 +11,7 @@ import type {
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import { type Placeholder, type Query, type SQL, sql, type SqlCommenterInput, type SQLWrapper } from '~/sql/sql.ts';
+import { type CommentInput, type Placeholder, type Query, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import type { ValueOrArray } from '~/utils.ts';
@@ -166,7 +166,7 @@ export class MySqlDeleteBase<
 	/**
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
-	comment(comment: SqlCommenterInput): MySqlDeleteWithout<this, TDynamic, 'comment'> {
+	comment(comment: CommentInput): MySqlDeleteWithout<this, TDynamic, 'comment'> {
 		this.config.comment = sql.comment(comment);
 		return this as any;
 	}
