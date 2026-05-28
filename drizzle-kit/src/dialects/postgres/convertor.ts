@@ -209,6 +209,25 @@ const createTableConvertor = convertor('create_table', (st) => {
 	statement += `\n`;
 	statements.push(statement);
 
+	if (st.table.comment !== null) {
+		statements.push(commentOnTableConvertor.convert({
+			schema: st.table.schema,
+			table: st.table.name,
+			comment: st.table.comment,
+		}) as string);
+	}
+
+	for (const column of columns) {
+		if (column.comment !== null) {
+			statements.push(commentOnColumnConvertor.convert({
+				schema: st.table.schema,
+				table: st.table.name,
+				column: column.name,
+				comment: column.comment,
+			}) as string);
+		}
+	}
+
 	if (policies && policies.length > 0 || isRlsEnabled) {
 		statements.push(toggleRlsConvertor.convert({
 			isRlsEnabled: true,
@@ -304,7 +323,20 @@ const addColumnConvertor = convertor('add_column', (st) => {
 
 	const generatedStatement = column.generated ? ` GENERATED ALWAYS AS (${column.generated.as}) STORED` : '';
 
-	return `ALTER TABLE ${tableNameWithSchema} ADD COLUMN "${name}" ${fixedType}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${identityStatement};`;
+	const statements = [
+		`ALTER TABLE ${tableNameWithSchema} ADD COLUMN "${name}" ${fixedType}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${identityStatement};`,
+	];
+
+	if (column.comment !== null) {
+		statements.push(commentOnColumnConvertor.convert({
+			schema,
+			table,
+			column: name,
+			comment: column.comment,
+		}) as string);
+	}
+
+	return statements;
 });
 
 const dropColumnConvertor = convertor('drop_column', (st) => {
@@ -332,9 +364,10 @@ const recreateColumnConvertor = convertor('recreate_column', (st) => {
 
 	const r = st.diff.$right;
 	const drop = dropColumnConvertor.convert({ column: r }) as string;
-	const add = addColumnConvertor.convert({ column: r, isPK: st.isPK, isCompositePK: false }) as string;
+	const add = addColumnConvertor.convert({ column: r, isPK: st.isPK, isCompositePK: false });
+	const addStatements = typeof add === 'string' ? [add] : add;
 
-	return [drop, add];
+	return [drop, ...addStatements];
 });
 
 const recreateIndexConvertor = convertor('recreate_index', (st) => {
@@ -1038,6 +1071,30 @@ const toggleRlsConvertor = convertor('alter_rls', (st) => {
 	return `ALTER TABLE ${tableNameWithSchema} ${isRlsEnabled ? 'ENABLE' : 'DISABLE'} ROW LEVEL SECURITY;`;
 });
 
+const commentOnTableConvertor = convertor('comment_on_table', (st) => {
+	const { schema, table, comment } = st;
+	const tableNameWithSchema = schema !== 'public'
+		? `"${schema}"."${table}"`
+		: `"${table}"`;
+
+	if (comment === null || comment === undefined) {
+		return `COMMENT ON TABLE ${tableNameWithSchema} IS NULL;`;
+	}
+	return `COMMENT ON TABLE ${tableNameWithSchema} IS '${escapeSingleQuotes(comment)}';`;
+});
+
+const commentOnColumnConvertor = convertor('comment_on_column', (st) => {
+	const { schema, table, column, comment } = st;
+	const tableNameWithSchema = schema !== 'public'
+		? `"${schema}"."${table}"`
+		: `"${table}"`;
+
+	if (comment === null || comment === undefined) {
+		return `COMMENT ON COLUMN ${tableNameWithSchema}."${column}" IS NULL;`;
+	}
+	return `COMMENT ON COLUMN ${tableNameWithSchema}."${column}" IS '${escapeSingleQuotes(comment)}';`;
+});
+
 const convertors = [
 	createSchemaConvertor,
 	dropSchemaConvertor,
@@ -1097,6 +1154,8 @@ const convertors = [
 	alterPolicyConvertor,
 	recreatePolicy,
 	toggleRlsConvertor,
+	commentOnTableConvertor,
+	commentOnColumnConvertor,
 ];
 
 export function fromJson(

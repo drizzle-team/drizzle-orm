@@ -182,6 +182,7 @@ export const fromDatabase = async (
 			schema: trimChar(table.schema, "'"),
 			name: table.name,
 			isRlsEnabled: false,
+			comment: null,
 		});
 	}
 
@@ -548,6 +549,7 @@ export const fromDatabase = async (
 			typeSchema: null,
 			dimensions,
 			default: defaultValue,
+			comment: null,
 			unique: !!unique,
 			uniqueName: unique ? unique.name : null,
 			uniqueNullsNotDistinct: unique?.definition.includes('NULLS NOT DISTINCT') ?? false,

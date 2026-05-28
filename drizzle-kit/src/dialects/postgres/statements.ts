@@ -256,6 +256,21 @@ export interface JsonAlterCheck {
 	diff: DiffEntities['checks'];
 }
 
+export interface JsonCommentOnTable {
+	type: 'comment_on_table';
+	schema: string;
+	table: string;
+	comment: string | null;
+}
+
+export interface JsonCommentOnColumn {
+	type: 'comment_on_column';
+	schema: string;
+	table: string;
+	column: string;
+	comment: string | null;
+}
+
 export interface JsonAddPrimaryKey {
 	type: 'add_pk';
 	pk: PrimaryKey;
@@ -443,7 +458,9 @@ export type JsonStatement =
 	| JsonRenameView
 	| JsonDropValueFromEnum
 	| JsonAlterCheck
-	| JsonRecreateIndex;
+	| JsonRecreateIndex
+	| JsonCommentOnTable
+	| JsonCommentOnColumn;
 
 export const prepareStatement = <
 	TType extends JsonStatement['type'],

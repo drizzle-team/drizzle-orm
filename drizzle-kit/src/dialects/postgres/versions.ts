@@ -61,6 +61,7 @@ export const upToV8 = (
 			schema,
 			name: table.name,
 			isRlsEnabled: isRlsEnabled,
+			comment: null,
 		});
 
 		for (const column of Object.values(table.columns)) {
@@ -88,6 +89,7 @@ export const upToV8 = (
 				notNull: column.notNull,
 				typeSchema: column.typeSchema ?? null, // TODO: if public - empty or missing?
 				dimensions,
+				comment: null,
 				generated: column.generated ?? null,
 				identity: column.identity
 					? {

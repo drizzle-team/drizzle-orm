@@ -1037,6 +1037,25 @@ export const ddlDiff = async (
 		}
 	}
 
+	const columnsToRecreate = columnAlters.filter((it) => it.generated && it.generated.to !== null).filter((it) => {
+		// if push and definition changed
+		return !(it.generated?.to && it.generated.from && mode === 'push');
+	});
+
+	const jsonCommentOnColumns = columnAlters
+		.filter((it) => it.comment && it.comment.from !== it.comment.to)
+		.filter((it) =>
+			!columnsToRecreate.some((c) => c.schema === it.schema && c.table === it.table && c.name === it.name)
+		)
+		.map((it) => {
+			return prepareStatement('comment_on_column', {
+				schema: it.schema,
+				table: it.table,
+				column: it.name,
+				comment: it.comment?.to ?? null,
+			});
+		});
+
 	const jsonAlterColumns = columnAlters.filter((it) => !(it.generated && it.generated.to !== null))
 		.filter((it) => {
 			// if column is of type enum we're about to recreate - we will reset default anyway
@@ -1058,6 +1077,10 @@ export const ddlDiff = async (
 				delete it.notNull;
 			}
 
+			if (it.comment) {
+				delete it.comment;
+			}
+
 			return ddl2.columns.hasDiff(it);
 		})
 		.map((it) => {
@@ -1076,6 +1099,17 @@ export const ddlDiff = async (
 				wasEnum,
 				wasSerial,
 				toSerial,
+			});
+		});
+
+	const jsonCommentOnTables = alters
+		.filter((it) => it.entityType === 'tables' && it.comment && it.comment.from !== it.comment.to)
+		.map((it) => {
+			const table = it as { schema: string; name: string; comment: { from: string | null; to: string | null } };
+			return prepareStatement('comment_on_table', {
+				schema: table.schema,
+				table: table.name,
+				comment: table.comment.to ?? null,
 			});
 		});
 
@@ -1171,11 +1205,6 @@ export const ddlDiff = async (
 		createViews.push(prepareStatement('create_view', { view: it }));
 	});
 
-	const columnsToRecreate = columnAlters.filter((it) => it.generated && it.generated.to !== null).filter((it) => {
-		// if push and definition changed
-		return !(it.generated?.to && it.generated.from && mode === 'push');
-	});
-
 	const jsonRecreateColumns = columnsToRecreate.map((it) => {
 		const indexes = ddl2.indexes.list({ table: it.table, schema: it.schema }).filter((index) =>
 			index.columns.some((column) => trimChar(column.value, '`') === it.name)
@@ -1242,6 +1271,7 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonAlterRlsStatements);
 	jsonStatements.push(...jsonSetTableSchemas);
 	jsonStatements.push(...jsonRenameColumnsStatements);
+	jsonStatements.push(...jsonCommentOnTables);
 
 	jsonStatements.push(...jsonDropUniqueConstraints);
 	jsonStatements.push(...jsonDropCheckConstraints);
@@ -1263,6 +1293,7 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonDropColumnsStatemets);
 	jsonStatements.push(...jsonAlteredPKs);
 	jsonStatements.push(...jsonAlterColumns);
+	jsonStatements.push(...jsonCommentOnColumns);
 
 	jsonStatements.push(...jsonRecreateIndex);
 

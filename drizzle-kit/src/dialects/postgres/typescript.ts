@@ -291,6 +291,7 @@ export const ddlToTypeScript = (
 		if (x.entityType === 'enums' && x.schema === 'public') imports.add('pgEnum');
 		if (x.entityType === 'policies') imports.add('pgPolicy');
 		if (x.entityType === 'roles') imports.add('pgRole');
+		if ((x.entityType === 'tables' || x.entityType === 'columns') && x.comment !== null) imports.add('comment');
 	}
 
 	const enumStatements = ddl.enums.list().map((it) => {
@@ -382,7 +383,8 @@ export const ddlToTypeScript = (
 			|| table.policies.length > 0
 			|| (table.pk && table.pk.columns.length > 1)
 			|| table.uniques.length > 0
-			|| table.checks.length > 0;
+			|| table.checks.length > 0
+			|| table.comment !== null;
 
 		if (hasCallback) {
 			statement += ', ';
@@ -394,6 +396,9 @@ export const ddlToTypeScript = (
 			statement += createTableUniques(table.uniques, casing);
 			statement += createTablePolicies(table.policies, casing, rolesNameToTsKey);
 			statement += createTableChecks(table.checks, casing);
+			statement += table.comment !== null
+				? `\tcomment(${escapeForTsLiteral(table.comment)}),\n`
+				: '';
 			statement += ']';
 		}
 		statement += ');';
@@ -594,6 +599,9 @@ const createTableColumns = (
 		if (it.notNull && !it.identity && !pk) columnStatement += '.notNull()';
 		if (identity) columnStatement += generateIdentityParams(it);
 		if (generated) columnStatement += `.generatedAlwaysAs(sql\`${generated.as}\`)`;
+		if (it.comment !== null) {
+			columnStatement += `.comment(${escapeForTsLiteral(it.comment)})`;
+		}
 
 		statement += '\t';
 		statement += columnStatement;

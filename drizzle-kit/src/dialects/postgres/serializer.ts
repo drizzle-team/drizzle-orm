@@ -159,6 +159,7 @@ export function generateLatestSnapshot(
 					name: table.name,
 					schema: table.schema,
 					isRlsEnabled: table.isRlsEnabled,
+					comment: table.comment ?? null,
 				});
 				for (const column of table.columns) {
 					ddl.columns.push(column);
@@ -708,6 +709,19 @@ export function generateLatestSnapshot(
 				break;
 			case 'alter_view':
 				replace(ddl.views, statement.diff.$left, statement.view);
+				break;
+
+			case 'comment_on_table':
+				ddl.tables.update({
+					where: { schema: statement.schema, name: statement.table },
+					set: { comment: statement.comment },
+				});
+				break;
+			case 'comment_on_column':
+				ddl.columns.update({
+					where: { schema: statement.schema, table: statement.table, name: statement.column },
+					set: { comment: statement.comment },
+				});
 				break;
 
 			default:

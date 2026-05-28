@@ -234,6 +234,7 @@ export const fromDatabase = async (
 			schema: trimChar(table.schema, "'"),
 			name: table.name,
 			isRlsEnabled: table.rlsEnabled,
+			comment: null,
 		});
 	}
 	progressCallback('tables', tables.length, 'done');
@@ -602,6 +603,27 @@ export const fromDatabase = async (
 		throw err;
 	});
 
+	const commentsQuery = db.query<{
+		objoid: number | string;
+		objsubid: number | string;
+		description: string;
+	}>(`
+		SELECT
+			objoid,
+			objsubid,
+			description
+		FROM
+			pg_catalog.pg_description
+		WHERE ${filterByTableAndViewIds ? ` objoid IN ${filterByTableAndViewIds}` : 'false'}
+			AND classoid = 'pg_class'::regclass
+	`).then((rows) => {
+		queryCallback('comments', rows, null);
+		return rows;
+	}).catch((err) => {
+		queryCallback('comments', [], err);
+		throw err;
+	});
+
 	const [
 		dependList,
 		enumsList,
@@ -612,6 +634,7 @@ export const fromDatabase = async (
 		privilegesList,
 		constraintsList,
 		columnsList,
+		commentsList,
 	] = await Promise
 		.all([
 			dependQuery,
@@ -623,6 +646,7 @@ export const fromDatabase = async (
 			privilegesQuery,
 			constraintsQuery,
 			columnsQuery,
+			commentsQuery,
 		]);
 
 	const groupedEnums = enumsList.reduce((acc, it) => {
@@ -819,6 +843,10 @@ export const fromDatabase = async (
 			? sequencesList.find((it) => Number(it.oid) === Number(metadata.seqId)) ?? null
 			: null;
 
+		const columnComment = commentsList.find(
+			(c) => Number(c.objoid) === Number(column.tableId) && Number(c.objsubid) === Number(column.ordinality),
+		)?.description ?? null;
+
 		columns.push({
 			entityType: 'columns',
 			schema: table.schema,
@@ -847,9 +875,21 @@ export const fromDatabase = async (
 					cache: Number(parseIdentityProperty(sequence?.cacheSize ?? 1)),
 				}
 				: null,
+			comment: columnComment,
 		});
 	}
 	progressCallback('columns', columns.length, 'done');
+
+	// Apply comments from pg_description after Promise.all
+	for (const table of filteredTables) {
+		const tableEntry = tables.find((t) => t.schema === trimChar(table.schema, "'") && t.name === table.name);
+		if (tableEntry) {
+			const tableComment = commentsList.find(
+				(c) => Number(c.objoid) === Number(table.oid) && Number(c.objsubid) === 0,
+			)?.description ?? null;
+			tableEntry.comment = tableComment;
+		}
+	}
 
 	for (const unique of constraintsList.filter((it) => it.type === 'u')) {
 		const table = tablesList.find((it) => Number(it.oid) === Number(unique.tableId))!;
