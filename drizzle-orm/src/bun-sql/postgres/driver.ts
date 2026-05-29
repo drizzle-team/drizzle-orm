@@ -43,7 +43,7 @@ function construct<
 		logger,
 		cache: config.cache,
 	});
-	const db = new BunSQLDatabase(dialect, session, relations, false, true) as BunSQLDatabase<TRelations>;
+	const db = new BunSQLDatabase(dialect, session, relations, false, false) as BunSQLDatabase<TRelations>;
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {
