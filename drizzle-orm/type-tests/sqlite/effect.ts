@@ -1,12 +1,12 @@
-import type { PgClient } from '@effect/sql-pg/PgClient';
+import type { SqliteClient } from '@effect/sql-sqlite-node/SqliteClient';
 import type * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/unstable/sql/SqlError';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import type { EffectDrizzleQueryError, MigratorInitError } from '~/effect-core/errors.ts';
-import type { EffectPgDatabase } from '~/effect-postgres/index.ts';
-import { make, makeWithDefaults } from '~/effect-postgres/index.ts';
-import { migrate } from '~/effect-postgres/migrator.ts';
+import type { EffectSQLiteNodeDatabase } from '~/effect-sqlite-node/index.ts';
+import { make, makeWithDefaults } from '~/effect-sqlite-node/index.ts';
+import { migrate } from '~/effect-sqlite-node/migrator.ts';
 import type { EmptyRelations } from '~/relations.ts';
 import { eq } from '~/sql/expressions/index.ts';
 import { cities, users } from './tables.ts';
@@ -21,7 +21,7 @@ type AsEffect<T> = T extends Effect.Yieldable<infer Self, any, any, any> ? Self 
 	Expect<
 		Equal<
 			DbEffect,
-			Effect.Effect<EffectPgDatabase<EmptyRelations> & { $client: PgClient }, never, PgClient>
+			Effect.Effect<EffectSQLiteNodeDatabase<EmptyRelations> & { $client: SqliteClient }, never, SqliteClient>
 		>
 	>;
 }
@@ -34,15 +34,17 @@ type AsEffect<T> = T extends Effect.Yieldable<infer Self, any, any, any> ? Self 
 		Equal<
 			DbEffect,
 			Effect.Effect<
-				EffectPgDatabase<EmptyRelations> & { $client: PgClient },
+				EffectSQLiteNodeDatabase<EmptyRelations> & { $client: SqliteClient },
 				never,
-				import('~/effect-core/logger.ts').EffectLogger | import('~/cache/core/cache-effect.ts').EffectCache | PgClient
+				| import('~/effect-core/logger.ts').EffectLogger
+				| import('~/cache/core/cache-effect.ts').EffectCache
+				| SqliteClient
 			>
 		>
 	>;
 }
 
-declare const db: EffectPgDatabase<Record<string, never>>;
+declare const db: EffectSQLiteNodeDatabase<Record<string, never>>;
 
 {
 	const selectAll = db.select().from(users);
@@ -54,7 +56,7 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 {
 	const selectColumns = db.select({
 		id: users.id,
-		name: users.text,
+		name: users.name,
 	}).from(users);
 	type SelectColumnsEffect = AsEffect<typeof selectColumns>;
 
@@ -91,23 +93,23 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 {
 	const insertOne = db.insert(users).values({
 		homeCity: 1,
+		serialNotNull: 1,
 		class: 'A',
 		age1: 25,
 		enumCol: 'a',
-		arrayCol: ['test'],
 	});
 	type InsertOneEffect = AsEffect<typeof insertOne>;
 
-	Expect<Equal<InsertOneEffect, Effect.Effect<readonly never[], EffectDrizzleQueryError, never>>>;
+	Expect<Equal<InsertOneEffect, Effect.Effect<unknown, EffectDrizzleQueryError, never>>>;
 }
 
 {
 	const insertReturning = db.insert(users).values({
 		homeCity: 1,
+		serialNotNull: 1,
 		class: 'A',
 		age1: 25,
 		enumCol: 'a',
-		arrayCol: ['test'],
 	}).returning();
 	type InsertReturningEffect = AsEffect<typeof insertReturning>;
 
@@ -119,31 +121,31 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 {
 	const insertReturningColumns = db.insert(users).values({
 		homeCity: 1,
+		serialNotNull: 1,
 		class: 'A',
 		age1: 25,
 		enumCol: 'a',
-		arrayCol: ['test'],
-	}).returning({ id: users.id, text: users.text });
+	}).returning({ id: users.id, name: users.name });
 	type InsertReturningColumnsEffect = AsEffect<typeof insertReturningColumns>;
 
 	Expect<
 		Equal<
 			InsertReturningColumnsEffect,
-			Effect.Effect<{ id: number; text: string | null }[], EffectDrizzleQueryError, never>
+			Effect.Effect<{ id: number; name: string | null }[], EffectDrizzleQueryError, never>
 		>
 	>;
 }
 
 {
-	const updateAll = db.update(users).set({ text: 'updated' });
+	const updateAll = db.update(users).set({ name: 'updated' });
 	type UpdateAllEffect = AsEffect<typeof updateAll>;
 
-	Expect<Equal<UpdateAllEffect, Effect.Effect<readonly never[], EffectDrizzleQueryError, never>>>;
+	Expect<Equal<UpdateAllEffect, Effect.Effect<unknown, EffectDrizzleQueryError, never>>>;
 }
 
 {
 	const updateWithReturning = db.update(users)
-		.set({ text: 'updated' })
+		.set({ name: 'updated' })
 		.where(eq(users.id, 1))
 		.returning();
 	type UpdateWithReturningEffect = AsEffect<typeof updateWithReturning>;
@@ -160,7 +162,7 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 	const deleteAll = db.delete(users);
 	type DeleteAllEffect = AsEffect<typeof deleteAll>;
 
-	Expect<Equal<DeleteAllEffect, Effect.Effect<readonly never[], EffectDrizzleQueryError, never>>>;
+	Expect<Equal<DeleteAllEffect, Effect.Effect<unknown, EffectDrizzleQueryError, never>>>;
 }
 
 {
@@ -201,11 +203,43 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 }
 
 {
-	const prepared = db.select().from(users).prepare('get_users');
+	const prepared = db.select().from(users).prepare();
 	const executed = prepared.execute();
-	type ExecutedEffect = AsEffect<typeof executed>;
+	type ExecutedEffect = typeof executed;
 
 	Expect<Equal<ExecutedEffect, Effect.Effect<(typeof users.$inferSelect)[], EffectDrizzleQueryError, never>>>;
+}
+
+{
+	const prepared = db.select().from(users).prepare();
+	const executed = prepared.all();
+	type ExecutedEffect = typeof executed;
+
+	Expect<Equal<ExecutedEffect, Effect.Effect<(typeof users.$inferSelect)[], EffectDrizzleQueryError, never>>>;
+}
+
+{
+	const prepared = db.select().from(users).prepare();
+	const executed = prepared.get();
+	type ExecutedEffect = typeof executed;
+
+	Expect<Equal<ExecutedEffect, Effect.Effect<(typeof users.$inferSelect) | undefined, EffectDrizzleQueryError, never>>>;
+}
+
+{
+	const prepared = db.select().from(users).prepare();
+	const executed = prepared.values();
+	type ExecutedEffect = typeof executed;
+
+	Expect<Equal<ExecutedEffect, Effect.Effect<any[][], EffectDrizzleQueryError, never>>>;
+}
+
+{
+	const prepared = db.select().from(users).prepare();
+	const executed = prepared.run();
+	type ExecutedEffect = typeof executed;
+
+	Expect<Equal<ExecutedEffect, Effect.Effect<unknown, EffectDrizzleQueryError, never>>>;
 }
 
 {
