@@ -21,7 +21,7 @@ import type { SchemaError as SqliteSchemaError } from '../dialects/sqlite/ddl';
 import type { JsonStatement as StatementSqlite } from '../dialects/sqlite/statements';
 import type { Named, NamedWithSchema } from '../dialects/utils';
 import { assertUnreachable } from '../utils';
-import { isJsonMode } from './context';
+import { outputFormat } from './context';
 import { highlightSQL } from './highlighter';
 import { withStyle } from './validations/outputs';
 
@@ -36,8 +36,13 @@ export const err = (msg: string) => {
 export const errText = (msg: string) => `${chalk.bold.red('Error')} ${msg}`;
 
 export const humanLog = (...args: Parameters<typeof console.log>) => {
-	if (isJsonMode()) return;
+	if (outputFormat() === 'json') return;
 	console.log(...args);
+};
+
+export const humanError = (...args: Parameters<typeof console.error>) => {
+	if (outputFormat() === 'json') return;
+	console.error(...args);
 };
 
 export const humanizeKind = (kind: string): string => kind.replaceAll('_', ' ');
@@ -143,7 +148,7 @@ function formatOptionChanges(
 }
 
 export const explain = (
-	dialect: 'postgres' | 'mysql' | 'sqlite' | 'singlestore' | 'mssql' | 'common' | 'gel' | 'cockroach',
+	dialect: 'postgres' | 'mysql' | 'sqlite' | 'singlestore' | 'mssql' | 'common' | 'cockroach',
 	grouped: {
 		jsonStatement: StatementPostgres | StatementSqlite | StatementMysql | StatementMssql | StatementCockroach;
 		sqlStatements: string[];
@@ -1768,8 +1773,19 @@ export class MigrateProgress extends TaskView {
 		this.on('detach', () => clearInterval(this.timeout));
 	}
 
-	render(status: 'pending' | 'done' | 'rejected'): string {
-		if (status === 'pending' || status === 'rejected') {
+	render(status: 'pending' | 'done' | 'rejected', error?: Error): string {
+		if (status === 'rejected') {
+			if (error?.cause) {
+				console.log('\n');
+				console.log(error.cause); // render full object
+			}
+
+			return `[${chalk.red('✗')}] Error during migration:\n${
+				chalk.red(error ? error.message : 'unknown error occured')
+			}\n`;
+		}
+
+		if (status === 'pending') {
 			const spin = this.spinner.value();
 			return `[${spin}] applying migrations...`;
 		}
@@ -1807,12 +1823,23 @@ export class ProgressView extends TaskView {
 		}
 	}
 
-	render(status: 'pending' | 'done' | 'rejected'): string {
-		if (isJsonMode()) {
+	render(status: 'pending' | 'done' | 'rejected', error?: Error): string {
+		if (outputFormat() === 'json') {
 			return '';
 		}
 
-		if (status === 'pending' || status === 'rejected') {
+		if (status === 'rejected') {
+			if (error?.cause) {
+				console.log('\n');
+				console.log(error.cause); // render full object
+			}
+
+			return `[${chalk.red('✗')}] ${this.progressText}\n${
+				chalk.red(error ? error.message : 'unknown error occured')
+			}\n`;
+		}
+
+		if (status === 'pending') {
 			const spin = this.spinner.value();
 			return `[${spin}] ${this.progressText}\n`;
 		}

@@ -16,7 +16,7 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/mssql/
 import { prepareSnapshot } from '../../dialects/mssql/serializer';
 import type { JsonStatement } from '../../dialects/mssql/statements';
 import { prepareOutFolder } from '../../utils/utils-node';
-import { isJsonMode } from '../context';
+import { outputFormat } from '../context';
 import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import { withStyle } from '../validations/outputs';
@@ -25,10 +25,10 @@ import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
-	const { out: outFolder, filenames, casing } = config;
-	const json = isJsonMode();
+	const { out: outFolder, filenames } = config;
+	const json = outputFormat() === 'json';
 	const { snapshots } = prepareOutFolder(outFolder);
-	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, filenames, casing);
+	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, filenames);
 
 	if (config.custom) {
 		return writeResult({
@@ -60,7 +60,7 @@ export const handle = async (config: GenerateConfig) => {
 		'default',
 	);
 
-	if (json && config.hints.hasMissingHints()) {
+	if (config.hints.hasMissingHints()) {
 		return config.hints.toResponse();
 	}
 
@@ -117,7 +117,7 @@ export const handleExport = async (config: ExportConfig) => {
 
 	// TODO: do we want to respect config filter here?
 	// cc: @AleksandrSherman
-	const { schema, errors } = fromDrizzleSchema(res, config.casing, () => true);
+	const { schema, errors } = fromDrizzleSchema(res, () => true);
 
 	if (errors.length > 0) {
 		throw new CommandOutputCliError('generate', errors.map((it) => mssqlSchemaError(it)).join('\n'), {

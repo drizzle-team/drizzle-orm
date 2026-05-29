@@ -1,17 +1,17 @@
 # Drizzle Kit JSON contract
 
-This document describes the machine-readable contract for `drizzle-kit` commands that support `--json`.
+This document describes the machine-readable contract for `drizzle-kit` commands that support `--output json`.
 
 It is written for tools and services that call Drizzle Kit programmatically.
 
 ## Supported commands
 
-`--json` is supported on:
+`--output json` is supported on:
 
-- `drizzle-kit generate --json`
-- `drizzle-kit push --json`
+- `drizzle-kit generate --output json`
+- `drizzle-kit push --output json`
 
-When `--json` is enabled, callers should treat `stdout` as the JSON channel. Each command invocation writes a single JSON object to `stdout`.
+When `--output json` is set, callers should treat `stdout` as the JSON channel. Each command invocation writes a single JSON object to `stdout`.
 
 ## Programmatic API
 
@@ -36,211 +36,21 @@ What the SDK gives you over the CLI:
 
 - Typed inputs (`GenerateOptions`, `PushOptions`) — your editor narrows option names and types
 - Typed responses (`GenerateJsonResponse`, `PushJsonResponse`) — the union discriminator on `status` lets TypeScript narrow into the `ok`, `no_changes`, `missing_hints`, and `error` branches
-- No `--json` flag handling, no stdout parsing — the response object is what the JSON mode would have printed
+- No `--output json` flag handling, no stdout parsing — the response object is what the JSON mode would have printed
 
 Cross-reference map:
 
 - All `status` values — see [Response statuses](#response-statuses)
-- All `kind` values inside `unresolved` — see [Hints flow](#hints-flow) and the kinds catalog under [status: "missing_hints"](#status-missing_hints)
+- All `kind` values inside `unresolved`, identifier shapes, and `reason` semantics — see [HINTS.md](./HINTS.md)
 - All `error.code` values — see [Error codes](#error-codes)
 - The `--explain` envelope (SDK callers receive the same payload when `explain: true` is passed) — see [`--explain` in JSON mode](#--explain-in-json-mode)
 - The recommended retry-with-hints flow (the SDK equivalent) — see [Recommended automation flow](#recommended-automation-flow)
 
 For a full end-to-end example including `missing_hints` handling, see [SDK.md](./SDK.md).
 
-## Hints flow
+## Hints
 
-Some schema changes are ambiguous (rename vs. create+delete) or unsafe to apply automatically (drops on non-empty data, NOT NULL on nullable columns, etc.). In interactive mode, Drizzle Kit prompts the user. In JSON mode there are no prompts: callers either supply hints up front, or receive a `status: "missing_hints"` response and reply with hints.
-
-For example, renaming a column in the schema:
-
-```diff
- export const users = pgTable('users', {
-   id: serial('id').primaryKey(),
--  full_name: text('full_name'),
-+  display_name: text('display_name'),
- });
-```
-
-From the diff alone, Drizzle Kit cannot tell whether `display_name` is the renamed `full_name` or an unrelated new column whose addition coincides with `full_name`'s removal — hence `missing_hints`:
-
-```sh
-$ drizzle-kit push --json
-{
-  "status": "missing_hints",
-  "unresolved": [
-    {
-      "type": "rename_or_create",
-      "kind": "column",
-      "entity": ["public", "users", "display_name"]
-    }
-  ]
-}
-
-$ drizzle-kit push --json --hints '[{"type":"rename","kind":"column","from":["public","users","full_name"],"to":["public","users","display_name"]}]'
-{ "status": "ok", "dialect": "postgresql" }
-```
-
-A caller's `Hint` resolves a runtime-emitted `MissingHint` by reusing its `kind` and `entity` (and, for `rename_or_create`, choosing a `rename` vs `create` resolution).
-
-| Unresolved item (`MissingHint`) | Caller responds with (`Hint`) | What's reused |
-|---------------------------------|------------------------------|---------------|
-| `{ type: "rename_or_create", kind, entity }` | `{ type: "rename", kind, from, to }` **or** `{ type: "create", kind, entity }` | Same `kind`. For `create`: same `entity`. For `rename`: pick `from` from a deleted entity (same `kind`); the unresolved item's `entity` becomes `to`. |
-| `{ type: "confirm_data_loss", kind, entity, reason, [reason_details] }` | `{ type: "confirm_data_loss", kind, entity }` | Same `kind` and `entity`. `reason` and `reason_details` are runtime-only metadata — callers do not include them. |
-
-Available `kind` values, identifier shapes, and `reason` semantics are catalogued under [`status: "missing_hints"`](#status-missing_hints).
-
-### Providing hints
-
-Hints can be passed either inline or from a file:
-
-- `--hints '<json array>'`
-- `--hints-file ./hints.json`
-
-Both forms use the same JSON array format.
-
-### `rename` / `create`
-
-`rename` tells Drizzle Kit a change is one logical entity moving from `from` to `to`. `create` tells Drizzle Kit `entity` is newly created — if the diff also contains a removed entity of the same `kind`, the outcome stays create+delete instead of being interpreted as a rename.
-
-Available `kind` values, identifier shapes, and which `MissingHint.type` each can resolve are listed under [`status: "missing_hints"` → Catalog: kinds](#catalog-kinds-in-unresolved-items).
-
-#### Rename a table
-
-```json
-[
-  {
-    "type": "rename",
-    "kind": "table",
-    "from": ["public", "orders_old"],
-    "to": ["public", "orders"]
-  }
-]
-```
-
-#### Rename a column
-
-Treat `display_name` as the same column previously named `full_name`:
-
-```json
-[
-  {
-    "type": "rename",
-    "kind": "column",
-    "from": ["public", "users", "full_name"],
-    "to": ["public", "users", "display_name"]
-  }
-]
-```
-
-#### Create + delete instead of rename
-
-Treat `display_name` as a truly new column. If `full_name` is also removed in the same diff, this means Drizzle Kit should create the new column and keep the old column as a separate delete instead of interpreting the change as a rename:
-
-```json
-[
-  {
-    "type": "create",
-    "kind": "column",
-    "entity": ["public", "users", "display_name"]
-  }
-]
-```
-
-#### Declare that a new schema is truly new
-
-```json
-[
-  {
-    "type": "create",
-    "kind": "schema",
-    "entity": ["tenant_a"]
-  }
-]
-```
-
-### `confirm_data_loss`
-
-Approves a potentially destructive step — dropping a non-empty entity, adding a `NOT NULL` constraint to a column that currently contains nulls, adding a `UNIQUE` constraint to columns with duplicates, or changing an existing column's SQL type.
-
-Available `kind` values and the `reason` each can fire under are catalogued under [`status: "missing_hints"`](#status-missing_hints) (see [Catalog: kinds](#catalog-kinds-in-unresolved-items) and [Catalog: reasons](#catalog-reasons-confirm_data_loss-only)).
-
-#### Confirm a destructive action
-
-```json
-[
-  {
-    "type": "confirm_data_loss",
-    "kind": "table",
-    "entity": ["public", "users"]
-  }
-]
-```
-
-#### `column`
-
-`type_change` is the only `reason` that carries `reason_details`. Example `MissingHint` payload (as emitted in `unresolved`):
-
-```json
-{
-  "type": "confirm_data_loss",
-  "kind": "column",
-  "entity": ["public", "users", "name"],
-  "reason": "type_change",
-  "reason_details": { "from": "varchar(100)", "to": "varchar(50)" }
-}
-```
-
-Formal hint shapes are declared via the [`Hint` type](./src/cli/hints.ts).
-
-### Proactive hints
-
-Hints do not need to be provided only after receiving `missing_hints`.
-
-Callers can provide hints proactively when they already know the intended outcome. This is useful when:
-
-- replaying a migration workflow in CI
-- applying a previously reviewed rename plan
-- approving known data-loss steps in automation
-- retrying the same command with stable schema transitions
-
-For example, when a caller knows ahead of time that a table is being renamed (`users` → `members`):
-
-```json
-[
-  {
-    "type": "rename",
-    "kind": "table",
-    "from": ["public", "users"],
-    "to": ["public", "members"]
-  }
-]
-```
-
-Or that a column is being renamed (`full_name` → `display_name`):
-
-```json
-[
-  {
-    "type": "rename",
-    "kind": "column",
-    "from": ["public", "users", "full_name"],
-    "to": ["public", "users", "display_name"]
-  }
-]
-```
-
-### Redundant hints are safe
-
-Callers may provide more hints than the current command run needs.
-
-If a hint does not match an actual unresolved step in the current diff, it is ignored.
-
-That means it is safe to:
-
-- send a larger precomputed hint set
-- reuse the same hint file across retries
-- include hints for entities that are not part of the current run
+The hint vocabulary — the rename-vs-create disambiguation, `confirm_data_loss` approvals, the `kind` / `reason` catalogs, and the identifier-tuple formats — is output-agnostic and documented in [HINTS.md](./HINTS.md). In JSON mode there are no prompts: callers either supply hints up front, or receive a `status: "missing_hints"` response (exit code 2) and reply with hints via `--hints` / `--hints-file`. The `missing_hints` envelope shape is documented in [`status: "missing_hints"`](#status-missing_hints) below; the `invalid_hints` error path is in [Error codes](#error-codes).
 
 ## Response statuses
 
@@ -255,7 +65,7 @@ Depending on the command, this can mean:
 
 Examples:
 
-`generate --json` success (non-explain):
+`generate --output json` success (non-explain):
 
 ```json
 {
@@ -265,7 +75,7 @@ Examples:
 }
 ```
 
-`generate --json --explain` and `push --json --explain` success (non-empty diff):
+`generate --output json --explain` and `push --output json --explain` success (non-empty diff):
 
 ```json
 {
@@ -276,7 +86,7 @@ Examples:
 }
 ```
 
-`push --json` success (non-explain):
+`push --output json` success (non-explain):
 
 ```json
 {
@@ -291,7 +101,7 @@ Examples:
 
 Used when a command succeeds and there is nothing to do.
 
-This includes `generate --json`, `generate --json --explain`, `push --json`, and `push --json --explain` when the diff is empty.
+This includes `generate --output json`, `generate --output json --explain`, `push --output json`, and `push --output json --explain` when the diff is empty.
 
 Current JSON-mode examples:
 
@@ -330,60 +140,9 @@ Example response (one item of each `MissingHint.type`):
 
 When this response is emitted, the process exits with code `2`.
 
-#### Catalog: kinds in unresolved items
+Under `--output text` (non-TTY) the same unresolved decisions render as a human-readable report instead — see [OUTPUT_MODES.md](./OUTPUT_MODES.md).
 
-Tuple shape per `kind` is listed in [Identifier formats](#identifier-formats); these tables enumerate the kind set and per-dialect applicability only.
-
-Unmarked kinds apply to all dialects (`postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore`); footnotes call out dialect-restricted ones.
-
-`MissingHint.type: "rename_or_create"` carries one of these `kind` values:
-
-- `table`
-- `column`
-- `default`
-- `view`
-- `check`
-- `index`
-- `unique`
-- `primary_key`
-- `foreign key`
-- `schema`¹
-- `enum`²
-- `sequence`²
-- `policy`²
-- `role`²
-- `privilege`²
-
-¹ `postgresql`, `mssql`, `cockroach` only.
-
-² `postgresql`, `cockroach` only.
-
-`MissingHint.type: "confirm_data_loss"` carries one of these `kind` values:
-
-- `table`
-- `column`
-- `add_not_null`
-- `schema`¹
-- `view`²
-- `primary_key`³
-- `add_unique`³
-
-¹ `postgresql`, `mssql`, `cockroach` only.
-
-² `postgresql`, `cockroach` only — materialized-view drops only; regular-view drops do not emit `confirm_data_loss`.
-
-³ `postgresql`, `mysql`, `mssql`, `cockroach`, `singlestore` only (no `sqlite`/`turso`).
-
-#### Catalog: reasons (`confirm_data_loss` only)
-
-`MissingHint` items of `type: "confirm_data_loss"` carry a `reason` field naming why approval is needed.
-
-| `reason` | applicable `kind`s | explanation | `reason_details` |
-|----------|--------------------|-------------|------------------|
-| `non_empty` | `table`, `column`, `schema`, `view`, `primary_key` | Runtime probed the target entity and found at least one row of existing data. Approval authorizes the DDL to proceed and acknowledges that existing rows will be lost. | — |
-| `nulls_present` | `add_not_null` | Runtime probed the target column and found at least one `NULL`. The `NOT NULL` DDL would fail; approval authorizes the runtime to attempt the DDL anyway, which still requires the caller to backfill (or accept the failure). | — |
-| `duplicates_present` | `add_unique` | Runtime probed the target column(s) and found at least one duplicate value. The `UNIQUE` DDL would fail; approval authorizes the runtime to attempt the DDL anyway, which still requires the caller to deduplicate (or accept the failure). | — |
-| `type_change` | `column` | An existing column's SQL type would change via `alter_column` on MySQL or SingleStore. Approval authorizes the type change. `from`/`to` carry dialect-native column-type spellings (e.g. `varchar(100)`, `int`, `decimal(10,4)`) sourced from the underlying `JsonStatement`. | `{ from: string, to: string }` |
+The available `kind` values (per `MissingHint.type`), their per-dialect applicability, the `reason` semantics for `confirm_data_loss`, and the identifier-tuple formats are catalogued in [HINTS.md](./HINTS.md#catalog-kinds-in-unresolved-items).
 
 ### `status: "error"`
 
@@ -547,24 +306,9 @@ Examples:
 }
 ```
 
-## Identifier formats
-
-Each hint identifies an entity using an `entity`, `from`, or `to` tuple. The arity depends on the entity kind.
-
-| Format | Used by `kind` | Example |
-|--------|----------------|---------|
-| `[name]` | `schema`, `role` | `["tenant_a"]` |
-| `[schema, name]` | `table`, `enum`, `sequence`, `view` | `["public", "users"]` |
-| `[schema, table, name]` | `column`, `default`, `policy`, `check`, `index`, `unique`, `primary_key`, `foreign key`, `add_not_null`¹, `add_unique`¹ ² | `["public", "users", "email"]` |
-| `[grantor, grantee, schema, table, type]` | `privilege` | `["postgres", "app_user", "public", "users", "select"]` |
-
-¹ `confirm_data_loss` only.
-
-² For `add_unique` (`confirm_data_loss`), the third slot is the **constraint name** (e.g. `users_email_unique`), not a column name. This disambiguates composite unique constraints that share a leading column.
-
 ## `--explain` in JSON mode
 
-`--explain --json` returns a dry-run result as structured JSON when the diff is non-empty.
+`--explain` with `--output json` returns a dry-run result as structured JSON when the diff is non-empty.
 
 `push` and `generate` use the same payload shape:
 
@@ -577,7 +321,7 @@ Each hint identifies an entity using an `entity`, `from`, or `to` tuple. The ari
 }
 ```
 
-When the diff is empty, `push --json --explain` and `generate --json --explain` return `status: "no_changes"` instead of this payload.
+When the diff is empty, `push --output json --explain` and `generate --output json --explain` return `status: "no_changes"` instead of this payload.
 
 ### `statements`
 
@@ -617,11 +361,11 @@ Example:
 
 ## Recommended automation flow
 
-1. Run the command with `--json`.
+1. Run the command with `--output json`.
 2. If the response is `ok`, continue.
 3. If the response is `no_changes`, stop successfully.
 4. If the response is `missing_hints`, inspect `unresolved`.
 5. Build the required hints.
 6. Retry the same command with `--hints` or `--hints-file`.
 
-For programmatic callers, prefer hints over `--force`. The `--force` flag remains available for interactive (non-`--json`) push UX where a human user is at the prompt; in `--json` mode, all warnings must be resolved by supplying hints via `--hints` or `--hints-file`.
+For programmatic callers, prefer hints over `--force`. The `--force` flag remains available for interactive (non-JSON) push UX where a human user is at the prompt; in `--output json` mode, all warnings must be resolved by supplying hints via `--hints` or `--hints-file`.

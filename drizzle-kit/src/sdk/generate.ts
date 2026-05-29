@@ -4,9 +4,9 @@ import { errorToEnvelope } from '../cli/errors';
 import { prepareGenerate, runGenerate } from '../cli/schema';
 
 export const generate = (opts: GenerateOptions) =>
-	runWithCliContext({ json: true }, async () => {
+	runWithCliContext({ output: 'json', interactive: false }, async () => {
 		try {
-			const cfg = await prepareGenerate({ ...opts, json: true } as Parameters<typeof prepareGenerate>[0]);
+			const cfg = await prepareGenerate({ ...opts, output: 'json' as const } as Parameters<typeof prepareGenerate>[0]);
 			return await runGenerate(cfg);
 		} catch (e) {
 			return errorToEnvelope(e);

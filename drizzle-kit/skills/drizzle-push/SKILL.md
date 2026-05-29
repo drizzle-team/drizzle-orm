@@ -7,19 +7,19 @@ metadata:
 
 # Drizzle push
 
-The CLI flag `--json` and the SDK `push(...)` function emit the same discriminated-union envelope, and the envelope (not the stdout text) is what the agent decodes. Pass `--json` whenever an agent calls the CLI — without it the CLI drops into interactive mode and prompts the user, which doesn't work in non-TTY contexts. The SDK runs in JSON mode internally with no flag needed at the call site. Push is the live-DB counterpart to `generate`: `generate` is offline and writes a migration SQL file to disk, `push` connects to the database and executes the diff against it. The `drizzle-generate` skill covers the offline path; the `drizzle-migrations` skill covers the day-to-day workflow that combines them.
+The CLI flag `--output json` and the SDK `push(...)` function emit the same discriminated-union envelope, and the envelope (not the stdout text) is what the agent decodes. Output format and interactivity are separate axes: `--output json` selects the machine-readable envelope and is always non-interactive, so pass it whenever an agent calls the CLI. Under the default `--output text` the CLI prompts only when stdin is a TTY; in a non-TTY it prints the missing-decisions report and exits 2 (it never hangs prompting). See the [drizzle-output-modes](../drizzle-output-modes/SKILL.md) skill for the two modes and the interactivity rule. The SDK runs in JSON mode internally with no flag needed at the call site. Push is the live-DB counterpart to `generate`: `generate` is offline and writes a migration SQL file to disk, `push` connects to the database and executes the diff against it. The `drizzle-generate` skill covers the offline path; the `drizzle-migrations` skill covers the day-to-day workflow that combines them.
 
 ## CLI form
 
 ```bash
-drizzle-kit push --json [--config drizzle.config.ts] [--dialect <d>] [--schema <path>] [--explain] [--hints '<json>' | --hints-file ./hints.json]
+drizzle-kit push --output json [--config drizzle.config.ts] [--dialect <d>] [--schema <path>] [--explain] [--hints '<json>' | --hints-file ./hints.json]
 ```
 
 Flag surface:
 
 - `--config` — path to `drizzle.config.ts` (default: `drizzle.config.ts` at CWD). Push reads `dbCredentials` from the config; there is no CLI flag for the credentials object as a whole.
 - `--dialect`, `--schema` — override the corresponding `defineConfig` fields.
-- `--json` — switches stdout to one JSON line carrying the envelope. Required for agent / CI / scripted contexts: without it the CLI runs interactively and prompts the user.
+- `--output json` — switches stdout to one JSON line carrying the envelope and is always non-interactive. Use it for agent / CI / scripted contexts. Under the default `--output text` the CLI prompts only on a TTY and otherwise prints the missing-decisions report (exit 2).
 - `--explain` — dry-run mode. Returns planned SQL statements and computed hints instead of executing them against the database.
 - `--hints` — inline JSON array of hint resolutions (see the `drizzle-hints` skill).
 - `--hints-file` — same payload as `--hints`, read from a JSON file. Use for long hint sets.
@@ -39,7 +39,7 @@ export default defineConfig({
 ```
 
 ```bash
-drizzle-kit push --json --config drizzle.config.ts
+drizzle-kit push --output json --config drizzle.config.ts
 # → {"status":"ok","dialect":"postgresql"}
 ```
 
@@ -53,7 +53,7 @@ import { push } from 'drizzle-kit';
 const response = await push({
   dialect: 'postgresql',
   schema: './src/db/schema.ts',
-  dbCredentials: { url: process.env.DATABASE_URL! },
+  url: process.env.DATABASE_URL!,
 });
 
 if (response.status === 'ok') {
@@ -67,9 +67,9 @@ if (response.status === 'ok') {
 }
 ```
 
-The SDK is the public-surface entry point (`Object.keys(require('drizzle-kit'))` returns `['defineConfig', 'generate', 'push']`). It always runs in JSON mode internally — no `--json` flag needed at the call site — and returns the same envelope the CLI prints. In SDK form `dbCredentials` is passed inline; no `drizzle.config.ts` file is required. Narrow on `response.status` to extract typed branches:
+The SDK is the public-surface entry point. It always runs in JSON mode internally — no `--output json` flag needed at the call site — and returns the same envelope the CLI prints. In SDK form the credential fields are passed flat on the call (`url`, or the broken-out `host`/`port`/`user`/`password`/`database` set) — there is no `dbCredentials` wrapper and no `drizzle.config.ts` file is required. Narrow on `response.status` to extract typed branches:
 
-- `'ok'` → `response.dialect` (or `response.dialect`, `response.statements`, `response.hints` in explain mode).
+- `'ok'` → `response.dialect` (plus `response.statements`, `response.hints` in explain mode).
 - `'no_changes'` → `response.dialect`.
 - `'missing_hints'` → `response.unresolved` (array of items).
 - `'error'` → `response.error.code` plus per-code metadata.
@@ -84,7 +84,7 @@ Push's `'ok'` envelope is `{ status, dialect }` — no `migration_path`, since p
 
 ## Connection
 
-Push requires a live database connection. The `dbCredentials` object carries it — in CLI form via `drizzle.config.ts`, in SDK form inline on the call. The shape varies per dialect; common fields are `url` (preferred when the driver supports it) or the broken-out `host` / `port` / `user` / `password` / `database` set, plus `ssl` for TLS and `authToken` for turso/libsql.
+Push requires a live database connection. In `drizzle.config.ts` (CLI form) the credentials nest under a `dbCredentials` object; in SDK form the same fields are passed flat on the `push(...)` call — no `dbCredentials` wrapper. The shape varies per dialect; common fields are `url` (preferred when the driver supports it) or the broken-out `host` / `port` / `user` / `password` / `database` set, plus `ssl` for TLS and `authToken` for turso/libsql. The per-dialect shapes below show the config (`dbCredentials`) form; in the SDK, drop the wrapper and pass these fields directly on the call.
 
 ```typescript
 // postgresql / cockroach
@@ -122,20 +122,20 @@ Per-dialect quirks (postgresql, mysql, sqlite, mssql, cockroach, singlestore) �
 
 ```bash
 # Happy path — diff applied against the live DB
-drizzle-kit push --json --config drizzle.config.ts
+drizzle-kit push --output json --config drizzle.config.ts
 # → {"status":"ok","dialect":"postgresql"}
 
 # Idempotent re-run — live DB already matches the schema
-drizzle-kit push --json --config drizzle.config.ts
+drizzle-kit push --output json --config drizzle.config.ts
 # → {"status":"no_changes","dialect":"postgresql"}
 
 # Destructive change — caller must supply confirm_data_loss hints and retry
-drizzle-kit push --json --config drizzle.config.ts
+drizzle-kit push --output json --config drizzle.config.ts
 # → {"status":"missing_hints","unresolved":[{"type":"confirm_data_loss","kind":"column","entity":["public","users","legacy_id"],"reason":"non_empty"}]}
 # (resolution loop: see the drizzle-hints skill)
 
 # Hard error — wrong credential shape for the driver
-drizzle-kit push --json --config drizzle.config.ts
+drizzle-kit push --output json --config drizzle.config.ts
 # → {"status":"error","error":{"code":"config_connection_error","driver":"pg","params":["url"]}}
 ```
 
@@ -147,7 +147,7 @@ import { push } from 'drizzle-kit';
 const r = await push({
   dialect: 'postgresql',
   schema: './src/db/schema.ts',
-  dbCredentials: { url: process.env.DATABASE_URL! },
+  url: process.env.DATABASE_URL!,
 });
 if (r.status === 'ok') console.log('applied');
 ```

@@ -10,7 +10,7 @@ import type { SingleStoreSnapshot } from '../../dialects/singlestore/snapshot';
 import type { SqliteSnapshot } from '../../dialects/sqlite/snapshot';
 import { BREAKPOINT } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
-import { isJsonMode } from '../context';
+import { outputFormat } from '../context';
 import type { Driver } from '../validations/common';
 import { humanLog } from '../views';
 
@@ -49,7 +49,7 @@ export function writeResult(
 		driver,
 		snapshots,
 	} = config;
-	const json = isJsonMode();
+	const json = outputFormat() === 'json';
 
 	if (type === 'none') {
 		if (sqlStatements.length === 0) {

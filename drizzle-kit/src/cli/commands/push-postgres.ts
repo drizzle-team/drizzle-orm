@@ -23,7 +23,7 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgr
 import type { JsonStatement } from '../../dialects/postgres/statements';
 import { prepareEntityFilter } from '../../dialects/pull-utils';
 import type { DB } from '../../utils';
-import { isJsonMode } from '../context';
+import { outputFormat } from '../context';
 import { CommandOutputCliError } from '../errors';
 import { highlightSQL } from '../highlighter';
 import type { HintsHandler } from '../hints';
@@ -55,7 +55,7 @@ export const handle = async (
 	},
 	hints: HintsHandler,
 ) => {
-	const json = isJsonMode();
+	const json = outputFormat() === 'json';
 	const { preparePostgresDB } = await import('../connections');
 	const { introspect } = await import('./pull-postgres');
 
@@ -177,7 +177,7 @@ const identifier = (it: { schema?: string; name: string }) => {
 };
 
 export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints: HintsHandler) => {
-	const json = isJsonMode();
+	const json = outputFormat() === 'json';
 	const grouped: { hint: string; statement?: string }[] = [];
 
 	const filtered = jsonStatements.filter((it) => {

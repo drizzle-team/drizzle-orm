@@ -9,6 +9,8 @@ metadata:
 
 `status: 'missing_hints'` means the diff is ambiguous (a rename could also be a drop + create) or unsafe (would drop data, would add `NOT NULL` over `NULL`s, would add `UNIQUE` over duplicates). Until hints are supplied the operation cannot proceed — the CLI exits `2`, the SDK returns the envelope without writing or applying anything.
 
+Under `--output text` + non-TTY the same unresolved decisions surface as the human-readable missing-decisions report on stdout (also exit code 2) rather than this envelope — the `drizzle-output-modes` skill covers the text-report shape.
+
 Resolution is one round trip: read each item in `unresolved`, build one reply `Hint` per item, re-invoke the same command with the array. Both the missing-hints request shape and the reply shape are typed and validated by the runtime — wrong arity, wrong spelling, or wrong reply discriminator returns `status: 'error'` with `error.code: 'invalid_hints'`. See the `drizzle-responses-and-errors` skill for that branch.
 
 ## Reply types
@@ -62,7 +64,7 @@ The runtime only emits unresolved items for kinds that exist on the target diale
 |---|---|---|
 | `schema` | `[name]` | postgresql, cockroach, mssql |
 | `table` | `[schema, name]` | all |
-| `view` | `[schema, name]` | all |
+| `view` | `[schema, name]` | postgresql, cockroach (materialized views only) |
 | `column` | `[schema, table, name]` | all |
 | `primary_key` | `[schema, table, name]` | all except sqlite / turso |
 | `add_not_null` | `[schema, table, name]` | all |
@@ -83,7 +85,7 @@ The unresolved item for a `confirm_data_loss` carries a `reason` (and, for `type
 
 ## Resolution loop
 
-1. **Invoke.** Run `drizzle-kit generate --json` / `push --json` (CLI) or `await generate(...)` / `await push(...)` (SDK).
+1. **Invoke.** Run `drizzle-kit generate --output json` / `push --output json` (CLI) or `await generate(...)` / `await push(...)` (SDK).
 2. **Read the envelope.** If `status === 'missing_hints'`, the response carries `unresolved: MissingHint[]`. Each item has a `type` of `'rename_or_create'` or `'confirm_data_loss'`.
 3. **Build the reply.** For every `unresolved[i]`, append exactly one `Hint` to the reply array:
    - `rename_or_create` → pick `rename` (provide `from` as a deleted entity of the same `kind`) OR `create` (just echo `entity`).
@@ -100,14 +102,14 @@ Pass the reply array as JSON via one of two flags on `generate` or `push`:
 - `--hints-file ./hints.json` — same JSON array read from a file. Preferred for arrays of more than one or two items.
 
 ```bash
-drizzle-kit push --json --config drizzle.config.ts --hints-file ./hints.json
+drizzle-kit push --output json --config drizzle.config.ts --hints-file ./hints.json
 ```
 
 `--hints` and `--hints-file` are mutually exclusive at the source level — pass one or the other, not both. A malformed JSON file or a hint that fails shape validation returns `status: 'error'` with `error.code: 'invalid_hints'` and `meta.source: 'file' | 'inline'`.
 
 ## SDK form
 
-Pass the reply array as the `hints` option to `generate` / `push`:
+Pass the reply array as a raw `Hint[]` via the `hints` option to `generate` / `push` (or use `hintsFile` with a file path instead):
 
 ```typescript
 import { generate, push } from 'drizzle-kit';
@@ -124,7 +126,7 @@ const r1 = await generate({
 const r2 = await push({
   dialect: 'postgresql',
   schema: './src/db/schema.ts',
-  dbCredentials: { url: process.env.DATABASE_URL! },
+  url: process.env.DATABASE_URL!,
   hints: [
     { type: 'confirm_data_loss', kind: 'column', entity: ['public', 'users', 'legacy_id'] },
   ],
@@ -162,7 +164,7 @@ The reply resolves the rename-or-create as a rename of `email` → `email_v2`, a
 ]
 ```
 
-Re-invoke with this array via `--hints-file ./hints.json` or `hints: [...]`. The successful retry returns `status: 'ok'` (with `migration_path` for `generate`, or just `dialect` for `push`).
+Re-invoke with this array via `--hints-file ./hints.json` (CLI) or `hints: [...]` (SDK). The successful retry returns `status: 'ok'` (with `migration_path` for `generate`, or just `dialect` for `push`).
 
 ### Privilege 5-tuple rename
 

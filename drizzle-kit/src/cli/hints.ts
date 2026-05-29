@@ -206,37 +206,42 @@ export class HintsHandler {
 		this.userHints = buildHints(hints);
 	}
 
-	static async fromCli(opts: { hints?: string; hintsFile?: string }): Promise<HintsHandler> {
-		let source: 'file' | 'inline' | 'none';
-		let rawText: string;
+	static async fromCli(opts: { hints?: string | Hint[]; hintsFile?: string }): Promise<HintsHandler> {
+		let source: 'file' | 'inline';
+		let parsedJson: unknown;
 
-		if (opts.hintsFile) {
-			source = 'file';
+		if (Array.isArray(opts.hints)) {
+			source = 'inline';
+			parsedJson = opts.hints;
+		} else {
+			let rawText: string;
+			if (opts.hintsFile) {
+				source = 'file';
+				try {
+					rawText = await readFile(opts.hintsFile, 'utf8');
+				} catch (error) {
+					throw new InvalidHintsCliError(
+						`Failed to read hints file '${opts.hintsFile}': ${(error as Error).message}`,
+						{ source, path: opts.hintsFile },
+						{ cause: error as Error },
+					);
+				}
+			} else if (opts.hints) {
+				source = 'inline';
+				rawText = opts.hints;
+			} else {
+				return new HintsHandler();
+			}
+
 			try {
-				rawText = await readFile(opts.hintsFile, 'utf8');
+				parsedJson = JSON.parse(rawText);
 			} catch (error) {
 				throw new InvalidHintsCliError(
-					`Failed to read hints file '${opts.hintsFile}': ${(error as Error).message}`,
-					{ source, path: opts.hintsFile },
+					`Failed to parse hints JSON from ${source}: ${(error as Error).message}`,
+					{ source },
 					{ cause: error as Error },
 				);
 			}
-		} else if (opts.hints) {
-			source = 'inline';
-			rawText = opts.hints;
-		} else {
-			return new HintsHandler();
-		}
-
-		let parsedJson: unknown;
-		try {
-			parsedJson = JSON.parse(rawText);
-		} catch (error) {
-			throw new InvalidHintsCliError(
-				`Failed to parse hints JSON from ${source}: ${(error as Error).message}`,
-				{ source },
-				{ cause: error as Error },
-			);
 		}
 
 		try {
@@ -305,7 +310,7 @@ function formatIssuePath(path: readonly (string | number)[]): string {
 	return path.map((segment) => typeof segment === 'number' ? `[${segment}]` : `.${segment}`).join('');
 }
 
-function parseHints(raw: unknown): Hint[] {
+export function parseHints(raw: unknown): Hint[] {
 	const result = hintSchema.safeParse(raw);
 	if (!result.success) {
 		throw new InvalidHintShapeCliError({ issues: result.error.issues });

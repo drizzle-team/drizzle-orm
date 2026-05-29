@@ -4,7 +4,7 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/mysql/
 import { prepareSnapshot } from '../../dialects/mysql/serializer';
 import type { JsonStatement } from '../../dialects/mysql/statements';
 import { prepareOutFolder } from '../../utils/utils-node';
-import { isJsonMode } from '../context';
+import { outputFormat } from '../context';
 import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import { withStyle } from '../validations/outputs';
@@ -104,14 +104,13 @@ export const handle = async (
 	config: GenerateConfig,
 	checkResult?: CheckHandlerResult,
 ) => {
-	const { out: outFolder, casing, filenames } = config;
-	const json = isJsonMode();
+	const { out: outFolder, filenames } = config;
+	const json = outputFormat() === 'json';
 
 	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(
 		snapshots,
 		filenames,
-		casing,
 		checkResult,
 	);
 
@@ -138,7 +137,7 @@ export const handle = async (
 		'default',
 	);
 
-	if (json && config.hints.hasMissingHints()) {
+	if (config.hints.hasMissingHints()) {
 		return config.hints.toResponse();
 	}
 
@@ -178,7 +177,7 @@ export const handle = async (
 
 export const handleExport = async (config: ExportConfig) => {
 	const res = await prepareFromSchemaFiles(config.filenames);
-	const schema = fromDrizzleSchema(res.tables, res.views, config.casing);
+	const schema = fromDrizzleSchema(res.tables, res.views);
 	const { ddl, errors } = interimToDDL(schema);
 
 	if (errors.length > 0) {

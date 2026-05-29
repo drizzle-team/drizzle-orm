@@ -1,5 +1,6 @@
 import type { GenericBuilderInternals, Simplify } from '@drizzle-team/brocli';
 import type { Dialect } from '../utils/schemaValidator';
+import type { Hint } from './hints';
 import type { generateOptions, pushOptions } from './schema';
 
 type BrocliInputOf<TOptions extends Record<string, GenericBuilderInternals>> = Simplify<
@@ -8,20 +9,19 @@ type BrocliInputOf<TOptions extends Record<string, GenericBuilderInternals>> = S
 	}
 >;
 
-/**
- * Derived from the brocli option block in src/cli/schema.ts via the local
- * BrocliInputOf<> helper; the json flag is omitted because the SDK always runs
- * in JSON mode internally.
- */
-export type GenerateOptions =
-	& Omit<BrocliInputOf<typeof generateOptions>, 'json'>
-	& { dialect?: Dialect };
+export type GenerateOptionsInput = BrocliInputOf<typeof generateOptions> & { dialect?: Dialect };
+export type PushOptionsInput = BrocliInputOf<typeof pushOptions> & { dialect?: Dialect };
 
 /**
- * Derived from the brocli option block in src/cli/schema.ts via the local
- * BrocliInputOf<> helper; the json flag is omitted because the SDK always runs
- * in JSON mode internally.
+ * Public SDK option type; the `output` flag is omitted because the SDK always
+ * runs in JSON mode internally and never accepts a caller-supplied output mode.
+ * `hints` is a raw `Hint[]`, whereas the CLI `--hints` flag takes a JSON string.
  */
-export type PushOptions =
-	& Omit<BrocliInputOf<typeof pushOptions>, 'json'>
-	& { dialect?: Dialect };
+export type GenerateOptions = Omit<GenerateOptionsInput, 'output' | 'hints'> & { hints?: Hint[] };
+
+/**
+ * Public SDK option type; the `output` flag is omitted because the SDK always
+ * runs in JSON mode internally and never accepts a caller-supplied output mode.
+ * `hints` is a raw `Hint[]`, whereas the CLI `--hints` flag takes a JSON string.
+ */
+export type PushOptions = Omit<PushOptionsInput, 'output' | 'hints'> & { hints?: Hint[] };

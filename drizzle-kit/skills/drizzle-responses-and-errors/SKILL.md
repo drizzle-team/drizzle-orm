@@ -1,13 +1,13 @@
 ---
 name: drizzle-responses-and-errors
-description: Decode the drizzle-kit response JSON envelope, error codes, and exit codes from the CLI `--json` flag or the SDK `generate(...)` / `push(...)` functions. Load whenever drizzle-kit output contains a non-zero exit, an error code (`config_validation_error`, `database_driver_error`, `invalid_hints`, `unsupported_schema_change`, etc.), or any drizzle-kit JSON response needs parsing or inspection.
+description: Decode the drizzle-kit response JSON envelope, error codes, and exit codes from the CLI `--output json` flag or the SDK `generate(...)` / `push(...)` functions. Load whenever drizzle-kit output contains a non-zero exit, an error code (`config_validation_error`, `database_driver_error`, `invalid_hints`, `unsupported_schema_change`, etc.), or any drizzle-kit JSON response needs parsing or inspection.
 metadata:
   version: "1.0.0"
 ---
 
 # Drizzle responses and errors
 
-Both invocation surfaces share one envelope: the CLI prints it on stdout when `--json` is passed, and the SDK functions `generate(...)` / `push(...)` return the same object. The discriminator is always `status`. Decoding logic written for one surface works on the other. This skill does not invoke commands or author schemas — see `drizzle-generate` and `drizzle-push` for invocation, `drizzle-hints` for the `missing_hints` resolution loop.
+Both invocation surfaces share one envelope: the CLI prints it on stdout when `--output json` is passed, and the SDK functions `generate(...)` / `push(...)` return the same object. The discriminator is always `status`. Decoding logic written for one surface works on the other. This skill does not invoke commands or author schemas — see `drizzle-generate` and `drizzle-push` for invocation, `drizzle-hints` for the `missing_hints` resolution loop.
 
 ## Response envelope
 
@@ -27,6 +27,8 @@ Per-operation extras on `'ok'`:
 - `--explain` (either command, non-empty diff) — `{ status, dialect, statements, hints }`
 
 `'missing_hints'` carries `unresolved`, an array of items the agent must resolve before retrying. Each item is `{ type: 'rename_or_create', kind, entity }` or `{ type: 'confirm_data_loss', kind, entity, reason, reason_details? }`. The resolution loop lives in the `drizzle-hints` skill.
+
+The table above describes `--output json`. Under `--output text` + non-TTY the same `missing_hints` information renders as the human-readable missing-decisions report on stdout, still exiting with code 2 — see the drizzle-kit `OUTPUT_MODES.md` reference for the text-report shape.
 
 `'error'` carries `error.code` plus `meta` keys (variable per code). The runtime serializer flattens `{ code, ...meta }` into the `error` object — `code` is always present; the remaining keys vary. The envelope is the only shape an agent observes; no other fields are surfaced.
 

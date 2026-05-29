@@ -7,19 +7,19 @@ metadata:
 
 # Drizzle generate
 
-The CLI flag `--json` and the SDK `generate(...)` function emit the same discriminated-union envelope, and the envelope (not the stdout text) is what the agent decodes. Pass `--json` whenever an agent calls the CLI — without it the CLI drops into interactive mode and prompts the user, which doesn't work in non-TTY contexts. The SDK runs in JSON mode internally with no flag needed at the call site. This skill assumes a working Drizzle schema and a `drizzle.config.ts` already exist; it does not author schemas.
+The CLI flag `--output json` and the SDK `generate(...)` function emit the same discriminated-union envelope, and the envelope (not the stdout text) is what the agent decodes. Output format and interactivity are separate axes: `--output json` selects the machine-readable envelope and is always non-interactive, so pass it whenever an agent calls the CLI. Under the default `--output text` the CLI prompts only when stdin is a TTY; in a non-TTY it prints the missing-decisions report and exits 2 (it never hangs prompting). See the [drizzle-output-modes](../drizzle-output-modes/SKILL.md) skill for the two modes and the interactivity rule. The SDK runs in JSON mode internally with no flag needed at the call site. This skill assumes a working Drizzle schema and a `drizzle.config.ts` already exist; it does not author schemas.
 
 ## CLI form
 
 ```bash
-drizzle-kit generate --json [--config drizzle.config.ts] [--dialect <d>] [--schema <path>] [--out <dir>] [--explain] [--hints '<json>' | --hints-file ./hints.json]
+drizzle-kit generate --output json [--config drizzle.config.ts] [--dialect <d>] [--schema <path>] [--out <dir>] [--explain] [--hints '<json>' | --hints-file ./hints.json]
 ```
 
 Flag surface:
 
 - `--config` — path to `drizzle.config.ts` (default: `drizzle.config.ts` at CWD).
 - `--dialect`, `--schema`, `--out` — override the corresponding `defineConfig` fields.
-- `--json` — switches stdout to one JSON line carrying the envelope. Required for agent / CI / scripted contexts: without it the CLI runs interactively and prompts the user.
+- `--output json` — switches stdout to one JSON line carrying the envelope and is always non-interactive. Use it for agent / CI / scripted contexts. Under the default `--output text` the CLI prompts only on a TTY and otherwise prints the missing-decisions report (exit 2).
 - `--explain` — dry-run mode. Returns planned SQL statements and computed hints instead of writing a migration file.
 - `--hints` — inline JSON array of hint resolutions (see the `drizzle-hints` skill).
 - `--hints-file` — same payload as `--hints`, read from a JSON file. Use for long hint sets.
@@ -27,7 +27,7 @@ Flag surface:
 Minimal example:
 
 ```bash
-drizzle-kit generate --json --config drizzle.config.ts
+drizzle-kit generate --output json --config drizzle.config.ts
 # → {"status":"ok","dialect":"postgresql","migration_path":"drizzle/0001_name/migration.sql"}
 ```
 
@@ -55,7 +55,7 @@ if (response.status === 'ok') {
 }
 ```
 
-The SDK is the public-surface entry point (`Object.keys(require('drizzle-kit'))` returns `['defineConfig', 'generate', 'push']`). It always runs in JSON mode internally — no `--json` flag needed at the call site — and returns the same envelope the CLI prints. Narrow on `response.status` to extract typed branches:
+The SDK is the public-surface entry point. It always runs in JSON mode internally — no `--output json` flag needed at the call site — and returns the same envelope the CLI prints. Narrow on `response.status` to extract typed branches:
 
 - `'ok'` → `response.dialect`, `response.migration_path` (or `response.statements`, `response.hints` in explain mode).
 - `'no_changes'` → `response.dialect`.
@@ -78,20 +78,20 @@ Per-dialect quirks (postgresql, mysql, sqlite, mssql, cockroach, singlestore) �
 
 ```bash
 # Happy path
-drizzle-kit generate --json --config drizzle.config.ts
+drizzle-kit generate --output json --config drizzle.config.ts
 # → {"status":"ok","dialect":"postgresql","migration_path":"drizzle/0001_init/migration.sql"}
 
 # Idempotent re-run on an up-to-date schema
-drizzle-kit generate --json --config drizzle.config.ts
+drizzle-kit generate --output json --config drizzle.config.ts
 # → {"status":"no_changes","dialect":"postgresql"}
 
 # Ambiguous diff — caller must supply hints and retry
-drizzle-kit generate --json --config drizzle.config.ts
+drizzle-kit generate --output json --config drizzle.config.ts
 # → {"status":"missing_hints","unresolved":[{"type":"rename_or_create","kind":"column","entity":["public","users","email_v2"]}]}
 # (resolution loop: see the drizzle-hints skill)
 
 # Hard error
-drizzle-kit generate --json --config missing.ts
+drizzle-kit generate --output json --config missing.ts
 # → {"status":"error","error":{"code":"config_file_not_found_error","path":"missing.ts"}}
 ```
 

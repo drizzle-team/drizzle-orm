@@ -8,7 +8,7 @@ import type { JsonStatement } from '../../dialects/mysql/statements';
 import { prepareEntityFilter } from '../../dialects/pull-utils';
 import type { DB } from '../../utils';
 import { connectToMySQL } from '../connections';
-import { isJsonMode } from '../context';
+import { outputFormat } from '../context';
 import { CommandOutputCliError, UnsupportedSchemaChangeError } from '../errors';
 import { highlightSQL } from '../highlighter';
 import type { HintsHandler } from '../hints';
@@ -32,7 +32,7 @@ export const handle = async (
 	},
 	hints: HintsHandler,
 ) => {
-	const json = isJsonMode();
+	const json = outputFormat() === 'json';
 
 	const { prepareFromSchemaFiles, fromDrizzleSchema } = await import('../../dialects/mysql/drizzle');
 
@@ -125,7 +125,7 @@ const identifier = ({ table, column }: { table?: string; column?: string }) => {
 	return [table, column].filter(Boolean).map((t) => `\`${t}\``).join('.');
 };
 export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2: MysqlDDL, hints: HintsHandler) => {
-	const json = isJsonMode();
+	const json = outputFormat() === 'json';
 	const grouped: { hint: string; statement?: string }[] = [];
 
 	const filtered = jsonStatements.filter((it) => {

@@ -19,7 +19,7 @@ import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import { prepareSnapshot } from '../../dialects/postgres/serializer';
 import { prepareOutFolder } from '../../utils/utils-node';
-import { isJsonMode } from '../context';
+import { outputFormat } from '../context';
 import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import { explain, explainJsonOutput, humanLog, postgresSchemaError, postgresSchemaWarning } from '../views';
@@ -31,14 +31,13 @@ export const handle = async (
 	config: GenerateConfig,
 	checkResult?: CheckHandlerResult,
 ) => {
-	const { out: outFolder, filenames, casing } = config;
-	const json = isJsonMode();
+	const { out: outFolder, filenames } = config;
+	const json = outputFormat() === 'json';
 
 	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(
 		snapshots,
 		filenames,
-		casing,
 		checkResult,
 	);
 
@@ -76,7 +75,7 @@ export const handle = async (
 		'default',
 	);
 
-	if (json && config.hints.hasMissingHints()) {
+	if (config.hints.hasMissingHints()) {
 		return config.hints.toResponse();
 	}
 
@@ -113,7 +112,6 @@ export const handleExport = async (config: ExportConfig) => {
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
 	const { schema, errors, warnings } = fromDrizzleSchema(
 		res,
-		config.casing,
 		() => true,
 	);
 	if (warnings.length > 0) {

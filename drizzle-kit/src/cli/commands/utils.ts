@@ -16,7 +16,7 @@ import {
 	RequiredParamsCliError,
 	UnsupportedCommandCliError,
 } from '../errors';
-import { HintsHandler } from '../hints';
+import { type Hint, HintsHandler } from '../hints';
 import type { CockroachCredentials } from '../validations/cockroach';
 import { cockroachCredentials } from '../validations/cockroach';
 import { printConfigConnectionIssues as printCockroachIssues } from '../validations/cockroach';
@@ -116,7 +116,8 @@ export const prepareGenerateConfig = async (
 		driver?: Driver;
 		ignoreConflicts?: boolean;
 		explain?: boolean;
-		hints?: string;
+		// `string` arrives only from the CLI `--hints` flag; the SDK passes a raw `Hint[]`.
+		hints?: string | Hint[];
 		hintsFile?: string;
 	},
 	from: 'config' | 'cli',
@@ -259,7 +260,7 @@ export const preparePushConfig = async (
 	}
 > => {
 	const hints = await HintsHandler.fromCli({
-		hints: options.hints as string | undefined,
+		hints: options.hints as string | Hint[] | undefined,
 		hintsFile: options.hintsFile as string | undefined,
 	});
 	const raw = flattenDatabaseCredentials(
