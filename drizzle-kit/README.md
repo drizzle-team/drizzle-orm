@@ -7,10 +7,6 @@ Drizzle Kit is a CLI migrator tool for Drizzle ORM. It is probably the one and o
 
 Check the full documentation on [the website](https://orm.drizzle.team/kit-docs/overview).
 
-For machine-readable CLI behavior in non-interactive workflows, see [JSON mode and hints contract](./JSON_CONTRACT.md).
-
-For programmatic / agent consumption, see the [SDK documentation](./SDK.md) — the same JSON contract is available as typed root-level exports (`import { generate, push } from 'drizzle-kit'`).
-
 ### AI agent skills
 
 Drizzle Kit ships installable [Agent Skills](https://skills.sh) for AI coding assistants — Claude Code, Cursor, GitHub Copilot, OpenAI Codex CLI, Gemini CLI, OpenCode, and any other tool that loads the open standard.
