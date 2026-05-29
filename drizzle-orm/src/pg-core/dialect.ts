@@ -287,7 +287,12 @@ export class PgDialect {
 					}
 				}
 
-				chunk.push(column ? this.codecs.apply(column, 'cast', field) : field);
+				if (column && !field._.isWith) {
+					const innerCasted = this.codecs.apply(column, 'cast', sql`(${field._.sql})`);
+					chunk.push(sql`${innerCasted} ${sql.identifier(field._.alias)}`);
+				} else {
+					chunk.push(column ? this.codecs.apply(column, 'cast', field) : field);
+				}
 			}
 
 			if (i < columnsLen - 1) {
