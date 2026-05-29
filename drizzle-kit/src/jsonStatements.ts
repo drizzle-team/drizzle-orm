@@ -682,6 +682,7 @@ export interface JsonCreateSchema {
 export interface JsonDropSchema {
 	type: 'drop_schema';
 	name: string;
+	cascade?: boolean;
 }
 
 export interface JsonRenameSchema {
@@ -1320,11 +1321,13 @@ export const prepareRenameSchemasJson = (
 
 export const prepareDeleteSchemasJson = (
 	values: string[],
+	cascade?: boolean,
 ): JsonDropSchema[] => {
 	return values.map((it) => {
 		return {
 			type: 'drop_schema',
 			name: it,
+			cascade,
 		} as JsonDropSchema;
 	});
 };

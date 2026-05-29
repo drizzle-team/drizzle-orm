@@ -62,6 +62,7 @@ export const generateMigration = async (
 	prev: DrizzleSnapshotJSON,
 	cur: DrizzleSnapshotJSON,
 	decisions?: AllDecisions,
+	options?: { cascadeDropSchemas?: boolean },
 ) => {
 	const { applyPgSnapshotsDiff } = await import('./snapshotsDiffer');
 
@@ -85,6 +86,8 @@ export const generateMigration = async (
 		createThrowingResolverWithMoved(decisions, 'views'),
 		validatedPrev,
 		validatedCur,
+		undefined,
+		options?.cascadeDropSchemas,
 	);
 
 	return sqlStatements;

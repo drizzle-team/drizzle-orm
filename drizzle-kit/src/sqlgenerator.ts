@@ -46,6 +46,7 @@ import {
 	JsonCreateReferenceStatement,
 	JsonCreateRoleStatement,
 	JsonCreateSchema,
+	JsonDropSchema,
 	JsonCreateSequenceStatement,
 	JsonCreateSqliteViewStatement,
 	JsonCreateTableStatement,
@@ -3676,9 +3677,9 @@ class PgDropSchemaConvertor extends Convertor {
 		return statement.type === 'drop_schema' && dialect === 'postgresql';
 	}
 
-	convert(statement: JsonCreateSchema) {
-		const { name } = statement;
-		return `DROP SCHEMA "${name}";\n`;
+	convert(statement: JsonDropSchema) {
+		const { name, cascade } = statement;
+		return `DROP SCHEMA "${name}"${cascade ? ' CASCADE' : ''};\n`;
 	}
 }
 
