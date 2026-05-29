@@ -49,6 +49,10 @@
 		"@aws-sdk/client-rds-data": ">=3",
 		"@cloudflare/workers-types": ">=4",
 		"@effect/sql-pg": ">=4.0.0-beta.58 || >=4.0.0",
+		"@effect/sql-pglite": ">=4.0.0-beta.58 || >=4.0.0",
+		"@effect/sql-libsql": ">=4.0.0-beta.58 || >=4.0.0",
+		"@effect/sql-sqlite-node": ">=4.0.0-beta.58 || >=4.0.0",
+		"@effect/sql-sqlite-bun": ">=4.0.0-beta.58 || >=4.0.0",
 		"@electric-sql/pglite": ">=0.2.0",
 		"@libsql/client": ">=0.10.0",
 		"@libsql/client-wasm": ">=0.10.0",
@@ -187,6 +191,18 @@
 		"@effect/sql-pg": {
 			"optional": true
 		},
+		"@effect/sql-pglite": {
+			"optional": true
+		},
+		"@effect/sql-sqlite-node": {
+			"optional": true
+		},
+		"@effect/sql-sqlite-bun": {
+			"optional": true
+		},
+		"@effect/sql-libsql": {
+			"optional": true
+		},
 		"typebox": {
 			"optional": true
 		},
@@ -201,8 +217,12 @@
 		"@arktype/attest": "^0.46.0",
 		"@aws-sdk/client-rds-data": "^3.914.0",
 		"@cloudflare/workers-types": "^4.20251004.0",
+		"@effect/sql-libsql": "4.0.0-beta.58",
 		"@effect/sql-mysql2": "4.0.0-beta.58",
 		"@effect/sql-pg": "4.0.0-beta.58",
+		"@effect/sql-pglite": "4.0.0-beta.58",
+		"@effect/sql-sqlite-bun": "4.0.0-beta.58",
+		"@effect/sql-sqlite-node": "4.0.0-beta.58",
 		"@electric-sql/pglite": "^0.2.12",
 		"@libsql/client": "^0.10.0",
 		"@libsql/client-wasm": "^0.10.0",

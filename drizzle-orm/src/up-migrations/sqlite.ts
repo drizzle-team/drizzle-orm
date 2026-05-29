@@ -1,8 +1,8 @@
 import type { MigrationMeta } from '~/migrator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
+import type { SQLiteAsyncSession } from '~/sqlite-core/async/session.ts';
 import type { BaseSQLiteDatabase } from '~/sqlite-core/index.ts';
-import type { SQLiteSession } from '~/sqlite-core/session.ts';
 import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResult } from './utils.ts';
 
 /**
@@ -13,7 +13,7 @@ import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResult } from '
  */
 export function upgradeSyncIfNeeded(
 	migrationsTable: string,
-	session: SQLiteSession<
+	session: SQLiteAsyncSession<
 		'sync',
 		unknown,
 		AnyRelations
@@ -50,7 +50,7 @@ const upgradeSyncFunctions: Record<
 	number,
 	(
 		migrationsTable: string,
-		session: SQLiteSession<
+		session: SQLiteAsyncSession<
 			'sync',
 			unknown,
 			AnyRelations

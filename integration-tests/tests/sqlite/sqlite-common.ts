@@ -41,7 +41,7 @@ import {
 	numeric,
 	primaryKey,
 	real,
-	SQLiteSyncDialect,
+	SQLiteDialect,
 	sqliteTable,
 	sqliteTableCreator,
 	sqliteView,
@@ -5387,7 +5387,7 @@ export function tests(test: Test, exclude: string[] = []) {
 	});
 
 	test.concurrent('sql.identifier escape', async () => {
-		const dialect = new SQLiteSyncDialect();
+		const dialect = new SQLiteDialect();
 		const userInput = 'id" ASC, CAST((SELECT password_hash FROM users LIMIT 1) AS int)--';
 		const query = sql`SELECT * FROM ${sql.identifier('users')} ORDER BY ${sql.identifier(userInput)} ASC`;
 		const str = dialect.sqlToQuery(query);
@@ -6004,7 +6004,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 		const query = db.select().from(sub);
 		expect(query.toSQL().sql).toStrictEqual(
-			(<{ dialect: SQLiteSyncDialect }> (<any> db)).dialect.sqlToQuery(
+			(<{ dialect: SQLiteDialect }> (<any> db)).dialect.sqlToQuery(
 				sql`select ${sql.identifier('id')}, ${sql.identifier('name')}, ${sql.identifier('location_id')}, ${
 					sql.identifier(
 						'tag_id',

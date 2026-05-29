@@ -2,8 +2,8 @@ import type { DatabasePromise } from '@tursodatabase/database-common';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
-import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
+import { BaseSQLiteDatabase } from '~/sqlite-core/async/db.ts';
+import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
 import { jitCompatCheck } from '~/utils.ts';
 import { TursoDatabaseSession } from './session.ts';
@@ -26,7 +26,7 @@ export function construct<TRelations extends AnyRelations = EmptyRelations>(
 ): TursoDatabaseDatabase<TRelations> & {
 	$client: DatabasePromise;
 } {
-	const dialect = new SQLiteAsyncDialect({
+	const dialect = new SQLiteDialect({
 		useJitMappers: jitCompatCheck(config.jit),
 	});
 	let logger;

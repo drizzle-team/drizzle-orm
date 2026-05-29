@@ -7,15 +7,14 @@ import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
-import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import { SQLiteTransaction } from '~/sqlite-core/index.ts';
-import type {
-	PreparedQueryConfig as PreparedQueryConfigBase,
-	SQLiteExecuteMethod,
-	SQLiteQueryExecutors,
-	SQLiteTransactionConfig,
-} from '~/sqlite-core/session.ts';
-import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
+import { SQLiteAsyncTransaction } from '~/sqlite-core/async/session.ts';
+import {
+	SQLiteAsyncPreparedQuery,
+	type SQLiteAsyncPreparedQueryConfig as PreparedQueryConfigBase,
+	SQLiteAsyncSession,
+} from '~/sqlite-core/async/session.ts';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { SQLiteExecuteMethod, SQLiteQueryExecutors, SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
 import type { SQLiteCloudRunResult } from './driver.ts';
 
 export interface SQLiteCloudSessionOptions {
@@ -26,7 +25,7 @@ export interface SQLiteCloudSessionOptions {
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
 export class SQLiteCloudSession<TRelations extends AnyRelations>
-	extends SQLiteSession<'async', SQLiteCloudRunResult, TRelations>
+	extends SQLiteAsyncSession<'async', SQLiteCloudRunResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'SQLiteCloudSession';
 
@@ -35,7 +34,7 @@ export class SQLiteCloudSession<TRelations extends AnyRelations>
 
 	constructor(
 		private client: Database,
-		dialect: SQLiteAsyncDialect,
+		dialect: SQLiteDialect,
 		private relations: TRelations,
 		private options: SQLiteCloudSessionOptions,
 	) {
@@ -55,7 +54,7 @@ export class SQLiteCloudSession<TRelations extends AnyRelations>
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): SQLitePreparedQuery<T & { run: SQLiteCloudRunResult }> {
+	): SQLiteAsyncPreparedQuery<T & { run: SQLiteCloudRunResult }> {
 		let stmt: ReturnType<typeof this.client.prepare>;
 		try {
 			stmt = this.client.prepare(query.sql);
@@ -120,7 +119,7 @@ export class SQLiteCloudSession<TRelations extends AnyRelations>
 			},
 		};
 
-		return new SQLitePreparedQuery(
+		return new SQLiteAsyncPreparedQuery(
 			'async',
 			executeMethod,
 			executors,
@@ -160,7 +159,7 @@ export class SQLiteCloudSession<TRelations extends AnyRelations>
 }
 
 export class SQLiteCloudTransaction<TRelations extends AnyRelations>
-	extends SQLiteTransaction<'async', SQLiteCloudRunResult, TRelations>
+	extends SQLiteAsyncTransaction<'async', SQLiteCloudRunResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'SQLiteCloudTransaction';
 

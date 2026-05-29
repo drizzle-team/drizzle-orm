@@ -2,8 +2,8 @@
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
-import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
+import { BaseSQLiteDatabase } from '~/sqlite-core/async/db.ts';
+import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
 import { type DurableSQLiteRunResult, SQLiteDOSession } from './session.ts';
 
@@ -25,7 +25,7 @@ export function drizzle<
 ): DrizzleSqliteDODatabase<TRelations> & {
 	$client: TClient;
 } {
-	const dialect = new SQLiteSyncDialect();
+	const dialect = new SQLiteDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

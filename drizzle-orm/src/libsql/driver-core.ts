@@ -3,8 +3,8 @@ import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
-import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
+import { BaseSQLiteDatabase } from '~/sqlite-core/async/db.ts';
+import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
 import { jitCompatCheck } from '~/utils.ts';
 import { type LibSQLRunResult, LibSQLSession } from './session.ts';
@@ -31,7 +31,7 @@ export function construct<TRelations extends AnyRelations = EmptyRelations>(
 ): LibSQLDatabase<TRelations> & {
 	$client: Client;
 } {
-	const dialect = new SQLiteAsyncDialect({
+	const dialect = new SQLiteDialect({
 		useJitMappers: jitCompatCheck(config.jit),
 	});
 	let logger;

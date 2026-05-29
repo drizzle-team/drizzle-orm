@@ -2,8 +2,8 @@ import { DatabaseSync, type DatabaseSyncOptions } from 'node:sqlite';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
-import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
+import { BaseSQLiteDatabase } from '~/sqlite-core/async/db.ts';
+import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
 import { jitCompatCheck } from '~/utils.ts';
 import { type NodeSQLiteRunResult, NodeSQLiteSession } from './session.ts';
@@ -27,7 +27,7 @@ function construct<TRelations extends AnyRelations = EmptyRelations>(
 ): NodeSQLiteDatabase<TRelations> & {
 	$client: DatabaseSync;
 } {
-	const dialect = new SQLiteSyncDialect({
+	const dialect = new SQLiteDialect({
 		useJitMappers: jitCompatCheck(config.jit),
 	});
 	let logger;

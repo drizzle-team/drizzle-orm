@@ -7,6 +7,7 @@ import type {
 } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import { migrateSync } from '~/sqlite-core/async/session.ts';
 import type { SQLiteBunDatabase } from './driver.ts';
 
 export function migrate<TRelations extends AnyRelations = EmptyRelations>(
@@ -33,11 +34,11 @@ export function migrate<TRelations extends AnyRelations = EmptyRelations>(
 			name: d.name,
 		}));
 
-		return db.dialect.migrate(migrations, db.session, {
+		return migrateSync(migrations, db.session, {
 			migrationsTable,
 		});
 	}
 
 	const migrations = readMigrationFiles(config as MigrationConfig);
-	return db.dialect.migrate(migrations, db.session, config as MigrationConfig);
+	return migrateSync(migrations, db.session, config as MigrationConfig);
 }

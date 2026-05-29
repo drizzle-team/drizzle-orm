@@ -7,15 +7,14 @@ import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
-import type { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
-import { SQLiteTransaction } from '~/sqlite-core/index.ts';
-import type {
-	PreparedQueryConfig as PreparedQueryConfigBase,
-	SQLiteExecuteMethod,
-	SQLiteQueryExecutors,
-	SQLiteTransactionConfig,
-} from '~/sqlite-core/session.ts';
-import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
+import { SQLiteAsyncTransaction } from '~/sqlite-core/async/session.ts';
+import {
+	SQLiteAsyncPreparedQuery,
+	type SQLiteAsyncPreparedQueryConfig as PreparedQueryConfigBase,
+	SQLiteAsyncSession,
+} from '~/sqlite-core/async/session.ts';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { SQLiteExecuteMethod, SQLiteQueryExecutors, SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 
 export interface SQLiteBunSessionOptions {
@@ -28,7 +27,7 @@ export type SQLiteBunRunResult = Changes;
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
 export class SQLiteBunSession<TRelations extends AnyRelations>
-	extends SQLiteSession<'sync', SQLiteBunRunResult, TRelations>
+	extends SQLiteAsyncSession<'sync', SQLiteBunRunResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'SQLiteBunSession';
 
@@ -36,7 +35,7 @@ export class SQLiteBunSession<TRelations extends AnyRelations>
 
 	constructor(
 		private client: Database,
-		dialect: SQLiteSyncDialect,
+		dialect: SQLiteDialect,
 		private relations: TRelations,
 		private options: SQLiteBunSessionOptions = {},
 	) {
@@ -58,7 +57,7 @@ export class SQLiteBunSession<TRelations extends AnyRelations>
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
 		},
-	): SQLitePreparedQuery<T & { run: SQLiteBunRunResult }> {
+	): SQLiteAsyncPreparedQuery<T & { run: SQLiteBunRunResult }> {
 		let stmt: ReturnType<typeof this.client.query>;
 		try {
 			stmt = this.client.query(query.sql);
@@ -82,7 +81,7 @@ export class SQLiteBunSession<TRelations extends AnyRelations>
 			},
 		};
 
-		return new SQLitePreparedQuery(
+		return new SQLiteAsyncPreparedQuery(
 			'sync',
 			executeMethod,
 			executors,
@@ -112,7 +111,7 @@ export class SQLiteBunSession<TRelations extends AnyRelations>
 
 export class SQLiteBunTransaction<
 	TRelations extends AnyRelations,
-> extends SQLiteTransaction<'sync', SQLiteBunRunResult, TRelations> {
+> extends SQLiteAsyncTransaction<'sync', SQLiteBunRunResult, TRelations> {
 	static override readonly [entityKind]: string = 'SQLiteBunTransaction';
 
 	override transaction<T>(

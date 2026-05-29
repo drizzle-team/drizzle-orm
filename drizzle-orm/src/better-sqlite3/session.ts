@@ -5,16 +5,14 @@ import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
-import type { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
-import { SQLiteTransaction } from '~/sqlite-core/index.ts';
 import {
-	type PreparedQueryConfig as PreparedQueryConfigBase,
-	type SQLiteExecuteMethod,
-	SQLitePreparedQuery,
-	type SQLiteQueryExecutors,
-	SQLiteSession,
-	type SQLiteTransactionConfig,
-} from '~/sqlite-core/session.ts';
+	SQLiteAsyncPreparedQuery,
+	type SQLiteAsyncPreparedQueryConfig as PreparedQueryConfigBase,
+	SQLiteAsyncSession,
+	SQLiteAsyncTransaction,
+} from '~/sqlite-core/async/session.ts';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { SQLiteExecuteMethod, SQLiteQueryExecutors, SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 
 export interface BetterSQLiteSessionOptions {
@@ -26,7 +24,7 @@ export type BetterSQLite3RunResult = RunResult;
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
 export class BetterSQLiteSession<TRelations extends AnyRelations>
-	extends SQLiteSession<'sync', BetterSQLite3RunResult, TRelations>
+	extends SQLiteAsyncSession<'sync', BetterSQLite3RunResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'BetterSQLiteSession';
 
@@ -34,7 +32,7 @@ export class BetterSQLiteSession<TRelations extends AnyRelations>
 
 	constructor(
 		private client: Database,
-		dialect: SQLiteSyncDialect,
+		dialect: SQLiteDialect,
 		private relations: TRelations,
 		private options: BetterSQLiteSessionOptions = {},
 	) {
@@ -52,7 +50,7 @@ export class BetterSQLiteSession<TRelations extends AnyRelations>
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
 		},
-	): SQLitePreparedQuery<T & { run: BetterSQLite3RunResult }> {
+	): SQLiteAsyncPreparedQuery<T & { run: BetterSQLite3RunResult }> {
 		let stmt: Statement;
 		try {
 			stmt = this.client.prepare(query.sql);
@@ -76,7 +74,7 @@ export class BetterSQLiteSession<TRelations extends AnyRelations>
 			},
 		};
 
-		return new SQLitePreparedQuery(
+		return new SQLiteAsyncPreparedQuery(
 			'sync',
 			executeMethod,
 			executors,
@@ -101,7 +99,7 @@ export class BetterSQLiteSession<TRelations extends AnyRelations>
 }
 
 export class BetterSQLiteTransaction<TRelations extends AnyRelations>
-	extends SQLiteTransaction<'sync', BetterSQLite3RunResult, TRelations>
+	extends SQLiteAsyncTransaction<'sync', BetterSQLite3RunResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'BetterSQLiteTransaction';
 

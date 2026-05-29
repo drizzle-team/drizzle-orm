@@ -6,16 +6,14 @@ import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
-import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import { SQLiteTransaction } from '~/sqlite-core/index.ts';
 import {
-	type PreparedQueryConfig as PreparedQueryConfigBase,
-	type SQLiteExecuteMethod,
-	SQLitePreparedQuery,
-	type SQLiteQueryExecutors,
-	SQLiteSession,
-	type SQLiteTransactionConfig,
-} from '~/sqlite-core/session.ts';
+	SQLiteAsyncPreparedQuery,
+	type SQLiteAsyncPreparedQueryConfig as PreparedQueryConfigBase,
+	SQLiteAsyncSession,
+	SQLiteAsyncTransaction,
+} from '~/sqlite-core/async/session.ts';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { SQLiteExecuteMethod, SQLiteQueryExecutors, SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
 
 export interface OPSQLiteSessionOptions {
 	logger?: Logger;
@@ -27,7 +25,7 @@ export type OPSQLiteRunResult = QueryResult;
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
 export class OPSQLiteSession<TRelations extends AnyRelations>
-	extends SQLiteSession<'async', OPSQLiteRunResult, TRelations>
+	extends SQLiteAsyncSession<'async', OPSQLiteRunResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'OPSQLiteSession';
 
@@ -36,7 +34,7 @@ export class OPSQLiteSession<TRelations extends AnyRelations>
 
 	constructor(
 		private client: OPSQLiteConnection,
-		dialect: SQLiteAsyncDialect,
+		dialect: SQLiteDialect,
 		private relations: TRelations,
 		private options: OPSQLiteSessionOptions = {},
 	) {
@@ -56,7 +54,7 @@ export class OPSQLiteSession<TRelations extends AnyRelations>
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): SQLitePreparedQuery<T & { run: OPSQLiteRunResult }> {
+	): SQLiteAsyncPreparedQuery<T & { run: OPSQLiteRunResult }> {
 		const executors: SQLiteQueryExecutors<'async'> = {
 			all: (params) => {
 				if (mode === 'arrays') return this.client.executeRawAsync(query.sql, params);
@@ -74,7 +72,7 @@ export class OPSQLiteSession<TRelations extends AnyRelations>
 			},
 		};
 
-		return new SQLitePreparedQuery(
+		return new SQLiteAsyncPreparedQuery(
 			'async',
 			executeMethod,
 			executors,
@@ -106,7 +104,7 @@ export class OPSQLiteSession<TRelations extends AnyRelations>
 }
 
 export class OPSQLiteTransaction<TRelations extends AnyRelations>
-	extends SQLiteTransaction<'async', OPSQLiteRunResult, TRelations>
+	extends SQLiteAsyncTransaction<'async', OPSQLiteRunResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'OPSQLiteTransaction';
 

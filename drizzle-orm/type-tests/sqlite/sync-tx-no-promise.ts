@@ -1,4 +1,4 @@
-import type { BaseSQLiteDatabase } from '~/sqlite-core/db';
+import type { BaseSQLiteDatabase } from '~/sqlite-core/async/db.ts';
 
 const syncDb = {} as BaseSQLiteDatabase<'sync', never>;
 

@@ -25,7 +25,7 @@ importers:
         version: link:drizzle-orm/dist
       drizzle-orm-old:
         specifier: npm:drizzle-orm@^0.27.2
-        version: drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.940.0)(@cloudflare/workers-types@4.20251126.0)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@types/better-sqlite3@7.6.13)(@types/pg@8.15.6)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@12.6.2)(bun-types@1.3.3)(mysql2@3.22.3(@types/node@25.5.0))(pg@8.20.0)(postgres@3.4.7)(sql.js@1.13.0)(sqlite3@5.1.7)
+        version: drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.940.0)(@cloudflare/workers-types@4.20251126.0)(@libsql/client@0.17.3(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@types/better-sqlite3@7.6.13)(@types/pg@8.15.6)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@12.10.0)(bun-types@1.3.3)(mysql2@3.22.3(@types/node@25.5.0))(pg@8.20.0)(postgres@3.4.7)(sql.js@1.13.0)(sqlite3@5.1.7)
       eslint-plugin-drizzle-internal:
         specifier: link:eslint/eslint-plugin-drizzle-internal
         version: link:eslint/eslint-plugin-drizzle-internal
@@ -350,10 +350,22 @@ importers:
       '@cloudflare/workers-types':
         specifier: ^4.20251004.0
         version: 4.20251126.0
+      '@effect/sql-libsql':
+        specifier: 4.0.0-beta.58
+        version: 4.0.0-beta.58(bufferutil@4.0.8)(effect@4.0.0-beta.58)(utf-8-validate@6.0.3)
       '@effect/sql-mysql2':
         specifier: 4.0.0-beta.58
         version: 4.0.0-beta.58(@types/node@25.5.0)(effect@4.0.0-beta.58)
       '@effect/sql-pg':
+        specifier: 4.0.0-beta.58
+        version: 4.0.0-beta.58(effect@4.0.0-beta.58)
+      '@effect/sql-pglite':
+        specifier: 4.0.0-beta.58
+        version: 4.0.0-beta.58(effect@4.0.0-beta.58)
+      '@effect/sql-sqlite-bun':
+        specifier: 4.0.0-beta.58
+        version: 4.0.0-beta.58(effect@4.0.0-beta.58)
+      '@effect/sql-sqlite-node':
         specifier: 4.0.0-beta.58
         version: 4.0.0-beta.58(effect@4.0.0-beta.58)
       '@electric-sql/pglite':
@@ -819,7 +831,7 @@ importers:
     dependencies:
       drizzle-beta:
         specifier: npm:drizzle-orm@1.0.0-beta.21
-        version: drizzle-orm@1.0.0-beta.21(55ce416bfa2056a5af9efa292c7e71b1)
+        version: drizzle-orm@1.0.0-beta.21(37bb6b9fef6fe573ea1e67f8dc2389ba)
       drizzle-seed:
         specifier: workspace:../drizzle-seed/dist
         version: link:../drizzle-seed/dist
@@ -1735,6 +1747,11 @@ packages:
     peerDependencies:
       effect: ^3.19.8
 
+  '@effect/sql-libsql@4.0.0-beta.58':
+    resolution: {integrity: sha512-Af4Uuv2Ass7f3pgUwKvnZGs32xsxO2MpBvL6ZE73k62YgUk1WYHoCUaFUpRj2nYKTMGVWh/JZe18rCgHL/tFfA==}
+    peerDependencies:
+      effect: ^4.0.0-beta.58
+
   '@effect/sql-mysql2@4.0.0-beta.58':
     resolution: {integrity: sha512-OkUn7x7/c9dPZusaTyTkPdVPVrtO+HsBJ3IYVbWh3wYBGwW4bgim1XfMJydp0+twC43l4os1M7/atxBObE7MCA==}
     peerDependencies:
@@ -1753,6 +1770,21 @@ packages:
     peerDependencies:
       effect: ^4.0.0-beta.58
 
+  '@effect/sql-pglite@4.0.0-beta.58':
+    resolution: {integrity: sha512-Y2p0J8I4xLFFxFZYlHLksV7LYc9aQzx7FlW9H2RyZqM1pqhaSVZaP/NSqOh52GwThhgnqhBP4HW+xxIrmwOXYg==}
+    peerDependencies:
+      effect: ^4.0.0-beta.58
+
+  '@effect/sql-sqlite-bun@4.0.0-beta.58':
+    resolution: {integrity: sha512-pgbBlyVx/bA2njgNTIpDuR6t45CVHZ4uLIP1BgcMkpDW2qfcTxF0GWy414Z8FkfCUf2jr8cimv0a6VxmArOo1w==}
+    peerDependencies:
+      effect: ^4.0.0-beta.58
+
+  '@effect/sql-sqlite-node@4.0.0-beta.58':
+    resolution: {integrity: sha512-9atmJ6FT/YT8P6HlWgzt3Vl5es+VzMomldMEiMMWjDRA6OkpbmvLKAQs38b6lhwSTb5ORlmmSSRk7cidNXLIpA==}
+    peerDependencies:
+      effect: ^4.0.0-beta.58
+
   '@effect/sql@0.48.5':
     resolution: {integrity: sha512-OhmqA4zaajZc5F4M30W/5UjnjnhW+Z3MIbdTn6KihYOywXG+uSD2RVDhW4HiMWlysD4jv2mapbYSzi+IowYqOg==}
     peerDependencies:
@@ -1768,6 +1800,9 @@ packages:
 
   '@electric-sql/pglite@0.2.12':
     resolution: {integrity: sha512-J/X42ujcoFEbOkgRyoNqZB5qcqrnJRWVlwpH3fKYoJkTz49N91uAK/rDSSG/85WRas9nC9mdV4FnMTxnQWE/rw==}
+
+  '@electric-sql/pglite@0.4.6':
+    resolution: {integrity: sha512-qmlmfN8UyKCee35qkV0r/MBp+Znl8FjBz7OpoglNvww3GJpw0/DLP0o1ZymvLNmcD5DTLOQdzKPtF8Hd3mdl1w==}
 
   '@emnapi/core@1.7.1':
     resolution: {integrity: sha512-o1uhUASyo921r2XtHYOHy7gdkGLge8ghBEQHMWmyJFoXlpU58kIrhhN3w26lpQb6dspetweapMn2CSNwQ8I4wg==}
@@ -2667,11 +2702,22 @@ packages:
   '@libsql/client@0.10.0':
     resolution: {integrity: sha512-2ERn08T4XOVx34yBtUPq0RDjAdd9TJ5qNH/izugr208ml2F94mk92qC64kXyDVQINodWJvp3kAdq6P4zTtCZ7g==}
 
+  '@libsql/client@0.17.3':
+    resolution: {integrity: sha512-HXk9wiAoJbKFbyBH4O+aEhN6ir5ERXuXvwE5OD2eR4/5RUa3Pw/8L9zrnVdU+iNJitRvisPWaIwmhkO3bH7giA==}
+
   '@libsql/core@0.10.0':
     resolution: {integrity: sha512-rqynAXGaiSpTsykOZdBtI1N4z4O+KZ6mt33K/aHeXAY0gSIfK/ctxuWa0Y1Bjo4FMz1idBTCXz4Ps5kITOvZZw==}
 
+  '@libsql/core@0.17.3':
+    resolution: {integrity: sha512-2UjK1i7JBkMduJo4WdvvBxMMvVJ31pArBZNONyz/GCJJAH+1UHat2X6vn10S/WpY5fKzIT98WqYFl2vzWRLOfg==}
+
   '@libsql/darwin-arm64@0.4.7':
     resolution: {integrity: sha512-yOL742IfWUlUevnI5PdnIT4fryY3LYTdLm56bnY0wXBw7dhFcnjuA7jrH3oSVz2mjZTHujxoITgAE7V6Z+eAbg==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@libsql/darwin-arm64@0.5.29':
+    resolution: {integrity: sha512-K+2RIB1OGFPYQbfay48GakLhqf3ArcbHqPFu7EZiaUcRgFcdw8RoltsMyvbj5ix2fY0HV3Q3Ioa/ByvQdaSM0A==}
     cpu: [arm64]
     os: [darwin]
 
@@ -2679,6 +2725,14 @@ packages:
     resolution: {integrity: sha512-ezc7V75+eoyyH07BO9tIyJdqXXcRfZMbKcLCeF8+qWK5nP8wWuMcfOVywecsXGRbT99zc5eNra4NEx6z5PkSsA==}
     cpu: [x64]
     os: [darwin]
+
+  '@libsql/darwin-x64@0.5.29':
+    resolution: {integrity: sha512-OtT+KFHsKFy1R5FVadr8FJ2Bb1mghtXTyJkxv0trocq7NuHntSki1eUbxpO5ezJesDvBlqFjnWaYYY516QNLhQ==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@libsql/hrana-client@0.10.0':
+    resolution: {integrity: sha512-OoA4EMqRAC7kn7V2P6EQqRcpZf2W+AjsNIyCizBg339Tq/aMC7sRnzs3SklderhmQWAqEzvv8A2vhxVmWpkVvw==}
 
   '@libsql/hrana-client@0.6.2':
     resolution: {integrity: sha512-MWxgD7mXLNf9FXXiM0bc90wCjZSpErWKr5mGza7ERy2FJNNMXd7JIOv+DepBA1FQTIfI8TFO4/QDYgaQC0goNw==}
@@ -2690,8 +2744,23 @@ packages:
   '@libsql/isomorphic-ws@0.1.5':
     resolution: {integrity: sha512-DtLWIH29onUYR00i0GlQ3UdcTRC6EP4u9w/h9LxpUZJWRMARk6dQwZ6Jkd+QdwVpuAOrdxt18v0K2uIYR3fwFg==}
 
+  '@libsql/linux-arm-gnueabihf@0.5.29':
+    resolution: {integrity: sha512-CD4n4zj7SJTHso4nf5cuMoWoMSS7asn5hHygsDuhRl8jjjCTT3yE+xdUvI4J7zsyb53VO5ISh4cwwOtf6k2UhQ==}
+    cpu: [arm]
+    os: [linux]
+
+  '@libsql/linux-arm-musleabihf@0.5.29':
+    resolution: {integrity: sha512-2Z9qBVpEJV7OeflzIR3+l5yAd4uTOLxklScYTwpZnkm2vDSGlC1PRlueLaufc4EFITkLKXK2MWBpexuNJfMVcg==}
+    cpu: [arm]
+    os: [linux]
+
   '@libsql/linux-arm64-gnu@0.4.7':
     resolution: {integrity: sha512-WlX2VYB5diM4kFfNaYcyhw5y+UJAI3xcMkEUJZPtRDEIu85SsSFrQ+gvoKfcVh76B//ztSeEX2wl9yrjF7BBCA==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@libsql/linux-arm64-gnu@0.5.29':
+    resolution: {integrity: sha512-gURBqaiXIGGwFNEaUj8Ldk7Hps4STtG+31aEidCk5evMMdtsdfL3HPCpvys+ZF/tkOs2MWlRWoSq7SOuCE9k3w==}
     cpu: [arm64]
     os: [linux]
 
@@ -2700,8 +2769,18 @@ packages:
     cpu: [arm64]
     os: [linux]
 
+  '@libsql/linux-arm64-musl@0.5.29':
+    resolution: {integrity: sha512-fwgYZ0H8mUkyVqXZHF3mT/92iIh1N94Owi/f66cPVNsk9BdGKq5gVpoKO+7UxaNzuEH1roJp2QEwsCZMvBLpqg==}
+    cpu: [arm64]
+    os: [linux]
+
   '@libsql/linux-x64-gnu@0.4.7':
     resolution: {integrity: sha512-CMnNRCmlWQqqzlTw6NeaZXzLWI8bydaXDke63JTUCvu8R+fj/ENsLrVBtPDlxQ0wGsYdXGlrUCH8Qi9gJep0yQ==}
+    cpu: [x64]
+    os: [linux]
+
+  '@libsql/linux-x64-gnu@0.5.29':
+    resolution: {integrity: sha512-y14V0vY0nmMC6G0pHeJcEarcnGU2H6cm21ZceRkacWHvQAEhAG0latQkCtoS2njFOXiYIg+JYPfAoWKbi82rkg==}
     cpu: [x64]
     os: [linux]
 
@@ -2710,8 +2789,18 @@ packages:
     cpu: [x64]
     os: [linux]
 
+  '@libsql/linux-x64-musl@0.5.29':
+    resolution: {integrity: sha512-gquqwA/39tH4pFl+J9n3SOMSymjX+6kZ3kWgY3b94nXFTwac9bnFNMffIomgvlFaC4ArVqMnOZD3nuJ3H3VO1w==}
+    cpu: [x64]
+    os: [linux]
+
   '@libsql/win32-x64-msvc@0.4.7':
     resolution: {integrity: sha512-7pJzOWzPm6oJUxml+PCDRzYQ4A1hTMHAciTAHfFK4fkbDZX33nWPVG7Y3vqdKtslcwAzwmrNDc6sXy2nwWnbiw==}
+    cpu: [x64]
+    os: [win32]
+
+  '@libsql/win32-x64-msvc@0.5.29':
+    resolution: {integrity: sha512-4/0CvEdhi6+KjMxMaVbFM2n2Z44escBRoEYpR+gZg64DdetzGnYm8mcNLcoySaDJZNaBd6wz5DNdgRmcI4hXcg==}
     cpu: [x64]
     os: [win32]
 
@@ -3814,6 +3903,7 @@ packages:
 
   '@ungap/structured-clone@1.3.0':
     resolution: {integrity: sha512-WmoN8qaIAo7WTYWbAZuG8PYEhn5fkz7dZrqTBZ7dtt//lL2Gwms1IcnQ5yHqjDfX8Ft5j4YzDM23f87zBfDe9g==}
+    deprecated: Potential CWE-502 - Update to 1.3.1 or higher
 
   '@upstash/redis@1.35.7':
     resolution: {integrity: sha512-bdCdKhke+kYUjcLLuGWSeQw7OLuWIx3eyKksyToLBAlGIMX9qiII0ptp8E0y7VFE1yuBxBd/3kSzJ8774Q4g+A==}
@@ -4202,9 +4292,9 @@ packages:
   better-sqlite3@11.9.1:
     resolution: {integrity: sha512-Ba0KR+Fzxh2jDRhdg6TSH0SJGzb8C0aBY4hR8w8madIdIzzC6Y1+kx5qR6eS1Z+Gy20h6ZU28aeyg0z1VIrShQ==}
 
-  better-sqlite3@12.6.2:
-    resolution: {integrity: sha512-8VYKM3MjCa9WcaSAI3hzwhmyHVlH8tiGFwf0RlTsZPWJ1I5MkzjiudCo4KC4DxOaL/53A5B1sI/IbldNFDbsKA==}
-    engines: {node: 20.x || 22.x || 23.x || 24.x || 25.x}
+  better-sqlite3@12.10.0:
+    resolution: {integrity: sha512-CyzaZRQKyHkB2ZInfTTl2nvT33EbDpjkLEbE8/Zck3Ll6O0qqvuGdrJ45HgtH+HykRg88ITY3AdreBGN70aBSQ==}
+    engines: {node: 20.x || 22.x || 23.x || 24.x || 25.x || 26.x}
 
   big-integer@1.6.52:
     resolution: {integrity: sha512-QxD8cf2eVqJOOz63z6JIN9BzvVs/dlySa5HGSBH5xtR8dPteIRQnBxxKqkNTiT6jbDTF6jAfrd4oMcND9RGbQg==}
@@ -6341,6 +6431,11 @@ packages:
   libsql@0.4.7:
     resolution: {integrity: sha512-T9eIRCs6b0J1SHKYIvD8+KCJMcWZ900iZyxdnSCdqxN12Z1ijzT+jY5nrk72Jw4B0HGzms2NgpryArlJqvc3Lw==}
     cpu: [x64, arm64, wasm32]
+    os: [darwin, linux, win32]
+
+  libsql@0.5.29:
+    resolution: {integrity: sha512-8lMP8iMgiBzzoNbAPQ59qdVcj6UaE/Vnm+fiwX4doX4Narook0a4GPKWBEv+CR8a1OwbfkgL18uBfBjWdF0Fzg==}
+    cpu: [x64, arm64, wasm32, arm]
     os: [darwin, linux, win32]
 
   lighthouse-logger@1.4.2:
@@ -10492,6 +10587,14 @@ snapshots:
       msgpackr: 1.11.9
       multipasta: 0.2.7
 
+  '@effect/sql-libsql@4.0.0-beta.58(bufferutil@4.0.8)(effect@4.0.0-beta.58)(utf-8-validate@6.0.3)':
+    dependencies:
+      '@libsql/client': 0.17.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
+      effect: 4.0.0-beta.58
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
   '@effect/sql-mysql2@4.0.0-beta.58(@types/node@25.5.0)(effect@4.0.0-beta.58)':
     dependencies:
       effect: 4.0.0-beta.58
@@ -10525,6 +10628,20 @@ snapshots:
     transitivePeerDependencies:
       - pg-native
 
+  '@effect/sql-pglite@4.0.0-beta.58(effect@4.0.0-beta.58)':
+    dependencies:
+      '@electric-sql/pglite': 0.4.6
+      effect: 4.0.0-beta.58
+
+  '@effect/sql-sqlite-bun@4.0.0-beta.58(effect@4.0.0-beta.58)':
+    dependencies:
+      effect: 4.0.0-beta.58
+
+  '@effect/sql-sqlite-node@4.0.0-beta.58(effect@4.0.0-beta.58)':
+    dependencies:
+      better-sqlite3: 12.10.0
+      effect: 4.0.0-beta.58
+
   '@effect/sql@0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-beta.58))(effect@4.0.0-beta.58))(@effect/platform@0.93.5(effect@4.0.0-beta.58))(effect@4.0.0-beta.58)':
     dependencies:
       '@effect/experimental': 0.57.8(@effect/platform@0.93.5(effect@4.0.0-beta.58))(effect@4.0.0-beta.58)
@@ -10538,6 +10655,8 @@ snapshots:
       vitest: 4.0.13(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.8.3)
 
   '@electric-sql/pglite@0.2.12': {}
+
+  '@electric-sql/pglite@0.4.6': {}
 
   '@emnapi/core@1.7.1':
     dependencies:
@@ -11523,15 +11642,44 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
+  '@libsql/client@0.17.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)':
+    dependencies:
+      '@libsql/core': 0.17.3
+      '@libsql/hrana-client': 0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
+      js-base64: 3.7.8
+      libsql: 0.5.29
+      promise-limit: 2.7.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
   '@libsql/core@0.10.0':
+    dependencies:
+      js-base64: 3.7.8
+
+  '@libsql/core@0.17.3':
     dependencies:
       js-base64: 3.7.8
 
   '@libsql/darwin-arm64@0.4.7':
     optional: true
 
+  '@libsql/darwin-arm64@0.5.29':
+    optional: true
+
   '@libsql/darwin-x64@0.4.7':
     optional: true
+
+  '@libsql/darwin-x64@0.5.29':
+    optional: true
+
+  '@libsql/hrana-client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)':
+    dependencies:
+      '@libsql/isomorphic-ws': 0.1.5(bufferutil@4.0.8)(utf-8-validate@6.0.3)
+      js-base64: 3.7.8
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   '@libsql/hrana-client@0.6.2(bufferutil@4.0.8)(utf-8-validate@6.0.3)':
     dependencies:
@@ -11553,19 +11701,40 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
+  '@libsql/linux-arm-gnueabihf@0.5.29':
+    optional: true
+
+  '@libsql/linux-arm-musleabihf@0.5.29':
+    optional: true
+
   '@libsql/linux-arm64-gnu@0.4.7':
+    optional: true
+
+  '@libsql/linux-arm64-gnu@0.5.29':
     optional: true
 
   '@libsql/linux-arm64-musl@0.4.7':
     optional: true
 
+  '@libsql/linux-arm64-musl@0.5.29':
+    optional: true
+
   '@libsql/linux-x64-gnu@0.4.7':
+    optional: true
+
+  '@libsql/linux-x64-gnu@0.5.29':
     optional: true
 
   '@libsql/linux-x64-musl@0.4.7':
     optional: true
 
+  '@libsql/linux-x64-musl@0.5.29':
+    optional: true
+
   '@libsql/win32-x64-msvc@0.4.7':
+    optional: true
+
+  '@libsql/win32-x64-msvc@0.5.29':
     optional: true
 
   '@loaderkit/resolve@1.0.4':
@@ -13350,11 +13519,10 @@ snapshots:
       bindings: 1.5.0
       prebuild-install: 7.1.3
 
-  better-sqlite3@12.6.2:
+  better-sqlite3@12.10.0:
     dependencies:
       bindings: 1.5.0
       prebuild-install: 7.1.3
-    optional: true
 
   big-integer@1.6.52: {}
 
@@ -14007,11 +14175,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.940.0)(@cloudflare/workers-types@4.20251126.0)(@libsql/client@0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@types/better-sqlite3@7.6.13)(@types/pg@8.15.6)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@12.6.2)(bun-types@1.3.3)(mysql2@3.22.3(@types/node@25.5.0))(pg@8.20.0)(postgres@3.4.7)(sql.js@1.13.0)(sqlite3@5.1.7):
+  drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.940.0)(@cloudflare/workers-types@4.20251126.0)(@libsql/client@0.17.3(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@types/better-sqlite3@7.6.13)(@types/pg@8.15.6)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@12.10.0)(bun-types@1.3.3)(mysql2@3.22.3(@types/node@25.5.0))(pg@8.20.0)(postgres@3.4.7)(sql.js@1.13.0)(sqlite3@5.1.7):
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.940.0
       '@cloudflare/workers-types': 4.20251126.0
-      '@libsql/client': 0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
+      '@libsql/client': 0.17.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       '@neondatabase/serverless': 1.0.2
       '@opentelemetry/api': 1.9.0
       '@planetscale/database': 1.19.0
@@ -14019,7 +14187,7 @@ snapshots:
       '@types/pg': 8.15.6
       '@types/sql.js': 1.4.9
       '@vercel/postgres': 0.8.0
-      better-sqlite3: 12.6.2
+      better-sqlite3: 12.10.0
       bun-types: 1.3.3
       mysql2: 3.22.3(@types/node@25.5.0)
       pg: 8.20.0
@@ -14057,7 +14225,7 @@ snapshots:
       sql.js: 1.13.0
       sqlite3: 5.1.7
 
-  drizzle-orm@1.0.0-beta.21(55ce416bfa2056a5af9efa292c7e71b1):
+  drizzle-orm@1.0.0-beta.21(37bb6b9fef6fe573ea1e67f8dc2389ba):
     dependencies:
       '@types/mssql': 9.1.8
       mssql: 12.1.1
@@ -14066,8 +14234,8 @@ snapshots:
       '@cloudflare/workers-types': 4.20251126.0
       '@effect/sql': 0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-beta.58))(effect@4.0.0-beta.58))(@effect/platform@0.93.5(effect@4.0.0-beta.58))(effect@4.0.0-beta.58)
       '@effect/sql-pg': 0.49.7(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-beta.58))(effect@4.0.0-beta.58))(@effect/platform@0.93.5(effect@4.0.0-beta.58))(@effect/sql@0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-beta.58))(effect@4.0.0-beta.58))(@effect/platform@0.93.5(effect@4.0.0-beta.58))(effect@4.0.0-beta.58))(effect@4.0.0-beta.58)
-      '@electric-sql/pglite': 0.2.12
-      '@libsql/client': 0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
+      '@electric-sql/pglite': 0.4.6
+      '@libsql/client': 0.17.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       '@libsql/client-wasm': 0.10.0
       '@neondatabase/serverless': 1.0.2
       '@op-engineering/op-sqlite': 2.0.22(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
@@ -14086,7 +14254,7 @@ snapshots:
       '@vercel/postgres': 0.8.0
       '@xata.io/client': 0.29.5(typescript@5.9.2)
       arktype: 2.2.0
-      better-sqlite3: 12.6.2
+      better-sqlite3: 12.10.0
       bun-types: 1.3.3
       expo-sqlite: 14.0.6(expo@54.0.25(@babel/core@7.28.5)(bufferutil@4.0.8)(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))
       gel: 2.2.0
@@ -15567,6 +15735,21 @@ snapshots:
       '@libsql/linux-x64-gnu': 0.4.7
       '@libsql/linux-x64-musl': 0.4.7
       '@libsql/win32-x64-msvc': 0.4.7
+
+  libsql@0.5.29:
+    dependencies:
+      '@neon-rs/load': 0.0.4
+      detect-libc: 2.0.2
+    optionalDependencies:
+      '@libsql/darwin-arm64': 0.5.29
+      '@libsql/darwin-x64': 0.5.29
+      '@libsql/linux-arm-gnueabihf': 0.5.29
+      '@libsql/linux-arm-musleabihf': 0.5.29
+      '@libsql/linux-arm64-gnu': 0.5.29
+      '@libsql/linux-arm64-musl': 0.5.29
+      '@libsql/linux-x64-gnu': 0.5.29
+      '@libsql/linux-x64-musl': 0.5.29
+      '@libsql/win32-x64-msvc': 0.5.29
 
   lighthouse-logger@1.4.2:
     dependencies:
