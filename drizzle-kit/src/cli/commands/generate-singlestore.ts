@@ -4,17 +4,17 @@ import { ddlDiff, ddlDiffDry } from '../../dialects/singlestore/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/singlestore/drizzle';
 import { prepareSnapshot } from '../../dialects/singlestore/serializer';
 import { prepareOutFolder } from '../../utils/utils-node';
-import { isJsonMode } from '../context';
+import { outputFormat } from '../context';
 import { resolver } from '../prompts';
 import { explain, explainJsonOutput, humanLog } from '../views';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
-	const { out: outFolder, casing, filenames } = config;
-	const json = isJsonMode();
+	const { out: outFolder, filenames } = config;
+	const json = outputFormat() === 'json';
 	const { snapshots } = prepareOutFolder(outFolder);
-	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, filenames, casing);
+	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, filenames);
 
 	if (config.custom) {
 		return writeResult({
@@ -39,7 +39,7 @@ export const handle = async (config: GenerateConfig) => {
 		'default',
 	);
 
-	if (json && config.hints.hasMissingHints()) {
+	if (config.hints.hasMissingHints()) {
 		return config.hints.toResponse();
 	}
 
@@ -73,7 +73,7 @@ export const handle = async (config: GenerateConfig) => {
 
 export const handleExport = async (config: ExportConfig) => {
 	const res = await prepareFromSchemaFiles(config.filenames);
-	const schema = fromDrizzleSchema(res.tables, config.casing);
+	const schema = fromDrizzleSchema(res.tables);
 	const { ddl } = interimToDDL(schema);
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl);
 	console.log(sqlStatements.join('\n'));

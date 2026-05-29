@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
 import type { Resolver } from '../dialects/common';
-import { isJsonMode } from './context';
+import { isInteractive } from './context';
 import { InvalidHintsCliError } from './errors';
 import { tuplesEqual } from './hints';
 import type { HintsHandler, IdFor, RenameCreateHintKind } from './hints';
@@ -70,9 +70,10 @@ export const resolver = <T extends PromptEntityBase>(
 	 * Resolves rename-or-create ambiguity for one entity kind by comparing the
 	 * created and deleted sides of a diff.
 	 *
-	 * JSON mode and TTY mode follow different control flows: JSON mode consults
-	 * pre-supplied hints and records any missing hints without prompting, while
-	 * TTY mode interactively asks the user to choose the resolution.
+	 * Hint-driven mode and TTY mode follow different control flows: hint-driven
+	 * mode consults pre-supplied hints and records any missing hints without
+	 * prompting, while TTY mode interactively asks the user to choose the
+	 * resolution.
 	 *
 	 * Returns the resolved diff sets along with only the missing-hint items that
 	 * were added during this resolver invocation.
@@ -90,11 +91,11 @@ export const resolver = <T extends PromptEntityBase>(
 			renamedOrMoved: [] as { from: T; to: T }[],
 		});
 
-		const resolveJsonMode = async () => {
+		const resolveFromHints = async () => {
 			const kind = entity;
 
 			if (!hints) {
-				throw new Error(`Internal error: resolver(${entity}) was called in JSON mode without a HintsHandler`);
+				throw new Error(`Internal error: resolver(${entity}) was called without a HintsHandler`);
 			}
 
 			const result = createResult();
@@ -144,12 +145,43 @@ export const resolver = <T extends PromptEntityBase>(
 		};
 
 		const resolveTtyMode = async () => {
+			const kind = entity;
 			const result = createResult();
 			let index = 0;
 			let leftMissing = [...deleted];
 
 			do {
 				const newItem = created[index]!;
+
+				if (hints) {
+					const newItemId = entityId(kind, newItem, defaultSchema);
+					const renameHint = hints.matchRename(kind, newItemId);
+					const createHint = hints.matchCreate(kind, newItemId);
+					const renameSource = renameHint
+						? leftMissing.find((item) => tuplesEqual(entityId(kind, item, defaultSchema), renameHint.from))
+						: undefined;
+
+					if (renameSource) {
+						applySelection({ from: renameSource, to: newItem }, newItem, leftMissing, result, entity, defaultSchema);
+						leftMissing = leftMissing.filter(Boolean);
+						index += 1;
+						continue;
+					}
+
+					if (renameHint) {
+						throw new InvalidHintsCliError(
+							`rename hint's \`from\` ${JSON.stringify(renameHint.from)} doesn't match any deleted ${kind}`,
+							{ kind, from: [...renameHint.from] },
+						);
+					}
+
+					if (createHint) {
+						applySelection(newItem, newItem, leftMissing, result, entity, defaultSchema);
+						leftMissing = leftMissing.filter(Boolean);
+						index += 1;
+						continue;
+					}
+				}
 
 				// Present the new entity plus every possible rename candidate to the user.
 				const renames: RenamePromptItem<T>[] = leftMissing.map((item) => ({ from: item, to: newItem }));
@@ -178,7 +210,7 @@ export const resolver = <T extends PromptEntityBase>(
 			};
 		};
 
-		return isJsonMode() ? resolveJsonMode() : resolveTtyMode();
+		return isInteractive() ? resolveTtyMode() : resolveFromHints();
 	};
 };
 

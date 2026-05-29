@@ -4,7 +4,7 @@ import type { Column, Table, View } from '../../dialects/mysql/ddl';
 import { interimToDDL } from '../../dialects/mysql/ddl';
 import { prepareEntityFilter } from '../../dialects/pull-utils';
 import { ddlDiff } from '../../dialects/singlestore/diff';
-import { isJsonMode } from '../context';
+import { outputFormat } from '../context';
 import { CommandOutputCliError } from '../errors';
 import { highlightSQL } from '../highlighter';
 import type { HintsHandler } from '../hints';
@@ -30,7 +30,7 @@ export const handle = async (
 	},
 	hints: HintsHandler,
 ) => {
-	const json = isJsonMode();
+	const json = outputFormat() === 'json';
 
 	const { connectToSingleStore } = await import('../connections');
 	const { fromDatabaseForDrizzle } = await import('../../dialects/mysql/introspect');

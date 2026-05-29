@@ -141,7 +141,7 @@ afterEach(() => {
 });
 
 test('json mode skips the drop-table probe when a confirm hint already authorizes it', async () => {
-	await runWithCliContext({ json: true }, async () => {
+	await runWithCliContext({ output: 'json', interactive: false }, async () => {
 		const hints = new HintsHandler([
 			{ type: 'confirm_data_loss', kind: 'table', entity: ['public', 'orders'] as const },
 		]);
@@ -161,7 +161,7 @@ test('json mode skips the drop-table probe when a confirm hint already authorize
 });
 
 test('json mode auto-authorizes an empty materialized-view probe without recording a missing confirm hint', async () => {
-	await runWithCliContext({ json: true }, async () => {
+	await runWithCliContext({ output: 'json', interactive: false }, async () => {
 		const hints = new HintsHandler();
 		const { db, queries } = createDb(async () => []);
 
@@ -176,7 +176,7 @@ test('json mode auto-authorizes an empty materialized-view probe without recordi
 });
 
 test('json mode records add_not_null confirmation when the target table is non-empty', async () => {
-	await runWithCliContext({ json: true }, async () => {
+	await runWithCliContext({ output: 'json', interactive: false }, async () => {
 		const hints = new HintsHandler();
 		const { db, queries } = createDb(async () => [{}]);
 
@@ -202,7 +202,7 @@ test('json mode records add_not_null confirmation when the target table is non-e
 });
 
 test('json mode records only the risky probe sites when multiple probes have mixed outcomes', async () => {
-	await runWithCliContext({ json: true }, async () => {
+	await runWithCliContext({ output: 'json', interactive: false }, async () => {
 		const hints = new HintsHandler();
 		const { db, queries } = createDb(async (sql) => {
 			if (sql.includes(`table_schema = 'archive'`)) {
@@ -245,7 +245,7 @@ test('json mode records only the risky probe sites when multiple probes have mix
 });
 
 test('tty mode keeps the existing drop-pk hint path, including the constraint-name lookup statement', async () => {
-	await runWithCliContext({ json: false }, async () => {
+	await runWithCliContext({ output: 'text', interactive: true }, async () => {
 		const hintsHandler = new HintsHandler();
 		const { db, queries } = createDb(async (sql) => {
 			if (sql === 'select 1 from "public"."orders" limit 1') {
@@ -276,7 +276,7 @@ test('tty mode keeps the existing drop-pk hint path, including the constraint-na
 });
 
 test('rename hints resolve orders to orders1 before probes so no stale orders1 select is attempted', async () => {
-	await runWithCliContext({ json: true }, async () => {
+	await runWithCliContext({ output: 'json', interactive: false }, async () => {
 		const hintsInput = [
 			{ type: 'rename', kind: 'table', from: ['public', 'orders'] as const, to: ['public', 'orders1'] as const },
 		] satisfies readonly Hint[];

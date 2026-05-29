@@ -51,7 +51,7 @@ const noChangesScenarios = (
 		'./schema.ts',
 		'--out',
 		outDir(`generate-${dialect}-no-changes`, 'cli'),
-		'--json',
+		'--output', 'json',
 	],
 	sdkOpts: {
 		dialect,
@@ -84,7 +84,7 @@ const pushMissingSchemaScenarios = (
 		'tests/definitely-missing-schema.ts',
 		'--url',
 		'postgresql://invalid:invalid@127.0.0.1:1/none',
-		'--json',
+		'--output', 'json',
 	],
 	sdkOpts: {
 		dialect,
@@ -105,7 +105,7 @@ export const scenarios: Scenario[] = [
 			'postgresql',
 			'--schema',
 			'tests/definitely-missing-schema.ts',
-			'--json',
+			'--output', 'json',
 		],
 		sdkOpts: {
 			dialect: 'postgresql',

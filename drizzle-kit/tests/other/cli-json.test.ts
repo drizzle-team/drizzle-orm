@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { HintsHandler } from '../../src/cli/hints';
 
 const runWithCliContext = async <T>(
-	context: { json: boolean },
+	context: { output: 'text' | 'json'; interactive: boolean },
 	callback: () => Promise<T> | T,
 ): Promise<T> => {
 	const ctx = await import('../../src/cli/context');
@@ -148,7 +148,7 @@ test('skills version prints the bundled revision on a single line', () => {
 });
 
 test('json error output includes structured cli error fields', () => {
-	const result = runCli(['generate', '--json', '--config=foo.ts', '--dialect=postgresql']);
+	const result = runCli(['generate', '--output', 'json', '--config=foo.ts', '--dialect=postgresql']);
 
 	expect(result.status).not.toBeNull();
 	expect(result.stderr).toContain("You can't use both --config and other cli options for generate command");
@@ -167,7 +167,7 @@ test('json error output includes structured cli error fields', () => {
 
 test('generate with config emits clean json stdout in json mode', () => {
 	const result = runCli(
-		['generate', '--json', '--config=drizzle.config.ts', '--explain'],
+		['generate', '--output', 'json', '--config=drizzle.config.ts', '--explain'],
 		{ TEST_CONFIG_PATH_PREFIX: './tests/cli/' },
 	);
 
@@ -185,7 +185,7 @@ test('generate with config emits clean json stdout in json mode', () => {
 test('generate missing schema path emits structured json error', () => {
 	const result = runCli([
 		'generate',
-		'--json',
+		'--output', 'json',
 		'--dialect=postgresql',
 		'--schema=tests/definitely-missing-schema.ts',
 	]);
@@ -206,7 +206,7 @@ test('generate missing schema path emits structured json error', () => {
 test('push missing schema path emits structured json error', () => {
 	const result = runCli([
 		'push',
-		'--json',
+		'--output', 'json',
 		'--dialect=postgresql',
 		'--schema=tests/definitely-missing-schema.ts',
 		'--url=postgres://postgres:postgres@127.0.0.1:5432/postgres',
@@ -249,7 +249,7 @@ test('push postgres schema errors throw structured cli errors in json mode', asy
 
 	const pushPostgres = await import('../../src/cli/commands/push-postgres');
 
-	await expect(runWithCliContext({ json: true }, () =>
+	await expect(runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushPostgres.handle(
 			['schema.ts'],
 			false,
@@ -296,7 +296,7 @@ test('push postgres ddl errors throw structured cli errors in json mode', async 
 
 	const pushPostgres = await import('../../src/cli/commands/push-postgres');
 
-	await expect(runWithCliContext({ json: true }, () =>
+	await expect(runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushPostgres.handle(
 			['schema.ts'],
 			false,
@@ -343,7 +343,7 @@ test('push mysql ddl errors throw structured cli errors in json mode', async () 
 
 	const pushMysql = await import('../../src/cli/commands/push-mysql');
 
-	await expect(runWithCliContext({ json: true }, () =>
+	await expect(runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushMysql.handle(
 			['schema.ts'],
 			{} as never,
@@ -383,7 +383,7 @@ test('push sqlite ddl errors throw structured cli errors in json mode', async ()
 
 	const pushSqlite = await import('../../src/cli/commands/push-sqlite');
 
-	await expect(runWithCliContext({ json: true }, () =>
+	await expect(runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushSqlite.handle(
 			{ query: vi.fn(async () => []), batch: vi.fn(async () => []) } as never,
 			['schema.ts'],
@@ -429,7 +429,7 @@ test('push cockroach schema errors throw structured cli errors in json mode', as
 
 	const pushCockroach = await import('../../src/cli/commands/push-cockroach');
 
-	await expect(runWithCliContext({ json: true }, () =>
+	await expect(runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushCockroach.handle(
 			['schema.ts'],
 			false,
@@ -476,7 +476,7 @@ test('push cockroach ddl errors throw structured cli errors in json mode', async
 
 	const pushCockroach = await import('../../src/cli/commands/push-cockroach');
 
-	await expect(runWithCliContext({ json: true }, () =>
+	await expect(runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushCockroach.handle(
 			['schema.ts'],
 			false,
@@ -555,7 +555,7 @@ test('push postgres explain emits structured json payload in json mode', async (
 
 	const pushPostgres = await import('../../src/cli/commands/push-postgres');
 
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushPostgres.handle(
 			['schema.ts'],
 			false,
@@ -670,7 +670,7 @@ test('generate postgres explain emits structured json payload in json mode', asy
 	const generatePostgres = await import('../../src/cli/commands/generate-postgres');
 
 	const tempDir = mkdtempSync(join(tmpdir(), 'drizzle-kit-generate-json-'));
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		generatePostgres.handle({
 			out: tempDir,
 			filenames: ['schema.ts'],
@@ -734,7 +734,7 @@ test('generate postgres explain emits no_changes for empty diff in json mode', a
 	});
 
 	const generatePostgres = await import('../../src/cli/commands/generate-postgres');
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		generatePostgres.handle({
 			out: mkdtempSync(join(tmpdir(), 'drizzle-kit-generate-noop-json-')),
 			filenames: ['schema.ts'],
@@ -766,7 +766,7 @@ test('generate mysql explain emits no_changes for empty diff in json mode', asyn
 	}));
 
 	const generateMysql = await import('../../src/cli/commands/generate-mysql');
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		generateMysql.handle({
 			out: mkdtempSync(join(tmpdir(), 'drizzle-kit-generate-mysql-noop-json-')),
 			filenames: ['schema.ts'],
@@ -801,7 +801,7 @@ test('generate sqlite explain emits no_changes for empty diff in json mode', asy
 	}));
 
 	const generateSqlite = await import('../../src/cli/commands/generate-sqlite');
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		generateSqlite.handle({
 			out: mkdtempSync(join(tmpdir(), 'drizzle-kit-generate-sqlite-noop-json-')),
 			filenames: ['schema.ts'],
@@ -831,7 +831,7 @@ test('generate cockroach explain emits no_changes for empty diff in json mode', 
 	}));
 
 	const generateCockroach = await import('../../src/cli/commands/generate-cockroach');
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		generateCockroach.handle({
 			out: mkdtempSync(join(tmpdir(), 'drizzle-kit-generate-cockroach-noop-json-')),
 			filenames: ['schema.ts'],
@@ -860,7 +860,7 @@ test('generate mssql explain emits no_changes for empty diff in json mode', asyn
 	}));
 
 	const generateMssql = await import('../../src/cli/commands/generate-mssql');
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		generateMssql.handle({
 			out: mkdtempSync(join(tmpdir(), 'drizzle-kit-generate-mssql-noop-json-')),
 			filenames: ['schema.ts'],
@@ -889,7 +889,7 @@ test('generate singlestore explain emits no_changes for empty diff in json mode'
 	}));
 
 	const generateSinglestore = await import('../../src/cli/commands/generate-singlestore');
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		generateSinglestore.handle({
 			out: mkdtempSync(join(tmpdir(), 'drizzle-kit-generate-singlestore-noop-json-')),
 			filenames: ['schema.ts'],
@@ -946,7 +946,7 @@ test('explainJsonOutput sanitizes hints: strips ANSI, excludes statement', async
 test('generate writeResult emits json for no-op when json mode is active', async () => {
 	const { writeResult } = await import('../../src/cli/commands/generate-common');
 
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		writeResult({
 			snapshot: {} as never,
 			sqlStatements: [],
@@ -967,7 +967,7 @@ test('generate writeResult emits json payload when a migration is written in jso
 	const { writeResult } = await import('../../src/cli/commands/generate-common');
 	const outFolder = mkdtempSync(join(tmpdir(), 'drizzle-kit-write-result-json-'));
 
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		writeResult({
 			snapshot: {} as never,
 			sqlStatements: ['CREATE TABLE "users" ("id" serial PRIMARY KEY);'],
@@ -999,7 +999,7 @@ test('generate sqlite custom emits json payload in json mode', async () => {
 	}));
 	const generateSqlite = await import('../../src/cli/commands/generate-sqlite');
 	const tempDir = mkdtempSync(join(tmpdir(), 'drizzle-kit-custom-json-'));
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		generateSqlite.handle({
 			out: tempDir,
 			filenames: ['schema.ts'],
@@ -1045,7 +1045,7 @@ test('generate sqlite emits missing_hints for unresolved table rename in json mo
 	}));
 
 	const generateSqlite = await import('../../src/cli/commands/generate-sqlite');
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		generateSqlite.handle({
 			out: mkdtempSync(join(tmpdir(), 'drizzle-kit-generate-sqlite-missing-hints-')),
 			filenames: ['schema.ts'],
@@ -1114,7 +1114,7 @@ test('push postgres schema warnings do not leak to stdout in json mode', async (
 
 	const pushPostgres = await import('../../src/cli/commands/push-postgres');
 
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushPostgres.handle(
 			['schema.ts'],
 			false,
@@ -1172,7 +1172,7 @@ test('push postgres emits missing_hints for unresolved schema rename in json mod
 	const pushPostgres = await import('../../src/cli/commands/push-postgres');
 	const hints = new HintsHandler();
 
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushPostgres.handle(
 			['schema.ts'],
 			false,
@@ -1232,7 +1232,7 @@ test('push postgres emits missing_hints for schema rename and table drop in json
 	const pushPostgres = await import('../../src/cli/commands/push-postgres');
 	const hints = new HintsHandler();
 
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushPostgres.handle(
 			['schema.ts'],
 			false,
@@ -1297,7 +1297,7 @@ test('push postgres resolves schema rename hint and emits confirm missing_hint i
 		{ type: 'rename', kind: 'schema', from: ['prev_schema'], to: ['next_schema'] },
 	]);
 
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushPostgres.handle(
 			['schema.ts'],
 			false,
@@ -1365,7 +1365,7 @@ test('generate postgres emits missing_hints for unresolved schema rename in json
 	const hints = new HintsHandler();
 
 	const tempDir = mkdtempSync(join(tmpdir(), 'drizzle-kit-generate-missing-hints-'));
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		generatePostgres.handle({
 			out: tempDir,
 			filenames: ['schema.ts'],
@@ -1436,7 +1436,7 @@ test('generate postgres emits missing_hints for each unresolved schema independe
 	const hints = new HintsHandler();
 
 	const tempDir = mkdtempSync(join(tmpdir(), 'drizzle-kit-generate-missing-hints-branching-'));
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		generatePostgres.handle({
 			out: tempDir,
 			filenames: ['schema.ts'],
@@ -1486,7 +1486,7 @@ test('push sqlite emits explain json payload in json mode', async () => {
 	const batch = vi.fn(async () => [] as unknown[]);
 	const mockDb = { query, batch };
 
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushSqlite.handle(
 			mockDb as never,
 			['schema.ts'],
@@ -1553,7 +1553,7 @@ test('push mysql emits explain json payload in json mode', async () => {
 	}));
 	const pushMysql = await import('../../src/cli/commands/push-mysql');
 
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushMysql.handle(
 			['schema.ts'],
 			{} as never,
@@ -1601,7 +1601,7 @@ test('push mysql emits no_changes in json mode when diff is empty', async () => 
 	}));
 
 	const pushMysql = await import('../../src/cli/commands/push-mysql');
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushMysql.handle(
 			['schema.ts'],
 			{} as never,
@@ -1654,7 +1654,7 @@ test('push mysql emits missing_hints in json mode for unresolved type_change sug
 	}));
 
 	const pushMysql = await import('../../src/cli/commands/push-mysql');
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushMysql.handle(
 			['schema.ts'],
 			{} as never,
@@ -1714,7 +1714,7 @@ test('push mssql throws rename_blocked_by_check_constraint error in json mode', 
 
 	const pushMssql = await import('../../src/cli/commands/push-mssql');
 
-	await expect(runWithCliContext({ json: true }, () =>
+	await expect(runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushMssql.handle(
 			['schema.ts'],
 			false,
@@ -1774,7 +1774,7 @@ test('push mysql with force still emits missing_hints in json mode for unresolve
 	}));
 
 	const pushMysql = await import('../../src/cli/commands/push-mysql');
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushMysql.handle(
 			['schema.ts'],
 			{} as never,
@@ -1829,7 +1829,7 @@ test('push cockroach emits no_changes in json mode when diff is empty', async ()
 	}));
 
 	const pushCockroach = await import('../../src/cli/commands/push-cockroach');
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushCockroach.handle(
 			['schema.ts'],
 			false,
@@ -1876,7 +1876,7 @@ test('push mssql emits no_changes in json mode when diff is empty', async () => 
 	}));
 
 	const pushMssql = await import('../../src/cli/commands/push-mssql');
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushMssql.handle(
 			['schema.ts'],
 			false,
@@ -1931,7 +1931,7 @@ test('push singlestore emits no_changes in json mode when diff is empty', async 
 	}));
 
 	const pushSinglestore = await import('../../src/cli/commands/push-singlestore');
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushSinglestore.handle(
 			['schema.ts'],
 			{} as never,
@@ -1994,7 +1994,7 @@ test('push postgres orders rename hint resolves create_or_rename and applies cha
 		{ type: 'rename', kind: 'table', from: ['public', 'orders'], to: ['public', 'orders1'] },
 	]);
 
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushPostgres.handle(
 			['schema.ts'],
 			false,
@@ -2045,7 +2045,7 @@ test('push postgres emits missing_hints when rename_or_create lacks a hint in js
 	const pushPostgres = await import('../../src/cli/commands/push-postgres');
 	const hints = new HintsHandler();
 
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushPostgres.handle(
 			['schema.ts'],
 			false,
@@ -2112,7 +2112,7 @@ test('generate postgres with matching rename hint emits sql without missing_hint
 	]);
 
 	const tempDir = mkdtempSync(join(tmpdir(), 'drizzle-kit-generate-with-hints-'));
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		generatePostgres.handle({
 			out: tempDir,
 			filenames: ['schema.ts'],
@@ -2167,7 +2167,7 @@ test('generate silently ignores confirm_data_loss hints', async () => {
 	]);
 
 	const tempDir = mkdtempSync(join(tmpdir(), 'drizzle-kit-generate-ignore-confirm-'));
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		generatePostgres.handle({
 			out: tempDir,
 			filenames: ['schema.ts'],
@@ -2223,7 +2223,7 @@ test('excess hints referencing non-existent entities are silently ignored', asyn
 	]);
 
 	const tempDir = mkdtempSync(join(tmpdir(), 'drizzle-kit-generate-excess-hints-'));
-	const env = await runWithCliContext({ json: true }, () =>
+	const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 		generatePostgres.handle({
 			out: tempDir,
 			filenames: ['schema.ts'],
@@ -2269,7 +2269,7 @@ describe('push postgres confirm_data_loss[table] in json mode', () => {
 		const pushPostgres = await import('../../src/cli/commands/push-postgres');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushPostgres.handle(
 				['schema.ts'],
 				false,
@@ -2322,7 +2322,7 @@ describe('push postgres confirm_data_loss[table] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'table', entity: ['public', 'users'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushPostgres.handle(
 				['schema.ts'],
 				false,
@@ -2373,7 +2373,7 @@ describe('push postgres confirm_data_loss[view] in json mode', () => {
 		const pushPostgres = await import('../../src/cli/commands/push-postgres');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushPostgres.handle(
 				['schema.ts'],
 				false,
@@ -2426,7 +2426,7 @@ describe('push postgres confirm_data_loss[view] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'view', entity: ['public', 'user_stats'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushPostgres.handle(
 				['schema.ts'],
 				false,
@@ -2477,7 +2477,7 @@ describe('push postgres confirm_data_loss[column] in json mode', () => {
 		const pushPostgres = await import('../../src/cli/commands/push-postgres');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushPostgres.handle(
 				['schema.ts'],
 				false,
@@ -2530,7 +2530,7 @@ describe('push postgres confirm_data_loss[column] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'column', entity: ['public', 'users', 'legacy_id'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushPostgres.handle(
 				['schema.ts'],
 				false,
@@ -2581,7 +2581,7 @@ describe('push postgres confirm_data_loss[schema] in json mode', () => {
 		const pushPostgres = await import('../../src/cli/commands/push-postgres');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushPostgres.handle(
 				['schema.ts'],
 				false,
@@ -2634,7 +2634,7 @@ describe('push postgres confirm_data_loss[schema] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'schema', entity: ['analytics'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushPostgres.handle(
 				['schema.ts'],
 				false,
@@ -2688,7 +2688,7 @@ describe('push postgres confirm_data_loss[primary_key] in json mode', () => {
 		const pushPostgres = await import('../../src/cli/commands/push-postgres');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushPostgres.handle(
 				['schema.ts'],
 				false,
@@ -2749,7 +2749,7 @@ describe('push postgres confirm_data_loss[primary_key] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'primary_key', entity: ['public', 'users', 'users_pkey'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushPostgres.handle(
 				['schema.ts'],
 				false,
@@ -2813,7 +2813,7 @@ describe('push postgres confirm_data_loss[add_not_null] in json mode', () => {
 		const pushPostgres = await import('../../src/cli/commands/push-postgres');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushPostgres.handle(
 				['schema.ts'],
 				false,
@@ -2884,7 +2884,7 @@ describe('push postgres confirm_data_loss[add_not_null] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushPostgres.handle(
 				['schema.ts'],
 				false,
@@ -2945,7 +2945,7 @@ describe('push postgres confirm_data_loss[add_unique] in json mode', () => {
 		const pushPostgres = await import('../../src/cli/commands/push-postgres');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushPostgres.handle(
 				['schema.ts'],
 				false,
@@ -3013,7 +3013,7 @@ describe('push postgres confirm_data_loss[add_unique] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['public', 'users', 'users_email_unique'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushPostgres.handle(
 				['schema.ts'],
 				false,
@@ -3073,7 +3073,7 @@ describe('push mysql confirm_data_loss[table] in json mode', () => {
 		const pushMysql = await import('../../src/cli/commands/push-mysql');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMysql.handle(
 				['schema.ts'],
 				{} as never,
@@ -3135,7 +3135,7 @@ describe('push mysql confirm_data_loss[table] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'table', entity: ['public', 'users'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMysql.handle(
 				['schema.ts'],
 				{} as never,
@@ -3195,7 +3195,7 @@ describe('push mysql confirm_data_loss[column] non_empty in json mode', () => {
 		const pushMysql = await import('../../src/cli/commands/push-mysql');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMysql.handle(
 				['schema.ts'],
 				{} as never,
@@ -3257,7 +3257,7 @@ describe('push mysql confirm_data_loss[column] non_empty in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'column', entity: ['public', 'users', 'legacy_id'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMysql.handle(
 				['schema.ts'],
 				{} as never,
@@ -3324,7 +3324,7 @@ describe('push mysql confirm_data_loss[primary_key] in json mode', () => {
 		const pushMysql = await import('../../src/cli/commands/push-mysql');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMysql.handle(
 				['schema.ts'],
 				{} as never,
@@ -3393,7 +3393,7 @@ describe('push mysql confirm_data_loss[primary_key] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'primary_key', entity: ['public', 'users', 'PRIMARY'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMysql.handle(
 				['schema.ts'],
 				{} as never,
@@ -3456,7 +3456,7 @@ describe('push mysql confirm_data_loss[add_not_null] add_column in json mode', (
 		const pushMysql = await import('../../src/cli/commands/push-mysql');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMysql.handle(
 				['schema.ts'],
 				{} as never,
@@ -3526,7 +3526,7 @@ describe('push mysql confirm_data_loss[add_not_null] add_column in json mode', (
 			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMysql.handle(
 				['schema.ts'],
 				{} as never,
@@ -3593,7 +3593,7 @@ describe('push mysql confirm_data_loss[add_not_null] alter_column in json mode',
 		const pushMysql = await import('../../src/cli/commands/push-mysql');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMysql.handle(
 				['schema.ts'],
 				{} as never,
@@ -3667,7 +3667,7 @@ describe('push mysql confirm_data_loss[add_not_null] alter_column in json mode',
 			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMysql.handle(
 				['schema.ts'],
 				{} as never,
@@ -3741,7 +3741,7 @@ describe('push mysql confirm_data_loss[column] type_change in json mode', () => 
 		const pushMysql = await import('../../src/cli/commands/push-mysql');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMysql.handle(
 				['schema.ts'],
 				{} as never,
@@ -3823,7 +3823,7 @@ describe('push mysql confirm_data_loss[column] type_change in json mode', () => 
 			{ type: 'confirm_data_loss', kind: 'column', entity: ['public', 'users', 'name'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMysql.handle(
 				['schema.ts'],
 				{} as never,
@@ -3895,7 +3895,7 @@ describe('push mysql confirm_data_loss[add_unique] in json mode', () => {
 		const pushMysql = await import('../../src/cli/commands/push-mysql');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMysql.handle(
 				['schema.ts'],
 				{} as never,
@@ -3974,7 +3974,7 @@ describe('push mysql confirm_data_loss[add_unique] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['public', 'users', 'users_email_idx'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMysql.handle(
 				['schema.ts'],
 				{} as never,
@@ -4052,7 +4052,7 @@ test('push mysql throws drop_pk_dependency error in json mode', async () => {
 
 	const pushMysql = await import('../../src/cli/commands/push-mysql');
 
-	await expect(runWithCliContext({ json: true }, () =>
+	await expect(runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushMysql.handle(
 			['schema.ts'],
 			{} as never,
@@ -4134,7 +4134,7 @@ test('push mysql throws fk_target_not_unique error in json mode', async () => {
 
 	const pushMysql = await import('../../src/cli/commands/push-mysql');
 
-	await expect(runWithCliContext({ json: true }, () =>
+	await expect(runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushMysql.handle(
 			['schema.ts'],
 			{} as never,
@@ -4178,7 +4178,7 @@ describe('push sqlite confirm_data_loss[table] in json mode', () => {
 		const pushSqlite = await import('../../src/cli/commands/push-sqlite');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushSqlite.handle(
 				db as never,
 				['schema.ts'],
@@ -4225,7 +4225,7 @@ describe('push sqlite confirm_data_loss[table] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'table', entity: ['public', 'users'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushSqlite.handle(
 				db as never,
 				['schema.ts'],
@@ -4275,7 +4275,7 @@ describe('push sqlite confirm_data_loss[column-drop] in json mode', () => {
 		const pushSqlite = await import('../../src/cli/commands/push-sqlite');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushSqlite.handle(
 				db as never,
 				['schema.ts'],
@@ -4324,7 +4324,7 @@ describe('push sqlite confirm_data_loss[column-drop] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'column', entity: ['public', 'users', 'legacy_id'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushSqlite.handle(
 				db as never,
 				['schema.ts'],
@@ -4377,7 +4377,7 @@ describe('push sqlite confirm_data_loss[add_not_null] in json mode', () => {
 		const pushSqlite = await import('../../src/cli/commands/push-sqlite');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushSqlite.handle(
 				db as never,
 				['schema.ts'],
@@ -4434,7 +4434,7 @@ describe('push sqlite confirm_data_loss[add_not_null] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushSqlite.handle(
 				db as never,
 				['schema.ts'],
@@ -4494,7 +4494,7 @@ describe('push sqlite confirm_data_loss[add_not_null] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushSqlite.handle(
 				db as never,
 				['schema.ts'],
@@ -4556,7 +4556,7 @@ describe('push sqlite confirm_data_loss[recreate_table-single] in json mode', ()
 		const pushSqlite = await import('../../src/cli/commands/push-sqlite');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushSqlite.handle(
 				db as never,
 				['schema.ts'],
@@ -4612,7 +4612,7 @@ describe('push sqlite confirm_data_loss[recreate_table-single] in json mode', ()
 			{ type: 'confirm_data_loss', kind: 'column', entity: ['public', 'users', 'legacy'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushSqlite.handle(
 				db as never,
 				['schema.ts'],
@@ -4678,7 +4678,7 @@ describe('push sqlite confirm_data_loss[recreate_table-multi] in json mode', () 
 		const pushSqlite = await import('../../src/cli/commands/push-sqlite');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushSqlite.handle(
 				db as never,
 				['schema.ts'],
@@ -4744,7 +4744,7 @@ describe('push sqlite confirm_data_loss[recreate_table-multi] in json mode', () 
 			{ type: 'confirm_data_loss', kind: 'column', entity: ['public', 'users', 'legacy_b'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushSqlite.handle(
 				db as never,
 				['schema.ts'],
@@ -4805,7 +4805,7 @@ describe('push mssql confirm_data_loss[table] in json mode', () => {
 		const pushMssql = await import('../../src/cli/commands/push-mssql');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMssql.handle(
 				['schema.ts'],
 				false,
@@ -4858,7 +4858,7 @@ describe('push mssql confirm_data_loss[table] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'table', entity: ['dbo', 'users'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMssql.handle(
 				['schema.ts'],
 				false,
@@ -4912,7 +4912,7 @@ describe('push mssql confirm_data_loss[column] in json mode', () => {
 		const pushMssql = await import('../../src/cli/commands/push-mssql');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMssql.handle(
 				['schema.ts'],
 				false,
@@ -4968,7 +4968,7 @@ describe('push mssql confirm_data_loss[column] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'column', entity: ['dbo', 'users', 'legacy_col'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMssql.handle(
 				['schema.ts'],
 				false,
@@ -5019,7 +5019,7 @@ describe('push mssql confirm_data_loss[schema] in json mode', () => {
 		const pushMssql = await import('../../src/cli/commands/push-mssql');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMssql.handle(
 				['schema.ts'],
 				false,
@@ -5072,7 +5072,7 @@ describe('push mssql confirm_data_loss[schema] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'schema', entity: ['analytics'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMssql.handle(
 				['schema.ts'],
 				false,
@@ -5126,7 +5126,7 @@ describe('push mssql confirm_data_loss[primary_key] in json mode', () => {
 		const pushMssql = await import('../../src/cli/commands/push-mssql');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMssql.handle(
 				['schema.ts'],
 				false,
@@ -5182,7 +5182,7 @@ describe('push mssql confirm_data_loss[primary_key] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'primary_key', entity: ['dbo', 'users', 'PK_users'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMssql.handle(
 				['schema.ts'],
 				false,
@@ -5236,7 +5236,7 @@ describe('push mssql confirm_data_loss[add_not_null] add_column in json mode', (
 		const pushMssql = await import('../../src/cli/commands/push-mssql');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMssql.handle(
 				['schema.ts'],
 				false,
@@ -5297,7 +5297,7 @@ describe('push mssql confirm_data_loss[add_not_null] add_column in json mode', (
 			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['dbo', 'users', 'email'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMssql.handle(
 				['schema.ts'],
 				false,
@@ -5351,7 +5351,7 @@ describe('push mssql confirm_data_loss[add_not_null] alter_column in json mode',
 		const pushMssql = await import('../../src/cli/commands/push-mssql');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMssql.handle(
 				['schema.ts'],
 				false,
@@ -5412,7 +5412,7 @@ describe('push mssql confirm_data_loss[add_not_null] alter_column in json mode',
 			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['dbo', 'users', 'email'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMssql.handle(
 				['schema.ts'],
 				false,
@@ -5471,7 +5471,7 @@ describe('push mssql confirm_data_loss[add_unique] in json mode', () => {
 		const pushMssql = await import('../../src/cli/commands/push-mssql');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMssql.handle(
 				['schema.ts'],
 				false,
@@ -5537,7 +5537,7 @@ describe('push mssql confirm_data_loss[add_unique] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['dbo', 'users', 'users_email_unique'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMssql.handle(
 				['schema.ts'],
 				false,
@@ -5590,7 +5590,7 @@ test('push mssql throws rename_schema_unsupported error in json mode', async () 
 
 	const pushMssql = await import('../../src/cli/commands/push-mssql');
 
-	await expect(runWithCliContext({ json: true }, () =>
+	await expect(runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushMssql.handle(
 			['schema.ts'],
 			false,
@@ -5643,7 +5643,7 @@ describe('push cockroach confirm_data_loss[table] in json mode', () => {
 		const pushCockroach = await import('../../src/cli/commands/push-cockroach');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushCockroach.handle(
 				['schema.ts'],
 				false,
@@ -5696,7 +5696,7 @@ describe('push cockroach confirm_data_loss[table] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'table', entity: ['public', 'users'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushCockroach.handle(
 				['schema.ts'],
 				false,
@@ -5747,7 +5747,7 @@ describe('push cockroach confirm_data_loss[view] in json mode', () => {
 		const pushCockroach = await import('../../src/cli/commands/push-cockroach');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushCockroach.handle(
 				['schema.ts'],
 				false,
@@ -5800,7 +5800,7 @@ describe('push cockroach confirm_data_loss[view] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'view', entity: ['public', 'user_stats'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushCockroach.handle(
 				['schema.ts'],
 				false,
@@ -5851,7 +5851,7 @@ describe('push cockroach confirm_data_loss[column] in json mode', () => {
 		const pushCockroach = await import('../../src/cli/commands/push-cockroach');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushCockroach.handle(
 				['schema.ts'],
 				false,
@@ -5904,7 +5904,7 @@ describe('push cockroach confirm_data_loss[column] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'column', entity: ['public', 'users', 'legacy_id'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushCockroach.handle(
 				['schema.ts'],
 				false,
@@ -5955,7 +5955,7 @@ describe('push cockroach confirm_data_loss[schema] in json mode', () => {
 		const pushCockroach = await import('../../src/cli/commands/push-cockroach');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushCockroach.handle(
 				['schema.ts'],
 				false,
@@ -6008,7 +6008,7 @@ describe('push cockroach confirm_data_loss[schema] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'schema', entity: ['analytics'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushCockroach.handle(
 				['schema.ts'],
 				false,
@@ -6062,7 +6062,7 @@ describe('push cockroach confirm_data_loss[primary_key] in json mode', () => {
 		const pushCockroach = await import('../../src/cli/commands/push-cockroach');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushCockroach.handle(
 				['schema.ts'],
 				false,
@@ -6123,7 +6123,7 @@ describe('push cockroach confirm_data_loss[primary_key] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'primary_key', entity: ['public', 'users', 'users_pkey'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushCockroach.handle(
 				['schema.ts'],
 				false,
@@ -6188,7 +6188,7 @@ describe('push cockroach confirm_data_loss[add_not_null] in json mode', () => {
 		const pushCockroach = await import('../../src/cli/commands/push-cockroach');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushCockroach.handle(
 				['schema.ts'],
 				false,
@@ -6260,7 +6260,7 @@ describe('push cockroach confirm_data_loss[add_not_null] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushCockroach.handle(
 				['schema.ts'],
 				false,
@@ -6324,7 +6324,7 @@ describe('push cockroach confirm_data_loss[add_unique] in json mode', () => {
 		const pushCockroach = await import('../../src/cli/commands/push-cockroach');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushCockroach.handle(
 				['schema.ts'],
 				false,
@@ -6395,7 +6395,7 @@ describe('push cockroach confirm_data_loss[add_unique] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['public', 'users', 'users_email_idx'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushCockroach.handle(
 				['schema.ts'],
 				false,
@@ -6456,7 +6456,7 @@ describe('push singlestore confirm_data_loss[table] in json mode', () => {
 		const pushSinglestore = await import('../../src/cli/commands/push-singlestore');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushSinglestore.handle(
 				['schema.ts'],
 				{} as never,
@@ -6519,7 +6519,7 @@ describe('push singlestore confirm_data_loss[table] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'table', entity: ['public', 'users'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushSinglestore.handle(
 				['schema.ts'],
 				{} as never,
@@ -6580,7 +6580,7 @@ describe('push singlestore confirm_data_loss[column] in json mode', () => {
 		const pushSinglestore = await import('../../src/cli/commands/push-singlestore');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushSinglestore.handle(
 				['schema.ts'],
 				{} as never,
@@ -6643,7 +6643,7 @@ describe('push singlestore confirm_data_loss[column] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'column', entity: ['public', 'users', 'legacy_id'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushSinglestore.handle(
 				['schema.ts'],
 				{} as never,
@@ -6707,7 +6707,7 @@ describe('push singlestore confirm_data_loss[column] in json mode', () => {
 		const pushSinglestore = await import('../../src/cli/commands/push-singlestore');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushSinglestore.handle(
 				['schema.ts'],
 				{} as never,
@@ -6781,7 +6781,7 @@ describe('push singlestore confirm_data_loss[column] in json mode', () => {
 			{ type: 'confirm_data_loss', kind: 'column', entity: ['public', 'users', 'name'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushSinglestore.handle(
 				['schema.ts'],
 				{} as never,
@@ -6845,7 +6845,7 @@ describe('push singlestore confirm_data_loss[add_not_null] in json mode', () => 
 		const pushSinglestore = await import('../../src/cli/commands/push-singlestore');
 		const hints = new HintsHandler();
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushSinglestore.handle(
 				['schema.ts'],
 				{} as never,
@@ -6916,7 +6916,7 @@ describe('push singlestore confirm_data_loss[add_not_null] in json mode', () => 
 			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
 		]);
 
-		const env = await runWithCliContext({ json: true }, () =>
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushSinglestore.handle(
 				['schema.ts'],
 				{} as never,
@@ -6995,7 +6995,7 @@ test('push singlestore throws fk_target_not_unique error in json mode', async ()
 
 	const pushSinglestore = await import('../../src/cli/commands/push-singlestore');
 
-	await expect(runWithCliContext({ json: true }, () =>
+	await expect(runWithCliContext({ output: 'json', interactive: false }, () =>
 		pushSinglestore.handle(
 			['schema.ts'],
 			{} as never,

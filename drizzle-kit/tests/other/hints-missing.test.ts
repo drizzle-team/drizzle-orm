@@ -29,7 +29,7 @@ test('new HintsHandler reports no missing hints', () => {
 });
 
 test('resolver aggregates unresolved items across repeated calls on the same HintsHandler', async () => {
-	const { hints, tableResult, columnResult } = await runWithCliContext({ json: true }, async () => {
+	const { hints, tableResult, columnResult } = await runWithCliContext({ output: 'json', interactive: false }, async () => {
 		const hints = new HintsHandler();
 		const resolveTables = resolver<Entity>('table', 'public', hints);
 		const resolveColumns = resolver<Entity>('column', 'public', hints);
@@ -62,7 +62,7 @@ test('resolver aggregates unresolved items across repeated calls on the same Hin
 });
 
 test('each HintsHandler instance owns its own missing hints state', async () => {
-	const { firstHints, secondHints } = await runWithCliContext({ json: true }, async () => {
+	const { firstHints, secondHints } = await runWithCliContext({ output: 'json', interactive: false }, async () => {
 		const firstHints = new HintsHandler();
 		const secondHints = new HintsHandler();
 

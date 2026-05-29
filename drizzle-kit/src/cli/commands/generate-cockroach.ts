@@ -16,7 +16,7 @@ import { ddlDiff, ddlDiffDry } from '../../dialects/cockroach/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/cockroach/drizzle';
 import { prepareSnapshot } from '../../dialects/cockroach/serializer';
 import { prepareOutFolder } from '../../utils/utils-node';
-import { isJsonMode } from '../context';
+import { outputFormat } from '../context';
 import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import { cockroachSchemaError, cockroachSchemaWarning, explain, explainJsonOutput, humanLog } from '../views';
@@ -24,11 +24,11 @@ import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
-	const { out: outFolder, filenames, casing } = config;
-	const json = isJsonMode();
+	const { out: outFolder, filenames } = config;
+	const json = outputFormat() === 'json';
 
 	const { snapshots } = prepareOutFolder(outFolder);
-	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, filenames, casing);
+	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, filenames);
 	if (config.custom) {
 		return writeResult({
 			snapshot: custom,
@@ -60,7 +60,7 @@ export const handle = async (config: GenerateConfig) => {
 		'default',
 	);
 
-	if (json && config.hints.hasMissingHints()) {
+	if (config.hints.hasMissingHints()) {
 		return config.hints.toResponse();
 	}
 
@@ -97,7 +97,7 @@ export const handleExport = async (config: ExportConfig) => {
 
 	// TODO: do we wanna respect entity filter while exporting to sql?
 	// cc: @AleksandrSherman
-	const { schema, errors, warnings } = fromDrizzleSchema(res, config.casing, () => true);
+	const { schema, errors, warnings } = fromDrizzleSchema(res, () => true);
 
 	if (warnings.length > 0) {
 		console.log(warnings.map((it) => cockroachSchemaWarning(it)).join('\n\n'));

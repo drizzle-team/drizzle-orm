@@ -1,5 +1,5 @@
 import { InvalidHintsCliError } from 'src/cli/errors';
-import { type ConfirmDataLossHint, type CreateHint, HintsHandler, type RenameHint } from 'src/cli/hints';
+import { type ConfirmDataLossHint, type CreateHint, type Hint, HintsHandler, type RenameHint } from 'src/cli/hints';
 import { expect, test } from 'vitest';
 
 const validRenameHints = [
@@ -94,6 +94,20 @@ const validConfirmHints = [
 async function expectInvalidHints(raw: unknown): Promise<InvalidHintsCliError> {
 	try {
 		await HintsHandler.fromCli({ hints: JSON.stringify(raw) });
+	} catch (error) {
+		if (error instanceof InvalidHintsCliError) {
+			return error;
+		}
+
+		throw error;
+	}
+
+	throw new Error('Expected HintsHandler.fromCli to throw InvalidHintsCliError');
+}
+
+async function expectInvalidHintsArray(raw: unknown[]): Promise<InvalidHintsCliError> {
+	try {
+		await HintsHandler.fromCli({ hints: raw as Hint[] });
 	} catch (error) {
 		if (error instanceof InvalidHintsCliError) {
 			return error;
@@ -207,6 +221,26 @@ test('HintsHandler.fromCli accepts an empty hints array', async () => {
 	const handler = await HintsHandler.fromCli({ hints: '[]' });
 
 	expect(handler.missingHints).toStrictEqual([]);
+});
+
+test('HintsHandler.fromCli accepts a raw Hint[] (SDK form)', async () => {
+	const handler = await HintsHandler.fromCli({ hints: validCreateHints as Hint[] });
+
+	for (const hint of validCreateHints) {
+		expect(handler.matchCreate(hint.kind, hint.entity as never)).toStrictEqual(hint);
+	}
+});
+
+test('HintsHandler.fromCli reports a malformed raw Hint[] as invalid_hints, not internal_error', async () => {
+	const error = await expectInvalidHintsArray([{ type: 'drop', kind: 'table', entity: ['public', 'orders'] }]);
+	const issue = firstIssue(error);
+
+	expect(error.code).toBe('invalid_hints');
+	expect(error.meta?.source).toBe('inline');
+	expect(issue).toMatchObject({
+		code: 'invalid_union',
+		path: [0],
+	});
 });
 
 test('HintsHandler.fromCli rejects non-array input', async () => {

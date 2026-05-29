@@ -20,7 +20,7 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/mssql/
 import type { JsonStatement } from '../../dialects/mssql/statements';
 import { prepareEntityFilter } from '../../dialects/pull-utils';
 import type { DB } from '../../utils';
-import { isJsonMode } from '../context';
+import { outputFormat } from '../context';
 import { CommandOutputCliError, UnsupportedSchemaChangeError } from '../errors';
 import { highlightSQL } from '../highlighter';
 import type { HintsHandler } from '../hints';
@@ -45,7 +45,7 @@ export const handle = async (
 	},
 	hints: HintsHandler,
 ) => {
-	const json = isJsonMode();
+	const json = outputFormat() === 'json';
 
 	const { connectToMsSQL } = await import('../connections');
 	const { introspect } = await import('./pull-mssql');
@@ -152,7 +152,7 @@ const identifier = (it: { schema?: string; table: string }) => {
 };
 
 export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2: MssqlDDL, hints: HintsHandler) => {
-	const json = isJsonMode();
+	const json = outputFormat() === 'json';
 	const grouped: { hint: string; statement?: string }[] = [];
 
 	const filtered = jsonStatements.filter((it) => {

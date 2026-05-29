@@ -1,12 +1,12 @@
 import 'dotenv/config';
 import { type BroCliEvent, command, getCommandNameWithParents, run } from '@drizzle-team/brocli';
 import chalk from 'chalk';
-import { isJsonMode, runWithCliContext } from './context';
+import { outputFormat, runWithCliContext } from './context';
 import { DrizzleCliError, errorToEnvelope } from './errors';
 import { highlightSQL } from './highlighter';
 import { check, exportRaw, generate, migrate, pull, push, skills, studio, up } from './schema';
 import { ormCoreVersions, QueryError } from './utils';
-import { error, humanLog } from './views';
+import { error, humanError, humanLog } from './views';
 
 const writeStderr = (message: string) => {
 	process.stderr.write(`${message}\n`);
@@ -112,69 +112,66 @@ const legacy = [
 ];
 
 const main = async () => {
-	await runWithCliContext(
-		{ json: process.argv.includes('--json') },
-		async () => {
-			await run([generate, migrate, pull, push, studio, up, check, exportRaw, skills, ...legacy], {
-				name: 'drizzle-kit',
-				version: () => version(),
+	await runWithCliContext({ output: 'text', interactive: false }, async () => {
+		await run([generate, migrate, pull, push, studio, up, check, exportRaw, skills, ...legacy], {
+			name: 'drizzle-kit',
+			version: () => version(),
 
-				hook: (event, command) => {
-					if (event === 'after' && getCommandNameWithParents(command) !== 'studio') process.exit(0);
-				},
-				theme: (event) => {
-					if (event.type === 'error') {
-						if (isJsonMode()) {
-							if (event.violation === 'unknown_error' && event.error instanceof QueryError) {
-								writeStderr(formatQueryError(event.error));
-								process.stdout.write(JSON.stringify(errorToEnvelope(event.error)) + '\n');
-								return true;
-							}
-
-							if (event.violation === 'unknown_error' && event.error instanceof DrizzleCliError) {
-								writeStderr(event.error.humanMessage);
-								process.stdout.write(JSON.stringify(errorToEnvelope(event.error)) + '\n');
-								return true;
-							}
-
-							writeStderr(getBroCliErrorMessage(event));
-							process.stdout.write(
-								JSON.stringify({
-									status: 'error',
-									error: { code: event.violation, message: getBroCliErrorMessage(event) },
-								}) + '\n',
-							);
+			hook: (event, command) => {
+				if (event === 'after' && getCommandNameWithParents(command) !== 'studio') process.exit(0);
+			},
+			theme: (event) => {
+				if (event.type === 'error') {
+					if (outputFormat() === 'json') {
+						if (event.violation === 'unknown_error' && event.error instanceof QueryError) {
+							writeStderr(formatQueryError(event.error));
+							process.stdout.write(JSON.stringify(errorToEnvelope(event.error)) + '\n');
 							return true;
 						}
 
-						if (event.violation !== 'unknown_error') return false;
-
-						const e = event.error;
-						if (e instanceof QueryError) {
-							const msg = formatQueryError(e);
-							humanLog();
-							humanLog(msg);
+						if (event.violation === 'unknown_error' && event.error instanceof DrizzleCliError) {
+							writeStderr(event.error.humanMessage);
+							process.stdout.write(JSON.stringify(errorToEnvelope(event.error)) + '\n');
 							return true;
 						}
 
-						if (e instanceof DrizzleCliError) {
-							humanLog(e.humanMessage);
-							return true;
-						}
-
-						if (
-							!(typeof e === 'object' && e !== null && 'message' in e && typeof e.message === 'string')
-						) return false;
-
-						humanLog(error(e.message));
+						writeStderr(getBroCliErrorMessage(event));
+						process.stdout.write(
+							JSON.stringify({
+								status: 'error',
+								error: { code: event.violation, message: getBroCliErrorMessage(event) },
+							}) + '\n',
+						);
 						return true;
 					}
 
-					return false;
-				},
-			});
-		},
-	);
+					if (event.violation !== 'unknown_error') return false;
+
+					const e = event.error;
+					if (e instanceof QueryError) {
+						const msg = formatQueryError(e);
+						humanError();
+						humanError(msg);
+						return true;
+					}
+
+					if (e instanceof DrizzleCliError) {
+						humanError(e.humanMessage);
+						return true;
+					}
+
+					if (
+						!(typeof e === 'object' && e !== null && 'message' in e && typeof e.message === 'string')
+					) return false;
+
+					humanError(error(e.message));
+					return true;
+				}
+
+				return false;
+			},
+		});
+	});
 };
 
 void main();

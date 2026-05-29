@@ -23,7 +23,7 @@ const runTableResolver = async (
 	hints: readonly Hint[],
 	input: { created: Entity[]; deleted: Entity[] },
 ) => {
-	return runWithCliContext({ json: true }, async () => {
+	return runWithCliContext({ output: 'json', interactive: false }, async () => {
 		const handler = new HintsHandler(hints);
 		const resolve = resolver<Entity>('table', 'public', handler);
 		return { handler, result: await resolve(input) };
@@ -73,7 +73,7 @@ test('resolver keeps an entity in created when a matching create hint exists', a
 });
 
 test('resolver records a missing hint and keeps both entities when no hint matches an ambiguity', async () => {
-	const { hints, result } = await runWithCliContext({ json: true }, async () => {
+	const { hints, result } = await runWithCliContext({ output: 'json', interactive: false }, async () => {
 		const created = table('members', 'public');
 		const deleted = table('users', 'public');
 		const hints = new HintsHandler();
@@ -155,30 +155,33 @@ test('resolver matches hints against the default schema when entity schema is om
 });
 
 test('resolver matches primary key entity types against primary key hints', async () => {
-	const { created, deleted, hints, result } = await runWithCliContext({ json: true }, async () => {
-		const created = constraint('users', 'members_pkey', 'public');
-		const deleted = constraint('users', 'users_pkey', 'public');
-		const hints = new HintsHandler([
-			{
-				type: 'rename',
-				kind: 'primary_key',
-				from: ['public', 'users', 'users_pkey'] as const,
-				to: ['public', 'users', 'members_pkey'] as const,
-			},
-		]);
-		const resolve = resolver<Entity>(
-			'primary_key',
-			'public',
-			hints,
-		);
+	const { created, deleted, hints, result } = await runWithCliContext(
+		{ output: 'json', interactive: false },
+		async () => {
+			const created = constraint('users', 'members_pkey', 'public');
+			const deleted = constraint('users', 'users_pkey', 'public');
+			const hints = new HintsHandler([
+				{
+					type: 'rename',
+					kind: 'primary_key',
+					from: ['public', 'users', 'users_pkey'] as const,
+					to: ['public', 'users', 'members_pkey'] as const,
+				},
+			]);
+			const resolve = resolver<Entity>(
+				'primary_key',
+				'public',
+				hints,
+			);
 
-		return {
-			created,
-			deleted,
-			hints,
-			result: await resolve({ created: [created], deleted: [deleted] }),
-		};
-	});
+			return {
+				created,
+				deleted,
+				hints,
+				result: await resolve({ created: [created], deleted: [deleted] }),
+			};
+		},
+	);
 
 	expect(result.resolved).toStrictEqual({
 		created: [],
@@ -190,30 +193,33 @@ test('resolver matches primary key entity types against primary key hints', asyn
 });
 
 test('resolver matches default entity types against default hints', async () => {
-	const { created, deleted, hints, result } = await runWithCliContext({ json: true }, async () => {
-		const created = constraint('users', 'members_default', 'dbo');
-		const deleted = constraint('users', 'users_default', 'dbo');
-		const hints = new HintsHandler([
-			{
-				type: 'rename',
-				kind: 'default',
-				from: ['dbo', 'users', 'users_default'] as const,
-				to: ['dbo', 'users', 'members_default'] as const,
-			},
-		]);
-		const resolve = resolver<Entity>(
-			'default',
-			'dbo',
-			hints,
-		);
+	const { created, deleted, hints, result } = await runWithCliContext(
+		{ output: 'json', interactive: false },
+		async () => {
+			const created = constraint('users', 'members_default', 'dbo');
+			const deleted = constraint('users', 'users_default', 'dbo');
+			const hints = new HintsHandler([
+				{
+					type: 'rename',
+					kind: 'default',
+					from: ['dbo', 'users', 'users_default'] as const,
+					to: ['dbo', 'users', 'members_default'] as const,
+				},
+			]);
+			const resolve = resolver<Entity>(
+				'default',
+				'dbo',
+				hints,
+			);
 
-		return {
-			created,
-			deleted,
-			hints,
-			result: await resolve({ created: [created], deleted: [deleted] }),
-		};
-	});
+			return {
+				created,
+				deleted,
+				hints,
+				result: await resolve({ created: [created], deleted: [deleted] }),
+			};
+		},
+	);
 
 	expect(result.resolved).toStrictEqual({
 		created: [],
@@ -224,19 +230,19 @@ test('resolver matches default entity types against default hints', async () => 
 	expect(hints.missingHints).toStrictEqual([]);
 });
 
-test('resolver treats missing HintsHandler in json mode as an internal invariant failure', async () => {
-	await expect(runWithCliContext({ json: true }, async () => {
+test('resolver treats missing HintsHandler in non-interactive mode as an internal invariant failure', async () => {
+	await expect(runWithCliContext({ output: 'json', interactive: false }, async () => {
 		const resolve = resolver<Entity>('table', 'public');
 
 		return resolve({
 			created: [table('members', 'public')],
 			deleted: [table('users', 'public')],
 		});
-	})).rejects.toThrow('Internal error: resolver(table) was called in JSON mode without a HintsHandler');
+	})).rejects.toThrow('Internal error: resolver(table) was called without a HintsHandler');
 });
 
 test('resolver is idempotent for matching rename hints', async () => {
-	await runWithCliContext({ json: true }, async () => {
+	await runWithCliContext({ output: 'json', interactive: false }, async () => {
 		const hints = [
 			{ type: 'rename', kind: 'table', from: ['public', 'users'] as const, to: ['public', 'members'] as const },
 		] satisfies readonly Hint[];
@@ -253,7 +259,7 @@ test('resolver is idempotent for matching rename hints', async () => {
 });
 
 test('resolver is idempotent for matching create hints', async () => {
-	await runWithCliContext({ json: true }, async () => {
+	await runWithCliContext({ output: 'json', interactive: false }, async () => {
 		const hints = [
 			{ type: 'create', kind: 'table', entity: ['public', 'members'] as const },
 		] satisfies readonly Hint[];
@@ -270,23 +276,26 @@ test('resolver is idempotent for matching create hints', async () => {
 });
 
 test('resolver returns only newly added unresolved items when reusing a HintsHandler', async () => {
-	const { hints, tableResult, columnResult } = await runWithCliContext({ json: true }, async () => {
-		const hints = new HintsHandler();
-		hints.pushMissingHint({ type: 'rename_or_create', kind: 'table', entity: ['public', 'existing'] });
+	const { hints, tableResult, columnResult } = await runWithCliContext(
+		{ output: 'json', interactive: false },
+		async () => {
+			const hints = new HintsHandler();
+			hints.pushMissingHint({ type: 'rename_or_create', kind: 'table', entity: ['public', 'existing'] });
 
-		const resolveTables = resolver<Entity>('table', 'public', hints);
-		const resolveColumns = resolver<Entity>('column', 'public', hints);
-		const tableResult = await resolveTables({
-			created: [table('members', 'public')],
-			deleted: [table('users', 'public')],
-		});
-		const columnResult = await resolveColumns({
-			created: [{ name: 'email', table: 'users', schema: 'public' }],
-			deleted: [{ name: 'name', table: 'users', schema: 'public' }],
-		});
+			const resolveTables = resolver<Entity>('table', 'public', hints);
+			const resolveColumns = resolver<Entity>('column', 'public', hints);
+			const tableResult = await resolveTables({
+				created: [table('members', 'public')],
+				deleted: [table('users', 'public')],
+			});
+			const columnResult = await resolveColumns({
+				created: [{ name: 'email', table: 'users', schema: 'public' }],
+				deleted: [{ name: 'name', table: 'users', schema: 'public' }],
+			});
 
-		return { hints, tableResult, columnResult };
-	});
+			return { hints, tableResult, columnResult };
+		},
+	);
 
 	expect(tableResult.unresolved).toStrictEqual([
 		{ type: 'rename_or_create', kind: 'table', entity: ['public', 'members'] },
