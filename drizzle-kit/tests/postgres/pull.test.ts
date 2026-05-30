@@ -2784,10 +2784,15 @@ CREATE INDEX "idx_19612_cnst_full_name_idx" ON "public"."constructor" USING btre
 // when user does not have permissions, introspection should not fail
 // https://github.com/drizzle-team/drizzle-orm/issues/5568
 test('non-admin', async () => {
+	const newSchema = pgSchema('schema_not_for_non_admin');
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
 			name: text('name'),
+		}),
+		schemaNotForNonAdmin: newSchema,
+		tableNotForNonAdmin: newSchema.table('table_not_for_non_admin', {
+			id: integer('id'),
 		}),
 	};
 

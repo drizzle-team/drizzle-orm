@@ -111,7 +111,7 @@ export const fromDatabase = async (
 	});
 
 	const namespacesQuery = db.query<Namespace>(
-		'SELECT oid, nspname as name FROM pg_catalog.pg_namespace ORDER BY pg_catalog.lower(nspname)',
+		`SELECT oid, nspname as name FROM pg_catalog.pg_namespace WHERE pg_catalog.has_schema_privilege(oid, 'USAGE') ORDER BY pg_catalog.lower(nspname)`,
 	)
 		.then((rows) => {
 			queryCallback('namespaces', rows, null);
