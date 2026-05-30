@@ -141,7 +141,7 @@ export function generateLatestSnapshot(
 		switch (statement.type) {
 			case 'create_table': {
 				const table = statement.table;
-				ddl.tables.push({ name: table.name });
+				ddl.tables.push({ name: table.name, comment: table.comment ?? null });
 				for (const column of table.columns) {
 					ddl.columns.push(column);
 				}
@@ -289,6 +289,13 @@ export function generateLatestSnapshot(
 				break;
 			case 'alter_view':
 				replace(ddl.views, statement.diff.$left, statement.view);
+				break;
+
+			case 'alter_table':
+				ddl.tables.update({
+					set: { comment: statement.comment },
+					where: { name: statement.table },
+				});
 				break;
 
 			case 'create_check':

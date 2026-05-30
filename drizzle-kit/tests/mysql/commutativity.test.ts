@@ -40,7 +40,7 @@ describe('commutativity integration (mysql)', () => {
 		'Parent not empty: detects conflict when first migration of branch A has a conflict with the last migration of branch B',
 		async () => {
 			const parentDDL = createDDL();
-			parentDDL.tables.push({ name: 'users' });
+			parentDDL.tables.push({ name: 'users', comment: null });
 			parentDDL.columns.push({
 				table: 'users',
 				name: 'email',
@@ -57,7 +57,7 @@ describe('commutativity integration (mysql)', () => {
 			const parent = makeSnapshot('p1', [baseId], parentDDL.entities.list());
 
 			const A = createDDL();
-			A.tables.push({ name: 'users' });
+			A.tables.push({ name: 'users', comment: null });
 			A.columns.push({
 				table: 'users',
 				name: 'email',
@@ -74,7 +74,7 @@ describe('commutativity integration (mysql)', () => {
 			const leafA = makeSnapshot('a1', ['p1'], A.entities.list());
 
 			const A2 = createDDL();
-			A2.tables.push({ name: 'users' });
+			A2.tables.push({ name: 'users', comment: null });
 			A2.columns.push({
 				table: 'users',
 				name: 'email2',
@@ -91,7 +91,7 @@ describe('commutativity integration (mysql)', () => {
 			const leafA2 = makeSnapshot('a2', ['a1'], A2.entities.list());
 
 			const B = createDDL();
-			B.tables.push({ name: 'users' });
+			B.tables.push({ name: 'users', comment: null });
 			B.columns.push({
 				table: 'users',
 				name: 'email',
@@ -105,7 +105,7 @@ describe('commutativity integration (mysql)', () => {
 				collation: null,
 				generated: null,
 			} as any);
-			B.tables.push({ name: 'posts' });
+			B.tables.push({ name: 'posts', comment: null });
 			B.columns.push({
 				table: 'posts',
 				name: 'content',
@@ -122,7 +122,7 @@ describe('commutativity integration (mysql)', () => {
 			const leafB = makeSnapshot('b1', ['p1'], B.entities.list());
 
 			const B2 = createDDL();
-			B2.tables.push({ name: 'users' });
+			B2.tables.push({ name: 'users', comment: null });
 			B2.columns.push({
 				table: 'users',
 				name: 'email',
@@ -136,7 +136,7 @@ describe('commutativity integration (mysql)', () => {
 				collation: null,
 				generated: null,
 			} as any);
-			B2.tables.push({ name: 'posts' });
+			B2.tables.push({ name: 'posts', comment: null });
 			B2.columns.push({
 				table: 'posts',
 				name: 'content',
@@ -153,7 +153,7 @@ describe('commutativity integration (mysql)', () => {
 			const leafB2 = makeSnapshot('b2', ['b1'], B2.entities.list());
 
 			const B3 = createDDL();
-			B3.tables.push({ name: 'posts' });
+			B3.tables.push({ name: 'posts', comment: null });
 			B3.columns.push({
 				table: 'posts',
 				name: 'content',
@@ -188,7 +188,7 @@ describe('commutativity integration (mysql)', () => {
 		const parent = makeSnapshot('p1', [baseId], createDDL().entities.list());
 
 		const A = createDDL();
-		A.tables.push({ name: 'users' });
+		A.tables.push({ name: 'users', comment: null });
 		A.columns.push({
 			table: 'users',
 			name: 'email',
@@ -205,7 +205,7 @@ describe('commutativity integration (mysql)', () => {
 		const leafA = makeSnapshot('a1', ['p1'], A.entities.list());
 
 		const A2 = createDDL();
-		A2.tables.push({ name: 'posts' });
+		A2.tables.push({ name: 'posts', comment: null });
 		A2.columns.push({
 			table: 'posts',
 			name: 'description',
@@ -222,7 +222,7 @@ describe('commutativity integration (mysql)', () => {
 		const leafA2 = makeSnapshot('a2', ['a1'], A2.entities.list());
 
 		const B = createDDL();
-		B.tables.push({ name: 'posts' });
+		B.tables.push({ name: 'posts', comment: null });
 		B.columns.push({
 			table: 'users',
 			name: 'content',
@@ -239,7 +239,7 @@ describe('commutativity integration (mysql)', () => {
 		const leafB = makeSnapshot('b1', ['p1'], B.entities.list());
 
 		const B2 = createDDL();
-		B2.tables.push({ name: 'posts' });
+		B2.tables.push({ name: 'posts', comment: null });
 		B2.columns.push({
 			table: 'users',
 			name: 'content',
@@ -256,7 +256,7 @@ describe('commutativity integration (mysql)', () => {
 		const leafB2 = makeSnapshot('b2', ['b1'], B2.entities.list());
 
 		const B3 = createDDL();
-		B3.tables.push({ name: 'posts' });
+		B3.tables.push({ name: 'posts', comment: null });
 		B3.columns.push({
 			table: 'users',
 			name: 'content',
@@ -270,7 +270,7 @@ describe('commutativity integration (mysql)', () => {
 			collation: null,
 			generated: null,
 		} as any);
-		B3.tables.push({ name: 'media' });
+		B3.tables.push({ name: 'media', comment: null });
 		B3.columns.push({
 			table: 'media',
 			name: 'url',
@@ -304,7 +304,7 @@ describe('commutativity integration (mysql)', () => {
 		'detects conflict when drop table in one branch and add column in other',
 		async () => {
 			const parentDDL = createDDL();
-			parentDDL.tables.push({ name: 'users' });
+			parentDDL.tables.push({ name: 'users', comment: null });
 			parentDDL.columns.push({
 				table: 'users',
 				name: 'email',
@@ -321,7 +321,7 @@ describe('commutativity integration (mysql)', () => {
 			const parent = makeSnapshot('p1', [baseId], parentDDL.entities.list());
 
 			const A = createDDL();
-			A.tables.push({ name: 'users' });
+			A.tables.push({ name: 'users', comment: null });
 			A.columns.push({
 				table: 'users',
 				name: 'email',
@@ -355,7 +355,7 @@ describe('commutativity integration (mysql)', () => {
 		const parent = makeSnapshot('p1', [baseId], createDDL().entities.list());
 
 		const A = createDDL();
-		A.tables.push({ name: 'users' });
+		A.tables.push({ name: 'users', comment: null });
 		A.columns.push({
 			table: 'users',
 			name: 'email',
@@ -372,7 +372,7 @@ describe('commutativity integration (mysql)', () => {
 		const leafA = makeSnapshot('a1', ['p1'], A.entities.list());
 
 		const B = createDDL();
-		B.tables.push({ name: 'users' });
+		B.tables.push({ name: 'users', comment: null });
 		B.columns.push({
 			table: 'users',
 			name: 'email',
@@ -403,11 +403,11 @@ describe('commutativity integration (mysql)', () => {
 		const parent = makeSnapshot('p2', [baseId], createDDL().entities.list());
 
 		const A = createDDL();
-		A.tables.push({ name: 'users' });
+		A.tables.push({ name: 'users', comment: null });
 		const leafA = makeSnapshot('a2', ['p2'], A.entities.list());
 
 		const B = createDDL();
-		B.tables.push({ name: 'posts' });
+		B.tables.push({ name: 'posts', comment: null });
 		const leafB = makeSnapshot('b2', ['p2'], B.entities.list());
 
 		const os = require('os');
@@ -425,11 +425,11 @@ describe('commutativity integration (mysql)', () => {
 		const files: string[] = [];
 
 		const parent = createDDL();
-		parent.tables.push({ name: 'users' });
+		parent.tables.push({ name: 'users', comment: null });
 		const p = makeSnapshot('p_col', [ORIGIN], parent.entities.list());
 
 		const a = createDDL();
-		a.tables.push({ name: 'users' });
+		a.tables.push({ name: 'users', comment: null });
 		a.columns.push({
 			table: 'users',
 			name: 'email',
@@ -445,7 +445,7 @@ describe('commutativity integration (mysql)', () => {
 		} as any);
 
 		const b = createDDL();
-		b.tables.push({ name: 'users' });
+		b.tables.push({ name: 'users', comment: null });
 		b.columns.push({
 			table: 'users',
 			name: 'email',
@@ -475,7 +475,7 @@ describe('commutativity integration (mysql)', () => {
 		const files: string[] = [];
 
 		const parent = createDDL();
-		parent.tables.push({ name: 't1' });
+		parent.tables.push({ name: 't1', comment: null });
 		parent.columns.push({
 			table: 't1',
 			name: 'c1',
@@ -493,7 +493,7 @@ describe('commutativity integration (mysql)', () => {
 
 		const a = createDDL(); // dropping table in branch A (no t1)
 		const b = createDDL();
-		b.tables.push({ name: 't1' });
+		b.tables.push({ name: 't1', comment: null });
 		b.columns.push({
 			table: 't1',
 			name: 'c1',
@@ -525,8 +525,8 @@ describe('commutativity integration (mysql)', () => {
 		const files: string[] = [];
 
 		const parent = createDDL();
-		parent.tables.push({ name: 'orders' });
-		parent.tables.push({ name: 'invoices' });
+		parent.tables.push({ name: 'orders', comment: null });
+		parent.tables.push({ name: 'invoices', comment: null });
 		parent.columns.push(
 			{
 				table: 'orders',
@@ -558,8 +558,8 @@ describe('commutativity integration (mysql)', () => {
 		const p = makeSnapshot('p_idx', [ORIGIN], parent.entities.list());
 
 		const a = createDDL();
-		a.tables.push({ name: 'orders' });
-		a.tables.push({ name: 'invoices' });
+		a.tables.push({ name: 'orders', comment: null });
+		a.tables.push({ name: 'invoices', comment: null });
 		a.columns.push(
 			{
 				table: 'orders',
@@ -600,8 +600,8 @@ describe('commutativity integration (mysql)', () => {
 		} as any);
 
 		const b = createDDL();
-		b.tables.push({ name: 'orders' });
-		b.tables.push({ name: 'invoices' });
+		b.tables.push({ name: 'orders', comment: null });
+		b.tables.push({ name: 'invoices', comment: null });
 		b.columns.push(
 			{
 				table: 'orders',
@@ -656,7 +656,7 @@ describe('commutativity integration (mysql)', () => {
 		const files: string[] = [];
 
 		const parent = createDDL();
-		parent.tables.push({ name: 'orders' });
+		parent.tables.push({ name: 'orders', comment: null });
 		parent.columns.push(
 			{
 				table: 'orders',
@@ -688,7 +688,7 @@ describe('commutativity integration (mysql)', () => {
 		const p = makeSnapshot('p_idx_same_table', [ORIGIN], parent.entities.list());
 
 		const a = createDDL();
-		a.tables.push({ name: 'orders' });
+		a.tables.push({ name: 'orders', comment: null });
 		a.columns.push(
 			{
 				table: 'orders',
@@ -729,7 +729,7 @@ describe('commutativity integration (mysql)', () => {
 		} as any);
 
 		const b = createDDL();
-		b.tables.push({ name: 'orders' });
+		b.tables.push({ name: 'orders', comment: null });
 		b.columns.push(
 			{
 				table: 'orders',
@@ -792,11 +792,11 @@ describe('commutativity integration (mysql)', () => {
 		const files: string[] = [];
 
 		const parent = createDDL();
-		parent.tables.push({ name: 't2' });
+		parent.tables.push({ name: 't2', comment: null });
 		const p = makeSnapshot('p_uq', [ORIGIN], parent.entities.list());
 
 		const a = createDDL();
-		a.tables.push({ name: 't2' });
+		a.tables.push({ name: 't2', comment: null });
 		a.indexes.push({
 			table: 't2',
 			nameExplicit: true,
@@ -809,7 +809,7 @@ describe('commutativity integration (mysql)', () => {
 		} as any);
 
 		const b = createDDL();
-		b.tables.push({ name: 't2' });
+		b.tables.push({ name: 't2', comment: null });
 		b.indexes.push({
 			table: 't2',
 			nameExplicit: true,
@@ -869,11 +869,11 @@ describe('commutativity integration (mysql)', () => {
 		const files: string[] = [];
 
 		const parent = createDDL();
-		parent.tables.push({ name: 't' });
+		parent.tables.push({ name: 't', comment: null });
 		const p = makeSnapshot('p_three', [ORIGIN], parent.entities.list());
 
 		const a = createDDL();
-		a.tables.push({ name: 't' });
+		a.tables.push({ name: 't', comment: null });
 		a.columns.push({
 			table: 't',
 			name: 'a',
@@ -889,7 +889,7 @@ describe('commutativity integration (mysql)', () => {
 		} as any);
 
 		const b = createDDL();
-		b.tables.push({ name: 't' });
+		b.tables.push({ name: 't', comment: null });
 		b.columns.push({
 			table: 't',
 			name: 'a',
@@ -905,7 +905,7 @@ describe('commutativity integration (mysql)', () => {
 		} as any);
 
 		const c = createDDL();
-		c.tables.push({ name: 't' });
+		c.tables.push({ name: 't', comment: null });
 		c.columns.push({
 			table: 't',
 			name: 'b',
@@ -937,11 +937,11 @@ describe('commutativity integration (mysql)', () => {
 		const files: string[] = [];
 
 		const root = createDDL();
-		root.tables.push({ name: 't' });
+		root.tables.push({ name: 't', comment: null });
 		const p = makeSnapshot('p_nested', [ORIGIN], root.entities.list());
 
 		const A = createDDL();
-		A.tables.push({ name: 't' });
+		A.tables.push({ name: 't', comment: null });
 		A.columns.push({
 			table: 't',
 			name: 'c',
@@ -957,7 +957,7 @@ describe('commutativity integration (mysql)', () => {
 		} as any);
 
 		const A1 = createDDL();
-		A1.tables.push({ name: 't' });
+		A1.tables.push({ name: 't', comment: null });
 		A1.columns.push({
 			table: 't',
 			name: 'c',
@@ -973,7 +973,7 @@ describe('commutativity integration (mysql)', () => {
 		} as any);
 
 		const B = createDDL();
-		B.tables.push({ name: 't' });
+		B.tables.push({ name: 't', comment: null });
 		B.columns.push({
 			table: 't',
 			name: 'd',
@@ -1004,13 +1004,13 @@ describe('commutativity integration (mysql)', () => {
 		const files: string[] = [];
 
 		const base = createDDL();
-		base.tables.push({ name: 'u' });
-		base.tables.push({ name: 'p' });
+		base.tables.push({ name: 'u', comment: null });
+		base.tables.push({ name: 'p', comment: null });
 		const p = makeSnapshot('p_mix', [ORIGIN], base.entities.list());
 
 		// Branch X: alter u.email, create view v_users
 		const X = createDDL();
-		X.tables.push({ name: 'u' });
+		X.tables.push({ name: 'u', comment: null });
 		X.columns.push({
 			table: 'u',
 			name: 'email',
@@ -1034,7 +1034,7 @@ describe('commutativity integration (mysql)', () => {
 
 		// Branch Y: drop table u (conflicts with X's column/view touching u)
 		const Y = createDDL();
-		Y.tables.push({ name: 'p' });
+		Y.tables.push({ name: 'p', comment: null });
 		// no table u -> implies drop vs X touching u
 
 		files.push(
@@ -1045,5 +1045,39 @@ describe('commutativity integration (mysql)', () => {
 
 		const report = await mysqlCommutativity.detectNonCommutative(files);
 		expect(report.conflicts.length).toBeGreaterThan(0);
+	});
+
+	test('alter_table conflicts with drop_table', async () => {
+		const parent = createDDL();
+		parent.tables.push({ name: 'users', comment: null });
+		const parentSnap = makeSnapshot('p1', [baseId], parent.entities.list());
+
+		const A = createDDL();
+		A.tables.push({ name: 'users', comment: 'altered' });
+		const leafA = makeSnapshot('a1', ['p1'], A.entities.list());
+
+		const B = createDDL();
+		// no table users -> implies drop
+		const leafB = makeSnapshot('b1', ['p1'], B.entities.list());
+
+		const { tmp, fs } = mkTmp();
+		const files = [
+			writeTempSnapshot(tmp, 'p1', parentSnap),
+			writeTempSnapshot(tmp, 'a1', leafA),
+			writeTempSnapshot(tmp, 'b1', leafB),
+		];
+
+		const report = await mysqlCommutativity.detectNonCommutative(files);
+		expect(report.conflicts.length).toBeGreaterThan(0);
+		expect(report.conflicts.some((c) =>
+			c.branchA.statementDescription.includes('alter_table')
+			|| c.branchB.statementDescription.includes('alter_table')
+		)).toBe(true);
+		expect(report.conflicts.some((c) =>
+			c.branchA.statementDescription.includes('drop_table')
+			|| c.branchB.statementDescription.includes('drop_table')
+		)).toBe(true);
+
+		fs.rmSync(tmp, { recursive: true, force: true });
 	});
 });

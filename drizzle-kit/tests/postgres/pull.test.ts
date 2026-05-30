@@ -1633,6 +1633,7 @@ test('introspect partitioned tables', async () => {
 			schema: 'public',
 			entityType: 'tables',
 			isRlsEnabled: false,
+			comment: null,
 		} satisfies (typeof tables)[number],
 	]);
 });
@@ -1752,6 +1753,7 @@ test('introspect view with table filter', async () => {
 			schema: 'public',
 			name: 'table1',
 			isRlsEnabled: false,
+			comment: null,
 		},
 	];
 	expect(tables).toStrictEqual(expectedTables);
@@ -2024,6 +2026,7 @@ test('introspect enum within schema', async () => {
 			schema: 'public',
 			name: 'table1',
 			isRlsEnabled: false,
+			comment: null,
 		},
 	]);
 	expect(enums).toStrictEqual([]);
@@ -2206,6 +2209,7 @@ test('pull after migrate with custom migrations table #1', async () => {
 			isRlsEnabled: false,
 			name: 'users',
 			schema: 'drizzle',
+			comment: null,
 		},
 		{
 			columns: ['id'],
@@ -2261,6 +2265,7 @@ test('pull after migrate with custom migrations table #2', async () => {
 			isRlsEnabled: false,
 			name: 'users',
 			schema: 'public',
+			comment: null,
 		},
 		{
 			columns: ['id'],
@@ -2326,12 +2331,14 @@ test('pull after migrate with custom migrations table #3', async () => {
 			isRlsEnabled: false,
 			name: 'users',
 			schema: 'custom',
+			comment: null,
 		},
 		{
 			entityType: 'tables',
 			isRlsEnabled: false,
 			name: 'users',
 			schema: 'public',
+			comment: null,
 		},
 		{
 			columns: ['id'],
@@ -2779,4 +2786,25 @@ CREATE INDEX "idx_19612_cnst_full_name_idx" ON "public"."constructor" USING btre
 	expect(generateStatements).toStrictEqual([]);
 	expect(pushSqlStatements).toStrictEqual([]);
 	expect(pushStatements).toStrictEqual([]);
+});
+
+test('introspect table and column comments', async () => {
+	await db.query(`CREATE TABLE "public"."commented" ("id" serial PRIMARY KEY, "name" text);`);
+	await db.query(`COMMENT ON TABLE "public"."commented" IS 'A table with comments';`);
+	await db.query(`COMMENT ON COLUMN "public"."commented"."id" IS 'Primary key column';`);
+	await db.query(`COMMENT ON COLUMN "public"."commented"."name" IS 'Name column';`);
+
+	const { tables, columns } = await fromDatabaseForDrizzle(db, () => true, () => {}, {
+		schema: 'drizzle',
+		table: '__drizzle_migrations',
+	});
+
+	const table = tables.find((t) => t.name === 'commented');
+	expect(table?.comment).toBe('A table with comments');
+
+	const idColumn = columns.find((c) => c.table === 'commented' && c.name === 'id');
+	expect(idColumn?.comment).toBe('Primary key column');
+
+	const nameColumn = columns.find((c) => c.table === 'commented' && c.name === 'name');
+	expect(nameColumn?.comment).toBe('Name column');
 });

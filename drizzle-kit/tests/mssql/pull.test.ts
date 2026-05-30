@@ -573,7 +573,7 @@ test('pull after migrate with custom migrations table #1', async () => {
 		},
 		{
 			entityType: 'tables',
-
+			comment: null,
 			name: 'users',
 			schema: 'drizzle',
 		},
@@ -586,6 +586,87 @@ test('pull after migrate with custom migrations table #1', async () => {
 			nameExplicit: true,
 			schema: 'drizzle',
 			table: 'users',
+		},
+	]);
+});
+
+test('pull with comments', async () => {
+	await db.query(`
+		CREATE TABLE [users] (
+			id INTEGER PRIMARY KEY,
+			name TEXT NOT NULL
+		);
+	`);
+	await db.query(`
+		EXEC sp_addextendedproperty
+			@name = N'MS_Description',
+			@value = N'Users table',
+			@level0type = N'SCHEMA',
+			@level0name = N'dbo',
+			@level1type = N'TABLE',
+			@level1name = N'users';
+	`);
+	await db.query(`
+		EXEC sp_addextendedproperty
+			@name = N'MS_Description',
+			@value = N'User identifier',
+			@level0type = N'SCHEMA',
+			@level0name = N'dbo',
+			@level1type = N'TABLE',
+			@level1name = N'users',
+			@level2type = N'COLUMN',
+			@level2name = N'id';
+	`);
+
+	const { tables, columns } = await fromDatabaseForDrizzle(
+		db,
+		() => true,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	);
+
+	expect(tables).toStrictEqual([
+		{
+			entityType: 'tables',
+			comment: 'Users table',
+			name: 'users',
+			schema: 'dbo',
+		},
+	]);
+
+	expect(columns).toMatchObject([
+		{
+			comment: 'User identifier',
+			entityType: 'columns',
+			generated: null,
+			identity: null,
+			isPK: true,
+			isUnique: false,
+			name: 'id',
+			notNull: true,
+			pkName: expect.stringMatching(/^PK__users__/),
+			schema: 'dbo',
+			table: 'users',
+			type: 'int',
+			uniqueName: null,
+		},
+		{
+			comment: null,
+			entityType: 'columns',
+			generated: null,
+			identity: null,
+			isPK: false,
+			isUnique: false,
+			name: 'name',
+			notNull: true,
+			pkName: null,
+			schema: 'dbo',
+			table: 'users',
+			type: 'text',
+			uniqueName: null,
 		},
 	]);
 });
@@ -620,7 +701,7 @@ test('pull after migrate with custom migrations table #2', async () => {
 	expect([...schemas, ...tables, ...pks]).toStrictEqual([
 		{
 			entityType: 'tables',
-
+			comment: null,
 			name: 'users',
 			schema: 'dbo',
 		},
@@ -677,11 +758,13 @@ test('pull after migrate with custom migrations table #3', async () => {
 		},
 		{
 			entityType: 'tables',
+			comment: null,
 			name: 'users',
 			schema: 'custom',
 		},
 		{
 			entityType: 'tables',
+			comment: null,
 			name: 'users',
 			schema: 'dbo',
 		},

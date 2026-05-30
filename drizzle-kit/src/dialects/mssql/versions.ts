@@ -11,13 +11,17 @@ export const upToV2 = (it: Record<string, any>): { snapshot: MssqlSnapshot; hint
 	const ddl = createDDL();
 	for (const entry of ddlV1) {
 		if (entry.entityType === 'checks') ddl.checks.push(entry);
-		else if (entry.entityType === 'columns') ddl.columns.push(entry);
-		else if (entry.entityType === 'defaults') ddl.defaults.push(entry);
+		else if (entry.entityType === 'columns') {
+			entry.comment = entry.comment ?? null;
+			ddl.columns.push(entry);
+		} else if (entry.entityType === 'defaults') ddl.defaults.push(entry);
 		else if (entry.entityType === 'fks') ddl.fks.push(entry);
 		else if (entry.entityType === 'pks') ddl.pks.push(entry);
 		else if (entry.entityType === 'schemas') ddl.schemas.push(entry);
-		else if (entry.entityType === 'tables') ddl.tables.push(entry);
-		else if (entry.entityType === 'uniques') ddl.uniques.push(entry);
+		else if (entry.entityType === 'tables') {
+			entry.comment = entry.comment ?? null;
+			ddl.tables.push(entry);
+		} else if (entry.entityType === 'uniques') ddl.uniques.push(entry);
 		else if (entry.entityType === 'views') ddl.views.push(entry);
 		else if (entry.entityType === 'indexes') {
 			const newColumns = entry.columns.map((it) => ({ isExpression: false, value: it }));

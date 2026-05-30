@@ -76,6 +76,7 @@ export abstract class Column<
 	readonly length: number | undefined;
 	readonly isLengthExact: boolean | undefined;
 	readonly isAlias: boolean;
+	readonly comment: string | undefined;
 
 	/** @internal */
 	protected config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
@@ -112,6 +113,7 @@ export abstract class Column<
 		this.generatedIdentity = config.generatedIdentity;
 		this.length = (<{ length?: number }> config)['length'];
 		this.isLengthExact = (<{ isLengthExact?: boolean }> config)['isLengthExact'];
+		this.comment = config.comment;
 	}
 
 	abstract getSQLType(): string;

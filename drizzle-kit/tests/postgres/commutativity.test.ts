@@ -38,7 +38,7 @@ function mkTmp(): { tmp: string; fs: any; path: any; os: any } {
 describe('commutativity integration (postgres)', () => {
 	test('Parent not empty: detects conflict when first migration of branch A has a conflict with the last migration of branch B', async () => {
 		const parentDDL = createDDL();
-		parentDDL.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
+		parentDDL.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'users' });
 		parentDDL.columns.push({
 			schema: 'public',
 			table: 'users',
@@ -55,7 +55,7 @@ describe('commutativity integration (postgres)', () => {
 		const parent = makeSnapshot('p1', [baseId], parentDDL.entities.list());
 
 		const A = createDDL();
-		A.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
+		A.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'users' });
 		A.columns.push({
 			schema: 'public',
 			table: 'users',
@@ -72,7 +72,7 @@ describe('commutativity integration (postgres)', () => {
 		const leafA = makeSnapshot('a1', ['p1'], A.entities.list());
 
 		const A2 = createDDL();
-		A2.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
+		A2.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'users' });
 		A2.columns.push({
 			schema: 'public',
 			table: 'users',
@@ -89,7 +89,7 @@ describe('commutativity integration (postgres)', () => {
 		const leafA2 = makeSnapshot('a2', ['a1'], A2.entities.list());
 
 		const B = createDDL();
-		B.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
+		B.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'users' });
 		B.columns.push({
 			schema: 'public',
 			table: 'users',
@@ -103,7 +103,7 @@ describe('commutativity integration (postgres)', () => {
 			generated: null,
 			identity: null,
 		} as any);
-		B.tables.push({ schema: 'public', isRlsEnabled: false, name: 'posts' });
+		B.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'posts' });
 		B.columns.push({
 			schema: 'public',
 			table: 'posts',
@@ -120,7 +120,7 @@ describe('commutativity integration (postgres)', () => {
 		const leafB = makeSnapshot('b1', ['p1'], B.entities.list());
 
 		const B2 = createDDL();
-		B2.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
+		B2.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'users' });
 		B2.columns.push({
 			schema: 'public',
 			table: 'users',
@@ -134,7 +134,7 @@ describe('commutativity integration (postgres)', () => {
 			generated: null,
 			identity: null,
 		} as any);
-		B2.tables.push({ schema: 'public', isRlsEnabled: false, name: 'posts' });
+		B2.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'posts' });
 		B2.columns.push({
 			schema: 'public',
 			table: 'posts',
@@ -151,7 +151,7 @@ describe('commutativity integration (postgres)', () => {
 		const leafB2 = makeSnapshot('b2', ['b1'], B2.entities.list());
 
 		const B3 = createDDL();
-		B3.tables.push({ schema: 'public', isRlsEnabled: false, name: 'posts' });
+		B3.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'posts' });
 		B3.columns.push({
 			schema: 'public',
 			table: 'posts',
@@ -185,7 +185,7 @@ describe('commutativity integration (postgres)', () => {
 		const parent = makeSnapshot('p1', [baseId], createDDL().entities.list());
 
 		const A = createDDL();
-		A.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
+		A.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'users' });
 		A.columns.push({
 			schema: 'public',
 			table: 'users',
@@ -202,7 +202,7 @@ describe('commutativity integration (postgres)', () => {
 		const leafA = makeSnapshot('a1', ['p1'], A.entities.list());
 
 		const A2 = createDDL();
-		A2.tables.push({ schema: 'public', isRlsEnabled: false, name: 'posts' });
+		A2.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'posts' });
 		A2.columns.push({
 			schema: 'public',
 			table: 'posts',
@@ -219,7 +219,7 @@ describe('commutativity integration (postgres)', () => {
 		const leafA2 = makeSnapshot('a2', ['a1'], A2.entities.list());
 
 		const B = createDDL();
-		B.tables.push({ schema: 'public', isRlsEnabled: false, name: 'posts' });
+		B.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'posts' });
 		B.columns.push({
 			schema: 'public',
 			table: 'users',
@@ -236,7 +236,7 @@ describe('commutativity integration (postgres)', () => {
 		const leafB = makeSnapshot('b1', ['p1'], B.entities.list());
 
 		const B2 = createDDL();
-		B2.tables.push({ schema: 'public', isRlsEnabled: false, name: 'posts' });
+		B2.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'posts' });
 		B2.columns.push({
 			schema: 'public',
 			table: 'users',
@@ -253,7 +253,7 @@ describe('commutativity integration (postgres)', () => {
 		const leafB2 = makeSnapshot('b2', ['b1'], B2.entities.list());
 
 		const B3 = createDDL();
-		B3.tables.push({ schema: 'public', isRlsEnabled: false, name: 'posts' });
+		B3.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'posts' });
 		B3.columns.push({
 			schema: 'public',
 			table: 'users',
@@ -267,7 +267,7 @@ describe('commutativity integration (postgres)', () => {
 			generated: null,
 			identity: null,
 		} as any);
-		B3.tables.push({ schema: 'public', isRlsEnabled: false, name: 'media' });
+		B3.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'media' });
 		B3.columns.push({
 			schema: 'public',
 			table: 'media',
@@ -299,7 +299,7 @@ describe('commutativity integration (postgres)', () => {
 
 	test('detects conflict when drop table in one branch and add column in other', async () => {
 		const parentDDL = createDDL();
-		parentDDL.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
+		parentDDL.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'users' });
 		parentDDL.columns.push({
 			schema: 'public',
 			table: 'users',
@@ -316,7 +316,7 @@ describe('commutativity integration (postgres)', () => {
 		const parent = makeSnapshot('p1', [baseId], parentDDL.entities.list());
 
 		const A = createDDL();
-		A.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
+		A.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'users' });
 		A.columns.push({
 			schema: 'public',
 			table: 'users',
@@ -349,7 +349,7 @@ describe('commutativity integration (postgres)', () => {
 		const parent = makeSnapshot('p1', [baseId], createDDL().entities.list());
 
 		const A = createDDL();
-		A.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
+		A.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'users' });
 		A.columns.push({
 			schema: 'public',
 			table: 'users',
@@ -366,7 +366,7 @@ describe('commutativity integration (postgres)', () => {
 		const leafA = makeSnapshot('a1', ['p1'], A.entities.list());
 
 		const B = createDDL();
-		B.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
+		B.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'users' });
 		B.columns.push({
 			schema: 'public',
 			table: 'users',
@@ -397,11 +397,11 @@ describe('commutativity integration (postgres)', () => {
 		const parent = makeSnapshot('p2', [baseId], createDDL().entities.list());
 
 		const A = createDDL();
-		A.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
+		A.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'users' });
 		const leafA = makeSnapshot('a2', ['p2'], A.entities.list());
 
 		const B = createDDL();
-		B.tables.push({ schema: 'public', isRlsEnabled: false, name: 'posts' });
+		B.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'posts' });
 		const leafB = makeSnapshot('b2', ['p2'], B.entities.list());
 
 		const os = require('os');
@@ -419,11 +419,11 @@ describe('commutativity integration (postgres)', () => {
 		const files: string[] = [];
 
 		const parent = createDDL();
-		parent.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
+		parent.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'users' });
 		const p = makeSnapshot('p_col', [ORIGIN], parent.entities.list());
 
 		const a = createDDL();
-		a.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
+		a.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'users' });
 		a.columns.push(
 			{
 				schema: 'public',
@@ -440,7 +440,7 @@ describe('commutativity integration (postgres)', () => {
 			} as any,
 		);
 		const b = createDDL();
-		b.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
+		b.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'users' });
 		b.columns.push(
 			{
 				schema: 'public',
@@ -472,7 +472,7 @@ describe('commutativity integration (postgres)', () => {
 		const files: string[] = [];
 
 		const parent = createDDL();
-		parent.tables.push({ schema: 'public', isRlsEnabled: false, name: 't1' });
+		parent.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 't1' });
 		parent.columns.push(
 			{
 				schema: 'public',
@@ -492,7 +492,7 @@ describe('commutativity integration (postgres)', () => {
 
 		const a = createDDL(); // dropping table in branch A (no t1)
 		const b = createDDL();
-		b.tables.push({ schema: 'public', isRlsEnabled: false, name: 't1' });
+		b.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 't1' });
 		b.columns.push(
 			{
 				schema: 'public',
@@ -598,8 +598,8 @@ describe('commutativity integration (postgres)', () => {
 		const files: string[] = [];
 
 		const parent = createDDL();
-		parent.tables.push({ schema: 'public', isRlsEnabled: false, name: 'orders' });
-		parent.tables.push({ schema: 'public', isRlsEnabled: false, name: 'invoices' });
+		parent.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'orders' });
+		parent.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'invoices' });
 		parent.columns.push(
 			{
 				schema: 'public',
@@ -631,8 +631,8 @@ describe('commutativity integration (postgres)', () => {
 		const p = makeSnapshot('p_idx', [ORIGIN], parent.entities.list());
 
 		const a = createDDL();
-		a.tables.push({ schema: 'public', isRlsEnabled: false, name: 'orders' });
-		a.tables.push({ schema: 'public', isRlsEnabled: false, name: 'invoices' });
+		a.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'orders' });
+		a.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'invoices' });
 		a.columns.push(
 			{
 				schema: 'public',
@@ -675,8 +675,8 @@ describe('commutativity integration (postgres)', () => {
 		} as any);
 
 		const b = createDDL();
-		b.tables.push({ schema: 'public', isRlsEnabled: false, name: 'orders' });
-		b.tables.push({ schema: 'public', isRlsEnabled: false, name: 'invoices' });
+		b.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'orders' });
+		b.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'invoices' });
 		b.columns.push(
 			{
 				schema: 'public',
@@ -733,11 +733,11 @@ describe('commutativity integration (postgres)', () => {
 		const files: string[] = [];
 
 		const parent = createDDL();
-		parent.tables.push({ schema: 'public', isRlsEnabled: false, name: 't2' });
+		parent.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 't2' });
 		const p = makeSnapshot('p_uq', [ORIGIN], parent.entities.list());
 
 		const a = createDDL();
-		a.tables.push({ schema: 'public', isRlsEnabled: false, name: 't2' });
+		a.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 't2' });
 		a.uniques.push(
 			{
 				schema: 'public',
@@ -749,7 +749,7 @@ describe('commutativity integration (postgres)', () => {
 			} as any,
 		);
 		const b = createDDL();
-		b.tables.push({ schema: 'public', isRlsEnabled: false, name: 't2' });
+		b.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 't2' });
 		b.uniques.push(
 			{
 				schema: 'public',
@@ -880,11 +880,11 @@ describe('commutativity integration (postgres)', () => {
 		const files: string[] = [];
 
 		const parent = createDDL();
-		parent.tables.push({ schema: 'public', isRlsEnabled: false, name: 't3' });
+		parent.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 't3' });
 		const p = makeSnapshot('p_pol', [ORIGIN], parent.entities.list());
 
 		const a = createDDL();
-		a.tables.push({ schema: 'public', isRlsEnabled: false, name: 't3' });
+		a.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 't3' });
 		a.policies.push(
 			{
 				schema: 'public',
@@ -898,7 +898,7 @@ describe('commutativity integration (postgres)', () => {
 			} as any,
 		);
 		const b = createDDL();
-		b.tables.push({ schema: 'public', isRlsEnabled: false, name: 't3' });
+		b.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 't3' });
 		b.policies.push(
 			{
 				schema: 'public',
@@ -927,11 +927,11 @@ describe('commutativity integration (postgres)', () => {
 		const files: string[] = [];
 
 		const parent = createDDL();
-		parent.tables.push({ schema: 'public', isRlsEnabled: false, name: 't_rls' });
+		parent.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 't_rls' });
 		const p = makeSnapshot('p_rls', [ORIGIN], parent.entities.list());
 
 		const a = createDDL();
-		a.tables.push({ schema: 'public', isRlsEnabled: true, name: 't_rls' });
+		a.tables.push({ schema: 'public', isRlsEnabled: true, comment: null, name: 't_rls' });
 		a.policies.push(
 			{
 				schema: 'public',
@@ -962,11 +962,11 @@ describe('commutativity integration (postgres)', () => {
 		const files: string[] = [];
 
 		const parent = createDDL();
-		parent.tables.push({ schema: 'public', isRlsEnabled: false, name: 't' });
+		parent.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 't' });
 		const p = makeSnapshot('p_three', [ORIGIN], parent.entities.list());
 
 		const a = createDDL();
-		a.tables.push({ schema: 'public', isRlsEnabled: false, name: 't' });
+		a.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 't' });
 		a.columns.push(
 			{
 				schema: 'public',
@@ -983,7 +983,7 @@ describe('commutativity integration (postgres)', () => {
 			} as any,
 		);
 		const b = createDDL();
-		b.tables.push({ schema: 'public', isRlsEnabled: false, name: 't' });
+		b.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 't' });
 		b.columns.push(
 			{
 				schema: 'public',
@@ -1000,7 +1000,7 @@ describe('commutativity integration (postgres)', () => {
 			} as any,
 		);
 		const c = createDDL();
-		c.tables.push({ schema: 'public', isRlsEnabled: false, name: 't' });
+		c.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 't' });
 		c.columns.push(
 			{
 				schema: 'public',
@@ -1034,11 +1034,11 @@ describe('commutativity integration (postgres)', () => {
 		const files: string[] = [];
 
 		const root = createDDL();
-		root.tables.push({ schema: 'public', isRlsEnabled: false, name: 't' });
+		root.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 't' });
 		const p = makeSnapshot('p_nested', [ORIGIN], root.entities.list());
 
 		const A = createDDL();
-		A.tables.push({ schema: 'public', isRlsEnabled: false, name: 't' });
+		A.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 't' });
 		A.columns.push(
 			{
 				schema: 'public',
@@ -1055,7 +1055,7 @@ describe('commutativity integration (postgres)', () => {
 			} as any,
 		);
 		const A1 = createDDL();
-		A1.tables.push({ schema: 'public', isRlsEnabled: false, name: 't' });
+		A1.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 't' });
 		A1.columns.push(
 			{
 				schema: 'public',
@@ -1072,7 +1072,7 @@ describe('commutativity integration (postgres)', () => {
 			} as any,
 		);
 		const B = createDDL();
-		B.tables.push({ schema: 'public', isRlsEnabled: false, name: 't' });
+		B.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 't' });
 		B.columns.push(
 			{
 				schema: 'public',
@@ -1106,13 +1106,13 @@ describe('commutativity integration (postgres)', () => {
 		const files: string[] = [];
 
 		const base = createDDL();
-		base.tables.push({ schema: 'public', isRlsEnabled: false, name: 'u' });
-		base.tables.push({ schema: 'public', isRlsEnabled: false, name: 'p' });
+		base.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'u' });
+		base.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'p' });
 		const p = makeSnapshot('p_mix', [ORIGIN], base.entities.list());
 
 		// Branch X: alter u.email, create view v_users, enum e1
 		const X = createDDL();
-		X.tables.push({ schema: 'public', isRlsEnabled: false, name: 'u' });
+		X.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'u' });
 		X.columns.push(
 			{
 				schema: 'public',
@@ -1144,7 +1144,7 @@ describe('commutativity integration (postgres)', () => {
 
 		// Branch Y: drop table u (conflicts with X's column/view touching u), policy on p
 		const Y = createDDL();
-		Y.tables.push({ schema: 'public', isRlsEnabled: false, name: 'p' });
+		Y.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'p' });
 		Y.policies.push(
 			{
 				schema: 'public',
@@ -1176,19 +1176,19 @@ describe('commutativity integration (postgres)', () => {
 		const base = createDDL();
 		base.schemas.push({ name: 's1' } as any);
 		base.tables.push({ schema: 's1', isRlsEnabled: false, name: 't1' } as any);
-		base.tables.push({ schema: 'public', isRlsEnabled: false, name: 'common_table' } as any);
+		base.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'common_table' } as any);
 		const p = makeSnapshot('p_schema_move', [ORIGIN], base.entities.list());
 
 		// Branch A: rename schema s1 to s2, move t1 from s1 to s2.t1
 		const A = createDDL();
 		A.schemas.push({ name: 's2' } as any);
 		A.tables.push({ schema: 's2', isRlsEnabled: false, name: 't1' } as any);
-		A.tables.push({ schema: 'public', isRlsEnabled: false, name: 'common_table' } as any);
+		A.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'common_table' } as any);
 
 		// Branch B: drop schema s1, create table in public schema
 		const B = createDDL();
-		B.tables.push({ schema: 'public', isRlsEnabled: false, name: 'new_table_in_public' } as any);
-		B.tables.push({ schema: 'public', isRlsEnabled: false, name: 'common_table' } as any);
+		B.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'new_table_in_public' } as any);
+		B.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'common_table' } as any);
 		// implicitly drops schema s1 and t1 within it
 
 		// Branch C: alter common_table in public, create new schema s3
@@ -1196,7 +1196,7 @@ describe('commutativity integration (postgres)', () => {
 		C.schemas.push({ name: 's1' } as any);
 		C.schemas.push({ name: 's3' } as any);
 		C.tables.push({ schema: 's1', isRlsEnabled: false, name: 't1' } as any);
-		C.tables.push({ schema: 'public', isRlsEnabled: false, name: 'common_table' } as any);
+		C.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'common_table' } as any);
 		C.columns.push({ schema: 'public', table: 'common_table', name: 'new_col', type: 'text' } as any);
 
 		files.push(
@@ -1211,5 +1211,145 @@ describe('commutativity integration (postgres)', () => {
 		// Expect conflicts between A and C (s1 operations)
 		// Expect conflicts between B and C (s1 drop vs s1 operations)
 		expect(report.conflicts.length).toBeGreaterThan(0);
+	});
+
+	test('detects conflict between comment_on_table and drop_table', async () => {
+		const { tmp, fs } = mkTmp();
+		const files: string[] = [];
+
+		const parent = createDDL();
+		parent.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'users' } as any);
+		const p = makeSnapshot('p_comment_drop', [ORIGIN], parent.entities.list());
+
+		const A = createDDL();
+		A.tables.push({ schema: 'public', isRlsEnabled: false, comment: 'users table', name: 'users' } as any);
+		const leafA = makeSnapshot('a_comment', ['p_comment_drop'], A.entities.list());
+
+		const B = createDDL();
+		B.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'posts' } as any);
+		const leafB = makeSnapshot('b_drop', ['p_comment_drop'], B.entities.list());
+
+		files.push(
+			writeTempSnapshot(tmp, '140_p_comment_drop', p),
+			writeTempSnapshot(tmp, '141_A', leafA),
+			writeTempSnapshot(tmp, '142_B', leafB),
+		);
+
+		const report = await postgresCommutativity.detectNonCommutative(files);
+		expect(report.conflicts.length).toBeGreaterThan(0);
+		expect(report.conflicts.some((c) =>
+			c.branchA.statementDescription.includes('comment_on_table')
+			&& c.branchB.statementDescription.includes('drop_table')
+		)).toBe(true);
+	});
+
+	test('detects conflict between comment_on_column and drop_column', async () => {
+		const { tmp, fs } = mkTmp();
+		const files: string[] = [];
+
+		const parent = createDDL();
+		parent.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'users' } as any);
+		parent.columns.push({
+			schema: 'public',
+			table: 'users',
+			name: 'email',
+			type: 'varchar',
+			options: null,
+			typeSchema: 'pg_catalog',
+			notNull: false,
+			dimensions: 0,
+			default: null,
+			generated: null,
+			identity: null,
+		} as any);
+		const p = makeSnapshot('p_comment_col_drop', [ORIGIN], parent.entities.list());
+
+		const A = createDDL();
+		A.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'users' } as any);
+		A.columns.push({
+			schema: 'public',
+			table: 'users',
+			name: 'email',
+			type: 'varchar',
+			options: null,
+			typeSchema: 'pg_catalog',
+			notNull: false,
+			dimensions: 0,
+			default: null,
+			generated: null,
+			identity: null,
+			comment: 'user email',
+		} as any);
+		const leafA = makeSnapshot('a_comment_col', ['p_comment_col_drop'], A.entities.list());
+
+		const B = createDDL();
+		B.tables.push({ schema: 'public', isRlsEnabled: false, comment: null, name: 'users' } as any);
+		B.columns.push({
+			schema: 'public',
+			table: 'users',
+			name: 'name',
+			type: 'varchar',
+			options: null,
+			typeSchema: 'pg_catalog',
+			notNull: false,
+			dimensions: 0,
+			default: null,
+			generated: null,
+			identity: null,
+		} as any);
+		const leafB = makeSnapshot('b_drop_col', ['p_comment_col_drop'], B.entities.list());
+
+		files.push(
+			writeTempSnapshot(tmp, '150_p_comment_col_drop', p),
+			writeTempSnapshot(tmp, '151_A', leafA),
+			writeTempSnapshot(tmp, '152_B', leafB),
+		);
+
+		const report = await postgresCommutativity.detectNonCommutative(files);
+		expect(report.conflicts.length).toBeGreaterThan(0);
+		expect(report.conflicts.some((c) =>
+			(c.branchA.statementDescription.includes('comment_on_column')
+				&& c.branchB.statementDescription.includes('drop_column'))
+			|| (c.branchA.statementDescription.includes('drop_column')
+				&& c.branchB.statementDescription.includes('comment_on_column'))
+		)).toBe(true);
+	});
+
+	test('detects conflict between comment_on_table and drop_schema', async () => {
+		const { tmp, fs } = mkTmp();
+		const files: string[] = [];
+
+		const parent = createDDL();
+		parent.schemas.push({ name: 's1' } as any);
+		parent.tables.push({ schema: 's1', isRlsEnabled: false, comment: null, name: 't1' } as any);
+		const p = makeSnapshot('p_comment_schema', [ORIGIN], parent.entities.list());
+
+		const A = createDDL();
+		A.schemas.push({ name: 's1' } as any);
+		A.tables.push({ schema: 's1', isRlsEnabled: false, comment: 'table in s1', name: 't1' } as any);
+		const leafA = makeSnapshot('a_comment_schema', ['p_comment_schema'], A.entities.list());
+
+		const B = createDDL();
+		B.schemas.push({ name: 's2' } as any);
+		const leafB = makeSnapshot('b_drop_schema', ['p_comment_schema'], B.entities.list());
+
+		files.push(
+			writeTempSnapshot(tmp, '160_p_comment_schema', p),
+			writeTempSnapshot(tmp, '161_A', leafA),
+			writeTempSnapshot(tmp, '162_B', leafB),
+		);
+
+		const report = await postgresCommutativity.detectNonCommutative(files);
+		expect(report.conflicts.length).toBeGreaterThan(0);
+		expect(report.conflicts.some((c) =>
+			(c.branchA.statementDescription.includes('comment_on_table')
+				&& c.branchB.statementDescription.includes('drop_schema'))
+			|| (c.branchA.statementDescription.includes('drop_schema')
+				&& c.branchB.statementDescription.includes('comment_on_table'))
+			|| (c.branchA.statementDescription.includes('comment_on_table')
+				&& c.branchB.statementDescription.includes('drop_table'))
+			|| (c.branchA.statementDescription.includes('drop_table')
+				&& c.branchB.statementDescription.includes('comment_on_table'))
+		)).toBe(true);
 	});
 });

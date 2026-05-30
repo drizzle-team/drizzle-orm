@@ -1,7 +1,7 @@
 import { type Casing, getCasingFn } from '~/casing.ts';
 import { entityKind } from '~/entity.ts';
 import type { InferModelFromColumns } from '~/table.ts';
-import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
+import { type Comment, Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
 import { getPgColumnBuilders, type PgColumnsBuilders } from './columns/all.ts';
 import type {
@@ -18,6 +18,7 @@ import type { AnyIndexBuilder } from './indexes.ts';
 import type { PgPolicy } from './policies.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
 import type { UniqueConstraintBuilder } from './unique-constraint.ts';
+export { comment } from '~/table.ts';
 
 export type PgTableExtraConfigValue =
 	| AnyIndexBuilder
@@ -25,7 +26,8 @@ export type PgTableExtraConfigValue =
 	| ForeignKeyBuilder
 	| PrimaryKeyBuilder
 	| UniqueConstraintBuilder
-	| PgPolicy;
+	| PgPolicy
+	| Comment;
 
 export type PgTableExtraConfig = Record<string, PgTableExtraConfigValue>;
 

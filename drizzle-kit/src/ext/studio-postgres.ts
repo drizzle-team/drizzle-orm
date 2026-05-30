@@ -72,6 +72,7 @@ const fromInterims = ({
 		name: it.name,
 		schema: it.schema,
 		isRlsEnabled: it.isRlsEnabled,
+		comment: null,
 	}));
 	const columns: InterimColumn[] = tables
 		.map((table) => {

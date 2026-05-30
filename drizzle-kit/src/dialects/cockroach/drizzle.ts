@@ -280,6 +280,7 @@ export const fromDrizzleSchema = (
 			schema,
 			name: config.name,
 			isRlsEnabled,
+			comment: config.comment ?? null,
 		} satisfies CockroachEntities['tables'];
 	});
 
@@ -379,6 +380,7 @@ export const fromDrizzleSchema = (
 					unique: column.isUnique,
 					uniqueName: column.uniqueName ?? null,
 					identity: identityValue,
+					comment: column.comment ?? null,
 				} satisfies InterimColumn;
 			}),
 		);

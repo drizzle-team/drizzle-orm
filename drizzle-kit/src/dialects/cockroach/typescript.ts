@@ -2,7 +2,7 @@ import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import type { Casing } from '../../cli/validations/common';
 import { assertUnreachable, trimChar } from '../../utils';
-import { inspect } from '../utils';
+import { escapeForTsLiteral, inspect } from '../utils';
 import type { CheckConstraint, CockroachDDL, Column, ForeignKey, Index, Policy, PrimaryKey, ViewColumn } from './ddl';
 import { tableFromDDL } from './ddl';
 import { defaults, typeFor } from './grammar';
@@ -280,6 +280,7 @@ export const ddlToTypeScript = (ddl: CockroachDDL, columnsForViews: ViewColumn[]
 		if (x.entityType === 'enums' && x.schema === 'public') imports.add('cockroachEnum');
 		if (x.entityType === 'policies') imports.add('cockroachPolicy');
 		if (x.entityType === 'roles') imports.add('cockroachRole');
+		if (x.entityType === 'tables' && x.comment !== null) imports.add('comment');
 	}
 
 	const enumStatements = ddl.enums
@@ -364,7 +365,8 @@ export const ddlToTypeScript = (ddl: CockroachDDL, columnsForViews: ViewColumn[]
 		});
 
 		const hasCallback = table.indexes.length > 0 || filteredFKs.length > 0 || table.policies.length > 0
-			|| (table.pk && table.pk.columns.length > 1) || table.checks.length > 0;
+			|| (table.pk && table.pk.columns.length > 1) || table.checks.length > 0
+			|| table.comment !== null;
 
 		if (hasCallback) {
 			statement += ', ';
@@ -375,6 +377,9 @@ export const ddlToTypeScript = (ddl: CockroachDDL, columnsForViews: ViewColumn[]
 			statement += createTableIndexes(table.name, table.indexes, casing);
 			statement += createTablePolicies(table.policies, casing, rolesNameToTsKey);
 			statement += createTableChecks(table.checks, casing);
+			statement += table.comment !== null
+				? `\tcomment(${escapeForTsLiteral(table.comment)}),\n`
+				: '';
 			statement += ']';
 		}
 		statement += ');';
@@ -543,6 +548,9 @@ const createTableColumns = (
 		if (it.notNull && !it.identity && !pk) columnStatement += '.notNull()';
 		if (identity) columnStatement += generateIdentityParams(it);
 		if (generated) columnStatement += `.generatedAlwaysAs(sql\`${generated.as}\`)`;
+		if (it.comment !== null) {
+			columnStatement += `.comment(${escapeForTsLiteral(it.comment)})`;
+		}
 
 		statement += '\t';
 		statement += columnStatement;

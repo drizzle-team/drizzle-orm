@@ -908,37 +908,73 @@ export const ddlDiff = async (
 	const jsonAlterAddNotNull: JsonAlterColumnAddNotNull[] = [];
 	const jsonAlterDropNotNull: JsonAlterColumnDropNotNull[] = [];
 	const jsonAlterColumns: JsonAlterColumn[] = [];
+
+	const jsonCommentOnColumns = columnAlters
+		.filter((it) => it.comment && it.comment.from !== it.comment.to)
+		.filter((it) =>
+			!columnsToRecreate.some((c) => c.schema === it.schema && c.table === it.table && c.name === it.name)
+		)
+		.map((it) => {
+			return prepareStatement('comment_on_column', {
+				schema: it.schema,
+				table: it.table,
+				column: it.name,
+				comment: it.comment?.to ?? null,
+			});
+		});
+
+	const jsonCommentOnTables = alters
+		.filter((it) => it.entityType === 'tables' && it.comment && it.comment.from !== it.comment.to)
+		.map((it) => {
+			const table = it as { schema: string; name: string; comment: { from: string | null; to: string | null } };
+			return prepareStatement('comment_on_table', {
+				schema: table.schema,
+				table: table.name,
+				comment: table.comment.to ?? null,
+			});
+		});
+
 	const filteredColumnAlters = columnAlters
 		.filter((it) => !it.generated)
 		.filter((it) => {
+			const clean = { ...it };
+
 			// if column is of type enum we're about to recreate - we will reset default anyway
 			if (
-				it.default
+				clean.default
 				&& recreateEnums.some((x) =>
-					x.columns.some((c) => it.schema === c.schema && it.table === c.table && it.name === c.name)
+					x.columns.some((c) => clean.schema === c.schema && clean.table === c.table && clean.name === c.name)
 				)
 			) {
-				delete it.default;
+				delete clean.default;
 			}
 
-			if (it.type && typesCommutative(it.type.from, it.type.to)) {
-				delete it.type;
+			if (clean.type && typesCommutative(clean.type.from, clean.type.to)) {
+				delete clean.type;
 			}
 
-			if (it.notNull && it.notNull.to && (it.$right.generated || it.$right.identity)) {
-				delete it.notNull;
+			if (clean.notNull && clean.notNull.to && (clean.$right.generated || clean.$right.identity)) {
+				delete clean.notNull;
 			}
 
-			if (it.notNull && (it.notNull.to && it.identity?.to)) {
-				delete it.notNull;
+			if (clean.notNull && (clean.notNull.to && clean.identity?.to)) {
+				delete clean.notNull;
 			}
 
-			return ddl2.columns.hasDiff(it);
+			if ('comment' in clean) {
+				delete clean.comment;
+			}
+
+			return ddl2.columns.hasDiff(clean);
 		});
 
 	// TODO: move to alter_column convertor
 	// cc: @AleksandrSherman
 	for (const it of filteredColumnAlters) {
+		if ('comment' in it) {
+			delete it.comment;
+		}
+
 		if (it.notNull) {
 			if (it.notNull.from) {
 				jsonAlterDropNotNull.push(
@@ -1098,6 +1134,9 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonCreatedCheckConstraints);
 
 	jsonStatements.push(...jsonAlterCheckConstraints);
+
+	jsonStatements.push(...jsonCommentOnTables);
+	jsonStatements.push(...jsonCommentOnColumns);
 
 	jsonStatements.push(...createViews);
 

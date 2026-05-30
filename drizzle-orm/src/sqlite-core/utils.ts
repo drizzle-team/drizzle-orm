@@ -1,7 +1,7 @@
 import { is } from '~/entity.ts';
 import { SQL } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { Table } from '~/table.ts';
+import { Comment, Table } from '~/table.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { Check } from './checks.ts';
 import { CheckBuilder } from './checks.ts';
@@ -26,11 +26,12 @@ export function getTableConfig<TTable extends SQLiteTable>(table: TTable) {
 	const name = table[Table.Symbol.Name];
 
 	const extraConfigBuilder = table[SQLiteTable.Symbol.ExtraConfigBuilder];
+	let comment: string | undefined;
 
 	if (extraConfigBuilder !== undefined) {
 		const extraConfig = extraConfigBuilder(table[SQLiteTable.Symbol.Columns]);
-		const extraValues = Array.isArray(extraConfig) ? extraConfig.flat(1) as any[] : Object.values(extraConfig);
-		for (const builder of Object.values(extraValues)) {
+		const extraValues = Array.isArray(extraConfig) ? extraConfig.flat(1) : Object.values(extraConfig);
+		for (const builder of extraValues) {
 			if (is(builder, IndexBuilder)) {
 				indexes.push(builder.build(table));
 			} else if (is(builder, CheckBuilder)) {
@@ -41,6 +42,8 @@ export function getTableConfig<TTable extends SQLiteTable>(table: TTable) {
 				primaryKeys.push(builder.build(table));
 			} else if (is(builder, ForeignKeyBuilder)) {
 				foreignKeys.push(builder.build(table));
+			} else if (is(builder, Comment)) {
+				comment = builder.value;
 			}
 		}
 	}
@@ -53,6 +56,7 @@ export function getTableConfig<TTable extends SQLiteTable>(table: TTable) {
 		primaryKeys,
 		uniqueConstraints,
 		name,
+		comment,
 	};
 }
 

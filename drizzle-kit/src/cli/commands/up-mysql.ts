@@ -37,7 +37,7 @@ export const upToV6 = (it: Record<string, any>): MysqlSnapshot => {
 	const ddl = createDDL();
 
 	for (const table of Object.values(json.tables)) {
-		ddl.tables.push({ name: table.name });
+		ddl.tables.push({ name: table.name, comment: null });
 
 		for (const column of Object.values(table.columns)) {
 			let def = typeof column.default === 'undefined' ? null : String(column.default);
@@ -67,6 +67,7 @@ export const upToV6 = (it: Record<string, any>): MysqlSnapshot => {
 				charSet: null,
 				collation: null,
 				onUpdateNowFsp: null,
+				comment: null,
 			});
 		}
 	}

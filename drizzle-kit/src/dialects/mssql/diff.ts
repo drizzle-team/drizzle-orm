@@ -555,6 +555,24 @@ export const ddlDiff = async (
 		})
 	);
 
+	const jsonCommentOnColumns = columnAlters
+		.filter((it) => it.comment && it.comment.from !== it.comment.to)
+		.filter((it) =>
+			!columnsToRecreate.some((c) => c.schema === it.schema && c.table === it.table && c.name === it.name)
+		)
+		.filter((it) =>
+			!columnAlters.some((c) => c.identity && c.schema === it.schema && c.table === it.table && c.name === it.name)
+		)
+		.map((it) => {
+			return prepareStatement('comment_on_column', {
+				schema: it.schema,
+				table: it.table,
+				column: it.name,
+				comment: it.comment?.to ?? null,
+				from: it.comment?.from ?? null,
+			});
+		});
+
 	// identity alters are not allowed, only recreate
 	const jsonAlterColumns = columnAlters.filter((it) => !(it.generated) && !(it.identity)).filter((it) => {
 		if (it.notNull && (it.$right.generated || it.$right.identity)) {
@@ -580,6 +598,10 @@ export const ddlDiff = async (
 			delete it.type;
 		}
 
+		if (it.comment) {
+			delete it.comment;
+		}
+
 		return ddl2.columns.hasDiff(it);
 	}).map(
 		(it) => {
@@ -588,6 +610,18 @@ export const ddlDiff = async (
 			});
 		},
 	);
+
+	const jsonCommentOnTables = alters
+		.filter((it) => it.entityType === 'tables' && it.comment && it.comment.from !== it.comment.to)
+		.map((it) => {
+			const table = it as DiffEntities['tables'];
+			return prepareStatement('comment_on_table', {
+				schema: table.schema,
+				table: table.name,
+				comment: table.comment?.to ?? null,
+				from: table.comment?.from ?? null,
+			});
+		});
 
 	const jsonSetTableSchemas = movedTables.map((it) =>
 		prepareStatement('move_table', {
@@ -1020,6 +1054,8 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonRecreateColumns);
 	jsonStatements.push(...jsonRecreateIdentityColumns);
 	jsonStatements.push(...jsonAlterColumns);
+	jsonStatements.push(...jsonCommentOnColumns);
+	jsonStatements.push(...jsonCommentOnTables);
 	jsonStatements.push(...jsonAddPrimaryKeys);
 	jsonStatements.push(...jsonRenamePrimaryKeys);
 

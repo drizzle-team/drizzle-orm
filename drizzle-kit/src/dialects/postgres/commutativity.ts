@@ -85,6 +85,7 @@ class PostgresCommutativity extends AbstractCommutativity<
 		'drop_table',
 		'rename_table',
 		'move_table',
+		'comment_on_table',
 		'remove_from_schema',
 		'set_new_schema',
 		'create_view',
@@ -168,13 +169,22 @@ class PostgresCommutativity extends AbstractCommutativity<
 		'grant_privilege',
 		'revoke_privilege',
 		'regrant_privilege',
+		'comment_on_table',
+		'comment_on_column',
 	];
 
 	protected override getStatementDefinitions(): StatementDefinitions {
 		return {
 			// Table operations
 			create_table: {
-				conflicts: ['create_table', 'drop_table', 'rename_table', 'move_table'],
+				conflicts: [
+					'create_table',
+					'drop_table',
+					'rename_table',
+					'move_table',
+					'comment_on_table',
+					'comment_on_column',
+				],
 				buildInfo: (statement) => ({
 					primary: makeTableTarget(statement.table.schema, statement.table.name),
 					ancestors: [],
@@ -192,6 +202,8 @@ class PostgresCommutativity extends AbstractCommutativity<
 					'recreate_column',
 					'rename_column',
 					'alter_rls',
+					'comment_on_table',
+					'comment_on_column',
 					'create_index',
 					'recreate_index',
 				],
@@ -201,14 +213,29 @@ class PostgresCommutativity extends AbstractCommutativity<
 				}),
 			},
 			rename_table: {
-				conflicts: ['create_table', 'drop_table', 'rename_table', 'move_table', 'create_index'],
+				conflicts: [
+					'create_table',
+					'drop_table',
+					'rename_table',
+					'move_table',
+					'create_index',
+					'comment_on_table',
+					'comment_on_column',
+				],
 				buildInfo: (statement) => ({
 					primary: makeTableTarget(statement.schema, statement.from),
 					ancestors: [],
 				}),
 			},
 			move_table: {
-				conflicts: ['create_table', 'drop_table', 'rename_table', 'move_table'],
+				conflicts: [
+					'create_table',
+					'drop_table',
+					'rename_table',
+					'move_table',
+					'comment_on_table',
+					'comment_on_column',
+				],
 				buildInfo: (statement) => ({
 					primary: makeTableTarget(statement.from, statement.name),
 					ancestors: [],
@@ -238,7 +265,14 @@ class PostgresCommutativity extends AbstractCommutativity<
 				}),
 			},
 			recreate_column: {
-				conflicts: ['add_column', 'drop_column', 'alter_column', 'recreate_column', 'rename_column'],
+				conflicts: [
+					'add_column',
+					'drop_column',
+					'alter_column',
+					'recreate_column',
+					'rename_column',
+					'comment_on_column',
+				],
 				buildInfo: (statement) => ({
 					primary: makeTarget(statement.diff.schema, statement.diff.table, statement.diff.name),
 					ancestors: [makeTableTarget(statement.diff.schema, statement.diff.table)],
@@ -656,6 +690,27 @@ class PostgresCommutativity extends AbstractCommutativity<
 				conflicts: ['grant_privilege', 'revoke_privilege', 'regrant_privilege'],
 				buildInfo: (statement) => ({
 					primary: makeTarget(statement.privilege.schema || '', statement.privilege.table || ''),
+					ancestors: [],
+				}),
+			},
+			comment_on_table: {
+				conflicts: ['comment_on_table', 'create_table', 'drop_table', 'rename_table', 'move_table'],
+				buildInfo: (statement) => ({
+					primary: makeTableTarget(statement.schema, statement.table),
+					ancestors: [],
+				}),
+			},
+			comment_on_column: {
+				conflicts: [
+					'comment_on_column',
+					'add_column',
+					'drop_column',
+					'rename_column',
+					'alter_column',
+					'recreate_column',
+				],
+				buildInfo: (statement) => ({
+					primary: makeTarget(statement.schema, statement.table, statement.column),
 					ancestors: [],
 				}),
 			},

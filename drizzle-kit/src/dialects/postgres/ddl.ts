@@ -5,7 +5,7 @@ import { defaultNameForPK, defaultNameForUnique } from './grammar';
 export const createDDL = () => {
 	return create({
 		schemas: {},
-		tables: { schema: 'required', isRlsEnabled: 'boolean' },
+		tables: { schema: 'required', isRlsEnabled: 'boolean', comment: 'string?' },
 		enums: {
 			schema: 'required',
 			values: 'string[]',
@@ -18,6 +18,7 @@ export const createDDL = () => {
 			notNull: 'boolean',
 			dimensions: 'number',
 			default: 'string?',
+			comment: 'string?',
 			generated: {
 				type: ['stored'],
 				as: 'string',
@@ -201,6 +202,7 @@ export type Table = {
 	checks: CheckConstraint[];
 	policies: Policy[];
 	isRlsEnabled: boolean;
+	comment: string | null;
 };
 
 export type InterimColumn = Omit<Column, 'primaryKey'> & {
@@ -279,6 +281,7 @@ export const tableFromDDL = (
 		checks,
 		indexes,
 		policies,
+		comment: table.comment ?? null,
 	};
 };
 

@@ -191,6 +191,7 @@ export interface ColumnBuilderRuntimeConfig<TData> {
 	columnType: string;
 	generated: GeneratedColumnConfig<TData> | undefined;
 	generatedIdentity: GeneratedIdentityConfig | undefined;
+	comment: string | undefined;
 }
 
 export interface ColumnBuilderExtraConfig {
@@ -282,6 +283,7 @@ export abstract class ColumnBuilder<
 			dataType,
 			columnType,
 			generated: undefined,
+			comment: undefined,
 		} as ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig; // TODO: ??
 	}
 
@@ -382,6 +384,14 @@ export abstract class ColumnBuilder<
 	): HasGenerated<this, {
 		type: 'always';
 	}>;
+
+	/**
+	 * Adds a comment to the column definition.
+	 */
+	comment(text: string): this {
+		this.config.comment = text;
+		return this;
+	}
 
 	/** @internal Sets the name of the column to the key within the table definition if a name was not given. */
 	setName(name: string, casingFn: (name: string) => string) {

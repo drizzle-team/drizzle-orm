@@ -134,6 +134,15 @@ export function getTableName<T extends Table>(table: T): T['_']['name'] {
 	return table[TableName];
 }
 
+export class Comment {
+	static readonly [entityKind]: string = 'Comment';
+	constructor(public readonly value: string) {}
+}
+
+export function comment(text: string): Comment {
+	return new Comment(text);
+}
+
 export function getTableUniqueName<
 	T extends Table | View,
 	TResult extends string = T extends Table ? T['_']['schema'] extends undefined ? `public.${T['_']['name']}`

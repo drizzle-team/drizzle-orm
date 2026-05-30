@@ -1,6 +1,8 @@
 import type { Simplify } from '../../utils';
 import type { JsonStatement } from './statements';
 
+const escapeString = (value: string) => value.replaceAll('\\', '\\\\').replaceAll("'", "''");
+
 export const convertor = <
 	TType extends JsonStatement['type'],
 	TStatement extends Extract<JsonStatement, { type: TType }>,
@@ -47,9 +49,10 @@ const createTable = convertor('create_table', (st) => {
 
 		const charSetStatement = column.charSet ? ` CHARACTER SET ${column.charSet}` : '';
 		const collationStatement = column.collation ? ` COLLATE ${column.collation}` : '';
+		const commentStatement = column.comment ? ` COMMENT '${escapeString(column.comment)}'` : '';
 
 		statement += '\t'
-			+ `\`${column.name}\` ${column.type}${charSetStatement}${collationStatement}${autoincrementStatement}${primaryKeyStatement}${generatedStatement}${notNullStatement}${defaultStatement}${onUpdateStatement}`;
+			+ `\`${column.name}\` ${column.type}${charSetStatement}${collationStatement}${autoincrementStatement}${primaryKeyStatement}${generatedStatement}${notNullStatement}${defaultStatement}${onUpdateStatement}${commentStatement}`;
 		statement += i === columns.length - 1 ? '' : ',\n';
 	}
 
@@ -82,7 +85,11 @@ const createTable = convertor('create_table', (st) => {
 		statement += `\tCONSTRAINT \`${check.name}\` CHECK(${check.value})`;
 	}
 
-	statement += `\n);`;
+	if (st.table.comment) {
+		statement += `\n) COMMENT='${escapeString(st.table.comment)}';`;
+	} else {
+		statement += `\n);`;
+	}
 	statement += `\n`;
 	return statement;
 });
@@ -123,8 +130,9 @@ const addColumn = convertor('add_column', (st) => {
 
 	const charSetStatement = column.charSet ? ` CHARACTER SET ${column.charSet}` : '';
 	const collationStatement = column.collation ? ` COLLATE ${column.collation}` : '';
+	const commentStatement = column.comment ? ` COMMENT '${escapeString(column.comment)}'` : '';
 
-	return `ALTER TABLE \`${table}\` ADD \`${name}\` ${type}${charSetStatement}${collationStatement}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}${onUpdateStatement};`;
+	return `ALTER TABLE \`${table}\` ADD \`${name}\` ${type}${charSetStatement}${collationStatement}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}${onUpdateStatement}${commentStatement};`;
 });
 
 const dropColumn = convertor('drop_column', (st) => {
@@ -155,8 +163,13 @@ const alterColumn = convertor('alter_column', (st) => {
 
 	const charSetStatement = column.charSet ? ` CHARACTER SET ${column.charSet}` : '';
 	const collationStatement = column.collation ? ` COLLATE ${column.collation}` : '';
+	const commentStatement = column.comment
+		? ` COMMENT '${escapeString(column.comment)}'`
+		: st.diff?.comment
+		? ` COMMENT ''`
+		: '';
 
-	return `ALTER TABLE \`${column.table}\` MODIFY COLUMN \`${column.name}\` ${column.type}${charSetStatement}${collationStatement}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}${onUpdateStatement};`;
+	return `ALTER TABLE \`${column.table}\` MODIFY COLUMN \`${column.name}\` ${column.type}${charSetStatement}${collationStatement}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}${onUpdateStatement}${commentStatement};`;
 });
 
 const recreateColumn = convertor('recreate_column', (st) => {
@@ -255,6 +268,13 @@ const alterView = convertor('alter_view', (st) => {
 	return statement;
 });
 
+const alterTable = convertor('alter_table', (st) => {
+	const commentStatement = st.comment !== null && st.comment !== undefined
+		? `COMMENT='${escapeString(st.comment)}'`
+		: "COMMENT=''";
+	return `ALTER TABLE \`${st.table}\` ${commentStatement};`;
+});
+
 const convertors = [
 	createTable,
 	dropTable,
@@ -275,6 +295,7 @@ const convertors = [
 	dropView,
 	renameView,
 	alterView,
+	alterTable,
 ];
 
 export function fromJson(

@@ -67,14 +67,15 @@ export const fromDatabase = async (
 	// TODO revise: perfomance_schema contains 'users' table
 	progressCallback('tables', 0, 'fetching');
 	const tablesAndViews = await batchQuery<
-		{ TABLE_NAME: string; TABLE_TYPE: 'BASE TABLE' | 'VIEW'; CREATE_TIME: string }
+		{ TABLE_NAME: string; TABLE_TYPE: 'BASE TABLE' | 'VIEW'; CREATE_TIME: string; TABLE_COMMENT: string }
 	>(
 		db,
 		({ limit, cursor }) => `
 			SELECT
-				TABLE_NAME, 
+				TABLE_NAME,
 				TABLE_TYPE,
-				CREATE_TIME
+				CREATE_TIME,
+				TABLE_COMMENT
 			FROM INFORMATION_SCHEMA.TABLES
 			WHERE TABLE_SCHEMA = '${schema}'
 				AND CREATE_TIME IS NOT NULL
@@ -104,10 +105,11 @@ export const fromDatabase = async (
 			.filter((it) => it.TABLE_TYPE === 'BASE TABLE')
 			.map((it) => it.TABLE_NAME),
 	);
-	for (const table of tableNames) {
+	for (const table of tablesAndViews.filter((it) => it.TABLE_TYPE === 'BASE TABLE')) {
 		res.tables.push({
 			entityType: 'tables',
-			name: table,
+			name: table.TABLE_NAME,
+			comment: table.TABLE_COMMENT || null,
 		});
 	}
 	progressCallback('tables', res.tables.length, 'done');
@@ -193,6 +195,7 @@ export const fromDatabase = async (
 			GENERATION_EXPRESSION: string;
 			EXTRA: string;
 			ORDINAL_POSITION: number;
+			COLUMN_COMMENT: string;
 		}>(
 			db,
 			({ limit, cursor }) => `
@@ -207,7 +210,8 @@ export const fromDatabase = async (
 				CHARACTER_SET_NAME,
 				GENERATION_EXPRESSION,
 				EXTRA,
-				ORDINAL_POSITION
+				ORDINAL_POSITION,
+				COLUMN_COMMENT
 			FROM INFORMATION_SCHEMA.COLUMNS
 			WHERE TABLE_SCHEMA = '${schema}'
 				AND TABLE_NAME IN (${tableNamesSQL})
@@ -317,6 +321,7 @@ export const fromDatabase = async (
 			// need to check by constraints only
 			isPK: false,
 			uniqueName: null,
+			comment: column.COLUMN_COMMENT || null,
 		});
 	}
 	progressCallback('columns', res.columns.length, 'done');
