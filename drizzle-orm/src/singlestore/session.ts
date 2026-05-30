@@ -145,9 +145,11 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 		placeholderValues: Record<string, unknown> = {},
 	): AsyncGenerator<T['execute'] extends any[] ? T['execute'][number] : T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
-		const conn = ((isPool(this.client) ? await this.client.getConnection() : this.client) as {} as {
-			connection: CallbackConnection;
-		}).connection;
+		// Retain a reference to the original PoolConnection so we can `.release()` it
+		// in `finally` instead of `.end()`-ing the inner CallbackConnection, which
+		// destroys the TCP socket rather than returning it to the pool.
+		const rawClient = isPool(this.client) ? await this.client.getConnection() : this.client;
+		const conn = (rawClient as {} as { connection: CallbackConnection }).connection;
 
 		const { fields, query, rawQuery, joinsNotNullableMap, client, customResultMapper } = this;
 		const hasRowsMapper = Boolean(fields || customResultMapper);
@@ -161,6 +163,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 
 		stream.on('data', dataListener);
 
+		let streamEnded = false;
 		try {
 			const onEnd = once(stream, 'end');
 			const onError = once(stream, 'error');
@@ -169,6 +172,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 				stream.resume();
 				const row = await Promise.race([onEnd, onError, new Promise((resolve) => stream.once('data', resolve))]);
 				if (row === undefined || (Array.isArray(row) && row.length === 0)) {
+					streamEnded = true;
 					break;
 				} else if (row instanceof Error) { // eslint-disable-line no-instanceof/no-instanceof
 					throw row;
@@ -188,7 +192,20 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 		} finally {
 			stream.off('data', dataListener);
 			if (isPool(client)) {
-				conn.end();
+				if (streamEnded) {
+					// Stream reached its natural `end` — the socket is drained and can
+					// be safely returned to the pool for reuse.
+					(rawClient as PoolConnection).release();
+				} else {
+					// Consumer exited the iterator early (`break`, `return`, exception in
+					// the loop body, or a stream `error` event). Unread result packets
+					// may still be pending on the wire — returning the connection to the
+					// pool would let a subsequent query receive interleaved packets and
+					// fail with a protocol error. Destroy the socket instead, which
+					// matches the pre-fix `conn.end()` behaviour for early-exit cases
+					// while still allowing pool reuse on the common natural-end path.
+					(rawClient as PoolConnection).destroy();
+				}
 			}
 		}
 	}
