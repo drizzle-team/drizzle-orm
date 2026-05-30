@@ -188,12 +188,23 @@ export class PgNumericBigInt<T extends ColumnBaseConfig<'bigint', 'PgNumericBigI
 		// The pg driver returns numeric values as strings, so a `numeric(p, s)` column
 		// with scale > 0 always produces such a string even when the underlying value
 		// is integral, causing `BigInt("123.000")` to throw `SyntaxError` and crash
-		// the request handler on every SELECT returning that column. Strip the
-		// fractional part before converting; callers requesting `bigint` semantics
-		// already accept the implicit truncation that `BigInt(integer)` produces.
+		// the request handler on every SELECT returning that column.
+		//
+		// Strip the fractional part only when it consists entirely of zeros — the
+		// value is integral and `bigint` semantics are exact. For non-zero
+		// fractional digits (e.g. `"123.45"`), the column was configured with
+		// `mode: 'bigint'` but holds non-integral data, which cannot be represented
+		// as a bigint without silent data loss. Fall through to `BigInt(s)` so the
+		// original `SyntaxError` is raised — the caller sees the mismatch loudly
+		// rather than receiving a silently-truncated value.
 		const s = String(value);
 		const dot = s.indexOf('.');
-		return BigInt(dot === -1 ? s : s.slice(0, dot));
+		if (dot === -1) return BigInt(s);
+		const frac = s.slice(dot + 1);
+		if (frac.length === 0 || /^0+$/.test(frac)) {
+			return BigInt(s.slice(0, dot));
+		}
+		return BigInt(s);
 	}
 
 	override mapToDriverValue = String;
