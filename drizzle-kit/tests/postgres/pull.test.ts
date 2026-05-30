@@ -2780,3 +2780,30 @@ CREATE INDEX "idx_19612_cnst_full_name_idx" ON "public"."constructor" USING btre
 	expect(pushSqlStatements).toStrictEqual([]);
 	expect(pushStatements).toStrictEqual([]);
 });
+
+// when user does not have permissions, introspection should not fail
+// https://github.com/drizzle-team/drizzle-orm/issues/5568
+test('non-admin', async () => {
+	const schema = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+			name: text('name'),
+		}),
+	};
+
+	await push({ db, to: schema });
+
+	await db.query(`CREATE ROLE "non-admin" LOGIN PASSWORD 'password';`);
+	await db.query(`SET ROLE "non-admin";`);
+
+	const { tables } = await fromDatabase(db);
+
+	expect(tables).toStrictEqual([
+		{
+			entityType: 'tables',
+			schema: 'public',
+			name: 'users',
+			isRlsEnabled: false,
+		},
+	]);
+});
