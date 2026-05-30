@@ -183,7 +183,18 @@ export class PgNumericBigInt<T extends ColumnBaseConfig<'bigint', 'PgNumericBigI
 		this.scale = config.scale;
 	}
 
-	override mapFromDriverValue = BigInt;
+	override mapFromDriverValue(value: unknown): bigint {
+		// `BigInt()` rejects strings containing a decimal point (e.g. `"123.000"`).
+		// The pg driver returns numeric values as strings, so a `numeric(p, s)` column
+		// with scale > 0 always produces such a string even when the underlying value
+		// is integral, causing `BigInt("123.000")` to throw `SyntaxError` and crash
+		// the request handler on every SELECT returning that column. Strip the
+		// fractional part before converting; callers requesting `bigint` semantics
+		// already accept the implicit truncation that `BigInt(integer)` produces.
+		const s = String(value);
+		const dot = s.indexOf('.');
+		return BigInt(dot === -1 ? s : s.slice(0, dot));
+	}
 
 	override mapToDriverValue = String;
 
