@@ -163,6 +163,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 
 		stream.on('data', dataListener);
 
+		let streamEnded = false;
 		try {
 			const onEnd = once(stream, 'end');
 			const onError = once(stream, 'error');
@@ -171,6 +172,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 				stream.resume();
 				const row = await Promise.race([onEnd, onError, new Promise((resolve) => stream.once('data', resolve))]);
 				if (row === undefined || (Array.isArray(row) && row.length === 0)) {
+					streamEnded = true;
 					break;
 				} else if (row instanceof Error) { // eslint-disable-line no-instanceof/no-instanceof
 					throw row;
@@ -190,10 +192,20 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 		} finally {
 			stream.off('data', dataListener);
 			if (isPool(client)) {
-				// Release the PoolConnection back to the pool rather than calling
-				// `conn.end()` on the inner CallbackConnection, which permanently
-				// destroys the TCP socket (matches the pattern on L314 below).
-				(rawClient as PoolConnection).release();
+				if (streamEnded) {
+					// Stream reached its natural `end` — the socket is drained and can
+					// be safely returned to the pool for reuse.
+					(rawClient as PoolConnection).release();
+				} else {
+					// Consumer exited the iterator early (`break`, `return`, exception in
+					// the loop body, or a stream `error` event). Unread result packets
+					// may still be pending on the wire — returning the connection to the
+					// pool would let a subsequent query receive interleaved packets and
+					// fail with a protocol error. Destroy the socket instead, which
+					// matches the pre-fix `conn.end()` behaviour for early-exit cases
+					// while still allowing pool reuse on the common natural-end path.
+					(rawClient as PoolConnection).destroy();
+				}
 			}
 		}
 	}
