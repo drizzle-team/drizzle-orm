@@ -145,9 +145,11 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 		placeholderValues: Record<string, unknown> = {},
 	): AsyncGenerator<T['execute'] extends any[] ? T['execute'][number] : T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
-		const conn = ((isPool(this.client) ? await this.client.getConnection() : this.client) as {} as {
-			connection: CallbackConnection;
-		}).connection;
+		// Retain a reference to the original PoolConnection so we can `.release()` it
+		// in `finally` instead of `.end()`-ing the inner CallbackConnection, which
+		// destroys the TCP socket rather than returning it to the pool.
+		const rawClient = isPool(this.client) ? await this.client.getConnection() : this.client;
+		const conn = (rawClient as {} as { connection: CallbackConnection }).connection;
 
 		const { fields, query, rawQuery, joinsNotNullableMap, client, customResultMapper } = this;
 		const hasRowsMapper = Boolean(fields || customResultMapper);
@@ -188,7 +190,10 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 		} finally {
 			stream.off('data', dataListener);
 			if (isPool(client)) {
-				conn.end();
+				// Release the PoolConnection back to the pool rather than calling
+				// `conn.end()` on the inner CallbackConnection, which permanently
+				// destroys the TCP socket (matches the pattern on L314 below).
+				(rawClient as PoolConnection).release();
 			}
 		}
 	}
