@@ -8,7 +8,7 @@ import { SQLiteAsyncDeleteBase } from '~/sqlite-core/async/delete.ts';
 import { SQLiteAsyncInsertBase, type SQLiteAsyncInsertBuilder } from '~/sqlite-core/async/insert.ts';
 import { type DBResult, SQLiteAsyncRaw } from '~/sqlite-core/async/raw.ts';
 import { SQLiteAsyncSelectBase, type SQLiteAsyncSelectBuilder } from '~/sqlite-core/async/select.ts';
-import type { SQLiteAsyncSession, SQLiteAsyncTransaction } from '~/sqlite-core/async/session.ts';
+import type { Result, SQLiteAsyncSession, SQLiteAsyncTransaction } from '~/sqlite-core/async/session.ts';
 import { SQLiteAsyncUpdateBase, type SQLiteAsyncUpdateBuilder } from '~/sqlite-core/async/update.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import {
@@ -17,7 +17,7 @@ import {
 	SQLiteSelectBuilder,
 	SQLiteUpdateBuilder,
 } from '~/sqlite-core/query-builders/index.ts';
-import type { Result, SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
+import type { SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError } from '~/utils.ts';

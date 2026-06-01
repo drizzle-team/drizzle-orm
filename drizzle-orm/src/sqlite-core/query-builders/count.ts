@@ -10,7 +10,7 @@ export class SQLiteCountBuilder extends SQL<number> implements SQLWrapper<number
 	static override readonly [entityKind]: string = 'SQLiteCountBuilder';
 
 	protected dialect: SQLiteDialect;
-	protected session: SQLiteSession<any, any, any>;
+	protected session: SQLiteSession<any, any>;
 
 	private static buildCount(
 		source: SQLiteTable | SQLiteViewBase | SQL | SQLWrapper,
@@ -28,7 +28,7 @@ export class SQLiteCountBuilder extends SQL<number> implements SQLWrapper<number
 			source: SQLiteTable | SQLiteViewBase | SQL | SQLWrapper;
 			filters?: SQL<unknown>;
 			dialect: SQLiteDialect;
-			session: SQLiteSession<any, any, any>;
+			session: SQLiteSession<any, any>;
 		},
 	) {
 		super(SQLiteCountBuilder.buildCount(countConfig.source, countConfig.filters, true).queryChunks);

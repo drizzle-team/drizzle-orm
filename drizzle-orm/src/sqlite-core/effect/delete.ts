@@ -83,7 +83,7 @@ export class SQLiteEffectDeleteBase<
 > implements RunnableQuery<TReturning extends undefined ? TRunResult : TReturning[], 'sqlite'>, SQLWrapper {
 	static override readonly [entityKind]: string = 'SQLiteEffectDelete';
 
-	declare protected session: SQLiteEffectSession<TEffectHKT, any, any>;
+	declare protected session: SQLiteEffectSession<any, TEffectHKT, any>;
 
 	/** @internal */
 	_prepare(prepare = false): SQLiteEffectDeletePrepare<this, TEffectHKT> {

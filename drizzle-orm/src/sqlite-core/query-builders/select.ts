@@ -21,14 +21,13 @@ import type { SubqueryWithSelection } from '~/sqlite-core/subquery.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import { getTableColumns, getTableLikeName, haveSameKeys, orderSelectedFields, type ValueOrArray } from '~/utils.ts';
+import { getTableColumns, getTableLikeName, haveSameKeys, type ValueOrArray } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { extractUsedTable } from '../utils.ts';
 import { SQLiteViewBase } from '../view-base.ts';
 import type {
 	AnySQLiteSelect,
 	AnySQLiteSelectQueryBuilder,
-	CreateSQLiteSelectFromBuilderMode,
 	GetSQLiteSetOperators,
 	SelectedFields,
 	SetOperatorRightSelect,
@@ -38,6 +37,7 @@ import type {
 	SQLiteSelectDynamic,
 	SQLiteSelectHKTBase,
 	SQLiteSelectJoinFn,
+	SQLiteSelectKind,
 	SQLiteSelectQueryBuilderHKT,
 	SQLiteSelectWithout,
 	SQLiteSetOperatorExcludedMethods,
@@ -50,7 +50,7 @@ export interface SQLiteSelectBuilderConstructor {
 			table: SQLiteSelectConfig['table'];
 			fields: SQLiteSelectConfig['fields'];
 			isPartialSelect: boolean;
-			session: SQLiteSession<any, any, any> | undefined;
+			session: SQLiteSession<any, any> | undefined;
 			dialect: SQLiteDialect;
 			withList: Subquery[];
 			distinct: boolean | undefined;
@@ -62,12 +62,11 @@ export class SQLiteSelectBuilder<
 	TSelection extends SelectedFields | undefined,
 	TRunResult,
 	THKT extends SQLiteSelectHKTBase = SQLiteSelectQueryBuilderHKT,
-	TBuilderMode extends 'db' | 'qb' = 'db',
 > {
 	static readonly [entityKind]: string = 'SQLiteSelectBuilder';
 
 	private fields: TSelection;
-	private session: SQLiteSession<any, any, any> | undefined;
+	private session: SQLiteSession<any, any> | undefined;
 	private dialect: SQLiteDialect;
 	private withList: Subquery[] | undefined;
 	private distinct: boolean | undefined;
@@ -75,13 +74,12 @@ export class SQLiteSelectBuilder<
 	constructor(
 		config: {
 			fields: TSelection;
-			session: SQLiteSession<any, any, any> | undefined;
+			session: SQLiteSession<any, any> | undefined;
 			dialect: SQLiteDialect;
 			withList?: Subquery[];
 			distinct?: boolean;
 		},
-		private builder: SQLiteSelectBuilderConstructor =
-			SQLiteSelectQueryBuilderBase as unknown as SQLiteSelectBuilderConstructor,
+		private builder: SQLiteSelectBuilderConstructor = SQLiteSelectQueryBuilderBase,
 	) {
 		this.fields = config.fields;
 		this.session = config.session;
@@ -92,13 +90,15 @@ export class SQLiteSelectBuilder<
 
 	from<TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL>(
 		source: TFrom,
-	): CreateSQLiteSelectFromBuilderMode<
-		TBuilderMode,
+	): SQLiteSelectKind<
 		THKT,
 		GetSelectTableName<TFrom>,
 		TRunResult,
 		TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection,
-		TSelection extends undefined ? 'single' : 'partial'
+		TSelection extends undefined ? 'single' : 'partial',
+		GetSelectTableName<TFrom> extends string ? Record<GetSelectTableName<TFrom>, 'not-null'> : {},
+		false,
+		never
 	> {
 		const isPartialSelect = !!this.fields;
 
@@ -167,7 +167,7 @@ export class SQLiteSelectQueryBuilderBase<
 	protected joinsNotNullableMap: Record<string, boolean>;
 	private tableName: string | undefined;
 	private isPartialSelect: boolean;
-	protected session: SQLiteSession<any, any, any> | undefined;
+	protected session: SQLiteSession<any, any> | undefined;
 	protected dialect: SQLiteDialect;
 	protected cacheConfig?: WithCacheConfig = undefined;
 	protected usedTables: Set<string> = new Set();
@@ -177,7 +177,7 @@ export class SQLiteSelectQueryBuilderBase<
 			table: SQLiteSelectConfig['table'];
 			fields: SQLiteSelectConfig['fields'];
 			isPartialSelect: boolean;
-			session: SQLiteSession<any, any, any> | undefined;
+			session: SQLiteSession<any, any> | undefined;
 			dialect: SQLiteDialect;
 			withList: Subquery[] | undefined;
 			distinct: boolean | undefined;
@@ -1001,6 +1001,3 @@ export const intersect = createSetOperator('intersect', false);
  * ```
  */
 export const except = createSetOperator('except', false);
-
-// Re-export orderSelectedFields so async/effect select files don't need duplicate imports
-export { orderSelectedFields };

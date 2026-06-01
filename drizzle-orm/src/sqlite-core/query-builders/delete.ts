@@ -164,7 +164,7 @@ export class SQLiteDeleteBase<
 
 	constructor(
 		private table: TTable,
-		protected session: SQLiteSession<any, any, any>,
+		protected session: SQLiteSession<any, any>,
 		protected dialect: SQLiteDialect,
 		withList?: Subquery[],
 	) {

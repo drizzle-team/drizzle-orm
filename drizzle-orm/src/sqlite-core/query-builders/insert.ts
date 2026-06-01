@@ -44,7 +44,7 @@ export interface SQLiteInsertBuilderConstructor {
 	new(
 		table: SQLiteTable,
 		values: SQLiteInsertConfig['values'],
-		session: SQLiteSession<any, any, any>,
+		session: SQLiteSession<any, any>,
 		dialect: SQLiteDialect,
 		withList?: Subquery[],
 		select?: boolean,
@@ -60,10 +60,10 @@ export class SQLiteInsertBuilder<
 
 	constructor(
 		protected table: TTable,
-		protected session: SQLiteSession<any, any, any>,
+		protected session: SQLiteSession<any, any>,
 		protected dialect: SQLiteDialect,
 		private withList?: Subquery[],
-		private builder: SQLiteInsertBuilderConstructor = SQLiteInsertBase as unknown as SQLiteInsertBuilderConstructor,
+		private builder: SQLiteInsertBuilderConstructor = SQLiteInsertBase,
 	) {}
 
 	values(value: SQLiteInsertValue<TTable>): SQLiteInsertKind<THKT, TTable, TRunResult>;
@@ -274,7 +274,7 @@ export class SQLiteInsertBase<
 	constructor(
 		table: TTable,
 		values: SQLiteInsertConfig['values'],
-		protected session: SQLiteSession<any, any, any>,
+		protected session: SQLiteSession<any, any>,
 		protected dialect: SQLiteDialect,
 		withList?: Subquery[],
 		select?: boolean,

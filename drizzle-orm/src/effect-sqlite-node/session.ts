@@ -31,7 +31,7 @@ export interface EffectSQLiteNodeSessionOptions {
 }
 
 export class EffectSQLiteNodeSession<TRelations extends AnyRelations>
-	extends SQLiteEffectSession<EffectSQLiteNodeQueryEffectHKT, EffectSQLiteNodeRunResult, TRelations>
+	extends SQLiteEffectSession<EffectSQLiteNodeRunResult, EffectSQLiteNodeQueryEffectHKT, TRelations>
 {
 	static override readonly [entityKind]: string = 'EffectSQLiteNodeSession';
 

@@ -12,10 +12,8 @@ import {
 	type ExecuteResult,
 	ExecuteResultSync,
 	type PreparedQueryConfig as BasePreparedQueryConfig,
-	type Result,
 	SQLiteBasePreparedQuery,
 	type SQLiteExecuteMethod,
-	type SQLiteQueryExecutors,
 	SQLiteSession,
 	type SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
@@ -26,6 +24,13 @@ import { BaseSQLiteDatabase } from './db.ts';
 export interface SQLiteAsyncPreparedQueryConfig extends BasePreparedQueryConfig {
 	type: 'sync' | 'async';
 }
+
+export type SQLiteQueryExecutors<TType extends 'sync' | 'async'> = Record<
+	SQLiteExecuteMethod,
+	(params: unknown[]) => Result<TType, any>
+>;
+
+export type Result<TKind extends 'sync' | 'async', TResult> = TKind extends 'async' ? Promise<TResult> : TResult;
 
 export class SQLiteAsyncPreparedQuery<T extends SQLiteAsyncPreparedQueryConfig> extends SQLiteBasePreparedQuery {
 	static override readonly [entityKind]: string = 'SQLiteAsyncPreparedQuery';
@@ -250,17 +255,16 @@ export abstract class SQLiteAsyncSession<
 	TResultKind extends 'sync' | 'async',
 	TRunResult,
 	TRelations extends AnyRelations = EmptyRelations,
-> extends SQLiteSession<TResultKind, TRunResult, TRelations> {
+> extends SQLiteSession<TRunResult, TRelations> {
 	static override readonly [entityKind]: string = 'SQLiteAsyncSession';
 
-	declare readonly _kind: TResultKind;
 	declare readonly dialect: SQLiteDialect;
 
 	constructor(
 		dialect: SQLiteDialect,
-		resultKind: TResultKind,
+		protected resultKind: TResultKind,
 	) {
-		super(dialect, resultKind);
+		super(dialect);
 	}
 
 	abstract override prepareQuery(

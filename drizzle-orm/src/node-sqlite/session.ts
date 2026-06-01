@@ -10,9 +10,10 @@ import {
 	type SQLiteAsyncPreparedQueryConfig as PreparedQueryConfigBase,
 	SQLiteAsyncSession,
 	SQLiteAsyncTransaction,
+	type SQLiteQueryExecutors,
 } from '~/sqlite-core/async/session.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
-import type { SQLiteExecuteMethod, SQLiteQueryExecutors, SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
+import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 
 export interface NodeSQLiteSessionOptions {

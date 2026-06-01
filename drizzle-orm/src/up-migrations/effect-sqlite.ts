@@ -13,7 +13,7 @@ const upgradeFunctions: Record<
 	number,
 	<TEffectHKT extends QueryEffectHKTBase>(
 		migrationsTable: string,
-		session: SQLiteEffectSession<TEffectHKT>,
+		session: SQLiteEffectSession<any, TEffectHKT>,
 		localMigrations: MigrationMeta[],
 	) => Effect.Effect<void, TEffectHKT['error'], TEffectHKT['context']>
 > = {
@@ -140,12 +140,12 @@ const upgradeFunctions: Record<
  */
 export const upgradeIfNeeded: <TEffectHKT extends QueryEffectHKTBase>(
 	migrationsTable: string,
-	session: SQLiteEffectSession<TEffectHKT>,
+	session: SQLiteEffectSession<any, TEffectHKT>,
 	localMigrations: MigrationMeta[],
 ) => Effect.Effect<UpgradeResult, TEffectHKT['error'], TEffectHKT['context']> = Effect.fn('upgradeIfNeeded')(
 	function*<TEffectHKT extends QueryEffectHKTBase>(
 		migrationsTable: string,
-		session: SQLiteEffectSession<TEffectHKT>,
+		session: SQLiteEffectSession<any, TEffectHKT>,
 		localMigrations: MigrationMeta[],
 	) {
 		const tableExists = yield* session.objects(

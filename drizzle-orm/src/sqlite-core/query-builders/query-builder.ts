@@ -7,7 +7,7 @@ import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { WithBuilder } from '~/sqlite-core/subquery.ts';
 import { WithSubquery } from '~/subquery.ts';
 import { SQLiteSelectBuilder } from './select.ts';
-import type { SelectedFields, SQLiteSelectQueryBuilderHKT } from './select.types.ts';
+import type { SelectedFields } from './select.types.ts';
 
 export class QueryBuilder {
 	static readonly [entityKind]: string = 'SQLiteQueryBuilder';
@@ -48,13 +48,13 @@ export class QueryBuilder {
 	with(...queries: WithSubquery[]) {
 		const self = this;
 
-		function select(): SQLiteSelectBuilder<undefined, void, SQLiteSelectQueryBuilderHKT, 'qb'>;
+		function select(): SQLiteSelectBuilder<undefined, void>;
 		function select<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): SQLiteSelectBuilder<TSelection, void, SQLiteSelectQueryBuilderHKT, 'qb'>;
+		): SQLiteSelectBuilder<TSelection, void>;
 		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
-		): SQLiteSelectBuilder<TSelection | undefined, void, SQLiteSelectQueryBuilderHKT, 'qb'> {
+		): SQLiteSelectBuilder<TSelection | undefined, void> {
 			return new SQLiteSelectBuilder({
 				fields: fields ?? undefined,
 				session: undefined,
@@ -63,13 +63,13 @@ export class QueryBuilder {
 			});
 		}
 
-		function selectDistinct(): SQLiteSelectBuilder<undefined, void, SQLiteSelectQueryBuilderHKT, 'qb'>;
+		function selectDistinct(): SQLiteSelectBuilder<undefined, void>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): SQLiteSelectBuilder<TSelection, void, SQLiteSelectQueryBuilderHKT, 'qb'>;
+		): SQLiteSelectBuilder<TSelection, void>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields?: TSelection,
-		): SQLiteSelectBuilder<TSelection | undefined, void, SQLiteSelectQueryBuilderHKT, 'qb'> {
+		): SQLiteSelectBuilder<TSelection | undefined, void> {
 			return new SQLiteSelectBuilder({
 				fields: fields ?? undefined,
 				session: undefined,
@@ -82,23 +82,23 @@ export class QueryBuilder {
 		return { select, selectDistinct };
 	}
 
-	select(): SQLiteSelectBuilder<undefined, void, SQLiteSelectQueryBuilderHKT, 'qb'>;
+	select(): SQLiteSelectBuilder<undefined, void>;
 	select<TSelection extends SelectedFields>(
 		fields: TSelection,
-	): SQLiteSelectBuilder<TSelection, void, SQLiteSelectQueryBuilderHKT, 'qb'>;
+	): SQLiteSelectBuilder<TSelection, void>;
 	select<TSelection extends SelectedFields>(
 		fields?: TSelection,
-	): SQLiteSelectBuilder<TSelection | undefined, void, SQLiteSelectQueryBuilderHKT, 'qb'> {
+	): SQLiteSelectBuilder<TSelection | undefined, void> {
 		return new SQLiteSelectBuilder({ fields: fields ?? undefined, session: undefined, dialect: this.getDialect() });
 	}
 
-	selectDistinct(): SQLiteSelectBuilder<undefined, void, SQLiteSelectQueryBuilderHKT, 'qb'>;
+	selectDistinct(): SQLiteSelectBuilder<undefined, void>;
 	selectDistinct<TSelection extends SelectedFields>(
 		fields: TSelection,
-	): SQLiteSelectBuilder<TSelection, void, SQLiteSelectQueryBuilderHKT, 'qb'>;
+	): SQLiteSelectBuilder<TSelection, void>;
 	selectDistinct<TSelection extends SelectedFields>(
 		fields?: TSelection,
-	): SQLiteSelectBuilder<TSelection | undefined, void, SQLiteSelectQueryBuilderHKT, 'qb'> {
+	): SQLiteSelectBuilder<TSelection | undefined, void> {
 		return new SQLiteSelectBuilder({
 			fields: fields ?? undefined,
 			session: undefined,

@@ -32,8 +32,9 @@ export type SQLiteEffectSelectPrepare<
 
 export type SQLiteEffectSelectBuilder<
 	TSelection extends SelectedFields | undefined,
+	TRunResult,
 	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
-> = SQLiteSelectBuilder<TSelection, unknown, SQLiteEffectSelectHKT<TEffectHKT>>;
+> = SQLiteSelectBuilder<TSelection, TRunResult, SQLiteEffectSelectHKT<TEffectHKT>>;
 
 export type SQLiteEffectSelect<
 	TTableName extends string | undefined = string | undefined,

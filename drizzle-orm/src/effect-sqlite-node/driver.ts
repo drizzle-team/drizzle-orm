@@ -69,7 +69,7 @@ export const make = Effect.fn('SQLiteNodeDrizzle.make')(
 			logger,
 			cache,
 		});
-		const db = new EffectSQLiteNodeDatabase(dialect, session, relations) as EffectSQLiteNodeDatabase<TRelations>;
+		const db = new EffectSQLiteNodeDatabase(dialect, session, relations);
 		(<any> db).$client = client;
 		(<any> db).$cache = cache;
 		if ((<any> db).$cache) {

@@ -6,11 +6,6 @@ import type { PreparedQuery } from '~/session.ts';
 import type { Query } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 
-export type SQLiteQueryExecutors<TType extends 'sync' | 'async'> = Record<
-	SQLiteExecuteMethod,
-	(params: unknown[]) => Result<TType, any>
->;
-
 export interface PreparedQueryConfig {
 	run: unknown;
 	all: unknown;
@@ -56,7 +51,7 @@ export abstract class SQLiteBasePreparedQuery implements PreparedQuery {
 	readonly executeMethod: SQLiteExecuteMethod;
 
 	constructor(
-		executeMethod: SQLiteExecuteMethod = 'all',
+		executeMethod: SQLiteExecuteMethod,
 		protected query: Query,
 		mapper: ((rows: any[]) => any) | undefined,
 		readonly mode: 'arrays' | 'objects' | 'raw',
@@ -83,11 +78,7 @@ export abstract class SQLiteBasePreparedQuery implements PreparedQuery {
 	): unknown;
 }
 
-export abstract class SQLiteSession<
-	TResultKind = unknown,
-	TRunResult = unknown,
-	TRelations extends AnyRelations = EmptyRelations,
-> {
+export abstract class SQLiteSession<TRunResult = unknown, TRelations extends AnyRelations = EmptyRelations> {
 	static readonly [entityKind]: string = 'SQLiteSession';
 
 	declare readonly _: {
@@ -98,7 +89,6 @@ export abstract class SQLiteSession<
 	constructor(
 		/** @internal */
 		readonly dialect: SQLiteDialect,
-		readonly resultKind: TResultKind,
 	) {}
 
 	abstract prepareQuery(
@@ -114,5 +104,3 @@ export abstract class SQLiteSession<
 		cacheConfig?: WithCacheConfig,
 	): SQLiteBasePreparedQuery;
 }
-
-export type Result<TKind extends 'sync' | 'async', TResult> = TKind extends 'async' ? Promise<TResult> : TResult;

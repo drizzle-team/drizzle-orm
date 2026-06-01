@@ -38,7 +38,7 @@ export class SQLiteEffectDatabase<
 
 	declare readonly _: {
 		readonly relations: TRelations;
-		readonly session: SQLiteEffectSession<TEffectHKT, TRunResult, TRelations>;
+		readonly session: SQLiteEffectSession<TRunResult, TEffectHKT, TRelations>;
 	};
 
 	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
@@ -55,7 +55,7 @@ export class SQLiteEffectDatabase<
 		/** @internal */
 		readonly dialect: SQLiteDialect,
 		/** @internal */
-		readonly session: SQLiteEffectSession<TEffectHKT, any, any>,
+		readonly session: SQLiteEffectSession<TRunResult, TEffectHKT, TRelations>,
 		relations: TRelations,
 		readonly forbidJsonb?: boolean,
 	) {
@@ -212,13 +212,13 @@ export class SQLiteEffectDatabase<
 		 *   .from(cars);
 		 * ```
 		 */
-		function select(): SQLiteEffectSelectBuilder<undefined, TEffectHKT>;
+		function select(): SQLiteEffectSelectBuilder<undefined, TRunResult, TEffectHKT>;
 		function select<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): SQLiteEffectSelectBuilder<TSelection, TEffectHKT>;
+		): SQLiteEffectSelectBuilder<TSelection, TRunResult, TEffectHKT>;
 		function select(
 			fields?: SelectedFields,
-		): SQLiteEffectSelectBuilder<SelectedFields | undefined, TEffectHKT> {
+		): SQLiteEffectSelectBuilder<SelectedFields | undefined, TRunResult, TEffectHKT> {
 			return new SQLiteSelectBuilder({
 				fields: fields ?? undefined,
 				session: self.session,
@@ -252,13 +252,13 @@ export class SQLiteEffectDatabase<
 		 *   .orderBy(cars.brand);
 		 * ```
 		 */
-		function selectDistinct(): SQLiteEffectSelectBuilder<undefined, TEffectHKT>;
+		function selectDistinct(): SQLiteEffectSelectBuilder<undefined, TRunResult, TEffectHKT>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): SQLiteEffectSelectBuilder<TSelection, TEffectHKT>;
+		): SQLiteEffectSelectBuilder<TSelection, TRunResult, TEffectHKT>;
 		function selectDistinct(
 			fields?: SelectedFields,
-		): SQLiteEffectSelectBuilder<SelectedFields | undefined, TEffectHKT> {
+		): SQLiteEffectSelectBuilder<SelectedFields | undefined, TRunResult, TEffectHKT> {
 			return new SQLiteSelectBuilder({
 				fields: fields ?? undefined,
 				session: self.session,
@@ -400,11 +400,11 @@ export class SQLiteEffectDatabase<
 	 *   .from(cars);
 	 * ```
 	 */
-	select(): SQLiteEffectSelectBuilder<undefined, TEffectHKT>;
+	select(): SQLiteEffectSelectBuilder<undefined, TRunResult, TEffectHKT>;
 	select<TSelection extends SelectedFields>(
 		fields: TSelection,
-	): SQLiteEffectSelectBuilder<TSelection, TEffectHKT>;
-	select(fields?: SelectedFields): SQLiteEffectSelectBuilder<SelectedFields | undefined, TEffectHKT> {
+	): SQLiteEffectSelectBuilder<TSelection, TRunResult, TEffectHKT>;
+	select(fields?: SelectedFields): SQLiteEffectSelectBuilder<SelectedFields | undefined, TRunResult, TEffectHKT> {
 		return new SQLiteSelectBuilder(
 			{ fields: fields ?? undefined, session: this.session, dialect: this.dialect },
 			SQLiteEffectSelectBase,
@@ -436,13 +436,13 @@ export class SQLiteEffectDatabase<
 	 *   .orderBy(cars.brand);
 	 * ```
 	 */
-	selectDistinct(): SQLiteEffectSelectBuilder<undefined, TEffectHKT>;
+	selectDistinct(): SQLiteEffectSelectBuilder<undefined, TRunResult, TEffectHKT>;
 	selectDistinct<TSelection extends SelectedFields>(
 		fields: TSelection,
-	): SQLiteEffectSelectBuilder<TSelection, TEffectHKT>;
+	): SQLiteEffectSelectBuilder<TSelection, TRunResult, TEffectHKT>;
 	selectDistinct(
 		fields?: SelectedFields,
-	): SQLiteEffectSelectBuilder<SelectedFields | undefined, TEffectHKT> {
+	): SQLiteEffectSelectBuilder<SelectedFields | undefined, TRunResult, TEffectHKT> {
 		return new SQLiteSelectBuilder({
 			fields: fields ?? undefined,
 			session: this.session,

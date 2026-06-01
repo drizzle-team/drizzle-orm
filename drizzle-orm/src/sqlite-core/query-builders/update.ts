@@ -51,7 +51,7 @@ export interface SQLiteUpdateBuilderConstructor {
 	new(
 		table: SQLiteTable,
 		set: UpdateSet,
-		session: SQLiteSession<any, any, any>,
+		session: SQLiteSession<any, any>,
 		dialect: SQLiteDialect,
 		withList?: Subquery[],
 	): AnySQLiteUpdate;
@@ -70,10 +70,10 @@ export class SQLiteUpdateBuilder<
 
 	constructor(
 		protected table: TTable,
-		protected session: SQLiteSession<any, any, any>,
+		protected session: SQLiteSession<any, any>,
 		protected dialect: SQLiteDialect,
 		private withList?: Subquery[],
-		private builder: SQLiteUpdateBuilderConstructor = SQLiteUpdateBase as unknown as SQLiteUpdateBuilderConstructor,
+		private builder: SQLiteUpdateBuilderConstructor = SQLiteUpdateBase,
 	) {}
 
 	set(
@@ -282,7 +282,7 @@ export class SQLiteUpdateBase<
 	constructor(
 		table: TTable,
 		set: UpdateSet,
-		protected session: SQLiteSession<any, any, any>,
+		protected session: SQLiteSession<any, any>,
 		protected dialect: SQLiteDialect,
 		withList?: Subquery[],
 	) {

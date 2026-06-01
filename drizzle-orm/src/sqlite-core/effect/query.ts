@@ -23,7 +23,7 @@ export class SQLiteEffectRelationalQuery<TResult, TEffectHKT extends QueryEffect
 {
 	static override readonly [entityKind]: string = 'SQLiteEffectRelationalQueryV2';
 
-	declare protected session: SQLiteEffectSession<TEffectHKT, any, any>;
+	declare protected session: SQLiteEffectSession<any, TEffectHKT, any>;
 
 	/** @internal */
 	_prepare(

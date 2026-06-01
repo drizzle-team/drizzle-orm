@@ -16,14 +16,14 @@ export class SQLiteEffectCountBuilder<TEffectHKT extends QueryEffectHKTBase = Qu
 {
 	static override readonly [entityKind]: string = 'SQLiteEffectCountBuilder';
 
-	declare protected session: SQLiteEffectSession<TEffectHKT, any, any>;
+	declare protected session: SQLiteEffectSession<any, TEffectHKT, any>;
 
 	constructor(
 		countConfig: {
 			source: SQLiteTable | SQLiteViewBase | SQL | SQLWrapper;
 			filters?: SQL<unknown>;
 			dialect: SQLiteDialect;
-			session: SQLiteEffectSession<TEffectHKT, any, any>;
+			session: SQLiteEffectSession<any, TEffectHKT, any>;
 		},
 	) {
 		super(countConfig);

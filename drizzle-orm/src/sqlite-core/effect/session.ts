@@ -190,16 +190,16 @@ export class SQLiteEffectPreparedQuery<
 }
 
 export abstract class SQLiteEffectSession<
+	TRunResult,
 	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
-	TRunResult = unknown,
 	TRelations extends AnyRelations = EmptyRelations,
-> extends SQLiteSession<unknown, TRunResult, TRelations> {
+> extends SQLiteSession<TRunResult, TRelations> {
 	static override readonly [entityKind]: string = 'SQLiteEffectSession';
 
 	declare readonly dialect: SQLiteDialect;
 
 	constructor(dialect: SQLiteDialect) {
-		super(dialect, undefined);
+		super(dialect);
 	}
 
 	abstract override prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -277,7 +277,7 @@ export abstract class SQLiteEffectTransaction<
 
 	constructor(
 		dialect: SQLiteDialect,
-		session: SQLiteEffectSession<TEffectHKT, any, any>,
+		session: SQLiteEffectSession<any, TEffectHKT, any>,
 		relations: TRelations,
 		protected readonly nestedIndex = 0,
 		forbidJsonb?: boolean,
@@ -292,7 +292,7 @@ export abstract class SQLiteEffectTransaction<
 
 export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEffectHKTBase>(
 	migrations: MigrationMeta[],
-	session: SQLiteEffectSession<TEffectHKT>,
+	session: SQLiteEffectSession<any, TEffectHKT>,
 	config?: string | Omit<MigrationConfig, 'migrationsFolder'>,
 ) {
 	const migrationsTable = config === undefined

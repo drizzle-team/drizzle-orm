@@ -38,7 +38,7 @@ export interface SQLiteRelationalQueryConstructor {
 		table: SQLiteTable,
 		tableConfig: TableRelationalConfig,
 		dialect: SQLiteDialect,
-		session: SQLiteSession<any, any, any>,
+		session: SQLiteSession<any, any>,
 		config: DBQueryConfig<'many' | 'one'> | true,
 		queryMode: 'many' | 'first',
 		forbidJsonb: boolean | undefined,
@@ -61,10 +61,9 @@ export class RelationalQueryBuilder<
 		private table: SQLiteTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: SQLiteDialect,
-		private session: SQLiteSession<any, any, any>,
+		private session: SQLiteSession<any, any>,
 		private forbidJsonb: boolean | undefined,
-		private builder: SQLiteRelationalQueryConstructor =
-			SQLiteRelationalQuery as unknown as SQLiteRelationalQueryConstructor,
+		private builder: SQLiteRelationalQueryConstructor = SQLiteRelationalQuery,
 	) {}
 
 	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
@@ -122,7 +121,7 @@ export class SQLiteRelationalQuery<THKT extends SQLiteRelationalQueryHKTBase, TR
 		table: SQLiteTable,
 		protected tableConfig: TableRelationalConfig,
 		protected dialect: SQLiteDialect,
-		protected session: SQLiteSession<any, any, any>,
+		protected session: SQLiteSession<any, any>,
 		protected config: DBQueryConfig<'many' | 'one'> | true,
 		mode: 'many' | 'first',
 		protected forbidJsonb?: boolean,
