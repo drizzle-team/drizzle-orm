@@ -615,11 +615,20 @@ importers:
       '@aws-sdk/credential-providers':
         specifier: ^3.549.0
         version: 3.940.0
+      '@effect/sql-libsql':
+        specifier: '>=4.0.0-beta.58 || >=4.0.0'
+        version: 4.0.0-beta.58(bufferutil@4.0.8)(effect@4.0.0-beta.58)(utf-8-validate@6.0.3)
       '@effect/sql-pg':
-        specifier: 4.0.0-beta.58
+        specifier: '>=4.0.0-beta.58 || >=4.0.0'
         version: 4.0.0-beta.58(effect@4.0.0-beta.58)
       '@effect/sql-pglite':
-        specifier: 4.0.0-beta.58
+        specifier: '>=4.0.0-beta.58 || >=4.0.0'
+        version: 4.0.0-beta.58(effect@4.0.0-beta.58)
+      '@effect/sql-sqlite-bun':
+        specifier: '>=4.0.0-beta.58 || >=4.0.0'
+        version: 4.0.0-beta.58(effect@4.0.0-beta.58)
+      '@effect/sql-sqlite-node':
+        specifier: '>=4.0.0-beta.58 || >=4.0.0'
         version: 4.0.0-beta.58(effect@4.0.0-beta.58)
       '@effect/vitest':
         specifier: 4.0.0-beta.58
