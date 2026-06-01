@@ -48,8 +48,13 @@ export function mapResultRow<TResult>(
 						if (!(objectName in nullifyMap)) {
 							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
 						} else if (
-							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
+							typeof nullifyMap[objectName] === 'string'
+							&& (value !== null || nullifyMap[objectName] !== getTableName(field.table))
 						) {
+							// A nested object is only nullified when ALL of its columns are null.
+							// Flip to `false` as soon as any column has a value (fixes #1603, where a
+							// non-null column after a leading null column was incorrectly nullified),
+							// or when a column comes from a different table.
 							nullifyMap[objectName] = false;
 						}
 					}
