@@ -1,7 +1,7 @@
 import { PgliteClient } from '@effect/sql-pglite/PgliteClient';
 import * as Effect from 'effect/Effect';
-import * as Layer from 'effect/Layer';
 import { EffectCache } from '~/cache/core/cache-effect.ts';
+import { DefaultServices } from '~/effect-core/defaults.ts';
 import { EffectLogger } from '~/effect-core/index.ts';
 import { entityKind } from '~/entity.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
@@ -11,6 +11,7 @@ import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
 import { effectPgliteCodecs } from './codecs.ts';
 import { type EffectPgQueryEffectHKT, type EffectPgQueryResultHKT, EffectPgSession } from './session.ts';
+export { DefaultServices } from '~/effect-core/defaults.ts';
 
 export class EffectPgDatabase<TRelations extends AnyRelations = EmptyRelations>
 	extends PgEffectDatabase<EffectPgQueryEffectHKT, EffectPgQueryResultHKT, TRelations>
@@ -21,11 +22,6 @@ export class EffectPgDatabase<TRelations extends AnyRelations = EmptyRelations>
 export type EffectDrizzlePgConfig<
 	TRelations extends AnyRelations = EmptyRelations,
 > = Omit<DrizzlePgConfig<TRelations>, 'cache' | 'logger'>;
-
-export const DefaultServices = Layer.merge(
-	EffectCache.Default,
-	EffectLogger.Default,
-);
 
 /**
  * Creates an EffectPgDatabase instance.

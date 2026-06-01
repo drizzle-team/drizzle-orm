@@ -1,7 +1,7 @@
 import { SqliteClient } from '@effect/sql-sqlite-node/SqliteClient';
 import * as Effect from 'effect/Effect';
-import * as Layer from 'effect/Layer';
 import { EffectCache } from '~/cache/core/cache-effect.ts';
+import { DefaultServices } from '~/effect-core/defaults.ts';
 import { EffectLogger } from '~/effect-core/index.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -14,6 +14,7 @@ import {
 	type EffectSQLiteNodeRunResult,
 	EffectSQLiteNodeSession,
 } from './session.ts';
+export { DefaultServices } from '~/effect-core/defaults.ts';
 
 export class EffectSQLiteNodeDatabase<TRelations extends AnyRelations = EmptyRelations>
 	extends SQLiteEffectDatabase<EffectSQLiteNodeQueryEffectHKT, EffectSQLiteNodeRunResult, TRelations>
@@ -24,11 +25,6 @@ export class EffectSQLiteNodeDatabase<TRelations extends AnyRelations = EmptyRel
 export type EffectDrizzleSQLiteConfig<
 	TRelations extends AnyRelations = EmptyRelations,
 > = Omit<DrizzleSQLiteConfig<TRelations>, 'cache' | 'logger'>;
-
-export const DefaultServices = Layer.merge(
-	EffectCache.Default,
-	EffectLogger.Default,
-);
 
 /**
  * Creates an EffectSQLiteNodeDatabase instance.

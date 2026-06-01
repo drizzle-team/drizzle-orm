@@ -57,7 +57,6 @@ export interface SQLiteAsyncSelectHKT extends SQLiteSelectHKTBase {
 	>;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface SQLiteAsyncSelectBase<
 	TTableName extends string | undefined,
 	TResultType extends 'sync' | 'async',

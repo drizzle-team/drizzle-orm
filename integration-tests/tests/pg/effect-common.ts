@@ -1,4 +1,4 @@
-import { assert, expect, expectTypeOf, type it as itType } from '@effect/vitest';
+import { assert, expect, expectTypeOf, it, Vitest } from '@effect/vitest';
 import {
 	and,
 	asc,
@@ -72,16 +72,36 @@ import * as Layer from 'effect/Layer';
 import * as Predicate from 'effect/Predicate';
 import * as Ref from 'effect/Ref';
 import * as Result from 'effect/Result';
+import { SqlClient } from 'effect/unstable/sql/SqlClient';
+import { SqlError } from 'effect/unstable/sql/SqlError';
 import { relations } from './relations';
 import { rqbPost, rqbUser } from './schema';
 import { normalizeDataWithDbCodecs } from './utils';
 
-export type CommonDB = PgEffectDatabase<any, any, typeof relations>;
-export class DB extends Context.Service<DB, CommonDB>()('CommonEffectPgDB') {}
+export class DB extends Context.Service<DB, PgEffectDatabase<any, any, typeof relations>>()('CommonEffectPgDB') {}
+
+let _diff!: (_: {}, schema: Record<string, unknown>, renames: []) => Promise<{ sqlStatements: string[] }>;
+const getDiff = async () => {
+	return _diff ??= (await import('../../../drizzle-kit/tests/postgres/mocks' as string)).diff;
+};
+
+export const push = (db: PgEffectDatabase<any, any, any>, schema: Record<string, any>) =>
+	Effect.gen(function*() {
+		const diff = yield* Effect.promise(() => getDiff());
+
+		const { sqlStatements } = yield* Effect.promise(() => diff({}, schema, []));
+
+		yield* db.transaction((tx) =>
+			Effect.gen(function*() {
+				for (const s of sqlStatements) {
+					yield* tx.execute(s);
+				}
+			})
+		);
+	});
 
 export interface RunCommonEffectPgTestsOptions {
-	testLayer: Layer.Layer<any, any, never>;
-	push: (schema: Record<string, any>) => Effect.Effect<void, any, any>;
+	testLayer: Layer.Layer<DB | SqlClient, SqlError, never>;
 	PgDrizzle: {
 		make: (config?: any) => Effect.Effect<PgEffectDatabase<QueryEffectHKTBase, any, EmptyRelations>, never, any>;
 		makeWithDefaults: (
@@ -103,15 +123,14 @@ export interface RunCommonEffectPgTestsOptions {
 		any
 	>;
 	usedSchema: string;
+	skipTests?: string[];
+	addTests?: (it: Vitest.MethodsNonLive<DB | SqlClient>) => void;
 }
 
-export const runCommonEffectPgTests = (
-	opts: RunCommonEffectPgTestsOptions,
-	itHost: typeof itType,
-): void => {
-	const { testLayer, usedSchema, push, PgDrizzle, createDB } = opts;
+export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): void => {
+	const { testLayer, usedSchema, PgDrizzle, createDB, addTests, skipTests = [] } = opts;
 
-	itHost.layer(testLayer)('common', (it) => {
+	it.layer(testLayer)('common', (it) => {
 		// Run setup before each test.
 		const _effect = it.effect;
 		const effect: typeof it.effect = Object.assign(
@@ -134,6 +153,10 @@ export const runCommonEffectPgTests = (
 			it.effect,
 		);
 		Object.assign(it, { effect });
+
+		it.beforeEach(({ task, skip }) => {
+			if (skipTests.includes(task.name)) skip();
+		});
 
 		it.effect('execute', () =>
 			Effect.gen(function*() {
@@ -292,7 +315,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ en, allTypesTable });
+				yield* push(db, { en, allTypesTable });
 
 				yield* db.insert(allTypesTable).values({
 					serial: 1,
@@ -574,7 +597,7 @@ export const runCommonEffectPgTests = (
 			Effect.gen(function*() {
 				const db = yield* DB;
 
-				yield* push({ rqbUser });
+				yield* push(db, { rqbUser });
 
 				const result = yield* db.query.rqbUser.findFirst();
 
@@ -584,7 +607,7 @@ export const runCommonEffectPgTests = (
 		it.effect('RQB v2 simple find first - multiple rows', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
-				yield* push({ rqbUser });
+				yield* push(db, { rqbUser });
 
 				const date = new Date(120000);
 
@@ -615,7 +638,7 @@ export const runCommonEffectPgTests = (
 			Effect.gen(function*() {
 				const db = yield* DB;
 
-				yield* push({ rqbUser, rqbPost });
+				yield* push(db, { rqbUser, rqbPost });
 
 				const date = new Date(120000);
 
@@ -675,7 +698,7 @@ export const runCommonEffectPgTests = (
 		it.effect('RQB v2 simple find first - placeholders', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
-				yield* push({ rqbUser });
+				yield* push(db, { rqbUser });
 
 				const date = new Date(120000);
 
@@ -714,7 +737,7 @@ export const runCommonEffectPgTests = (
 		it.effect('RQB v2 simple find many - no rows', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
-				yield* push({ rqbUser });
+				yield* push(db, { rqbUser });
 
 				const result = yield* db.query.rqbUser.findMany();
 
@@ -724,7 +747,7 @@ export const runCommonEffectPgTests = (
 		it.effect('RQB v2 simple find many - multiple rows', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
-				yield* push({ rqbUser });
+				yield* push(db, { rqbUser });
 
 				const date = new Date(120000);
 
@@ -758,7 +781,7 @@ export const runCommonEffectPgTests = (
 		it.effect('RQB v2 simple find many - with relation', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
-				yield* push({ rqbUser, rqbPost });
+				yield* push(db, { rqbUser, rqbPost });
 
 				const date = new Date(120000);
 
@@ -819,7 +842,7 @@ export const runCommonEffectPgTests = (
 		it.effect('RQB v2 simple find many - placeholders', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
-				yield* push({ rqbUser });
+				yield* push(db, { rqbUser });
 
 				const date = new Date(120000);
 
@@ -858,7 +881,7 @@ export const runCommonEffectPgTests = (
 		it.effect('RQB v2 transaction find first - no rows', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
-				yield* push({ rqbUser });
+				yield* push(db, { rqbUser });
 
 				const result = yield* db.transaction((db) =>
 					Effect.gen(function*() {
@@ -876,7 +899,7 @@ export const runCommonEffectPgTests = (
 		it.effect('RQB v2 transaction find first - multiple rows', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
-				yield* push({ rqbUser });
+				yield* push(db, { rqbUser });
 
 				const date = new Date(120000);
 
@@ -919,7 +942,7 @@ export const runCommonEffectPgTests = (
 			Effect.gen(function*() {
 				const db = yield* DB;
 
-				yield* push({ rqbUser, rqbPost });
+				yield* push(db, { rqbUser, rqbPost });
 				const date = new Date(120000);
 
 				yield* db.insert(rqbUser).values([{
@@ -1001,7 +1024,7 @@ export const runCommonEffectPgTests = (
 		it.effect('RQB v2 transaction find first - placeholders', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
-				yield* push({ rqbUser });
+				yield* push(db, { rqbUser });
 
 				const date = new Date(120000);
 
@@ -1052,7 +1075,7 @@ export const runCommonEffectPgTests = (
 		it.effect('RQB v2 transaction find many - no rows', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
-				yield* push({ rqbUser });
+				yield* push(db, { rqbUser });
 
 				const result = yield* db.transaction((db) =>
 					Effect.gen(function*() {
@@ -1069,7 +1092,7 @@ export const runCommonEffectPgTests = (
 		it.effect('RQB v2 transaction find many - multiple rows', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
-				yield* push({ rqbUser });
+				yield* push(db, { rqbUser });
 
 				const date = new Date(120000);
 
@@ -1120,7 +1143,7 @@ export const runCommonEffectPgTests = (
 			Effect.gen(function*() {
 				const db = yield* DB;
 
-				yield* push({ rqbUser, rqbPost });
+				yield* push(db, { rqbUser, rqbPost });
 				const date = new Date(120000);
 
 				yield* db.insert(rqbUser).values([{
@@ -1208,7 +1231,7 @@ export const runCommonEffectPgTests = (
 		it.effect('RQB v2 transaction find many - placeholders', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
-				yield* push({ rqbUser });
+				yield* push(db, { rqbUser });
 
 				const date = new Date(120000);
 				yield* db.insert(rqbUser).values([{
@@ -1268,7 +1291,7 @@ export const runCommonEffectPgTests = (
 					stock: integer('stock').notNull(),
 				});
 
-				yield* push({ users, products });
+				yield* push(db, { users, products });
 
 				const [user] = yield* db.insert(users).values({ balance: 100 }).returning();
 				const [product] = yield* db.insert(products).values({ price: 10, stock: 10 }).returning();
@@ -1298,7 +1321,7 @@ export const runCommonEffectPgTests = (
 					balance: integer('balance').notNull(),
 				});
 
-				yield* push({ users });
+				yield* push(db, { users });
 
 				const res = yield* db.transaction((tx) =>
 					Effect.gen(function*() {
@@ -1324,7 +1347,7 @@ export const runCommonEffectPgTests = (
 					balance: integer('balance').notNull(),
 				});
 
-				yield* push({ users });
+				yield* push(db, { users });
 
 				yield* db.transaction((tx) =>
 					Effect.gen(function*() {
@@ -1352,7 +1375,7 @@ export const runCommonEffectPgTests = (
 					balance: integer('balance').notNull(),
 				});
 
-				yield* push({ users });
+				yield* push(db, { users });
 
 				yield* db.transaction((tx) =>
 					Effect.gen(function*() {
@@ -1391,7 +1414,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ mySchema, users, cities });
+				yield* push(db, { mySchema, users, cities });
 
 				const newYorkers1 = mySchema.materializedView('new_yorkers')
 					.as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
@@ -1478,7 +1501,7 @@ export const runCommonEffectPgTests = (
 					cityId: integer('city_id').notNull().references(() => cities.id),
 				});
 
-				yield* push({ states, cities, users });
+				yield* push(db, { states, cities, users });
 
 				yield* db.insert(states).values([
 					{ name: 'New York' },
@@ -1561,7 +1584,7 @@ export const runCommonEffectPgTests = (
 
 				const db = yield* DB;
 
-				yield* push({ notifications, users, userNotications });
+				yield* push(db, { notifications, users, userNotications });
 
 				const newNotification = (yield* db
 					.insert(notifications)
@@ -1605,7 +1628,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ countTestTable });
+				yield* push(db, { countTestTable });
 
 				yield* db.insert(countTestTable).values([
 					{ id: 1, name: 'First' },
@@ -1627,7 +1650,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ countTestTable });
+				yield* push(db, { countTestTable });
 
 				yield* db.insert(countTestTable).values([
 					{ id: 1, name: 'First' },
@@ -1656,7 +1679,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ countTestTable });
+				yield* push(db, { countTestTable });
 
 				yield* db.insert(countTestTable).values([
 					{ id: 1, name: 'First' },
@@ -1690,7 +1713,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ countTestTable });
+				yield* push(db, { countTestTable });
 
 				yield* db.insert(countTestTable).values([
 					{ id: 1, name: 'First' },
@@ -1744,7 +1767,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ countTestTable });
+				yield* push(db, { countTestTable });
 
 				yield* db.insert(countTestTable).values([
 					{ id: 1, name: 'First' },
@@ -1765,7 +1788,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ countTestTable });
+				yield* push(db, { countTestTable });
 
 				yield* db.insert(countTestTable).values([
 					{ id: 1, name: 'First' },
@@ -1795,7 +1818,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ usersDistinctTable });
+				yield* push(db, { usersDistinctTable });
 
 				yield* db.insert(usersDistinctTable).values([
 					{ id: 1, name: 'John', age: 24 },
@@ -1851,7 +1874,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ users });
+				yield* push(db, { users });
 
 				const now = Date.now();
 
@@ -1877,7 +1900,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ users });
+				yield* push(db, { users });
 
 				yield* db.insert(users).values({ name: 'John' });
 				const usersResult = yield* db
@@ -1903,7 +1926,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ users });
+				yield* push(db, { users });
 
 				const now = Date.now();
 
@@ -1925,7 +1948,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ users });
+				yield* push(db, { users });
 
 				yield* db.insert(users).values({ name: 'John' });
 				const usersResult = yield* db.delete(users).where(eq(users.name, 'John')).returning({
@@ -1946,7 +1969,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ users });
+				yield* push(db, { users });
 
 				yield* db
 					.insert(users)
@@ -1983,7 +2006,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ users });
+				yield* push(db, { users });
 
 				const result = yield* db
 					.insert(users)
@@ -2018,7 +2041,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ users });
+				yield* push(db, { users });
 
 				const result = yield* db
 					.insert(users)
@@ -2047,7 +2070,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ usersTable });
+				yield* push(db, { usersTable });
 
 				const stmt = db
 					.insert(usersTable)
@@ -2091,7 +2114,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ usersTable });
+				yield* push(db, { usersTable });
 
 				yield* db.insert(usersTable).values({ name: 'John' });
 				const stmt = db
@@ -2115,7 +2138,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ usersTable });
+				yield* push(db, { usersTable });
 
 				yield* db.insert(usersTable).values({ name: 'John' });
 				const stmt = db
@@ -2142,7 +2165,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ usersTable });
+				yield* push(db, { usersTable });
 
 				yield* db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]);
 				const stmt = db
@@ -2167,7 +2190,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ usersTable });
+				yield* push(db, { usersTable });
 
 				function withLimitOffset(qb: any) {
 					return qb.limit(sql.placeholder('limit')).offset(sql.placeholder('offset'));
@@ -2199,7 +2222,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ orders });
+				yield* push(db, { orders });
 
 				yield* db.insert(orders).values([
 					{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
@@ -2326,7 +2349,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ products });
+				yield* push(db, { products });
 
 				yield* db.insert(products).values([
 					{ price: '10.99' },
@@ -2372,7 +2395,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ users });
+				yield* push(db, { users });
 
 				const userCount = db
 					.$with('user_count')
@@ -2408,7 +2431,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ orders });
+				yield* push(db, { orders });
 
 				yield* db.insert(orders).values([
 					{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
@@ -2454,7 +2477,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ users });
+				yield* push(db, { users });
 
 				const customerAlias = alias(users, 'customer');
 
@@ -2490,7 +2513,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ users });
+				yield* push(db, { users });
 
 				const customers = alias(users, 'customer');
 
@@ -2521,7 +2544,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ users });
+				yield* push(db, { users });
 
 				const user = alias(users, 'user');
 				const customers = alias(users, 'customer');
@@ -2559,7 +2582,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ cities2Table, users2Table });
+				yield* push(db, { cities2Table, users2Table });
 
 				yield* db.insert(cities2Table).values([
 					{ id: 1, name: 'New York' },
@@ -2632,7 +2655,7 @@ export const runCommonEffectPgTests = (
 				});
 
 				const db = yield* DB;
-				yield* push({ cities2Table, users2Table });
+				yield* push(db, { cities2Table, users2Table });
 
 				yield* db.insert(cities2Table).values([
 					{ id: 1, name: 'New York' },
@@ -2724,7 +2747,7 @@ export const runCommonEffectPgTests = (
 					name: text('name').notNull(),
 				});
 
-				yield* push({ users });
+				yield* push(db, { users });
 				yield* db.insert(users).values({ name: 'John' });
 				yield* db.select().from(users);
 
@@ -2773,7 +2796,7 @@ export const runCommonEffectPgTests = (
 					name: text('name').notNull(),
 				});
 
-				yield* push({ users });
+				yield* push(db, { users });
 				yield* db.insert(users).values({ name: 'John' });
 				yield* db.select().from(users).$withCache();
 
@@ -2791,7 +2814,7 @@ export const runCommonEffectPgTests = (
 					name: text('name').notNull(),
 				});
 
-				yield* push({ users });
+				yield* push(db, { users });
 				yield* db.insert(users).values({ name: 'Alice' });
 				const result = yield* db.select().from(users);
 
@@ -2957,12 +2980,11 @@ export const runCommonEffectPgTests = (
 						arrvarchar: varchar('arrvarchar').array(),
 					});
 
-					yield* push({
+					const db = yield* DB;
+					yield* push(db, {
 						en,
 						allTypesTable,
 					});
-
-					const db = yield* DB;
 
 					type ExpectedType = {
 						serial: number;
@@ -3225,7 +3247,7 @@ export const runCommonEffectPgTests = (
 				}));
 
 				const db = yield* DB;
-				yield* push({ users });
+				yield* push(db, { users });
 
 				const result = yield* db.select().from(users);
 
@@ -3245,7 +3267,7 @@ export const runCommonEffectPgTests = (
 				}));
 
 				const db = yield* DB;
-				yield* push({ users });
+				yield* push(db, { users });
 
 				yield* db.insert(users).values([{
 					id: 1,
@@ -3271,7 +3293,7 @@ export const runCommonEffectPgTests = (
 				}));
 
 				const db = yield* DB;
-				yield* push({ users });
+				yield* push(db, { users });
 
 				yield* db.insert(users).values([{
 					id: 1,
@@ -3297,7 +3319,7 @@ export const runCommonEffectPgTests = (
 				}));
 
 				const db = yield* DB;
-				yield* push({ users });
+				yield* push(db, { users });
 
 				const inserted = yield* db.insert(users).values([{
 					id: 1,
@@ -3397,7 +3419,7 @@ export const runCommonEffectPgTests = (
 				}));
 
 				const db = yield* DB;
-				yield* push({ users, posts });
+				yield* push(db, { users, posts });
 
 				yield* db.insert(users).values([{
 					id: 1,
@@ -3548,7 +3570,6 @@ export const runCommonEffectPgTests = (
 					content: t.text('content'),
 				}));
 
-				yield* push({ users, posts });
 				const db = yield* createDB(
 					{ users, posts },
 					(r) => ({
@@ -3575,6 +3596,7 @@ export const runCommonEffectPgTests = (
 					}),
 					false,
 				);
+				yield* push(db, { users, posts });
 
 				const empty1 = yield* db.query.users.findFirst();
 				const empty2 = yield* db.query.users.findMany();
@@ -3915,8 +3937,8 @@ export const runCommonEffectPgTests = (
 					isBanned: t.boolean('is_banned'),
 				}));
 
-				yield* push({ users });
 				const db = yield* createDB({}, () => ({}), true);
+				yield* push(db, { users });
 
 				const result = yield* db.select().from(users);
 
@@ -3935,8 +3957,8 @@ export const runCommonEffectPgTests = (
 					isBanned: t.boolean('is_banned'),
 				}));
 
-				yield* push({ users });
 				const db = yield* createDB({}, () => ({}), true);
+				yield* push(db, { users });
 
 				yield* db.insert(users).values([{
 					id: 1,
@@ -3961,8 +3983,8 @@ export const runCommonEffectPgTests = (
 					isBanned: t.boolean('is_banned'),
 				}));
 
-				yield* push({ users });
 				const db = yield* createDB({}, () => ({}), true);
+				yield* push(db, { users });
 
 				yield* db.insert(users).values([{
 					id: 1,
@@ -3987,8 +4009,8 @@ export const runCommonEffectPgTests = (
 					isBanned: t.boolean('is_banned'),
 				}));
 
-				yield* push({ users });
 				const db = yield* createDB({}, () => ({}), true);
+				yield* push(db, { users });
 
 				const inserted = yield* db.insert(users).values([{
 					id: 1,
@@ -4087,8 +4109,8 @@ export const runCommonEffectPgTests = (
 					content: t.text('content'),
 				}));
 
-				yield* push({ users, posts });
 				const db = yield* createDB({}, () => ({}), true);
+				yield* push(db, { users, posts });
 
 				yield* db.insert(users).values([{
 					id: 1,
@@ -4239,7 +4261,6 @@ export const runCommonEffectPgTests = (
 					content: t.text('content'),
 				}));
 
-				yield* push({ users, posts });
 				const db = yield* createDB(
 					{ users, posts },
 					(r) => ({
@@ -4266,6 +4287,7 @@ export const runCommonEffectPgTests = (
 					}),
 					true,
 				);
+				yield* push(db, { users, posts });
 
 				const empty1 = yield* db.query.users.findFirst();
 				const empty2 = yield* db.query.users.findMany();
@@ -4639,8 +4661,6 @@ export const runCommonEffectPgTests = (
 					}).from(users).groupBy(users.id)
 				);
 
-				yield* push({ users, usersView });
-
 				const db = yield* createDB({ users, usersView }, (r) => ({
 					users: {
 						self: r.one.users({
@@ -4655,6 +4675,7 @@ export const runCommonEffectPgTests = (
 						}),
 					},
 				}));
+				yield* push(db, { users, usersView });
 
 				const exDateStr = '1970-01-16 16:45:46.351';
 				const exDate = new Date(exDateStr);
@@ -4858,8 +4879,6 @@ export const runCommonEffectPgTests = (
 					}).from(users).groupBy(users.id)
 				);
 
-				yield* push({ users, usersView });
-
 				const db = yield* createDB({ users, usersView }, (r) => ({
 					users: {
 						self: r.one.users({
@@ -4874,6 +4893,7 @@ export const runCommonEffectPgTests = (
 						}),
 					},
 				}), true);
+				yield* push(db, { users, usersView });
 
 				const exDateStr = '1970-01-16 16:45:46.351';
 				const exDate = new Date(exDateStr);
@@ -5031,6 +5051,8 @@ export const runCommonEffectPgTests = (
 					},
 				);
 			}));
+
+		addTests?.(it);
 	});
 };
 
