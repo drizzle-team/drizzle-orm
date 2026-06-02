@@ -13,7 +13,7 @@ import {
 	SQLiteAsyncTransaction,
 	type SQLiteQueryExecutors,
 } from '~/sqlite-core/async/session.ts';
-import type { SQLiteDialect } from '~/sqlite-core/dialect';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
 import type { TursoDatabaseRunResult } from './driver-core';
 

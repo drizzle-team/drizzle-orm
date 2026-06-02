@@ -2,9 +2,9 @@ import { connect, type Connection, type Statement } from '@tursodatabase/serverl
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import type { DrizzleSQLiteConfig } from '~/sqlite-core';
 import { BaseSQLiteDatabase } from '~/sqlite-core/async/db.ts';
 import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
 import { jitCompatCheck } from '~/utils.ts';
 import { TursoDatabaseServerlessSession } from './session.ts';
 
