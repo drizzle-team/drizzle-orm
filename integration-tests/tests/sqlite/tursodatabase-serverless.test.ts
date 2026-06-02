@@ -1,10 +1,10 @@
 import { sql } from 'drizzle-orm';
 import { getTableConfig, int, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import type { TursoDatabaseDatabase } from 'drizzle-orm/tursodatabase';
-import { migrate } from 'drizzle-orm/tursodatabase/migrator';
+import { migrate } from 'drizzle-orm/tursodatabase-serverless/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { expect } from 'vitest';
-import { tursoDatabaseTest as test } from './instrumentation';
+import { tursoDatabaseServerlessTest as test } from './instrumentation';
 import relations from './relations';
 import { tests } from './sqlite-common';
 
@@ -191,7 +191,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 	rmSync(migrationDir, { recursive: true });
 });
 
-const skip = [
+const skip: string[] = [
 	// Uses async versions
 	'sync transaction rollback',
 	'sync nested transaction rollback',
@@ -200,9 +200,5 @@ const skip = [
 	'delete with limit and order by',
 	// ORDER BY is not supported in UPDATE
 	'update with limit and order by',
-
-	// Raw query field names differ
-	'insert via db.get',
-	'insert via db.get w/ query builder',
 ];
 tests(test, skip);

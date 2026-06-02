@@ -8,7 +8,7 @@ import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
 import { jitCompatCheck } from '~/utils.ts';
 import { TursoDatabaseSession } from './session.ts';
 
-export type TursoDatabaseRunResult = Awaited<ReturnType<ReturnType<DatabasePromise['prepare']>['run']>>;
+export type TursoDatabaseRunResult = Awaited<ReturnType<StatementPromise['run']>>;
 
 export class TursoDatabaseDatabase<TRelations extends AnyRelations = EmptyRelations>
 	extends BaseSQLiteDatabase<'async', TursoDatabaseRunResult, TRelations>
