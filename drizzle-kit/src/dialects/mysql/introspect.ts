@@ -115,20 +115,29 @@ export const fromDatabase = async (
 	// INDEXES
 
 	progressCallback('indexes', 0, 'fetching');
-	const idxs = await db.query<{
+	const idxs = await batchQuery<{
 		TABLE_NAME: string;
 		INDEX_NAME: string;
 		COLUMN_NAME: string;
 		NON_UNIQUE: number;
 		EXPRESSION: string | null | undefined; // MariaDB doesn't have this column, so we use * in query and handle it in code
-	}>(`
+		SEQ_IN_INDEX: number;
+	}>(db, ({ limit, cursor }) => `
 		SELECT
 			*
 		FROM INFORMATION_SCHEMA.STATISTICS
 		WHERE INFORMATION_SCHEMA.STATISTICS.TABLE_SCHEMA = '${schema}' 
 			AND INFORMATION_SCHEMA.STATISTICS.INDEX_NAME != 'PRIMARY'
-		ORDER BY SEQ_IN_INDEX ASC;
-	`).then((rows) => {
+			${
+		cursor
+			? `AND (TABLE_NAME > '${cursor.TABLE_NAME}' OR (TABLE_NAME = '${cursor.TABLE_NAME}' AND SEQ_IN_INDEX > ${cursor.SEQ_IN_INDEX}))`
+			: ''
+	}
+		ORDER BY TABLE_NAME, SEQ_IN_INDEX
+		LIMIT ${limit};
+	`, (count) => {
+		progressCallback('indexes', count, 'fetching');
+	}).then((rows) => {
 		const filtered = rows.filter((it) => tableNames.has(it.TABLE_NAME));
 		queryCallback('indexes', filtered, null);
 		return filtered;
@@ -385,7 +394,7 @@ export const fromDatabase = async (
 	// FOREIGN KEYS
 
 	progressCallback('fks', 0, 'fetching');
-	const fks = await db.query<{
+	const fks = await batchQuery<{
 		TABLE_SCHEMA: string;
 		TABLE_NAME: string;
 		CONSTRAINT_NAME: string;
@@ -395,7 +404,8 @@ export const fromDatabase = async (
 		REFERENCED_COLUMN_NAME: string;
 		UPDATE_RULE: string;
 		DELETE_RULE: string;
-	}>(`
+		ORDINAL_POSITION: number;
+	}>(db, ({ limit, cursor }) => `
 		SELECT
 			kcu.TABLE_SCHEMA,
 			kcu.TABLE_NAME,
@@ -405,13 +415,23 @@ export const fromDatabase = async (
 			kcu.REFERENCED_TABLE_NAME,
 			kcu.REFERENCED_COLUMN_NAME,
 			rc.UPDATE_RULE,
-			rc.DELETE_RULE
+			rc.DELETE_RULE,
+			kcu.ORDINAL_POSITION
 		FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
 		LEFT JOIN INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME AND kcu.CONSTRAINT_SCHEMA = rc.CONSTRAINT_SCHEMA
 		WHERE kcu.TABLE_SCHEMA = '${schema}' 
 			AND kcu.CONSTRAINT_NAME != 'PRIMARY' 
-			AND kcu.REFERENCED_TABLE_NAME IS NOT NULL;
-	`).then((rows) => {
+			AND kcu.REFERENCED_TABLE_NAME IS NOT NULL
+			${
+		cursor
+			? `AND (kcu.TABLE_NAME > '${cursor.TABLE_NAME}' OR (kcu.TABLE_NAME = '${cursor.TABLE_NAME}' AND kcu.ORDINAL_POSITION > ${cursor.ORDINAL_POSITION}))`
+			: ''
+	}
+		ORDER BY kcu.TABLE_NAME, kcu.ORDINAL_POSITION
+		LIMIT ${limit}
+	`, (count) => {
+		progressCallback('fks', count, 'fetching');
+	}).then((rows) => {
 		queryCallback('fks', rows, null);
 		return rows;
 	}).catch((err) => {
