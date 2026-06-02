@@ -1,4 +1,4 @@
-import type { DatabasePromise, StatementPromise } from '@tursodatabase/database-common';
+import type { Connection, Statement } from '@tursodatabase/serverless';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
@@ -13,30 +13,30 @@ import {
 	SQLiteAsyncTransaction,
 	type SQLiteQueryExecutors,
 } from '~/sqlite-core/async/session.ts';
-import type { SQLiteDialect } from '~/sqlite-core/dialect';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
-import type { TursoDatabaseRunResult } from './driver-core';
+import type { TursoDatabaseServerlessRunResult } from './driver.ts';
 
-export interface TursoDatabaseSessionOptions {
+export interface TursoDatabaseServerlessSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
-export class TursoDatabaseSession<TRelations extends AnyRelations>
-	extends SQLiteAsyncSession<'async', TursoDatabaseRunResult, TRelations>
+export class TursoDatabaseServerlessSession<TRelations extends AnyRelations>
+	extends SQLiteAsyncSession<'async', TursoDatabaseServerlessRunResult, TRelations>
 {
-	static override readonly [entityKind]: string = 'TursoDatabaseSession';
+	static override readonly [entityKind]: string = 'TursoDatabaseServerlessSession';
 
 	private logger: Logger;
 	private cache: Cache;
 
 	constructor(
-		readonly client: DatabasePromise,
+		private client: Connection,
 		dialect: SQLiteDialect,
 		private relations: TRelations,
-		private options: TursoDatabaseSessionOptions,
+		private options: TursoDatabaseServerlessSessionOptions,
 	) {
 		super(dialect, 'async');
 		this.logger = options.logger ?? new NoopLogger();
@@ -54,8 +54,8 @@ export class TursoDatabaseSession<TRelations extends AnyRelations>
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): SQLiteAsyncPreparedQuery<T & { run: TursoDatabaseRunResult }> {
-		let stmt: StatementPromise;
+	): SQLiteAsyncPreparedQuery<T & { run: TursoDatabaseServerlessRunResult }> {
+		let stmt: Statement;
 		const executors: SQLiteQueryExecutors<'async'> = prepare
 			? {
 				all: async (params) => {
@@ -114,16 +114,16 @@ export class TursoDatabaseSession<TRelations extends AnyRelations>
 	}
 
 	override async transaction<T>(
-		transaction: (db: TursoDatabaseTransaction<TRelations>) => Promise<T>,
+		transaction: (db: TursoDatabaseServerlessTransaction<TRelations>) => Promise<T>,
 		_config?: SQLiteTransactionConfig,
 	): Promise<T> {
-		const session = new TursoDatabaseSession<TRelations>(
+		const session = new TursoDatabaseServerlessSession<TRelations>(
 			this.client,
 			this.dialect,
 			this.relations,
 			this.options,
 		);
-		const tx = new TursoDatabaseTransaction<TRelations>(
+		const tx = new TursoDatabaseServerlessTransaction<TRelations>(
 			'async',
 			this.dialect,
 			session,
@@ -137,19 +137,17 @@ export class TursoDatabaseSession<TRelations extends AnyRelations>
 	}
 }
 
-export class TursoDatabaseTransaction<TRelations extends AnyRelations>
-	extends SQLiteAsyncTransaction<'async', TursoDatabaseRunResult, TRelations>
+export class TursoDatabaseServerlessTransaction<TRelations extends AnyRelations>
+	extends SQLiteAsyncTransaction<'async', TursoDatabaseServerlessRunResult, TRelations>
 {
-	static override readonly [entityKind]: string = 'TursoDatabaseTransaction';
-
-	declare readonly session: TursoDatabaseSession<TRelations>;
+	static override readonly [entityKind]: string = 'TursoDatabaseServerlessTransaction';
 
 	override async transaction<T>(
-		transaction: (tx: TursoDatabaseTransaction<TRelations>) => Promise<T>,
+		transaction: (tx: TursoDatabaseServerlessTransaction<TRelations>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex}`;
 
-		const tx = new TursoDatabaseTransaction(
+		const tx = new TursoDatabaseServerlessTransaction(
 			'async',
 			this.dialect,
 			this.session,

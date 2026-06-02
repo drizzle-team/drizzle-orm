@@ -1,4 +1,4 @@
-import type { DatabasePromise } from '@tursodatabase/database-common';
+import type { DatabasePromise, StatementPromise } from '@tursodatabase/database-common';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -8,7 +8,7 @@ import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
 import { jitCompatCheck } from '~/utils.ts';
 import { TursoDatabaseSession } from './session.ts';
 
-export type TursoDatabaseRunResult = Awaited<ReturnType<ReturnType<DatabasePromise['prepare']>['run']>>;
+export type TursoDatabaseRunResult = Awaited<ReturnType<StatementPromise['run']>>;
 
 export class TursoDatabaseDatabase<TRelations extends AnyRelations = EmptyRelations>
 	extends BaseSQLiteDatabase<'async', TursoDatabaseRunResult, TRelations>
