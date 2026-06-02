@@ -48,13 +48,13 @@ export class QueryBuilder {
 	with(...queries: WithSubquery[]) {
 		const self = this;
 
-		function select(): MySqlSelectBuilder<undefined, never, 'qb'>;
+		function select(): MySqlSelectBuilder<undefined, 'qb'>;
 		function select<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): MySqlSelectBuilder<TSelection, never, 'qb'>;
+		): MySqlSelectBuilder<TSelection, 'qb'>;
 		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
-		): MySqlSelectBuilder<TSelection | undefined, never, 'qb'> {
+		): MySqlSelectBuilder<TSelection | undefined, 'qb'> {
 			return new MySqlSelectBuilder({
 				fields: fields ?? undefined,
 				session: undefined,
@@ -63,13 +63,13 @@ export class QueryBuilder {
 			});
 		}
 
-		function selectDistinct(): MySqlSelectBuilder<undefined, never, 'qb'>;
+		function selectDistinct(): MySqlSelectBuilder<undefined, 'qb'>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): MySqlSelectBuilder<TSelection, never, 'qb'>;
+		): MySqlSelectBuilder<TSelection, 'qb'>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields?: TSelection,
-		): MySqlSelectBuilder<TSelection | undefined, never, 'qb'> {
+		): MySqlSelectBuilder<TSelection | undefined, 'qb'> {
 			return new MySqlSelectBuilder({
 				fields: fields ?? undefined,
 				session: undefined,
@@ -82,21 +82,21 @@ export class QueryBuilder {
 		return { select, selectDistinct };
 	}
 
-	select(): MySqlSelectBuilder<undefined, never, 'qb'>;
-	select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, never, 'qb'>;
+	select(): MySqlSelectBuilder<undefined, 'qb'>;
+	select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, 'qb'>;
 	select<TSelection extends SelectedFields>(
 		fields?: TSelection,
-	): MySqlSelectBuilder<TSelection | undefined, never, 'qb'> {
+	): MySqlSelectBuilder<TSelection | undefined, 'qb'> {
 		return new MySqlSelectBuilder({ fields: fields ?? undefined, session: undefined, dialect: this.getDialect() });
 	}
 
-	selectDistinct(): MySqlSelectBuilder<undefined, never, 'qb'>;
+	selectDistinct(): MySqlSelectBuilder<undefined, 'qb'>;
 	selectDistinct<TSelection extends SelectedFields>(
 		fields: TSelection,
-	): MySqlSelectBuilder<TSelection, never, 'qb'>;
+	): MySqlSelectBuilder<TSelection, 'qb'>;
 	selectDistinct<TSelection extends SelectedFields>(
 		fields?: TSelection,
-	): MySqlSelectBuilder<TSelection | undefined, never, 'qb'> {
+	): MySqlSelectBuilder<TSelection | undefined, 'qb'> {
 		return new MySqlSelectBuilder({
 			fields: fields ?? undefined,
 			session: undefined,

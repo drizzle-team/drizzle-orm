@@ -83,7 +83,6 @@ jobs:
 
   test:
     # NOTE: no 'needs: [prepare]' on purpose — start early, warm DBs, then wait for artifacts
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
@@ -233,7 +232,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          if [[ ${{ github.event_name }} != "push" && "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
             export SKIP_EXTERNAL_DB_TESTS=1
           fi
           case ${{ matrix.shard }} in
@@ -287,7 +286,6 @@ jobs:
 
   attw:
     needs: [prepare]
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -313,7 +311,6 @@ jobs:
 
   attw-orm:
     needs: [prepare]
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
@@ -340,7 +337,10 @@ jobs:
 
   release:
     needs: [test, prepare, attw, attw-orm]
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+    # workflow_dispatch only: this job holds `id-token: write` and is the sole path to
+    # the publish step, so PR/push events must never enter it — that would both expose
+    # OIDC minting to untrusted PR code and auto-publish on push.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions: { contents: read, id-token: write }
