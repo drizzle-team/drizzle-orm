@@ -28,7 +28,7 @@ import type { SQLiteViewBase } from '../view-base.ts';
 import { SQLiteAsyncCountBuilder, type SQLiteAsyncCountBuilderKind, SQLiteSyncCountBuilder } from './count.ts';
 import { SQLiteAsyncRelationalQuery, type SQLiteAsyncRelationalQueryHKT, SQLiteSyncRelationalQuery } from './query.ts';
 
-export class BaseSQLiteDatabase<
+export class SQLiteAsyncDatabase<
 	TResultKind extends 'sync' | 'async',
 	TRunResult,
 	TRelations extends AnyRelations = EmptyRelations,
@@ -67,7 +67,7 @@ export class BaseSQLiteDatabase<
 		};
 		this.query = {} as typeof this['query'];
 		for (const [tableName, relation] of Object.entries(relations)) {
-			(this.query as BaseSQLiteDatabase<
+			(this.query as SQLiteAsyncDatabase<
 				TResultKind,
 				TRunResult,
 				AnyRelations
@@ -608,7 +608,7 @@ export const withReplicas = <
 	TResultKind extends 'sync' | 'async',
 	TRunResult,
 	TRelations extends AnyRelations,
-	Q extends BaseSQLiteDatabase<
+	Q extends SQLiteAsyncDatabase<
 		TResultKind,
 		TRunResult,
 		TRelations

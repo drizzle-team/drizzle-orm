@@ -19,7 +19,6 @@ import {
 	min,
 	Name,
 	notInArray,
-	placeholder,
 	sql,
 	sum,
 	sumDistinct,
@@ -27,7 +26,6 @@ import {
 } from 'drizzle-orm';
 import {
 	alias,
-	type BaseSQLiteDatabase,
 	blob,
 	customType,
 	except,
@@ -41,6 +39,7 @@ import {
 	numeric,
 	primaryKey,
 	real,
+	type SQLiteAsyncDatabase,
 	SQLiteDialect,
 	sqliteTable,
 	sqliteTableCreator,
@@ -296,7 +295,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		});
 
 		async function setupSetOperationTest(
-			db: BaseSQLiteDatabase<any, any, any>,
+			db: SQLiteAsyncDatabase<any, any, any>,
 		) {
 			await db.run(sql`drop table if exists users2`);
 			await db.run(sql`drop table if exists cities`);
@@ -334,7 +333,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		}
 
 		async function setupAggregateFunctionsTest(
-			db: BaseSQLiteDatabase<any, any, any>,
+			db: SQLiteAsyncDatabase<any, any, any>,
 		) {
 			await db.run(sql`drop table if exists "aggregate_table"`);
 			await db.run(

@@ -2,14 +2,14 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { BaseSQLiteDatabase } from '~/sqlite-core/async/db.ts';
+import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
 import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
 import { jitCompatCheck } from '~/utils.ts';
 import { type ExpoSQLiteRunResult, ExpoSQLiteSession } from './session.ts';
 
 export class ExpoSQLiteDatabase<TRelations extends AnyRelations = EmptyRelations>
-	extends BaseSQLiteDatabase<'sync', ExpoSQLiteRunResult, TRelations>
+	extends SQLiteAsyncDatabase<'sync', ExpoSQLiteRunResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'ExpoSQLiteDatabase';
 }

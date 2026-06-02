@@ -4,7 +4,7 @@ import { Database } from 'bun:sqlite';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { BaseSQLiteDatabase } from '~/sqlite-core/async/db.ts';
+import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
 import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
 import { jitCompatCheck } from '~/utils.ts';
@@ -12,7 +12,7 @@ import { type SQLiteBunRunResult, SQLiteBunSession } from './session.ts';
 
 export class SQLiteBunDatabase<
 	TRelations extends AnyRelations = EmptyRelations,
-> extends BaseSQLiteDatabase<'sync', SQLiteBunRunResult, TRelations> {
+> extends SQLiteAsyncDatabase<'sync', SQLiteBunRunResult, TRelations> {
 	static override readonly [entityKind]: string = 'SQLiteBunDatabase';
 }
 

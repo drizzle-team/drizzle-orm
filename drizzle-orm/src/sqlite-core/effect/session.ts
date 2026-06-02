@@ -15,8 +15,8 @@ import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import {
 	type PreparedQueryConfig,
-	SQLiteBasePreparedQuery,
 	type SQLiteExecuteMethod,
+	SQLitePreparedQuery,
 	SQLiteSession,
 	type SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
@@ -32,7 +32,7 @@ export type SQLiteEffectQueryExecutors = Record<
 export class SQLiteEffectPreparedQuery<
 	T extends PreparedQueryConfig,
 	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
-> extends SQLiteBasePreparedQuery {
+> extends SQLitePreparedQuery {
 	static override readonly [entityKind]: string = 'SQLiteEffectPreparedQuery';
 
 	constructor(

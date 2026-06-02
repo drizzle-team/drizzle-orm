@@ -2,14 +2,14 @@ import { DatabaseSync, type DatabaseSyncOptions } from 'node:sqlite';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { BaseSQLiteDatabase } from '~/sqlite-core/async/db.ts';
+import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
 import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
 import { jitCompatCheck } from '~/utils.ts';
 import { type NodeSQLiteRunResult, NodeSQLiteSession } from './session.ts';
 
 export class NodeSQLiteDatabase<TRelations extends AnyRelations = EmptyRelations>
-	extends BaseSQLiteDatabase<'sync', NodeSQLiteRunResult, TRelations>
+	extends SQLiteAsyncDatabase<'sync', NodeSQLiteRunResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'NodeSQLiteDatabase';
 }

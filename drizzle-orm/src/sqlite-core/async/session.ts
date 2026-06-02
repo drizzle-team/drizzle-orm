@@ -5,24 +5,42 @@ import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
+import { QueryPromise } from '~/query-promise.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import {
-	type ExecuteResult,
-	ExecuteResultSync,
 	type PreparedQueryConfig as BasePreparedQueryConfig,
-	SQLiteBasePreparedQuery,
 	type SQLiteExecuteMethod,
+	SQLitePreparedQuery,
 	SQLiteSession,
 	type SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { upgradeAsyncIfNeeded, upgradeSyncIfNeeded } from '~/up-migrations/sqlite.ts';
 import { assertUnreachable } from '~/utils.ts';
-import { BaseSQLiteDatabase } from './db.ts';
+import { SQLiteAsyncDatabase } from './db.ts';
 
 export interface SQLiteAsyncPreparedQueryConfig extends BasePreparedQueryConfig {
 	type: 'sync' | 'async';
+}
+
+export type ExecuteResult<TType extends 'sync' | 'async', TResult> = TType extends 'async' ? Promise<TResult>
+	: ExecuteResultSync<TResult>;
+
+export class ExecuteResultSync<T> extends QueryPromise<T> {
+	static override readonly [entityKind]: string = 'ExecuteResultSync';
+
+	constructor(private resultCb: () => T) {
+		super();
+	}
+
+	override async execute(): Promise<T> {
+		return this.resultCb();
+	}
+
+	sync(): T {
+		return this.resultCb();
+	}
 }
 
 export type SQLiteQueryExecutors<TType extends 'sync' | 'async'> = Record<
@@ -32,7 +50,7 @@ export type SQLiteQueryExecutors<TType extends 'sync' | 'async'> = Record<
 
 export type Result<TKind extends 'sync' | 'async', TResult> = TKind extends 'async' ? Promise<TResult> : TResult;
 
-export class SQLiteAsyncPreparedQuery<T extends SQLiteAsyncPreparedQueryConfig> extends SQLiteBasePreparedQuery {
+export class SQLiteAsyncPreparedQuery<T extends SQLiteAsyncPreparedQueryConfig> extends SQLitePreparedQuery {
 	static override readonly [entityKind]: string = 'SQLiteAsyncPreparedQuery';
 
 	private fastPath: boolean;
@@ -331,7 +349,7 @@ export abstract class SQLiteAsyncTransaction<
 	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TRelations extends AnyRelations = EmptyRelations,
-> extends BaseSQLiteDatabase<TResultType, TRunResult, TRelations> {
+> extends SQLiteAsyncDatabase<TResultType, TRunResult, TRelations> {
 	static override readonly [entityKind]: string = 'SQLiteAsyncTransaction';
 
 	constructor(
@@ -438,7 +456,7 @@ export function migrateSync(
 
 export async function migrateAsync(
 	migrations: MigrationMeta[],
-	db: BaseSQLiteDatabase<'async', unknown, AnyRelations>,
+	db: SQLiteAsyncDatabase<'async', unknown, AnyRelations>,
 	config?: string | Omit<MigrationConfig, 'migrationsFolder'>,
 ): Promise<void | MigratorInitFailResponse> {
 	const migrationsTable = config === undefined

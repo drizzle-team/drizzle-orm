@@ -2,7 +2,7 @@ import { connect, type Connection, type Statement } from '@tursodatabase/serverl
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { BaseSQLiteDatabase } from '~/sqlite-core/async/db.ts';
+import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
 import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
 import { jitCompatCheck } from '~/utils.ts';
@@ -11,7 +11,7 @@ import { TursoDatabaseServerlessSession } from './session.ts';
 export type TursoDatabaseServerlessRunResult = Awaited<ReturnType<Statement['run']>>;
 
 export class TursoDatabaseServerlessDatabase<TRelations extends AnyRelations = EmptyRelations>
-	extends BaseSQLiteDatabase<'async', TursoDatabaseServerlessRunResult, TRelations>
+	extends SQLiteAsyncDatabase<'async', TursoDatabaseServerlessRunResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'TursoDatabaseServerlessDatabase';
 

@@ -4,7 +4,7 @@ import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { BaseSQLiteDatabase } from '~/sqlite-core/async/db.ts';
+import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
 import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
 import type { IfNotImported } from '~/utils.ts';
@@ -19,7 +19,7 @@ export type AnyD1Database = IfNotImported<
 >;
 
 export class DrizzleD1Database<TRelations extends AnyRelations = EmptyRelations>
-	extends BaseSQLiteDatabase<'async', D1RunResult, TRelations>
+	extends SQLiteAsyncDatabase<'async', D1RunResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'D1Database';
 

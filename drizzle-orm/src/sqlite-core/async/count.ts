@@ -1,9 +1,9 @@
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { ExecuteResultSync } from '~/sqlite-core/async/session.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteCountBuilder } from '~/sqlite-core/query-builders/count.ts';
-import type { ExecuteResultSync } from '~/sqlite-core/session.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { SQLiteViewBase } from '~/sqlite-core/view-base.ts';
 import { applyMixins } from '~/utils.ts';

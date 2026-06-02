@@ -1,7 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
-import type { SQLiteBasePreparedQuery } from '../session.ts';
+import type { SQLitePreparedQuery } from '../session.ts';
 
 // TODO: remove Raw builders & replace them with preparedQuery instances directly
 // oxlint-disable-next-line no-unused-vars
@@ -15,7 +15,7 @@ export class SQLiteRaw<TResult> implements SQLWrapper, PreparedQuery {
 	};
 
 	constructor(
-		protected prepared: SQLiteBasePreparedQuery,
+		protected prepared: SQLitePreparedQuery,
 		protected sql: SQL,
 		protected query: Query,
 	) {

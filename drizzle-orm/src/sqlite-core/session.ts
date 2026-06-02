@@ -1,6 +1,5 @@
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
-import { QueryPromise } from '~/query-promise.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query } from '~/sql/sql.ts';
@@ -14,32 +13,13 @@ export interface PreparedQueryConfig {
 	execute: unknown;
 }
 
-export class ExecuteResultSync<T> extends QueryPromise<T> {
-	static override readonly [entityKind]: string = 'ExecuteResultSync';
-
-	constructor(private resultCb: () => T) {
-		super();
-	}
-
-	override async execute(): Promise<T> {
-		return this.resultCb();
-	}
-
-	sync(): T {
-		return this.resultCb();
-	}
-}
-
-export type ExecuteResult<TType extends 'sync' | 'async', TResult> = TType extends 'async' ? Promise<TResult>
-	: ExecuteResultSync<TResult>;
-
 export interface SQLiteTransactionConfig {
 	behavior?: 'deferred' | 'immediate' | 'exclusive';
 }
 
 export type SQLiteExecuteMethod = 'run' | 'all' | 'get' | 'values';
 
-export abstract class SQLiteBasePreparedQuery implements PreparedQuery {
+export abstract class SQLitePreparedQuery implements PreparedQuery {
 	static readonly [entityKind]: string = 'SQLiteBasePreparedQuery';
 
 	/** @internal */
@@ -102,5 +82,5 @@ export abstract class SQLiteSession<TRunResult = unknown, TRelations extends Any
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): SQLiteBasePreparedQuery;
+	): SQLitePreparedQuery;
 }

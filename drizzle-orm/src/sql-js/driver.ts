@@ -2,14 +2,14 @@ import type { Database } from 'sql.js';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { BaseSQLiteDatabase } from '~/sqlite-core/async/db.ts';
+import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
 import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
 import { jitCompatCheck } from '~/utils.ts';
 import { type SQLJsRunResult, SQLJsSession } from './session.ts';
 
 export class SQLJsDatabase<TRelations extends AnyRelations = EmptyRelations>
-	extends BaseSQLiteDatabase<'sync', SQLJsRunResult, TRelations>
+	extends SQLiteAsyncDatabase<'sync', SQLJsRunResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'SQLJsDatabase';
 }
