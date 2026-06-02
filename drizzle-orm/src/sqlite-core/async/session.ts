@@ -90,6 +90,7 @@ export class SQLiteAsyncPreparedQuery<T extends SQLiteAsyncPreparedQueryConfig> 
 	protected override async queryWithCache<T>(
 		queryString: string,
 		params: any[],
+		executeMethod: SQLiteExecuteMethod,
 		query: () => Promise<T>,
 	): Promise<T> {
 		const cacheStrat = this.cache !== undefined && !is(this.cache, NoopCache)
@@ -115,7 +116,9 @@ export class SQLiteAsyncPreparedQuery<T extends SQLiteAsyncPreparedQueryConfig> 
 		}
 
 		if (cacheStrat.type === 'try') {
-			const { tables, key, isTag, autoInvalidate, config } = cacheStrat;
+			const { tables, key: _key, isTag, autoInvalidate, config } = cacheStrat;
+			const key = `${executeMethod}_${_key}`;
+
 			const fromCache = await cache.get(
 				key,
 				tables,
@@ -166,7 +169,7 @@ export class SQLiteAsyncPreparedQuery<T extends SQLiteAsyncPreparedQueryConfig> 
 			? (<SQLiteQueryExecutors<'async'>> executors).run(params).catch((e) => {
 				throw new DrizzleQueryError(sql, params, e as Error);
 			})
-			: this.queryWithCache(sql, params, () => (<SQLiteQueryExecutors<'async'>> executors).run(params));
+			: this.queryWithCache(sql, params, 'run', () => (<SQLiteQueryExecutors<'async'>> executors).run(params));
 	}
 
 	override all(placeholderValues: Record<string, unknown> = {}): Result<T['type'], T['all']> {
@@ -193,7 +196,7 @@ export class SQLiteAsyncPreparedQuery<T extends SQLiteAsyncPreparedQueryConfig> 
 			? (<SQLiteQueryExecutors<'async'>> executors).all(params).catch((e) => {
 				throw new DrizzleQueryError(sql, params, e as Error);
 			})
-			: this.queryWithCache(sql, params, () => (<SQLiteQueryExecutors<'async'>> executors).all(params));
+			: this.queryWithCache(sql, params, 'all', () => (<SQLiteQueryExecutors<'async'>> executors).all(params));
 		if (!mapper) return res;
 
 		return res.then((rows) => mapper(rows)) as Result<T['type'], T['all']>;
@@ -225,7 +228,7 @@ export class SQLiteAsyncPreparedQuery<T extends SQLiteAsyncPreparedQueryConfig> 
 			? (<SQLiteQueryExecutors<'async'>> executors).get(params).catch((e) => {
 				throw new DrizzleQueryError(sql, params, e as Error);
 			})
-			: this.queryWithCache(sql, params, () => (<SQLiteQueryExecutors<'async'>> executors).get(params));
+			: this.queryWithCache(sql, params, 'get', () => (<SQLiteQueryExecutors<'async'>> executors).get(params));
 
 		// Convert potential nulls from drivers to undefined
 		if (!mapper) return res.then((row) => row ? row : undefined);
@@ -253,7 +256,7 @@ export class SQLiteAsyncPreparedQuery<T extends SQLiteAsyncPreparedQueryConfig> 
 			? (<SQLiteQueryExecutors<'async'>> executors).values(params).catch((e) => {
 				throw new DrizzleQueryError(sql, params, e as Error);
 			})
-			: this.queryWithCache(sql, params, () => (<SQLiteQueryExecutors<'async'>> executors).values(params));
+			: this.queryWithCache(sql, params, 'values', () => (<SQLiteQueryExecutors<'async'>> executors).values(params));
 
 		return res;
 	}

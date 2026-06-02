@@ -1,4 +1,4 @@
-import { assert, expect, expectTypeOf, it, Vitest } from '@effect/vitest';
+import { assert, expect, expectTypeOf, it, vi, Vitest } from '@effect/vitest';
 import {
 	and,
 	asc,
@@ -45,6 +45,7 @@ import * as Ref from 'effect/Ref';
 import * as Result from 'effect/Result';
 import { SqlClient } from 'effect/unstable/sql/SqlClient';
 import { SqlError } from 'effect/unstable/sql/SqlError';
+import { TestCache } from './instrumentation';
 import relations from './relations';
 import { rqbPost, rqbUser } from './schema';
 
@@ -2374,6 +2375,66 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				const ops = yield* Ref.get(cacheOperations);
 				expect(ops.some((o) => o.op === 'mutate')).toBe(true);
 				expect(ops.some((o) => o.op === 'get')).toBe(true);
+			}));
+
+		it.effect('Cache: write + query all methods & verify data intergrity', () =>
+			Effect.gen(function*() {
+				const baseCache = new TestCache('explicit');
+
+				using spyPut = vi.spyOn(baseCache, 'put');
+				using spyGet = vi.spyOn(baseCache, 'get');
+				using spyInvalidate = vi.spyOn(baseCache, 'onMutate');
+
+				const customCacheLayer = EffectCache.layerFromDrizzle(baseCache);
+				const db = yield* SQLiteDrizzle.make({ relations }).pipe(
+					Effect.provide(customCacheLayer),
+					Effect.provide(SQLiteDrizzle.DefaultServices),
+				);
+
+				const users = sqliteTable('users_custom_cache_2', {
+					id: integer('id').primaryKey(),
+					name: text('name').notNull(),
+				});
+
+				yield* push(db, { users });
+				yield* db.insert(users).values({ name: 'John' });
+
+				expect(spyPut).toHaveBeenCalledTimes(0);
+				expect(spyGet).toHaveBeenCalledTimes(0);
+				expect(spyInvalidate).toHaveBeenCalledTimes(1);
+
+				spyPut.mockClear();
+				spyGet.mockClear();
+				spyInvalidate.mockClear();
+
+				const qRaw = db.select().from(users).prepare();
+				const qCache = db.select().from(users).$withCache({ config: { ex: 120 } }).prepare();
+
+				const [_all, _get, _run, _values] = [
+					yield* qRaw.all(),
+					yield* qRaw.get(),
+					yield* qRaw.run(),
+					yield* qRaw.values(),
+				];
+				const [all, get, run, values] = [
+					yield* qCache.all(),
+					yield* qCache.get(),
+					yield* qCache.run(),
+					yield* qCache.values(),
+				];
+
+				expect(all).toStrictEqual(_all);
+				expect(get).toStrictEqual(_get);
+				expect(run).toStrictEqual(_run);
+				expect(values).toStrictEqual(_values);
+
+				expect(spyPut).toHaveBeenCalledTimes(4);
+				expect(spyGet).toHaveBeenCalledTimes(4);
+				expect(spyInvalidate).toHaveBeenCalledTimes(0);
+
+				spyPut.mockClear();
+				spyGet.mockClear();
+				spyInvalidate.mockClear();
 			}));
 
 		it.effect('makeWithDefaults - convenience function that includes DefaultServices', () =>

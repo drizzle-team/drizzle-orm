@@ -54,6 +54,7 @@ export abstract class SQLitePreparedQuery implements PreparedQuery {
 	protected abstract queryWithCache(
 		queryString: string,
 		params: any[],
+		executeMethod: SQLiteExecuteMethod,
 		query: unknown,
 	): unknown;
 }

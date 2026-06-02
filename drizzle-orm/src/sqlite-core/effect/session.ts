@@ -72,7 +72,7 @@ export class SQLiteEffectPreparedQuery<
 
 			yield* logger.logQuery(sql, params);
 
-			return yield* this.queryWithCache(sql, params, Effect.suspend(() => executors.run(params)));
+			return yield* this.queryWithCache(sql, params, 'run', Effect.suspend(() => executors.run(params)));
 		}) as QueryEffectKind<TEffectHKT, T['run']>;
 	}
 
@@ -86,7 +86,7 @@ export class SQLiteEffectPreparedQuery<
 
 			yield* logger.logQuery(sql, params);
 
-			const rows = yield* this.queryWithCache(sql, params, Effect.suspend(() => executors.all(params)));
+			const rows = yield* this.queryWithCache(sql, params, 'all', Effect.suspend(() => executors.all(params)));
 
 			return mapper ? mapper(rows as unknown[]) : rows;
 		}) as QueryEffectKind<TEffectHKT, T['all']>;
@@ -102,7 +102,7 @@ export class SQLiteEffectPreparedQuery<
 
 			yield* logger.logQuery(sql, params);
 
-			const row = yield* this.queryWithCache(sql, params, Effect.suspend(() => executors.get(params)));
+			const row = yield* this.queryWithCache(sql, params, 'get', Effect.suspend(() => executors.get(params)));
 
 			if (!row) return;
 			if (!mapper) return row;
@@ -120,7 +120,7 @@ export class SQLiteEffectPreparedQuery<
 
 			yield* logger.logQuery(sql, params);
 
-			return yield* this.queryWithCache(sql, params, Effect.suspend(() => executors.values(params)));
+			return yield* this.queryWithCache(sql, params, 'values', Effect.suspend(() => executors.values(params)));
 		}) as QueryEffectKind<TEffectHKT, T['values']>;
 	}
 
@@ -131,6 +131,7 @@ export class SQLiteEffectPreparedQuery<
 	protected override queryWithCache<A, E, R>(
 		queryString: string,
 		params: any[],
+		executeMethod: SQLiteExecuteMethod,
 		query: Effect.Effect<A, E, R>,
 	) {
 		return Effect.gen({ self: this }, function*() {
@@ -156,7 +157,9 @@ export class SQLiteEffectPreparedQuery<
 			}
 
 			if (cacheStrat.type === 'try') {
-				const { tables, key, isTag, autoInvalidate, config } = cacheStrat;
+				const { tables, key: _key, isTag, autoInvalidate, config } = cacheStrat;
+				const key = `${executeMethod}_${_key}`;
+
 				const fromCache: any[] | undefined = yield* cache!.get(
 					key,
 					tables,

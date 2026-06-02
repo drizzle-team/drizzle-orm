@@ -52,7 +52,9 @@
 		"@effect/sql-pg": ">=4.0.0-beta.58 || >=4.0.0",
 		"@effect/sql-pglite": ">=4.0.0-beta.58 || >=4.0.0",
 		"@effect/sql-sqlite-bun": ">=4.0.0-beta.58 || >=4.0.0",
+		"@effect/sql-sqlite-do": ">=4.0.0-beta.58 || >=4.0.0",
 		"@effect/sql-sqlite-node": ">=4.0.0-beta.58 || >=4.0.0",
+		"@effect/sql-sqlite-wasm": ">=4.0.0-beta.58 || >=4.0.0",
 		"@electric-sql/pglite": ">=0.2.0",
 		"@libsql/client": ">=0.10.0",
 		"@libsql/client-wasm": ">=0.10.0",
@@ -198,10 +200,16 @@
 		"@effect/sql-pglite": {
 			"optional": true
 		},
+		"@effect/sql-sqlite-bun": {
+			"optional": true
+		},
+		"@effect/sql-sqlite-do": {
+			"optional": true
+		},
 		"@effect/sql-sqlite-node": {
 			"optional": true
 		},
-		"@effect/sql-sqlite-bun": {
+		"@effect/sql-sqlite-wasm": {
 			"optional": true
 		},
 		"@effect/sql-libsql": {
@@ -226,7 +234,9 @@
 		"@effect/sql-pg": "4.0.0-beta.58",
 		"@effect/sql-pglite": "4.0.0-beta.58",
 		"@effect/sql-sqlite-bun": "4.0.0-beta.58",
+		"@effect/sql-sqlite-do": "4.0.0-beta.58",
 		"@effect/sql-sqlite-node": "4.0.0-beta.58",
+		"@effect/sql-sqlite-wasm": "4.0.0-beta.58",
 		"@electric-sql/pglite": "^0.4.6",
 		"@libsql/client": "^0.10.0",
 		"@libsql/client-wasm": "^0.10.0",
