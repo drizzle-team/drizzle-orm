@@ -10,6 +10,7 @@ import { PgEffectInsertBase, type PgEffectInsertHKT } from '~/pg-core/effect/ins
 import { PgEffectSelectBase, type PgEffectSelectBuilder } from '~/pg-core/effect/select.ts';
 import { PgInsertBuilder } from '~/pg-core/query-builders/insert.ts';
 import { RelationalQueryBuilder } from '~/pg-core/query-builders/query.ts';
+import { PgSelectBuilder } from '~/pg-core/query-builders/select.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { PgViewBase } from '~/pg-core/view-base.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -219,12 +220,12 @@ export class PgEffectDatabase<
 		function select<TSelection extends SelectedFields>(
 			fields?: TSelection,
 		): PgEffectSelectBuilder<TSelection | undefined, TEffectHKT> {
-			return new PgEffectSelectBase({
+			return new PgSelectBuilder({
 				fields: fields ?? undefined,
 				session: self.session,
 				dialect: self.dialect,
 				withList: queries,
-			});
+			}, PgEffectSelectBase);
 		}
 
 		/**
@@ -258,13 +259,13 @@ export class PgEffectDatabase<
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields?: TSelection,
 		): PgEffectSelectBuilder<TSelection | undefined, TEffectHKT> {
-			return new PgEffectSelectBase({
+			return new PgSelectBuilder({
 				fields: fields ?? undefined,
 				session: self.session,
 				dialect: self.dialect,
 				withList: queries,
 				distinct: true,
-			});
+			}, PgEffectSelectBase);
 		}
 
 		/**
@@ -301,13 +302,13 @@ export class PgEffectDatabase<
 			on: (PgColumn | SQLWrapper)[],
 			fields?: TSelection,
 		): PgEffectSelectBuilder<TSelection | undefined, TEffectHKT> {
-			return new PgEffectSelectBase({
+			return new PgSelectBuilder({
 				fields: fields ?? undefined,
 				session: self.session,
 				dialect: self.dialect,
 				withList: queries,
 				distinct: { on },
-			});
+			}, PgEffectSelectBase);
 		}
 
 		/**
@@ -447,11 +448,11 @@ export class PgEffectDatabase<
 	select<TSelection extends SelectedFields | undefined>(
 		fields?: TSelection,
 	): PgEffectSelectBuilder<TSelection, TEffectHKT> {
-		return new PgEffectSelectBase({
+		return new PgSelectBuilder({
 			fields: fields ?? undefined,
 			session: this.session,
 			dialect: this.dialect,
-		});
+		}, PgEffectSelectBase) as PgEffectSelectBuilder<TSelection, TEffectHKT>;
 	}
 
 	/**
@@ -483,12 +484,12 @@ export class PgEffectDatabase<
 	selectDistinct<TSelection extends SelectedFields | undefined>(
 		fields?: TSelection,
 	): PgEffectSelectBuilder<TSelection | undefined, TEffectHKT> {
-		return new PgEffectSelectBase({
+		return new PgSelectBuilder({
 			fields: fields ?? undefined,
 			session: this.session,
 			dialect: this.dialect,
 			distinct: true,
-		});
+		}, PgEffectSelectBase);
 	}
 
 	/**
@@ -525,12 +526,12 @@ export class PgEffectDatabase<
 		on: (PgColumn | SQLWrapper)[],
 		fields?: TSelection,
 	): PgEffectSelectBuilder<TSelection, TEffectHKT> {
-		return new PgEffectSelectBase({
+		return new PgSelectBuilder({
 			fields: fields ?? undefined,
 			session: this.session,
 			dialect: this.dialect,
 			distinct: { on },
-		});
+		}, PgEffectSelectBase) as PgEffectSelectBuilder<TSelection, TEffectHKT>;
 	}
 
 	/**

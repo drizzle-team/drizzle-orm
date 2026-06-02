@@ -49,8 +49,6 @@ const skip = new Set([
 	'set operations (union all) as function',
 	'set operations (union) as function',
 	'tc config for datetime',
-	'select iterator w/ prepared statement',
-	'select iterator',
 	'transaction',
 	'transaction with options (set isolationLevel)',
 	'Insert all defaults in multiple rows',
@@ -67,6 +65,8 @@ const skip = new Set([
 	'left join (lateral)',
 	'update with returning all fields + partial',
 	'insert+update+delete returning sql',
+	'RQB v2 find many - bigint precision loss',
+	'select from a one subquery',
 	'all types',
 ]);
 
@@ -117,7 +117,7 @@ describe('migrator', () => {
 
 		expect(migratorRes).toStrictEqual(undefined);
 		expect(meta.length).toStrictEqual(1);
-		expect(!!res[0]?.[0]?.tableExists).toStrictEqual(false);
+		expect(!!res.rows[0]?.tableExists).toStrictEqual(false);
 	});
 
 	test('migrator : --init - local migrations error', async ({ db }) => {
@@ -148,7 +148,7 @@ describe('migrator', () => {
 
 		expect(migratorRes).toStrictEqual({ exitCode: 'localMigrations' });
 		expect(meta.length).toStrictEqual(0);
-		expect(!!res[0]?.[0]?.tableExists).toStrictEqual(false);
+		expect(!!res.rows[0]?.tableExists).toStrictEqual(false);
 	});
 
 	test('migrator : --init - db migrations error', async ({ db }) => {
@@ -184,7 +184,7 @@ describe('migrator', () => {
 
 		expect(migratorRes).toStrictEqual({ exitCode: 'databaseMigrations' });
 		expect(meta.length).toStrictEqual(1);
-		expect(!!res[0]?.[0]?.tableExists).toStrictEqual(true);
+		expect(!!res.rows[0]?.tableExists).toStrictEqual(true);
 	});
 
 	test('managing multiple databases #1', async ({ db }) => {

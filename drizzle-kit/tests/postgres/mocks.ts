@@ -66,7 +66,7 @@ import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { DB } from 'src/utils';
 import 'zx/globals';
 import { relationsToTypeScript } from 'src/cli/commands/pull-common';
-import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/cli';
+import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/common';
 import { extractPostgresExisting } from 'src/dialects/drizzle';
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
 import { PostgresSnapshot } from 'src/dialects/postgres/snapshot';

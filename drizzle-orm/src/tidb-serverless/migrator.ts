@@ -3,10 +3,10 @@ import { readMigrationFiles } from '~/migrator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { TiDBServerlessDatabase } from './driver.ts';
 
-export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: TiDBServerlessDatabase<TSchema, TRelations>,
+export async function migrate<TRelations extends AnyRelations>(
+	db: TiDBServerlessDatabase<TRelations>,
 	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);
-	return await db.dialect.migrate(migrations, db.session, config);
+	return db.dialect.migrate(migrations, db.session, config);
 }

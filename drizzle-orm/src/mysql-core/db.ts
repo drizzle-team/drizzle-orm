@@ -1,5 +1,4 @@
 import type { ResultSetHeader } from 'mysql2/promise';
-import type * as V1 from '~/_relations.ts';
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -7,9 +6,7 @@ import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
-import type { DrizzleTypeError } from '~/utils.ts';
 import type { MySqlDialect } from './dialect.ts';
-import { _RelationalQueryBuilder } from './query-builders/_query.ts';
 import { MySqlCountBuilder } from './query-builders/count.ts';
 import {
 	MySqlDeleteBase,
@@ -21,13 +18,11 @@ import {
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import type {
-	Mode,
 	MySqlQueryResultHKT,
 	MySqlQueryResultKind,
 	MySqlSession,
 	MySqlTransaction,
 	MySqlTransactionConfig,
-	PreparedQueryHKTBase,
 } from './session.ts';
 import type { WithBuilder } from './subquery.ts';
 import type { MySqlTable } from './table.ts';
@@ -36,31 +31,18 @@ import type { MySqlView } from './view.ts';
 
 export class MySqlDatabase<
 	TQueryResult extends MySqlQueryResultHKT,
-	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > {
 	static readonly [entityKind]: string = 'MySqlDatabase';
 
 	declare readonly _: {
-		readonly schema: TSchema | undefined;
-		readonly fullSchema: TFullSchema;
 		readonly relations: TRelations;
-		readonly tableNamesMap: Record<string, string>;
+		readonly session: MySqlSession<TQueryResult, TRelations>;
 	};
-
-	/** @deprecated */
-	_query: TFullSchema extends Record<string, never>
-		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
-		: {
-			[K in keyof TSchema]: _RelationalQueryBuilder<TPreparedQueryHKT, TSchema, TSchema[K]>;
-		};
 
 	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
 	query: {
 		[K in keyof TRelations]: RelationalQueryBuilder<
-			TPreparedQueryHKT,
 			TRelations,
 			TRelations[K]
 		>;
@@ -70,48 +52,18 @@ export class MySqlDatabase<
 		/** @internal */
 		readonly dialect: MySqlDialect,
 		/** @internal */
-		readonly session: MySqlSession<any, any, any, any, any>,
+		readonly session: MySqlSession<any, any>,
 		relations: TRelations,
-		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
-		protected readonly mode: Mode,
 	) {
-		this._ = schema
-			? {
-				schema: schema.schema,
-				fullSchema: schema.fullSchema as TFullSchema,
-				tableNamesMap: schema.tableNamesMap,
-				relations,
-			}
-			: {
-				schema: undefined,
-				fullSchema: {} as TFullSchema,
-				tableNamesMap: {},
-				relations,
-			};
-		this._query = {} as typeof this['_query'];
-		if (this._.schema) {
-			for (const [tableName, columns] of Object.entries(this._.schema)) {
-				(this._query as MySqlDatabase<TQueryResult, TPreparedQueryHKT, Record<string, any>>['_query'])[tableName] =
-					new _RelationalQueryBuilder(
-						schema!.fullSchema,
-						this._.schema,
-						this._.tableNamesMap,
-						schema!.fullSchema[tableName] as MySqlTable,
-						columns,
-						dialect,
-						session,
-						this.mode,
-					);
-			}
-		}
+		this._ = {
+			relations,
+			session,
+		};
 		this.query = {} as typeof this['query'];
 		for (const [tableName, relation] of Object.entries(relations)) {
 			(this.query as MySqlDatabase<
 				TQueryResult,
-				TPreparedQueryHKT,
-				TSchema,
-				AnyRelations,
-				V1.TablesRelationalConfig
+				AnyRelations
 			>['query'])[
 				tableName
 			] = new RelationalQueryBuilder(
@@ -187,7 +139,7 @@ export class MySqlDatabase<
 		source: MySqlTable | MySqlViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	) {
-		return new MySqlCountBuilder({ source, filters, session: this.session });
+		return new MySqlCountBuilder({ source, filters, session: this.session, dialect: this.dialect });
 	}
 
 	$cache: { invalidate: Cache['onMutate'] };
@@ -250,11 +202,11 @@ export class MySqlDatabase<
 		 *   .from(cars);
 		 * ```
 		 */
-		function select(): MySqlSelectBuilder<undefined, TPreparedQueryHKT>;
+		function select(): MySqlSelectBuilder<undefined>;
 		function select<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
-		function select(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
+		): MySqlSelectBuilder<TSelection>;
+		function select(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined> {
 			return new MySqlSelectBuilder({
 				fields: fields ?? undefined,
 				session: self.session,
@@ -287,13 +239,13 @@ export class MySqlDatabase<
 		 *   .orderBy(cars.brand);
 		 * ```
 		 */
-		function selectDistinct(): MySqlSelectBuilder<undefined, TPreparedQueryHKT>;
+		function selectDistinct(): MySqlSelectBuilder<undefined>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
+		): MySqlSelectBuilder<TSelection>;
 		function selectDistinct(
 			fields?: SelectedFields,
-		): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
+		): MySqlSelectBuilder<SelectedFields | undefined> {
 			return new MySqlSelectBuilder({
 				fields: fields ?? undefined,
 				session: self.session,
@@ -326,7 +278,7 @@ export class MySqlDatabase<
 		 */
 		function update<TTable extends MySqlTable>(
 			table: TTable,
-		): MySqlUpdateBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
+		): MySqlUpdateBuilder<TTable, TQueryResult> {
 			return new MySqlUpdateBuilder(table, self.session, self.dialect, queries);
 		}
 
@@ -351,7 +303,7 @@ export class MySqlDatabase<
 		 */
 		function delete_<TTable extends MySqlTable>(
 			table: TTable,
-		): MySqlDeleteBase<TTable, TQueryResult, TPreparedQueryHKT> {
+		): MySqlDeleteBase<TTable, TQueryResult> {
 			return new MySqlDeleteBase(table, self.session, self.dialect, queries);
 		}
 
@@ -394,9 +346,9 @@ export class MySqlDatabase<
 	 *   .from(cars);
 	 * ```
 	 */
-	select(): MySqlSelectBuilder<undefined, TPreparedQueryHKT>;
-	select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
-	select(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
+	select(): MySqlSelectBuilder<undefined>;
+	select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection>;
+	select(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined> {
 		return new MySqlSelectBuilder({ fields: fields ?? undefined, session: this.session, dialect: this.dialect });
 	}
 
@@ -424,11 +376,11 @@ export class MySqlDatabase<
 	 *   .orderBy(cars.brand);
 	 * ```
 	 */
-	selectDistinct(): MySqlSelectBuilder<undefined, TPreparedQueryHKT>;
+	selectDistinct(): MySqlSelectBuilder<undefined>;
 	selectDistinct<TSelection extends SelectedFields>(
 		fields: TSelection,
-	): MySqlSelectBuilder<TSelection, TPreparedQueryHKT>;
-	selectDistinct(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined, TPreparedQueryHKT> {
+	): MySqlSelectBuilder<TSelection>;
+	selectDistinct(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined> {
 		return new MySqlSelectBuilder({
 			fields: fields ?? undefined,
 			session: this.session,
@@ -458,7 +410,7 @@ export class MySqlDatabase<
 	 * await db.update(cars).set({ color: 'red' }).where(eq(cars.brand, 'BMW'));
 	 * ```
 	 */
-	update<TTable extends MySqlTable>(table: TTable): MySqlUpdateBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
+	update<TTable extends MySqlTable>(table: TTable): MySqlUpdateBuilder<TTable, TQueryResult> {
 		return new MySqlUpdateBuilder(table, this.session, this.dialect);
 	}
 
@@ -481,7 +433,7 @@ export class MySqlDatabase<
 	 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
 	 * ```
 	 */
-	insert<TTable extends MySqlTable>(table: TTable): MySqlInsertBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
+	insert<TTable extends MySqlTable>(table: TTable): MySqlInsertBuilder<TTable, TQueryResult> {
 		return new MySqlInsertBuilder(table, this.session, this.dialect);
 	}
 
@@ -504,7 +456,7 @@ export class MySqlDatabase<
 	 * await db.delete(cars).where(eq(cars.color, 'green'));
 	 * ```
 	 */
-	delete<TTable extends MySqlTable>(table: TTable): MySqlDeleteBase<TTable, TQueryResult, TPreparedQueryHKT> {
+	delete<TTable extends MySqlTable>(table: TTable): MySqlDeleteBase<TTable, TQueryResult> {
 		return new MySqlDeleteBase(table, this.session, this.dialect);
 	}
 
@@ -516,7 +468,7 @@ export class MySqlDatabase<
 
 	transaction<T>(
 		transaction: (
-			tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TRelations, TSchema>,
+			tx: MySqlTransaction<TQueryResult, TRelations>,
 			config?: MySqlTransactionConfig,
 		) => Promise<T>,
 		config?: MySqlTransactionConfig,
@@ -529,17 +481,8 @@ export type MySQLWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
 
 export const withReplicas = <
 	HKT extends MySqlQueryResultHKT,
-	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-	Q extends MySqlDatabase<
-		HKT,
-		TPreparedQueryHKT,
-		TFullSchema,
-		TRelations,
-		TSchema extends Record<string, unknown> ? V1.ExtractTablesWithRelations<TFullSchema> : TSchema
-	>,
+	Q extends MySqlDatabase<HKT, TRelations>,
 >(
 	primary: Q,
 	replicas: [Q, ...Q[]],
@@ -569,9 +512,6 @@ export const withReplicas = <
 		selectDistinct,
 		$count,
 		with: $with,
-		get _query() {
-			return getReplica(replicas)._query;
-		},
 		get query() {
 			return getReplica(replicas).query;
 		},

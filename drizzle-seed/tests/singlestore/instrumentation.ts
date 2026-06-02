@@ -1,6 +1,5 @@
-import type { MySqlDatabase } from 'drizzle-orm/mysql-core';
 import type { AnyMySql2Connection } from 'drizzle-orm/mysql2';
-import { drizzle } from 'drizzle-orm/singlestore';
+import { drizzle, SingleStoreDatabase } from 'drizzle-orm/singlestore';
 import { createConnection } from 'mysql2/promise';
 import { test as base } from 'vitest';
 
@@ -28,7 +27,7 @@ const prepareTest = () => {
 				query: (sql: string, params: any[]) => Promise<any[]>;
 				batch: (statements: string[]) => Promise<void>;
 			};
-			db: MySqlDatabase<any, any, any, any>;
+			db: SingleStoreDatabase<any, any, any, any>;
 			push: (schema: any) => Promise<void>;
 		}
 	>({

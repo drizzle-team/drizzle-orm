@@ -1,8 +1,9 @@
 import type { SQL } from 'bun';
+import type { DrizzleMySqlConfig } from '~/mysql-core/utils.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
-import { type BunMySqlDatabase, type BunMySqlDrizzleConfig, drizzle as mysqlConstructor } from './mysql/driver.ts';
+import { type BunMySqlDatabase, drizzle as mysqlConstructor } from './mysql/driver.ts';
 import { type BunSQLDatabase, drizzle as postgresConstructor } from './postgres/driver.ts';
 import { type BunSQLiteDatabase, drizzle as sqliteConstructor } from './sqlite/driver.ts';
 
@@ -113,7 +114,6 @@ export namespace drizzle {
 	}
 
 	export function mysql<
-		TSchema extends Record<string, unknown> = Record<string, never>,
 		TRelations extends AnyRelations = EmptyRelations,
 		TClient extends SQL = SQL,
 	>(
@@ -121,10 +121,10 @@ export namespace drizzle {
 			string,
 		] | [
 			string,
-			BunMySqlDrizzleConfig<TSchema, TRelations>,
+			DrizzleMySqlConfig<TRelations>,
 		] | [
 			(
-				& BunMySqlDrizzleConfig<TSchema, TRelations>
+				& DrizzleMySqlConfig<TRelations>
 				& ({
 					connection: string | ({ url?: string } & SQL.Options);
 				} | {
@@ -132,22 +132,21 @@ export namespace drizzle {
 				})
 			),
 		]
-	): BunMySqlDatabase<TSchema, TRelations> & {
+	): BunMySqlDatabase<TRelations> & {
 		$client: TClient;
 	} {
-		return mysqlConstructor(...params) as BunMySqlDatabase<TSchema, TRelations> & {
+		return mysqlConstructor(...params) as BunMySqlDatabase<TRelations> & {
 			$client: TClient;
 		};
 	}
 
 	export namespace mysql {
 		export function mock<
-			TSchema extends Record<string, unknown> = Record<string, never>,
 			TRelations extends AnyRelations = EmptyRelations,
-		>(config?: BunMySqlDrizzleConfig<TSchema, TRelations>): BunMySqlDatabase<TSchema, TRelations> & {
+		>(config?: DrizzleMySqlConfig<TRelations>): BunMySqlDatabase<TRelations> & {
 			$client: '$client is not available on drizzle.mock()';
 		} {
-			return mysqlConstructor.mock(config) as BunMySqlDatabase<TSchema, TRelations> & {
+			return mysqlConstructor.mock(config) as BunMySqlDatabase<TRelations> & {
 				$client: '$client is not available on drizzle.mock()';
 			};
 		}

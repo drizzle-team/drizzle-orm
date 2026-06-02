@@ -23,8 +23,8 @@ import type { DB } from '../../utils';
 import { highlightSQL } from '../highlighter';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
-import type { EntitiesFilterConfig } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
+import type { EntitiesFilterConfig } from '../validations/common';
 import { cockroachSchemaError, explain, postgresSchemaWarning, ProgressView } from '../views';
 
 export const handle = async (

@@ -496,7 +496,6 @@ export const loadModule = async <T = unknown>(
 		});
 		return jiti.import(absoluteModulePath);
 	}
-
 	const fileUrl = pathToFileURL(absoluteModulePath).href;
 	const mod = await import(fileUrl);
 	return mod.default ?? mod;

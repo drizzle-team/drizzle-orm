@@ -1,7 +1,6 @@
 import { type Equal, Expect } from 'type-tests/utils';
 import { type InferInsertModel, type InferSelectModel, sql } from '~/index';
 import { mysqlTable, serial, text, varchar } from '~/mysql-core';
-import { drizzle } from '~/mysql2';
 import { db } from './db';
 
 const users = mysqlTable(
@@ -94,46 +93,6 @@ const users = mysqlTable(
 				upperName: string | null;
 			}[],
 			typeof dbUsers
-		>
-	>();
-}
-
-{
-	const db = drizzle({} as any, { schema: { users }, mode: 'default' });
-
-	const dbUser = await db._query.users.findFirst();
-
-	Expect<
-		Equal<
-			{
-				id: number;
-				firstName: string | null;
-				lastName: string | null;
-				email: string;
-				fullName: string | null;
-				upperName: string | null;
-			} | undefined,
-			typeof dbUser
-		>
-	>();
-}
-
-{
-	const db = drizzle({} as any, { schema: { users }, mode: 'default' });
-
-	const dbUser = await db._query.users.findMany();
-
-	Expect<
-		Equal<
-			{
-				id: number;
-				firstName: string | null;
-				lastName: string | null;
-				email: string;
-				fullName: string | null;
-				upperName: string | null;
-			}[],
-			typeof dbUser
 		>
 	>();
 }

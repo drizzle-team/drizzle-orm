@@ -20,7 +20,7 @@ import { DB } from 'src/utils';
 import { v4 as uuid } from 'uuid';
 import 'zx/globals';
 import { suggestions } from 'src/cli/commands/push-mssql';
-import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/cli';
+import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/common';
 import { hash } from 'src/dialects/common';
 import { extractMssqlExisting } from 'src/dialects/drizzle';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';

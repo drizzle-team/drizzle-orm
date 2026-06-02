@@ -222,8 +222,7 @@ export type PgSetOperatorExcludedMethods =
 	| 'where'
 	| 'having'
 	| 'groupBy'
-	| 'for'
-	| 'from';
+	| 'for';
 
 export type PgSelectWithout<
 	T extends AnyPgSelectQueryBuilder,

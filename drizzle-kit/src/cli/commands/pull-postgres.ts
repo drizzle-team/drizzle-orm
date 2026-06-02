@@ -31,7 +31,7 @@ import type { DB } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
 import type { preparePostgresDB } from '../connections';
 import { resolver } from '../prompts';
-import type { EntitiesFilterConfig } from '../validations/cli';
+import type { EntitiesFilterConfig } from '../validations/common';
 import type { Casing } from '../validations/common';
 import type { PostgresCredentials } from '../validations/postgres';
 import type { IntrospectStage, IntrospectStatus } from '../views';
