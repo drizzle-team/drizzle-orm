@@ -7,7 +7,7 @@ import { entityKind } from '~/entity.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteEffectDatabase } from '~/sqlite-core/effect/db.ts';
-import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
+import type { EffectDrizzleSQLiteConfig } from '~/sqlite-core/effect/utils.ts';
 import { jitCompatCheck } from '~/utils.ts';
 import {
 	type EffectSQLiteNodeQueryEffectHKT,
@@ -21,10 +21,6 @@ export class EffectSQLiteNodeDatabase<TRelations extends AnyRelations = EmptyRel
 {
 	static override readonly [entityKind]: string = 'EffectSQLiteNodeDatabase';
 }
-
-export type EffectDrizzleSQLiteConfig<
-	TRelations extends AnyRelations = EmptyRelations,
-> = Omit<DrizzleSQLiteConfig<TRelations>, 'cache' | 'logger'>;
 
 /**
  * Creates an EffectSQLiteNodeDatabase instance.

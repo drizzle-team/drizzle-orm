@@ -6,7 +6,7 @@ import { EffectLogger } from '~/effect-core/index.ts';
 import { entityKind } from '~/entity.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectDatabase } from '~/pg-core/effect/db.ts';
-import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
+import type { EffectDrizzlePgConfig } from '~/pg-core/effect/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
 import { effectPgCodecs } from './codecs.ts';
@@ -18,10 +18,6 @@ export class EffectPgDatabase<TRelations extends AnyRelations = EmptyRelations>
 {
 	static override readonly [entityKind]: string = 'EffectPgDatabase';
 }
-
-export type EffectDrizzlePgConfig<
-	TRelations extends AnyRelations = EmptyRelations,
-> = Omit<DrizzlePgConfig<TRelations>, 'cache' | 'logger'>;
 
 /**
  * Creates an EffectPgDatabase instance.

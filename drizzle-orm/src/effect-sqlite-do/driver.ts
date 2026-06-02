@@ -1,4 +1,5 @@
-import { SqliteClient } from '@effect/sql-sqlite-bun/SqliteClient';
+/// <reference types="@cloudflare/workers-types" />
+import { SqliteClient } from '@effect/sql-sqlite-do/SqliteClient';
 import * as Effect from 'effect/Effect';
 import { EffectCache } from '~/cache/core/cache-effect.ts';
 import { DefaultServices } from '~/effect-core/defaults.ts';
@@ -9,21 +10,22 @@ import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteEffectDatabase } from '~/sqlite-core/effect/db.ts';
 import type { EffectDrizzleSQLiteConfig } from '~/sqlite-core/effect/utils.ts';
 import { jitCompatCheck } from '~/utils.ts';
-import {
-	type EffectSQLiteBunQueryEffectHKT,
-	type EffectSQLiteBunRunResult,
-	EffectSQLiteBunSession,
-} from './session.ts';
+import { type EffectSQLiteDoQueryEffectHKT, type EffectSQLiteDoRunResult, EffectSQLiteDOSession } from './session.ts';
 export { DefaultServices } from '~/effect-core/defaults.ts';
 
-export class EffectSQLiteBunDatabase<TRelations extends AnyRelations = EmptyRelations>
-	extends SQLiteEffectDatabase<EffectSQLiteBunQueryEffectHKT, EffectSQLiteBunRunResult, TRelations>
+export class EffectSQLiteDoDatabase<TRelations extends AnyRelations = EmptyRelations>
+	extends SQLiteEffectDatabase<EffectSQLiteDoQueryEffectHKT, EffectSQLiteDoRunResult, TRelations>
 {
-	static override readonly [entityKind]: string = 'EffectSQLiteBunDatabase';
+	static override readonly [entityKind]: string = 'EffectSQLiteDoDatabase';
 }
 
+export type EffectDrizzleSQLiteDOConfig<TRelations extends AnyRelations> = EffectDrizzleSQLiteConfig<TRelations> & {
+	/** Required to make transactions functional by bypassing broken implementation from `@effect/sql-sqlite-do` wrapper */
+	storage: DurableObjectStorage;
+};
+
 /**
- * Creates an EffectSQLiteBunDatabase instance.
+ * Creates an EffectSQLiteDoDatabase instance.
  *
  * Requires `SqliteClient`, `EffectLogger`, and `EffectCache` services to be provided.
  * Use `DefaultServices` to provide default (no-op) logger and cache implementations.
@@ -31,27 +33,27 @@ export class EffectSQLiteBunDatabase<TRelations extends AnyRelations = EmptyRela
  * @example
  * ```ts
  * // With default services (no logging, no caching)
- * const db = yield* SQLiteBunDrizzle.make({ relations }).pipe(
- *   Effect.provide(SQLiteBunDrizzle.DefaultServices),
+ * const db = yield* SQLiteDODrizzle.make({ relations }).pipe(
+ *   Effect.provide(SQLiteDODrizzle.DefaultServices),
  * );
  *
  * // With Effect-based logging
- * const db = yield* SQLiteBunDrizzle.make({ relations }).pipe(
+ * const db = yield* SQLiteDODrizzle.make({ relations }).pipe(
  *   Effect.provide(EffectLogger.layer),
- *   Effect.provide(SQLiteBunDrizzle.DefaultServices),
+ *   Effect.provide(SQLiteDODrizzle.DefaultServices),
  * );
  *
  * // With custom Drizzle logger
- * const db = yield* SQLiteBunDrizzle.make({ relations }).pipe(
+ * const db = yield* SQLiteDODrizzle.make({ relations }).pipe(
  *   Effect.provide(EffectLogger.layerFromDrizzle(myLogger)),
- *   Effect.provide(SQLiteBunDrizzle.DefaultServices),
+ *   Effect.provide(SQLiteDODrizzle.DefaultServices),
  * );
  * ```
  */
-export const make = Effect.fn('SQLiteBunDrizzle.make')(
+export const make = Effect.fn('SQLiteDODrizzle.make')(
 	function*<
 		TRelations extends AnyRelations = EmptyRelations,
-	>(config: EffectDrizzleSQLiteConfig<TRelations> = {}) {
+	>(config: EffectDrizzleSQLiteDOConfig<TRelations>) {
 		const client = yield* SqliteClient;
 		const cache = yield* EffectCache;
 		const logger = yield* EffectLogger;
@@ -61,26 +63,27 @@ export const make = Effect.fn('SQLiteBunDrizzle.make')(
 		});
 
 		const relations = config.relations ?? {} as TRelations;
-		const session = new EffectSQLiteBunSession(client, dialect, relations, {
+		const session = new EffectSQLiteDOSession(client, dialect, relations, {
 			logger,
 			cache,
+			storage: config.storage,
 		});
-		const db = new EffectSQLiteBunDatabase(dialect, session, relations);
+		const db = new EffectSQLiteDoDatabase(dialect, session, relations);
 		(<any> db).$client = client;
 		(<any> db).$cache = cache;
 		if ((<any> db).$cache) {
 			(<any> db).$cache['invalidate'] = cache.onMutate;
 		}
 
-		return db as EffectSQLiteBunDatabase<TRelations> & {
+		return db as EffectSQLiteDoDatabase<TRelations> & {
 			$client: SqliteClient;
 		};
 	},
 );
 
 /**
- * Convenience function that creates an EffectSQLiteBunDatabase with `DefaultServices` already provided.
+ * Convenience function that creates an EffectSQLiteDoDatabase with `DefaultServices` already provided.
  */
 export const makeWithDefaults = <
 	TRelations extends AnyRelations = EmptyRelations,
->(config: EffectDrizzleSQLiteConfig<TRelations> = {}) => make(config).pipe(Effect.provide(DefaultServices));
+>(config: EffectDrizzleSQLiteDOConfig<TRelations>) => make(config).pipe(Effect.provide(DefaultServices));
