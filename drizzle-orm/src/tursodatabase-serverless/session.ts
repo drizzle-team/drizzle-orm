@@ -60,26 +60,26 @@ export class TursoDatabaseServerlessSession<TRelations extends AnyRelations>
 			? {
 				all: async (params) => {
 					stmt ??= await this.client.prepare(query.sql);
-					return stmt.raw(mode === 'arrays').all(...params);
+					return stmt.raw(mode === 'arrays').all(params);
 				},
 				get: async (params) => {
 					stmt ??= await this.client.prepare(query.sql);
-					return stmt.raw(mode === 'arrays').get(...params);
+					return stmt.raw(mode === 'arrays').get(params);
 				},
 				run: async (params) => {
 					stmt ??= await this.client.prepare(query.sql);
-					return stmt.run(...params);
+					return stmt.run(params);
 				},
 				values: async (params) => {
 					stmt ??= await this.client.prepare(query.sql);
-					return stmt.raw(true).all(...params);
+					return stmt.raw(true).all(params);
 				},
 			}
 			: {
 				all: async (params) => {
 					if (stmt || mode === 'arrays') {
 						stmt ??= await this.client.prepare(query.sql);
-						return stmt.raw(mode === 'arrays').all(...params);
+						return stmt.raw(mode === 'arrays').all(params);
 					}
 
 					return this.client.all(query.sql, ...params);
@@ -87,15 +87,15 @@ export class TursoDatabaseServerlessSession<TRelations extends AnyRelations>
 				get: async (params) => {
 					if (stmt || mode === 'arrays') {
 						stmt ??= await this.client.prepare(query.sql);
-						return stmt.raw(mode === 'arrays').get(...params);
+						return stmt.raw(mode === 'arrays').get(params);
 					}
 
 					return this.client.get(query.sql, ...params);
 				},
-				run: (params) => stmt ? stmt.run(...params) : this.client.run(query.sql, ...params),
+				run: (params) => stmt ? stmt.run(params) : this.client.run(query.sql, ...params),
 				values: async (params) => {
 					stmt ??= await this.client.prepare(query.sql);
-					return stmt.raw(true).all(...params);
+					return stmt.raw(true).all(params);
 				},
 			};
 
