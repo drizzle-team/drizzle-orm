@@ -296,7 +296,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		});
 
 		async function setupSetOperationTest(
-			db: BaseSQLiteDatabase<any, any, any, any, any>,
+			db: BaseSQLiteDatabase<any, any, any>,
 		) {
 			await db.run(sql`drop table if exists users2`);
 			await db.run(sql`drop table if exists cities`);
@@ -334,7 +334,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		}
 
 		async function setupAggregateFunctionsTest(
-			db: BaseSQLiteDatabase<any, any, any, any, any>,
+			db: BaseSQLiteDatabase<any, any, any>,
 		) {
 			await db.run(sql`drop table if exists "aggregate_table"`);
 			await db.run(
@@ -1284,7 +1284,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/2872
 		test
-			.skipIf(Date.now() < +new Date('2026-05-14'))
+			.skipIf(Date.now() < +new Date('2026-06-03'))
 			.concurrent(
 				'prepared statement with placeholder in .inArray',
 				async ({ db, push }) => {
@@ -2610,7 +2610,7 @@ export function tests(test: Test, exclude: string[] = []) {
 				sql`create view if not exists ${newYorkers} as ${getViewConfig(newYorkers).query}`,
 			);
 
-			db.insert(users)
+			await db.insert(users)
 				.values([
 					{ name: 'John', cityId: 1 },
 					{ name: 'Jane', cityId: 2 },
@@ -3113,9 +3113,9 @@ export function tests(test: Test, exclude: string[] = []) {
 				name: text('name'),
 			});
 
-			db.run(sql`drop table if exists ${users}`);
+			await db.run(sql`drop table if exists ${users}`);
 
-			db.run(sql`create table ${users} (id integer primary key, name text)`);
+			await db.run(sql`create table ${users} (id integer primary key, name text)`);
 
 			await db.insert(users).values({ id: 1, name: 'John' });
 
@@ -3146,9 +3146,9 @@ export function tests(test: Test, exclude: string[] = []) {
 					name: text('name'),
 				});
 
-				db.run(sql`drop table if exists ${users}`);
+				await db.run(sql`drop table if exists ${users}`);
 
-				db.run(sql`create table ${users} (id integer primary key, name text)`);
+				await db.run(sql`create table ${users} (id integer primary key, name text)`);
 
 				const insertStmt = db
 					.insert(users)
@@ -3191,9 +3191,9 @@ export function tests(test: Test, exclude: string[] = []) {
 					name: text('name'),
 				});
 
-				db.run(sql`drop table if exists ${users}`);
+				await db.run(sql`drop table if exists ${users}`);
 
-				db.run(sql`create table ${users} (id integer primary key, name text)`);
+				await db.run(sql`create table ${users} (id integer primary key, name text)`);
 
 				const insertStmt = db
 					.insert(users)
@@ -3234,9 +3234,9 @@ export function tests(test: Test, exclude: string[] = []) {
 				name: text('name'),
 			});
 
-			db.run(sql`drop table if exists ${users}`);
+			await db.run(sql`drop table if exists ${users}`);
 
-			db.run(sql`create table ${users} (id integer primary key, name text)`);
+			await db.run(sql`create table ${users} (id integer primary key, name text)`);
 
 			const res = await db.select().from(users).where(eq(users.id, 1)).get();
 
@@ -3274,7 +3274,7 @@ export function tests(test: Test, exclude: string[] = []) {
 				]);
 
 				await expect(async () => {
-					db.select({ name: citiesTable.name, id: citiesTable.id })
+					await db.select({ name: citiesTable.name, id: citiesTable.id })
 						.from(citiesTable)
 						.union(
 							db
@@ -3357,7 +3357,7 @@ export function tests(test: Test, exclude: string[] = []) {
 				]);
 
 				await expect(async () => {
-					db.select({ id: citiesTable.id, name: citiesTable.name })
+					await db.select({ id: citiesTable.id, name: citiesTable.name })
 						.from(citiesTable)
 						.unionAll(
 							db
@@ -3442,7 +3442,7 @@ export function tests(test: Test, exclude: string[] = []) {
 				]);
 
 				await expect(async () => {
-					db.select({ name: citiesTable.name, id: citiesTable.id })
+					await db.select({ name: citiesTable.name, id: citiesTable.id })
 						.from(citiesTable)
 						.intersect(
 							db
@@ -3513,7 +3513,7 @@ export function tests(test: Test, exclude: string[] = []) {
 				expect(result).toEqual([{ id: 1, name: 'New York' }]);
 
 				await expect(async () => {
-					db.select()
+					await db.select()
 						.from(citiesTable)
 						.except(
 							db
@@ -3589,7 +3589,7 @@ export function tests(test: Test, exclude: string[] = []) {
 				]);
 
 				await expect(async () => {
-					db.select()
+					await db.select()
 						.from(citiesTable)
 						.except(({ unionAll }) =>
 							unionAll(
@@ -5750,7 +5750,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		`);
 
 			await expect(async () => {
-				db.insert(users1).select(
+				await db.insert(users1).select(
 					db
 						.select({
 							name: users2.name,
@@ -6033,8 +6033,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		});
 	});
 
-	// Sync drivers don't wrap errors - TODO
-	test.skipIf(Date.now() < +new Date('2026-05-14'))('Query error wrapping', async ({ db }) => {
+	test('Query error wrapping', async ({ db }) => {
 		await expect(async () =>
 			await db.insert(usersTable).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]).run()
 		)

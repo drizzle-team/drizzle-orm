@@ -1,4 +1,5 @@
 import type { RunResult } from 'better-sqlite3';
+import type { Changes } from 'bun:sqlite';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { and, eq } from '~/sql/expressions/index.ts';
@@ -22,7 +23,7 @@ const insertRun = db.insert(users).values(newUser).run();
 Expect<Equal<RunResult, typeof insertRun>>;
 
 const insertRunBun = bunDb.insert(users).values(newUser).run();
-Expect<Equal<void, typeof insertRunBun>>;
+Expect<Equal<Changes, typeof insertRunBun>>;
 
 const insertAll = db.insert(users).values(newUser).all();
 Expect<Equal<DrizzleTypeError<'.all() cannot be used without .returning()'>, typeof insertAll>>;
@@ -46,7 +47,7 @@ const insertRunReturningAll = db.insert(users).values(newUser).returning().run()
 Expect<Equal<RunResult, typeof insertRunReturningAll>>;
 
 const insertRunReturningAllBun = bunDb.insert(users).values(newUser).returning().run();
-Expect<Equal<void, typeof insertRunReturningAllBun>>;
+Expect<Equal<Changes, typeof insertRunReturningAllBun>>;
 
 const insertAllReturningAll = db.insert(users).values(newUser).returning().all();
 Expect<Equal<typeof users.$inferSelect[], typeof insertAllReturningAll>>;
@@ -78,7 +79,7 @@ const insertRunReturningPartialBun = bunDb.insert(users).values(newUser).returni
 	homeCity: users.homeCity,
 	mySubclass: users.subClass,
 }).run();
-Expect<Equal<void, typeof insertRunReturningPartialBun>>;
+Expect<Equal<Changes, typeof insertRunReturningPartialBun>>;
 
 const insertAllReturningPartial = db.insert(users).values(newUser).returning({
 	id: users.id,

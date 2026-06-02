@@ -156,6 +156,26 @@ export const newYorkers = sqliteView('new_yorkers')
 		return qb.with(sq).select().from(sq).where(sql`${users.homeCity} = 1`);
 	});
 
+export const newYorkersWithSubquery = sqliteView('new_yorkers_with_sq')
+	.as((qb) =>
+		qb
+			.select({
+				id: users.id,
+				class: users.class,
+				cityCount: qb
+					.select({ count: sql<number>`count(*)`.as('count') })
+					.from(cities)
+					.as('city_count'),
+				lastCityId: qb
+					.select({ id: cities.id })
+					.from(cities)
+					.orderBy(cities.id)
+					.limit(1)
+					.as('last_city'),
+			})
+			.from(users)
+	);
+
 {
 	const _newYorkers = sqliteView('new_yorkers', {
 		userId: integer('user_id').notNull(),

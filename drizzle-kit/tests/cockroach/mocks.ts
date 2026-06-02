@@ -44,7 +44,7 @@ import { DB } from 'src/utils';
 import { v4 as uuidV4 } from 'uuid';
 import 'zx/globals';
 import { randomUUID } from 'crypto';
-import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/cli';
+import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/common';
 import { hash } from 'src/dialects/common';
 import { extractCrdbExisting } from 'src/dialects/drizzle';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';

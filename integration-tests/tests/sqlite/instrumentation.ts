@@ -704,25 +704,24 @@ const testFor = (
 			| D1Database
 			| SQLJsDatabase
 			| NodeSQLiteDatabase;
-		db: BaseSQLiteDatabase<'async' | 'sync', any, any, typeof relations>;
+		db: BaseSQLiteDatabase<'async' | 'sync', any, typeof relations>;
 		push: (schema: any) => Promise<void>;
 		createDB: {
 			<S extends SqliteSchema_>(
 				schema: S,
-			): BaseSQLiteDatabase<'async' | 'sync', any, any, ReturnType<typeof defineRelations<S>>>;
+			): BaseSQLiteDatabase<'async' | 'sync', any, ReturnType<typeof defineRelations<S>>>;
 			<S extends SqliteSchema_, TConfig extends AnyRelationsBuilderConfig>(
 				schema: S,
 				cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
 			): BaseSQLiteDatabase<
 				'async' | 'sync',
 				any,
-				any,
 				ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>
 			>;
 		};
 		caches: {
-			all: BaseSQLiteDatabase<'async' | 'sync', any, any, typeof relations>;
-			explicit: BaseSQLiteDatabase<'async' | 'sync', any, any, typeof relations>;
+			all: BaseSQLiteDatabase<'async' | 'sync', any, typeof relations>;
+			explicit: BaseSQLiteDatabase<'async' | 'sync', any, typeof relations>;
 		};
 	}>({
 		provider: [
@@ -982,26 +981,13 @@ export const betterSqlite3Test = testFor('better-sqlite3');
 export const d1Test = testFor('d1');
 export const sqlJsTest = testFor('sql-js');
 export const nodeSQLiteTest = testFor('node-sqlite');
-export const libSQLTursoTest = testFor('libsql-turso').extend<{ db: LibSQLDatabase<never, typeof sqliteRelations> }>({
+export const libSQLTursoTest = testFor('libsql-turso').extend<{ db: LibSQLDatabase<typeof sqliteRelations> }>({
 	db: [
 		async ({ kit }, use) => {
 			const db = drizzleLibSQL({
 				client: kit.client,
 				relations: sqliteRelations,
-			}) as LibSQLDatabase<never, typeof sqliteRelations>;
-
-			await use(db);
-		},
-		{ scope: 'test' },
-	],
-});
-export const libSQLTursoV1Test = testFor('libsql-turso-v1').extend<{ db: LibSQLDatabase<typeof sqliteSchema> }>({
-	db: [
-		async ({ kit }, use) => {
-			const db = drizzleLibSQL({
-				client: kit.client,
-				schema: sqliteSchema,
-			}) as LibSQLDatabase<typeof sqliteSchema>;
+			}) as LibSQLDatabase<typeof sqliteRelations>;
 
 			await use(db);
 		},

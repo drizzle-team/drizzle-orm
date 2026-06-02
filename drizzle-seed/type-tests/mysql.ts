@@ -12,7 +12,7 @@ const mysqlUsers = mysqlTable('users', {
 
 // mysql2
 {
-	const db0 = mysql2Drizzle('', { schema: { users: mysqlUsers }, mode: 'default' });
+	const db0 = mysql2Drizzle('');
 
 	await seed(db0, { users: mysqlUsers });
 	await seed(db0, { users: mysqlUsers }).refine((funcs) => ({
@@ -24,7 +24,7 @@ const mysqlUsers = mysqlTable('users', {
 	}));
 	await reset(db0, { users: mysqlUsers });
 
-	const db1 = mysql2Drizzle('', { schema: { users: mysqlUsers }, mode: 'planetscale' });
+	const db1 = mysql2Drizzle('');
 
 	await seed(db1, { users: mysqlUsers });
 	await seed(db1, { users: mysqlUsers }).refine((funcs) => ({
@@ -51,7 +51,7 @@ const mysqlUsers = mysqlTable('users', {
 
 // planetscale
 {
-	const db0 = planetscaleDrizzle('', { schema: { users: mysqlUsers } });
+	const db0 = planetscaleDrizzle('');
 
 	await seed(db0, { users: mysqlUsers });
 	await seed(db0, { users: mysqlUsers }).refine((funcs) => ({

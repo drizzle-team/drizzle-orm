@@ -11,7 +11,7 @@ import type { SQLiteClient } from '../../utils';
 import { highlightSQL } from '../highlighter';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
-import type { EntitiesFilterConfig } from '../validations/cli';
+import type { EntitiesFilterConfig } from '../validations/common';
 import type { SqliteCredentials } from '../validations/sqlite';
 import { explain, ProgressView, sqliteSchemaError } from '../views';
 

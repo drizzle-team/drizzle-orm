@@ -18,7 +18,7 @@ import {
 
 const ENABLE_LOGGING = false;
 
-let db: PlanetScaleDatabase<never, typeof relations>;
+let db: PlanetScaleDatabase<typeof relations>;
 
 beforeAll(async () => {
 	db = drizzle(

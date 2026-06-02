@@ -31,7 +31,6 @@ import {
 } from 'drizzle-orm/mysql-core';
 
 import { eq, getTableColumns, ne, sql } from 'drizzle-orm';
-import { relations } from 'drizzle-orm/_relations';
 
 export const usersTable = snakeCase.table('users', {
 	id: serial().primaryKey(),
@@ -58,24 +57,11 @@ export const usersTableV1 = schemaV1.table('users_table_V1', {
 	invitedBy: bigint('invited_by', { mode: 'number' }),
 });
 
-export const usersConfig = relations(usersTable, ({ one, many }) => ({
-	invitee: one(usersTable, {
-		fields: [usersTable.invitedBy],
-		references: [usersTable.id],
-	}),
-	usersToGroups: many(usersToGroupsTable),
-	posts: many(postsTable),
-	comments: many(commentsTable),
-}));
-
 export const groupsTable = snakeCase.table('groups', {
 	id: serial().primaryKey(),
 	name: text().notNull(),
 	description: text(),
 });
-export const groupsConfig = relations(groupsTable, ({ many }) => ({
-	usersToGroups: many(usersToGroupsTable),
-}));
 
 export const usersToGroupsTable = snakeCase.table(
 	'users_to_groups',
@@ -90,16 +76,6 @@ export const usersToGroupsTable = snakeCase.table(
 	},
 	(t) => [primaryKey({ columns: [t.userId, t.groupId] })],
 );
-export const usersToGroupsConfig = relations(usersToGroupsTable, ({ one }) => ({
-	group: one(groupsTable, {
-		fields: [usersToGroupsTable.groupId],
-		references: [groupsTable.id],
-	}),
-	user: one(usersTable, {
-		fields: [usersToGroupsTable.userId],
-		references: [usersTable.id],
-	}),
-}));
 
 export const postsTable = snakeCase.table('posts', {
 	id: serial().primaryKey(),
@@ -111,13 +87,6 @@ export const postsTable = snakeCase.table('posts', {
 		.notNull()
 		.defaultNow(),
 });
-export const postsConfig = relations(postsTable, ({ one, many }) => ({
-	author: one(usersTable, {
-		fields: [postsTable.ownerId],
-		references: [usersTable.id],
-	}),
-	comments: many(commentsTable),
-}));
 
 export const usersView = snakeCase.view('rqb_users_view').as((qb) =>
 	qb.select({
@@ -145,17 +114,6 @@ export const commentsTable = snakeCase.table('comments', {
 		.notNull()
 		.defaultNow(),
 });
-export const commentsConfig = relations(commentsTable, ({ one, many }) => ({
-	post: one(postsTable, {
-		fields: [commentsTable.postId],
-		references: [postsTable.id],
-	}),
-	author: one(usersTable, {
-		fields: [commentsTable.creator],
-		references: [usersTable.id],
-	}),
-	likes: many(commentLikesTable),
-}));
 
 export const commentLikesTable = snakeCase.table('comment_likes', {
 	id: serial().primaryKey(),
@@ -169,16 +127,6 @@ export const commentLikesTable = snakeCase.table('comment_likes', {
 		.notNull()
 		.defaultNow(),
 });
-export const commentLikesConfig = relations(commentLikesTable, ({ one }) => ({
-	comment: one(commentsTable, {
-		fields: [commentLikesTable.commentId],
-		references: [commentsTable.id],
-	}),
-	author: one(usersTable, {
-		fields: [commentLikesTable.creator],
-		references: [usersTable.id],
-	}),
-}));
 
 export const rqbSchema = snakeCase.schema('rqb_test_schema');
 

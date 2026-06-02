@@ -2,16 +2,11 @@ import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { PreparedQuery } from '~/session.ts';
-import type { SQL, SQLWrapper } from '~/sql/sql.ts';
-import type { SQLiteAsyncDialect } from '../dialect.ts';
+import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { PreparedQueryConfig, SQLitePreparedQuery } from '../session.ts';
 
-type SQLiteRawAction = 'all' | 'get' | 'values' | 'run';
-export interface SQLiteRawConfig {
-	action: SQLiteRawAction;
-}
-
+// TODO: remove Raw builders & replace them with preparedQuery instances directly
 export interface SQLiteRaw<TResult> extends QueryPromise<TResult>, RunnableQuery<TResult, 'sqlite'>, SQLWrapper {}
-
 export class SQLiteRaw<TResult> extends QueryPromise<TResult>
 	implements RunnableQuery<TResult, 'sqlite'>, SQLWrapper, PreparedQuery
 {
@@ -22,30 +17,31 @@ export class SQLiteRaw<TResult> extends QueryPromise<TResult>
 		readonly result: TResult;
 	};
 
-	/** @internal */
-	config: SQLiteRawConfig;
-
 	constructor(
-		public execute: () => Promise<TResult>,
-		/** @internal */
-		public getSQL: () => SQL,
-		action: SQLiteRawAction,
-		private dialect: SQLiteAsyncDialect,
-		private mapBatchResult: (result: unknown) => unknown,
+		protected prepared: SQLitePreparedQuery<
+			PreparedQueryConfig & {
+				execute: TResult;
+			}
+		>,
+		protected sql: SQL,
+		protected query: Query,
 	) {
 		super();
-		this.config = { action };
+	}
+
+	override execute(placeholderValues?: Record<string, undefined>): Promise<TResult> {
+		return this.prepared.execute(placeholderValues) as Promise<TResult>;
+	}
+
+	getSQL() {
+		return this.sql;
 	}
 
 	getQuery() {
-		return { ...this.dialect.sqlToQuery(this.getSQL()), method: this.config.action };
-	}
-
-	mapResult(result: unknown, isFromBatch?: boolean) {
-		return isFromBatch ? this.mapBatchResult(result) : result;
+		return this.query;
 	}
 
 	_prepare(): PreparedQuery {
-		return this;
+		return this.prepared;
 	}
 }

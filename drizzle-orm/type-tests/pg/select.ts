@@ -33,7 +33,15 @@ import { type InferSelectViewModel, type SQL, sql } from '~/sql/sql.ts';
 
 import { PgSelect } from '~/pg-core/query-builders/select.ts';
 import { db } from './db.ts';
-import { cities, classes, newYorkers, newYorkers2, users } from './tables.ts';
+import {
+	cities,
+	classes,
+	newYorkers,
+	newYorkers2,
+	newYorkersWithSubquery,
+	newYorkersWithSubquery2,
+	users,
+} from './tables.ts';
 
 const city = alias(cities, 'city');
 const city1 = alias(cities, 'city1');
@@ -967,6 +975,50 @@ await db
 			typeof result
 		>
 	>;
+}
+
+{
+	const result = await db.select().from(newYorkersWithSubquery);
+	Expect<
+		Equal<
+			{
+				id: number;
+				class: 'A' | 'C';
+				cityCount: number;
+				lastCityId: number;
+			}[],
+			typeof result
+		>
+	>;
+	Expect<Equal<typeof result, typeof newYorkersWithSubquery.$inferSelect[]>>;
+	Expect<Equal<typeof result, InferSelectViewModel<typeof newYorkersWithSubquery>[]>>;
+}
+
+{
+	const result = await db.select({ cityCount: newYorkersWithSubquery.cityCount }).from(newYorkersWithSubquery);
+	Expect<
+		Equal<
+			{
+				cityCount: number;
+			}[],
+			typeof result
+		>
+	>;
+}
+
+{
+	const result = await db.select().from(newYorkersWithSubquery2);
+	Expect<
+		Equal<
+			{
+				id: number;
+				cityCount: number;
+			}[],
+			typeof result
+		>
+	>;
+	Expect<Equal<typeof result, typeof newYorkersWithSubquery2.$inferSelect[]>>;
+	Expect<Equal<typeof result, InferSelectViewModel<typeof newYorkersWithSubquery2>[]>>;
 }
 
 {

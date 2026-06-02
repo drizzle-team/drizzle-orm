@@ -8,7 +8,7 @@ import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './operations.ts'
 import type { TableLike } from './query-builders/select.types.ts';
 import type { AnyRelations, EmptyRelations } from './relations.ts';
 import { Param, SQL, View } from './sql/sql.ts';
-import type { DriverValueDecoder } from './sql/sql.ts';
+import type { DriverValueDecoder, SQLWrapper } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
 import { getTableName, Table } from './table.ts';
 import { ViewBaseConfig } from './view-common.ts';
@@ -325,6 +325,40 @@ export function makeDefaultQueryMapper<TResult>(
 			return result as TResult;
 		})) as RowsMapper<TResult>;
 }
+
+export function make$ReturningResponseMapper(
+	returningIds: SelectedFieldsOrdered<Column> | undefined,
+	generatedIds?: Record<string, unknown>[],
+) {
+	if (!returningIds) return;
+
+	return ({ insertId, affectedRows }: {
+		insertId: number;
+		affectedRows: number;
+	}) => {
+		const returningResponse = [];
+		let j = 0;
+		for (let i = insertId; i < insertId + affectedRows; i++) {
+			for (const column of returningIds) {
+				const key = returningIds[0]!.path[0]!;
+				if (is(column.field, Column)) {
+					// @ts-ignore
+					if (column.field.primary && column.field.autoIncrement) {
+						returningResponse.push({ [key]: i });
+					}
+					if (column.field.defaultFn && generatedIds) {
+						// generatedIds[rowIdx][key]
+						returningResponse.push({ [key]: generatedIds[j]![key] });
+					}
+				}
+			}
+			j++;
+		}
+
+		return returningResponse;
+	};
+}
+
 /** @internal */
 export function orderSelectedFields<TColumn extends AnyColumn>(
 	fields: Record<string, unknown>,
@@ -344,8 +378,36 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 				codec: codecs?.get(field, 'normalize'),
 				arrayDimensions: (<any> field).dimensions,
 			});
-		} else if (is(field, Column) || is(field, SQL) || is(field, SQL.Aliased) || is(field, Subquery)) {
-			result.push({ path: newPath, field });
+		} else if (is(field, SQL) || is(field, SQL.Aliased)) {
+			const col = getColumnFromDecoder(field);
+			result.push(
+				col
+					? {
+						path: newPath,
+						field,
+						codec: codecs?.get(col, 'normalize'),
+						arrayDimensions: (<any> col).dimensions,
+					}
+					: {
+						path: newPath,
+						field,
+					},
+			);
+		} else if (is(field, Subquery)) {
+			const col = getColumnFromDecoder(field._.sql);
+			result.push(
+				col
+					? {
+						path: newPath,
+						field,
+						codec: codecs?.get(col, 'normalize'),
+						arrayDimensions: (<any> col).dimensions,
+					}
+					: {
+						path: newPath,
+						field,
+					},
+			);
 		} else if (is(field, Table)) {
 			result.push(...orderSelectedFields(field[Table.Symbol.Columns], newPath, codecs));
 		} else {
@@ -353,6 +415,13 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 		}
 		return result;
 	}, []) as SelectedFieldsOrdered<TColumn>;
+}
+
+export function getColumnFromDecoder(source: SQL | SQL.Aliased | SQLWrapper): Column | undefined {
+	const query = source.getSQL();
+
+	if (is(query.decoder, Column)) return query.decoder;
+	return undefined;
 }
 
 export function haveSameKeys(left: Record<string, unknown>, right: Record<string, unknown>) {
@@ -589,12 +658,6 @@ export function isConfig(data: any): boolean {
 	if ('relations' in data) {
 		const type = typeof data['relations'];
 		if (type !== 'object' && type !== 'undefined') return false;
-
-		return true;
-	}
-
-	if ('mode' in data) {
-		if (data['mode'] !== 'default' && data['mode'] !== 'planetscale' && data['mode'] !== undefined) return false;
 
 		return true;
 	}

@@ -3,8 +3,8 @@ import { readMigrationFiles } from '~/migrator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { BetterSQLite3Database } from './driver.ts';
 
-export function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: BetterSQLite3Database<TSchema, TRelations>,
+export function migrate<TRelations extends AnyRelations>(
+	db: BetterSQLite3Database<TRelations>,
 	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);

@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm",
-	"version": "1.0.0-rc.2",
+	"version": "1.0.0-rc.4",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
@@ -205,6 +205,7 @@
 		"@arktype/attest": "^0.46.0",
 		"@aws-sdk/client-rds-data": "^3.914.0",
 		"@cloudflare/workers-types": "^4.20251004.0",
+		"@effect/sql-mysql2": "4.0.0-beta.58",
 		"@effect/sql-pg": "4.0.0-beta.58",
 		"@electric-sql/pglite": "^0.2.12",
 		"@libsql/client": "^0.10.0",

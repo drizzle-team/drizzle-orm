@@ -15,7 +15,7 @@ import type { DB } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import { prepareOutFolder } from '../../utils/utils-node';
 import type { connectToMySQL } from '../connections';
-import type { EntitiesFilterConfig } from '../validations/cli';
+import type { EntitiesFilterConfig } from '../validations/common';
 import type { Casing } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
 import type { IntrospectStage, IntrospectStatus } from '../views';

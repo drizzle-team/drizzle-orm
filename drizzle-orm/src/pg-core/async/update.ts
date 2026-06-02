@@ -102,7 +102,7 @@ export class PgAsyncUpdateBase<
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgAsyncUpdatePrepare<this> {
-		const { session, config, dialect, joinsNotNullableMap, cacheConfig } = this;
+		const { session, config, dialect, joinsNotNullableMap } = this;
 		const { returning: fields } = config;
 
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
@@ -117,7 +117,6 @@ export class PgAsyncUpdateBase<
 				name ?? generateName,
 				mapper,
 				{ type: 'update', tables: [...extractUsedTable(this.config.table)] },
-				cacheConfig,
 			);
 
 			return preparedQuery;

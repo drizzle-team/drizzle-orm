@@ -12,8 +12,8 @@ export type GeneratedValueType = number | bigint | string | Buffer | boolean | u
 
 export type DbType =
 	| PgAsyncDatabase<any, any>
-	| MySqlDatabase<any, any, any, any>
-	| BaseSQLiteDatabase<any, any, any, any>
+	| MySqlDatabase<any, any>
+	| BaseSQLiteDatabase<any, any, any>
 	| MsSqlDatabase<any, any, any, any>
 	| CockroachDatabase<any, any, any>
 	| SingleStoreDatabase<any, any, any, any>;

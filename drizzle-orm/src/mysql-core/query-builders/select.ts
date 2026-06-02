@@ -2,7 +2,7 @@ import type { CacheConfig, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { MySqlColumn } from '~/mysql-core/columns/index.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import type { MySqlPreparedQueryConfig, MySqlSession, PreparedQueryHKTBase } from '~/mysql-core/session.ts';
+import type { MySqlPreparedQueryConfig, MySqlSession } from '~/mysql-core/session.ts';
 import type { SubqueryWithSelection } from '~/mysql-core/subquery.ts';
 import { MySqlTable } from '~/mysql-core/table.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -17,7 +17,7 @@ import type {
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, Placeholder, Query, SqlCommenterInput } from '~/sql/sql.ts';
+import type { ColumnsSelection, CommentInput, Placeholder, Query } from '~/sql/sql.ts';
 import { SQL, sql, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
@@ -63,7 +63,6 @@ export type IndexConfig = {
 
 export class MySqlSelectBuilder<
 	TSelection extends SelectedFields | undefined,
-	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TBuilderMode extends 'db' | 'qb' = 'db',
 > {
 	static readonly [entityKind]: string = 'MySqlSelectBuilder';
@@ -100,8 +99,7 @@ export class MySqlSelectBuilder<
 		TBuilderMode,
 		GetSelectTableName<TFrom>,
 		TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection,
-		TSelection extends undefined ? 'single' : 'partial',
-		TPreparedQueryHKT
+		TSelection extends undefined ? 'single' : 'partial'
 	> {
 		const isPartialSelect = !!this.fields;
 
@@ -160,7 +158,6 @@ export abstract class MySqlSelectQueryBuilderBase<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
-	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
 	TDynamic extends boolean = false,
@@ -175,7 +172,6 @@ export abstract class MySqlSelectQueryBuilderBase<
 		readonly tableName: TTableName;
 		readonly selection: TSelection;
 		readonly selectMode: TSelectMode;
-		readonly preparedQueryHKT: TPreparedQueryHKT;
 		readonly nullabilityMap: TNullabilityMap;
 		readonly dynamic: TDynamic;
 		readonly excludedMethods: TExcludedMethods;
@@ -1035,7 +1031,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	/**
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
-	comment(comment: SqlCommenterInput): MySqlSelectWithout<this, TDynamic, 'comment'> {
+	comment(comment: CommentInput): MySqlSelectWithout<this, TDynamic, 'comment'> {
 		this.config.comment = sql.comment(comment);
 		return this as any;
 	}
@@ -1093,7 +1089,6 @@ export interface MySqlSelectBase<
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
-	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
 	TDynamic extends boolean = false,
@@ -1106,7 +1101,6 @@ export interface MySqlSelectBase<
 		TTableName,
 		TSelection,
 		TSelectMode,
-		TPreparedQueryHKT,
 		TNullabilityMap,
 		TDynamic,
 		TExcludedMethods,
@@ -1120,7 +1114,6 @@ export class MySqlSelectBase<
 	TTableName extends string | undefined,
 	TSelection,
 	TSelectMode extends SelectMode,
-	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
 	TDynamic extends boolean = false,
@@ -1132,7 +1125,6 @@ export class MySqlSelectBase<
 	TTableName,
 	TSelection,
 	TSelectMode,
-	TPreparedQueryHKT,
 	TNullabilityMap,
 	TDynamic,
 	TExcludedMethods,
@@ -1145,16 +1137,20 @@ export class MySqlSelectBase<
 		if (!this.session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
+
+		const query = this.dialect.sqlToQuery(this.getSQL());
+		// Important to build query before acquiring fields list because build mutates fields
 		const fieldsList = orderSelectedFields<MySqlColumn>(this.config.fields);
-		const query = this.session.prepareQuery<
-			MySqlPreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
-			TPreparedQueryHKT
-		>(this.dialect.sqlToQuery(this.getSQL()), fieldsList, undefined, undefined, undefined, {
+		const mapper = this.dialect.mapperGenerators.rows(fieldsList, this.joinsNotNullableMap);
+
+		const preparedQuery = this.session.prepareQuery<
+			MySqlPreparedQueryConfig & { execute: TResult[] }
+		>(query, 'arrays', mapper, {
 			type: 'select',
 			tables: [...this.usedTables],
 		}, this.cacheConfig);
-		query.joinsNotNullableMap = this.joinsNotNullableMap;
-		return query as MySqlSelectPrepare<this>;
+
+		return preparedQuery as MySqlSelectPrepare<this>;
 	}
 
 	execute = ((placeholderValues) => {
