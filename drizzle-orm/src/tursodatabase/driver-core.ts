@@ -1,4 +1,4 @@
-import type { DatabasePromise } from '@tursodatabase/database-common';
+import type { DatabasePromise, StatementPromise } from '@tursodatabase/database-common';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
