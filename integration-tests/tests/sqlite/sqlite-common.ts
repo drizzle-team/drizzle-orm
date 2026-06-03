@@ -6254,11 +6254,11 @@ export function tests(test: Test, exclude: string[] = []) {
 		const selected1 = await db.select({ user: users, post: posts }).from(users).leftJoin(
 			posts,
 			eq(users.id, posts.authorId),
-		);
+		).orderBy(users.id);
 		const selected2 = await db.select({ user: users, post: posts }).from(users).innerJoin(
 			posts,
 			eq(users.id, posts.authorId),
-		);
+		).orderBy(users.id);
 		const selected3 = await db.select({
 			userId: users.id,
 			postId: posts.id,
@@ -6269,7 +6269,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		}).from(users).leftJoin(
 			posts,
 			eq(users.id, posts.authorId),
-		);
+		).orderBy(users.id);
 		const selected4 = await db.select({
 			userId: users.id,
 			postId: posts.id,
@@ -6280,7 +6280,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		}).from(users).innerJoin(
 			posts,
 			eq(users.id, posts.authorId),
-		);
+		).orderBy(users.id);
 
 		expect(selected1).toStrictEqual([{
 			user: {
@@ -6945,11 +6945,11 @@ export function tests(test: Test, exclude: string[] = []) {
 		const selected1 = await db.select({ user: users, post: posts }).from(users).leftJoin(
 			posts,
 			eq(users.id, posts.authorId),
-		);
+		).orderBy(users.id);
 		const selected2 = await db.select({ user: users, post: posts }).from(users).innerJoin(
 			posts,
 			eq(users.id, posts.authorId),
-		);
+		).orderBy(users.id);
 		const selected3 = await db.select({
 			userId: users.id,
 			postId: posts.id,
@@ -6960,7 +6960,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		}).from(users).leftJoin(
 			posts,
 			eq(users.id, posts.authorId),
-		);
+		).orderBy(users.id);
 		const selected4 = await db.select({
 			userId: users.id,
 			postId: posts.id,
@@ -6971,7 +6971,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		}).from(users).innerJoin(
 			posts,
 			eq(users.id, posts.authorId),
-		);
+		).orderBy(users.id);
 
 		expect(selected1).toStrictEqual([{
 			user: {
