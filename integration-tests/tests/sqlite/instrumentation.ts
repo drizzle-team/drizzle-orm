@@ -917,7 +917,7 @@ const testFor = (
 								throw e;
 							}
 						};
-						return drizzleProxy(proxyHandler, { relations });
+						return drizzleProxy(proxyHandler, { relations, jit });
 					}
 					throw new Error();
 				};
