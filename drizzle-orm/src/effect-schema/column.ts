@@ -66,7 +66,8 @@ export function columnToSchema(
 			break;
 		}
 		case 'custom': {
-			schema = S.Any;
+			const customSchema = (<{ customTypeSchemas?: { effect?: unknown } }> column).customTypeSchemas?.effect;
+			schema = S.isSchema(customSchema) ? (customSchema as SchemaTop) : S.Any;
 			break;
 		}
 		default: {

@@ -11,6 +11,7 @@ export type ConvertCustomConfig<T extends Partial<CustomTypeValues>> =
 		dataType: 'custom';
 		data: T['data'];
 		driverParam: T['driverData'];
+		customTypeSchemas: T['schemas'];
 	}
 	& (T['notNull'] extends true ? { notNull: true } : {})
 	& (T['default'] extends true ? { hasDefault: true } : {});
@@ -57,6 +58,7 @@ export class SingleStoreCustomColumn<T extends ColumnBaseConfig<'custom'>> exten
 	private mapFrom?: (value: T['driverParam']) => T['data'];
 	private mapJson?: (value: unknown) => T['data'];
 	private forJsonSelect?: (name: SQL, sql: SQLGenerator) => SQL;
+	readonly customTypeSchemas?: { effect?: unknown };
 
 	constructor(
 		table: AnySingleStoreTable<{ name: T['tableName'] }>,
@@ -68,6 +70,7 @@ export class SingleStoreCustomColumn<T extends ColumnBaseConfig<'custom'>> exten
 		this.mapFrom = config.customTypeParams.fromDriver;
 		this.mapJson = config.customTypeParams.fromJson;
 		this.forJsonSelect = config.customTypeParams.forJsonSelect;
+		this.customTypeSchemas = config.customTypeParams.schemas;
 	}
 
 	getSQLType(): string {
@@ -175,6 +178,16 @@ export interface CustomTypeValues {
 	 * });
 	 */
 	default?: boolean;
+
+	/**
+	 * Optional type-level marker for adapter-package schemas. Declare here to make
+	 * the customType column's TypeScript type carry the schema, so schema generators
+	 * (e.g. `drizzle-orm/effect-schema`) can thread it into their output instead of
+	 * collapsing the column to `Schema.Any` / `z.any()` / etc.
+	 *
+	 * Provide the actual schema *values* via {@link CustomTypeParams.schemas}.
+	 */
+	schemas?: { effect?: unknown };
 }
 
 export interface CustomTypeParams<T extends CustomTypeValues> {
@@ -331,6 +344,18 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	forJsonSelect?: (identifier: SQL, sql: SQLGenerator) => SQL;
+
+	/**
+	 * Optional per-adapter schema overrides. When a key is present, the matching
+	 * schema-generator adapter uses it in place of its default fallback.
+	 *
+	 * Currently honored:
+	 * - `effect` — read by `drizzle-orm/effect-schema`.
+	 *
+	 * For type-level threading, also declare the slot in the `customType` generic
+	 * via {@link CustomTypeValues.schemas}.
+	 */
+	schemas?: T['schemas'] extends undefined ? { effect?: unknown } : T['schemas'];
 }
 
 /**

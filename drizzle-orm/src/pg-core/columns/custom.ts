@@ -12,6 +12,7 @@ export type ConvertCustomConfig<T extends Partial<CustomTypeValues>> =
 		dataType: 'custom';
 		data: T['data'];
 		driverParam: T['driverData'];
+		customTypeSchemas: T['schemas'];
 	}
 	& (T['notNull'] extends true ? { notNull: true } : {})
 	& (T['default'] extends true ? { hasDefault: true } : {});
@@ -57,6 +58,7 @@ export class PgCustomColumn<T extends ColumnBuilderBaseConfig<'custom'>> extends
 	private sqlName: string;
 	readonly mapFromJsonValue?: (value: unknown) => T['data'];
 	readonly jsonSelectIdentifier?: (identifier: SQL, sql: SQLGenerator, arrayDimensions?: number) => SQL;
+	readonly customTypeSchemas?: { effect?: unknown };
 
 	constructor(
 		table: PgTable<any>,
@@ -68,6 +70,7 @@ export class PgCustomColumn<T extends ColumnBuilderBaseConfig<'custom'>> extends
 		this.mapFromDriverValue = config.customTypeParams.fromDriver ?? this.mapFromDriverValue;
 		this.mapFromJsonValue = config.customTypeParams.fromJson;
 		this.jsonSelectIdentifier = config.customTypeParams.forJsonSelect;
+		this.customTypeSchemas = config.customTypeParams.schemas;
 		const cfgCodec =
 			typeof config.customTypeParams.codec === 'string' || typeof config.customTypeParams.codec === 'undefined'
 				? config.customTypeParams.codec
@@ -167,6 +170,23 @@ export interface CustomTypeValues {
 	 * });
 	 */
 	default?: boolean;
+
+	/**
+	 * Optional type-level marker for adapter-package schemas. Declare here to make
+	 * the customType column's TypeScript type carry the schema, so schema generators
+	 * (e.g. `drizzle-orm/effect-schema`) can thread it into their output instead of
+	 * collapsing the column to `Schema.Any` / `z.any()` / etc.
+	 *
+	 * Provide the actual schema *values* via {@link CustomTypeParams.schemas}.
+	 *
+	 * @example
+	 * const instantType = customType<{
+	 *   data: Temporal.Instant;
+	 *   driverData: string;
+	 *   schemas: { effect: typeof InstantSchema };
+	 * }>({ ..., schemas: { effect: InstantSchema } });
+	 */
+	schemas?: { effect?: unknown };
 }
 
 export interface CustomTypeParams<T extends CustomTypeValues> {
@@ -337,6 +357,41 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 		| ((
 			config: T['config'] | (Equal<T['configRequired'], true> extends true ? never : undefined),
 		) => PostgresColumnType | undefined);
+
+	/**
+	 * Optional per-adapter schema overrides. When a key is present, the matching
+	 * schema-generator adapter uses it in place of its default fallback (which is
+	 * `Schema.Any` / `z.any()` / etc. for customType columns).
+	 *
+	 * Currently honored:
+	 * - `effect` — read by `drizzle-orm/effect-schema`'s `createSelectSchema`,
+	 *   `createInsertSchema`, and `createUpdateSchema`.
+	 *
+	 * For type-level threading through `column['_']`, also declare the slot in
+	 * the `customType` generic via {@link CustomTypeValues.schemas}.
+	 *
+	 * @example
+	 * import { Schema } from 'effect';
+	 * import { Temporal } from '@js-temporal/polyfill';
+	 *
+	 * const InstantSchema = Schema.transform(
+	 *   Schema.String,
+	 *   Schema.declare<Temporal.Instant>((v): v is Temporal.Instant => v instanceof Temporal.Instant),
+	 *   { decode: (s) => Temporal.Instant.from(s), encode: (i) => i.toString() },
+	 * );
+	 *
+	 * const instantType = customType<{
+	 *   data: Temporal.Instant;
+	 *   driverData: string;
+	 *   schemas: { effect: typeof InstantSchema };
+	 * }>({
+	 *   dataType: () => 'timestamptz',
+	 *   toDriver: (v) => v.toString(),
+	 *   fromDriver: (s) => Temporal.Instant.from(s),
+	 *   schemas: { effect: InstantSchema },
+	 * });
+	 */
+	schemas?: T['schemas'] extends undefined ? { effect?: unknown } : T['schemas'];
 }
 
 /**
