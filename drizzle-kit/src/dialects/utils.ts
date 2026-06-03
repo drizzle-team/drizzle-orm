@@ -219,7 +219,7 @@ export const batchQuery = async <T>(
 	db: DB,
 	getSQL: (params: { limit: number; cursor: T | undefined }) => string,
 	callback: (count: number) => void,
-	batchSize: number = 50_000,
+	batchSize: number = 100_000,
 ): Promise<T[]> => {
 	let results: T[] = [];
 	let cursor: T | undefined;

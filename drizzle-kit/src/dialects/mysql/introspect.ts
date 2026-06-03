@@ -50,6 +50,21 @@ export const fromDatabase = async (
 		rows: Record<string, unknown>[],
 		error: Error | null,
 	) => void = () => {},
+	batchSizes: {
+		tables?: number;
+		views?: number;
+		columns?: number;
+		indexes?: number;
+		pks?: number;
+		fks?: number;
+	} = {
+		tables: 100_000,
+		views: 100_000,
+		columns: 100_000,
+		indexes: 100_000,
+		pks: 100_000,
+		fks: 100_000,
+	},
 ): Promise<InterimSchema> => {
 	const res: InterimSchema = {
 		tables: [],
@@ -65,6 +80,7 @@ export const fromDatabase = async (
 	// TABLES
 
 	// TODO revise: perfomance_schema contains 'users' table
+	// * lower(TABLE_NAME) is used to sort tables case-insensitively
 	progressCallback('tables', 0, 'fetching');
 	const tablesAndViews = await batchQuery<
 		{ TABLE_NAME: string; TABLE_TYPE: 'BASE TABLE' | 'VIEW'; CREATE_TIME: string }
@@ -89,6 +105,7 @@ export const fromDatabase = async (
 		(count) => {
 			progressCallback('tables', count, 'fetching');
 		},
+		batchSizes.tables,
 	).then((rows) => {
 		queryCallback('tables', rows, null);
 		return rows.filter((it) => {
@@ -137,7 +154,7 @@ export const fromDatabase = async (
 		LIMIT ${limit};
 	`, (count) => {
 		progressCallback('indexes', count, 'fetching');
-	}).then((rows) => {
+	}, batchSizes.indexes).then((rows) => {
 		const filtered = rows.filter((it) => tableNames.has(it.TABLE_NAME));
 		queryCallback('indexes', filtered, null);
 		return filtered;
@@ -231,6 +248,7 @@ export const fromDatabase = async (
 			(count) => {
 				progressCallback('columns', count, 'fetching');
 			},
+			batchSizes.columns,
 		).then((rows) => {
 			queryCallback('columns', rows, null);
 			return rows;
@@ -344,10 +362,9 @@ export const fromDatabase = async (
 			TABLE_NAME,
 			COLUMN_NAME,
 			ORDINAL_POSITION
-		FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS t
-		LEFT JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE k USING(CONSTRAINT_NAME, TABLE_SCHEMA, TABLE_NAME)
-		WHERE t.CONSTRAINT_TYPE='PRIMARY KEY'
-			AND t.TABLE_SCHEMA = '${schema}'
+		FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+		WHERE CONSTRAINT_NAME='PRIMARY'
+			AND TABLE_SCHEMA = '${schema}'
 			${
 		cursor
 			? `AND (TABLE_NAME > '${cursor.TABLE_NAME}' OR (TABLE_NAME = '${cursor.TABLE_NAME}' AND ORDINAL_POSITION > ${cursor.ORDINAL_POSITION}))`
@@ -357,7 +374,7 @@ export const fromDatabase = async (
 		LIMIT ${limit}
 	`, (count) => {
 		progressCallback('pks', count, 'fetching');
-	}).then((rows) => {
+	}, batchSizes.pks).then((rows) => {
 		queryCallback('pks', rows, null);
 		return rows;
 	}).catch((err) => {
@@ -431,7 +448,7 @@ export const fromDatabase = async (
 		LIMIT ${limit}
 	`, (count) => {
 		progressCallback('fks', count, 'fetching');
-	}).then((rows) => {
+	}, batchSizes.fks).then((rows) => {
 		queryCallback('fks', rows, null);
 		return rows;
 	}).catch((err) => {
@@ -541,6 +558,7 @@ export const fromDatabase = async (
 		(count) => {
 			progressCallback('views', count, 'fetching');
 		},
+		batchSizes.views,
 	).then((rows) => {
 		queryCallback('views', rows, null);
 		return rows.filter((it) => {
