@@ -6227,8 +6227,8 @@ export function tests(test: Test, exclude: string[] = []) {
 			content: t.text('content'),
 		}));
 
-		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
 		await db.run(sql`DROP TABLE IF EXISTS ${posts};`);
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
 		await push({ users, posts });
 
 		await db.insert(users).values([{
@@ -6405,8 +6405,8 @@ export function tests(test: Test, exclude: string[] = []) {
 			false,
 		);
 
-		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
 		await db.run(sql`DROP TABLE IF EXISTS ${posts};`);
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
 		await push({ users, posts });
 
 		const empty1 = await db.query.users.findFirst();
@@ -6918,8 +6918,8 @@ export function tests(test: Test, exclude: string[] = []) {
 		}));
 
 		const db = createDB({}, () => ({}), true);
-		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
 		await db.run(sql`DROP TABLE IF EXISTS ${posts};`);
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
 		await push({ users, posts });
 
 		await db.insert(users).values([{
@@ -7095,8 +7095,8 @@ export function tests(test: Test, exclude: string[] = []) {
 			}),
 			true,
 		);
-		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
 		await db.run(sql`DROP TABLE IF EXISTS ${posts};`);
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
 		await push({ users, posts });
 
 		const empty1 = await db.query.users.findFirst();
