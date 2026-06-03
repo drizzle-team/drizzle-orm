@@ -128,7 +128,8 @@ export class SQLiteEffectPreparedQuery<
 		return this[this.executeMethod](placeholderValues) as QueryEffectKind<TEffectHKT, T['execute']>;
 	}
 
-	protected override queryWithCache<A, E, R>(
+	/** @internal */
+	protected queryWithCache<A, E, R>(
 		queryString: string,
 		params: any[],
 		executeMethod: SQLiteExecuteMethod,

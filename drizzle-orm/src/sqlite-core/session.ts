@@ -49,14 +49,6 @@ export abstract class SQLitePreparedQuery implements PreparedQuery {
 	abstract get(placeholderValues?: Record<string, unknown>): unknown;
 	abstract values(placeholderValues?: Record<string, unknown>): unknown;
 	abstract execute(placeholderValues?: Record<string, unknown>): unknown;
-
-	/** @internal */
-	protected abstract queryWithCache(
-		queryString: string,
-		params: any[],
-		executeMethod: SQLiteExecuteMethod,
-		query: unknown,
-	): unknown;
 }
 
 export abstract class SQLiteSession<TRunResult = unknown, TRelations extends AnyRelations = EmptyRelations> {

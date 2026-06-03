@@ -87,7 +87,7 @@ export class SQLiteAsyncPreparedQuery<T extends SQLiteAsyncPreparedQueryConfig> 
 	}
 
 	/** @internal */
-	protected override async queryWithCache<T>(
+	protected async queryWithCache<T>(
 		queryString: string,
 		params: any[],
 		executeMethod: SQLiteExecuteMethod,

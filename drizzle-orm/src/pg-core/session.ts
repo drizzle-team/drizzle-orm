@@ -20,13 +20,6 @@ export abstract class PgBasePreparedQuery implements PreparedQuery {
 	}
 
 	abstract execute(placeholderValues?: Record<string, unknown>): unknown;
-
-	/** @internal */
-	protected abstract queryWithCache(
-		queryString: string,
-		params: any[],
-		query: unknown,
-	): unknown;
 }
 
 export interface PgTransactionConfig {

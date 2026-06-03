@@ -78,7 +78,8 @@ export class PgEffectPreparedQuery<
 		});
 	}
 
-	protected override queryWithCache<A, E, R>(
+	/** @internal */
+	protected queryWithCache<A, E, R>(
 		queryString: string,
 		params: any[],
 		query: Effect.Effect<A, E, R>,
