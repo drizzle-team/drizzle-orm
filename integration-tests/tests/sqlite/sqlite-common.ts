@@ -6060,6 +6060,7 @@ export function tests(test: Test, exclude: string[] = []) {
 			isBanned: t.integer('is_banned', { mode: 'boolean' }),
 		}));
 
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
 		await push({ users });
 
 		const result = await db.select().from(users);
@@ -6077,6 +6078,7 @@ export function tests(test: Test, exclude: string[] = []) {
 			isBanned: t.integer('is_banned', { mode: 'boolean' }),
 		}));
 
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
 		await push({ users });
 
 		await db.insert(users).values([{
@@ -6100,6 +6102,7 @@ export function tests(test: Test, exclude: string[] = []) {
 			isBanned: t.integer('is_banned', { mode: 'boolean' }),
 		}));
 
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
 		await push({ users });
 
 		await db.insert(users).values([{
@@ -6125,6 +6128,7 @@ export function tests(test: Test, exclude: string[] = []) {
 				isBanned: t.integer('is_banned', { mode: 'boolean' }),
 			}));
 
+			await db.run(sql`DROP TABLE IF EXISTS ${users};`);
 			await push({ users });
 
 			const inserted = await db.insert(users).values([{
@@ -6223,6 +6227,8 @@ export function tests(test: Test, exclude: string[] = []) {
 			content: t.text('content'),
 		}));
 
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+		await db.run(sql`DROP TABLE IF EXISTS ${posts};`);
 		await push({ users, posts });
 
 		await db.insert(users).values([{
@@ -6398,6 +6404,9 @@ export function tests(test: Test, exclude: string[] = []) {
 			}),
 			false,
 		);
+
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+		await db.run(sql`DROP TABLE IF EXISTS ${posts};`);
 		await push({ users, posts });
 
 		const empty1 = await db.query.users.findFirst();
@@ -6738,6 +6747,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		}));
 
 		const db = createDB({}, () => ({}), true);
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
 		await push({ users });
 
 		const result = await db.select().from(users);
@@ -6756,6 +6766,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		}));
 
 		const db = createDB({}, () => ({}), true);
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
 		await push({ users });
 
 		await db.insert(users).values([{
@@ -6780,6 +6791,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		}));
 
 		const db = createDB({}, () => ({}), true);
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
 		await push({ users });
 
 		await db.insert(users).values([{
@@ -6806,6 +6818,7 @@ export function tests(test: Test, exclude: string[] = []) {
 			}));
 
 			const db = createDB({}, () => ({}), true);
+			await db.run(sql`DROP TABLE IF EXISTS ${users};`);
 			await push({ users });
 
 			const inserted = await db.insert(users).values([{
@@ -6905,6 +6918,8 @@ export function tests(test: Test, exclude: string[] = []) {
 		}));
 
 		const db = createDB({}, () => ({}), true);
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+		await db.run(sql`DROP TABLE IF EXISTS ${posts};`);
 		await push({ users, posts });
 
 		await db.insert(users).values([{
@@ -7080,6 +7095,8 @@ export function tests(test: Test, exclude: string[] = []) {
 			}),
 			true,
 		);
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+		await db.run(sql`DROP TABLE IF EXISTS ${posts};`);
 		await push({ users, posts });
 
 		const empty1 = await db.query.users.findFirst();
