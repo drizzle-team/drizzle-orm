@@ -2348,13 +2348,6 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 						Effect.gen(function*() {
 							yield* Ref.update(cacheOperations, (ops) => [...ops, { op: 'mutate' as const }]);
 						}),
-					cache: {
-						strategy: () => 'all' as const,
-						// oxlint-disable-next-line no-useless-undefined
-						get: async () => undefined,
-						put: async () => {},
-						onMutate: async () => {},
-					},
 				};
 				const customCacheLayer = Layer.succeed(EffectCache, customCacheService);
 

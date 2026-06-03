@@ -87,7 +87,7 @@ export class PgEffectPreparedQuery<
 			const { cacheConfig, queryMetadata } = this;
 			const cache = yield* EffectCache;
 
-			const cacheStrat: Awaited<ReturnType<typeof strategyFor>> = cache && !is(cache.cache, NoopCache)
+			const cacheStrat: Awaited<ReturnType<typeof strategyFor>> = cache && !(cache.cache && is(cache.cache, NoopCache))
 				? yield* Effect.tryPromise(
 					() => strategyFor(queryString, params, queryMetadata, cacheConfig),
 				)

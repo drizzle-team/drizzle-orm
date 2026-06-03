@@ -22,7 +22,8 @@ export interface EffectCacheShape {
 		config?: CacheConfig,
 	) => Effect.Effect<void, EffectCacheError, never>;
 	readonly onMutate: (params: MutationOption) => Effect.Effect<void, EffectCacheError, never>;
-	readonly cache: DrizzleCache;
+	/** Container for async cache if made by wrapping one */
+	readonly cache?: DrizzleCache;
 }
 
 /**

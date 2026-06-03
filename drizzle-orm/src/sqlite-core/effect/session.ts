@@ -138,7 +138,7 @@ export class SQLiteEffectPreparedQuery<
 			const { cacheConfig, queryMetadata } = this;
 			const cache = yield* EffectCache;
 
-			const cacheStrat: Awaited<ReturnType<typeof strategyFor>> = cache && !is(cache.cache, NoopCache)
+			const cacheStrat: Awaited<ReturnType<typeof strategyFor>> = cache && !(cache.cache && is(cache.cache, NoopCache))
 				? yield* Effect.tryPromise(
 					() => strategyFor(queryString, params, queryMetadata, cacheConfig),
 				)
@@ -171,7 +171,7 @@ export class SQLiteEffectPreparedQuery<
 
 				const result = yield* query;
 
-				yield* cache!.put(
+				yield* cache.put(
 					key,
 					result,
 					autoInvalidate ? tables : [],
