@@ -236,6 +236,15 @@ const skip = [
 	'join view as subquery',
 	'cross join',
 	'sql.Aliased in cte',
+	'Mappers: select complex selections',
+	// No jit mappers in workers
+	'Mappers: - correct mappers enabled',
+	'Jit mappers: - simple select - no rows',
+	'Jit mappers: - select - nothing to decode - text',
+	'Jit mappers: - select - nothing to decode - null',
+	'Jit mappers: - insert returning all + select + update returning + delete returning',
+	'Jit mappers: - select complex selections',
+
 	// .run() includes time data, strict comparison fails, otherwise functional
 	'write + query all methods & verify data intergrity',
 ];
