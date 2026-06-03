@@ -1,4 +1,4 @@
-import { connect, type Connection, type Statement } from '@tursodatabase/serverless';
+import { type Config, connect, type Connection, type Statement } from '@tursodatabase/serverless';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -56,8 +56,6 @@ function construct<TRelations extends AnyRelations = EmptyRelations>(
 	return db as any;
 }
 
-export type ConnectionOptions = Connection extends ((options: infer options) => any) ? options : never;
-
 export function drizzle<TRelations extends AnyRelations = EmptyRelations, TClient extends Connection = Connection>(
 	...params: [
 		string,
@@ -68,7 +66,7 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations, TClien
 		(
 			& DrizzleSQLiteConfig<TRelations>
 			& ({
-				connection: string | ConnectionOptions;
+				connection: string | Config;
 			} | {
 				client: TClient;
 			})
@@ -84,7 +82,7 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations, TClien
 	}
 
 	const { connection, client, ...drizzleConfig } = params[0] as
-		& { connection?: ConnectionOptions; client?: TClient }
+		& { connection?: string | Config; client?: TClient }
 		& DrizzleSQLiteConfig<TRelations>;
 
 	if (client) return construct(client, drizzleConfig) as any;
