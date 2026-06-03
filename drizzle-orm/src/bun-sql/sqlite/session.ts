@@ -8,15 +8,15 @@ import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
-import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import { SQLiteTransaction } from '~/sqlite-core/index.ts';
-import type {
-	PreparedQueryConfig as PreparedQueryConfigBase,
-	SQLiteExecuteMethod,
-	SQLiteQueryExecutors,
-	SQLiteTransactionConfig,
-} from '~/sqlite-core/session.ts';
-import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
+import {
+	SQLiteAsyncPreparedQuery,
+	type SQLiteAsyncPreparedQueryConfig as PreparedQueryConfigBase,
+	SQLiteAsyncSession,
+	SQLiteAsyncTransaction,
+	type SQLiteQueryExecutors,
+} from '~/sqlite-core/async/session.ts';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
 
 export interface BunSQLiteSessionOptions {
 	logger?: Logger;
@@ -30,7 +30,7 @@ type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 export class BunSQLiteSession<
 	TSQL extends BunSQL,
 	TRelations extends AnyRelations,
-> extends SQLiteSession<'async', BunSQLiteRunResult, TRelations> {
+> extends SQLiteAsyncSession<'async', BunSQLiteRunResult, TRelations> {
 	static override readonly [entityKind]: string = 'BunSQLiteSession';
 
 	private logger: Logger;
@@ -38,7 +38,7 @@ export class BunSQLiteSession<
 
 	constructor(
 		readonly client: TSQL,
-		dialect: SQLiteAsyncDialect,
+		dialect: SQLiteDialect,
 		private relations: TRelations,
 		readonly options: BunSQLiteSessionOptions,
 	) {
@@ -58,7 +58,7 @@ export class BunSQLiteSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): SQLitePreparedQuery<T & { run: BunSQLiteRunResult }> {
+	): SQLiteAsyncPreparedQuery<T & { run: BunSQLiteRunResult }> {
 		const executors: SQLiteQueryExecutors<'async'> = {
 			all: (params) => {
 				const q = this.client.unsafe(query.sql, params);
@@ -79,7 +79,7 @@ export class BunSQLiteSession<
 				return this.client.unsafe(query.sql, params).values();
 			},
 		};
-		return new SQLitePreparedQuery(
+		return new SQLiteAsyncPreparedQuery(
 			'async',
 			executeMethod,
 			executors,
@@ -118,7 +118,7 @@ export class BunSQLiteSession<
 
 export class BunSQLiteTransaction<
 	TRelations extends AnyRelations,
-> extends SQLiteTransaction<'async', BunSQLiteRunResult, TRelations> {
+> extends SQLiteAsyncTransaction<'async', BunSQLiteRunResult, TRelations> {
 	static override readonly [entityKind]: string = 'BunSQLiteTransaction';
 
 	override async transaction<T>(

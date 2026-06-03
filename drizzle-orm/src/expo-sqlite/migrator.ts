@@ -1,6 +1,7 @@
 import { useEffect, useReducer } from 'react';
 import { formatToMillis } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import { migrateSync } from '~/sqlite-core/async/session.ts';
 import type { MigrationMeta } from '../migrator.ts';
 import type { ExpoSQLiteDatabase } from './driver.ts';
 
@@ -46,7 +47,7 @@ export async function migrate<TRelations extends AnyRelations = EmptyRelations>(
 	config: MigrationConfig,
 ) {
 	const migrations = await readMigrationFiles(config);
-	return db.dialect.migrate(migrations, db.session);
+	return migrateSync(migrations, db.session);
 }
 
 interface State {

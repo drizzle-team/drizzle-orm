@@ -50,7 +50,7 @@ import { drizzle as drizzleLibSQLWs } from 'drizzle-orm/libsql/ws';
 import { drizzle as drizzleNodeSQLite, NodeSQLiteDatabase } from 'drizzle-orm/node-sqlite';
 import { drizzle as drizzleSqlJs } from 'drizzle-orm/sql-js';
 import { drizzle as drizzleSqliteCloud } from 'drizzle-orm/sqlite-cloud';
-import { BaseSQLiteDatabase, SQLiteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
+import { SQLiteAsyncDatabase, SQLiteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
 import { drizzle as drizzleProxy } from 'drizzle-orm/sqlite-proxy';
 import { drizzle as drizzleTursoDatabaseSls } from 'drizzle-orm/tursodatabase-serverless';
 import { drizzle as drizzleTursoDatabase } from 'drizzle-orm/tursodatabase/database';
@@ -61,7 +61,6 @@ import initSqlJs from 'sql.js';
 import { test as base } from 'vitest';
 import relations from './relations';
 import sqliteRelations from './sqlite.relations';
-import * as sqliteSchema from './sqlite.schema';
 
 // oxlint-disable-next-line drizzle-internal/require-entity-kind
 export class TestCache extends Cache {
@@ -704,24 +703,24 @@ const testFor = (
 			| D1Database
 			| SQLJsDatabase
 			| NodeSQLiteDatabase;
-		db: BaseSQLiteDatabase<'async' | 'sync', any, typeof relations>;
+		db: SQLiteAsyncDatabase<'async' | 'sync', any, typeof relations>;
 		push: (schema: any) => Promise<void>;
 		createDB: {
 			<S extends SqliteSchema_>(
 				schema: S,
-			): BaseSQLiteDatabase<'async' | 'sync', any, ReturnType<typeof defineRelations<S>>>;
+			): SQLiteAsyncDatabase<'async' | 'sync', any, ReturnType<typeof defineRelations<S>>>;
 			<S extends SqliteSchema_, TConfig extends AnyRelationsBuilderConfig>(
 				schema: S,
 				cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
-			): BaseSQLiteDatabase<
+			): SQLiteAsyncDatabase<
 				'async' | 'sync',
 				any,
 				ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>
 			>;
 		};
 		caches: {
-			all: BaseSQLiteDatabase<'async' | 'sync', any, typeof relations>;
-			explicit: BaseSQLiteDatabase<'async' | 'sync', any, typeof relations>;
+			all: SQLiteAsyncDatabase<'async' | 'sync', any, typeof relations>;
+			explicit: SQLiteAsyncDatabase<'async' | 'sync', any, typeof relations>;
 		};
 	}>({
 		provider: [

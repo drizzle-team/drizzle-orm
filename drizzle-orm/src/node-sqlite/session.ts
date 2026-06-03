@@ -5,16 +5,15 @@ import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
-import type { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
-import { SQLiteTransaction } from '~/sqlite-core/index.ts';
 import {
-	type PreparedQueryConfig as PreparedQueryConfigBase,
-	type SQLiteExecuteMethod,
-	SQLitePreparedQuery,
+	SQLiteAsyncPreparedQuery,
+	type SQLiteAsyncPreparedQueryConfig as PreparedQueryConfigBase,
+	SQLiteAsyncSession,
+	SQLiteAsyncTransaction,
 	type SQLiteQueryExecutors,
-	type SQLiteTransactionConfig,
-} from '~/sqlite-core/session.ts';
-import { SQLiteSession } from '~/sqlite-core/session.ts';
+} from '~/sqlite-core/async/session.ts';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 
 export interface NodeSQLiteSessionOptions {
@@ -26,7 +25,7 @@ export type NodeSQLiteRunResult = StatementResultingChanges;
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
 export class NodeSQLiteSession<TRelations extends AnyRelations>
-	extends SQLiteSession<'sync', NodeSQLiteRunResult, TRelations>
+	extends SQLiteAsyncSession<'sync', NodeSQLiteRunResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'SQLJsSession';
 
@@ -34,7 +33,7 @@ export class NodeSQLiteSession<TRelations extends AnyRelations>
 
 	constructor(
 		private client: DatabaseSync,
-		dialect: SQLiteSyncDialect,
+		dialect: SQLiteDialect,
 		private relations: TRelations,
 		private options: NodeSQLiteSessionOptions = {},
 	) {
@@ -52,7 +51,7 @@ export class NodeSQLiteSession<TRelations extends AnyRelations>
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
 		},
-	): SQLitePreparedQuery<T & { run: NodeSQLiteRunResult }> {
+	): SQLiteAsyncPreparedQuery<T & { run: NodeSQLiteRunResult }> {
 		let stmt: ReturnType<typeof this.client.prepare>;
 		try {
 			stmt = this.client.prepare(query.sql);
@@ -87,7 +86,7 @@ export class NodeSQLiteSession<TRelations extends AnyRelations>
 			},
 		};
 
-		return new SQLitePreparedQuery(
+		return new SQLiteAsyncPreparedQuery(
 			'sync',
 			executeMethod,
 			executors,
@@ -119,7 +118,7 @@ export class NodeSQLiteSession<TRelations extends AnyRelations>
 }
 
 export class NodeSQLiteTransaction<TRelations extends AnyRelations>
-	extends SQLiteTransaction<'sync', StatementResultingChanges, TRelations>
+	extends SQLiteAsyncTransaction<'sync', StatementResultingChanges, TRelations>
 {
 	static override readonly [entityKind]: string = 'SQLJsTransaction';
 

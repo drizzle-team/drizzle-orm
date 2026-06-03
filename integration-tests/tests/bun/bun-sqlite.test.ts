@@ -37,7 +37,6 @@ import { Cache } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import {
 	alias,
-	type BaseSQLiteDatabase,
 	blob,
 	except,
 	foreignKey,
@@ -50,6 +49,7 @@ import {
 	numeric,
 	primaryKey,
 	real,
+	type SQLiteAsyncDatabase,
 	sqliteTable,
 	sqliteTableCreator,
 	sqliteView,
@@ -434,7 +434,7 @@ describe('common', () => {
 		`);
 	});
 
-	async function setupSetOperationTest(db: BaseSQLiteDatabase<any, any, any>) {
+	async function setupSetOperationTest(db: SQLiteAsyncDatabase<any, any, any>) {
 		await db.run(sql`drop table if exists users2`);
 		await db.run(sql`drop table if exists cities`);
 		await db.run(sql`
@@ -470,7 +470,7 @@ describe('common', () => {
 		]);
 	}
 
-	async function setupAggregateFunctionsTest(db: BaseSQLiteDatabase<any, any, any>) {
+	async function setupAggregateFunctionsTest(db: SQLiteAsyncDatabase<any, any, any>) {
 		await db.run(sql`drop table if exists "aggregate_table"`);
 		await db.run(
 			sql`

@@ -7,15 +7,15 @@ import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
-import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import { SQLiteTransaction } from '~/sqlite-core/index.ts';
-import type {
-	PreparedQueryConfig as PreparedQueryConfigBase,
-	SQLiteExecuteMethod,
-	SQLiteQueryExecutors,
-	SQLiteTransactionConfig,
-} from '~/sqlite-core/session.ts';
-import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
+import {
+	SQLiteAsyncPreparedQuery,
+	type SQLiteAsyncPreparedQueryConfig as PreparedQueryConfigBase,
+	SQLiteAsyncSession,
+	SQLiteAsyncTransaction,
+	type SQLiteQueryExecutors,
+} from '~/sqlite-core/async/session.ts';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
 
 export interface LibSQLSessionOptions {
 	logger?: Logger;
@@ -26,7 +26,7 @@ type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
 export type LibSQLRunResult = ResultSet;
 
-export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteSession<'async', ResultSet, TRelations> {
+export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteAsyncSession<'async', ResultSet, TRelations> {
 	static override readonly [entityKind]: string = 'LibSQLSession';
 
 	private logger: Logger;
@@ -34,7 +34,7 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteSessio
 
 	constructor(
 		private client: Client,
-		dialect: SQLiteAsyncDialect,
+		dialect: SQLiteDialect,
 		private relations: TRelations,
 		private options: LibSQLSessionOptions,
 		private tx: Transaction | undefined,
@@ -55,7 +55,7 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteSessio
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): SQLitePreparedQuery<T & { run: LibSQLRunResult }> {
+	): SQLiteAsyncPreparedQuery<T & { run: LibSQLRunResult }> {
 		const client = this.tx ?? this.client;
 
 		const executors: SQLiteQueryExecutors<'async'> = {
@@ -71,7 +71,7 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteSessio
 			values: (params) => client.execute({ sql: query.sql, args: params as InArgs }).then(({ rows }) => rows),
 		};
 
-		return new SQLitePreparedQuery(
+		return new SQLiteAsyncPreparedQuery(
 			'async',
 			executeMethod,
 			executors,
@@ -96,11 +96,11 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteSessio
 		queries: T,
 		isMigration?: boolean,
 	): Promise<BatchResponse<T>> {
-		const preparedQueries: SQLitePreparedQuery<any>[] = [];
+		const preparedQueries: SQLiteAsyncPreparedQuery<any>[] = [];
 		const builtQueries: InStatement[] = [];
 
 		for (const query of queries) {
-			const preparedQuery = query._prepare() as SQLitePreparedQuery<any>;
+			const preparedQuery = query._prepare() as SQLiteAsyncPreparedQuery<any>;
 			const builtQuery = preparedQuery.getQuery();
 			preparedQueries.push(preparedQuery);
 			builtQueries.push({ sql: builtQuery.sql, args: builtQuery.params as InArgs });
@@ -165,7 +165,7 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteSessio
 }
 
 export class LibSQLTransaction<TRelations extends AnyRelations>
-	extends SQLiteTransaction<'async', LibSQLRunResult, TRelations>
+	extends SQLiteAsyncTransaction<'async', LibSQLRunResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'LibSQLTransaction';
 

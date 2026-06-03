@@ -78,7 +78,8 @@ export class PgEffectPreparedQuery<
 		});
 	}
 
-	protected override queryWithCache<A, E, R>(
+	/** @internal */
+	protected queryWithCache<A, E, R>(
 		queryString: string,
 		params: any[],
 		query: Effect.Effect<A, E, R>,
@@ -87,7 +88,7 @@ export class PgEffectPreparedQuery<
 			const { cacheConfig, queryMetadata } = this;
 			const cache = yield* EffectCache;
 
-			const cacheStrat: Awaited<ReturnType<typeof strategyFor>> = cache && !is(cache.cache, NoopCache)
+			const cacheStrat: Awaited<ReturnType<typeof strategyFor>> = cache && !(cache.cache && is(cache.cache, NoopCache))
 				? yield* Effect.tryPromise(
 					() => strategyFor(queryString, params, queryMetadata, cacheConfig),
 				)

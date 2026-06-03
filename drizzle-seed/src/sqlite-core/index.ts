@@ -1,6 +1,6 @@
 import { type AnyColumn, getTableName, is, sql } from 'drizzle-orm';
 import { Relations } from 'drizzle-orm/_relations';
-import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
+import type { SQLiteAsyncDatabase } from 'drizzle-orm/sqlite-core';
 import { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { getSchemaInfo } from '../common.ts';
 import { SeedService } from '../SeedService.ts';
@@ -9,7 +9,7 @@ import type { Column } from '../types/tables.ts';
 
 // Sqlite------------------------------------------------------------------------------------------------------------------------
 export const resetSqlite = async (
-	db: BaseSQLiteDatabase<any, any>,
+	db: SQLiteAsyncDatabase<any, any>,
 	schema: { [key: string]: SQLiteTable },
 ) => {
 	const tablesToTruncate = Object.entries(schema).map(([_tsTableName, table]) => {
@@ -50,7 +50,7 @@ export const filterSqliteTables = (schema: {
 };
 
 export const seedSqlite = async (
-	db: BaseSQLiteDatabase<any, any>,
+	db: SQLiteAsyncDatabase<any, any>,
 	schema: {
 		[key: string]:
 			| SQLiteTable

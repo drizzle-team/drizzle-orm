@@ -5,16 +5,15 @@ import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
-import type { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
-import { SQLiteTransaction } from '~/sqlite-core/index.ts';
 import {
-	type PreparedQueryConfig as PreparedQueryConfigBase,
-	type SQLiteExecuteMethod,
-	SQLitePreparedQuery,
+	SQLiteAsyncPreparedQuery,
+	type SQLiteAsyncPreparedQueryConfig as PreparedQueryConfigBase,
+	SQLiteAsyncSession,
+	SQLiteAsyncTransaction,
 	type SQLiteQueryExecutors,
-	SQLiteSession,
-	type SQLiteTransactionConfig,
-} from '~/sqlite-core/session.ts';
+} from '~/sqlite-core/async/session.ts';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 
 export interface ExpoSQLiteSessionOptions {
@@ -26,7 +25,7 @@ export type ExpoSQLiteRunResult = SQLiteRunResult;
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
 export class ExpoSQLiteSession<TRelations extends AnyRelations>
-	extends SQLiteSession<'sync', ExpoSQLiteRunResult, TRelations>
+	extends SQLiteAsyncSession<'sync', ExpoSQLiteRunResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'ExpoSQLiteSession';
 
@@ -34,7 +33,7 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 
 	constructor(
 		private client: SQLiteDatabase,
-		dialect: SQLiteSyncDialect,
+		dialect: SQLiteDialect,
 		private relations: TRelations,
 		private options: ExpoSQLiteSessionOptions = {},
 	) {
@@ -52,7 +51,7 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
 		},
-	): SQLitePreparedQuery<T & { run: ExpoSQLiteRunResult }> {
+	): SQLiteAsyncPreparedQuery<T & { run: ExpoSQLiteRunResult }> {
 		let stmt: SQLiteStatement;
 		try {
 			stmt = this.client.prepareSync(query.sql);
@@ -81,7 +80,7 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 			},
 		};
 
-		return new SQLitePreparedQuery(
+		return new SQLiteAsyncPreparedQuery(
 			'sync',
 			executeMethod,
 			executors,
@@ -114,7 +113,7 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 
 export class ExpoSQLiteTransaction<
 	TRelations extends AnyRelations,
-> extends SQLiteTransaction<'sync', ExpoSQLiteRunResult, TRelations> {
+> extends SQLiteAsyncTransaction<'sync', ExpoSQLiteRunResult, TRelations> {
 	static override readonly [entityKind]: string = 'ExpoSQLiteTransaction';
 
 	override transaction<T>(

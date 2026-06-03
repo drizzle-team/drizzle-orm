@@ -23,10 +23,9 @@ import type {
 } from '~/query-builders/select.types.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
-import type { SQLitePreparedQuery } from '../session.ts';
 import type { SQLiteViewBase } from '../view-base.ts';
 import type { SQLiteViewWithSelection } from '../view.ts';
-import type { SQLiteSelectBase, SQLiteSelectQueryBuilderBase } from './select.ts';
+import type { SQLiteSelectQueryBuilderBase } from './select.ts';
 
 export interface SQLiteSelectJoinConfig {
 	on: SQL | undefined;
@@ -82,7 +81,6 @@ export type SQLiteSelectJoin<
 		SQLiteSelectKind<
 			T['_']['hkt'],
 			T['_']['tableName'],
-			T['_']['resultType'],
 			T['_']['runResult'],
 			AppendToResult<
 				T['_']['tableName'],
@@ -131,7 +129,7 @@ export type SelectedFieldsOrdered = SelectFieldsOrderedBase<SQLiteColumn>;
 
 export interface SQLiteSelectHKTBase {
 	tableName: string | undefined;
-	resultType: 'sync' | 'async';
+	resultType: unknown;
 	runResult: unknown;
 	selection: unknown;
 	selectMode: SelectMode;
@@ -146,7 +144,6 @@ export interface SQLiteSelectHKTBase {
 export type SQLiteSelectKind<
 	T extends SQLiteSelectHKTBase,
 	TTableName extends string | undefined,
-	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
@@ -157,7 +154,6 @@ export type SQLiteSelectKind<
 	TSelectedFields = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > = (T & {
 	tableName: TTableName;
-	resultType: TResultType;
 	runResult: TRunResult;
 	selection: TSelection;
 	selectMode: TSelectMode;
@@ -172,22 +168,6 @@ export interface SQLiteSelectQueryBuilderHKT extends SQLiteSelectHKTBase {
 	_type: SQLiteSelectQueryBuilderBase<
 		SQLiteSelectQueryBuilderHKT,
 		this['tableName'],
-		this['resultType'],
-		this['runResult'],
-		Assume<this['selection'], ColumnsSelection>,
-		this['selectMode'],
-		Assume<this['nullabilityMap'], Record<string, JoinNullability>>,
-		this['dynamic'],
-		this['excludedMethods'],
-		Assume<this['result'], any[]>,
-		Assume<this['selectedFields'], ColumnsSelection>
-	>;
-}
-
-export interface SQLiteSelectHKT extends SQLiteSelectHKTBase {
-	_type: SQLiteSelectBase<
-		this['tableName'],
-		this['resultType'],
 		this['runResult'],
 		Assume<this['selection'], ColumnsSelection>,
 		this['selectMode'],
@@ -211,22 +191,24 @@ export type SQLiteSetOperatorExcludedMethods =
 
 export type CreateSQLiteSelectFromBuilderMode<
 	TBuilderMode extends 'db' | 'qb',
+	THKT extends SQLiteSelectHKTBase,
 	TTableName extends string | undefined,
-	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
-> = TBuilderMode extends 'db' ? SQLiteSelectBase<
+> = TBuilderMode extends 'db' ? SQLiteSelectKind<
+		THKT,
 		TTableName,
-		TResultType,
 		TRunResult,
 		TSelection,
-		TSelectMode
+		TSelectMode,
+		TTableName extends string ? Record<TTableName, 'not-null'> : {},
+		false,
+		never
 	>
 	: SQLiteSelectQueryBuilderBase<
 		SQLiteSelectQueryBuilderHKT,
 		TTableName,
-		TResultType,
 		TRunResult,
 		TSelection,
 		TSelectMode
@@ -241,7 +223,6 @@ export type SQLiteSelectWithout<
 	SQLiteSelectKind<
 		T['_']['hkt'],
 		T['_']['tableName'],
-		T['_']['resultType'],
 		T['_']['runResult'],
 		T['_']['selection'],
 		T['_']['selectMode'],
@@ -256,21 +237,9 @@ export type SQLiteSelectWithout<
 
 export type SQLiteSelectExecute<T extends AnySQLiteSelect> = T['_']['result'];
 
-export type SQLiteSelectPrepare<T extends AnySQLiteSelect> = SQLitePreparedQuery<
-	{
-		type: T['_']['resultType'];
-		run: T['_']['runResult'];
-		all: T['_']['result'];
-		get: T['_']['result'][number] | undefined;
-		values: any[][];
-		execute: SQLiteSelectExecute<T>;
-	}
->;
-
 export type SQLiteSelectDynamic<T extends AnySQLiteSelectQueryBuilder> = SQLiteSelectKind<
 	T['_']['hkt'],
 	T['_']['tableName'],
-	T['_']['resultType'],
 	T['_']['runResult'],
 	T['_']['selection'],
 	T['_']['selectMode'],
@@ -284,7 +253,6 @@ export type SQLiteSelectDynamic<T extends AnySQLiteSelectQueryBuilder> = SQLiteS
 export type SQLiteSelectQueryBuilder<
 	THKT extends SQLiteSelectHKTBase = SQLiteSelectQueryBuilderHKT,
 	TTableName extends string | undefined = string | undefined,
-	TResultType extends 'sync' | 'async' = 'sync' | 'async',
 	TRunResult = unknown,
 	TSelection extends ColumnsSelection = ColumnsSelection,
 	TSelectMode extends SelectMode = SelectMode,
@@ -294,7 +262,6 @@ export type SQLiteSelectQueryBuilder<
 > = SQLiteSelectQueryBuilderBase<
 	THKT,
 	TTableName,
-	TResultType,
 	TRunResult,
 	TSelection,
 	TSelectMode,
@@ -315,15 +282,24 @@ export type AnySQLiteSelectQueryBuilder = SQLiteSelectQueryBuilderBase<
 	any,
 	any,
 	any,
+	any
+>;
+
+export type AnySQLiteSetOperatorInterface = SQLiteSetOperatorInterface<
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
 	any,
 	any
 >;
 
-export type AnySQLiteSetOperatorInterface = SQLiteSetOperatorInterface<any, any, any, any, any, any, any, any, any>;
-
 export interface SQLiteSetOperatorInterface<
+	THKT extends SQLiteSelectHKTBase,
 	TTableName extends string | undefined,
-	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode = 'single',
@@ -335,9 +311,8 @@ export interface SQLiteSetOperatorInterface<
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > {
 	_: {
-		readonly hkt: SQLiteSelectHKTBase;
+		readonly hkt: THKT;
 		readonly tableName: TTableName;
-		readonly resultType: TResultType;
 		readonly runResult: TRunResult;
 		readonly selection: TSelection;
 		readonly selectMode: TSelectMode;
@@ -363,26 +338,26 @@ export type SQLiteSetOperatorWithResult<TResult extends any[]> = SQLiteSetOperat
 >;
 
 export type SQLiteSelect<
+	THKT extends SQLiteSelectHKTBase = SQLiteSelectQueryBuilderHKT,
 	TTableName extends string | undefined = string | undefined,
-	TResultType extends 'sync' | 'async' = 'sync' | 'async',
 	TRunResult = unknown,
 	TSelection extends ColumnsSelection = Record<string, any>,
 	TSelectMode extends SelectMode = SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
-> = SQLiteSelectBase<TTableName, TResultType, TRunResult, TSelection, TSelectMode, TNullabilityMap, true, never>;
+> = SQLiteSelectKind<THKT, TTableName, TRunResult, TSelection, TSelectMode, TNullabilityMap, true, never>;
 
-export type AnySQLiteSelect = SQLiteSelectBase<any, any, any, any, any, any, any, any, any, any>;
+export type AnySQLiteSelect = AnySQLiteSelectQueryBuilder;
 
 export type SQLiteSetOperator<
+	THKT extends SQLiteSelectHKTBase = SQLiteSelectQueryBuilderHKT,
 	TTableName extends string | undefined = string | undefined,
-	TResultType extends 'sync' | 'async' = 'sync' | 'async',
 	TRunResult = unknown,
 	TSelection extends ColumnsSelection = Record<string, any>,
 	TSelectMode extends SelectMode = SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
-> = SQLiteSelectBase<
+> = SQLiteSelectKind<
+	THKT,
 	TTableName,
-	TResultType,
 	TRunResult,
 	TSelection,
 	TSelectMode,
@@ -416,8 +391,8 @@ export type SetOperatorRestSelect<
 	: TValue;
 
 export type SQLiteCreateSetOperatorFn = <
+	THKT extends SQLiteSelectHKTBase,
 	TTableName extends string | undefined,
-	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TSelection extends ColumnsSelection,
 	TValue extends SQLiteSetOperatorWithResult<TResult>,
@@ -431,8 +406,8 @@ export type SQLiteCreateSetOperatorFn = <
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 >(
 	leftSelect: SQLiteSetOperatorInterface<
+		THKT,
 		TTableName,
-		TResultType,
 		TRunResult,
 		TSelection,
 		TSelectMode,
@@ -445,9 +420,9 @@ export type SQLiteCreateSetOperatorFn = <
 	rightSelect: SetOperatorRightSelect<TValue, TResult>,
 	...restSelects: SetOperatorRestSelect<TRest, TResult>
 ) => SQLiteSelectWithout<
-	SQLiteSelectBase<
+	SQLiteSelectQueryBuilderBase<
+		THKT,
 		TTableName,
-		TResultType,
 		TRunResult,
 		TSelection,
 		TSelectMode,

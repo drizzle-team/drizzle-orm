@@ -1,7 +1,7 @@
 import type { MigrationMeta } from '~/migrator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
-import type { BaseSQLiteDatabase } from '~/sqlite-core/index.ts';
+import type { SQLiteAsyncDatabase } from '~/sqlite-core/index.ts';
 import type { SqliteRemoteDatabase } from '~/sqlite-proxy/index.ts';
 import type { ProxyMigrator } from '~/sqlite-proxy/migrator.ts';
 import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResult } from './utils.ts';
@@ -49,7 +49,7 @@ const upgradeAsyncFunctions: Record<
 	number,
 	(
 		migrationsTable: string,
-		db: BaseSQLiteDatabase<'async', unknown, AnyRelations>,
+		db: SQLiteAsyncDatabase<'async', unknown, AnyRelations>,
 		callback: ProxyMigrator,
 		localMigrations: MigrationMeta[],
 	) => Promise<void>

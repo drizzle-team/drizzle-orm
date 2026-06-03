@@ -7,7 +7,7 @@ import type { PgTable, PgTableWithColumns } from 'drizzle-orm/pg-core';
 import { getTableConfig as getTableConfigPg, type PgDialect } from 'drizzle-orm/pg-core';
 import { PgAsyncDatabase } from 'drizzle-orm/pg-core/async';
 import type { SQLiteTable, SQLiteTableWithColumns } from 'drizzle-orm/sqlite-core';
-import { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
+import { SQLiteAsyncDatabase } from 'drizzle-orm/sqlite-core';
 import { generatorsMap } from './generators/GeneratorFuncs.ts';
 import type {
 	AbstractGenerator,
@@ -972,7 +972,7 @@ export class SeedService {
 				: this.postgresMaxParametersNumber;
 		} else if (is(db, MySqlDatabase<any, any>)) {
 			maxParametersNumber = this.mysqlMaxParametersNumber;
-		} else if (is(db, BaseSQLiteDatabase<any, any>)) {
+		} else if (is(db, SQLiteAsyncDatabase<any, any>)) {
 			maxParametersNumber = this.sqliteMaxParametersNumber;
 		} else {
 			// is(db, MsSqlDatabase<any, any>)
@@ -1148,7 +1148,7 @@ export class SeedService {
 			await db
 				.insert((schema as { [key: string]: MySqlTable })[tableName]!)
 				.values(generatedValues);
-		} else if (is(db, BaseSQLiteDatabase<any, any>)) {
+		} else if (is(db, SQLiteAsyncDatabase<any, any>)) {
 			await db
 				.insert((schema as { [key: string]: SQLiteTable })[tableName]!)
 				.values(generatedValues);
@@ -1214,7 +1214,7 @@ export class SeedService {
 			await db.update(table).set(values).where(
 				eq(table[uniqueNotNullColName], uniqueNotNullColValue),
 			);
-		} else if (is(db, BaseSQLiteDatabase<any, any>)) {
+		} else if (is(db, SQLiteAsyncDatabase<any, any>)) {
 			const table = (schema as { [key: string]: SQLiteTableWithColumns<any> })[tableName]!;
 			await db.update(table).set(values).where(
 				eq(table[uniqueNotNullColName], uniqueNotNullColValue),

@@ -6,16 +6,16 @@ import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
-import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import { SQLiteTransaction } from '~/sqlite-core/index.ts';
-import type {
-	PreparedQueryConfig as PreparedQueryConfigBase,
-	SQLiteExecuteMethod,
-	SQLiteQueryExecutors,
-	SQLiteTransactionConfig,
-} from '~/sqlite-core/session.ts';
-import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
-import type { TursoDatabaseRunResult } from './driver-core.ts';
+import {
+	SQLiteAsyncPreparedQuery,
+	type SQLiteAsyncPreparedQueryConfig as PreparedQueryConfigBase,
+	SQLiteAsyncSession,
+	SQLiteAsyncTransaction,
+	type SQLiteQueryExecutors,
+} from '~/sqlite-core/async/session.ts';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
+import type { TursoDatabaseRunResult } from './driver-core';
 
 export interface TursoDatabaseSessionOptions {
 	logger?: Logger;
@@ -25,7 +25,7 @@ export interface TursoDatabaseSessionOptions {
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
 export class TursoDatabaseSession<TRelations extends AnyRelations>
-	extends SQLiteSession<'async', TursoDatabaseRunResult, TRelations>
+	extends SQLiteAsyncSession<'async', TursoDatabaseRunResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'TursoDatabaseSession';
 
@@ -34,7 +34,7 @@ export class TursoDatabaseSession<TRelations extends AnyRelations>
 
 	constructor(
 		readonly client: DatabasePromise,
-		dialect: SQLiteAsyncDialect,
+		dialect: SQLiteDialect,
 		private relations: TRelations,
 		private options: TursoDatabaseSessionOptions,
 	) {
@@ -54,7 +54,7 @@ export class TursoDatabaseSession<TRelations extends AnyRelations>
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): SQLitePreparedQuery<T & { run: TursoDatabaseRunResult }> {
+	): SQLiteAsyncPreparedQuery<T & { run: TursoDatabaseRunResult }> {
 		let stmt: StatementPromise;
 		const executors: SQLiteQueryExecutors<'async'> = prepare
 			? {
@@ -99,7 +99,7 @@ export class TursoDatabaseSession<TRelations extends AnyRelations>
 				},
 			};
 
-		return new SQLitePreparedQuery(
+		return new SQLiteAsyncPreparedQuery(
 			'async',
 			executeMethod,
 			executors,
@@ -138,7 +138,7 @@ export class TursoDatabaseSession<TRelations extends AnyRelations>
 }
 
 export class TursoDatabaseTransaction<TRelations extends AnyRelations>
-	extends SQLiteTransaction<'async', TursoDatabaseRunResult, TRelations>
+	extends SQLiteAsyncTransaction<'async', TursoDatabaseRunResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'TursoDatabaseTransaction';
 

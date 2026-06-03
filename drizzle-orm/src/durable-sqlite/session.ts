@@ -3,15 +3,15 @@ import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
-import { type SQLiteSyncDialect, SQLiteTransaction } from '~/sqlite-core/index.ts';
 import {
-	type PreparedQueryConfig as PreparedQueryConfigBase,
-	type SQLiteExecuteMethod,
-	SQLitePreparedQuery,
+	SQLiteAsyncPreparedQuery,
+	type SQLiteAsyncPreparedQueryConfig as PreparedQueryConfigBase,
+	SQLiteAsyncSession,
+	SQLiteAsyncTransaction,
 	type SQLiteQueryExecutors,
-	SQLiteSession,
-	type SQLiteTransactionConfig,
-} from '~/sqlite-core/session.ts';
+} from '~/sqlite-core/async/session.ts';
+import type { SQLiteDialect } from '~/sqlite-core/index.ts';
+import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 
 export interface SQLiteDOSessionOptions {
@@ -22,7 +22,7 @@ type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
 export type DurableSQLiteRunResult = SqlStorageCursor<Record<string, SqlStorageValue>>;
 
-export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteSession<
+export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteAsyncSession<
 	'sync',
 	DurableSQLiteRunResult,
 	TRelations
@@ -33,7 +33,7 @@ export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteSess
 
 	constructor(
 		private client: DurableObjectStorage,
-		dialect: SQLiteSyncDialect,
+		dialect: SQLiteDialect,
 		private relations: TRelations,
 		private options: SQLiteDOSessionOptions = {},
 	) {
@@ -51,7 +51,7 @@ export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteSess
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
 		},
-	): SQLitePreparedQuery<T & { run: DurableSQLiteRunResult }> {
+	): SQLiteAsyncPreparedQuery<T & { run: DurableSQLiteRunResult }> {
 		const executors: SQLiteQueryExecutors<'sync'> = {
 			all: (params) => {
 				const res = params.length > 0
@@ -86,7 +86,7 @@ export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteSess
 			},
 		};
 
-		return new SQLitePreparedQuery(
+		return new SQLiteAsyncPreparedQuery(
 			'sync',
 			executeMethod,
 			executors,
@@ -102,7 +102,7 @@ export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteSess
 
 	override transaction<T>(
 		transaction: (
-			tx: SQLiteTransaction<
+			tx: SQLiteAsyncTransaction<
 				'sync',
 				DurableSQLiteRunResult,
 				TRelations
@@ -116,7 +116,7 @@ export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteSess
 }
 
 export class SQLiteDOTransaction<TRelations extends AnyRelations>
-	extends SQLiteTransaction<'sync', DurableSQLiteRunResult, TRelations>
+	extends SQLiteAsyncTransaction<'sync', DurableSQLiteRunResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'SQLiteDOTransaction';
 
