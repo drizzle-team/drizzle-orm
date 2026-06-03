@@ -1746,6 +1746,7 @@ export const connectToSQLite = async (
 			| '@sqlitecloud/drivers'
 			| '@tursodatabase/database'
 			| '@tursodatabase/serverless'
+			| '@tursodatabase/sync'
 			| 'bun'
 			| 'node:sqlite';
 		migrate: (config: string | MigrationConfig) => Promise<void | MigratorInitFailResponse>;
@@ -2080,7 +2081,7 @@ export const connectToSQLite = async (
 		};
 
 		const query = async <T>(sql: string, params?: any[]) => {
-			return client.all(sql, ...preparePGliteParams(params || [])) as Promise<T[]>;
+			return client.all(sql, ...prepareSqliteParams(params || [])) as Promise<T[]>;
 		};
 		const batch = async (queries: string[]) => {
 			for (const query of queries) {
@@ -2131,14 +2132,14 @@ export const connectToSQLite = async (
 		const { drizzle } = await import('drizzle-orm/tursodatabase-serverless');
 		const { migrate } = await import('drizzle-orm/tursodatabase-serverless/migrator');
 
-		const client = connect({ url: normaliseSQLiteUrl(credentials.url, '@tursodatabase/serverless') });
+		const client = connect({ url: normaliseSQLiteUrl(credentials.url, 'libsql') });
 		const drzl = drizzle({ client });
 		const migrateFn = async (config: MigrationConfig) => {
 			return migrate(drzl, config);
 		};
 
 		const query = async <T>(sql: string, params?: any[]) => {
-			return client.all(sql, ...preparePGliteParams(params || [])) as Promise<T[]>;
+			return client.all(sql, ...prepareSqliteParams(params || [])) as Promise<T[]>;
 		};
 		const batch = async (queries: string[]) => {
 			await client.batch(queries);
@@ -2170,6 +2171,66 @@ export const connectToSQLite = async (
 			query,
 			batch,
 			packageName: '@tursodatabase/serverless',
+			proxy,
+			transactionProxy,
+			migrate: migrateFn,
+			run: async (query: string) => {
+				await client.exec(query).catch((e) => {
+					throw new QueryError(e, query, []);
+				});
+			},
+		};
+	}
+
+	if (await checkPackage('@tursodatabase/sync')) {
+		console.log(withStyle.info(`Using '@tursodatabase/sync' driver for database querying`));
+		const { Database } = await import('@tursodatabase/sync');
+		const { drizzle } = await import('drizzle-orm/tursodatabase-sync');
+		const { migrate } = await import('drizzle-orm/tursodatabase-sync/migrator');
+
+		const client = new Database({ path: normaliseSQLiteUrl(credentials.url, '@tursodatabase/database') });
+		const drzl = drizzle({ client });
+		const migrateFn = async (config: MigrationConfig) => {
+			return migrate(drzl, config);
+		};
+
+		const query = async <T>(sql: string, params?: any[]) => {
+			return client.all(sql, ...prepareSqliteParams(params || [])) as Promise<T[]>;
+		};
+		const batch = async (queries: string[]) => {
+			await client.transaction(async () => {
+				for (const query in queries) {
+					await client.run(query);
+				}
+			})();
+		};
+
+		const proxy = async (params: ProxyParams) => {
+			const preparedParams = prepareSqliteParams(params.params || []);
+			const stmt = await client.prepare(params.sql);
+			return stmt.raw(params.mode === 'array').all(preparedParams);
+		};
+
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: (any[] | Error)[] = [];
+			try {
+				const tx = client.transaction(async () => {
+					for (const query of queries) {
+						const result = await client.all(query.sql);
+						results.push(result);
+					}
+				});
+				await tx();
+			} catch (error) {
+				results.push(error as Error);
+			}
+			return results;
+		};
+
+		return {
+			query,
+			batch,
+			packageName: '@tursodatabase/sync',
 			proxy,
 			transactionProxy,
 			migrate: migrateFn,
