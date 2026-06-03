@@ -2,8 +2,8 @@ import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
-import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
+import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
+import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { SQLiteExecuteMethod } from '~/sqlite-core/session.ts';
 import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
 import { jitCompatCheck } from '~/utils.ts';
@@ -14,7 +14,7 @@ export interface SqliteRemoteResult<T = unknown> {
 }
 
 export class SqliteRemoteDatabase<TRelations extends AnyRelations = EmptyRelations>
-	extends BaseSQLiteDatabase<'async', SqliteRemoteResult, TRelations>
+	extends SQLiteAsyncDatabase<'async', SqliteRemoteResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'SqliteRemoteDatabase';
 
@@ -78,7 +78,7 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 		}
 	}
 
-	const dialect = new SQLiteAsyncDialect({
+	const dialect = new SQLiteDialect({
 		useJitMappers: jitCompatCheck(_config.jit),
 	});
 

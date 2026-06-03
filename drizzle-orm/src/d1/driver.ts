@@ -4,8 +4,8 @@ import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
-import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
+import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
+import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
 import type { IfNotImported } from '~/utils.ts';
 import { type D1RunResult, SQLiteD1Session } from './session.ts';
@@ -19,7 +19,7 @@ export type AnyD1Database = IfNotImported<
 >;
 
 export class DrizzleD1Database<TRelations extends AnyRelations = EmptyRelations>
-	extends BaseSQLiteDatabase<'async', D1RunResult, TRelations>
+	extends SQLiteAsyncDatabase<'async', D1RunResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'D1Database';
 
@@ -42,7 +42,7 @@ export function drizzle<
 ): DrizzleD1Database<TRelations> & {
 	$client: TClient;
 } {
-	const dialect = new SQLiteAsyncDialect();
+	const dialect = new SQLiteDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

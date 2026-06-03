@@ -2,13 +2,13 @@ import type { OPSQLiteConnection } from '@op-engineering/op-sqlite';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
-import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
+import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
+import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
 import { type OPSQLiteRunResult, OPSQLiteSession } from './session.ts';
 
 export class OPSQLiteDatabase<TRelations extends AnyRelations = EmptyRelations>
-	extends BaseSQLiteDatabase<'async', OPSQLiteRunResult, TRelations>
+	extends SQLiteAsyncDatabase<'async', OPSQLiteRunResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'OPSQLiteDatabase';
 }
@@ -19,7 +19,7 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 ): OPSQLiteDatabase<TRelations> & {
 	$client: OPSQLiteConnection;
 } {
-	const dialect = new SQLiteAsyncDialect({
+	const dialect = new SQLiteDialect({
 		useJitMappers: jitCompatCheck(config.jit),
 	});
 	let logger;

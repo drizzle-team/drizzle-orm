@@ -1,6 +1,7 @@
 import type { MigrationConfig } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
 import type { AnyRelations } from '~/relations.ts';
+import { migrateAsync } from '~/sqlite-core/async/session.ts';
 import type { TursoDatabaseDatabase } from './driver-core.ts';
 
 export async function migrate<TRelations extends AnyRelations>(
@@ -8,5 +9,5 @@ export async function migrate<TRelations extends AnyRelations>(
 	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);
-	return db.dialect.migrate(migrations, db, config);
+	return migrateAsync(migrations, db, config);
 }

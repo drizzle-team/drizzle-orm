@@ -9,16 +9,16 @@ import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
-import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import { SQLiteTransaction } from '~/sqlite-core/index.ts';
+import {
+	SQLiteAsyncPreparedQuery,
+	type SQLiteAsyncPreparedQueryConfig as PreparedQueryConfigBase,
+	SQLiteAsyncSession,
+	SQLiteAsyncTransaction,
+	type SQLiteQueryExecutors,
+} from '~/sqlite-core/async/session.ts';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types.ts';
-import type {
-	PreparedQueryConfig as PreparedQueryConfigBase,
-	SQLiteExecuteMethod,
-	SQLiteQueryExecutors,
-	SQLiteTransactionConfig,
-} from '~/sqlite-core/session.ts';
-import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
+import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
 
 export interface SQLiteD1SessionOptions {
 	logger?: Logger;
@@ -29,7 +29,9 @@ export type D1RunResult = D1Result;
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
-export class SQLiteD1Session<TRelations extends AnyRelations> extends SQLiteSession<'async', D1RunResult, TRelations> {
+export class SQLiteD1Session<TRelations extends AnyRelations>
+	extends SQLiteAsyncSession<'async', D1RunResult, TRelations>
+{
 	static override readonly [entityKind]: string = 'SQLiteD1Session';
 
 	private logger: Logger;
@@ -37,7 +39,7 @@ export class SQLiteD1Session<TRelations extends AnyRelations> extends SQLiteSess
 
 	constructor(
 		private client: D1Database | D1DatabaseSession,
-		dialect: SQLiteAsyncDialect,
+		dialect: SQLiteDialect,
 		private relations: TRelations,
 		private options: SQLiteD1SessionOptions = {},
 	) {
@@ -96,7 +98,7 @@ export class SQLiteD1Session<TRelations extends AnyRelations> extends SQLiteSess
 	}
 
 	async batch<T extends BatchItem<'sqlite'>[] | readonly BatchItem<'sqlite'>[]>(queries: T) {
-		const preparedQueries: SQLitePreparedQuery<any>[] = [];
+		const preparedQueries: SQLiteAsyncPreparedQuery<any>[] = [];
 		const builtQueries: D1PreparedStatement[] = [];
 
 		for (const query of queries) {
@@ -154,7 +156,7 @@ export class SQLiteD1Session<TRelations extends AnyRelations> extends SQLiteSess
 }
 
 export class D1Transaction<TRelations extends AnyRelations>
-	extends SQLiteTransaction<'async', D1RunResult, TRelations>
+	extends SQLiteAsyncTransaction<'async', D1RunResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'D1Transaction';
 
@@ -197,7 +199,7 @@ function d1ToRawMapping(results: any) {
 	return rows;
 }
 
-export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends SQLitePreparedQuery<
+export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends SQLiteAsyncPreparedQuery<
 	{ type: 'async'; run: D1Response; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
 	static override readonly [entityKind]: string = 'D1PreparedQuery';

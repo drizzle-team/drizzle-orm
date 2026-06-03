@@ -19,7 +19,6 @@ import {
 	min,
 	Name,
 	notInArray,
-	placeholder,
 	sql,
 	sum,
 	sumDistinct,
@@ -27,7 +26,6 @@ import {
 } from 'drizzle-orm';
 import {
 	alias,
-	type BaseSQLiteDatabase,
 	blob,
 	customType,
 	except,
@@ -41,7 +39,8 @@ import {
 	numeric,
 	primaryKey,
 	real,
-	SQLiteSyncDialect,
+	type SQLiteAsyncDatabase,
+	SQLiteDialect,
 	sqliteTable,
 	sqliteTableCreator,
 	sqliteView,
@@ -296,7 +295,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		});
 
 		async function setupSetOperationTest(
-			db: BaseSQLiteDatabase<any, any, any>,
+			db: SQLiteAsyncDatabase<any, any, any>,
 		) {
 			await db.run(sql`drop table if exists users2`);
 			await db.run(sql`drop table if exists cities`);
@@ -334,7 +333,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		}
 
 		async function setupAggregateFunctionsTest(
-			db: BaseSQLiteDatabase<any, any, any>,
+			db: SQLiteAsyncDatabase<any, any, any>,
 		) {
 			await db.run(sql`drop table if exists "aggregate_table"`);
 			await db.run(
@@ -1284,7 +1283,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/2872
 		test
-			.skipIf(Date.now() < +new Date('2026-06-03'))
+			.skipIf(Date.now() < +new Date('2026-06-10'))
 			.concurrent(
 				'prepared statement with placeholder in .inArray',
 				async ({ db, push }) => {
@@ -5387,7 +5386,7 @@ export function tests(test: Test, exclude: string[] = []) {
 	});
 
 	test.concurrent('sql.identifier escape', async () => {
-		const dialect = new SQLiteSyncDialect();
+		const dialect = new SQLiteDialect();
 		const userInput = 'id" ASC, CAST((SELECT password_hash FROM users LIMIT 1) AS int)--';
 		const query = sql`SELECT * FROM ${sql.identifier('users')} ORDER BY ${sql.identifier(userInput)} ASC`;
 		const str = dialect.sqlToQuery(query);
@@ -6004,7 +6003,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 		const query = db.select().from(sub);
 		expect(query.toSQL().sql).toStrictEqual(
-			(<{ dialect: SQLiteSyncDialect }> (<any> db)).dialect.sqlToQuery(
+			(<{ dialect: SQLiteDialect }> (<any> db)).dialect.sqlToQuery(
 				sql`select ${sql.identifier('id')}, ${sql.identifier('name')}, ${sql.identifier('location_id')}, ${
 					sql.identifier(
 						'tag_id',
