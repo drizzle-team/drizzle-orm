@@ -71,6 +71,7 @@ export type Setup = {
 		| 'better-sqlite3'
 		| '@sqlitecloud/drivers'
 		| '@tursodatabase/database'
+		| '@tursodatabase/sync'
 		| '@tursodatabase/serverless'
 		| 'bun'
 		| 'duckdb'
