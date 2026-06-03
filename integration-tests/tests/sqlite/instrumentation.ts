@@ -25,6 +25,7 @@ import { createSQLiteDB } from '@miniflare/shared';
 import { Database as SqliteCloudDatabase, SQLiteCloudRowset } from '@sqlitecloud/drivers';
 import { Database as TursoDatabase } from '@tursodatabase/database';
 import { connect } from '@tursodatabase/serverless';
+import { Database as TursoDatabaseSync } from '@tursodatabase/sync';
 import type BetterSqlite3 from 'better-sqlite3';
 import Client from 'better-sqlite3';
 import {
@@ -53,6 +54,7 @@ import { drizzle as drizzleSqliteCloud } from 'drizzle-orm/sqlite-cloud';
 import { SQLiteAsyncDatabase, SQLiteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
 import { drizzle as drizzleProxy } from 'drizzle-orm/sqlite-proxy';
 import { drizzle as drizzleTursoDatabaseSls } from 'drizzle-orm/tursodatabase-serverless';
+import { drizzle as drizzleTursoDatabaseSync } from 'drizzle-orm/tursodatabase-sync';
 import { drizzle as drizzleTursoDatabase } from 'drizzle-orm/tursodatabase/database';
 import Keyv from 'keyv';
 import { DatabaseSync } from 'node:sqlite';
@@ -251,6 +253,30 @@ export const prepareBetterSqlite3Client = () => {
 
 export const prepareTursoDatabaseClient = () => {
 	const client = new TursoDatabase(':memory:');
+
+	const all = async (sql: string, params: any[] = []) => {
+		const stmt = await client.prepare(sql);
+		return stmt.all(...params);
+	};
+
+	const run = async (sql: string, params: any[] = []) => {
+		const stmt = await client.prepare(sql);
+		return stmt.run(...params) as any;
+	};
+
+	const batch = async (statements: string[]) => {
+		return Promise.all(
+			statements.map((x) => run(x)),
+		).then((results) => [results] as any);
+	};
+
+	return { client, all, run, batch };
+};
+
+export const prepareTursoDatabaseSyncClient = () => {
+	const client = new TursoDatabaseSync({
+		path: ':memory:',
+	});
 
 	const all = async (sql: string, params: any[] = []) => {
 		const stmt = await client.prepare(sql);
@@ -547,6 +573,12 @@ export const providerForTursoDatabase = async () => {
 	return providerClosure(clients);
 };
 
+export const providerForTursoDatabaseSync = async () => {
+	const clients = [prepareTursoDatabaseSyncClient()];
+
+	return providerClosure(clients);
+};
+
 export const providerForTursoDatabaseServerless = async () => {
 	const url = process.env['TURSODATABASE_REMOTE_URL'];
 	const authToken = process.env['TURSODATABASE_REMOTE_TOKEN'];
@@ -636,6 +668,7 @@ export const providerForNodeSQLite = async () => {
 
 type ProviderForSQLiteCloud = Awaited<ReturnType<typeof providerForSQLiteCloud>>;
 type ProviderForTursoDatabase = Awaited<ReturnType<typeof providerForTursoDatabase>>;
+type ProviderForTursoDatabaseSync = Awaited<ReturnType<typeof providerForTursoDatabaseSync>>;
 type ProviderForTursoDatabaseServerless = Awaited<ReturnType<typeof providerForTursoDatabaseServerless>>;
 type ProviderForLibSQL = Awaited<ReturnType<typeof providerForLibSQL>>;
 type ProviderForLibSQLWs = Awaited<ReturnType<typeof providerForLibSQLWs>>;
@@ -650,6 +683,7 @@ type ProviderForNodeSQLite = Awaited<ReturnType<typeof providerForNodeSQLite>>;
 type Provider =
 	| ProviderForSQLiteCloud
 	| ProviderForTursoDatabase
+	| ProviderForTursoDatabaseSync
 	| ProviderForTursoDatabaseServerless
 	| ProviderForLibSQL
 	| ProviderForLibSQLWs
@@ -673,6 +707,7 @@ const testFor = (
 		| 'sqlite-cloud'
 		| 'proxy'
 		| 'tursodatabase'
+		| 'tursodatabase-sync'
 		| 'tursodatabase-serverless'
 		| 'libsql'
 		| 'libsql-turso'
@@ -731,6 +766,8 @@ const testFor = (
 					? await providerForSQLiteCloud()
 					: vendor === 'tursodatabase'
 					? await providerForTursoDatabase()
+					: vendor === 'tursodatabase-sync'
+					? await providerForTursoDatabaseSync()
 					: vendor === 'tursodatabase-serverless'
 					? await providerForTursoDatabaseServerless()
 					: vendor === 'libsql' || vendor === 'libsql-turso' || vendor === 'libsql-turso-v1'
@@ -797,6 +834,8 @@ const testFor = (
 					? drizzleSqliteCloud({ client: kit.client as any, relations })
 					: vendor === 'tursodatabase'
 					? drizzleTursoDatabase({ client: kit.client, relations })
+					: vendor === 'tursodatabase-sync'
+					? drizzleTursoDatabaseSync({ client: kit.client, relations })
 					: vendor === 'tursodatabase-serverless'
 					? drizzleTursoDatabaseSls({ client: kit.client, relations })
 					: vendor === 'libsql'
@@ -846,6 +885,7 @@ const testFor = (
 
 					if (vendor === 'sqlite-cloud') return drizzleSqliteCloud({ client: kit.client, relations, jit });
 					if (vendor === 'tursodatabase') return drizzleTursoDatabase({ client: kit.client, relations, jit });
+					if (vendor === 'tursodatabase-sync') return drizzleTursoDatabaseSync({ client: kit.client, relations, jit });
 					if (vendor === 'tursodatabase-serverless') {
 						return drizzleTursoDatabaseSls({ client: kit.client, relations, jit });
 					}
@@ -917,6 +957,8 @@ const testFor = (
 					? drizzleSqliteCloud(config1)
 					: vendor === 'tursodatabase'
 					? drizzleTursoDatabase(config1)
+					: vendor === 'tursodatabase-sync'
+					? drizzleTursoDatabaseSync(config1)
 					: vendor === 'tursodatabase-serverless'
 					? drizzleTursoDatabaseSls(config1)
 					: vendor === 'libsql' || vendor === 'libsql-turso' || vendor === 'libsql-turso-v1'
@@ -943,6 +985,8 @@ const testFor = (
 					? drizzleSqliteCloud(config2)
 					: vendor === 'tursodatabase'
 					? drizzleTursoDatabase(config2)
+					: vendor === 'tursodatabase-sync'
+					? drizzleTursoDatabaseSync(config2)
 					: vendor === 'tursodatabase-serverless'
 					? drizzleTursoDatabaseSls(config2)
 					: vendor === 'libsql' || vendor === 'libsql-turso' || vendor === 'libsql-turso-v1'
@@ -974,6 +1018,7 @@ const testFor = (
 
 export const sqliteCloudTest = testFor('sqlite-cloud');
 export const tursoDatabaseTest = testFor('tursodatabase');
+export const tursoDatabaseSyncTest = testFor('tursodatabase-sync');
 export const tursoDatabaseServerlessTest = testFor('tursodatabase-serverless');
 export const libSQLTest = testFor('libsql');
 export const libSQLWsTest = testFor('libsql-ws');
