@@ -6152,7 +6152,8 @@ export function tests(test: Test, exclude: string[] = []) {
 				isBanned: false,
 			}).where(eq(users.id, 2)).returning();
 
-			const deleted = await db.delete(users).returning();
+			// Driver bug bypass for `sqlite-cloud` driver
+			const deleted = await db.delete(users).where(sql`true`).returning();
 
 			expect(inserted).toStrictEqual([{
 				id: 1,
@@ -6842,7 +6843,8 @@ export function tests(test: Test, exclude: string[] = []) {
 				isBanned: false,
 			}).where(eq(users.id, 2)).returning();
 
-			const deleted = await db.delete(users).returning();
+			// Driver bug bypass for `sqlite-cloud` driver
+			const deleted = await db.delete(users).where(sql`true`).returning();
 
 			expect(inserted).toStrictEqual([{
 				id: 1,
