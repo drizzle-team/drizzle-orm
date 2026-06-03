@@ -61,14 +61,15 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteAsyncS
 		const executors: SQLiteQueryExecutors<'async'> = {
 			all: (params) =>
 				client.execute({ sql: query.sql, args: params as InArgs }).then(({ rows }) =>
-					mode === 'arrays' ? rows : rows.map(normalizeRow)
+					mode === 'arrays' ? rows.map(toArrayRow) : rows.map(normalizeRow)
 				),
 			get: (params) =>
 				client.execute({ sql: query.sql, args: params as InArgs }).then(({ rows }) =>
-					mode === 'arrays' ? rows[0] : rows[0] ? normalizeRow(rows[0]) : rows[0]
+					rows[0] ? (mode === 'arrays' ? toArrayRow(rows[0]) : normalizeRow(rows[0])) : undefined
 				),
 			run: (params) => client.execute({ sql: query.sql, args: params as InArgs }),
-			values: (params) => client.execute({ sql: query.sql, args: params as InArgs }).then(({ rows }) => rows),
+			values: (params) =>
+				client.execute({ sql: query.sql, args: params as InArgs }).then(({ rows }) => rows.map(toArrayRow)),
 		};
 
 		return new SQLiteAsyncPreparedQuery(
@@ -118,15 +119,17 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteAsyncS
 			if (executeMethod === 'get') {
 				const value = result.rows[0];
 				if (!value) return;
-				if (!mapper) return mode === 'arrays' ? value : normalizeRow(value);
+				const mapped = mode === 'arrays' ? toArrayRow(value) : normalizeRow(value);
+				if (!mapper) return mapped;
 
-				return mapper([mode === 'arrays' ? value : normalizeRow(value)])[0];
+				return mapper([mapped])[0];
 			}
 
 			const { rows } = result;
-			if (!mapper) return mode === 'arrays' ? rows : rows.map(normalizeRow);
+			const mapped = mode === 'arrays' ? rows.map(toArrayRow) : rows.map(normalizeRow);
+			if (!mapper) return mapped;
 
-			return mapper(mode === 'arrays' ? rows : rows.map(normalizeRow));
+			return mapper(mapped);
 		}) as BatchResponse<T>;
 	}
 
@@ -190,6 +193,13 @@ export class LibSQLTransaction<TRelations extends AnyRelations>
 			throw err;
 		}
 	}
+}
+
+function toArrayRow(obj: any) {
+	// The libSQL node-sqlite3 compatibility wrapper returns array-like rows that
+	// expose numeric indices and a `length`, but aren't iterable. Materialize a
+	// real array so downstream consumers (e.g. the jit row mappers) can iterate them.
+	return Array.prototype.slice.call(obj);
 }
 
 function normalizeRow(obj: any) {
