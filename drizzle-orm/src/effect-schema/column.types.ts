@@ -52,7 +52,9 @@ type GetBaseEffectSchemaType<
 			? Struct<{ readonly a: typeof s.Number; readonly b: typeof s.Number; readonly c: typeof s.Number }>
 		: TType['constraint'] extends 'json' ? typeof jsonSchema
 		: typeof s.ObjectKeyword
-	: TType['type'] extends 'custom' ? typeof s.Any
+	: TType['type'] extends 'custom' ? TColumn['_'] extends { customTypeSchemas: { effect: infer TEffect } }
+			? TEffect extends SchemaTop ? TEffect : typeof s.Any
+		: typeof s.Any
 	: TType['type'] extends 'number'
 		? (TType['constraint'] extends
 			'int8' | 'int16' | 'int24' | 'int32' | 'int53' | 'uint8' | 'uint16' | 'uint24' | 'uint32' | 'uint53' | 'year'

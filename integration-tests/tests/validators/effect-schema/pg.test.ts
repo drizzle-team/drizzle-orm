@@ -610,6 +610,61 @@ test('all data types', (t) => {
 	Expect<Equal<typeof result, typeof expected>>();
 }
 
+test('customType - schemas.effect is honored by createSelectSchema (runtime + type)', (t) => {
+	class FakeInstant {
+		constructor(readonly iso: string) {}
+		toString() {
+			return this.iso;
+		}
+	}
+	const InstantSchema = s.declare<FakeInstant>((v: unknown): v is FakeInstant => v instanceof FakeInstant);
+
+	const instantType = customType<{
+		data: FakeInstant;
+		driverData: string;
+		schemas: { effect: typeof InstantSchema };
+	}>({
+		codec: undefined,
+		dataType: () => 'timestamptz',
+		toDriver: (v) => v.toString(),
+		fromDriver: (str) => new FakeInstant(str),
+		schemas: { effect: InstantSchema },
+	});
+
+	const table = pgTable('audit', {
+		id: integer().notNull(),
+		createdAt: instantType('created_at').notNull(),
+	});
+
+	const result = createSelectSchema(table);
+	const expected = s.Struct({
+		id: integerSchema,
+		createdAt: InstantSchema,
+	});
+
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('customType - missing schemas.effect falls back to Schema.Any', (t) => {
+	const opaqueType = customType<{ data: { foo: string }; driverData: string }>({
+		codec: undefined,
+		dataType: () => 'text',
+		toDriver: (v) => JSON.stringify(v),
+		fromDriver: (s) => JSON.parse(s),
+	});
+
+	const table = pgTable('opaque', {
+		blob: opaqueType('blob').notNull(),
+	});
+	const result = createSelectSchema(table);
+	const expected = s.Struct({
+		blob: anySchema,
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
 /* Disallow unknown keys in table refinement - select */ {
 	const table = pgTable('test', { id: integer() });
 	// @ts-expect-error
