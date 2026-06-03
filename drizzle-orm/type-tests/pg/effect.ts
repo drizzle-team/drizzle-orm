@@ -1,12 +1,15 @@
 import type { PgClient } from '@effect/sql-pg/PgClient';
-import type * as Effect from 'effect/Effect';
+import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/unstable/sql/SqlError';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import type { EffectDrizzleQueryError, MigratorInitError } from '~/effect-core/errors.ts';
+import { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import type { EffectPgDatabase } from '~/effect-postgres/index.ts';
 import { make, makeWithDefaults } from '~/effect-postgres/index.ts';
 import { migrate } from '~/effect-postgres/migrator.ts';
+import { PgEffectDatabase } from '~/pg-core/effect/db.ts';
+import { PgQueryResultHKT } from '~/pg-core/session.ts';
 import type { EmptyRelations } from '~/relations.ts';
 import { eq } from '~/sql/expressions/index.ts';
 import { cities, users } from './tables.ts';
@@ -218,4 +221,89 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 			Effect.Effect<undefined, SqlError | EffectDrizzleQueryError | MigratorInitError, never>
 		>
 	>;
+}
+
+{
+	type RunResult = { $brand: 'RUN' };
+	const db = {} as PgEffectDatabase<
+		QueryEffectHKTBase & {
+			readonly error: EffectDrizzleQueryError;
+			readonly context: never;
+		},
+		PgQueryResultHKT & {
+			type: RunResult;
+		},
+		EmptyRelations
+	>;
+
+	const p1 = db.insert(users).values({
+		homeCity: 1,
+		class: 'A',
+		age1: 25,
+		enumCol: 'a',
+		arrayCol: ['test'],
+	}).prepare()
+		.execute();
+	const p2 = db.update(users).set({
+		homeCity: 1,
+		class: 'A',
+		age1: 25,
+		enumCol: 'a',
+		arrayCol: ['test'],
+	}).prepare()
+		.execute();
+	const p3 = db.delete(users).prepare()
+		.execute();
+
+	const r1 = db.insert(users).values({
+		homeCity: 1,
+		class: 'A',
+		age1: 25,
+		enumCol: 'a',
+		arrayCol: ['test'],
+	}).execute();
+	const r2 = db.update(users).set({
+		homeCity: 1,
+		class: 'A',
+		age1: 25,
+		enumCol: 'a',
+		arrayCol: ['test'],
+	}).execute();
+	const r3 = db.delete(users).execute();
+
+	const d1 = Effect.suspend(() =>
+		db.insert(users).values({
+			homeCity: 1,
+			class: 'A',
+			age1: 25,
+			enumCol: 'a',
+			arrayCol: ['test'],
+		})
+	);
+	const d2 = Effect.suspend(() =>
+		db.update(users).set({
+			homeCity: 1,
+			class: 'A',
+			age1: 25,
+			enumCol: 'a',
+			arrayCol: ['test'],
+		})
+	);
+	const d3 = Effect.suspend(() => db.delete(users));
+	const d4 = Effect.suspend(() => db.execute(`somequery`));
+
+	type Expected = Effect.Effect<RunResult, EffectDrizzleQueryError, never>;
+
+	Expect<Equal<typeof p1, Expected>>;
+	Expect<Equal<typeof p2, Expected>>;
+	Expect<Equal<typeof p3, Expected>>;
+
+	Expect<Equal<typeof r1, Expected>>;
+	Expect<Equal<typeof r2, Expected>>;
+	Expect<Equal<typeof r3, Expected>>;
+
+	Expect<Equal<typeof d1, Expected>>;
+	Expect<Equal<typeof d2, Expected>>;
+	Expect<Equal<typeof d3, Expected>>;
+	Expect<Equal<typeof d4, Expected>>;
 }

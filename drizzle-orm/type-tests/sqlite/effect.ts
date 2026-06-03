@@ -1,14 +1,16 @@
 import type { SqliteClient } from '@effect/sql-sqlite-node/SqliteClient';
-import type * as Effect from 'effect/Effect';
+import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/unstable/sql/SqlError';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import type { EffectDrizzleQueryError, MigratorInitError } from '~/effect-core/errors.ts';
+import { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import type { EffectSQLiteNodeDatabase } from '~/effect-sqlite-node/index.ts';
 import { make, makeWithDefaults } from '~/effect-sqlite-node/index.ts';
 import { migrate } from '~/effect-sqlite-node/migrator.ts';
 import type { EmptyRelations } from '~/relations.ts';
 import { eq } from '~/sql/expressions/index.ts';
+import { SQLiteEffectDatabase } from '~/sqlite-core/effect/db.ts';
 import { cities, users } from './tables.ts';
 
 // v4: Effect.Effect.AsEffect no longer exists. Extract Effect from Yieldable Self parameter.
@@ -252,4 +254,87 @@ declare const db: EffectSQLiteNodeDatabase<Record<string, never>>;
 			Effect.Effect<undefined, SqlError | EffectDrizzleQueryError | MigratorInitError, never>
 		>
 	>;
+}
+
+{
+	type RunResult = { $brand: 'RUN' };
+	const db = {} as SQLiteEffectDatabase<
+		QueryEffectHKTBase & {
+			readonly error: EffectDrizzleQueryError;
+			readonly context: never;
+		},
+		RunResult,
+		EmptyRelations
+	>;
+
+	const p1 = db.select().from(users).prepare().run();
+	const p2 = db.selectDistinct().from(users).prepare().run();
+	const p3 = db.with(db.$with('sq').as((qb) => qb.select().from(users))).select().from(users).prepare().run();
+	const p4 = db.selectDistinct().from(users).prepare().run();
+	const p5 = db.insert(users).values({ homeCity: 1, serialNotNull: 1, class: 'A', age1: 25, enumCol: 'a' }).prepare()
+		.run();
+	const p6 = db.insert(users).values({ homeCity: 1, serialNotNull: 1, class: 'A', age1: 25, enumCol: 'a' }).returning()
+		.prepare()
+		.run();
+	const p7 = db.update(users).set({ homeCity: 1, serialNotNull: 1, class: 'A', age1: 25, enumCol: 'a' }).prepare()
+		.run();
+	const p8 = db.update(users).set({ homeCity: 1, serialNotNull: 1, class: 'A', age1: 25, enumCol: 'a' }).returning()
+		.prepare()
+		.run();
+	const p9 = db.delete(users).prepare()
+		.run();
+	const p10 = db.delete(users).returning()
+		.prepare()
+		.run();
+
+	const r1 = db.select().from(users).run();
+	const r2 = db.selectDistinct().from(users).run();
+	const r3 = db.with(db.$with('sq').as((qb) => qb.select().from(users))).select().from(users).run();
+	const r4 = db.selectDistinct().from(users).run();
+	const r5 = db.insert(users).values({ homeCity: 1, serialNotNull: 1, class: 'A', age1: 25, enumCol: 'a' }).run();
+	const r6 = db.insert(users).values({ homeCity: 1, serialNotNull: 1, class: 'A', age1: 25, enumCol: 'a' }).returning()
+		.run();
+	const r7 = db.update(users).set({ homeCity: 1, serialNotNull: 1, class: 'A', age1: 25, enumCol: 'a' }).run();
+	const r8 = db.update(users).set({ homeCity: 1, serialNotNull: 1, class: 'A', age1: 25, enumCol: 'a' }).returning()
+		.run();
+	const r9 = db.delete(users).run();
+	const r10 = db.delete(users).returning().run();
+
+	const d1 = Effect.suspend(() =>
+		db.insert(users).values({ homeCity: 1, serialNotNull: 1, class: 'A', age1: 25, enumCol: 'a' })
+	);
+	const d2 = Effect.suspend(() =>
+		db.update(users).set({ homeCity: 1, serialNotNull: 1, class: 'A', age1: 25, enumCol: 'a' })
+	);
+	const d3 = Effect.suspend(() => db.delete(users));
+	const d4 = Effect.suspend(() => db.run(`somequery`));
+
+	type Expected = Effect.Effect<RunResult, EffectDrizzleQueryError, never>;
+
+	Expect<Equal<typeof p1, Expected>>;
+	Expect<Equal<typeof p2, Expected>>;
+	Expect<Equal<typeof p3, Expected>>;
+	Expect<Equal<typeof p4, Expected>>;
+	Expect<Equal<typeof p5, Expected>>;
+	Expect<Equal<typeof p6, Expected>>;
+	Expect<Equal<typeof p7, Expected>>;
+	Expect<Equal<typeof p8, Expected>>;
+	Expect<Equal<typeof p9, Expected>>;
+	Expect<Equal<typeof p10, Expected>>;
+
+	Expect<Equal<typeof r1, Expected>>;
+	Expect<Equal<typeof r2, Expected>>;
+	Expect<Equal<typeof r3, Expected>>;
+	Expect<Equal<typeof r4, Expected>>;
+	Expect<Equal<typeof r5, Expected>>;
+	Expect<Equal<typeof r6, Expected>>;
+	Expect<Equal<typeof r7, Expected>>;
+	Expect<Equal<typeof r8, Expected>>;
+	Expect<Equal<typeof r9, Expected>>;
+	Expect<Equal<typeof r10, Expected>>;
+
+	Expect<Equal<typeof d1, Expected>>;
+	Expect<Equal<typeof d2, Expected>>;
+	Expect<Equal<typeof d3, Expected>>;
+	Expect<Equal<typeof d4, Expected>>;
 }
