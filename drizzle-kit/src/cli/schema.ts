@@ -211,7 +211,7 @@ export const migrate = command({
 				}),
 			);
 		} else if (dialect === 'turso') {
-			const { connectToLibSQL } = await import('./connections');
+			const { connectToTursoRemote: connectToLibSQL } = await import('./connections');
 			const { migrate } = await connectToLibSQL(credentials);
 			await renderWithTask(
 				new MigrateProgress(),
@@ -383,7 +383,7 @@ export const push = command({
 				migrations,
 			);
 		} else if (dialect === 'sqlite' || dialect === 'turso') {
-			const { connectToSQLite, connectToLibSQL } = await import('./connections');
+			const { connectToSQLite, connectToTursoRemote: connectToLibSQL } = await import('./connections');
 			const db = dialect === 'sqlite'
 				? await connectToSQLite(credentials as SqliteCredentials)
 				: await connectToLibSQL(credentials as LibSQLCredentials);
@@ -650,7 +650,7 @@ export const pull = command({
 				db,
 			);
 		} else if (dialect === 'turso') {
-			const { connectToLibSQL } = await import('./connections');
+			const { connectToTursoRemote: connectToLibSQL } = await import('./connections');
 			const db = await connectToLibSQL(credentials);
 			migrate = db.migrate;
 
