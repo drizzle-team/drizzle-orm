@@ -2080,18 +2080,25 @@ export const connectToSQLite = async (
 		};
 
 		const query = async <T>(sql: string, params?: any[]) => {
-			return client.all(sql, ...prepareSqliteParams(params || [])) as Promise<T[]>;
+			const res = await client.all(sql, ...prepareSqliteParams(params || []));
+			return res as T[];
 		};
 		const batch = async (queries: string[]) => {
-			for (const query of queries) {
-				await client.prepare(query).then((stmt) => stmt.all());
-			}
+			await client.transaction(async () => {
+				for (const query of queries) {
+					await client.run(query);
+				}
+			})();
 		};
 
 		const proxy = async (params: ProxyParams) => {
 			const preparedParams = prepareSqliteParams(params.params || []);
-			const stmt = await client.prepare(params.sql);
-			return stmt.raw(params.mode === 'array').all(...preparedParams);
+			if (params.mode === 'array') {
+				// Do not use .prepare(query).then() - https://github.com/tursodatabase/turso/issues/6732
+				const stmt = await client.prepare(params.sql);
+				return stmt.raw(true).all(...preparedParams);
+			}
+			return client.all(params.sql, ...preparedParams);
 		};
 
 		const transactionProxy: TransactionProxy = async (queries) => {
@@ -2138,7 +2145,8 @@ export const connectToSQLite = async (
 		};
 
 		const query = async <T>(sql: string, params?: any[]) => {
-			return client.all(sql, ...prepareSqliteParams(params || [])) as Promise<T[]>;
+			const res = await client.all(sql, ...prepareSqliteParams(params || []));
+			return res as T[];
 		};
 		const batch = async (queries: string[]) => {
 			await client.batch(queries);
@@ -2146,8 +2154,11 @@ export const connectToSQLite = async (
 
 		const proxy = async (params: ProxyParams) => {
 			const preparedParams = prepareSqliteParams(params.params || []);
-			const stmt = await client.prepare(params.sql);
-			return stmt.raw(params.mode === 'array').all(preparedParams);
+			if (params.mode === 'array') {
+				const stmt = await client.prepare(params.sql);
+				return stmt.raw(true).all(preparedParams);
+			}
+			return client.all(params.sql, ...preparedParams);
 		};
 
 		const transactionProxy: TransactionProxy = async (queries) => {
@@ -2528,7 +2539,8 @@ export const connectToTursoRemote = async (
 		};
 
 		const query = async <T>(sql: string, params?: any[]) => {
-			return client.all(sql, ...prepareSqliteParams(params || [])) as Promise<T[]>;
+			const res = await client.all(sql, ...prepareSqliteParams(params || []));
+			return res as T[];
 		};
 		const batch = async (queries: string[]) => {
 			await client.batch(queries);
@@ -2536,8 +2548,11 @@ export const connectToTursoRemote = async (
 
 		const proxy = async (params: ProxyParams) => {
 			const preparedParams = prepareSqliteParams(params.params || []);
-			const stmt = await client.prepare(params.sql);
-			return stmt.raw(params.mode === 'array').all(preparedParams);
+			if (params.mode === 'array') {
+				const stmt = await client.prepare(params.sql);
+				return stmt.raw(true).all(preparedParams);
+			}
+			return client.all(params.sql, ...preparedParams);
 		};
 
 		const transactionProxy: TransactionProxy = async (queries) => {
@@ -2592,18 +2607,25 @@ export const connectToTursoRemote = async (
 		};
 
 		const query = async <T>(sql: string, params?: any[]) => {
-			return client.all(sql, ...prepareSqliteParams(params || [])) as Promise<T[]>;
+			const res = await client.all(sql, ...prepareSqliteParams(params || []));
+			return res as T[];
 		};
 		const batch = async (queries: string[]) => {
-			for (const query of queries) {
-				await client.prepare(query).then((stmt) => stmt.all());
-			}
+			await client.transaction(async () => {
+				for (const query of queries) {
+					await client.run(query);
+				}
+			})();
 		};
 
 		const proxy = async (params: ProxyParams) => {
 			const preparedParams = prepareSqliteParams(params.params || []);
-			const stmt = await client.prepare(params.sql);
-			return stmt.raw(params.mode === 'array').all(...preparedParams);
+			if (params.mode === 'array') {
+				// Do not use .prepare(query).then() - https://github.com/tursodatabase/turso/issues/6732
+				const stmt = await client.prepare(params.sql);
+				return stmt.raw(true).all(...preparedParams);
+			}
+			return client.all(params.sql, ...preparedParams);
 		};
 
 		const transactionProxy: TransactionProxy = async (queries) => {
