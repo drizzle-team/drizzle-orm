@@ -2427,7 +2427,7 @@ export const connectToTursoRemote = async (
 	credentials: LibSQLCredentials,
 ): Promise<
 	LibSQLDB & {
-		packageName: '@libsql/client' | '@tursodatabase/serverless';
+		packageName: '@libsql/client' | '@tursodatabase/serverless' | '@tursodatabase/database';
 		migrate: (config: string | MigrationConfig) => Promise<void | MigratorInitFailResponse>;
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
@@ -2565,8 +2565,77 @@ export const connectToTursoRemote = async (
 			},
 		};
 	}
+
+	if (await checkPackage('@tursodatabase/database')) {
+		if (typeof credentials.authToken === 'string') {
+			console.log(`Unable to use '@tursodatabase/database' with remote turso database`);
+			console.log(
+				`Please install '@libsql/client' or '@tursodatabase/serverless' for Drizzle Kit to connect to remote turso databases`,
+			);
+			process.exit(1);
+		}
+
+		console.log(withStyle.info(`Using '@tursodatabase/database' driver for database querying`));
+		const { Database } = await import('@tursodatabase/database');
+		const { drizzle } = await import('drizzle-orm/tursodatabase/database');
+		const { migrate } = await import('drizzle-orm/tursodatabase/migrator');
+
+		const client = new Database(normaliseSQLiteUrl(credentials.url, '@tursodatabase/database'));
+		const drzl = drizzle({ client });
+		const migrateFn = async (config: MigrationConfig) => {
+			return migrate(drzl, config);
+		};
+
+		const query = async <T>(sql: string, params?: any[]) => {
+			return client.all(sql, ...prepareSqliteParams(params || [])) as Promise<T[]>;
+		};
+		const batch = async (queries: string[]) => {
+			for (const query of queries) {
+				await client.prepare(query).then((stmt) => stmt.all());
+			}
+		};
+
+		const proxy = async (params: ProxyParams) => {
+			const preparedParams = prepareSqliteParams(params.params || []);
+			const stmt = await client.prepare(params.sql);
+			return stmt.raw(params.mode === 'array').all(...preparedParams);
+		};
+
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: (any[] | Error)[] = [];
+			try {
+				const tx = client.transaction(async () => {
+					for (const query of queries) {
+						const result = await client.all(query.sql);
+						results.push(result);
+					}
+				});
+				await tx();
+			} catch (error) {
+				results.push(error as Error);
+			}
+			return results;
+		};
+
+		return {
+			query,
+			batch,
+			packageName: '@tursodatabase/database',
+			proxy,
+			transactionProxy,
+			migrate: migrateFn,
+			run: async (query: string) => {
+				await client.exec(query).catch((e) => {
+					throw new QueryError(e, query, []);
+				});
+			},
+		};
+	}
+
 	console.log(
-		"Please install '@libsql/client' '@tursodatabase/serverless' for Drizzle Kit to connect to turso databases",
+		typeof credentials.authToken === 'string'
+			? `Please install '@libsql/client' or '@tursodatabase/serverless' for Drizzle Kit to connect to remote turso databases`
+			: `Please install '@libsql/client', '@tursodatabase/database' or '@tursodatabase/serverless' for Drizzle Kit to connect to turso databases`,
 	);
 	process.exit(1);
 };
