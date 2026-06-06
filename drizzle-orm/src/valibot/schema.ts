@@ -1,6 +1,7 @@
 import * as v from 'valibot';
 import { Column } from '~/column.ts';
 import { is } from '~/entity.ts';
+import type { SelectedFields } from '~/operations.ts';
 import type { PgEnum } from '~/pg-core/columns/enum.ts';
 import { isView, SQL, type View } from '~/sql/sql.ts';
 import { isTable, type Table } from '~/table.ts';
@@ -55,14 +56,21 @@ function handleColumns(
 }
 
 export const createSelectSchema: CreateSelectSchema = (
-	entity: Table | View | PgEnum<[string, ...string[]]>,
+	entity: Table | View | PgEnum<[string, ...string[]]> | SelectedFields<Column, Table>,
 	refine?: Record<string, any>,
 ) => {
 	if (isWithEnum(entity)) {
 		return v.enum(mapEnumValues(entity.enumValues));
 	}
-	const columns = getColumns(entity);
-	return handleColumns(columns, refine ?? {}, {
+	if (isTable(entity) || isView(entity)) {
+		const columns = getColumns(entity);
+		return handleColumns(columns, refine ?? {}, {
+			never: () => false,
+			optional: () => false,
+			nullable: (column) => !column.notNull,
+		}) as any;
+	}
+	return handleColumns(entity, refine ?? {}, {
 		never: () => false,
 		optional: () => false,
 		nullable: (column) => !column.notNull,

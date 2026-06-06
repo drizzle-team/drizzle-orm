@@ -1,5 +1,7 @@
 import type { Type } from 'arktype';
 import type { CockroachEnum } from '~/cockroach-core/columns/enum.ts';
+import type { Column } from '~/column.ts';
+import type { SelectedFields } from '~/operations.ts';
 import type { PgEnum } from '~/pg-core/columns/enum.ts';
 import type { View } from '~/sql/sql.ts';
 import type { InferInsertModel, InferSelectModel, Table } from '~/table.ts';
@@ -25,6 +27,11 @@ export interface CreateSelectSchema {
 	): BuildSchema<'select', TView['_']['selectedFields'], TRefine>;
 
 	<TEnum extends PgEnum<any> | CockroachEnum<any>>(enum_: TEnum): Type<TEnum['enumValues'][number]>;
+
+	<TFields extends SelectedFields<Column, Table>, TRefine extends BuildRefine<TFields>>(
+		fields: TFields,
+		refine?: NoUnknownKeys<TRefine, TFields>,
+	): BuildSchema<'select', TFields, TRefine>;
 }
 
 export interface CreateInsertSchema {

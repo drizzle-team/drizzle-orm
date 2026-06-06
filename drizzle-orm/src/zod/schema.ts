@@ -1,6 +1,7 @@
 import { z } from 'zod/v4';
 import { Column } from '~/column.ts';
 import { is } from '~/entity.ts';
+import type { SelectedFields } from '~/operations.ts';
 import type { PgEnum } from '~/pg-core/columns/enum.ts';
 import { isView, SQL, type View } from '~/sql/sql.ts';
 import { isTable, type Table } from '~/table.ts';
@@ -93,14 +94,17 @@ const updateConditions: Conditions = {
 };
 
 export const createSelectSchema: CreateSelectSchema<undefined> = (
-	entity: Table | View | PgEnum<[string, ...string[]]>,
+	entity: Table | View | PgEnum<[string, ...string[]]> | SelectedFields<Column, Table>,
 	refine?: Record<string, any>,
 ) => {
 	if (isWithEnum(entity)) {
 		return handleEnum(entity);
 	}
-	const columns = getColumns(entity);
-	return handleColumns(columns, refine ?? {}, selectConditions) as any;
+	if (isTable(entity) || isView(entity)) {
+		const columns = getColumns(entity);
+		return handleColumns(columns, refine ?? {}, selectConditions) as any;
+	}
+	return handleColumns(entity, refine ?? {}, selectConditions) as any;
 };
 
 export const createInsertSchema: CreateInsertSchema<undefined> = (
@@ -123,14 +127,17 @@ export function createSchemaFactory<
 	TCoerce extends CoerceOptions,
 >(options?: CreateSchemaFactoryOptions<TCoerce>) {
 	const createSelectSchema: CreateSelectSchema<TCoerce> = (
-		entity: Table | View | PgEnum<[string, ...string[]]>,
+		entity: Table | View | PgEnum<[string, ...string[]]> | SelectedFields<Column, Table>,
 		refine?: Record<string, any>,
 	) => {
 		if (isWithEnum(entity)) {
 			return handleEnum(entity, options);
 		}
-		const columns = getColumns(entity);
-		return handleColumns(columns, refine ?? {}, selectConditions, options) as any;
+		if (isTable(entity) || isView(entity)) {
+			const columns = getColumns(entity);
+			return handleColumns(columns, refine ?? {}, selectConditions, options) as any;
+		}
+		return handleColumns(entity, refine ?? {}, selectConditions, options) as any;
 	};
 
 	const createInsertSchema: CreateInsertSchema<TCoerce> = (

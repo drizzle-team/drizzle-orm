@@ -47,3 +47,23 @@ export type SelectedFieldsOrdered<TColumn extends Column> = {
 	codec?: NormalizeCodec | NormalizeArrayCodec;
 	arrayDimensions?: number;
 }[];
+
+export type SelectedFieldPaths<
+	T extends Record<string, any>,
+	TSeparator extends string = '.',
+	TPrefix extends string = '',
+> = {
+	[K in keyof T & string]: T[K] extends Column ? `${TPrefix}${K}`
+		: T[K] extends Record<string, any> ? SelectedFieldPaths<T[K], TSeparator, `${TPrefix}${K}${TSeparator}`>
+		: never;
+}[keyof T & string];
+
+export type ResolveFieldPath<
+	T extends Record<string, any>,
+	TPath extends string,
+	TSeparator extends string = '.',
+> = TPath extends `${infer TKey}${TSeparator}${infer TRest}`
+	? TKey extends keyof T ? ResolveFieldPath<T[TKey], TRest, TSeparator>
+	: never
+	: TPath extends keyof T ? T[TPath]
+	: never;

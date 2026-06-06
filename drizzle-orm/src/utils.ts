@@ -4,7 +4,13 @@ import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { is } from './entity.ts';
 import type { Logger } from './logger.ts';
-import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './operations.ts';
+import type {
+	ResolveFieldPath,
+	SelectedFieldPaths,
+	SelectedFields,
+	SelectedFieldsFlat,
+	SelectedFieldsOrdered,
+} from './operations.ts';
 import type { TableLike } from './query-builders/select.types.ts';
 import type { AnyRelations, EmptyRelations } from './relations.ts';
 import { Param, SQL, View } from './sql/sql.ts';
@@ -523,6 +529,47 @@ export function getColumns<T extends Table | View | Subquery>(
 		: is(table, View)
 		? table[ViewBaseConfig].selectedFields
 		: table._.selectedFields) as any;
+}
+
+export function getSelectedFieldPaths<
+	T extends SelectedFields<Column, Table>,
+	TSeparator extends string = '.',
+>(
+	fields: T,
+	separator?: TSeparator,
+): SelectedFieldPaths<T, TSeparator>[] {
+	const sep = (separator ?? '.') as string;
+	function collect(fields: Record<string, any>, prefix: string): string[] {
+		const paths: string[] = [];
+		for (const [key, value] of Object.entries(fields)) {
+			if (is(value, Column)) {
+				paths.push(`${prefix}${key}`);
+			} else if (
+				typeof value === 'object' && value !== null && !is(value, Table) && !is(value, View) && !is(value, SQL)
+			) {
+				paths.push(...collect(value, `${prefix}${key}${sep}`));
+			}
+		}
+		return paths;
+	}
+	return collect(fields, '') as SelectedFieldPaths<T, TSeparator>[];
+}
+
+export function getSelectedField<
+	T extends SelectedFields<Column, Table>,
+	TPath extends SelectedFieldPaths<T, TSeparator>,
+	TSeparator extends string = '.',
+>(
+	fields: T,
+	path: TPath,
+	separator?: TSeparator,
+): ResolveFieldPath<T, TPath, TSeparator> {
+	const parts = (path as string).split(separator ?? '.');
+	let current: any = fields;
+	for (const part of parts) {
+		current = current[part];
+	}
+	return current;
 }
 
 /** @internal */
