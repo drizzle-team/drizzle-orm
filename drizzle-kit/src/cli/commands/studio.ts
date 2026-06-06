@@ -71,6 +71,7 @@ export type Setup = {
 		| 'better-sqlite3'
 		| '@sqlitecloud/drivers'
 		| '@tursodatabase/database'
+		| '@tursodatabase/serverless'
 		| 'bun'
 		| 'duckdb'
 		| '@duckdb/node-api'
@@ -523,7 +524,7 @@ export const drizzleForLibSQL = async (
 	relations: Record<string, Relations>,
 	schemaFiles?: SchemaFile[],
 ): Promise<Setup> => {
-	const { connectToLibSQL } = await import('../connections');
+	const { connectToTursoRemote: connectToLibSQL } = await import('../connections');
 
 	const sqliteDB = await connectToLibSQL(credentials);
 	const customDefaults = getCustomDefaults(sqliteSchema);

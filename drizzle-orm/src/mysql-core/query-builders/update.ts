@@ -1,4 +1,3 @@
-import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { GetColumnData } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
@@ -13,7 +12,7 @@ import type {
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import { type Placeholder, type Query, type SQL, sql, type SqlCommenterInput, type SQLWrapper } from '~/sql/sql.ts';
+import { type CommentInput, type Placeholder, type Query, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { type InferInsertModel, Table } from '~/table.ts';
 import { mapUpdateSet, type UpdateSet, type ValueOrArray } from '~/utils.ts';
@@ -125,7 +124,6 @@ export class MySqlUpdateBase<
 	static override readonly [entityKind]: string = 'MySqlUpdate';
 
 	private config: MySqlUpdateConfig;
-	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		table: TTable,
@@ -210,7 +208,7 @@ export class MySqlUpdateBase<
 	/**
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
-	comment(comment: SqlCommenterInput): MySqlUpdateWithout<this, TDynamic, 'comment'> {
+	comment(comment: CommentInput): MySqlUpdateWithout<this, TDynamic, 'comment'> {
 		this.config.comment = sql.comment(comment);
 		return this as any;
 	}
@@ -230,10 +228,9 @@ export class MySqlUpdateBase<
 			'raw',
 			this.dialect.mapperGenerators.$returning(this.config.returning, undefined),
 			{
-				type: 'insert',
+				type: 'update',
 				tables: extractUsedTable(this.config.table),
 			},
-			this.cacheConfig,
 		) as MySqlUpdatePrepare<this>;
 	}
 

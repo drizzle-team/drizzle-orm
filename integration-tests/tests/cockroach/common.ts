@@ -7643,7 +7643,7 @@ export function tests() {
 			});
 		});
 
-		test.skipIf(Date.now() < +new Date('2026-06-20'))('Query error wrapping', async ({ cockroach: { db } }) => {
+		test.skipIf(Date.now() < +new Date('2026-06-10'))('Query error wrapping', async ({ cockroach: { db } }) => {
 			await expect(db.insert(users2Table).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]))
 				.rejects.toBeInstanceOf(DrizzleQueryError);
 		});

@@ -14,7 +14,7 @@ import type {
 import type { TableLike } from './query-builders/select.types.ts';
 import type { AnyRelations, EmptyRelations } from './relations.ts';
 import { Param, SQL, View } from './sql/sql.ts';
-import type { DriverValueDecoder } from './sql/sql.ts';
+import type { DriverValueDecoder, SQLWrapper } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
 import { getTableName, Table } from './table.ts';
 import { ViewBaseConfig } from './view-common.ts';
@@ -384,8 +384,36 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 				codec: codecs?.get(field, 'normalize'),
 				arrayDimensions: (<any> field).dimensions,
 			});
-		} else if (is(field, Column) || is(field, SQL) || is(field, SQL.Aliased) || is(field, Subquery)) {
-			result.push({ path: newPath, field });
+		} else if (is(field, SQL) || is(field, SQL.Aliased)) {
+			const col = getColumnFromDecoder(field);
+			result.push(
+				col
+					? {
+						path: newPath,
+						field,
+						codec: codecs?.get(col, 'normalize'),
+						arrayDimensions: (<any> col).dimensions,
+					}
+					: {
+						path: newPath,
+						field,
+					},
+			);
+		} else if (is(field, Subquery)) {
+			const col = getColumnFromDecoder(field._.sql);
+			result.push(
+				col
+					? {
+						path: newPath,
+						field,
+						codec: codecs?.get(col, 'normalize'),
+						arrayDimensions: (<any> col).dimensions,
+					}
+					: {
+						path: newPath,
+						field,
+					},
+			);
 		} else if (is(field, Table)) {
 			result.push(...orderSelectedFields(field[Table.Symbol.Columns], newPath, codecs));
 		} else {
@@ -393,6 +421,13 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 		}
 		return result;
 	}, []) as SelectedFieldsOrdered<TColumn>;
+}
+
+export function getColumnFromDecoder(source: SQL | SQL.Aliased | SQLWrapper): Column | undefined {
+	const query = source.getSQL();
+
+	if (is(query.decoder, Column)) return query.decoder;
+	return undefined;
 }
 
 export function haveSameKeys(left: Record<string, unknown>, right: Record<string, unknown>) {

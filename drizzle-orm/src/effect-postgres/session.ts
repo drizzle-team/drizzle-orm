@@ -26,7 +26,6 @@ export interface EffectPgQueryResultHKT extends PgQueryResultHKT {
 export interface EffectPgSessionOptions {
 	logger: EffectLoggerShape;
 	cache: EffectCacheShape;
-	useJitMappers?: boolean;
 }
 
 export class EffectPgSession<

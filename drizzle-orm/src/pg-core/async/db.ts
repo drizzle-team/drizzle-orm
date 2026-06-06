@@ -624,12 +624,7 @@ export class PgAsyncDatabase<
 		const prepared = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: PgQueryResultKind<TQueryResult, TRow> }
 		>(builtQuery, 'raw', false);
-		return new PgAsyncRaw(
-			() => prepared.execute(),
-			sequel,
-			builtQuery,
-			(result) => prepared.mapResult(result, true),
-		);
+		return new PgAsyncRaw(prepared, sequel, builtQuery);
 	}
 
 	transaction<T>(

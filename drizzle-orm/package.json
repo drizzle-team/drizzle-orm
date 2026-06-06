@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm",
-	"version": "1.0.0-rc.3",
+	"version": "1.0.0-rc.4",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
@@ -48,7 +48,13 @@
 	"peerDependencies": {
 		"@aws-sdk/client-rds-data": ">=3",
 		"@cloudflare/workers-types": ">=4",
+		"@effect/sql-libsql": ">=4.0.0-beta.58 || >=4.0.0",
 		"@effect/sql-pg": ">=4.0.0-beta.58 || >=4.0.0",
+		"@effect/sql-pglite": ">=4.0.0-beta.58 || >=4.0.0",
+		"@effect/sql-sqlite-bun": ">=4.0.0-beta.58 || >=4.0.0",
+		"@effect/sql-sqlite-do": ">=4.0.0-beta.58 || >=4.0.0",
+		"@effect/sql-sqlite-node": ">=4.0.0-beta.58 || >=4.0.0",
+		"@effect/sql-sqlite-wasm": ">=4.0.0-beta.58 || >=4.0.0",
 		"@electric-sql/pglite": ">=0.2.0",
 		"@libsql/client": ">=0.10.0",
 		"@libsql/client-wasm": ">=0.10.0",
@@ -59,9 +65,11 @@
 		"@sinclair/typebox": ">=0.34.8",
 		"@sqlitecloud/drivers": ">=1.0.653",
 		"@tidbcloud/serverless": "*",
-		"@tursodatabase/database": ">=0.2.1",
-		"@tursodatabase/database-common": ">=0.2.1",
-		"@tursodatabase/database-wasm": ">=0.2.1",
+		"@tursodatabase/database": ">=0.6.0-pre.28 || >=0.6.0",
+		"@tursodatabase/sync": ">=0.6.0-pre.28 || >=0.6.0",
+		"@tursodatabase/database-common": ">=0.6.0-pre.28 || >=0.6.0",
+		"@tursodatabase/database-wasm": ">=0.6.0-pre.28 || >=0.6.0",
+		"@tursodatabase/serverless": ">=1.1.3",
 		"@types/better-sqlite3": "*",
 		"@types/mssql": "^9.1.4",
 		"@types/pg": "*",
@@ -172,10 +180,16 @@
 		"@tursodatabase/database": {
 			"optional": true
 		},
+		"@tursodatabase/sync": {
+			"optional": true
+		},
 		"@tursodatabase/database-wasm": {
 			"optional": true
 		},
 		"@tursodatabase/database-common": {
+			"optional": true
+		},
+		"@tursodatabase/serverless": {
 			"optional": true
 		},
 		"@upstash/redis": {
@@ -185,6 +199,24 @@
 			"optional": true
 		},
 		"@effect/sql-pg": {
+			"optional": true
+		},
+		"@effect/sql-pglite": {
+			"optional": true
+		},
+		"@effect/sql-sqlite-bun": {
+			"optional": true
+		},
+		"@effect/sql-sqlite-do": {
+			"optional": true
+		},
+		"@effect/sql-sqlite-node": {
+			"optional": true
+		},
+		"@effect/sql-sqlite-wasm": {
+			"optional": true
+		},
+		"@effect/sql-libsql": {
 			"optional": true
 		},
 		"typebox": {
@@ -201,9 +233,15 @@
 		"@arktype/attest": "^0.46.0",
 		"@aws-sdk/client-rds-data": "^3.914.0",
 		"@cloudflare/workers-types": "^4.20251004.0",
+		"@effect/sql-libsql": "4.0.0-beta.58",
 		"@effect/sql-mysql2": "4.0.0-beta.58",
 		"@effect/sql-pg": "4.0.0-beta.58",
-		"@electric-sql/pglite": "^0.2.12",
+		"@effect/sql-pglite": "4.0.0-beta.58",
+		"@effect/sql-sqlite-bun": "4.0.0-beta.58",
+		"@effect/sql-sqlite-do": "4.0.0-beta.58",
+		"@effect/sql-sqlite-node": "4.0.0-beta.58",
+		"@effect/sql-sqlite-wasm": "4.0.0-beta.58",
+		"@electric-sql/pglite": "^0.4.6",
 		"@libsql/client": "^0.10.0",
 		"@libsql/client-wasm": "^0.10.0",
 		"@miniflare/d1": "^2.14.4",
@@ -216,9 +254,11 @@
 		"@sinclair/typebox": "^0.34.48",
 		"@sqlitecloud/drivers": "^1.0.653",
 		"@tidbcloud/serverless": "^0.1.1",
-		"@tursodatabase/database": "0.2.1",
-		"@tursodatabase/database-common": "^0.2.1",
-		"@tursodatabase/database-wasm": "^0.2.1",
+		"@tursodatabase/database": "0.6.0-pre.28",
+		"@tursodatabase/database-common": "0.6.0-pre.28",
+		"@tursodatabase/database-wasm": "0.6.0-pre.28",
+		"@tursodatabase/serverless": "1.1.3",
+		"@tursodatabase/sync": "0.6.0",
 		"@types/better-sqlite3": "^7.6.12",
 		"@types/node": "^25.4.0",
 		"@types/pg": "^8.10.1",

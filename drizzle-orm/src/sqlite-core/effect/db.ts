@@ -1,131 +1,86 @@
-import type * as V1 from '~/_relations.ts';
-import type { Cache } from '~/cache/core/cache.ts';
+import { Effect } from 'effect';
+import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
+import type { MutationOption } from '~/cache/core/cache.ts';
+import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
-import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
-import {
-	QueryBuilder,
-	SQLiteDeleteBase,
-	SQLiteInsertBuilder,
-	SQLiteSelectBuilder,
-	SQLiteUpdateBuilder,
-} from '~/sqlite-core/query-builders/index.ts';
-import type {
-	DBResult,
-	Result,
-	SQLiteSession,
-	SQLiteTransaction,
-	SQLiteTransactionConfig,
-} from '~/sqlite-core/session.ts';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import { SQLiteEffectCountBuilder } from '~/sqlite-core/effect/count.ts';
+import { SQLiteEffectDeleteBase } from '~/sqlite-core/effect/delete.ts';
+import { SQLiteEffectInsertBase, type SQLiteEffectInsertBuilder } from '~/sqlite-core/effect/insert.ts';
+import { SQLiteEffectRelationalQuery, type SQLiteEffectRelationalQueryHKT } from '~/sqlite-core/effect/query.ts';
+import { SQLiteEffectRaw } from '~/sqlite-core/effect/raw.ts';
+import { SQLiteEffectSelectBase, type SQLiteEffectSelectBuilder } from '~/sqlite-core/effect/select.ts';
+import { SQLiteEffectUpdateBase, type SQLiteEffectUpdateBuilder } from '~/sqlite-core/effect/update.ts';
+import { SQLiteInsertBuilder } from '~/sqlite-core/query-builders/insert.ts';
+import { RelationalQueryBuilder } from '~/sqlite-core/query-builders/query.ts';
+import { SQLiteSelectBuilder } from '~/sqlite-core/query-builders/select.ts';
+import { SQLiteUpdateBuilder } from '~/sqlite-core/query-builders/update.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { WithSubquery } from '~/subquery.ts';
-import type { DrizzleTypeError } from '~/utils.ts';
-import { _RelationalQueryBuilder } from './query-builders/_query.ts';
-import { SQLiteCountBuilder } from './query-builders/count.ts';
-import { RelationalQueryBuilder } from './query-builders/query.ts';
-import { SQLiteRaw } from './query-builders/raw.ts';
-import type { SelectedFields } from './query-builders/select.types.ts';
-import type { WithBuilder } from './subquery.ts';
-import type { SQLiteViewBase } from './view-base.ts';
+import { QueryBuilder } from '../query-builders/query-builder.ts';
+import type { SelectedFields } from '../query-builders/select.types.ts';
+import type { PreparedQueryConfig, SQLiteTransactionConfig } from '../session.ts';
+import type { WithBuilder } from '../subquery.ts';
+import type { SQLiteViewBase } from '../view-base.ts';
+import type { SQLiteEffectSession, SQLiteEffectTransaction } from './session.ts';
 
-export class BaseSQLiteDatabase<
-	TResultKind extends 'sync' | 'async',
+export class SQLiteEffectDatabase<
+	TEffectHKT extends QueryEffectHKTBase,
 	TRunResult,
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > {
-	static readonly [entityKind]: string = 'BaseSQLiteDatabase';
+	static readonly [entityKind]: string = 'SQLiteEffectDatabase';
 
 	declare readonly _: {
-		readonly schema: TSchema | undefined;
-		readonly fullSchema: TFullSchema;
-		readonly tableNamesMap: Record<string, string>;
 		readonly relations: TRelations;
+		readonly session: SQLiteEffectSession<TRunResult, TEffectHKT, TRelations>;
 	};
-
-	/** @deprecated */
-	_query: TFullSchema extends Record<string, never>
-		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
-		: {
-			[K in keyof TSchema]: _RelationalQueryBuilder<TResultKind, TFullSchema, TSchema, TSchema[K]>;
-		};
 
 	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
 	query: {
 		[K in keyof TRelations]: RelationalQueryBuilder<
-			TResultKind,
+			unknown,
 			TRelations,
-			TRelations[K]
+			TRelations[K],
+			SQLiteEffectRelationalQueryHKT<TEffectHKT>
 		>;
 	};
 
 	constructor(
-		private resultKind: TResultKind,
 		/** @internal */
-		readonly dialect: { sync: SQLiteSyncDialect; async: SQLiteAsyncDialect }[TResultKind],
+		readonly dialect: SQLiteDialect,
 		/** @internal */
-		readonly session: SQLiteSession<TResultKind, TRunResult, TFullSchema, TRelations, TSchema>,
+		readonly session: SQLiteEffectSession<TRunResult, TEffectHKT, TRelations>,
 		relations: TRelations,
-		_schema: V1.RelationalSchemaConfig<TSchema> | undefined,
-		readonly rowModeRQB?: boolean,
 		readonly forbidJsonb?: boolean,
 	) {
-		this._ = _schema
-			? {
-				schema: _schema.schema,
-				fullSchema: _schema.fullSchema as TFullSchema,
-				tableNamesMap: _schema.tableNamesMap,
-				relations,
-			}
-			: {
-				schema: undefined,
-				fullSchema: {} as TFullSchema,
-				tableNamesMap: {},
-				relations,
-			};
-
-		this._query = {} as typeof this['_query'];
-		const query = this._query as {
-			[K in keyof TSchema]: _RelationalQueryBuilder<TResultKind, TFullSchema, TSchema, TSchema[K]>;
+		this._ = {
+			relations,
+			session,
 		};
-		if (this._.schema) {
-			for (const [tableName, columns] of Object.entries(this._.schema)) {
-				query[tableName as keyof TSchema] = new _RelationalQueryBuilder(
-					resultKind,
-					_schema!.fullSchema,
-					this._.schema,
-					this._.tableNamesMap,
-					_schema!.fullSchema[tableName] as SQLiteTable,
-					columns,
-					dialect,
-					session as SQLiteSession<any, any, any, any, any>,
-				) as typeof query[keyof TSchema];
-			}
-		}
 		this.query = {} as typeof this['query'];
 		for (const [tableName, relation] of Object.entries(relations)) {
-			(this.query as BaseSQLiteDatabase<
-				TResultKind,
+			(this.query as SQLiteEffectDatabase<
+				TEffectHKT,
 				TRunResult,
-				TSchema,
-				AnyRelations,
-				V1.TablesRelationalConfig
+				AnyRelations
 			>['query'])[tableName] = new RelationalQueryBuilder(
-				resultKind,
+				undefined,
 				relations,
 				relations[relation.name]!.table as SQLiteTable,
 				relation,
 				dialect,
-				session as SQLiteSession<any, any, any, any, any>,
-				rowModeRQB,
+				session,
 				forbidJsonb,
+				SQLiteEffectRelationalQuery,
 			);
 		}
-		this.$cache = { invalidate: async (_params: any) => {} };
+		this.$cache = { invalidate: (_params: MutationOption) => Effect.void };
 	}
 
 	/**
@@ -145,7 +100,7 @@ export class BaseSQLiteDatabase<
 	 * // Create a subquery with alias 'sq' and use it in the select query
 	 * const sq = db.$with('sq').as(db.select().from(users).where(eq(users.id, 42)));
 	 *
-	 * const result = await db.with(sq).select().from(sq);
+	 * const result = yield* db.with(sq).select().from(sq);
 	 * ```
 	 *
 	 * To select arbitrary SQL values as fields in a CTE and reference them in other CTEs or in the main query, you need to add aliases to them:
@@ -157,7 +112,7 @@ export class BaseSQLiteDatabase<
 	 * })
 	 * .from(users));
 	 *
-	 * const result = await db.with(sq).select({ name: sq.name }).from(sq);
+	 * const result = yield* db.with(sq).select({ name: sq.name }).from(sq);
 	 * ```
 	 */
 	$with: WithBuilder = (alias: string, selection?: ColumnsSelection) => {
@@ -188,9 +143,16 @@ export class BaseSQLiteDatabase<
 	$count(
 		source: SQLiteTable | SQLiteViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
-	) {
-		return new SQLiteCountBuilder({ source, filters, session: this.session });
+	): SQLiteEffectCountBuilder<TEffectHKT> {
+		return new SQLiteEffectCountBuilder({
+			source,
+			filters,
+			session: this.session,
+			dialect: this.dialect,
+		});
 	}
+
+	$cache: { invalidate: EffectCacheShape['onMutate'] };
 
 	/**
 	 * Incorporates a previously defined CTE (using `$with`) into the main query.
@@ -208,7 +170,7 @@ export class BaseSQLiteDatabase<
 	 * const sq = db.$with('sq').as(db.select().from(users).where(eq(users.id, 42)));
 	 *
 	 * // Incorporate the CTE 'sq' into the main query and select from it
-	 * const result = await db.with(sq).select().from(sq);
+	 * const result = yield* db.with(sq).select().from(sq);
 	 * ```
 	 */
 	with(...queries: WithSubquery[]) {
@@ -229,10 +191,10 @@ export class BaseSQLiteDatabase<
 		 *
 		 * ```ts
 		 * // Select all columns and all rows from the 'cars' table
-		 * const allCars: Car[] = await db.select().from(cars);
+		 * const allCars: Car[] = yield* db.select().from(cars);
 		 *
 		 * // Select specific columns and all rows from the 'cars' table
-		 * const carsIdsAndBrands: { id: number; brand: string }[] = await db.select({
+		 * const carsIdsAndBrands: { id: number; brand: string }[] = yield* db.select({
 		 *   id: cars.id,
 		 *   brand: cars.brand
 		 * })
@@ -243,26 +205,26 @@ export class BaseSQLiteDatabase<
 		 *
 		 * ```ts
 		 * // Select specific columns along with expression and all rows from the 'cars' table
-		 * const carsIdsAndLowerNames: { id: number; lowerBrand: string }[] = await db.select({
+		 * const carsIdsAndLowerNames: { id: number; lowerBrand: string }[] = yield* db.select({
 		 *   id: cars.id,
 		 *   lowerBrand: sql<string>`lower(${cars.brand})`,
 		 * })
 		 *   .from(cars);
 		 * ```
 		 */
-		function select(): SQLiteSelectBuilder<undefined, TResultKind, TRunResult>;
+		function select(): SQLiteEffectSelectBuilder<undefined, TRunResult, TEffectHKT>;
 		function select<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): SQLiteSelectBuilder<TSelection, TResultKind, TRunResult>;
+		): SQLiteEffectSelectBuilder<TSelection, TRunResult, TEffectHKT>;
 		function select(
 			fields?: SelectedFields,
-		): SQLiteSelectBuilder<SelectedFields | undefined, TResultKind, TRunResult> {
+		): SQLiteEffectSelectBuilder<SelectedFields | undefined, TRunResult, TEffectHKT> {
 			return new SQLiteSelectBuilder({
 				fields: fields ?? undefined,
 				session: self.session,
 				dialect: self.dialect,
 				withList: queries,
-			});
+			}, SQLiteEffectSelectBase);
 		}
 
 		/**
@@ -280,30 +242,30 @@ export class BaseSQLiteDatabase<
 		 *
 		 * ```ts
 		 * // Select all unique rows from the 'cars' table
-		 * await db.selectDistinct()
+		 * yield* db.selectDistinct()
 		 *   .from(cars)
 		 *   .orderBy(cars.id, cars.brand, cars.color);
 		 *
 		 * // Select all unique brands from the 'cars' table
-		 * await db.selectDistinct({ brand: cars.brand })
+		 * yield* db.selectDistinct({ brand: cars.brand })
 		 *   .from(cars)
 		 *   .orderBy(cars.brand);
 		 * ```
 		 */
-		function selectDistinct(): SQLiteSelectBuilder<undefined, TResultKind, TRunResult>;
+		function selectDistinct(): SQLiteEffectSelectBuilder<undefined, TRunResult, TEffectHKT>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): SQLiteSelectBuilder<TSelection, TResultKind, TRunResult>;
+		): SQLiteEffectSelectBuilder<TSelection, TRunResult, TEffectHKT>;
 		function selectDistinct(
 			fields?: SelectedFields,
-		): SQLiteSelectBuilder<SelectedFields | undefined, TResultKind, TRunResult> {
+		): SQLiteEffectSelectBuilder<SelectedFields | undefined, TRunResult, TEffectHKT> {
 			return new SQLiteSelectBuilder({
 				fields: fields ?? undefined,
 				session: self.session,
 				dialect: self.dialect,
 				withList: queries,
 				distinct: true,
-			});
+			}, SQLiteEffectSelectBase);
 		}
 
 		/**
@@ -321,20 +283,22 @@ export class BaseSQLiteDatabase<
 		 *
 		 * ```ts
 		 * // Update all rows in the 'cars' table
-		 * await db.update(cars).set({ color: 'red' });
+		 * yield* db.update(cars).set({ color: 'red' });
 		 *
 		 * // Update rows with filters and conditions
-		 * await db.update(cars).set({ color: 'red' }).where(eq(cars.brand, 'BMW'));
+		 * yield* db.update(cars).set({ color: 'red' }).where(eq(cars.brand, 'BMW'));
 		 *
 		 * // Update with returning clause
-		 * const updatedCar: Car[] = await db.update(cars)
+		 * const updatedCar: Car[] = yield* db.update(cars)
 		 *   .set({ color: 'red' })
 		 *   .where(eq(cars.id, 1))
 		 *   .returning();
 		 * ```
 		 */
-		function update<TTable extends SQLiteTable>(table: TTable): SQLiteUpdateBuilder<TTable, TResultKind, TRunResult> {
-			return new SQLiteUpdateBuilder(table, self.session, self.dialect, queries);
+		function update<TTable extends SQLiteTable>(
+			table: TTable,
+		): SQLiteEffectUpdateBuilder<TTable, TRunResult, TEffectHKT> {
+			return new SQLiteUpdateBuilder(table, self.session, self.dialect, queries, SQLiteEffectUpdateBase);
 		}
 
 		/**
@@ -350,19 +314,21 @@ export class BaseSQLiteDatabase<
 		 *
 		 * ```ts
 		 * // Insert one row
-		 * await db.insert(cars).values({ brand: 'BMW' });
+		 * yield* db.insert(cars).values({ brand: 'BMW' });
 		 *
 		 * // Insert multiple rows
-		 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
+		 * yield* db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
 		 *
 		 * // Insert with returning clause
-		 * const insertedCar: Car[] = await db.insert(cars)
+		 * const insertedCar: Car[] = yield* db.insert(cars)
 		 *   .values({ brand: 'BMW' })
 		 *   .returning();
 		 * ```
 		 */
-		function insert<TTable extends SQLiteTable>(into: TTable): SQLiteInsertBuilder<TTable, TResultKind, TRunResult> {
-			return new SQLiteInsertBuilder(into, self.session, self.dialect, queries);
+		function insert<TTable extends SQLiteTable>(
+			into: TTable,
+		): SQLiteEffectInsertBuilder<TTable, TRunResult, TEffectHKT> {
+			return new SQLiteInsertBuilder(into, self.session, self.dialect, queries, SQLiteEffectInsertBase);
 		}
 
 		/**
@@ -378,19 +344,21 @@ export class BaseSQLiteDatabase<
 		 *
 		 * ```ts
 		 * // Delete all rows in the 'cars' table
-		 * await db.delete(cars);
+		 * yield* db.delete(cars);
 		 *
 		 * // Delete rows with filters and conditions
-		 * await db.delete(cars).where(eq(cars.color, 'green'));
+		 * yield* db.delete(cars).where(eq(cars.color, 'green'));
 		 *
 		 * // Delete with returning clause
-		 * const deletedCar: Car[] = await db.delete(cars)
+		 * const deletedCar: Car[] = yield* db.delete(cars)
 		 *   .where(eq(cars.id, 1))
 		 *   .returning();
 		 * ```
 		 */
-		function delete_<TTable extends SQLiteTable>(from: TTable): SQLiteDeleteBase<TTable, TResultKind, TRunResult> {
-			return new SQLiteDeleteBase(from, self.session, self.dialect, queries);
+		function delete_<TTable extends SQLiteTable>(
+			from: TTable,
+		): SQLiteEffectDeleteBase<TTable, TRunResult, undefined, false, never, TEffectHKT> {
+			return new SQLiteEffectDeleteBase(from, self.session, self.dialect, queries);
 		}
 
 		return { select, selectDistinct, update, insert, delete: delete_ };
@@ -411,10 +379,10 @@ export class BaseSQLiteDatabase<
 	 *
 	 * ```ts
 	 * // Select all columns and all rows from the 'cars' table
-	 * const allCars: Car[] = await db.select().from(cars);
+	 * const allCars: Car[] = yield* db.select().from(cars);
 	 *
 	 * // Select specific columns and all rows from the 'cars' table
-	 * const carsIdsAndBrands: { id: number; brand: string }[] = await db.select({
+	 * const carsIdsAndBrands: { id: number; brand: string }[] = yield* db.select({
 	 *   id: cars.id,
 	 *   brand: cars.brand
 	 * })
@@ -425,19 +393,22 @@ export class BaseSQLiteDatabase<
 	 *
 	 * ```ts
 	 * // Select specific columns along with expression and all rows from the 'cars' table
-	 * const carsIdsAndLowerNames: { id: number; lowerBrand: string }[] = await db.select({
+	 * const carsIdsAndLowerNames: { id: number; lowerBrand: string }[] = yield* db.select({
 	 *   id: cars.id,
 	 *   lowerBrand: sql<string>`lower(${cars.brand})`,
 	 * })
 	 *   .from(cars);
 	 * ```
 	 */
-	select(): SQLiteSelectBuilder<undefined, TResultKind, TRunResult>;
+	select(): SQLiteEffectSelectBuilder<undefined, TRunResult, TEffectHKT>;
 	select<TSelection extends SelectedFields>(
 		fields: TSelection,
-	): SQLiteSelectBuilder<TSelection, TResultKind, TRunResult>;
-	select(fields?: SelectedFields): SQLiteSelectBuilder<SelectedFields | undefined, TResultKind, TRunResult> {
-		return new SQLiteSelectBuilder({ fields: fields ?? undefined, session: this.session, dialect: this.dialect });
+	): SQLiteEffectSelectBuilder<TSelection, TRunResult, TEffectHKT>;
+	select(fields?: SelectedFields): SQLiteEffectSelectBuilder<SelectedFields | undefined, TRunResult, TEffectHKT> {
+		return new SQLiteSelectBuilder(
+			{ fields: fields ?? undefined, session: this.session, dialect: this.dialect },
+			SQLiteEffectSelectBase,
+		);
 	}
 
 	/**
@@ -455,29 +426,29 @@ export class BaseSQLiteDatabase<
 	 *
 	 * ```ts
 	 * // Select all unique rows from the 'cars' table
-	 * await db.selectDistinct()
+	 * yield* db.selectDistinct()
 	 *   .from(cars)
 	 *   .orderBy(cars.id, cars.brand, cars.color);
 	 *
 	 * // Select all unique brands from the 'cars' table
-	 * await db.selectDistinct({ brand: cars.brand })
+	 * yield* db.selectDistinct({ brand: cars.brand })
 	 *   .from(cars)
 	 *   .orderBy(cars.brand);
 	 * ```
 	 */
-	selectDistinct(): SQLiteSelectBuilder<undefined, TResultKind, TRunResult>;
+	selectDistinct(): SQLiteEffectSelectBuilder<undefined, TRunResult, TEffectHKT>;
 	selectDistinct<TSelection extends SelectedFields>(
 		fields: TSelection,
-	): SQLiteSelectBuilder<TSelection, TResultKind, TRunResult>;
+	): SQLiteEffectSelectBuilder<TSelection, TRunResult, TEffectHKT>;
 	selectDistinct(
 		fields?: SelectedFields,
-	): SQLiteSelectBuilder<SelectedFields | undefined, TResultKind, TRunResult> {
+	): SQLiteEffectSelectBuilder<SelectedFields | undefined, TRunResult, TEffectHKT> {
 		return new SQLiteSelectBuilder({
 			fields: fields ?? undefined,
 			session: this.session,
 			dialect: this.dialect,
 			distinct: true,
-		});
+		}, SQLiteEffectSelectBase);
 	}
 
 	/**
@@ -495,23 +466,23 @@ export class BaseSQLiteDatabase<
 	 *
 	 * ```ts
 	 * // Update all rows in the 'cars' table
-	 * await db.update(cars).set({ color: 'red' });
+	 * yield* db.update(cars).set({ color: 'red' });
 	 *
 	 * // Update rows with filters and conditions
-	 * await db.update(cars).set({ color: 'red' }).where(eq(cars.brand, 'BMW'));
+	 * yield* db.update(cars).set({ color: 'red' }).where(eq(cars.brand, 'BMW'));
 	 *
 	 * // Update with returning clause
-	 * const updatedCar: Car[] = await db.update(cars)
+	 * const updatedCar: Car[] = yield* db.update(cars)
 	 *   .set({ color: 'red' })
 	 *   .where(eq(cars.id, 1))
 	 *   .returning();
 	 * ```
 	 */
-	update<TTable extends SQLiteTable>(table: TTable): SQLiteUpdateBuilder<TTable, TResultKind, TRunResult> {
-		return new SQLiteUpdateBuilder(table, this.session, this.dialect);
+	update<TTable extends SQLiteTable>(
+		table: TTable,
+	): SQLiteEffectUpdateBuilder<TTable, TRunResult, TEffectHKT> {
+		return new SQLiteUpdateBuilder(table, this.session, this.dialect, undefined, SQLiteEffectUpdateBase);
 	}
-
-	$cache: { invalidate: Cache['onMutate'] };
 
 	/**
 	 * Creates an insert query.
@@ -526,19 +497,21 @@ export class BaseSQLiteDatabase<
 	 *
 	 * ```ts
 	 * // Insert one row
-	 * await db.insert(cars).values({ brand: 'BMW' });
+	 * yield* db.insert(cars).values({ brand: 'BMW' });
 	 *
 	 * // Insert multiple rows
-	 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
+	 * yield* db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
 	 *
 	 * // Insert with returning clause
-	 * const insertedCar: Car[] = await db.insert(cars)
+	 * const insertedCar: Car[] = yield* db.insert(cars)
 	 *   .values({ brand: 'BMW' })
 	 *   .returning();
 	 * ```
 	 */
-	insert<TTable extends SQLiteTable>(into: TTable): SQLiteInsertBuilder<TTable, TResultKind, TRunResult> {
-		return new SQLiteInsertBuilder(into, this.session, this.dialect);
+	insert<TTable extends SQLiteTable>(
+		into: TTable,
+	): SQLiteEffectInsertBuilder<TTable, TRunResult, TEffectHKT> {
+		return new SQLiteInsertBuilder(into, this.session, this.dialect, undefined, SQLiteEffectInsertBase);
 	}
 
 	/**
@@ -554,114 +527,93 @@ export class BaseSQLiteDatabase<
 	 *
 	 * ```ts
 	 * // Delete all rows in the 'cars' table
-	 * await db.delete(cars);
+	 * yield* db.delete(cars);
 	 *
 	 * // Delete rows with filters and conditions
-	 * await db.delete(cars).where(eq(cars.color, 'green'));
+	 * yield* db.delete(cars).where(eq(cars.color, 'green'));
 	 *
 	 * // Delete with returning clause
-	 * const deletedCar: Car[] = await db.delete(cars)
+	 * const deletedCar: Car[] = yield* db.delete(cars)
 	 *   .where(eq(cars.id, 1))
 	 *   .returning();
 	 * ```
 	 */
-	delete<TTable extends SQLiteTable>(from: TTable): SQLiteDeleteBase<TTable, TResultKind, TRunResult> {
-		return new SQLiteDeleteBase(from, this.session, this.dialect);
+	delete<TTable extends SQLiteTable>(
+		from: TTable,
+	): SQLiteEffectDeleteBase<TTable, TRunResult, undefined, false, never, TEffectHKT> {
+		return new SQLiteEffectDeleteBase(from, this.session, this.dialect);
 	}
 
-	run(query: SQLWrapper | string): DBResult<TResultKind, TRunResult> {
+	run(query: SQLWrapper | string): SQLiteEffectRaw<TRunResult, TEffectHKT> {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
-		if (this.resultKind === 'async') {
-			return new SQLiteRaw(
-				async () => this.session.run(sequel),
-				() => sequel,
-				'run',
-				this.dialect as SQLiteAsyncDialect,
-				this.session.extractRawRunValueFromBatchResult.bind(this.session),
-			) as DBResult<TResultKind, TRunResult>;
-		}
-		return this.session.run(sequel) as DBResult<TResultKind, TRunResult>;
-	}
-
-	all<T = unknown>(query: SQLWrapper | string): DBResult<TResultKind, T[]> {
-		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
-		if (this.resultKind === 'async') {
-			return new SQLiteRaw(
-				async () => this.session.all(sequel),
-				() => sequel,
-				'all',
-				this.dialect as SQLiteAsyncDialect,
-				this.session.extractRawAllValueFromBatchResult.bind(this.session),
-			) as any;
-		}
-		return this.session.all(sequel) as DBResult<TResultKind, T[]>;
-	}
-
-	get<T = unknown>(query: SQLWrapper | string): DBResult<TResultKind, T> {
-		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
-		if (this.resultKind === 'async') {
-			return new SQLiteRaw(
-				async () => this.session.get(sequel),
-				() => sequel,
-				'get',
-				this.dialect as SQLiteAsyncDialect,
-				this.session.extractRawGetValueFromBatchResult.bind(this.session),
-			) as DBResult<TResultKind, T>;
-		}
-		return this.session.get(sequel) as DBResult<TResultKind, T>;
-	}
-
-	values<T extends unknown[] = unknown[]>(query: SQLWrapper | string): DBResult<TResultKind, T[]> {
-		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
-		if (this.resultKind === 'async') {
-			return new SQLiteRaw(
-				async () => this.session.values(sequel),
-				() => sequel,
-				'values',
-				this.dialect as SQLiteAsyncDialect,
-				this.session.extractRawValuesValueFromBatchResult.bind(this.session),
-			) as any;
-		}
-		return this.session.values(sequel) as DBResult<TResultKind, T[]>;
-	}
-
-	transaction<T>(
-		transaction: (
-			tx: SQLiteTransaction<TResultKind, TRunResult, TFullSchema, TRelations, TSchema>,
-		) => TResultKind extends 'sync'
-			? T extends Promise<any> ? DrizzleTypeError<"Sync drivers can't use async functions in transactions!"> : T
-			: Result<TResultKind, T>,
-		config?: SQLiteTransactionConfig,
-	): Result<TResultKind, T> {
-		return this.session.transaction(
-			transaction as (
-				tx: SQLiteTransaction<TResultKind, TRunResult, TFullSchema, TRelations, TSchema>,
-			) => Result<TResultKind, T>,
-			config,
+		const builtQuery = this.dialect.sqlToQuery(sequel);
+		const prepared = this.session.prepareQuery<PreparedQueryConfig & { execute: TRunResult }>(
+			builtQuery,
+			'raw',
+			false,
+			'run',
 		);
+		return new SQLiteEffectRaw(prepared, sequel, builtQuery);
+	}
+
+	all<T = unknown>(query: SQLWrapper | string): SQLiteEffectRaw<T[], TEffectHKT> {
+		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
+		const builtQuery = this.dialect.sqlToQuery(sequel);
+		const prepared = this.session.prepareQuery<PreparedQueryConfig & { execute: T[] }>(
+			builtQuery,
+			'objects',
+			false,
+			'all',
+		);
+		return new SQLiteEffectRaw(prepared, sequel, builtQuery);
+	}
+
+	get<T = unknown>(query: SQLWrapper | string): SQLiteEffectRaw<T, TEffectHKT> {
+		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
+		const builtQuery = this.dialect.sqlToQuery(sequel);
+		const prepared = this.session.prepareQuery<PreparedQueryConfig & { execute: T }>(
+			builtQuery,
+			'objects',
+			false,
+			'get',
+		);
+		return new SQLiteEffectRaw(prepared, sequel, builtQuery);
+	}
+
+	values<T extends unknown[] = unknown[]>(query: SQLWrapper | string): SQLiteEffectRaw<T[], TEffectHKT> {
+		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
+		const builtQuery = this.dialect.sqlToQuery(sequel);
+		const prepared = this.session.prepareQuery<PreparedQueryConfig & { execute: T[] }>(
+			builtQuery,
+			'objects',
+			false,
+			'values',
+		);
+		return new SQLiteEffectRaw(prepared, sequel, builtQuery);
+	}
+
+	transaction<A, E, R>(
+		transaction: (
+			tx: SQLiteEffectTransaction<TEffectHKT, TRunResult, TRelations>,
+		) => Effect.Effect<A, E, R>,
+		config?: SQLiteTransactionConfig,
+	): Effect.Effect<A, E | SqlError, R> {
+		return this.session.transaction(transaction, config);
 	}
 }
 
-export type SQLiteWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
+export type SQLiteEffectWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
 
 export const withReplicas = <
-	TResultKind extends 'sync' | 'async',
+	TEffectHKT extends QueryEffectHKTBase,
 	TRunResult,
-	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-	Q extends BaseSQLiteDatabase<
-		TResultKind,
-		TRunResult,
-		TFullSchema,
-		TRelations,
-		TSchema extends Record<string, unknown> ? V1.ExtractTablesWithRelations<TFullSchema> : TSchema
-	>,
+	Q extends SQLiteEffectDatabase<TEffectHKT, TRunResult, TRelations>,
 >(
 	primary: Q,
 	replicas: [Q, ...Q[]],
 	getReplica: (replicas: Q[]) => Q = () => replicas[Math.floor(Math.random() * replicas.length)]!,
-): SQLiteWithReplicas<Q> => {
+): SQLiteEffectWithReplicas<Q> => {
 	const select: Q['select'] = (...args: []) => getReplica(replicas).select(...args);
 	const selectDistinct: Q['selectDistinct'] = (...args: []) => getReplica(replicas).selectDistinct(...args);
 	const $count: Q['$count'] = (...args: [any]) => getReplica(replicas).$count(...args);
@@ -692,9 +644,6 @@ export const withReplicas = <
 		selectDistinct,
 		$count,
 		with: $with,
-		get _query() {
-			return getReplica(replicas)._query;
-		},
 		get query() {
 			return getReplica(replicas).query;
 		},
