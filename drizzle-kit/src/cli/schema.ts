@@ -6,7 +6,7 @@ import { renderWithTask } from 'hanji';
 import { dialects } from 'src/schemaValidator';
 import '../@types/utils';
 import { assertUnreachable } from '../global';
-import { type Setup } from '../serializer/studio';
+import type { Setup } from '../serializer/studio';
 import { assertV1OutFolder } from '../utils';
 import { certs } from '../utils/certs';
 import { checkHandler } from './commands/check';
@@ -768,7 +768,7 @@ export const studio = command({
 				port,
 				key,
 				cert,
-				cb: (err, address) => {
+				cb: (err, _address) => {
 					if (err) {
 						console.error(err);
 					} else {
