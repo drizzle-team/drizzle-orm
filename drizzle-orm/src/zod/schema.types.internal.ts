@@ -63,7 +63,8 @@ export type BuildSchema<
 						GetSelection<TObject>,
 						TRefinements extends object ? TRefinements[K & keyof TRefinements] : undefined,
 						TCoerce
-					>
+					> extends infer TNested extends z.ZodObject<any, any> ? TNested
+					: z.ZodObject<any, any>
 				: z.ZodAny;
 		}
 	>,
