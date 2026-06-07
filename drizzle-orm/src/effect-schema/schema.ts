@@ -2,6 +2,7 @@ import { Schema as s } from 'effect';
 import type { Top as SchemaTop } from 'effect/Schema';
 import { Column } from '~/column.ts';
 import { is } from '~/entity.ts';
+import type { SelectedFields } from '~/operations.ts';
 import type { PgEnum } from '~/pg-core/columns/enum.ts';
 import { isView, SQL, type View } from '~/sql/sql.ts';
 import { isTable, type Table } from '~/table.ts';
@@ -97,7 +98,7 @@ const updateConditions: Conditions = {
 };
 
 export const createSelectSchema: CreateSelectSchema = (
-	entity: Table | View | PgEnum<[string, ...string[]]>,
+	entity: Table | View | PgEnum<[string, ...string[]]> | SelectedFields<Column, Table>,
 	refine?: Record<string, any>,
 ) => {
 	if (isWithEnum(entity)) {
