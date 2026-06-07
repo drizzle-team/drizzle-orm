@@ -16,6 +16,7 @@ export type Credentials = TypeOf<typeof credentials>;
 export const studioCliParams = object({
 	port: coerce.number().optional().default(4983),
 	host: string().optional().default('127.0.0.1'),
+	unsecure: coerce.boolean().optional().default(false),
 	config: string().optional(),
 });
 
