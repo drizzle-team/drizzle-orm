@@ -103,7 +103,13 @@ export const strategyFor = async (
 export type MutationOption = { tags?: string | string[]; tables?: Table<any> | Table<any>[] | string | string[] };
 
 export async function hashQuery(sql: string, params?: any[]) {
-	const dataToHash = `${sql}-${JSON.stringify(params, (_, v) => typeof v === 'bigint' ? `${v}n` : v)}`;
+	const dataToHash = `${sql}-${
+		JSON.stringify(params, (_, v) => {
+			if (typeof v === 'bigint') return `${v}n`;
+			if (v === undefined) return '__undefined__';
+			return v;
+		})
+	}`;
 	const encoder = new TextEncoder();
 	const data = encoder.encode(dataToHash);
 	const hashBuffer = await crypto.subtle.digest('SHA-256', data);
