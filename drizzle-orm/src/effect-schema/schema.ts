@@ -103,8 +103,11 @@ export const createSelectSchema: CreateSelectSchema = (
 	if (isWithEnum(entity)) {
 		return handleEnum(entity);
 	}
-	const columns = getColumns(entity);
-	return handleColumns(columns, refine ?? {}, selectConditions) as any;
+	if (isTable(entity) || isView(entity)) {
+		const columns = getColumns(entity);
+		return handleColumns(columns, refine ?? {}, selectConditions) as any;
+	}
+	return handleColumns(entity, refine ?? {}, selectConditions) as any;
 };
 
 export const createInsertSchema: CreateInsertSchema = (

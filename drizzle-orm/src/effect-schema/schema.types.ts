@@ -1,6 +1,8 @@
 import type { Literals } from 'effect/Schema';
 import type { LiteralValue } from 'effect/SchemaAST';
 import type { CockroachEnum } from '~/cockroach-core/columns/enum.ts';
+import type { Column } from '~/column.ts';
+import type { SelectedFields } from '~/operations.ts';
 import type { PgEnum } from '~/pg-core/columns/enum.ts';
 import type { View } from '~/sql/sql.ts';
 import type { InferInsertModel, InferSelectModel, Table } from '~/table.ts';
@@ -8,6 +10,7 @@ import type { BuildRefine, BuildSchema, NoUnknownKeys } from './schema.types.int
 
 export interface CreateSelectSchema {
 	<TTable extends Table>(table: TTable): BuildSchema<'select', TTable['_']['columns'], undefined>;
+
 	<
 		TTable extends Table,
 		TRefine extends BuildRefine<TTable['_']['columns']>,
@@ -17,6 +20,7 @@ export interface CreateSelectSchema {
 	): BuildSchema<'select', TTable['_']['columns'], TRefine>;
 
 	<TView extends View>(view: TView): BuildSchema<'select', TView['_']['selectedFields'], undefined>;
+
 	<
 		TView extends View,
 		TRefine extends BuildRefine<TView['_']['selectedFields']>,
@@ -28,10 +32,16 @@ export interface CreateSelectSchema {
 	<TEnum extends PgEnum<any> | CockroachEnum<any>>(
 		enum_: TEnum,
 	): Literals<Readonly<TEnum['enumValues']> extends infer R extends readonly LiteralValue[] ? R : TEnum['enumValues']>;
+
+	<TFields extends SelectedFields<Column, Table>, TRefine extends BuildRefine<TFields>>(
+		fields: TFields,
+		refine?: NoUnknownKeys<TRefine, TFields>,
+	): BuildSchema<'select', TFields, TRefine>;
 }
 
 export interface CreateInsertSchema {
 	<TTable extends Table>(table: TTable): BuildSchema<'insert', TTable['_']['columns'], undefined>;
+
 	<
 		TTable extends Table,
 		TRefine extends BuildRefine<Pick<TTable['_']['columns'], keyof InferInsertModel<TTable>>>,
@@ -43,6 +53,7 @@ export interface CreateInsertSchema {
 
 export interface CreateUpdateSchema {
 	<TTable extends Table>(table: TTable): BuildSchema<'update', TTable['_']['columns'], undefined>;
+
 	<
 		TTable extends Table,
 		TRefine extends BuildRefine<Pick<TTable['_']['columns'], keyof InferInsertModel<TTable>>>,
