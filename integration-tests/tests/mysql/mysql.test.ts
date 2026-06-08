@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { defineRelations, DrizzleError, eq, sql, TransactionRollbackError } from 'drizzle-orm';
-import { alias, int, mysqlTable, time } from 'drizzle-orm/mysql-core';
+import { alias, int, mysqlTable, snakeCase, time } from 'drizzle-orm/mysql-core';
 import { drizzle, type MySql2Database } from 'drizzle-orm/mysql2';
 import * as mysql from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
@@ -26,12 +26,12 @@ const ENABLE_LOGGING = false;
 
 declare module 'vitest' {
 	export interface TestContext {
-		mysqlDbV2: MySql2Database<never, typeof relations>;
+		mysqlDbV2: MySql2Database<typeof relations>;
 		mysqlClient: mysql.Connection;
 	}
 }
 
-let db: MySql2Database<never, typeof relations>;
+let db: MySql2Database<typeof relations>;
 let client: mysql.Connection;
 
 beforeAll(async () => {
@@ -63,7 +63,7 @@ beforeAll(async () => {
 		await client?.end().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle({ client, relations, logger: ENABLE_LOGGING, mode: 'default' });
+	db = drizzle({ client, relations, logger: ENABLE_LOGGING });
 });
 
 afterAll(async () => {
@@ -12717,12 +12717,12 @@ test('[Find Many .through] Through with uneven relation column count - reverse',
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4539
 test('[Find many] time column parsing', async () => {
-	const studios = mysqlTable('studios', {
+	const studios = snakeCase.table('studios', {
 		id: int().primaryKey(),
 		openTime: time(),
 	});
 
-	const notices = mysqlTable('notices', {
+	const notices = snakeCase.table('notices', {
 		studioId: int().references(() => studios.id),
 	});
 	const relations = defineRelations({ studios, notices }, (r) => ({

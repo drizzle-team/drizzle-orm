@@ -18,7 +18,7 @@ import type { DB, Proxy, SQLiteDB } from '../utils';
 import { normaliseSQLiteUrl } from '../utils/utils-node';
 import { JSONB } from '../utils/when-json-met-bigint';
 import type { ProxyParams } from './commands/studio';
-import { ConnectionStringDatabaseCliError, DatabaseDriverCliError, GelProjectLinkCliError } from './errors';
+import { ConnectionStringDatabaseCliError, DatabaseDriverCliError } from './errors';
 import { assertPackages, checkPackage, QueryError } from './utils';
 import type { DuckDbCredentials } from './validations/duckdb';
 import type { LibSQLCredentials } from './validations/libsql';

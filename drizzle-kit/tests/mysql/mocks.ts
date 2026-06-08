@@ -12,7 +12,7 @@ import { introspect } from '../../src/cli/commands/pull-mysql';
 import { suggestions } from '../../src/cli/commands/push-mysql';
 import { upToV6 } from '../../src/cli/commands/up-mysql';
 import { HintsHandler } from '../../src/cli/hints';
-import { CasingType, configMigrations } from '../../src/cli/validations/common';
+import { configMigrations } from '../../src/cli/validations/common';
 import { mysqlSchemaError as schemaError } from '../../src/cli/views';
 import { EmptyProgressView } from '../../src/cli/views';
 import { hash } from '../../src/dialects/common';
@@ -30,7 +30,7 @@ import { mockResolver } from '../../src/utils/mocks';
 import { tsc } from '../utils';
 import 'zx/globals';
 import { relationsToTypeScript } from 'src/cli/commands/pull-common';
-import { getReasonsFromStatements } from 'src/dialects/mysql/commutativity';
+import { mysqlCommutativity } from 'src/dialects/mysql/commutativity';
 import type { MysqlSnapshot } from 'src/dialects/mysql/snapshot';
 import { expect } from 'vitest';
 
@@ -54,24 +54,23 @@ export const fromEntities = (entities: MysqlEntity[]) => {
 	return ddl;
 };
 
-export const drizzleToDDL = (sch: MysqlSchema, casing?: CasingType | undefined) => {
+export const drizzleToDDL = (sch: MysqlSchema) => {
 	const tables = Object.values(sch).filter((it) => is(it, MySqlTable)) as MySqlTable[];
 	const views = Object.values(sch).filter((it) => is(it, MySqlView)) as MySqlView[];
-	return interimToDDL(fromDrizzleSchema(tables, views, casing));
+	return interimToDDL(fromDrizzleSchema(tables, views));
 };
 
 export const diff = async (
 	left: MysqlSchema | MysqlDDL,
 	right: MysqlSchema | MysqlDDL,
 	renamesArr: string[],
-	casing?: CasingType | undefined,
 ) => {
 	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
 		? { ddl: left as MysqlDDL, errors: [] }
-		: drizzleToDDL(left, casing);
+		: drizzleToDDL(left);
 	const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
 		? { ddl: right as MysqlDDL, errors: [] }
-		: drizzleToDDL(right, casing);
+		: drizzleToDDL(right);
 
 	const renames = new Set(renamesArr);
 
@@ -105,9 +104,8 @@ export const diffIntrospect = async (
 	db: DB,
 	initSchema: MysqlSchema,
 	testName: string,
-	casing?: CasingType | undefined,
 ) => {
-	const { ddl: initDDL } = drizzleToDDL(initSchema, casing);
+	const { ddl: initDDL } = drizzleToDDL(initSchema);
 	const { sqlStatements: init } = await ddlDiffDry(createDDL(), initDDL);
 	for (const st of init) await db.query(st);
 
@@ -137,7 +135,6 @@ export const diffIntrospect = async (
 	const interim = fromDrizzleSchema(
 		response.tables,
 		response.views,
-		casing,
 	);
 
 	const { ddl: ddl2, errors: e3 } = interimToDDL(interim);
@@ -171,7 +168,6 @@ export const push = async (config: {
 	db: DB;
 	to: MysqlSchema | MysqlDDL;
 	renames?: string[];
-	casing?: CasingType;
 	log?: 'statements';
 	ignoreSubsequent?: boolean;
 	expectError?: boolean;
@@ -180,7 +176,6 @@ export const push = async (config: {
 	};
 }) => {
 	const { db, to, log, expectError } = config;
-	const casing = config.casing ?? 'camelCase';
 
 	const migrations = configMigrations.parse(config.migrationsConfig);
 	const { schema } = await introspect({
@@ -193,7 +188,7 @@ export const push = async (config: {
 	const { ddl: ddl1, errors: err1 } = interimToDDL(schema);
 	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
 		? { ddl: to as MysqlDDL, errors: [] }
-		: drizzleToDDL(to, casing);
+		: drizzleToDDL(to);
 
 	if (err2.length > 0) {
 		for (const e of err2) {
@@ -276,7 +271,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 	const type = override?.type ?? column.getSQLType().replace(', ', ','); // real(6, 3)->real(6,3)
 	const ignoreSubsequent = override?.ignoreSubsequent ?? false;
 
-	const columnDefault = defaultFromColumn(column, 'camelCase');
+	const columnDefault = defaultFromColumn(column);
 	const defaultSql = override?.default ?? columnDefault;
 
 	const res = [] as string[];
@@ -313,7 +308,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 	await tsc(file.file);
 
 	const response = await prepareFromSchemaFiles([path]);
-	const sch = fromDrizzleSchema(response.tables, response.views, 'camelCase');
+	const sch = fromDrizzleSchema(response.tables, response.views);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');
@@ -459,7 +454,7 @@ export async function conflictsFromSchema(
 		child2: SchemaShape;
 	},
 ) {
-	const parentInterim = fromDrizzleSchema(Object.values(parent.schema), [], undefined);
+	const parentInterim = fromDrizzleSchema(Object.values(parent.schema), []);
 	const { ddl: parentDDL } = interimToDDL(parentInterim);
 
 	const parentSnapshot = {
@@ -474,5 +469,5 @@ export async function conflictsFromSchema(
 	const { statements: st1 } = await diff(parent.schema, child1.schema, []);
 	const { statements: st2 } = await diff(parent.schema, child2.schema, []);
 
-	return await getReasonsFromStatements(st1, st2, parentSnapshot);
+	return await mysqlCommutativity.getReasonsFromStatements(st1, st2, parentSnapshot);
 }

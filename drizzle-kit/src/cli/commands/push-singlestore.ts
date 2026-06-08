@@ -10,8 +10,7 @@ import { highlightSQL } from '../highlighter';
 import type { HintsHandler } from '../hints';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
-import type { EntitiesFilterConfig } from '../validations/cli';
-import type { CasingType } from '../validations/common';
+import type { EntitiesFilterConfig } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
 import { explain as explainView, explainJsonOutput, humanLog, mysqlSchemaError, ProgressView } from '../views';
 import { suggestions } from './push-mysql';
@@ -22,7 +21,6 @@ export const handle = async (
 	filters: EntitiesFilterConfig,
 	verbose: boolean,
 	force: boolean,
-	casing: CasingType | undefined,
 	explain: boolean,
 	migrations: {
 		table: string;
@@ -54,7 +52,7 @@ export const handle = async (
 	const { prepareFromSchemaFiles, fromDrizzleSchema } = await import('../../dialects/singlestore/drizzle');
 
 	const res = await prepareFromSchemaFiles(filenames);
-	const interimFromFiles = fromDrizzleSchema(res.tables, casing);
+	const interimFromFiles = fromDrizzleSchema(res.tables);
 
 	const { ddl: ddl1 } = interimToDDL(interimFromDB);
 	const { ddl: ddl2, errors: errors1 } = interimToDDL(interimFromFiles);
