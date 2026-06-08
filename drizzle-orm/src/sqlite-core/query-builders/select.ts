@@ -79,7 +79,7 @@ export class SQLiteSelectBuilder<
 			withList?: Subquery[];
 			distinct?: boolean;
 		},
-		private builder: SQLiteSelectBuilderConstructor = SQLiteSelectQueryBuilderBase,
+		private builder: SQLiteSelectBuilderConstructor = SQLiteSelectBase,
 	) {
 		this.fields = config.fields;
 		this.session = config.session;
@@ -132,7 +132,7 @@ export class SQLiteSelectBuilder<
 	}
 }
 
-export class SQLiteSelectQueryBuilderBase<
+export class SQLiteSelectBase<
 	THKT extends SQLiteSelectHKTBase,
 	TTableName extends string | undefined,
 	TRunResult,
