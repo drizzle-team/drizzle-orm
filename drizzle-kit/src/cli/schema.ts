@@ -19,6 +19,7 @@ import { upPgHandler } from './commands/up-postgres';
 import { upSinglestoreHandler } from './commands/up-singlestore';
 import { upSqliteHandler } from './commands/up-sqlite';
 import {
+	type CheckConfig,
 	prepareCheckParams,
 	prepareExportConfig,
 	prepareGenerateConfig,
@@ -218,7 +219,7 @@ export const runPush = async (
 			hints,
 		);
 	} else if (dialect === 'sqlite' || dialect === 'turso') {
-		const { connectToSQLite, connectToLibSQL } = await import('./connections');
+		const { connectToSQLite, connectToTursoRemote: connectToLibSQL } = await import('./connections');
 		const db = dialect === 'sqlite'
 			? await connectToSQLite(credentials as SqliteCredentials)
 			: await connectToLibSQL(credentials as LibSQLCredentials);
@@ -279,7 +280,7 @@ export const runPush = async (
 const optionDialect = string('dialect')
 	.enum(...dialects)
 	.desc(
-		`Database dialect: 'gel', 'postgresql', 'mysql', 'sqlite', 'turso', 'singlestore', 'duckdb' or 'mssql'`,
+		`Database dialect: 'postgresql', 'mysql', 'sqlite', 'turso', 'singlestore', 'duckdb' or 'mssql'`,
 	);
 const optionOut = string().desc("Output folder, 'drizzle' by default");
 const optionConfig = string().desc('Path to drizzle config file');
@@ -291,9 +292,6 @@ const optionDriver = string()
 	.enum(...drivers)
 	.desc('Database driver');
 
-const optionCasing = string()
-	.enum('camelCase', 'snake_case')
-	.desc('Casing for serialization');
 const optionIgnoreConflicts = boolean('ignore-conflicts').desc(
 	'Skip commutativity conflict checks',
 );
@@ -421,7 +419,7 @@ export const migrate = command({
 				}),
 			);
 		} else if (dialect === 'turso') {
-			const { connectToLibSQL } = await import('./connections');
+			const { connectToTursoRemote: connectToLibSQL } = await import('./connections');
 			const { migrate } = await connectToLibSQL(credentials);
 			await renderWithTask(
 				new MigrateProgress(),
@@ -453,8 +451,6 @@ export const migrate = command({
 					migrationsSchema: schema,
 				}),
 			);
-		} else if (dialect === 'gel') {
-			throw new Error(`You can't use 'migrate' command with Gel dialect`);
 		} else {
 			assertUnreachable(dialect);
 		}
@@ -543,6 +539,7 @@ export const check = command({
 			ignoreConflicts: opts.ignoreConflicts,
 			output,
 		};
+		return config;
 	},
 	handler: async (config) => {
 		await assertOrmCoreVersion();
@@ -576,32 +573,34 @@ export const up = command({
 		await assertPackages('drizzle-orm');
 
 		if (dialect === 'postgresql') {
-			upPgHandler(out);
+			return upPgHandler(out);
 		}
 
 		if (dialect === 'mysql') {
-			upMysqlHandler(out);
+			return upMysqlHandler(out);
 		}
 
 		if (dialect === 'sqlite' || dialect === 'turso') {
-			upSqliteHandler(out);
+			return upSqliteHandler(out);
 		}
 
 		if (dialect === 'singlestore') {
-			upSinglestoreHandler(out);
+			return upSinglestoreHandler(out);
 		}
 
 		if (dialect === 'cockroach') {
-			upCockroachHandler(out);
+			return upCockroachHandler(out);
 		}
 
 		if (dialect === 'mssql') {
-			upMssqlHandler(out);
+			return upMssqlHandler(out);
 		}
 
-		if (dialect === 'gel') {
-			throw new Error(`You can't use 'up' command with Gel dialect`);
+		if (dialect === 'duckdb') {
+			throw new Error(`You can't use 'pull' command with '${dialect}' dialect`);
 		}
+
+		assertUnreachable(dialect);
 	},
 });
 
@@ -736,7 +735,7 @@ export const pull = command({
 				db,
 			);
 		} else if (dialect === 'turso') {
-			const { connectToLibSQL } = await import('./connections');
+			const { connectToTursoRemote: connectToLibSQL } = await import('./connections');
 			const db = await connectToLibSQL(credentials);
 			migrate = db.migrate;
 
@@ -766,13 +765,6 @@ export const pull = command({
 				migrations,
 				db,
 			);
-		} else if (dialect === 'gel') {
-			const { prepareGelDB } = await import('./connections');
-			const db = await prepareGelDB(credentials);
-			// migrate = db.migrate;
-
-			const { handle } = await import('./commands/pull-gel');
-			await handle(casing, out, breakpoints, credentials, filters, db);
 		} else if (dialect === 'mssql') {
 			const { connectToMsSQL } = await import('./connections');
 			const db = await connectToMsSQL(credentials);
@@ -849,20 +841,16 @@ export const studio = command({
 			.default(false)
 			.desc('Print all stataments that are executed by Studio'),
 	},
+	transform: async (opts) => {
+		return await prepareStudioConfig(opts);
+	},
 	handler: async (opts) => {
 		await assertOrmCoreVersion();
 		await assertPackages('drizzle-orm');
 
 		assertStudioNodeVersion();
 
-		const {
-			dialect,
-			schema: schemaPath,
-			port,
-			host,
-			credentials,
-			casing,
-		} = await prepareStudioConfig(opts);
+		const { credentials, dialect, host, port, schema: schemaPath } = opts;
 
 		const {
 			drizzleForPostgres,
@@ -910,7 +898,6 @@ export const studio = command({
 				schema,
 				relations,
 				files,
-				casing,
 			);
 		} else if (dialect === 'mysql') {
 			const { schema, relations, files } = schemaPath
@@ -921,7 +908,6 @@ export const studio = command({
 				schema,
 				relations,
 				files,
-				casing,
 			);
 		} else if (dialect === 'sqlite') {
 			const { schema, relations, files } = schemaPath
@@ -932,7 +918,6 @@ export const studio = command({
 				schema,
 				relations,
 				files,
-				casing,
 			);
 		} else if (dialect === 'turso') {
 			const { schema, relations, files } = schemaPath
@@ -943,7 +928,6 @@ export const studio = command({
 				schema,
 				relations,
 				files,
-				casing,
 			);
 		} else if (dialect === 'singlestore') {
 			const { schema, relations, files } = schemaPath
@@ -954,7 +938,6 @@ export const studio = command({
 				schema,
 				relations,
 				files,
-				casing,
 			);
 		} else if (dialect === 'duckdb') {
 			setup = await drizzleForDuckDb(credentials);
@@ -1046,8 +1029,6 @@ export const exportRaw = command({
 		} else if (dialect === 'singlestore') {
 			const { handleExport } = await import('./commands/generate-singlestore');
 			await handleExport(opts);
-		} else if (dialect === 'gel') {
-			throw new Error(`You can't use 'export' command with Gel dialect`);
 		} else if (dialect === 'mssql') {
 			const { handleExport } = await import('./commands/generate-mssql');
 			await handleExport(opts);

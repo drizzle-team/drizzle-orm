@@ -1,5 +1,5 @@
 import { Minimatch } from 'minimatch';
-import type { EntitiesFilter, ExtensionsFilter, SchemasFilter, TablesFilter } from '../cli/validations/cli';
+import type { EntitiesFilter, ExtensionsFilter, SchemasFilter, TablesFilter } from '../cli/validations/common';
 import { assertUnreachable } from '../utils';
 import type { Dialect } from '../utils/schemaValidator';
 
