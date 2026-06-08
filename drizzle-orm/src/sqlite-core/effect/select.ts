@@ -8,7 +8,7 @@ import type {
 } from '~/query-builders/select.types.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
 import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
-import { type SQLiteSelectBuilder, SQLiteSelectQueryBuilderBase } from '~/sqlite-core/query-builders/select.ts';
+import { SQLiteSelectBase, type SQLiteSelectBuilder } from '~/sqlite-core/query-builders/select.ts';
 import type { SelectedFields, SQLiteSelectHKTBase } from '~/sqlite-core/query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '~/sqlite-core/session.ts';
 import { type Assume, orderSelectedFields } from '~/utils.ts';
@@ -91,7 +91,7 @@ export class SQLiteEffectSelectBase<
 	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
-> extends SQLiteSelectQueryBuilderBase<
+> extends SQLiteSelectBase<
 	SQLiteEffectSelectHKT<TEffectHKT>,
 	TTableName,
 	TRunResult,

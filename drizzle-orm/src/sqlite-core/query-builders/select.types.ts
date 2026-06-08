@@ -25,7 +25,7 @@ import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { SQLiteViewBase } from '../view-base.ts';
 import type { SQLiteViewWithSelection } from '../view.ts';
-import type { SQLiteSelectQueryBuilderBase } from './select.ts';
+import type { SQLiteSelectBase } from './select.ts';
 
 export interface SQLiteSelectJoinConfig {
 	on: SQL | undefined;
@@ -165,7 +165,7 @@ export type SQLiteSelectKind<
 })['_type'];
 
 export interface SQLiteSelectQueryBuilderHKT extends SQLiteSelectHKTBase {
-	_type: SQLiteSelectQueryBuilderBase<
+	_type: SQLiteSelectBase<
 		SQLiteSelectQueryBuilderHKT,
 		this['tableName'],
 		this['runResult'],
@@ -206,7 +206,7 @@ export type CreateSQLiteSelectFromBuilderMode<
 		false,
 		never
 	>
-	: SQLiteSelectQueryBuilderBase<
+	: SQLiteSelectBase<
 		SQLiteSelectQueryBuilderHKT,
 		TTableName,
 		TRunResult,
@@ -259,7 +259,7 @@ export type SQLiteSelectQueryBuilder<
 	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
 	TResult extends any[] = unknown[],
 	TSelectedFields extends ColumnsSelection = ColumnsSelection,
-> = SQLiteSelectQueryBuilderBase<
+> = SQLiteSelectBase<
 	THKT,
 	TTableName,
 	TRunResult,
@@ -272,7 +272,7 @@ export type SQLiteSelectQueryBuilder<
 	TSelectedFields
 >;
 
-export type AnySQLiteSelectQueryBuilder = SQLiteSelectQueryBuilderBase<
+export type AnySQLiteSelectQueryBuilder = SQLiteSelectBase<
 	any,
 	any,
 	any,
@@ -420,7 +420,7 @@ export type SQLiteCreateSetOperatorFn = <
 	rightSelect: SetOperatorRightSelect<TValue, TResult>,
 	...restSelects: SetOperatorRestSelect<TRest, TResult>
 ) => SQLiteSelectWithout<
-	SQLiteSelectQueryBuilderBase<
+	SQLiteSelectBase<
 		THKT,
 		TTableName,
 		TRunResult,

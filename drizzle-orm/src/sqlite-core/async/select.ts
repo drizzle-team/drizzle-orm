@@ -9,7 +9,7 @@ import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
-import { type SQLiteSelectBuilder, SQLiteSelectQueryBuilderBase } from '~/sqlite-core/query-builders/select.ts';
+import { SQLiteSelectBase, type SQLiteSelectBuilder } from '~/sqlite-core/query-builders/select.ts';
 import type { SelectedFields, SQLiteSelectHKTBase } from '~/sqlite-core/query-builders/select.types.ts';
 import { applyMixins, type Assume, orderSelectedFields } from '~/utils.ts';
 import type { SQLiteAsyncPreparedQuery, SQLiteAsyncPreparedQueryConfig } from './session.ts';
@@ -73,7 +73,7 @@ export interface SQLiteAsyncSelectBase<
 	// oxlint-disable-next-line no-unused-vars
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends
-	SQLiteSelectQueryBuilderBase<
+	SQLiteSelectBase<
 		SQLiteAsyncSelectHKT & { resultType: TResultType },
 		TTableName,
 		TRunResult,
@@ -88,7 +88,7 @@ export interface SQLiteAsyncSelectBase<
 	QueryPromise<TResult>
 {
 	readonly _:
-		& SQLiteSelectQueryBuilderBase<
+		& SQLiteSelectBase<
 			SQLiteAsyncSelectHKT & { resultType: TResultType },
 			TTableName,
 			TRunResult,
@@ -116,7 +116,7 @@ export class SQLiteAsyncSelectBase<
 	TExcludedMethods extends string = never,
 	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
-> extends SQLiteSelectQueryBuilderBase<
+> extends SQLiteSelectBase<
 	SQLiteAsyncSelectHKT & { resultType: TResultType },
 	TTableName,
 	TRunResult,
