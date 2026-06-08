@@ -25,10 +25,11 @@ test('validate config #1', async (t) => {
 	assert.equal(res.type, 'handler');
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
 
-	const expected: CheckConfig = {
+	const expected: CheckConfig & { output: 'text' | 'json' } = {
 		dialect: 'postgresql',
 		out: 'drizzle',
 		ignoreConflicts: false,
+		output: 'text',
 	};
 	expect(res.options).toStrictEqual(expected);
 });
@@ -39,10 +40,11 @@ test('validate config #2', async (t) => {
 	assert.equal(res.type, 'handler');
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
 
-	const expected: CheckConfig = {
+	const expected: CheckConfig & { output: 'text' | 'json' } = {
 		dialect: 'postgresql',
 		out: 'test',
 		ignoreConflicts: true,
+		output: 'text',
 	};
 	expect(res.options).toStrictEqual(expected);
 });
@@ -57,10 +59,11 @@ test('validate config #3', async (t) => {
 	assert.equal(res.type, 'handler');
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
 
-	const expected: CheckConfig = {
+	const expected: CheckConfig & { output: 'text' | 'json' } = {
 		dialect: 'postgresql',
 		out: 'test',
 		ignoreConflicts: undefined,
+		output: 'text',
 	};
 	expect(res.options).toStrictEqual(expected);
 });
@@ -91,4 +94,57 @@ test('validate config #5', async (t) => {
 	expect((res.error as Error).message).toBe(
 		[error('Please provide required params:'), wrapParam('dialect', undefined)].join('\n'),
 	);
+});
+
+type CheckConfigWithOutput = CheckConfig & { output: 'text' | 'json' };
+
+test('output option parses json mode', async (t) => {
+	const res = await brotest(check, `--dialect=postgresql --out=test --output=json`);
+
+	assert.equal(res.type, 'handler');
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+
+	const expected: CheckConfigWithOutput = {
+		dialect: 'postgresql',
+		out: 'test',
+		ignoreConflicts: undefined,
+		output: 'json',
+	};
+	expect(res.options).toStrictEqual(expected);
+});
+
+test('output option parses text mode', async (t) => {
+	const res = await brotest(check, `--dialect=postgresql --out=test --output=text`);
+
+	assert.equal(res.type, 'handler');
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+
+	const expected: CheckConfigWithOutput = {
+		dialect: 'postgresql',
+		out: 'test',
+		ignoreConflicts: undefined,
+		output: 'text',
+	};
+	expect(res.options).toStrictEqual(expected);
+});
+
+test('output defaults to text when omitted', async (t) => {
+	const res = await brotest(check, `--dialect=postgresql --out=test`);
+
+	assert.equal(res.type, 'handler');
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+
+	const expected: CheckConfigWithOutput = {
+		dialect: 'postgresql',
+		out: 'test',
+		ignoreConflicts: undefined,
+		output: 'text',
+	};
+	expect(res.options).toStrictEqual(expected);
+});
+
+test('output option rejects an invalid value', async (t) => {
+	const res = await brotest(check, `--dialect=postgresql --out=test --output=bogus`);
+
+	expect(res.type).not.toBe('handler');
 });
