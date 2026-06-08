@@ -10,12 +10,15 @@ It is written for tools and services that call Drizzle Kit programmatically.
 
 - `drizzle-kit generate --output json`
 - `drizzle-kit push --output json`
+- `drizzle-kit check --output json`
 
 When `--output json` is set, callers should treat `stdout` as the JSON channel. Each command invocation writes a single JSON object to `stdout`.
 
 ## Programmatic API
 
 The same JSON contract documented in this file is available as typed root-level exports of the `drizzle-kit` package for programmatic callers — agents, build tools, custom orchestrators. The CLI and SDK share one implementation; the response shapes, status discriminator, hint vocabulary, and error codes documented below apply identically to SDK return values.
+
+`check` is CLI-only — there is no `check()` SDK export. Consume its envelope by parsing the CLI's stdout under `--output json`.
 
 ```typescript
 import { generate, push } from 'drizzle-kit';
@@ -182,6 +185,7 @@ Structured error responses with `status: "error"` use a `code` field to identify
 |--------|------------|---------------------|--------------|
 | `unsupported_schema_change` | see [unsupported_schema_change variants](#unsupported_schema_change) | `mysql`, `mssql`, `singlestore` | The schema diff would emit a DDL operation that the target dialect cannot execute or rejects (per `meta.kind`) |
 | `invalid_hints` | see [invalid_hints variants](#invalid_hints) | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Hints payload could not be loaded, parsed, validated, or applied — see [`invalid_hints`](#invalid_hints) below |
+| `check_error` | see [`check` outcomes](#check) | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | `check` found a snapshot-integrity problem (`kind: 'unsupported' \| 'malformed' \| 'non_latest'`, carries `snapshot`) or unreported branch conflicts (`kind: 'conflicts'`, carries `conflicts` + `details`) — see [`check`](#check) below |
 
 The example payloads in each variant sub-table show only the `error` object; the full response wraps them in `{"status":"error","error":{…}}`.
 
@@ -358,6 +362,88 @@ Example:
   ]
 }
 ```
+
+## `check`
+
+`drizzle-kit check --output json` validates the migrations folder — snapshot integrity plus branch commutativity — and emits one of three envelopes. It never prompts and takes no hints.
+
+### `check` success
+
+When every snapshot is valid and the branches commute, `check` emits the `ok` envelope and exits with code `0`:
+
+```json
+{
+  "status": "ok",
+  "dialect": "postgresql"
+}
+```
+
+`dialect` is always present, consistent with every other `status: "ok"` response.
+
+### `check` integrity errors
+
+When a snapshot fails integrity validation, `check` emits an `error` envelope with `code: "check_error"` and a `kind` discriminator, and exits with code `1`. The meta is flattened into `error` — `kind` and `snapshot` are siblings of `code`:
+
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "check_error",
+    "kind": "unsupported",
+    "snapshot": "drizzle/meta/0001_snapshot.json"
+  }
+}
+```
+
+`kind` is one of:
+
+- `unsupported` — the snapshot was written by a Drizzle Kit version this binary cannot read.
+- `malformed` — the snapshot could not be parsed.
+- `non_latest` — the snapshot is not at the latest internal version and must be upgraded.
+
+`snapshot` identifies the offending snapshot.
+
+### `check` conflicts
+
+When the branches do not commute and `--ignore-conflicts` was not passed, `check` emits an `error` envelope with `code: "check_error"`, `kind: "conflicts"`, a `conflicts` count, and a `details` array, and exits with code `1`:
+
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "check_error",
+    "kind": "conflicts",
+    "conflicts": 1,
+    "details": [
+      {
+        "parentId": "0000_initial",
+        "parentPath": "drizzle/0000_initial.sql",
+        "branches": [
+          { "leafId": "0001_a", "leafPath": "drizzle/0001_a.sql", "statementDescription": "create table a" },
+          { "leafId": "0001_b", "leafPath": "drizzle/0001_b.sql", "statementDescription": "create table b" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Key semantics:
+
+- `conflicts` — the conflict count. `details.length === conflicts`.
+- `details[]` — one entry per conflict.
+  - `parentId` — the common parent migration id.
+  - `parentPath` — the parent migration path, present only when the conflict carries one.
+  - `branches` — always a two-element array (the two diverging branches). Each entry is `{ leafId, leafPath, statementDescription }`, where `leafId` / `leafPath` are the id / path of the last migration in that branch chain (`null` when a chain is empty) and `statementDescription` summarizes the branch.
+
+### `check` exit codes
+
+| outcome | envelope | exit code |
+| --- | --- | --- |
+| valid (snapshots intact, branches commute) | `{ status: "ok", dialect }` | `0` |
+| integrity error (`unsupported` / `malformed` / `non_latest`) | `{ status: "error", error: { code: "check_error", kind, snapshot } }` | `1` |
+| conflicts (no `--ignore-conflicts`) | `{ status: "error", error: { code: "check_error", kind: "conflicts", conflicts, details } }` | `1` |
+| conflicts with `--ignore-conflicts` | `{ status: "ok", dialect }` | `0` |
 
 ## Recommended automation flow
 

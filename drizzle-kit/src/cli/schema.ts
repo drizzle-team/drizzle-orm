@@ -53,6 +53,8 @@ export const statusToExitCode = (status: EnvelopeStatus): 0 | 1 | 2 => {
 			return 2;
 		case 'error':
 			return 1;
+		default:
+			assertUnreachable(status);
 	}
 };
 
@@ -525,17 +527,21 @@ export const check = command({
 		dialect: optionDialect,
 		out: optionOut,
 		ignoreConflicts: optionIgnoreConflicts,
+		output: optionOutput,
 	},
 	transform: async (opts) => {
+		const output = opts.output;
+		setCliContext({ output, interactive: output === 'text' && !!process.stdin.isTTY });
 		const from = assertCollisions(
 			'check',
 			opts,
-			['ignoreConflicts'],
+			['ignoreConflicts', 'output'],
 			['dialect', 'out'],
 		);
-		return {
+		const config: CheckConfig & { output: 'text' | 'json' } = {
 			...(await prepareCheckParams(opts, from)),
 			ignoreConflicts: opts.ignoreConflicts,
+			output,
 		};
 	},
 	handler: async (config) => {
@@ -545,7 +551,10 @@ export const check = command({
 
 		const { out, dialect, ignoreConflicts } = config;
 		await checkHandler(out, dialect, ignoreConflicts);
-		console.log("Everything's fine 🐶🔥");
+		const env = { status: 'ok' as const, dialect };
+		if (outputFormat() === 'json') process.stdout.write(JSON.stringify(env) + '\n');
+		else console.log("Everything's fine 🐶🔥");
+		process.exit(statusToExitCode(env.status));
 	},
 });
 
@@ -557,7 +566,7 @@ export const up = command({
 		out: optionOut,
 	},
 	transform: async (opts) => {
-		const from = assertCollisions('check', opts, [], ['dialect', 'out']);
+		const from = assertCollisions('up', opts, [], ['dialect', 'out']);
 		return prepareCheckParams(opts, from);
 	},
 	handler: async (config) => {

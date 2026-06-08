@@ -5,7 +5,7 @@ import type { MigrationNode, NonCommutativityReport, UnifiedBranchConflict } fro
 import type { Dialect } from '../../utils/schemaValidator';
 import { prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
 import { CheckCliError } from '../errors';
-import { humanLog, info } from '../views';
+import { humanLog } from '../views';
 
 export type CheckHandlerResult = {
 	statements: unknown[];
@@ -167,7 +167,19 @@ export const checkHandler = async (
 	const validator = validatorForDialect(dialect);
 
 	for (const snapshot of snapshots) {
-		const raw = JSON.parse(readFileSync(snapshot).toString());
+		let raw: object;
+		try {
+			const parsed: unknown = JSON.parse(readFileSync(snapshot).toString());
+			// `typeof null === 'object'`, but `'version' in null` throws — reject it alongside primitives
+			// so a valid-but-non-object snapshot surfaces as `malformed` instead of an uncaught TypeError.
+			if (typeof parsed !== 'object' || parsed === null) {
+				throw new CheckCliError('malformed', `${snapshot} data is malformed`, { snapshot });
+			}
+			raw = parsed;
+		} catch (e) {
+			if (e instanceof CheckCliError) throw e;
+			throw new CheckCliError('malformed', `${snapshot} data is malformed`, { snapshot });
+		}
 
 		const res = validator(raw);
 		switch (res.status) {
@@ -176,7 +188,7 @@ export const checkHandler = async (
 			case 'unsupported':
 				throw new CheckCliError(
 					'unsupported',
-					info(`${snapshot} snapshot is of unsupported version, please update drizzle-kit`),
+					`${snapshot} snapshot is of unsupported version, please update drizzle-kit`,
 					{ snapshot },
 				);
 			case 'malformed':
@@ -201,8 +213,19 @@ export const checkHandler = async (
 		if (!ignoreConflicts) {
 			humanLog(nonCommutativityMessage);
 			if (shouldExitOnConflict) {
+				const leafOf = (chain: MigrationNode[]) => chain[chain.length - 1];
+				const details = response.conflicts.map((conflict) => ({
+					parentId: conflict.parentId,
+					...(conflict.parentPath !== undefined && { parentPath: conflict.parentPath }),
+					branches: [conflict.branchA, conflict.branchB].map((branch) => ({
+						leafId: leafOf(branch.chain)?.id ?? null,
+						leafPath: leafOf(branch.chain)?.path ?? null,
+						statementDescription: branch.statementDescription,
+					})),
+				}));
 				throw new CheckCliError('conflicts', nonCommutativityMessage, {
 					conflicts: response.conflicts.length,
+					details,
 				});
 			}
 			return emptyResult(nonCommutativityMessage);

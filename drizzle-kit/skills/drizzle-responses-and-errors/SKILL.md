@@ -42,6 +42,7 @@ The canonical subset surfacing from `generate` and `push`. `code` is the discrim
 | ----------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------- |
 | `invalid_hints`                     | hints payload could not be loaded, parsed, validated, or matched to the diff        | `source: 'file'\|'inline'`, `path?`, `issues?`, `kind?`, `from?` |
 | `unsupported_schema_change`         | the diff would emit DDL the target dialect cannot execute (see variants below)      | `kind`, plus per-variant keys                                   |
+| `check_error`                       | `check` found a snapshot-integrity problem or unreported branch conflicts (see below) | `kind: 'unsupported'\|'malformed'\|'non_latest'\|'conflicts'`, `snapshot?`, `conflicts?`, `details?` |
 | `query_error`                       | runtime SQL against the live DB threw                                               | `sql`, `params`                                                 |
 | `internal_error`                    | uncaught exception escaped the run boundary — likely a bug to report                | `message`                                                       |
 | `config_validation_error`           | `drizzle.config.ts` failed shape validation                                         | `issues?` (zod-style records)                                   |
@@ -76,6 +77,19 @@ When fired:
 - `rename_blocked_by_check_constraint` — `sp_rename` of `schema.table.from` is rejected because the column appears in a CHECK constraint. Drop the constraint, rename, recreate the constraint.
 - `rename_schema_unsupported` — MSSQL does not support schema rename at all. Recreate the schema and move objects manually, or keep the old schema name.
 
+## Check errors
+
+`check_error` surfaces from `drizzle-kit check`, and also from `generate` / `migrate` when their pre-flight migrations-folder gate fails. `check` itself has no SDK function, but because `generate` is a documented SDK export, an SDK `generate(...)` caller can receive a `check_error` envelope too. It exits with code 1 and carries a `kind` discriminator.
+
+| meta.kind     | meta keys                | when fired                                                              |
+| ------------- | ------------------------ | ---------------------------------------------------------------------- |
+| `unsupported` | `kind`, `snapshot`       | a snapshot was written by a newer drizzle-kit and cannot be read       |
+| `malformed`   | `kind`, `snapshot`       | a snapshot could not be parsed                                         |
+| `non_latest`  | `kind`, `snapshot`       | a snapshot is not at the latest internal version and must be upgraded  |
+| `conflicts`   | `kind`, `conflicts`, `details` | branches in the migrations folder do not commute (run without `--ignore-conflicts`) |
+
+For the integrity kinds, `snapshot` names the offending file. For `conflicts`, `conflicts` is the count and `details` is an array of length `conflicts`; each entry is `{ parentId, parentPath?, branches }` where `branches` is always a two-element array of `{ leafId, leafPath, statementDescription }` describing the two diverging branches off the common parent. `leafId` / `leafPath` are `null` when a branch chain is empty.
+
 ## Decoding pattern (CLI + SDK)
 
 Narrow on `status` and then on `error.code`:
@@ -102,6 +116,9 @@ switch (response.status) {
         break;
       case 'invalid_hints':
         // response.error.source, response.error.issues, etc.
+        break;
+      case 'check_error':
+        // migrations-folder pre-flight gate failed; response.error.kind, response.error.snapshot / conflicts / details
         break;
       // ...other codes from the table above
     }

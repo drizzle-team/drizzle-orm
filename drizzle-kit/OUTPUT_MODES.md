@@ -9,10 +9,14 @@ Output format, interactivity, and hint resolution are three orthogonal axes. The
 
 ## `--output text | json`
 
+`generate`, `push`, and `check` all accept `--output text | json`.
+
 | Mode | Default | Emits |
 | --- | --- | --- |
 | `text` | yes | Human-readable progress and results on stdout; typed errors on stderr. When a command has unresolved decisions, the missing-decisions report (below) is written to stdout and the process exits with code 2. |
 | `json` | no | The single JSON envelope described in [`./JSON_CONTRACT.md`](./JSON_CONTRACT.md), on stdout, for every status (including errors). |
+
+`check` is a no-hint, non-interactive gate, so it never reaches the missing-decisions path. Under `--output text` it keeps its current human output (`Everything's fine 🐶🔥` on success, the colorized conflict tree on non-commutativity); under `--output json` it emits the `ok` / `check_error` envelopes documented in [`./JSON_CONTRACT.md`](./JSON_CONTRACT.md).
 
 ## Interactivity
 

@@ -1,13 +1,16 @@
 import BetterSqlite3 from 'better-sqlite3';
 import { spawnSync } from 'child_process';
 import { sql } from 'drizzle-orm';
+import { integer as pgInteger, pgTable, varchar } from 'drizzle-orm/pg-core';
 import { check, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { mkdtempSync } from 'fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { stripAnsi } from 'hanji/utils';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { HintsHandler } from '../../src/cli/hints';
+import type { PostgresSnapshot } from '../../src/dialects/postgres/snapshot';
+import { drizzleToDDL, type PostgresSchema } from '../postgres/mocks';
 
 const runWithCliContext = async <T>(
 	context: { output: 'text' | 'json'; interactive: boolean },
@@ -7015,4 +7018,212 @@ test('push singlestore throws fk_target_not_unique error in json mode', async ()
 				columns_to: ['email'],
 			},
 		});
+});
+
+describe('check --output', () => {
+	const ORIGIN = '00000000-0000-0000-0000-000000000000';
+
+	const makePgSnapshot = (id: string, prevIds: string[], schema: PostgresSchema): PostgresSnapshot => ({
+		version: '8',
+		dialect: 'postgres',
+		id,
+		prevIds,
+		ddl: drizzleToDDL(schema).ddl.entities.list(),
+		renames: [],
+	});
+
+	const stageOut = () => {
+		mkdirSync('tests/tmp', { recursive: true });
+		return mkdtempSync('tests/tmp/dk-check-json-');
+	};
+
+	const writeSnapshot = (out: string, tag: string, snapshot: unknown) => {
+		const folder = join(out, tag);
+		mkdirSync(folder, { recursive: true });
+		writeFileSync(join(folder, 'snapshot.json'), JSON.stringify(snapshot, null, 2));
+	};
+
+	// A single valid snapshot -> the `ok` outcome.
+	const stageValid = () => {
+		const out = stageOut();
+		writeSnapshot(
+			out,
+			'0000_init',
+			makePgSnapshot('p1', [ORIGIN], { users: pgTable('users', { id: pgInteger('id') }) }),
+		);
+		return out;
+	};
+
+	// Two divergent branches that touch the same column incompatibly -> `conflicts`.
+	const stageConflict = () => {
+		const out = stageOut();
+		const parent = makePgSnapshot('p1', [ORIGIN], { users: pgTable('users', { email: varchar('email') }) });
+		const left = makePgSnapshot('a1', ['p1'], { users: pgTable('users', { email: varchar('email').notNull() }) });
+		const right = makePgSnapshot('b1', ['p1'], { users: pgTable('users', { email: pgInteger('email') }) });
+		writeSnapshot(out, '0000_parent', parent);
+		writeSnapshot(out, '0001_left', left);
+		writeSnapshot(out, '0002_right', right);
+		return out;
+	};
+
+	const runCheck = (out: string, extra: string[] = []) =>
+		runCli(['check', `--out=${out}`, '--dialect=postgresql', ...extra]);
+
+	const expectNoHumanStrings = (stdout: string) => {
+		expect(stdout).not.toContain('🐶🔥');
+		expect(stdout).not.toContain('Non-commutative');
+		expect(stdout).not.toContain('\x1b[');
+	};
+
+	test('valid journal emits an ok envelope with clean json stdout in json mode', () => {
+		const result = runCheck(stageValid(), ['--output', 'json']);
+
+		expect(result.status).toBe(0);
+		expect(JSON.parse(result.stdout.trim())).toStrictEqual({ status: 'ok', dialect: 'postgresql' });
+		expectNoHumanStrings(result.stdout);
+	});
+
+	test('unsupported snapshot version emits a check_error envelope in json mode', () => {
+		const out = stageOut();
+		writeSnapshot(out, '0000_init', { version: '999', dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], ddl: [] });
+		const result = runCheck(out, ['--output', 'json']);
+
+		expect(result.status).toBe(1);
+		const parsed = JSON.parse(result.stdout.trim());
+		expect(parsed.status).toBe('error');
+		expect(parsed.error.code).toBe('check_error');
+		expect(parsed.error.kind).toBe('unsupported');
+		expect(typeof parsed.error.snapshot).toBe('string');
+		expectNoHumanStrings(result.stdout);
+	});
+
+	test('non-latest snapshot version emits a check_error envelope in json mode', () => {
+		const out = stageOut();
+		writeSnapshot(out, '0000_init', { version: '1', dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], ddl: [] });
+		const result = runCheck(out, ['--output', 'json']);
+
+		expect(result.status).toBe(1);
+		const parsed = JSON.parse(result.stdout.trim());
+		expect(parsed.status).toBe('error');
+		expect(parsed.error.code).toBe('check_error');
+		expect(parsed.error.kind).toBe('non_latest');
+		expect(typeof parsed.error.snapshot).toBe('string');
+		expectNoHumanStrings(result.stdout);
+	});
+
+	test('malformed snapshot emits a check_error envelope in json mode', () => {
+		const out = stageOut();
+		// Correct version but a structurally invalid body trips the `malformed` validator status.
+		writeSnapshot(out, '0000_init', { version: '8', dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], ddl: 'not-an-array' });
+		const result = runCheck(out, ['--output', 'json']);
+
+		expect(result.status).toBe(1);
+		const parsed = JSON.parse(result.stdout.trim());
+		expect(parsed.status).toBe('error');
+		expect(parsed.error.code).toBe('check_error');
+		expect(parsed.error.kind).toBe('malformed');
+		expect(typeof parsed.error.snapshot).toBe('string');
+		expectNoHumanStrings(result.stdout);
+	});
+
+	test('valid-but-non-object snapshot emits a check_error envelope in json mode', () => {
+		// Valid JSON but not an object — `JSON.parse` succeeds (no SyntaxError), so the post-parse
+		// narrowing guard is what turns these into `malformed` rather than an uncaught
+		// `'version' in <primitive>` TypeError. `null` is covered because `typeof null === 'object'`.
+		for (const body of [42, 'x', true, null]) {
+			const out = stageOut();
+			writeSnapshot(out, '0000_init', body);
+			const result = runCheck(out, ['--output', 'json']);
+
+			expect(result.status).toBe(1);
+			const parsed = JSON.parse(result.stdout.trim());
+			expect(parsed.status).toBe('error');
+			expect(parsed.error.code).toBe('check_error');
+			expect(parsed.error.kind).toBe('malformed');
+			expect(typeof parsed.error.snapshot).toBe('string');
+			expectNoHumanStrings(result.stdout);
+		}
+	});
+
+	test('conflicting branches emit an enriched conflicts envelope in json mode', () => {
+		const result = runCheck(stageConflict(), ['--output', 'json']);
+
+		expect(result.status).toBe(1);
+		const parsed = JSON.parse(result.stdout.trim());
+		expect(parsed.status).toBe('error');
+		expect(parsed.error.code).toBe('check_error');
+		expect(parsed.error.kind).toBe('conflicts');
+		expect(parsed.error.conflicts).toBeGreaterThan(0);
+
+		// CHECK-05: the per-conflict parent/branch-leaf/statement-description data must be
+		// machine-parseable from `error` (not just the count, and not via the human tree).
+		expect(Array.isArray(parsed.error.details)).toBe(true);
+		expect(parsed.error.details.length).toBe(parsed.error.conflicts);
+		for (const detail of parsed.error.details) {
+			expect(typeof detail.parentId).toBe('string');
+			const detailKeys = Object.keys(detail).sort();
+			expect(
+				detailKeys.join(',') === 'branches,parentId'
+					|| detailKeys.join(',') === 'branches,parentId,parentPath',
+			).toBe(true);
+			expect(Array.isArray(detail.branches)).toBe(true);
+			expect(detail.branches.length).toBe(2);
+			for (const branch of detail.branches) {
+				expect(Object.keys(branch).sort()).toEqual(['leafId', 'leafPath', 'statementDescription']);
+				expect(branch.leafId === null || typeof branch.leafId === 'string').toBe(true);
+				expect(branch.leafPath === null || typeof branch.leafPath === 'string').toBe(true);
+				expect(typeof branch.statementDescription).toBe('string');
+			}
+		}
+
+		expectNoHumanStrings(result.stdout);
+	});
+
+	test('ignore-conflicts emits an ok envelope despite conflicts in json mode', () => {
+		const result = runCheck(stageConflict(), ['--ignore-conflicts', '--output', 'json']);
+
+		expect(result.status).toBe(0);
+		expect(JSON.parse(result.stdout.trim())).toStrictEqual({ status: 'ok', dialect: 'postgresql' });
+		expectNoHumanStrings(result.stdout);
+	});
+
+	test('text mode prints the human success line for a valid journal', () => {
+		const result = runCheck(stageValid(), ['--output', 'text']);
+
+		expect(result.status).toBe(0);
+		expect(result.stdout).toContain("Everything's fine 🐶🔥");
+		expect(() => JSON.parse(result.stdout.trim())).toThrow();
+	});
+
+	test('text mode defaults when --output is omitted', () => {
+		const result = runCheck(stageValid());
+
+		expect(result.status).toBe(0);
+		expect(result.stdout).toContain("Everything's fine 🐶🔥");
+		expect(() => JSON.parse(result.stdout.trim())).toThrow();
+	});
+
+	test('text mode renders the conflict tree and exits non-zero', () => {
+		const result = runCheck(stageConflict(), ['--output', 'text']);
+
+		expect(result.status).not.toBe(0);
+		const combined = stripAnsi(result.stdout + result.stderr);
+		expect(combined).toContain('Non-commutative migrations detected');
+	});
+
+	test('text mode renders the typed integrity error and emits no json on stdout', () => {
+		const out = stageOut();
+		writeSnapshot(out, '0000_init', { version: '999', dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], ddl: [] });
+		const result = runCheck(out, ['--output', 'text']);
+
+		expect(result.status).not.toBe(0);
+		expect(() => JSON.parse(result.stdout.trim())).toThrow();
+	});
+
+	test('ignore-conflicts emits the human success line in text mode', () => {
+		const result = runCheck(stageConflict(), ['--ignore-conflicts', '--output', 'text']);
+
+		expect(result.status).toBe(0);
+		expect(result.stdout).toContain("Everything's fine 🐶🔥");
+	});
 });

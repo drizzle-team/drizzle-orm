@@ -7,10 +7,12 @@ metadata:
 
 # Drizzle output modes
 
-Drizzle Kit `generate` / `push` render results in one of two output modes, selected with `--output`. Output format and interactivity are separate axes: the output mode controls *how* results are rendered; interactivity controls *whether* the CLI may prompt.
+Drizzle Kit `generate` / `push` / `check` render results in one of two output modes, selected with `--output`. Output format and interactivity are separate axes: the output mode controls *how* results are rendered; interactivity controls *whether* the CLI may prompt.
 
 - `--output text` (the default) renders human-readable progress and results on stdout, with typed errors on stderr. When a command has unresolved decisions and cannot prompt, it writes the missing-decisions report (below) to stdout and exits with code 2.
 - `--output json` emits a single machine-readable JSON envelope on stdout for every status (including errors), and is always non-interactive.
+
+`check --output json` rides the same plumbing: it is a no-hint, non-interactive gate that emits an `ok` envelope when the migrations folder is valid and a `check_error` envelope for snapshot-integrity problems or unreported branch conflicts. It never reaches the missing-decisions path. The `drizzle-responses-and-errors` skill decodes the `check_error` envelope.
 
 ## Interactivity
 
