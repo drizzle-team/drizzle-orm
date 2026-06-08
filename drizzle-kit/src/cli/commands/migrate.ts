@@ -1410,7 +1410,7 @@ export const writeResult = ({
 
 	fs.writeFileSync(
 		join(metaFolderPath, `${prefix}_snapshot.json`),
-		JSON.stringify(toSave, null, 2),
+		`${JSON.stringify(toSave, null, 2)}\n`,
 	);
 
 	const sqlDelimiter = breakpoints ? BREAKPOINT : '\n';
