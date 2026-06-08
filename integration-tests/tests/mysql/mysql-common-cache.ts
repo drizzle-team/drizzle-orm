@@ -375,5 +375,24 @@ export function tests() {
 			// @ts-expect-error
 			expect(db.select().from(sq).getUsedTables()).toStrictEqual(['users']);
 		});
+
+		test('concurrent $withCache on cold cache fires a single DB query (single-flight)', async (ctx) => {
+			const { db } = ctx.cachedMySQL;
+
+			await db.insert(usersTable).values({ name: 'John' });
+
+			// @ts-expect-error
+			const spyPut = vi.spyOn(db.$cache, 'put');
+			// @ts-expect-error
+			const spyGet = vi.spyOn(db.$cache, 'get');
+
+			const results = await Promise.all(
+				Array.from({ length: 20 }, () => db.select().from(usersTable).$withCache()),
+			);
+
+			expect(spyGet).toHaveBeenCalledTimes(20);
+			expect(spyPut).toHaveBeenCalledTimes(1);
+			expect(results.length).toBe(20);
+		});
 	});
 }
