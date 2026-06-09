@@ -395,5 +395,25 @@ export function tests() {
 			expect(spyPut).toHaveBeenCalledTimes(1);
 			expect(results.length).toBe(20);
 		});
+
+		test('concurrent $withCache propagates put errors to all waiters', async (ctx) => {
+			const { db } = ctx.cachedSqlite;
+
+			await db.insert(usersTable).values({ name: 'John' });
+
+			const putError = new Error('put failed');
+			// @ts-expect-error
+			vi.spyOn(db.$cache, 'put').mockRejectedValueOnce(putError);
+
+			const promises = Array.from({ length: 5 }, () =>
+				db.select().from(usersTable).$withCache().catch((e) => e)
+			);
+
+			const results = await Promise.all(promises);
+
+			results.forEach((result) => {
+				expect(result).toBe(putError);
+			});
+		});
 	});
 }
