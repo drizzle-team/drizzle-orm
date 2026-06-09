@@ -4,7 +4,7 @@ import type { Column, Table, View } from '../../dialects/mysql/ddl';
 import { interimToDDL } from '../../dialects/mysql/ddl';
 import { prepareEntityFilter } from '../../dialects/pull-utils';
 import { ddlDiff } from '../../dialects/singlestore/diff';
-import { outputFormat } from '../context';
+import { isInteractive, outputFormat } from '../context';
 import { CommandOutputCliError } from '../errors';
 import { highlightSQL } from '../highlighter';
 import type { HintsHandler } from '../hints';
@@ -101,7 +101,7 @@ export const handle = async (
 		return { status: 'ok' as const, dialect: 'singlestore' };
 	}
 
-	if (!force && !json && suggestionHints.length > 0) {
+	if (!force && !json && isInteractive() && suggestionHints.length > 0) {
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 		if (data?.index === 0) {
 			render(`[${chalk.red('x')}] All changes were aborted`);

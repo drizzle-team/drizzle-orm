@@ -8,7 +8,7 @@ import { ddlDiff } from '../../dialects/sqlite/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/sqlite/drizzle';
 import type { JsonStatement } from '../../dialects/sqlite/statements';
 import type { SQLiteClient } from '../../utils';
-import { outputFormat } from '../context';
+import { isInteractive, outputFormat } from '../context';
 import { CommandOutputCliError } from '../errors';
 import { highlightSQL } from '../highlighter';
 import type { HintsHandler } from '../hints';
@@ -94,7 +94,7 @@ export const handle = async (
 		return { status: 'ok' as const, dialect };
 	}
 
-	if (!force && !json && suggestionHints.length > 0) {
+	if (!force && !json && isInteractive() && suggestionHints.length > 0) {
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
@@ -126,6 +126,7 @@ export const suggestions = async (
 	hints: HintsHandler,
 ) => {
 	const json = outputFormat() === 'json';
+	const useHints = json || !isInteractive();
 	const grouped: { hint: string; statement?: string }[] = [];
 
 	// TODO: generate truncations/recreates ??
@@ -137,7 +138,7 @@ export const suggestions = async (
 			const res = await connection.query(`select 1 from "${name}" limit 1;`);
 
 			if (res.length > 0) {
-				if (json) {
+				if (useHints) {
 					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'table', entity, reason: 'non_empty' });
 				} else {
 					grouped.push({ hint: `You're about to delete non-empty '${name}' table` });
@@ -153,7 +154,7 @@ export const suggestions = async (
 
 			const res = await connection.query(`select 1 from "${table}" limit 1;`);
 			if (res.length > 0) {
-				if (json) {
+				if (useHints) {
 					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'column', entity, reason: 'non_empty' });
 				} else {
 					grouped.push({ hint: `You're about to delete '${name}' column in a non-empty '${table}' table` });
@@ -176,7 +177,7 @@ export const suggestions = async (
 			}
 
 			if (tableNonEmpty) {
-				if (json) {
+				if (useHints) {
 					hints.pushMissingHint({
 						type: 'confirm_data_loss',
 						kind: 'add_not_null',
@@ -204,7 +205,7 @@ export const suggestions = async (
 
 			const res = await connection.query(`select 1 from "${statement.from.name}" limit 1`);
 			if (res.length > 0) {
-				if (json) {
+				if (useHints) {
 					for (const droppedColumn of droppedColumns) {
 						const entity = ['public', statement.from.name, droppedColumn.name] as const;
 						if (hints.matchConfirm('column', entity)) continue;

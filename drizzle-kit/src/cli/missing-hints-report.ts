@@ -45,10 +45,23 @@ const renderRenameOrCreate = (index: number, item: Extract<MissingHint, { type: 
 	];
 };
 
+const confirmReasonProse = (item: Extract<MissingHint, { type: 'confirm_data_loss' }>): string => {
+	switch (item.reason) {
+		case 'non_empty':
+			return `non-empty ${humanizeKind(item.kind)}`;
+		case 'nulls_present':
+			return 'existing rows hold null values';
+		case 'duplicates_present':
+			return 'existing rows hold duplicate values';
+		case 'type_change':
+			return `type change from ${item.reason_details.from} to ${item.reason_details.to}`;
+	}
+};
+
 const renderConfirmDataLoss = (index: number, item: Extract<MissingHint, { type: 'confirm_data_loss' }>): string[] => {
 	const header = `${index}. Confirm data loss  ${chalk.gray('—')}  ${humanizeKind(item.kind)}  ${
 		chalk.bold.cyan(entityDisplay(item.entity))
-	}  (reason: ${item.reason})`;
+	}  ${chalk.gray(confirmReasonProse(item))}`;
 	const snippet = `     { "type": "confirm_data_loss", "kind": "${item.kind}", "entity": ${
 		entityToJsonArray(item.entity)
 	} }`;

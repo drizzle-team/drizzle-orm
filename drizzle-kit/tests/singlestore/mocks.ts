@@ -3,6 +3,7 @@ import { SingleStoreSchema, SingleStoreTable } from 'drizzle-orm/singlestore-cor
 import { mkdirSync, writeFileSync } from 'fs';
 import { Connection, createConnection } from 'mysql2/promise';
 import { suggestions } from 'src/cli/commands/push-mysql';
+import { runWithCliContext } from 'src/cli/context';
 import { HintsHandler } from 'src/cli/hints';
 import { configMigrations } from 'src/cli/validations/common';
 import { explain } from 'src/cli/views';
@@ -149,7 +150,10 @@ export const diffPush = async (config: {
 		'push',
 	);
 
-	const hints = await suggestions(db, statements, ddl2, new HintsHandler());
+	const hints = await runWithCliContext(
+		{ output: 'text', interactive: true },
+		() => suggestions(db, statements, ddl2, new HintsHandler()),
+	);
 	const explainMessage = explain('singlestore', groupedStatements, []);
 	if (explainMessage) console.log(explainMessage);
 
