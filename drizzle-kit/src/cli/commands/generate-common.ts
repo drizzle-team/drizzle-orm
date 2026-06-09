@@ -51,7 +51,7 @@ export const writeResult = (config: {
 	fs.mkdirSync(join(outFolder, tag));
 	fs.writeFileSync(
 		join(outFolder, `${tag}/snapshot.json`),
-		JSON.stringify(JSON.parse(JSON.stringify(snapshot)), null, 2),
+		`${JSON.stringify(JSON.parse(JSON.stringify(snapshot)))}\n`,
 	);
 
 	const sqlDelimiter = breakpoints ? BREAKPOINT : '\n';
