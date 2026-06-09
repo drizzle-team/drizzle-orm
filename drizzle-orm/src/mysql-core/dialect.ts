@@ -2,8 +2,6 @@ import { aliasedTable, getOriginalColumnFromAlias } from '~/alias.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
-import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type {
 	AnyOne,
 	BuildRelationalQueryResult,
@@ -31,7 +29,6 @@ import { isSQLWrapper, Param, SQL, sql, View } from '~/sql/sql.ts';
 import type { Name, Placeholder, Query, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
-import { upgradeIfNeeded } from '~/up-migrations/mysql.ts';
 import {
 	make$ReturningResponseMapper,
 	makeDefaultQueryMapper,
@@ -51,7 +48,6 @@ import type {
 	SelectedFieldsOrdered,
 } from './query-builders/select.types.ts';
 import type { MySqlUpdateConfig } from './query-builders/update.ts';
-import type { MySqlSession } from './session.ts';
 import { MySqlTable } from './table.ts';
 import { MySqlViewBase } from './view-base.ts';
 import type { MySqlView } from './view.ts';
@@ -86,86 +82,6 @@ export class MySqlDialect {
 				relationalRows: makeDefaultRqbMapper,
 				$returning: make$ReturningResponseMapper,
 			};
-	}
-
-	async migrate(
-		migrations: MigrationMeta[],
-		session: MySqlSession,
-		config: Omit<MigrationConfig, 'migrationsSchema'>,
-	): Promise<void | MigratorInitFailResponse> {
-		const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
-
-		// Detect DB version and upgrade table schema if needed
-		const { newDb } = await upgradeIfNeeded(
-			migrationsTable,
-			session,
-			migrations,
-		);
-
-		if (newDb) {
-			const migrationTableCreate = sql`
-			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
-				id SERIAL PRIMARY KEY,
-				hash TEXT NOT NULL,
-				created_at BIGINT,
-				name TEXT,
-				applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-			)
-		`;
-			await session.execute(migrationTableCreate);
-		}
-
-		const dbMigrations = await session.objects<{
-			id: number;
-			hash: string;
-			created_at: string;
-			name: string | null;
-		}>(
-			sql`select id, hash, created_at, name from ${sql.identifier(migrationsTable)}`,
-		);
-
-		if (typeof config === 'object' && config.init) {
-			if (dbMigrations.length) {
-				return { exitCode: 'databaseMigrations' as const };
-			}
-
-			if (migrations.length > 1) {
-				return { exitCode: 'localMigrations' as const };
-			}
-
-			const [migration] = migrations;
-
-			if (!migration) return;
-
-			await session.execute(
-				sql`insert into ${
-					sql.identifier(
-						migrationsTable,
-					)
-				} (\`hash\`, \`created_at\`, \`name\`) values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
-			);
-
-			return;
-		}
-
-		const migrationsToRun = getMigrationsToRun({
-			localMigrations: migrations,
-			dbMigrations,
-		});
-		await session.transaction(async (tx) => {
-			for (const migration of migrationsToRun) {
-				for (const stmt of migration.sql) {
-					await tx.execute(sql.raw(stmt));
-				}
-				await tx.execute(
-					sql`insert into ${
-						sql.identifier(
-							migrationsTable,
-						)
-					} (\`hash\`, \`created_at\`, \`name\`) values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
-				);
-			}
-		});
 	}
 
 	escapeName(name: string): string {

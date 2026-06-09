@@ -1,6 +1,6 @@
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { MySqlDatabase } from '~/mysql-core/db.ts';
+import { MySqlDatabase } from '~/mysql-core/async/db.ts';
 import { MySqlDialect, type MySqlDialectConfig } from '~/mysql-core/dialect.ts';
 import type { DrizzleMySqlConfig } from '~/mysql-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';

@@ -49,6 +49,7 @@
 		"@aws-sdk/client-rds-data": ">=3",
 		"@cloudflare/workers-types": ">=4",
 		"@effect/sql-libsql": ">=4.0.0-beta.58 || >=4.0.0",
+		"@effect/sql-mysql2": ">=4.0.0-beta.58 || >=4.0.0",
 		"@effect/sql-pg": ">=4.0.0-beta.58 || >=4.0.0",
 		"@effect/sql-pglite": ">=4.0.0-beta.58 || >=4.0.0",
 		"@effect/sql-sqlite-bun": ">=4.0.0-beta.58 || >=4.0.0",
@@ -196,6 +197,9 @@
 			"optional": true
 		},
 		"effect": {
+			"optional": true
+		},
+		"@effect/sql-mysql2": {
 			"optional": true
 		},
 		"@effect/sql-pg": {

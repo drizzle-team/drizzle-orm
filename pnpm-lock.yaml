@@ -633,6 +633,9 @@ importers:
       '@effect/sql-libsql':
         specifier: '>=4.0.0-beta.58 || >=4.0.0'
         version: 4.0.0-beta.58(bufferutil@4.0.8)(effect@4.0.0-beta.58)(utf-8-validate@6.0.3)
+      '@effect/sql-mysql2':
+        specifier: 4.0.0-beta.58
+        version: 4.0.0-beta.58(@types/node@25.5.0)(effect@4.0.0-beta.58)
       '@effect/sql-pg':
         specifier: '>=4.0.0-beta.58 || >=4.0.0'
         version: 4.0.0-beta.58(effect@4.0.0-beta.58)
@@ -13788,7 +13791,7 @@ snapshots:
       content-type: 1.0.5
       debug: 4.4.3
       http-errors: 2.0.1
-      iconv-lite: 0.7.0
+      iconv-lite: 0.7.2
       on-finished: 2.4.1
       qs: 6.14.0
       raw-body: 3.0.2
@@ -17394,7 +17397,7 @@ snapshots:
     dependencies:
       bytes: 3.1.2
       http-errors: 2.0.1
-      iconv-lite: 0.7.0
+      iconv-lite: 0.7.2
       unpipe: 1.0.0
 
   rc@1.2.8:
