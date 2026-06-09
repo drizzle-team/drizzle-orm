@@ -16,6 +16,8 @@ Output format, interactivity, and hint resolution are three orthogonal axes. The
 | `text` | yes | Human-readable progress and results on stdout; typed errors on stderr. When a command has unresolved decisions, the missing-decisions report (below) is written to stdout and the process exits with code 2. |
 | `json` | no | The single JSON envelope described in [`./JSON_CONTRACT.md`](./JSON_CONTRACT.md), on stdout, for every status (including errors). |
 
+Connection-layer driver-selection chatter (the `Using '<driver>' driver for database querying` lines a connecting command prints while it picks a database driver) follows the same rule: under `--output json` it is suppressed so stdout stays a single JSON envelope, and under `--output text` it still prints as human progress.
+
 `check` is a no-hint, non-interactive gate, so it never reaches the missing-decisions path. Under `--output text` it keeps its current human output (`Everything's fine 🐶🔥` on success, the colorized conflict tree on non-commutativity); under `--output json` it emits the `ok` / `check_error` envelopes documented in [`./JSON_CONTRACT.md`](./JSON_CONTRACT.md).
 
 ## Interactivity

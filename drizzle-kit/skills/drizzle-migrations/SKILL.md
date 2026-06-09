@@ -15,7 +15,7 @@ Entry-point skill for the drizzle-kit migration workflow. Three responsibilities
 
 Required fields:
 
-- **`dialect`** — one of `postgresql`, `mysql`, `sqlite`, `mssql`, `cockroach`, `singlestore`. (Turso / libsql is an sqlite variant — set `dialect: 'sqlite'` with the appropriate driver.)
+- **`dialect`** — one of `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore`. For Turso / libsql set `dialect: 'turso'` (with the `@libsql/client` or `@tursodatabase/serverless` driver) — it is a first-class dialect value, not a `sqlite` alias.
 - **`schema`** — path or path-glob to the schema file(s). Examples: `'./src/db/schema.ts'`, `['./src/db/**/*.ts']`.
 - **`out`** — directory where `generate` writes `.sql` migration files. Conventional: `'./drizzle'`.
 - **`dbCredentials`** — per-dialect credential shape. Required for `push` (which connects to a live database) and for the introspect side of some `generate` codepaths. Either a `url` field or a structured object (`{ host, port, user, password, database }`-style); the exact shape varies by dialect. Use environment variables — never hard-code secrets.
