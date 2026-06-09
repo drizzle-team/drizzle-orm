@@ -9,55 +9,18 @@ const UMBRELLA_RELPATH = 'drizzle-kit/skills/drizzle/SKILL.md';
 
 const sh = (cmd: string, args: string[]) => spawnSync(cmd, args, { cwd: REPO_ROOT, encoding: 'utf8' });
 
-// Detect the branch this feature was forked off by finding the most-recent merge-base between
-// HEAD and any other `origin/` ref. Closest merge-base wins — that's the branch HEAD most-recently
-// diverged from. Returns the merge-base SHA, or null if no fork point can be determined (lone
-// branch, fresh repo, etc.). Requires `actions/checkout` with `fetch-depth: 0` so all remote
-// refs are reachable.
-const detectForkPoint = (): string | null => {
-	const upstreamRef = (() => {
-		const r = sh('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}']);
-		return r.status === 0 ? r.stdout.trim() : '';
-	})();
-	const refList = sh('git', ['for-each-ref', '--format=%(refname:short)', 'refs/remotes/origin/']);
-	if (refList.status !== 0) return null;
-	const refs = refList.stdout
-		.split('\n')
-		.map((r) => r.trim())
-		.filter((r) => r && r !== 'origin/HEAD' && r !== upstreamRef);
-	if (refs.length === 0) return null;
-	const headSha = sh('git', ['rev-parse', 'HEAD']);
-	if (headSha.status !== 0) return null;
-	const head = headSha.stdout.trim();
-	let best: { baseSha: string; distance: number } | null = null;
-	for (const ref of refs) {
-		const mb = sh('git', ['merge-base', 'HEAD', ref]);
-		if (mb.status !== 0) continue;
-		const baseSha = mb.stdout.trim();
-		if (baseSha === head) continue; // HEAD is an ancestor of ref; not a fork point.
-		const dist = sh('git', ['rev-list', '--count', `${baseSha}..HEAD`]);
-		if (dist.status !== 0) continue;
-		const distance = Number.parseInt(dist.stdout.trim(), 10);
-		if (!Number.isFinite(distance) || distance <= 0) continue;
-		if (!best || distance < best.distance) best = { baseSha, distance };
-	}
-	return best ? best.baseSha : null;
-};
-
+// The gate runs only in pull-request context, where it diffs the whole branch against the PR's
+// base branch SHA (set from `github.event.pull_request.base.sha`). Requires `actions/checkout`
+// with `fetch-depth: 0` so the base commit is reachable.
 const computeBaseline = (): string => {
-	// PR context: the PR's base branch SHA (set from `github.event.pull_request.base.sha`).
 	const baseSha = process.env['GH_BASE_SHA']?.trim();
-	if (baseSha) return baseSha;
-	// Push / local context: auto-detect the fork point so the gate diffs the whole branch
-	// against the branch it was forked off (which can be any branch). Catches skills changes
-	// spread across multiple commits, not just the latest one.
-	const detected = detectForkPoint();
-	if (detected) return detected;
-	// Last-resort fallback (no remote refs / detached HEAD / repo with no other branches):
-	// the previous commit on this branch.
-	const r = sh('git', ['rev-parse', 'HEAD~1']);
-	if (r.status !== 0) throw new Error(`git rev-parse HEAD~1 failed: ${r.stderr}`);
-	return r.stdout.trim();
+	if (!baseSha) {
+		throw new Error(
+			'GH_BASE_SHA is not set; the skills revision gate only runs in pull-request context. '
+				+ 'Omit this step for non-PR runs (e.g. manual publish).',
+		);
+	}
+	return baseSha;
 };
 
 const skillsTouched = (baseline: string): string[] => {
