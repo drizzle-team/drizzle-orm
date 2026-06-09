@@ -8,7 +8,7 @@ import type { JsonStatement } from '../../dialects/mysql/statements';
 import { prepareEntityFilter } from '../../dialects/pull-utils';
 import type { DB } from '../../utils';
 import { connectToMySQL } from '../connections';
-import { outputFormat } from '../context';
+import { isInteractive, outputFormat } from '../context';
 import { CommandOutputCliError, UnsupportedSchemaChangeError } from '../errors';
 import { highlightSQL } from '../highlighter';
 import type { HintsHandler } from '../hints';
@@ -98,7 +98,7 @@ export const handle = async (
 		return { status: 'ok' as const, dialect: 'mysql' };
 	}
 
-	if (!force && !json && suggestionHints.length > 0) {
+	if (!force && !json && isInteractive() && suggestionHints.length > 0) {
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
@@ -126,6 +126,7 @@ const identifier = ({ table, column }: { table?: string; column?: string }) => {
 };
 export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2: MysqlDDL, hints: HintsHandler) => {
 	const json = outputFormat() === 'json';
+	const useHints = json || !isInteractive();
 	const grouped: { hint: string; statement?: string }[] = [];
 
 	const filtered = jsonStatements.filter((it) => {
@@ -141,7 +142,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const res = await db.query(`select 1 from ${identifier({ table: statement.table })} limit 1`);
 
 			if (res.length > 0) {
-				if (json) {
+				if (useHints) {
 					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'table', entity, reason: 'non_empty' });
 				} else {
 					grouped.push({ hint: `You're about to delete non-empty ${chalk.underline(statement.table)} table` });
@@ -157,7 +158,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const res = await db.query(`select 1 from ${identifier({ table: column.table })} limit 1`);
 			if (res.length === 0) continue;
 
-			if (json) {
+			if (useHints) {
 				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'column', entity, reason: 'non_empty' });
 			} else {
 				grouped.push({
@@ -184,7 +185,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 					chalk.underline(table)
 				} primary key, this statements may fail and your table may lose primary key`;
 
-				if (json) {
+				if (useHints) {
 					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'primary_key', entity, reason: 'non_empty' });
 				} else {
 					grouped.push({ hint });
@@ -212,7 +213,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 			if (indexesFound) continue;
 
-			if (json) {
+			if (useHints) {
 				throw new UnsupportedSchemaChangeError({
 					kind: 'drop_pk_dependency',
 					table,
@@ -245,7 +246,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 				chalk.underline(statement.column.name)
 			} column without default value to a non-empty ${chalk.underline(statement.column.table)} table`;
 
-			if (json) {
+			if (useHints) {
 				hints.pushMissingHint({
 					type: 'confirm_data_loss',
 					kind: 'add_not_null',
@@ -276,7 +277,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 						chalk.underline(columnName)
 					} column without default value in ${chalk.underline(statement.column.table)} table`;
 
-					if (json) {
+					if (useHints) {
 						hints.pushMissingHint({
 							type: 'confirm_data_loss',
 							kind: 'add_not_null',
@@ -292,7 +293,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			if (statement.diff.type) {
 				const entity = ['public', statement.column.table, statement.column.name] as const;
 				if (!hints.matchConfirm('column', entity)) {
-					if (json) {
+					if (useHints) {
 						hints.pushMissingHint({
 							type: 'confirm_data_loss',
 							kind: 'column',
@@ -330,7 +331,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
 
-			if (json) {
+			if (useHints) {
 				hints.pushMissingHint({
 					type: 'confirm_data_loss',
 					kind: 'add_unique',

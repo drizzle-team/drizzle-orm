@@ -20,7 +20,7 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/mssql/
 import type { JsonStatement } from '../../dialects/mssql/statements';
 import { prepareEntityFilter } from '../../dialects/pull-utils';
 import type { DB } from '../../utils';
-import { outputFormat } from '../context';
+import { isInteractive, outputFormat } from '../context';
 import { CommandOutputCliError, UnsupportedSchemaChangeError } from '../errors';
 import { highlightSQL } from '../highlighter';
 import type { HintsHandler } from '../hints';
@@ -118,7 +118,7 @@ export const handle = async (
 		return { status: 'ok' as const, dialect: 'mssql' };
 	}
 
-	if (!force && !json && suggestionHints.length > 0) {
+	if (!force && !json && isInteractive() && suggestionHints.length > 0) {
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 		if (data?.index === 0) {
 			render(`[${chalk.red('x')}] All changes were aborted`);
@@ -151,6 +151,7 @@ const identifier = (it: { schema?: string; table: string }) => {
 
 export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2: MssqlDDL, hints: HintsHandler) => {
 	const json = outputFormat() === 'json';
+	const useHints = json || !isInteractive();
 	const grouped: { hint: string; statement?: string }[] = [];
 
 	const filtered = jsonStatements.filter((it) => {
@@ -167,7 +168,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const res = await db.query(`select top(1) 1 from ${tableName};`);
 
 			if (res.length > 0) {
-				if (json) {
+				if (useHints) {
 					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'table', entity, reason: 'non_empty' });
 				} else {
 					grouped.push({ hint: `You're about to delete non-empty [${statement.table.name}] table` });
@@ -186,7 +187,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const res = await db.query(`SELECT TOP(1) 1 FROM ${key} WHERE [${column.name}] IS NOT NULL;`);
 			if (res.length === 0) continue;
 
-			if (json) {
+			if (useHints) {
 				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'column', entity, reason: 'non_empty' });
 			} else {
 				grouped.push({ hint: `You're about to delete non-empty [${column.name}] column in [${column.table}] table` });
@@ -205,7 +206,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			if (count === 0) continue;
 
 			const tableGrammar = count === 1 ? 'table' : 'tables';
-			if (json) {
+			if (useHints) {
 				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'schema', entity, reason: 'non_empty' });
 			} else {
 				grouped.push({ hint: `You're about to delete [${statement.name}] schema with ${count} ${tableGrammar}` });
@@ -232,7 +233,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const hint =
 				`You're about to add not-null to [${statement.diff.$right.name}] column without default value to a non-empty ${key} table`;
 
-			if (json) {
+			if (useHints) {
 				hints.pushMissingHint({
 					type: 'confirm_data_loss',
 					kind: 'add_not_null',
@@ -264,7 +265,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const hint =
 				`You're about to add not-null [${statement.column.name}] column without default value to a non-empty ${key} table`;
 
-			if (json) {
+			if (useHints) {
 				hints.pushMissingHint({
 					type: 'confirm_data_loss',
 					kind: 'add_not_null',
@@ -293,7 +294,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 					chalk.underline(id)
 				} primary key, this statements may fail and your table may lose primary key`;
 
-				if (json) {
+				if (useHints) {
 					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'primary_key', entity, reason: 'non_empty' });
 				} else {
 					grouped.push({ hint });
@@ -312,7 +313,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const res = await db.query(`select top(1) 1 from ${id};`);
 			if (res.length === 0) continue;
 
-			if (json) {
+			if (useHints) {
 				hints.pushMissingHint({
 					type: 'confirm_data_loss',
 					kind: 'add_unique',
@@ -334,7 +335,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			statement.type === 'rename_column'
 			&& ddl2.checks.one({ schema: statement.to.schema, table: statement.to.table })
 		) {
-			if (json) {
+			if (useHints) {
 				throw new UnsupportedSchemaChangeError({
 					kind: 'rename_blocked_by_check_constraint',
 					schema: statement.to.schema ?? 'dbo',
@@ -351,7 +352,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 		}
 
 		if (statement.type === 'rename_schema') {
-			if (json) {
+			if (useHints) {
 				throw new UnsupportedSchemaChangeError({
 					kind: 'rename_schema_unsupported',
 					from: statement.from.name,

@@ -11,6 +11,7 @@ import { suggestions as diffSuggestions } from '../../src/cli/commands/generate-
 import { introspect } from '../../src/cli/commands/pull-mysql';
 import { suggestions } from '../../src/cli/commands/push-mysql';
 import { upToV6 } from '../../src/cli/commands/up-mysql';
+import { runWithCliContext } from '../../src/cli/context';
 import { HintsHandler } from '../../src/cli/hints';
 import { CasingType, configMigrations } from '../../src/cli/validations/common';
 import { mysqlSchemaError as schemaError } from '../../src/cli/views';
@@ -217,7 +218,10 @@ export const push = async (config: {
 		'push',
 	);
 
-	const res = await suggestions(db, statements, ddl2, new HintsHandler());
+	const res = await runWithCliContext(
+		{ output: 'text', interactive: true },
+		() => suggestions(db, statements, ddl2, new HintsHandler()),
+	);
 
 	for (const sql of sqlStatements) {
 		if (log === 'statements') console.log(sql);

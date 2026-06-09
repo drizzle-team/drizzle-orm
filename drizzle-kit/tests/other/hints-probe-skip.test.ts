@@ -201,6 +201,49 @@ test('json mode records add_not_null confirmation when the target table is non-e
 	});
 });
 
+test('text mode under non-TTY records a drop-table confirm_data_loss missing hint instead of prose', async () => {
+	await runWithCliContext({ output: 'text', interactive: false }, async () => {
+		const hints = new HintsHandler();
+		const { db, queries } = createDb(async () => [{}]);
+
+		const result = await suggestions(db, [
+			prepareStatement('drop_table', { table: table('orders'), key: '"orders"' }),
+		], hints);
+
+		expect(result).toStrictEqual([]);
+		expect(queries).toStrictEqual(['select 1 from "orders" limit 1']);
+		expect(unresolved(hints)).toStrictEqual([
+			{ type: 'confirm_data_loss', kind: 'table', entity: ['public', 'orders'], reason: 'non_empty' },
+		]);
+	});
+});
+
+test('text mode under non-TTY records an add_not_null confirm_data_loss missing hint instead of prose', async () => {
+	await runWithCliContext({ output: 'text', interactive: false }, async () => {
+		const hints = new HintsHandler();
+		const { db, queries } = createDb(async () => [{}]);
+
+		const result = await suggestions(db, [
+			prepareStatement('add_column', {
+				column: column('orders', 'status', 'public', { notNull: true }),
+				isPK: false,
+				isCompositePK: false,
+			}),
+		], hints);
+
+		expect(result).toStrictEqual([]);
+		expect(queries).toStrictEqual(['select 1 from "orders" limit 1']);
+		expect(unresolved(hints)).toStrictEqual([
+			{
+				type: 'confirm_data_loss',
+				kind: 'add_not_null',
+				entity: ['public', 'orders', 'status'],
+				reason: 'nulls_present',
+			},
+		]);
+	});
+});
+
 test('json mode records only the risky probe sites when multiple probes have mixed outcomes', async () => {
 	await runWithCliContext({ output: 'json', interactive: false }, async () => {
 		const hints = new HintsHandler();

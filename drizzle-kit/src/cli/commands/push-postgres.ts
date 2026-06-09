@@ -23,7 +23,7 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgr
 import type { JsonStatement } from '../../dialects/postgres/statements';
 import { prepareEntityFilter } from '../../dialects/pull-utils';
 import type { DB } from '../../utils';
-import { outputFormat } from '../context';
+import { isInteractive, outputFormat } from '../context';
 import { CommandOutputCliError } from '../errors';
 import { highlightSQL } from '../highlighter';
 import type { HintsHandler } from '../hints';
@@ -145,7 +145,7 @@ export const handle = async (
 		return { status: 'ok' as const, dialect: 'postgresql' };
 	}
 
-	if (!force && !json && dataLossHints.length > 0) {
+	if (!force && !json && isInteractive() && dataLossHints.length > 0) {
 		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
@@ -176,6 +176,7 @@ const identifier = (it: { schema?: string; name: string }) => {
 
 export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints: HintsHandler) => {
 	const json = outputFormat() === 'json';
+	const useHints = json || !isInteractive();
 	const grouped: { hint: string; statement?: string }[] = [];
 
 	const filtered = jsonStatements.filter((it) => {
@@ -211,7 +212,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			const res = await db.query(`select 1 from ${statement.key} limit 1`);
 
 			if (res.length > 0) {
-				if (json) {
+				if (useHints) {
 					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'table', entity, reason: 'non_empty' });
 				} else {
 					grouped.push({ hint: `You're about to delete non-empty ${statement.key} table` });
@@ -227,7 +228,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
 
-			if (json) {
+			if (useHints) {
 				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'view', entity, reason: 'non_empty' });
 			} else {
 				grouped.push({ hint: `You're about to delete non-empty ${id} materialized view` });
@@ -243,7 +244,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
 
-			if (json) {
+			if (useHints) {
 				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'column', entity, reason: 'non_empty' });
 			} else {
 				grouped.push({ hint: `You're about to delete non-empty ${column.name} column in ${id} table` });
@@ -261,7 +262,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			const count = Number(res[0].count);
 			if (count === 0) continue;
 
-			if (json) {
+			if (useHints) {
 				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'schema', entity, reason: 'non_empty' });
 			} else {
 				grouped.push({
@@ -288,7 +289,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 				chalk.underline(id)
 			} primary key, this statements may fail and your table may lose primary key`;
 
-			if (json) {
+			if (useHints) {
 				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'primary_key', entity, reason: 'non_empty' });
 				continue;
 			}
@@ -326,7 +327,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 				chalk.underline(statement.column.name)
 			} column without default value to a non-empty ${id} table`;
 
-			if (json) {
+			if (useHints) {
 				hints.pushMissingHint({
 					type: 'confirm_data_loss',
 					kind: 'add_not_null',
@@ -349,7 +350,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
 
-			if (json) {
+			if (useHints) {
 				hints.pushMissingHint({
 					type: 'confirm_data_loss',
 					kind: 'add_unique',

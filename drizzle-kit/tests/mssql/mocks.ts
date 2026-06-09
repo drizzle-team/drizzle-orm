@@ -18,6 +18,7 @@ import { ddlToTypeScript } from 'src/dialects/mssql/typescript';
 import { DB } from 'src/utils';
 import 'zx/globals';
 import { suggestions } from 'src/cli/commands/push-mssql';
+import { runWithCliContext } from 'src/cli/context';
 import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/common';
 import { hash } from 'src/dialects/common';
 import { extractMssqlExisting } from 'src/dialects/drizzle';
@@ -231,7 +232,10 @@ export const push = async (config: {
 		'push',
 	);
 
-	const hints = await suggestions(db, statements, ddl2, new HintsHandler());
+	const hints = await runWithCliContext(
+		{ output: 'text', interactive: true },
+		() => suggestions(db, statements, ddl2, new HintsHandler()),
+	);
 
 	if (config.explain) {
 		const explainMessage = explain('mssql', groupedStatements, []);

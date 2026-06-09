@@ -58,6 +58,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import pg from 'pg';
 import { introspect } from 'src/cli/commands/pull-postgres';
 import { suggestions } from 'src/cli/commands/push-postgres';
+import { runWithCliContext } from 'src/cli/context';
 import { HintsHandler } from 'src/cli/hints';
 import { EmptyProgressView, explain, psqlExplain } from 'src/cli/views';
 import { hash } from 'src/dialects/common';
@@ -276,7 +277,10 @@ export const push = async (config: {
 		'push',
 	);
 
-	const hints = await suggestions(db, statements, new HintsHandler());
+	const hints = await runWithCliContext(
+		{ output: 'text', interactive: true },
+		() => suggestions(db, statements, new HintsHandler()),
+	);
 
 	if (config.explain) {
 		const explainMessage = explain('postgres', groupedStatements, []);

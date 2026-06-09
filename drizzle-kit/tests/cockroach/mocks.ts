@@ -34,6 +34,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { Pool, PoolClient } from 'pg';
 import { introspect } from 'src/cli/commands/pull-cockroach';
 import { suggestions } from 'src/cli/commands/push-cockroach';
+import { runWithCliContext } from 'src/cli/context';
 import { HintsHandler } from 'src/cli/hints';
 import { EmptyProgressView, explain } from 'src/cli/views';
 import { defaultToSQL, isSystemRole } from 'src/dialects/cockroach/grammar';
@@ -234,7 +235,10 @@ export const push = async (
 		'push',
 	);
 
-	const hints = await suggestions(db, statements, new HintsHandler());
+	const hints = await runWithCliContext(
+		{ output: 'text', interactive: true },
+		() => suggestions(db, statements, new HintsHandler()),
+	);
 
 	if (config.explain) {
 		const explainMessage = explain('cockroach', groupedStatements, []);
