@@ -2136,7 +2136,7 @@ export const connectToSQLite = async (
 	}
 
 	if (await checkPackage('@tursodatabase/serverless')) {
-		console.log(withStyle.info(`Using '@tursodatabase/serverless' driver for database querying`));
+		humanLog(withStyle.info(`Using '@tursodatabase/serverless' driver for database querying`));
 		const { connect } = await import('@tursodatabase/serverless');
 		const { drizzle } = await import('drizzle-orm/tursodatabase-serverless');
 		const { migrate } = await import('drizzle-orm/tursodatabase-serverless/migrator');
@@ -2529,7 +2529,7 @@ export const connectToTursoRemote = async (
 			credentials.authToken === undefined && await checkPackage('@tursodatabase/database')
 		)
 	) {
-		console.log(withStyle.info(`Using '@tursodatabase/serverless' driver for database querying`));
+		humanLog(withStyle.info(`Using '@tursodatabase/serverless' driver for database querying`));
 		const { connect } = await import('@tursodatabase/serverless');
 		const { drizzle } = await import('drizzle-orm/tursodatabase-serverless');
 		const { migrate } = await import('drizzle-orm/tursodatabase-serverless/migrator');
@@ -2590,14 +2590,14 @@ export const connectToTursoRemote = async (
 
 	if (await checkPackage('@tursodatabase/database')) {
 		if (credentials.authToken !== undefined) {
-			console.log(`Unable to use '@tursodatabase/database' with remote turso database`);
-			console.log(
-				`Please install '@libsql/client' or '@tursodatabase/serverless' for Drizzle Kit to connect to remote turso databases`,
+			throw new DatabaseDriverCliError(
+				'turso',
+				['@libsql/client', '@tursodatabase/serverless'],
+				`Unable to use '@tursodatabase/database' with remote turso database\nPlease install '@libsql/client' or '@tursodatabase/serverless' for Drizzle Kit to connect to remote turso databases`,
 			);
-			process.exit(1);
 		}
 
-		console.log(withStyle.info(`Using '@tursodatabase/database' driver for database querying`));
+		humanLog(withStyle.info(`Using '@tursodatabase/database' driver for database querying`));
 		const { Database } = await import('@tursodatabase/database');
 		const { drizzle } = await import('drizzle-orm/tursodatabase/database');
 		const { migrate } = await import('drizzle-orm/tursodatabase/migrator');
@@ -2661,10 +2661,11 @@ export const connectToTursoRemote = async (
 		};
 	}
 
-	console.log(
+	throw new DatabaseDriverCliError(
+		'turso',
+		['@libsql/client', '@tursodatabase/database', '@tursodatabase/serverless'],
 		typeof credentials.authToken === 'string'
 			? `Please install '@libsql/client' or '@tursodatabase/serverless' for Drizzle Kit to connect to remote turso databases`
 			: `Please install '@libsql/client', '@tursodatabase/database' or '@tursodatabase/serverless' for Drizzle Kit to connect to turso databases`,
 	);
-	process.exit(1);
 };

@@ -188,7 +188,8 @@ test('generate with config emits clean json stdout in json mode', () => {
 test('generate missing schema path emits structured json error', () => {
 	const result = runCli([
 		'generate',
-		'--output', 'json',
+		'--output',
+		'json',
 		'--dialect=postgresql',
 		'--schema=tests/definitely-missing-schema.ts',
 	]);
@@ -209,7 +210,8 @@ test('generate missing schema path emits structured json error', () => {
 test('push missing schema path emits structured json error', () => {
 	const result = runCli([
 		'push',
-		'--output', 'json',
+		'--output',
+		'json',
 		'--dialect=postgresql',
 		'--schema=tests/definitely-missing-schema.ts',
 		'--url=postgres://postgres:postgres@127.0.0.1:5432/postgres',
@@ -7114,7 +7116,13 @@ describe('check --output', () => {
 	test('malformed snapshot emits a check_error envelope in json mode', () => {
 		const out = stageOut();
 		// Correct version but a structurally invalid body trips the `malformed` validator status.
-		writeSnapshot(out, '0000_init', { version: '8', dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], ddl: 'not-an-array' });
+		writeSnapshot(out, '0000_init', {
+			version: '8',
+			dialect: 'postgres',
+			id: 'p1',
+			prevIds: [ORIGIN],
+			ddl: 'not-an-array',
+		});
 		const result = runCheck(out, ['--output', 'json']);
 
 		expect(result.status).toBe(1);
@@ -7225,5 +7233,152 @@ describe('check --output', () => {
 
 		expect(result.status).toBe(0);
 		expect(result.stdout).toContain("Everything's fine 🐶🔥");
+	});
+});
+
+describe('turso connection-layer machine-readable surface', () => {
+	const TURSO_AUTH_TOKEN = 'super-secret-turso-auth-token-value';
+	const TURSO_REMOTE_URL = 'libsql://my-secret-host.turso.io';
+
+	// checkPackage decides which turso driver branch connectToTursoRemote / connectToSQLite enters.
+	// Mocking it lets us reach a chosen branch without a live turso database or the real drivers.
+	const mockDriverAvailability = (available: Record<string, boolean>) => {
+		vi.doMock('../../src/cli/utils', async () => {
+			const actual = await vi.importActual<typeof import('../../src/cli/utils')>('../../src/cli/utils');
+			return {
+				...actual,
+				checkPackage: vi.fn(async (pkg: string) => available[pkg] ?? false),
+			};
+		});
+	};
+
+	test('serverless driver-info line is suppressed under --output json', async () => {
+		mockDriverAvailability({ '@libsql/client': false, '@tursodatabase/serverless': true });
+		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+		const { connectToTursoRemote } = await import('../../src/cli/connections');
+
+		await runWithCliContext(
+			{ output: 'json', interactive: false },
+			() => connectToTursoRemote({ url: TURSO_REMOTE_URL, authToken: TURSO_AUTH_TOKEN } as never).catch(() => {}),
+		);
+
+		const printed = logSpy.mock.calls.map((call) => String(call[0])).join('\n');
+		expect(printed).not.toContain("Using '@tursodatabase/serverless' driver");
+	});
+
+	test('serverless driver-info line is present under --output text', async () => {
+		mockDriverAvailability({ '@libsql/client': false, '@tursodatabase/serverless': true });
+		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+		const { connectToTursoRemote } = await import('../../src/cli/connections');
+
+		await runWithCliContext(
+			{ output: 'text', interactive: false },
+			() => connectToTursoRemote({ url: TURSO_REMOTE_URL, authToken: TURSO_AUTH_TOKEN } as never).catch(() => {}),
+		);
+
+		const printed = logSpy.mock.calls.map((call) => String(call[0])).join('\n');
+		expect(printed).toContain("Using '@tursodatabase/serverless' driver");
+	});
+
+	test('remote turso with only the local driver emits a database_driver_error envelope', async () => {
+		// Only @tursodatabase/database is available, but the credential carries an authToken (remote target):
+		// this reaches the mismatch block, which must route through the typed envelope rather than process.exit.
+		mockDriverAvailability({
+			'@libsql/client': false,
+			'@tursodatabase/serverless': false,
+			'@tursodatabase/database': true,
+		});
+		vi.spyOn(console, 'log').mockImplementation(() => {});
+		const exitSpy = vi.spyOn(process, 'exit').mockImplementation(
+			(() => {
+				throw new Error('process.exit called instead of throwing a typed error');
+			}) as never,
+		);
+
+		const { connectToTursoRemote } = await import('../../src/cli/connections');
+
+		const caught = await runWithCliContext(
+			{ output: 'json', interactive: false },
+			() =>
+				connectToTursoRemote({ url: TURSO_REMOTE_URL, authToken: TURSO_AUTH_TOKEN } as never).catch(
+					(err) => err,
+				),
+		);
+
+		expect(exitSpy).not.toHaveBeenCalled();
+		expect(caught).toMatchObject({ code: 'database_driver_error' });
+		expect((caught as { meta?: { database?: string } }).meta?.database).toBe('turso');
+	});
+
+	test('database_driver_error envelope carries no credential substring', async () => {
+		mockDriverAvailability({
+			'@libsql/client': false,
+			'@tursodatabase/serverless': false,
+			'@tursodatabase/database': true,
+		});
+		vi.spyOn(console, 'log').mockImplementation(() => {});
+		vi.spyOn(process, 'exit').mockImplementation(
+			(() => {
+				throw new Error('process.exit called instead of throwing a typed error');
+			}) as never,
+		);
+
+		const { connectToTursoRemote } = await import('../../src/cli/connections');
+		const { errorToEnvelope } = await import('../../src/cli/errors');
+
+		const caught = await runWithCliContext(
+			{ output: 'json', interactive: false },
+			() =>
+				connectToTursoRemote({ url: TURSO_REMOTE_URL, authToken: TURSO_AUTH_TOKEN } as never).catch(
+					(err) => err,
+				),
+		);
+
+		const serialized = JSON.stringify(errorToEnvelope(caught));
+		expect(serialized).toContain('database_driver_error');
+		expect(serialized).not.toContain(TURSO_AUTH_TOKEN);
+		expect(serialized).not.toContain('my-secret-host.turso.io');
+	});
+
+	test("turso push outcome envelope carries dialect 'turso'", async () => {
+		vi.doMock('../../src/cli/commands/pull-sqlite', () => ({
+			introspect: vi.fn(async () => ({ ddl: { from: 'db' } })),
+		}));
+		vi.doMock('../../src/dialects/drizzle', () => ({
+			extractSqliteExisting: vi.fn(() => ({})),
+		}));
+		vi.doMock('../../src/dialects/pull-utils', () => ({
+			prepareEntityFilter: vi.fn(() => () => true),
+		}));
+		vi.doMock('../../src/dialects/sqlite/drizzle', () => ({
+			prepareFromSchemaFiles: vi.fn(async () => ({ tables: [], views: [] })),
+			fromDrizzleSchema: vi.fn(() => ({ tables: [], views: [] })),
+		}));
+		vi.doMock('../../src/dialects/sqlite/ddl', () => ({
+			interimToDDL: vi.fn(() => ({ ddl: { to: 'schema' }, errors: [] })),
+		}));
+		vi.doMock('../../src/dialects/sqlite/diff', () => ({
+			ddlDiff: vi.fn(async () => ({ sqlStatements: [], statements: [], groupedStatements: [] })),
+		}));
+
+		const pushSqlite = await import('../../src/cli/commands/push-sqlite');
+
+		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
+			pushSqlite.handle(
+				{ query: vi.fn(async () => []), batch: vi.fn(async () => []) } as never,
+				['schema.ts'],
+				false,
+				{} as never,
+				{} as never,
+				false,
+				false,
+				{ table: '__drizzle_migrations', schema: '' },
+				'turso',
+				new HintsHandler(),
+			));
+
+		expect(env).toStrictEqual({ status: 'no_changes', dialect: 'turso' });
 	});
 });
