@@ -157,7 +157,7 @@ export const handle = async (
 	const lossStatements = dataLossHints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
 
 	for (const statement of [...lossStatements, ...sqlStatements]) {
-		if (verbose && !json) humanLog(highlightSQL(statement));
+		if (verbose) humanLog(highlightSQL(statement));
 
 		await db.query(statement);
 	}

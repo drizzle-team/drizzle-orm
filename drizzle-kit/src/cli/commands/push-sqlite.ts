@@ -107,7 +107,7 @@ export const handle = async (
 
 	const allStatements = [...lossStatements, ...sqlStatements];
 
-	if (verbose && !json) humanLog(highlightSQL(allStatements.join('\n')));
+	if (verbose) humanLog(highlightSQL(allStatements.join('\n')));
 
 	// no need to re-enable or re-disable PRAGMA foreign_keys, because this config lives per-connection
 	// https://sqlite.org/pragma.html#pragma_foreign_keys
