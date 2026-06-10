@@ -7,6 +7,19 @@ Drizzle Kit is a CLI migrator tool for Drizzle ORM. It is probably the one and o
 
 Check the full documentation on [the website](https://orm.drizzle.team/kit-docs/overview).
 
+### AI agent skills
+
+Drizzle Kit ships installable [Agent Skills](https://skills.sh) for AI coding assistants — Claude Code, Cursor, GitHub Copilot, OpenAI Codex CLI, Gemini CLI, OpenCode, and any other tool that loads the open standard.
+
+Install into your project's agent config:
+
+```sh
+npx drizzle-kit skills
+```
+
+Under the hood the command runs the [skills](https://skills.sh) CLI against drizzle-kit's bundled skill catalog and installs `SKILL.md` files directly into your agent's native skills directory — `.claude/skills/<slug>/SKILL.md` for Claude Code, and `.agents/skills/<slug>/SKILL.md` for Codex, Cursor, Gemini CLI, Cline, GitHub Copilot, and any other agent that follows the universal `AGENTS.md` skills convention.
+
+TanStack Intent users can still surface the same skills via `intent list` — `SKILL.md` files remain bundled in the npm tarball.
 
 ### How it works
 

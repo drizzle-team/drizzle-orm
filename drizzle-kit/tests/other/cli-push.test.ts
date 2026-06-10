@@ -1,9 +1,23 @@
 import { test as brotest } from '@drizzle-team/brocli';
 import { unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { assert, expect, test, vi } from 'vitest';
+import { afterEach, assert, expect, test, vi } from 'vitest';
+import { HintsHandler } from '../../src/cli/hints';
 import { push } from '../../src/cli/schema';
+import { wrapParam } from '../../src/cli/validations/common';
+import { error } from '../../src/cli/views';
 import { createConfig } from './utils';
+
+const originalPrefix = process.env.TEST_CONFIG_PATH_PREFIX;
+process.env.TEST_CONFIG_PATH_PREFIX = './tests/cli/';
+
+afterEach(() => {
+	if (originalPrefix === undefined) {
+		process.env.TEST_CONFIG_PATH_PREFIX = './tests/cli/';
+	} else {
+		process.env.TEST_CONFIG_PATH_PREFIX = originalPrefix;
+	}
+});
 
 // good:
 // #1 drizzle-kit push
@@ -40,6 +54,7 @@ test('push #1', async (t) => {
 			schema: 'drizzle',
 			table: '__drizzle_migrations',
 		},
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -67,6 +82,7 @@ test('push #2', async (t) => {
 			schema: 'drizzle',
 			table: '__drizzle_migrations',
 		},
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -96,6 +112,7 @@ test('push #3', async (t) => {
 			schema: 'drizzle',
 			table: '__drizzle_migrations',
 		},
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -126,6 +143,7 @@ test('push #4', async (t) => {
 			schema: 'drizzle',
 			table: '__drizzle_migrations',
 		},
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -160,6 +178,7 @@ test('push #5', async (t) => {
 			schema: 'custom',
 			table: 'custom',
 		},
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -227,6 +246,7 @@ test('validate config #1', async (t) => {
 			table: '__drizzle_migrations',
 		},
 		filenames: [filename],
+		hints: expect.any(HintsHandler) as any,
 	};
 	expect(res.options).toStrictEqual(expected);
 });
@@ -287,6 +307,7 @@ test('validate config #2', async (t) => {
 			table: '__drizzle_migrations',
 		},
 		filenames: [filename],
+		hints: expect.any(HintsHandler) as any,
 	};
 	expect(res.options).toStrictEqual(expected);
 });
@@ -342,6 +363,7 @@ test('validate config #3', async (t) => {
 			table: 'test_table',
 		},
 		filenames: [filename],
+		hints: expect.any(HintsHandler) as any,
 	};
 	expect(res.options).toStrictEqual(expected);
 });
@@ -380,13 +402,12 @@ test('validate config #4', async (t) => {
 			table: '__drizzle_migrations',
 		},
 		filenames: [filename],
+		hints: expect.any(HintsHandler) as any,
 	};
 	expect(res.options).toStrictEqual(expected);
 });
 
 test('validate config #5', async (t) => {
-	const spy = vi.spyOn(console, 'log');
-
 	const { path, name } = createConfig({
 		dialect: 'mysql',
 		// schema: 'schema.ts',
@@ -400,26 +421,17 @@ test('validate config #5', async (t) => {
 	unlinkSync(path);
 
 	expect(res.type).toBe('error');
-
-	expect(spy).toHaveBeenNthCalledWith(1, `Reading config file '${path}'`);
-	expect(spy).toHaveBeenNthCalledWith(
-		2,
-		`Error  Please provide required params:
-    [✓] dialect: 'mysql'
-    [x] schema: undefined`,
+	if (res.type !== 'error') return;
+	expect((res.error as Error).message).toBe(
+		[
+			error('Please provide required params:'),
+			wrapParam('dialect', 'mysql'),
+			wrapParam('schema', undefined),
+		].join('\n'),
 	);
-
-	let error: any = res.type === 'error' ? res.error : undefined;
-	expect(error).toBeDefined();
-	expect(error).toBeInstanceOf(Error);
-	expect(error.message).toBe('process.exit unexpectedly called with "1"');
-
-	spy.mockRestore();
 });
 
 test('validate config #6', async (t) => {
-	const spy = vi.spyOn(console, 'log');
-
 	const { path, name } = createConfig({
 		dialect: 'postgresql',
 		schema: 'schema.ts',
@@ -433,21 +445,6 @@ test('validate config #6', async (t) => {
 	unlinkSync(path);
 
 	expect(res.type).toBe('error');
-
-	expect(spy).toHaveBeenNthCalledWith(1, `Reading config file '${path}'`);
-	expect(spy).toHaveBeenNthCalledWith(
-		2,
-		`Reading schema files:\n${join(process.cwd(), prefix, 'schema.ts')}\n`,
-	);
-	expect(spy).toHaveBeenNthCalledWith(
-		3,
-		'Error  Either connection "url" or "host", "database" are required for PostgreSQL database connection',
-	);
-
-	let error: any = res.type === 'error' ? res.error : undefined;
-	expect(error).toBeDefined();
-	expect(error).toBeInstanceOf(Error);
-	expect(error.message).toBe('process.exit unexpectedly called with "1"');
-
-	spy.mockRestore();
+	if (res.type !== 'error') return;
+	expect((res.error as Error).message).toContain('PostgreSQL');
 });

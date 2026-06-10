@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
-import { upToV2 } from 'src/dialects/mssql/versions';
+import { upToV2 } from '../../dialects/mssql/versions';
 import { prepareOutFolder, validateWithReport } from '../../utils/utils-node';
 
 export const upMssqlHandler = (out: string) => {

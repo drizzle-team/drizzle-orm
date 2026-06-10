@@ -1074,11 +1074,11 @@ test('pk multistep #3', async () => {
 	const { sqlStatements: pst2, hints } = await push({ db, to: schema2, ignoreSubsequent: true, expectError: true });
 
 	expect(suggestion.errors).toStrictEqual([
-		`· You are trying to drop primary key from "team_stats" ("col1"), but there is an existing reference on this column. You must either add a UNIQUE constraint to ("col1") or drop the foreign key constraint that references this column.`,
+		`You are trying to drop primary key from "team_stats" ("col1"), but there is an existing reference on this column. You must either add a UNIQUE constraint to ("col1") or drop the foreign key constraint that references this column.`,
 	]);
 	expect(hints).toStrictEqual([{
 		hint:
-			'· You are trying to drop primary key from "team_stats" ("col1"), but there is an existing reference on this column. You must either add a UNIQUE constraint to ("col1") or drop the foreign key constraint that references this column.',
+			'You are trying to drop primary key from "team_stats" ("col1"), but there is an existing reference on this column. You must either add a UNIQUE constraint to ("col1") or drop the foreign key constraint that references this column.',
 	}]);
 
 	const expectedSql2: string[] = [

@@ -17,7 +17,10 @@
 		"ts",
 		"drizzle-kit",
 		"migrations",
-		"schema"
+		"schema",
+		"tanstack-intent",
+		"skills",
+		"agent-skills"
 	],
 	"publishConfig": {
 		"provenance": true
@@ -49,10 +52,11 @@
 		"test:other": "vitest run ./mysql/ ./sqlite/ ./other",
 		"test:cockroach": "vitest run ./cockroach",
 		"test:mssql": "vitest run ./mssql",
-		"test:singlestore": "vitest run ./singlestore"
+		"test:singlestore": "vitest run ./singlestore",
+		"skills:revision:check": "tsx scripts/check-skills-revision.ts"
 	},
 	"dependencies": {
-		"@drizzle-team/brocli": "^0.11.0",
+		"@drizzle-team/brocli": "^0.12.0",
 		"@js-temporal/polyfill": "^0.5.1",
 		"esbuild": "^0.25.10",
 		"get-tsconfig": "^4.13.6",

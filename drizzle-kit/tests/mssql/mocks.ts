@@ -6,20 +6,19 @@ import { ddlDiff, ddlDiffDry } from 'src/dialects/mssql/diff';
 import { defaultFromColumn, fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mssql/drizzle';
 import { mockResolver } from 'src/utils/mocks';
 import '../../src/@types/utils';
-import Docker from 'dockerode';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import getPort from 'get-port';
 import mssql from 'mssql';
 import { introspect } from 'src/cli/commands/pull-mssql';
+import { HintsHandler } from 'src/cli/hints';
 import { EmptyProgressView, explain } from 'src/cli/views';
 import { createDDL } from 'src/dialects/mssql/ddl';
 import { defaultNameForDefault } from 'src/dialects/mssql/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/mssql/introspect';
 import { ddlToTypeScript } from 'src/dialects/mssql/typescript';
 import { DB } from 'src/utils';
-import { v4 as uuid } from 'uuid';
 import 'zx/globals';
 import { suggestions } from 'src/cli/commands/push-mssql';
+import { runWithCliContext } from 'src/cli/context';
 import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/common';
 import { hash } from 'src/dialects/common';
 import { extractMssqlExisting } from 'src/dialects/drizzle';
@@ -233,10 +232,13 @@ export const push = async (config: {
 		'push',
 	);
 
-	const hints = await suggestions(db, statements, ddl2);
+	const hints = await runWithCliContext(
+		{ output: 'text', interactive: true },
+		() => suggestions(db, statements, ddl2, new HintsHandler()),
+	);
 
 	if (config.explain) {
-		const explainMessage = explain('mssql', groupedStatements, false, []);
+		const explainMessage = explain('mssql', groupedStatements, []);
 		console.log(explainMessage);
 		return { sqlStatements, statements, hints };
 	}
@@ -430,108 +432,70 @@ export function parseMssqlUrl(urlString: string) {
 }
 
 export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatabase> => {
-	const envUrl = process.env.MSSQL_CONNECTION_STRING;
-	const { url, container } = envUrl ? { url: envUrl, container: null } : await createDockerDB();
+	const url = process.env.MSSQL_CONNECTION_STRING;
+	if (!url) {
+		throw new Error(
+			'MSSQL_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up mssql` and export the connection string (e.g. `mssql://SA:drizzle123PASSWORD!@127.0.0.1:1433?encrypt=true&trustServerCertificate=true`) before running tests.',
+		);
+	}
 	const params = parseMssqlUrl(url);
 
-	const sleep = 1000;
-	let timeLeft = 20000;
-	do {
-		try {
-			const client = await mssql.connect({
-				...params,
-				pool: { max: 1 },
-				requestTimeout: 30_000,
-			});
+	try {
+		const client = await mssql.connect({
+			...params,
+			pool: { max: 1 },
+			requestTimeout: 30_000,
+		});
+
+		await client.query(`use [master];`);
+		await client.query(`drop database if exists [drizzle];`);
+		await client.query(`create database [drizzle];`);
+		await client.query(`use [drizzle];`);
+
+		let transaction: mssql.Transaction | null = null;
+		let req: mssql.Request | null = null;
+		if (tx) {
+			transaction = client.transaction();
+			req = new mssql.Request(transaction);
+			await transaction.begin();
+		}
+
+		const db = {
+			query: async (sql: string, params: any[] = []) => {
+				const res = await (req ?? client).query(sql).catch((e) => {
+					throw new Error(e.message);
+				});
+				return res.recordset as any[];
+			},
+		};
+		const close = async () => {
+			if (transaction) {
+				await transaction.rollback().catch((e) => {});
+			}
+			await client?.close().catch(console.error);
+		};
+
+		const clear = async () => {
+			if (transaction) {
+				try {
+					await transaction.rollback();
+					await transaction.begin();
+				} catch {
+					transaction = client.transaction();
+					await transaction.begin();
+					req = new mssql.Request(transaction);
+				}
+				return;
+			}
 
 			await client.query(`use [master];`);
 			await client.query(`drop database if exists [drizzle];`);
 			await client.query(`create database [drizzle];`);
 			await client.query(`use [drizzle];`);
-
-			let transaction: mssql.Transaction | null = null;
-			let req: mssql.Request | null = null;
-			if (tx) {
-				transaction = client.transaction();
-				req = new mssql.Request(transaction);
-				await transaction.begin();
-			}
-
-			const db = {
-				query: async (sql: string, params: any[] = []) => {
-					const res = await (req ?? client).query(sql).catch((e) => {
-						throw new Error(e.message);
-					});
-					return res.recordset as any[];
-				},
-			};
-			const close = async () => {
-				if (transaction) {
-					await transaction.rollback().catch((e) => {});
-				}
-				await client?.close().catch(console.error);
-				await container?.stop().catch(console.error);
-			};
-
-			const clear = async () => {
-				if (transaction) {
-					try {
-						await transaction.rollback();
-						await transaction.begin();
-					} catch {
-						transaction = client.transaction();
-						await transaction.begin();
-						req = new mssql.Request(transaction);
-					}
-					return;
-				}
-
-				await client.query(`use [master];`);
-				await client.query(`drop database if exists [drizzle];`);
-				await client.query(`create database [drizzle];`);
-				await client.query(`use [drizzle];`);
-			};
-			return { db, close, clear, client };
-		} catch (e) {
-			console.error(e);
-			throw e;
-			// await new Promise((resolve) => setTimeout(resolve, sleep));
-			// timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-
-	throw new Error();
+		};
+		return { db, close, clear, client };
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
 };
-
-export async function createDockerDB(): Promise<
-	{ container: Docker.Container; url: string }
-> {
-	let mssqlContainer: Docker.Container;
-
-	const docker = new Docker();
-	const port = await getPort({ port: 1433 });
-	const image = 'mcr.microsoft.com/azure-sql-edge';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	);
-
-	mssqlContainer = await docker.createContainer({
-		Image: image,
-		Env: ['ACCEPT_EULA=1', 'MSSQL_SA_PASSWORD=drizzle123PASSWORD!'],
-		name: `drizzle-integration-tests-${uuid()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'1433/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await mssqlContainer.start();
-	return {
-		url: 'mssql://SA:drizzle123PASSWORD!@127.0.0.1:1433?encrypt=true&trustServerCertificate=true',
-		container: mssqlContainer,
-	};
-}

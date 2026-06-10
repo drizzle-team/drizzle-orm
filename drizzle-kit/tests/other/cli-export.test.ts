@@ -1,10 +1,23 @@
 import { test as brotest } from '@drizzle-team/brocli';
 import { unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { ExportConfig } from 'src/cli/commands/utils';
-import { assert, expect, test, vi } from 'vitest';
+import { afterEach, assert, expect, test, vi } from 'vitest';
+import { ExportConfig } from '../../src/cli/commands/utils';
 import { exportRaw } from '../../src/cli/schema';
+import { wrapParam } from '../../src/cli/validations/common';
+import { error } from '../../src/cli/views';
 import { createConfig } from './utils';
+
+const originalPrefix = process.env.TEST_CONFIG_PATH_PREFIX;
+process.env.TEST_CONFIG_PATH_PREFIX = './tests/cli/';
+
+afterEach(() => {
+	if (originalPrefix === undefined) {
+		process.env.TEST_CONFIG_PATH_PREFIX = './tests/cli/';
+	} else {
+		process.env.TEST_CONFIG_PATH_PREFIX = originalPrefix;
+	}
+});
 
 // good:
 // #1 drizzle-kit export --dialect=postgresql --schema=schema.ts
@@ -122,8 +135,6 @@ test('validate config #2', async (t) => {
 });
 
 test('validate config #3', async (t) => {
-	const spy = vi.spyOn(console, 'log');
-
 	const { path, name } = createConfig(
 		{ dialect: 'postgresql' },
 		prefix,
@@ -134,24 +145,17 @@ test('validate config #3', async (t) => {
 	unlinkSync(path);
 
 	expect(res.type).toBe('error');
-
-	expect(spy).toHaveBeenCalledWith(
-		`Error  Please provide required params:
-    [✓] dialect: 'postgresql'
-    [x] schema: undefined`,
+	if (res.type !== 'error') return;
+	expect((res.error as Error).message).toBe(
+		[
+			error('Please provide required params:'),
+			wrapParam('dialect', 'postgresql'),
+			wrapParam('schema', undefined),
+		].join('\n'),
 	);
-
-	let error: any = res.type === 'error' ? res.error : undefined;
-	expect(error).toBeDefined();
-	expect(error).toBeInstanceOf(Error);
-	expect(error.message).toBe('process.exit unexpectedly called with "1"');
-
-	spy.mockRestore();
 });
 
 test('validate config #4', async (t) => {
-	const spy = vi.spyOn(console, 'log');
-
 	const { path, name } = createConfig(
 		// @ts-expect-error
 		{ schema: 'schema.ts' },
@@ -163,17 +167,12 @@ test('validate config #4', async (t) => {
 	unlinkSync(path);
 
 	expect(res.type).toBe('error');
-
-	expect(spy).toHaveBeenCalledWith(
-		`Error  Please provide required params:
-    [x] dialect: undefined
-    [✓] schema: 'schema.ts'`,
+	if (res.type !== 'error') return;
+	expect((res.error as Error).message).toBe(
+		[
+			error('Please provide required params:'),
+			wrapParam('dialect', undefined),
+			wrapParam('schema', 'schema.ts'),
+		].join('\n'),
 	);
-
-	let error: any = res.type === 'error' ? res.error : undefined;
-	expect(error).toBeDefined();
-	expect(error).toBeInstanceOf(Error);
-	expect(error.message).toBe('process.exit unexpectedly called with "1"');
-
-	spy.mockRestore();
 });

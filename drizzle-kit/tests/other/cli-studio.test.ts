@@ -1,8 +1,15 @@
 import { test as brotest } from '@drizzle-team/brocli';
+import { stripAnsi } from 'hanji/utils';
 import { unlinkSync } from 'node:fs';
-import { assert, expect, test, vi } from 'vitest';
+import { afterEach, assert, expect, test, vi } from 'vitest';
 import { studio } from '../../src/cli/schema';
 import { createConfig } from './utils';
+
+const originalPrefix = process.env.TEST_CONFIG_PATH_PREFIX;
+process.env.TEST_CONFIG_PATH_PREFIX = './tests/cli/';
+afterEach(() => {
+	process.env.TEST_CONFIG_PATH_PREFIX = originalPrefix ?? './tests/cli/';
+});
 
 test('studio #1', async (t) => {
 	const res = await brotest(studio, '');
@@ -182,9 +189,9 @@ test('validate config #5', async (t) => {
 
 	expect(res.type).toBe('error');
 
-	expect(spy).toHaveBeenNthCalledWith(1, `Reading config file '${path}'`);
-	expect(spy).toHaveBeenNthCalledWith(
-		2,
+	const calls = spy.mock.calls.map((c) => stripAnsi(String(c[0])));
+	expect(calls[0]).toBe(`Reading config file '${path}'`);
+	expect(calls[1]).toBe(
 		` Invalid input  Please specify 'dialect' param in config, either of 'postgresql', 'mysql', 'sqlite', turso or singlestore`,
 	);
 
@@ -213,9 +220,9 @@ test('validate config #6', async (t) => {
 
 	expect(res.type).toBe('error');
 
-	expect(spy).toHaveBeenNthCalledWith(1, `Reading config file '${path}'`);
-	expect(spy).toHaveBeenNthCalledWith(
-		2,
+	const calls = spy.mock.calls.map((c) => stripAnsi(String(c[0])));
+	expect(calls[0]).toBe(`Reading config file '${path}'`);
+	expect(calls[1]).toBe(
 		` Invalid input  Please specify a 'dbCredentials' param in config. It will help drizzle to know how to query you database. You can read more about drizzle.config: https://orm.drizzle.team/kit-docs/config-reference`,
 	);
 

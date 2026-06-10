@@ -688,8 +688,6 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4209
-		// postpone
-		// casing bug
 		test.concurrent('2 consecutive use of .toSQL', async ({ db }) => {
 			const t1 = pgTable('table', (t) => ({
 				id: t.text().primaryKey(),

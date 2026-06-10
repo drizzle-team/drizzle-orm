@@ -1,13 +1,17 @@
+import type { MissingHint } from '../cli/hints';
+
 export const mockResolver =
 	<T extends { name: string; table?: string; schema?: string }>(renames: Set<string>) =>
 	async (it: {
 		created: T[];
 		deleted: T[];
-	}): Promise<{ created: T[]; deleted: T[]; renamedOrMoved: { from: T; to: T }[] }> => {
+	}): Promise<
+		{ resolved: { created: T[]; deleted: T[]; renamedOrMoved: { from: T; to: T }[] }; unresolved: MissingHint[] }
+	> => {
 		const { created, deleted } = it;
 
 		if (created.length === 0 || deleted.length === 0 || renames.size === 0) {
-			return { created, deleted, renamedOrMoved: [] };
+			return { resolved: { created, deleted, renamedOrMoved: [] }, unresolved: [] };
 		}
 
 		let createdItems = [...created];
@@ -46,5 +50,5 @@ export const mockResolver =
 				deletedItems = deletedItems.filter(Boolean);
 			}
 		}
-		return { created: createdItems, deleted: deletedItems, renamedOrMoved };
+		return { resolved: { created: createdItems, deleted: deletedItems, renamedOrMoved }, unresolved: [] };
 	};
