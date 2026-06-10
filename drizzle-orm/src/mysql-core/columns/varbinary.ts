@@ -31,6 +31,9 @@ export class MySqlVarBinary<
 > extends MySqlColumn<T, MySqlVarbinaryOptions> {
 	static override readonly [entityKind]: string = 'MySqlVarBinary';
 
+	/** @internal */
+	override readonly codec = 'varbinary';
+
 	override mapFromDriverValue = (value: string | Buffer | Uint8Array): string => {
 		if (typeof value === 'string') return value;
 		if (Buffer.isBuffer(value)) return value.toString();

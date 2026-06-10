@@ -109,6 +109,7 @@ export class MySqlInsertBuilder<
 			| ((qb: QueryBuilder) => MySqlInsertSelectQueryBuilder<TTable> | SQL),
 	): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
+		if ('withoutSelectionCastCodecs' in select) select.withoutSelectionCastCodecs();
 
 		if (
 			!is(select, SQL)

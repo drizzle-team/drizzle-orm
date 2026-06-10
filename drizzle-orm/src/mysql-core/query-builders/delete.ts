@@ -9,7 +9,6 @@ import type { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import type { Assume, ValueOrArray } from '~/utils.ts';
 import type { MySqlColumn } from '../columns/common.ts';
-import type { SelectedFieldsOrdered } from './select.types.ts';
 
 export type MySqlDeleteWithout<
 	T extends AnyMySqlDelete,
@@ -37,7 +36,6 @@ export interface MySqlDeleteConfig {
 	limit?: number | Placeholder;
 	orderBy?: (MySqlColumn | SQL | SQL.Aliased)[];
 	table: MySqlTable;
-	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
 	comment?: SQL;
 }

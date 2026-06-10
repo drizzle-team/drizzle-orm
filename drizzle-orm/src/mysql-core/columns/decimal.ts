@@ -32,6 +32,9 @@ export class MySqlDecimal<T extends ColumnBaseConfig<'string numeric' | 'string 
 {
 	static override readonly [entityKind]: string = 'MySqlDecimal';
 
+	/** @internal */
+	override readonly codec = 'decimal';
+
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;
 	readonly unsigned: boolean | undefined = this.config.unsigned;
@@ -85,6 +88,9 @@ export class MySqlDecimalNumber<T extends ColumnBaseConfig<'number' | 'number un
 	extends MySqlColumnWithAutoIncrement<T, MySqlDecimalConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlDecimalNumber';
+
+	/** @internal */
+	override readonly codec = 'decimal:number';
 
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;
@@ -140,6 +146,9 @@ export class MySqlDecimalBigInt<T extends ColumnBaseConfig<'bigint int64' | 'big
 	extends MySqlColumnWithAutoIncrement<T, MySqlDecimalConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlDecimalBigInt';
+
+	/** @internal */
+	override readonly codec = 'decimal:bigint';
 
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;

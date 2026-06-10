@@ -32,6 +32,9 @@ export class MySqlBinary<T extends ColumnBaseConfig<'string binary'>> extends My
 > {
 	static override readonly [entityKind]: string = 'MySqlBinary';
 
+	/** @internal */
+	override readonly codec = 'binary';
+
 	override mapFromDriverValue = (value: string | Buffer | Uint8Array): string => {
 		if (typeof value === 'string') return value;
 		if (Buffer.isBuffer(value)) return value.toString();

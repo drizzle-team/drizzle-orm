@@ -50,6 +50,9 @@ export class MySqlStringBlob<T extends ColumnBaseConfig<'string'>>
 {
 	static override readonly [entityKind]: string = 'MySqlBlob';
 
+	/** @internal */
+	override readonly codec: MySqlBlobColumnType = this.config.blobType;
+
 	readonly blobType: MySqlBlobColumnType = this.config.blobType;
 
 	getSQLType(): string {
@@ -117,6 +120,9 @@ export class MySqlBufferBlob<T extends ColumnBaseConfig<'object buffer'>>
 	extends MySqlColumn<T, { blobType: MySqlBlobColumnType }>
 {
 	static override readonly [entityKind]: string = 'MySqlBlob';
+
+	/** @internal */
+	override readonly codec: `${MySqlBlobColumnType}:buffer` = `${this.config.blobType}:buffer`;
 
 	readonly blobType: MySqlBlobColumnType = this.config.blobType;
 

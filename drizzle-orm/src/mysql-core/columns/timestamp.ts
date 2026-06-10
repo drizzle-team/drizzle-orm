@@ -30,6 +30,9 @@ export class MySqlTimestamp<T extends ColumnBaseConfig<'object date'>>
 {
 	static override readonly [entityKind]: string = 'MySqlTimestamp';
 
+	/** @internal */
+	override readonly codec = 'timestamp';
+
 	readonly fsp: number | undefined = this.config.fsp;
 
 	getSQLType(): string {
@@ -74,6 +77,9 @@ export class MySqlTimestampString<T extends ColumnBaseConfig<'string timestamp'>
 	extends MySqlDateBaseColumn<T, MySqlTimestampConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlTimestampString';
+
+	/** @internal */
+	override readonly codec = 'timestamp:string';
 
 	readonly fsp: number | undefined = this.config.fsp;
 

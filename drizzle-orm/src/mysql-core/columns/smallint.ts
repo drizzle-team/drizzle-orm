@@ -31,6 +31,9 @@ export class MySqlSmallInt<T extends ColumnBaseConfig<'number int16' | 'number u
 {
 	static override readonly [entityKind]: string = 'MySqlSmallInt';
 
+	/** @internal */
+	override readonly codec = 'smallint';
+
 	getSQLType(): string {
 		return `smallint${this.config.unsigned ? ' unsigned' : ''}`;
 	}

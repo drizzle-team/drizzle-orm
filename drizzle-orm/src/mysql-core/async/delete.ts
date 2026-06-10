@@ -54,7 +54,7 @@ export class MySqlAsyncDeleteBase<
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
 			'raw',
-			this.dialect.mapperGenerators.$returning(this.config.returning),
+			undefined,
 			{
 				type: 'delete',
 				tables: extractUsedTable(this.config.table),

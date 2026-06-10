@@ -692,12 +692,6 @@ export class PgDialect {
 		});
 	}
 
-	private nestedSelectionerror() {
-		throw new DrizzleError({
-			message: `Views with nested selections are not supported by the relational query builder`,
-		});
-	}
-
 	private buildRqbColumn(table: Table | View, field: unknown, key: string, inJson: boolean) {
 		if (is(field, Column)) {
 			const name = sql`${table}.${sql.identifier(field.name)}`;
@@ -724,7 +718,9 @@ export class PgDialect {
 			}`;
 		}
 
-		throw this.nestedSelectionerror();
+		throw new DrizzleError({
+			message: `Views with nested selections are not supported by the relational query builder`,
+		});
 	}
 
 	private resolveSelection(field: unknown, key: string, inJson: boolean) {
@@ -753,60 +749,53 @@ export class PgDialect {
 			};
 	}
 
-	private unwrapAllColumns = (
-		table: Table | View,
-		selection: BuildRelationalQueryResult['selection'],
-		inJson: boolean,
-	) => {
-		return sql.join(
-			Object.entries(table[TableColumns]).map(([k, v]) => {
-				selection.push(this.resolveSelection(v, k, inJson));
-
-				return this.buildRqbColumn(table, v, k, inJson);
-			}),
-			sql`, `,
-		);
-	};
-
 	private buildColumns = (
 		table: Table | View,
 		selection: BuildRelationalQueryResult['selection'],
 		inJson: boolean,
 		config?: DBQueryConfigWithComment<'many'>,
-	) =>
-		config?.columns
-			? (() => {
-				const entries = Object.entries(config.columns);
-				const columnContainer: Record<string, unknown> = table[TableColumns];
+	) => {
+		if (!config?.columns) {
+			return sql.join(
+				Object.entries(table[TableColumns]).map(([k, v]) => {
+					selection.push(this.resolveSelection(v, k, inJson));
 
-				const columnIdentifiers: SQL[] = [];
-				let colSelectionMode: boolean | undefined;
-				for (const [k, v] of entries) {
-					if (v === undefined) continue;
-					colSelectionMode = colSelectionMode || v;
+					return this.buildRqbColumn(table, v, k, inJson);
+				}),
+				sql`, `,
+			);
+		}
 
-					if (v) {
-						const column = columnContainer[k];
-						columnIdentifiers.push(this.buildRqbColumn(table, column, k, inJson));
+		const entries = Object.entries(config.columns);
+		const columnContainer: Record<string, unknown> = table[TableColumns];
 
-						selection.push(this.resolveSelection(column, k, inJson));
-					}
-				}
+		const columnIdentifiers: SQL[] = [];
+		let colSelectionMode: boolean | undefined;
+		for (const [k, v] of entries) {
+			if (v === undefined) continue;
+			colSelectionMode = colSelectionMode || v;
 
-				if (colSelectionMode === false) {
-					for (const [k, v] of Object.entries(columnContainer)) {
-						if (config.columns[k] === false) continue;
-						columnIdentifiers.push(this.buildRqbColumn(table, v, k, inJson));
+			if (v) {
+				const column = columnContainer[k];
+				columnIdentifiers.push(this.buildRqbColumn(table, column, k, inJson));
 
-						selection.push(this.resolveSelection(v, k, inJson));
-					}
-				}
+				selection.push(this.resolveSelection(column, k, inJson));
+			}
+		}
 
-				return columnIdentifiers.length
-					? sql.join(columnIdentifiers, sql`, `)
-					: undefined;
-			})()
-			: this.unwrapAllColumns(table, selection, inJson);
+		if (colSelectionMode === false) {
+			for (const [k, v] of Object.entries(columnContainer)) {
+				if (config.columns[k] === false) continue;
+				columnIdentifiers.push(this.buildRqbColumn(table, v, k, inJson));
+
+				selection.push(this.resolveSelection(v, k, inJson));
+			}
+		}
+
+		return columnIdentifiers.length
+			? sql.join(columnIdentifiers, sql`, `)
+			: undefined;
+	};
 
 	buildRelationalQuery({
 		schema,

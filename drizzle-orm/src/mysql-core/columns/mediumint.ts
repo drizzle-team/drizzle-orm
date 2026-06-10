@@ -31,6 +31,9 @@ export class MySqlMediumInt<T extends ColumnBaseConfig<'number int24' | 'number 
 {
 	static override readonly [entityKind]: string = 'MySqlMediumInt';
 
+	/** @internal */
+	override readonly codec = 'mediumint';
+
 	getSQLType(): string {
 		return `mediumint${this.config.unsigned ? ' unsigned' : ''}`;
 	}

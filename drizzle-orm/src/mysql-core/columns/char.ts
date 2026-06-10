@@ -38,6 +38,9 @@ export class MySqlChar<T extends ColumnBaseConfig<'string' | 'string enum'>>
 {
 	static override readonly [entityKind]: string = 'MySqlChar';
 
+	/** @internal */
+	override readonly codec = 'char';
+
 	override readonly enumValues = this.config.enum;
 
 	getSQLType(): string {

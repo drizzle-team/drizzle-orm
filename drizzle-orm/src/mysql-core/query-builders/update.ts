@@ -10,7 +10,6 @@ import type { Subquery } from '~/subquery.ts';
 import { type InferInsertModel, Table } from '~/table.ts';
 import { type Assume, mapUpdateSet, type UpdateSet, type ValueOrArray } from '~/utils.ts';
 import type { MySqlColumn } from '../columns/common.ts';
-import type { SelectedFieldsOrdered } from './select.types.ts';
 
 export interface MySqlUpdateConfig {
 	where?: SQL | undefined;
@@ -18,7 +17,6 @@ export interface MySqlUpdateConfig {
 	orderBy?: (MySqlColumn | SQL | SQL.Aliased)[];
 	set: UpdateSet;
 	table: MySqlTable;
-	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
 	comment?: SQL;
 }

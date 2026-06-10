@@ -26,6 +26,9 @@ export class MySqlBooleanBuilder extends MySqlColumnBuilder<{
 export class MySqlBoolean<T extends ColumnBaseConfig<'boolean'>> extends MySqlColumn<T> {
 	static override readonly [entityKind]: string = 'MySqlBoolean';
 
+	/** @internal */
+	override readonly codec = 'boolean';
+
 	getSQLType(): string {
 		return 'boolean';
 	}

@@ -65,7 +65,7 @@ export class MySqlEffectUpdateBase<
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
 			'raw',
-			this.dialect.mapperGenerators.$returning(this.config.returning, undefined),
+			undefined,
 			{
 				type: 'update',
 				tables: extractUsedTable(this.config.table),

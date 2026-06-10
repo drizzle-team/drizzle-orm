@@ -33,6 +33,9 @@ export class MySqlTime<
 > extends MySqlColumn<T, TimeConfig> {
 	static override readonly [entityKind]: string = 'MySqlTime';
 
+	/** @internal */
+	override readonly codec = 'time';
+
 	readonly fsp: number | undefined = this.config.fsp;
 
 	getSQLType(): string {

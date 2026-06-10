@@ -31,6 +31,9 @@ export class MySqlSerial<
 > extends MySqlColumnWithAutoIncrement<T> {
 	static override readonly [entityKind]: string = 'MySqlSerial';
 
+	/** @internal */
+	override readonly codec = 'serial';
+
 	getSQLType(): string {
 		return 'serial';
 	}

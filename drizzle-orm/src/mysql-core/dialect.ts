@@ -1,11 +1,11 @@
 import { aliasedTable, getOriginalColumnFromAlias } from '~/alias.ts';
+import { CodecsCollection } from '~/codecs.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type {
 	AnyOne,
 	BuildRelationalQueryResult,
-	ColumnWithTSName,
 	DBQueryConfigWithComment,
 	Relation,
 	RelationalRowsMapperGenerator,
@@ -26,10 +26,11 @@ import {
 } from '~/relations.ts';
 import { and } from '~/sql/expressions/index.ts';
 import { isSQLWrapper, Param, SQL, sql, View } from '~/sql/sql.ts';
-import type { Name, Placeholder, Query, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
+import type { DriverValueDecoder, Name, Placeholder, Query, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
 import {
+	getColumnFromDecoder,
 	make$ReturningResponseMapper,
 	makeDefaultQueryMapper,
 	makeJitQueryMapper,
@@ -38,6 +39,7 @@ import {
 	type UpdateSet,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { type MySqlCodecs, type MySqlType, resolveMySqlTypeAlias } from './codecs.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlCustomColumn } from './columns/custom.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
@@ -54,12 +56,14 @@ import type { MySqlView } from './view.ts';
 
 export interface MySqlDialectConfig {
 	escapeParam?: (num: number) => string;
+	codecs?: MySqlCodecs;
 	useJitMappers?: boolean;
 }
 
 export class MySqlDialect {
 	static readonly [entityKind]: string = 'MySqlDialect';
 
+	readonly codecs: CodecsCollection<MySqlType>;
 	readonly mapperGenerators: {
 		rows: RowsMapperGenerator;
 		relationalRows: RelationalRowsMapperGenerator;
@@ -71,6 +75,7 @@ export class MySqlDialect {
 			this.escapeParam = config.escapeParam;
 		}
 
+		this.codecs = new CodecsCollection<MySqlType>(resolveMySqlTypeAlias, config?.codecs);
 		this.mapperGenerators = config?.useJitMappers
 			? {
 				rows: makeJitQueryMapper,
@@ -113,7 +118,6 @@ export class MySqlDialect {
 	buildDeleteQuery({
 		table,
 		where,
-		returning,
 		withList,
 		limit,
 		orderBy,
@@ -121,17 +125,13 @@ export class MySqlDialect {
 	}: MySqlDeleteConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
-		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
-			: undefined;
-
 		const whereSql = where ? sql` where ${where}` : undefined;
 
 		const orderBySql = this.buildOrderBy(orderBy);
 
 		const limitSql = this.buildLimit(limit);
 
-		return sql`${withSql}delete from ${table}${whereSql}${orderBySql}${limitSql}${returningSql}${
+		return sql`${withSql}delete from ${table}${whereSql}${orderBySql}${limitSql}${
 			comment !== undefined ? sql` ${comment}` : undefined
 		}`;
 	}
@@ -169,7 +169,6 @@ export class MySqlDialect {
 		table,
 		set,
 		where,
-		returning,
 		withList,
 		limit,
 		orderBy,
@@ -179,17 +178,13 @@ export class MySqlDialect {
 
 		const setSql = this.buildUpdateSet(table, set);
 
-		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
-			: undefined;
-
 		const whereSql = where ? sql` where ${where}` : undefined;
 
 		const orderBySql = this.buildOrderBy(orderBy);
 
 		const limitSql = this.buildLimit(limit);
 
-		return sql`${withSql}update ${table} set ${setSql}${whereSql}${orderBySql}${limitSql}${returningSql}${
+		return sql`${withSql}update ${table} set ${setSql}${whereSql}${orderBySql}${limitSql}${
 			comment !== undefined ? sql` ${comment}` : undefined
 		}`;
 	}
@@ -201,13 +196,11 @@ export class MySqlDialect {
 	 *
 	 * `select <selection> from`
 	 *
-	 * `insert ... returning <selection>`
-	 *
 	 * If `isSingleTable` is true, then columns won't be prefixed with table name
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
-		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
+		{ isSingleTable = false, ignoreCastCodecs = false }: { isSingleTable?: boolean; ignoreCastCodecs?: boolean } = {},
 	): SQL {
 		const columnsLen = fields.length;
 
@@ -215,12 +208,15 @@ export class MySqlDialect {
 			const chunk: SQLChunk[] = [];
 
 			if (is(field, SQL.Aliased) && field.isSelectionField) {
-				if (!isSingleTable && field.origin !== undefined) {
-					chunk.push(sql.identifier(field.origin), sql.raw('.'));
-				}
-				chunk.push(sql.identifier(field.fieldAlias));
+				const column = ignoreCastCodecs ? undefined : getColumnFromDecoder(field);
+				const query = !isSingleTable && field.origin !== undefined
+					? sql`${sql.identifier(field.origin)}.${sql.identifier(field.fieldAlias)}`
+					: sql.identifier(field.fieldAlias);
+				if (!column) chunk.push(query);
+				else chunk.push(this.codecs.apply(column, 'cast', query));
 			} else if (is(field, SQL.Aliased) || is(field, SQL)) {
 				const query = is(field, SQL.Aliased) ? field.sql : field;
+				const column = ignoreCastCodecs ? undefined : getColumnFromDecoder(query);
 
 				if (isSingleTable) {
 					const newSql = new SQL(
@@ -232,48 +228,62 @@ export class MySqlDialect {
 						}),
 					);
 
-					chunk.push(query.shouldInlineParams ? newSql.inlineParams() : newSql);
+					if (query.shouldInlineParams) newSql.inlineParams();
+					const wrapped = column ? this.codecs.apply(column, 'cast', newSql) : newSql;
+
+					chunk.push(wrapped);
 				} else {
-					chunk.push(query);
+					chunk.push(column ? this.codecs.apply(column, 'cast', query) : query);
 				}
 
 				if (is(field, SQL.Aliased)) {
 					chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 				}
 			} else if (is(field, Column)) {
+				let name: Name | Column;
 				if (isSingleTable) {
-					chunk.push(
-						field.isAlias
-							? sql`${sql.identifier(getOriginalColumnFromAlias(field).name)} as ${field}`
-							: sql.identifier(field.name),
-					);
+					name = field.isAlias
+						? sql.identifier(getOriginalColumnFromAlias(field).name)
+						: sql.identifier(field.name);
 				} else {
-					chunk.push(
-						field.isAlias
-							? sql`${getOriginalColumnFromAlias(field)} as ${field}`
-							: field,
-					);
+					name = field.isAlias ? getOriginalColumnFromAlias(field) : field;
 				}
+
+				const casted = ignoreCastCodecs ? name : this.codecs.apply(field, 'cast', name);
+				chunk.push(field.isAlias ? sql`${casted} as ${field}` : casted);
 			} else if (is(field, Subquery)) {
 				const entries = Object.entries(field._.selectedFields) as [
 					string,
 					SQL.Aliased | Column | SQL,
 				][];
+				let column: Column | undefined;
 
 				if (entries.length === 1) {
 					const entry = entries[0]![1];
 
-					const fieldDecoder = is(entry, SQL)
-						? entry.decoder
-						: is(entry, Column)
-						? { mapFromDriverValue: (v: any) => entry.mapFromDriverValue(v) }
-						: entry.sql.decoder;
+					let fieldDecoder: DriverValueDecoder<any, any>;
+					if (is(entry, Column)) {
+						column = entry;
+						fieldDecoder = entry;
+					} else if (is(entry, SQL)) {
+						column = !ignoreCastCodecs ? getColumnFromDecoder(entry) : undefined;
+						fieldDecoder = entry.decoder;
+					} else {
+						column = !ignoreCastCodecs ? getColumnFromDecoder(entry) : undefined;
+						fieldDecoder = entry.sql.decoder;
+					}
 
 					if (fieldDecoder) {
 						field._.sql.decoder = fieldDecoder;
 					}
 				}
-				chunk.push(field);
+
+				if (column && !field._.isWith) {
+					const innerCasted = this.codecs.apply(column, 'cast', sql`(${field._.sql})`);
+					chunk.push(sql`${innerCasted} ${sql.identifier(field._.alias)}`);
+				} else {
+					chunk.push(column ? this.codecs.apply(column, 'cast', field) : field);
+				}
 			}
 
 			if (i < columnsLen - 1) {
@@ -332,6 +342,7 @@ export class MySqlDialect {
 		forceIndex,
 		ignoreIndex,
 		comment,
+		ignoreSelectionCastCodecs,
 	}: MySqlSelectConfig): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<MySqlColumn>(fields);
 		for (const f of fieldsList) {
@@ -371,7 +382,7 @@ export class MySqlDialect {
 
 		const distinctSql = distinct ? sql` distinct` : undefined;
 
-		const selection = this.buildSelection(fieldsList, { isSingleTable });
+		const selection = this.buildSelection(fieldsList, { isSingleTable, ignoreCastCodecs: ignoreSelectionCastCodecs });
 
 		const tableSql = (() => {
 			if (is(table, Table) && table[Table.Symbol.IsAlias]) {
@@ -666,144 +677,113 @@ export class MySqlDialect {
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
+			codecs: this.codecs,
 			invokeSource,
 		});
 	}
 
-	private nestedSelectionerror() {
+	private buildRqbColumn(table: Table | View, field: unknown, key: string, inJson: boolean) {
+		if (is(field, Column)) {
+			const name = sql`${table}.${sql.identifier(field.name)}`;
+			const casted = inJson && (<MySqlCustomColumn<any>> field).jsonSelectIdentifier
+				? (<MySqlCustomColumn<any>> field).jsonSelectIdentifier!(name, sql)
+				: this.codecs.apply(field, inJson ? 'castInJson' : 'cast', name);
+
+			return sql`${casted} as ${sql.identifier(key)}`;
+		}
+
+		if (is(field, SQL.Aliased)) {
+			const column = getColumnFromDecoder(field);
+			const q = sql`${table}.${sql.identifier(field.fieldAlias)}`;
+			return sql`${column ? this.codecs.apply(column, inJson ? 'castInJson' : 'cast', q) : q} as ${
+				sql.identifier(key)
+			}`;
+		}
+
+		if (isSQLWrapper(field)) {
+			const column = getColumnFromDecoder(field);
+			const q = sql`${table}.${sql.identifier(key)}`;
+			return sql`${column ? this.codecs.apply(column, inJson ? 'castInJson' : 'cast', q) : q} as ${
+				sql.identifier(key)
+			}`;
+		}
+
 		throw new DrizzleError({
 			message: `Views with nested selections are not supported by the relational query builder`,
 		});
 	}
 
-	private buildRqbColumn(table: Table | View, column: unknown, key: string, inJson: boolean) {
-		if (is(column, Column)) {
-			const name = sql`${table}.${sql.identifier(column.name)}`;
-			if (!inJson) return sql`${name} as ${sql.identifier(key)}`;
-
-			switch (column.columnType) {
-				case 'MySqlBinary':
-				case 'MySqlVarBinary':
-				case 'MySqlTime':
-				case 'MySqlDateTimeString':
-				case 'MySqlTimestampString':
-				case 'MySqlFloat':
-				case 'MySqlDecimal':
-				case 'MySqlDecimalNumber':
-				case 'MySqlDecimalBigInt':
-				case 'MySqlBigInt64':
-				case 'MySqlBigIntString': {
-					return sql`cast(${name} as char) as ${sql.identifier(key)}`;
-				}
-
-				case 'MySqlBlob':
-				case 'MySqlBlobBuffer': {
-					return sql`to_base64(${name}) as ${sql.identifier(key)}`;
-				}
-
-				case 'MySqlCustomColumn': {
-					return sql`${(<MySqlCustomColumn<any>> column).jsonSelectIdentifier(name, sql)} as ${sql.identifier(key)}`;
-				}
-
-				default: {
-					return sql`${name} as ${sql.identifier(key)}`;
-				}
-			}
+	private resolveSelection(field: unknown, key: string, inJson: boolean) {
+		if (is(field, Column)) {
+			return {
+				key,
+				field: field,
+				codec: this.codecs.get(field, inJson ? 'normalizeInJson' : 'normalize'),
+			};
 		}
 
-		return sql`${table}.${
-			is(column, SQL.Aliased)
-				? sql.identifier(column.fieldAlias)
-				: isSQLWrapper(column)
-				? sql.identifier(key)
-				: this.nestedSelectionerror()
-		} as ${sql.identifier(key)}`;
+		const decoderColumn = getColumnFromDecoder(field as SQL | SQLWrapper | SQL.Aliased);
+		return decoderColumn
+			? {
+				key,
+				field: field as SQL | SQLWrapper | SQL.Aliased,
+				codec: decoderColumn && (!inJson || !(<MySqlCustomColumn<any>> decoderColumn).mapFromJsonValue)
+					? this.codecs.get(decoderColumn, inJson ? 'normalizeInJson' : 'normalize')
+					: undefined,
+			}
+			: {
+				key,
+				field: field as SQL | SQLWrapper | SQL.Aliased,
+			};
 	}
 
-	private unwrapAllColumns = (
+	private buildColumns = (
 		table: Table | View,
 		selection: BuildRelationalQueryResult['selection'],
 		inJson: boolean,
+		config?: DBQueryConfigWithComment<'many'>,
 	) => {
-		return sql.join(
-			Object.entries(table[TableColumns]).map(([k, v]) => {
-				selection.push({
-					key: k,
-					field: v as Column | SQL | SQLWrapper | SQL.Aliased,
-				});
+		if (!config?.columns) {
+			return sql.join(
+				Object.entries(table[TableColumns]).map(([k, v]) => {
+					selection.push(this.resolveSelection(v, k, inJson));
 
-				return this.buildRqbColumn(table, v, k, inJson);
-			}),
-			sql`, `,
-		);
-	};
+					return this.buildRqbColumn(table, v, k, inJson);
+				}),
+				sql`, `,
+			);
+		}
 
-	private getSelectedTableColumns = (
-		table: Table | View,
-		columns: Record<string, boolean | undefined>,
-	) => {
-		const selectedColumns: ColumnWithTSName[] = [];
-		const columnContainer = table[TableColumns];
-		const entries = Object.entries(columns);
+		const entries = Object.entries(config.columns);
+		const columnContainer: Record<string, unknown> = table[TableColumns];
 
+		const columnIdentifiers: SQL[] = [];
 		let colSelectionMode: boolean | undefined;
 		for (const [k, v] of entries) {
 			if (v === undefined) continue;
 			colSelectionMode = colSelectionMode || v;
 
 			if (v) {
-				const column = columnContainer[k]!;
+				const column = columnContainer[k];
+				columnIdentifiers.push(this.buildRqbColumn(table, column, k, inJson));
 
-				selectedColumns.push({
-					column: column as Column | SQL | SQLWrapper | SQL.Aliased,
-					tsName: k,
-				});
+				selection.push(this.resolveSelection(column, k, inJson));
 			}
 		}
 
 		if (colSelectionMode === false) {
 			for (const [k, v] of Object.entries(columnContainer)) {
-				if (columns[k] === false) continue;
+				if (config.columns[k] === false) continue;
+				columnIdentifiers.push(this.buildRqbColumn(table, v, k, inJson));
 
-				selectedColumns.push({
-					column: v as Column | SQL | SQLWrapper | SQL.Aliased | Table,
-					tsName: k,
-				});
+				selection.push(this.resolveSelection(v, k, inJson));
 			}
 		}
 
-		return selectedColumns;
+		return columnIdentifiers.length
+			? sql.join(columnIdentifiers, sql`, `)
+			: undefined;
 	};
-
-	private buildColumns = (
-		table: MySqlTable | MySqlView,
-		selection: BuildRelationalQueryResult['selection'],
-		inJson: boolean,
-		params?: DBQueryConfigWithComment<'many'>,
-	) =>
-		params?.columns
-			? (() => {
-				const columnIdentifiers: SQL[] = [];
-
-				const selectedColumns = this.getSelectedTableColumns(
-					table,
-					params.columns,
-				);
-
-				for (const { column, tsName } of selectedColumns) {
-					columnIdentifiers.push(this.buildRqbColumn(table, column, tsName, inJson));
-
-					selection.push({
-						key: tsName,
-						field: column,
-					});
-				}
-
-				return columnIdentifiers.length
-					? sql.join(columnIdentifiers, sql`, `)
-					: undefined;
-			})()
-			: this.unwrapAllColumns(table, selection, inJson);
 
 	buildRelationalQuery({
 		schema,
@@ -864,7 +844,7 @@ export class MySqlDialect {
 			? relationsOrderToSQL(table, params.orderBy)
 			: undefined;
 		const extras = params?.extras
-			? relationExtrasToSQL(table, params.extras)
+			? relationExtrasToSQL(table, params.extras, this.codecs, nested)
 			: undefined;
 		if (extras) selection.push(...extras.selection);
 

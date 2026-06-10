@@ -113,7 +113,6 @@ export class MySqlDatabase<
 	 * ```
 	 */
 	$with: WithBuilder = (alias: string, selection?: ColumnsSelection) => {
-		const self = this;
 		const as = (
 			qb:
 				| TypedQueryBuilder<ColumnsSelection | undefined>
@@ -121,15 +120,17 @@ export class MySqlDatabase<
 				| ((qb: QueryBuilder) => TypedQueryBuilder<ColumnsSelection | undefined> | SQL),
 		) => {
 			if (typeof qb === 'function') {
-				qb = qb(new QueryBuilder(self.dialect));
+				qb = qb(new QueryBuilder(this.dialect));
 			}
 
+			const sql = ('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL();
 			return new Proxy(
 				new WithSubquery(
-					qb.getSQL(),
+					sql,
 					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
 					alias,
 					true,
+					sql.usedTables ?? [],
 				),
 				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 			);

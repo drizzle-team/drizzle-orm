@@ -30,6 +30,9 @@ export class MySqlBigInt53<T extends ColumnBaseConfig<'number int53' | 'number u
 {
 	static override readonly [entityKind]: string = 'MySqlBigInt53';
 
+	/** @internal */
+	override readonly codec = 'bigint:number';
+
 	getSQLType(): string {
 		return `bigint${this.config.unsigned ? ' unsigned' : ''}`;
 	}
@@ -67,6 +70,9 @@ export class MySqlBigInt64<T extends ColumnBaseConfig<'bigint int64' | 'bigint u
 	extends MySqlColumnWithAutoIncrement<T, { unsigned: boolean }>
 {
 	static override readonly [entityKind]: string = 'MySqlBigInt64';
+
+	/** @internal */
+	override readonly codec = 'bigint';
 
 	getSQLType(): string {
 		return `bigint${this.config.unsigned ? ' unsigned' : ''}`;
@@ -111,6 +117,9 @@ export class MySqlBigIntString<T extends ColumnBaseConfig<'string int64' | 'stri
 	extends MySqlColumnWithAutoIncrement<T, { unsigned: boolean }>
 {
 	static override readonly [entityKind]: string = 'MySqlBigIntString';
+
+	/** @internal */
+	override readonly codec = 'bigint:string';
 
 	getSQLType(): string {
 		return `bigint${this.config.unsigned ? ' unsigned' : ''}`;
