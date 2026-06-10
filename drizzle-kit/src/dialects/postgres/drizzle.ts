@@ -71,6 +71,15 @@ import {
 	typeFor,
 } from './grammar';
 
+export const replicaIdentityFrom = (
+	replicaIdentity: ReturnType<typeof getTableConfig>['replicaIdentity'],
+): PostgresEntities['tables']['replicaIdentity'] => {
+	if (!replicaIdentity || replicaIdentity === 'default') return null;
+	if (replicaIdentity === 'full') return { type: 'full', index: null };
+	if (replicaIdentity === 'nothing') return { type: 'nothing', index: null };
+	return { type: 'index', index: replicaIdentity.usingIndex };
+};
+
 export const policyFrom = (policy: PgPolicy, dialect: PgDialect) => {
 	const mappedTo = !policy.to
 		? ['public']
@@ -307,6 +316,7 @@ export const fromDrizzleSchema = (
 			schema,
 			name: config.name,
 			isRlsEnabled,
+			replicaIdentity: replicaIdentityFrom(config.replicaIdentity),
 		} satisfies PostgresEntities['tables'];
 	});
 

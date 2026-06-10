@@ -36,6 +36,7 @@ export type InterimTable = {
 	pks: Interim<PrimaryKey>[];
 	fks: Interim<ForeignKey>[];
 	isRlsEnabled: boolean;
+	replicaIdentity?: PostgresEntities['tables']['replicaIdentity'];
 };
 
 export type InterimView = {
@@ -72,6 +73,7 @@ const fromInterims = ({
 		name: it.name,
 		schema: it.schema,
 		isRlsEnabled: it.isRlsEnabled,
+		replicaIdentity: it.replicaIdentity ?? null,
 	}));
 	const columns: InterimColumn[] = tables
 		.map((table) => {

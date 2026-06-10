@@ -377,7 +377,13 @@ export const ddlToTypeScript = (ddl: CockroachDDL, columnsForViews: ViewColumn[]
 			statement += createTableChecks(table.checks, casing);
 			statement += ']';
 		}
-		statement += ');';
+		statement += ')';
+		if (table.replicaIdentity) {
+			statement += table.replicaIdentity.type === 'index'
+				? `.replicaIdentity({ usingIndex: "${table.replicaIdentity.index}" })`
+				: `.replicaIdentity("${table.replicaIdentity.type}")`;
+		}
+		statement += ';';
 		return statement;
 	});
 

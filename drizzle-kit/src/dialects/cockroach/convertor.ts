@@ -715,6 +715,20 @@ const toggleRlsConvertor = convertor('alter_rls', (st) => {
 	return `ALTER TABLE ${tableNameWithSchema} ${isRlsEnabled ? 'ENABLE' : 'DISABLE'} ROW LEVEL SECURITY;`;
 });
 
+const replicaIdentityConvertor = convertor('alter_replica_identity', (st) => {
+	const { schema, name, replicaIdentity } = st;
+
+	const tableNameWithSchema = schema !== 'public' ? `"${schema}"."${name}"` : `"${name}"`;
+
+	const clause = !replicaIdentity
+		? 'DEFAULT'
+		: replicaIdentity.type === 'index'
+		? `USING INDEX "${replicaIdentity.index}"`
+		: replicaIdentity.type.toUpperCase();
+
+	return `ALTER TABLE ${tableNameWithSchema} REPLICA IDENTITY ${clause};`;
+});
+
 const convertors = [
 	createSchemaConvertor,
 	dropSchemaConvertor,
@@ -767,6 +781,7 @@ const convertors = [
 	alterPolicyConvertor,
 	recreatePolicy,
 	toggleRlsConvertor,
+	replicaIdentityConvertor,
 	alterPrimaryKeyConvertor,
 	alterColumnAddNotNullConvertor,
 	alterColumnDropNotNullConvertor,

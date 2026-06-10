@@ -23,6 +23,7 @@ export function getTableConfig<TTable extends CockroachTable>(table: TTable) {
 	const schema = table[Table.Symbol.Schema];
 	const policies: CockroachPolicy[] = [];
 	const enableRLS: boolean = table[CockroachTable.Symbol.EnableRLS];
+	const replicaIdentity = table[CockroachTable.Symbol.ReplicaIdentity];
 
 	const extraConfigBuilder = table[CockroachTable.Symbol.ExtraConfigBuilder];
 
@@ -57,6 +58,7 @@ export function getTableConfig<TTable extends CockroachTable>(table: TTable) {
 		schema,
 		policies,
 		enableRLS,
+		replicaIdentity,
 	};
 }
 

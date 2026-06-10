@@ -6,7 +6,11 @@ import { defaults } from './grammar';
 export const createDDL = () => {
 	return create({
 		schemas: {},
-		tables: { schema: 'required', isRlsEnabled: 'boolean' },
+		tables: {
+			schema: 'required',
+			isRlsEnabled: 'boolean',
+			replicaIdentity: { type: ['full', 'nothing', 'index'], index: 'string?' },
+		},
 		enums: {
 			schema: 'required',
 			values: 'string[]',
@@ -138,6 +142,7 @@ export type Table = {
 	checks: CheckConstraint[];
 	policies: Policy[];
 	isRlsEnabled: boolean;
+	replicaIdentity: CockroachEntities['tables']['replicaIdentity'];
 };
 
 export type InterimColumn = Omit<Column, 'primaryKey'> & {

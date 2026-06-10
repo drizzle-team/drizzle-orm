@@ -1633,6 +1633,7 @@ test('introspect partitioned tables', async () => {
 			schema: 'public',
 			entityType: 'tables',
 			isRlsEnabled: false,
+			replicaIdentity: null,
 		} satisfies (typeof tables)[number],
 	]);
 });
@@ -1752,6 +1753,7 @@ test('introspect view with table filter', async () => {
 			schema: 'public',
 			name: 'table1',
 			isRlsEnabled: false,
+			replicaIdentity: null,
 		},
 	];
 	expect(tables).toStrictEqual(expectedTables);
@@ -1833,6 +1835,7 @@ test.skipIf(Date.now() < +new Date('2026-06-20'))('introspect sequences with tab
 			schema: 'public',
 			name: 'table1',
 			isRlsEnabled: false,
+			replicaIdentity: null,
 		},
 	]);
 	expect(sequences).toBe([
@@ -2024,6 +2027,7 @@ test('introspect enum within schema', async () => {
 			schema: 'public',
 			name: 'table1',
 			isRlsEnabled: false,
+			replicaIdentity: null,
 		},
 	]);
 	expect(enums).toStrictEqual([]);
@@ -2206,6 +2210,7 @@ test('pull after migrate with custom migrations table #1', async () => {
 			isRlsEnabled: false,
 			name: 'users',
 			schema: 'drizzle',
+			replicaIdentity: null,
 		},
 		{
 			columns: ['id'],
@@ -2261,6 +2266,7 @@ test('pull after migrate with custom migrations table #2', async () => {
 			isRlsEnabled: false,
 			name: 'users',
 			schema: 'public',
+			replicaIdentity: null,
 		},
 		{
 			columns: ['id'],
@@ -2326,12 +2332,14 @@ test('pull after migrate with custom migrations table #3', async () => {
 			isRlsEnabled: false,
 			name: 'users',
 			schema: 'custom',
+			replicaIdentity: null,
 		},
 		{
 			entityType: 'tables',
 			isRlsEnabled: false,
 			name: 'users',
 			schema: 'public',
+			replicaIdentity: null,
 		},
 		{
 			columns: ['id'],
@@ -2809,6 +2817,7 @@ test('non-admin', async () => {
 			schema: 'public',
 			name: 'users',
 			isRlsEnabled: false,
+			replicaIdentity: null,
 		},
 	]);
 });

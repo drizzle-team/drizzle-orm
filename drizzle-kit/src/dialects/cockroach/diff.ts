@@ -764,6 +764,30 @@ export const ddlDiff = async (
 			}
 		});
 
+	// replica identity: set for newly created tables (after indexes are created, see ordering below)
+	// and altered for existing tables when it changes
+	const jsonAlterReplicaIdentityStatements = [
+		...createdTables
+			.filter((it) => it.replicaIdentity)
+			.map((it) =>
+				prepareStatement('alter_replica_identity', {
+					schema: it.schema,
+					name: it.name,
+					replicaIdentity: it.replicaIdentity,
+				})
+			),
+		...alters
+			.filter((it) => it.entityType === 'tables')
+			.filter((it) => it.replicaIdentity)
+			.map((it) =>
+				prepareStatement('alter_replica_identity', {
+					schema: it.schema,
+					name: it.name,
+					replicaIdentity: it.replicaIdentity?.to ?? null,
+				})
+			),
+	];
+
 	// explicit rls alters
 	const rlsAlters = alters.filter((it) => it.entityType === 'tables').filter((it) => it.isRlsEnabled);
 
@@ -1062,6 +1086,8 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonCreateFKs);
 	jsonStatements.push(...jsonRecreateFKs);
 	jsonStatements.push(...jsonCreateIndexes);
+
+	jsonStatements.push(...jsonAlterReplicaIdentityStatements); // after indexes for `USING INDEX` to resolve
 
 	jsonStatements.push(...jsonDropColumnsStatemets);
 

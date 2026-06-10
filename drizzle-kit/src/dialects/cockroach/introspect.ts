@@ -128,6 +128,9 @@ export const fromDatabase = async (
 			accessMethod: number;
 			options: string[] | null;
 			rlsEnabled: boolean;
+			/* d - default, n - nothing, f - full, i - index */
+			replicaIdentity: 'd' | 'n' | 'f' | 'i';
+			replicaIdentityIndex: string | null;
 			tablespaceid: number;
 			definition: string | null;
 		}>(
@@ -141,6 +144,14 @@ export const fromDatabase = async (
 				reloptions::text[] as "options",
 				reltablespace as "tablespaceid",
 				relrowsecurity AS "rlsEnabled",
+				relreplident::text AS "replicaIdentity",
+				(
+					SELECT ci.relname
+					FROM pg_catalog.pg_index i
+					JOIN pg_catalog.pg_class ci ON ci.oid OPERATOR(pg_catalog.=) i.indexrelid
+					WHERE i.indrelid OPERATOR(pg_catalog.=) pg_class.oid AND i.indisreplident
+					LIMIT 1
+				) AS "replicaIdentityIndex",
 				CASE
 					WHEN relkind OPERATOR(pg_catalog.=) 'v' OR relkind OPERATOR(pg_catalog.=) 'm'
 						THEN pg_catalog.pg_get_viewdef(pg_class.oid, true)
@@ -191,6 +202,13 @@ export const fromDatabase = async (
 			schema: table.schema,
 			name: table.name,
 			isRlsEnabled: table.rlsEnabled,
+			replicaIdentity: table.replicaIdentity === 'f'
+				? { type: 'full', index: null }
+				: table.replicaIdentity === 'n'
+				? { type: 'nothing', index: null }
+				: table.replicaIdentity === 'i'
+				? { type: 'index', index: table.replicaIdentityIndex }
+				: null,
 		});
 	}
 

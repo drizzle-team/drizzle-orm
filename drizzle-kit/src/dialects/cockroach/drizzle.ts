@@ -62,6 +62,15 @@ import {
 	typeFor,
 } from './grammar';
 
+export const replicaIdentityFrom = (
+	replicaIdentity: ReturnType<typeof getTableConfig>['replicaIdentity'],
+): CockroachEntities['tables']['replicaIdentity'] => {
+	if (!replicaIdentity || replicaIdentity === 'default') return null;
+	if (replicaIdentity === 'full') return { type: 'full', index: null };
+	if (replicaIdentity === 'nothing') return { type: 'nothing', index: null };
+	return { type: 'index', index: replicaIdentity.usingIndex };
+};
+
 export const policyFrom = (policy: CockroachPolicy, dialect: CockroachDialect) => {
 	const mappedTo = !policy.to
 		? ['public']
@@ -280,6 +289,7 @@ export const fromDrizzleSchema = (
 			schema,
 			name: config.name,
 			isRlsEnabled,
+			replicaIdentity: replicaIdentityFrom(config.replicaIdentity),
 		} satisfies CockroachEntities['tables'];
 	});
 

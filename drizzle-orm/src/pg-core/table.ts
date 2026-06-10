@@ -31,10 +31,22 @@ export type PgTableExtraConfig = Record<string, PgTableExtraConfigValue>;
 
 export type TableConfig = TableConfigBase<PgColumns>;
 
+/**
+ * Configures the `REPLICA IDENTITY` of a Postgres table.
+ *
+ * - `'default'` - records the old values of the columns of the primary key, if any (the database default).
+ * - `'full'` - records the old values of all columns in the row.
+ * - `'nothing'` - records no information about the old row.
+ * - `{ usingIndex: string }` - records the old values of the columns covered by the named index (`USING INDEX`).
+ */
+export type PgReplicaIdentity = 'default' | 'full' | 'nothing' | { usingIndex: string };
+
 /** @internal */
 export const InlineForeignKeys = Symbol.for('drizzle:PgInlineForeignKeys');
 /** @internal */
 export const EnableRLS = Symbol.for('drizzle:EnableRLS');
+/** @internal */
+export const ReplicaIdentity = Symbol.for('drizzle:ReplicaIdentity');
 
 export class PgTable<out T extends TableConfig = TableConfig> extends Table<T> {
 	static override readonly [entityKind]: string = 'PgTable';
@@ -43,6 +55,7 @@ export class PgTable<out T extends TableConfig = TableConfig> extends Table<T> {
 	static override readonly Symbol = Object.assign({}, Table.Symbol, {
 		InlineForeignKeys: InlineForeignKeys as typeof InlineForeignKeys,
 		EnableRLS: EnableRLS as typeof EnableRLS,
+		ReplicaIdentity: ReplicaIdentity as typeof ReplicaIdentity,
 	});
 
 	/**@internal */
@@ -50,6 +63,9 @@ export class PgTable<out T extends TableConfig = TableConfig> extends Table<T> {
 
 	/** @internal */
 	[EnableRLS]: boolean = false;
+
+	/** @internal */
+	[ReplicaIdentity]: PgReplicaIdentity | undefined = undefined;
 
 	/** @internal */
 	override [Table.Symbol.ExtraConfigBuilder]: ((self: Record<string, PgColumn>) => PgTableExtraConfig) | undefined =
@@ -74,6 +90,23 @@ export type PgTableWithColumns<T extends TableConfig> =
 			PgTableWithColumns<T>,
 			'enableRLS'
 		>;
+	}
+	& {
+		/**
+		 * Sets the `REPLICA IDENTITY` for the table.
+		 *
+		 * @example
+		 * ```ts
+		 * export const users = pgTable('users', {
+		 * 	id: integer().primaryKey(),
+		 * }).replicaIdentity('full');
+		 *
+		 * export const posts = pgTable('posts', {
+		 * 	id: integer().primaryKey(),
+		 * }).replicaIdentity({ usingIndex: 'posts_some_index' });
+		 * ```
+		 */
+		replicaIdentity: (identity: PgReplicaIdentity) => PgTableWithColumns<T>;
 	};
 
 /** @internal */
@@ -137,6 +170,15 @@ export function pgTableWithSchema<
 	return Object.assign(table, {
 		enableRLS: () => {
 			table[PgTable.Symbol.EnableRLS] = true;
+			return table as PgTableWithColumns<{
+				name: TTableName;
+				schema: TSchemaName;
+				columns: PgBuildColumns<TTableName, TColumnsMap>;
+				dialect: 'pg';
+			}>;
+		},
+		replicaIdentity: (identity: PgReplicaIdentity) => {
+			table[PgTable.Symbol.ReplicaIdentity] = identity;
 			return table as PgTableWithColumns<{
 				name: TTableName;
 				schema: TSchemaName;

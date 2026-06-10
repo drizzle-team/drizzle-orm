@@ -452,3 +452,26 @@ test('Enable RLS function', () => {
 	expect(config1.enableRLS).toBeTruthy();
 	expect(config2.enableRLS).toBeFalsy();
 });
+
+test('replicaIdentity', () => {
+	const usersFull = pgTable('users', {
+		id: integer(),
+	}).replicaIdentity('full');
+
+	const usersNothing = pgTable('users', {
+		id: integer(),
+	}).replicaIdentity('nothing');
+
+	const usersIndex = pgTable('users', {
+		id: integer(),
+	}).replicaIdentity({ usingIndex: 'users_some_idx' });
+
+	const usersDefault = pgTable('users', {
+		id: integer(),
+	});
+
+	expect(getTableConfig(usersFull).replicaIdentity).toBe('full');
+	expect(getTableConfig(usersNothing).replicaIdentity).toBe('nothing');
+	expect(getTableConfig(usersIndex).replicaIdentity).toStrictEqual({ usingIndex: 'users_some_idx' });
+	expect(getTableConfig(usersDefault).replicaIdentity).toBeUndefined();
+});

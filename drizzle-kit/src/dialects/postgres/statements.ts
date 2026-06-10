@@ -7,6 +7,7 @@ import type {
 	ForeignKey,
 	Index,
 	Policy,
+	PostgresEntities,
 	PrimaryKey,
 	Privilege,
 	Role,
@@ -186,6 +187,13 @@ export interface JsonAlterRLS {
 	schema: string;
 	name: string;
 	isRlsEnabled: boolean;
+}
+
+export interface JsonAlterReplicaIdentity {
+	type: 'alter_replica_identity';
+	schema: string;
+	name: string;
+	replicaIdentity: PostgresEntities['tables']['replicaIdentity'];
 }
 
 export interface JsonAlterPolicy {
@@ -431,6 +439,7 @@ export type JsonStatement =
 	| JsonRecreatePolicy
 	| JsonRenamePolicy
 	| JsonAlterRLS
+	| JsonAlterReplicaIdentity
 	| JsonRenameRole
 	| JsonCreateRole
 	| JsonDropRole

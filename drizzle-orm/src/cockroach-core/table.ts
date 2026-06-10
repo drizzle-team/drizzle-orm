@@ -36,10 +36,22 @@ export type CockroachTableExtraConfig = Record<
 
 export type TableConfig = TableConfigBase<CockroachColumns>;
 
+/**
+ * Configures the `REPLICA IDENTITY` of a table.
+ *
+ * - `'default'` - records the old values of the columns of the primary key, if any (the database default).
+ * - `'full'` - records the old values of all columns in the row.
+ * - `'nothing'` - records no information about the old row.
+ * - `{ usingIndex: string }` - records the old values of the columns covered by the named index (`USING INDEX`).
+ */
+export type CockroachReplicaIdentity = 'default' | 'full' | 'nothing' | { usingIndex: string };
+
 /** @internal */
 export const InlineForeignKeys = Symbol.for('drizzle:CockroachInlineForeignKeys');
 /** @internal */
 export const EnableRLS = Symbol.for('drizzle:EnableRLS');
+/** @internal */
+export const ReplicaIdentity = Symbol.for('drizzle:ReplicaIdentity');
 
 export class CockroachTable<T extends TableConfig = TableConfig> extends Table<T> {
 	static override readonly [entityKind]: string = 'CockroachTable';
@@ -48,6 +60,7 @@ export class CockroachTable<T extends TableConfig = TableConfig> extends Table<T
 	static override readonly Symbol = Object.assign({}, Table.Symbol, {
 		InlineForeignKeys: InlineForeignKeys as typeof InlineForeignKeys,
 		EnableRLS: EnableRLS as typeof EnableRLS,
+		ReplicaIdentity: ReplicaIdentity as typeof ReplicaIdentity,
 	});
 
 	/**@internal */
@@ -55,6 +68,9 @@ export class CockroachTable<T extends TableConfig = TableConfig> extends Table<T
 
 	/** @internal */
 	[EnableRLS]: boolean = false;
+
+	/** @internal */
+	[ReplicaIdentity]: CockroachReplicaIdentity | undefined = undefined;
 
 	/** @internal */
 	override [Table.Symbol.ExtraConfigBuilder]:
@@ -79,6 +95,19 @@ export type CockroachTableWithColumns<T extends TableConfig> =
 			CockroachTableWithColumns<T>,
 			'enableRLS'
 		>;
+	}
+	& {
+		/**
+		 * Sets the `REPLICA IDENTITY` for the table.
+		 *
+		 * @example
+		 * ```ts
+		 * export const users = cockroachTable('users', {
+		 * 	id: integer().primaryKey(),
+		 * }).replicaIdentity('full');
+		 * ```
+		 */
+		replicaIdentity: (identity: CockroachReplicaIdentity) => CockroachTableWithColumns<T>;
 	};
 
 /** @internal */
@@ -144,6 +173,15 @@ export function cockroachTableWithSchema<
 	return Object.assign(table, {
 		enableRLS: () => {
 			table[CockroachTable.Symbol.EnableRLS] = true;
+			return table as CockroachTableWithColumns<{
+				name: TTableName;
+				schema: TSchemaName;
+				columns: BuildColumns<TTableName, TColumnsMap, 'cockroach'>;
+				dialect: 'cockroach';
+			}>;
+		},
+		replicaIdentity: (identity: CockroachReplicaIdentity) => {
+			table[CockroachTable.Symbol.ReplicaIdentity] = identity;
 			return table as CockroachTableWithColumns<{
 				name: TTableName;
 				schema: TSchemaName;

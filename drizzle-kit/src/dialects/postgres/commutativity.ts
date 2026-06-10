@@ -165,6 +165,7 @@ class PostgresCommutativity extends AbstractCommutativity<
 		'alter_policy',
 		'recreate_policy',
 		'alter_rls',
+		'alter_replica_identity',
 		'grant_privilege',
 		'revoke_privilege',
 		'regrant_privilege',
@@ -593,6 +594,15 @@ class PostgresCommutativity extends AbstractCommutativity<
 			// RLS operations
 			alter_rls: {
 				conflicts: ['alter_rls', 'create_policy', 'drop_policy', 'alter_policy', 'recreate_policy'],
+				buildInfo: (statement) => ({
+					primary: makeTableTarget((statement as any).schema, (statement as any).name),
+					ancestors: [],
+				}),
+			},
+
+			// Replica identity operations
+			alter_replica_identity: {
+				conflicts: ['alter_replica_identity'],
 				buildInfo: (statement) => ({
 					primary: makeTableTarget((statement as any).schema, (statement as any).name),
 					ancestors: [],

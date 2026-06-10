@@ -1,6 +1,7 @@
 import type { Simplify } from '../../utils';
 import type {
 	CheckConstraint,
+	CockroachEntities,
 	Column,
 	DiffEntities,
 	Enum,
@@ -180,6 +181,13 @@ export interface JsonAlterRLS {
 	schema: string;
 	name: string;
 	isRlsEnabled: boolean;
+}
+
+export interface JsonAlterReplicaIdentity {
+	type: 'alter_replica_identity';
+	schema: string;
+	name: string;
+	replicaIdentity: CockroachEntities['tables']['replicaIdentity'];
 }
 
 export interface JsonAlterPolicy {
@@ -423,6 +431,7 @@ export type JsonStatement =
 	| JsonRecreatePolicy
 	| JsonRenamePolicy
 	| JsonAlterRLS
+	| JsonAlterReplicaIdentity
 	| JsonRenameRole
 	| JsonCreateRole
 	| JsonDropRole

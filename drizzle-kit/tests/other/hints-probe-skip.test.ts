@@ -38,6 +38,7 @@ const table = (name: string, schema = 'public') =>
 		checks: [],
 		policies: [],
 		isRlsEnabled: false,
+		replicaIdentity: null,
 	}) satisfies Table;
 
 const column = (tableName: string, name: string, schema = 'public', overrides: Partial<Column> = {}) =>
@@ -325,10 +326,10 @@ test('rename hints resolve orders to orders1 before probes so no stale orders1 s
 		] satisfies readonly Hint[];
 
 		const ddlFrom = createDDL();
-		ddlFrom.tables.push({ schema: 'public', name: 'orders', isRlsEnabled: false });
+		ddlFrom.tables.push({ schema: 'public', name: 'orders', isRlsEnabled: false, replicaIdentity: null });
 
 		const ddlTo = createDDL();
-		ddlTo.tables.push({ schema: 'public', name: 'orders1', isRlsEnabled: false });
+		ddlTo.tables.push({ schema: 'public', name: 'orders1', isRlsEnabled: false, replicaIdentity: null });
 
 		const diffResult = await runPushDiff(ddlFrom, ddlTo, hintsInput);
 		const statementTypes = diffResult.statements.map((statement) => statement.type);

@@ -159,6 +159,7 @@ export function generateLatestSnapshot(
 					name: table.name,
 					schema: table.schema,
 					isRlsEnabled: table.isRlsEnabled,
+					replicaIdentity: table.replicaIdentity,
 				});
 				for (const column of table.columns) {
 					ddl.columns.push(column);
@@ -645,6 +646,12 @@ export function generateLatestSnapshot(
 				ddl.tables.update({
 					where: { schema: statement.schema, name: statement.name },
 					set: { isRlsEnabled: statement.isRlsEnabled },
+				});
+				break;
+			case 'alter_replica_identity':
+				ddl.tables.update({
+					where: { schema: statement.schema, name: statement.name },
+					set: { replicaIdentity: statement.replicaIdentity },
 				});
 				break;
 

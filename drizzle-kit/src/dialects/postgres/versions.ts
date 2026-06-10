@@ -61,6 +61,7 @@ export const upToV8 = (
 			schema,
 			name: table.name,
 			isRlsEnabled: isRlsEnabled,
+			replicaIdentity: null,
 		});
 
 		for (const column of Object.values(table.columns)) {

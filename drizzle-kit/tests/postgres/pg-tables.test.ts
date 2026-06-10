@@ -1568,3 +1568,111 @@ test('rename table with identity column', async () => {
 	expect(st).toStrictEqual(expectedSt);
 	expect(pst).toStrictEqual(expectedSt);
 });
+
+test('create table with replica identity full', async () => {
+	const to = {
+		users: pgTable('users', {
+			id: integer().primaryKey(),
+		}).replicaIdentity('full'),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
+		'CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n',
+		'ALTER TABLE "users" REPLICA IDENTITY FULL;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('alter replica identity default -> full', async () => {
+	const from = {
+		users: pgTable('users', {
+			id: integer().primaryKey(),
+		}),
+	};
+
+	const to = {
+		users: pgTable('users', {
+			id: integer().primaryKey(),
+		}).replicaIdentity('full'),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = ['ALTER TABLE "users" REPLICA IDENTITY FULL;'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('alter replica identity full -> nothing', async () => {
+	const from = {
+		users: pgTable('users', {
+			id: integer().primaryKey(),
+		}).replicaIdentity('full'),
+	};
+
+	const to = {
+		users: pgTable('users', {
+			id: integer().primaryKey(),
+		}).replicaIdentity('nothing'),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = ['ALTER TABLE "users" REPLICA IDENTITY NOTHING;'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('alter replica identity full -> default (reset)', async () => {
+	const from = {
+		users: pgTable('users', {
+			id: integer().primaryKey(),
+		}).replicaIdentity('full'),
+	};
+
+	const to = {
+		users: pgTable('users', {
+			id: integer().primaryKey(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = ['ALTER TABLE "users" REPLICA IDENTITY DEFAULT;'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('create table with replica identity using index', async () => {
+	const to = {
+		users: pgTable('users', {
+			id: integer().primaryKey(),
+			email: text().notNull(),
+		}, (t) => [uniqueIndex('users_email_idx').on(t.email)]).replicaIdentity({ usingIndex: 'users_email_idx' }),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const alterSql = 'ALTER TABLE "users" REPLICA IDENTITY USING INDEX "users_email_idx";';
+	const indexIdx = st.findIndex((s) => /CREATE UNIQUE INDEX "users_email_idx"/.test(s));
+
+	// the ALTER ... USING INDEX statement must come after the index is created
+	expect(st.at(-1)).toBe(alterSql);
+	expect(indexIdx).toBeGreaterThanOrEqual(0);
+	expect(indexIdx).toBeLessThan(st.indexOf(alterSql));
+	expect(pst).toStrictEqual(st);
+});
