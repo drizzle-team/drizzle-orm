@@ -1,7 +1,7 @@
 import { type Config, connect, type Connection } from '@tidbcloud/serverless';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { MySqlDatabase } from '~/mysql-core/async/db.ts';
+import { MySqlAsyncDatabase } from '~/mysql-core/async/db.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { DrizzleMySqlConfig } from '~/mysql-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -10,7 +10,7 @@ import type { TiDBServerlessQueryResultHKT } from './session.ts';
 import { TiDBServerlessSession } from './session.ts';
 
 export class TiDBServerlessDatabase<TRelations extends AnyRelations = EmptyRelations>
-	extends MySqlDatabase<TiDBServerlessQueryResultHKT, TRelations>
+	extends MySqlAsyncDatabase<TiDBServerlessQueryResultHKT, TRelations>
 {
 	static override readonly [entityKind]: string = 'TiDBServerlessDatabase';
 }

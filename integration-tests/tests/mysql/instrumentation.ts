@@ -14,7 +14,7 @@ import {
 import type { MutationOption } from 'drizzle-orm/cache/core';
 import { Cache } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
-import type { MySqlDatabase, MySqlSchema, MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
+import type { MySqlAsyncDatabase, MySqlSchema, MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
 import { drizzle as proxyDrizzle, RemoteCallback } from 'drizzle-orm/mysql-proxy';
 import type { AnyMySql2Connection } from 'drizzle-orm/mysql2';
 import { drizzle as mysql2Drizzle } from 'drizzle-orm/mysql2';
@@ -158,7 +158,7 @@ export type MysqlSchema = Record<
 
 export type RefineCallbackT<Schema extends MysqlSchema> = (
 	funcs: FunctionsVersioning,
-) => InferCallbackType<MySqlDatabase<any, any>, Schema>;
+) => InferCallbackType<MySqlAsyncDatabase<any, any>, Schema>;
 
 const _push = async (
 	query: (sql: string, params: any[]) => Promise<any[]>,
@@ -179,7 +179,7 @@ const _push = async (
 };
 
 const _seed = async <Schema extends MysqlSchema>(
-	db: MySqlDatabase<any, any>,
+	db: MySqlAsyncDatabase<any, any>,
 	schema: Schema,
 	refineCallback?: RefineCallbackT<Schema>,
 ) => {
@@ -218,29 +218,29 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 			// proxyHandler: (sql: string, params: any[], method: any) => Promise<{
 			// 	rows: any;
 			// }>;
-			db: MySqlDatabase<any, typeof relations>;
+			db: MySqlAsyncDatabase<any, typeof relations>;
 			createDB: {
 				<S extends MysqlSchema, TConfig extends AnyRelationsBuilderConfig>(config: {
 					schema?: S;
 					cb?: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig;
 					proxyClient?: mysql.Connection;
-				}): MySqlDatabase<any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
+				}): MySqlAsyncDatabase<any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
 			};
 			push: (schema: any) => Promise<void>;
 			seed: <Schema extends MysqlSchema>(
 				schema: Schema,
-				refineCallback?: (funcs: FunctionsVersioning) => InferCallbackType<MySqlDatabase<any, any>, Schema>,
+				refineCallback?: (funcs: FunctionsVersioning) => InferCallbackType<MySqlAsyncDatabase<any, any>, Schema>,
 			) => Promise<void>;
 			drizzle: {
 				withCacheAll: {
-					db: MySqlDatabase<any, any>;
+					db: MySqlAsyncDatabase<any, any>;
 					put: Mock<any>;
 					get: Mock<any>;
 					onMutate: Mock<any>;
 					invalidate: Mock<any>;
 				};
 				withCacheExplicit: {
-					db: MySqlDatabase<any, any>;
+					db: MySqlAsyncDatabase<any, any>;
 					put: Mock<any>;
 					get: Mock<any>;
 					onMutate: Mock<any>;
@@ -406,7 +406,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 			async ({ db }, use) => {
 				const seed = (
 					schema: any,
-					refineCallback?: (funcs: FunctionsVersioning) => InferCallbackType<MySqlDatabase<any, any>, any>,
+					refineCallback?: (funcs: FunctionsVersioning) => InferCallbackType<MySqlAsyncDatabase<any, any>, any>,
 				) => _seed(db, schema, refineCallback);
 
 				await use(seed);

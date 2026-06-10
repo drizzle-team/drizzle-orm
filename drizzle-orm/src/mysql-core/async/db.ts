@@ -29,7 +29,7 @@ import { MySqlAsyncSelectBase, type MySqlAsyncSelectBuilder } from './select.ts'
 import type { MySqlAsyncSession, MySqlAsyncTransaction } from './session.ts';
 import { MySqlAsyncUpdateBase, type MySqlAsyncUpdateHKT } from './update.ts';
 
-export class MySqlDatabase<
+export class MySqlAsyncDatabase<
 	TQueryResult extends MySqlQueryResultHKT,
 	TRelations extends AnyRelations = EmptyRelations,
 > {
@@ -62,7 +62,7 @@ export class MySqlDatabase<
 		};
 		this.query = {} as typeof this['query'];
 		for (const [tableName, relation] of Object.entries(relations)) {
-			(this.query as MySqlDatabase<
+			(this.query as MySqlAsyncDatabase<
 				TQueryResult,
 				AnyRelations
 			>['query'])[
@@ -493,7 +493,7 @@ export type MySQLWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
 export const withReplicas = <
 	HKT extends MySqlQueryResultHKT,
 	TRelations extends AnyRelations,
-	Q extends MySqlDatabase<HKT, TRelations>,
+	Q extends MySqlAsyncDatabase<HKT, TRelations>,
 >(
 	primary: Q,
 	replicas: [Q, ...Q[]],

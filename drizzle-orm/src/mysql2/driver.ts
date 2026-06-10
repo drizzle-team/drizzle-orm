@@ -4,7 +4,7 @@ import type { Cache } from '~/cache/core/index.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { MySqlDatabase } from '~/mysql-core/async/db.ts';
+import { MySqlAsyncDatabase } from '~/mysql-core/async/db.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { DrizzleMySqlConfig } from '~/mysql-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -17,11 +17,11 @@ export interface MySqlDriverOptions {
 	cache?: Cache;
 	useJitMappers?: boolean;
 }
-export { MySqlDatabase } from '~/mysql-core/async/db.ts';
+export { MySqlAsyncDatabase as MySqlDatabase } from '~/mysql-core/async/db.ts';
 
 export class MySql2Database<
 	TRelations extends AnyRelations = EmptyRelations,
-> extends MySqlDatabase<MySql2QueryResultHKT, TRelations> {
+> extends MySqlAsyncDatabase<MySql2QueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'MySql2Database';
 }
 function construct<

@@ -18,7 +18,7 @@ import {
 	MySqlSession,
 	type MySqlTransactionConfig,
 } from '../session.ts';
-import { MySqlDatabase } from './db.ts';
+import { MySqlAsyncDatabase } from './db.ts';
 
 export class MySqlAsyncPreparedQuery<T extends MySqlPreparedQueryConfig> extends MySqlBasePreparedQuery {
 	static override readonly [entityKind]: string = 'MySqlAsyncPreparedQuery';
@@ -241,7 +241,7 @@ export abstract class MySqlAsyncSession<
 export abstract class MySqlAsyncTransaction<
 	TQueryResult extends MySqlQueryResultHKT,
 	TRelations extends AnyRelations = EmptyRelations,
-> extends MySqlDatabase<TQueryResult, TRelations> {
+> extends MySqlAsyncDatabase<TQueryResult, TRelations> {
 	static override readonly [entityKind]: string = 'MySqlAsyncTransaction';
 
 	constructor(
@@ -267,7 +267,7 @@ export abstract class MySqlAsyncTransaction<
 
 export async function migrate(
 	migrations: MigrationMeta[],
-	db: MySqlDatabase<MySqlQueryResultHKT, any>,
+	db: MySqlAsyncDatabase<MySqlQueryResultHKT, any>,
 	config: Omit<MigrationConfig, 'migrationsSchema'>,
 ): Promise<void | MigratorInitFailResponse> {
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';

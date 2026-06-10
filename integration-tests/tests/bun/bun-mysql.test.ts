@@ -61,7 +61,7 @@ import {
 	intersectAll,
 	json,
 	mediumint,
-	type MySqlDatabase,
+	type MySqlAsyncDatabase,
 	mysqlEnum,
 	mysqlSchema,
 	mysqlTable,
@@ -440,7 +440,7 @@ describe('common', () => {
 		`);
 	});
 
-	async function setupReturningFunctionsTest(db: MySqlDatabase<any, any>) {
+	async function setupReturningFunctionsTest(db: MySqlAsyncDatabase<any, any>) {
 		await db.execute(sql`drop table if exists \`users_default_fn\``);
 		await db.execute(
 			sql`
@@ -452,7 +452,7 @@ describe('common', () => {
 		);
 	}
 
-	async function setupSetOperationTest(db: MySqlDatabase<any, any>) {
+	async function setupSetOperationTest(db: MySqlAsyncDatabase<any, any>) {
 		await db.execute(sql`drop table if exists \`users2\``);
 		await db.execute(sql`drop table if exists \`cities\``);
 
@@ -493,7 +493,7 @@ describe('common', () => {
 		]);
 	}
 
-	async function setupAggregateFunctionsTest(db: MySqlDatabase<any, any>) {
+	async function setupAggregateFunctionsTest(db: MySqlAsyncDatabase<any, any>) {
 		await db.execute(sql`drop table if exists \`aggregate_table\``);
 		await db.execute(
 			sql`
@@ -5875,8 +5875,8 @@ export class TestCache extends TestGlobalCache {
 declare module 'vitest' {
 	interface TestContext {
 		cachedMySQL: {
-			db: MySqlDatabase<any, any>;
-			dbGlobalCached: MySqlDatabase<any, any>;
+			db: MySqlAsyncDatabase<any, any>;
+			dbGlobalCached: MySqlAsyncDatabase<any, any>;
 		};
 	}
 }

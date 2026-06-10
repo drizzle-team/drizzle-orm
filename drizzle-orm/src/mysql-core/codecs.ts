@@ -131,23 +131,18 @@ export function resolveMySqlTypeAlias(type: string) {
 
 export type MySqlCodecs = Codecs<MySqlType>;
 
-export const castToText: CastCodec = (name) => sql`cast (${name} as text)`;
+export const castToText: CastCodec = (name) => sql`cast (${name} as char)`;
 
-export const textToDate = (v: string): Date => new Date(v);
 export const textToDateWithTz = (v: string): Date => new Date(v + '+0000');
-
-export const parseMySqlVector = (v: string): number[] => {
-	const body = v.slice(1, -1);
-	if (body.length === 0) return [];
-	return body.split(',').map(Number.parseFloat);
-};
 
 export const genericMySqlCodecs = {
 	bigint: {
 		castInJson: castToText,
+		normalizeInJson: BigInt,
 	},
 	'bigint:number': {
 		castInJson: castToText,
+		normalizeInJson: Number,
 	},
 	'bigint:string': {
 		castInJson: castToText,
@@ -157,12 +152,14 @@ export const genericMySqlCodecs = {
 	},
 	timestamp: {
 		castInJson: castToText,
+		normalizeInJson: textToDateWithTz,
 	},
 	'timestamp:string': {
 		castInJson: castToText,
 	},
 	datetime: {
 		castInJson: castToText,
+		normalizeInJson: (value: string) => new Date(value.replace(' ', 'T') + 'Z'),
 	},
 	'datetime:string': {
 		castInJson: castToText,
@@ -172,9 +169,11 @@ export const genericMySqlCodecs = {
 	},
 	'decimal:number': {
 		castInJson: castToText,
+		normalizeInJson: Number,
 	},
 	'decimal:bigint': {
 		castInJson: castToText,
+		normalizeInJson: BigInt,
 	},
 	binary: {
 		castInJson: castToText,
@@ -184,27 +183,35 @@ export const genericMySqlCodecs = {
 	},
 	tinyblob: {
 		castInJson: (name) => sql`to_base64(${name})`,
+		normalizeInJson: atob,
 	},
 	'tinyblob:buffer': {
 		castInJson: (name) => sql`to_base64(${name})`,
+		normalizeInJson: (value: string) => Buffer.from(value, 'base64'),
 	},
 	blob: {
 		castInJson: (name) => sql`to_base64(${name})`,
+		normalizeInJson: atob,
 	},
 	'blob:buffer': {
 		castInJson: (name) => sql`to_base64(${name})`,
+		normalizeInJson: (value: string) => Buffer.from(value, 'base64'),
 	},
 	mediumblob: {
 		castInJson: (name) => sql`to_base64(${name})`,
+		normalizeInJson: atob,
 	},
 	'mediumblob:buffer': {
 		castInJson: (name) => sql`to_base64(${name})`,
+		normalizeInJson: (value: string) => Buffer.from(value, 'base64'),
 	},
 	longblob: {
 		castInJson: (name) => sql`to_base64(${name})`,
+		normalizeInJson: atob,
 	},
 	'longblob:buffer': {
 		castInJson: (name) => sql`to_base64(${name})`,
+		normalizeInJson: (value: string) => Buffer.from(value, 'base64'),
 	},
 } as const satisfies MySqlCodecs;
 
