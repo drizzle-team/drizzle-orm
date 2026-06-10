@@ -1,5 +1,3 @@
-import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/cockroach/drizzle';
-import { prepareOutFolder } from 'src/utils/utils-node';
 import type {
 	CheckConstraint,
 	CockroachEntities,
@@ -15,57 +13,83 @@ import type {
 } from '../../dialects/cockroach/ddl';
 import { createDDL, interimToDDL } from '../../dialects/cockroach/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/cockroach/diff';
+import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/cockroach/drizzle';
 import { prepareSnapshot } from '../../dialects/cockroach/serializer';
+import { prepareOutFolder } from '../../utils/utils-node';
+import { outputFormat } from '../context';
+import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
-import { cockroachSchemaError, cockroachSchemaWarning } from '../views';
+import { cockroachSchemaError, cockroachSchemaWarning, explain, explainJsonOutput, humanLog } from '../views';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
 	const { out: outFolder, filenames } = config;
+	const json = outputFormat() === 'json';
 
 	const { snapshots } = prepareOutFolder(outFolder);
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, filenames);
 	if (config.custom) {
-		writeResult({
+		return writeResult({
 			snapshot: custom,
 			sqlStatements: [],
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
+			dialect: 'cockroach',
 			type: 'custom',
 			renames: [],
 			snapshots,
 		});
-		return;
 	}
 
-	const { sqlStatements, renames } = await ddlDiff(
+	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<Schema>('schema'),
-		resolver<Enum>('enum'),
-		resolver<Sequence>('sequence'),
-		resolver<Policy>('policy'),
-		resolver<CockroachEntities['tables']>('table'),
-		resolver<Column>('column'),
-		resolver<View>('view'),
-		resolver<Index>('index'),
-		resolver<CheckConstraint>('check'),
-		resolver<PrimaryKey>('primary key'),
-		resolver<ForeignKey>('foreign key'),
+		resolver<Schema>('schema', 'public', config.hints),
+		resolver<Enum>('enum', 'public', config.hints),
+		resolver<Sequence>('sequence', 'public', config.hints),
+		resolver<Policy>('policy', 'public', config.hints),
+		resolver<CockroachEntities['tables']>('table', 'public', config.hints),
+		resolver<Column>('column', 'public', config.hints),
+		resolver<View>('view', 'public', config.hints),
+		resolver<Index>('index', 'public', config.hints),
+		resolver<CheckConstraint>('check', 'public', config.hints),
+		resolver<PrimaryKey>('primary_key', 'public', config.hints),
+		resolver<ForeignKey>('foreign key', 'public', config.hints),
 		'default',
 	);
 
-	writeResult({
-		snapshot: snapshot,
-		sqlStatements,
-		outFolder,
-		name: config.name,
-		breakpoints: config.breakpoints,
-		renames,
-		snapshots,
-	});
+	if (config.hints.hasMissingHints()) {
+		return config.hints.toResponse();
+	}
+
+	if (!config.explain) {
+		return writeResult({
+			snapshot: snapshot,
+			sqlStatements,
+			outFolder,
+			name: config.name,
+			breakpoints: config.breakpoints,
+			dialect: 'cockroach',
+			renames,
+			snapshots,
+		});
+	}
+
+	if (json) {
+		if (sqlStatements.length === 0) {
+			return { status: 'no_changes' as const, dialect: 'cockroach' };
+		}
+		return explainJsonOutput('cockroach', statements, []);
+	}
+
+	const explainMessage = explain('cockroach', groupedStatements, []);
+	if (explainMessage) {
+		humanLog(explainMessage);
+	}
+
+	return { status: 'ok' as const, dialect: 'cockroach' };
 };
 
 export const handleExport = async (config: ExportConfig) => {
@@ -80,15 +104,19 @@ export const handleExport = async (config: ExportConfig) => {
 	}
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => cockroachSchemaError(it)).join('\n'));
-		process.exit(1);
+		throw new CommandOutputCliError('generate', errors.map((it) => cockroachSchemaError(it)).join('\n'), {
+			stage: 'schema',
+			dialect: 'cockroach',
+		});
 	}
 
 	const { ddl, errors: errors2 } = interimToDDL(schema);
 
 	if (errors2.length > 0) {
-		console.log(errors2.map((it) => cockroachSchemaError(it)).join('\n'));
-		process.exit(1);
+		throw new CommandOutputCliError('generate', errors2.map((it) => cockroachSchemaError(it)).join('\n'), {
+			stage: 'ddl',
+			dialect: 'cockroach',
+		});
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');

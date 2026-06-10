@@ -10,7 +10,7 @@ import {
 	SQLiteTimestamp,
 	SQLiteView,
 } from 'drizzle-orm/sqlite-core';
-import { loadModule } from 'src/utils/utils-node';
+import { loadModule } from '../../utils/utils-node';
 import { sqlToStr } from '../drizzle';
 import type {
 	CheckConstraint,

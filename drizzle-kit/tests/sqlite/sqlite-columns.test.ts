@@ -699,7 +699,7 @@ test('drop autoincrement. drop column with data', async (t) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 
-	expect(phints[0].hint).toStrictEqual("· You're about to drop 'name' column(s) in a non-empty 'companies' table");
+	expect(phints[0].hint).toStrictEqual("You're about to drop 'name' column(s) in a non-empty 'companies' table");
 });
 
 test('drop autoincrement. drop column with data with pragma off', async (t) => {
@@ -752,7 +752,7 @@ test('drop autoincrement. drop column with data with pragma off', async (t) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 
-	expect(phints[0].hint).toStrictEqual("· You're about to drop 'name' column(s) in a non-empty 'companies' table");
+	expect(phints[0].hint).toStrictEqual("You're about to drop 'name' column(s) in a non-empty 'companies' table");
 });
 
 test('change autoincrement. other table references current', async (t) => {

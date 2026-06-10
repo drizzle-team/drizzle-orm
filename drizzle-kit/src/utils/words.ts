@@ -1,4 +1,4 @@
-import { prepareSnapshotFolderName } from 'src/cli/commands/generate-common';
+import { prepareSnapshotFolderName } from '../cli/commands/generate-common';
 
 export const prepareMigrationMetadata = (
 	name?: string,
