@@ -1,7 +1,6 @@
 <div align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="./misc/readme/logo-github-sq-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="./misc/readme/logo-github-sq-light.svg">
     <img alt="Drizzle ORM" src="./misc/readme/logo-github-sq-light.svg">
   </picture>
   <br/>
