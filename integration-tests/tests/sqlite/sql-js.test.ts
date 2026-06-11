@@ -13,7 +13,7 @@ test('migrator', async ({ db }) => {
 	db.run(sql`drop table if exists users12`);
 	db.run(sql`drop table if exists __drizzle_migrations`);
 
-	migrate(db as SQLJsDatabase<never, typeof relations>, { migrationsFolder: './drizzle2/sqlite' });
+	migrate(db as SQLJsDatabase<typeof relations>, { migrationsFolder: './drizzle2/sqlite' });
 
 	db.insert(usersMigratorTable).values({ name: 'John', email: 'email' }).run();
 	const result = db.select().from(usersMigratorTable).all();
@@ -36,7 +36,7 @@ test('migrator : --init', async ({ db }) => {
 	await db.run(sql`drop table if exists ${usersMigratorTable}`);
 	await db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
 
-	const migratorRes = migrate(db as SQLJsDatabase<never, typeof relations>, {
+	const migratorRes = migrate(db as SQLJsDatabase<typeof relations>, {
 		migrationsFolder: './drizzle2/sqlite',
 
 		migrationsTable,
@@ -67,7 +67,7 @@ test('migrator : --init - local migrations error', async ({ db }) => {
 	await db.run(sql`drop table if exists ${usersMigratorTable}`);
 	await db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
 
-	const migratorRes = migrate(db as SQLJsDatabase<never, typeof relations>, {
+	const migratorRes = migrate(db as SQLJsDatabase<typeof relations>, {
 		migrationsFolder: './drizzle2/sqlite-init',
 
 		migrationsTable,
@@ -98,12 +98,12 @@ test('migrator : --init - db migrations error', async ({ db }) => {
 	await db.run(sql`drop table if exists ${usersMigratorTable}`);
 	await db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
 
-	migrate(db as SQLJsDatabase<never, typeof relations>, {
+	migrate(db as SQLJsDatabase<typeof relations>, {
 		migrationsFolder: './drizzle2/sqlite',
 		migrationsTable,
 	});
 
-	const migratorRes = migrate(db as SQLJsDatabase<never, typeof relations>, {
+	const migratorRes = migrate(db as SQLJsDatabase<typeof relations>, {
 		migrationsFolder: './drizzle2/sqlite-init',
 
 		migrationsTable,
@@ -163,7 +163,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 		`ALTER TABLE "migration_users" ADD COLUMN "age" integer;`,
 	);
 
-	await migrate(db as SQLJsDatabase<never, typeof relations>, { migrationsFolder: migrationDir });
+	await migrate(db as SQLJsDatabase<typeof relations>, { migrationsFolder: migrationDir });
 	const res1 = await db.insert(users).values({ name: 'John', email: '', age: 30 }).returning();
 
 	// second migration was not applied yet
@@ -175,7 +175,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 		`${migrationDir}/20240202020202_second/migration.sql`,
 		`CREATE TABLE "migration_users2" (\n"id" integer PRIMARY KEY NOT NULL,\n"name" text NOT NULL,\n"email" text NOT NULL\n,"age" integer\n);`,
 	);
-	await migrate(db as SQLJsDatabase<never, typeof relations>, { migrationsFolder: migrationDir });
+	await migrate(db as SQLJsDatabase<typeof relations>, { migrationsFolder: migrationDir });
 
 	const res2 = await db.insert(users2).values({ name: 'John', email: '', age: 30 }).returning();
 

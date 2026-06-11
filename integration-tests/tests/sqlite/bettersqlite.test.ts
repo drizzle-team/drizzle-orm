@@ -20,7 +20,7 @@ import {
 
 const ENABLE_LOGGING = false;
 
-let db: BetterSQLite3Database<never, typeof relations>;
+let db: BetterSQLite3Database<typeof relations>;
 
 beforeAll(() => {
 	const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';

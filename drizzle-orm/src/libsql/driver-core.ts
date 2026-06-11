@@ -1,26 +1,21 @@
-import type { Client, ResultSet } from '@libsql/client';
-import * as V1 from '~/_relations.ts';
+import type { Client } from '@libsql/client';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
-import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
-import { LibSQLSession } from './session.ts';
+import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
+import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
+import { jitCompatCheck } from '~/utils.ts';
+import { type LibSQLRunResult, LibSQLSession } from './session.ts';
 
-export class LibSQLDatabase<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
-> extends BaseSQLiteDatabase<'async', ResultSet, TSchema, TRelations> {
+export class LibSQLDatabase<TRelations extends AnyRelations = EmptyRelations>
+	extends SQLiteAsyncDatabase<'async', LibSQLRunResult, TRelations>
+{
 	static override readonly [entityKind]: string = 'LibSQLDatabase';
 
 	/** @internal */
-	declare readonly session: LibSQLSession<
-		TSchema,
-		TRelations,
-		V1.ExtractTablesWithRelations<TSchema>
-	>;
+	declare readonly session: LibSQLSession<TRelations>;
 
 	async batch<U extends BatchItem<'sqlite'>, T extends Readonly<[U, ...U[]]>>(
 		batch: T,
@@ -30,16 +25,15 @@ export class LibSQLDatabase<
 }
 
 /** @internal */
-export function construct<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
->(
+export function construct<TRelations extends AnyRelations = EmptyRelations>(
 	client: Client,
-	config: DrizzleConfig<TSchema, TRelations> = {},
-): LibSQLDatabase<TSchema, TRelations> & {
+	config: DrizzleSQLiteConfig<TRelations> = {},
+): LibSQLDatabase<TRelations> & {
 	$client: Client;
 } {
-	const dialect = new SQLiteAsyncDialect();
+	const dialect = new SQLiteDialect({
+		useJitMappers: jitCompatCheck(config.jit),
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -47,36 +41,12 @@ export function construct<
 		logger = config.logger;
 	}
 
-	let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;
-	if (config.schema) {
-		const tablesConfig = V1.extractTablesRelationalConfig(
-			config.schema,
-			V1.createTableRelationsHelpers,
-		);
-		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
-			tableNamesMap: tablesConfig.tableNamesMap,
-		};
-	}
-
 	const relations = config.relations ?? {} as TRelations;
-	const session = new LibSQLSession(client, dialect, relations, schema, {
+	const session = new LibSQLSession(client, dialect, relations, {
 		logger,
 		cache: config.cache,
-		useJitMappers: jitCompatCheck(config.jit),
 	}, undefined);
-	const db = new LibSQLDatabase(
-		'async',
-		dialect,
-		session as LibSQLSession<
-			TSchema,
-			TRelations,
-			V1.ExtractTablesWithRelations<TSchema>
-		>,
-		relations,
-		schema as V1.RelationalSchemaConfig<any>,
-	) as LibSQLDatabase<TSchema, TRelations>;
+	const db = new LibSQLDatabase('async', dialect, session as LibSQLSession<TRelations>, relations);
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {

@@ -1,0 +1,78 @@
+import { expectTypeOf, test } from 'vitest';
+import type { GenerateOptions, PushOptions } from '../../src/cli/contract';
+import type { Hint } from '../../src/cli/hints';
+import { defineConfig, generate, push } from '../../src/index';
+import type { Config } from '../../src/index';
+
+type GenerateResponse = Awaited<ReturnType<typeof generate>>;
+type PushResponse = Awaited<ReturnType<typeof push>>;
+type Unresolved = Extract<GenerateResponse, { status: 'missing_hints' }>['unresolved'][number];
+
+declare const generateResponse: GenerateResponse;
+declare const pushResponse: PushResponse;
+declare function resolveHint(item: Unresolved): Hint;
+declare const config: Config;
+
+// Compiled (so the snippets are type-checked) but never invoked at runtime, since
+// the ambient `declare`d values above have no runtime representation.
+function _generateNarrowing() {
+	if (generateResponse.status === 'ok') {
+		if ('migration_path' in generateResponse) {
+			expectTypeOf(generateResponse.migration_path).toEqualTypeOf<string>();
+		}
+	} else if (generateResponse.status === 'no_changes') {
+		expectTypeOf(generateResponse.dialect).toExtend<string | undefined>();
+	} else if (generateResponse.status === 'error') {
+		expectTypeOf(generateResponse.error.code).toBeString();
+	} else if (generateResponse.status === 'missing_hints') {
+		expectTypeOf(generateResponse.unresolved).toEqualTypeOf<readonly Unresolved[]>();
+	}
+}
+
+function _pushNarrowing() {
+	if (pushResponse.status === 'ok') {
+		expectTypeOf(pushResponse.dialect).toExtend<string | undefined>();
+	} else if (pushResponse.status === 'no_changes') {
+		expectTypeOf(pushResponse.dialect).toExtend<string | undefined>();
+	} else if (pushResponse.status === 'error') {
+		expectTypeOf(pushResponse.error.code).toBeString();
+	}
+}
+
+async function _generateWithHints(): Promise<GenerateResponse> {
+	const baseOptions: GenerateOptions = {
+		dialect: 'postgresql',
+		schema: './src/db/schema.ts',
+		out: './drizzle',
+	};
+
+	const first: GenerateResponse = await generate(baseOptions);
+	if (first.status !== 'missing_hints') return first;
+
+	const hints = first.unresolved.map((item) => resolveHint(item));
+	expectTypeOf(hints).toEqualTypeOf<Hint[]>();
+
+	return generate({
+		...baseOptions,
+		hints,
+	});
+}
+
+function _defineConfigSnippet() {
+	const _config = defineConfig(config);
+	return _config;
+}
+
+test('generate/push responses narrow on their status discriminator', () => {
+	expectTypeOf(_generateNarrowing).toBeFunction();
+	expectTypeOf(_pushNarrowing).toBeFunction();
+});
+
+test('generateWithHints re-invokes generate with a raw Hint[]', () => {
+	expectTypeOf(_generateWithHints).returns.resolves.toEqualTypeOf<GenerateResponse>();
+});
+
+test('defineConfig accepts a Config and push options stay typed', () => {
+	expectTypeOf(_defineConfigSnippet).returns.not.toBeNever();
+	expectTypeOf<PushOptions>().toExtend<{ dialect?: unknown }>();
+});

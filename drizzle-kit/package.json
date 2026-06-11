@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-kit",
-	"version": "1.0.0-rc.3",
+	"version": "1.0.0-rc.4",
 	"homepage": "https://orm.drizzle.team",
 	"keywords": [
 		"drizzle",
@@ -17,7 +17,10 @@
 		"ts",
 		"drizzle-kit",
 		"migrations",
-		"schema"
+		"schema",
+		"tanstack-intent",
+		"skills",
+		"agent-skills"
 	],
 	"publishConfig": {
 		"provenance": true
@@ -49,10 +52,11 @@
 		"test:other": "vitest run ./mysql/ ./sqlite/ ./other",
 		"test:cockroach": "vitest run ./cockroach",
 		"test:mssql": "vitest run ./mssql",
-		"test:singlestore": "vitest run ./singlestore"
+		"test:singlestore": "vitest run ./singlestore",
+		"skills:revision:check": "tsx scripts/check-skills-revision.ts"
 	},
 	"dependencies": {
-		"@drizzle-team/brocli": "^0.11.0",
+		"@drizzle-team/brocli": "^0.12.0",
 		"@js-temporal/polyfill": "^0.5.1",
 		"esbuild": "^0.25.10",
 		"get-tsconfig": "^4.13.6",
@@ -63,7 +67,7 @@
 		"@cloudflare/workers-types": "^4.20230518.0",
 		"@duckdb/node-api": "1.5.0-r.1",
 		"@effect/sql": "^0.48.5",
-		"@electric-sql/pglite": "^0.2.12",
+		"@electric-sql/pglite": "^0.4.6",
 		"@hono/node-server": "^1.9.0",
 		"@hono/zod-validator": "^0.2.1",
 		"@libsql/client": "^0.10.0",
@@ -71,7 +75,8 @@
 		"@originjs/vite-plugin-commonjs": "^1.0.3",
 		"@planetscale/database": "^1.19.0",
 		"@sqlitecloud/drivers": "^1.0.653",
-		"@tursodatabase/database": "0.2.1",
+		"@tursodatabase/database": "0.6.0-pre.28",
+		"@tursodatabase/serverless": "^1.1.3",
 		"@types/better-sqlite3": "^7.6.13",
 		"@types/bun": "^1.3.2",
 		"@types/dockerode": "^3.3.28",

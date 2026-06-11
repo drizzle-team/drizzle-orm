@@ -234,7 +234,15 @@ export class CockroachArrayBuilder<
 
 	constructor(
 		name: string,
-		baseBuilder: CockroachArrayBuilder<T, TBase>['config']['baseBuilder'],
+		// CockroachArrayBuilder<T, TBase>['config']['baseBuilder'] - removed - 'config' is internal property, do not reference directly in types
+		baseBuilder: TBase extends CockroachArrayColumnBuilderBaseConfig ? CockroachArrayBuilder<
+				TBase,
+				TBase extends {
+					baseBuilder: infer TBaseBuilder extends ColumnBuilderBaseConfig<any>;
+				} ? TBaseBuilder
+					: never
+			>
+			: CockroachColumnWithArrayBuilder<TBase, {}>,
 		length: number | undefined,
 	) {
 		super(name, 'array basecolumn', 'CockroachArray');

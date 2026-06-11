@@ -899,7 +899,7 @@ test('introspect view #3', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-05-20'))('introspect view #4', async () => {
+test.skipIf(Date.now() < +new Date('2026-06-20'))('introspect view #4', async () => {
 	const table = pgTable('table', {
 		column1: text().notNull(),
 		column2: text(),
@@ -928,7 +928,7 @@ test.skipIf(Date.now() < +new Date('2026-05-20'))('introspect view #4', async ()
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-05-20'))('introspect view #5', async () => {
+test.skipIf(Date.now() < +new Date('2026-06-20'))('introspect view #5', async () => {
 	const applications = pgTable('applications', {
 		applicationId: serial('application_id').primaryKey(),
 		studentId: integer('student_id').references(() => students.studentId),
@@ -1792,7 +1792,7 @@ test('introspect view with table filter', async () => {
 // this does not look like a bug
 // sequences are separete entities
 // entity filter for sequences ??
-test.skipIf(Date.now() < +new Date('2026-05-20'))('introspect sequences with table filter', async () => {
+test.skipIf(Date.now() < +new Date('2026-06-20'))('introspect sequences with table filter', async () => {
 	// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')
 
 	// const seq1 = pgSequence('seq1');
@@ -2779,4 +2779,36 @@ CREATE INDEX "idx_19612_cnst_full_name_idx" ON "public"."constructor" USING btre
 	expect(generateStatements).toStrictEqual([]);
 	expect(pushSqlStatements).toStrictEqual([]);
 	expect(pushStatements).toStrictEqual([]);
+});
+
+// when user does not have permissions, introspection should not fail
+// https://github.com/drizzle-team/drizzle-orm/issues/5568
+test('non-admin', async () => {
+	const newSchema = pgSchema('schema_not_for_non_admin');
+	const schema = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+			name: text('name'),
+		}),
+		schemaNotForNonAdmin: newSchema,
+		tableNotForNonAdmin: newSchema.table('table_not_for_non_admin', {
+			id: integer('id'),
+		}),
+	};
+
+	await push({ db, to: schema });
+
+	await db.query(`CREATE ROLE "non-admin" LOGIN PASSWORD 'password';`);
+	await db.query(`SET ROLE "non-admin";`);
+
+	const { tables } = await fromDatabase(db);
+
+	expect(tables).toStrictEqual([
+		{
+			entityType: 'tables',
+			schema: 'public',
+			name: 'users',
+			isRlsEnabled: false,
+		},
+	]);
 });

@@ -5,12 +5,12 @@ import {
 	getTableConfig,
 	getViewConfig,
 	SQLiteBaseInteger,
-	SQLiteSyncDialect,
+	SQLiteDialect,
 	SQLiteTable,
 	SQLiteTimestamp,
 	SQLiteView,
 } from 'drizzle-orm/sqlite-core';
-import { loadModule } from 'src/utils/utils-node';
+import { loadModule } from '../../utils/utils-node';
 import { sqlToStr } from '../drizzle';
 import type {
 	CheckConstraint,
@@ -30,7 +30,7 @@ export const fromDrizzleSchema = (
 	dTables: AnySQLiteTable[],
 	dViews: SQLiteView[],
 ): InterimSchema => {
-	const dialect = new SQLiteSyncDialect();
+	const dialect = new SQLiteDialect();
 	const tableConfigs = dTables.map((it) => ({ table: it, config: getTableConfig(it) }));
 	const tables: Table[] = tableConfigs.map((it) => {
 		return {

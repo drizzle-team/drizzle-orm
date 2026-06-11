@@ -3,9 +3,6 @@ import { writeFileSync } from 'fs';
 import type { TaskView } from 'hanji';
 import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
-import { toJsonSnapshot } from 'src/dialects/postgres/snapshot';
-import type { EntityFilter } from 'src/dialects/pull-utils';
-import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import type {
 	CheckConstraint,
 	Column,
@@ -25,7 +22,10 @@ import type {
 import { createDDL, interimToDDL, postgresToRelationsPull } from '../../dialects/postgres/ddl';
 import { ddlDiff } from '../../dialects/postgres/diff';
 import { fromDatabaseForDrizzle } from '../../dialects/postgres/introspect';
+import { toJsonSnapshot } from '../../dialects/postgres/snapshot';
 import { ddlToTypeScript as postgresSchemaToTypeScript } from '../../dialects/postgres/typescript';
+import type { EntityFilter } from '../../dialects/pull-utils';
+import { prepareEntityFilter } from '../../dialects/pull-utils';
 import { originUUID } from '../../utils';
 import type { DB } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
@@ -107,7 +107,7 @@ export const handle = async (
 			resolver<UniqueConstraint>('unique'),
 			resolver<Index>('index'),
 			resolver<CheckConstraint>('check'),
-			resolver<PrimaryKey>('primary key'),
+			resolver<PrimaryKey>('primary_key'),
 			resolver<ForeignKey>('foreign key'),
 			'push',
 		);

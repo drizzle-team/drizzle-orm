@@ -1,11 +1,8 @@
 import 'dotenv/config';
-import Docker from 'dockerode';
 import { DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import getPort from 'get-port';
 import postgres from 'postgres';
-import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 import relations from './pg.relations';
 import * as schema from './pg.schema';
@@ -31,51 +28,21 @@ const {
 
 declare module 'vitest' {
 	export interface TestContext {
-		docker: Docker;
-		pgContainer: Docker.Container;
 		pgjsDbV2: PostgresJsDatabase<typeof relations>;
 		pgjsClient: postgres.Sql<{}>;
 	}
 }
 
-let globalDocker: Docker;
-let pgContainer: Docker.Container;
 let db: PostgresJsDatabase<typeof relations>;
 let client: postgres.Sql<{}>;
 
-async function createDockerDB(): Promise<string> {
-	const docker = (globalDocker = new Docker());
-	const port = await getPort({ port: 5432 });
-	const image = 'postgres:14';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => err ? reject(err) : resolve(err))
-	);
-
-	pgContainer = await docker.createContainer({
-		Image: image,
-		Env: [
-			'POSTGRES_PASSWORD=postgres',
-			'POSTGRES_USER=postgres',
-			'POSTGRES_DB=postgres',
-		],
-		name: `drizzle-integration-tests-${uuid()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'5432/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await pgContainer.start();
-
-	return `postgres://postgres:postgres@localhost:${port}/postgres`;
-}
-
 beforeAll(async () => {
-	const connectionString = process.env['PG_CONNECTION_STRING'] ?? (await createDockerDB());
+	const connectionString = process.env['PG_CONNECTION_STRING'];
+	if (!connectionString) {
+		throw new Error(
+			'PG_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up postgres` and export the connection string before running tests.',
+		);
+	}
 
 	const sleep = 250;
 	let timeLeft = 5000;
@@ -101,7 +68,6 @@ beforeAll(async () => {
 	if (!connected) {
 		console.error('Cannot connect to Postgres');
 		await client?.end().catch(console.error);
-		await pgContainer?.stop().catch(console.error);
 		throw lastError;
 	}
 	db = drizzle({ client, relations, logger: ENABLE_LOGGING });
@@ -109,14 +75,11 @@ beforeAll(async () => {
 
 afterAll(async () => {
 	await client?.end().catch(console.error);
-	await pgContainer?.stop().catch(console.error);
 });
 
 beforeEach(async (ctx) => {
 	ctx.pgjsDbV2 = db;
 	ctx.pgjsClient = client;
-	ctx.docker = globalDocker;
-	ctx.pgContainer = pgContainer;
 
 	await ctx.pgjsDbV2.execute(sql`drop schema public cascade`);
 	await ctx.pgjsDbV2.execute(sql`drop schema if exists rqb_test_schema cascade`);

@@ -1,6 +1,4 @@
-import { fromDatabase as afd } from 'src/dialects/postgres/aws-introspect';
-import { fromDatabase as dfd } from 'src/dialects/postgres/duckdb-introspect';
-import { fromDatabase as fd } from 'src/dialects/postgres/introspect';
+import { fromDatabase as afd } from '../dialects/postgres/aws-introspect';
 import type {
 	CheckConstraint,
 	Column,
@@ -22,6 +20,8 @@ import type {
 } from '../dialects/postgres/ddl';
 import { interimToDDL } from '../dialects/postgres/ddl';
 import { ddlDiff } from '../dialects/postgres/diff';
+import { fromDatabase as dfd } from '../dialects/postgres/duckdb-introspect';
+import { fromDatabase as fd } from '../dialects/postgres/introspect';
 import { mockResolver } from '../utils/mocks';
 
 export type Interim<T> = Omit<T, 'entityType'>;

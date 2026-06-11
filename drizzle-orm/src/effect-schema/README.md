@@ -9,15 +9,15 @@ Allows you to generate [effect](https://effect.website/) schemas from Drizzle OR
 # Usage
 
 ```ts
-import { pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/effect-schema';
-import { Schema } from 'effect';
+import { Effect, Schema } from "effect";
 
 const users = pgTable('users', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	email: text('email').notNull(),
-	role: text('role', { enum: ['admin', 'user'] }).notNull(),
+	id: serial().primaryKey(),
+	name: text().notNull(),
+	email: text().notNull(),
+	role: text({ enum: ['admin', 'user'] }).notNull(),
 	createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
@@ -37,16 +37,16 @@ const UserInsert = createInsertSchema(users, {
 
 // Refining the fields - useful if you want to change the fields before they become nullable/optional in the final schema
 const UserInsert = createInsertSchema(users, {
-	id: (schema) => schema.pipe(Schema.greaterThanOrEqualTo(0)),
+	id: (schema) => schema.check(Schema.isGreaterThanOrEqualTo(0)),
 	role: Schema.String,
 });
 
 // Usage
-
 const program = Effect.gen(function*() {
-	const parsedUser = yield* Schema.validate(UserInsert)({
+	const parsedUser = yield* Schema.decodeUnknownEffect(UserInsert)({
 		name: 'John Doe',
 		email: 'johndoe@test.com',
 		role: 'admin',
 	});
 });
+```

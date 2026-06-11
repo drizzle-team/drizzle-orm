@@ -1,30 +1,28 @@
-import type { SQLiteDatabase, SQLiteRunResult } from 'expo-sqlite';
-import * as V1 from '~/_relations.ts';
+import type { SQLiteDatabase } from 'expo-sqlite';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
-import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
-import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
-import { ExpoSQLiteSession } from './session.ts';
+import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
+import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
+import { jitCompatCheck } from '~/utils.ts';
+import { type ExpoSQLiteRunResult, ExpoSQLiteSession } from './session.ts';
 
-export class ExpoSQLiteDatabase<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
-> extends BaseSQLiteDatabase<'sync', SQLiteRunResult, TSchema, TRelations> {
+export class ExpoSQLiteDatabase<TRelations extends AnyRelations = EmptyRelations>
+	extends SQLiteAsyncDatabase<'sync', ExpoSQLiteRunResult, TRelations>
+{
 	static override readonly [entityKind]: string = 'ExpoSQLiteDatabase';
 }
 
-export function drizzle<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
->(
+export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	client: SQLiteDatabase,
-	config: DrizzleConfig<TSchema, TRelations> = {},
-): ExpoSQLiteDatabase<TSchema, TRelations> & {
+	config: DrizzleSQLiteConfig<TRelations> = {},
+): ExpoSQLiteDatabase<TRelations> & {
 	$client: SQLiteDatabase;
 } {
-	const dialect = new SQLiteSyncDialect();
+	const dialect = new SQLiteDialect({
+		useJitMappers: jitCompatCheck(config.jit),
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -32,31 +30,16 @@ export function drizzle<
 		logger = config.logger;
 	}
 
-	let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;
-	if (config.schema) {
-		const tablesConfig = V1.extractTablesRelationalConfig(
-			config.schema,
-			V1.createTableRelationsHelpers,
-		);
-		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
-			tableNamesMap: tablesConfig.tableNamesMap,
-		};
-	}
-
 	const relations = config.relations ?? {} as TRelations;
-	const session = new ExpoSQLiteSession(client, dialect, relations, schema, {
+	const session = new ExpoSQLiteSession(client, dialect, relations, {
 		logger,
-		useJitMappers: jitCompatCheck(config.jit),
 	});
 	const db = new ExpoSQLiteDatabase(
 		'sync',
 		dialect,
-		session as ExpoSQLiteDatabase<any, any>['session'],
+		session,
 		relations,
-		schema,
-	) as ExpoSQLiteDatabase<TSchema, TRelations>;
+	) as ExpoSQLiteDatabase<TRelations>;
 	(<any> db).$client = client;
 
 	return db as any;
