@@ -1,3 +1,4 @@
+import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
@@ -87,4 +88,38 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 	await callback(queriesToRun);
 
 	return;
+}
+
+export async function rollback<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
+	db: SqliteRemoteDatabase<TSchema, TRelations>,
+	callback: ProxyMigrator,
+	config: MigrationConfig,
+	steps: number = 1,
+) {
+	const migrations = readMigrationFiles(config);
+	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
+
+	const dbMigrations = await db.values<[number, string, string, string | null]>(
+		sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)} ORDER BY id DESC LIMIT ${sql.raw(String(steps))}`,
+	);
+
+	if (dbMigrations.length === 0) return;
+
+	const queriesToRun: string[] = [];
+	for (const dbMigration of dbMigrations) {
+		const meta = migrations.find((m) => m.hash === dbMigration[1] && (!dbMigration[3] || m.name === dbMigration[3]));
+		if (!meta) {
+			throw new DrizzleError({ message: `Cannot rollback migration with hash ${dbMigration[1]}: migration file not found` });
+		}
+		if (!meta.downSql || meta.downSql.length === 0) {
+			throw new DrizzleError({ message: `Cannot rollback migration ${dbMigration[1]}: no down SQL available.` });
+		}
+		queriesToRun.push(
+			...[...meta.downSql].reverse(),
+			db.dialect.sqlToQuery(
+				sql`delete from ${sql.identifier(migrationsTable)} where id = ${dbMigration[0]}`.inlineParams(),
+			).sql,
+		);
+	}
+	await callback(queriesToRun);
 }
