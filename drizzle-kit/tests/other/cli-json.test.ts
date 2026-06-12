@@ -2,14 +2,13 @@ import BetterSqlite3 from 'better-sqlite3';
 import { spawnSync } from 'child_process';
 import { sql } from 'drizzle-orm';
 import { check, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
+import { mkdtempSync } from 'fs';
 import { stripAnsi } from 'hanji/utils';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { HintsHandler } from '../../src/cli/hints';
 import {
-	makePgSnapshot as _makePgSnapshot,
 	ORIGIN as _ORIGIN,
 	stageConflict as _stageConflict,
 	stageOut as _stageOut,
@@ -7029,7 +7028,6 @@ test('push singlestore throws fk_target_not_unique error in json mode', async ()
 
 describe('check --output', () => {
 	const ORIGIN = _ORIGIN;
-	const makePgSnapshot = _makePgSnapshot;
 	const stageOut = _stageOut;
 	const writeSnapshot = _writeSnapshot;
 	const stageValid = _stageValid;
