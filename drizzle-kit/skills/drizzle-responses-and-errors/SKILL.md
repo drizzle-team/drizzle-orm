@@ -79,7 +79,7 @@ When fired:
 
 ## Check errors
 
-`check_error` surfaces from `drizzle-kit check`, and also from `generate` / `migrate` when their pre-flight migrations-folder gate fails. `check` itself has no SDK function, but because `generate` is a documented SDK export, an SDK `generate(...)` caller can receive a `check_error` envelope too. It exits with code 1 and carries a `kind` discriminator.
+`check_error` surfaces from the `check()` SDK export and `drizzle-kit check`, returning the envelope on integrity or conflict failures exactly as the CLI does. It also surfaces from `generate` / `migrate` when their pre-flight migrations-folder gate fails. It exits with code 1 and carries a `kind` discriminator.
 
 | meta.kind     | meta keys                | when fired                                                              |
 | ------------- | ------------------------ | ---------------------------------------------------------------------- |
