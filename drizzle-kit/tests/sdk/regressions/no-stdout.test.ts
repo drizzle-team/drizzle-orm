@@ -34,6 +34,8 @@ describe('SDK does not invoke process.stdout.write or process.exit', () => {
 		}
 	});
 
+	// mockRestore() clears mock.calls, so assertions must target the manually captured arrays,
+	// not the restored spies — `expect(spy).toHaveBeenCalledTimes(0)` after restore is vacuous.
 	test('generate (no_changes smoke) does not call process.stdout.write or process.exit', async () => {
 		const stdoutCalls: unknown[][] = [];
 		const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(
@@ -42,7 +44,12 @@ describe('SDK does not invoke process.stdout.write or process.exit', () => {
 				return true;
 			}) as unknown as typeof process.stdout.write,
 		);
-		const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((() => {}) as unknown) as never);
+		const exitCalls: unknown[] = [];
+		const exitSpy = vi.spyOn(process, 'exit').mockImplementation(
+			(((code?: unknown) => {
+				exitCalls.push(code);
+			}) as unknown) as never,
+		);
 
 		const { dir, schemaPath } = setupFixture('generate-no-stdout');
 		try {
@@ -55,13 +62,9 @@ describe('SDK does not invoke process.stdout.write or process.exit', () => {
 			expect(result).toBeDefined();
 			stdoutSpy.mockRestore();
 			exitSpy.mockRestore();
-			if (stdoutCalls.length > 0) {
-				// eslint-disable-next-line no-console
-				console.error('Unexpected stdout writes:', stdoutCalls.map((c) => String(c[0]).slice(0, 200)));
-			}
 			expect(result.status).toBe('no_changes');
-			expect(stdoutSpy).toHaveBeenCalledTimes(0);
-			expect(exitSpy).toHaveBeenCalledTimes(0);
+			expect(stdoutCalls.map((c) => String(c[0]).slice(0, 200))).toEqual([]);
+			expect(exitCalls).toEqual([]);
 		} finally {
 			rmSync(dir, { recursive: true, force: true });
 		}
@@ -75,7 +78,12 @@ describe('SDK does not invoke process.stdout.write or process.exit', () => {
 				return true;
 			}) as unknown as typeof process.stdout.write,
 		);
-		const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((() => {}) as unknown) as never);
+		const exitCalls: unknown[] = [];
+		const exitSpy = vi.spyOn(process, 'exit').mockImplementation(
+			(((code?: unknown) => {
+				exitCalls.push(code);
+			}) as unknown) as never,
+		);
 
 		try {
 			// Use a missing schema path — push surfaces a schema_files_not_found_error envelope from
@@ -89,13 +97,9 @@ describe('SDK does not invoke process.stdout.write or process.exit', () => {
 
 			stdoutSpy.mockRestore();
 			exitSpy.mockRestore();
-			if (stdoutCalls.length > 0) {
-				// eslint-disable-next-line no-console
-				console.error('Unexpected stdout writes:', stdoutCalls.map((c) => String(c[0]).slice(0, 200)));
-			}
 			expect(result.status).toBe('error');
-			expect(stdoutSpy).toHaveBeenCalledTimes(0);
-			expect(exitSpy).toHaveBeenCalledTimes(0);
+			expect(stdoutCalls.map((c) => String(c[0]).slice(0, 200))).toEqual([]);
+			expect(exitCalls).toEqual([]);
 		} catch (err) {
 			stdoutSpy.mockRestore();
 			exitSpy.mockRestore();
@@ -111,7 +115,12 @@ describe('SDK does not invoke process.stdout.write or process.exit', () => {
 				return true;
 			}) as unknown as typeof process.stdout.write,
 		);
-		const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((() => {}) as unknown) as never);
+		const exitCalls: unknown[] = [];
+		const exitSpy = vi.spyOn(process, 'exit').mockImplementation(
+			(((code?: unknown) => {
+				exitCalls.push(code);
+			}) as unknown) as never,
+		);
 
 		const out = stageValid();
 		try {
@@ -120,13 +129,9 @@ describe('SDK does not invoke process.stdout.write or process.exit', () => {
 			expect(result).toBeDefined();
 			stdoutSpy.mockRestore();
 			exitSpy.mockRestore();
-			if (stdoutCalls.length > 0) {
-				// eslint-disable-next-line no-console
-				console.error('Unexpected stdout writes:', stdoutCalls.map((c) => String(c[0]).slice(0, 200)));
-			}
 			expect(result.status).toBe('ok');
-			expect(stdoutSpy).toHaveBeenCalledTimes(0);
-			expect(exitSpy).toHaveBeenCalledTimes(0);
+			expect(stdoutCalls.map((c) => String(c[0]).slice(0, 200))).toEqual([]);
+			expect(exitCalls).toEqual([]);
 		} finally {
 			rmSync(out, { recursive: true, force: true });
 		}
