@@ -1,7 +1,7 @@
 import type { GenericBuilderInternals, Simplify } from '@drizzle-team/brocli';
 import type { Dialect } from '../utils/schemaValidator';
 import type { Hint } from './hints';
-import type { generateOptions, pushOptions } from './schema';
+import type { checkOptions, generateOptions, pushOptions } from './schema';
 
 type BrocliInputOf<TOptions extends Record<string, GenericBuilderInternals>> = Simplify<
 	{
@@ -25,3 +25,7 @@ export type GenerateOptions = Omit<GenerateOptionsInput, 'output' | 'hints'> & {
  * `hints` is a raw `Hint[]`, whereas the CLI `--hints` flag takes a JSON string.
  */
 export type PushOptions = Omit<PushOptionsInput, 'output' | 'hints'> & { hints?: Hint[] };
+
+export type CheckOptionsInput = BrocliInputOf<typeof checkOptions> & { dialect?: Dialect };
+
+export type CheckOptions = Omit<CheckOptionsInput, 'output'>;
