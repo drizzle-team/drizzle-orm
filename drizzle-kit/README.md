@@ -21,6 +21,38 @@ Under the hood the command runs the [skills](https://skills.sh) CLI against driz
 
 TanStack Intent users can still surface the same skills via `intent list` — `SKILL.md` files remain bundled in the npm tarball.
 
+### MCP server
+
+`drizzle-kit mcp` starts a Model Context Protocol server over stdio, exposing drizzle-kit's migration lifecycle as MCP tools to any MCP-capable agent (Claude Code, Cursor, and others). Launch it from the project root so config resolution defaults to the right working directory:
+
+```sh
+npx drizzle-kit mcp
+```
+
+For Claude Code, add this to your MCP client config (e.g. `.claude/mcp.json`):
+
+```json
+{ "mcpServers": { "drizzle": { "command": "npx", "args": ["drizzle-kit", "mcp"] } } }
+```
+
+**Three tools:**
+
+| Tool | Parameters | Annotations |
+|------|-----------|-------------|
+| `generate` | `config?`, `hints?`, `name?`, `custom?`, `ignoreConflicts?` | non-destructive |
+| `push` | `config?`, `hints?` | destructive |
+| `check` | `config?`, `ignoreConflicts?` | read-only, idempotent |
+
+Each tool returns the same JSON envelope as the CLI `--output json` / SDK contract — see [JSON_CONTRACT.md](./JSON_CONTRACT.md) for the full envelope spec.
+
+**Consent round-trip (`missing_hints`):**
+
+When `generate` or `push` encounters an ambiguous or destructive change it cannot auto-resolve (a rename, a data-loss operation), the tool returns `status: 'missing_hints'` with an `isError: true` result carrying an `unresolved[]` array. The agent inspects each item, picks a resolution, and re-calls the same tool with a `hints[]` array. The tools expose no `force` parameter — every unresolved decision must be acknowledged explicitly. See [SDK.md — Handling `status: 'missing_hints'`](./SDK.md) for the hint vocabulary and round-trip example.
+
+**Explicit `config` parameter:**
+
+Every tool accepts an optional `config` path (e.g. `config: "drizzle.config.ts"`). When omitted, resolution follows the standard `drizzle.config.*` lookup in the directory where `drizzle-kit mcp` was launched — the server process cwd, typically the project root. This means config resolution is anchored to the server, never to the MCP client's working directory.
+
 ### How it works
 
 Drizzle Kit traverses a schema module and generates a snapshot to compare with the previous version, if there is one.
