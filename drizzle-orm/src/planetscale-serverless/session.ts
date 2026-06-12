@@ -3,6 +3,7 @@ import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
@@ -113,6 +114,7 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig> extend
 export interface PlanetscaleSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class PlanetscaleSession<
@@ -136,6 +138,7 @@ export class PlanetscaleSession<
 		this.client = tx ?? baseClient;
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.onError = options.onError;
 	}
 
 	prepareQuery<T extends MySqlPreparedQueryConfig = MySqlPreparedQueryConfig>(
@@ -150,18 +153,20 @@ export class PlanetscaleSession<
 		},
 		cacheConfig?: WithCacheConfig,
 	): MySqlPreparedQuery<T> {
-		return new PlanetScalePreparedQuery(
-			this.client,
-			query.sql,
-			query.params,
-			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
-			fields,
-			customResultMapper,
-			generatedIds,
-			returningIds,
+		return this.attachErrorHandler(
+			new PlanetScalePreparedQuery(
+				this.client,
+				query.sql,
+				query.params,
+				this.logger,
+				this.cache,
+				queryMetadata,
+				cacheConfig,
+				fields,
+				customResultMapper,
+				generatedIds,
+				returningIds,
+			),
 		);
 	}
 

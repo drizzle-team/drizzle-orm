@@ -3,6 +3,7 @@ import { getDatabase } from '@netlify/db';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { NeonHttpClient, NeonHttpQueryResultHKT } from '~/neon-http/session.ts';
@@ -32,6 +33,7 @@ export type DrizzleClient = ServerlessDrizzleClient | ServerDrizzleClient;
 export interface NetlifyDbDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class NetlifyDbDriver {
@@ -52,6 +54,7 @@ export class NetlifyDbDriver {
 		return new NetlifyDbSession(this.httpClient, this.pool, this.dialect, schema, {
 			logger: this.options.logger,
 			cache: this.options.cache,
+			onError: this.options.onError,
 		});
 	}
 
@@ -112,7 +115,11 @@ function construct<
 		};
 	}
 
-	const driver = new NetlifyDbDriver(httpClient, pool, dialect, { logger, cache: config.cache });
+	const driver = new NetlifyDbDriver(httpClient, pool, dialect, {
+		logger,
+		cache: config.cache,
+		onError: config.onError,
+	});
 	const session = driver.createSession(schema);
 
 	const db = new NetlifyDbDatabase(

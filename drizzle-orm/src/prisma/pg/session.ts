@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client/extension';
 
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type {
 	PgDialect,
@@ -41,6 +42,7 @@ export class PrismaPgPreparedQuery<T> extends PgPreparedQuery<PreparedQueryConfi
 
 export interface PrismaPgSessionOptions {
 	logger?: Logger;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class PrismaPgSession extends PgSession {
@@ -55,6 +57,7 @@ export class PrismaPgSession extends PgSession {
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.onError = options.onError;
 	}
 
 	override execute<T>(query: SQL): Promise<T> {
@@ -62,7 +65,7 @@ export class PrismaPgSession extends PgSession {
 	}
 
 	override prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(query: Query): PgPreparedQuery<T> {
-		return new PrismaPgPreparedQuery(this.prisma, query, this.logger);
+		return this.attachErrorHandler(new PrismaPgPreparedQuery(this.prisma, query, this.logger));
 	}
 
 	override transaction<T>(

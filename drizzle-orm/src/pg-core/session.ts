@@ -1,7 +1,7 @@
 import { type Cache, hashQuery, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
-import { TransactionRollbackError, wrapPgError } from '~/errors.ts';
+import { type DrizzleQueryError, TransactionRollbackError, wrapPgError } from '~/errors.ts';
 import type { TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { type Query, type SQL, sql } from '~/sql/index.ts';
@@ -60,6 +60,16 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 	/** @internal */
 	joinsNotNullableMap?: Record<string, boolean>;
 
+	/** Set by the session; called with the wrapped error before it is thrown. @internal */
+	onError?: (error: DrizzleQueryError) => void;
+
+	/** @internal */
+	protected mapError(queryString: string, params: any[], e: unknown): DrizzleQueryError {
+		const error = wrapPgError(queryString, params, e as Error);
+		this.onError?.(error);
+		return error;
+	}
+
 	/** @internal */
 	protected async queryWithCache<T>(
 		queryString: string,
@@ -70,7 +80,7 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 			try {
 				return await query();
 			} catch (e) {
-				throw wrapPgError(queryString, params, e as Error);
+				throw this.mapError(queryString, params, e);
 			}
 		}
 
@@ -79,7 +89,7 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 			try {
 				return await query();
 			} catch (e) {
-				throw wrapPgError(queryString, params, e as Error);
+				throw this.mapError(queryString, params, e);
 			}
 		}
 
@@ -97,7 +107,7 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 				]);
 				return res;
 			} catch (e) {
-				throw wrapPgError(queryString, params, e as Error);
+				throw this.mapError(queryString, params, e);
 			}
 		}
 
@@ -106,7 +116,7 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 			try {
 				return await query();
 			} catch (e) {
-				throw wrapPgError(queryString, params, e as Error);
+				throw this.mapError(queryString, params, e);
 			}
 		}
 
@@ -122,7 +132,7 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 				try {
 					result = await query();
 				} catch (e) {
-					throw wrapPgError(queryString, params, e as Error);
+					throw this.mapError(queryString, params, e);
 				}
 				// put actual key
 				await this.cache.put(
@@ -142,7 +152,7 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 		try {
 			return await query();
 		} catch (e) {
-			throw wrapPgError(queryString, params, e as Error);
+			throw this.mapError(queryString, params, e);
 		}
 	}
 
@@ -172,7 +182,16 @@ export abstract class PgSession<
 > {
 	static readonly [entityKind]: string = 'PgSession';
 
+	/** Set by concrete sessions from the driver config; forwarded to prepared queries. @internal */
+	protected onError?: (error: DrizzleQueryError) => void;
+
 	constructor(protected dialect: PgDialect) {}
+
+	/** @internal */
+	attachErrorHandler<T extends PgPreparedQuery<any>>(query: T): T {
+		query.onError = this.onError;
+		return query;
+	}
 
 	abstract prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,

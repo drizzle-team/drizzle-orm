@@ -1,5 +1,7 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { is } from '~/entity.ts';
+import { drizzle as pgDrizzle } from '~/node-postgres/index.ts';
+import { sql } from '~/sql/sql.ts';
 import {
 	CheckConstraintError,
 	DrizzleConstraintError,
@@ -215,6 +217,22 @@ describe('wrapSqliteError', () => {
 
 		expect(is(wrapped, DrizzleQueryError)).toBe(true);
 		expect(is(wrapped, DrizzleConstraintError)).toBe(false);
+	});
+});
+
+describe('onError config hook', () => {
+	test('is invoked with the wrapped DrizzleQueryError before it is thrown', async () => {
+		const onError = vi.fn();
+		const db = pgDrizzle.mock({ onError });
+
+		await expect(db.execute(sql`select 1`)).rejects.toThrow(DrizzleQueryError);
+
+		expect(onError).toHaveBeenCalledOnce();
+		expect(is(onError.mock.calls[0]![0], DrizzleQueryError)).toBe(true);
+	});
+
+	test('is not invoked when no error occurs and is optional', () => {
+		expect(() => pgDrizzle.mock()).not.toThrow();
 	});
 });
 

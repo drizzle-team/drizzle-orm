@@ -3,6 +3,7 @@ import type { Cache } from '~/cache/core/index.ts';
 import { NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -93,6 +94,7 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 export interface XataHttpSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class XataHttpSession<TFullSchema extends Record<string, unknown>, TSchema extends TablesRelationalConfig>
@@ -116,6 +118,7 @@ export class XataHttpSession<TFullSchema extends Record<string, unknown>, TSchem
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.onError = options.onError;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -130,16 +133,18 @@ export class XataHttpSession<TFullSchema extends Record<string, unknown>, TSchem
 		},
 		cacheConfig?: WithCacheConfig,
 	): PgPreparedQuery<T> {
-		return new XataHttpPreparedQuery(
-			this.client,
-			query,
-			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
-			fields,
-			isResponseInArrayMode,
-			customResultMapper,
+		return this.attachErrorHandler(
+			new XataHttpPreparedQuery(
+				this.client,
+				query,
+				this.logger,
+				this.cache,
+				queryMetadata,
+				cacheConfig,
+				fields,
+				isResponseInArrayMode,
+				customResultMapper,
+			),
 		);
 	}
 

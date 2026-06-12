@@ -1,6 +1,7 @@
 import type { FieldPacket, ResultSetHeader } from 'mysql2/promise';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -24,6 +25,7 @@ export type SingleStoreRawQueryResult = [ResultSetHeader, FieldPacket[]];
 
 export interface SingleStoreRemoteSessionOptions {
 	logger?: Logger;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class SingleStoreRemoteSession<
@@ -42,6 +44,7 @@ export class SingleStoreRemoteSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.onError = options.onError;
 	}
 
 	prepareQuery<T extends SingleStorePreparedQueryConfig>(
@@ -51,15 +54,17 @@ export class SingleStoreRemoteSession<
 		generatedIds?: Record<string, unknown>[],
 		returningIds?: SelectedFieldsOrdered,
 	): PreparedQueryKind<SingleStoreRemotePreparedQueryHKT, T> {
-		return new PreparedQuery(
-			this.client,
-			query.sql,
-			query.params,
-			this.logger,
-			fields,
-			customResultMapper,
-			generatedIds,
-			returningIds,
+		return this.attachErrorHandler(
+			new PreparedQuery(
+				this.client,
+				query.sql,
+				query.params,
+				this.logger,
+				fields,
+				customResultMapper,
+				generatedIds,
+				returningIds,
+			),
 		) as PreparedQueryKind<SingleStoreRemotePreparedQueryHKT, T>;
 	}
 

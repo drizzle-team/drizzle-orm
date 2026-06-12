@@ -3,6 +3,7 @@ import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
@@ -27,6 +28,7 @@ export type MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]];
 export interface MySqlRemoteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class MySqlRemoteSession<
@@ -47,6 +49,7 @@ export class MySqlRemoteSession<
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.onError = options.onError;
 	}
 
 	prepareQuery<T extends MySqlPreparedQueryConfig>(
@@ -61,18 +64,20 @@ export class MySqlRemoteSession<
 		},
 		cacheConfig?: WithCacheConfig,
 	): PreparedQueryKind<MySqlRemotePreparedQueryHKT, T> {
-		return new PreparedQuery(
-			this.client,
-			query.sql,
-			query.params,
-			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
-			fields,
-			customResultMapper,
-			generatedIds,
-			returningIds,
+		return this.attachErrorHandler(
+			new PreparedQuery(
+				this.client,
+				query.sql,
+				query.params,
+				this.logger,
+				this.cache,
+				queryMetadata,
+				cacheConfig,
+				fields,
+				customResultMapper,
+				generatedIds,
+				returningIds,
+			),
 		) as PreparedQueryKind<MySqlRemotePreparedQueryHKT, T>;
 	}
 

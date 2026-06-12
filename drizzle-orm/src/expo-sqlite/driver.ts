@@ -45,7 +45,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const session = new ExpoSQLiteSession(client, dialect, schema, { logger });
+	const session = new ExpoSQLiteSession(client, dialect, schema, { logger, onError: config.onError });
 	const db = new ExpoSQLiteDatabase('sync', dialect, session, schema) as ExpoSQLiteDatabase<TSchema>;
 	(<any> db).$client = client;
 

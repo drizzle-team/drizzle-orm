@@ -3,6 +3,7 @@ import pg from 'pg';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
@@ -196,6 +197,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 export interface NodePgSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class NodePgSession<
@@ -216,6 +218,7 @@ export class NodePgSession<
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.onError = options.onError;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -230,18 +233,20 @@ export class NodePgSession<
 		},
 		cacheConfig?: WithCacheConfig,
 	): PgPreparedQuery<T> {
-		return new NodePgPreparedQuery(
-			this.client,
-			query.sql,
-			query.params,
-			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
-			fields,
-			name,
-			isResponseInArrayMode,
-			customResultMapper,
+		return this.attachErrorHandler(
+			new NodePgPreparedQuery(
+				this.client,
+				query.sql,
+				query.params,
+				this.logger,
+				this.cache,
+				queryMetadata,
+				cacheConfig,
+				fields,
+				name,
+				isResponseInArrayMode,
+				customResultMapper,
+			),
 		);
 	}
 

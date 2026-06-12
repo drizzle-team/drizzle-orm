@@ -3,6 +3,7 @@ import type { BatchItem as BatchItem } from '~/batch.ts';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -22,6 +23,7 @@ import { mapResultRow } from '~/utils.ts';
 export interface LibSQLSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -45,6 +47,7 @@ export class LibSQLSession<
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.onError = options.onError;
 	}
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
@@ -59,18 +62,20 @@ export class LibSQLSession<
 		},
 		cacheConfig?: WithCacheConfig,
 	): LibSQLPreparedQuery<T> {
-		return new LibSQLPreparedQuery(
-			this.client,
-			query,
-			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
-			fields,
-			this.tx,
-			executeMethod,
-			isResponseInArrayMode,
-			customResultMapper,
+		return this.attachErrorHandler(
+			new LibSQLPreparedQuery(
+				this.client,
+				query,
+				this.logger,
+				this.cache,
+				queryMetadata,
+				cacheConfig,
+				fields,
+				this.tx,
+				executeMethod,
+				isResponseInArrayMode,
+				customResultMapper,
+			),
 		);
 	}
 

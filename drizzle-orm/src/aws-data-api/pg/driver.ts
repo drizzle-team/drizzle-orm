@@ -1,5 +1,6 @@
 import { RDSDataClient, type RDSDataClientConfig } from '@aws-sdk/client-rds-data';
 import { entityKind, is } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
@@ -22,6 +23,7 @@ import { AwsDataApiSession } from './session.ts';
 export interface PgDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 	database: string;
 	resourceArn: string;
 	secretArn: string;
@@ -119,7 +121,12 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 		};
 	}
 
-	const session = new AwsDataApiSession(client, dialect, schema, { ...config, logger, cache: config.cache }, undefined);
+	const session = new AwsDataApiSession(client, dialect, schema, {
+		...config,
+		logger,
+		cache: config.cache,
+		onError: config.onError,
+	}, undefined);
 	const db = new AwsDataApiPgDatabase(dialect, session, schema as any);
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
