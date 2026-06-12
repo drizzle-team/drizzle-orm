@@ -12,24 +12,26 @@ npm install drizzle-kit drizzle-orm
 
 ## Public surface
 
-`--output` is a CLI-only concept. The SDK is implicitly JSON: `generate` and `push` always resolve to the JSON envelope documented in [JSON_CONTRACT.md](./JSON_CONTRACT.md), and there is no caller-supplied output mode (the option types omit `output`). Callers narrow the result on its `status` discriminator rather than selecting a format.
+`--output` is a CLI-only concept. The SDK is implicitly JSON: `generate`, `push`, and `check` always resolve to the JSON envelope documented in [JSON_CONTRACT.md](./JSON_CONTRACT.md), and there is no caller-supplied output mode (the option types omit `output`). Callers narrow the result on its `status` discriminator rather than selecting a format.
 
-Three root-level values plus three type aliases:
+Four root-level values plus four type aliases:
 
 | Export | Kind | Purpose |
 |---|---|---|
 | `defineConfig` | function | Type-checked Drizzle config builder (CLI parity) |
 | `generate` | async function | Programmatic equivalent of `drizzle-kit generate --output json` |
 | `push` | async function | Programmatic equivalent of `drizzle-kit push --output json` |
+| `check` | async function | Programmatic equivalent of `drizzle-kit check --output json` |
 | `Config` | type | Discriminated union of dialect configs |
 | `GenerateOptions` | type | Input shape for `generate` |
 | `PushOptions` | type | Input shape for `push` |
+| `CheckOptions` | type | Input shape for `check` |
 
-The response shape is not a named export: infer it from the call with `Awaited<ReturnType<typeof generate>>` / `Awaited<ReturnType<typeof push>>` (see the examples below). All other public-surface details (status discriminator values, error codes in [JSON_CONTRACT.md](./JSON_CONTRACT.md); hint kinds in [HINTS.md](./HINTS.md)) apply identically to SDK return values — they are not restated here.
+The response shape is not a named export: infer it from the call with `Awaited<ReturnType<typeof generate>>` / `Awaited<ReturnType<typeof push>>` / `Awaited<ReturnType<typeof check>>` (see the examples below). All other public-surface details (status discriminator values, error codes in [JSON_CONTRACT.md](./JSON_CONTRACT.md); hint kinds in [HINTS.md](./HINTS.md)) apply identically to SDK return values — they are not restated here.
 
 ```typescript
-import { defineConfig, generate, push } from 'drizzle-kit';
-import type { Config, GenerateOptions, PushOptions } from 'drizzle-kit';
+import { defineConfig, generate, push, check } from 'drizzle-kit';
+import type { Config, GenerateOptions, PushOptions, CheckOptions } from 'drizzle-kit';
 ```
 
 ## Minimal `generate` example
@@ -79,6 +81,26 @@ if (response.status === 'ok') {
   console.log('Database already in sync');
 } else if (response.status === 'error') {
   console.error(`push failed (${response.error.code})`);
+  process.exit(1);
+}
+```
+
+## Minimal `check` example
+
+```typescript
+import { check } from 'drizzle-kit';
+
+type CheckResponse = Awaited<ReturnType<typeof check>>;
+
+const response: CheckResponse = await check({
+  dialect: 'postgresql',
+  out: './drizzle',
+});
+
+if (response.status === 'ok') {
+  console.log(`Migrations folder is valid (${response.dialect})`);
+} else if (response.status === 'error') {
+  console.error(`check failed (${response.error.code})`);
   process.exit(1);
 }
 ```
