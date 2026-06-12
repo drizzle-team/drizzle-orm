@@ -614,3 +614,37 @@ await db.select().from(users);
 		}>
 	>;
 }
+
+{
+	const sq = db.select().from(users).as('sq');
+
+	await db.select().from(users, { withNoLock: true });
+
+	await db.select().from(users, {
+		// @ts-expect-error
+		unknownHint: true,
+	});
+
+	// @ts-expect-error
+	await db.select().from(newYorkers, { withNoLock: true });
+
+	// @ts-expect-error
+	await db.select().from(sq, { withNoLock: true });
+
+	await db
+		.select()
+		.from(users)
+		.leftJoin(cities, eq(users.homeCity, cities.id), { withNoLock: true });
+
+	await db
+		.select()
+		.from(users)
+		// @ts-expect-error
+		.leftJoin(db.select().from(cities).as('c'), sql`true`, { withNoLock: true });
+
+	await db
+		.select()
+		.from(users)
+		.leftJoin(cities, eq(users.homeCity, cities.id))
+		.withNoLock();
+}
