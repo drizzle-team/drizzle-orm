@@ -1,3 +1,7 @@
+// Side-effect import: parses and applies --env-file flags from argv
+// before any module that depends on env vars (notably ./schema, which
+// triggers `import 'dotenv/config'`) is evaluated.
+import './env-loader';
 import { command, run } from '@drizzle-team/brocli';
 import chalk from 'chalk';
 import { check, drop, exportRaw, generate, migrate, pull, push, studio, up } from './schema';
