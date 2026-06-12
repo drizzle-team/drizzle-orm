@@ -106,11 +106,6 @@ export abstract class MsSqlColumn<
 		super(table, config);
 		this.table = table;
 	}
-
-	/** @internal */
-	override shouldDisableInsert(): boolean {
-		return false;
-	}
 }
 
 export type AnyMsSqlColumn<TPartial extends Partial<ColumnBaseConfig<ColumnType>> = {}> = MsSqlColumn<
@@ -156,6 +151,6 @@ export abstract class MsSqlColumnWithIdentity<
 	readonly identity = this.config.identity;
 
 	override shouldDisableInsert(): boolean {
-		return !!this.identity;
+		return !!this.identity || super.shouldDisableInsert();
 	}
 }

@@ -36,6 +36,7 @@ import {
 	mssqlTable,
 	mssqlTableCreator,
 	mssqlView,
+	nvarchar,
 	primaryKey,
 	real,
 	text,
@@ -407,6 +408,28 @@ test('insert returning sql', async ({ db }) => {
 	const result = await db.insert(usersTable).values({ name: 'John' });
 
 	expect(result.rowsAffected[0]).toEqual(1);
+});
+
+test('insert into table with generated column', async ({ db }) => {
+	const docsTable = mssqlTable('docs_with_generated', {
+		id: int().identity().primaryKey(),
+		value: nvarchar({ length: 'max' }).notNull(),
+		valueUpper: nvarchar('value_upper', { length: 450 }).generatedAlwaysAs(sql`upper([value])`),
+	});
+
+	await db.execute(sql`drop table if exists [docs_with_generated]`);
+	await db.execute(sql`
+		create table [docs_with_generated] (
+			[id] int identity primary key,
+			[value] nvarchar(max) not null,
+			[value_upper] as (upper([value]))
+		)
+	`);
+
+	await db.insert(docsTable).values({ value: 'hello' });
+	const result = await db.select().from(docsTable);
+
+	expect(result).toEqual([{ id: 1, value: 'hello', valueUpper: 'HELLO' }]);
 });
 
 test('delete returning sql', async ({ db }) => {
