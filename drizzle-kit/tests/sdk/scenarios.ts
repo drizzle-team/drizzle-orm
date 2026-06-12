@@ -1,7 +1,8 @@
 import { rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { resolve } from 'path';
-import type { GenerateOptions, PushOptions } from '../../src/cli/contract';
+import type { CheckOptions, GenerateOptions, PushOptions } from '../../src/cli/contract';
+import { stageConflict, stageMalformed, stageNonLatest, stageUnsupported, stageValid } from './check-fixtures';
 
 export type Scenario =
 	| {
@@ -23,6 +24,16 @@ export type Scenario =
 		setup?: () => Promise<void>;
 		teardown?: () => Promise<void>;
 		expectedShape?: 'ok' | 'no_changes' | 'missing_hints' | 'error';
+	}
+	| {
+		name: string;
+		command: 'check';
+		argv: string[];
+		sdkOpts: CheckOptions;
+		env?: NodeJS.ProcessEnv;
+		setup?: () => Promise<void>;
+		teardown?: () => Promise<void>;
+		expectedShape?: 'ok' | 'error';
 	};
 
 const tmpRoot = resolve(tmpdir(), 'drizzle-kit-sdk-conformance');
@@ -51,7 +62,8 @@ const noChangesScenarios = (
 		'./schema.ts',
 		'--out',
 		outDir(`generate-${dialect}-no-changes`, 'cli'),
-		'--output', 'json',
+		'--output',
+		'json',
 	],
 	sdkOpts: {
 		dialect,
@@ -84,7 +96,8 @@ const pushMissingSchemaScenarios = (
 		'tests/definitely-missing-schema.ts',
 		'--url',
 		'postgresql://invalid:invalid@127.0.0.1:1/none',
-		'--output', 'json',
+		'--output',
+		'json',
 	],
 	sdkOpts: {
 		dialect,
@@ -93,6 +106,54 @@ const pushMissingSchemaScenarios = (
 	},
 	expectedShape: 'error',
 }));
+
+const makeCheckScenario = (
+	name: string,
+	stager: () => string,
+	opts: { ignoreConflicts?: boolean; expectedShape: 'ok' | 'error' },
+): Scenario => {
+	let out: string;
+	return {
+		name,
+		command: 'check',
+		get argv(): string[] {
+			return [
+				'check',
+				'--dialect=postgresql',
+				`--out=${out}`,
+				'--output',
+				'json',
+				...(opts.ignoreConflicts ? ['--ignore-conflicts'] : []),
+			];
+		},
+		get sdkOpts(): CheckOptions {
+			return {
+				dialect: 'postgresql',
+				out,
+				...(opts.ignoreConflicts ? { ignoreConflicts: true } : {}),
+			};
+		},
+		setup: async () => {
+			out = stager();
+		},
+		teardown: async () => {
+			rmSync(out, { recursive: true, force: true });
+		},
+		expectedShape: opts.expectedShape,
+	};
+};
+
+const checkScenarios: Scenario[] = [
+	makeCheckScenario('check postgresql ok', stageValid, { expectedShape: 'ok' }),
+	makeCheckScenario('check postgresql unsupported', stageUnsupported, { expectedShape: 'error' }),
+	makeCheckScenario('check postgresql non_latest', stageNonLatest, { expectedShape: 'error' }),
+	makeCheckScenario('check postgresql malformed', stageMalformed, { expectedShape: 'error' }),
+	makeCheckScenario('check postgresql conflicts', stageConflict, { expectedShape: 'error' }),
+	makeCheckScenario('check postgresql ignore-conflicts ok', stageConflict, {
+		ignoreConflicts: true,
+		expectedShape: 'ok',
+	}),
+];
 
 export const scenarios: Scenario[] = [
 	...noChangesScenarios,
@@ -105,7 +166,8 @@ export const scenarios: Scenario[] = [
 			'postgresql',
 			'--schema',
 			'tests/definitely-missing-schema.ts',
-			'--output', 'json',
+			'--output',
+			'json',
 		],
 		sdkOpts: {
 			dialect: 'postgresql',
@@ -114,4 +176,5 @@ export const scenarios: Scenario[] = [
 		expectedShape: 'error',
 	},
 	...pushMissingSchemaScenarios,
+	...checkScenarios,
 ];

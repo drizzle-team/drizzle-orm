@@ -1,8 +1,11 @@
 import { spawnSync } from 'child_process';
-import type { GenerateOptions, PushOptions } from '../../src/cli/contract';
-import type { generate, push } from '../../src/sdk';
+import type { CheckOptions, GenerateOptions, PushOptions } from '../../src/cli/contract';
+import type { check, generate, push } from '../../src/sdk';
 
-export type ConformanceResponse = Awaited<ReturnType<typeof generate>> | Awaited<ReturnType<typeof push>>;
+export type ConformanceResponse =
+	| Awaited<ReturnType<typeof generate>>
+	| Awaited<ReturnType<typeof push>>
+	| Awaited<ReturnType<typeof check>>;
 
 export type RunCliResult = { envelope: ConformanceResponse; exitCode: number | null };
 
@@ -81,8 +84,8 @@ const withScenarioEnv = async <T>(env: NodeJS.ProcessEnv, fn: () => Promise<T>):
 };
 
 export const runSdk = async (
-	command: 'generate' | 'push',
-	opts: GenerateOptions | PushOptions,
+	command: 'generate' | 'push' | 'check',
+	opts: GenerateOptions | PushOptions | CheckOptions,
 	env: NodeJS.ProcessEnv = {},
 ): Promise<ConformanceResponse> => {
 	const sdk = await import('../../src/sdk');
@@ -92,6 +95,9 @@ export const runSdk = async (
 		}
 		if (command === 'push') {
 			return sdk.push(opts as PushOptions) as Promise<ConformanceResponse>;
+		}
+		if (command === 'check') {
+			return sdk.check(opts as CheckOptions) as Promise<ConformanceResponse>;
 		}
 		throw new Error(`runSdk: unknown command "${command}"`);
 	});
