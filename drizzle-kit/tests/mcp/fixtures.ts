@@ -3,7 +3,7 @@ import { writeFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { makePgSnapshot, stageOut, writeSnapshot } from '../sdk/check-fixtures';
 
-export { stageConflict, stageValid } from '../sdk/check-fixtures';
+export { stageConflict, stageOut, stageValid } from '../sdk/check-fixtures';
 
 export const ORIGIN = '00000000-0000-0000-0000-000000000000';
 
@@ -36,6 +36,38 @@ export const stageGenerateMissingHints = (): { out: string; schemaPath: string }
 	);
 
 	return { out, schemaPath };
+};
+
+/**
+ * Writes a drizzle.config.ts that targets push at an unreachable postgres URL whose connection
+ * string embeds a unique sentinel password. Also writes a minimal schema file so push gets past
+ * schema resolution and fails at the DB driver level with a database_driver_error envelope.
+ *
+ * Returns the config path and the sentinel string so the caller can assert the sentinel never
+ * appears in any result channel.
+ */
+export const writeSentinelPushConfig = (out: string): { configPath: string; sentinel: string } => {
+	const sentinel = `S3NT1NEL_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+	const schemaPath = resolve(join(out, 'schema.ts'));
+	// Minimal valid schema — push will reach the DB driver before hitting any schema error
+	writeFileSync(
+		schemaPath,
+		"import { integer, pgTable } from 'drizzle-orm/pg-core';\nexport const t = pgTable('t', { id: integer('id') });\n",
+	);
+	const configPath = resolve(join(out, 'drizzle-sentinel.config.ts'));
+	writeFileSync(
+		configPath,
+		[
+			'export default {',
+			"  dialect: 'postgresql',",
+			`  schema: ${JSON.stringify(schemaPath)},`,
+			`  out: ${JSON.stringify(out)},`,
+			// unreachable host; sentinel embedded as the password
+			`  dbCredentials: { url: 'postgresql://user:${sentinel}@127.0.0.1:1/none' },`,
+			'};',
+		].join('\n'),
+	);
+	return { configPath, sentinel };
 };
 
 /**

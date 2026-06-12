@@ -4,7 +4,14 @@ import { rmSync } from 'fs';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 // RED: this import will fail until 41-02 creates src/mcp/server.ts
 import { createDrizzleMcpServer } from '../../src/mcp/server.js';
-import { stageConflict, stageGenerateMissingHints, stageValid, writeDrizzleConfig } from './fixtures';
+import {
+	stageConflict,
+	stageGenerateMissingHints,
+	stageOut,
+	stageValid,
+	writeDrizzleConfig,
+	writeSentinelPushConfig,
+} from './fixtures';
 
 // The vitest config sets TEST_CONFIG_PATH_PREFIX=./tests/cli/ globally.
 // The absolute schema paths in MCP fixtures are broken by that prefix, so unset it here.
@@ -157,6 +164,44 @@ describe('MCP server generate tool — missing_hints round-trip', () => {
 			expect(second.isError).toBe(false);
 		} finally {
 			await client.close();
+			rmSync(out, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('MCP server credential-leak regression (D-13)', () => {
+	test('push with unreachable sentinel URL returns an error; sentinel absent from all result channels', async () => {
+		// Capture stderr so we can assert the sentinel never appears there either
+		const stderrChunks: string[] = [];
+		const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(
+			((...args: unknown[]) => {
+				stderrChunks.push(String(args[0]));
+				return true;
+			}) as unknown as typeof process.stderr.write,
+		);
+
+		const out = stageOut();
+		const { configPath, sentinel } = writeSentinelPushConfig(out);
+		try {
+			const { client } = await connectPair();
+			const result = await client.callTool({ name: 'push', arguments: { config: configPath } });
+			stderrSpy.mockRestore();
+
+			// Must surface as isError:true with an error status
+			expect(result.isError).toBe(true);
+			const sc = result.structuredContent as any;
+			expect(sc.status).toBe('error');
+
+			// Sentinel must not appear in any result channel
+			const textBlock = (result.content as any[]).find((c) => c.type === 'text');
+			expect(textBlock?.text ?? '').not.toContain(sentinel);
+			expect(JSON.stringify(sc)).not.toContain(sentinel);
+			// Captured stderr must not contain the sentinel
+			expect(stderrChunks.join('')).not.toContain(sentinel);
+
+			await client.close();
+		} finally {
+			stderrSpy.mockRestore();
 			rmSync(out, { recursive: true, force: true });
 		}
 	});
