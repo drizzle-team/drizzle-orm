@@ -247,8 +247,14 @@ export const ddlToTypeScript = (
 				viewMetadata: it.viewMetadata,
 				checkOption: it.checkOption,
 			};
+			const viewIndexes = ddl.indexes.list({ schema: it.schema, table: it.name });
+			const indexes = createTableIndexes(it.name, viewIndexes, casing, 'view');
 
-			let statement = `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", {${columns}})`;
+			let statement = `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", {${columns}}`;
+			if (viewIndexes.length > 0) {
+				statement += `, (view) => [\n${indexes}]`;
+			}
+			statement += ')';
 			statement += Object.keys(viewOptions).length > 0 ? `.with(${JSON.stringify(viewOptions)})` : '';
 			statement += `.as(${as});`;
 
@@ -420,7 +426,7 @@ const createTableColumns = (
 	return statement;
 };
 
-const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): string => {
+const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing, target = 'table'): string => {
 	let statement = '';
 
 	idxs.forEach((it) => {
@@ -445,11 +451,12 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 					if (it.isExpression) {
 						return `sql\`${it.value}\``;
 					} else {
-						return `table.${withCasing(it.value, casing)}`;
+						return `${target}.${withCasing(it.value, casing)}`;
 					}
 				})
 				.join(', ')
 		})`;
+		statement += it.clustered === true ? `.clustered()` : it.clustered === false ? `.nonClustered()` : '';
 		statement += it.where ? `.where(sql\`${it.where}\`)` : '';
 
 		statement += `,\n`;

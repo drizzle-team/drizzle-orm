@@ -42,6 +42,7 @@ export const createDDLV1 = () => {
 			table: 'required',
 			columns: 'string[]', // does not supported indexing expressions
 			isUnique: 'boolean',
+			clustered: 'boolean?',
 			where: 'string?',
 		},
 		uniques: {
@@ -120,6 +121,7 @@ export const createDDL = () => {
 				},
 			],
 			isUnique: 'boolean',
+			clustered: 'boolean?',
 			where: 'string?',
 		},
 		uniques: {

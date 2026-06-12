@@ -245,7 +245,7 @@ export const fromDrizzleSchema = (
 					errors.push({
 						type: 'index_no_name',
 						schema: schema,
-						table: getTableName(index.config.table),
+						table: tableName,
 						sql: dialect.sqlToQuery(column).sql,
 					});
 					continue;
@@ -269,6 +269,7 @@ export const fromDrizzleSchema = (
 					}
 				}),
 				isUnique: index.config.unique ?? false,
+				clustered: index.config.clustered ?? null,
 				where: where ? where : null,
 			});
 		}
@@ -347,6 +348,44 @@ export const fromDrizzleSchema = (
 			schemaBinding: schemaBinding ?? false, // default
 			viewMetadata: viewMetadata ?? false, // default
 		});
+
+		for (const index of cfg.indexes ?? []) {
+			const columns = index.config.columns;
+			const indexName = index.config.name;
+
+			for (const column of columns) {
+				if (is(column, SQL) && !index.config.name) {
+					errors.push({
+						type: 'index_no_name',
+						schema,
+						table: name,
+						sql: dialect.sqlToQuery(column).sql,
+					});
+					continue;
+				}
+			}
+
+			let where = index.config.where ? dialect.sqlToQuery(index.config.where, 'indexes').sql : '';
+			where = where === 'true' ? '' : where;
+
+			result.indexes.push({
+				entityType: 'indexes',
+				table: name,
+				name: indexName,
+				schema,
+				columns: columns.map((it) => {
+					if (is(it, SQL)) {
+						const sql = dialect.sqlToQuery(it, 'indexes').sql;
+						return { value: sql, isExpression: true };
+					} else {
+						return { value: it.name, isExpression: false };
+					}
+				}),
+				isUnique: index.config.unique ?? false,
+				clustered: index.config.clustered ?? null,
+				where: where ? where : null,
+			});
+		}
 	}
 
 	return { schema: result, errors };

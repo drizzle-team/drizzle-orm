@@ -2,6 +2,7 @@ import { entityKind } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { AnyMsSqlColumn, MsSqlColumn } from './columns/index.ts';
 import type { MsSqlTable } from './table.ts';
+import type { MsSqlView } from './view.ts';
 
 interface IndexConfig {
 	name: string;
@@ -14,12 +15,18 @@ interface IndexConfig {
 	unique?: boolean;
 
 	/**
+	 * If true, the index will be created as `create clustered index` instead of `create index`.
+	 */
+	clustered?: boolean;
+
+	/**
 	 * Condition for partial index.
 	 */
 	where?: SQL;
 }
 
 export type IndexColumn = MsSqlColumn | SQL;
+export type IndexTarget = MsSqlTable | MsSqlView<any, any, any>;
 
 export class IndexBuilderOn {
 	static readonly [entityKind]: string = 'MsSqlIndexBuilderOn';
@@ -32,7 +39,7 @@ export class IndexBuilderOn {
 }
 
 export interface AnyIndexBuilder {
-	build(table: MsSqlTable): Index;
+	build(table: IndexTarget): Index;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
@@ -57,8 +64,18 @@ export class IndexBuilder implements AnyIndexBuilder {
 		return this;
 	}
 
+	clustered(): this {
+		this.config.clustered = true;
+		return this;
+	}
+
+	nonClustered(): this {
+		this.config.clustered = false;
+		return this;
+	}
+
 	/** @internal */
-	build(table: MsSqlTable): Index {
+	build(table: IndexTarget): Index {
 		return new Index(this.config, table);
 	}
 }
@@ -66,10 +83,10 @@ export class IndexBuilder implements AnyIndexBuilder {
 export class Index {
 	static readonly [entityKind]: string = 'MsSqlIndex';
 
-	readonly config: IndexConfig & { table: MsSqlTable };
+	readonly config: IndexConfig & { table: IndexTarget };
 	readonly isNameExplicit: boolean;
 
-	constructor(config: IndexConfig, table: MsSqlTable) {
+	constructor(config: IndexConfig, table: IndexTarget) {
 		this.config = { ...config, table };
 		this.isNameExplicit = !!config.name;
 	}

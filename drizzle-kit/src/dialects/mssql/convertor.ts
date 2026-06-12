@@ -215,8 +215,10 @@ const recreateIdentityColumn = convertor('recreate_identity_column', (st) => {
 });
 
 const createIndex = convertor('create_index', (st) => {
-	const { name, table, columns, isUnique, where, schema } = st.index;
-	const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
+	const { name, table, columns, isUnique, where, schema, clustered } = st.index;
+	const indexPart = `${isUnique ? 'UNIQUE ' : ''}${
+		clustered === true ? 'CLUSTERED ' : clustered === false ? 'NONCLUSTERED ' : ''
+	}INDEX`;
 
 	const uniqueString = `${
 		columns.map((it) => {

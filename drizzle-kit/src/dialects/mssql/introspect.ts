@@ -139,9 +139,25 @@ ORDER BY lower(views.name);
 			};
 		});
 
+	const filteredViews = viewsList.filter((it) => {
+		const schema = filteredSchemas.find((schema) => schema.schema_id === it.schema_id)!;
+
+		if (!filter({ type: 'table', schema: schema.schema_name, name: it.name })) return false;
+		return true;
+	})
+		.map((it) => {
+			const schema = filteredSchemas.find((schema) => schema.schema_id === it.schema_id)!;
+
+			return {
+				...it,
+				schema: schema.schema_name,
+			};
+		});
+
 	const filteredTableIds = filteredTables.map((it) => it.object_id);
-	const filteredViewIds = viewsList.map((it) => it.object_id);
+	const filteredViewIds = filteredViews.map((it) => it.object_id);
 	const filteredViewsAndTableIds = [...filteredTableIds, ...filteredViewIds];
+	const filteredTablesAndViews = [...filteredTables, ...filteredViews];
 
 	if (filteredViewIds.length === 0 && filteredTableIds.length === 0) {
 		return {
@@ -265,6 +281,7 @@ ORDER BY lower(fk.name);
 		is_unique_constraint: boolean;
 		has_filter: boolean;
 		filter_definition: string;
+		type_desc: string;
 		column_id: number;
 	};
 
@@ -278,12 +295,13 @@ ORDER BY lower(fk.name);
 			i.is_unique_constraint as is_unique_constraint,
 			i.has_filter as has_filter,
 			i.filter_definition as filter_definition,
+			i.type_desc as type_desc,
 			ic.column_id as column_id
 		FROM sys.indexes i
 		INNER JOIN sys.index_columns ic 
 			ON i.object_id = ic.object_id
 			AND i.index_id = ic.index_id
-		${filterByTableIds ? 'WHERE i.object_id in ' + filterByTableIds : ''}
+		${filterByTableAndViewIds ? 'WHERE i.object_id in ' + filterByTableAndViewIds : ''}
 		ORDER BY lower(i.name);`)
 		.then((rows) => {
 			queryCallback('indexes', rows, null);
@@ -457,8 +475,8 @@ WHERE obj.type in ('U', 'V')
 	};
 	const groupedIdxsAndContraints: GroupedIdxsAndContraints[] = Object.values(
 		pksUniquesAndIdxsList.reduce((acc: Record<string, GroupedIdxsAndContraints>, row: RawIdxsAndConstraints) => {
-			const table = filteredTables.find((it) => it.object_id === row.table_id);
-			if (!table) return acc;
+			const target = filteredTablesAndViews.find((it) => it.object_id === row.table_id);
+			if (!target) return acc;
 
 			const key = `${row.table_id}_${row.index_id}`;
 			if (!acc[key]) {
@@ -527,7 +545,7 @@ WHERE obj.type in ('U', 'V')
 	}
 
 	for (const index of groupedIndexes) {
-		const table = filteredTables.find((it) => it.object_id === index.table_id);
+		const table = filteredTablesAndViews.find((it) => it.object_id === index.table_id);
 		if (!table) continue;
 
 		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
@@ -547,6 +565,7 @@ WHERE obj.type in ('U', 'V')
 			columns,
 			where: index.has_filter ? index.filter_definition : null,
 			isUnique: index.is_unique,
+			clustered: index.type_desc === 'CLUSTERED' ? true : index.type_desc === 'NONCLUSTERED' ? false : null,
 		});
 	}
 
@@ -657,8 +676,8 @@ WHERE obj.type in ('U', 'V')
 	progressCallback('indexes', indexesCount, 'fetching');
 	progressCallback('tables', tableCount, 'done');
 
-	viewsCount = viewsList.length;
-	for (const view of viewsList) {
+	viewsCount = filteredViews.length;
+	for (const view of filteredViews) {
 		const viewName = view.name;
 		const viewSchema = filteredSchemas.find((it) => it.schema_id === view.schema_id);
 		if (!viewSchema) continue;
