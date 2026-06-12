@@ -2,7 +2,8 @@ import { mkdirSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { resolve } from 'path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { generate, push } from '../../../src/sdk';
+import { check, generate, push } from '../../../src/sdk';
+import { stageValid } from '../check-fixtures';
 
 const tmpRoot = resolve(tmpdir(), 'drizzle-kit-no-stdout');
 
@@ -99,6 +100,35 @@ describe('SDK does not invoke process.stdout.write or process.exit', () => {
 			stdoutSpy.mockRestore();
 			exitSpy.mockRestore();
 			throw err;
+		}
+	});
+
+	test('check (ok smoke) does not call process.stdout.write or process.exit', async () => {
+		const stdoutCalls: unknown[][] = [];
+		const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(
+			((...args: unknown[]) => {
+				stdoutCalls.push(args);
+				return true;
+			}) as unknown as typeof process.stdout.write,
+		);
+		const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((() => {}) as unknown) as never);
+
+		const out = stageValid();
+		try {
+			const result = await check({ dialect: 'postgresql', out });
+
+			expect(result).toBeDefined();
+			stdoutSpy.mockRestore();
+			exitSpy.mockRestore();
+			if (stdoutCalls.length > 0) {
+				// eslint-disable-next-line no-console
+				console.error('Unexpected stdout writes:', stdoutCalls.map((c) => String(c[0]).slice(0, 200)));
+			}
+			expect(result.status).toBe('ok');
+			expect(stdoutSpy).toHaveBeenCalledTimes(0);
+			expect(exitSpy).toHaveBeenCalledTimes(0);
+		} finally {
+			rmSync(out, { recursive: true, force: true });
 		}
 	});
 });
