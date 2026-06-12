@@ -101,6 +101,10 @@ function construct<
 	const session = driver.createSession(schema, relations);
 	const db = new MsSqlDatabase(dialect, session, schema, relations) as NodeMsSqlDatabase<TSchema, TRelations>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }

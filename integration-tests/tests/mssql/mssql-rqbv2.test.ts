@@ -1,5 +1,5 @@
 import SchemaBuilder from '@pothos/core';
-import DrizzlePlugin, { type DrizzleClient } from '@pothos/plugin-drizzle';
+import DrizzlePlugin from '@pothos/plugin-drizzle';
 import { defineRelations, sql } from 'drizzle-orm';
 import { getTableConfig, int, mssqlSchema, varchar } from 'drizzle-orm/mssql-core';
 import type { NodeMsSqlDatabase } from 'drizzle-orm/node-mssql';
@@ -12,8 +12,6 @@ import * as schema from './mssql.schema';
 
 const require = createRequire(import.meta.url);
 const { graphql } = require('graphql') as { graphql: typeof graphqlFn };
-const drizzleOrm = require('drizzle-orm') as typeof import('drizzle-orm');
-const nodeMssql = require('drizzle-orm/node-mssql') as typeof import('drizzle-orm/node-mssql');
 
 const rqbv2Schema = mssqlSchema('rqbv2_schema');
 
@@ -419,6 +417,26 @@ test('RQBv2 prepared MSSQL query resolves placeholders', async ({ client }) => {
 	]);
 });
 
+test('MSSQL $count counts table rows with filters', async ({ client }) => {
+	const db = drizzle({ client, schema, relations });
+	await seed(db);
+
+	const result = await db.$count(
+		schema.postsTable,
+		sql`${schema.postsTable.ownerId} = ${1}`,
+	);
+
+	expect(result).toBe(2);
+});
+
+test('MSSQL raw execute remains awaitable', async ({ client }) => {
+	const db = drizzle({ client, schema, relations });
+
+	const result = await db.execute<{ value: number }>(sql`select ${1} as [value]`);
+
+	expect(result.recordset).toEqual([{ value: 1 }]);
+});
+
 test('RQBv2 resolves schema-qualified view relations', async ({ client }) => {
 	const db = drizzle({ client, schema: scopedSchema, relations: scopedRelations });
 
@@ -492,42 +510,19 @@ test('RQBv2 resolves schema-qualified view relations', async ({ client }) => {
 });
 
 test('Pothos plugin resolves an MSSQL RQBv2 relation field', async ({ client }) => {
-	const seedDb = drizzle({ client, schema, relations });
-	await seed(seedDb);
-
-	const pothosRelations = drizzleOrm.defineRelations(
-		schema,
-		({ many, one, postsTable, usersTable }) => ({
-			usersTable: {
-				posts: many.postsTable({
-					from: usersTable.id,
-					to: postsTable.ownerId,
-				}),
-			},
-			postsTable: {
-				author: one.usersTable({
-					from: postsTable.ownerId,
-					to: usersTable.id,
-				}),
-			},
-		}),
-	);
-	const db = nodeMssql.drizzle({ client, schema, relations: pothosRelations });
+	const db = drizzle({ client, schema, relations });
+	await seed(db);
 
 	interface PothosTypes {
-		DrizzleRelations: typeof pothosRelations;
+		DrizzleRelations: typeof relations;
 	}
 
 	const builder = new SchemaBuilder<PothosTypes>({
 		plugins: [DrizzlePlugin],
 		drizzle: {
-			client: {
-				_: db._,
-				query: db.query,
-				$count: () => drizzleOrm.sql<number>`0`,
-			} satisfies DrizzleClient,
+			client: db,
 			getTableConfig,
-			relations: pothosRelations,
+			relations,
 		},
 	});
 
@@ -567,6 +562,15 @@ test('Pothos plugin resolves an MSSQL RQBv2 relation field', async ({ client }) 
 				}),
 				resolve: (user) => user.posts,
 			}),
+			postsCount: t.relatedField('posts', {
+				type: 'Int',
+				select: (buildFilter) => ({
+					extras: {
+						postsCount: (user) => db.$count(schema.postsTable, buildFilter(user)),
+					},
+				}),
+				resolve: (user) => user.postsCount,
+			}),
 		}),
 	});
 
@@ -590,6 +594,7 @@ test('Pothos plugin resolves an MSSQL RQBv2 relation field', async ({ client }) 
 			users {
 				id
 				name
+				postsCount
 				posts {
 					id
 					content
@@ -605,6 +610,7 @@ test('Pothos plugin resolves an MSSQL RQBv2 relation field', async ({ client }) 
 			{
 				id: 1,
 				name: 'Dan',
+				postsCount: 2,
 				posts: [
 					{ id: 1, content: 'Post1' },
 					{ id: 2, content: 'Post1.2' },
@@ -613,11 +619,13 @@ test('Pothos plugin resolves an MSSQL RQBv2 relation field', async ({ client }) 
 			{
 				id: 2,
 				name: 'Andrew',
+				postsCount: 1,
 				posts: [{ id: 3, content: 'Post2' }],
 			},
 			{
 				id: 3,
 				name: 'Alex',
+				postsCount: 0,
 				posts: [],
 			},
 		],
