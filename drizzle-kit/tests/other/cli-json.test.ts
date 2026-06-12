@@ -1,7 +1,6 @@
 import BetterSqlite3 from 'better-sqlite3';
 import { spawnSync } from 'child_process';
 import { sql } from 'drizzle-orm';
-import { integer as pgInteger, pgTable, varchar } from 'drizzle-orm/pg-core';
 import { check, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { stripAnsi } from 'hanji/utils';
@@ -9,8 +8,14 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { HintsHandler } from '../../src/cli/hints';
-import type { PostgresSnapshot } from '../../src/dialects/postgres/snapshot';
-import { drizzleToDDL, type PostgresSchema } from '../postgres/mocks';
+import {
+	makePgSnapshot as _makePgSnapshot,
+	ORIGIN as _ORIGIN,
+	stageConflict as _stageConflict,
+	stageOut as _stageOut,
+	stageValid as _stageValid,
+	writeSnapshot as _writeSnapshot,
+} from '../sdk/check-fixtures';
 
 const runWithCliContext = async <T>(
 	context: { output: 'text' | 'json'; interactive: boolean },
@@ -7023,50 +7028,12 @@ test('push singlestore throws fk_target_not_unique error in json mode', async ()
 });
 
 describe('check --output', () => {
-	const ORIGIN = '00000000-0000-0000-0000-000000000000';
-
-	const makePgSnapshot = (id: string, prevIds: string[], schema: PostgresSchema): PostgresSnapshot => ({
-		version: '8',
-		dialect: 'postgres',
-		id,
-		prevIds,
-		ddl: drizzleToDDL(schema).ddl.entities.list(),
-		renames: [],
-	});
-
-	const stageOut = () => {
-		mkdirSync('tests/tmp', { recursive: true });
-		return mkdtempSync('tests/tmp/dk-check-json-');
-	};
-
-	const writeSnapshot = (out: string, tag: string, snapshot: unknown) => {
-		const folder = join(out, tag);
-		mkdirSync(folder, { recursive: true });
-		writeFileSync(join(folder, 'snapshot.json'), JSON.stringify(snapshot, null, 2));
-	};
-
-	// A single valid snapshot -> the `ok` outcome.
-	const stageValid = () => {
-		const out = stageOut();
-		writeSnapshot(
-			out,
-			'0000_init',
-			makePgSnapshot('p1', [ORIGIN], { users: pgTable('users', { id: pgInteger('id') }) }),
-		);
-		return out;
-	};
-
-	// Two divergent branches that touch the same column incompatibly -> `conflicts`.
-	const stageConflict = () => {
-		const out = stageOut();
-		const parent = makePgSnapshot('p1', [ORIGIN], { users: pgTable('users', { email: varchar('email') }) });
-		const left = makePgSnapshot('a1', ['p1'], { users: pgTable('users', { email: varchar('email').notNull() }) });
-		const right = makePgSnapshot('b1', ['p1'], { users: pgTable('users', { email: pgInteger('email') }) });
-		writeSnapshot(out, '0000_parent', parent);
-		writeSnapshot(out, '0001_left', left);
-		writeSnapshot(out, '0002_right', right);
-		return out;
-	};
+	const ORIGIN = _ORIGIN;
+	const makePgSnapshot = _makePgSnapshot;
+	const stageOut = _stageOut;
+	const writeSnapshot = _writeSnapshot;
+	const stageValid = _stageValid;
+	const stageConflict = _stageConflict;
 
 	const runCheck = (out: string, extra: string[] = []) =>
 		runCli(['check', `--out=${out}`, '--dialect=postgresql', ...extra]);
