@@ -18,10 +18,10 @@ When `--output json` is set, callers should treat `stdout` as the JSON channel. 
 
 The same JSON contract documented in this file is available as typed root-level exports of the `drizzle-kit` package for programmatic callers — agents, build tools, custom orchestrators. The CLI and SDK share one implementation; the response shapes, status discriminator, hint vocabulary, and error codes documented below apply identically to SDK return values.
 
-`check` is CLI-only — there is no `check()` SDK export. Consume its envelope by parsing the CLI's stdout under `--output json`.
+`check` is available both as `drizzle-kit check --output json` and as the root `check()` SDK export — both surfaces return the same envelope. See [SDK.md](./SDK.md) for the SDK calling pattern.
 
 ```typescript
-import { generate, push } from 'drizzle-kit';
+import { generate, push, check } from 'drizzle-kit';
 import type { GenerateJsonResponse } from 'drizzle-kit';
 
 const response: GenerateJsonResponse = await generate({
@@ -37,7 +37,7 @@ if (response.status === 'missing_hints') {
 
 What the SDK gives you over the CLI:
 
-- Typed inputs (`GenerateOptions`, `PushOptions`) — your editor narrows option names and types
+- Typed inputs (`GenerateOptions`, `PushOptions`, `CheckOptions`) — your editor narrows option names and types
 - Typed responses (`GenerateJsonResponse`, `PushJsonResponse`) — the union discriminator on `status` lets TypeScript narrow into the `ok`, `no_changes`, `missing_hints`, and `error` branches
 - No `--output json` flag handling, no stdout parsing — the response object is what the JSON mode would have printed
 
@@ -366,7 +366,7 @@ Example:
 
 ## `check`
 
-`drizzle-kit check --output json` validates the migrations folder — snapshot integrity plus branch commutativity — and emits one of three envelopes. It never prompts and takes no hints.
+`drizzle-kit check --output json` validates the migrations folder — snapshot integrity plus branch commutativity — and emits one of three envelopes. It never prompts and takes no hints. The `check()` SDK export returns the same envelopes verbatim.
 
 ### `check` success
 
