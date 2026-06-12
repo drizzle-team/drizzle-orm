@@ -18,6 +18,7 @@ import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { type InferInsertModel, Table } from '~/table.ts';
 import { mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import type { MsSqlColumn } from '../columns/common.ts';
+import { extractUsedTable } from '../utils.ts';
 import type { SelectedFieldsFlatUpdate, SelectedFieldsOrdered } from './select.types.ts';
 
 export interface MsSqlUpdateConfig {
@@ -308,6 +309,8 @@ export class MsSqlUpdateBase<
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
 			output.length ? output : undefined,
+			undefined,
+			{ type: 'update', tables: extractUsedTable(this.config.table) },
 		) as MsSqlUpdatePrepare<this>;
 	}
 

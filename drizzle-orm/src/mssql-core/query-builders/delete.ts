@@ -16,6 +16,7 @@ import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
 import { orderSelectedFields } from '~/utils.ts';
 import type { MsSqlColumn } from '../columns/common.ts';
+import { extractUsedTable } from '../utils.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
 export type MsSqlDeleteWithout<
@@ -218,6 +219,8 @@ export class MsSqlDeleteBase<
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.output,
+			undefined,
+			{ type: 'delete', tables: extractUsedTable(this.config.table) },
 		) as MsSqlDeletePrepare<this>;
 	}
 

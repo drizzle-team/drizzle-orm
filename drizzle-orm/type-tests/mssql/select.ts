@@ -34,6 +34,10 @@ import { cities, classes, newYorkers, users } from './tables.ts';
 const city = alias(cities, 'city');
 const city1 = alias(cities, 'city1');
 
+await db.select().from(users).$withCache();
+await db.select().from(users).$withCache({ tag: 'users', autoInvalidate: false, config: { ex: 1 } });
+await db.select().from(users).$withCache(false);
+
 const join = await db
 	.select({
 		users,

@@ -1,5 +1,6 @@
 import type mssql from 'mssql';
 import * as V1 from '~/_relations.ts';
+import type { Cache } from '~/cache/core/index.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -13,6 +14,7 @@ import { NodeMsSqlSession } from './session.ts';
 
 export interface MsSqlDriverOptions {
 	logger?: Logger;
+	cache?: Cache;
 	useJitMappers?: boolean;
 }
 
@@ -32,6 +34,7 @@ export class NodeMsSqlDriver {
 	): NodeMsSqlSession<Record<string, unknown>, V1.TablesRelationalConfig, TRelations> {
 		return new NodeMsSqlSession(this.client, this.dialect, schema, relations, {
 			logger: this.options.logger,
+			cache: this.options.cache,
 			useJitMappers: this.options.useJitMappers,
 		});
 	}
@@ -96,6 +99,7 @@ function construct<
 	const relations = config.relations ?? {} as TRelations;
 	const driver = new NodeMsSqlDriver(client as NodeMsSqlClient, dialect, {
 		logger,
+		cache: config.cache,
 		useJitMappers: jitCompatCheck(config.jit),
 	});
 	const session = driver.createSession(schema, relations);

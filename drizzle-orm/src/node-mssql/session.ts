@@ -2,7 +2,10 @@ import type { ConnectionPool, IResult, Request } from 'mssql';
 import mssql from 'mssql';
 import { once } from 'node:events';
 import type * as V1 from '~/_relations.ts';
+import { type Cache, NoopCache, strategyFor } from '~/cache/core/cache.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
+import { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { MsSqlDialect } from '~/mssql-core/dialect.ts';
@@ -19,7 +22,7 @@ import {
 } from '~/mssql-core/session.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
-import { type Assume, makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
+import { assertUnreachable, type Assume, makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
 import { AutoPool } from './pool.ts';
 
 export type NodeMsSqlClient = Pick<ConnectionPool, 'request'> | AutoPool;
@@ -45,28 +48,90 @@ export class NodeMsSqlPreparedQuery<
 		private fields: SelectedFieldsOrdered | undefined,
 		private useJitMappers: boolean | undefined,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
+		private cache?: Cache,
+		private queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		private cacheConfig?: WithCacheConfig,
 	) {
 		super();
 		this.rawQuery = {
 			sql: queryString,
 			parameters: params,
 		};
+		if (cache && cache.strategy() === 'all' && cacheConfig === undefined) {
+			this.cacheConfig = { enabled: true, autoInvalidate: true };
+		}
+		if (!this.cacheConfig?.enabled) {
+			this.cacheConfig = undefined;
+		}
 	}
 
-	async execute(
-		placeholderValues: Record<string, unknown> = {},
-	): Promise<T['execute']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
+	/** @internal */
+	private async queryWithCache<TResult>(
+		queryString: string,
+		params: unknown[],
+		query: () => Promise<TResult>,
+	): Promise<TResult> {
+		const cacheStrat = this.cache !== undefined && !is(this.cache, NoopCache)
+			? await strategyFor(queryString, params, this.queryMetadata, this.cacheConfig)
+			: { type: 'skip' as const };
 
-		this.logger.logQuery(this.rawQuery.sql, params);
+		if (cacheStrat.type === 'skip') {
+			return query().catch((e) => {
+				throw new DrizzleQueryError(queryString, params, e as Error);
+			});
+		}
 
+		const cache = this.cache!;
+
+		if (cacheStrat.type === 'invalidate') {
+			return Promise.all([
+				query(),
+				cache.onMutate({ tables: cacheStrat.tables }),
+			]).then((res) => res[0]).catch((e) => {
+				throw new DrizzleQueryError(queryString, params, e as Error);
+			});
+		}
+
+		if (cacheStrat.type === 'try') {
+			const { tables, key, isTag, autoInvalidate, config } = cacheStrat;
+			const fromCache = await cache.get(
+				key,
+				tables,
+				isTag,
+				autoInvalidate,
+			);
+
+			if (fromCache === undefined) {
+				const result = await query().catch((e) => {
+					throw new DrizzleQueryError(queryString, params, e as Error);
+				});
+				await cache.put(
+					key,
+					result,
+					autoInvalidate ? tables : [],
+					isTag,
+					config,
+				);
+				return result;
+			}
+
+			return fromCache as unknown as TResult;
+		}
+
+		assertUnreachable(cacheStrat);
+	}
+
+	private async executeQuery(params: unknown[]): Promise<IResult<unknown> | unknown[][]> {
 		const {
 			fields,
 			client,
 			rawQuery,
-			joinsNotNullableMap,
 			customResultMapper,
 		} = this;
+
 		let queryClient = client as ConnectionPool;
 		if (is(client, AutoPool)) {
 			queryClient = await client.$instance();
@@ -77,26 +142,47 @@ export class NodeMsSqlPreparedQuery<
 		}
 
 		if (!fields && !customResultMapper) {
-			return request.query(rawQuery.sql) as Promise<T['execute']>;
+			return request.query(rawQuery.sql);
 		}
 
 		request.arrayRowMode = true;
 		const rows = await request.query<any[]>(rawQuery.sql);
+		return rows.recordset;
+	}
 
-		if (customResultMapper) {
-			return customResultMapper(rows.recordset);
+	async execute(
+		placeholderValues: Record<string, unknown> = {},
+	): Promise<T['execute']> {
+		const params = fillPlaceholders(this.params, placeholderValues);
+		const { fields, rawQuery, joinsNotNullableMap, customResultMapper } = this;
+		this.logger.logQuery(rawQuery.sql, params);
+
+		const result = this.cacheConfig === undefined && (this.cache === undefined || is(this.cache, NoopCache))
+			? this.executeQuery(params).catch((e) => {
+				throw new DrizzleQueryError(rawQuery.sql, params, e as Error);
+			})
+			: this.queryWithCache(rawQuery.sql, params, () => this.executeQuery(params));
+
+		if (!fields && !customResultMapper) {
+			return result as Promise<T['execute']>;
 		}
 
-		return this.useJitMappers
-			? (this.jitMapper =
-				this.jitMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
-					?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
-						fields!,
-						joinsNotNullableMap,
-					))(
-					rows.recordset,
-				)
-			: rows.recordset.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
+		if (customResultMapper) {
+			return result.then((rows) => customResultMapper(rows as unknown[][]));
+		}
+
+		return result.then((rows) =>
+			this.useJitMappers
+				? (this.jitMapper =
+					this.jitMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
+						?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
+							fields!,
+							joinsNotNullableMap,
+						))(
+						rows as unknown[][],
+					)
+				: (rows as unknown[][]).map((row) => mapResultRow(fields!, row, joinsNotNullableMap))
+		) as Promise<T['execute']>;
 	}
 
 	async *iterator(
@@ -186,6 +272,7 @@ export class NodeMsSqlPreparedQuery<
 
 export interface NodeMsSqlSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 	useJitMappers?: boolean;
 }
 
@@ -203,6 +290,7 @@ export class NodeMsSqlSession<
 	static override readonly [entityKind]: string = 'NodeMsSqlSession';
 
 	private logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		private client: NodeMsSqlClient,
@@ -213,12 +301,18 @@ export class NodeMsSqlSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 	): PreparedQueryKind<NodeMsSqlPreparedQueryHKT, T> {
 		return new NodeMsSqlPreparedQuery(
 			this.client,
@@ -228,6 +322,9 @@ export class NodeMsSqlSession<
 			fields,
 			this.options.useJitMappers,
 			customResultMapper,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 		) as PreparedQueryKind<NodeMsSqlPreparedQueryHKT, T>;
 	}
 
