@@ -12,7 +12,12 @@ const looseEnvelopeSchema = z.object({
 	unresolved: z.array(z.unknown()).optional(),
 }).passthrough();
 
-function toToolResult(envelope: Awaited<ReturnType<typeof check>>): CallToolResult {
+type AnyEnvelope =
+	| Awaited<ReturnType<typeof generate>>
+	| Awaited<ReturnType<typeof push>>
+	| Awaited<ReturnType<typeof check>>;
+
+function toToolResult(envelope: AnyEnvelope): CallToolResult {
 	const isError = envelope.status === 'error' || envelope.status === 'missing_hints';
 	return {
 		content: [{ type: 'text', text: JSON.stringify(envelope) }],
