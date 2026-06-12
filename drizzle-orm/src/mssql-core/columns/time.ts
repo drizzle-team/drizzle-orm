@@ -85,6 +85,10 @@ export class MsSqlTime<
 		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
 		return `time${precision}`;
 	}
+
+	mapFromJsonValue(value: string): Date {
+		return new Date(`1970-01-01T${value}Z`);
+	}
 }
 export type TimeConfig<TMode extends 'date' | 'string' = 'date' | 'string'> = {
 	precision?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;

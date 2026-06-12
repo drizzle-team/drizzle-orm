@@ -37,6 +37,10 @@ export class MsSqlVarBinary<
 	getSQLType(): string {
 		return this.config.rawLength === undefined ? `varbinary` : `varbinary(${this.config.rawLength})`;
 	}
+
+	mapFromJsonValue(value: string): Buffer {
+		return Buffer.from(value, 'base64');
+	}
 }
 
 export interface MsSqlVarbinaryOptions {

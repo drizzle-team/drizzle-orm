@@ -40,6 +40,10 @@ export class MsSqlDateTime<T extends ColumnBaseConfig<'object date'>> extends Ms
 	getSQLType(): string {
 		return `datetime`;
 	}
+
+	mapFromJsonValue(value: string): Date {
+		return new Date(value);
+	}
 }
 
 export class MsSqlDateTimeStringBuilder extends MsSqlDateColumnBaseBuilder<{

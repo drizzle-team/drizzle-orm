@@ -1,6 +1,7 @@
 import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
@@ -13,7 +14,8 @@ import {
 	MsSqlUpdateBuilder,
 	QueryBuilder,
 } from './query-builders/index.ts';
-import { RelationalQueryBuilder } from './query-builders/query.ts';
+import { RelationalQueryBuilder } from './query-builders/query-v2.ts';
+import { RelationalQueryBuilder as RelationalQueryBuilderV1 } from './query-builders/query.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import type {
 	MsSqlSession,
@@ -25,41 +27,66 @@ import type {
 } from './session.ts';
 import type { WithSubqueryWithSelection } from './subquery.ts';
 import type { MsSqlTable } from './table.ts';
+import type { MsSqlView } from './view.ts';
 
 export class MsSqlDatabase<
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown> = {},
 	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
+	TRelations extends AnyRelations = EmptyRelations,
 > {
 	static readonly [entityKind]: string = 'MsSqlDatabase';
 
 	declare readonly _: {
 		readonly schema: TSchema | undefined;
 		readonly tableNamesMap: Record<string, string>;
+		readonly relations: TRelations;
+	};
+
+	query: {
+		[K in keyof TRelations]: RelationalQueryBuilder<TRelations, TRelations[K], TPreparedQueryHKT>;
 	};
 
 	_query: TFullSchema extends Record<string, never>
 		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
 		: {
-			[K in keyof TSchema]: RelationalQueryBuilder<TPreparedQueryHKT, TSchema, TSchema[K]>;
+			[K in keyof TSchema]: RelationalQueryBuilderV1<TPreparedQueryHKT, TSchema, TSchema[K]>;
 		};
 
 	constructor(
 		/** @internal */
 		readonly dialect: MsSqlDialect,
 		/** @internal */
-		readonly session: MsSqlSession<any, any, any, any>,
+		readonly session: MsSqlSession<any, any, any, any, any>,
 		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
+		relations: TRelations = {} as TRelations,
 	) {
 		this._ = schema
-			? { schema: schema.schema, tableNamesMap: schema.tableNamesMap }
-			: { schema: undefined, tableNamesMap: {} };
+			? { schema: schema.schema, tableNamesMap: schema.tableNamesMap, relations }
+			: { schema: undefined, tableNamesMap: {}, relations };
+		this.query = {} as typeof this['query'];
+		for (const [tableName, relation] of Object.entries(relations)) {
+			(this.query as MsSqlDatabase<
+				TQueryResult,
+				TPreparedQueryHKT,
+				TFullSchema,
+				TSchema,
+				AnyRelations
+			>['query'])[tableName] = new RelationalQueryBuilder(
+				relations,
+				relation.table as MsSqlTable | MsSqlView,
+				relation,
+				dialect,
+				session,
+			);
+		}
+
 		this._query = {} as typeof this['_query'];
 		if (this._.schema) {
 			for (const [tableName, columns] of Object.entries(this._.schema)) {
 				(this._query as MsSqlDatabase<TQueryResult, TPreparedQueryHKT, Record<string, any>>['_query'])[tableName] =
-					new RelationalQueryBuilder(
+					new RelationalQueryBuilderV1(
 						schema!.fullSchema,
 						this._.schema,
 						this._.tableNamesMap,
@@ -335,12 +362,13 @@ export class MsSqlDatabase<
 
 	transaction<T>(
 		transaction: (
-			tx: MsSqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>,
+			tx: MsSqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema, TRelations>,
 			config?: MsSqlTransactionConfig,
 		) => Promise<T>,
 		config?: MsSqlTransactionConfig,
 	): Promise<T> {
-		return this.session.transaction(transaction, config);
+		return (this.session as MsSqlSession<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema, TRelations>)
+			.transaction(transaction, config);
 	}
 }
 
@@ -351,11 +379,13 @@ export const withReplicas = <
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends V1.TablesRelationalConfig,
+	TRelations extends AnyRelations,
 	Q extends MsSqlDatabase<
 		HKT,
 		TPreparedQueryHKT,
 		TFullSchema,
-		TSchema extends Record<string, unknown> ? V1.ExtractTablesWithRelations<TFullSchema> : TSchema
+		TSchema extends Record<string, unknown> ? V1.ExtractTablesWithRelations<TFullSchema> : TSchema,
+		TRelations
 	>,
 >(
 	primary: Q,
@@ -384,6 +414,9 @@ export const withReplicas = <
 		select,
 		selectDistinct,
 		with: $with,
+		get query() {
+			return getReplica(replicas).query;
+		},
 		get _query() {
 			return getReplica(replicas)._query;
 		},

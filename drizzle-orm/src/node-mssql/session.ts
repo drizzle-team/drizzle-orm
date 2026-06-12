@@ -17,6 +17,7 @@ import {
 	type PreparedQueryKind,
 	type QueryResultHKT,
 } from '~/mssql-core/session.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
 import { AutoPool } from './pool.ts';
@@ -191,11 +192,13 @@ export interface NodeMsSqlSessionOptions {
 export class NodeMsSqlSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends V1.TablesRelationalConfig,
+	TRelations extends AnyRelations = EmptyRelations,
 > extends MsSqlSession<
 	NodeMsSqlQueryResultHKT,
 	NodeMsSqlPreparedQueryHKT,
 	TFullSchema,
-	TSchema
+	TSchema,
+	TRelations
 > {
 	static override readonly [entityKind]: string = 'NodeMsSqlSession';
 
@@ -205,6 +208,7 @@ export class NodeMsSqlSession<
 		private client: NodeMsSqlClient,
 		dialect: MsSqlDialect,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
+		private relations: TRelations,
 		private options: NodeMsSqlSessionOptions,
 	) {
 		super(dialect);
@@ -259,7 +263,7 @@ export class NodeMsSqlSession<
 	}
 
 	override async transaction<T>(
-		transaction: (tx: NodeMsSqlTransaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: NodeMsSqlTransaction<TFullSchema, TSchema, TRelations>) => Promise<T>,
 		config?: MsSqlTransactionConfig,
 	): Promise<T> {
 		let queryClient = this.client as ConnectionPool;
@@ -273,12 +277,14 @@ export class NodeMsSqlSession<
 			mssqlTransaction,
 			this.dialect,
 			this.schema,
+			this.relations,
 			this.options,
 		);
 		const tx = new NodeMsSqlTransaction(
 			this.dialect,
-			session as MsSqlSession<any, any, any, any>,
+			session as MsSqlSession<any, any, any, any, any>,
 			this.schema,
+			this.relations,
 			0,
 		);
 
@@ -302,22 +308,25 @@ export class NodeMsSqlSession<
 export class NodeMsSqlTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends V1.TablesRelationalConfig,
+	TRelations extends AnyRelations = EmptyRelations,
 > extends MsSqlTransaction<
 	NodeMsSqlQueryResultHKT,
 	NodeMsSqlPreparedQueryHKT,
 	TFullSchema,
-	TSchema
+	TSchema,
+	TRelations
 > {
 	static override readonly [entityKind]: string = 'NodeMsSqlTransaction';
 
 	override async transaction<T>(
-		transaction: (tx: NodeMsSqlTransaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: NodeMsSqlTransaction<TFullSchema, TSchema, TRelations>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new NodeMsSqlTransaction(
 			this.dialect,
 			this.session,
 			this.schema,
+			this.relations,
 			this.nestedIndex + 1,
 		);
 

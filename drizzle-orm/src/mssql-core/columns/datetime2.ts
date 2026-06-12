@@ -46,6 +46,10 @@ export class MsSqlDateTime2<T extends ColumnBaseConfig<'object date'>> extends M
 		const precision = this.precision === undefined ? '' : `(${this.precision})`;
 		return `datetime2${precision}`;
 	}
+
+	mapFromJsonValue(value: string): Date {
+		return new Date(value);
+	}
 }
 
 export class MsSqlDateTime2StringBuilder extends MsSqlDateColumnBaseBuilder<{

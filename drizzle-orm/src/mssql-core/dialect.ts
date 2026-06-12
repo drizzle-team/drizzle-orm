@@ -10,13 +10,45 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
-import { Param, type Query, SQL, sql, type SQLChunk, View } from '~/sql/sql.ts';
+import type {
+	AnyOne,
+	BuildRelationalQueryResult,
+	ColumnWithTSName,
+	DBQueryConfigWithComment,
+	Relation,
+	RelationalRowsMapperGenerator,
+	TableRelationalConfig,
+	TablesRelationalConfig,
+	WithContainer,
+} from '~/relations.ts';
+import {
+	getTableAsAliasSQL,
+	makeDefaultRqbMapper,
+	makeJitRqbMapper,
+	One,
+	relationExtrasToSQL,
+	relationsFilterToSQL,
+	relationsOrderToSQL,
+	relationToSQL,
+} from '~/relations.ts';
+import {
+	isSQLWrapper,
+	Param,
+	type Query,
+	SQL,
+	sql,
+	type SQLChunk,
+	type SQLWrapper,
+	StringChunk,
+	View,
+} from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { getTableName, getTableUniqueName, Table } from '~/table.ts';
+import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/mssql.ts';
 import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { and, DrizzleError, eq, type Name, ViewBaseConfig } from '../index.ts';
 import { MsSqlColumn } from './columns/common.ts';
+import { MsSqlCustomColumn } from './columns/custom.ts';
 import type { MsSqlDeleteConfig } from './query-builders/delete.ts';
 import type { MsSqlInsertConfig } from './query-builders/insert.ts';
 import type { MsSqlSelectConfig, SelectedFieldsOrdered } from './query-builders/select.types.ts';
@@ -24,14 +56,29 @@ import type { MsSqlUpdateConfig } from './query-builders/update.ts';
 import type { MsSqlSession } from './session.ts';
 import { MsSqlTable } from './table.ts';
 import { MsSqlViewBase } from './view-base.ts';
+import type { MsSqlView } from './view.ts';
 
 // Will add codecs here, do not remove
-export interface MsSqlDialectConfig {}
+export interface MsSqlDialectConfig {
+	useJitMappers?: boolean;
+}
 
 export class MsSqlDialect {
 	static readonly [entityKind]: string = 'MsSqlDialect';
 
-	constructor(_config?: MsSqlDialectConfig) {}
+	readonly mapperGenerators: {
+		relationalRows: RelationalRowsMapperGenerator;
+	};
+
+	constructor(config?: MsSqlDialectConfig) {
+		this.mapperGenerators = config?.useJitMappers
+			? {
+				relationalRows: makeJitRqbMapper,
+			}
+			: {
+				relationalRows: makeDefaultRqbMapper,
+			};
+	}
 
 	async migrate(
 		migrations: MigrationMeta[],
@@ -695,7 +742,341 @@ export class MsSqlDialect {
 		return res;
 	}
 
+	private nestedSelectionerror() {
+		throw new DrizzleError({
+			message: `Views with nested selections are not supported by the relational query builder`,
+		});
+	}
+
+	private rewriteRqbRelationFilterLimit(query: SQL | undefined): SQL | undefined {
+		if (!query) return undefined;
+
+		const rewriteChunk = (chunk: SQLChunk): SQLChunk => {
+			if (is(chunk, StringChunk)) {
+				return new StringChunk(chunk.value.map((value) =>
+					value
+						.replaceAll('(select * from', '(select top(1) * from')
+						.replaceAll(' limit 1)', ')')
+				));
+			}
+
+			if (is(chunk, SQL)) {
+				const rewritten = new SQL(chunk.queryChunks.map(rewriteChunk));
+				rewritten.shouldInlineParams = chunk.shouldInlineParams;
+				return rewritten;
+			}
+
+			return chunk;
+		};
+
+		const rewritten = new SQL(query.queryChunks.map(rewriteChunk));
+		rewritten.shouldInlineParams = query.shouldInlineParams;
+		return rewritten;
+	}
+
+	private buildRqbColumn(table: Table | View, column: unknown, key: string, inJson: boolean) {
+		if (is(column, Column)) {
+			const name = sql`${table}.${sql.identifier(column.name)}`;
+
+			if (inJson) {
+				if (is(column, MsSqlCustomColumn)) {
+					return sql`${column.jsonSelectIdentifier(name, sql)} as ${sql.identifier(key)}`;
+				}
+
+				switch (column.columnType) {
+					case 'MsSqlTime':
+					case 'MsSqlDate':
+					case 'MsSqlDateString':
+					case 'MsSqlDateTime':
+					case 'MsSqlDateTimeString':
+					case 'MsSqlDateTime2':
+					case 'MsSqlDateTime2String':
+					case 'MsSqlDateTimeOffset':
+					case 'MsSqlDateTimeOffsetString':
+					case 'MsSqlDecimal':
+					case 'MsSqlDecimalNumber':
+					case 'MsSqlDecimalBigInt':
+					case 'MsSqlNumeric':
+					case 'MsSqlNumericNumber':
+					case 'MsSqlNumericBigInt':
+					case 'MsSqlBigInt53':
+					case 'MsSqlBigInt64': {
+						return sql`cast(${name} as varchar(max)) as ${sql.identifier(key)}`;
+					}
+				}
+			}
+
+			return sql`${name} as ${sql.identifier(key)}`;
+		}
+
+		return sql`${table}.${
+			is(column, SQL.Aliased)
+				? sql.identifier(column.fieldAlias)
+				: isSQLWrapper(column)
+				? sql.identifier(key)
+				: this.nestedSelectionerror()
+		} as ${sql.identifier(key)}`;
+	}
+
+	private unwrapAllColumns = (
+		table: Table | View,
+		selection: BuildRelationalQueryResult['selection'],
+		inJson: boolean,
+	) => {
+		return sql.join(
+			Object.entries(table[TableColumns]).map(([key, column]) => {
+				selection.push({
+					key,
+					field: column as Column | SQL | SQLWrapper | SQL.Aliased,
+				});
+
+				return this.buildRqbColumn(table, column, key, inJson);
+			}),
+			sql`, `,
+		);
+	};
+
+	private getSelectedTableColumns = (
+		table: Table | View,
+		columns: Record<string, boolean | undefined>,
+	) => {
+		const selectedColumns: ColumnWithTSName[] = [];
+		const columnContainer = table[TableColumns];
+		const entries = Object.entries(columns);
+
+		let colSelectionMode: boolean | undefined;
+		for (const [key, value] of entries) {
+			if (value === undefined) continue;
+			colSelectionMode = colSelectionMode || value;
+
+			if (value) {
+				selectedColumns.push({
+					column: columnContainer[key] as Column | SQL | SQLWrapper | SQL.Aliased,
+					tsName: key,
+				});
+			}
+		}
+
+		if (colSelectionMode === false) {
+			for (const [key, column] of Object.entries(columnContainer)) {
+				if (columns[key] === false) continue;
+
+				selectedColumns.push({
+					column: column as Column | SQL | SQLWrapper | SQL.Aliased | Table,
+					tsName: key,
+				});
+			}
+		}
+
+		return selectedColumns;
+	};
+
+	private buildColumns = (
+		table: MsSqlTable | MsSqlView,
+		selection: BuildRelationalQueryResult['selection'],
+		inJson: boolean,
+		params?: DBQueryConfigWithComment<'many'>,
+	) =>
+		params?.columns
+			? (() => {
+				const columnIdentifiers: SQL[] = [];
+				const selectedColumns = this.getSelectedTableColumns(table, params.columns);
+
+				for (const { column, tsName } of selectedColumns) {
+					columnIdentifiers.push(this.buildRqbColumn(table, column, tsName, inJson));
+
+					selection.push({
+						key: tsName,
+						field: column,
+					});
+				}
+
+				return columnIdentifiers.length ? sql.join(columnIdentifiers, sql`, `) : undefined;
+			})()
+			: this.unwrapAllColumns(table, selection, inJson);
+
+	private buildRqbJsonSelection(selection: BuildRelationalQueryResult['selection']) {
+		return sql.join(
+			selection.map(({ key, selection }) =>
+				selection
+					? sql`json_query(${sql.identifier('t')}.${sql.identifier(key)}) as ${sql.identifier(key)}`
+					: sql`${sql.identifier('t')}.${sql.identifier(key)} as ${sql.identifier(key)}`
+			),
+			sql`, `,
+		);
+	}
+
 	buildRelationalQuery({
+		schema,
+		table,
+		tableConfig,
+		queryConfig: config,
+		relationWhere,
+		mode,
+		errorPath,
+		depth,
+		throughJoin,
+		nested,
+	}: {
+		schema: TablesRelationalConfig;
+		table: MsSqlTable | MsSqlView;
+		tableConfig: TableRelationalConfig;
+		queryConfig?: DBQueryConfigWithComment<'many'> | true;
+		relationWhere?: SQL;
+		mode: 'first' | 'many';
+		errorPath?: string;
+		depth?: number;
+		throughJoin?: SQL;
+		nested?: boolean;
+	}): BuildRelationalQueryResult {
+		const selection: BuildRelationalQueryResult['selection'] = [];
+		const isSingle = mode === 'first';
+		const params = config === true ? undefined : config;
+		const currentPath = errorPath ?? '';
+		const currentDepth = depth ?? 0;
+		if (!currentDepth) table = aliasedTable(table, `d${currentDepth}`);
+
+		const limit = isSingle ? 1 : params?.limit;
+		const offset = params?.offset;
+
+		const configWhere = params?.where
+			? this.rewriteRqbRelationFilterLimit(
+				relationsFilterToSQL(
+					table,
+					params.where,
+					tableConfig.relations,
+					schema,
+				),
+			)
+			: undefined;
+		const where: SQL | undefined = configWhere && relationWhere
+			? and(configWhere, relationWhere)
+			: configWhere ?? relationWhere;
+
+		const order = params?.orderBy
+			? relationsOrderToSQL(table, params.orderBy)
+			: undefined;
+		const columns = this.buildColumns(table, selection, !!nested, params);
+		const extras = params?.extras
+			? relationExtrasToSQL(table, params.extras)
+			: undefined;
+		if (extras) selection.push(...extras.selection);
+
+		const selectionArr: SQL[] = columns ? [columns] : [];
+		if (extras?.sql) selectionArr.push(extras.sql);
+
+		const joins = params
+			? (() => {
+				const { with: joins } = params as WithContainer;
+				if (!joins) return;
+
+				const withEntries = Object.entries(joins).filter(([_, value]) => value);
+				if (!withEntries.length) return;
+
+				return sql.join(
+					withEntries.map(([key, join]) => {
+						const relation = tableConfig.relations[key]! as Relation;
+						const isSingle = is(relation, One);
+						const targetTable = aliasedTable(
+							relation.targetTable,
+							`d${currentDepth + 1}`,
+						);
+						const throughTable = relation.throughTable
+							? (aliasedTable(relation.throughTable, `tr${currentDepth}`) as Table | View)
+							: undefined;
+						const { filter, joinCondition } = relationToSQL(
+							relation,
+							table,
+							targetTable,
+							throughTable,
+						);
+
+						selectionArr.push(
+							sql`json_query(${sql.identifier(key)}.${sql.identifier('r')}) as ${sql.identifier(key)}`,
+						);
+
+						const throughJoin = throughTable
+							? sql` inner join ${getTableAsAliasSQL(throughTable)} on ${joinCondition!}`
+							: undefined;
+
+						const innerQuery = this.buildRelationalQuery({
+							table: targetTable as MsSqlTable | MsSqlView,
+							mode: isSingle ? 'first' : 'many',
+							schema,
+							queryConfig: join as DBQueryConfigWithComment,
+							tableConfig: schema[relation.targetTableName]!,
+							relationWhere: filter,
+							errorPath: `${currentPath.length ? `${currentPath}.` : ''}${key}`,
+							depth: currentDepth + 1,
+							throughJoin,
+							nested: true,
+						});
+
+						selection.push({
+							field: targetTable,
+							key,
+							selection: innerQuery.selection,
+							isArray: !isSingle,
+							isOptional: ((relation as AnyOne).optional ?? false)
+								|| (join !== true
+									&& !!(join as Exclude<typeof join, boolean | undefined>)
+										.where),
+						});
+
+						const jsonSelection = this.buildRqbJsonSelection(innerQuery.selection);
+						const relationJson = isSingle
+							? sql`json_query((select ${jsonSelection} from (${innerQuery.sql}) as ${
+								sql.identifier('t')
+							} for json path, include_null_values, without_array_wrapper))`
+							: sql`json_query(coalesce((select ${jsonSelection} from (${innerQuery.sql}) as ${
+								sql.identifier('t')
+							} for json path, include_null_values), '[]'))`;
+
+						return sql`outer apply (select ${relationJson} as ${sql.identifier('r')}) as ${sql.identifier(key)}`;
+					}),
+					sql` `,
+				);
+			})()
+			: undefined;
+
+		if (!selectionArr.length) {
+			throw new DrizzleError({
+				message: `No fields selected for table "${tableConfig.name}"${currentPath ? ` ("${currentPath}")` : ''}`,
+			});
+		}
+
+		const selectionSet = sql.join(
+			selectionArr.filter((entry) => entry !== undefined),
+			sql`, `,
+		);
+		const comment = config !== true && config?.comment
+			? sql.comment(config.comment)
+			: undefined;
+		const top = limit !== undefined && offset === undefined ? limit : undefined;
+		const orderPreservingOffset = nested && order !== undefined && top === undefined && offset === undefined;
+		const effectiveOrder = order ?? (offset !== undefined ? sql`1` : undefined);
+		const offsetSql = offset !== undefined
+			? sql` offset ${offset} rows`
+			: orderPreservingOffset
+			? sql` offset 0 rows`
+			: undefined;
+		const fetchSql = offset !== undefined && limit !== undefined ? sql` fetch next ${limit} rows only` : undefined;
+
+		const query = sql`select${top !== undefined ? sql` top(${top})` : undefined} ${selectionSet} from ${
+			getTableAsAliasSQL(table)
+		}${throughJoin}${joins ? sql` ${joins}` : undefined}${where ? sql` where ${where}` : undefined}${
+			effectiveOrder ? sql` order by ${effectiveOrder}` : undefined
+		}${offsetSql}${fetchSql}${comment ? sql` ${comment}` : undefined}`;
+
+		return {
+			sql: nested
+				? query
+				: sql`select (${query} for json path, include_null_values) as ${sql.identifier('data')}`,
+			selection,
+		};
+	}
+
+	buildRelationalQueryV1({
 		fullSchema,
 		schema,
 		tableNamesMap,
@@ -886,7 +1267,7 @@ export class MsSqlDialect {
 						)
 					),
 				);
-				const builtRelation = this.buildRelationalQuery({
+				const builtRelation = this.buildRelationalQueryV1({
 					fullSchema,
 					schema,
 					tableNamesMap,
