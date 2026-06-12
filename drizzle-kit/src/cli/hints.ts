@@ -178,7 +178,7 @@ const confirmHintSchema = z.union(
 	) as unknown as UnionInput<ConfirmHintMembers>,
 );
 
-const hintSchema = z.array(z.union([
+export const hintSchema = z.array(z.union([
 	renameHintSchema,
 	createHintSchema,
 	confirmHintSchema,
