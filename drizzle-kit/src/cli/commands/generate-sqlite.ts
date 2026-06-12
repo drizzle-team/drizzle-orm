@@ -58,15 +58,16 @@ export const handle = async (
 		return config.hints.toResponse();
 	}
 
-	const downSqlStatements = config.generateDownMigrations
-		? (await ddlDiff(
+	const downDiff = config.generateDownMigrations
+		? await ddlDiff(
 			ddlCur,
 			ddlPrev,
 			makeInverseResolver(tableRenames),
 			makeInverseResolver(columnRenames),
 			'default',
-		)).sqlStatements
+		)
 		: undefined;
+	const downSqlStatements = downDiff?.sqlStatements;
 
 	if (!json) {
 		for (const w of warnings) {
@@ -79,6 +80,7 @@ export const handle = async (
 			snapshot: snapshot,
 			sqlStatements,
 			downSqlStatements,
+			downStatements: downDiff?.groupedStatements,
 			renames,
 			outFolder,
 			name: config.name,

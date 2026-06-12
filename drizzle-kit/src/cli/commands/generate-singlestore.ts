@@ -50,22 +50,24 @@ export const handle = async (config: GenerateConfig) => {
 		return config.hints.toResponse();
 	}
 
-	const downSqlStatements = config.generateDownMigrations
-		? (await ddlDiff(
+	const downDiff = config.generateDownMigrations
+		? await ddlDiff(
 			ddlCur,
 			ddlPrev,
 			makeInverseResolver(tableRenames),
 			makeInverseResolver(columnRenames),
 			makeInverseResolver(viewRenames),
 			'default',
-		)).sqlStatements
+		)
 		: undefined;
+	const downSqlStatements = downDiff?.sqlStatements;
 
 	if (!config.explain) {
 		return writeResult({
 			snapshot,
 			sqlStatements,
 			downSqlStatements,
+			downStatements: downDiff?.groupedStatements,
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,

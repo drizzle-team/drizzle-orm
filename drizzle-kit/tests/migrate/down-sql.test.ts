@@ -152,7 +152,7 @@ describe('writeResult — down SQL file generation', () => {
 		const tag = dirs[0]!;
 		const downContent = fs.readFileSync(path.join(tmpDir, tag, 'down.sql'), 'utf8');
 		expect(downContent.startsWith(DOWN_SQL_HEADER)).toBe(true);
-		expect(downContent).toContain('Edit freely');
+		expect(downContent).toContain('reverses structural (DDL) changes only');
 	});
 
 	test('writes scaffold down.sql for custom migrations', () => {
@@ -172,6 +172,58 @@ describe('writeResult — down SQL file generation', () => {
 		expect(fs.existsSync(path.join(tmpDir, tag, 'down.sql'))).toBe(true);
 		const downContent = fs.readFileSync(path.join(tmpDir, tag, 'down.sql'), 'utf8');
 		expect(downContent).toBe(CUSTOM_DOWN_SQL_SCAFFOLD);
+	});
+
+	test('emits an irreversible-operation banner when down statements lose data', () => {
+		writeResult({
+			snapshot: { ...minimalSnapshot },
+			sqlStatements: ['CREATE TABLE users (id INTEGER PRIMARY KEY)', 'ALTER TABLE posts DROP COLUMN body'],
+			downSqlStatements: ['DROP TABLE users', 'ALTER TABLE posts ADD COLUMN body text'],
+			downStatements: [
+				{ jsonStatement: { type: 'drop_table' }, sqlStatements: ['DROP TABLE users'] },
+				{ jsonStatement: { type: 'add_column' }, sqlStatements: ['ALTER TABLE posts ADD COLUMN body text'] },
+			],
+			outFolder: tmpDir,
+			breakpoints: true,
+			name: 'lossy',
+			renames: [],
+			snapshots: [],
+		});
+
+		const dirs = fs.readdirSync(tmpDir).filter((d) => fs.statSync(path.join(tmpDir, d)).isDirectory());
+		const tag = dirs[0]!;
+		const downContent = fs.readFileSync(path.join(tmpDir, tag, 'down.sql'), 'utf8');
+		expect(downContent).toContain('⚠ REVIEW');
+		expect(downContent).toContain('DROP TABLE users — drops a table the migration created');
+		expect(downContent).toContain('re-adds a column the migration dropped');
+		// The header + banner are leading comment lines; the rollback SQL follows.
+		expect(downContent.startsWith(DOWN_SQL_HEADER)).toBe(true);
+		const lines = downContent.split('\n');
+		const firstSqlLine = lines.findIndex((l) => !l.startsWith('--'));
+		expect(lines.slice(0, firstSqlLine).join('\n')).toContain('⚠ REVIEW');
+		expect(lines[firstSqlLine]!.startsWith('DROP TABLE users')).toBe(true);
+	});
+
+	test('omits the banner when down statements are fully reversible', () => {
+		writeResult({
+			snapshot: { ...minimalSnapshot },
+			sqlStatements: ['CREATE INDEX idx ON users (id)'],
+			downSqlStatements: ['DROP INDEX idx'],
+			downStatements: [
+				{ jsonStatement: { type: 'drop_index' }, sqlStatements: ['DROP INDEX idx'] },
+			],
+			outFolder: tmpDir,
+			breakpoints: true,
+			name: 'reversible',
+			renames: [],
+			snapshots: [],
+		});
+
+		const dirs = fs.readdirSync(tmpDir).filter((d) => fs.statSync(path.join(tmpDir, d)).isDirectory());
+		const tag = dirs[0]!;
+		const downContent = fs.readFileSync(path.join(tmpDir, tag, 'down.sql'), 'utf8');
+		expect(downContent).not.toContain('⚠ REVIEW');
+		expect(downContent).toBe(`${DOWN_SQL_HEADER}\nDROP INDEX idx`);
 	});
 
 	test('skips down.sql entirely when generateDownMigrations is false', () => {

@@ -13,9 +13,13 @@ import { prepareMigrationMetadata } from '../../utils/words';
 import { outputFormat } from '../context';
 import type { Driver } from '../validations/common';
 import { humanLog } from '../views';
+import { collectIrreversibleDownWarnings, type DownStatement, formatIrreversibleBanner } from './generate-down-helpers';
 
 export const DOWN_SQL_HEADER =
-	'-- Rollback SQL for the migration above.\n-- Edit freely, but keep it in sync with migration.sql when you hand-edit that file.';
+	'-- Auto-generated rollback for the migration above, produced from the reverse schema diff.\n'
+	+ '-- It reverses structural (DDL) changes only. Custom or data statements you add to\n'
+	+ '-- migration.sql are NOT reversed automatically — add their inverse here by hand.\n'
+	+ '-- Review before relying on it in production.';
 
 export const CUSTOM_DOWN_SQL_SCAFFOLD = '-- Custom SQL rollback file, put your reverse statements below! --';
 
@@ -23,6 +27,7 @@ type WriteResultConfigBase = {
 	snapshot: SqliteSnapshot | PostgresSnapshot | MysqlSnapshot | MssqlSnapshot | CockroachSnapshot | SingleStoreSnapshot;
 	sqlStatements: string[];
 	downSqlStatements?: string[];
+	downStatements?: DownStatement[];
 	outFolder: string;
 	breakpoints: boolean;
 	generateDownMigrations?: boolean;
@@ -49,6 +54,7 @@ export function writeResult(
 		snapshot,
 		sqlStatements,
 		downSqlStatements,
+		downStatements,
 		outFolder,
 		breakpoints,
 		generateDownMigrations = true,
@@ -99,7 +105,9 @@ export function writeResult(
 		if (type === 'custom') {
 			fs.writeFileSync(join(outFolder, `${tag}/down.sql`), CUSTOM_DOWN_SQL_SCAFFOLD);
 		} else if (downSqlStatements && downSqlStatements.length > 0) {
-			const downSql = `${DOWN_SQL_HEADER}\n${downSqlStatements.join(sqlDelimiter)}`;
+			const banner = formatIrreversibleBanner(collectIrreversibleDownWarnings(downStatements ?? []));
+			const header = banner ? `${DOWN_SQL_HEADER}\n${banner}` : DOWN_SQL_HEADER;
+			const downSql = `${header}\n${downSqlStatements.join(sqlDelimiter)}`;
 			fs.writeFileSync(join(outFolder, `${tag}/down.sql`), downSql);
 		}
 	}
