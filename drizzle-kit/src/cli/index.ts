@@ -4,7 +4,7 @@ import chalk from 'chalk';
 import { outputFormat, runWithCliContext } from './context';
 import { DrizzleCliError, errorToEnvelope } from './errors';
 import { highlightSQL } from './highlighter';
-import { check, exportRaw, generate, migrate, pull, push, skills, studio, up } from './schema';
+import { check, exportRaw, generate, mcp, migrate, pull, push, skills, studio, up } from './schema';
 import { ormCoreVersions, QueryError } from './utils';
 import { error, humanError, humanLog } from './views';
 
@@ -113,12 +113,13 @@ const legacy = [
 
 const main = async () => {
 	await runWithCliContext({ output: 'text', interactive: false }, async () => {
-		await run([generate, migrate, pull, push, studio, up, check, exportRaw, skills, ...legacy], {
+		await run([generate, migrate, pull, push, studio, up, check, exportRaw, skills, mcp, ...legacy], {
 			name: 'drizzle-kit',
 			version: () => version(),
 
 			hook: (event, command) => {
-				if (event === 'after' && getCommandNameWithParents(command) !== 'studio') process.exit(0);
+				const name = getCommandNameWithParents(command);
+				if (event === 'after' && name !== 'studio' && name !== 'mcp') process.exit(0);
 			},
 			theme: (event) => {
 				if (event.type === 'error') {

@@ -1077,6 +1077,15 @@ const skillsVersion = command({
 	},
 });
 
+export const mcp = command({
+	name: 'mcp',
+	options: {},
+	handler: async () => {
+		const { startMcpServer } = await import('../mcp/server');
+		await startMcpServer();
+	},
+});
+
 export const skills = command({
 	name: 'skills',
 	options: {},
