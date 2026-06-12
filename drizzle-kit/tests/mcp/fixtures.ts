@@ -1,0 +1,60 @@
+import { integer, pgTable } from 'drizzle-orm/pg-core';
+import { writeFileSync } from 'fs';
+import { join, resolve } from 'path';
+import { makePgSnapshot, stageOut, writeSnapshot } from '../sdk/check-fixtures';
+
+export { stageConflict, stageValid } from '../sdk/check-fixtures';
+
+export const ORIGIN = '00000000-0000-0000-0000-000000000000';
+
+/**
+ * Stages a generate missing_hints scenario without a live database.
+ *
+ * Writes a postgres snapshot declaring table `users`, then writes a schema file
+ * declaring table `accounts`. Calling `generate({ dialect:'postgresql', schema, out })`
+ * on the returned paths causes the rename-detection logic to surface
+ * `{ type:'rename_or_create', kind:'table', entity:['public','accounts'] }` with no
+ * hints provided — purely filesystem-based, no Docker required.
+ */
+export const stageGenerateMissingHints = (): { out: string; schemaPath: string } => {
+	const out = stageOut();
+
+	writeSnapshot(
+		out,
+		'0000_init',
+		makePgSnapshot('p1', [ORIGIN], { users: pgTable('users', { id: integer('id') }) }),
+	);
+
+	const schemaPath = resolve(join(out, 'schema.ts'));
+	writeFileSync(
+		schemaPath,
+		[
+			"import { integer, pgTable } from 'drizzle-orm/pg-core';",
+			'',
+			"export const accounts = pgTable('accounts', { id: integer('id') });",
+		].join('\n'),
+	);
+
+	return { out, schemaPath };
+};
+
+/** Writes a minimal drizzle.config.ts pointing at the staged out folder (and optionally a schema file). */
+export const writeDrizzleConfig = (out: string, schemaPath?: string): string => {
+	const configPath = resolve(join(out, 'drizzle.config.ts'));
+	const schemaLine = schemaPath
+		? `  schema: ${JSON.stringify(schemaPath)},`
+		: "  schema: './schema.ts',";
+	writeFileSync(
+		configPath,
+		[
+			"import { defineConfig } from 'drizzle-kit';",
+			'',
+			'export default defineConfig({',
+			"  dialect: 'postgresql',",
+			schemaLine,
+			`  out: ${JSON.stringify(out)},`,
+			'});',
+		].join('\n'),
+	);
+	return configPath;
+};
