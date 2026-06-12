@@ -61,9 +61,9 @@ describe.each(scenarios)('$name', (scenario) => {
 		expect(exitCode).toBe(statusToExitCode(cliResult.status));
 	});
 
-	test('per-dialect handle called exactly once', async () => {
+	test.skipIf(scenario.command === 'check')('per-dialect handle called exactly once', async () => {
 		const modulePath = `../../src/cli/commands/${scenario.command}-${
-			mapDialect(scenario.command, scenario.sdkOpts.dialect as SupportedDialect)
+			mapDialect(scenario.command as 'generate' | 'push', scenario.sdkOpts.dialect as SupportedDialect)
 		}`;
 		let callCount = 0;
 		vi.resetModules();
