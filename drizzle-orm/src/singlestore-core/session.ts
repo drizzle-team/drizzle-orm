@@ -1,7 +1,7 @@
 import { type Cache, hashQuery, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
-import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
+import { TransactionRollbackError, wrapMySqlError } from '~/errors.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
 import type { Assume, Equal } from '~/utils.ts';
@@ -74,7 +74,7 @@ export abstract class SingleStorePreparedQuery<T extends SingleStorePreparedQuer
 			try {
 				return await query();
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw wrapMySqlError(queryString, params, e as Error);
 			}
 		}
 
@@ -83,7 +83,7 @@ export abstract class SingleStorePreparedQuery<T extends SingleStorePreparedQuer
 			try {
 				return await query();
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw wrapMySqlError(queryString, params, e as Error);
 			}
 		}
 
@@ -101,7 +101,7 @@ export abstract class SingleStorePreparedQuery<T extends SingleStorePreparedQuer
 				]);
 				return res;
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw wrapMySqlError(queryString, params, e as Error);
 			}
 		}
 
@@ -110,7 +110,7 @@ export abstract class SingleStorePreparedQuery<T extends SingleStorePreparedQuer
 			try {
 				return await query();
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw wrapMySqlError(queryString, params, e as Error);
 			}
 		}
 
@@ -126,7 +126,7 @@ export abstract class SingleStorePreparedQuery<T extends SingleStorePreparedQuer
 				try {
 					result = await query();
 				} catch (e) {
-					throw new DrizzleQueryError(queryString, params, e as Error);
+					throw wrapMySqlError(queryString, params, e as Error);
 				}
 
 				// put actual key
@@ -147,7 +147,7 @@ export abstract class SingleStorePreparedQuery<T extends SingleStorePreparedQuer
 		try {
 			return await query();
 		} catch (e) {
-			throw new DrizzleQueryError(queryString, params, e as Error);
+			throw wrapMySqlError(queryString, params, e as Error);
 		}
 	}
 
