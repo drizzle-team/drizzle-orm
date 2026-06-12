@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'vitest';
-import { makeInverseResolver, withCapture } from 'src/cli/commands/generate-down-helpers';
+import {
+	collectIrreversibleDownWarnings,
+	type DownStatement,
+	formatIrreversibleBanner,
+	makeInverseResolver,
+	withCapture,
+} from 'src/cli/commands/generate-down-helpers';
 import type { Resolver } from 'src/dialects/common';
 
 type Entity = { name: string; schema?: string; table?: string };
@@ -190,5 +196,85 @@ describe('makeInverseResolver', () => {
 		expect(result.created).toHaveLength(1);
 		expect(result.created[0]!.name).toBe('c');
 		expect(result.deleted).toHaveLength(0);
+	});
+});
+
+describe('collectIrreversibleDownWarnings', () => {
+	const stmt = (type: string, ...sqlStatements: string[]): DownStatement => ({
+		jsonStatement: { type },
+		sqlStatements,
+	});
+
+	test('flags rollback statements that recreate dropped objects', async () => {
+		const warnings = collectIrreversibleDownWarnings([
+			stmt('create_table', 'CREATE TABLE "users" ("id" integer)'),
+			stmt('add_column', 'ALTER TABLE "posts" ADD COLUMN "body" text'),
+			stmt('create_schema', 'CREATE SCHEMA "archive"'),
+		]);
+
+		expect(warnings).toHaveLength(3);
+		expect(warnings[0]!.reason).toContain('original rows cannot be restored');
+		expect(warnings[1]!.reason).toContain('original values cannot be restored');
+		expect(warnings[2]!.reason).toContain('original contents cannot be restored');
+	});
+
+	test('flags rollback statements that drop data when run', async () => {
+		const warnings = collectIrreversibleDownWarnings([
+			stmt('drop_table', 'DROP TABLE "users"'),
+			stmt('drop_column', 'ALTER TABLE "posts" DROP COLUMN "body"'),
+			stmt('drop_schema', 'DROP SCHEMA "archive"'),
+		]);
+
+		expect(warnings.map((w) => w.sql)).toEqual([
+			'DROP TABLE "users"',
+			'ALTER TABLE "posts" DROP COLUMN "body"',
+			'DROP SCHEMA "archive"',
+		]);
+		expect(warnings.every((w) => /lost|lose/.test(w.reason))).toBe(true);
+	});
+
+	test('ignores reversible operations (indexes, constraints, renames)', async () => {
+		const warnings = collectIrreversibleDownWarnings([
+			stmt('drop_index', 'DROP INDEX "idx"'),
+			stmt('create_index', 'CREATE INDEX "idx" ON "users" ("id")'),
+			stmt('rename_table', 'ALTER TABLE "a" RENAME TO "b"'),
+			stmt('add_unique', 'ALTER TABLE "users" ADD CONSTRAINT "u" UNIQUE ("email")'),
+			stmt('recreate_table', 'CREATE TABLE "__new_users" (...)'),
+		]);
+
+		expect(warnings).toHaveLength(0);
+	});
+
+	test('emits one warning per SQL statement in a grouped statement', async () => {
+		const warnings = collectIrreversibleDownWarnings([
+			stmt('drop_table', 'DROP TABLE "a"', 'DROP TABLE "b"'),
+		]);
+
+		expect(warnings.map((w) => w.sql)).toEqual(['DROP TABLE "a"', 'DROP TABLE "b"']);
+	});
+
+	test('collapses multi-line SQL to a single line', async () => {
+		const warnings = collectIrreversibleDownWarnings([
+			stmt('create_table', 'CREATE TABLE "users" (\n\t"id" integer,\n\t"name" text\n)'),
+		]);
+
+		expect(warnings[0]!.sql).toBe('CREATE TABLE "users" ( "id" integer, "name" text )');
+	});
+});
+
+describe('formatIrreversibleBanner', () => {
+	test('returns an empty string when there are no warnings', () => {
+		expect(formatIrreversibleBanner([])).toBe('');
+	});
+
+	test('renders a comment banner listing each warning', () => {
+		const banner = formatIrreversibleBanner([
+			{ sql: 'DROP TABLE "users"', reason: 'rows written since the migration are lost' },
+		]);
+
+		expect(banner).toContain('⚠ REVIEW');
+		expect(banner).toContain('--   • DROP TABLE "users" — rows written since the migration are lost');
+		// Every line is a SQL comment so the banner stays valid at the top of down.sql.
+		expect(banner.split('\n').every((line) => line.startsWith('--'))).toBe(true);
 	});
 });
