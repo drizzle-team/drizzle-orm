@@ -55,6 +55,7 @@ import type { MsSqlSelectConfig, SelectedFieldsOrdered } from './query-builders/
 import type { MsSqlUpdateConfig } from './query-builders/update.ts';
 import type { MsSqlSession } from './session.ts';
 import { MsSqlTable } from './table.ts';
+import { getTableConfig } from './utils.ts';
 import { MsSqlViewBase } from './view-base.ts';
 import type { MsSqlView } from './view.ts';
 
@@ -906,6 +907,33 @@ export class MsSqlDialect {
 		);
 	}
 
+	private buildRqbFallbackOrder(table: MsSqlTable | MsSqlView, tableConfig: TableRelationalConfig): SQL {
+		const columns = table[TableColumns] as Record<string, Column>;
+		const aliasedColumns = Object.values(columns).map((column) => sql`${column}`);
+
+		if (is(tableConfig.table, MsSqlTable)) {
+			const { columns: originalColumns, primaryKeys } = getTableConfig(tableConfig.table);
+			const primaryColumns = [
+				...originalColumns.filter((column) => column.primary),
+				...primaryKeys.flatMap((primaryKey) => primaryKey.columns),
+			];
+			const usedColumnNames = new Set<string>();
+			const aliasedPrimaryColumns = primaryColumns.flatMap((primaryColumn) => {
+				if (usedColumnNames.has(primaryColumn.name)) return [];
+				usedColumnNames.add(primaryColumn.name);
+
+				const column = Object.values(columns).find((column) => column.name === primaryColumn.name);
+				return column ? [sql`${column}`] : [];
+			});
+
+			if (aliasedPrimaryColumns.length) {
+				return sql.join(aliasedPrimaryColumns, sql`, `);
+			}
+		}
+
+		return aliasedColumns.length ? sql.join(aliasedColumns, sql`, `) : sql`1`;
+	}
+
 	buildRelationalQuery({
 		schema,
 		table,
@@ -1054,7 +1082,9 @@ export class MsSqlDialect {
 			: undefined;
 		const top = limit !== undefined && offset === undefined ? limit : undefined;
 		const orderPreservingOffset = nested && order !== undefined && top === undefined && offset === undefined;
-		const effectiveOrder = order ?? (offset !== undefined ? sql`1` : undefined);
+		// SQL Server requires ORDER BY with OFFSET. Prefer deterministic PK columns; views/no-PK sources
+		// fall back to all exposed columns, so callers should pass orderBy for business pagination.
+		const effectiveOrder = order ?? (offset !== undefined ? this.buildRqbFallbackOrder(table, tableConfig) : undefined);
 		const offsetSql = offset !== undefined
 			? sql` offset ${offset} rows`
 			: orderPreservingOffset

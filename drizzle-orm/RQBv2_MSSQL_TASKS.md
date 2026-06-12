@@ -33,4 +33,5 @@
 
 ## PR Notes
 - [x] Document SQL Server 2016+ requirement
+- [x] Document `offset` fallback ordering: PK-backed tables are deterministic; views/no-PK sources use all exposed columns as a best-effort SQL Server fallback and should pass explicit `orderBy` for production pagination semantics
 - [x] Call out beta churn and recommend upstreaming over patching node_modules

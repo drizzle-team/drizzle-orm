@@ -153,6 +153,19 @@ describe('mssql RQBv2', () => {
 		expect(query.sql).toContain('order by [d1].[id] asc offset 0 rows');
 	});
 
+	test('uses primary key fallback order for offset without orderBy', () => {
+		const query = db.query.users.findMany({
+			columns: {
+				id: true,
+			},
+			offset: 1,
+			limit: 1,
+		}).toSQL();
+
+		expect(query.sql).toContain('order by [d0].[id] offset @par0 rows fetch next @par1 rows only');
+		expect(query.sql).not.toContain('order by 1');
+	});
+
 	test('keeps V1 _query compilation path', () => {
 		const query = db._query.users.findMany({
 			limit: 1,
