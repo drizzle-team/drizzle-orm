@@ -64,6 +64,7 @@
 	},
 	"devDependencies": {
 		"@aws-sdk/client-rds-data": "^3.556.0",
+		"@modelcontextprotocol/sdk": "^1.29.0",
 		"@cloudflare/workers-types": "^4.20230518.0",
 		"@duckdb/node-api": "1.5.0-r.1",
 		"@effect/sql": "^0.48.5",
@@ -124,7 +125,7 @@
 		"typescript": "^5.9.3",
 		"uuid": "^9.0.1",
 		"ws": "^8.18.2",
-		"zod": "^3.20.2",
+		"zod": "^3.25",
 		"zx": "^8.8.5"
 	},
 	"exports": {
