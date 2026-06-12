@@ -38,7 +38,10 @@ export const stageGenerateMissingHints = (): { out: string; schemaPath: string }
 	return { out, schemaPath };
 };
 
-/** Writes a minimal drizzle.config.ts pointing at the staged out folder (and optionally a schema file). */
+/**
+ * Writes a minimal drizzle.config.ts pointing at the staged out folder (and optionally a schema file).
+ * Uses a plain export default object (no `defineConfig` import) so jiti can load it without a built dist.
+ */
 export const writeDrizzleConfig = (out: string, schemaPath?: string): string => {
 	const configPath = resolve(join(out, 'drizzle.config.ts'));
 	const schemaLine = schemaPath
@@ -47,13 +50,11 @@ export const writeDrizzleConfig = (out: string, schemaPath?: string): string => 
 	writeFileSync(
 		configPath,
 		[
-			"import { defineConfig } from 'drizzle-kit';",
-			'',
-			'export default defineConfig({',
+			'export default {',
 			"  dialect: 'postgresql',",
 			schemaLine,
 			`  out: ${JSON.stringify(out)},`,
-			'});',
+			'};',
 		].join('\n'),
 	);
 	return configPath;
