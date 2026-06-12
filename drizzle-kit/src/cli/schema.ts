@@ -29,7 +29,7 @@ import {
 	prepareStudioConfig,
 } from './commands/utils';
 import { outputFormat, setCliContext } from './context';
-import type { GenerateOptionsInput, PushOptionsInput } from './contract';
+import type { CheckOptionsInput, GenerateOptionsInput, PushOptionsInput } from './contract';
 import { OrmDriverVersionCliError, UnsupportedCommandCliError } from './errors';
 import { formatMissingHintsText } from './missing-hints-report';
 import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersionGt } from './utils';
@@ -516,39 +516,48 @@ export const push = command({
 	},
 });
 
+export const checkOptions = {
+	config: optionConfig,
+	dialect: optionDialect,
+	out: optionOut,
+	ignoreConflicts: optionIgnoreConflicts,
+	output: optionOutput,
+} as const satisfies Record<string, GenericBuilderInternals>;
+
+export const prepareCheck = async (opts: CheckOptionsInput) => {
+	const output = opts.output ?? 'text';
+	const interactive = output === 'text' && !!process.stdin.isTTY;
+	setCliContext({ output, interactive });
+	const from = assertCollisions(
+		'check',
+		opts,
+		['ignoreConflicts', 'output'],
+		['dialect', 'out'],
+	);
+	const config: CheckConfig & { output: 'text' | 'json' } = {
+		...(await prepareCheckParams(opts, from)),
+		ignoreConflicts: opts.ignoreConflicts,
+		output,
+	};
+	return config;
+};
+
+export const runCheck = async (
+	config: Awaited<ReturnType<typeof prepareCheck>>,
+) => {
+	await assertOrmCoreVersion();
+	assertV3OutFolder(config.out);
+	const { out, dialect, ignoreConflicts } = config;
+	await checkHandler(out, dialect, ignoreConflicts);
+	return { status: 'ok' as const, dialect };
+};
+
 export const check = command({
 	name: 'check',
-	options: {
-		config: optionConfig,
-		dialect: optionDialect,
-		out: optionOut,
-		ignoreConflicts: optionIgnoreConflicts,
-		output: optionOutput,
-	},
-	transform: async (opts) => {
-		const output = opts.output;
-		setCliContext({ output, interactive: output === 'text' && !!process.stdin.isTTY });
-		const from = assertCollisions(
-			'check',
-			opts,
-			['ignoreConflicts', 'output'],
-			['dialect', 'out'],
-		);
-		const config: CheckConfig & { output: 'text' | 'json' } = {
-			...(await prepareCheckParams(opts, from)),
-			ignoreConflicts: opts.ignoreConflicts,
-			output,
-		};
-		return config;
-	},
-	handler: async (config) => {
-		await assertOrmCoreVersion();
-
-		assertV3OutFolder(config.out);
-
-		const { out, dialect, ignoreConflicts } = config;
-		await checkHandler(out, dialect, ignoreConflicts);
-		const env = { status: 'ok' as const, dialect };
+	options: checkOptions,
+	transform: prepareCheck,
+	handler: async (cfg) => {
+		const env = await runCheck(cfg);
 		if (outputFormat() === 'json') process.stdout.write(JSON.stringify(env) + '\n');
 		else console.log("Everything's fine 🐶🔥");
 		process.exit(statusToExitCode(env.status));
