@@ -1,6 +1,8 @@
 import type * as V1 from '~/_relations.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
 import type { Assume, Equal } from '~/utils.ts';
 import { MsSqlDatabase } from './db.ts';
@@ -59,6 +61,7 @@ export abstract class MsSqlSession<
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends V1.TablesRelationalConfig = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
 > {
 	static readonly [entityKind]: string = 'MsSqlSession';
 
@@ -68,6 +71,11 @@ export abstract class MsSqlSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 	): PreparedQueryKind<TPreparedQueryHKT, T>;
 
 	execute<T>(query: SQL): Promise<T> {
@@ -80,7 +88,9 @@ export abstract class MsSqlSession<
 	abstract all<T = unknown>(query: SQL): Promise<T[]>;
 
 	abstract transaction<T>(
-		transaction: (tx: MsSqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>) => Promise<T>,
+		transaction: (
+			tx: MsSqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema, TRelations>,
+		) => Promise<T>,
 		config?: MsSqlTransactionConfig,
 	): Promise<T>;
 
@@ -104,16 +114,18 @@ export abstract class MsSqlTransaction<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends V1.TablesRelationalConfig = Record<string, never>,
-> extends MsSqlDatabase<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema> {
+	TRelations extends AnyRelations = EmptyRelations,
+> extends MsSqlDatabase<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema, TRelations> {
 	static override readonly [entityKind]: string = 'MsSqlTransaction';
 
 	constructor(
 		dialect: MsSqlDialect,
 		session: MsSqlSession,
 		protected schema: V1.RelationalSchemaConfig<TSchema> | undefined,
+		protected relations: TRelations,
 		protected readonly nestedIndex: number,
 	) {
-		super(dialect, session, schema);
+		super(dialect, session, schema, relations);
 	}
 
 	rollback(): never {
@@ -122,7 +134,9 @@ export abstract class MsSqlTransaction<
 
 	/** Nested transactions (aka savepoints) only work with InnoDB engine. */
 	abstract override transaction<T>(
-		transaction: (tx: MsSqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>) => Promise<T>,
+		transaction: (
+			tx: MsSqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema, TRelations>,
+		) => Promise<T>,
 	): Promise<T>;
 }
 

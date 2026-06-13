@@ -1,5 +1,5 @@
 import { eq, sql } from 'drizzle-orm';
-import { bit, int, mssqlSchema, mssqlTable, mssqlView, varchar } from 'drizzle-orm/mssql-core';
+import { bit, int, mssqlSchema, mssqlTable, mssqlView, uniqueIndex, varchar } from 'drizzle-orm/mssql-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -108,6 +108,28 @@ test('create table and view #3_1', async () => {
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+test('create indexed view', async () => {
+	const users = mssqlTable('users', {
+		id: int('id').primaryKey().notNull(),
+	});
+	const to = {
+		users,
+		view1: mssqlView('some_view1', { id: int('id').notNull() }, (view) => [
+			uniqueIndex('some_view1_clustered_idx').on(view.id).clustered(),
+		]).with({
+			schemaBinding: true,
+		}).as(sql`SELECT ${users.id} FROM ${users}`),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+
+	expect(st).toStrictEqual([
+		`CREATE TABLE [users] (\n\t[id] int,\n\tCONSTRAINT [users_pkey] PRIMARY KEY([id])\n);\n`,
+		`CREATE VIEW [some_view1]\nWITH SCHEMABINDING AS SELECT [users].[id] FROM [dbo].[users];`,
+		`CREATE UNIQUE CLUSTERED INDEX [some_view1_clustered_idx] ON [some_view1] ([id]);`,
+	]);
 });
 
 test('create table and view #4', async () => {

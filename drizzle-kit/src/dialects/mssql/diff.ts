@@ -509,6 +509,16 @@ export const ddlDiff = async (
 		};
 	};
 
+	const viewsFilter = (type: 'deleted' | 'created') => {
+		return (it: { schema: string; table: string }) => {
+			if (type === 'created') {
+				return !createdViews.some((t) => t.schema === it.schema && t.name === it.table);
+			} else {
+				return !deletedViews.some((t) => t.schema === it.schema && t.name === it.table);
+			}
+		};
+	};
+
 	const columnsFilter = (_type: 'added') => {
 		return (it: { schema: string; table: string; column: string }) => {
 			return !columnsToCreate.some((t) => t.schema === it.schema && t.table === it.table && t.name === it.column);
@@ -939,10 +949,23 @@ export const ddlDiff = async (
 			});
 		};
 	};
-	const jsonCreateIndexes = indexesCreates.filter(indexesIdentityFilter('created')).map((index) =>
-		prepareStatement('create_index', { index })
-	);
-	const jsonDropIndexes = indexesDeletes.filter(indexesIdentityFilter('deleted')).filter(tablesFilter('deleted')).map((
+	const isViewIndex = (index: Index) =>
+		ddl1.views.one({ schema: index.schema, name: index.table }) !== undefined
+		|| ddl2.views.one({ schema: index.schema, name: index.table }) !== undefined;
+	const jsonCreateIndexes = indexesCreates.filter(indexesIdentityFilter('created')).filter((index) =>
+		!isViewIndex(index)
+	)
+		.map((index) => prepareStatement('create_index', { index }));
+	const jsonCreateViewIndexes = indexesCreates.filter(indexesIdentityFilter('created')).filter(isViewIndex).map((
+		index,
+	) => prepareStatement('create_index', { index }));
+	const jsonDropIndexes = indexesDeletes.filter(indexesIdentityFilter('deleted')).filter((index) => !isViewIndex(index))
+		.filter(tablesFilter('deleted')).map((
+			index,
+		) => prepareStatement('drop_index', { index }));
+	const jsonDropViewIndexes = indexesDeletes.filter(indexesIdentityFilter('deleted')).filter(isViewIndex).filter(
+		viewsFilter('deleted'),
+	).map((
 		index,
 	) => prepareStatement('drop_index', { index }));
 	const jsonRenameIndex = indexesRenames.map((it) => prepareStatement('rename_index', { from: it.from, to: it.to }));
@@ -953,12 +976,19 @@ export const ddlDiff = async (
 	) {
 		const forWhere = !!idx.where && (idx.where.from !== null && idx.where.to !== null ? mode !== 'push' : true);
 		const forColumns = !!idx.columns && (idx.columns.from.length === idx.columns.to.length ? mode !== 'push' : true);
+		const forInclude = !!idx.include
+			&& (idx.include.from.length === idx.include.to.length ? mode !== 'push' : true);
 
 		// TODO recheck this
-		if (idx.isUnique || forColumns || forWhere) {
+		if (idx.kind || idx.isUnique || idx.clustered || forColumns || forInclude || idx.with || idx.fulltext || forWhere) {
 			const index = ddl2.indexes.one({ schema: idx.schema, table: idx.table, name: idx.name })!;
-			jsonDropIndexes.push(prepareStatement('drop_index', { index }));
-			jsonCreateIndexes.push(prepareStatement('create_index', { index }));
+			if (isViewIndex(index)) {
+				jsonDropViewIndexes.push(prepareStatement('drop_index', { index }));
+				jsonCreateViewIndexes.push(prepareStatement('create_index', { index }));
+			} else {
+				jsonDropIndexes.push(prepareStatement('drop_index', { index }));
+				jsonCreateIndexes.push(prepareStatement('create_index', { index }));
+			}
 		}
 	}
 
@@ -993,6 +1023,7 @@ export const ddlDiff = async (
 
 	jsonStatements.push(...createTables);
 
+	jsonStatements.push(...jsonDropViewIndexes);
 	jsonStatements.push(...jsonDropViews);
 	jsonStatements.push(...jsonRenameViews);
 	jsonStatements.push(...jsonMoveViews);
@@ -1038,6 +1069,7 @@ export const ddlDiff = async (
 	// jsonStatements.push(...jsonRenameDefaults);
 
 	jsonStatements.push(...createViews);
+	jsonStatements.push(...jsonCreateViewIndexes);
 
 	jsonStatements.push(...dropSchemas);
 

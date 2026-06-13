@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import { originUUID } from '../../utils';
 import { array, validator } from '../simpleValidator';
 import type { MssqlDDL, MssqlEntity, MssqlEntityV1 } from './ddl';
-import { createDDL, createDDLV1 } from './ddl';
+import { createDDL, createDDLV1, createDDLV2, createDDLV3 } from './ddl';
 
 // v1
 // old
@@ -16,9 +16,29 @@ export const snapshotValidatorV1 = validator({
 	renames: array<string>((_) => true),
 });
 
+const ddlV2 = createDDLV2();
+export const snapshotValidatorV2 = validator({
+	version: ['2'],
+	dialect: ['mssql'],
+	id: 'string',
+	prevIds: array<string>((_) => true),
+	ddl: array<MssqlEntityV2>((it) => ddlV2.entities.validate(it)),
+	renames: array<string>((_) => true),
+});
+
+const ddlV3 = createDDLV3();
+export const snapshotValidatorV3 = validator({
+	version: ['3'],
+	dialect: ['mssql'],
+	id: 'string',
+	prevIds: array<string>((_) => true),
+	ddl: array<MssqlEntityV3>((it) => ddlV3.entities.validate(it)),
+	renames: array<string>((_) => true),
+});
+
 const ddl = createDDL();
 export const snapshotValidator = validator({
-	version: ['2'],
+	version: ['4'],
 	dialect: ['mssql'],
 	id: 'string',
 	prevIds: array<string>((_) => true),
@@ -27,15 +47,19 @@ export const snapshotValidator = validator({
 });
 
 export type MssqlSnapshotV1 = typeof snapshotValidatorV1.shape;
+export type MssqlSnapshotV2 = typeof snapshotValidatorV2.shape;
+export type MssqlSnapshotV3 = typeof snapshotValidatorV3.shape;
 export type MssqlSnapshot = typeof snapshotValidator.shape;
+export type MssqlEntityV2 = ReturnType<ReturnType<typeof createDDLV2>['entities']['list']>[number];
+export type MssqlEntityV3 = ReturnType<ReturnType<typeof createDDLV3>['entities']['list']>[number];
 
 export const toJsonSnapshot = (ddl: MssqlDDL, prevIds: string[], renames: string[]): MssqlSnapshot => {
-	return { dialect: 'mssql', id: randomUUID(), prevIds, version: '2', ddl: ddl.entities.list(), renames };
+	return { dialect: 'mssql', id: randomUUID(), prevIds, version: '4', ddl: ddl.entities.list(), renames };
 };
 
 export const drySnapshot = snapshotValidator.strict(
 	{
-		version: '2',
+		version: '4',
 		dialect: 'mssql',
 		id: originUUID,
 		prevIds: [],

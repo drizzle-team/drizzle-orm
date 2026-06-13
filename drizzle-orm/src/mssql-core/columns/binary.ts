@@ -39,6 +39,10 @@ export class MsSqlBinary<T extends ColumnBaseConfig<'object buffer'>> extends Ms
 	getSQLType(): string {
 		return this.config.setLength ? `binary(${this.length})` : `binary`;
 	}
+
+	mapFromJsonValue(value: string): Buffer {
+		return Buffer.from(value, 'base64');
+	}
 }
 
 export interface MsSqlBinaryConfig {

@@ -422,6 +422,45 @@ test('introspect view #2', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+test('introspect indexed view', async () => {
+	const users = mssqlTable('users', {
+		id: int('id').primaryKey().notNull(),
+		name: varchar('name', { length: 255 }).notNull(),
+	});
+
+	const view = mssqlView('some_view', {
+		id: int('id').notNull(),
+		name: varchar('name', { length: 255 }).notNull(),
+	}, (view) => [
+		uniqueIndex('some_view_clustered_idx').on(view.id).clustered(),
+		index('some_view_name_idx').on(view.name).nonClustered(),
+	]).with({
+		schemaBinding: true,
+	}).as(sql`SELECT ${users.id}, ${users.name} FROM ${users}`);
+	const schema = {
+		view,
+		users,
+	};
+
+	const { introspectDDL, statements, sqlStatements } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-indexed-view',
+	);
+
+	expect(
+		introspectDDL.indexes.list({ schema: 'dbo', table: 'some_view' }).map((it) => ({
+			name: it.name,
+			clustered: it.clustered,
+		})),
+	).toStrictEqual([
+		{ name: 'some_view_clustered_idx', clustered: true },
+		{ name: 'some_view_name_idx', clustered: false },
+	]);
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
 test('introspect primary key with unqiue', async () => {
 	const users = mssqlTable('users', {
 		id: int('id').primaryKey(),

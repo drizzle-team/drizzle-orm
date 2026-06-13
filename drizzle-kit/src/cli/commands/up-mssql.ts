@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
-import { upToV2 } from 'src/dialects/mssql/versions';
+import { upToV4 } from 'src/dialects/mssql/versions';
 import { prepareOutFolder, validateWithReport } from '../../utils/utils-node';
 
 export const upMssqlHandler = (out: string) => {
@@ -15,7 +15,7 @@ export const upMssqlHandler = (out: string) => {
 		.forEach((it) => {
 			const path = it.path;
 
-			const { snapshot } = upToV2(it.raw);
+			const { snapshot } = upToV4(it.raw);
 
 			console.log(`[${chalk.green('✓')}] ${path}`);
 

@@ -22,6 +22,8 @@ import {
 	sumDistinct,
 	TransactionRollbackError,
 } from 'drizzle-orm';
+import { Cache, type MutationOption } from 'drizzle-orm/cache/core';
+import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import {
 	alias,
 	bit,
@@ -73,6 +75,76 @@ import {
 } from './schema';
 
 // const ENABLE_LOGGING = true;
+
+class TestCache extends Cache {
+	private cache = new Map<string, any[]>();
+	private usedTablesPerKey = new Map<string, Set<string>>();
+
+	getCalls = 0;
+	putCalls = 0;
+	onMutateCalls = 0;
+	lastMutation: MutationOption | undefined;
+
+	constructor(private readonly strat: 'explicit' | 'all') {
+		super();
+	}
+
+	override strategy(): 'explicit' | 'all' {
+		return this.strat;
+	}
+
+	override async get(_key: string, _tables: string[], _isTag: boolean): Promise<any[] | undefined> {
+		this.getCalls++;
+		return this.cache.get(_key);
+	}
+
+	override async put(
+		key: string,
+		response: unknown,
+		tables: string[],
+		_isTag: boolean,
+		_config?: CacheConfig,
+	): Promise<void> {
+		this.putCalls++;
+		if (Array.isArray(response)) {
+			this.cache.set(key, response);
+		}
+		for (const table of tables) {
+			const keys = this.usedTablesPerKey.get(table) ?? new Set<string>();
+			keys.add(key);
+			this.usedTablesPerKey.set(table, keys);
+		}
+	}
+
+	override async onMutate(params: MutationOption): Promise<void> {
+		this.onMutateCalls++;
+		this.lastMutation = params;
+
+		const tags = params.tags ? Array.isArray(params.tags) ? params.tags : [params.tags] : [];
+		const tables = params.tables ? Array.isArray(params.tables) ? params.tables : [params.tables] : [];
+
+		for (const tag of tags) {
+			this.cache.delete(tag);
+		}
+
+		for (const table of tables) {
+			if (typeof table !== 'string') continue;
+
+			const keys = this.usedTablesPerKey.get(table) ?? new Set<string>();
+			for (const key of keys) {
+				this.cache.delete(key);
+			}
+			this.usedTablesPerKey.delete(table);
+		}
+	}
+
+	reset() {
+		this.getCalls = 0;
+		this.putCalls = 0;
+		this.onMutateCalls = 0;
+		this.lastMutation = undefined;
+	}
+}
 
 test.beforeEach(async ({ client }) => {
 	await client.query(`drop table if exists [userstest]`);
@@ -142,6 +214,54 @@ test.beforeEach(async ({ client }) => {
 			[col1] bit,
 			[col2] varchar(6)
 		)`);
+});
+
+test('cache: explicit select and mutation invalidation', async ({ client }) => {
+	const cache = new TestCache('explicit');
+	const cachedDb = drizzle({ client, cache });
+
+	await cachedDb.select().from(usersTable).$withCache({ tag: 'users-cache', config: { ex: 1 } });
+	await cachedDb.select().from(usersTable).$withCache({ tag: 'users-cache', config: { ex: 1 } });
+
+	expect(cache.getCalls).toBe(2);
+	expect(cache.putCalls).toBe(1);
+	expect(cache.onMutateCalls).toBe(0);
+
+	cache.reset();
+
+	await cachedDb.insert(usersTable).values({ name: 'John' });
+
+	expect(cache.getCalls).toBe(0);
+	expect(cache.putCalls).toBe(0);
+	expect(cache.onMutateCalls).toBe(1);
+	expect(cache.lastMutation).toEqual({ tables: ['userstest'] });
+
+	cache.reset();
+
+	await cachedDb.select().from(usersTable).$withCache({ tag: 'users-cache', config: { ex: 1 } });
+
+	expect(cache.getCalls).toBe(1);
+	expect(cache.putCalls).toBe(1);
+	expect(cache.onMutateCalls).toBe(0);
+});
+
+test('cache: global strategy and per-query disable', async ({ client }) => {
+	const cache = new TestCache('all');
+	const cachedDb = drizzle({ client, cache });
+
+	await cachedDb.select().from(usersTable);
+
+	expect(cache.getCalls).toBe(1);
+	expect(cache.putCalls).toBe(1);
+	expect(cache.onMutateCalls).toBe(0);
+
+	cache.reset();
+
+	await cachedDb.select().from(usersTable).$withCache(false);
+
+	expect(cache.getCalls).toBe(0);
+	expect(cache.putCalls).toBe(0);
+	expect(cache.onMutateCalls).toBe(0);
 });
 
 async function setupSetOperationTest(db: NodeMsSqlDatabase<any>) {

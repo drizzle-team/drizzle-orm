@@ -1,12 +1,14 @@
 import type { Casing } from '~/casing.ts';
 import type { BuildColumns, ColumnBuilderBase } from '~/column-builder.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
 import type { MsSqlColumn } from './columns/index.ts';
+import type { AnyIndexBuilder, Index } from './indexes.ts';
+import { ColumnStoreIndexBuilder, FullTextIndexBuilder, IndexBuilder } from './indexes.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import { mssqlTableWithSchema } from './table.ts';
@@ -19,6 +21,12 @@ export interface ViewBuilderConfig {
 	viewMetadata?: boolean;
 	checkOption?: boolean;
 }
+
+type MsSqlViewConfigShape = ViewBuilderConfig & { indexes?: Index[] };
+
+export type MsSqlViewExtraConfigValue = AnyIndexBuilder;
+
+export type MsSqlViewExtraConfig = Record<string, MsSqlViewExtraConfigValue>;
 
 export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }> {
 	static readonly [entityKind]: string = 'MsSqlViewBuilder';
@@ -92,6 +100,11 @@ export class ManualViewBuilder<
 	constructor(
 		name: TName,
 		columns: TColumns,
+		private extraConfig:
+			| ((
+				self: BuildColumns<TName, TColumns, 'mssql'>,
+			) => MsSqlViewExtraConfig | MsSqlViewExtraConfigValue[])
+			| undefined,
 		schema: string | undefined,
 		casing: Casing | undefined,
 	) {
@@ -101,17 +114,41 @@ export class ManualViewBuilder<
 		) as BuildColumns<TName, TColumns, 'mssql'>;
 	}
 
+	private buildIndexes(view: MsSqlView<TName>): Index[] {
+		if (this.extraConfig === undefined) {
+			return [];
+		}
+
+		const extraConfig = this.extraConfig(
+			this.columns as BuildColumns<TName, TColumns, 'mssql'>,
+		);
+		const extraValues = Array.isArray(extraConfig) ? extraConfig.flat(1) : Object.values(extraConfig);
+		const indexes: Index[] = [];
+
+		for (const builder of extraValues) {
+			if (is(builder, IndexBuilder) || is(builder, FullTextIndexBuilder) || is(builder, ColumnStoreIndexBuilder)) {
+				indexes.push(builder.build(view));
+			}
+		}
+
+		return indexes;
+	}
+
 	existing(): MsSqlViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'mssql'>> {
+		const view = new MsSqlView({
+			mssqlConfig: undefined,
+			config: {
+				name: this.name,
+				schema: this.schema,
+				selectedFields: this.columns,
+				query: undefined,
+			},
+		});
+		view[MsSqlViewConfig] = {
+			indexes: this.buildIndexes(view),
+		};
 		return new Proxy(
-			new MsSqlView({
-				mssqlConfig: undefined,
-				config: {
-					name: this.name,
-					schema: this.schema,
-					selectedFields: this.columns,
-					query: undefined,
-				},
-			}),
+			view,
 			new SelectionProxyHandler({
 				alias: this.name,
 				sqlBehavior: 'error',
@@ -122,16 +159,21 @@ export class ManualViewBuilder<
 	}
 
 	as(query: SQL): MsSqlViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'mssql'>> {
+		const view = new MsSqlView({
+			mssqlConfig: this.config,
+			config: {
+				name: this.name,
+				schema: this.schema,
+				selectedFields: this.columns,
+				query: query.inlineParams(),
+			},
+		});
+		view[MsSqlViewConfig] = {
+			...this.config,
+			indexes: this.buildIndexes(view),
+		};
 		return new Proxy(
-			new MsSqlView({
-				mssqlConfig: this.config,
-				config: {
-					name: this.name,
-					schema: this.schema,
-					selectedFields: this.columns,
-					query: query.inlineParams(),
-				},
-			}),
+			view,
 			new SelectionProxyHandler({
 				alias: this.name,
 				sqlBehavior: 'error',
@@ -151,10 +193,10 @@ export class MsSqlView<
 
 	declare protected $MsSqlViewBrand: 'MsSqlView';
 
-	[MsSqlViewConfig]: ViewBuilderConfig | undefined;
+	[MsSqlViewConfig]: MsSqlViewConfigShape | undefined;
 
 	constructor({ mssqlConfig, config }: {
-		mssqlConfig: ViewBuilderConfig | undefined;
+		mssqlConfig: MsSqlViewConfigShape | undefined;
 		config: {
 			name: TName;
 			schema: string | undefined;
@@ -174,14 +216,44 @@ export type MsSqlViewWithSelection<
 > = MsSqlView<TName, TExisting, TSelectedFields> & TSelectedFields;
 
 /** @internal */
+export function mssqlViewWithSchema<TName extends string>(
+	name: TName,
+	selection: undefined,
+	extraConfig: undefined,
+	schema: string | undefined,
+	casing: Casing | undefined,
+): ViewBuilder<TName>;
+export function mssqlViewWithSchema<
+	TName extends string,
+	TColumns extends Record<string, ColumnBuilderBase>,
+>(
+	name: TName,
+	selection: TColumns,
+	extraConfig:
+		| ((self: BuildColumns<TName, TColumns, 'mssql'>) => MsSqlViewExtraConfig | MsSqlViewExtraConfigValue[])
+		| undefined,
+	schema: string | undefined,
+	casing: Casing | undefined,
+): ManualViewBuilder<TName, TColumns>;
 export function mssqlViewWithSchema(
 	name: string,
 	selection: Record<string, ColumnBuilderBase> | undefined,
+	extraConfig: unknown,
 	schema: string | undefined,
 	casing: Casing | undefined,
 ): ViewBuilder | ManualViewBuilder {
 	if (selection) {
-		return new ManualViewBuilder(name, selection, schema, casing);
+		return new ManualViewBuilder(
+			name,
+			selection,
+			extraConfig as
+				| ((
+					self: BuildColumns<string, Record<string, ColumnBuilderBase>, 'mssql'>,
+				) => MsSqlViewExtraConfig | MsSqlViewExtraConfigValue[])
+				| undefined,
+			schema,
+			casing,
+		);
 	}
 	return new ViewBuilder(name, schema);
 }
@@ -191,12 +263,16 @@ export interface MsSqlViewFn {
 	<TName extends string, TColumns extends Record<string, ColumnBuilderBase>>(
 		name: TName,
 		columns: TColumns,
+		extraConfig?: (
+			self: BuildColumns<TName, TColumns, 'mssql'>,
+		) => MsSqlViewExtraConfig | MsSqlViewExtraConfigValue[],
 	): ManualViewBuilder<TName, TColumns>;
 }
 
 /** @internal */
 export function mssqlViewWithCasing(casing: Casing | undefined): MsSqlViewFn {
-	return ((name, columns) => mssqlViewWithSchema(name, columns, undefined, casing)) as MsSqlViewFn;
+	return ((name, columns, extraConfig) =>
+		mssqlViewWithSchema(name, columns, extraConfig, undefined, casing)) as MsSqlViewFn;
 }
 
 export const mssqlView = mssqlViewWithCasing(undefined);

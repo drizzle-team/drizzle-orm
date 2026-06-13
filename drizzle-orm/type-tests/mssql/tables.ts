@@ -1,23 +1,35 @@
 import { type Equal, Expect } from 'type-tests/utils.ts';
-import type { InferSelectModel } from '~/index.ts';
+import type { InferInsertModel, InferSelectModel } from '~/index.ts';
 import {
 	bigint,
 	char,
 	check,
+	clusteredColumnStoreIndex,
+	columnStoreIndex,
 	customType,
 	date,
 	datetime,
 	decimal,
 	foreignKey,
+	fullTextIndex,
+	geography,
+	geometry,
 	index,
 	int,
+	json,
+	money,
 	mssqlTable,
 	nchar,
 	nvarchar,
 	primaryKey,
+	rowversion,
+	smalldatetime,
+	smallmoney,
 	text,
+	uniqueidentifier,
 	uniqueIndex,
 	varchar,
+	xml,
 } from '~/mssql-core/index.ts';
 import { mssqlSchema } from '~/mssql-core/schema.ts';
 import { mssqlView } from '~/mssql-core/view.ts';
@@ -64,6 +76,10 @@ export const cities = mssqlTable('cities_table', {
 	population: int('population').default(0),
 }, (cities) => [
 	index('citiesNameIdx').on(cities.id),
+	index('citiesPopulationIdx')
+		.on(cities.population.desc())
+		.include(cities.name)
+		.with({ fillFactor: 80, online: true }),
 ]);
 
 Expect<
@@ -73,6 +89,53 @@ Expect<
 		population: number | null;
 	}, InferSelectModel<typeof cities>>
 >;
+
+export const nativeTypes = mssqlTable('native_types', {
+	id: int('id').identity().primaryKey(),
+	guid: uniqueidentifier('guid').notNull(),
+	document: xml('document'),
+	payload: json('payload'),
+	price: money('price'),
+	priceNumber: money('price_number', { mode: 'number' }),
+	smallPrice: smallmoney('small_price'),
+	version: rowversion('version'),
+	createdAtSmall: smalldatetime('created_at_small'),
+	createdAtSmallString: smalldatetime('created_at_small_string', { mode: 'string' }),
+	geo: geography('geo'),
+	shape: geometry('shape'),
+	geoPoint: geography('geo_point', { mode: 'xy', srid: 4326 }),
+	shapePoint: geometry('shape_point', { mode: 'tuple' }),
+	shapeWkt: geometry('shape_wkt', { mode: 'wkt' }),
+}, (table) => [
+	fullTextIndex('native_types_document_ft').on(table.document).keyIndex('native_types_pkey'),
+	columnStoreIndex('native_types_columnstore_idx').on(table.priceNumber).where(sql`${table.priceNumber} is not null`),
+	clusteredColumnStoreIndex('native_types_clustered_columnstore_idx').orderBy(table.id),
+]);
+
+Expect<
+	Equal<{
+		id: number;
+		guid: string;
+		document: string | null;
+		payload: unknown;
+		price: string | null;
+		priceNumber: number | null;
+		smallPrice: string | null;
+		version: Buffer<ArrayBufferLike>;
+		createdAtSmall: Date | null;
+		createdAtSmallString: string | null;
+		geo: unknown;
+		shape: unknown;
+		geoPoint: { x: number; y: number } | null;
+		shapePoint: [number, number] | null;
+		shapeWkt: string | null;
+	}, InferSelectModel<typeof nativeTypes>>
+>;
+
+const nativeTypesInsert: InferInsertModel<typeof nativeTypes> = {
+	guid: '00000000-0000-0000-0000-000000000000',
+};
+nativeTypesInsert;
 
 export const customSchema = mssqlSchema('custom_schema');
 

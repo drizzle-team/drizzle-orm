@@ -215,25 +215,79 @@ const recreateIdentityColumn = convertor('recreate_identity_column', (st) => {
 });
 
 const createIndex = convertor('create_index', (st) => {
-	const { name, table, columns, isUnique, where, schema } = st.index;
-	const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
+	const { name, table, columns, include, isUnique, where, schema, clustered, with: withConfig, fulltext } = st.index;
+	const key = schema !== 'dbo' ? `[${schema}].[${table}]` : `[${table}]`;
+	const columnList = columns.map((it) => {
+		const column = it.isExpression ? it.value : `[${it.value}]`;
+		return it.asc === false ? `${column} DESC` : column;
+	}).join(',');
 
-	const uniqueString = `${
-		columns.map((it) => {
-			return it.isExpression ? it.value : `[${it.value}]`;
-		})
-	}`;
+	if (st.index.kind === 'fulltext') {
+		if (!fulltext?.keyIndex) {
+			throw new Error(`Full-text index "${name}" is missing a key index`);
+		}
+
+		const withOptions = [
+			fulltext.changeTracking ? `CHANGE_TRACKING = ${fulltext.changeTracking.toUpperCase()}` : undefined,
+			fulltext.stoplist
+				? `STOPLIST = ${
+					fulltext.stoplist === 'system' || fulltext.stoplist === 'off'
+						? fulltext.stoplist.toUpperCase()
+						: `[${fulltext.stoplist}]`
+				}`
+				: undefined,
+		].filter((it) => it !== undefined);
+		const withClause = withOptions.length > 0 ? ` WITH (${withOptions.join(', ')})` : '';
+		const catalogClause = fulltext.catalog ? ` ON [${fulltext.catalog}]` : '';
+
+		return `CREATE FULLTEXT INDEX ON ${key} (${columnList}) KEY INDEX [${fulltext.keyIndex}]${catalogClause}${withClause};`;
+	}
+
+	if (st.index.kind === 'columnstore') {
+		const withOptions = [
+			withConfig?.online === null || withConfig?.online === undefined
+				? undefined
+				: `ONLINE = ${withConfig.online ? 'ON' : 'OFF'}`,
+		].filter((it) => it !== undefined);
+		const withClause = withOptions.length > 0 ? ` WITH (${withOptions.join(', ')})` : '';
+		const indexPart = `${clustered === true ? 'CLUSTERED ' : 'NONCLUSTERED '}COLUMNSTORE INDEX`;
+		const columnsClause = clustered === true
+			? columnList ? ` ORDER (${columnList})` : ''
+			: ` (${columnList})`;
+
+		return `CREATE ${indexPart} [${name}] ON ${key}${columnsClause}${where ? ` WHERE ${where}` : ''}${withClause};`;
+	}
+
+	const indexPart = `${isUnique ? 'UNIQUE ' : ''}${
+		clustered === true ? 'CLUSTERED ' : clustered === false ? 'NONCLUSTERED ' : ''
+	}INDEX`;
+
+	const includeClause = include.length > 0
+		? ` INCLUDE (${include.map((it) => it.isExpression ? it.value : `[${it.value}]`).join(',')})`
+		: '';
 
 	const whereClause = where ? ` WHERE ${where}` : '';
+	const withOptions = [
+		withConfig?.fillFactor === null || withConfig?.fillFactor === undefined
+			? undefined
+			: `FILLFACTOR = ${withConfig.fillFactor}`,
+		withConfig?.online === null || withConfig?.online === undefined
+			? undefined
+			: `ONLINE = ${withConfig.online ? 'ON' : 'OFF'}`,
+	].filter((it) => it !== undefined);
+	const withClause = withOptions.length > 0 ? ` WITH (${withOptions.join(', ')})` : '';
 
-	const key = schema !== 'dbo' ? `[${schema}].[${table}]` : `[${table}]`;
-	return `CREATE ${indexPart} [${name}] ON ${key} (${uniqueString})${whereClause};`;
+	return `CREATE ${indexPart} [${name}] ON ${key} (${columnList})${includeClause}${whereClause}${withClause};`;
 });
 
 const dropIndex = convertor('drop_index', (st) => {
 	const { schema, name, table } = st.index;
 
 	const key = schema !== 'dbo' ? `[${schema}].[${table}]` : `[${table}]`;
+	if (st.index.kind === 'fulltext') {
+		return `DROP FULLTEXT INDEX ON ${key};`;
+	}
+
 	return `DROP INDEX [${name}] ON ${key};`;
 });
 
@@ -294,6 +348,13 @@ const renameFk = convertor('rename_fk', (st) => {
 const renameIndex = convertor('rename_index', (st) => {
 	const { name: nameFrom, schema: schemaFrom, table: tableFrom } = st.from;
 	const { name: nameTo } = st.to;
+
+	if (st.from.kind === 'fulltext' || st.to.kind === 'fulltext') {
+		return [
+			dropIndex.convert({ index: st.from }) as string,
+			createIndex.convert({ index: st.to }) as string,
+		];
+	}
 
 	const key = schemaFrom !== 'dbo' ? `${schemaFrom}.${tableFrom}.${nameFrom}` : `${tableFrom}.${nameFrom}`;
 	return `EXEC sp_rename '${key}', [${nameTo}], 'INDEX';`;

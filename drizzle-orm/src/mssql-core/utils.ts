@@ -1,4 +1,6 @@
 import { is } from '~/entity.ts';
+import { SQL } from '~/sql/sql.ts';
+import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { Check } from './checks.ts';
@@ -6,13 +8,27 @@ import { CheckBuilder } from './checks.ts';
 import type { ForeignKey } from './foreign-keys.ts';
 import { ForeignKeyBuilder } from './foreign-keys.ts';
 import type { Index } from './indexes.ts';
-import { IndexBuilder } from './indexes.ts';
+import { ColumnStoreIndexBuilder, FullTextIndexBuilder, IndexBuilder } from './indexes.ts';
 import type { PrimaryKey } from './primary-keys.ts';
 import { PrimaryKeyBuilder } from './primary-keys.ts';
 import { MsSqlTable } from './table.ts';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
+import type { MsSqlViewBase } from './view-base.ts';
 import { MsSqlViewConfig } from './view-common.ts';
 import type { MsSqlView } from './view.ts';
+
+export function extractUsedTable(table: MsSqlTable | Subquery | MsSqlViewBase | SQL): string[] {
+	if (is(table, MsSqlTable)) {
+		return [`${table[Table.Symbol.BaseName]}`];
+	}
+	if (is(table, Subquery)) {
+		return table._.usedTables ?? [];
+	}
+	if (is(table, SQL)) {
+		return table.usedTables ?? [];
+	}
+	return [];
+}
 
 export function getTableConfig(table: MsSqlTable) {
 	const columns = Object.values(table[MsSqlTable.Symbol.Columns]);
@@ -30,7 +46,7 @@ export function getTableConfig(table: MsSqlTable) {
 	if (extraConfigBuilder !== undefined) {
 		const extraConfig = extraConfigBuilder(table[MsSqlTable.Symbol.Columns]);
 		for (const builder of Object.values(extraConfig)) {
-			if (is(builder, IndexBuilder)) {
+			if (is(builder, IndexBuilder) || is(builder, FullTextIndexBuilder) || is(builder, ColumnStoreIndexBuilder)) {
 				indexes.push(builder.build(table));
 			} else if (is(builder, CheckBuilder)) {
 				checks.push(builder.build(table));

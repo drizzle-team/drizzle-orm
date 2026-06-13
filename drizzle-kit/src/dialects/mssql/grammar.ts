@@ -595,6 +595,13 @@ export const Datetime: SqlType = {
 		return { default: value, options };
 	},
 };
+export const SmallDatetime: SqlType = {
+	is: (type) => type === 'smalldatetime' || type.startsWith('smalldatetime('),
+	drizzleImport: () => 'smalldatetime',
+	defaultFromDrizzle: Datetime.defaultFromDrizzle,
+	defaultFromIntrospect: Datetime.defaultFromIntrospect,
+	toTs: Datetime.toTs,
+};
 export const DateType: SqlType = {
 	is: (type) => type === 'date' || type.startsWith('date('),
 	drizzleImport: () => 'date',
@@ -735,6 +742,97 @@ export const Varbinary: SqlType = {
 	toTs: Binary.toTs,
 };
 
+export const UniqueIdentifier: SqlType = {
+	is: (type) => type === 'uniqueidentifier',
+	drizzleImport: () => 'uniqueidentifier',
+	defaultFromDrizzle: Char.defaultFromDrizzle,
+	defaultFromIntrospect: Char.defaultFromIntrospect,
+	toTs: (_type, value) => {
+		if (!value) return { default: '' };
+		return Char.toTs('varchar', value);
+	},
+};
+
+export const Xml: SqlType = {
+	is: (type) => type === 'xml',
+	drizzleImport: () => 'xml',
+	defaultFromDrizzle: NVarchar.defaultFromDrizzle,
+	defaultFromIntrospect: NVarchar.defaultFromIntrospect,
+	toTs: (_type, value) => {
+		if (!value) return { default: '' };
+		return NVarchar.toTs('nvarchar(max)', value);
+	},
+};
+
+export const Json: SqlType = {
+	is: (type) => type === 'json',
+	drizzleImport: () => 'json',
+	defaultFromDrizzle: (value) => {
+		return `('${escapeForSqlDefault(stringify(value))}')`;
+	},
+	defaultFromIntrospect: NVarchar.defaultFromIntrospect,
+	toTs: (_type, value) => {
+		if (!value) return { default: '' };
+		return { default: `sql\`${value}\`` };
+	},
+};
+
+export const Money: SqlType = {
+	is: (type) => type === 'money',
+	drizzleImport: () => 'money',
+	defaultFromDrizzle: Decimal.defaultFromDrizzle,
+	defaultFromIntrospect: Decimal.defaultFromIntrospect,
+	toTs: (_type, value) => {
+		if (!value) return { default: '' };
+		const res = Decimal.toTs('decimal', value);
+		return { options: { mode: 'number' }, default: res.default };
+	},
+};
+
+export const SmallMoney: SqlType = {
+	is: (type) => type === 'smallmoney',
+	drizzleImport: () => 'smallmoney',
+	defaultFromDrizzle: Money.defaultFromDrizzle,
+	defaultFromIntrospect: Money.defaultFromIntrospect,
+	toTs: Money.toTs,
+};
+
+export const RowVersion: SqlType = {
+	is: (type) => type === 'rowversion' || type === 'timestamp',
+	drizzleImport: () => 'rowversion',
+	defaultFromDrizzle: () => {
+		throw Error('unexpected rowversion default');
+	},
+	defaultFromIntrospect: (value) => value,
+	toTs: () => {
+		return { default: '' };
+	},
+};
+
+export const Geography: SqlType = {
+	is: (type) => type === 'geography',
+	drizzleImport: () => 'geography',
+	defaultFromDrizzle: (value) => {
+		return `('${String(value)}')`;
+	},
+	defaultFromIntrospect: (value) => {
+		return value;
+	},
+	toTs: () => {
+		return { default: '' };
+	},
+};
+
+export const Geometry: SqlType = {
+	is: (type) => type === 'geometry',
+	drizzleImport: () => 'geometry',
+	defaultFromDrizzle: Geography.defaultFromDrizzle,
+	defaultFromIntrospect: Geography.defaultFromIntrospect,
+	toTs: () => {
+		return { default: '' };
+	},
+};
+
 export const Custom: SqlType = {
 	is: () => {
 		throw Error('Mocked');
@@ -769,10 +867,19 @@ export const typeFor = (sqlType: string): SqlType => {
 	if (Real.is(sqlType)) return Real;
 	if (DateType.is(sqlType)) return DateType;
 	if (Datetime.is(sqlType)) return Datetime;
+	if (SmallDatetime.is(sqlType)) return SmallDatetime;
 	if (Datetime2.is(sqlType)) return Datetime2;
 	if (Datetimeoffset.is(sqlType)) return Datetimeoffset;
 	if (Time.is(sqlType)) return Time;
 	if (Binary.is(sqlType)) return Binary;
 	if (Varbinary.is(sqlType)) return Varbinary;
+	if (UniqueIdentifier.is(sqlType)) return UniqueIdentifier;
+	if (Xml.is(sqlType)) return Xml;
+	if (Json.is(sqlType)) return Json;
+	if (Money.is(sqlType)) return Money;
+	if (SmallMoney.is(sqlType)) return SmallMoney;
+	if (RowVersion.is(sqlType)) return RowVersion;
+	if (Geography.is(sqlType)) return Geography;
+	if (Geometry.is(sqlType)) return Geometry;
 	return Custom;
 };

@@ -17,6 +17,7 @@ import { Param, SQL } from '~/sql/sql.ts';
 import { type InferInsertModel, type InferSelectModel, Table } from '~/table.ts';
 import { orderSelectedFields } from '~/utils.ts';
 import type { MsSqlColumn } from '../columns/common.ts';
+import { extractUsedTable } from '../utils.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
 export interface MsSqlInsertConfig<TTable extends MsSqlTable = MsSqlTable> {
@@ -218,6 +219,8 @@ export class MsSqlInsertBase<
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.output,
+			undefined,
+			{ type: 'insert', tables: extractUsedTable(this.config.table) },
 		) as MsSqlInsertPrepare<this>;
 	}
 

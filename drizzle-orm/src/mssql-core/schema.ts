@@ -16,8 +16,8 @@ export class MsSqlSchema<TName extends string = string> {
 		return mssqlTableWithSchema(name, columns, extraConfig, this.schemaName, this.casing);
 	};
 
-	view = ((name, columns) => {
-		return mssqlViewWithSchema(name, columns, this.schemaName, this.casing);
+	view = ((name, columns, extraConfig) => {
+		return mssqlViewWithSchema(name, columns, extraConfig, this.schemaName, this.casing);
 	}) as typeof mssqlView;
 
 	existing(): this {

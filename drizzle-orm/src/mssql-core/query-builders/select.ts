@@ -1,3 +1,4 @@
+import type { CacheConfig, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { MsSqlColumn } from '~/mssql-core/columns/index.ts';
 import type { MsSqlDialect } from '~/mssql-core/dialect.ts';
@@ -30,6 +31,7 @@ import {
 	type ValueOrArray,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { extractUsedTable } from '../utils.ts';
 import { MsSqlViewBase } from '../view-base.ts';
 import type {
 	AnyMsSqlSelect,
@@ -185,6 +187,8 @@ export abstract class MsSqlSelectQueryBuilderBase<
 	/** @internal */
 	readonly session: MsSqlSession | undefined;
 	protected dialect: MsSqlDialect;
+	protected cacheConfig?: WithCacheConfig = undefined;
+	protected usedTables: Set<string> = new Set();
 
 	constructor(
 		{ table, fields, isPartialSelect, session, dialect, withList, distinct, topValue }: {
@@ -215,6 +219,17 @@ export abstract class MsSqlSelectQueryBuilderBase<
 		} as this['_'];
 		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
+		for (const item of extractUsedTable(table)) this.usedTables.add(item);
+
+		this.config.withList?.forEach((it) => {
+			const extracted = extractUsedTable(it);
+			for (const el of extracted) this.usedTables.add(el);
+		});
+	}
+
+	/** @internal */
+	getUsedTables() {
+		return [...this.usedTables];
 	}
 
 	private createJoin<TJoinType extends JoinType>(
@@ -226,6 +241,8 @@ export abstract class MsSqlSelectQueryBuilderBase<
 		) => {
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
+
+			for (const item of extractUsedTable(table)) this.usedTables.add(item);
 
 			if (typeof tableName === 'string' && this.config.joins?.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
@@ -824,8 +841,12 @@ export abstract class MsSqlSelectQueryBuilderBase<
 	as<TAlias extends string>(
 		alias: TAlias,
 	): SubqueryWithSelection<this['_']['selectedFields'], TAlias> {
+		const usedTables: string[] = [];
+		usedTables.push(...extractUsedTable(this.config.table));
+		if (this.config.joins) { for (const it of this.config.joins) usedTables.push(...extractUsedTable(it.table)); }
+
 		return new Proxy(
-			new Subquery(this.getSQL(), this.config.fields, alias),
+			new Subquery(this.getSQL(), this.config.fields, alias, false, [...new Set(usedTables)]),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
 	}
@@ -845,6 +866,15 @@ export abstract class MsSqlSelectQueryBuilderBase<
 
 	$dynamic(): MsSqlSelectDynamic<this> {
 		return this as any;
+	}
+
+	$withCache(config?: { config?: CacheConfig; tag?: string; autoInvalidate?: boolean } | false) {
+		this.cacheConfig = config === undefined
+			? { config: {}, enabled: true, autoInvalidate: true }
+			: config === false
+			? { enabled: false }
+			: { enabled: true, autoInvalidate: true, ...config };
+		return this;
 	}
 }
 
@@ -875,7 +905,9 @@ export interface MsSqlSelectBase<
 		TSelectedFields
 	>,
 	QueryPromise<TResult>
-{}
+{
+	$withCache(config?: { config?: CacheConfig; tag?: string; autoInvalidate?: boolean } | false): this;
+}
 
 export class MsSqlSelectBase<
 	TTableName extends string | undefined,
@@ -912,7 +944,13 @@ export class MsSqlSelectBase<
 		const query = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
 			TPreparedQueryHKT
-		>(this.dialect.sqlToQuery(this.getSQL()), fieldsList);
+		>(
+			this.dialect.sqlToQuery(this.getSQL()),
+			fieldsList,
+			undefined,
+			{ type: 'select', tables: [...this.usedTables] },
+			this.cacheConfig,
+		);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
 		return query as MsSqlSelectPrepare<this>;
 	}

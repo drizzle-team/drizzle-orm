@@ -18,6 +18,12 @@ import type {
 } from './ddl';
 import { parseDefault, parseFkAction, parseViewMetadataFlag, parseViewSQL } from './grammar';
 
+const parseFullTextChangeTracking = (value: string | null): 'auto' | 'manual' | 'off' | null => {
+	const normalized = value?.toLowerCase();
+	if (normalized === 'auto' || normalized === 'manual' || normalized === 'off') return normalized;
+	return null;
+};
+
 export const fromDatabase = async (
 	db: DB,
 	filter: EntityFilter,
@@ -139,9 +145,25 @@ ORDER BY lower(views.name);
 			};
 		});
 
+	const filteredViews = viewsList.filter((it) => {
+		const schema = filteredSchemas.find((schema) => schema.schema_id === it.schema_id)!;
+
+		if (!filter({ type: 'table', schema: schema.schema_name, name: it.name })) return false;
+		return true;
+	})
+		.map((it) => {
+			const schema = filteredSchemas.find((schema) => schema.schema_id === it.schema_id)!;
+
+			return {
+				...it,
+				schema: schema.schema_name,
+			};
+		});
+
 	const filteredTableIds = filteredTables.map((it) => it.object_id);
-	const filteredViewIds = viewsList.map((it) => it.object_id);
+	const filteredViewIds = filteredViews.map((it) => it.object_id);
 	const filteredViewsAndTableIds = [...filteredTableIds, ...filteredViewIds];
+	const filteredTablesAndViews = [...filteredTables, ...filteredViews];
 
 	if (filteredViewIds.length === 0 && filteredTableIds.length === 0) {
 		return {
@@ -265,7 +287,12 @@ ORDER BY lower(fk.name);
 		is_unique_constraint: boolean;
 		has_filter: boolean;
 		filter_definition: string;
+		type_desc: string;
 		column_id: number;
+		is_descending_key: boolean;
+		is_included_column: boolean;
+		key_ordinal: number;
+		fill_factor: number;
 	};
 
 	const pksUniquesAndIdxsQuery = await db.query<RawIdxsAndConstraints>(`
@@ -278,18 +305,66 @@ ORDER BY lower(fk.name);
 			i.is_unique_constraint as is_unique_constraint,
 			i.has_filter as has_filter,
 			i.filter_definition as filter_definition,
-			ic.column_id as column_id
+			i.type_desc as type_desc,
+			ic.column_id as column_id,
+			ic.is_descending_key as is_descending_key,
+			ic.is_included_column as is_included_column,
+			ic.key_ordinal as key_ordinal,
+			i.fill_factor as fill_factor
 		FROM sys.indexes i
 		INNER JOIN sys.index_columns ic 
 			ON i.object_id = ic.object_id
 			AND i.index_id = ic.index_id
-		${filterByTableIds ? 'WHERE i.object_id in ' + filterByTableIds : ''}
-		ORDER BY lower(i.name);`)
+		${filterByTableAndViewIds ? 'WHERE i.object_id in ' + filterByTableAndViewIds : ''}
+		ORDER BY lower(i.name), ic.key_ordinal, ic.index_column_id;`)
 		.then((rows) => {
 			queryCallback('indexes', rows, null);
 			return rows;
 		}).catch((error) => {
 			queryCallback('indexes', [], error);
+			throw error;
+		});
+
+	type RawFullTextIndex = {
+		table_id: number;
+		table_name: string;
+		schema_id: number;
+		column_id: number;
+		key_index_name: string;
+		catalog_name: string | null;
+		change_tracking_state_desc: string | null;
+		stoplist_name: string | null;
+	};
+
+	const fullTextIndexesQuery = await db.query<RawFullTextIndex>(`
+		SELECT
+			ft.object_id as table_id,
+			obj.name as table_name,
+			obj.schema_id as schema_id,
+			ftc.column_id as column_id,
+			idx.name as key_index_name,
+			catalog.name as catalog_name,
+			ft.change_tracking_state_desc as change_tracking_state_desc,
+			stoplist.name as stoplist_name
+		FROM sys.fulltext_indexes ft
+		INNER JOIN sys.objects obj
+			ON ft.object_id = obj.object_id
+		INNER JOIN sys.fulltext_index_columns ftc
+			ON ft.object_id = ftc.object_id
+		INNER JOIN sys.indexes idx
+			ON ft.object_id = idx.object_id
+			AND ft.unique_index_id = idx.index_id
+		LEFT JOIN sys.fulltext_catalogs catalog
+			ON ft.fulltext_catalog_id = catalog.fulltext_catalog_id
+		LEFT JOIN sys.fulltext_stoplists stoplist
+			ON ft.stoplist_id = stoplist.stoplist_id
+		${filterByTableAndViewIds ? 'WHERE ft.object_id in ' + filterByTableAndViewIds : ''}
+		ORDER BY lower(obj.name), ftc.column_id;`)
+		.then((rows) => {
+			queryCallback('fulltext_indexes', rows, null);
+			return rows;
+		}).catch((error) => {
+			queryCallback('fulltext_indexes', [], error);
 			throw error;
 		});
 
@@ -452,20 +527,39 @@ WHERE obj.type in ('U', 'V')
 		});
 	}
 
-	type GroupedIdxsAndContraints = Omit<RawIdxsAndConstraints, 'column_id'> & {
-		column_ids: number[];
+	type GroupedIndexColumn = {
+		column_id: number;
+		asc: boolean;
+		isIncluded: boolean;
+		keyOrdinal: number;
 	};
+	type GroupedIdxsAndContraints =
+		& Omit<RawIdxsAndConstraints, 'column_id' | 'is_descending_key' | 'is_included_column' | 'key_ordinal'>
+		& {
+			columns: GroupedIndexColumn[];
+		};
 	const groupedIdxsAndContraints: GroupedIdxsAndContraints[] = Object.values(
 		pksUniquesAndIdxsList.reduce((acc: Record<string, GroupedIdxsAndContraints>, row: RawIdxsAndConstraints) => {
-			const table = filteredTables.find((it) => it.object_id === row.table_id);
-			if (!table) return acc;
+			const target = filteredTablesAndViews.find((it) => it.object_id === row.table_id);
+			if (!target) return acc;
 
 			const key = `${row.table_id}_${row.index_id}`;
 			if (!acc[key]) {
-				const { column_id: _, ...rest } = row;
-				acc[key] = { ...rest, column_ids: [] };
+				const {
+					column_id: _columnId,
+					is_descending_key: _isDescendingKey,
+					is_included_column: _isIncludedColumn,
+					key_ordinal: _keyOrdinal,
+					...rest
+				} = row;
+				acc[key] = { ...rest, columns: [] };
 			}
-			acc[key].column_ids.push(row.column_id);
+			acc[key].columns.push({
+				column_id: row.column_id,
+				asc: !row.is_descending_key,
+				isIncluded: row.is_included_column,
+				keyOrdinal: row.key_ordinal,
+			});
 			return acc;
 		}, {}),
 	);
@@ -473,8 +567,6 @@ WHERE obj.type in ('U', 'V')
 	const groupedPrimaryKeys: GroupedIdxsAndContraints[] = [];
 	const groupedUniqueConstraints: GroupedIdxsAndContraints[] = [];
 	const groupedIndexes: GroupedIdxsAndContraints[] = [];
-
-	indexesCount = groupedIndexes.length;
 
 	groupedIdxsAndContraints.forEach((it) => {
 		if (it.is_primary_key) groupedPrimaryKeys.push(it);
@@ -488,9 +580,9 @@ WHERE obj.type in ('U', 'V')
 
 		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
 
-		const columns = unique.column_ids.map((it) => {
+		const columns = unique.columns.filter((it) => !it.isIncluded).map((it) => {
 			const column = columnsList.find((column) =>
-				column.table_object_id === unique.table_id && column.column_id === it
+				column.table_object_id === unique.table_id && column.column_id === it.column_id
 			)!;
 			return column.name;
 		});
@@ -511,8 +603,10 @@ WHERE obj.type in ('U', 'V')
 
 		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
 
-		const columns = pk.column_ids.map((it) => {
-			const column = columnsList.find((column) => column.table_object_id === pk.table_id && column.column_id === it)!;
+		const columns = pk.columns.filter((it) => !it.isIncluded).map((it) => {
+			const column = columnsList.find((column) =>
+				column.table_object_id === pk.table_id && column.column_id === it.column_id
+			)!;
 			return column.name;
 		});
 
@@ -527,14 +621,23 @@ WHERE obj.type in ('U', 'V')
 	}
 
 	for (const index of groupedIndexes) {
-		const table = filteredTables.find((it) => it.object_id === index.table_id);
+		const table = filteredTablesAndViews.find((it) => it.object_id === index.table_id);
 		if (!table) continue;
 
 		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
+		const isColumnstore = index.type_desc.includes('COLUMNSTORE');
+		const isClusteredColumnstore = index.type_desc === 'CLUSTERED COLUMNSTORE';
+		const isView = filteredViews.some((it) => it.object_id === table.object_id);
 
-		const columns = index.column_ids.map((it) => {
+		const columns = isClusteredColumnstore ? [] : index.columns.filter((it) => !it.isIncluded).map((it) => {
 			const column = columnsList.find((column) =>
-				column.table_object_id === index.table_id && column.column_id === it
+				column.table_object_id === index.table_id && column.column_id === it.column_id
+			)!;
+			return { value: column.name, isExpression: false, asc: it.asc };
+		});
+		const include = isColumnstore ? [] : index.columns.filter((it) => it.isIncluded).map((it) => {
+			const column = columnsList.find((column) =>
+				column.table_object_id === index.table_id && column.column_id === it.column_id
 			)!;
 			return { value: column.name, isExpression: false };
 		});
@@ -544,11 +647,64 @@ WHERE obj.type in ('U', 'V')
 			schema: schema.schema_name,
 			table: table.name,
 			name: index.name,
+			kind: isColumnstore ? 'columnstore' : 'btree',
 			columns,
+			include,
 			where: index.has_filter ? index.filter_definition : null,
 			isUnique: index.is_unique,
+			clustered: index.type_desc === 'CLUSTERED' || isClusteredColumnstore
+				? true
+				: index.type_desc === 'NONCLUSTERED COLUMNSTORE' || (isView && index.type_desc === 'NONCLUSTERED')
+				? false
+				: null,
+			with: index.fill_factor > 0 ? { fillFactor: index.fill_factor, online: null } : null,
+			fulltext: null,
 		});
 	}
+
+	const groupedFullTextIndexes = Object.values(
+		fullTextIndexesQuery.reduce((acc: Record<string, RawFullTextIndex[]>, row) => {
+			acc[row.table_id] ??= [];
+			acc[row.table_id].push(row);
+			return acc;
+		}, {}),
+	);
+
+	for (const fullTextIndex of groupedFullTextIndexes) {
+		const first = fullTextIndex[0];
+		const table = filteredTablesAndViews.find((it) => it.object_id === first.table_id);
+		if (!table) continue;
+
+		const schema = filteredSchemas.find((it) => it.schema_id === first.schema_id)!;
+		const columns = fullTextIndex.map((it) => {
+			const column = columnsList.find((column) =>
+				column.table_object_id === it.table_id && column.column_id === it.column_id
+			)!;
+			return { value: column.name, isExpression: false, asc: true };
+		});
+
+		indexes.push({
+			entityType: 'indexes',
+			schema: schema.schema_name,
+			table: table.name,
+			name: `${table.name}_fulltext`,
+			kind: 'fulltext',
+			columns,
+			include: [],
+			where: null,
+			isUnique: false,
+			clustered: null,
+			with: null,
+			fulltext: {
+				keyIndex: first.key_index_name,
+				catalog: first.catalog_name,
+				changeTracking: parseFullTextChangeTracking(first.change_tracking_state_desc),
+				stoplist: first.stoplist_name,
+			},
+		});
+	}
+
+	indexesCount = indexes.length;
 
 	type GroupedForeignKey = {
 		name: string;
@@ -657,8 +813,8 @@ WHERE obj.type in ('U', 'V')
 	progressCallback('indexes', indexesCount, 'fetching');
 	progressCallback('tables', tableCount, 'done');
 
-	viewsCount = viewsList.length;
-	for (const view of viewsList) {
+	viewsCount = filteredViews.length;
+	for (const view of filteredViews) {
 		const viewName = view.name;
 		const viewSchema = filteredSchemas.find((it) => it.schema_id === view.schema_id);
 		if (!viewSchema) continue;

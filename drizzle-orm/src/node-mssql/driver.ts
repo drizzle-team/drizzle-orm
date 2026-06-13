@@ -1,10 +1,12 @@
 import type mssql from 'mssql';
 import * as V1 from '~/_relations.ts';
+import type { Cache } from '~/cache/core/index.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MsSqlDatabase } from '~/mssql-core/db.ts';
 import { MsSqlDialect } from '~/mssql-core/dialect.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type DrizzleConfig, type Equal, jitCompatCheck } from '~/utils.ts';
 import { AutoPool } from './pool.ts';
 import type { NodeMsSqlClient, NodeMsSqlPreparedQueryHKT, NodeMsSqlQueryResultHKT } from './session.ts';
@@ -12,6 +14,7 @@ import { NodeMsSqlSession } from './session.ts';
 
 export interface MsSqlDriverOptions {
 	logger?: Logger;
+	cache?: Cache;
 	useJitMappers?: boolean;
 }
 
@@ -25,11 +28,13 @@ export class NodeMsSqlDriver {
 	) {
 	}
 
-	createSession(
+	createSession<TRelations extends AnyRelations>(
 		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
-	): NodeMsSqlSession<Record<string, unknown>, V1.TablesRelationalConfig> {
-		return new NodeMsSqlSession(this.client, this.dialect, schema, {
+		relations: TRelations,
+	): NodeMsSqlSession<Record<string, unknown>, V1.TablesRelationalConfig, TRelations> {
+		return new NodeMsSqlSession(this.client, this.dialect, schema, relations, {
 			logger: this.options.logger,
+			cache: this.options.cache,
 			useJitMappers: this.options.useJitMappers,
 		});
 	}
@@ -39,22 +44,35 @@ export { MsSqlDatabase } from '~/mssql-core/db.ts';
 
 export type NodeMsSqlDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> = MsSqlDatabase<NodeMsSqlQueryResultHKT, NodeMsSqlPreparedQueryHKT, TSchema>;
+	TRelations extends AnyRelations = EmptyRelations,
+> = MsSqlDatabase<
+	NodeMsSqlQueryResultHKT,
+	NodeMsSqlPreparedQueryHKT,
+	TSchema,
+	V1.ExtractTablesWithRelations<TSchema>,
+	TRelations
+>;
 
-export type NodeMsSqlDrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> =
-	& Omit<DrizzleConfig<TSchema>, 'schema'>
+export type NodeMsSqlDrizzleConfig<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
+> =
+	& Omit<DrizzleConfig<TSchema, TRelations>, 'schema'>
 	& ({ schema: TSchema } | { schema?: undefined });
 
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends NodeMsSqlClient = NodeMsSqlClient,
 >(
 	client: TClient,
-	config: DrizzleConfig<TSchema> = {},
-): NodeMsSqlDatabase<TSchema> & {
+	config: NodeMsSqlDrizzleConfig<TSchema, TRelations> = {},
+): NodeMsSqlDatabase<TSchema, TRelations> & {
 	$client: Equal<TClient, NodeMsSqlClient> extends true ? AutoPool : TClient;
 } {
-	const dialect = new MsSqlDialect();
+	const dialect = new MsSqlDialect({
+		useJitMappers: jitCompatCheck(config.jit),
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -78,13 +96,19 @@ function construct<
 		};
 	}
 
+	const relations = config.relations ?? {} as TRelations;
 	const driver = new NodeMsSqlDriver(client as NodeMsSqlClient, dialect, {
 		logger,
+		cache: config.cache,
 		useJitMappers: jitCompatCheck(config.jit),
 	});
-	const session = driver.createSession(schema);
-	const db = new MsSqlDatabase(dialect, session, schema) as NodeMsSqlDatabase<TSchema>;
+	const session = driver.createSession(schema, relations);
+	const db = new MsSqlDatabase(dialect, session, schema, relations) as NodeMsSqlDatabase<TSchema, TRelations>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }
@@ -110,6 +134,7 @@ export function getMsSqlConnectionParams(connectionString: string): mssql.config
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends NodeMsSqlClient = AutoPool,
 >(
 	...params:
@@ -118,11 +143,11 @@ export function drizzle<
 		]
 		| [
 			string,
-			DrizzleConfig<TSchema>,
+			NodeMsSqlDrizzleConfig<TSchema, TRelations>,
 		]
 		| [
 			(
-				& DrizzleConfig<TSchema>
+				& NodeMsSqlDrizzleConfig<TSchema, TRelations>
 				& ({
 					connection: string;
 				} | {
@@ -130,27 +155,30 @@ export function drizzle<
 				})
 			),
 		]
-): NodeMsSqlDatabase<TSchema> & {
+): NodeMsSqlDatabase<TSchema, TRelations> & {
 	$client: Equal<TClient, NodeMsSqlClient> extends true ? AutoPool : TClient;
 } {
 	if (typeof params[0] === 'string') {
 		const instance = new AutoPool(getMsSqlConnectionParams(params[0]));
 
-		return construct(instance, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+		return construct<TSchema, TRelations>(
+			instance,
+			params[1] as NodeMsSqlDrizzleConfig<TSchema, TRelations> | undefined,
+		) as any;
 	}
 
 	const { connection, client, ...drizzleConfig } = params[0] as (
 		& ({ connection?: mssql.config | string; client?: TClient })
-		& DrizzleConfig<TSchema>
+		& NodeMsSqlDrizzleConfig<TSchema, TRelations>
 	);
 
-	if (client) return construct(client, drizzleConfig);
+	if (client) return construct<TSchema, TRelations, TClient>(client, drizzleConfig);
 
 	const instance = typeof connection === 'string'
 		? new AutoPool(getMsSqlConnectionParams(connection))
 		: new AutoPool(connection!);
 
-	return construct(instance, drizzleConfig) as any;
+	return construct<TSchema, TRelations>(instance, drizzleConfig) as any;
 }
 
 interface CallbackClient {
@@ -162,9 +190,12 @@ function isCallbackClient(client: any): client is CallbackClient {
 }
 
 export namespace drizzle {
-	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
-		config?: DrizzleConfig<TSchema>,
-	): NodeMsSqlDatabase<TSchema> & {
+	export function mock<
+		TSchema extends Record<string, unknown> = Record<string, never>,
+		TRelations extends AnyRelations = EmptyRelations,
+	>(
+		config?: NodeMsSqlDrizzleConfig<TSchema, TRelations>,
+	): NodeMsSqlDatabase<TSchema, TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;

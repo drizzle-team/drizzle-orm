@@ -4,8 +4,10 @@ import type { AnyMsSqlColumn, AnyMsSqlTable } from 'drizzle-orm/mssql-core';
 import {
 	getTableConfig,
 	getViewConfig,
+	type IndexedColumn,
 	MsSqlColumn,
 	MsSqlDialect,
+	type MsSqlFullTextConfig,
 	MsSqlSchema,
 	MsSqlTable,
 	MsSqlView,
@@ -41,6 +43,75 @@ export const defaultFromColumn = (
 	if (grammarType) return grammarType.defaultFromDrizzle(def);
 
 	throw new Error(`unexpected default: ${column.getSQLType().toLowerCase()} ${column.default}`);
+};
+
+type IndexColumnEntry = MssqlEntities['indexes']['columns'][number];
+
+const isNamedIndexColumn = (
+	column: SQL | MsSqlColumn | IndexedColumn,
+): column is (MsSqlColumn | IndexedColumn) & { name: string } => {
+	return 'name' in column && typeof column.name === 'string';
+};
+
+const isSqlIndexColumn = (column: SQL | MsSqlColumn | IndexedColumn): column is SQL => {
+	return !isNamedIndexColumn(column);
+};
+
+const serializeIndexColumn = (column: SQL | MsSqlColumn | IndexedColumn, dialect: MsSqlDialect): IndexColumnEntry => {
+	if (isSqlIndexColumn(column)) {
+		return {
+			value: dialect.sqlToQuery(column, 'indexes').sql,
+			isExpression: true,
+			asc: true,
+		};
+	}
+
+	return {
+		value: column.name,
+		isExpression: false,
+		asc: column.indexConfig.order !== 'desc',
+	};
+};
+
+const serializeIncludedIndexColumn = (
+	column: SQL | MsSqlColumn | IndexedColumn,
+	dialect: MsSqlDialect,
+): MssqlEntities['indexes']['include'][number] => {
+	if (isSqlIndexColumn(column)) {
+		return {
+			value: dialect.sqlToQuery(column, 'indexes').sql,
+			isExpression: true,
+		};
+	}
+
+	return {
+		value: column.name,
+		isExpression: false,
+	};
+};
+
+const serializeIndexWith = (
+	config: { fillFactor?: number; online?: boolean } | undefined,
+): MssqlEntities['indexes']['with'] => {
+	if (!config || (config.fillFactor === undefined && config.online === undefined)) return null;
+
+	return {
+		fillFactor: config.fillFactor ?? null,
+		online: config.online ?? null,
+	};
+};
+
+const serializeFullTextIndex = (
+	config: MsSqlFullTextConfig | undefined,
+): MssqlEntities['indexes']['fulltext'] => {
+	if (!config) return null;
+
+	return {
+		keyIndex: config.keyIndex ?? null,
+		catalog: config.catalog ?? null,
+		changeTracking: config.changeTracking ?? null,
+		stoplist: config.stoplist ?? null,
+	};
 };
 
 export const fromDrizzleSchema = (
@@ -245,7 +316,7 @@ export const fromDrizzleSchema = (
 					errors.push({
 						type: 'index_no_name',
 						schema: schema,
-						table: getTableName(index.config.table),
+						table: tableName,
 						sql: dialect.sqlToQuery(column).sql,
 					});
 					continue;
@@ -260,15 +331,13 @@ export const fromDrizzleSchema = (
 				table: tableName,
 				name,
 				schema,
-				columns: columns.map((it) => {
-					if (is(it, SQL)) {
-						const sql = dialect.sqlToQuery(it, 'indexes').sql;
-						return { value: sql, isExpression: true };
-					} else {
-						return { value: it.name, isExpression: false };
-					}
-				}),
+				kind: index.config.kind,
+				columns: columns.map((it) => serializeIndexColumn(it, dialect)),
+				include: (index.config.include ?? []).map((it) => serializeIncludedIndexColumn(it, dialect)),
 				isUnique: index.config.unique ?? false,
+				clustered: index.config.clustered ?? null,
+				with: serializeIndexWith(index.config.with),
+				fulltext: serializeFullTextIndex(index.config.fulltext),
 				where: where ? where : null,
 			});
 		}
@@ -347,6 +416,41 @@ export const fromDrizzleSchema = (
 			schemaBinding: schemaBinding ?? false, // default
 			viewMetadata: viewMetadata ?? false, // default
 		});
+
+		for (const index of cfg.indexes ?? []) {
+			const columns = index.config.columns;
+			const indexName = index.config.name;
+
+			for (const column of columns) {
+				if (is(column, SQL) && !index.config.name) {
+					errors.push({
+						type: 'index_no_name',
+						schema,
+						table: name,
+						sql: dialect.sqlToQuery(column).sql,
+					});
+					continue;
+				}
+			}
+
+			let where = index.config.where ? dialect.sqlToQuery(index.config.where, 'indexes').sql : '';
+			where = where === 'true' ? '' : where;
+
+			result.indexes.push({
+				entityType: 'indexes',
+				table: name,
+				name: indexName,
+				schema,
+				kind: index.config.kind,
+				columns: columns.map((it) => serializeIndexColumn(it, dialect)),
+				include: (index.config.include ?? []).map((it) => serializeIncludedIndexColumn(it, dialect)),
+				isUnique: index.config.unique ?? false,
+				clustered: index.config.clustered ?? null,
+				with: serializeIndexWith(index.config.with),
+				fulltext: serializeFullTextIndex(index.config.fulltext),
+				where: where ? where : null,
+			});
+		}
 	}
 
 	return { schema: result, errors };

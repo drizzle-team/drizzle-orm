@@ -87,6 +87,13 @@ export abstract class MsSqlColumnBuilder<
 	abstract build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
 	): MsSqlColumn<any>;
+
+	/** @internal */
+	buildExtraConfigColumn<TTableName extends string>(
+		table: AnyMsSqlTable<{ name: TTableName }>,
+	): ExtraConfigColumn {
+		return new ExtraConfigColumn(table, this.config);
+	}
 }
 
 // To understand how to use `MsSqlColumn` and `AnyMsSqlColumn`, see `Column` and `AnyColumn` documentation.
@@ -98,6 +105,13 @@ export abstract class MsSqlColumn<
 
 	/** @internal */
 	override readonly table: MsSqlTable;
+
+	indexConfig: IndexedExtraConfigType = {
+		order: 'asc',
+	};
+	defaultConfig: IndexedExtraConfigType = {
+		order: 'asc',
+	};
 
 	constructor(
 		table: MsSqlTable,
@@ -111,11 +125,48 @@ export abstract class MsSqlColumn<
 	override shouldDisableInsert(): boolean {
 		return false;
 	}
+
+	asc(): Omit<this, 'asc' | 'desc'> {
+		this.indexConfig.order = 'asc';
+		return this;
+	}
+
+	desc(): Omit<this, 'asc' | 'desc'> {
+		this.indexConfig.order = 'desc';
+		return this;
+	}
 }
 
 export type AnyMsSqlColumn<TPartial extends Partial<ColumnBaseConfig<ColumnType>> = {}> = MsSqlColumn<
 	Required<Update<ColumnBaseConfig<ColumnType>, TPartial>>
 >;
+
+export type IndexedExtraConfigType = { order?: 'asc' | 'desc' };
+
+export class ExtraConfigColumn<
+	T extends ColumnBaseConfig<ColumnType> = ColumnBaseConfig<ColumnType>,
+> extends MsSqlColumn<T, IndexedExtraConfigType> {
+	static override readonly [entityKind]: string = 'MsSqlExtraConfigColumn';
+
+	getSQLType(): string {
+		return this.columnType;
+	}
+}
+
+export class IndexedColumn {
+	static readonly [entityKind]: string = 'MsSqlIndexedColumn';
+
+	constructor(
+		name: string,
+		indexConfig: IndexedExtraConfigType,
+	) {
+		this.name = name;
+		this.indexConfig = indexConfig;
+	}
+
+	name: string;
+	indexConfig: IndexedExtraConfigType;
+}
 
 export interface MsSqlColumnWithIdentityConfig {
 	identity: { seed?: number; increment?: number } | undefined;
