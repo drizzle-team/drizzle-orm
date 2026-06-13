@@ -1,6 +1,9 @@
 import { isNotNull, sql } from 'drizzle-orm';
 import {
 	bit,
+	clusteredColumnStoreIndex,
+	columnStoreIndex,
+	fullTextIndex,
 	index,
 	IndexBuilder,
 	int,
@@ -152,6 +155,41 @@ test('indexes with include and options', async () => {
 		+ '\tCONSTRAINT [users_pkey] PRIMARY KEY([id])\n'
 		+ ');\n',
 		'CREATE INDEX [users_age_idx] ON [users] ([age] DESC,[name]) INCLUDE ([bio]) WITH (FILLFACTOR = 80, ONLINE = ON);',
+	]);
+});
+
+test('fulltext and columnstore indexes', async () => {
+	const users = mssqlTable('users', {
+		id: int('id').primaryKey(),
+		name: varchar('name', { length: 255 }).notNull(),
+		bio: text('bio'),
+		age: int('age'),
+	}, (t) => [
+		uniqueIndex('users_id_unique').on(t.id),
+		fullTextIndex('users_bio_ft')
+			.on(t.name, t.bio)
+			.keyIndex('users_id_unique')
+			.catalog('users_catalog')
+			.changeTracking('manual')
+			.stoplist('system'),
+		columnStoreIndex('users_age_columnstore_idx').on(t.age).where(sql`${t.age} is not null`).with({ online: true }),
+		clusteredColumnStoreIndex('users_clustered_columnstore_idx').orderBy(t.id),
+	]);
+
+	const { sqlStatements: st } = await diff({}, { users }, []);
+
+	expect(st).toStrictEqual([
+		'CREATE TABLE [users] (\n'
+		+ '\t[id] int,\n'
+		+ '\t[name] varchar(255) NOT NULL,\n'
+		+ '\t[bio] text,\n'
+		+ '\t[age] int,\n'
+		+ '\tCONSTRAINT [users_pkey] PRIMARY KEY([id])\n'
+		+ ');\n',
+		'CREATE UNIQUE INDEX [users_id_unique] ON [users] ([id]);',
+		'CREATE FULLTEXT INDEX ON [users] ([name],[bio]) KEY INDEX [users_id_unique] ON [users_catalog] WITH (CHANGE_TRACKING = MANUAL, STOPLIST = SYSTEM);',
+		'CREATE NONCLUSTERED COLUMNSTORE INDEX [users_age_columnstore_idx] ON [users] ([age]) WHERE [age] is not null WITH (ONLINE = ON);',
+		'CREATE CLUSTERED COLUMNSTORE INDEX [users_clustered_columnstore_idx] ON [users] ORDER ([id]);',
 	]);
 });
 

@@ -4,9 +4,10 @@ import type { AnyMsSqlColumn, AnyMsSqlTable } from 'drizzle-orm/mssql-core';
 import {
 	getTableConfig,
 	getViewConfig,
-	IndexedColumn,
+	type IndexedColumn,
 	MsSqlColumn,
 	MsSqlDialect,
+	type MsSqlFullTextConfig,
 	MsSqlSchema,
 	MsSqlTable,
 	MsSqlView,
@@ -46,8 +47,18 @@ export const defaultFromColumn = (
 
 type IndexColumnEntry = MssqlEntities['indexes']['columns'][number];
 
+const isNamedIndexColumn = (
+	column: SQL | MsSqlColumn | IndexedColumn,
+): column is (MsSqlColumn | IndexedColumn) & { name: string } => {
+	return 'name' in column && typeof column.name === 'string';
+};
+
+const isSqlIndexColumn = (column: SQL | MsSqlColumn | IndexedColumn): column is SQL => {
+	return !isNamedIndexColumn(column);
+};
+
 const serializeIndexColumn = (column: SQL | MsSqlColumn | IndexedColumn, dialect: MsSqlDialect): IndexColumnEntry => {
-	if (is(column, SQL)) {
+	if (isSqlIndexColumn(column)) {
 		return {
 			value: dialect.sqlToQuery(column, 'indexes').sql,
 			isExpression: true,
@@ -55,18 +66,10 @@ const serializeIndexColumn = (column: SQL | MsSqlColumn | IndexedColumn, dialect
 		};
 	}
 
-	if (is(column, IndexedColumn)) {
-		return {
-			value: column.name,
-			isExpression: false,
-			asc: column.indexConfig.order !== 'desc',
-		};
-	}
-
 	return {
 		value: column.name,
 		isExpression: false,
-		asc: true,
+		asc: column.indexConfig.order !== 'desc',
 	};
 };
 
@@ -74,7 +77,7 @@ const serializeIncludedIndexColumn = (
 	column: SQL | MsSqlColumn | IndexedColumn,
 	dialect: MsSqlDialect,
 ): MssqlEntities['indexes']['include'][number] => {
-	if (is(column, SQL)) {
+	if (isSqlIndexColumn(column)) {
 		return {
 			value: dialect.sqlToQuery(column, 'indexes').sql,
 			isExpression: true,
@@ -95,6 +98,19 @@ const serializeIndexWith = (
 	return {
 		fillFactor: config.fillFactor ?? null,
 		online: config.online ?? null,
+	};
+};
+
+const serializeFullTextIndex = (
+	config: MsSqlFullTextConfig | undefined,
+): MssqlEntities['indexes']['fulltext'] => {
+	if (!config) return null;
+
+	return {
+		keyIndex: config.keyIndex ?? null,
+		catalog: config.catalog ?? null,
+		changeTracking: config.changeTracking ?? null,
+		stoplist: config.stoplist ?? null,
 	};
 };
 
@@ -315,11 +331,13 @@ export const fromDrizzleSchema = (
 				table: tableName,
 				name,
 				schema,
+				kind: index.config.kind,
 				columns: columns.map((it) => serializeIndexColumn(it, dialect)),
 				include: (index.config.include ?? []).map((it) => serializeIncludedIndexColumn(it, dialect)),
 				isUnique: index.config.unique ?? false,
 				clustered: index.config.clustered ?? null,
 				with: serializeIndexWith(index.config.with),
+				fulltext: serializeFullTextIndex(index.config.fulltext),
 				where: where ? where : null,
 			});
 		}
@@ -423,11 +441,13 @@ export const fromDrizzleSchema = (
 				table: name,
 				name: indexName,
 				schema,
+				kind: index.config.kind,
 				columns: columns.map((it) => serializeIndexColumn(it, dialect)),
 				include: (index.config.include ?? []).map((it) => serializeIncludedIndexColumn(it, dialect)),
 				isUnique: index.config.unique ?? false,
 				clustered: index.config.clustered ?? null,
 				with: serializeIndexWith(index.config.with),
+				fulltext: serializeFullTextIndex(index.config.fulltext),
 				where: where ? where : null,
 			});
 		}

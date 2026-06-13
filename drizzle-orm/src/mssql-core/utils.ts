@@ -8,7 +8,7 @@ import { CheckBuilder } from './checks.ts';
 import type { ForeignKey } from './foreign-keys.ts';
 import { ForeignKeyBuilder } from './foreign-keys.ts';
 import type { Index } from './indexes.ts';
-import { IndexBuilder } from './indexes.ts';
+import { ColumnStoreIndexBuilder, FullTextIndexBuilder, IndexBuilder } from './indexes.ts';
 import type { PrimaryKey } from './primary-keys.ts';
 import { PrimaryKeyBuilder } from './primary-keys.ts';
 import { MsSqlTable } from './table.ts';
@@ -46,7 +46,7 @@ export function getTableConfig(table: MsSqlTable) {
 	if (extraConfigBuilder !== undefined) {
 		const extraConfig = extraConfigBuilder(table[MsSqlTable.Symbol.Columns]);
 		for (const builder of Object.values(extraConfig)) {
-			if (is(builder, IndexBuilder)) {
+			if (is(builder, IndexBuilder) || is(builder, FullTextIndexBuilder) || is(builder, ColumnStoreIndexBuilder)) {
 				indexes.push(builder.build(table));
 			} else if (is(builder, CheckBuilder)) {
 				checks.push(builder.build(table));

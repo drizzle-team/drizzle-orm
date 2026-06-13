@@ -598,7 +598,26 @@ export class MsSqlDialect {
 					: undefined
 			}`;
 		} else if (_for?.mode === 'xml') {
-			forSQL = sql` for xml`;
+			const xmlMode = _for.type ?? 'raw';
+			const xmlPath = xmlMode === 'path' && _for.path !== undefined
+				? sql.raw(`(${this.escapeString(_for.path)})`)
+				: undefined;
+			const xmlRoot = _for.options?.root
+				? sql.raw(`, root(${this.escapeString(_for.options.root)})`)
+				: undefined;
+			const xmlElements = _for.options?.elements
+				? sql.raw(
+					typeof _for.options.elements === 'object'
+						? `, elements${_for.options.elements.xsinil ? ' xsinil' : ''}${
+							_for.options.elements.absent ? ' absent' : ''
+						}`
+						: ', elements',
+				)
+				: undefined;
+			const xmlBinaryBase64 = _for.options?.binaryBase64 ? sql.raw(', binary base64') : undefined;
+			const xmlType = _for.options?.type ? sql.raw(', type') : undefined;
+
+			forSQL = sql` for xml ${sql.raw(xmlMode)}${xmlPath}${xmlRoot}${xmlElements}${xmlBinaryBase64}${xmlType}`;
 		} else if (_for?.mode === 'browse') {
 			forSQL = sql` for browse`;
 		}

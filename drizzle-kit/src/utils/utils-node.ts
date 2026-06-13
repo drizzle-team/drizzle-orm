@@ -279,7 +279,7 @@ const mysqlValidator = (snapshot: object): ValidationResult => {
 };
 
 const mssqlSnapshotValidator = (snapshot: object): ValidationResult => {
-	const versionError = assertVersion(snapshot, 3);
+	const versionError = assertVersion(snapshot, 4);
 	if (versionError) return { status: versionError };
 
 	const res = mssqlValidatorSnapshot.parse(snapshot);

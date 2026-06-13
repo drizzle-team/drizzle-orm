@@ -8,7 +8,7 @@ import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
 import type { MsSqlColumn } from './columns/index.ts';
 import type { AnyIndexBuilder, Index } from './indexes.ts';
-import { IndexBuilder } from './indexes.ts';
+import { ColumnStoreIndexBuilder, FullTextIndexBuilder, IndexBuilder } from './indexes.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import { mssqlTableWithSchema } from './table.ts';
@@ -126,7 +126,7 @@ export class ManualViewBuilder<
 		const indexes: Index[] = [];
 
 		for (const builder of extraValues) {
-			if (is(builder, IndexBuilder)) {
+			if (is(builder, IndexBuilder) || is(builder, FullTextIndexBuilder) || is(builder, ColumnStoreIndexBuilder)) {
 				indexes.push(builder.build(view));
 			}
 		}

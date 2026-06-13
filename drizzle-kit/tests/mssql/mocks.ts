@@ -436,6 +436,7 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 
 	const sleep = 1000;
 	let timeLeft = 20000;
+	let lastError: unknown;
 	do {
 		try {
 			const client = await mssql.connect({
@@ -493,14 +494,15 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 			};
 			return { db, close, clear, client };
 		} catch (e) {
-			console.error(e);
-			throw e;
-			// await new Promise((resolve) => setTimeout(resolve, sleep));
-			// timeLeft -= sleep;
+			lastError = e;
+			await new Promise((resolve) => setTimeout(resolve, sleep));
+			timeLeft -= sleep;
 		}
 	} while (timeLeft > 0);
 
-	throw new Error();
+	await container?.stop().catch(console.error);
+	if (lastError instanceof Error) throw lastError;
+	throw new Error('Failed to connect to MSSQL test database');
 };
 
 export async function createDockerDB(): Promise<
@@ -531,7 +533,7 @@ export async function createDockerDB(): Promise<
 
 	await mssqlContainer.start();
 	return {
-		url: 'mssql://SA:drizzle123PASSWORD!@127.0.0.1:1433?encrypt=true&trustServerCertificate=true',
+		url: `mssql://SA:drizzle123PASSWORD!@localhost:${port}?encrypt=true&trustServerCertificate=true`,
 		container: mssqlContainer,
 	};
 }

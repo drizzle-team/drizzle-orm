@@ -24,6 +24,10 @@
 - [x] Add drizzle-kit MSSQL snapshot v3 migration for index metadata
 - [x] Add drizzle-kit MSSQL pull/codegen metadata for descending keys, included columns, and fill factor
 - [x] Implement existing MSSQL `FOR XML` / `FOR BROWSE` select modes in the dialect
+- [x] Add dedicated MSSQL full-text index DSL, SQL emission, pull metadata, and codegen
+- [x] Add dedicated MSSQL columnstore index DSL, SQL emission, pull metadata, and codegen
+- [x] Add opt-in WKT/point codecs for MSSQL `geography` and `geometry`
+- [x] Expand internal MSSQL `FOR XML` modes and options (`RAW`, `AUTO`, `EXPLICIT`, `PATH`, `ROOT`, `ELEMENTS`, `BINARY BASE64`, `TYPE`)
 
 ## Verification
 - [x] Manual SQL compile smoke check
@@ -46,5 +50,6 @@
 - [x] Document SQL Server 2016+ requirement
 - [x] Document `offset` fallback ordering: PK-backed tables are deterministic; views/no-PK sources use all exposed columns as a best-effort SQL Server fallback and should pass explicit `orderBy` for production pagination semantics
 - [x] Document `ONLINE = ON` as a create/rebuild execution option; SQL Server does not expose it as durable index metadata for pull round trips
-- [x] Document fulltext and columnstore indexes as separate SQL Server index families not modeled by the normal Drizzle b-tree index builder in this PR
+- [x] Document full-text and columnstore indexes as separate SQL Server index families
+- [x] Document SQL Server limitations: no `refreshMaterializedView`; indexed views are the MSSQL analogue; schema rename remains unsupported in kit
 - [x] Call out beta churn and recommend upstreaming over patching node_modules

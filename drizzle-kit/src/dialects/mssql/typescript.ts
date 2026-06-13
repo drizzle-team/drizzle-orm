@@ -162,8 +162,15 @@ export const ddlToTypeScript = (
 		if (x.entityType === 'tables') imports.add(tableFn);
 
 		if (x.entityType === 'indexes') {
-			if (x.isUnique) imports.add('uniqueIndex');
-			else imports.add('index');
+			if (x.kind === 'fulltext') {
+				imports.add('fullTextIndex');
+			} else if (x.kind === 'columnstore') {
+				imports.add(x.clustered ? 'clusteredColumnStoreIndex' : 'columnStoreIndex');
+			} else if (x.isUnique) {
+				imports.add('uniqueIndex');
+			} else {
+				imports.add('index');
+			}
 		}
 
 		if (x.entityType === 'fks') imports.add('foreignKey');
@@ -449,21 +456,38 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing, ta
 		const name = it.name;
 		// const escapedIndexName = indexGeneratedName === it.name ? '' : `"${it.name}"`;
 
-		statement += it.isUnique ? '\tuniqueIndex(' : '\tindex(';
+		if (it.kind === 'fulltext') {
+			statement += '\tfullTextIndex(';
+		} else if (it.kind === 'columnstore') {
+			statement += it.clustered ? '\tclusteredColumnStoreIndex(' : '\tcolumnStoreIndex(';
+		} else {
+			statement += it.isUnique ? '\tuniqueIndex(' : '\tindex(';
+		}
 		statement += name ? `"${name}")` : ')';
 
-		statement += `.on(${
-			it.columns
-				.map((it) => {
-					if (it.isExpression) {
-						return `sql\`${it.value}\``;
-					} else {
-						return `${target}.${withCasing(it.value, casing)}${it.asc === false ? '.desc()' : ''}`;
-					}
-				})
-				.join(', ')
-		})`;
-		if (it.include.length > 0) {
+		const columns = it.columns
+			.map((it) => {
+				if (it.isExpression) {
+					return `sql\`${it.value}\``;
+				} else {
+					return `${target}.${withCasing(it.value, casing)}${it.asc === false ? '.desc()' : ''}`;
+				}
+			})
+			.join(', ');
+
+		if (it.kind === 'columnstore' && it.clustered) {
+			statement += columns ? `.orderBy(${columns})` : '';
+		} else {
+			statement += `.on(${columns})`;
+		}
+
+		if (it.kind === 'fulltext' && it.fulltext) {
+			if (it.fulltext.keyIndex) statement += `.keyIndex("${it.fulltext.keyIndex}")`;
+			if (it.fulltext.catalog) statement += `.catalog("${it.fulltext.catalog}")`;
+			if (it.fulltext.changeTracking) statement += `.changeTracking("${it.fulltext.changeTracking}")`;
+			if (it.fulltext.stoplist) statement += `.stoplist("${it.fulltext.stoplist}")`;
+		}
+		if (it.kind === 'btree' && it.include.length > 0) {
 			statement += `.include(${
 				it.include
 					.map((it) => {
@@ -476,7 +500,13 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing, ta
 					.join(', ')
 			})`;
 		}
-		statement += it.clustered === true ? `.clustered()` : it.clustered === false ? `.nonClustered()` : '';
+		statement += it.kind === 'btree'
+			? it.clustered === true
+				? `.clustered()`
+				: it.clustered === false
+				? `.nonClustered()`
+				: ''
+			: '';
 		statement += it.with ? `.with(${inspect(it.with)})` : '';
 		statement += it.where ? `.where(sql\`${it.where}\`)` : '';
 

@@ -4,11 +4,14 @@ import {
 	bigint,
 	char,
 	check,
+	clusteredColumnStoreIndex,
+	columnStoreIndex,
 	customType,
 	date,
 	datetime,
 	decimal,
 	foreignKey,
+	fullTextIndex,
 	geography,
 	geometry,
 	index,
@@ -95,7 +98,14 @@ export const nativeTypes = mssqlTable('native_types', {
 	version: rowversion('version'),
 	geo: geography('geo'),
 	shape: geometry('shape'),
-});
+	geoPoint: geography('geo_point', { mode: 'xy', srid: 4326 }),
+	shapePoint: geometry('shape_point', { mode: 'tuple' }),
+	shapeWkt: geometry('shape_wkt', { mode: 'wkt' }),
+}, (table) => [
+	fullTextIndex('native_types_document_ft').on(table.document).keyIndex('native_types_pkey'),
+	columnStoreIndex('native_types_columnstore_idx').on(table.priceNumber).where(sql`${table.priceNumber} is not null`),
+	clusteredColumnStoreIndex('native_types_clustered_columnstore_idx').orderBy(table.id),
+]);
 
 Expect<
 	Equal<{
@@ -108,6 +118,9 @@ Expect<
 		version: Buffer<ArrayBufferLike>;
 		geo: unknown;
 		shape: unknown;
+		geoPoint: { x: number; y: number } | null;
+		shapePoint: [number, number] | null;
+		shapeWkt: string | null;
 	}, InferSelectModel<typeof nativeTypes>>
 >;
 

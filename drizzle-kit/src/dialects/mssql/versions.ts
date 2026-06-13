@@ -1,6 +1,6 @@
 import { assertUnreachable } from 'src/utils';
-import { createDDL, createDDLV2 } from './ddl';
-import type { MssqlSnapshot, MssqlSnapshotV1, MssqlSnapshotV2 } from './snapshot';
+import { createDDL, createDDLV2, createDDLV3 } from './ddl';
+import type { MssqlSnapshot, MssqlSnapshotV1, MssqlSnapshotV2, MssqlSnapshotV3 } from './snapshot';
 
 export const upToV2 = (it: Record<string, any>): { snapshot: MssqlSnapshotV2; hints: string[] } => {
 	const snapshot = it as MssqlSnapshotV1;
@@ -41,9 +41,9 @@ export const upToV2 = (it: Record<string, any>): { snapshot: MssqlSnapshotV2; hi
 	};
 };
 
-const updateUpToV3 = (snapshot: MssqlSnapshotV2): MssqlSnapshot => {
+const updateUpToV3 = (snapshot: MssqlSnapshotV2): MssqlSnapshotV3 => {
 	const ddlV2 = snapshot.ddl;
-	const ddl = createDDL();
+	const ddl = createDDLV3();
 	for (const entry of ddlV2) {
 		if (entry.entityType === 'indexes') {
 			ddl.indexes.push({
@@ -67,10 +67,51 @@ const updateUpToV3 = (snapshot: MssqlSnapshotV2): MssqlSnapshot => {
 	};
 };
 
-export const upToV3 = (it: Record<string, any>): { snapshot: MssqlSnapshot; hints: string[] } => {
+export const upToV3 = (it: Record<string, any>): { snapshot: MssqlSnapshotV3; hints: string[] } => {
 	const updated = it.version === '1' ? upToV2(it) : { snapshot: it as MssqlSnapshotV2, hints: [] };
 	return {
 		snapshot: updateUpToV3(updated.snapshot),
+		hints: updated.hints,
+	};
+};
+
+const updateUpToV4 = (snapshot: MssqlSnapshotV3): MssqlSnapshot => {
+	const ddlV3 = snapshot.ddl;
+	const ddl = createDDL();
+	for (const entry of ddlV3) {
+		if (entry.entityType === 'indexes') {
+			ddl.indexes.push({
+				...entry,
+				kind: 'btree',
+				fulltext: null,
+			});
+		} else {
+			ddl.entities.push(entry);
+		}
+	}
+
+	return {
+		id: snapshot.id,
+		prevIds: snapshot.prevIds,
+		version: '4',
+		dialect: 'mssql',
+		ddl: ddl.entities.list(),
+		renames: snapshot.renames,
+	};
+};
+
+export const upToV4 = (it: Record<string, any>): { snapshot: MssqlSnapshot; hints: string[] } => {
+	if (it.version === '4') {
+		return { snapshot: it as MssqlSnapshot, hints: [] };
+	}
+
+	const updated = it.version === '1' ? upToV2(it) : { snapshot: it as MssqlSnapshotV2 | MssqlSnapshotV3, hints: [] };
+	const snapshot = updated.snapshot.version === '3'
+		? updated.snapshot
+		: updateUpToV3(updated.snapshot);
+
+	return {
+		snapshot: updateUpToV4(snapshot),
 		hints: updated.hints,
 	};
 };

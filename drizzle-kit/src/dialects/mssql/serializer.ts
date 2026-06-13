@@ -50,7 +50,7 @@ export const prepareSnapshot = async (
 	const prevIds = snapshots.length === 0 ? [prevSnapshot.id] : findLeafSnapshotIds(snapshots);
 
 	const snapshot = {
-		version: '3',
+		version: '4',
 		dialect: 'mssql',
 		id,
 		prevIds,

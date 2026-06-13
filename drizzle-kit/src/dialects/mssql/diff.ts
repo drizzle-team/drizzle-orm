@@ -980,7 +980,7 @@ export const ddlDiff = async (
 			&& (idx.include.from.length === idx.include.to.length ? mode !== 'push' : true);
 
 		// TODO recheck this
-		if (idx.isUnique || idx.clustered || forColumns || forInclude || idx.with || forWhere) {
+		if (idx.kind || idx.isUnique || idx.clustered || forColumns || forInclude || idx.with || idx.fulltext || forWhere) {
 			const index = ddl2.indexes.one({ schema: idx.schema, table: idx.table, name: idx.name })!;
 			if (isViewIndex(index)) {
 				jsonDropViewIndexes.push(prepareStatement('drop_index', { index }));

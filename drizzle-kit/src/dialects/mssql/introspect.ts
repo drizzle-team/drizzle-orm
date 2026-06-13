@@ -18,6 +18,12 @@ import type {
 } from './ddl';
 import { parseDefault, parseFkAction, parseViewMetadataFlag, parseViewSQL } from './grammar';
 
+const parseFullTextChangeTracking = (value: string | null): 'auto' | 'manual' | 'off' | null => {
+	const normalized = value?.toLowerCase();
+	if (normalized === 'auto' || normalized === 'manual' || normalized === 'off') return normalized;
+	return null;
+};
+
 export const fromDatabase = async (
 	db: DB,
 	filter: EntityFilter,
@@ -319,6 +325,49 @@ ORDER BY lower(fk.name);
 			throw error;
 		});
 
+	type RawFullTextIndex = {
+		table_id: number;
+		table_name: string;
+		schema_id: number;
+		column_id: number;
+		key_index_name: string;
+		catalog_name: string | null;
+		change_tracking_state_desc: string | null;
+		stoplist_name: string | null;
+	};
+
+	const fullTextIndexesQuery = await db.query<RawFullTextIndex>(`
+		SELECT
+			ft.object_id as table_id,
+			obj.name as table_name,
+			obj.schema_id as schema_id,
+			ftc.column_id as column_id,
+			idx.name as key_index_name,
+			catalog.name as catalog_name,
+			ft.change_tracking_state_desc as change_tracking_state_desc,
+			stoplist.name as stoplist_name
+		FROM sys.fulltext_indexes ft
+		INNER JOIN sys.objects obj
+			ON ft.object_id = obj.object_id
+		INNER JOIN sys.fulltext_index_columns ftc
+			ON ft.object_id = ftc.object_id
+		INNER JOIN sys.indexes idx
+			ON ft.object_id = idx.object_id
+			AND ft.unique_index_id = idx.index_id
+		LEFT JOIN sys.fulltext_catalogs catalog
+			ON ft.fulltext_catalog_id = catalog.fulltext_catalog_id
+		LEFT JOIN sys.fulltext_stoplists stoplist
+			ON ft.stoplist_id = stoplist.stoplist_id
+		${filterByTableAndViewIds ? 'WHERE ft.object_id in ' + filterByTableAndViewIds : ''}
+		ORDER BY lower(obj.name), ftc.column_id;`)
+		.then((rows) => {
+			queryCallback('fulltext_indexes', rows, null);
+			return rows;
+		}).catch((error) => {
+			queryCallback('fulltext_indexes', [], error);
+			throw error;
+		});
+
 	const columnsQuery = await db.query<{
 		column_id: number;
 		table_object_id: number;
@@ -519,8 +568,6 @@ WHERE obj.type in ('U', 'V')
 	const groupedUniqueConstraints: GroupedIdxsAndContraints[] = [];
 	const groupedIndexes: GroupedIdxsAndContraints[] = [];
 
-	indexesCount = groupedIndexes.length;
-
 	groupedIdxsAndContraints.forEach((it) => {
 		if (it.is_primary_key) groupedPrimaryKeys.push(it);
 		else if (it.is_unique_constraint) groupedUniqueConstraints.push(it);
@@ -578,14 +625,17 @@ WHERE obj.type in ('U', 'V')
 		if (!table) continue;
 
 		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
+		const isColumnstore = index.type_desc.includes('COLUMNSTORE');
+		const isClusteredColumnstore = index.type_desc === 'CLUSTERED COLUMNSTORE';
+		const isView = filteredViews.some((it) => it.object_id === table.object_id);
 
-		const columns = index.columns.filter((it) => !it.isIncluded).map((it) => {
+		const columns = isClusteredColumnstore ? [] : index.columns.filter((it) => !it.isIncluded).map((it) => {
 			const column = columnsList.find((column) =>
 				column.table_object_id === index.table_id && column.column_id === it.column_id
 			)!;
 			return { value: column.name, isExpression: false, asc: it.asc };
 		});
-		const include = index.columns.filter((it) => it.isIncluded).map((it) => {
+		const include = isColumnstore ? [] : index.columns.filter((it) => it.isIncluded).map((it) => {
 			const column = columnsList.find((column) =>
 				column.table_object_id === index.table_id && column.column_id === it.column_id
 			)!;
@@ -597,14 +647,64 @@ WHERE obj.type in ('U', 'V')
 			schema: schema.schema_name,
 			table: table.name,
 			name: index.name,
+			kind: isColumnstore ? 'columnstore' : 'btree',
 			columns,
 			include,
 			where: index.has_filter ? index.filter_definition : null,
 			isUnique: index.is_unique,
-			clustered: index.type_desc === 'CLUSTERED' ? true : index.type_desc === 'NONCLUSTERED' ? false : null,
+			clustered: index.type_desc === 'CLUSTERED' || isClusteredColumnstore
+				? true
+				: index.type_desc === 'NONCLUSTERED COLUMNSTORE' || (isView && index.type_desc === 'NONCLUSTERED')
+				? false
+				: null,
 			with: index.fill_factor > 0 ? { fillFactor: index.fill_factor, online: null } : null,
+			fulltext: null,
 		});
 	}
+
+	const groupedFullTextIndexes = Object.values(
+		fullTextIndexesQuery.reduce((acc: Record<string, RawFullTextIndex[]>, row) => {
+			acc[row.table_id] ??= [];
+			acc[row.table_id].push(row);
+			return acc;
+		}, {}),
+	);
+
+	for (const fullTextIndex of groupedFullTextIndexes) {
+		const first = fullTextIndex[0];
+		const table = filteredTablesAndViews.find((it) => it.object_id === first.table_id);
+		if (!table) continue;
+
+		const schema = filteredSchemas.find((it) => it.schema_id === first.schema_id)!;
+		const columns = fullTextIndex.map((it) => {
+			const column = columnsList.find((column) =>
+				column.table_object_id === it.table_id && column.column_id === it.column_id
+			)!;
+			return { value: column.name, isExpression: false, asc: true };
+		});
+
+		indexes.push({
+			entityType: 'indexes',
+			schema: schema.schema_name,
+			table: table.name,
+			name: `${table.name}_fulltext`,
+			kind: 'fulltext',
+			columns,
+			include: [],
+			where: null,
+			isUnique: false,
+			clustered: null,
+			with: null,
+			fulltext: {
+				keyIndex: first.key_index_name,
+				catalog: first.catalog_name,
+				changeTracking: parseFullTextChangeTracking(first.change_tracking_state_desc),
+				stoplist: first.stoplist_name,
+			},
+		});
+	}
+
+	indexesCount = indexes.length;
 
 	type GroupedForeignKey = {
 		name: string;

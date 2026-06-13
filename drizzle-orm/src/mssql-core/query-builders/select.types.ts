@@ -64,6 +64,20 @@ export interface MsSqlSelectConfig {
 		mode: 'browse';
 	} | {
 		mode: 'xml';
+		type?: 'raw' | 'auto' | 'explicit' | 'path';
+		path?: string;
+		options?: {
+			root?: string;
+			elements?: true | {
+				xsinil?: true;
+				absent?: never;
+			} | {
+				xsinil?: never;
+				absent?: true;
+			};
+			binaryBase64?: true;
+			type?: true;
+		};
 	} | {
 		mode: 'json';
 		type: 'auto' | 'path';
