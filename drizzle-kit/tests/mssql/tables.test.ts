@@ -6,12 +6,14 @@ import {
 	geometry,
 	index,
 	int,
+	json,
 	money,
 	mssqlSchema,
 	mssqlTable,
 	mssqlTableCreator,
 	primaryKey,
 	rowversion,
+	smalldatetime,
 	smallmoney,
 	snakeCase,
 	text,
@@ -62,9 +64,11 @@ test('add table with native mssql types', async () => {
 			id: int('id').primaryKey(),
 			guid: uniqueidentifier('guid').notNull(),
 			document: xml('document'),
+			payload: json('payload'),
 			price: money('price'),
 			smallPrice: smallmoney('small_price'),
 			version: rowversion('version'),
+			createdAtSmall: smalldatetime('created_at_small'),
 			geo: geography('geo'),
 			shape: geometry('shape'),
 		}),
@@ -77,9 +81,11 @@ test('add table with native mssql types', async () => {
 		+ '\t[id] int,\n'
 		+ '\t[guid] uniqueidentifier NOT NULL,\n'
 		+ '\t[document] xml,\n'
+		+ '\t[payload] json,\n'
 		+ '\t[price] money,\n'
 		+ '\t[small_price] smallmoney,\n'
-		+ '\t[version] rowversion,\n'
+		+ '\t[version] rowversion NOT NULL,\n'
+		+ '\t[created_at_small] smalldatetime,\n'
 		+ '\t[geo] geography,\n'
 		+ '\t[shape] geometry,\n'
 		+ '\tCONSTRAINT [native_types_pkey] PRIMARY KEY([id])\n'

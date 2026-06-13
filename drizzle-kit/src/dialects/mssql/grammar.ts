@@ -595,6 +595,13 @@ export const Datetime: SqlType = {
 		return { default: value, options };
 	},
 };
+export const SmallDatetime: SqlType = {
+	is: (type) => type === 'smalldatetime' || type.startsWith('smalldatetime('),
+	drizzleImport: () => 'smalldatetime',
+	defaultFromDrizzle: Datetime.defaultFromDrizzle,
+	defaultFromIntrospect: Datetime.defaultFromIntrospect,
+	toTs: Datetime.toTs,
+};
 export const DateType: SqlType = {
 	is: (type) => type === 'date' || type.startsWith('date('),
 	drizzleImport: () => 'date',
@@ -757,6 +764,19 @@ export const Xml: SqlType = {
 	},
 };
 
+export const Json: SqlType = {
+	is: (type) => type === 'json',
+	drizzleImport: () => 'json',
+	defaultFromDrizzle: (value) => {
+		return `('${escapeForSqlDefault(stringify(value))}')`;
+	},
+	defaultFromIntrospect: NVarchar.defaultFromIntrospect,
+	toTs: (_type, value) => {
+		if (!value) return { default: '' };
+		return { default: `sql\`${value}\`` };
+	},
+};
+
 export const Money: SqlType = {
 	is: (type) => type === 'money',
 	drizzleImport: () => 'money',
@@ -847,6 +867,7 @@ export const typeFor = (sqlType: string): SqlType => {
 	if (Real.is(sqlType)) return Real;
 	if (DateType.is(sqlType)) return DateType;
 	if (Datetime.is(sqlType)) return Datetime;
+	if (SmallDatetime.is(sqlType)) return SmallDatetime;
 	if (Datetime2.is(sqlType)) return Datetime2;
 	if (Datetimeoffset.is(sqlType)) return Datetimeoffset;
 	if (Time.is(sqlType)) return Time;
@@ -854,6 +875,7 @@ export const typeFor = (sqlType: string): SqlType => {
 	if (Varbinary.is(sqlType)) return Varbinary;
 	if (UniqueIdentifier.is(sqlType)) return UniqueIdentifier;
 	if (Xml.is(sqlType)) return Xml;
+	if (Json.is(sqlType)) return Json;
 	if (Money.is(sqlType)) return Money;
 	if (SmallMoney.is(sqlType)) return SmallMoney;
 	if (RowVersion.is(sqlType)) return RowVersion;

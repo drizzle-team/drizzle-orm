@@ -16,12 +16,14 @@ import {
 	geometry,
 	index,
 	int,
+	json,
 	money,
 	mssqlTable,
 	nchar,
 	nvarchar,
 	primaryKey,
 	rowversion,
+	smalldatetime,
 	smallmoney,
 	text,
 	uniqueidentifier,
@@ -92,10 +94,13 @@ export const nativeTypes = mssqlTable('native_types', {
 	id: int('id').identity().primaryKey(),
 	guid: uniqueidentifier('guid').notNull(),
 	document: xml('document'),
+	payload: json('payload'),
 	price: money('price'),
 	priceNumber: money('price_number', { mode: 'number' }),
 	smallPrice: smallmoney('small_price'),
 	version: rowversion('version'),
+	createdAtSmall: smalldatetime('created_at_small'),
+	createdAtSmallString: smalldatetime('created_at_small_string', { mode: 'string' }),
 	geo: geography('geo'),
 	shape: geometry('shape'),
 	geoPoint: geography('geo_point', { mode: 'xy', srid: 4326 }),
@@ -112,10 +117,13 @@ Expect<
 		id: number;
 		guid: string;
 		document: string | null;
+		payload: unknown;
 		price: string | null;
 		priceNumber: number | null;
 		smallPrice: string | null;
 		version: Buffer<ArrayBufferLike>;
+		createdAtSmall: Date | null;
+		createdAtSmallString: string | null;
 		geo: unknown;
 		shape: unknown;
 		geoPoint: { x: number; y: number } | null;

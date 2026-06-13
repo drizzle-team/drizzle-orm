@@ -17,7 +17,7 @@
 - [x] Forward `relations` through node-mssql drizzle config
 - [x] Thread relation generics through node-mssql mock and migrator APIs
 - [x] Update MSSQL exports
-- [x] Add MSSQL native column builders: `uniqueidentifier`, `xml`, `money`, `smallmoney`, `rowversion`, `geography`, `geometry`
+- [x] Add MSSQL native column builders: `uniqueidentifier`, `xml`, `json`, `money`, `smallmoney`, `rowversion`, `smalldatetime`, `geography`, `geometry`
 - [x] Add MSSQL index key ordering via `.asc()` / `.desc()` in table extra config
 - [x] Add MSSQL index `INCLUDE` support
 - [x] Add MSSQL index `WITH (FILLFACTOR = ..., ONLINE = ...)` SQL emission
