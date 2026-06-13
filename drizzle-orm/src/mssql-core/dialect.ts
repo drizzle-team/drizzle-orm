@@ -597,6 +597,10 @@ export class MsSqlDialect {
 					? sql` without_array_wrapper`
 					: undefined
 			}`;
+		} else if (_for?.mode === 'xml') {
+			forSQL = sql` for xml`;
+		} else if (_for?.mode === 'browse') {
+			forSQL = sql` for browse`;
 		}
 
 		const finalQuery =

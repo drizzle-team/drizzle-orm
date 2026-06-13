@@ -1,5 +1,5 @@
 import { type Equal, Expect } from 'type-tests/utils.ts';
-import type { InferSelectModel } from '~/index.ts';
+import type { InferInsertModel, InferSelectModel } from '~/index.ts';
 import {
 	bigint,
 	char,
@@ -9,15 +9,22 @@ import {
 	datetime,
 	decimal,
 	foreignKey,
+	geography,
+	geometry,
 	index,
 	int,
+	money,
 	mssqlTable,
 	nchar,
 	nvarchar,
 	primaryKey,
+	rowversion,
+	smallmoney,
 	text,
+	uniqueidentifier,
 	uniqueIndex,
 	varchar,
+	xml,
 } from '~/mssql-core/index.ts';
 import { mssqlSchema } from '~/mssql-core/schema.ts';
 import { mssqlView } from '~/mssql-core/view.ts';
@@ -64,6 +71,10 @@ export const cities = mssqlTable('cities_table', {
 	population: int('population').default(0),
 }, (cities) => [
 	index('citiesNameIdx').on(cities.id),
+	index('citiesPopulationIdx')
+		.on(cities.population.desc())
+		.include(cities.name)
+		.with({ fillFactor: 80, online: true }),
 ]);
 
 Expect<
@@ -73,6 +84,37 @@ Expect<
 		population: number | null;
 	}, InferSelectModel<typeof cities>>
 >;
+
+export const nativeTypes = mssqlTable('native_types', {
+	id: int('id').identity().primaryKey(),
+	guid: uniqueidentifier('guid').notNull(),
+	document: xml('document'),
+	price: money('price'),
+	priceNumber: money('price_number', { mode: 'number' }),
+	smallPrice: smallmoney('small_price'),
+	version: rowversion('version'),
+	geo: geography('geo'),
+	shape: geometry('shape'),
+});
+
+Expect<
+	Equal<{
+		id: number;
+		guid: string;
+		document: string | null;
+		price: string | null;
+		priceNumber: number | null;
+		smallPrice: string | null;
+		version: Buffer<ArrayBufferLike>;
+		geo: unknown;
+		shape: unknown;
+	}, InferSelectModel<typeof nativeTypes>>
+>;
+
+const nativeTypesInsert: InferInsertModel<typeof nativeTypes> = {
+	guid: '00000000-0000-0000-0000-000000000000',
+};
+nativeTypesInsert;
 
 export const customSchema = mssqlSchema('custom_schema');
 

@@ -2,17 +2,24 @@ import { sql } from 'drizzle-orm';
 import {
 	camelCase,
 	foreignKey,
+	geography,
+	geometry,
 	index,
 	int,
+	money,
 	mssqlSchema,
 	mssqlTable,
 	mssqlTableCreator,
 	primaryKey,
+	rowversion,
+	smallmoney,
 	snakeCase,
 	text,
 	unique,
+	uniqueidentifier,
 	uniqueIndex,
 	varchar,
+	xml,
 } from 'drizzle-orm/mssql-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
@@ -47,6 +54,37 @@ test('add table #1', async () => {
 	const st0 = ['CREATE TABLE [users] (\n\t[id] int\n);\n'];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+test('add table with native mssql types', async () => {
+	const to = {
+		nativeTypes: mssqlTable('native_types', {
+			id: int('id').primaryKey(),
+			guid: uniqueidentifier('guid').notNull(),
+			document: xml('document'),
+			price: money('price'),
+			smallPrice: smallmoney('small_price'),
+			version: rowversion('version'),
+			geo: geography('geo'),
+			shape: geometry('shape'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+
+	expect(st).toStrictEqual([
+		'CREATE TABLE [native_types] (\n'
+		+ '\t[id] int,\n'
+		+ '\t[guid] uniqueidentifier NOT NULL,\n'
+		+ '\t[document] xml,\n'
+		+ '\t[price] money,\n'
+		+ '\t[small_price] smallmoney,\n'
+		+ '\t[version] rowversion,\n'
+		+ '\t[geo] geography,\n'
+		+ '\t[shape] geometry,\n'
+		+ '\tCONSTRAINT [native_types_pkey] PRIMARY KEY([id])\n'
+		+ ');\n',
+	]);
 });
 
 test('add table #2', async () => {

@@ -283,6 +283,10 @@ ORDER BY lower(fk.name);
 		filter_definition: string;
 		type_desc: string;
 		column_id: number;
+		is_descending_key: boolean;
+		is_included_column: boolean;
+		key_ordinal: number;
+		fill_factor: number;
 	};
 
 	const pksUniquesAndIdxsQuery = await db.query<RawIdxsAndConstraints>(`
@@ -296,13 +300,17 @@ ORDER BY lower(fk.name);
 			i.has_filter as has_filter,
 			i.filter_definition as filter_definition,
 			i.type_desc as type_desc,
-			ic.column_id as column_id
+			ic.column_id as column_id,
+			ic.is_descending_key as is_descending_key,
+			ic.is_included_column as is_included_column,
+			ic.key_ordinal as key_ordinal,
+			i.fill_factor as fill_factor
 		FROM sys.indexes i
 		INNER JOIN sys.index_columns ic 
 			ON i.object_id = ic.object_id
 			AND i.index_id = ic.index_id
 		${filterByTableAndViewIds ? 'WHERE i.object_id in ' + filterByTableAndViewIds : ''}
-		ORDER BY lower(i.name);`)
+		ORDER BY lower(i.name), ic.key_ordinal, ic.index_column_id;`)
 		.then((rows) => {
 			queryCallback('indexes', rows, null);
 			return rows;
@@ -470,9 +478,17 @@ WHERE obj.type in ('U', 'V')
 		});
 	}
 
-	type GroupedIdxsAndContraints = Omit<RawIdxsAndConstraints, 'column_id'> & {
-		column_ids: number[];
+	type GroupedIndexColumn = {
+		column_id: number;
+		asc: boolean;
+		isIncluded: boolean;
+		keyOrdinal: number;
 	};
+	type GroupedIdxsAndContraints =
+		& Omit<RawIdxsAndConstraints, 'column_id' | 'is_descending_key' | 'is_included_column' | 'key_ordinal'>
+		& {
+			columns: GroupedIndexColumn[];
+		};
 	const groupedIdxsAndContraints: GroupedIdxsAndContraints[] = Object.values(
 		pksUniquesAndIdxsList.reduce((acc: Record<string, GroupedIdxsAndContraints>, row: RawIdxsAndConstraints) => {
 			const target = filteredTablesAndViews.find((it) => it.object_id === row.table_id);
@@ -480,10 +496,21 @@ WHERE obj.type in ('U', 'V')
 
 			const key = `${row.table_id}_${row.index_id}`;
 			if (!acc[key]) {
-				const { column_id: _, ...rest } = row;
-				acc[key] = { ...rest, column_ids: [] };
+				const {
+					column_id: _columnId,
+					is_descending_key: _isDescendingKey,
+					is_included_column: _isIncludedColumn,
+					key_ordinal: _keyOrdinal,
+					...rest
+				} = row;
+				acc[key] = { ...rest, columns: [] };
 			}
-			acc[key].column_ids.push(row.column_id);
+			acc[key].columns.push({
+				column_id: row.column_id,
+				asc: !row.is_descending_key,
+				isIncluded: row.is_included_column,
+				keyOrdinal: row.key_ordinal,
+			});
 			return acc;
 		}, {}),
 	);
@@ -506,9 +533,9 @@ WHERE obj.type in ('U', 'V')
 
 		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
 
-		const columns = unique.column_ids.map((it) => {
+		const columns = unique.columns.filter((it) => !it.isIncluded).map((it) => {
 			const column = columnsList.find((column) =>
-				column.table_object_id === unique.table_id && column.column_id === it
+				column.table_object_id === unique.table_id && column.column_id === it.column_id
 			)!;
 			return column.name;
 		});
@@ -529,8 +556,10 @@ WHERE obj.type in ('U', 'V')
 
 		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
 
-		const columns = pk.column_ids.map((it) => {
-			const column = columnsList.find((column) => column.table_object_id === pk.table_id && column.column_id === it)!;
+		const columns = pk.columns.filter((it) => !it.isIncluded).map((it) => {
+			const column = columnsList.find((column) =>
+				column.table_object_id === pk.table_id && column.column_id === it.column_id
+			)!;
 			return column.name;
 		});
 
@@ -550,9 +579,15 @@ WHERE obj.type in ('U', 'V')
 
 		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
 
-		const columns = index.column_ids.map((it) => {
+		const columns = index.columns.filter((it) => !it.isIncluded).map((it) => {
 			const column = columnsList.find((column) =>
-				column.table_object_id === index.table_id && column.column_id === it
+				column.table_object_id === index.table_id && column.column_id === it.column_id
+			)!;
+			return { value: column.name, isExpression: false, asc: it.asc };
+		});
+		const include = index.columns.filter((it) => it.isIncluded).map((it) => {
+			const column = columnsList.find((column) =>
+				column.table_object_id === index.table_id && column.column_id === it.column_id
 			)!;
 			return { value: column.name, isExpression: false };
 		});
@@ -563,9 +598,11 @@ WHERE obj.type in ('U', 'V')
 			table: table.name,
 			name: index.name,
 			columns,
+			include,
 			where: index.has_filter ? index.filter_definition : null,
 			isUnique: index.is_unique,
 			clustered: index.type_desc === 'CLUSTERED' ? true : index.type_desc === 'NONCLUSTERED' ? false : null,
+			with: index.fill_factor > 0 ? { fillFactor: index.fill_factor, online: null } : null,
 		});
 	}
 

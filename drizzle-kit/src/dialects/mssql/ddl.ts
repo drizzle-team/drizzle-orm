@@ -75,6 +75,83 @@ export const createDDLV1 = () => {
 	});
 };
 
+export const createDDLV2 = () => {
+	return create({
+		schemas: {},
+		tables: { schema: 'required' },
+		columns: {
+			schema: 'required',
+			table: 'required',
+			type: 'string',
+			notNull: 'boolean',
+			generated: {
+				type: ['persisted', 'virtual'],
+				as: 'string',
+			},
+			identity: {
+				increment: 'number',
+				seed: 'number',
+			},
+		},
+		pks: {
+			schema: 'required',
+			table: 'required',
+			nameExplicit: 'boolean',
+			columns: 'string[]',
+		},
+		fks: {
+			schema: 'required',
+			table: 'required',
+			columns: 'string[]',
+			nameExplicit: 'boolean',
+			schemaTo: 'string',
+			tableTo: 'string',
+			columnsTo: 'string[]',
+			onUpdate: ['NO ACTION', 'CASCADE', 'SET NULL', 'SET DEFAULT'],
+			onDelete: ['NO ACTION', 'CASCADE', 'SET NULL', 'SET DEFAULT'],
+		},
+		indexes: {
+			schema: 'required',
+			table: 'required',
+			columns: [
+				{
+					value: 'string',
+					isExpression: 'boolean',
+				},
+			],
+			isUnique: 'boolean',
+			clustered: 'boolean?',
+			where: 'string?',
+		},
+		uniques: {
+			schema: 'required',
+			table: 'required',
+			nameExplicit: 'boolean',
+			columns: 'string[]',
+		},
+		checks: {
+			schema: 'required',
+			table: 'required',
+			value: 'string',
+		},
+		defaults: {
+			schema: 'required',
+			table: 'required',
+			column: 'string',
+			nameExplicit: 'boolean',
+			default: 'string?',
+		},
+		views: {
+			schema: 'required',
+			definition: 'string',
+			encryption: 'boolean?',
+			schemaBinding: 'boolean?',
+			viewMetadata: 'boolean?',
+			checkOption: 'boolean?',
+		},
+	});
+};
+
 export const createDDL = () => {
 	return create({
 		schemas: {},
@@ -113,8 +190,14 @@ export const createDDL = () => {
 		indexes: {
 			schema: 'required',
 			table: 'required',
-			// TODO add asc/desc: asc and desc feature exists in mssql
 			columns: [
+				{
+					value: 'string',
+					isExpression: 'boolean',
+					asc: 'boolean',
+				},
+			],
+			include: [
 				{
 					value: 'string',
 					isExpression: 'boolean',
@@ -122,6 +205,10 @@ export const createDDL = () => {
 			],
 			isUnique: 'boolean',
 			clustered: 'boolean?',
+			with: {
+				fillFactor: 'number?',
+				online: 'boolean?',
+			},
 			where: 'string?',
 		},
 		uniques: {

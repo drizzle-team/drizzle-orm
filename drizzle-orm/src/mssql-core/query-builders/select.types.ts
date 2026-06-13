@@ -61,9 +61,9 @@ export interface MsSqlSelectConfig {
 	orderBy?: (MsSqlColumn | SQL | SQL.Aliased)[];
 	groupBy?: (MsSqlColumn | SQL | SQL.Aliased)[];
 	for?: { // this is not exposed. Just used internally for the RQB
-		mode: 'browse'; // TODO: implement in dialect
+		mode: 'browse';
 	} | {
-		mode: 'xml'; // TODO: implement in dialect
+		mode: 'xml';
 	} | {
 		mode: 'json';
 		type: 'auto' | 'path';

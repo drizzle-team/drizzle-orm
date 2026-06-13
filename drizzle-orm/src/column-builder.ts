@@ -1,7 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import type { CockroachColumn, ExtraConfigColumn as CockroachExtraConfigColumn } from './cockroach-core/index.ts';
 import type { Column, ColumnBaseConfig } from './column.ts';
-import type { MsSqlColumn } from './mssql-core/index.ts';
+import type { ExtraConfigColumn as MsSqlExtraConfigColumn, MsSqlColumn } from './mssql-core/index.ts';
 import type { MySqlColumn } from './mysql-core/index.ts';
 import type { ExtraConfigColumn, PgColumn, PgSequenceOptions } from './pg-core/index.ts';
 import type { SingleStoreColumn } from './singlestore-core/index.ts';
@@ -409,6 +409,7 @@ export type BuildIndexColumn<
 	TDialect extends Dialect,
 > = TDialect extends 'pg' ? ExtraConfigColumn
 	: TDialect extends 'cockroach' ? CockroachExtraConfigColumn
+	: TDialect extends 'mssql' ? MsSqlExtraConfigColumn
 	: never;
 
 // TODO

@@ -30,17 +30,24 @@ const imports = [
 	'datetimeoffset',
 	'decimal',
 	'float',
+	'geography',
+	'geometry',
 	'int',
+	'money',
 	'numeric',
 	'real',
+	'rowversion',
 	'smallint',
+	'smallmoney',
 	'text',
 	'ntext',
 	'json',
 	'time',
 	'tinyint',
+	'uniqueidentifier',
 	'varbinary',
 	'tinyint',
+	'xml',
 	'customType',
 ] as const;
 export type Import = (typeof imports)[number];
@@ -451,12 +458,26 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing, ta
 					if (it.isExpression) {
 						return `sql\`${it.value}\``;
 					} else {
-						return `${target}.${withCasing(it.value, casing)}`;
+						return `${target}.${withCasing(it.value, casing)}${it.asc === false ? '.desc()' : ''}`;
 					}
 				})
 				.join(', ')
 		})`;
+		if (it.include.length > 0) {
+			statement += `.include(${
+				it.include
+					.map((it) => {
+						if (it.isExpression) {
+							return `sql\`${it.value}\``;
+						} else {
+							return `${target}.${withCasing(it.value, casing)}`;
+						}
+					})
+					.join(', ')
+			})`;
+		}
 		statement += it.clustered === true ? `.clustered()` : it.clustered === false ? `.nonClustered()` : '';
+		statement += it.with ? `.with(${inspect(it.with)})` : '';
 		statement += it.where ? `.where(sql\`${it.where}\`)` : '';
 
 		statement += `,\n`;

@@ -4,6 +4,7 @@ import type { AnyMsSqlColumn, AnyMsSqlTable } from 'drizzle-orm/mssql-core';
 import {
 	getTableConfig,
 	getViewConfig,
+	IndexedColumn,
 	MsSqlColumn,
 	MsSqlDialect,
 	MsSqlSchema,
@@ -41,6 +42,60 @@ export const defaultFromColumn = (
 	if (grammarType) return grammarType.defaultFromDrizzle(def);
 
 	throw new Error(`unexpected default: ${column.getSQLType().toLowerCase()} ${column.default}`);
+};
+
+type IndexColumnEntry = MssqlEntities['indexes']['columns'][number];
+
+const serializeIndexColumn = (column: SQL | MsSqlColumn | IndexedColumn, dialect: MsSqlDialect): IndexColumnEntry => {
+	if (is(column, SQL)) {
+		return {
+			value: dialect.sqlToQuery(column, 'indexes').sql,
+			isExpression: true,
+			asc: true,
+		};
+	}
+
+	if (is(column, IndexedColumn)) {
+		return {
+			value: column.name,
+			isExpression: false,
+			asc: column.indexConfig.order !== 'desc',
+		};
+	}
+
+	return {
+		value: column.name,
+		isExpression: false,
+		asc: true,
+	};
+};
+
+const serializeIncludedIndexColumn = (
+	column: SQL | MsSqlColumn | IndexedColumn,
+	dialect: MsSqlDialect,
+): MssqlEntities['indexes']['include'][number] => {
+	if (is(column, SQL)) {
+		return {
+			value: dialect.sqlToQuery(column, 'indexes').sql,
+			isExpression: true,
+		};
+	}
+
+	return {
+		value: column.name,
+		isExpression: false,
+	};
+};
+
+const serializeIndexWith = (
+	config: { fillFactor?: number; online?: boolean } | undefined,
+): MssqlEntities['indexes']['with'] => {
+	if (!config || (config.fillFactor === undefined && config.online === undefined)) return null;
+
+	return {
+		fillFactor: config.fillFactor ?? null,
+		online: config.online ?? null,
+	};
 };
 
 export const fromDrizzleSchema = (
@@ -260,16 +315,11 @@ export const fromDrizzleSchema = (
 				table: tableName,
 				name,
 				schema,
-				columns: columns.map((it) => {
-					if (is(it, SQL)) {
-						const sql = dialect.sqlToQuery(it, 'indexes').sql;
-						return { value: sql, isExpression: true };
-					} else {
-						return { value: it.name, isExpression: false };
-					}
-				}),
+				columns: columns.map((it) => serializeIndexColumn(it, dialect)),
+				include: (index.config.include ?? []).map((it) => serializeIncludedIndexColumn(it, dialect)),
 				isUnique: index.config.unique ?? false,
 				clustered: index.config.clustered ?? null,
+				with: serializeIndexWith(index.config.with),
 				where: where ? where : null,
 			});
 		}
@@ -373,16 +423,11 @@ export const fromDrizzleSchema = (
 				table: name,
 				name: indexName,
 				schema,
-				columns: columns.map((it) => {
-					if (is(it, SQL)) {
-						const sql = dialect.sqlToQuery(it, 'indexes').sql;
-						return { value: sql, isExpression: true };
-					} else {
-						return { value: it.name, isExpression: false };
-					}
-				}),
+				columns: columns.map((it) => serializeIndexColumn(it, dialect)),
+				include: (index.config.include ?? []).map((it) => serializeIncludedIndexColumn(it, dialect)),
 				isUnique: index.config.unique ?? false,
 				clustered: index.config.clustered ?? null,
+				with: serializeIndexWith(index.config.with),
 				where: where ? where : null,
 			});
 		}

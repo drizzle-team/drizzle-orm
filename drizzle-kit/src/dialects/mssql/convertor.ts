@@ -215,21 +215,33 @@ const recreateIdentityColumn = convertor('recreate_identity_column', (st) => {
 });
 
 const createIndex = convertor('create_index', (st) => {
-	const { name, table, columns, isUnique, where, schema, clustered } = st.index;
+	const { name, table, columns, include, isUnique, where, schema, clustered, with: withConfig } = st.index;
 	const indexPart = `${isUnique ? 'UNIQUE ' : ''}${
 		clustered === true ? 'CLUSTERED ' : clustered === false ? 'NONCLUSTERED ' : ''
 	}INDEX`;
 
-	const uniqueString = `${
-		columns.map((it) => {
-			return it.isExpression ? it.value : `[${it.value}]`;
-		})
-	}`;
+	const columnList = columns.map((it) => {
+		const column = it.isExpression ? it.value : `[${it.value}]`;
+		return it.asc === false ? `${column} DESC` : column;
+	}).join(',');
+
+	const includeClause = include.length > 0
+		? ` INCLUDE (${include.map((it) => it.isExpression ? it.value : `[${it.value}]`).join(',')})`
+		: '';
 
 	const whereClause = where ? ` WHERE ${where}` : '';
+	const withOptions = [
+		withConfig?.fillFactor === null || withConfig?.fillFactor === undefined
+			? undefined
+			: `FILLFACTOR = ${withConfig.fillFactor}`,
+		withConfig?.online === null || withConfig?.online === undefined
+			? undefined
+			: `ONLINE = ${withConfig.online ? 'ON' : 'OFF'}`,
+	].filter((it) => it !== undefined);
+	const withClause = withOptions.length > 0 ? ` WITH (${withOptions.join(', ')})` : '';
 
 	const key = schema !== 'dbo' ? `[${schema}].[${table}]` : `[${table}]`;
-	return `CREATE ${indexPart} [${name}] ON ${key} (${uniqueString})${whereClause};`;
+	return `CREATE ${indexPart} [${name}] ON ${key} (${columnList})${includeClause}${whereClause}${withClause};`;
 });
 
 const dropIndex = convertor('drop_index', (st) => {

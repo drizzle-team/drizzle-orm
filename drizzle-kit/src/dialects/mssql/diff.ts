@@ -976,9 +976,11 @@ export const ddlDiff = async (
 	) {
 		const forWhere = !!idx.where && (idx.where.from !== null && idx.where.to !== null ? mode !== 'push' : true);
 		const forColumns = !!idx.columns && (idx.columns.from.length === idx.columns.to.length ? mode !== 'push' : true);
+		const forInclude = !!idx.include
+			&& (idx.include.from.length === idx.include.to.length ? mode !== 'push' : true);
 
 		// TODO recheck this
-		if (idx.isUnique || idx.clustered || forColumns || forWhere) {
+		if (idx.isUnique || idx.clustered || forColumns || forInclude || idx.with || forWhere) {
 			const index = ddl2.indexes.one({ schema: idx.schema, table: idx.table, name: idx.name })!;
 			if (isViewIndex(index)) {
 				jsonDropViewIndexes.push(prepareStatement('drop_index', { index }));

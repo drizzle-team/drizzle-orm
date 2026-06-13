@@ -128,6 +128,33 @@ test('indexes #4', async () => {
 	expect(pst1).toStrictEqual(expectedSt1);
 });
 
+test('indexes with include and options', async () => {
+	const users = mssqlTable('users', {
+		id: int('id').primaryKey(),
+		name: varchar('name', { length: 255 }),
+		age: int('age'),
+		bio: text('bio'),
+	}, (t) => [
+		index('users_age_idx')
+			.on(t.age.desc(), t.name)
+			.include(t.bio)
+			.with({ fillFactor: 80, online: true }),
+	]);
+
+	const { sqlStatements: st } = await diff({}, { users }, []);
+
+	expect(st).toStrictEqual([
+		'CREATE TABLE [users] (\n'
+		+ '\t[id] int,\n'
+		+ '\t[name] varchar(255),\n'
+		+ '\t[age] int,\n'
+		+ '\t[bio] text,\n'
+		+ '\tCONSTRAINT [users_pkey] PRIMARY KEY([id])\n'
+		+ ');\n',
+		'CREATE INDEX [users_age_idx] ON [users] ([age] DESC,[name]) INCLUDE ([bio]) WITH (FILLFACTOR = 80, ONLINE = ON);',
+	]);
+});
+
 test('adding basic indexes', async () => {
 	const schema1 = {
 		users: mssqlTable('users', {

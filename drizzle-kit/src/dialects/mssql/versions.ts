@@ -1,14 +1,14 @@
 import { assertUnreachable } from 'src/utils';
-import { createDDL } from './ddl';
-import type { MssqlSnapshot, MssqlSnapshotV1 } from './snapshot';
+import { createDDL, createDDLV2 } from './ddl';
+import type { MssqlSnapshot, MssqlSnapshotV1, MssqlSnapshotV2 } from './snapshot';
 
-export const upToV2 = (it: Record<string, any>): { snapshot: MssqlSnapshot; hints: string[] } => {
+export const upToV2 = (it: Record<string, any>): { snapshot: MssqlSnapshotV2; hints: string[] } => {
 	const snapshot = it as MssqlSnapshotV1;
 	const ddlV1 = snapshot.ddl;
 
 	const hints = [] as string[];
 
-	const ddl = createDDL();
+	const ddl = createDDLV2();
 	for (const entry of ddlV1) {
 		if (entry.entityType === 'checks') ddl.checks.push(entry);
 		else if (entry.entityType === 'columns') ddl.columns.push(entry);
@@ -38,6 +38,40 @@ export const upToV2 = (it: Record<string, any>): { snapshot: MssqlSnapshot; hint
 			renames: snapshot.renames,
 		},
 		hints,
+	};
+};
+
+const updateUpToV3 = (snapshot: MssqlSnapshotV2): MssqlSnapshot => {
+	const ddlV2 = snapshot.ddl;
+	const ddl = createDDL();
+	for (const entry of ddlV2) {
+		if (entry.entityType === 'indexes') {
+			ddl.indexes.push({
+				...entry,
+				columns: entry.columns.map((it) => ({ ...it, asc: true })),
+				include: [],
+				with: null,
+			});
+		} else {
+			ddl.entities.push(entry);
+		}
+	}
+
+	return {
+		id: snapshot.id,
+		prevIds: snapshot.prevIds,
+		version: '3',
+		dialect: 'mssql',
+		ddl: ddl.entities.list(),
+		renames: snapshot.renames,
+	};
+};
+
+export const upToV3 = (it: Record<string, any>): { snapshot: MssqlSnapshot; hints: string[] } => {
+	const updated = it.version === '1' ? upToV2(it) : { snapshot: it as MssqlSnapshotV2, hints: [] };
+	return {
+		snapshot: updateUpToV3(updated.snapshot),
+		hints: updated.hints,
 	};
 };
 

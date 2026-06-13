@@ -102,14 +102,23 @@ export function mssqlTableWithSchema<
 		}),
 	) as unknown as BuildColumns<TTableName, TColumnsMap, 'mssql'>;
 
-	const table = Object.assign(rawTable, builtColumns);
-
-	table[Table.Symbol.Columns] = builtColumns;
-	table[Table.Symbol.ExtraConfigColumns] = builtColumns as unknown as BuildExtraConfigColumns<
+	const builtColumnsForExtraConfig = Object.fromEntries(
+		Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
+			const colBuilder = colBuilderBase as MsSqlColumnBuilder;
+			colBuilder.setName(name, casingFn);
+			const column = colBuilder.buildExtraConfigColumn(rawTable);
+			return [name, column];
+		}),
+	) as unknown as BuildExtraConfigColumns<
 		TTableName,
 		TColumnsMap,
 		'mssql'
 	>;
+
+	const table = Object.assign(rawTable, builtColumns);
+
+	table[Table.Symbol.Columns] = builtColumns;
+	table[Table.Symbol.ExtraConfigColumns] = builtColumnsForExtraConfig;
 
 	if (extraConfig) {
 		table[MsSqlTable.Symbol.ExtraConfigBuilder] = extraConfig as unknown as (
