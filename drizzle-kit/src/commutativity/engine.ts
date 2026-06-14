@@ -57,6 +57,104 @@ function collectLeaves(
 	return leaves;
 }
 
+function ancestorsOf(
+	nodes: Record<string, { prevIds: string[] }>,
+	startId: string,
+	cache: Map<string, Set<string>>,
+): Set<string> {
+	const cached = cache.get(startId);
+	if (cached) return cached;
+
+	const result = new Set<string>();
+	const stack: string[] = [startId];
+	while (stack.length) {
+		const id = stack.pop()!;
+		if (result.has(id)) continue;
+		const node = nodes[id];
+		// ORIGIN sentinel ids (and any id without a snapshot) are not real
+		// ancestor nodes, so they never qualify as a composition base.
+		if (!node) continue;
+		result.add(id);
+		for (const prev of node.prevIds) stack.push(prev);
+	}
+
+	cache.set(startId, result);
+	return result;
+}
+
+/**
+ * Lowest common ancestor of a set of leaves in the snapshot DAG.
+ *
+ * Returns the deepest node that is an ancestor (inclusive of itself) of every
+ * leaf, i.e. the most recent point the open heads still share. Used as the merge
+ * base so that segments already collapsed by a merge node below it are not
+ * replayed. Returns `null` when the leaves share no real-node ancestor (their
+ * only common ancestor is the ORIGIN sentinel), in which case the caller falls
+ * back to the dry snapshot.
+ */
+function lowestCommonAncestor(
+	nodes: Record<string, { prevIds: string[] }>,
+	leafIds: string[],
+): string | null {
+	const cache = new Map<string, Set<string>>();
+
+	let common: Set<string> | null = null;
+	for (const leafId of leafIds) {
+		const ancestors = ancestorsOf(nodes, leafId, cache);
+		if (common === null) {
+			common = new Set(ancestors);
+			continue;
+		}
+		for (const id of common) {
+			if (!ancestors.has(id)) common.delete(id);
+		}
+		if (common.size === 0) return null;
+	}
+	if (!common || common.size === 0) return null;
+
+	// The lowest common ancestor is the common ancestor whose own ancestor set
+	// contains every other common ancestor (the deepest one). Prefer the
+	// candidate reaching the most ancestors to break ties deterministically.
+	let best: string | null = null;
+	let bestSize = -1;
+	for (const candidate of common) {
+		const candidateAncestors = ancestorsOf(nodes, candidate, cache);
+		const containsAllCommon = [...common].every((id) => candidateAncestors.has(id));
+		if (containsAllCommon && candidateAncestors.size > bestSize) {
+			best = candidate;
+			bestSize = candidateAncestors.size;
+		}
+	}
+	if (best !== null) return best;
+
+	// Diamond history with no single deepest common ancestor: fall back to the
+	// common ancestor closest to the leaves (largest ancestor set).
+	for (const candidate of common) {
+		const size = ancestorsOf(nodes, candidate, cache).size;
+		if (size > bestSize) {
+			best = candidate;
+			bestSize = size;
+		}
+	}
+	return best;
+}
+
+function composeMergeStatements<TStatement>(
+	leafStatements: TStatement[][],
+): TStatement[] {
+	const seen = new Set<string>();
+	const composed: TStatement[] = [];
+	for (const statements of leafStatements) {
+		for (const statement of statements) {
+			const key = JSON.stringify(statement);
+			if (seen.has(key)) continue;
+			seen.add(key);
+			composed.push(statement);
+		}
+	}
+	return composed;
+}
+
 export type CommutativityStatementInfo<
 	TStatement extends { type: string },
 	TTarget,
@@ -210,8 +308,6 @@ export abstract class AbstractCommutativity<
 				childToLeaves[childId] = collectLeaves(prevToChildren, childId);
 			}
 
-			const uniqueLeafIds = Array.from(new Set(Object.values(childToLeaves).flat()));
-
 			const leafStatementsCache: Record<
 				string,
 				Promise<{ statements: TStatement[]; path: string }>
@@ -228,8 +324,6 @@ export abstract class AbstractCommutativity<
 				leafStatementsCache[leafId] = pending;
 				return pending;
 			};
-
-			let hasConflict = false;
 
 			for (let i = 0; i < childIds.length; i++) {
 				for (let j = i + 1; j < childIds.length; j++) {
@@ -256,7 +350,6 @@ export abstract class AbstractCommutativity<
 
 							if (!intersected) continue;
 
-							hasConflict = true;
 							const chainA = this.buildChain(
 								nodes,
 								prevToChildren,
@@ -292,37 +385,48 @@ export abstract class AbstractCommutativity<
 					}
 				}
 			}
-
-			if (hasConflict || uniqueLeafIds.length <= 1) {
-				continue;
-			}
-
-			// Reached only when the fork is genuinely open (multiple distinct leaves)
-			// and free of conflicts. The `commutativeBranches` payload needs the
-			// full per-leaf statements list, so we materialize the remaining diffs
-			// here (cached ones are free).
-			const leafs = await Promise.all(
-				uniqueLeafIds.map(async (leafId) => {
-					const resolved = await resolveLeaf(leafId);
-					return {
-						id: leafId,
-						path: resolved.path ?? nodes[leafId]?.folderPath ?? leafId,
-						statements: resolved.statements,
-					};
-				}),
-			);
-
-			commutativeBranches.push({
-				parentId: prevId,
-				parentPath: parentNode?.folderPath,
-				parentSnapshot,
-				leafs,
-			});
 		}
 
 		const leafNodes: string[] = [];
 		for (const id of Object.keys(nodes)) {
 			if (!prevToChildren[id]) leafNodes.push(id);
+		}
+
+		// Open commutative merge. When the whole history is conflict-free and more
+		// than one head is open, every pair of open heads is commutative (the loop
+		// above compares every cross-branch leaf pair), so all of them can be merged
+		// at once. The merge base is the lowest common ancestor of the open heads —
+		// not a higher fork — so segments already collapsed by a merge node below it
+		// are never replayed. Each head contributes diff(LCA -> head); statements
+		// inherited from a nested fork below the LCA show up in more than one head's
+		// diff and are de-duplicated by the consumer before they are replayed.
+		if (conflicts.length === 0 && leafNodes.length > 1) {
+			const lcaId = lowestCommonAncestor(nodes, leafNodes);
+			const baseNode = lcaId ? nodes[lcaId] : undefined;
+			const baseSnapshot = baseNode ? baseNode.raw : drySnapshot;
+
+			// Sort heads by id so the composed migration and leaf ids are
+			// deterministic regardless of file read order.
+			const sortedLeafIds = [...leafNodes].sort((a, b) => a.localeCompare(b));
+			const leafs = await Promise.all(
+				sortedLeafIds.map(async (leafId) => {
+					const leafNode = nodes[leafId]!;
+					const { statements } = await diffOnce(baseSnapshot, leafNode.raw);
+					return {
+						id: leafId,
+						path: leafNode.folderPath,
+						statements,
+					};
+				}),
+			);
+
+			commutativeBranches.push({
+				parentId: lcaId ?? drySnapshot.id,
+				parentPath: baseNode?.folderPath,
+				parentSnapshot: baseSnapshot,
+				statements: composeMergeStatements(leafs.map((leaf) => leaf.statements)),
+				leafs,
+			});
 		}
 
 		return { conflicts, leafNodes, commutativeBranches };

@@ -428,7 +428,15 @@ class PostgresCommutativity extends AbstractCommutativity<
 				}),
 			},
 			alter_enum: {
-				conflicts: ['create_enum', 'drop_enum', 'rename_enum', 'recreate_enum', 'move_enum', 'alter_type_drop_value'],
+				conflicts: [
+					'create_enum',
+					'drop_enum',
+					'rename_enum',
+					'alter_enum',
+					'recreate_enum',
+					'move_enum',
+					'alter_type_drop_value',
+				],
 				buildInfo: (statement) => ({
 					primary: makeTarget(statement.to.schema, statement.to.name),
 					ancestors: [],
