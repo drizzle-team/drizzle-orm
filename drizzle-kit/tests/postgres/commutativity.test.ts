@@ -1212,4 +1212,249 @@ describe('commutativity integration (postgres)', () => {
 		// Expect conflicts between B and C (s1 drop vs s1 operations)
 		expect(report.conflicts.length).toBeGreaterThan(0);
 	});
+
+	test('fork closed by a merge node is not reported as an open commutative branch', async () => {
+		// init (a, b)
+		// ├── add-c (a, b, c)    \  merged
+		// └── add-d (a, b, d)    /
+		// drop-b (a, c, d)       <- merge node: prevIds = [add-c, add-d]
+		// ├── add-g (a, c, d, g) \  open commutative fork
+		// └── add-h (a, c, d, h) /
+		const { tmp } = mkTmp();
+
+		const tablesDDL = (names: string[]) => {
+			const ddl = createDDL();
+			for (const name of names) {
+				ddl.tables.push({ schema: 'public', isRlsEnabled: false, name } as any);
+			}
+			return ddl.entities.list();
+		};
+
+		const files = [
+			writeTempSnapshot(tmp, '140_init', makeSnapshot('init', [ORIGIN], tablesDDL(['a', 'b']))),
+			writeTempSnapshot(tmp, '141_add_c', makeSnapshot('add_c', ['init'], tablesDDL(['a', 'b', 'c']))),
+			writeTempSnapshot(tmp, '142_add_d', makeSnapshot('add_d', ['init'], tablesDDL(['a', 'b', 'd']))),
+			writeTempSnapshot(tmp, '143_drop_b', makeSnapshot('drop_b', ['add_c', 'add_d'], tablesDDL(['a', 'c', 'd']))),
+			writeTempSnapshot(tmp, '144_add_g', makeSnapshot('add_g', ['drop_b'], tablesDDL(['a', 'c', 'd', 'g']))),
+			writeTempSnapshot(tmp, '145_add_h', makeSnapshot('add_h', ['drop_b'], tablesDDL(['a', 'c', 'd', 'h']))),
+		];
+
+		const report = await postgresCommutativity.detectNonCommutative(files);
+
+		expect(report.conflicts).toStrictEqual([]);
+		expect(new Set(report.leafNodes)).toStrictEqual(new Set(['add_g', 'add_h']));
+
+		const branches = report.commutativeBranches ?? [];
+		expect(
+			branches.map((branch) => branch.parentId),
+			"expected only the merge node (the open heads' divergence point) to be offered as a composition base",
+		).toStrictEqual(['drop_b']);
+		expect(new Set(branches[0].leafs.map((leaf) => leaf.id))).toStrictEqual(new Set(['add_g', 'add_h']));
+		for (const leaf of branches[0].leafs) {
+			expect(leaf.statements.map((statement) => (statement as any).type)).toStrictEqual(['create_table']);
+		}
+	});
+
+	test('nested open fork: all open heads merge at their lowest common ancestor', async () => {
+		// p
+		// ├── a (leaf)
+		// └── b
+		//     ├── bx (leaf)
+		//     └── by (leaf)
+		// All three heads are open and pairwise commutative, so they merge in one
+		// step. The base is their lowest common ancestor, p — not the deeper fork b.
+		// bx and by both inherit b's migration through their shared segment, so
+		// diff(p->bx) and diff(p->by) each carry `create b`; the consumer
+		// de-duplicates it before replaying onto p.
+		const { tmp } = mkTmp();
+
+		const tablesDDL = (names: string[]) => {
+			const ddl = createDDL();
+			for (const name of names) {
+				ddl.tables.push({ schema: 'public', isRlsEnabled: false, name } as any);
+			}
+			return ddl.entities.list();
+		};
+
+		const files = [
+			writeTempSnapshot(tmp, '170_p', makeSnapshot('p_deep', [ORIGIN], tablesDDL(['t']))),
+			writeTempSnapshot(tmp, '171_a', makeSnapshot('a_deep', ['p_deep'], tablesDDL(['t', 'a']))),
+			writeTempSnapshot(tmp, '172_b', makeSnapshot('b_deep', ['p_deep'], tablesDDL(['t', 'b']))),
+			writeTempSnapshot(tmp, '173_bx', makeSnapshot('bx_deep', ['b_deep'], tablesDDL(['t', 'b', 'x']))),
+			writeTempSnapshot(tmp, '174_by', makeSnapshot('by_deep', ['b_deep'], tablesDDL(['t', 'b', 'y']))),
+		];
+
+		const report = await postgresCommutativity.detectNonCommutative(files);
+
+		expect(report.conflicts).toStrictEqual([]);
+		expect(new Set(report.leafNodes)).toStrictEqual(new Set(['a_deep', 'bx_deep', 'by_deep']));
+
+		const branches = report.commutativeBranches ?? [];
+		expect(branches.map((branch) => branch.parentId)).toStrictEqual(['p_deep']);
+		expect(new Set(branches[0].leafs.map((leaf) => leaf.id))).toStrictEqual(
+			new Set(['a_deep', 'bx_deep', 'by_deep']),
+		);
+
+		// bx and by each carry the inherited `create b`, so the raw per-head diffs
+		// overlap; the merge migration de-duplicates them down to one create per
+		// table (t already exists at the base p).
+		const byId = Object.fromEntries(branches[0].leafs.map((leaf) => [leaf.id, leaf.statements]));
+		const tableNames = (statements: unknown[]) => statements.map((statement) => (statement as any).table?.name).sort();
+		expect(tableNames(byId['a_deep'])).toStrictEqual(['a']);
+		expect(tableNames(byId['bx_deep'])).toStrictEqual(['b', 'x']);
+		expect(tableNames(byId['by_deep'])).toStrictEqual(['b', 'y']);
+	});
+
+	test('partially merged fork: children sharing a merged leaf still compose', async () => {
+		// p
+		// ├── a \  merged into m (leaf)
+		// ├── b /
+		// └── c (leaf)
+		// Every child funnels to a single leaf (a and b both to m), so p is a
+		// valid composition base for the open heads {m, c}: diff(p->m) carries
+		// both merged branches exactly once, diff(p->c) is disjoint from it.
+		const { tmp } = mkTmp();
+
+		const tablesDDL = (names: string[]) => {
+			const ddl = createDDL();
+			for (const name of names) {
+				ddl.tables.push({ schema: 'public', isRlsEnabled: false, name } as any);
+			}
+			return ddl.entities.list();
+		};
+
+		const files = [
+			writeTempSnapshot(tmp, '180_p', makeSnapshot('p_part', [ORIGIN], tablesDDL(['t']))),
+			writeTempSnapshot(tmp, '181_a', makeSnapshot('a_part', ['p_part'], tablesDDL(['t', 'a']))),
+			writeTempSnapshot(tmp, '182_b', makeSnapshot('b_part', ['p_part'], tablesDDL(['t', 'b']))),
+			writeTempSnapshot(tmp, '183_m', makeSnapshot('m_part', ['a_part', 'b_part'], tablesDDL(['t', 'a', 'b']))),
+			writeTempSnapshot(tmp, '184_c', makeSnapshot('c_part', ['p_part'], tablesDDL(['t', 'c']))),
+		];
+
+		const report = await postgresCommutativity.detectNonCommutative(files);
+
+		expect(report.conflicts).toStrictEqual([]);
+
+		const branches = report.commutativeBranches ?? [];
+		expect(branches.map((branch) => branch.parentId)).toStrictEqual(['p_part']);
+		expect(new Set(branches[0].leafs.map((leaf) => leaf.id))).toStrictEqual(new Set(['m_part', 'c_part']));
+
+		// the merged leaf's diff carries both merged branches, exactly once
+		const mergedLeaf = branches[0].leafs.find((leaf) => leaf.id === 'm_part')!;
+		expect(mergedLeaf.statements.map((statement) => (statement as any).type)).toStrictEqual([
+			'create_table',
+			'create_table',
+		]);
+	});
+
+	test('multi-migration branch: composition base stays at the divergence point', async () => {
+		// p
+		// ├── a1 ── a2 (leaf)
+		// └── b (leaf)
+		// A branch with several migrations still composes from p; the a2 leaf
+		// diff covers the whole a1+a2 chain.
+		const { tmp } = mkTmp();
+
+		const tablesDDL = (names: string[]) => {
+			const ddl = createDDL();
+			for (const name of names) {
+				ddl.tables.push({ schema: 'public', isRlsEnabled: false, name } as any);
+			}
+			return ddl.entities.list();
+		};
+
+		const files = [
+			writeTempSnapshot(tmp, '190_p', makeSnapshot('p_chain', [ORIGIN], tablesDDL(['t']))),
+			writeTempSnapshot(tmp, '191_a1', makeSnapshot('a1_chain', ['p_chain'], tablesDDL(['t', 'a1']))),
+			writeTempSnapshot(tmp, '192_a2', makeSnapshot('a2_chain', ['a1_chain'], tablesDDL(['t', 'a1', 'a2']))),
+			writeTempSnapshot(tmp, '193_b', makeSnapshot('b_chain', ['p_chain'], tablesDDL(['t', 'b']))),
+		];
+
+		const report = await postgresCommutativity.detectNonCommutative(files);
+
+		expect(report.conflicts).toStrictEqual([]);
+
+		const branches = report.commutativeBranches ?? [];
+		expect(branches.map((branch) => branch.parentId)).toStrictEqual(['p_chain']);
+		expect(new Set(branches[0].leafs.map((leaf) => leaf.id))).toStrictEqual(new Set(['a2_chain', 'b_chain']));
+
+		const chainLeaf = branches[0].leafs.find((leaf) => leaf.id === 'a2_chain')!;
+		expect(chainLeaf.statements.map((statement) => (statement as any).type)).toStrictEqual([
+			'create_table',
+			'create_table',
+		]);
+	});
+
+	test('fully merged history with a single head offers nothing', async () => {
+		// p
+		// ├── a \  merged into m (single leaf)
+		// └── b /
+		// Closed history: no conflicts, no open commutative branches.
+		const { tmp } = mkTmp();
+
+		const tablesDDL = (names: string[]) => {
+			const ddl = createDDL();
+			for (const name of names) {
+				ddl.tables.push({ schema: 'public', isRlsEnabled: false, name } as any);
+			}
+			return ddl.entities.list();
+		};
+
+		const files = [
+			writeTempSnapshot(tmp, '200_p', makeSnapshot('p_closed', [ORIGIN], tablesDDL(['t']))),
+			writeTempSnapshot(tmp, '201_a', makeSnapshot('a_closed', ['p_closed'], tablesDDL(['t', 'a']))),
+			writeTempSnapshot(tmp, '202_b', makeSnapshot('b_closed', ['p_closed'], tablesDDL(['t', 'b']))),
+			writeTempSnapshot(tmp, '203_m', makeSnapshot('m_closed', ['a_closed', 'b_closed'], tablesDDL(['t', 'a', 'b']))),
+		];
+
+		const report = await postgresCommutativity.detectNonCommutative(files);
+
+		expect(report.conflicts).toStrictEqual([]);
+		expect(report.leafNodes).toStrictEqual(['m_closed']);
+		expect(report.commutativeBranches ?? []).toStrictEqual([]);
+	});
+
+	test('enum: parallel ADD VALUE to the same enum is non-commutative', async () => {
+		// Enum value order matters in postgres, and the final order of values
+		// appended by parallel branches depends on which migration runs first —
+		// the branches must be resolved explicitly instead of merged.
+		const { tmp } = mkTmp();
+
+		const enumDDL = (values: string[]) => {
+			const ddl = createDDL();
+			ddl.enums.push({ schema: 'public', name: 'status', values } as any);
+			return ddl.entities.list();
+		};
+
+		const files = [
+			writeTempSnapshot(tmp, '150_p_enum_add', makeSnapshot('p_enum_add', [ORIGIN], enumDDL(['a']))),
+			writeTempSnapshot(tmp, '151_a_enum_add', makeSnapshot('a_enum_add', ['p_enum_add'], enumDDL(['a', 'b']))),
+			writeTempSnapshot(tmp, '152_b_enum_add', makeSnapshot('b_enum_add', ['p_enum_add'], enumDDL(['a', 'c']))),
+		];
+
+		const report = await postgresCommutativity.detectNonCommutative(files);
+		expect(report.conflicts.length).toBeGreaterThan(0);
+		expect(report.commutativeBranches ?? []).toStrictEqual([]);
+	});
+
+	test('enum: parallel ADD VALUE to different enums is commutative', async () => {
+		const { tmp } = mkTmp();
+
+		const twoEnumsDDL = (statusValues: string[], colorValues: string[]) => {
+			const ddl = createDDL();
+			ddl.enums.push({ schema: 'public', name: 'status', values: statusValues } as any);
+			ddl.enums.push({ schema: 'public', name: 'color', values: colorValues } as any);
+			return ddl.entities.list();
+		};
+
+		const files = [
+			writeTempSnapshot(tmp, '160_p_enums', makeSnapshot('p_enums', [ORIGIN], twoEnumsDDL(['a'], ['x']))),
+			writeTempSnapshot(tmp, '161_a_enums', makeSnapshot('a_enums', ['p_enums'], twoEnumsDDL(['a', 'b'], ['x']))),
+			writeTempSnapshot(tmp, '162_b_enums', makeSnapshot('b_enums', ['p_enums'], twoEnumsDDL(['a'], ['x', 'y']))),
+		];
+
+		const report = await postgresCommutativity.detectNonCommutative(files);
+		expect(report.conflicts).toStrictEqual([]);
+		expect((report.commutativeBranches ?? []).map((branch) => branch.parentId)).toStrictEqual(['p_enums']);
+	});
 });

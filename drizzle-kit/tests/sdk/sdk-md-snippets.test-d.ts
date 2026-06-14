@@ -1,8 +1,8 @@
 import { expectTypeOf, test } from 'vitest';
+import type { GenerateOptions, PushOptions } from '../../src/cli/contract';
 import type { Hint } from '../../src/cli/hints';
 import { defineConfig, generate, push } from '../../src/index';
 import type { Config } from '../../src/index';
-import type { GenerateOptions, PushOptions } from '../../src/cli/contract';
 
 type GenerateResponse = Awaited<ReturnType<typeof generate>>;
 type PushResponse = Awaited<ReturnType<typeof push>>;

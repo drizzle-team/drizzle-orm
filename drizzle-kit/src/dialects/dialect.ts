@@ -231,6 +231,53 @@ type HasDiffFn<
 	input: DiffAlter<TSchema, TType>,
 ) => boolean;
 
+type PushAllFn = (
+	items: Iterable<Record<string, any>>,
+) => { status: 'OK'; count: number } | { status: 'CONFLICT'; key: string };
+
+const generatePushAll: (configs: Record<string, Config>, store: CollectionStore, type?: string) => PushAllFn = (
+	configs,
+	store,
+	type,
+) => {
+	const nullsByType = new Map<string, Record<string, any>>();
+	const getNulls = (entityType: string) => {
+		let cached = nullsByType.get(entityType);
+		if (cached) return cached;
+		cached = Object.fromEntries(
+			Object.keys(configs[entityType]).map((e) => [e, null]),
+		);
+		nullsByType.set(entityType, cached);
+		return cached;
+	};
+
+	return (items) => {
+		const seen = new Set<string>();
+		for (const existing of store.collection as CommonEntity[]) {
+			seen.add(getCompositeKey(existing));
+		}
+
+		const prepared: Record<string, any>[] = [];
+		for (const input of items) {
+			const filtered: Record<string, any> = {};
+			for (const k in input) {
+				if (input[k] !== undefined) filtered[k] = input[k];
+			}
+			const entityType = (type ?? filtered.entityType) as string;
+			const mapped = { ...getNulls(entityType), ...filtered, entityType };
+			const key = getCompositeKey(mapped as CommonEntity);
+			if (seen.has(key)) {
+				return { status: 'CONFLICT', key };
+			}
+			seen.add(key);
+			prepared.push(mapped);
+		}
+
+		for (const row of prepared) store.collection.push(row);
+		return { status: 'OK', count: prepared.length };
+	};
+};
+
 const generateInsert: (configs: Record<string, Config>, store: CollectionStore, type?: string) => PushFn<any> = (
 	configs,
 	store,
@@ -485,6 +532,7 @@ type GenerateProcessors<
 > = {
 	[K in keyof TTypes]: {
 		push: PushFn<TTypes[K], TCommon>;
+		pushAll: PushAllFn;
 		list: ListFn<TTypes[K]>;
 		one: OneFn<TTypes[K]>;
 		update: UpdateFn<TTypes[K]>;
@@ -517,6 +565,7 @@ function initSchemaProcessors<T extends Omit<DbConfig<any>, 'diffs'>, TCommon ex
 	return Object.fromEntries(entries.map(([k, _v]) => {
 		return [k, {
 			push: generateInsert(common ? extraConfigs! : entities, store, common ? undefined : k),
+			pushAll: generatePushAll(common ? extraConfigs! : entities, store, common ? undefined : k),
 			list: generateList(store, common ? undefined : k),
 			one: generateOne(store, common ? undefined : k),
 			update: generateUpdate(store, common ? undefined : k),

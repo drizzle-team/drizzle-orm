@@ -26,37 +26,14 @@ const selectOpenCommutativeBranch = (report: NonCommutativityReport) => {
 	if (branches.length === 0) return null;
 
 	const leafSet = new Set(report.leafNodes);
-	const candidates = branches.filter(
-		(branch) =>
-			branch.leafs.length > 1
-			&& branch.leafs.length === leafSet.size
-			&& branch.leafs.every((leaf) => leafSet.has(leaf.id)),
+	return (
+		branches.find(
+			(branch) =>
+				branch.leafs.length > 1
+				&& branch.leafs.length === leafSet.size
+				&& branch.leafs.every((leaf) => leafSet.has(leaf.id)),
+		) ?? null
 	);
-
-	if (candidates.length === 0) return null;
-
-	// When multiple commutative branches match (e.g. both a root-level fork and a
-	// deeper fork resolve to the same set of leaves), pick the one closest to the
-	// leaves — i.e. the branch whose combined leaf statements are fewest, meaning
-	// the parent is the most recent common ancestor of the open leaves.
-	if (candidates.length > 1) {
-		let best = candidates[0];
-		let bestTotal = best.leafs.reduce((sum, l) => sum + l.statements.length, 0);
-
-		for (let i = 1; i < candidates.length; i++) {
-			const total = candidates[i].leafs.reduce(
-				(sum, l) => sum + l.statements.length,
-				0,
-			);
-			if (total < bestTotal) {
-				best = candidates[i];
-				bestTotal = total;
-			}
-		}
-		return best;
-	}
-
-	return candidates[0];
 };
 
 const countLeafs = (conflicts: UnifiedBranchConflict[]): number => {
@@ -166,12 +143,11 @@ export const checkHandler = async (
 	const { snapshots } = prepareOutFolder(out);
 	const validator = validatorForDialect(dialect);
 
+	// const parsedInputs: ParsedSnapshotInput[] = [];
 	for (const snapshot of snapshots) {
 		let raw: object;
 		try {
 			const parsed: unknown = JSON.parse(readFileSync(snapshot).toString());
-			// `typeof null === 'object'`, but `'version' in null` throws — reject it alongside primitives
-			// so a valid-but-non-object snapshot surfaces as `malformed` instead of an uncaught TypeError.
 			if (typeof parsed !== 'object' || parsed === null) {
 				throw new CheckCliError('malformed', `${snapshot} data is malformed`, { snapshot });
 			}
@@ -184,6 +160,7 @@ export const checkHandler = async (
 		const res = validator(raw);
 		switch (res.status) {
 			case 'valid':
+				// parsedInputs.push({ path: snapshot, snapshot: raw });
 				break;
 			case 'unsupported':
 				throw new CheckCliError(
@@ -211,7 +188,6 @@ export const checkHandler = async (
 	if (response.conflicts.length > 0) {
 		const nonCommutativityMessage = generateReportDirectory(response);
 		if (!ignoreConflicts) {
-			humanLog(nonCommutativityMessage);
 			if (shouldExitOnConflict) {
 				const leafOf = (chain: MigrationNode[]) => chain[chain.length - 1];
 				const details = response.conflicts.map((conflict) => ({
@@ -228,18 +204,18 @@ export const checkHandler = async (
 					details,
 				});
 			}
+			humanLog(nonCommutativityMessage);
 			return emptyResult(nonCommutativityMessage);
 		}
 	}
 
 	const selectedBranch = selectOpenCommutativeBranch(response);
 	if (selectedBranch) {
-		const sortedLeafs = [...selectedBranch.leafs].sort((left, right) => left.id.localeCompare(right.id));
 		return {
-			statements: sortedLeafs.flatMap((leaf) => leaf.statements),
+			statements: selectedBranch.statements,
 			parentSnapshot: selectedBranch.parentSnapshot,
 			parentId: selectedBranch.parentId,
-			leafIds: sortedLeafs.map((leaf) => leaf.id),
+			leafIds: selectedBranch.leafs.map((leaf) => leaf.id),
 		};
 	}
 

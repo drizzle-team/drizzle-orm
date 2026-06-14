@@ -302,8 +302,8 @@ class MysqlCommutativity extends AbstractCommutativity<
 		const fromDDL: MysqlDDL = createDDL();
 		const toDDL: MysqlDDL = createDDL();
 
-		for (const e of fromSnapshot.ddl) fromDDL.entities.push(e);
-		for (const e of toSnapshot.ddl) toDDL.entities.push(e);
+		fromDDL.entities.pushAll(fromSnapshot.ddl);
+		toDDL.entities.pushAll(toSnapshot.ddl);
 
 		const { statements } = await ddlDiffDry(fromDDL, toDDL, 'default');
 		return { statements };

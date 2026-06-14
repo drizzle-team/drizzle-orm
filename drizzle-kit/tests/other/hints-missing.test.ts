@@ -29,22 +29,25 @@ test('new HintsHandler reports no missing hints', () => {
 });
 
 test('resolver aggregates unresolved items across repeated calls on the same HintsHandler', async () => {
-	const { hints, tableResult, columnResult } = await runWithCliContext({ output: 'json', interactive: false }, async () => {
-		const hints = new HintsHandler();
-		const resolveTables = resolver<Entity>('table', 'public', hints);
-		const resolveColumns = resolver<Entity>('column', 'public', hints);
+	const { hints, tableResult, columnResult } = await runWithCliContext(
+		{ output: 'json', interactive: false },
+		async () => {
+			const hints = new HintsHandler();
+			const resolveTables = resolver<Entity>('table', 'public', hints);
+			const resolveColumns = resolver<Entity>('column', 'public', hints);
 
-		const tableResult = await resolveTables({
-			created: [table('members', 'public')],
-			deleted: [table('users', 'public')],
-		});
-		const columnResult = await resolveColumns({
-			created: [column('users', 'email', 'public')],
-			deleted: [column('users', 'name', 'public')],
-		});
+			const tableResult = await resolveTables({
+				created: [table('members', 'public')],
+				deleted: [table('users', 'public')],
+			});
+			const columnResult = await resolveColumns({
+				created: [column('users', 'email', 'public')],
+				deleted: [column('users', 'name', 'public')],
+			});
 
-		return { hints, tableResult, columnResult };
-	});
+			return { hints, tableResult, columnResult };
+		},
+	);
 
 	expect(tableResult.unresolved).toStrictEqual([
 		{ type: 'rename_or_create', kind: 'table', entity: ['public', 'members'] },
