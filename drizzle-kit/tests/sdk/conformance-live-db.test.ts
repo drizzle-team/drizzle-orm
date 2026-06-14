@@ -119,7 +119,17 @@ describe.skipIf(!postgresUrl)('push postgres (live DB)', () => {
 			// Seed: create the placeholder so subsequent diffs find it idempotent.
 			runCli(['push', '--dialect', 'postgresql', '--schema', schemaPath, '--url', postgresUrl!, '--output', 'json']);
 
-			const argv = ['push', '--dialect', 'postgresql', '--schema', schemaPath, '--url', postgresUrl!, '--output', 'json'];
+			const argv = [
+				'push',
+				'--dialect',
+				'postgresql',
+				'--schema',
+				schemaPath,
+				'--url',
+				postgresUrl!,
+				'--output',
+				'json',
+			];
 			const sdkOpts: PushOptions = { dialect: 'postgresql', schema: schemaPath, url: postgresUrl! };
 
 			const { envelope: cliResult } = runCli(argv);
@@ -166,7 +176,8 @@ describe.skipIf(!postgresUrl)('push postgres (live DB)', () => {
 					cliSchemaPath,
 					'--url',
 					postgresUrl!,
-					'--output', 'json',
+					'--output',
+					'json',
 				]);
 
 				await dropPgTable(postgresUrl!, cliTable);
@@ -227,12 +238,32 @@ export const t = pgTable('${tableName}', {
 			try {
 				await dropPgTable(postgresUrl!, tableName);
 				// Seed the DB with the id-only schema (CLI run creates the table)
-				runCli(['push', '--dialect', 'postgresql', '--schema', seedSchemaPath, '--url', postgresUrl!, '--output', 'json']);
+				runCli([
+					'push',
+					'--dialect',
+					'postgresql',
+					'--schema',
+					seedSchemaPath,
+					'--url',
+					postgresUrl!,
+					'--output',
+					'json',
+				]);
 				// Insert one row so the suggestions path treats the table as non-empty
 				await execPg(postgresUrl!, `INSERT INTO "${tableName}" (id) VALUES (1)`);
 
 				// Run both CLI and SDK against the child schema; expect missing_hints envelope from both
-				const argv = ['push', '--dialect', 'postgresql', '--schema', childSchemaPath, '--url', postgresUrl!, '--output', 'json'];
+				const argv = [
+					'push',
+					'--dialect',
+					'postgresql',
+					'--schema',
+					childSchemaPath,
+					'--url',
+					postgresUrl!,
+					'--output',
+					'json',
+				];
 				const sdkOpts: PushOptions = { dialect: 'postgresql', schema: childSchemaPath, url: postgresUrl! };
 
 				const { envelope: cliResult } = runCli(argv);
@@ -333,7 +364,8 @@ describe.skipIf(!mysqlUrl)('push mysql (live DB)', () => {
 					cliSchemaPath,
 					'--url',
 					mysqlUrl!,
-					'--output', 'json',
+					'--output',
+					'json',
 				]);
 
 				await dropMysqlTable(mysqlUrl!, cliTable);
@@ -396,7 +428,17 @@ export const t = mysqlTable('${tableName}', {
 				runCli(['push', '--dialect', 'mysql', '--schema', seedSchemaPath, '--url', mysqlUrl!, '--output', 'json']);
 				await execMysql(mysqlUrl!, `INSERT INTO \`${tableName}\` (id) VALUES (1)`);
 
-				const argv = ['push', '--dialect', 'mysql', '--schema', childSchemaPath, '--url', mysqlUrl!, '--output', 'json'];
+				const argv = [
+					'push',
+					'--dialect',
+					'mysql',
+					'--schema',
+					childSchemaPath,
+					'--url',
+					mysqlUrl!,
+					'--output',
+					'json',
+				];
 				const sdkOpts: PushOptions = { dialect: 'mysql', schema: childSchemaPath, url: mysqlUrl! };
 
 				const { envelope: cliResult } = runCli(argv);
