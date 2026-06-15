@@ -81,6 +81,11 @@ describe('MCP server tool registration', () => {
 		const forbidden = ['url', 'host', 'port', 'user', 'password', 'authToken', 'credentials', 'force'];
 		for (const tool of tools) {
 			const schemaKeys = Object.keys((tool.inputSchema as any)?.properties ?? {});
+			// Guard against a zod→JSON-schema regression yielding empty `properties`, which would
+			// make every `not.toContain` below pass vacuously.
+			if (tool.name === 'generate') expect(schemaKeys).toEqual(expect.arrayContaining(['config', 'hints', 'name']));
+			if (tool.name === 'push') expect(schemaKeys).toEqual(expect.arrayContaining(['config', 'hints']));
+			if (tool.name === 'check') expect(schemaKeys).toEqual(expect.arrayContaining(['config', 'ignoreConflicts']));
 			for (const key of forbidden) {
 				expect(
 					schemaKeys,
@@ -162,6 +167,26 @@ describe('MCP server generate tool — missing_hints round-trip', () => {
 
 			const second = await client.callTool({ name: 'generate', arguments: { config, hints } });
 			expect(second.isError).toBe(false);
+		} finally {
+			await client.close();
+			rmSync(out, { recursive: true, force: true });
+		}
+	});
+
+	test('generate with a malformed hint returns an invalid_hints envelope, not a protocol error', async () => {
+		const { client } = await connectPair();
+		const { out, schemaPath } = stageGenerateMissingHints();
+		const config = writeDrizzleConfig(out, schemaPath);
+		try {
+			// A hint with an unknown `type` fails hintSchema parsing. The loose tool input schema
+			// lets it through to the SDK, which must surface it as an `invalid_hints` envelope
+			// (isError:true) rather than the MCP layer rejecting the call as InvalidParams.
+			const result = await client.callTool({
+				name: 'generate',
+				arguments: { config, hints: [{ type: 'not_a_real_hint' }] },
+			});
+			expect(result.isError).toBe(true);
+			expect(result.structuredContent).toMatchObject({ status: 'error', error: { code: 'invalid_hints' } });
 		} finally {
 			await client.close();
 			rmSync(out, { recursive: true, force: true });

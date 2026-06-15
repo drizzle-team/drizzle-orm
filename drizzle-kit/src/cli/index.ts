@@ -1,3 +1,4 @@
+import './dotenv-quiet';
 import 'dotenv/config';
 import { type BroCliEvent, command, getCommandNameWithParents, run } from '@drizzle-team/brocli';
 import chalk from 'chalk';

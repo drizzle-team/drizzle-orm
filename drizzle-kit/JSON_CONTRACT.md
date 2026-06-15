@@ -18,8 +18,6 @@ When `--output json` is set, callers should treat `stdout` as the JSON channel. 
 
 The same JSON contract documented in this file is available as typed root-level exports of the `drizzle-kit` package for programmatic callers — agents, build tools, custom orchestrators. The CLI and SDK share one implementation; the response shapes, status discriminator, hint vocabulary, and error codes documented below apply identically to SDK return values.
 
-`check` is available both as `drizzle-kit check --output json` and as the root `check()` SDK export — both surfaces return the same envelope. See [SDK.md](./SDK.md) for the SDK calling pattern.
-
 ```typescript
 import { generate, push, check } from 'drizzle-kit';
 import type { GenerateJsonResponse } from 'drizzle-kit';

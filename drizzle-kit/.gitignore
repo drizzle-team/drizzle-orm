@@ -12,6 +12,7 @@ tests/**/tmp/
 !CONTRIBUTING.md
 !JSON_CONTRACT.md
 !SDK.md
+!MCP.md
 !OUTPUT_MODES.md
 !HINTS.md
 

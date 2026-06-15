@@ -60,7 +60,7 @@ export const statusToExitCode = (status: EnvelopeStatus): 0 | 1 | 2 => {
 };
 
 export const prepareGenerate = async (opts: GenerateOptionsInput) => {
-	const output = opts.output ?? 'text';
+	const output = opts.output ?? outputFormat();
 	const interactive = output === 'text' && !!process.stdin.isTTY;
 	setCliContext({ output, interactive });
 	const from = assertCollisions(
@@ -121,7 +121,7 @@ export const runGenerate = async (
 };
 
 export const preparePush = async (opts: PushOptionsInput) => {
-	const output = opts.output ?? 'text';
+	const output = opts.output ?? outputFormat();
 	const interactive = output === 'text' && !!process.stdin.isTTY;
 	setCliContext({ output, interactive });
 	const from = assertCollisions(
@@ -525,7 +525,7 @@ export const checkOptions = {
 } as const satisfies Record<string, GenericBuilderInternals>;
 
 export const prepareCheck = async (opts: CheckOptionsInput) => {
-	const output = opts.output ?? 'text';
+	const output = opts.output ?? outputFormat();
 	const interactive = output === 'text' && !!process.stdin.isTTY;
 	setCliContext({ output, interactive });
 	const from = assertCollisions(

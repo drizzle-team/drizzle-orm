@@ -6,7 +6,7 @@ import { prepareCheck, runCheck } from '../cli/schema';
 export const check = (opts: CheckOptions) =>
 	runWithCliContext({ output: 'json', interactive: false }, async () => {
 		try {
-			const cfg = await prepareCheck({ ...opts, output: 'json' as const } as Parameters<typeof prepareCheck>[0]);
+			const cfg = await prepareCheck(opts as Parameters<typeof prepareCheck>[0]);
 			return await runCheck(cfg);
 		} catch (e) {
 			return errorToEnvelope(e);
