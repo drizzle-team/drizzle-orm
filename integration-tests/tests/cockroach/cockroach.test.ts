@@ -9,7 +9,7 @@ import { Client } from 'pg';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
-import { createDockerDB, tests, usersMigratorTable, usersTable } from './common';
+import { requireCockroachConnectionString, tests, usersMigratorTable, usersTable } from './common';
 
 const ENABLE_LOGGING = false;
 
@@ -17,13 +17,7 @@ let db: NodeCockroachDatabase;
 let client: Client;
 
 beforeAll(async () => {
-	let connectionString;
-	if (process.env['COCKROACH_CONNECTION_STRING']) {
-		connectionString = process.env['COCKROACH_CONNECTION_STRING'];
-	} else {
-		const { connectionString: conStr } = await createDockerDB();
-		connectionString = conStr;
-	}
+	const connectionString = requireCockroachConnectionString();
 	client = await retry(async () => {
 		client = new Client(connectionString);
 		await client.connect();

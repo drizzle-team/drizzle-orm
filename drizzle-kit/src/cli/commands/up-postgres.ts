@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
-import { upToV8 } from 'src/dialects/postgres/versions';
+import { upToV8 } from '../../dialects/postgres/versions';
 import { prepareOutFolder, validateWithReport } from '../../utils/utils-node';
 import { migrateToFoldersV3 } from './utils';
 

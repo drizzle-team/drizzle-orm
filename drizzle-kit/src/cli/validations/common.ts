@@ -1,8 +1,9 @@
 import chalk from 'chalk';
 import type { UnionToIntersection } from 'hono/utils/types';
-import { dialect } from 'src/utils/schemaValidator';
 import type { TypeOf } from 'zod';
 import { any, boolean, coerce, enum as enum_, literal, object, string, union } from 'zod';
+import { dialect } from '../../utils/schemaValidator';
+import { AmbiguousParamsCliError } from '../errors';
 import { outputs } from './outputs';
 
 export type Commands =
@@ -58,8 +59,7 @@ export const assertCollisions = <
 	}
 
 	// if config and cli - return error - write a reason
-	console.log(outputs.common.ambiguousParams(command));
-	process.exit(1);
+	throw new AmbiguousParamsCliError(command, outputs.common.ambiguousParams(command));
 };
 
 export const sqliteDriversLiterals = [
@@ -122,13 +122,21 @@ export type EntitiesFilterConfig = {
 };
 
 export const configCommonSchema = object({
-	dialect: dialect,
+	dialect: dialect.optional(),
 	out: string().default('drizzle'),
 	breakpoints: boolean().optional().default(true),
 	verbose: boolean().optional().default(false),
 	driver: driver.optional(),
 	dbCredentials: any().optional(),
-});
+}).passthrough();
+
+export type CliConfig = TypeOf<typeof configCommonSchema> & {
+	schema?: string | string[];
+	sql?: boolean;
+	migrations?: TypeOf<typeof configMigrations>;
+	tablesFilter?: string | string[];
+	schemaFilter?: string | string[];
+};
 
 export const configPull = configCommonSchema.extend({
 	casing,
@@ -165,6 +173,35 @@ export const configStudio = configCommonSchema.extend({
 
 export const configMigrate = configCommonSchema.extend({
 	migrations: configMigrations,
+});
+
+export const pushParams = object({
+	dialect: dialect,
+	schema: union([string(), string().array()]),
+	verbose: boolean().optional(),
+	strict: boolean().optional(),
+	explain: boolean().optional(),
+	hints: string().optional(),
+	hintsFile: string().optional(),
+	migrations: configMigrations,
+	...entitiesParams,
+}).passthrough();
+
+export type PushParams = TypeOf<typeof pushParams>;
+
+export const pullParams = object({
+	config: string().optional(),
+	dialect: dialect,
+	out: string().optional().default('drizzle'),
+	casing,
+	breakpoints: boolean().optional().default(true),
+	migrations: configMigrations,
+	...entitiesParams,
+}).passthrough();
+
+export const studioConfig = object({
+	dialect,
+	schema: union([string(), string().array()]).optional(),
 });
 
 export const wrapParam = (

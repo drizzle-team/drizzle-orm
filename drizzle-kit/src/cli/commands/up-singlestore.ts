@@ -1,10 +1,10 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
-import type { SchemaV1, SingleStoreSnapshot } from 'src/dialects/singlestore/snapshot';
-import { prepareOutFolder, validateWithReport } from 'src/utils/utils-node';
 import { createDDL } from '../../dialects/mysql/ddl';
 import { Binary, Varbinary } from '../../dialects/mysql/grammar';
+import type { SchemaV1, SingleStoreSnapshot } from '../../dialects/singlestore/snapshot';
 import { trimChar } from '../../utils';
+import { prepareOutFolder, validateWithReport } from '../../utils/utils-node';
 import { migrateToFoldersV3 } from './utils';
 
 export const upSinglestoreHandler = (out: string) => {

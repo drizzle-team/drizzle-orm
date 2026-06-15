@@ -1,5 +1,5 @@
 import type { MySqlView } from 'drizzle-orm/mysql-core/view';
-import { warning } from 'src/cli/views';
+import { warning } from '../cli/views';
 import type { MySqlSchema } from './mysql-v5/mysqlSchema';
 import { MySqlSquasher } from './mysql-v5/mysqlSchema';
 import type {

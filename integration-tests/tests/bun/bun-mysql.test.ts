@@ -3,7 +3,6 @@
 import retry from 'async-retry';
 import { SQL } from 'bun';
 import { afterAll, beforeAll, beforeEach, describe, expect, expectTypeOf, spyOn, test } from 'bun:test';
-import Docker from 'dockerode';
 import {
 	and,
 	asc,
@@ -86,7 +85,6 @@ import {
 	year,
 } from 'drizzle-orm/mysql-core';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import getPort from 'get-port';
 import Keyv from 'keyv';
 import { v4 as uuid } from 'uuid';
 import { allTypesCodecsTable } from '~/mysql/schema2';
@@ -290,12 +288,11 @@ let cachedDb: BunMySqlDatabase & { $client: SQL };
 let client: SQL;
 
 beforeAll(async () => {
-	let connectionString;
-	if (process.env['MYSQL_CONNECTION_STRING']) {
-		connectionString = process.env['MYSQL_CONNECTION_STRING'];
-	} else {
-		const { connectionString: conStr } = await createDockerDB();
-		connectionString = conStr;
+	const connectionString = process.env['MYSQL_CONNECTION_STRING'];
+	if (!connectionString) {
+		throw new Error(
+			'MYSQL_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up mysql` and export the connection string before running tests.',
+		);
 	}
 	client = await retry(async () => {
 		client = await new SQL({
@@ -324,35 +321,6 @@ afterAll(async () => {
 	await cachedDb?.$client.end();
 	await dbGlobalCached?.$client.end();
 });
-
-let mysqlContainer: Docker.Container;
-export async function createDockerDB(): Promise<{ connectionString: string; container: Docker.Container }> {
-	const docker = new Docker();
-	const port = await getPort({ port: 3306 });
-	const image = 'mysql:8';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	);
-
-	mysqlContainer = await docker.createContainer({
-		Image: image,
-		Env: ['MYSQL_ROOT_PASSWORD=mysql', 'MYSQL_DATABASE=drizzle'],
-		name: `drizzle-integration-tests-${uuid()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'3306/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await mysqlContainer.start();
-	await new Promise((resolve) => setTimeout(resolve, 4000));
-
-	return { connectionString: `mysql://root:mysql@127.0.0.1:${port}/drizzle`, container: mysqlContainer };
-}
 
 describe('common', () => {
 	beforeEach(async () => {
