@@ -1,4 +1,4 @@
-import { floatFromDouble, refineGenericMySqlCodecs } from '~/mysql-core/codecs';
+import { floatFromDouble, refineGenericMySqlCodecs } from '~/mysql-core/codecs.ts';
 import { sql } from '~/sql/sql.ts';
 
 export const bunSqlMySqlCodecs = refineGenericMySqlCodecs({

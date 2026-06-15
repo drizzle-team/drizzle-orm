@@ -1,4 +1,4 @@
-import { refineGenericMySqlCodecs } from '~/mysql-core/codecs';
+import { refineGenericMySqlCodecs } from '~/mysql-core/codecs.ts';
 import { textDecoder } from '~/utils.ts';
 
 const bitStringFromBytes = (value: Uint8Array): string => {

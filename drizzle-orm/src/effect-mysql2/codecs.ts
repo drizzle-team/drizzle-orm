@@ -1,4 +1,4 @@
-import { castToText, floatFromDouble, refineGenericMySqlCodecs } from '~/mysql-core/codecs';
+import { castToText, floatFromDouble, refineGenericMySqlCodecs } from '~/mysql-core/codecs.ts';
 
 export const effectMysql2Codecs = refineGenericMySqlCodecs({
 	bigint: {
