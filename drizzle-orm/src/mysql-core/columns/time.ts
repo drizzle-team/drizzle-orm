@@ -42,12 +42,6 @@ export class MySqlTime<
 		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
 		return `time${precision}`;
 	}
-
-	override mapFromDriverValue = (value: Date | string): string => {
-		if (typeof value === 'string') return value;
-
-		return value.toTimeString().split(' ').shift()!;
-	};
 }
 
 export type TimeConfig = {

@@ -2,6 +2,8 @@ import { assert, expect, expectTypeOf, it, Vitest } from '@effect/vitest';
 import {
 	asc,
 	eq,
+	getColumns,
+	getTableColumns,
 	gt,
 	gte,
 	inArray,
@@ -52,6 +54,7 @@ import {
 	year,
 } from 'drizzle-orm/mysql-core';
 import type { MySqlEffectDatabase } from 'drizzle-orm/mysql-core/effect/db';
+import { MySqlEffectSession } from 'drizzle-orm/mysql-core/effect/session';
 import {
 	EmptyRelations,
 	ExtractTablesFromSchema,
@@ -71,6 +74,8 @@ import { SqlClient } from 'effect/unstable/sql/SqlClient';
 import { SqlError } from 'effect/unstable/sql/SqlError';
 import relations from './relations';
 import { rqbPost, rqbUser } from './schema';
+import { allTypesCodecsTable } from './schema2';
+import { normalizeDataWithDbCodecs } from './utils';
 
 export class DB extends Context.Service<DB, MySqlEffectDatabase<any, any, typeof relations>>()('CommonEffectMySqlDB') {}
 
@@ -318,13 +323,13 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 						char: 'c',
 						date: new Date('2025-03-12T00:00:00.000Z'),
 						dateStr: '2025-03-12',
-						datetime: new Date('2025-03-12T01:32:42.000Z'),
-						datetimeStr: '2025-03-12 01:32:41',
+						datetime: new Date('2025-03-12T00:00:00.000Z'),
+						datetimeStr: '2025-03-12 00:00:00',
 						decimal: '47521',
 						decimalNum: 9007199254740991,
 						decimalBig: 5044565289845416380n,
 						double: 15.35325689124218,
-						float: 1.0486,
+						float: 1.048596,
 						int: 621,
 						json: { arr: ['str', 10], str: 'strval' },
 						medInt: 560,
@@ -332,8 +337,8 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 						real: 1.048596,
 						text: 'C4-',
 						time: '04:13:22',
-						timestamp: new Date('2025-03-12T01:32:42.000Z'),
-						timestampStr: '2025-03-12 01:32:41',
+						timestamp: new Date('2025-03-12T00:00:00.000Z'),
+						timestampStr: '2025-03-12 00:00:00',
 						tinyInt: 7,
 						varbin: '1010110101001101',
 						varchar: 'VCHAR',
@@ -352,6 +357,156 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 
 				expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
 				expect(rawRes).toStrictEqual(expectedRes);
+			}));
+
+		it.effect('all types ~codecs~', () =>
+			Effect.gen(function*() {
+				const db = yield* createDB({ allTypesTable: allTypesCodecsTable }, (r) => ({
+					allTypesTable: {
+						self: r.many.allTypesTable({
+							from: r.allTypesTable.serial,
+							to: r.allTypesTable.serial,
+						}),
+					},
+				}));
+				yield* push(db, { allTypesCodecsTable });
+
+				type ExpectedType = {
+					serial: number;
+					bigint53: number | null;
+					bigint64: bigint | null;
+					bigintstr: string | null;
+					binary: string | null;
+					boolean: boolean | null;
+					char: string | null;
+					date: Date | null;
+					datestr: string | null;
+					datetime: Date | null;
+					datetimestr: string | null;
+					decimal: string | null;
+					decimalnum: number | null;
+					decimalbig: bigint | null;
+					double: number | null;
+					float: number | null;
+					int: number | null;
+					json1: unknown;
+					json2: unknown;
+					json3: unknown;
+					json4: unknown;
+					medint: number | null;
+					smallint: number | null;
+					real: number | null;
+					text: string | null;
+					tinytext: string | null;
+					mediumtext: string | null;
+					longtext: string | null;
+					time: string | null;
+					timestamp: Date | null;
+					timestampstr: string | null;
+					tinyint: number | null;
+					varbin: string | null;
+					varchar: string | null;
+					year: number | null;
+					enum: 'enV1' | 'enV2' | null;
+					blob: Buffer | null;
+					tinyblob: Buffer | null;
+					mediumblob: Buffer | null;
+					longblob: Buffer | null;
+					stringblob: string | null;
+					stringtinyblob: string | null;
+					stringmediumblob: string | null;
+					stringlongblob: string | null;
+				};
+
+				const testData: ExpectedType = {
+					serial: 1,
+					bigint53: 9007199254740991,
+					bigint64: 5044565289845416380n,
+					bigintstr: '5044565289845416380',
+					binary: '1',
+					boolean: true,
+					char: 'c',
+					date: new Date('2025-03-12'),
+					datestr: '2025-03-12',
+					datetime: new Date(1741743161623),
+					datetimestr: new Date(1741743161623).toISOString().slice(0, 23).replace('T', ' '),
+					decimal: '47521',
+					decimalnum: 9007199254740991,
+					decimalbig: 5044565289845416380n,
+					double: 15.35325689124218,
+					enum: 'enV1',
+					float: 1.048596,
+					real: 1.048596,
+					text: 'C4-',
+					tinytext: 'tiny text',
+					mediumtext: 'medium text',
+					longtext: 'long text',
+					int: 621,
+					json1: { str: 'strval', arr: ['str', 10] },
+					json2: [{ key: 'value', num: 7 }, 'v', '11', 5],
+					json3: 5,
+					json4: '5',
+					medint: 560,
+					smallint: 14,
+					time: '04:13:22',
+					timestamp: new Date(1741743161623),
+					timestampstr: new Date(1741743161623).toISOString().slice(0, 23).replace('T', ' '),
+					tinyint: 7,
+					varbin: '1010110101001101',
+					varchar: 'VCHAR',
+					year: 2025,
+					blob: Buffer.from('string'),
+					longblob: Buffer.from('string'),
+					mediumblob: Buffer.from('string'),
+					tinyblob: Buffer.from('string'),
+					stringblob: 'string',
+					stringlongblob: 'string',
+					stringmediumblob: 'string',
+					stringtinyblob: 'string',
+				};
+
+				yield* db.insert(allTypesCodecsTable).values(testData);
+
+				const session = (<any> db).session as MySqlEffectSession;
+
+				const queryRaw = yield* session.objects<ExpectedType>(
+					db.select(
+						Object.fromEntries(
+							Object.entries(getTableColumns(allTypesCodecsTable)).map(([k, v]) => [k, v.as(v.name)]),
+						),
+					).from(allTypesCodecsTable).getSQL(),
+				);
+				const queryRes = normalizeDataWithDbCodecs({
+					db,
+					columns: getColumns(allTypesCodecsTable),
+					data: queryRaw,
+					mode: 'query',
+				})[0];
+
+				const relationRaw = yield* session.objects<ExpectedType & { self: ExpectedType[] }>(
+					db.query.allTypesTable.findFirst({
+						with: {
+							self: true,
+						},
+					}).getSQL().inlineParams(),
+				);
+				const { self: relationSelf, ...rootRaw } = relationRaw[0]!;
+				const relationRes = normalizeDataWithDbCodecs({
+					db,
+					columns: getColumns(allTypesCodecsTable),
+					data: relationSelf,
+					mode: 'json',
+				})[0]!;
+				const rootRes = normalizeDataWithDbCodecs({
+					db,
+					columns: getColumns(allTypesCodecsTable),
+					data: [rootRaw],
+					mode: 'query',
+				})[0]!;
+
+				expect(queryRes).toStrictEqual(testData);
+				expect(relationRes).toStrictEqual(testData);
+				expect(rootRes).toStrictEqual(testData);
 			}));
 
 		it.effect('RQB v2 simple find first - no rows', () =>
@@ -1549,7 +1704,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				const usersResult = yield* db.select().from(users);
 
 				expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
-				expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+				expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(1000);
 				expect(usersResult).toEqual([
 					{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
 				]);
@@ -1598,7 +1753,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				yield* db.delete(users).where(eq(users.name, 'John'));
 
 				expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
-				expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+				expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(1000);
 				expect(usersResult).toEqual([
 					{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
 				]);

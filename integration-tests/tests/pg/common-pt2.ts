@@ -57,6 +57,7 @@ import {
 	macaddr,
 	macaddr8,
 	numeric,
+	PgAsyncSession,
 	PgDialect,
 	pgEnum,
 	pgSchema,
@@ -4403,22 +4404,25 @@ export function tests(test: Test) {
 			};
 
 			await db.insert(allTypesTable).values(testData);
+			const session = (<any> db).session as PgAsyncSession;
 
-			const queryRes = await db.execute<ExpectedType>(db.select().from(allTypesTable)).then((e) =>
+			const queryRes = await session.objects<ExpectedType>(db.select().from(allTypesTable).getSQL()).then((e) =>
 				normalizeDataWithDbCodecs({
 					db,
 					columns: getColumns(allTypesTable),
-					data: e.rows ?? e,
+					data: e,
 					mode: 'query',
 				})[0]
 			);
 
-			const { relationRes, rootRes } = await db.execute(db.query.allTypesTable.findFirst({
-				with: {
-					self: true,
-				},
-			})).then((e) => {
-				const [{ self: relationRaw, ...rootRaw }] = e.rows ?? e;
+			const { relationRes, rootRes } = await session.objects<ExpectedType & { self: ExpectedType[] }>(
+				db.query.allTypesTable.findFirst({
+					with: {
+						self: true,
+					},
+				}).getSQL(),
+			).then((e) => {
+				const { self: relationRaw, ...rootRaw } = e[0]!;
 
 				return {
 					relationRes: normalizeDataWithDbCodecs({
@@ -4540,7 +4544,7 @@ export function tests(test: Test) {
 		// https://github.com/drizzle-team/drizzle-orm/issues/5253
 		// enhancement
 		// allow select which columns to insert in insert...select
-		test.skipIf(Date.now() < +new Date('2026-06-10')).concurrent('insert into ... select #2', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-06-17')).concurrent('insert into ... select #2', async ({ db, push }) => {
 			const users = pgTable('users_114', {
 				id: integer('id').primaryKey(),
 				name: text('name').notNull(),
@@ -4629,7 +4633,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4596
-		test.skipIf(Date.now() < +new Date('2026-06-10'))(
+		test.skipIf(Date.now() < +new Date('2026-06-17'))(
 			'functional index; onConflict do update',
 			async ({ db, push }) => {
 				throw new Error('SKIP. commented below because of type error');
@@ -4716,7 +4720,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4419
-		test.skipIf(Date.now() < +new Date('2026-06-10'))('db/js timestamp comparison', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-06-17'))('db/js timestamp comparison', async ({ db, push }) => {
 			const table1 = pgTable('table1', {
 				id: integer(),
 				// default config equal to: { mode: 'date' }
@@ -6443,7 +6447,7 @@ export function tests(test: Test) {
 				.rejects.toBeInstanceOf(DrizzleQueryError);
 		});
 
-		test.skipIf(Date.now() < +new Date('2026-06-10')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-06-17')).concurrent(
 			'Mappers: deep nullification',
 			async ({ db, push }) => {
 				const users = pgTable('mappers_users_dn', (t) => ({
@@ -6542,7 +6546,7 @@ export function tests(test: Test) {
 			},
 		);
 
-		test.skipIf(Date.now() < +new Date('2026-06-10')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-06-17')).concurrent(
 			'Jit mappers: deep nullification',
 			async ({ createDB, push }) => {
 				const users = pgTable('mappers_users_jdn', (t) => ({
@@ -7078,7 +7082,7 @@ export function tests(test: Test) {
 			);
 		});
 
-		test.skipIf(Date.now() < +new Date('2026-06-10')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-06-17')).concurrent(
 			'Same table name joined between schemas',
 			async ({ db }) => {
 				const users1 = pgTable('users_cs_join_1', (t) => ({
@@ -7108,7 +7112,7 @@ export function tests(test: Test) {
 					u2: users2,
 				}).from(users1).leftJoin(users2, eq(users1.id, users2.id));
 
-				// @ts-ignore skipIf(Date.now() < +new Date('2026-06-10')) - just to make it searchable
+				// @ts-ignore skipIf(Date.now() < +new Date('2026-06-17')) - just to make it searchable
 				expectTypeOf(res).toEqualTypeOf<{
 					u1: {
 						id: number;

@@ -26,6 +26,7 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 ): MySqlRemoteDatabase<TRelations> {
 	const dialect = _dialect({
 		useJitMappers: jitCompatCheck(config.jit),
+		codecs: config.codecs,
 	});
 	let logger;
 	if (config.logger === true) {

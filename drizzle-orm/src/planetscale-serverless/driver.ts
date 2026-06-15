@@ -7,6 +7,7 @@ import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { DrizzleMySqlConfig } from '~/mysql-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
+import { planetscaleServerlessCodecs } from './codecs.ts';
 import type { PlanetscaleQueryResultHKT } from './session.ts';
 import { PlanetscaleSession } from './session.ts';
 
@@ -44,6 +45,7 @@ const db = drizzle({ client });
 
 	const dialect = new MySqlDialect({
 		useJitMappers: jitCompatCheck(config.jit),
+		codecs: config.codecs ?? planetscaleServerlessCodecs,
 	});
 	let logger;
 	if (config.logger === true) {

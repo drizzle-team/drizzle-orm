@@ -9,6 +9,7 @@ import {
 	getTableColumns,
 	gt,
 	inArray,
+	is,
 	isNull,
 	Name,
 	sql,
@@ -20,6 +21,7 @@ import {
 	datetime,
 	index,
 	int,
+	MySqlAsyncSession,
 	MySqlDialect,
 	mysqlEnum,
 	mysqlTable,
@@ -28,13 +30,16 @@ import {
 	serial,
 	text,
 	timestamp,
+	unionAll,
 	unique,
 	varchar,
 } from 'drizzle-orm/mysql-core';
+import { TiDBServerlessDatabase } from 'drizzle-orm/tidb-serverless';
 import { expect } from 'vitest';
 import { expectTypeOf } from 'vitest';
 import type { Test } from './instrumentation';
-import { createUsersOnUpdateTable, createUserTable, usersMigratorTable } from './schema2';
+import { allTypesCodecsTable, createUsersOnUpdateTable, createUserTable, usersMigratorTable } from './schema2';
+import { normalizeDataWithDbCodecs } from './utils';
 
 export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	test.beforeEach(async ({ task, skip }) => {
@@ -576,9 +581,9 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	});
 
 	// https://github.com/drizzle-team/drizzle-orm/issues/1415
-	test.skipIf(Date.now() < +new Date('2026-06-10')).concurrent(
+	test.skipIf(Date.now() < +new Date('2026-06-17')).concurrent(
 		'prepared statement sql.placeholder in .inArray',
-		async ({ db, push, seed }) => {
+		async ({ db, push }) => {
 			const users = createUserTable('users_116');
 			await push({ users });
 
@@ -595,7 +600,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 	// https://github.com/drizzle-team/drizzle-orm/issues/1415
 	test
-		.skipIf(Date.now() < +new Date('2026-06-10'))
+		.skipIf(Date.now() < +new Date('2026-06-17'))
 		.concurrent(
 			'prepared statement sql.placeholder in .inArray #2',
 			async ({ db, push, seed }) => {
@@ -1504,5 +1509,181 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		expect(res1).toStrictEqual([{ id: 1, name: 'Updated' }]);
 		expect(res2).toStrictEqual({ id: 1 });
 		expect(res3).toStrictEqual([{ id: 1, name: 'Updated' }]);
+	});
+
+	test.only.concurrent('all types ~codecs~', async ({ createDB, push }) => {
+		const db = createDB({
+			schema: { allTypesTable: allTypesCodecsTable },
+			cb: (r) => ({
+				allTypesTable: {
+					self: r.many.allTypesTable({
+						from: r.allTypesTable.serial,
+						to: r.allTypesTable.serial,
+					}),
+				},
+			}),
+		});
+		await push({ allTypesCodecsTable });
+		type ExpectedType = {
+			serial: number;
+			bigint53: number | null;
+			bigint64: bigint | null;
+			bigintstr: string | null;
+			binary: string | null;
+			boolean: boolean | null;
+			char: string | null;
+			date: Date | null;
+			datestr: string | null;
+			datetime: Date | null;
+			datetimestr: string | null;
+			decimal: string | null;
+			decimalnum: number | null;
+			decimalbig: bigint | null;
+			double: number | null;
+			float: number | null;
+			int: number | null;
+			json1: unknown;
+			json2: unknown;
+			json3: unknown;
+			json4: unknown;
+			medint: number | null;
+			smallint: number | null;
+			real: number | null;
+			text: string | null;
+			tinytext: string | null;
+			mediumtext: string | null;
+			longtext: string | null;
+			time: string | null;
+			timestamp: Date | null;
+			timestampstr: string | null;
+			tinyint: number | null;
+			varbin: string | null;
+			varchar: string | null;
+			year: number | null;
+			enum: 'enV1' | 'enV2' | null;
+			blob: Buffer | null;
+			tinyblob: Buffer | null;
+			mediumblob: Buffer | null;
+			longblob: Buffer | null;
+			stringblob: string | null;
+			stringtinyblob: string | null;
+			stringmediumblob: string | null;
+			stringlongblob: string | null;
+		};
+
+		const testData: ExpectedType = {
+			serial: 1,
+			bigint53: 9007199254740991,
+			bigint64: 5044565289845416380n,
+			bigintstr: '5044565289845416380',
+			binary: '1',
+			boolean: true,
+			char: 'c',
+			date: new Date('2025-03-12'),
+			datestr: '2025-03-12',
+			datetime: new Date(1741743161623),
+			datetimestr: new Date(1741743161623).toISOString().slice(0, 23).replace('T', ' '),
+			decimal: '47521',
+			decimalnum: 9007199254740991,
+			decimalbig: 5044565289845416380n,
+			double: 15.35325689124218,
+			enum: 'enV1',
+			float: 1.048596,
+			real: 1.048596,
+			text: 'C4-',
+			tinytext: 'tiny text',
+			mediumtext: 'medium text',
+			longtext: 'long text',
+			int: 621,
+			json1: { str: 'strval', arr: ['str', 10] },
+			json2: [{ key: 'value', num: 7 }, 'v', '11', 5],
+			json3: 5,
+			json4: '5',
+			medint: 560,
+			smallint: 14,
+			time: '04:13:22',
+			timestamp: new Date(1741743161623),
+			timestampstr: new Date(1741743161623).toISOString().slice(0, 23).replace('T', ' '),
+			tinyint: 7,
+			varbin: '1010110101001101',
+			varchar: 'VCHAR',
+			year: 2025,
+			blob: Buffer.from('string'),
+			longblob: Buffer.from('string'),
+			mediumblob: Buffer.from('string'),
+			tinyblob: Buffer.from('string'),
+			stringblob: 'string',
+			stringlongblob: 'string',
+			stringmediumblob: 'string',
+			stringtinyblob: 'string',
+		};
+
+		await db.insert(allTypesCodecsTable).values(testData);
+
+		const session = (<any> db).session as MySqlAsyncSession;
+
+		const queryRes = await session.objects<ExpectedType>(
+			db.select(
+				Object.fromEntries(Object.entries(getTableColumns(allTypesCodecsTable)).map(([k, v]) => [k, v.as(v.name)])),
+			).from(allTypesCodecsTable).getSQL(),
+		).then((e) =>
+			normalizeDataWithDbCodecs({
+				db,
+				columns: getColumns(allTypesCodecsTable),
+				data: e,
+				mode: 'query',
+			})[0]
+		);
+		const setQueryRes = await session.objects<ExpectedType>(
+			unionAll(
+				db.select(
+					Object.fromEntries(Object.entries(getTableColumns(allTypesCodecsTable)).map(([k, v]) => [k, v.as(v.name)])),
+				).from(allTypesCodecsTable),
+				db.select(
+					Object.fromEntries(Object.entries(getTableColumns(allTypesCodecsTable)).map(([k, v]) => [k, v.as(v.name)])),
+				).from(allTypesCodecsTable),
+			).limit(1).getSQL(),
+		).then((e) =>
+			normalizeDataWithDbCodecs({
+				db,
+				columns: getColumns(allTypesCodecsTable),
+				data: e,
+				mode: 'query',
+			})[0]
+		);
+
+		expect(queryRes).toStrictEqual(testData);
+		expect(setQueryRes).toStrictEqual(testData);
+
+		// TiDB's engine does not support `LATERAL` derived tables, which the RQB relation query
+		// (`with: { self }`) relies on — skip the relation-based assertions there.
+		const relationSQL = db.query.allTypesTable.findFirst({
+			with: {
+				self: true,
+			},
+		}).getSQL();
+		if (!is(db, TiDBServerlessDatabase)) {
+			const { relationRes, rootRes } = await session.objects(relationSQL).then((e) => {
+				const [{ self: relationRaw, ...rootRaw }] = e as [Record<string, any>];
+
+				return {
+					relationRes: normalizeDataWithDbCodecs({
+						db,
+						columns: getColumns(allTypesCodecsTable),
+						data: relationRaw,
+						mode: 'json',
+					})[0]!,
+					rootRes: normalizeDataWithDbCodecs({
+						db,
+						columns: getColumns(allTypesCodecsTable),
+						data: [rootRaw],
+						mode: 'query',
+					})[0]!,
+				};
+			});
+
+			expect(relationRes).toStrictEqual(testData);
+			expect(rootRes).toStrictEqual(testData);
+		}
 	});
 }

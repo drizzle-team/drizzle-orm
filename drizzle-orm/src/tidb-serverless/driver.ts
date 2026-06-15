@@ -6,6 +6,7 @@ import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { DrizzleMySqlConfig } from '~/mysql-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
+import { tidbCodecs } from './codecs.ts';
 import type { TiDBServerlessQueryResultHKT } from './session.ts';
 import { TiDBServerlessSession } from './session.ts';
 
@@ -23,6 +24,7 @@ function construct<TRelations extends AnyRelations = EmptyRelations>(
 } {
 	const dialect = new MySqlDialect({
 		useJitMappers: jitCompatCheck(config.jit),
+		codecs: config.codecs ?? tidbCodecs,
 	});
 	let logger;
 	if (config.logger === true) {

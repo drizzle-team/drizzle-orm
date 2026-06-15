@@ -37,10 +37,6 @@ export class MySqlDate<T extends ColumnBaseConfig<'object date'>> extends MySqlC
 	getSQLType(): string {
 		return `date`;
 	}
-
-	override mapFromDriverValue = (value: string): Date => {
-		return new Date(value);
-	};
 }
 
 export class MySqlDateStringBuilder extends MySqlColumnBuilder<{
@@ -79,12 +75,6 @@ export class MySqlDateString<T extends ColumnBaseConfig<'string date'>> extends 
 	getSQLType(): string {
 		return `date`;
 	}
-
-	override mapFromDriverValue = (value: Date | string): string => {
-		if (typeof value === 'string') return value;
-
-		return value.toISOString().slice(0, -14);
-	};
 }
 
 export interface MySqlDateConfig<TMode extends 'date' | 'string' = 'date' | 'string'> {

@@ -8,6 +8,7 @@ import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { DrizzleMySqlConfig } from '~/mysql-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
+import { bunSqlMySqlCodecs } from './codecs.ts';
 import type { BunMySqlQueryResultHKT } from './session.ts';
 import { BunMySqlSession } from './session.ts';
 
@@ -27,6 +28,7 @@ function construct<
 } {
 	const dialect = new MySqlDialect({
 		useJitMappers: jitCompatCheck(config.jit),
+		codecs: config.codecs ?? bunSqlMySqlCodecs,
 	});
 	let logger;
 	if (config.logger === true) {

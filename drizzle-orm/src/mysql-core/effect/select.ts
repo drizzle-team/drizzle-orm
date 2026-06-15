@@ -111,7 +111,7 @@ export class MySqlEffectSelectBase<
 
 		const query = this.dialect.sqlToQuery(this.getSQL());
 		// Important to build query before acquiring fields list because build mutates fields
-		const fieldsList = orderSelectedFields<MySqlColumn>(this.config.fields);
+		const fieldsList = orderSelectedFields<MySqlColumn>(this.config.fields, undefined, this.dialect.codecs);
 		const mapper = this.dialect.mapperGenerators.rows(fieldsList, this.joinsNotNullableMap);
 
 		const preparedQuery = this.session.prepareQuery<

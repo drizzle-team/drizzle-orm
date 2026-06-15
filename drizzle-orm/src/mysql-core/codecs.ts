@@ -131,11 +131,67 @@ export function resolveMySqlTypeAlias(type: string) {
 
 export type MySqlCodecs = Codecs<MySqlType>;
 
-export const castToText: CastCodec = (name) => sql`cast (${name} as char)`;
+export const castToText: CastCodec = (name) => sql`cast(${name} as char)`;
 
-export const textToDateWithTz = (v: string): Date => new Date(v + '+0000');
+/** Recover float32 casted to double
+ *
+ * Needed to avoid db\driver-side rounding
+ */
+export const floatFromDouble = (value: number): number => {
+	const f = Math.fround(value);
+	if (!Number.isFinite(f)) return f;
+
+	for (let precision = 1; precision <= 9; precision++) {
+		const candidate = Number(f.toPrecision(precision));
+		if (Math.fround(candidate) === f) return candidate;
+	}
+
+	return f;
+};
+
+/** Recover float32 casted to double -> string
+ *
+ * Needed to avoid db\driver-side rounding
+ */
+export const floatFromDoubleString = (value: string): number => {
+	const f = Math.fround(Number(value));
+	if (!Number.isFinite(f)) return f;
+
+	for (let precision = 1; precision <= 9; precision++) {
+		const candidate = Number(f.toPrecision(precision));
+		if (Math.fround(candidate) === f) return candidate;
+	}
+
+	return f;
+};
 
 export const genericMySqlCodecs = {
+	// TODO: codecs for set operators
+	// tinyint: {
+	// 	normalize: (v) => typeof v === 'number' ? v : Number(v),
+	// },
+	// smallint: {
+	// 	normalize: (v) => typeof v === 'number' ? v : Number(v),
+	// },
+	// mediumint: {
+	// 	normalize: (v) => typeof v === 'number' ? v : Number(v),
+	// },
+	// int: {
+	// 	normalize: (v) => typeof v === 'number' ? v : Number(v),
+	// },
+	// serial: {
+	// 	normalize: (v) => typeof v === 'number' ? v : Number(v),
+	// },
+
+	boolean: {
+		normalizeInJson: Boolean,
+	},
+	date: {
+		normalizeInJson: (value: string) => new Date(value),
+	},
+	float: {
+		normalizeInJson: floatFromDoubleString,
+	},
 	bigint: {
 		castInJson: castToText,
 		normalizeInJson: BigInt,
@@ -152,7 +208,7 @@ export const genericMySqlCodecs = {
 	},
 	timestamp: {
 		castInJson: castToText,
-		normalizeInJson: textToDateWithTz,
+		normalizeInJson: (v: string): Date => new Date(v + '+0000'),
 	},
 	'timestamp:string': {
 		castInJson: castToText,

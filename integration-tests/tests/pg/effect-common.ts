@@ -58,6 +58,7 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import type { PgEffectDatabase } from 'drizzle-orm/pg-core/effect/db';
+import { PgEffectSession } from 'drizzle-orm/pg-core/effect/session';
 import {
 	EmptyRelations,
 	ExtractTablesFromSchema,
@@ -3163,15 +3164,18 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 					};
 
 					yield* db.insert(allTypesTable).values(testData);
+					const session = (<any> db).session as PgEffectSession;
 
-					const queryRes = yield* db.execute<ExpectedType>(db.select().from(allTypesTable)).pipe(Effect.map((e) =>
-						normalizeDataWithDbCodecs({
-							db,
-							columns: getColumns(allTypesTable),
-							data: e as ExpectedType[],
-							mode: 'query',
-						})[0]
-					));
+					const queryRes = yield* session.objects<ExpectedType>(db.select().from(allTypesTable).getSQL()).pipe(
+						Effect.map((e) =>
+							normalizeDataWithDbCodecs({
+								db,
+								columns: getColumns(allTypesTable),
+								data: e as ExpectedType[],
+								mode: 'query',
+							})[0]
+						),
+					);
 
 					const relDb = yield* createDB({ allTypesTable }, (r) => ({
 						allTypesTable: {
@@ -3182,11 +3186,13 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 						},
 					}));
 
-					const { relationRes, rootRes } = yield* db.execute(relDb.query.allTypesTable.findFirst({
-						with: {
-							self: true,
-						},
-					})).pipe(Effect.map((e) => {
+					const { relationRes, rootRes } = yield* session.objects<ExpectedType & { self: ExpectedType[] }>(
+						relDb.query.allTypesTable.findFirst({
+							with: {
+								self: true,
+							},
+						}).getSQL(),
+					).pipe(Effect.map((e) => {
 						const { self: relationRaw, ...rootRaw } = e[0]!;
 
 						return {

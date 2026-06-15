@@ -9,6 +9,7 @@ import { MySqlEffectDatabase } from '~/mysql-core/effect/db.ts';
 import type { EffectDrizzleMySqlConfig } from '~/mysql-core/effect/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
+import { effectMysql2Codecs } from './codecs.ts';
 import { type EffectMysql2QueryEffectHKT, type EffectMysql2QueryResultHKT, EffectMysql2Session } from './session.ts';
 export { DefaultServices } from '~/effect-core/defaults.ts';
 
@@ -54,6 +55,7 @@ export const make = Effect.fn('MySqlDrizzle.make')(
 
 		const dialect = new MySqlDialect({
 			useJitMappers: jitCompatCheck(config.jit),
+			codecs: config.codecs ?? effectMysql2Codecs,
 		});
 
 		const relations = config.relations ?? {} as TRelations;

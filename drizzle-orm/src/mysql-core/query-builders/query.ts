@@ -126,7 +126,6 @@ export class MySqlRelationalQuery<THKT extends MySqlRelationalQueryHKTBase, TRes
 		return { builtQuery, query };
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this._getQuery().sql;
 	}

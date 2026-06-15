@@ -18,6 +18,7 @@ import type { MySqlAsyncDatabase, MySqlSchema, MySqlTable, MySqlView } from 'dri
 import { drizzle as proxyDrizzle, RemoteCallback } from 'drizzle-orm/mysql-proxy';
 import type { AnyMySql2Connection } from 'drizzle-orm/mysql2';
 import { drizzle as mysql2Drizzle } from 'drizzle-orm/mysql2';
+import { mysql2Codecs } from 'drizzle-orm/mysql2/codecs';
 import { drizzle as psDrizzle } from 'drizzle-orm/planetscale-serverless';
 import { drizzle as drizzleTidb } from 'drizzle-orm/tidb-serverless';
 import { type FunctionsVersioning, type InferCallbackType, seed } from 'drizzle-seed';
@@ -358,6 +359,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 					? psDrizzle({ client: client.client as Client, relations })
 					: proxyDrizzle(createProxyHandler(client.client as mysql.Connection), {
 						relations,
+						codecs: mysql2Codecs,
 					});
 
 				await use(db as any);
@@ -382,7 +384,10 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 					if (vendor === 'tidb') return drizzleTidb({ client: client.client as any, relations });
 					if (vendor === 'planetscale') return psDrizzle({ client: client.client as any, relations });
 					if (vendor === 'mysql-proxy') {
-						return proxyDrizzle(createProxyHandler(proxyClient ?? client.client as any), { relations }) as any;
+						return proxyDrizzle(createProxyHandler(proxyClient ?? client.client as any), {
+							relations,
+							codecs: mysql2Codecs,
+						}) as any;
 					}
 					throw new Error();
 				};
@@ -425,14 +430,14 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 					? drizzleTidb({ client: client.client as Connection, relations, cache: explicitCache })
 					: vendor === 'planetscale'
 					? psDrizzle({ client: client.client as any, cache: explicitCache })
-					: proxyDrizzle(proxyHandler, { cache: explicitCache });
+					: proxyDrizzle(proxyHandler, { cache: explicitCache, codecs: mysql2Codecs });
 				const withCacheAll = vendor === 'mysql'
 					? mysql2Drizzle({ client: client.client as any, cache: allCache })
 					: vendor === 'tidb'
 					? drizzleTidb({ client: client.client as Connection, relations, cache: allCache })
 					: vendor === 'planetscale'
 					? psDrizzle({ client: client.client as any, cache: allCache })
-					: proxyDrizzle(proxyHandler, { cache: allCache });
+					: proxyDrizzle(proxyHandler, { cache: allCache, codecs: mysql2Codecs });
 
 				const drz = {
 					withCacheAll: {

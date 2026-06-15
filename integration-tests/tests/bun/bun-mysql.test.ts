@@ -14,6 +14,7 @@ import {
 	defineRelations,
 	eq,
 	exists,
+	getColumns,
 	getTableColumns,
 	getTableName,
 	gt,
@@ -33,8 +34,8 @@ import {
 	Table,
 	TransactionRollbackError,
 } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/bun-sql';
 import { migrate } from 'drizzle-orm/bun-sql/migrator';
+import { drizzle } from 'drizzle-orm/bun-sql/mysql';
 import type { BunMySqlDatabase } from 'drizzle-orm/bun-sql/mysql';
 import type { MutationOption } from 'drizzle-orm/cache/core';
 import { Cache } from 'drizzle-orm/cache/core';
@@ -62,6 +63,7 @@ import {
 	json,
 	mediumint,
 	type MySqlAsyncDatabase,
+	MySqlAsyncSession,
 	mysqlEnum,
 	mysqlSchema,
 	mysqlTable,
@@ -87,6 +89,8 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import getPort from 'get-port';
 import Keyv from 'keyv';
 import { v4 as uuid } from 'uuid';
+import { allTypesCodecsTable } from '~/mysql/schema2';
+import { normalizeDataWithDbCodecs } from '~/mysql/utils';
 import { type Equal, Expect, toLocalDate } from '~/utils';
 
 export const rqbUser = mysqlTable('user_rqb_test', {
@@ -310,9 +314,9 @@ beforeAll(async () => {
 			client?.end();
 		},
 	});
-	db = drizzle.mysql({ client, logger: ENABLE_LOGGING, relations });
-	cachedDb = drizzle.mysql({ client, logger: ENABLE_LOGGING, cache: new TestCache() });
-	dbGlobalCached = drizzle.mysql({ client, logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
+	db = drizzle({ client, logger: ENABLE_LOGGING, relations });
+	cachedDb = drizzle({ client, logger: ENABLE_LOGGING, cache: new TestCache() });
+	dbGlobalCached = drizzle({ client, logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
 
 afterAll(async () => {
@@ -1477,8 +1481,8 @@ describe('common', () => {
 			database: 'drizzle2',
 		}).connect();
 
-		const db1 = drizzle.mysql({ client: client1 });
-		const db2 = drizzle.mysql({ client: client2 });
+		const db1 = drizzle({ client: client1 });
+		const db2 = drizzle({ client: client2 });
 
 		await migrate.mysql(db1, { migrationsFolder: './drizzle2/mysql' });
 		await migrate.mysql(db2, { migrationsFolder: './drizzle2/mysql' });
@@ -5802,6 +5806,173 @@ test('sql operator as cte', async () => {
 
 	expect(result1).toStrictEqual([{ userId: 1, data: { name: 'John' } }]);
 	expect(result2).toStrictEqual([{ userId: 2, data: { name: 'Jane' } }]);
+});
+
+test('all types ~codecs~', async () => {
+	const db = drizzle({
+		client,
+		relations: defineRelations({ allTypesTable: allTypesCodecsTable }, (r) => ({
+			allTypesTable: {
+				self: r.many.allTypesTable({
+					from: r.allTypesTable.serial,
+					to: r.allTypesTable.serial,
+				}),
+			},
+		})),
+	});
+
+	await db.execute(sql`DROP TABLE IF EXISTS ${allTypesCodecsTable} CASCADE;`);
+	await db.execute(
+		sql`CREATE TABLE ${allTypesCodecsTable} (${
+			sql.join(
+				Object.values(getTableColumns(allTypesCodecsTable)).map((c) =>
+					sql`${sql.identifier(c.name)} ${sql.raw(c.getSQLType())}`
+				),
+				sql`, `,
+			)
+		})`,
+	);
+
+	type ExpectedType = {
+		serial: number;
+		bigint53: number | null;
+		bigint64: bigint | null;
+		bigintstr: string | null;
+		binary: string | null;
+		boolean: boolean | null;
+		char: string | null;
+		date: Date | null;
+		datestr: string | null;
+		datetime: Date | null;
+		datetimestr: string | null;
+		decimal: string | null;
+		decimalnum: number | null;
+		decimalbig: bigint | null;
+		double: number | null;
+		float: number | null;
+		int: number | null;
+		json1: unknown;
+		json2: unknown;
+		json3: unknown;
+		json4: unknown;
+		medint: number | null;
+		smallint: number | null;
+		real: number | null;
+		text: string | null;
+		tinytext: string | null;
+		mediumtext: string | null;
+		longtext: string | null;
+		time: string | null;
+		timestamp: Date | null;
+		timestampstr: string | null;
+		tinyint: number | null;
+		varbin: string | null;
+		varchar: string | null;
+		year: number | null;
+		enum: 'enV1' | 'enV2' | null;
+		blob: Buffer | null;
+		tinyblob: Buffer | null;
+		mediumblob: Buffer | null;
+		longblob: Buffer | null;
+		stringblob: string | null;
+		stringtinyblob: string | null;
+		stringmediumblob: string | null;
+		stringlongblob: string | null;
+	};
+
+	const testData: ExpectedType = {
+		serial: 1,
+		bigint53: 9007199254740991,
+		bigint64: 5044565289845416380n,
+		bigintstr: '5044565289845416380',
+		binary: '1',
+		boolean: true,
+		char: 'c',
+		date: new Date('2025-03-12'),
+		datestr: '2025-03-12',
+		datetime: new Date(1741743161623),
+		datetimestr: new Date(1741743161623).toISOString().slice(0, 23).replace('T', ' '),
+		decimal: '47521',
+		decimalnum: 9007199254740991,
+		decimalbig: 5044565289845416380n,
+		double: 15.35325689124218,
+		enum: 'enV1',
+		float: 1.048596,
+		real: 1.048596,
+		text: 'C4-',
+		tinytext: 'tiny text',
+		mediumtext: 'medium text',
+		longtext: 'long text',
+		int: 621,
+		json1: { str: 'strval', arr: ['str', 10] },
+		json2: [{ key: 'value', num: 7 }, 'v', '11', 5],
+		json3: 5,
+		json4: '5',
+		medint: 560,
+		smallint: 14,
+		time: '04:13:22',
+		timestamp: new Date(1741743161623),
+		timestampstr: new Date(1741743161623).toISOString().slice(0, 23).replace('T', ' '),
+		tinyint: 7,
+		varbin: '1010110101001101',
+		varchar: 'VCHAR',
+		year: 2025,
+		blob: Buffer.from('string'),
+		longblob: Buffer.from('string'),
+		mediumblob: Buffer.from('string'),
+		tinyblob: Buffer.from('string'),
+		stringblob: 'string',
+		stringlongblob: 'string',
+		stringmediumblob: 'string',
+		stringtinyblob: 'string',
+	};
+
+	await db.insert(allTypesCodecsTable).values(testData);
+
+	const session = (<any> db).session as MySqlAsyncSession;
+
+	const queryRes = await session.objects<ExpectedType>(
+		db.select(
+			Object.fromEntries(Object.entries(getTableColumns(allTypesCodecsTable)).map(([k, v]) => [k, v.as(v.name)])),
+		).from(allTypesCodecsTable).getSQL(),
+	).then((e) =>
+		normalizeDataWithDbCodecs({
+			db,
+			columns: getColumns(allTypesCodecsTable),
+			data: e,
+			mode: 'query',
+		})[0]
+	);
+
+	expect(queryRes).toStrictEqual(testData);
+
+	const { relationRes, rootRes } = await session.objects(
+		db.query.allTypesTable.findFirst({
+			with: {
+				self: true,
+			},
+		}).getSQL(),
+	).then((e) => {
+		const [{ self: relationRaw, ...rootRaw }] = e as [Record<string, any>];
+
+		return {
+			relationRes: normalizeDataWithDbCodecs({
+				db,
+				columns: getColumns(allTypesCodecsTable),
+				data: relationRaw,
+				mode: 'json',
+			})[0]!,
+			rootRes: normalizeDataWithDbCodecs({
+				db,
+				columns: getColumns(allTypesCodecsTable),
+				data: [rootRaw],
+				mode: 'query',
+			})[0]!,
+		};
+	});
+
+	expect(relationRes).toStrictEqual(testData);
+	expect(rootRes).toStrictEqual(testData);
 });
 
 // eslint-disable-next-line drizzle-internal/require-entity-kind
