@@ -23,6 +23,7 @@ export type NonCommutativityReport = {
 		parentId: string;
 		parentPath?: string;
 		parentSnapshot: unknown;
+		statements: unknown[];
 		leafs: {
 			id: string;
 			path: string;
