@@ -1406,12 +1406,12 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 		it.effect('insert into ... select', () =>
 			Effect.gen(function*() {
 				const notifications = mysqlTable('notifications_31', {
-					id: serial('id').primaryKey(),
+					id: int('id').primaryKey().autoincrement(),
 					sentAt: timestamp('sent_at').notNull().defaultNow(),
 					message: text('message').notNull(),
 				});
 				const users = mysqlTable('users_31', {
-					id: serial('id').primaryKey(),
+					id: int('id').primaryKey().autoincrement(),
 					name: text('name').notNull(),
 				});
 				const userNotications = mysqlTable('user_notifications_31', {
@@ -1986,7 +1986,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 					.limit(sql.placeholder('limit'))
 					.prepare();
 
-				const result = yield* stmt.execute({ id: 1, limit: 1 });
+				const result = yield* stmt.execute({ id: 1, limit: '1' });
 
 				expect(result).toEqual([{ id: 1, name: 'John' }]);
 				expect(result).toHaveLength(1);
@@ -2010,9 +2010,10 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 					})
 					.from(usersTable)
 					.offset(sql.placeholder('offset'))
+					.limit(sql.placeholder('limit'))
 					.prepare();
 
-				const result = yield* stmt.execute({ offset: 1 });
+				const result = yield* stmt.execute({ offset: '1', limit: '1' });
 
 				expect(result).toEqual([{ id: 2, name: 'John1' }]);
 			}));
@@ -2041,7 +2042,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 					.$dynamic();
 				withLimitOffset(stmt).prepare();
 
-				const result = yield* stmt.execute({ limit: 1, offset: 1 });
+				const result = yield* stmt.execute({ limit: '1', offset: '1' });
 
 				expect(result).toEqual([{ id: 2, name: 'John1' }]);
 				expect(result).toHaveLength(1);
@@ -2385,12 +2386,12 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 		it.effect('set operations (mixed) from query builder with subquery', () =>
 			Effect.gen(function*() {
 				const cities2Table = mysqlTable('cities_1', {
-					id: serial('id').primaryKey(),
+					id: int('id').primaryKey(),
 					name: text('name').notNull(),
 				});
 
 				const users2Table = mysqlTable('users2_1', {
-					id: serial('id').primaryKey(),
+					id: int('id').primaryKey(),
 					name: text('name').notNull(),
 					cityId: int('city_id').references(() => cities2Table.id),
 				});
@@ -2458,12 +2459,12 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 		it.effect('set operations (mixed all) as function', () =>
 			Effect.gen(function*() {
 				const cities2Table = mysqlTable('cities_2', {
-					id: serial('id').primaryKey(),
+					id: int('id').primaryKey(),
 					name: text('name').notNull(),
 				});
 
 				const users2Table = mysqlTable('users2_2', {
-					id: serial('id').primaryKey(),
+					id: int('id').primaryKey(),
 					name: text('name').notNull(),
 					cityId: int('city_id').references(() => cities2Table.id),
 				});

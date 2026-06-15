@@ -60,9 +60,9 @@ export class EffectMysql2Session<
 			if (mode === 'objects') return q.withoutTransform;
 			if (!mapper) return q.raw;
 
-			return q.raw.pipe(Effect.map((res: any) => ({
-				insertId: res[0].insertId,
-				affectedRows: res[0].affectedRows,
+			return q.raw.pipe(Effect.map(({ insertId, affectedRows }: any) => ({
+				insertId,
+				affectedRows,
 			})));
 		};
 
