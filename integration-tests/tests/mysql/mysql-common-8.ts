@@ -1511,7 +1511,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		expect(res3).toStrictEqual([{ id: 1, name: 'Updated' }]);
 	});
 
-	test.only.concurrent('all types ~codecs~', async ({ createDB, push }) => {
+	test.concurrent('all types ~codecs~', async ({ createDB, push }) => {
 		const db = createDB({
 			schema: { allTypesTable: allTypesCodecsTable },
 			cb: (r) => ({
