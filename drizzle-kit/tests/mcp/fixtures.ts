@@ -1,11 +1,9 @@
 import { integer, pgTable } from 'drizzle-orm/pg-core';
 import { writeFileSync } from 'fs';
 import { join, resolve } from 'path';
-import { makePgSnapshot, stageOut, writeSnapshot } from '../sdk/check-fixtures';
+import { makePgSnapshot, ORIGIN, stageOut, writeSnapshot } from '../sdk/check-fixtures';
 
-export { stageConflict, stageOut, stageValid } from '../sdk/check-fixtures';
-
-export const ORIGIN = '00000000-0000-0000-0000-000000000000';
+export { ORIGIN, stageConflict, stageOut, stageValid } from '../sdk/check-fixtures';
 
 /**
  * Stages a generate missing_hints scenario without a live database.
