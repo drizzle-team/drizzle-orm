@@ -100,6 +100,22 @@ export const configMigrations = object({
 	prefix: prefix.optional().default('index'),
 }).optional();
 
+// `entitiesSchema` is the wire shape of the `entities` block in `drizzle.config.ts`.
+// It's declared on `configCommonSchema` (rather than only on the downstream push/pull
+// param schemas) so the config-file loader's Zod pass doesn't drop the field on its
+// way through. `.passthrough()` would normally carry unknown keys, but
+// `loadModule()` returns an object whose only *enumerable* own key is `default`
+// (the actual config properties are read via non-enumerable interop getters), so
+// `.passthrough()` never sees a field unless Zod knows about it explicitly. See
+// https://github.com/drizzle-team/drizzle-orm/issues/5896.
+export const entitiesSchema = object({
+	roles: boolean().or(object({
+		provider: string().optional(),
+		include: string().array().optional(),
+		exclude: string().array().optional(),
+	})).optional().default(false),
+});
+
 export const configCommonSchema = object({
 	dialect: dialect,
 	schema: union([string(), string().array()]).optional(),
@@ -112,6 +128,7 @@ export const configCommonSchema = object({
 	migrations: configMigrations,
 	dbCredentials: any().optional(),
 	casing: casingType.optional(),
+	entities: entitiesSchema.optional(),
 	sql: boolean().default(true),
 }).passthrough();
 
