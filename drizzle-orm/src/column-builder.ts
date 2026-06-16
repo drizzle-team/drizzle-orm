@@ -1,6 +1,7 @@
 import type { Column } from './column.ts';
 import { entityKind } from './entity.ts';
 import type { PrimaryKeyConfig } from './primary-keys.ts';
+import { sql } from './sql/sql.ts';
 import type { SQL } from './sql/sql.ts';
 
 export type ColumnDataType =
@@ -27,9 +28,10 @@ export interface ColumnBuilderBaseConfig<TDataType extends ColumnDataType, TColu
 	};
 }
 
-export type ColumnBuilderTypeConfig<T extends ColumnBuilderBaseConfig<ColumnDataType, string>, TTypeConfig extends object = object> =
-	& T
-	& TTypeConfig;
+export type ColumnBuilderTypeConfig<
+	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
+	TTypeConfig extends object = object,
+> = T & TTypeConfig;
 
 export type MakeColumnConfig<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
@@ -187,5 +189,3 @@ export abstract class ColumnBuilder<
 
 // Workaround for https://github.com/microsoft/TypeScript/issues/29511
 export type AnyColumnBuilder = ColumnBuilder<ColumnBuilderBaseConfig<ColumnDataType, string>>;
-
-import { sql } from './sql/sql.ts';
