@@ -46,6 +46,9 @@ export interface MySqlBinaryConfig {
 	length?: number;
 }
 
-export function binary<TName extends string>(name: TName, config: MySqlBinaryConfig = {}): MySqlBinaryBuilderInitial<TName> {
+export function binary<TName extends string>(
+	name: TName,
+	config: MySqlBinaryConfig = {},
+): MySqlBinaryBuilderInitial<TName> {
 	return new MySqlBinaryBuilder(name, config);
 }
