@@ -55,6 +55,95 @@ test('add table #1', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+test('add strict table', async () => {
+	const to = {
+		users: sqliteTable.strict('users', {
+			id: int(),
+			name: text({ length: 64 }),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		'CREATE TABLE `users` (\n'
+		+ '\t`id` integer,\n'
+		+ '\t`name` text\n'
+		+ ') STRICT;\n',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('enable strict mode by recreating the table', async () => {
+	const from = {
+		users: sqliteTable('users', { id: int() }),
+	};
+	const to = {
+		users: sqliteTable.strict('users', { id: int() }),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n\t`id` integer\n) STRICT;\n',
+		'INSERT INTO `__new_users`(`id`) SELECT `id` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('disable strict mode by recreating the table', async () => {
+	const from = {
+		users: sqliteTable.strict('users', { id: int() }),
+	};
+	const to = {
+		users: sqliteTable('users', { id: int() }),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n\t`id` integer\n);\n',
+		'INSERT INTO `__new_users`(`id`) SELECT `id` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('reject unsupported strict column types before SQL generation', async () => {
+	const to = {
+		users: sqliteTable.strict('users', {
+			amount: numeric(),
+		}),
+	};
+
+	const { err2 } = await diff({}, to, []);
+	expect(err2).toStrictEqual([
+		{
+			type: 'invalid_strict_column_type',
+			table: 'users',
+			column: 'amount',
+			columnType: 'numeric',
+		},
+	]);
+});
+
 test('add table #2', async () => {
 	const to = {
 		users: sqliteTable('users', {

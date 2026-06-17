@@ -31,6 +31,8 @@ export type TableConfig = TableConfigBase<SQLiteColumns>;
 
 /** @internal */
 export const InlineForeignKeys = Symbol.for('drizzle:SQLiteInlineForeignKeys');
+/** @internal */
+export const Strict = Symbol.for('drizzle:SQLiteStrict');
 
 export class SQLiteTable<T extends TableConfig = TableConfig> extends Table<T> {
 	static override readonly [entityKind]: string = 'SQLiteTable';
@@ -38,6 +40,7 @@ export class SQLiteTable<T extends TableConfig = TableConfig> extends Table<T> {
 	/** @internal */
 	static override readonly Symbol = Object.assign({}, Table.Symbol, {
 		InlineForeignKeys: InlineForeignKeys as typeof InlineForeignKeys,
+		Strict: Strict as typeof Strict,
 	});
 
 	/** @internal */
@@ -45,6 +48,9 @@ export class SQLiteTable<T extends TableConfig = TableConfig> extends Table<T> {
 
 	/** @internal */
 	[InlineForeignKeys]: ForeignKey[] = [];
+
+	/** @internal */
+	[Strict]: boolean = false;
 
 	/** @internal */
 	override [Table.Symbol.ExtraConfigBuilder]:
@@ -61,7 +67,7 @@ export type SQLiteTableWithColumns<T extends TableConfig> =
 	& T['columns']
 	& InferTableColumnsModels<T['columns']>;
 
-export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
+export interface SQLiteTableFnInternal<TSchema extends string | undefined = undefined> {
 	<
 		TTableName extends string,
 		TColumnsMap extends Record<string, ColumnBuilderBase>,
@@ -164,6 +170,10 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 	}>;
 }
 
+export interface SQLiteTableFn<TSchema extends string | undefined = undefined> extends SQLiteTableFnInternal<TSchema> {
+	strict: SQLiteTableFnInternal<TSchema>;
+}
+
 /** @internal */
 export function sqliteTableBase<
 	TTableName extends string,
@@ -226,7 +236,16 @@ export function sqliteTableBase<
 
 /** @internal */
 export function sqliteTableWithCasing(casing: Casing | undefined): SQLiteTableFn {
-	return (name, columns, extraConfig) => sqliteTableBase(name, columns, extraConfig, undefined, casing);
+	const sqliteTableInternal: SQLiteTableFnInternal = (name, columns, extraConfig) =>
+		sqliteTableBase(name, columns, extraConfig, undefined, casing);
+
+	const sqliteTableStrict: SQLiteTableFn['strict'] = (name, columns, extraConfig) => {
+		const table = sqliteTableBase(name, columns, extraConfig, undefined, casing);
+		table[Strict] = true;
+		return table;
+	};
+
+	return Object.assign(sqliteTableInternal, { strict: sqliteTableStrict });
 }
 
 export const sqliteTable = sqliteTableWithCasing(undefined);
@@ -235,7 +254,21 @@ export function sqliteTableCreator(
 	customizeTableName: (name: string) => string,
 	casing?: Casing | undefined,
 ): SQLiteTableFn {
-	return (name, columns, extraConfig) => {
-		return sqliteTableBase(customizeTableName(name) as typeof name, columns, extraConfig, undefined, casing, name);
-	};
+	const sqliteTableInternal: SQLiteTableFnInternal = (name, columns, extraConfig) =>
+		sqliteTableBase(customizeTableName(name) as typeof name, columns, extraConfig, undefined, casing, name);
+
+	return Object.assign(sqliteTableInternal, {
+		strict: ((name, columns, extraConfig) => {
+			const table = sqliteTableBase(
+				customizeTableName(name) as typeof name,
+				columns,
+				extraConfig,
+				undefined,
+				casing,
+				name,
+			);
+			table[Strict] = true;
+			return table;
+		}) as SQLiteTableFnInternal,
+	});
 }

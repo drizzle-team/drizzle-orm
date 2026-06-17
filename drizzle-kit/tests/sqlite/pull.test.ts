@@ -18,7 +18,8 @@ import {
 } from 'drizzle-orm/sqlite-core';
 import * as fs from 'fs';
 import { interimToDDL } from 'src/dialects/sqlite/ddl';
-import { fromDatabaseForDrizzle } from 'src/dialects/sqlite/introspect';
+import { fromDatabase, fromDatabaseForDrizzle } from 'src/dialects/sqlite/introspect';
+import { ddlToTypeScript } from 'src/dialects/sqlite/typescript';
 import { expect, test } from 'vitest';
 import { dbFrom, diffAfterPull, push } from './mocks';
 
@@ -538,8 +539,35 @@ test('pull after migrate with custom migrations table #1', async () => {
 		{
 			entityType: 'tables',
 			name: 'users',
+			isStrict: false,
 		},
 	]);
+});
+
+test('pull preserves strict table metadata', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	await db.run('CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT) STRICT;');
+
+	const schema = await fromDatabase(
+		db,
+		() => true,
+	);
+
+	expect(schema.tables).toStrictEqual([
+		{
+			entityType: 'tables',
+			name: 'users',
+			isStrict: true,
+		},
+	]);
+
+	const { ddl, errors } = interimToDDL(schema);
+	expect(errors).toEqual([]);
+	expect(ddlToTypeScript(ddl, 'camel', {}, 'sqlite').file).toContain(
+		'export const users = sqliteTable.strict("users"',
+	);
 });
 
 // filter custom migration table
@@ -574,6 +602,7 @@ test('pull after migrate with custom migrations table #2', async () => {
 		{
 			entityType: 'tables',
 			name: 'users',
+			isStrict: false,
 		},
 	]);
 });

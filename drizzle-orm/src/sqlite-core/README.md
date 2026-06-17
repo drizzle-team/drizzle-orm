@@ -49,6 +49,21 @@ const db = drizzle(sqlite);
 const allUsers = db.select().from(users).all();
 ```
 
+### Strict tables
+
+Use `sqliteTable.strict` to generate a SQLite
+[`STRICT`](https://www.sqlite.org/stricttables.html) table:
+
+```typescript
+const users = sqliteTable.strict('users', {
+  id: integer('id').primaryKey(),
+  fullName: text('full_name'),
+})
+```
+
+Drizzle Kit preserves strictness in generated migrations, introspection, and
+table rebuilds.
+
 ### Using Drizzle ORM in Next.js App Router
 
 Next.js' App Router have zero-config support for Drizzle ORM.

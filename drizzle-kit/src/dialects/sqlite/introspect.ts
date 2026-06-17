@@ -361,11 +361,17 @@ export const fromDatabase = async (
 		return acc;
 	}, {} as Record<string, string>) || {};
 
+	const isStrictTable = (sql: string): boolean => {
+		const options = sql.slice(sql.lastIndexOf(')') + 1);
+		return /\bSTRICT\b/i.test(options);
+	};
+
 	const tables: SqliteEntities['tables'][] = [
 		...new Set(dbTableColumns.filter((it) => it.type === 'table').map((it) => it.table)),
 	].map((it) => ({
 		entityType: 'tables',
 		name: it,
+		isStrict: isStrictTable(tablesToSQL[it]),
 	}));
 
 	const pks: PrimaryKey[] = [];

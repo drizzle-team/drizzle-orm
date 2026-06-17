@@ -64,7 +64,7 @@ export const prepareSqliteSnapshot = async (
 		: findLeafSnapshotIds(snapshots);
 
 	const snapshot = {
-		version: '7',
+		version: '8',
 		dialect: 'sqlite',
 		id,
 		prevIds,
@@ -146,6 +146,7 @@ export function generateLatestSnapshot(
 
 	const insertTableFull = (table: {
 		name: string;
+		isStrict: boolean;
 		columns: Column[];
 		indexes: Index[];
 		pk: PrimaryKey | null;
@@ -153,7 +154,7 @@ export function generateLatestSnapshot(
 		uniques: UniqueConstraint[];
 		checks: { table: string; value: string; name?: string }[];
 	}) => {
-		ddl.tables.push({ name: table.name });
+		ddl.tables.push({ name: table.name, isStrict: table.isStrict });
 		for (const column of table.columns) push(ddl.columns, column);
 		for (const index of table.indexes) push(ddl.indexes, index);
 		if (table.pk) push(ddl.pks, table.pk);

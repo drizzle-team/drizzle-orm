@@ -15,7 +15,7 @@ function makeSnapshot(
 	schema: SqliteSchema,
 ): SqliteSnapshot {
 	return {
-		version: '7',
+		version: '8',
 		dialect: 'sqlite',
 		id,
 		prevIds,

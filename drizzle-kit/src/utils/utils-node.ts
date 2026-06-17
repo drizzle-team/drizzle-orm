@@ -289,7 +289,7 @@ const mssqlSnapshotValidator = (snapshot: object): ValidationResult => {
 };
 
 const sqliteValidator = (snapshot: object): ValidationResult => {
-	const versionError = assertVersion(snapshot, 7);
+	const versionError = assertVersion(snapshot, 8);
 	if (versionError) return { status: versionError };
 
 	const { success } = sqliteStapshotValidator.parse(snapshot);

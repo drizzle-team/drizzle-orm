@@ -112,7 +112,9 @@ export const ddlToTypeScript = (
 		const uniqies = schema.uniques.list({ table: table.name });
 		const checks = schema.checks.list({ table: table.name });
 
-		let statement = `export const ${withCasing(table.name, casing)} = sqliteTable("${table.name}", {\n`;
+		let statement = `export const ${withCasing(table.name, casing)} = sqliteTable${
+			table.isStrict ? '.strict' : ''
+		}("${table.name}", {\n`;
 
 		statement += createTableColumns(columns, fks, pk, casing);
 		statement += '}';

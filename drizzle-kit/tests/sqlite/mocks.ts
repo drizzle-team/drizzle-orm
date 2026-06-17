@@ -18,7 +18,7 @@ import { SQLiteDB } from 'src/utils';
 import { mockResolver } from 'src/utils/mocks';
 import { tsc } from 'tests/utils';
 import 'zx/globals';
-import { updateToV7 } from 'src/cli/commands/up-sqlite';
+import { updateToV7, updateToV8 } from 'src/cli/commands/up-sqlite';
 import { serializeSQLite } from 'src/legacy/sqlite-v6/serializer';
 import { diff as legacyDiff } from 'src/legacy/sqlite-v6/sqliteDiff';
 
@@ -396,7 +396,7 @@ export const diffSnapshotV6 = async (
 		await db.run(st);
 	}
 
-	const snapshot = updateToV7(res);
+	const snapshot = updateToV8(updateToV7(res));
 
 	const ddl = fromEntities(snapshot.ddl);
 

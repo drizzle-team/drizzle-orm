@@ -4,7 +4,9 @@ import { nameForPk, nameForUnique } from './grammar';
 
 export const createDDL = () => {
 	return create({
-		tables: {},
+		tables: {
+			isStrict: 'boolean',
+		},
 		columns: {
 			table: 'required',
 			type: 'string',
@@ -99,6 +101,7 @@ export type ViewColumn = { view: string; name: string; type: string; notNull: bo
 
 export type TableFull = {
 	name: string;
+	isStrict: boolean;
 	columns: Column[];
 	indexes: Index[];
 	checks: CheckConstraint[];
@@ -109,6 +112,7 @@ export type TableFull = {
 
 export const tableFromDDL = (name: string, ddl: SQLiteDDL): TableFull => {
 	const filter = { table: name } as const;
+	const table = ddl.tables.one({ name });
 	const columns = ddl.columns.list(filter);
 	const pk = ddl.pks.one(filter);
 	const fks = ddl.fks.list(filter);
@@ -117,6 +121,7 @@ export const tableFromDDL = (name: string, ddl: SQLiteDDL): TableFull => {
 	const indexes = ddl.indexes.list(filter);
 	return {
 		name,
+		isStrict: table?.isStrict ?? false,
 		columns,
 		pk,
 		fks,
@@ -169,6 +174,13 @@ export type ConflictCheck = {
 	name: string;
 };
 
+export type InvalidStrictColumnType = {
+	type: 'invalid_strict_column_type';
+	table: string;
+	column: string;
+	columnType: string;
+};
+
 export type SchemaError =
 	| ConflictTable
 	| ConflictView
@@ -178,15 +190,8 @@ export type SchemaError =
 	| ConflictUnique
 	| ConflictCheck
 	| ConflictIndex
+	| InvalidStrictColumnType
 	| TableNoColumns;
-
-const count = <T>(arr: T[], predicate: (it: T) => boolean) => {
-	let count = 0;
-	for (const it of arr) {
-		if (predicate(it)) count += 1;
-	}
-	return count;
-};
 
 export type InterimColumn = Column & {
 	pk: boolean;
@@ -217,9 +222,23 @@ export const interimToDDL = (schema: InterimSchema): { ddl: SQLiteDDL; errors: S
 	const errors: SchemaError[] = [];
 
 	for (const table of schema.tables) {
-		if (count(schema.columns, (it) => it.table === table.name) === 0) {
+		const columns = schema.columns.filter((it) => it.table === table.name);
+		if (columns.length === 0) {
 			errors.push({ type: 'table_no_columns', table: table.name });
 			continue;
+		}
+		if (table.isStrict) {
+			const allowed = new Set(['int', 'integer', 'real', 'text', 'blob', 'any']);
+			for (const column of columns) {
+				if (!allowed.has(column.type.toLowerCase())) {
+					errors.push({
+						type: 'invalid_strict_column_type',
+						table: table.name,
+						column: column.name,
+						columnType: column.type,
+					});
+				}
+			}
 		}
 		const res = ddl.tables.push(table);
 		if (res.status === 'CONFLICT') {
