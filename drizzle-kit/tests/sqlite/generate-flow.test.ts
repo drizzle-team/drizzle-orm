@@ -18,7 +18,7 @@ function makeSnapshot(
 	schema: SqliteSchema,
 ): SqliteSnapshot {
 	return {
-		version: '7',
+		version: '8',
 		dialect: 'sqlite',
 		id,
 		prevIds,
@@ -175,7 +175,7 @@ describe('generateLatestSnapshot (sqlite)', () => {
 		const fromDDL = drizzleToDDL(from).ddl;
 		const toDDL = drizzleToDDL(to).ddl;
 		const base: SqliteSnapshot = {
-			version: '7',
+			version: '8',
 			dialect: 'sqlite',
 			id: 'snapshot-id',
 			prevIds: [ORIGIN],
@@ -238,7 +238,7 @@ describe('generateLatestSnapshot (sqlite)', () => {
 		const combined: JsonStatement[] = [...stmtsA, ...stmtsB];
 
 		const base: SqliteSnapshot = {
-			version: '7',
+			version: '8',
 			dialect: 'sqlite',
 			id: 'parent-id',
 			prevIds: [ORIGIN],

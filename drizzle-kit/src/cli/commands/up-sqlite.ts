@@ -5,8 +5,9 @@ import { join } from 'path';
 import { transformOnUpdateDelete } from 'src/dialects/sqlite/grammar';
 import { nameForPk } from 'src/dialects/sqlite/grammar';
 import { prepareOutFolder, validateWithReport } from 'src/utils/utils-node';
-import { createDDL } from '../../dialects/sqlite/ddl';
+import { createDDL, type SqliteEntity, type Table } from '../../dialects/sqlite/ddl';
 import {
+	snapshotValidator,
 	sqliteSchemaV5,
 	type SQLiteSchemaV6,
 	sqliteSchemaV6,
@@ -32,9 +33,11 @@ export const upSqliteHandler = (out: string) => {
 
 			let result: SqliteSnapshot;
 			if (it.raw['version'] === '5') {
-				result = updateToV7(updateUpToV6(it.raw));
+				result = updateToV8(updateToV7(updateUpToV6(it.raw)));
 			} else if (it.raw['version'] === '6') {
-				result = updateToV7(sqliteSchemaV6.parse(it.raw));
+				result = updateToV8(updateToV7(sqliteSchemaV6.parse(it.raw)));
+			} else if (it.raw['version'] === '7') {
+				result = updateToV8(it.raw as SqliteSnapshotV7);
 			} else {
 				throw new Error(`unexpected version of SQLite snapshot: ${it.raw['version']}`);
 			}
@@ -51,11 +54,19 @@ export const upSqliteHandler = (out: string) => {
 	console.log("Everything's fine 🐶🔥");
 };
 
-export const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
+type SqliteEntityV7 = Exclude<SqliteEntity, { entityType: 'tables' }> | Omit<Table, 'isStrict'>;
+
+export type SqliteSnapshotV7 = Omit<SqliteSnapshot, 'version' | 'ddl'> & {
+	version: '7';
+	ddl: SqliteEntityV7[];
+};
+
+export const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshotV7 => {
 	const ddl = createDDL();
 	for (const table of Object.values(snapshot.tables)) {
 		ddl.tables.push({
 			name: table.name,
+			isStrict: false,
 		});
 
 		for (const column of Object.values(table.columns)) {
@@ -160,6 +171,18 @@ export const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 		ddl: ddl.entities.list(),
 		renames: renames,
 	};
+};
+
+export const updateToV8 = (snapshot: SqliteSnapshotV7): SqliteSnapshot => {
+	return snapshotValidator.strict({
+		...snapshot,
+		version: '8',
+		ddl: snapshot.ddl.map((entity) =>
+			entity.entityType === 'tables'
+				? { ...entity, isStrict: false }
+				: entity
+		),
+	});
 };
 
 const updateUpToV6 = (json: object): SQLiteSchemaV6 => {

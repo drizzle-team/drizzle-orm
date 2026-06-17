@@ -99,6 +99,10 @@ export const sqliteSchemaError = (error: SqliteSchemaError): string => {
 		return `'${error.table}' table has no columns`;
 	}
 
+	if (error.type === 'invalid_strict_column_type') {
+		return `'${error.column}' column in STRICT table '${error.table}' has unsupported type '${error.columnType}'. Allowed types: INT, INTEGER, REAL, TEXT, BLOB, ANY`;
+	}
+
 	assertUnreachable(error);
 };
 

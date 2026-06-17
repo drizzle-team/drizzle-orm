@@ -31,6 +31,9 @@ const createTable = convertor('create_table', (st) => {
 	statement += `CREATE TABLE \`${tableName}\` (\n`;
 	for (let i = 0; i < columns.length; i++) {
 		const column = columns[i];
+		const columnType = st.table.isStrict && /^text\(\d+\)$/i.test(column.type)
+			? 'text'
+			: column.type;
 
 		/*
 			https://www.sqlite.org/lang_createtable.html#the_generated_always_as_clause
@@ -71,7 +74,7 @@ const createTable = convertor('create_table', (st) => {
 
 		statement += '\t';
 		statement +=
-			`\`${column.name}\` ${column.type}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}${unqiueConstraintPrefix}`;
+			`\`${column.name}\` ${columnType}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}${unqiueConstraintPrefix}`;
 
 		statement += i === columns.length - 1 ? '' : ',\n';
 	}
@@ -118,7 +121,7 @@ const createTable = convertor('create_table', (st) => {
 	}
 
 	statement += `\n`;
-	statement += `);`;
+	statement += `)${st.table.isStrict ? ' STRICT' : ''};`;
 	statement += `\n`;
 	return statement;
 });

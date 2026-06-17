@@ -285,6 +285,13 @@ export const ddlDiff = async (
 		].map((it) => it.table),
 	);
 
+	for (const table of ddl2.tables.list()) {
+		const previous = ddl1.tables.one({ name: table.name });
+		if (previous && previous.isStrict !== table.isStrict) {
+			setOfTablesToRecereate.add(table.name);
+		}
+	}
+
 	for (const it of createdTables) {
 		setOfTablesToRecereate.delete(it.name);
 	}

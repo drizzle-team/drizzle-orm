@@ -103,7 +103,7 @@ export const schemaInternalV5 = object({
 	}),
 }).strict();
 
-const latestVersion = literal('7');
+const latestVersion = literal('8');
 export const schemaInternalV6 = object({
 	version: literal('6'),
 	dialect: dialect,
@@ -164,7 +164,7 @@ export const toJsonSnapshot = (
 		dialect: 'sqlite',
 		id,
 		prevIds,
-		version: '7',
+		version: '8',
 		ddl: ddl.entities.list(),
 		renames,
 	};
@@ -172,7 +172,7 @@ export const toJsonSnapshot = (
 
 const ddl = createDDL();
 export const snapshotValidator = validator({
-	version: ['7'],
+	version: ['8'],
 	dialect: ['sqlite'],
 	id: 'string',
 	prevIds: array<string>((_) => true),
@@ -182,7 +182,7 @@ export const snapshotValidator = validator({
 
 export type SqliteSnapshot = typeof snapshotValidator.shape;
 export const drySqliteSnapshot = snapshotValidator.strict({
-	version: '7',
+	version: '8',
 	dialect: 'sqlite',
 	id: originUUID,
 	prevIds: [],

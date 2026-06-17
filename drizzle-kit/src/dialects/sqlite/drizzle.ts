@@ -36,6 +36,7 @@ export const fromDrizzleSchema = (
 		return {
 			entityType: 'tables',
 			name: it.config.name,
+			isStrict: it.config.isStrict ?? false,
 		} satisfies Table;
 	});
 
@@ -44,6 +45,7 @@ export const fromDrizzleSchema = (
 			const { name } = column;
 			const primaryKey: boolean = column.primary;
 			const generated = column.generated;
+			const sqlType = column.getSQLType();
 
 			const generatedObj: {
 				as: string;
@@ -77,7 +79,9 @@ export const fromDrizzleSchema = (
 				entityType: 'columns',
 				table: it.config.name,
 				name,
-				type: column.getSQLType(),
+				type: it.config.isStrict && /^text\(\d+\)$/i.test(sqlType)
+					? 'text'
+					: sqlType,
 				default: defalutValue,
 				notNull: column.notNull && !primaryKey,
 				pk: primaryKey,

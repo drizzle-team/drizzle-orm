@@ -24,6 +24,7 @@ export function getTableConfig<TTable extends SQLiteTable>(table: TTable) {
 	const uniqueConstraints: UniqueConstraint[] = [];
 	const foreignKeys: ForeignKey[] = Object.values(table[SQLiteTable.Symbol.InlineForeignKeys]);
 	const name = table[Table.Symbol.Name];
+	const isStrict = table[SQLiteTable.Symbol.Strict] ?? false;
 
 	const extraConfigBuilder = table[SQLiteTable.Symbol.ExtraConfigBuilder];
 
@@ -53,6 +54,7 @@ export function getTableConfig<TTable extends SQLiteTable>(table: TTable) {
 		primaryKeys,
 		uniqueConstraints,
 		name,
+		isStrict,
 	};
 }
 
