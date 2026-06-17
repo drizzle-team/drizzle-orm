@@ -42,6 +42,35 @@ export const error = (error: string, greyMsg: string = ''): string => {
 	return `${chalk.bgRed.bold(' Error ')} ${error} ${greyMsg ? chalk.grey(greyMsg) : ''}`.trim();
 };
 
+// Formats an otherwise-unhandled error for the CLI. Keeps the familiar
+// `Error <message>` header, but also surfaces the stack trace and the full
+// `cause` chain so schema-load crashes point at the offending file:line
+// instead of collapsing to a single message.
+export const unknownError = (e: unknown): string => {
+	const message = typeof e === 'object' && e !== null && 'message' in e && typeof e.message === 'string'
+		? e.message
+		: String(e);
+
+	let out = error(message);
+
+	const seen = new Set<unknown>();
+	let current: unknown = e;
+	let first = true;
+	while (typeof current === 'object' && current !== null && !seen.has(current)) {
+		seen.add(current);
+
+		const stack = 'stack' in current && typeof current.stack === 'string' ? current.stack : undefined;
+		if (stack) {
+			out += `\n${chalk.gray(first ? stack : `Caused by: ${stack}`)}`;
+		}
+		first = false;
+
+		current = 'cause' in current ? current.cause : undefined;
+	}
+
+	return out;
+};
+
 export const postgresSchemaWarning = (warning: PostgresSchemaWarning): string => {
 	if (warning.type === 'policy_not_linked') {
 		return withStyle.errorWarning(
