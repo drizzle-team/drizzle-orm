@@ -382,8 +382,17 @@ export abstract class AbstractCommutativity<
 			}
 		}
 
+		// Track visited nodes so each node is processed once. Without this,
+		// a branched/merged migration DAG (a node reachable through multiple
+		// paths) is re-traversed for every path, which is exponential on real
+		// histories with merge migrations. `buildChain` already guards the same
+		// way.
+		const visited = new Set<string>();
+
 		while (stack.length) {
 			const id = stack.pop()!;
+			if (visited.has(id)) continue;
+			visited.add(id);
 			const children = prevToChildren[id] ?? [];
 			if (children.length === 0) {
 				leaves.push(id);
