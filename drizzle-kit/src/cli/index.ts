@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import { highlightSQL } from './highlighter';
 import { check, exportRaw, generate, migrate, pull, push, studio, up } from './schema';
 import { ormCoreVersions, QueryError } from './utils';
-import { error } from './views';
+import { unknownError } from './views';
 
 const version = async () => {
 	const { npmVersion } = await ormCoreVersions();
@@ -77,11 +77,7 @@ run([generate, migrate, pull, push, studio, up, check, exportRaw, ...legacy], {
 				return true;
 			}
 
-			if (
-				!(typeof e === 'object' && e !== null && 'message' in e && typeof e.message === 'string')
-			) return false;
-
-			console.log(error(e.message));
+			console.log(unknownError(e));
 			return true;
 		}
 
