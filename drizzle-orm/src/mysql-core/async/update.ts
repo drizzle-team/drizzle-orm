@@ -48,7 +48,7 @@ export class MySqlAsyncUpdateBase<
 > extends MySqlUpdateBase<MySqlAsyncUpdateHKT, TTable, TQueryResult, TDynamic, TExcludedMethods> {
 	static override readonly [entityKind]: string = 'MySqlAsyncUpdate';
 
-	declare protected session: MySqlAsyncSession;
+	declare protected session: MySqlAsyncSession<TQueryResult, any>;
 
 	prepare(): MySqlAsyncUpdatePrepare<this> {
 		return this.session.prepareQuery(

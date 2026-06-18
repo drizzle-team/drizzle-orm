@@ -322,7 +322,6 @@ export class MySqlInsertBase<
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildInsertQuery(this.config).sql;
 	}

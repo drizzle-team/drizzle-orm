@@ -397,7 +397,6 @@ export class SQLiteInsertBase<
 		return this;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildInsertQuery(this.config);
 	}

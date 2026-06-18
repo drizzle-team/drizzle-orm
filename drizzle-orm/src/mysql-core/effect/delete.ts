@@ -59,7 +59,7 @@ export class MySqlEffectDeleteBase<
 > extends MySqlDeleteBase<MySqlEffectDeleteHKT<TEffectHKT>, TTable, TQueryResult, TDynamic, TExcludedMethods> {
 	static override readonly [entityKind]: string = 'MySqlEffectDelete';
 
-	declare protected session: MySqlEffectSession<TEffectHKT, any, any>;
+	declare protected session: MySqlEffectSession<TEffectHKT, TQueryResult, any>;
 
 	prepare(): MySqlEffectDeletePrepare<this, TEffectHKT> {
 		return this.session.prepareQuery(

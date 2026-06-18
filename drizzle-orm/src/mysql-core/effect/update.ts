@@ -59,7 +59,7 @@ export class MySqlEffectUpdateBase<
 > extends MySqlUpdateBase<MySqlEffectUpdateHKT<TEffectHKT>, TTable, TQueryResult, TDynamic, TExcludedMethods> {
 	static override readonly [entityKind]: string = 'MySqlEffectUpdate';
 
-	declare protected session: MySqlEffectSession<TEffectHKT, any, any>;
+	declare protected session: MySqlEffectSession<TEffectHKT, TQueryResult, any>;
 
 	prepare(): MySqlEffectUpdatePrepare<this, TEffectHKT> {
 		return this.session.prepareQuery(

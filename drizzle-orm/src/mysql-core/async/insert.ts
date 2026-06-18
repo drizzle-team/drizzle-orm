@@ -59,7 +59,7 @@ export class MySqlAsyncInsertBase<
 {
 	static override readonly [entityKind]: string = 'MySqlAsyncInsert';
 
-	declare protected session: MySqlAsyncSession;
+	declare protected session: MySqlAsyncSession<TQueryResult, any>;
 
 	/** @internal */
 	_prepare(): MySqlAsyncInsertPrepare<this, TReturning> {

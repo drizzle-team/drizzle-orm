@@ -74,6 +74,7 @@ import {
 	time,
 	timestamp,
 	union,
+	unionAll,
 	uniqueIndex,
 	uuid,
 	varchar,
@@ -4443,6 +4444,84 @@ export function tests(test: Test) {
 			expect(queryRes).toStrictEqual(testData);
 			expect(relationRes).toStrictEqual(testData);
 			expect(rootRes).toStrictEqual(testData);
+
+			const allCols = getColumns(allTypesTable) as Record<string, any>;
+			const td = testData as Record<string, any>;
+
+			const testUnion = async (label: string, left: string, right: string, expected: unknown) => {
+				const res = await unionAll(
+					db.select({ value: allCols[left] }).from(allTypesTable),
+					db.select({ value: allCols[right] }).from(allTypesTable),
+				);
+				expect(res, label).toStrictEqual(expected);
+			};
+
+			const numberCols = [
+				'int',
+				'smallint',
+				'double',
+				'real',
+				'smallserial',
+				'serial',
+				'bigserialnum',
+				'bigintnum',
+				'numericnum',
+			];
+			const largeNum = new Set(['bigserialnum', 'bigintnum', 'numericnum']);
+			for (const left of numberCols) {
+				for (const right of numberCols) {
+					const hasReal = left === 'real' || right === 'real';
+					const hasDouble = left === 'double' || right === 'double';
+					// `real ∪ <large>` resolves to a float4 result that mangles the large operand — skip
+					if (hasReal && !hasDouble && (largeNum.has(left) || largeNum.has(right))) continue;
+					// float8 result (`real ∪ double`): the float4 value is returned as its promoted double
+					const numVal = (col: string) => (col === 'real' && hasDouble ? Math.fround(td['real']) : td[col]);
+					await testUnion(`number: ${left} ∪ ${right}`, left, right, [
+						{ value: numVal(left) },
+						{ value: numVal(right) },
+					]);
+				}
+			}
+
+			const crossClusters: Record<string, string[]> = {
+				bigint: ['bigint', 'bigserial', 'numericbig'],
+				text: ['varchar', 'text'],
+				numstr: ['bigintstr', 'numeric'],
+				date: ['date', 'timestamp', 'timestampTz'],
+				json: ['json', 'json1', 'json2', 'json3'],
+				jsonb: ['jsonb', 'jsonb1', 'jsonb2', 'jsonb3'],
+			};
+			for (const [name, cols] of Object.entries(crossClusters)) {
+				for (const left of cols) {
+					for (const right of cols) {
+						await testUnion(`${name}: ${left} ∪ ${right}`, left, right, [{ value: td[left] }, { value: td[right] }]);
+					}
+				}
+			}
+
+			const selfOnly = [
+				'char',
+				'cidr',
+				'inet',
+				'macaddr',
+				'macaddr8',
+				'uuid',
+				'interval',
+				'time',
+				'datestr',
+				'timestampstr',
+				'timestampTzstr',
+				'bool',
+				'bytea',
+				'enum',
+				'line',
+				'linetuple',
+				'point',
+				'pointtuple',
+			];
+			for (const col of selfOnly) {
+				await testUnion(`self: ${col} ∪ ${col}`, col, col, [{ value: td[col] }, { value: td[col] }]);
+			}
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/3018
@@ -4544,7 +4623,7 @@ export function tests(test: Test) {
 		// https://github.com/drizzle-team/drizzle-orm/issues/5253
 		// enhancement
 		// allow select which columns to insert in insert...select
-		test.skipIf(Date.now() < +new Date('2026-06-17')).concurrent('insert into ... select #2', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-06-24')).concurrent('insert into ... select #2', async ({ db, push }) => {
 			const users = pgTable('users_114', {
 				id: integer('id').primaryKey(),
 				name: text('name').notNull(),
@@ -4633,7 +4712,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4596
-		test.skipIf(Date.now() < +new Date('2026-06-17'))(
+		test.skipIf(Date.now() < +new Date('2026-06-24'))(
 			'functional index; onConflict do update',
 			async ({ db, push }) => {
 				throw new Error('SKIP. commented below because of type error');
@@ -4720,7 +4799,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4419
-		test.skipIf(Date.now() < +new Date('2026-06-17'))('db/js timestamp comparison', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-06-24'))('db/js timestamp comparison', async ({ db, push }) => {
 			const table1 = pgTable('table1', {
 				id: integer(),
 				// default config equal to: { mode: 'date' }
@@ -6447,7 +6526,7 @@ export function tests(test: Test) {
 				.rejects.toBeInstanceOf(DrizzleQueryError);
 		});
 
-		test.skipIf(Date.now() < +new Date('2026-06-17')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-06-24')).concurrent(
 			'Mappers: deep nullification',
 			async ({ db, push }) => {
 				const users = pgTable('mappers_users_dn', (t) => ({
@@ -6546,7 +6625,7 @@ export function tests(test: Test) {
 			},
 		);
 
-		test.skipIf(Date.now() < +new Date('2026-06-17')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-06-24')).concurrent(
 			'Jit mappers: deep nullification',
 			async ({ createDB, push }) => {
 				const users = pgTable('mappers_users_jdn', (t) => ({
@@ -7082,7 +7161,7 @@ export function tests(test: Test) {
 			);
 		});
 
-		test.skipIf(Date.now() < +new Date('2026-06-17')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-06-24')).concurrent(
 			'Same table name joined between schemas',
 			async ({ db }) => {
 				const users1 = pgTable('users_cs_join_1', (t) => ({
@@ -7112,7 +7191,7 @@ export function tests(test: Test) {
 					u2: users2,
 				}).from(users1).leftJoin(users2, eq(users1.id, users2.id));
 
-				// @ts-ignore skipIf(Date.now() < +new Date('2026-06-17')) - just to make it searchable
+				// @ts-ignore skipIf(Date.now() < +new Date('2026-06-24')) - just to make it searchable
 				expectTypeOf(res).toEqualTypeOf<{
 					u1: {
 						id: number;

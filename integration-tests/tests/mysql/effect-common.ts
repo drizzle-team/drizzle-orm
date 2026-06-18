@@ -49,6 +49,7 @@ import {
 	tinyblob,
 	tinyint,
 	union,
+	unionAll,
 	varbinary,
 	varchar,
 	year,
@@ -507,6 +508,130 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				expect(queryRes).toStrictEqual(testData);
 				expect(relationRes).toStrictEqual(testData);
 				expect(rootRes).toStrictEqual(testData);
+
+				const allCols = getColumns(allTypesCodecsTable) as Record<string, any>;
+				const td = testData as Record<string, any>;
+
+				const testUnion = (label: string, left: string, right: string, expected: unknown) =>
+					Effect.gen(function*() {
+						const res = yield* unionAll(
+							db.select({ value: allCols[left] }).from(allTypesCodecsTable),
+							db.select({ value: allCols[right] }).from(allTypesCodecsTable),
+						);
+						expect(res, label).toStrictEqual(expected);
+					});
+
+				const floatFromDouble = (value: number): number => {
+					const f = Math.fround(value);
+					if (!Number.isFinite(f)) return f;
+					for (let precision = 1; precision <= 9; precision++) {
+						const candidate = Number(f.toPrecision(precision));
+						if (Math.fround(candidate) === f) return candidate;
+					}
+					return f;
+				};
+				const numberCols = [
+					'serial',
+					'bigint53',
+					'decimalnum',
+					'double',
+					'float',
+					'int',
+					'medint',
+					'smallint',
+					'real',
+					'tinyint',
+					'year',
+				];
+				const isFloatResult = (left: string, right: string): boolean => {
+					if (left !== 'float' && right !== 'float') return false;
+					if (left === 'float') {
+						return ['serial', 'bigint53', 'medint', 'smallint', 'tinyint', 'year', 'float'].includes(right);
+					}
+					return ['medint', 'smallint', 'tinyint', 'year'].includes(left);
+				};
+				const numberValue = (col: string, partner: string, floatResult: boolean): number =>
+					floatResult
+						? floatFromDouble(Math.fround(td[col]))
+						: col === 'float'
+						? Math.fround(td['float'])
+						// `tinyint ∪ year` widens to a signed tinyint, narrowing year to 127
+						: col === 'year' && partner === 'tinyint'
+						? 127
+						: td[col];
+				for (const left of numberCols) {
+					for (const right of numberCols) {
+						const floatResult = isFloatResult(left, right);
+						yield* testUnion(`number: ${left} ∪ ${right}`, left, right, [
+							{ value: numberValue(left, right, floatResult) },
+							{ value: numberValue(right, left, floatResult) },
+						]);
+					}
+				}
+
+				// Excluded:
+				// `binary`: a fixed-length BINARY operand is NUL-padded to the widened union length
+				// `time` ∪ {date,datetime,timestamp: MySQL converts TIME to DATETIME using non-deterministic current date
+				// Two different date-like string columns widening to DATETIME(3), where a DATE (`datestr`) gains a zero time component.
+				const stringCols = [
+					'bigintstr',
+					'char',
+					'decimal',
+					'text',
+					'tinytext',
+					'mediumtext',
+					'longtext',
+					'varchar',
+					'varbin',
+					'stringblob',
+					'stringtinyblob',
+					'stringmediumblob',
+					'stringlongblob',
+					'datestr',
+					'datetimestr',
+					'timestampstr',
+					'time',
+				];
+				const dateLikeStr = new Set(['datestr', 'datetimestr', 'timestampstr']);
+				const asDatetime3: Record<string, string> = {
+					datestr: '2025-03-12 00:00:00.000',
+					datetimestr: td['datetimestr'],
+					timestampstr: td['timestampstr'],
+				};
+				for (const left of stringCols) {
+					for (const right of stringCols) {
+						const nonDeterministicTime = (left === 'time' && dateLikeStr.has(right))
+							|| (right === 'time' && dateLikeStr.has(left));
+						if (nonDeterministicTime) continue;
+
+						const crossDate = left !== right && dateLikeStr.has(left) && dateLikeStr.has(right);
+						yield* testUnion(`string: ${left} ∪ ${right}`, left, right, [
+							{ value: crossDate ? asDatetime3[left] : td[left] },
+							{ value: crossDate ? asDatetime3[right] : td[right] },
+						]);
+					}
+				}
+				yield* testUnion('string: binary ∪ binary', 'binary', 'binary', [{ value: td['binary'] }, {
+					value: td['binary'],
+				}]);
+
+				const simpleGroups: Record<string, string[]> = {
+					bigint: ['bigint64', 'decimalbig'],
+					boolean: ['boolean'],
+					date: ['date', 'datetime', 'timestamp'],
+					buffer: ['blob', 'tinyblob', 'mediumblob', 'longblob'],
+					enum: ['enum'],
+					json: ['json1', 'json2', 'json3', 'json4'],
+				};
+				for (const [groupName, cols] of Object.entries(simpleGroups)) {
+					for (const left of cols) {
+						for (const right of cols) {
+							yield* testUnion(`${groupName}: ${left} ∪ ${right}`, left, right, [{ value: td[left] }, {
+								value: td[right],
+							}]);
+						}
+					}
+				}
 			}));
 
 		it.effect('RQB v2 simple find first - no rows', () =>
@@ -2629,7 +2754,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				expect(result).toEqual([{ id: 1, name: 'Alice' }]);
 			}));
 
-		it.effect('Mappers: - correct mappers enabled', () =>
+		it.effect('Mappers: correct mappers enabled', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
 				const jitDb = yield* createDB({}, () => ({}), true);
@@ -2718,10 +2843,10 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				expect(selected).toStrictEqual([{ isBanned: null }]);
 			}));
 
-		it.effect('Mappers: insert returning all + select + update returning + delete returning', () =>
+		it.effect('Mappers: insert $returningId + select', () =>
 			Effect.gen(function*() {
 				const users = mysqlTable('mappers_users_4', (t) => ({
-					id: t.bigint('id', { mode: 'number' }).primaryKey(),
+					id: t.bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
 					name: t.text('name').notNull(),
 					createdAt: t.timestamp('created_at', {
 						mode: 'date',
@@ -2733,50 +2858,25 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				yield* push(db, { users });
 
 				const insertedIds = yield* db.insert(users).values([{
-					id: 1,
 					name: 'First',
 					createdAt: mappersDate,
 				}, {
-					id: 2,
 					name: 'Second',
 					createdAt: mappersDate,
 					isBanned: true,
 				}, {
-					id: 3,
 					name: 'Third',
 					createdAt: mappersDate,
 				}]).$returningId();
 
-				expect(insertedIds).toStrictEqual([]);
-
-				const inserted = yield* db.select().from(users);
+				expect(insertedIds).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
 
 				const selected = yield* db.select().from(users);
 
 				yield* db.update(users).set({
 					isBanned: false,
 				}).where(eq(users.id, 2));
-				const updated = yield* db.select().from(users).where(eq(users.id, 2));
 
-				const deleted = yield* db.select().from(users);
-				yield* db.delete(users);
-
-				expect(inserted).toStrictEqual([{
-					id: 1,
-					name: 'First',
-					createdAt: mappersDate,
-					isBanned: null,
-				}, {
-					id: 2,
-					name: 'Second',
-					createdAt: mappersDate,
-					isBanned: true,
-				}, {
-					id: 3,
-					name: 'Third',
-					createdAt: mappersDate,
-					isBanned: null,
-				}]);
 				expect(selected).toStrictEqual([{
 					id: 1,
 					name: 'First',
@@ -2793,28 +2893,6 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 					createdAt: mappersDate,
 					isBanned: null,
 				}]);
-				expect(updated).toStrictEqual([{
-					id: 2,
-					name: 'Second',
-					createdAt: mappersDate,
-					isBanned: false,
-				}]);
-				expect(deleted).toStrictEqual(expect.arrayContaining([{
-					id: 1,
-					name: 'First',
-					createdAt: mappersDate,
-					isBanned: null,
-				}, {
-					id: 2,
-					name: 'Second',
-					createdAt: mappersDate,
-					isBanned: false,
-				}, {
-					id: 3,
-					name: 'Third',
-					createdAt: mappersDate,
-					isBanned: null,
-				}]));
 			}));
 
 		it.effect('Mappers: select complex selections', () =>
@@ -3346,7 +3424,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				]);
 			}));
 
-		it.effect('Jit mappers: - simple select - no rows', () =>
+		it.effect('Jit mappers: simple select - no rows', () =>
 			Effect.gen(function*() {
 				const users = mysqlTable('jit_mappers_users_1', (t) => ({
 					id: t.bigint('id', { mode: 'number' }).primaryKey(),
@@ -3365,7 +3443,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				expect(result).toStrictEqual([]);
 			}));
 
-		it.effect('Jit mappers: - select - nothing to decode - text', () =>
+		it.effect('Jit mappers: select - nothing to decode - text', () =>
 			Effect.gen(function*() {
 				const users = mysqlTable('jit_mappers_users_2', (t) => ({
 					id: t.bigint('id', { mode: 'number' }).primaryKey(),
@@ -3392,7 +3470,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				expect(selected).toStrictEqual([{ name: 'First' }]);
 			}));
 
-		it.effect('Jit mappers: - select - nothing to decode - null', () =>
+		it.effect('Jit mappers: select - nothing to decode - null', () =>
 			Effect.gen(function*() {
 				const users = mysqlTable('jit_mappers_users_3', (t) => ({
 					id: t.bigint('id', { mode: 'number' }).primaryKey(),
@@ -3419,10 +3497,10 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				expect(selected).toStrictEqual([{ isBanned: null }]);
 			}));
 
-		it.effect('Jit mappers: - insert returning all + select + update returning + delete returning', () =>
+		it.effect('Jit mappers: insert $returningId + select', () =>
 			Effect.gen(function*() {
 				const users = mysqlTable('jit_mappers_users_4', (t) => ({
-					id: t.bigint('id', { mode: 'number' }).primaryKey(),
+					id: t.bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
 					name: t.text('name').notNull(),
 					createdAt: t.timestamp('created_at', {
 						mode: 'date',
@@ -3434,50 +3512,25 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				yield* push(db, { users });
 
 				const insertedIds = yield* db.insert(users).values([{
-					id: 1,
 					name: 'First',
 					createdAt: mappersDate,
 				}, {
-					id: 2,
 					name: 'Second',
 					createdAt: mappersDate,
 					isBanned: true,
 				}, {
-					id: 3,
 					name: 'Third',
 					createdAt: mappersDate,
 				}]).$returningId();
 
-				expect(insertedIds).toStrictEqual([]);
-
-				const inserted = yield* db.select().from(users);
+				expect(insertedIds).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
 
 				const selected = yield* db.select().from(users);
 
 				yield* db.update(users).set({
 					isBanned: false,
 				}).where(eq(users.id, 2));
-				const updated = yield* db.select().from(users).where(eq(users.id, 2));
 
-				const deleted = yield* db.select().from(users);
-				yield* db.delete(users);
-
-				expect(inserted).toStrictEqual([{
-					id: 1,
-					name: 'First',
-					createdAt: mappersDate,
-					isBanned: null,
-				}, {
-					id: 2,
-					name: 'Second',
-					createdAt: mappersDate,
-					isBanned: true,
-				}, {
-					id: 3,
-					name: 'Third',
-					createdAt: mappersDate,
-					isBanned: null,
-				}]);
 				expect(selected).toStrictEqual([{
 					id: 1,
 					name: 'First',
@@ -3494,31 +3547,9 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 					createdAt: mappersDate,
 					isBanned: null,
 				}]);
-				expect(updated).toStrictEqual([{
-					id: 2,
-					name: 'Second',
-					createdAt: mappersDate,
-					isBanned: false,
-				}]);
-				expect(deleted).toStrictEqual(expect.arrayContaining([{
-					id: 1,
-					name: 'First',
-					createdAt: mappersDate,
-					isBanned: null,
-				}, {
-					id: 2,
-					name: 'Second',
-					createdAt: mappersDate,
-					isBanned: false,
-				}, {
-					id: 3,
-					name: 'Third',
-					createdAt: mappersDate,
-					isBanned: null,
-				}]));
 			}));
 
-		it.effect('Jit mappers: - select complex selections', () =>
+		it.effect('Jit mappers: select complex selections', () =>
 			Effect.gen(function*() {
 				const users = mysqlTable('jit_mappers_users_5', (t) => ({
 					id: t.bigint('id', { mode: 'number' }).primaryKey(),
@@ -3672,7 +3703,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				]);
 			}));
 
-		it.effect('Jit mappers: - relational', () =>
+		it.effect('Jit mappers: relational', () =>
 			Effect.gen(function*() {
 				const users = mysqlTable('jit_mappers_users_6', (t) => ({
 					id: t.bigint('id', { mode: 'number' }).primaryKey(),

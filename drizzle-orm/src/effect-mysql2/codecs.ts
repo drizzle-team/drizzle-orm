@@ -4,6 +4,12 @@ export const effectMysql2Codecs = refineGenericMySqlCodecs({
 	bigint: {
 		normalize: BigInt,
 	},
+	'bigint:number': {
+		normalize: Number,
+	},
+	'bigint:string': {
+		normalize: String,
+	},
 	boolean: {
 		normalize: (value: number) => value === 1,
 	},

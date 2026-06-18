@@ -54,6 +54,7 @@ import {
 	time,
 	timestamp,
 	union,
+	unionAll,
 	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
@@ -3214,6 +3215,87 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 					expect(queryRes).toStrictEqual(testData);
 					expect(relationRes).toStrictEqual(testData);
 					expect(rootRes).toStrictEqual(testData);
+
+					const allCols = getColumns(allTypesTable) as Record<string, any>;
+					const td = testData as Record<string, any>;
+
+					const testUnion = (label: string, left: string, right: string, expected: unknown) =>
+						Effect.gen(function*() {
+							const res = yield* unionAll(
+								db.select({ value: allCols[left] }).from(allTypesTable),
+								db.select({ value: allCols[right] }).from(allTypesTable),
+							);
+							expect(res, label).toStrictEqual(expected);
+						});
+
+					const numberCols = [
+						'int',
+						'smallint',
+						'double',
+						'real',
+						'smallserial',
+						'serial',
+						'bigserialnum',
+						'bigintnum',
+						'numericnum',
+					];
+					const largeNum = new Set(['bigserialnum', 'bigintnum', 'numericnum']);
+					for (const left of numberCols) {
+						for (const right of numberCols) {
+							const hasReal = left === 'real' || right === 'real';
+							const hasDouble = left === 'double' || right === 'double';
+							// `real ∪ <large>` resolves to a float4 result that mangles the large operand — skip
+							if (hasReal && !hasDouble && (largeNum.has(left) || largeNum.has(right))) continue;
+							// float8 result (`real ∪ double`): the float4 value is returned as its promoted double
+							const numVal = (col: string) => (col === 'real' && hasDouble ? Math.fround(td['real']) : td[col]);
+							yield* testUnion(`number: ${left} ∪ ${right}`, left, right, [
+								{ value: numVal(left) },
+								{ value: numVal(right) },
+							]);
+						}
+					}
+
+					const crossClusters: Record<string, string[]> = {
+						bigint: ['bigint', 'bigserial', 'numericbig'],
+						text: ['varchar', 'text'],
+						numstr: ['bigintstr', 'numeric'],
+						date: ['date', 'timestamp', 'timestampTz'],
+						json: ['json', 'json1', 'json2', 'json3'],
+						jsonb: ['jsonb', 'jsonb1', 'jsonb2', 'jsonb3'],
+					};
+					for (const [name, cols] of Object.entries(crossClusters)) {
+						for (const left of cols) {
+							for (const right of cols) {
+								yield* testUnion(`${name}: ${left} ∪ ${right}`, left, right, [{ value: td[left] }, {
+									value: td[right],
+								}]);
+							}
+						}
+					}
+
+					const selfOnly = [
+						'char',
+						'cidr',
+						'inet',
+						'macaddr',
+						'macaddr8',
+						'uuid',
+						'interval',
+						'time',
+						'datestr',
+						'timestampstr',
+						'timestampTzstr',
+						'bool',
+						'bytea',
+						'enum',
+						'line',
+						'linetuple',
+						'point',
+						'pointtuple',
+					];
+					for (const col of selfOnly) {
+						yield* testUnion(`self: ${col} ∪ ${col}`, col, col, [{ value: td[col] }, { value: td[col] }]);
+					}
 				}),
 		);
 

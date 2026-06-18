@@ -48,7 +48,7 @@ export class MySqlAsyncDeleteBase<
 > extends MySqlDeleteBase<MySqlAsyncDeleteHKT, TTable, TQueryResult, TDynamic, TExcludedMethods> {
 	static override readonly [entityKind]: string = 'MySqlAsyncDelete';
 
-	declare protected session: MySqlAsyncSession;
+	declare protected session: MySqlAsyncSession<TQueryResult, any>;
 
 	prepare(): MySqlAsyncDeletePrepare<this> {
 		return this.session.prepareQuery(

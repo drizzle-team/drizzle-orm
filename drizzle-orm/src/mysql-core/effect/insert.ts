@@ -80,7 +80,7 @@ export class MySqlEffectInsertBase<
 {
 	static override readonly [entityKind]: string = 'MySqlEffectInsert';
 
-	declare protected session: MySqlEffectSession<TEffectHKT, any, any>;
+	declare protected session: MySqlEffectSession<TEffectHKT, TQueryResult, any>;
 
 	/** @internal */
 	_prepare(): MySqlEffectInsertPrepare<this, TReturning, TEffectHKT> {

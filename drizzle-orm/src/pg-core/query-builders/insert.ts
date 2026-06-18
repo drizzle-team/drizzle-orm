@@ -11,7 +11,7 @@ import { Param, SQL, sql } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { InferInsertModel } from '~/table.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
-import { type Assume, haveSameKeys, mapUpdateSet, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
+import { type Assume, haveSameKeys, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
 import type { AnyPgColumn, PgColumn } from '../columns/common.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
@@ -79,14 +79,6 @@ export class PgInsertBuilder<
 		private builder: PgInsertBuilderConstructor = PgInsertBase,
 	) {}
 
-	/** @internal */
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
-	}
-
 	overridingSystemValue(): Omit<PgInsertBuilder<TTable, TQueryResult, true, TBuilderHKT>, 'overridingSystemValue'> {
 		this.overridingSystemValue_ = true;
 		return this as any;
@@ -121,10 +113,6 @@ export class PgInsertBuilder<
 			this.overridingSystemValue_,
 		);
 
-		if ('setToken' in builder) {
-			(builder.setToken as (authToken?: NeonAuthToken) => typeof builder)(this.authToken);
-		}
-
 		return builder as any;
 	}
 
@@ -153,10 +141,6 @@ export class PgInsertBuilder<
 		}
 
 		const builder = new this.builder(this.table, select, this.session, this.dialect, this.withList, true) as any;
-
-		if ('setToken' in builder) {
-			(builder.setToken as (authToken?: NeonAuthToken) => typeof builder)(this.authToken);
-		}
 
 		return builder as any;
 	}

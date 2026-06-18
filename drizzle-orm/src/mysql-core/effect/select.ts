@@ -8,8 +8,7 @@ import type {
 	SelectResult,
 } from '~/query-builders/select.types.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
-import { type Assume, orderSelectedFields } from '~/utils.ts';
-import type { MySqlColumn } from '../columns/index.ts';
+import type { Assume } from '~/utils.ts';
 import { MySqlSelectBase, type MySqlSelectBuilder } from '../query-builders/select.ts';
 import type { MySqlSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
 import type { MySqlPreparedQueryConfig } from '../session.ts';
@@ -102,16 +101,11 @@ export class MySqlEffectSelectBase<
 > {
 	static override readonly [entityKind]: string = 'MySqlEffectSelectQueryBuilder';
 
-	declare readonly session: MySqlEffectSession<TEffectHKT, any, any> | undefined;
+	declare readonly session: MySqlEffectSession<TEffectHKT, any, any>;
 
 	prepare(): MySqlEffectSelectPrepare<this, TEffectHKT> {
-		if (!this.session) {
-			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
-		}
-
 		const query = this.dialect.sqlToQuery(this.getSQL());
-		// Important to build query before acquiring fields list because build mutates fields
-		const fieldsList = orderSelectedFields<MySqlColumn>(this.config.fields, undefined, this.dialect.codecs);
+		const fieldsList = this.config.fieldsFlat!;
 		const mapper = this.dialect.mapperGenerators.rows(fieldsList, this.joinsNotNullableMap);
 
 		const preparedQuery = this.session.prepareQuery<

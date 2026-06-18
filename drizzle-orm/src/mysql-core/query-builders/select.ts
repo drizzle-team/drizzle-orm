@@ -21,7 +21,7 @@ import { SQL, sql, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import type { ValueOrArray } from '~/utils.ts';
-import { getTableColumns, getTableLikeName, haveSameKeys } from '~/utils.ts';
+import { getTableColumns, getTableLikeName, haveSameKeys, orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { IndexBuilder } from '../indexes.ts';
 import type { UniqueConstraintBuilder } from '../unique-constraint.ts';
@@ -1070,8 +1070,8 @@ export class MySqlSelectBase<
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
+		this.config.fieldsFlat = orderSelectedFields<MySqlColumn>(this.config.fields, undefined, this.dialect.codecs);
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
