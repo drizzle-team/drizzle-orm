@@ -102,6 +102,7 @@ export type ExportConfig = {
 	dialect: Dialect;
 	sql: boolean;
 	filenames: string[];
+	output: 'text' | 'json';
 };
 
 export const prepareGenerateConfig = async (
@@ -160,10 +161,10 @@ export const prepareExportConfig = async (
 		config?: string;
 		schema?: string;
 		dialect?: Dialect;
-		sql: boolean;
+		sql?: boolean;
 	},
 	from: 'config' | 'cli',
-): Promise<ExportConfig> => {
+): Promise<Omit<ExportConfig, 'output'>> => {
 	const config = from === 'config'
 		? await drizzleConfigFromFile(options.config, true)
 		: options;

@@ -12,9 +12,9 @@ npm install drizzle-kit drizzle-orm
 
 ## Public surface
 
-`--output` is a CLI-only concept. The SDK is implicitly JSON: `generate`, `push`, and `check` always resolve to the JSON envelope documented in [JSON_CONTRACT.md](./JSON_CONTRACT.md), and there is no caller-supplied output mode (the option types omit `output`). Callers narrow the result on its `status` discriminator rather than selecting a format.
+`--output` is a CLI-only concept. The SDK is implicitly JSON: `generate`, `push`, `check`, `pull`, `up`, and `exportSql` always resolve to the JSON envelope documented in [JSON_CONTRACT.md](./JSON_CONTRACT.md), and there is no caller-supplied output mode (the option types omit `output`). Callers narrow the result on its `status` discriminator rather than selecting a format.
 
-Four root-level values plus four type aliases:
+Seven root-level values plus the per-function option-type aliases:
 
 | Export | Kind | Purpose |
 |---|---|---|
@@ -22,16 +22,22 @@ Four root-level values plus four type aliases:
 | `generate` | async function | Programmatic equivalent of `drizzle-kit generate --output json` |
 | `push` | async function | Programmatic equivalent of `drizzle-kit push --output json` |
 | `check` | async function | Programmatic equivalent of `drizzle-kit check --output json` |
+| `pull` | async function | Programmatic equivalent of `drizzle-kit pull --output json` |
+| `up` | async function | Programmatic equivalent of `drizzle-kit up --output json` |
+| `exportSql` | async function | Programmatic equivalent of `drizzle-kit export --output json` (named `exportSql` because `export` is a reserved word) |
 | `Config` | type | Discriminated union of dialect configs |
 | `GenerateOptions` | type | Input shape for `generate` |
 | `PushOptions` | type | Input shape for `push` |
 | `CheckOptions` | type | Input shape for `check` |
+| `PullOptions` | type | Input shape for `pull` (includes `init?`) |
+| `UpOptions` | type | Input shape for `up` |
+| `ExportOptions` | type | Input shape for `exportSql` |
 
-The response shape is not a named export: infer it from the call with `Awaited<ReturnType<typeof generate>>` / `Awaited<ReturnType<typeof push>>` / `Awaited<ReturnType<typeof check>>` (see the examples below). All other public-surface details (status discriminator values, error codes in [JSON_CONTRACT.md](./JSON_CONTRACT.md); hint kinds in [HINTS.md](./HINTS.md)) apply identically to SDK return values — they are not restated here.
+The response shape is not a named export: infer it from the call with `Awaited<ReturnType<typeof generate>>` / `Awaited<ReturnType<typeof push>>` / `Awaited<ReturnType<typeof check>>` / `Awaited<ReturnType<typeof pull>>` / `Awaited<ReturnType<typeof up>>` / `Awaited<ReturnType<typeof exportSql>>` (see the examples below). All other public-surface details (status discriminator values, error codes in [JSON_CONTRACT.md](./JSON_CONTRACT.md); hint kinds in [HINTS.md](./HINTS.md)) apply identically to SDK return values — they are not restated here.
 
 ```typescript
-import { defineConfig, generate, push, check } from 'drizzle-kit';
-import type { Config, GenerateOptions, PushOptions, CheckOptions } from 'drizzle-kit';
+import { defineConfig, generate, push, check, pull, up, exportSql } from 'drizzle-kit';
+import type { Config, GenerateOptions, PushOptions, CheckOptions, PullOptions, UpOptions, ExportOptions } from 'drizzle-kit';
 ```
 
 ## Minimal `generate` example
@@ -101,6 +107,74 @@ if (response.status === 'ok') {
   console.log(`Migrations folder is valid (${response.dialect})`);
 } else if (response.status === 'error') {
   console.error(`check failed (${response.error.code})`);
+  process.exit(1);
+}
+```
+
+## Minimal `pull` example
+
+`pull` is ok-or-error only — it never returns `missing_hints` or `no_changes`.
+
+```typescript
+import { pull } from 'drizzle-kit';
+
+type PullResponse = Awaited<ReturnType<typeof pull>>;
+
+const response: PullResponse = await pull({
+  dialect: 'postgresql',
+  out: './drizzle',
+});
+
+if (response.status === 'ok') {
+  console.log(`Wrote ${response.schemaPath} and ${response.snapshotPath}`);
+  // `relationsPath` is present for every dialect except mssql; `migrationPath` only with `init: true`.
+  if ('relationsPath' in response) {
+    console.log(`Relations: ${response.relationsPath}`);
+  }
+} else if (response.status === 'error') {
+  console.error(`pull failed (${response.error.code})`);
+  process.exit(1);
+}
+```
+
+## Minimal `up` example
+
+```typescript
+import { up } from 'drizzle-kit';
+
+type UpResponse = Awaited<ReturnType<typeof up>>;
+
+const response: UpResponse = await up({
+  dialect: 'postgresql',
+  out: './drizzle',
+});
+
+if (response.status === 'ok') {
+  // `upgraded` lists rewritten snapshot paths; [] means everything was already current.
+  console.log(`Upgraded ${response.upgraded.length} snapshot(s)`);
+} else if (response.status === 'error') {
+  console.error(`up failed (${response.error.code})`);
+  process.exit(1);
+}
+```
+
+## Minimal `export` example
+
+```typescript
+import { exportSql } from 'drizzle-kit';
+
+type ExportResponse = Awaited<ReturnType<typeof exportSql>>;
+
+const response: ExportResponse = await exportSql({
+  dialect: 'postgresql',
+  schema: './src/db/schema.ts',
+});
+
+if (response.status === 'ok') {
+  // The full schema as individual SQL statements; join them yourself if you need one string.
+  console.log(response.statements.join('\n'));
+} else if (response.status === 'error') {
+  console.error(`export failed (${response.error.code})`);
   process.exit(1);
 }
 ```

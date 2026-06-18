@@ -279,6 +279,75 @@ export const t = pgTable('${tableName}', {
 	);
 });
 
+describe.skipIf(!postgresUrl)('pull postgres (live DB)', () => {
+	/**
+	 * Parity invariant: CLI envelope equals SDK envelope for the ok status when both
+	 * transports introspect the same live table into disjoint fresh out dirs.
+	 * Pre-state: a dedicated single-column table is created so introspection finds
+	 * something deterministic; an identical tablesFilter scopes both runs to it so the
+	 * paths-only envelope is robust to any other tables present in the shared container.
+	 * Endpoint: matching status/dialect plus PRESENCE of the path-manifest keys — the
+	 * absolute paths legitimately differ by out dir, so they are never compared by value.
+	 */
+	test(
+		'ok introspect: CLI and SDK return matching ok envelopes with present path-manifest keys',
+		{ timeout: 60000 },
+		async () => {
+			const cliName = 'pull-postgres-ok-cli';
+			const sdkName = 'pull-postgres-ok-sdk';
+			const table = 'sdk_conformance_pg_pull_t';
+			const cliOut = resolve(tmpRoot, cliName);
+			const sdkOut = resolve(tmpRoot, sdkName);
+			mkdirSync(cliOut, { recursive: true });
+			mkdirSync(sdkOut, { recursive: true });
+			try {
+				await dropPgTable(postgresUrl!, table);
+				await execPg(postgresUrl!, `CREATE TABLE IF NOT EXISTS "${table}" (id integer primary key)`);
+
+				const { envelope: cliResult } = runCli([
+					'pull',
+					'--dialect',
+					'postgresql',
+					'--url',
+					postgresUrl!,
+					'--out',
+					cliOut,
+					'--tables-filter',
+					table,
+					'--output',
+					'json',
+				]);
+
+				const sdkResult = await runSdk('pull', {
+					dialect: 'postgresql',
+					url: postgresUrl!,
+					out: sdkOut,
+					tablesFilter: table,
+				});
+
+				expect(cliResult.status).toBe('ok');
+				expect(sdkResult.status).toBe('ok');
+				// `status:'ok'` alone leaves the full ConformanceResponse ok-union; `schemaPath`
+				// uniquely discriminates the pull paths-manifest member.
+				if (
+					cliResult.status === 'ok' && sdkResult.status === 'ok'
+					&& 'schemaPath' in cliResult && 'schemaPath' in sdkResult
+				) {
+					expect(sdkResult.dialect).toBe(cliResult.dialect);
+					for (const key of ['schemaPath', 'snapshotPath'] as const) {
+						expect(typeof cliResult[key]).toBe('string');
+						expect(typeof sdkResult[key]).toBe('string');
+					}
+				}
+			} finally {
+				await dropPgTable(postgresUrl!, table).catch(() => {});
+				rmSync(cliOut, { recursive: true, force: true });
+				rmSync(sdkOut, { recursive: true, force: true });
+			}
+		},
+	);
+});
+
 describe.skipIf(!mysqlUrl)('push mysql (live DB)', () => {
 	// Drop all tables before the suite so the diff engine sees a truly empty DB.
 	// Without this, leftover tables from prior mysql test files (e.g. tests/mysql/*.test.ts)

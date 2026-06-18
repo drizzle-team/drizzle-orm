@@ -114,12 +114,9 @@ export const handleExport = async (config: ExportConfig) => {
 		res,
 		() => true,
 	);
-	if (warnings.length > 0) {
-		console.log(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
-	}
 
 	if (errors.length > 0) {
-		throw new CommandOutputCliError('generate', errors.map((it) => postgresSchemaError(it)).join('\n'), {
+		throw new CommandOutputCliError('export', errors.map((it) => postgresSchemaError(it)).join('\n'), {
 			stage: 'schema',
 			dialect: 'postgresql',
 		});
@@ -128,12 +125,15 @@ export const handleExport = async (config: ExportConfig) => {
 	const { ddl, errors: errors2 } = interimToDDL(schema);
 
 	if (errors2.length > 0) {
-		throw new CommandOutputCliError('generate', errors2.map((it) => postgresSchemaError(it)).join('\n'), {
+		throw new CommandOutputCliError('export', errors2.map((it) => postgresSchemaError(it)).join('\n'), {
 			stage: 'ddl',
 			dialect: 'postgresql',
 		});
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
-	console.log(sqlStatements.join('\n'));
+	return {
+		statements: sqlStatements,
+		warnings: warnings.map((it) => postgresSchemaWarning(it)),
+	};
 };

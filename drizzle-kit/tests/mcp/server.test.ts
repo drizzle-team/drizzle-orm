@@ -1,15 +1,18 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { rmSync } from 'fs';
+import { rmSync, writeFileSync } from 'fs';
+import { join, resolve } from 'path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-// RED: this import will fail until 41-02 creates src/mcp/server.ts
 import { createDrizzleMcpServer } from '../../src/mcp/server.js';
+import { pull } from '../../src/sdk';
+import { stageUpNonLatest } from '../sdk/up-fixtures';
 import {
 	stageConflict,
 	stageGenerateMissingHints,
 	stageOut,
 	stageValid,
 	writeDrizzleConfig,
+	writeSentinelPullConfig,
 	writeSentinelPushConfig,
 } from './fixtures';
 
@@ -40,10 +43,10 @@ const connectPair = async () => {
 };
 
 describe('MCP server tool registration', () => {
-	test('listTools returns exactly check, generate, push', async () => {
+	test('listTools returns exactly check, export, generate, pull, push, up', async () => {
 		const { client } = await connectPair();
 		const { tools } = await client.listTools();
-		expect(tools.map((t) => t.name).sort()).toEqual(['check', 'generate', 'push']);
+		expect(tools.map((t) => t.name).sort()).toEqual(['check', 'export', 'generate', 'pull', 'push', 'up']);
 		await client.close();
 	});
 
@@ -63,6 +66,35 @@ describe('MCP server tool registration', () => {
 		expect(check).toBeDefined();
 		expect(check?.annotations?.readOnlyHint).toBe(true);
 		expect(check?.annotations?.idempotentHint).toBe(true);
+		await client.close();
+	});
+
+	test('export tool advertises readOnlyHint: true and idempotentHint: true', async () => {
+		const { client } = await connectPair();
+		const { tools } = await client.listTools();
+		const exportTool = tools.find((t) => t.name === 'export');
+		expect(exportTool).toBeDefined();
+		expect(exportTool?.annotations?.readOnlyHint).toBe(true);
+		expect(exportTool?.annotations?.idempotentHint).toBe(true);
+		await client.close();
+	});
+
+	test('up tool advertises idempotentHint: true and not readOnlyHint', async () => {
+		const { client } = await connectPair();
+		const { tools } = await client.listTools();
+		const up = tools.find((t) => t.name === 'up');
+		expect(up).toBeDefined();
+		expect(up?.annotations?.idempotentHint).toBe(true);
+		expect(up?.annotations?.readOnlyHint).toBeFalsy();
+		await client.close();
+	});
+
+	test('pull tool advertises a static destructiveHint: false', async () => {
+		const { client } = await connectPair();
+		const { tools } = await client.listTools();
+		const pull = tools.find((t) => t.name === 'pull');
+		expect(pull).toBeDefined();
+		expect(pull?.annotations?.destructiveHint).toBe(false);
 		await client.close();
 	});
 
@@ -86,6 +118,9 @@ describe('MCP server tool registration', () => {
 			if (tool.name === 'generate') expect(schemaKeys).toEqual(expect.arrayContaining(['config', 'hints', 'name']));
 			if (tool.name === 'push') expect(schemaKeys).toEqual(expect.arrayContaining(['config', 'hints']));
 			if (tool.name === 'check') expect(schemaKeys).toEqual(expect.arrayContaining(['config', 'ignoreConflicts']));
+			if (tool.name === 'export') expect(schemaKeys).toEqual(expect.arrayContaining(['config']));
+			if (tool.name === 'up') expect(schemaKeys).toEqual(expect.arrayContaining(['config']));
+			if (tool.name === 'pull') expect(schemaKeys).toEqual(expect.arrayContaining(['config', 'init']));
 			for (const key of forbidden) {
 				expect(
 					schemaKeys,
@@ -94,6 +129,25 @@ describe('MCP server tool registration', () => {
 			}
 		}
 		await client.close();
+	});
+});
+
+describe('MCP server pull tool — per-call destructive _meta escalation', () => {
+	test('init:true sets the destructive _meta signal; omitting init does not (signal derives from input)', async () => {
+		const { client } = await connectPair();
+		const out = stageOut();
+		// The signal derives from the input, so the unreachable sentinel config (no live DB) is enough.
+		const { configPath } = writeSentinelPullConfig(out);
+		try {
+			const r1 = await client.callTool({ name: 'pull', arguments: { config: configPath } });
+			expect((r1._meta ?? {})['com.drizzle.team/pull.destructiveHint']).toBeFalsy();
+
+			const r2 = await client.callTool({ name: 'pull', arguments: { config: configPath, init: true } });
+			expect(r2._meta?.['com.drizzle.team/pull.destructiveHint']).toBe(true);
+		} finally {
+			await client.close();
+			rmSync(out, { recursive: true, force: true });
+		}
 	});
 });
 
@@ -124,6 +178,55 @@ describe('MCP server check tool', () => {
 			const result = await client.callTool({ name: 'check', arguments: { config } });
 			expect(result.isError).toBe(true);
 			expect(result.structuredContent).toMatchObject({ status: 'error' });
+		} finally {
+			await client.close();
+			rmSync(out, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('MCP server export tool', () => {
+	test('export against a valid schema returns isError:false and status:ok in both channels', async () => {
+		const { client } = await connectPair();
+		const out = stageOut();
+		const schemaPath = resolve(join(out, 'schema.ts'));
+		writeFileSync(
+			schemaPath,
+			"import { integer, pgTable } from 'drizzle-orm/pg-core';\nexport const t = pgTable('t', { id: integer('id') });\n",
+		);
+		const config = writeDrizzleConfig(out, schemaPath);
+		try {
+			const result = await client.callTool({ name: 'export', arguments: { config } });
+			expect(result.isError).toBe(false);
+			expect(result.structuredContent).toMatchObject({ status: 'ok' });
+			const textBlock = (result.content as any[]).find((c) => c.type === 'text');
+			expect(textBlock).toBeDefined();
+			const parsed = JSON.parse(textBlock.text);
+			expect(parsed).toMatchObject({ status: 'ok' });
+		} finally {
+			await client.close();
+			rmSync(out, { recursive: true, force: true });
+		}
+	});
+});
+
+describe('MCP server up tool', () => {
+	test('up against a non-latest snapshot returns isError:false and status:ok with non-empty upgraded[]', async () => {
+		const { client } = await connectPair();
+		const out = stageUpNonLatest();
+		// up reads snapshots, not the schema — the default schema line is never consulted.
+		const config = writeDrizzleConfig(out);
+		try {
+			const result = await client.callTool({ name: 'up', arguments: { config } });
+			expect(result.isError).toBe(false);
+			expect(result.structuredContent).toMatchObject({ status: 'ok' });
+			const textBlock = (result.content as any[]).find((c) => c.type === 'text');
+			expect(textBlock).toBeDefined();
+			const parsed = JSON.parse(textBlock.text);
+			expect(parsed).toMatchObject({ status: 'ok' });
+			const sc = result.structuredContent as any;
+			expect(Array.isArray(sc.upgraded)).toBe(true);
+			expect(sc.upgraded.length).toBeGreaterThan(0);
 		} finally {
 			await client.close();
 			rmSync(out, { recursive: true, force: true });
@@ -230,6 +333,60 @@ describe('MCP server credential-leak regression (D-13)', () => {
 			rmSync(out, { recursive: true, force: true });
 		}
 	});
+});
+
+describe('MCP server pull credential-leak regression', () => {
+	// Both spans funnel through the redacted DatabaseDriverCliError against the unreachable 127.0.0.1:1 URL:
+	// the bare {config} call fails at connect/introspect, the {config,init:true} call exercises the --init
+	// migrate-span redaction descriptor. Neither must leak the sentinel into any channel on either transport.
+	for (const init of [false, true] as const) {
+		const label = init ? '{ config, init: true } (--init migrate span)' : '{ config } (connect/introspect span)';
+		test(`pull ${label}: sentinel absent from SDK envelope, MCP text/structuredContent, and stderr`, async () => {
+			const stderrChunks: string[] = [];
+			const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(
+				((...args: unknown[]) => {
+					stderrChunks.push(String(args[0]));
+					return true;
+				}) as unknown as typeof process.stderr.write,
+			);
+
+			const out = stageOut();
+			const { configPath, sentinel } = writeSentinelPullConfig(out);
+			try {
+				// SDK path
+				const env = await pull(init ? { config: configPath, init: true } : { config: configPath });
+				expect(env.status).toBe('error');
+				expect(JSON.stringify(env)).not.toContain(sentinel);
+
+				// MCP path
+				const { client } = await connectPair();
+				const result = await client.callTool({
+					name: 'pull',
+					arguments: init ? { config: configPath, init: true } : { config: configPath },
+				});
+				stderrSpy.mockRestore();
+
+				expect(result.isError).toBe(true);
+				const sc = result.structuredContent as any;
+				expect(sc.status).toBe('error');
+
+				const textBlock = (result.content as any[]).find((c) => c.type === 'text');
+				expect(textBlock?.text ?? '').not.toContain(sentinel);
+				expect(JSON.stringify(sc)).not.toContain(sentinel);
+				expect(stderrChunks.join('')).not.toContain(sentinel);
+
+				// The destructive signal rides the result _meta even on an errored init call.
+				if (init) {
+					expect(result._meta?.['com.drizzle.team/pull.destructiveHint']).toBe(true);
+				}
+
+				await client.close();
+			} finally {
+				stderrSpy.mockRestore();
+				rmSync(out, { recursive: true, force: true });
+			}
+		});
+	}
 });
 
 describe('MCP server stdout purity (in-process)', () => {

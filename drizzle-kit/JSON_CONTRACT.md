@@ -11,6 +11,9 @@ It is written for tools and services that call Drizzle Kit programmatically.
 - `drizzle-kit generate --output json`
 - `drizzle-kit push --output json`
 - `drizzle-kit check --output json`
+- `drizzle-kit pull --output json`
+- `drizzle-kit up --output json`
+- `drizzle-kit export --output json`
 
 When `--output json` is set, callers should treat `stdout` as the JSON channel. Each command invocation writes a single JSON object to `stdout`.
 
@@ -184,7 +187,7 @@ Structured error responses with `status: "error"` use a `code` field to identify
 | `unsupported_schema_change` | see [unsupported_schema_change variants](#unsupported_schema_change) | `mysql`, `mssql`, `singlestore` | The schema diff would emit a DDL operation that the target dialect cannot execute or rejects (per `meta.kind`) |
 | `invalid_hints` | see [invalid_hints variants](#invalid_hints) | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Hints payload could not be loaded, parsed, validated, or applied — see [`invalid_hints`](#invalid_hints) below |
 | `check_error` | see [`check` outcomes](#check) | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | `check` found a snapshot-integrity problem (`kind: 'unsupported' \| 'malformed' \| 'non_latest'`, carries `snapshot`) or unreported branch conflicts (`kind: 'conflicts'`, carries `conflicts` + `details`) — see [`check`](#check) below |
-| `database_driver_error` | `database`, `packages`, `note?` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | A command that connects to a live database (`push`) cannot select a connection driver: the required driver package is not installed, or the installed driver is incompatible with the target (for example a local-only turso driver used against a remote turso database). `database` is the dialect, `packages` lists the drivers that would satisfy the connection, and `note` carries an optional install caveat. |
+| `database_driver_error` | `database`, `packages`, `note?` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | A command that connects to a live database (`push`, `pull`) cannot select a connection driver: the required driver package is not installed, or the installed driver is incompatible with the target (for example a local-only turso driver used against a remote turso database). This code is emitted by both connecting commands, push, pull; for `pull` it also covers the connect/introspect span and the `--init` migrate span. `database` is the dialect, `packages` lists the drivers that would satisfy the connection, and `note` carries an optional install caveat. The credential-bearing detail (the connection string, SQL, and params) is never spread into the envelope — only `database`, `packages`, and `note?` are surfaced. |
 
 The example payloads in each variant sub-table show only the `error` object; the full response wraps them in `{"status":"error","error":{…}}`.
 
@@ -443,6 +446,85 @@ Key semantics:
 | integrity error (`unsupported` / `malformed` / `non_latest`) | `{ status: "error", error: { code: "check_error", kind, snapshot } }` | `1` |
 | conflicts (no `--ignore-conflicts`) | `{ status: "error", error: { code: "check_error", kind: "conflicts", conflicts, details } }` | `1` |
 | conflicts with `--ignore-conflicts` | `{ status: "ok", dialect }` | `0` |
+
+## `pull`
+
+`drizzle-kit pull --output json` introspects a live database and writes `schema.ts`, an optional `relations.ts`, and a snapshot to the configured `out` directory. The `pull()` SDK export returns the same envelope verbatim. `pull` is **ok-or-error only** — it never emits `missing_hints` (it diffs the introspected database against empty DDL, so there is no rename/data-loss consent surface) and never emits `no_changes` (a pull always writes the introspected files).
+
+### `pull` success
+
+On success `pull` emits a paths-manifest `ok` envelope and exits with code `0`:
+
+```json
+{
+  "status": "ok",
+  "dialect": "postgresql",
+  "schemaPath": "drizzle/schema.ts",
+  "relationsPath": "drizzle/relations.ts",
+  "snapshotPath": "drizzle/meta/0000_snapshot.json"
+}
+```
+
+Keys:
+
+- `dialect` — always present, consistent with every other `status: "ok"` response.
+- `schemaPath` — the written `schema.ts`. Always present.
+- `snapshotPath` — the written snapshot JSON. Always present.
+- `relationsPath?` — the written `relations.ts`. **Optional**: present for `postgresql`, `mysql`, `sqlite`, `turso`, `cockroach`, and `singlestore`; omitted for `mssql` (it does not generate a relations file).
+- `migrationPath?` — **Optional**: present only when `--init` ran the initial migration against the live database and wrote a migration file.
+
+With `--init` having written an initial migration:
+
+```json
+{
+  "status": "ok",
+  "dialect": "postgresql",
+  "schemaPath": "drizzle/schema.ts",
+  "relationsPath": "drizzle/relations.ts",
+  "snapshotPath": "drizzle/meta/0000_snapshot.json",
+  "migrationPath": "drizzle/0000_init/migration.sql"
+}
+```
+
+On a connect, introspect, or `--init` migrate failure, `pull` emits a `status: "error"` envelope — most commonly [`database_driver_error`](#error-codes), whose meta is redacted to `{ database, packages, note? }` (the connection string / SQL / params are never spread into the envelope).
+
+## `up`
+
+`drizzle-kit up --output json` upgrades on-disk migration snapshots to the latest internal format, rewriting `meta/*_snapshot.json` in place. The `up()` SDK export returns the same envelope verbatim.
+
+### `up` success
+
+```json
+{
+  "status": "ok",
+  "dialect": "postgresql",
+  "upgraded": ["drizzle/meta/0000_snapshot.json"]
+}
+```
+
+`upgraded` is the array of rewritten snapshot paths; `[]` means every snapshot was already at the latest format (a no-op).
+
+## `export`
+
+`drizzle-kit export --output json` renders the full schema as a SQL dump by diffing against empty state — no database connection, nothing written. The `exportSql()` SDK export (named to avoid the reserved word `export`) returns the same envelope verbatim.
+
+### `export` success
+
+```json
+{
+  "status": "ok",
+  "dialect": "postgresql",
+  "statements": ["CREATE TABLE \"users\" (\n\t\"id\" serial PRIMARY KEY NOT NULL\n);"],
+  "warnings": []
+}
+```
+
+Keys:
+
+- `statements` — the individual SQL statements that recreate the schema.
+- `warnings` — rendered schema-warning strings; `[]` when none.
+
+There is no joined `sql` field on the `export` envelope; callers join `statements` themselves if a single SQL string is needed.
 
 ## Recommended automation flow
 

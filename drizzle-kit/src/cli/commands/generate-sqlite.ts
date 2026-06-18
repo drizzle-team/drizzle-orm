@@ -93,12 +93,12 @@ export const handleExport = async (config: ExportConfig) => {
 	const { ddl, errors } = interimToDDL(schema);
 
 	if (errors.length > 0) {
-		throw new CommandOutputCliError('generate', errors.map((it) => sqliteSchemaError(it)).join('\n'), {
+		throw new CommandOutputCliError('export', errors.map((it) => sqliteSchemaError(it)).join('\n'), {
 			stage: 'ddl',
 			dialect: 'sqlite',
 		});
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
-	console.log(sqlStatements.join('\n'));
+	return { statements: sqlStatements, warnings: [] };
 };

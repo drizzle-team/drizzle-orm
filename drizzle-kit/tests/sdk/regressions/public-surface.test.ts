@@ -18,7 +18,7 @@ if (skipForMissingDist && !process.env.CI) {
 	);
 }
 
-describe("drizzle-kit public surface exports exactly ['check','defineConfig','generate','push']", () => {
+describe("drizzle-kit public surface exports exactly ['check','defineConfig','exportSql','generate','pull','push','up']", () => {
 	beforeAll(() => {
 		// Locally a missing dist downgrades to a loud skip; in CI the build step is guaranteed,
 		// so a missing dist is a pipeline defect and must fail.
@@ -31,7 +31,7 @@ describe("drizzle-kit public surface exports exactly ['check','defineConfig','ge
 	});
 
 	test.skipIf(skipDistTests || skipForMissingDist)(
-		"Object.keys(require('drizzle-kit')) returns exactly ['check','defineConfig','generate','push']",
+		"Object.keys(require('drizzle-kit')) returns exactly ['check','defineConfig','exportSql','generate','pull','push','up']",
 		() => {
 			const probeScript = `
 const m = require(${JSON.stringify(distCjsPath)});
@@ -46,12 +46,12 @@ process.stdout.write(JSON.stringify({ keys }));
 
 			expect(result.status).toBe(0);
 			const payload = JSON.parse(result.stdout.trim());
-			expect(payload.keys).toEqual(['check', 'defineConfig', 'generate', 'push']);
+			expect(payload.keys).toEqual(['check', 'defineConfig', 'exportSql', 'generate', 'pull', 'push', 'up']);
 		},
 	);
 
 	test.skipIf(skipDistTests || skipForMissingDist)(
-		"ESM dist/index.mjs exports ['check','defineConfig','generate','push']",
+		"ESM dist/index.mjs exports ['check','defineConfig','exportSql','generate','pull','push','up']",
 		() => {
 			const probeScript = `
 import(${JSON.stringify(distMjsPath)}).then((m) => {
@@ -67,7 +67,7 @@ import(${JSON.stringify(distMjsPath)}).then((m) => {
 
 			expect(result.status).toBe(0);
 			const payload = JSON.parse(result.stdout.trim());
-			expect(payload.keys).toEqual(['check', 'defineConfig', 'generate', 'push']);
+			expect(payload.keys).toEqual(['check', 'defineConfig', 'exportSql', 'generate', 'pull', 'push', 'up']);
 		},
 	);
 });
