@@ -69,6 +69,31 @@ export const writeSentinelPushConfig = (out: string): { configPath: string; sent
 };
 
 /**
+ * Writes a drizzle.config.ts that targets pull at an unreachable postgres URL whose connection
+ * string embeds a unique sentinel password. Pull introspects the live DB, so no schema file is
+ * needed — it fails at the DB driver level with a database_driver_error envelope.
+ *
+ * Returns the config path and the sentinel string so the caller can assert the sentinel never
+ * appears in any result channel.
+ */
+export const writeSentinelPullConfig = (out: string): { configPath: string; sentinel: string } => {
+	const sentinel = `S3NT1NEL_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+	const configPath = resolve(join(out, 'drizzle-sentinel-pull.config.ts'));
+	writeFileSync(
+		configPath,
+		[
+			'export default {',
+			"  dialect: 'postgresql',",
+			`  out: ${JSON.stringify(out)},`,
+			// unreachable host; sentinel embedded as the password
+			`  dbCredentials: { url: 'postgresql://user:${sentinel}@127.0.0.1:1/none' },`,
+			'};',
+		].join('\n'),
+	);
+	return { configPath, sentinel };
+};
+
+/**
  * Writes a minimal drizzle.config.ts pointing at the staged out folder (and optionally a schema file).
  * Uses a plain export default object (no `defineConfig` import) so jiti can load it without a built dist.
  */

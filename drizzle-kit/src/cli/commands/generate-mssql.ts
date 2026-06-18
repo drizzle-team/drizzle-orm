@@ -120,7 +120,7 @@ export const handleExport = async (config: ExportConfig) => {
 	const { schema, errors } = fromDrizzleSchema(res, () => true);
 
 	if (errors.length > 0) {
-		throw new CommandOutputCliError('generate', errors.map((it) => mssqlSchemaError(it)).join('\n'), {
+		throw new CommandOutputCliError('export', errors.map((it) => mssqlSchemaError(it)).join('\n'), {
 			stage: 'schema',
 			dialect: 'mssql',
 		});
@@ -128,12 +128,12 @@ export const handleExport = async (config: ExportConfig) => {
 
 	const { ddl, errors: errors2 } = interimToDDL(schema);
 	if (errors2.length > 0) {
-		throw new CommandOutputCliError('generate', errors.map((it) => mssqlSchemaError(it)).join('\n'), {
+		throw new CommandOutputCliError('export', errors2.map((it) => mssqlSchemaError(it)).join('\n'), {
 			stage: 'ddl',
 			dialect: 'mssql',
 		});
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
-	console.log(sqlStatements.join('\n'));
+	return { statements: sqlStatements, warnings: [] };
 };

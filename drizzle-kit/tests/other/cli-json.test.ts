@@ -2,7 +2,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import { spawnSync } from 'child_process';
 import { sql } from 'drizzle-orm';
 import { check, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { mkdtempSync } from 'fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { stripAnsi } from 'hanji/utils';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -103,6 +103,7 @@ const resetMockedModules = () => {
 			'../../src/dialects/postgres/drizzle',
 			'../../src/dialects/postgres/ddl',
 			'../../src/dialects/postgres/diff',
+			'../../src/dialects/postgres/introspect',
 			'../../src/dialects/postgres/serializer',
 			'../../src/dialects/mysql/drizzle',
 			'../../src/dialects/mysql/ddl',
@@ -114,10 +115,12 @@ const resetMockedModules = () => {
 			'../../src/dialects/cockroach/drizzle',
 			'../../src/dialects/cockroach/ddl',
 			'../../src/dialects/cockroach/diff',
+			'../../src/dialects/cockroach/introspect',
 			'../../src/cli/commands/pull-mssql',
 			'../../src/dialects/mssql/drizzle',
 			'../../src/dialects/mssql/ddl',
 			'../../src/dialects/mssql/diff',
+			'../../src/dialects/mssql/introspect',
 			'../../src/dialects/mysql/introspect',
 			'../../src/dialects/singlestore/drizzle',
 			'../../src/dialects/singlestore/diff',
@@ -7345,5 +7348,298 @@ describe('turso connection-layer machine-readable surface', () => {
 			));
 
 		expect(env).toStrictEqual({ status: 'no_changes', dialect: 'turso' });
+	});
+});
+
+describe('pull json envelopes', () => {
+	const importRunPull = async () => {
+		const schema = await import('../../src/cli/schema');
+		return (schema as { runPull?: (config: unknown) => Promise<unknown> }).runPull;
+	};
+
+	const stageSnapshot = (out: string, tag: string) => {
+		const meta = join(out, tag);
+		mkdirSync(meta, { recursive: true });
+		const snapshotPath = join(meta, 'snapshot.json');
+		writeFileSync(snapshotPath, JSON.stringify({ version: '8', dialect: 'postgres', id: tag, prevIds: [], ddl: [] }));
+		return snapshotPath;
+	};
+
+	const baseConfig = (out: string) => ({
+		dialect: 'postgresql' as const,
+		credentials: { url: 'postgresql://postgres:postgres@127.0.0.1:5432/db' },
+		out,
+		casing: 'camel' as const,
+		breakpoints: true,
+		filters: { entities: undefined, extensions: undefined, schemas: undefined, tables: undefined },
+		init: false,
+		migrations: { table: '__drizzle_migrations', schema: 'public' },
+		output: 'json' as const,
+	});
+
+	const emptyInterim = {
+		schemas: [],
+		tables: [],
+		enums: [],
+		columns: [],
+		indexes: [],
+		pks: [],
+		fks: [],
+		uniques: [],
+		checks: [],
+		sequences: [],
+		roles: [],
+		privileges: [],
+		policies: [],
+		views: [],
+		viewColumns: [],
+	};
+
+	test('ok manifest (fresh) surfaces every path with migrationPath present', async () => {
+		vi.doMock('../../src/cli/connections', () => ({
+			preparePostgresDB: vi.fn(async () => ({ query: vi.fn(async () => []) })),
+		}));
+		vi.doMock('../../src/dialects/postgres/introspect', () => ({
+			fromDatabaseForDrizzle: vi.fn(async () => emptyInterim),
+		}));
+
+		const out = mkdtempSync(join(tmpdir(), 'drizzle-kit-pull-ok-fresh-'));
+		const runPull = await importRunPull();
+
+		const env = await runWithCliContext(
+			{ output: 'json', interactive: false },
+			() => runPull!(baseConfig(out)),
+		);
+
+		expect(env).toMatchObject({
+			status: 'ok',
+			dialect: 'postgresql',
+			schemaPath: join(out, 'schema.ts'),
+			relationsPath: join(out, 'relations.ts'),
+		});
+		expect((env as { snapshotPath: string }).snapshotPath).toContain('snapshot.json');
+		expect((env as { migrationPath: string }).migrationPath).toContain('migration.sql');
+		expect(env).not.toHaveProperty('missing_hints');
+		expect((env as { status: string }).status).toBe('ok');
+	});
+
+	test('ok manifest (pre-existing snapshot) omits migrationPath', async () => {
+		vi.doMock('../../src/cli/connections', () => ({
+			preparePostgresDB: vi.fn(async () => ({ query: vi.fn(async () => []) })),
+		}));
+		vi.doMock('../../src/dialects/postgres/introspect', () => ({
+			fromDatabaseForDrizzle: vi.fn(async () => emptyInterim),
+		}));
+
+		const out = mkdtempSync(join(tmpdir(), 'drizzle-kit-pull-ok-existing-'));
+		const latestSnapshot = stageSnapshot(out, '0000_x');
+		const runPull = await importRunPull();
+
+		const env = await runWithCliContext(
+			{ output: 'json', interactive: false },
+			() => runPull!(baseConfig(out)),
+		);
+
+		expect(env).toMatchObject({
+			status: 'ok',
+			dialect: 'postgresql',
+			snapshotPath: latestSnapshot,
+		});
+		expect(env).not.toHaveProperty('migrationPath');
+	});
+
+	test('database_driver_error redacts credentials, sql, params and never surfaces query_error', async () => {
+		const { QueryError } = await import('../../src/cli/utils');
+		const leakySql = 'SELECT * FROM "users" WHERE token = $1';
+		const leakyParams = ['s3cr3t'];
+
+		vi.doMock('../../src/cli/connections', () => ({
+			preparePostgresDB: vi.fn(async () => ({
+				query: vi.fn(async () => {
+					throw new QueryError(
+						new Error('connection refused for user "admin" password "s3cr3t" host db.internal'),
+						leakySql,
+						leakyParams,
+					);
+				}),
+			})),
+		}));
+		vi.doMock('../../src/dialects/postgres/introspect', () => ({
+			fromDatabaseForDrizzle: vi.fn(async () => {
+				throw new QueryError(
+					new Error('connection refused for user "admin" password "s3cr3t" host db.internal'),
+					leakySql,
+					leakyParams,
+				);
+			}),
+		}));
+
+		const out = mkdtempSync(join(tmpdir(), 'drizzle-kit-pull-driver-error-'));
+		const runPull = await importRunPull();
+		const { errorToEnvelope } = await import('../../src/cli/errors');
+
+		const caught = await runWithCliContext(
+			{ output: 'json', interactive: false },
+			() => runPull!(baseConfig(out)).then(() => null, (err) => err),
+		);
+
+		expect(caught).toMatchObject({
+			code: 'database_driver_error',
+			meta: { database: expect.any(String), packages: expect.any(Array) },
+		});
+
+		const serialized = JSON.stringify(errorToEnvelope(caught));
+		expect(serialized).toContain('database_driver_error');
+		expect(serialized).not.toContain('s3cr3t');
+		expect(serialized).not.toContain('admin');
+		expect(serialized).not.toContain('db.internal');
+		expect(serialized).not.toContain(leakySql);
+		expect(serialized).not.toContain('authToken');
+		expect(serialized).not.toContain('password');
+		expect(serialized).not.toContain('query_error');
+	});
+
+	test('--init migrate failure redacts credentials, sql, params and never surfaces query_error', async () => {
+		const { QueryError } = await import('../../src/cli/utils');
+		const leakySql = 'INSERT INTO "__drizzle_migrations" (hash, created_at) VALUES ($1, $2)';
+		const leakyParams = ['s3cr3t'];
+
+		vi.doMock('../../src/cli/connections', () => ({
+			preparePostgresDB: vi.fn(async () => ({
+				query: vi.fn(async () => []),
+				migrate: vi.fn(async () => {
+					throw new QueryError(
+						new Error('connection refused for user "admin" password "s3cr3t" host db.internal'),
+						leakySql,
+						leakyParams,
+					);
+				}),
+			})),
+		}));
+		vi.doMock('../../src/dialects/postgres/introspect', () => ({
+			fromDatabaseForDrizzle: vi.fn(async () => emptyInterim),
+		}));
+
+		const out = mkdtempSync(join(tmpdir(), 'drizzle-kit-pull-init-error-'));
+		const runPull = await importRunPull();
+		const { errorToEnvelope } = await import('../../src/cli/errors');
+
+		const caught = await runWithCliContext(
+			{ output: 'json', interactive: false },
+			() => runPull!({ ...baseConfig(out), init: true }).then(() => null, (err) => err),
+		);
+
+		expect(caught).toMatchObject({
+			code: 'database_driver_error',
+			meta: { database: expect.any(String), packages: expect.any(Array) },
+		});
+
+		const serialized = JSON.stringify(errorToEnvelope(caught));
+		expect(serialized).toContain('database_driver_error');
+		expect(serialized).not.toContain('s3cr3t');
+		expect(serialized).not.toContain('admin');
+		expect(serialized).not.toContain('db.internal');
+		expect(serialized).not.toContain(leakySql);
+		expect(serialized).not.toContain('password');
+		expect(serialized).not.toContain('query_error');
+	});
+
+	test.each(
+		[
+			[
+				'postgresql',
+				'../../src/cli/connections',
+				{ preparePostgresDB: vi.fn() },
+				'../../src/dialects/postgres/ddl',
+				'../../src/dialects/postgres/introspect',
+			],
+			[
+				'cockroach',
+				'../../src/cli/connections',
+				{ prepareCockroach: vi.fn() },
+				'../../src/dialects/cockroach/ddl',
+				'../../src/dialects/cockroach/introspect',
+			],
+			[
+				'mssql',
+				'../../src/cli/connections',
+				{ connectToMsSQL: vi.fn() },
+				'../../src/dialects/mssql/ddl',
+				'../../src/dialects/mssql/introspect',
+			],
+		] as const,
+	)(
+		'command_output_error for %s interimToDDL mapping failures',
+		async (dialect, _conn, _connMock, ddlPath, introspectPath) => {
+			const isMssql = dialect === 'mssql';
+			const connectReturn = isMssql
+				? { db: { query: vi.fn(async () => []) }, database: 'db' }
+				: { query: vi.fn(async () => []) };
+			const connectFn = vi.fn(async () => connectReturn);
+
+			vi.doMock('../../src/cli/connections', () => ({
+				preparePostgresDB: connectFn,
+				prepareCockroach: connectFn,
+				connectToMsSQL: connectFn,
+			}));
+			vi.doMock(introspectPath, () => ({
+				fromDatabaseForDrizzle: vi.fn(async () => (isMssql ? { db: {}, viewColumns: {} } : { viewColumns: {} })),
+			}));
+			vi.doMock(ddlPath, async () => {
+				const actual = await vi.importActual<Record<string, unknown>>(ddlPath);
+				return {
+					...actual,
+					interimToDDL: vi.fn(() => ({ ddl: { from: 'db' }, errors: [{ type: 'mapping_error' }] })),
+				};
+			});
+
+			const out = mkdtempSync(join(tmpdir(), `drizzle-kit-pull-command-output-${dialect}-`));
+			const runPull = await importRunPull();
+
+			const config = { ...baseConfig(out), dialect: dialect as never };
+			await expect(runWithCliContext({ output: 'json', interactive: false }, () => runPull!(config)))
+				.rejects.toMatchObject({ code: 'command_output_error', meta: { command: 'pull' } });
+		},
+	);
+
+	test('json mode emits only the envelope and never constructs IntrospectProgress', async () => {
+		const introspectProgress = vi.fn();
+		vi.doMock('../../src/cli/views', async () => {
+			const actual = await vi.importActual<typeof import('../../src/cli/views')>('../../src/cli/views');
+			class SpyIntrospectProgress extends actual.IntrospectProgress {
+				constructor(...args: ConstructorParameters<typeof actual.IntrospectProgress>) {
+					super(...args);
+					introspectProgress(...args);
+				}
+			}
+			return { ...actual, IntrospectProgress: SpyIntrospectProgress };
+		});
+		vi.doMock('../../src/cli/connections', () => ({
+			preparePostgresDB: vi.fn(async () => ({ query: vi.fn(async () => []) })),
+		}));
+		vi.doMock('../../src/dialects/postgres/introspect', () => ({
+			fromDatabaseForDrizzle: vi.fn(async () => emptyInterim),
+		}));
+
+		const hanji = await import('hanji');
+		const renderSpy = vi.spyOn(hanji, 'render').mockImplementation((() => {}) as never);
+		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+		const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation((() => true) as never);
+
+		const out = mkdtempSync(join(tmpdir(), 'drizzle-kit-pull-chatter-'));
+		const runPull = await importRunPull();
+
+		const env = await runWithCliContext(
+			{ output: 'json', interactive: false },
+			() => runPull!(baseConfig(out)),
+		);
+
+		expect((env as { status: string }).status).toBe('ok');
+		expect(introspectProgress).not.toHaveBeenCalled();
+		expect(renderSpy).not.toHaveBeenCalled();
+		const stdoutBytes = stdoutSpy.mock.calls.map((call) => String(call[0])).join('');
+		expect(stdoutBytes).not.toContain('[✓]');
+		expect(stdoutBytes).not.toContain('[i]');
+		expect(logSpy).not.toHaveBeenCalled();
 	});
 });

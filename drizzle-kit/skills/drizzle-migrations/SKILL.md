@@ -42,6 +42,8 @@ export default defineConfig({
 
 Choose `generate` for production releases and review workflows; choose `push` for rapid local iteration. Both operations share one JSON envelope (decoded by [drizzle-responses-and-errors](../drizzle-responses-and-errors/SKILL.md)) and one hint vocabulary.
 
+To go the other direction — introspect an existing database into a Drizzle schema instead of driving the database from a schema — see the `drizzle-pull` skill.
+
 ## Dialect notes
 
 The diff engine and dialect surface are shared by `generate` and `push`, so the per-dialect quirks below apply uniformly to both operations.
@@ -52,3 +54,33 @@ The diff engine and dialect surface are shared by `generate` and `push`, so the 
 - `mssql` — `unsupported_schema_change/rename_blocked_by_check_constraint` fires when `sp_rename` would fail because the column is referenced by a `CHECK` constraint; the agent must drop the constraint, rename, then recreate. `unsupported_schema_change/rename_schema_unsupported` is unconditional — MSSQL has no schema rename. `schema` kind is available for create / drop.
 - `cockroach` — postgres-family; surface largely mirrors `postgresql`. Materialized-view drops are the only `confirm_data_loss/view` trigger. Distributed-schema notes surface in `--explain` mode.
 - `singlestore` — inherits the MySQL handler shape. Same `unsupported_schema_change` variants apply (`drop_pk_dependency`, `fk_target_not_unique`). No `schema` / `enum` / `sequence` / `policy` / `role` / `privilege` kinds.
+
+## Collapsing snapshot diffs in code review
+
+Every migration `generate` writes carries a machine-generated `meta/<n>_snapshot.json` alongside the `.sql` — the full schema state, regenerated wholesale on each migration. Reviewers want to read the SQL, not the snapshot churn, so keep these generated files out of code-review noise through `.gitattributes`. This is PR-review hygiene, not a drizzle-kit command.
+
+Target only the snapshot glob `drizzle/**/meta/*_snapshot.json`. It mirrors the configured `out` dir: the default is `drizzle/`, so an `out: 'migrations'` project uses `migrations/**/meta/*_snapshot.json` instead — adjust the leading directory to match `out`. Scope the glob to `*_snapshot.json` only; do not broaden to `meta/*`, because the sibling `meta/_journal.json` is small and human-meaningful and is intentionally not a collapse target.
+
+Per platform:
+
+- **GitHub** — mark the snapshots as generated so Linguist collapses them by default (reviewers can still expand):
+
+  ```gitattributes
+  drizzle/**/meta/*_snapshot.json linguist-generated=true
+  ```
+
+  Linguist auto-detects many generated files by filename and content heuristics, but `*_snapshot.json` is not on that list, so the explicit attribute is required.
+
+- **GitLab** — collapse via the `gitlab-generated` attribute (GA on 16.11+, no feature flag):
+
+  ```gitattributes
+  drizzle/**/meta/*_snapshot.json gitlab-generated
+  ```
+
+- **Bitbucket and Gerrit** — neither has a native generated-file collapse mechanism, and neither honors `linguist-generated` or `gitlab-generated`; there is no path-based auto-collapse in their web review UIs. The closest git-native lever is the `-diff` attribute:
+
+  ```gitattributes
+  drizzle/**/meta/*_snapshot.json -diff
+  ```
+
+  Be honest about what `-diff` does: it tells git to treat the path as non-text, so `git diff` prints "Binary files differ" instead of the textual hunk (and renders as a suppressed/binary diff on GitHub and GitLab too). But it does NOT collapse the file in the Bitbucket or Gerrit web review UIs — the snapshot still appears in the changed-files list, just without a readable diff — and it removes a diff that is locally useful, since the snapshot is real JSON. Treat `-diff` as a deliberate tradeoff for those platforms, not a blanket recommendation.

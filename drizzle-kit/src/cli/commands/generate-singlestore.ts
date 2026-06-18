@@ -5,8 +5,9 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/single
 import { prepareSnapshot } from '../../dialects/singlestore/serializer';
 import { prepareOutFolder } from '../../utils/utils-node';
 import { outputFormat } from '../context';
+import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
-import { explain, explainJsonOutput, humanLog } from '../views';
+import { explain, explainJsonOutput, humanLog, mysqlSchemaError } from '../views';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
@@ -74,7 +75,15 @@ export const handle = async (config: GenerateConfig) => {
 export const handleExport = async (config: ExportConfig) => {
 	const res = await prepareFromSchemaFiles(config.filenames);
 	const schema = fromDrizzleSchema(res.tables);
-	const { ddl } = interimToDDL(schema);
+	const { ddl, errors } = interimToDDL(schema);
+
+	if (errors.length > 0) {
+		throw new CommandOutputCliError('export', errors.map((it) => mysqlSchemaError(it)).join('\n'), {
+			stage: 'ddl',
+			dialect: 'singlestore',
+		});
+	}
+
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl);
-	console.log(sqlStatements.join('\n'));
+	return { statements: sqlStatements, warnings: [] };
 };

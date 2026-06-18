@@ -2,7 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { check, generate, push } from '../sdk/index.js';
+import { check, exportSql, generate, pull, push, up } from '../sdk/index.js';
 import type { Hint } from '../sdk/index.js';
 
 // Under moduleResolution:"node", the MCP SDK's registerTool generic — which resolves
@@ -161,6 +161,91 @@ export function createDrizzleMcpServer(): McpServer {
 					})
 				) as unknown as SdkEnvelope;
 				return toToolResult(envelope);
+			} catch {
+				return toToolResult(unexpectedErrorEnvelope());
+			}
+		},
+	);
+
+	server.registerTool(
+		'export',
+		{
+			description: 'Export the full schema as a SQL dump by diffing against empty state. '
+				+ 'Read-only and idempotent — no DB connection, no files written.',
+			inputSchema: z.object({
+				config: z.string().optional().describe('Path to drizzle.config.* (defaults to project root)'),
+			}),
+			outputSchema: looseEnvelopeSchema,
+			annotations: { readOnlyHint: true, idempotentHint: true },
+		},
+		async (args) => {
+			try {
+				const envelope = await serialize(() =>
+					exportSql({ config: args.config as string | undefined })
+				) as unknown as SdkEnvelope;
+				return toToolResult(envelope);
+			} catch {
+				return toToolResult(unexpectedErrorEnvelope());
+			}
+		},
+	);
+
+	server.registerTool(
+		'up',
+		{
+			description: 'Upgrade on-disk migration snapshots to the latest format. '
+				+ 'Rewrites meta/*_snapshot.json files in place; idempotent (re-running on already-latest snapshots is a no-op).',
+			inputSchema: z.object({
+				config: z.string().optional().describe('Path to drizzle.config.* (defaults to project root)'),
+			}),
+			outputSchema: looseEnvelopeSchema,
+			annotations: { idempotentHint: true },
+		},
+		async (args) => {
+			try {
+				const envelope = await serialize(() =>
+					up({ config: args.config as string | undefined })
+				) as unknown as SdkEnvelope;
+				return toToolResult(envelope);
+			} catch {
+				return toToolResult(unexpectedErrorEnvelope());
+			}
+		},
+	);
+
+	server.registerTool(
+		'pull',
+		{
+			description: 'Introspect a live database and write schema.ts/relations.ts/snapshot to the out directory. '
+				+ 'Reads credentials from the drizzle config file only. When "init" is true, runs the initial '
+				+ 'migration against the live database (a destructive operation) and reports destructiveHint:true '
+				+ 'via the result _meta key "com.drizzle.team/pull.destructiveHint".',
+			inputSchema: z.object({
+				config: z.string().optional().describe('Path to drizzle.config.* (defaults to project root)'),
+				init: z.boolean().optional().describe(
+					'Create migration metadata for the pulled schema in the database. '
+						+ 'This runs the initial migration against the LIVE database — a destructive operation.',
+				),
+			}),
+			outputSchema: looseEnvelopeSchema,
+			// Static listTools annotation — cannot flip per call; the init:true escalation rides result._meta.
+			annotations: { destructiveHint: false },
+		},
+		async (args) => {
+			try {
+				const envelope = await serialize(() =>
+					pull({
+						config: args.config as string | undefined,
+						init: args.init as boolean | undefined,
+					})
+				) as unknown as SdkEnvelope;
+				const result = toToolResult(envelope);
+				// Per-call escalation derived from the input only — never the envelope (keeps it CLI≡SDK identical)
+				// and independent of isError, so a failed init call still warns the client.
+				if (args.init === true) {
+					result._meta = { 'com.drizzle.team/pull.destructiveHint': true };
+				}
+				return result;
 			} catch {
 				return toToolResult(unexpectedErrorEnvelope());
 			}

@@ -99,12 +99,8 @@ export const handleExport = async (config: ExportConfig) => {
 	// cc: @AleksandrSherman
 	const { schema, errors, warnings } = fromDrizzleSchema(res, () => true);
 
-	if (warnings.length > 0) {
-		console.log(warnings.map((it) => cockroachSchemaWarning(it)).join('\n\n'));
-	}
-
 	if (errors.length > 0) {
-		throw new CommandOutputCliError('generate', errors.map((it) => cockroachSchemaError(it)).join('\n'), {
+		throw new CommandOutputCliError('export', errors.map((it) => cockroachSchemaError(it)).join('\n'), {
 			stage: 'schema',
 			dialect: 'cockroach',
 		});
@@ -113,12 +109,15 @@ export const handleExport = async (config: ExportConfig) => {
 	const { ddl, errors: errors2 } = interimToDDL(schema);
 
 	if (errors2.length > 0) {
-		throw new CommandOutputCliError('generate', errors2.map((it) => cockroachSchemaError(it)).join('\n'), {
+		throw new CommandOutputCliError('export', errors2.map((it) => cockroachSchemaError(it)).join('\n'), {
 			stage: 'ddl',
 			dialect: 'cockroach',
 		});
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
-	console.log(sqlStatements.join('\n'));
+	return {
+		statements: sqlStatements,
+		warnings: warnings.map((it) => cockroachSchemaWarning(it)),
+	};
 };
