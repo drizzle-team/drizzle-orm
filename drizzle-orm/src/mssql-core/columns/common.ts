@@ -106,11 +106,6 @@ export abstract class MsSqlColumn<
 		super(table, config);
 		this.table = table;
 	}
-
-	/** @internal */
-	override shouldDisableInsert(): boolean {
-		return false;
-	}
 }
 
 export type AnyMsSqlColumn<TPartial extends Partial<ColumnBaseConfig<ColumnType>> = {}> = MsSqlColumn<
@@ -156,6 +151,10 @@ export abstract class MsSqlColumnWithIdentity<
 	readonly identity = this.config.identity;
 
 	override shouldDisableInsert(): boolean {
-		return !!this.identity;
+		// Identity columns reject explicit value/DEFAULT in INSERT (SQL Server requires
+		// `SET IDENTITY_INSERT ON` first). Generated (computed) columns reject any
+		// mention in the INSERT column list — `Msg 271`. Either disqualifies the
+		// column from the builder-generated column list.
+		return !!this.identity || super.shouldDisableInsert();
 	}
 }
