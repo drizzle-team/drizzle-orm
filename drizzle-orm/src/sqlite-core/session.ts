@@ -1,8 +1,7 @@
 import { type Cache, hashQuery, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
-import { DrizzleError, TransactionRollbackError } from '~/errors.ts';
-import { DrizzleQueryError } from '~/errors/index.ts';
+import { DrizzleError, DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';

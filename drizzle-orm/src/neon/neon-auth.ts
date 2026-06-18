@@ -16,4 +16,5 @@ export const usersSync = neonAuthSchema.table('users_sync', {
 	email: text(),
 	createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }),
 	deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'string' }),
+	updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
 });

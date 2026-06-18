@@ -65,7 +65,7 @@ function construct<
 	client: TClient,
 	config: SingleStoreDriverDrizzleConfig<TSchema> = {},
 ): SingleStoreDriverDatabase<TSchema> & {
-	$client: TClient;
+	$client: AnySingleStoreDriverConnection extends TClient ? CallbackPool : TClient;
 } {
 	const dialect = new SingleStoreDialect({ casing: config.casing });
 	let logger;
@@ -140,7 +140,7 @@ export function drizzle<
 		),
 	]
 ): SingleStoreDriverDatabase<TSchema> & {
-	$client: TClient;
+	$client: AnySingleStoreDriverConnection extends TClient ? CallbackPool : TClient;
 } {
 	if (typeof params[0] === 'string') {
 		const connectionString = params[0]!;
@@ -160,21 +160,19 @@ export function drizzle<
 		if (client) return construct(client, drizzleConfig) as any;
 
 		let opts: PoolOptions = {};
-		if (typeof connection === 'string') {
-			opts = {
+		opts = typeof connection === 'string'
+			? {
 				uri: connection,
 				supportBigNumbers: true,
 				connectAttributes: CONNECTION_ATTRS,
-			};
-		} else {
-			opts = {
+			}
+			: {
 				...connection,
 				connectAttributes: {
 					...connection!.connectAttributes,
 					...CONNECTION_ATTRS,
 				},
 			};
-		}
 
 		const instance = createPool(opts);
 		const db = construct(instance, drizzleConfig);

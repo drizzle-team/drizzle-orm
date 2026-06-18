@@ -1,3 +1,5 @@
+/// <reference types="@cloudflare/workers-types" />
+import type { PGlite } from '@electric-sql/pglite';
 import type { AwsDataApiPgQueryResult, AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
 import type { MigrationConfig } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
@@ -24,9 +26,19 @@ import { SingleStoreCredentials } from './validations/singlestore';
 import type { SqliteCredentials } from './validations/sqlite';
 
 export const preparePostgresDB = async (
-	credentials: PostgresCredentials,
+	credentials: PostgresCredentials | {
+		driver: 'pglite';
+		client: PGlite;
+	},
 ): Promise<
 	DB & {
+		packageName:
+			| '@aws-sdk/client-rds-data'
+			| 'pglite'
+			| 'pg'
+			| 'postgres'
+			| '@vercel/postgres'
+			| '@neondatabase/serverless';
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
 		migrate: (config: string | MigrationConfig) => Promise<void>;
@@ -102,6 +114,7 @@ export const preparePostgresDB = async (
 			};
 
 			return {
+				packageName: '@aws-sdk/client-rds-data',
 				query,
 				proxy,
 				transactionProxy,
@@ -115,7 +128,7 @@ export const preparePostgresDB = async (
 			const { drizzle } = await import('drizzle-orm/pglite');
 			const { migrate } = await import('drizzle-orm/pglite/migrator');
 
-			const pglite = new PGlite(normalisePGliteUrl(credentials.url));
+			const pglite = 'client' in credentials ? credentials.client : new PGlite(normalisePGliteUrl(credentials.url));
 			await pglite.waitReady;
 			const drzl = drizzle(pglite);
 			const migrateFn = async (config: MigrationConfig) => {
@@ -162,7 +175,7 @@ export const preparePostgresDB = async (
 				return results;
 			};
 
-			return { query, proxy, transactionProxy, migrate: migrateFn };
+			return { packageName: 'pglite', query, proxy, transactionProxy, migrate: migrateFn };
 		}
 
 		assertUnreachable(driver);
@@ -255,7 +268,7 @@ export const preparePostgresDB = async (
 			return results;
 		};
 
-		return { query, proxy, transactionProxy, migrate: migrateFn };
+		return { packageName: 'pg', query, proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	if (await checkPackage('postgres')) {
@@ -313,7 +326,7 @@ export const preparePostgresDB = async (
 			return results;
 		};
 
-		return { query, proxy, transactionProxy, migrate: migrateFn };
+		return { packageName: 'postgres', query, proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	if (await checkPackage('@vercel/postgres')) {
@@ -411,7 +424,7 @@ export const preparePostgresDB = async (
 			return results;
 		};
 
-		return { query, proxy, transactionProxy, migrate: migrateFn };
+		return { packageName: '@vercel/postgres', query, proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	if (await checkPackage('@neondatabase/serverless')) {
@@ -511,7 +524,7 @@ export const preparePostgresDB = async (
 			return results;
 		};
 
-		return { query, proxy, transactionProxy, migrate: migrateFn };
+		return { packageName: '@neondatabase/serverless', query, proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	console.error(
@@ -524,6 +537,7 @@ export const prepareGelDB = async (
 	credentials?: GelCredentials,
 ): Promise<
 	DB & {
+		packageName: 'gel';
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
 	}
@@ -593,7 +607,7 @@ To link your project, please refer https://docs.geldata.com/reference/cli/gel_in
 			return result;
 		};
 
-		return { query, proxy, transactionProxy };
+		return { packageName: 'gel', query, proxy, transactionProxy };
 	}
 
 	console.error(
@@ -629,6 +643,7 @@ export const connectToSingleStore = async (
 	it: SingleStoreCredentials,
 ): Promise<{
 	db: DB;
+	packageName: 'mysql2';
 	proxy: Proxy;
 	transactionProxy: TransactionProxy;
 	database: string;
@@ -686,6 +701,7 @@ export const connectToSingleStore = async (
 
 		return {
 			db: { query },
+			packageName: 'mysql2',
 			proxy,
 			transactionProxy,
 			database: result.database,
@@ -694,7 +710,7 @@ export const connectToSingleStore = async (
 	}
 
 	console.error(
-		"To connect to SingleStore database - please install 'singlestore' driver",
+		"To connect to SingleStore database - please install 'mysql2' driver",
 	);
 	process.exit(1);
 };
@@ -726,6 +742,7 @@ export const connectToMySQL = async (
 	it: MysqlCredentials,
 ): Promise<{
 	db: DB;
+	packageName: 'mysql2' | '@planetscale/database';
 	proxy: Proxy;
 	transactionProxy: TransactionProxy;
 	database: string;
@@ -795,6 +812,7 @@ export const connectToMySQL = async (
 
 		return {
 			db: { query },
+			packageName: 'mysql2',
 			proxy,
 			transactionProxy,
 			database: result.database,
@@ -846,6 +864,7 @@ export const connectToMySQL = async (
 
 		return {
 			db: { query },
+			packageName: '@planetscale/database',
 			proxy,
 			transactionProxy,
 			database: result.database,
@@ -872,7 +891,7 @@ const prepareSqliteParams = (params: any[], driver?: string) => {
 				? JSON.stringify(param.value)
 				: (param.value as string);
 
-			if (driver === 'd1-http') {
+			if (driver === 'd1-http' || driver === 'd1') {
 				return value;
 			}
 
@@ -901,11 +920,91 @@ const preparePGliteParams = (params: any[]) => {
 	});
 };
 
+export type D1Credentials = {
+	driver: 'd1';
+	binding: D1Database;
+};
+
+export const connectToD1 = async (
+	d1: D1Database,
+): Promise<
+	& SQLiteDB
+	& {
+		packageName: 'd1';
+		migrate: (config: MigrationConfig) => Promise<void>;
+		proxy: Proxy;
+		transactionProxy: TransactionProxy;
+	}
+> => {
+	const db: SQLiteDB = {
+		query: async <T>(sql: string, params?: any[]) => {
+			const stmt = d1.prepare(sql);
+			const boundStmt = params && params.length > 0 ? stmt.bind(...params) : stmt;
+			const result = await boundStmt.all<T>();
+			return (result.results ?? []) as T[];
+		},
+		run: async (query: string) => {
+			const stmt = d1.prepare(query);
+			await stmt.run();
+		},
+	};
+
+	const proxy: Proxy = async (params) => {
+		const preparedParams = prepareSqliteParams(params.params || [], 'd1');
+		const stmt = d1.prepare(params.sql);
+		const boundStmt = preparedParams.length > 0 ? stmt.bind(...preparedParams) : stmt;
+
+		try {
+			if (params.mode === 'array') {
+				return await boundStmt.raw();
+			}
+			const result = await boundStmt.all();
+			return result.results ?? [];
+		} catch (error: any) {
+			// D1 doesn't allow certain introspection queries (sqlite_master with pragma functions)
+			// Return empty array for SQLITE_AUTH errors on these system queries
+			if (error?.message?.includes('SQLITE_AUTH') || error?.message?.includes('not authorized')) {
+				return [];
+			}
+			throw error;
+		}
+	};
+
+	const transactionProxy: TransactionProxy = async (queries) => {
+		const results: any[] = [];
+		try {
+			// D1 doesn't support true transactions via binding, use batch instead
+			const statements = queries.map((q) => d1.prepare(q.sql));
+			const batchResults = await d1.batch(statements);
+			for (const result of batchResults) {
+				results.push(result.results ?? []);
+			}
+		} catch (error) {
+			results.push(error as Error);
+		}
+		return results;
+	};
+
+	const { drizzle } = await import('drizzle-orm/d1');
+	const { migrate } = await import('drizzle-orm/d1/migrator');
+	const drzl = drizzle(d1);
+	const migrateFn = async (config: MigrationConfig) => {
+		return migrate(drzl, config);
+	};
+
+	return { ...db, packageName: 'd1', proxy, transactionProxy, migrate: migrateFn };
+};
+
 export const connectToSQLite = async (
 	credentials: SqliteCredentials,
 ): Promise<
 	& SQLiteDB
-	& { migrate: (config: MigrationConfig) => Promise<void>; proxy: Proxy; transactionProxy: TransactionProxy }
+	& {
+		packageName: 'd1-http' | '@libsql/client' | 'better-sqlite3';
+		migrate: (config: MigrationConfig) => Promise<void>;
+		proxy: Proxy;
+		transactionProxy: TransactionProxy;
+	}
 > => {
 	if ('driver' in credentials) {
 		const { driver } = credentials;
@@ -1037,7 +1136,7 @@ export const connectToSQLite = async (
 				const result = await remoteBatchCallback(queries);
 				return result.rows;
 			};
-			return { ...db, proxy, transactionProxy, migrate: migrateFn };
+			return { ...db, packageName: 'd1-http', proxy, transactionProxy, migrate: migrateFn };
 		} else {
 			assertUnreachable(driver);
 		}
@@ -1101,7 +1200,7 @@ export const connectToSQLite = async (
 			return results;
 		};
 
-		return { ...db, proxy, transactionProxy, migrate: migrateFn };
+		return { ...db, packageName: '@libsql/client', proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	if (await checkPackage('better-sqlite3')) {
@@ -1170,7 +1269,7 @@ export const connectToSQLite = async (
 			return results;
 		};
 
-		return { ...db, proxy, transactionProxy, migrate: migrateFn };
+		return { ...db, packageName: 'better-sqlite3', proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	if (await checkPackage('bun:sqlite')) {
@@ -1223,7 +1322,12 @@ export const connectToSQLite = async (
 
 export const connectToLibSQL = async (credentials: LibSQLCredentials): Promise<
 	& LibSQLDB
-	& { migrate: (config: MigrationConfig) => Promise<void>; proxy: Proxy; transactionProxy: TransactionProxy }
+	& {
+		packageName: '@libsql/client';
+		migrate: (config: MigrationConfig) => Promise<void>;
+		proxy: Proxy;
+		transactionProxy: TransactionProxy;
+	}
 > => {
 	if (await checkPackage('@libsql/client')) {
 		const { createClient } = await import('@libsql/client');
@@ -1287,7 +1391,7 @@ export const connectToLibSQL = async (credentials: LibSQLCredentials): Promise<
 			return results;
 		};
 
-		return { ...db, proxy, transactionProxy, migrate: migrateFn };
+		return { ...db, packageName: '@libsql/client', proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	console.log(

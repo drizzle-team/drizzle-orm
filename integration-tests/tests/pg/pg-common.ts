@@ -1741,6 +1741,78 @@ export function tests() {
 			]);
 		});
 
+		test('select from a many subquery', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db.insert(citiesTable)
+				.values([{ name: 'Paris' }, { name: 'London' }]);
+
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+				{ name: 'Jack', cityId: 2 },
+			]);
+
+			const res = await db.select({
+				population: db.select({ count: count().as('count') }).from(users2Table).where(
+					eq(users2Table.cityId, citiesTable.id),
+				).as(
+					'population',
+				),
+				name: citiesTable.name,
+			}).from(citiesTable);
+
+			expectTypeOf(res).toEqualTypeOf<{
+				population: number;
+				name: string;
+			}[]>();
+
+			expect(res).toStrictEqual([{
+				population: 1,
+				name: 'Paris',
+			}, {
+				population: 2,
+				name: 'London',
+			}]);
+		});
+
+		test('select from a one subquery', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db.insert(citiesTable)
+				.values([{ name: 'Paris' }, { name: 'London' }]);
+
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+				{ name: 'Jack', cityId: 2 },
+			]);
+
+			const res = await db.select({
+				cityName: db.select({ name: citiesTable.name }).from(citiesTable).where(eq(users2Table.cityId, citiesTable.id))
+					.as(
+						'cityName',
+					),
+				name: users2Table.name,
+			}).from(users2Table);
+
+			expectTypeOf(res).toEqualTypeOf<{
+				cityName: string;
+				name: string;
+			}[]>();
+
+			expect(res).toStrictEqual([{
+				cityName: 'Paris',
+				name: 'John',
+			}, {
+				cityName: 'London',
+				name: 'Jane',
+			}, {
+				cityName: 'London',
+				name: 'Jack',
+			}]);
+		});
+
 		test('join subquery', async (ctx) => {
 			const { db } = ctx.pg;
 
@@ -5455,7 +5527,7 @@ export function tests() {
 
 			expect(name).toBe('users_sync');
 			expect(schema).toBe('neon_auth');
-			expect(columns).toHaveLength(6);
+			expect(columns).toHaveLength(7);
 		});
 
 		test('Enable RLS function', () => {
@@ -5473,6 +5545,44 @@ export function tests() {
 
 			expect(config1.enableRLS).toBeTruthy();
 			expect(config2.enableRLS).toBeFalsy();
+		});
+
+		test('test $onUpdateFn and $onUpdate works with sql value', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const users = pgTable('users_on_update', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().$onUpdate(() => sql`now()`),
+			});
+
+			await db.execute(
+				sql`
+					create table ${users} (
+						"id" serial primary key,
+						"name" text not null,
+						"updated_at" timestamp(3)
+					)
+				`,
+			);
+
+			const insertResp = await db.insert(users).values({
+				name: 'John',
+			}).returning({
+				updatedAt: users.updatedAt,
+			});
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+
+			const now = Date.now();
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+			const updateResp = await db.update(users).set({
+				name: 'John',
+			}).returning({
+				updatedAt: users.updatedAt,
+			});
+
+			expect(insertResp[0]?.updatedAt.getTime() ?? 0).lessThan(now);
+			expect(updateResp[0]?.updatedAt.getTime() ?? 0).greaterThan(now);
 		});
 
 		test('$count separate', async (ctx) => {
@@ -5884,6 +5994,32 @@ export function tests() {
 
 			expect(result1).toEqual([{ userId: 1, data: { name: 'John' } }]);
 			expect(result2).toEqual([{ userId: 2, data: { name: 'Jane' } }]);
+		});
+
+		test('sql.identifier escape', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const users = pgTable('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${users}`);
+			await db.execute(sql`create table ${users} (id serial not null primary key, name text not null)`);
+			await db.insert(users).values([
+				{ name: 'John' },
+				{ name: 'Jane' },
+			]);
+
+			const pgDialect = new PgDialect();
+			const userInput = 'id" ASC, CAST((SELECT name FROM users LIMIT 1) AS int)--';
+
+			const query = sql`SELECT * FROM ${sql.identifier('users')} ORDER BY ${sql.identifier(userInput)} ASC`;
+
+			const str = pgDialect.sqlToQuery(query);
+			expect(str.sql).toBe(
+				'SELECT * FROM "users" ORDER BY "id"" ASC, CAST((SELECT name FROM users LIMIT 1) AS int)--" ASC',
+			);
 		});
 
 		test('cross join', async (ctx) => {
