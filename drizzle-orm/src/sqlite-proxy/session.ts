@@ -109,7 +109,10 @@ export class SQLiteRemoteSession<
 	}
 
 	override extractRawGetValueFromBatchResult(result: unknown): unknown {
-		return (result as SqliteRemoteResult).rows![0];
+		// `rows` may be `undefined` for a no-row `get` (see the no-row handling in
+		// `mapGetResult` below); use optional chaining instead of `rows![0]`.
+		const rows = (result as SqliteRemoteResult).rows;
+		return rows?.[0];
 	}
 
 	override extractRawValuesValueFromBatchResult(result: unknown): unknown {
@@ -234,7 +237,14 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 			rows = (rows as SqliteRemoteResult).rows;
 		}
 
-		const row = rows as unknown[];
+		// A `get` that matches no row should resolve to `undefined`, matching native
+		// SQLite drivers (better-sqlite3, bun:sqlite). Proxy implementers naturally
+		// return `{ rows: [] }` for "no row" (the callback may return `rows: undefined`
+		// too), so normalize an empty array to `undefined` here, at the single mapping
+		// boundary shared by the direct `.get()`, `findFirst`, and batch paths.
+		// (Unlike `all`, a `get` row is the flat column-value array, so `[]` is
+		// unambiguously "no row" and never a real zero-column result.)
+		const row = Array.isArray(rows) && rows.length === 0 ? undefined : rows as unknown[];
 
 		if (!this.fields && !this.customResultMapper) {
 			return row;
@@ -245,7 +255,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		}
 
 		if (this.customResultMapper) {
-			return this.customResultMapper([rows] as unknown[][]) as T['get'];
+			return this.customResultMapper([row] as unknown[][]) as T['get'];
 		}
 
 		return mapResultRow(
