@@ -41,6 +41,7 @@ import {
 	unique,
 	varchar,
 } from 'drizzle-orm/mysql-core';
+import { PlanetScaleDatabase } from 'drizzle-orm/planetscale-serverless';
 import { TiDBServerlessDatabase } from 'drizzle-orm/tidb-serverless';
 import { expect } from 'vitest';
 import { expectTypeOf } from 'vitest';
@@ -1645,6 +1646,10 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		expect(queryRes).toStrictEqual(testData);
 
 		const isTidb = is(db, TiDBServerlessDatabase);
+		// TiDB and PlanetScale (serverless HTTP drivers) widen `<col> ∪ varbinary` to a binary
+		// type, returning the bit-string of the raw bytes; mysql2 keeps the text value. (Float
+		// precision and `year ∪ tinyint` narrowing, by contrast, match mysql2 on PlanetScale.)
+		const binWidens = isTidb || is(db, PlanetScaleDatabase);
 
 		// ---- numbers ----
 		expect(
@@ -2429,7 +2434,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
 			),
 		).toEqual(
-			expect.arrayContaining([{ value: isTidb ? '0000000000000010000' : '5044565289845416380' }, {
+			expect.arrayContaining([{ value: binWidens ? '0000000000000010000' : '5044565289845416380' }, {
 				value: '1010110101001101',
 			}]),
 		);
@@ -2534,7 +2539,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
 				db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
 			),
-		).toEqual(expect.arrayContaining([{ value: isTidb ? '0' : 'c' }, { value: '1010110101001101' }]));
+		).toEqual(expect.arrayContaining([{ value: binWidens ? '0' : 'c' }, { value: '1010110101001101' }]));
 		expect(
 			await unionAll(
 				db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
@@ -2636,7 +2641,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
 				db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
 			),
-		).toEqual(expect.arrayContaining([{ value: isTidb ? '00001' : '47521' }, { value: '1010110101001101' }]));
+		).toEqual(expect.arrayContaining([{ value: binWidens ? '00001' : '47521' }, { value: '1010110101001101' }]));
 		expect(
 			await unionAll(
 				db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
@@ -3146,7 +3151,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
 				db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
 			),
-		).toEqual(expect.arrayContaining([{ value: isTidb ? '00000' : 'VCHAR' }, { value: '1010110101001101' }]));
+		).toEqual(expect.arrayContaining([{ value: binWidens ? '00000' : 'VCHAR' }, { value: '1010110101001101' }]));
 		expect(
 			await unionAll(
 				db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
@@ -3202,7 +3207,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			),
 		).toEqual(
 			expect.arrayContaining([{ value: '1010110101001101' }, {
-				value: isTidb ? '0000000000000010000' : '5044565289845416380',
+				value: binWidens ? '0000000000000010000' : '5044565289845416380',
 			}]),
 		);
 		expect(
@@ -3210,13 +3215,13 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
 				db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
 			),
-		).toEqual(expect.arrayContaining([{ value: '1010110101001101' }, { value: isTidb ? '0' : 'c' }]));
+		).toEqual(expect.arrayContaining([{ value: '1010110101001101' }, { value: binWidens ? '0' : 'c' }]));
 		expect(
 			await unionAll(
 				db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
 				db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
 			),
-		).toEqual(expect.arrayContaining([{ value: '1010110101001101' }, { value: isTidb ? '00001' : '47521' }]));
+		).toEqual(expect.arrayContaining([{ value: '1010110101001101' }, { value: binWidens ? '00001' : '47521' }]));
 		expect(
 			await unionAll(
 				db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
@@ -3246,7 +3251,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
 				db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
 			),
-		).toEqual(expect.arrayContaining([{ value: '1010110101001101' }, { value: isTidb ? '00000' : 'VCHAR' }]));
+		).toEqual(expect.arrayContaining([{ value: '1010110101001101' }, { value: binWidens ? '00000' : 'VCHAR' }]));
 		expect(
 			await unionAll(
 				db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
@@ -3282,7 +3287,9 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
 				db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
 			),
-		).toEqual(expect.arrayContaining([{ value: '1010110101001101' }, { value: isTidb ? '0000000010' : '2025-03-12' }]));
+		).toEqual(
+			expect.arrayContaining([{ value: '1010110101001101' }, { value: binWidens ? '0000000010' : '2025-03-12' }]),
+		);
 		expect(
 			await unionAll(
 				db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
@@ -3290,7 +3297,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			),
 		).toEqual(
 			expect.arrayContaining([{ value: '1010110101001101' }, {
-				value: isTidb ? '00000000100010000010000' : '2025-03-12 01:32:41.623',
+				value: binWidens ? '00000000100010000010000' : '2025-03-12 01:32:41.623',
 			}]),
 		);
 		expect(
@@ -3300,7 +3307,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			),
 		).toEqual(
 			expect.arrayContaining([{ value: '1010110101001101' }, {
-				value: isTidb ? '00000000100010000010000' : '2025-03-12 01:32:41.623',
+				value: binWidens ? '00000000100010000010000' : '2025-03-12 01:32:41.623',
 			}]),
 		);
 		expect(
@@ -3308,7 +3315,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
 				db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
 			),
-		).toEqual(expect.arrayContaining([{ value: '1010110101001101' }, { value: isTidb ? '00010000' : '04:13:22' }]));
+		).toEqual(expect.arrayContaining([{ value: '1010110101001101' }, { value: binWidens ? '00010000' : '04:13:22' }]));
 		expect(
 			await unionAll(
 				db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
@@ -3770,7 +3777,9 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
 				db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
 			),
-		).toEqual(expect.arrayContaining([{ value: isTidb ? '0000000010' : '2025-03-12' }, { value: '1010110101001101' }]));
+		).toEqual(
+			expect.arrayContaining([{ value: binWidens ? '0000000010' : '2025-03-12' }, { value: '1010110101001101' }]),
+		);
 		expect(
 			await unionAll(
 				db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
@@ -3867,7 +3876,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
 			),
 		).toEqual(
-			expect.arrayContaining([{ value: isTidb ? '00000000100010000010000' : '2025-03-12 01:32:41.623' }, {
+			expect.arrayContaining([{ value: binWidens ? '00000000100010000010000' : '2025-03-12 01:32:41.623' }, {
 				value: '1010110101001101',
 			}]),
 		);
@@ -3967,7 +3976,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
 			),
 		).toEqual(
-			expect.arrayContaining([{ value: isTidb ? '00000000100010000010000' : '2025-03-12 01:32:41.623' }, {
+			expect.arrayContaining([{ value: binWidens ? '00000000100010000010000' : '2025-03-12 01:32:41.623' }, {
 				value: '1010110101001101',
 			}]),
 		);
@@ -4066,7 +4075,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
 				db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
 			),
-		).toEqual(expect.arrayContaining([{ value: isTidb ? '00010000' : '04:13:22' }, { value: '1010110101001101' }]));
+		).toEqual(expect.arrayContaining([{ value: binWidens ? '00010000' : '04:13:22' }, { value: '1010110101001101' }]));
 		expect(
 			await unionAll(
 				db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
