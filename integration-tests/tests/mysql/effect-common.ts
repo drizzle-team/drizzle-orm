@@ -374,49 +374,49 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 
 				type ExpectedType = {
 					serial: number;
-					bigint53: number | null;
-					bigint64: bigint | null;
-					bigintstr: string | null;
-					binary: string | null;
-					boolean: boolean | null;
-					char: string | null;
-					date: Date | null;
-					datestr: string | null;
-					datetime: Date | null;
-					datetimestr: string | null;
-					decimal: string | null;
-					decimalnum: number | null;
-					decimalbig: bigint | null;
-					double: number | null;
-					float: number | null;
-					int: number | null;
+					bigint53: number;
+					bigint64: bigint;
+					bigintstr: string;
+					binary: string;
+					boolean: boolean;
+					char: string;
+					date: Date;
+					datestr: string;
+					datetime: Date;
+					datetimestr: string;
+					decimal: string;
+					decimalnum: number;
+					decimalbig: bigint;
+					double: number;
+					float: number;
+					int: number;
 					json1: unknown;
 					json2: unknown;
 					json3: unknown;
 					json4: unknown;
-					medint: number | null;
-					smallint: number | null;
-					real: number | null;
-					text: string | null;
-					tinytext: string | null;
-					mediumtext: string | null;
-					longtext: string | null;
-					time: string | null;
-					timestamp: Date | null;
-					timestampstr: string | null;
-					tinyint: number | null;
-					varbin: string | null;
-					varchar: string | null;
-					year: number | null;
-					enum: 'enV1' | 'enV2' | null;
-					blob: Buffer | null;
-					tinyblob: Buffer | null;
-					mediumblob: Buffer | null;
-					longblob: Buffer | null;
-					stringblob: string | null;
-					stringtinyblob: string | null;
-					stringmediumblob: string | null;
-					stringlongblob: string | null;
+					medint: number;
+					smallint: number;
+					real: number;
+					text: string;
+					tinytext: string;
+					mediumtext: string;
+					longtext: string;
+					time: string;
+					timestamp: Date;
+					timestampstr: string;
+					tinyint: number;
+					varbin: string;
+					varchar: string;
+					year: number;
+					enum: 'enV1' | 'enV2';
+					blob: Buffer;
+					tinyblob: Buffer;
+					mediumblob: Buffer;
+					longblob: Buffer;
+					stringblob: string;
+					stringtinyblob: string;
+					stringmediumblob: string;
+					stringlongblob: string;
 				};
 
 				const testData: ExpectedType = {
@@ -509,129 +509,2741 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				expect(relationRes).toStrictEqual(testData);
 				expect(rootRes).toStrictEqual(testData);
 
-				const allCols = getColumns(allTypesCodecsTable) as Record<string, any>;
-				const td = testData as Record<string, any>;
+				// ---- numbers ----
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.serial }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.serial }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1 }, { value: 1 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.serial }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigint53 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1 }, { value: 9007199254740991 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.serial }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimalnum }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1 }, { value: 9007199254740991 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.serial }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.double }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1 }, { value: 15.35325689124218 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.serial }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.float }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1 }, { value: 1.0485960245132446 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.serial }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.int }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1 }, { value: 621 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.serial }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.medint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1 }, { value: 560 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.serial }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.smallint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1 }, { value: 14 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.serial }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.real }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1 }, { value: 1.048596 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.serial }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinyint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1 }, { value: 7 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.serial }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.year }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1 }, { value: 2025 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigint53 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.serial }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 9007199254740991 }, { value: 1 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigint53 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigint53 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 9007199254740991 }, { value: 9007199254740991 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigint53 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimalnum }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 9007199254740991 }, { value: 9007199254740991 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigint53 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.double }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 9007199254740991 }, { value: 15.35325689124218 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigint53 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.float }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 9007199254740991 }, { value: 1.0485960245132446 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigint53 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.int }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 9007199254740991 }, { value: 621 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigint53 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.medint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 9007199254740991 }, { value: 560 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigint53 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.smallint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 9007199254740991 }, { value: 14 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigint53 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.real }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 9007199254740991 }, { value: 1.048596 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigint53 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinyint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 9007199254740991 }, { value: 7 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigint53 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.year }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 9007199254740991 }, { value: 2025 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimalnum }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.serial }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 9007199254740991 }, { value: 1 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimalnum }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigint53 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 9007199254740991 }, { value: 9007199254740991 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimalnum }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimalnum }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 9007199254740991 }, { value: 9007199254740991 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimalnum }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.double }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 9007199254740991 }, { value: 15.35325689124218 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimalnum }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.float }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 9007199254740991 }, { value: 1.0485960245132446 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimalnum }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.int }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 9007199254740991 }, { value: 621 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimalnum }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.medint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 9007199254740991 }, { value: 560 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimalnum }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.smallint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 9007199254740991 }, { value: 14 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimalnum }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.real }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 9007199254740991 }, { value: 1.048596 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimalnum }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinyint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 9007199254740991 }, { value: 7 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimalnum }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.year }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 9007199254740991 }, { value: 2025 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.double }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.serial }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 15.35325689124218 }, { value: 1 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.double }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigint53 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 15.35325689124218 }, { value: 9007199254740991 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.double }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimalnum }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 15.35325689124218 }, { value: 9007199254740991 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.double }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.double }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 15.35325689124218 }, { value: 15.35325689124218 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.double }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.float }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 15.35325689124218 }, { value: 1.0485960245132446 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.double }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.int }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 15.35325689124218 }, { value: 621 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.double }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.medint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 15.35325689124218 }, { value: 560 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.double }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.smallint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 15.35325689124218 }, { value: 14 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.double }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.real }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 15.35325689124218 }, { value: 1.048596 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.double }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinyint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 15.35325689124218 }, { value: 7 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.double }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.year }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 15.35325689124218 }, { value: 2025 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.float }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.serial }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1.048596 }, { value: 1 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.float }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigint53 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1.048596 }, { value: 9007199000000000 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.float }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimalnum }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1.0485960245132446 }, { value: 9007199254740991 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.float }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.double }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1.0485960245132446 }, { value: 15.35325689124218 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.float }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.float }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1.048596 }, { value: 1.048596 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.float }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.int }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1.0485960245132446 }, { value: 621 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.float }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.medint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1.048596 }, { value: 560 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.float }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.smallint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1.048596 }, { value: 14 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.float }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.real }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1.0485960245132446 }, { value: 1.048596 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.float }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinyint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1.048596 }, { value: 7 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.float }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.year }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1.048596 }, { value: 2025 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.int }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.serial }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 621 }, { value: 1 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.int }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigint53 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 621 }, { value: 9007199254740991 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.int }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimalnum }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 621 }, { value: 9007199254740991 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.int }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.double }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 621 }, { value: 15.35325689124218 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.int }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.float }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 621 }, { value: 1.0485960245132446 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.int }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.int }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 621 }, { value: 621 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.int }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.medint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 621 }, { value: 560 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.int }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.smallint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 621 }, { value: 14 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.int }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.real }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 621 }, { value: 1.048596 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.int }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinyint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 621 }, { value: 7 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.int }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.year }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 621 }, { value: 2025 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.medint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.serial }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 560 }, { value: 1 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.medint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigint53 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 560 }, { value: 9007199254740991 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.medint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimalnum }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 560 }, { value: 9007199254740991 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.medint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.double }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 560 }, { value: 15.35325689124218 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.medint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.float }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 560 }, { value: 1.048596 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.medint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.int }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 560 }, { value: 621 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.medint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.medint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 560 }, { value: 560 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.medint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.smallint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 560 }, { value: 14 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.medint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.real }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 560 }, { value: 1.048596 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.medint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinyint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 560 }, { value: 7 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.medint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.year }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 560 }, { value: 2025 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.smallint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.serial }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 14 }, { value: 1 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.smallint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigint53 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 14 }, { value: 9007199254740991 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.smallint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimalnum }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 14 }, { value: 9007199254740991 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.smallint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.double }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 14 }, { value: 15.35325689124218 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.smallint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.float }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 14 }, { value: 1.048596 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.smallint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.int }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 14 }, { value: 621 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.smallint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.medint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 14 }, { value: 560 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.smallint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.smallint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 14 }, { value: 14 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.smallint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.real }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 14 }, { value: 1.048596 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.smallint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinyint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 14 }, { value: 7 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.smallint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.year }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 14 }, { value: 2025 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.real }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.serial }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1.048596 }, { value: 1 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.real }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigint53 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1.048596 }, { value: 9007199254740991 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.real }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimalnum }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1.048596 }, { value: 9007199254740991 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.real }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.double }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1.048596 }, { value: 15.35325689124218 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.real }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.float }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1.048596 }, { value: 1.0485960245132446 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.real }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.int }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1.048596 }, { value: 621 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.real }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.medint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1.048596 }, { value: 560 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.real }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.smallint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1.048596 }, { value: 14 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.real }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.real }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1.048596 }, { value: 1.048596 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.real }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinyint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1.048596 }, { value: 7 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.real }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.year }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 1.048596 }, { value: 2025 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinyint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.serial }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 7 }, { value: 1 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinyint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigint53 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 7 }, { value: 9007199254740991 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinyint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimalnum }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 7 }, { value: 9007199254740991 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinyint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.double }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 7 }, { value: 15.35325689124218 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinyint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.float }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 7 }, { value: 1.048596 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinyint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.int }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 7 }, { value: 621 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinyint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.medint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 7 }, { value: 560 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinyint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.smallint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 7 }, { value: 14 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinyint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.real }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 7 }, { value: 1.048596 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinyint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinyint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 7 }, { value: 7 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinyint }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.year }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 7 }, { value: 127 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.year }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.serial }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 2025 }, { value: 1 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.year }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigint53 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 2025 }, { value: 9007199254740991 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.year }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimalnum }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 2025 }, { value: 9007199254740991 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.year }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.double }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 2025 }, { value: 15.35325689124218 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.year }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.float }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 2025 }, { value: 1.048596 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.year }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.int }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 2025 }, { value: 621 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.year }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.medint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 2025 }, { value: 560 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.year }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.smallint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 2025 }, { value: 14 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.year }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.real }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 2025 }, { value: 1.048596 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.year }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinyint }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 127 }, { value: 7 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.year }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.year }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 2025 }, { value: 2025 }]);
 
-				const testUnion = (label: string, left: string, right: string, expected: unknown) =>
-					Effect.gen(function*() {
-						const res = yield* unionAll(
-							db.select({ value: allCols[left] }).from(allTypesCodecsTable),
-							db.select({ value: allCols[right] }).from(allTypesCodecsTable),
-						);
-						expect(res, label).toStrictEqual(expected);
-					});
+				// ---- strings ----
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '5044565289845416380' }, { value: '5044565289845416380' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '5044565289845416380' }, { value: 'c' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '5044565289845416380' }, { value: '47521' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '5044565289845416380' }, { value: 'C4-' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '5044565289845416380' }, { value: 'tiny text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '5044565289845416380' }, { value: 'medium text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '5044565289845416380' }, { value: 'long text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '5044565289845416380' }, { value: 'VCHAR' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '5044565289845416380' }, { value: '1010110101001101' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '5044565289845416380' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '5044565289845416380' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '5044565289845416380' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '5044565289845416380' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '5044565289845416380' }, { value: '2025-03-12' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '5044565289845416380' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '5044565289845416380' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '5044565289845416380' }, { value: '04:13:22' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'c' }, { value: '5044565289845416380' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'c' }, { value: 'c' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'c' }, { value: '47521' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'c' }, { value: 'C4-' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'c' }, { value: 'tiny text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'c' }, { value: 'medium text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'c' }, { value: 'long text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'c' }, { value: 'VCHAR' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'c' }, { value: '1010110101001101' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'c' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'c' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'c' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'c' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'c' }, { value: '2025-03-12' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'c' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'c' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'c' }, { value: '04:13:22' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '47521' }, { value: '5044565289845416380' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '47521' }, { value: 'c' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '47521' }, { value: '47521' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '47521' }, { value: 'C4-' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '47521' }, { value: 'tiny text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '47521' }, { value: 'medium text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '47521' }, { value: 'long text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '47521' }, { value: 'VCHAR' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '47521' }, { value: '1010110101001101' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '47521' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '47521' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '47521' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '47521' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '47521' }, { value: '2025-03-12' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '47521' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '47521' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '47521' }, { value: '04:13:22' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'C4-' }, { value: '5044565289845416380' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'C4-' }, { value: 'c' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'C4-' }, { value: '47521' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'C4-' }, { value: 'C4-' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'C4-' }, { value: 'tiny text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'C4-' }, { value: 'medium text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'C4-' }, { value: 'long text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'C4-' }, { value: 'VCHAR' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'C4-' }, { value: '1010110101001101' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'C4-' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'C4-' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'C4-' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'C4-' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'C4-' }, { value: '2025-03-12' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'C4-' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'C4-' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'C4-' }, { value: '04:13:22' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'tiny text' }, { value: '5044565289845416380' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'tiny text' }, { value: 'c' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'tiny text' }, { value: '47521' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'tiny text' }, { value: 'C4-' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'tiny text' }, { value: 'tiny text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'tiny text' }, { value: 'medium text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'tiny text' }, { value: 'long text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'tiny text' }, { value: 'VCHAR' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'tiny text' }, { value: '1010110101001101' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'tiny text' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'tiny text' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'tiny text' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'tiny text' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'tiny text' }, { value: '2025-03-12' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'tiny text' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'tiny text' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'tiny text' }, { value: '04:13:22' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'medium text' }, { value: '5044565289845416380' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'medium text' }, { value: 'c' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'medium text' }, { value: '47521' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'medium text' }, { value: 'C4-' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'medium text' }, { value: 'tiny text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'medium text' }, { value: 'medium text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'medium text' }, { value: 'long text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'medium text' }, { value: 'VCHAR' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'medium text' }, { value: '1010110101001101' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'medium text' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'medium text' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'medium text' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'medium text' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'medium text' }, { value: '2025-03-12' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'medium text' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'medium text' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'medium text' }, { value: '04:13:22' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'long text' }, { value: '5044565289845416380' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'long text' }, { value: 'c' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'long text' }, { value: '47521' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'long text' }, { value: 'C4-' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'long text' }, { value: 'tiny text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'long text' }, { value: 'medium text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'long text' }, { value: 'long text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'long text' }, { value: 'VCHAR' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'long text' }, { value: '1010110101001101' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'long text' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'long text' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'long text' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'long text' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'long text' }, { value: '2025-03-12' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'long text' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'long text' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'long text' }, { value: '04:13:22' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'VCHAR' }, { value: '5044565289845416380' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'VCHAR' }, { value: 'c' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'VCHAR' }, { value: '47521' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'VCHAR' }, { value: 'C4-' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'VCHAR' }, { value: 'tiny text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'VCHAR' }, { value: 'medium text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'VCHAR' }, { value: 'long text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'VCHAR' }, { value: 'VCHAR' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'VCHAR' }, { value: '1010110101001101' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'VCHAR' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'VCHAR' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'VCHAR' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'VCHAR' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'VCHAR' }, { value: '2025-03-12' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'VCHAR' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'VCHAR' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'VCHAR' }, { value: '04:13:22' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '1010110101001101' }, { value: '5044565289845416380' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '1010110101001101' }, { value: 'c' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '1010110101001101' }, { value: '47521' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '1010110101001101' }, { value: 'C4-' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '1010110101001101' }, { value: 'tiny text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '1010110101001101' }, { value: 'medium text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '1010110101001101' }, { value: 'long text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '1010110101001101' }, { value: 'VCHAR' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '1010110101001101' }, { value: '1010110101001101' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '1010110101001101' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '1010110101001101' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '1010110101001101' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '1010110101001101' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '1010110101001101' }, { value: '2025-03-12' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '1010110101001101' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '1010110101001101' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '1010110101001101' }, { value: '04:13:22' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '5044565289845416380' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'c' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '47521' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'C4-' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'tiny text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'medium text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'long text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'VCHAR' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '1010110101001101' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '2025-03-12' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '04:13:22' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '5044565289845416380' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'c' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '47521' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'C4-' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'tiny text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'medium text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'long text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'VCHAR' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '1010110101001101' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '2025-03-12' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '04:13:22' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '5044565289845416380' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'c' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '47521' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'C4-' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'tiny text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'medium text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'long text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'VCHAR' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '1010110101001101' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '2025-03-12' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '04:13:22' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '5044565289845416380' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'c' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '47521' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'C4-' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'tiny text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'medium text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'long text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'VCHAR' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '1010110101001101' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '2025-03-12' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'string' }, { value: '04:13:22' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12' }, { value: '5044565289845416380' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12' }, { value: 'c' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12' }, { value: '47521' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12' }, { value: 'C4-' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12' }, { value: 'tiny text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12' }, { value: 'medium text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12' }, { value: 'long text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12' }, { value: 'VCHAR' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12' }, { value: '1010110101001101' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12' }, { value: '2025-03-12' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 00:00:00.000' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 00:00:00.000' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: '5044565289845416380' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: 'c' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: '47521' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: 'C4-' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: 'tiny text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: 'medium text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: 'long text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: 'VCHAR' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: '1010110101001101' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: '2025-03-12 00:00:00.000' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: '5044565289845416380' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: 'c' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: '47521' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: 'C4-' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: 'tiny text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: 'medium text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: 'long text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: 'VCHAR' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: '1010110101001101' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: '2025-03-12 00:00:00.000' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datetimestr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.timestampstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: '2025-03-12 01:32:41.623' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigintstr }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '04:13:22' }, { value: '5044565289845416380' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.char }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '04:13:22' }, { value: 'c' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimal }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '04:13:22' }, { value: '47521' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.text }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '04:13:22' }, { value: 'C4-' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinytext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '04:13:22' }, { value: 'tiny text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.mediumtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '04:13:22' }, { value: 'medium text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.longtext }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '04:13:22' }, { value: 'long text' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varchar }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '04:13:22' }, { value: 'VCHAR' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.varbin }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '04:13:22' }, { value: '1010110101001101' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '04:13:22' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringtinyblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '04:13:22' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringmediumblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '04:13:22' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.stringlongblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '04:13:22' }, { value: 'string' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.time }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '04:13:22' }, { value: '04:13:22' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.binary }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.binary }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '1' }, { value: '1' }]);
 
-				const floatFromDouble = (value: number): number => {
-					const f = Math.fround(value);
-					if (!Number.isFinite(f)) return f;
-					for (let precision = 1; precision <= 9; precision++) {
-						const candidate = Number(f.toPrecision(precision));
-						if (Math.fround(candidate) === f) return candidate;
-					}
-					return f;
-				};
-				const numberCols = [
-					'serial',
-					'bigint53',
-					'decimalnum',
-					'double',
-					'float',
-					'int',
-					'medint',
-					'smallint',
-					'real',
-					'tinyint',
-					'year',
-				];
-				const isFloatResult = (left: string, right: string): boolean => {
-					if (left !== 'float' && right !== 'float') return false;
-					if (left === 'float') {
-						return ['serial', 'bigint53', 'medint', 'smallint', 'tinyint', 'year', 'float'].includes(right);
-					}
-					return ['medint', 'smallint', 'tinyint', 'year'].includes(left);
-				};
-				const numberValue = (col: string, partner: string, floatResult: boolean): number =>
-					floatResult
-						? floatFromDouble(Math.fround(td[col]))
-						: col === 'float'
-						? Math.fround(td['float'])
-						// `tinyint ∪ year` widens to a signed tinyint, narrowing year to 127
-						: col === 'year' && partner === 'tinyint'
-						? 127
-						: td[col];
-				for (const left of numberCols) {
-					for (const right of numberCols) {
-						const floatResult = isFloatResult(left, right);
-						yield* testUnion(`number: ${left} ∪ ${right}`, left, right, [
-							{ value: numberValue(left, right, floatResult) },
-							{ value: numberValue(right, left, floatResult) },
-						]);
-					}
-				}
+				// ---- bigint ----
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigint64 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigint64 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 5044565289845416380n }, { value: 5044565289845416380n }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.bigint64 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimalbig }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 5044565289845416380n }, { value: 5044565289845416380n }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimalbig }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.bigint64 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 5044565289845416380n }, { value: 5044565289845416380n }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.decimalbig }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.decimalbig }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 5044565289845416380n }, { value: 5044565289845416380n }]);
 
-				// Excluded:
-				// `binary`: a fixed-length BINARY operand is NUL-padded to the widened union length
-				// `time` ∪ {date,datetime,timestamp: MySQL converts TIME to DATETIME using non-deterministic current date
-				// Two different date-like string columns widening to DATETIME(3), where a DATE (`datestr`) gains a zero time component.
-				const stringCols = [
-					'bigintstr',
-					'char',
-					'decimal',
-					'text',
-					'tinytext',
-					'mediumtext',
-					'longtext',
-					'varchar',
-					'varbin',
-					'stringblob',
-					'stringtinyblob',
-					'stringmediumblob',
-					'stringlongblob',
-					'datestr',
-					'datetimestr',
-					'timestampstr',
-					'time',
-				];
-				const dateLikeStr = new Set(['datestr', 'datetimestr', 'timestampstr']);
-				const asDatetime3: Record<string, string> = {
-					datestr: '2025-03-12 00:00:00.000',
-					datetimestr: td['datetimestr'],
-					timestampstr: td['timestampstr'],
-				};
-				for (const left of stringCols) {
-					for (const right of stringCols) {
-						const nonDeterministicTime = (left === 'time' && dateLikeStr.has(right))
-							|| (right === 'time' && dateLikeStr.has(left));
-						if (nonDeterministicTime) continue;
+				// ---- boolean ----
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.boolean }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.boolean }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: true }, { value: true }]);
 
-						const crossDate = left !== right && dateLikeStr.has(left) && dateLikeStr.has(right);
-						yield* testUnion(`string: ${left} ∪ ${right}`, left, right, [
-							{ value: crossDate ? asDatetime3[left] : td[left] },
-							{ value: crossDate ? asDatetime3[right] : td[right] },
-						]);
-					}
-				}
-				yield* testUnion('string: binary ∪ binary', 'binary', 'binary', [{ value: td['binary'] }, {
-					value: td['binary'],
+				// ---- date ----
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.date }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.date }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: new Date('2025-03-12') }, { value: new Date('2025-03-12') }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.date }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datetime }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: new Date('2025-03-12') }, { value: new Date(1741743161623) }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.date }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.timestamp }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: new Date('2025-03-12') }, { value: new Date(1741743161623) }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datetime }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.date }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: new Date(1741743161623) }, { value: new Date('2025-03-12') }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datetime }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datetime }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: new Date(1741743161623) }, { value: new Date(1741743161623) }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.datetime }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.timestamp }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: new Date(1741743161623) }, { value: new Date(1741743161623) }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.timestamp }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.date }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: new Date(1741743161623) }, { value: new Date('2025-03-12') }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.timestamp }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.datetime }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: new Date(1741743161623) }, { value: new Date(1741743161623) }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.timestamp }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.timestamp }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: new Date(1741743161623) }, { value: new Date(1741743161623) }]);
+
+				// ---- buffer ----
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.blob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.blob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: Buffer.from('string') }, { value: Buffer.from('string') }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.blob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinyblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: Buffer.from('string') }, { value: Buffer.from('string') }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.blob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.mediumblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: Buffer.from('string') }, { value: Buffer.from('string') }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.blob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.longblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: Buffer.from('string') }, { value: Buffer.from('string') }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinyblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.blob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: Buffer.from('string') }, { value: Buffer.from('string') }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinyblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinyblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: Buffer.from('string') }, { value: Buffer.from('string') }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinyblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.mediumblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: Buffer.from('string') }, { value: Buffer.from('string') }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.tinyblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.longblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: Buffer.from('string') }, { value: Buffer.from('string') }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.mediumblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.blob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: Buffer.from('string') }, { value: Buffer.from('string') }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.mediumblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinyblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: Buffer.from('string') }, { value: Buffer.from('string') }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.mediumblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.mediumblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: Buffer.from('string') }, { value: Buffer.from('string') }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.mediumblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.longblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: Buffer.from('string') }, { value: Buffer.from('string') }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.longblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.blob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: Buffer.from('string') }, { value: Buffer.from('string') }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.longblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.tinyblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: Buffer.from('string') }, { value: Buffer.from('string') }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.longblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.mediumblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: Buffer.from('string') }, { value: Buffer.from('string') }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.longblob }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.longblob }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: Buffer.from('string') }, { value: Buffer.from('string') }]);
+
+				// ---- enum ----
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.enum }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.enum }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 'enV1' }, { value: 'enV1' }]);
+
+				// ---- json ----
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.json1 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.json1 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: { str: 'strval', arr: ['str', 10] } }, {
+					value: { str: 'strval', arr: ['str', 10] },
 				}]);
-
-				const simpleGroups: Record<string, string[]> = {
-					bigint: ['bigint64', 'decimalbig'],
-					boolean: ['boolean'],
-					date: ['date', 'datetime', 'timestamp'],
-					buffer: ['blob', 'tinyblob', 'mediumblob', 'longblob'],
-					enum: ['enum'],
-					json: ['json1', 'json2', 'json3', 'json4'],
-				};
-				for (const [groupName, cols] of Object.entries(simpleGroups)) {
-					for (const left of cols) {
-						for (const right of cols) {
-							yield* testUnion(`${groupName}: ${left} ∪ ${right}`, left, right, [{ value: td[left] }, {
-								value: td[right],
-							}]);
-						}
-					}
-				}
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.json1 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.json2 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: { str: 'strval', arr: ['str', 10] } }, {
+					value: [{ key: 'value', num: 7 }, 'v', '11', 5],
+				}]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.json1 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.json3 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: { str: 'strval', arr: ['str', 10] } }, { value: 5 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.json1 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.json4 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: { str: 'strval', arr: ['str', 10] } }, { value: '5' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.json2 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.json1 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: [{ key: 'value', num: 7 }, 'v', '11', 5] }, {
+					value: { str: 'strval', arr: ['str', 10] },
+				}]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.json2 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.json2 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: [{ key: 'value', num: 7 }, 'v', '11', 5] }, {
+					value: [{ key: 'value', num: 7 }, 'v', '11', 5],
+				}]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.json2 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.json3 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: [{ key: 'value', num: 7 }, 'v', '11', 5] }, { value: 5 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.json2 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.json4 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: [{ key: 'value', num: 7 }, 'v', '11', 5] }, { value: '5' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.json3 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.json1 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 5 }, { value: { str: 'strval', arr: ['str', 10] } }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.json3 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.json2 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 5 }, { value: [{ key: 'value', num: 7 }, 'v', '11', 5] }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.json3 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.json3 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 5 }, { value: 5 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.json3 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.json4 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: 5 }, { value: '5' }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.json4 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.json1 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '5' }, { value: { str: 'strval', arr: ['str', 10] } }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.json4 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.json2 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '5' }, { value: [{ key: 'value', num: 7 }, 'v', '11', 5] }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.json4 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.json3 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '5' }, { value: 5 }]);
+				expect(
+					yield* unionAll(
+						db.select({ value: allTypesCodecsTable.json4 }).from(allTypesCodecsTable),
+						db.select({ value: allTypesCodecsTable.json4 }).from(allTypesCodecsTable),
+					),
+				).toStrictEqual([{ value: '5' }, { value: '5' }]);
 			}));
 
 		it.effect('RQB v2 simple find first - no rows', () =>

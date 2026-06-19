@@ -4059,157 +4059,157 @@ export function tests(test: Test) {
 		test.concurrent('all types ~codecs~', async ({ createDB, push }) => {
 			const en = pgEnum('en_49', ['enVal1', 'enVal2']);
 			const allTypesTable = pgTable('all_types_48_cdcs', {
-				serial: serial('serial'),
+				serial: serial('serial').notNull(),
 				bigserial: bigserial('bigserial', {
 					mode: 'bigint',
-				}),
+				}).notNull(),
 				bigserialnum: bigserial('bigserialnum', {
 					mode: 'number',
-				}),
-				int: integer('int'),
+				}).notNull(),
+				int: integer('int').notNull(),
 				bigint: bigint('bigint', {
 					mode: 'bigint',
-				}),
+				}).notNull(),
 				bigintnum: bigint('bigintnum', {
 					mode: 'number',
-				}),
+				}).notNull(),
 				bigintstr: bigint('bigintstr', {
 					mode: 'string',
-				}),
-				bool: boolean('bool'),
-				bytea: bytea('bytea'),
-				char: char('char'),
-				cidr: cidr('cidr'),
+				}).notNull(),
+				bool: boolean('bool').notNull(),
+				bytea: bytea('bytea').notNull(),
+				char: char('char').notNull(),
+				cidr: cidr('cidr').notNull(),
 				date: date('date', {
 					mode: 'date',
-				}),
+				}).notNull(),
 				datestr: date('datestr', {
 					mode: 'string',
-				}),
-				double: doublePrecision('double'),
-				enum: en('enum'),
-				inet: inet('inet'),
-				interval: interval('interval'),
-				json: json('json'),
-				jsonb: jsonb('jsonb'),
-				json1: json('json1'),
-				jsonb1: jsonb('jsonb1'),
-				json2: json('json2'),
-				jsonb2: jsonb('jsonb2'),
-				json3: json('json3'),
-				jsonb3: jsonb('jsonb3'),
+				}).notNull(),
+				double: doublePrecision('double').notNull(),
+				enum: en('enum').notNull(),
+				inet: inet('inet').notNull(),
+				interval: interval('interval').notNull(),
+				json: json('json').notNull(),
+				jsonb: jsonb('jsonb').notNull(),
+				json1: json('json1').notNull(),
+				jsonb1: jsonb('jsonb1').notNull(),
+				json2: json('json2').notNull(),
+				jsonb2: jsonb('jsonb2').notNull(),
+				json3: json('json3').notNull(),
+				jsonb3: jsonb('jsonb3').notNull(),
 				line: line('line', {
 					mode: 'abc',
-				}),
+				}).notNull(),
 				linetuple: line('linetuple', {
 					mode: 'tuple',
-				}),
-				macaddr: macaddr('macaddr'),
-				macaddr8: macaddr8('macaddr8'),
-				numeric: numeric('numeric'),
+				}).notNull(),
+				macaddr: macaddr('macaddr').notNull(),
+				macaddr8: macaddr8('macaddr8').notNull(),
+				numeric: numeric('numeric').notNull(),
 				numericnum: numeric('numericnum', {
 					mode: 'number',
-				}),
+				}).notNull(),
 				numericbig: numeric('numericbig', {
 					mode: 'bigint',
-				}),
+				}).notNull(),
 				point: point('point', {
 					mode: 'xy',
-				}),
+				}).notNull(),
 				pointtuple: point('pointtuple', {
 					mode: 'tuple',
-				}),
-				real: real('real'),
-				smallint: smallint('smallint'),
-				smallserial: smallserial('smallserial'),
-				text: text('text'),
-				time: time('time'),
+				}).notNull(),
+				real: real('real').notNull(),
+				smallint: smallint('smallint').notNull(),
+				smallserial: smallserial('smallserial').notNull(),
+				text: text('text').notNull(),
+				time: time('time').notNull(),
 				timestamp: timestamp('timestamp', {
 					mode: 'date',
-				}),
+				}).notNull(),
 				timestampTz: timestamp('timestampTz', {
 					mode: 'date',
 					withTimezone: true,
-				}),
+				}).notNull(),
 				timestampstr: timestamp('timestampstr', {
 					mode: 'string',
-				}),
+				}).notNull(),
 				timestampTzstr: timestamp('timestampTzstr', {
 					mode: 'string',
 					withTimezone: true,
-				}),
-				uuid: uuid('uuid'),
-				varchar: varchar('varchar'),
-				arrint: integer('arrint').array(),
+				}).notNull(),
+				uuid: uuid('uuid').notNull(),
+				varchar: varchar('varchar').notNull(),
+				arrint: integer('arrint').array().notNull(),
 				arrbigint: bigint('arrbigint', {
 					mode: 'bigint',
-				}).array(),
+				}).array().notNull(),
 				arrbigintnum: bigint('arrbigintnum', {
 					mode: 'number',
-				}).array(),
+				}).array().notNull(),
 				arrbigintstr: bigint('arrbigintstr', {
 					mode: 'string',
-				}).array(),
-				arrbool: boolean('arrbool').array(),
-				arrbytea: bytea('arrbytea').array(),
-				mtxbytea: bytea('mtxbytea').array('[][]'),
-				arrchar: char('arrchar').array(),
-				arrcidr: cidr('arrcidr').array(),
+				}).array().notNull(),
+				arrbool: boolean('arrbool').array().notNull(),
+				arrbytea: bytea('arrbytea').array().notNull(),
+				mtxbytea: bytea('mtxbytea').array('[][]').notNull(),
+				arrchar: char('arrchar').array().notNull(),
+				arrcidr: cidr('arrcidr').array().notNull(),
 				arrdate: date('arrdate', {
 					mode: 'date',
-				}).array(),
+				}).array().notNull(),
 				arrdatestr: date('arrdatestr', {
 					mode: 'string',
-				}).array(),
-				arrdouble: doublePrecision('arrdouble').array(),
-				arrenum: en('arrenum').array(),
-				arrinet: inet('arrinet').array(),
-				arrinterval: interval('arrinterval').array(),
-				arrjson: json('arrjson').array(),
-				arrjsonb: jsonb('arrjsonb').array(),
-				arrjson1: json('arrjson1').array(),
-				arrjsonb1: jsonb('arrjsonb1').array(),
-				arrjson2: json('arrjson2').array(),
-				arrjsonb2: jsonb('arrjsonb2').array(),
-				arrjson3: json('arrjson3').array(),
-				arrjsonb3: jsonb('arrjsonb3').array(),
+				}).array().notNull(),
+				arrdouble: doublePrecision('arrdouble').array().notNull(),
+				arrenum: en('arrenum').array().notNull(),
+				arrinet: inet('arrinet').array().notNull(),
+				arrinterval: interval('arrinterval').array().notNull(),
+				arrjson: json('arrjson').array().notNull(),
+				arrjsonb: jsonb('arrjsonb').array().notNull(),
+				arrjson1: json('arrjson1').array().notNull(),
+				arrjsonb1: jsonb('arrjsonb1').array().notNull(),
+				arrjson2: json('arrjson2').array().notNull(),
+				arrjsonb2: jsonb('arrjsonb2').array().notNull(),
+				arrjson3: json('arrjson3').array().notNull(),
+				arrjsonb3: jsonb('arrjsonb3').array().notNull(),
 				arrline: line('arrline', {
 					mode: 'abc',
-				}).array(),
+				}).array().notNull(),
 				arrlinetuple: line('arrlinetuple', {
 					mode: 'tuple',
-				}).array(),
-				arrmacaddr: macaddr('arrmacaddr').array(),
-				arrmacaddr8: macaddr8('arrmacaddr8').array(),
-				arrnumeric: numeric('arrnumeric').array(),
-				arrnumericnum: numeric('arrnumericnum', { mode: 'number' }).array(),
-				arrnumericbig: numeric('arrnumericbig', { mode: 'bigint' }).array(),
+				}).array().notNull(),
+				arrmacaddr: macaddr('arrmacaddr').array().notNull(),
+				arrmacaddr8: macaddr8('arrmacaddr8').array().notNull(),
+				arrnumeric: numeric('arrnumeric').array().notNull(),
+				arrnumericnum: numeric('arrnumericnum', { mode: 'number' }).array().notNull(),
+				arrnumericbig: numeric('arrnumericbig', { mode: 'bigint' }).array().notNull(),
 				arrpoint: point('arrpoint', {
 					mode: 'xy',
-				}).array(),
+				}).array().notNull(),
 				arrpointtuple: point('arrpointtuple', {
 					mode: 'tuple',
-				}).array(),
-				arrreal: real('arrreal').array(),
-				arrsmallint: smallint('arrsmallint').array(),
-				arrtext: text('arrtext').array(),
-				arrtime: time('arrtime').array(),
+				}).array().notNull(),
+				arrreal: real('arrreal').array().notNull(),
+				arrsmallint: smallint('arrsmallint').array().notNull(),
+				arrtext: text('arrtext').array().notNull(),
+				arrtime: time('arrtime').array().notNull(),
 				arrtimestamp: timestamp('arrtimestamp', {
 					mode: 'date',
-				}).array(),
+				}).array().notNull(),
 				arrtimestampTz: timestamp('arrtimestampTz', {
 					mode: 'date',
 					withTimezone: true,
-				}).array(),
+				}).array().notNull(),
 				arrtimestampstr: timestamp('arrtimestampstr', {
 					mode: 'string',
-				}).array(),
+				}).array().notNull(),
 				arrtimestampTzstr: timestamp('arrtimestampTzstr', {
 					mode: 'string',
 					withTimezone: true,
-				}).array(),
-				arruuid: uuid('arruuid').array(),
-				arrvarchar: varchar('arrvarchar').array(),
+				}).array().notNull(),
+				arruuid: uuid('arruuid').array().notNull(),
+				arrvarchar: varchar('arrvarchar').array().notNull(),
 			});
 
 			const db = createDB({ allTypesTable }, (r) => ({
@@ -4225,20 +4225,20 @@ export function tests(test: Test) {
 				serial: number;
 				bigserial: bigint;
 				bigserialnum: number;
-				int: number | null;
-				bigint: bigint | null;
-				bigintnum: number | null;
-				bigintstr: string | null;
-				bool: boolean | null;
-				bytea: Buffer | null;
-				char: string | null;
-				cidr: string | null;
-				date: Date | null;
-				datestr: string | null;
-				double: number | null;
-				enum: 'enVal1' | 'enVal2' | null;
-				inet: string | null;
-				interval: string | null;
+				int: number;
+				bigint: bigint;
+				bigintnum: number;
+				bigintstr: string;
+				bool: boolean;
+				bytea: Buffer;
+				char: string;
+				cidr: string;
+				date: Date;
+				datestr: string;
+				double: number;
+				enum: 'enVal1' | 'enVal2';
+				inet: string;
+				interval: string;
 				json: unknown;
 				jsonb: unknown;
 				json1: unknown;
@@ -4247,68 +4247,68 @@ export function tests(test: Test) {
 				jsonb2: unknown;
 				json3: unknown;
 				jsonb3: unknown;
-				line: { a: number; b: number; c: number } | null;
-				linetuple: [number, number, number] | null;
-				macaddr: string | null;
-				macaddr8: string | null;
-				numeric: string | null;
-				numericnum: number | null;
-				numericbig: bigint | null;
-				point: { x: number; y: number } | null;
-				pointtuple: [number, number] | null;
-				real: number | null;
-				smallint: number | null;
+				line: { a: number; b: number; c: number };
+				linetuple: [number, number, number];
+				macaddr: string;
+				macaddr8: string;
+				numeric: string;
+				numericnum: number;
+				numericbig: bigint;
+				point: { x: number; y: number };
+				pointtuple: [number, number];
+				real: number;
+				smallint: number;
 				smallserial: number;
-				text: string | null;
-				time: string | null;
-				timestamp: Date | null;
-				timestampTz: Date | null;
-				timestampstr: string | null;
-				timestampTzstr: string | null;
-				uuid: string | null;
-				varchar: string | null;
-				arrint: number[] | null;
-				arrbigint: bigint[] | null;
-				arrbigintnum: number[] | null;
-				arrbigintstr: string[] | null;
-				arrbool: boolean[] | null;
-				arrbytea: (Buffer)[] | null;
-				mtxbytea: (Buffer)[][] | null;
-				arrchar: string[] | null;
-				arrcidr: string[] | null;
-				arrdate: Date[] | null;
-				arrdatestr: string[] | null;
-				arrdouble: number[] | null;
-				arrenum: ('enVal1' | 'enVal2')[] | null;
-				arrinet: string[] | null;
-				arrinterval: string[] | null;
-				arrjson: unknown[] | null;
-				arrjsonb: unknown[] | null;
-				arrjson1: unknown[] | null;
-				arrjsonb1: unknown[] | null;
-				arrjson2: unknown[] | null;
-				arrjsonb2: unknown[] | null;
-				arrjson3: unknown[] | null;
-				arrjsonb3: unknown[] | null;
-				arrline: { a: number; b: number; c: number }[] | null;
-				arrlinetuple: [number, number, number][] | null;
-				arrmacaddr: string[] | null;
-				arrmacaddr8: string[] | null;
-				arrnumeric: string[] | null;
-				arrnumericnum: number[] | null;
-				arrnumericbig: bigint[] | null;
-				arrpoint: { x: number; y: number }[] | null;
-				arrpointtuple: [number, number][] | null;
-				arrreal: number[] | null;
-				arrsmallint: number[] | null;
-				arrtext: string[] | null;
-				arrtime: string[] | null;
-				arrtimestamp: Date[] | null;
-				arrtimestampTz: Date[] | null;
-				arrtimestampstr: string[] | null;
-				arrtimestampTzstr: string[] | null;
-				arruuid: string[] | null;
-				arrvarchar: string[] | null;
+				text: string;
+				time: string;
+				timestamp: Date;
+				timestampTz: Date;
+				timestampstr: string;
+				timestampTzstr: string;
+				uuid: string;
+				varchar: string;
+				arrint: number[];
+				arrbigint: bigint[];
+				arrbigintnum: number[];
+				arrbigintstr: string[];
+				arrbool: boolean[];
+				arrbytea: (Buffer)[];
+				mtxbytea: (Buffer)[][];
+				arrchar: string[];
+				arrcidr: string[];
+				arrdate: Date[];
+				arrdatestr: string[];
+				arrdouble: number[];
+				arrenum: ('enVal1' | 'enVal2')[];
+				arrinet: string[];
+				arrinterval: string[];
+				arrjson: unknown[];
+				arrjsonb: unknown[];
+				arrjson1: unknown[];
+				arrjsonb1: unknown[];
+				arrjson2: unknown[];
+				arrjsonb2: unknown[];
+				arrjson3: unknown[];
+				arrjsonb3: unknown[];
+				arrline: { a: number; b: number; c: number }[];
+				arrlinetuple: [number, number, number][];
+				arrmacaddr: string[];
+				arrmacaddr8: string[];
+				arrnumeric: string[];
+				arrnumericnum: number[];
+				arrnumericbig: bigint[];
+				arrpoint: { x: number; y: number }[];
+				arrpointtuple: [number, number][];
+				arrreal: number[];
+				arrsmallint: number[];
+				arrtext: string[];
+				arrtime: string[];
+				arrtimestamp: Date[];
+				arrtimestampTz: Date[];
+				arrtimestampstr: string[];
+				arrtimestampTzstr: string[];
+				arruuid: string[];
+				arrvarchar: string[];
 			};
 
 			const testData: ExpectedType = {
@@ -4445,83 +4445,951 @@ export function tests(test: Test) {
 			expect(relationRes).toStrictEqual(testData);
 			expect(rootRes).toStrictEqual(testData);
 
-			const allCols = getColumns(allTypesTable) as Record<string, any>;
-			const td = testData as Record<string, any>;
+			// ---- numbers ----
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.int }).from(allTypesTable),
+					db.select({ value: allTypesTable.int }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 621 }, { value: 621 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.int }).from(allTypesTable),
+					db.select({ value: allTypesTable.smallint }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 621 }, { value: 10 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.int }).from(allTypesTable),
+					db.select({ value: allTypesTable.double }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 621 }, { value: 15.35325689124218 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.int }).from(allTypesTable),
+					db.select({ value: allTypesTable.real }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 621 }, { value: 1.048596 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.int }).from(allTypesTable),
+					db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 621 }, { value: 15 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.int }).from(allTypesTable),
+					db.select({ value: allTypesTable.serial }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 621 }, { value: 1 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.int }).from(allTypesTable),
+					db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 621 }, { value: 9007199254740991 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.int }).from(allTypesTable),
+					db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 621 }, { value: 9007199254740991 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.int }).from(allTypesTable),
+					db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 621 }, { value: 9007199254740991 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.smallint }).from(allTypesTable),
+					db.select({ value: allTypesTable.int }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 10 }, { value: 621 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.smallint }).from(allTypesTable),
+					db.select({ value: allTypesTable.smallint }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 10 }, { value: 10 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.smallint }).from(allTypesTable),
+					db.select({ value: allTypesTable.double }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 10 }, { value: 15.35325689124218 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.smallint }).from(allTypesTable),
+					db.select({ value: allTypesTable.real }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 10 }, { value: 1.048596 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.smallint }).from(allTypesTable),
+					db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 10 }, { value: 15 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.smallint }).from(allTypesTable),
+					db.select({ value: allTypesTable.serial }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 10 }, { value: 1 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.smallint }).from(allTypesTable),
+					db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 10 }, { value: 9007199254740991 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.smallint }).from(allTypesTable),
+					db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 10 }, { value: 9007199254740991 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.smallint }).from(allTypesTable),
+					db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 10 }, { value: 9007199254740991 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.double }).from(allTypesTable),
+					db.select({ value: allTypesTable.int }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 15.35325689124218 }, { value: 621 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.double }).from(allTypesTable),
+					db.select({ value: allTypesTable.smallint }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 15.35325689124218 }, { value: 10 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.double }).from(allTypesTable),
+					db.select({ value: allTypesTable.double }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 15.35325689124218 }, { value: 15.35325689124218 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.double }).from(allTypesTable),
+					db.select({ value: allTypesTable.real }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 15.35325689124218 }, { value: 1.0485960245132446 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.double }).from(allTypesTable),
+					db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 15.35325689124218 }, { value: 15 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.double }).from(allTypesTable),
+					db.select({ value: allTypesTable.serial }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 15.35325689124218 }, { value: 1 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.double }).from(allTypesTable),
+					db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 15.35325689124218 }, { value: 9007199254740991 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.double }).from(allTypesTable),
+					db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 15.35325689124218 }, { value: 9007199254740991 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.double }).from(allTypesTable),
+					db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 15.35325689124218 }, { value: 9007199254740991 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.real }).from(allTypesTable),
+					db.select({ value: allTypesTable.int }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 1.048596 }, { value: 621 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.real }).from(allTypesTable),
+					db.select({ value: allTypesTable.smallint }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 1.048596 }, { value: 10 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.real }).from(allTypesTable),
+					db.select({ value: allTypesTable.double }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 1.0485960245132446 }, { value: 15.35325689124218 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.real }).from(allTypesTable),
+					db.select({ value: allTypesTable.real }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 1.048596 }, { value: 1.048596 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.real }).from(allTypesTable),
+					db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 1.048596 }, { value: 15 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.real }).from(allTypesTable),
+					db.select({ value: allTypesTable.serial }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 1.048596 }, { value: 1 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
+					db.select({ value: allTypesTable.int }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 15 }, { value: 621 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
+					db.select({ value: allTypesTable.smallint }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 15 }, { value: 10 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
+					db.select({ value: allTypesTable.double }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 15 }, { value: 15.35325689124218 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
+					db.select({ value: allTypesTable.real }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 15 }, { value: 1.048596 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
+					db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 15 }, { value: 15 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
+					db.select({ value: allTypesTable.serial }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 15 }, { value: 1 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
+					db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 15 }, { value: 9007199254740991 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
+					db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 15 }, { value: 9007199254740991 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
+					db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 15 }, { value: 9007199254740991 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.serial }).from(allTypesTable),
+					db.select({ value: allTypesTable.int }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 1 }, { value: 621 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.serial }).from(allTypesTable),
+					db.select({ value: allTypesTable.smallint }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 1 }, { value: 10 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.serial }).from(allTypesTable),
+					db.select({ value: allTypesTable.double }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 1 }, { value: 15.35325689124218 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.serial }).from(allTypesTable),
+					db.select({ value: allTypesTable.real }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 1 }, { value: 1.048596 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.serial }).from(allTypesTable),
+					db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 1 }, { value: 15 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.serial }).from(allTypesTable),
+					db.select({ value: allTypesTable.serial }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 1 }, { value: 1 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.serial }).from(allTypesTable),
+					db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 1 }, { value: 9007199254740991 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.serial }).from(allTypesTable),
+					db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 1 }, { value: 9007199254740991 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.serial }).from(allTypesTable),
+					db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 1 }, { value: 9007199254740991 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
+					db.select({ value: allTypesTable.int }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 9007199254740991 }, { value: 621 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
+					db.select({ value: allTypesTable.smallint }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 9007199254740991 }, { value: 10 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
+					db.select({ value: allTypesTable.double }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 9007199254740991 }, { value: 15.35325689124218 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
+					db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 9007199254740991 }, { value: 15 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
+					db.select({ value: allTypesTable.serial }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 9007199254740991 }, { value: 1 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
+					db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 9007199254740991 }, { value: 9007199254740991 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
+					db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 9007199254740991 }, { value: 9007199254740991 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
+					db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 9007199254740991 }, { value: 9007199254740991 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
+					db.select({ value: allTypesTable.int }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 9007199254740991 }, { value: 621 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
+					db.select({ value: allTypesTable.smallint }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 9007199254740991 }, { value: 10 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
+					db.select({ value: allTypesTable.double }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 9007199254740991 }, { value: 15.35325689124218 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
+					db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 9007199254740991 }, { value: 15 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
+					db.select({ value: allTypesTable.serial }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 9007199254740991 }, { value: 1 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
+					db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 9007199254740991 }, { value: 9007199254740991 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
+					db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 9007199254740991 }, { value: 9007199254740991 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
+					db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 9007199254740991 }, { value: 9007199254740991 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
+					db.select({ value: allTypesTable.int }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 9007199254740991 }, { value: 621 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
+					db.select({ value: allTypesTable.smallint }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 9007199254740991 }, { value: 10 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
+					db.select({ value: allTypesTable.double }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 9007199254740991 }, { value: 15.35325689124218 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
+					db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 9007199254740991 }, { value: 15 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
+					db.select({ value: allTypesTable.serial }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 9007199254740991 }, { value: 1 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
+					db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 9007199254740991 }, { value: 9007199254740991 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
+					db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 9007199254740991 }, { value: 9007199254740991 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
+					db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 9007199254740991 }, { value: 9007199254740991 }]);
 
-			const testUnion = async (label: string, left: string, right: string, expected: unknown) => {
-				const res = await unionAll(
-					db.select({ value: allCols[left] }).from(allTypesTable),
-					db.select({ value: allCols[right] }).from(allTypesTable),
-				);
-				expect(res, label).toStrictEqual(expected);
-			};
+			// ---- bigint ----
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bigint }).from(allTypesTable),
+					db.select({ value: allTypesTable.bigint }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 5044565289845416380n }, { value: 5044565289845416380n }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bigint }).from(allTypesTable),
+					db.select({ value: allTypesTable.bigserial }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 5044565289845416380n }, { value: 5044565289845416380n }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bigint }).from(allTypesTable),
+					db.select({ value: allTypesTable.numericbig }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 5044565289845416380n }, { value: 5044565289845416380n }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bigserial }).from(allTypesTable),
+					db.select({ value: allTypesTable.bigint }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 5044565289845416380n }, { value: 5044565289845416380n }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bigserial }).from(allTypesTable),
+					db.select({ value: allTypesTable.bigserial }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 5044565289845416380n }, { value: 5044565289845416380n }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bigserial }).from(allTypesTable),
+					db.select({ value: allTypesTable.numericbig }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 5044565289845416380n }, { value: 5044565289845416380n }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.numericbig }).from(allTypesTable),
+					db.select({ value: allTypesTable.bigint }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 5044565289845416380n }, { value: 5044565289845416380n }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.numericbig }).from(allTypesTable),
+					db.select({ value: allTypesTable.bigserial }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 5044565289845416380n }, { value: 5044565289845416380n }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.numericbig }).from(allTypesTable),
+					db.select({ value: allTypesTable.numericbig }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 5044565289845416380n }, { value: 5044565289845416380n }]);
 
-			const numberCols = [
-				'int',
-				'smallint',
-				'double',
-				'real',
-				'smallserial',
-				'serial',
-				'bigserialnum',
-				'bigintnum',
-				'numericnum',
-			];
-			const largeNum = new Set(['bigserialnum', 'bigintnum', 'numericnum']);
-			for (const left of numberCols) {
-				for (const right of numberCols) {
-					const hasReal = left === 'real' || right === 'real';
-					const hasDouble = left === 'double' || right === 'double';
-					// `real ∪ <large>` resolves to a float4 result that mangles the large operand — skip
-					if (hasReal && !hasDouble && (largeNum.has(left) || largeNum.has(right))) continue;
-					// float8 result (`real ∪ double`): the float4 value is returned as its promoted double
-					const numVal = (col: string) => (col === 'real' && hasDouble ? Math.fround(td['real']) : td[col]);
-					await testUnion(`number: ${left} ∪ ${right}`, left, right, [
-						{ value: numVal(left) },
-						{ value: numVal(right) },
-					]);
-				}
-			}
+			// ---- text ----
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.varchar }).from(allTypesTable),
+					db.select({ value: allTypesTable.varchar }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 'C4-' }, { value: 'C4-' }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.varchar }).from(allTypesTable),
+					db.select({ value: allTypesTable.text }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 'C4-' }, { value: 'TEXT STRING' }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.text }).from(allTypesTable),
+					db.select({ value: allTypesTable.varchar }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 'TEXT STRING' }, { value: 'C4-' }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.text }).from(allTypesTable),
+					db.select({ value: allTypesTable.text }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 'TEXT STRING' }, { value: 'TEXT STRING' }]);
 
-			const crossClusters: Record<string, string[]> = {
-				bigint: ['bigint', 'bigserial', 'numericbig'],
-				text: ['varchar', 'text'],
-				numstr: ['bigintstr', 'numeric'],
-				date: ['date', 'timestamp', 'timestampTz'],
-				json: ['json', 'json1', 'json2', 'json3'],
-				jsonb: ['jsonb', 'jsonb1', 'jsonb2', 'jsonb3'],
-			};
-			for (const [name, cols] of Object.entries(crossClusters)) {
-				for (const left of cols) {
-					for (const right of cols) {
-						await testUnion(`${name}: ${left} ∪ ${right}`, left, right, [{ value: td[left] }, { value: td[right] }]);
-					}
-				}
-			}
+			// ---- numstr ----
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bigintstr }).from(allTypesTable),
+					db.select({ value: allTypesTable.bigintstr }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: '5044565289845416380' }, { value: '5044565289845416380' }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bigintstr }).from(allTypesTable),
+					db.select({ value: allTypesTable.numeric }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: '5044565289845416380' }, { value: '5044565289845416380' }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.numeric }).from(allTypesTable),
+					db.select({ value: allTypesTable.bigintstr }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: '5044565289845416380' }, { value: '5044565289845416380' }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.numeric }).from(allTypesTable),
+					db.select({ value: allTypesTable.numeric }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: '5044565289845416380' }, { value: '5044565289845416380' }]);
 
-			const selfOnly = [
-				'char',
-				'cidr',
-				'inet',
-				'macaddr',
-				'macaddr8',
-				'uuid',
-				'interval',
-				'time',
-				'datestr',
-				'timestampstr',
-				'timestampTzstr',
-				'bool',
-				'bytea',
-				'enum',
-				'line',
-				'linetuple',
-				'point',
-				'pointtuple',
-			];
-			for (const col of selfOnly) {
-				await testUnion(`self: ${col} ∪ ${col}`, col, col, [{ value: td[col] }, { value: td[col] }]);
-			}
+			// ---- date ----
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.date }).from(allTypesTable),
+					db.select({ value: allTypesTable.date }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: new Date('2025-03-12') }, { value: new Date('2025-03-12') }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.date }).from(allTypesTable),
+					db.select({ value: allTypesTable.timestamp }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: new Date('2025-03-12') }, { value: new Date('2025-03-12 01:32:41.623') }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.date }).from(allTypesTable),
+					db.select({ value: allTypesTable.timestampTz }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: new Date('2025-03-12') }, { value: new Date('2025-03-12 01:32:41.623+00') }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.timestamp }).from(allTypesTable),
+					db.select({ value: allTypesTable.date }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: new Date('2025-03-12 01:32:41.623') }, { value: new Date('2025-03-12') }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.timestamp }).from(allTypesTable),
+					db.select({ value: allTypesTable.timestamp }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: new Date('2025-03-12 01:32:41.623') }, { value: new Date('2025-03-12 01:32:41.623') }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.timestamp }).from(allTypesTable),
+					db.select({ value: allTypesTable.timestampTz }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: new Date('2025-03-12 01:32:41.623') }, {
+				value: new Date('2025-03-12 01:32:41.623+00'),
+			}]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.timestampTz }).from(allTypesTable),
+					db.select({ value: allTypesTable.date }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: new Date('2025-03-12 01:32:41.623+00') }, { value: new Date('2025-03-12') }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.timestampTz }).from(allTypesTable),
+					db.select({ value: allTypesTable.timestamp }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: new Date('2025-03-12 01:32:41.623+00') }, {
+				value: new Date('2025-03-12 01:32:41.623'),
+			}]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.timestampTz }).from(allTypesTable),
+					db.select({ value: allTypesTable.timestampTz }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: new Date('2025-03-12 01:32:41.623+00') }, {
+				value: new Date('2025-03-12 01:32:41.623+00'),
+			}]);
+
+			// ---- json ----
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.json }).from(allTypesTable),
+					db.select({ value: allTypesTable.json }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: { str: 'strval', arr: ['str', 10] } }, { value: { str: 'strval', arr: ['str', 10] } }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.json }).from(allTypesTable),
+					db.select({ value: allTypesTable.json1 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: { str: 'strval', arr: ['str', 10] } }, {
+				value: [{ key: 'value', num: 7 }, 'v', '11', 5],
+			}]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.json }).from(allTypesTable),
+					db.select({ value: allTypesTable.json2 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: { str: 'strval', arr: ['str', 10] } }, { value: 5 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.json }).from(allTypesTable),
+					db.select({ value: allTypesTable.json3 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: { str: 'strval', arr: ['str', 10] } }, { value: '5' }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.json1 }).from(allTypesTable),
+					db.select({ value: allTypesTable.json }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: [{ key: 'value', num: 7 }, 'v', '11', 5] }, {
+				value: { str: 'strval', arr: ['str', 10] },
+			}]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.json1 }).from(allTypesTable),
+					db.select({ value: allTypesTable.json1 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: [{ key: 'value', num: 7 }, 'v', '11', 5] }, {
+				value: [{ key: 'value', num: 7 }, 'v', '11', 5],
+			}]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.json1 }).from(allTypesTable),
+					db.select({ value: allTypesTable.json2 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: [{ key: 'value', num: 7 }, 'v', '11', 5] }, { value: 5 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.json1 }).from(allTypesTable),
+					db.select({ value: allTypesTable.json3 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: [{ key: 'value', num: 7 }, 'v', '11', 5] }, { value: '5' }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.json2 }).from(allTypesTable),
+					db.select({ value: allTypesTable.json }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 5 }, { value: { str: 'strval', arr: ['str', 10] } }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.json2 }).from(allTypesTable),
+					db.select({ value: allTypesTable.json1 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 5 }, { value: [{ key: 'value', num: 7 }, 'v', '11', 5] }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.json2 }).from(allTypesTable),
+					db.select({ value: allTypesTable.json2 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 5 }, { value: 5 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.json2 }).from(allTypesTable),
+					db.select({ value: allTypesTable.json3 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 5 }, { value: '5' }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.json3 }).from(allTypesTable),
+					db.select({ value: allTypesTable.json }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: '5' }, { value: { str: 'strval', arr: ['str', 10] } }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.json3 }).from(allTypesTable),
+					db.select({ value: allTypesTable.json1 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: '5' }, { value: [{ key: 'value', num: 7 }, 'v', '11', 5] }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.json3 }).from(allTypesTable),
+					db.select({ value: allTypesTable.json2 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: '5' }, { value: 5 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.json3 }).from(allTypesTable),
+					db.select({ value: allTypesTable.json3 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: '5' }, { value: '5' }]);
+
+			// ---- jsonb ----
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.jsonb }).from(allTypesTable),
+					db.select({ value: allTypesTable.jsonb }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: { arr: ['strb', 11], str: 'strvalb' } }, {
+				value: { arr: ['strb', 11], str: 'strvalb' },
+			}]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.jsonb }).from(allTypesTable),
+					db.select({ value: allTypesTable.jsonb1 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: { arr: ['strb', 11], str: 'strvalb' } }, {
+				value: [{ key: 'value', num: 8 }, 'x', '10', 3],
+			}]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.jsonb }).from(allTypesTable),
+					db.select({ value: allTypesTable.jsonb2 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: { arr: ['strb', 11], str: 'strvalb' } }, { value: 7 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.jsonb }).from(allTypesTable),
+					db.select({ value: allTypesTable.jsonb3 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: { arr: ['strb', 11], str: 'strvalb' } }, { value: '7' }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.jsonb1 }).from(allTypesTable),
+					db.select({ value: allTypesTable.jsonb }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: [{ key: 'value', num: 8 }, 'x', '10', 3] }, {
+				value: { arr: ['strb', 11], str: 'strvalb' },
+			}]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.jsonb1 }).from(allTypesTable),
+					db.select({ value: allTypesTable.jsonb1 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: [{ key: 'value', num: 8 }, 'x', '10', 3] }, {
+				value: [{ key: 'value', num: 8 }, 'x', '10', 3],
+			}]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.jsonb1 }).from(allTypesTable),
+					db.select({ value: allTypesTable.jsonb2 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: [{ key: 'value', num: 8 }, 'x', '10', 3] }, { value: 7 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.jsonb1 }).from(allTypesTable),
+					db.select({ value: allTypesTable.jsonb3 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: [{ key: 'value', num: 8 }, 'x', '10', 3] }, { value: '7' }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.jsonb2 }).from(allTypesTable),
+					db.select({ value: allTypesTable.jsonb }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 7 }, { value: { arr: ['strb', 11], str: 'strvalb' } }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.jsonb2 }).from(allTypesTable),
+					db.select({ value: allTypesTable.jsonb1 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 7 }, { value: [{ key: 'value', num: 8 }, 'x', '10', 3] }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.jsonb2 }).from(allTypesTable),
+					db.select({ value: allTypesTable.jsonb2 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 7 }, { value: 7 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.jsonb2 }).from(allTypesTable),
+					db.select({ value: allTypesTable.jsonb3 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 7 }, { value: '7' }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.jsonb3 }).from(allTypesTable),
+					db.select({ value: allTypesTable.jsonb }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: '7' }, { value: { arr: ['strb', 11], str: 'strvalb' } }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.jsonb3 }).from(allTypesTable),
+					db.select({ value: allTypesTable.jsonb1 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: '7' }, { value: [{ key: 'value', num: 8 }, 'x', '10', 3] }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.jsonb3 }).from(allTypesTable),
+					db.select({ value: allTypesTable.jsonb2 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: '7' }, { value: 7 }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.jsonb3 }).from(allTypesTable),
+					db.select({ value: allTypesTable.jsonb3 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: '7' }, { value: '7' }]);
+
+			// ---- self ----
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.char }).from(allTypesTable),
+					db.select({ value: allTypesTable.char }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 'c' }, { value: 'c' }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.cidr }).from(allTypesTable),
+					db.select({ value: allTypesTable.cidr }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128' }, {
+				value: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
+			}]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.inet }).from(allTypesTable),
+					db.select({ value: allTypesTable.inet }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: '192.168.0.1/24' }, { value: '192.168.0.1/24' }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.macaddr }).from(allTypesTable),
+					db.select({ value: allTypesTable.macaddr }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: '08:00:2b:01:02:03' }, { value: '08:00:2b:01:02:03' }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.macaddr8 }).from(allTypesTable),
+					db.select({ value: allTypesTable.macaddr8 }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: '08:00:2b:01:02:03:04:05' }, { value: '08:00:2b:01:02:03:04:05' }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.uuid }).from(allTypesTable),
+					db.select({ value: allTypesTable.uuid }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c' }, {
+				value: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
+			}]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.interval }).from(allTypesTable),
+					db.select({ value: allTypesTable.interval }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: '-2 mons' }, { value: '-2 mons' }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.time }).from(allTypesTable),
+					db.select({ value: allTypesTable.time }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: '13:59:28' }, { value: '13:59:28' }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.datestr }).from(allTypesTable),
+					db.select({ value: allTypesTable.datestr }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: '2025-03-12' }, { value: '2025-03-12' }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.timestampstr }).from(allTypesTable),
+					db.select({ value: allTypesTable.timestampstr }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: '2025-03-12 01:32:41.623' }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.timestampTzstr }).from(allTypesTable),
+					db.select({ value: allTypesTable.timestampTzstr }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: '2025-03-12 01:32:41.623+00' }, { value: '2025-03-12 01:32:41.623+00' }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bool }).from(allTypesTable),
+					db.select({ value: allTypesTable.bool }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: true }, { value: true }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.bytea }).from(allTypesTable),
+					db.select({ value: allTypesTable.bytea }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: Buffer.from('BYTES') }, { value: Buffer.from('BYTES') }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.enum }).from(allTypesTable),
+					db.select({ value: allTypesTable.enum }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: 'enVal1' }, { value: 'enVal1' }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.line }).from(allTypesTable),
+					db.select({ value: allTypesTable.line }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: { a: 1, b: 2, c: 3 } }, { value: { a: 1, b: 2, c: 3 } }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.linetuple }).from(allTypesTable),
+					db.select({ value: allTypesTable.linetuple }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: [1, 2, 3] }, { value: [1, 2, 3] }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.point }).from(allTypesTable),
+					db.select({ value: allTypesTable.point }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: { x: 24.5, y: 49.6 } }, { value: { x: 24.5, y: 49.6 } }]);
+			expect(
+				await unionAll(
+					db.select({ value: allTypesTable.pointtuple }).from(allTypesTable),
+					db.select({ value: allTypesTable.pointtuple }).from(allTypesTable),
+				),
+			).toStrictEqual([{ value: [24.5, 49.6] }, { value: [24.5, 49.6] }]);
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/3018
