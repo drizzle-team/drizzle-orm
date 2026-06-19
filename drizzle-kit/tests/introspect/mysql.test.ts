@@ -317,3 +317,24 @@ test('instrospect strings with single quotes', async () => {
 
 	await client.query(`drop table columns;`);
 });
+
+test('introspect float and double columns with a zero default', async () => {
+	const schema = {
+		columns: mysqlTable('columns', {
+			floatCol: float('float_col').notNull().default(0),
+			doubleCol: double('double_col').notNull().default(0),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectMySQLToFile(
+		client,
+		schema,
+		'introspect-float-double-zero-default',
+		'drizzle',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+
+	await client.query(`drop table columns;`);
+});
