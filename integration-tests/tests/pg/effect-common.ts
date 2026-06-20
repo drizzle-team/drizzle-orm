@@ -3219,952 +3219,726 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 					// ---- numbers ----
 					expect(
 						yield* unionAll(
-							db.select({ value: allTypesTable.int }).from(allTypesTable),
-							db.select({ value: allTypesTable.int }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 621 }, { value: 621 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.int }).from(allTypesTable),
-							db.select({ value: allTypesTable.smallint }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 621 }, { value: 10 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.int }).from(allTypesTable),
-							db.select({ value: allTypesTable.double }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 621 }, { value: 15.35325689124218 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.int }).from(allTypesTable),
-							db.select({ value: allTypesTable.real }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 621 }, { value: 1.048596 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.int }).from(allTypesTable),
-							db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 621 }, { value: 15 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.int }).from(allTypesTable),
-							db.select({ value: allTypesTable.serial }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 621 }, { value: 1 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.int }).from(allTypesTable),
-							db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 621 }, { value: 9007199254740991 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.int }).from(allTypesTable),
-							db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 621 }, { value: 9007199254740991 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.int }).from(allTypesTable),
-							db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 621 }, { value: 9007199254740991 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.smallint }).from(allTypesTable),
-							db.select({ value: allTypesTable.int }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 10 }, { value: 621 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.smallint }).from(allTypesTable),
-							db.select({ value: allTypesTable.smallint }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 10 }, { value: 10 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.smallint }).from(allTypesTable),
-							db.select({ value: allTypesTable.double }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 10 }, { value: 15.35325689124218 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.smallint }).from(allTypesTable),
-							db.select({ value: allTypesTable.real }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 10 }, { value: 1.048596 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.smallint }).from(allTypesTable),
-							db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 10 }, { value: 15 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.smallint }).from(allTypesTable),
-							db.select({ value: allTypesTable.serial }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 10 }, { value: 1 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.smallint }).from(allTypesTable),
-							db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 10 }, { value: 9007199254740991 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.smallint }).from(allTypesTable),
-							db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 10 }, { value: 9007199254740991 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.smallint }).from(allTypesTable),
-							db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 10 }, { value: 9007199254740991 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.double }).from(allTypesTable),
-							db.select({ value: allTypesTable.int }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 15.35325689124218 }, { value: 621 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.double }).from(allTypesTable),
-							db.select({ value: allTypesTable.smallint }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 15.35325689124218 }, { value: 10 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.double }).from(allTypesTable),
-							db.select({ value: allTypesTable.double }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 15.35325689124218 }, { value: 15.35325689124218 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.double }).from(allTypesTable),
-							db.select({ value: allTypesTable.real }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 15.35325689124218 }, { value: 1.0485960245132446 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.double }).from(allTypesTable),
-							db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 15.35325689124218 }, { value: 15 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.double }).from(allTypesTable),
-							db.select({ value: allTypesTable.serial }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 15.35325689124218 }, { value: 1 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.double }).from(allTypesTable),
-							db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 15.35325689124218 }, { value: 9007199254740991 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.double }).from(allTypesTable),
-							db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 15.35325689124218 }, { value: 9007199254740991 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.double }).from(allTypesTable),
-							db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 15.35325689124218 }, { value: 9007199254740991 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.real }).from(allTypesTable),
-							db.select({ value: allTypesTable.int }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 1.048596 }, { value: 621 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.real }).from(allTypesTable),
-							db.select({ value: allTypesTable.smallint }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 1.048596 }, { value: 10 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.real }).from(allTypesTable),
-							db.select({ value: allTypesTable.double }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 1.0485960245132446 }, { value: 15.35325689124218 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.real }).from(allTypesTable),
-							db.select({ value: allTypesTable.real }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 1.048596 }, { value: 1.048596 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.real }).from(allTypesTable),
-							db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 1.048596 }, { value: 15 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.real }).from(allTypesTable),
-							db.select({ value: allTypesTable.serial }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 1.048596 }, { value: 1 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
-							db.select({ value: allTypesTable.int }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 15 }, { value: 621 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
-							db.select({ value: allTypesTable.smallint }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 15 }, { value: 10 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
-							db.select({ value: allTypesTable.double }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 15 }, { value: 15.35325689124218 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
-							db.select({ value: allTypesTable.real }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 15 }, { value: 1.048596 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
-							db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 15 }, { value: 15 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
-							db.select({ value: allTypesTable.serial }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 15 }, { value: 1 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
-							db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 15 }, { value: 9007199254740991 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
-							db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 15 }, { value: 9007199254740991 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
-							db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 15 }, { value: 9007199254740991 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.serial }).from(allTypesTable),
-							db.select({ value: allTypesTable.int }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 1 }, { value: 621 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.serial }).from(allTypesTable),
-							db.select({ value: allTypesTable.smallint }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 1 }, { value: 10 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.serial }).from(allTypesTable),
-							db.select({ value: allTypesTable.double }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 1 }, { value: 15.35325689124218 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.serial }).from(allTypesTable),
-							db.select({ value: allTypesTable.real }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 1 }, { value: 1.048596 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.serial }).from(allTypesTable),
-							db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 1 }, { value: 15 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.serial }).from(allTypesTable),
-							db.select({ value: allTypesTable.serial }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 1 }, { value: 1 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.serial }).from(allTypesTable),
-							db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 1 }, { value: 9007199254740991 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.serial }).from(allTypesTable),
-							db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 1 }, { value: 9007199254740991 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.serial }).from(allTypesTable),
-							db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 1 }, { value: 9007199254740991 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
-							db.select({ value: allTypesTable.int }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 9007199254740991 }, { value: 621 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
-							db.select({ value: allTypesTable.smallint }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 9007199254740991 }, { value: 10 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
-							db.select({ value: allTypesTable.double }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 9007199254740991 }, { value: 15.35325689124218 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
-							db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 9007199254740991 }, { value: 15 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
-							db.select({ value: allTypesTable.serial }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 9007199254740991 }, { value: 1 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
-							db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 9007199254740991 }, { value: 9007199254740991 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
-							db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 9007199254740991 }, { value: 9007199254740991 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
-							db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 9007199254740991 }, { value: 9007199254740991 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
-							db.select({ value: allTypesTable.int }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 9007199254740991 }, { value: 621 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
-							db.select({ value: allTypesTable.smallint }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 9007199254740991 }, { value: 10 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
-							db.select({ value: allTypesTable.double }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 9007199254740991 }, { value: 15.35325689124218 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
-							db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 9007199254740991 }, { value: 15 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
-							db.select({ value: allTypesTable.serial }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 9007199254740991 }, { value: 1 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
-							db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 9007199254740991 }, { value: 9007199254740991 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
-							db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 9007199254740991 }, { value: 9007199254740991 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
-							db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 9007199254740991 }, { value: 9007199254740991 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
-							db.select({ value: allTypesTable.int }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 9007199254740991 }, { value: 621 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
-							db.select({ value: allTypesTable.smallint }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 9007199254740991 }, { value: 10 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
-							db.select({ value: allTypesTable.double }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 9007199254740991 }, { value: 15.35325689124218 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
-							db.select({ value: allTypesTable.smallserial }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 9007199254740991 }, { value: 15 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
-							db.select({ value: allTypesTable.serial }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 9007199254740991 }, { value: 1 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
-							db.select({ value: allTypesTable.bigserialnum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 9007199254740991 }, { value: 9007199254740991 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
-							db.select({ value: allTypesTable.bigintnum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 9007199254740991 }, { value: 9007199254740991 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
-							db.select({ value: allTypesTable.numericnum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 9007199254740991 }, { value: 9007199254740991 }]);
+							db.select({
+								'int ∪ int': allTypesTable.int.as('int ∪ int'),
+								'int ∪ smallint': allTypesTable.int.as('int ∪ smallint'),
+								'int ∪ double': allTypesTable.int.as('int ∪ double'),
+								'int ∪ real': allTypesTable.int.as('int ∪ real'),
+								'int ∪ smallserial': allTypesTable.int.as('int ∪ smallserial'),
+								'int ∪ serial': allTypesTable.int.as('int ∪ serial'),
+								'int ∪ bigserialnum': allTypesTable.int.as('int ∪ bigserialnum'),
+								'int ∪ bigintnum': allTypesTable.int.as('int ∪ bigintnum'),
+								'int ∪ numericnum': allTypesTable.int.as('int ∪ numericnum'),
+								'smallint ∪ int': allTypesTable.smallint.as('smallint ∪ int'),
+								'smallint ∪ smallint': allTypesTable.smallint.as('smallint ∪ smallint'),
+								'smallint ∪ double': allTypesTable.smallint.as('smallint ∪ double'),
+								'smallint ∪ real': allTypesTable.smallint.as('smallint ∪ real'),
+								'smallint ∪ smallserial': allTypesTable.smallint.as('smallint ∪ smallserial'),
+								'smallint ∪ serial': allTypesTable.smallint.as('smallint ∪ serial'),
+								'smallint ∪ bigserialnum': allTypesTable.smallint.as('smallint ∪ bigserialnum'),
+								'smallint ∪ bigintnum': allTypesTable.smallint.as('smallint ∪ bigintnum'),
+								'smallint ∪ numericnum': allTypesTable.smallint.as('smallint ∪ numericnum'),
+								'double ∪ int': allTypesTable.double.as('double ∪ int'),
+								'double ∪ smallint': allTypesTable.double.as('double ∪ smallint'),
+								'double ∪ double': allTypesTable.double.as('double ∪ double'),
+								'double ∪ real': allTypesTable.double.as('double ∪ real'),
+								'double ∪ smallserial': allTypesTable.double.as('double ∪ smallserial'),
+								'double ∪ serial': allTypesTable.double.as('double ∪ serial'),
+								'double ∪ bigserialnum': allTypesTable.double.as('double ∪ bigserialnum'),
+								'double ∪ bigintnum': allTypesTable.double.as('double ∪ bigintnum'),
+								'double ∪ numericnum': allTypesTable.double.as('double ∪ numericnum'),
+								'real ∪ int': allTypesTable.real.as('real ∪ int'),
+								'real ∪ smallint': allTypesTable.real.as('real ∪ smallint'),
+								'real ∪ double': allTypesTable.real.as('real ∪ double'),
+								'real ∪ real': allTypesTable.real.as('real ∪ real'),
+								'real ∪ smallserial': allTypesTable.real.as('real ∪ smallserial'),
+								'real ∪ serial': allTypesTable.real.as('real ∪ serial'),
+								'smallserial ∪ int': allTypesTable.smallserial.as('smallserial ∪ int'),
+								'smallserial ∪ smallint': allTypesTable.smallserial.as('smallserial ∪ smallint'),
+								'smallserial ∪ double': allTypesTable.smallserial.as('smallserial ∪ double'),
+								'smallserial ∪ real': allTypesTable.smallserial.as('smallserial ∪ real'),
+								'smallserial ∪ smallserial': allTypesTable.smallserial.as('smallserial ∪ smallserial'),
+								'smallserial ∪ serial': allTypesTable.smallserial.as('smallserial ∪ serial'),
+								'smallserial ∪ bigserialnum': allTypesTable.smallserial.as('smallserial ∪ bigserialnum'),
+								'smallserial ∪ bigintnum': allTypesTable.smallserial.as('smallserial ∪ bigintnum'),
+								'smallserial ∪ numericnum': allTypesTable.smallserial.as('smallserial ∪ numericnum'),
+								'serial ∪ int': allTypesTable.serial.as('serial ∪ int'),
+								'serial ∪ smallint': allTypesTable.serial.as('serial ∪ smallint'),
+								'serial ∪ double': allTypesTable.serial.as('serial ∪ double'),
+								'serial ∪ real': allTypesTable.serial.as('serial ∪ real'),
+								'serial ∪ smallserial': allTypesTable.serial.as('serial ∪ smallserial'),
+								'serial ∪ serial': allTypesTable.serial.as('serial ∪ serial'),
+								'serial ∪ bigserialnum': allTypesTable.serial.as('serial ∪ bigserialnum'),
+								'serial ∪ bigintnum': allTypesTable.serial.as('serial ∪ bigintnum'),
+								'serial ∪ numericnum': allTypesTable.serial.as('serial ∪ numericnum'),
+								'bigserialnum ∪ int': allTypesTable.bigserialnum.as('bigserialnum ∪ int'),
+								'bigserialnum ∪ smallint': allTypesTable.bigserialnum.as('bigserialnum ∪ smallint'),
+								'bigserialnum ∪ double': allTypesTable.bigserialnum.as('bigserialnum ∪ double'),
+								'bigserialnum ∪ smallserial': allTypesTable.bigserialnum.as('bigserialnum ∪ smallserial'),
+								'bigserialnum ∪ serial': allTypesTable.bigserialnum.as('bigserialnum ∪ serial'),
+								'bigserialnum ∪ bigserialnum': allTypesTable.bigserialnum.as('bigserialnum ∪ bigserialnum'),
+								'bigserialnum ∪ bigintnum': allTypesTable.bigserialnum.as('bigserialnum ∪ bigintnum'),
+								'bigserialnum ∪ numericnum': allTypesTable.bigserialnum.as('bigserialnum ∪ numericnum'),
+								'bigintnum ∪ int': allTypesTable.bigintnum.as('bigintnum ∪ int'),
+								'bigintnum ∪ smallint': allTypesTable.bigintnum.as('bigintnum ∪ smallint'),
+								'bigintnum ∪ double': allTypesTable.bigintnum.as('bigintnum ∪ double'),
+								'bigintnum ∪ smallserial': allTypesTable.bigintnum.as('bigintnum ∪ smallserial'),
+								'bigintnum ∪ serial': allTypesTable.bigintnum.as('bigintnum ∪ serial'),
+								'bigintnum ∪ bigserialnum': allTypesTable.bigintnum.as('bigintnum ∪ bigserialnum'),
+								'bigintnum ∪ bigintnum': allTypesTable.bigintnum.as('bigintnum ∪ bigintnum'),
+								'bigintnum ∪ numericnum': allTypesTable.bigintnum.as('bigintnum ∪ numericnum'),
+								'numericnum ∪ int': allTypesTable.numericnum.as('numericnum ∪ int'),
+								'numericnum ∪ smallint': allTypesTable.numericnum.as('numericnum ∪ smallint'),
+								'numericnum ∪ double': allTypesTable.numericnum.as('numericnum ∪ double'),
+								'numericnum ∪ smallserial': allTypesTable.numericnum.as('numericnum ∪ smallserial'),
+								'numericnum ∪ serial': allTypesTable.numericnum.as('numericnum ∪ serial'),
+								'numericnum ∪ bigserialnum': allTypesTable.numericnum.as('numericnum ∪ bigserialnum'),
+								'numericnum ∪ bigintnum': allTypesTable.numericnum.as('numericnum ∪ bigintnum'),
+								'numericnum ∪ numericnum': allTypesTable.numericnum.as('numericnum ∪ numericnum'),
+							}).from(allTypesTable),
+							db.select({
+								'int ∪ int': allTypesTable.int.as('int ∪ int'),
+								'int ∪ smallint': allTypesTable.smallint.as('int ∪ smallint'),
+								'int ∪ double': allTypesTable.double.as('int ∪ double'),
+								'int ∪ real': allTypesTable.real.as('int ∪ real'),
+								'int ∪ smallserial': allTypesTable.smallserial.as('int ∪ smallserial'),
+								'int ∪ serial': allTypesTable.serial.as('int ∪ serial'),
+								'int ∪ bigserialnum': allTypesTable.bigserialnum.as('int ∪ bigserialnum'),
+								'int ∪ bigintnum': allTypesTable.bigintnum.as('int ∪ bigintnum'),
+								'int ∪ numericnum': allTypesTable.numericnum.as('int ∪ numericnum'),
+								'smallint ∪ int': allTypesTable.int.as('smallint ∪ int'),
+								'smallint ∪ smallint': allTypesTable.smallint.as('smallint ∪ smallint'),
+								'smallint ∪ double': allTypesTable.double.as('smallint ∪ double'),
+								'smallint ∪ real': allTypesTable.real.as('smallint ∪ real'),
+								'smallint ∪ smallserial': allTypesTable.smallserial.as('smallint ∪ smallserial'),
+								'smallint ∪ serial': allTypesTable.serial.as('smallint ∪ serial'),
+								'smallint ∪ bigserialnum': allTypesTable.bigserialnum.as('smallint ∪ bigserialnum'),
+								'smallint ∪ bigintnum': allTypesTable.bigintnum.as('smallint ∪ bigintnum'),
+								'smallint ∪ numericnum': allTypesTable.numericnum.as('smallint ∪ numericnum'),
+								'double ∪ int': allTypesTable.int.as('double ∪ int'),
+								'double ∪ smallint': allTypesTable.smallint.as('double ∪ smallint'),
+								'double ∪ double': allTypesTable.double.as('double ∪ double'),
+								'double ∪ real': allTypesTable.real.as('double ∪ real'),
+								'double ∪ smallserial': allTypesTable.smallserial.as('double ∪ smallserial'),
+								'double ∪ serial': allTypesTable.serial.as('double ∪ serial'),
+								'double ∪ bigserialnum': allTypesTable.bigserialnum.as('double ∪ bigserialnum'),
+								'double ∪ bigintnum': allTypesTable.bigintnum.as('double ∪ bigintnum'),
+								'double ∪ numericnum': allTypesTable.numericnum.as('double ∪ numericnum'),
+								'real ∪ int': allTypesTable.int.as('real ∪ int'),
+								'real ∪ smallint': allTypesTable.smallint.as('real ∪ smallint'),
+								'real ∪ double': allTypesTable.double.as('real ∪ double'),
+								'real ∪ real': allTypesTable.real.as('real ∪ real'),
+								'real ∪ smallserial': allTypesTable.smallserial.as('real ∪ smallserial'),
+								'real ∪ serial': allTypesTable.serial.as('real ∪ serial'),
+								'smallserial ∪ int': allTypesTable.int.as('smallserial ∪ int'),
+								'smallserial ∪ smallint': allTypesTable.smallint.as('smallserial ∪ smallint'),
+								'smallserial ∪ double': allTypesTable.double.as('smallserial ∪ double'),
+								'smallserial ∪ real': allTypesTable.real.as('smallserial ∪ real'),
+								'smallserial ∪ smallserial': allTypesTable.smallserial.as('smallserial ∪ smallserial'),
+								'smallserial ∪ serial': allTypesTable.serial.as('smallserial ∪ serial'),
+								'smallserial ∪ bigserialnum': allTypesTable.bigserialnum.as('smallserial ∪ bigserialnum'),
+								'smallserial ∪ bigintnum': allTypesTable.bigintnum.as('smallserial ∪ bigintnum'),
+								'smallserial ∪ numericnum': allTypesTable.numericnum.as('smallserial ∪ numericnum'),
+								'serial ∪ int': allTypesTable.int.as('serial ∪ int'),
+								'serial ∪ smallint': allTypesTable.smallint.as('serial ∪ smallint'),
+								'serial ∪ double': allTypesTable.double.as('serial ∪ double'),
+								'serial ∪ real': allTypesTable.real.as('serial ∪ real'),
+								'serial ∪ smallserial': allTypesTable.smallserial.as('serial ∪ smallserial'),
+								'serial ∪ serial': allTypesTable.serial.as('serial ∪ serial'),
+								'serial ∪ bigserialnum': allTypesTable.bigserialnum.as('serial ∪ bigserialnum'),
+								'serial ∪ bigintnum': allTypesTable.bigintnum.as('serial ∪ bigintnum'),
+								'serial ∪ numericnum': allTypesTable.numericnum.as('serial ∪ numericnum'),
+								'bigserialnum ∪ int': allTypesTable.int.as('bigserialnum ∪ int'),
+								'bigserialnum ∪ smallint': allTypesTable.smallint.as('bigserialnum ∪ smallint'),
+								'bigserialnum ∪ double': allTypesTable.double.as('bigserialnum ∪ double'),
+								'bigserialnum ∪ smallserial': allTypesTable.smallserial.as('bigserialnum ∪ smallserial'),
+								'bigserialnum ∪ serial': allTypesTable.serial.as('bigserialnum ∪ serial'),
+								'bigserialnum ∪ bigserialnum': allTypesTable.bigserialnum.as('bigserialnum ∪ bigserialnum'),
+								'bigserialnum ∪ bigintnum': allTypesTable.bigintnum.as('bigserialnum ∪ bigintnum'),
+								'bigserialnum ∪ numericnum': allTypesTable.numericnum.as('bigserialnum ∪ numericnum'),
+								'bigintnum ∪ int': allTypesTable.int.as('bigintnum ∪ int'),
+								'bigintnum ∪ smallint': allTypesTable.smallint.as('bigintnum ∪ smallint'),
+								'bigintnum ∪ double': allTypesTable.double.as('bigintnum ∪ double'),
+								'bigintnum ∪ smallserial': allTypesTable.smallserial.as('bigintnum ∪ smallserial'),
+								'bigintnum ∪ serial': allTypesTable.serial.as('bigintnum ∪ serial'),
+								'bigintnum ∪ bigserialnum': allTypesTable.bigserialnum.as('bigintnum ∪ bigserialnum'),
+								'bigintnum ∪ bigintnum': allTypesTable.bigintnum.as('bigintnum ∪ bigintnum'),
+								'bigintnum ∪ numericnum': allTypesTable.numericnum.as('bigintnum ∪ numericnum'),
+								'numericnum ∪ int': allTypesTable.int.as('numericnum ∪ int'),
+								'numericnum ∪ smallint': allTypesTable.smallint.as('numericnum ∪ smallint'),
+								'numericnum ∪ double': allTypesTable.double.as('numericnum ∪ double'),
+								'numericnum ∪ smallserial': allTypesTable.smallserial.as('numericnum ∪ smallserial'),
+								'numericnum ∪ serial': allTypesTable.serial.as('numericnum ∪ serial'),
+								'numericnum ∪ bigserialnum': allTypesTable.bigserialnum.as('numericnum ∪ bigserialnum'),
+								'numericnum ∪ bigintnum': allTypesTable.bigintnum.as('numericnum ∪ bigintnum'),
+								'numericnum ∪ numericnum': allTypesTable.numericnum.as('numericnum ∪ numericnum'),
+							}).from(allTypesTable),
+						),
+					).toEqual(expect.arrayContaining([
+						{
+							'int ∪ int': 621,
+							'int ∪ smallint': 621,
+							'int ∪ double': 621,
+							'int ∪ real': 621,
+							'int ∪ smallserial': 621,
+							'int ∪ serial': 621,
+							'int ∪ bigserialnum': 621,
+							'int ∪ bigintnum': 621,
+							'int ∪ numericnum': 621,
+							'smallint ∪ int': 10,
+							'smallint ∪ smallint': 10,
+							'smallint ∪ double': 10,
+							'smallint ∪ real': 10,
+							'smallint ∪ smallserial': 10,
+							'smallint ∪ serial': 10,
+							'smallint ∪ bigserialnum': 10,
+							'smallint ∪ bigintnum': 10,
+							'smallint ∪ numericnum': 10,
+							'double ∪ int': 15.35325689124218,
+							'double ∪ smallint': 15.35325689124218,
+							'double ∪ double': 15.35325689124218,
+							'double ∪ real': 15.35325689124218,
+							'double ∪ smallserial': 15.35325689124218,
+							'double ∪ serial': 15.35325689124218,
+							'double ∪ bigserialnum': 15.35325689124218,
+							'double ∪ bigintnum': 15.35325689124218,
+							'double ∪ numericnum': 15.35325689124218,
+							'real ∪ int': 1.048596,
+							'real ∪ smallint': 1.048596,
+							'real ∪ double': 1.0485960245132446,
+							'real ∪ real': 1.048596,
+							'real ∪ smallserial': 1.048596,
+							'real ∪ serial': 1.048596,
+							'smallserial ∪ int': 15,
+							'smallserial ∪ smallint': 15,
+							'smallserial ∪ double': 15,
+							'smallserial ∪ real': 15,
+							'smallserial ∪ smallserial': 15,
+							'smallserial ∪ serial': 15,
+							'smallserial ∪ bigserialnum': 15,
+							'smallserial ∪ bigintnum': 15,
+							'smallserial ∪ numericnum': 15,
+							'serial ∪ int': 1,
+							'serial ∪ smallint': 1,
+							'serial ∪ double': 1,
+							'serial ∪ real': 1,
+							'serial ∪ smallserial': 1,
+							'serial ∪ serial': 1,
+							'serial ∪ bigserialnum': 1,
+							'serial ∪ bigintnum': 1,
+							'serial ∪ numericnum': 1,
+							'bigserialnum ∪ int': 9007199254740991,
+							'bigserialnum ∪ smallint': 9007199254740991,
+							'bigserialnum ∪ double': 9007199254740991,
+							'bigserialnum ∪ smallserial': 9007199254740991,
+							'bigserialnum ∪ serial': 9007199254740991,
+							'bigserialnum ∪ bigserialnum': 9007199254740991,
+							'bigserialnum ∪ bigintnum': 9007199254740991,
+							'bigserialnum ∪ numericnum': 9007199254740991,
+							'bigintnum ∪ int': 9007199254740991,
+							'bigintnum ∪ smallint': 9007199254740991,
+							'bigintnum ∪ double': 9007199254740991,
+							'bigintnum ∪ smallserial': 9007199254740991,
+							'bigintnum ∪ serial': 9007199254740991,
+							'bigintnum ∪ bigserialnum': 9007199254740991,
+							'bigintnum ∪ bigintnum': 9007199254740991,
+							'bigintnum ∪ numericnum': 9007199254740991,
+							'numericnum ∪ int': 9007199254740991,
+							'numericnum ∪ smallint': 9007199254740991,
+							'numericnum ∪ double': 9007199254740991,
+							'numericnum ∪ smallserial': 9007199254740991,
+							'numericnum ∪ serial': 9007199254740991,
+							'numericnum ∪ bigserialnum': 9007199254740991,
+							'numericnum ∪ bigintnum': 9007199254740991,
+							'numericnum ∪ numericnum': 9007199254740991,
+						},
+						{
+							'int ∪ int': 621,
+							'int ∪ smallint': 10,
+							'int ∪ double': 15.35325689124218,
+							'int ∪ real': 1.048596,
+							'int ∪ smallserial': 15,
+							'int ∪ serial': 1,
+							'int ∪ bigserialnum': 9007199254740991,
+							'int ∪ bigintnum': 9007199254740991,
+							'int ∪ numericnum': 9007199254740991,
+							'smallint ∪ int': 621,
+							'smallint ∪ smallint': 10,
+							'smallint ∪ double': 15.35325689124218,
+							'smallint ∪ real': 1.048596,
+							'smallint ∪ smallserial': 15,
+							'smallint ∪ serial': 1,
+							'smallint ∪ bigserialnum': 9007199254740991,
+							'smallint ∪ bigintnum': 9007199254740991,
+							'smallint ∪ numericnum': 9007199254740991,
+							'double ∪ int': 621,
+							'double ∪ smallint': 10,
+							'double ∪ double': 15.35325689124218,
+							'double ∪ real': 1.0485960245132446,
+							'double ∪ smallserial': 15,
+							'double ∪ serial': 1,
+							'double ∪ bigserialnum': 9007199254740991,
+							'double ∪ bigintnum': 9007199254740991,
+							'double ∪ numericnum': 9007199254740991,
+							'real ∪ int': 621,
+							'real ∪ smallint': 10,
+							'real ∪ double': 15.35325689124218,
+							'real ∪ real': 1.048596,
+							'real ∪ smallserial': 15,
+							'real ∪ serial': 1,
+							'smallserial ∪ int': 621,
+							'smallserial ∪ smallint': 10,
+							'smallserial ∪ double': 15.35325689124218,
+							'smallserial ∪ real': 1.048596,
+							'smallserial ∪ smallserial': 15,
+							'smallserial ∪ serial': 1,
+							'smallserial ∪ bigserialnum': 9007199254740991,
+							'smallserial ∪ bigintnum': 9007199254740991,
+							'smallserial ∪ numericnum': 9007199254740991,
+							'serial ∪ int': 621,
+							'serial ∪ smallint': 10,
+							'serial ∪ double': 15.35325689124218,
+							'serial ∪ real': 1.048596,
+							'serial ∪ smallserial': 15,
+							'serial ∪ serial': 1,
+							'serial ∪ bigserialnum': 9007199254740991,
+							'serial ∪ bigintnum': 9007199254740991,
+							'serial ∪ numericnum': 9007199254740991,
+							'bigserialnum ∪ int': 621,
+							'bigserialnum ∪ smallint': 10,
+							'bigserialnum ∪ double': 15.35325689124218,
+							'bigserialnum ∪ smallserial': 15,
+							'bigserialnum ∪ serial': 1,
+							'bigserialnum ∪ bigserialnum': 9007199254740991,
+							'bigserialnum ∪ bigintnum': 9007199254740991,
+							'bigserialnum ∪ numericnum': 9007199254740991,
+							'bigintnum ∪ int': 621,
+							'bigintnum ∪ smallint': 10,
+							'bigintnum ∪ double': 15.35325689124218,
+							'bigintnum ∪ smallserial': 15,
+							'bigintnum ∪ serial': 1,
+							'bigintnum ∪ bigserialnum': 9007199254740991,
+							'bigintnum ∪ bigintnum': 9007199254740991,
+							'bigintnum ∪ numericnum': 9007199254740991,
+							'numericnum ∪ int': 621,
+							'numericnum ∪ smallint': 10,
+							'numericnum ∪ double': 15.35325689124218,
+							'numericnum ∪ smallserial': 15,
+							'numericnum ∪ serial': 1,
+							'numericnum ∪ bigserialnum': 9007199254740991,
+							'numericnum ∪ bigintnum': 9007199254740991,
+							'numericnum ∪ numericnum': 9007199254740991,
+						},
+					]));
 
 					// ---- bigint ----
 					expect(
 						yield* unionAll(
-							db.select({ value: allTypesTable.bigint }).from(allTypesTable),
-							db.select({ value: allTypesTable.bigint }).from(allTypesTable),
+							db.select({
+								'bigint ∪ bigint': allTypesTable.bigint.as('bigint ∪ bigint'),
+								'bigint ∪ bigserial': allTypesTable.bigint.as('bigint ∪ bigserial'),
+								'bigint ∪ numericbig': allTypesTable.bigint.as('bigint ∪ numericbig'),
+								'bigserial ∪ bigint': allTypesTable.bigserial.as('bigserial ∪ bigint'),
+								'bigserial ∪ bigserial': allTypesTable.bigserial.as('bigserial ∪ bigserial'),
+								'bigserial ∪ numericbig': allTypesTable.bigserial.as('bigserial ∪ numericbig'),
+								'numericbig ∪ bigint': allTypesTable.numericbig.as('numericbig ∪ bigint'),
+								'numericbig ∪ bigserial': allTypesTable.numericbig.as('numericbig ∪ bigserial'),
+								'numericbig ∪ numericbig': allTypesTable.numericbig.as('numericbig ∪ numericbig'),
+							}).from(allTypesTable),
+							db.select({
+								'bigint ∪ bigint': allTypesTable.bigint.as('bigint ∪ bigint'),
+								'bigint ∪ bigserial': allTypesTable.bigserial.as('bigint ∪ bigserial'),
+								'bigint ∪ numericbig': allTypesTable.numericbig.as('bigint ∪ numericbig'),
+								'bigserial ∪ bigint': allTypesTable.bigint.as('bigserial ∪ bigint'),
+								'bigserial ∪ bigserial': allTypesTable.bigserial.as('bigserial ∪ bigserial'),
+								'bigserial ∪ numericbig': allTypesTable.numericbig.as('bigserial ∪ numericbig'),
+								'numericbig ∪ bigint': allTypesTable.bigint.as('numericbig ∪ bigint'),
+								'numericbig ∪ bigserial': allTypesTable.bigserial.as('numericbig ∪ bigserial'),
+								'numericbig ∪ numericbig': allTypesTable.numericbig.as('numericbig ∪ numericbig'),
+							}).from(allTypesTable),
 						),
-					).toStrictEqual([{ value: 5044565289845416380n }, { value: 5044565289845416380n }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.bigint }).from(allTypesTable),
-							db.select({ value: allTypesTable.bigserial }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 5044565289845416380n }, { value: 5044565289845416380n }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.bigint }).from(allTypesTable),
-							db.select({ value: allTypesTable.numericbig }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 5044565289845416380n }, { value: 5044565289845416380n }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.bigserial }).from(allTypesTable),
-							db.select({ value: allTypesTable.bigint }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 5044565289845416380n }, { value: 5044565289845416380n }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.bigserial }).from(allTypesTable),
-							db.select({ value: allTypesTable.bigserial }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 5044565289845416380n }, { value: 5044565289845416380n }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.bigserial }).from(allTypesTable),
-							db.select({ value: allTypesTable.numericbig }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 5044565289845416380n }, { value: 5044565289845416380n }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.numericbig }).from(allTypesTable),
-							db.select({ value: allTypesTable.bigint }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 5044565289845416380n }, { value: 5044565289845416380n }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.numericbig }).from(allTypesTable),
-							db.select({ value: allTypesTable.bigserial }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 5044565289845416380n }, { value: 5044565289845416380n }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.numericbig }).from(allTypesTable),
-							db.select({ value: allTypesTable.numericbig }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 5044565289845416380n }, { value: 5044565289845416380n }]);
+					).toEqual(expect.arrayContaining([
+						{
+							'bigint ∪ bigint': 5044565289845416380n,
+							'bigint ∪ bigserial': 5044565289845416380n,
+							'bigint ∪ numericbig': 5044565289845416380n,
+							'bigserial ∪ bigint': 5044565289845416380n,
+							'bigserial ∪ bigserial': 5044565289845416380n,
+							'bigserial ∪ numericbig': 5044565289845416380n,
+							'numericbig ∪ bigint': 5044565289845416380n,
+							'numericbig ∪ bigserial': 5044565289845416380n,
+							'numericbig ∪ numericbig': 5044565289845416380n,
+						},
+						{
+							'bigint ∪ bigint': 5044565289845416380n,
+							'bigint ∪ bigserial': 5044565289845416380n,
+							'bigint ∪ numericbig': 5044565289845416380n,
+							'bigserial ∪ bigint': 5044565289845416380n,
+							'bigserial ∪ bigserial': 5044565289845416380n,
+							'bigserial ∪ numericbig': 5044565289845416380n,
+							'numericbig ∪ bigint': 5044565289845416380n,
+							'numericbig ∪ bigserial': 5044565289845416380n,
+							'numericbig ∪ numericbig': 5044565289845416380n,
+						},
+					]));
 
 					// ---- text ----
 					expect(
 						yield* unionAll(
-							db.select({ value: allTypesTable.varchar }).from(allTypesTable),
-							db.select({ value: allTypesTable.varchar }).from(allTypesTable),
+							db.select({
+								'varchar ∪ varchar': allTypesTable.varchar.as('varchar ∪ varchar'),
+								'varchar ∪ text': allTypesTable.varchar.as('varchar ∪ text'),
+								'text ∪ varchar': allTypesTable.text.as('text ∪ varchar'),
+								'text ∪ text': allTypesTable.text.as('text ∪ text'),
+							}).from(allTypesTable),
+							db.select({
+								'varchar ∪ varchar': allTypesTable.varchar.as('varchar ∪ varchar'),
+								'varchar ∪ text': allTypesTable.text.as('varchar ∪ text'),
+								'text ∪ varchar': allTypesTable.varchar.as('text ∪ varchar'),
+								'text ∪ text': allTypesTable.text.as('text ∪ text'),
+							}).from(allTypesTable),
 						),
-					).toStrictEqual([{ value: 'C4-' }, { value: 'C4-' }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.varchar }).from(allTypesTable),
-							db.select({ value: allTypesTable.text }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 'C4-' }, { value: 'TEXT STRING' }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.text }).from(allTypesTable),
-							db.select({ value: allTypesTable.varchar }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 'TEXT STRING' }, { value: 'C4-' }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.text }).from(allTypesTable),
-							db.select({ value: allTypesTable.text }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 'TEXT STRING' }, { value: 'TEXT STRING' }]);
+					).toEqual(expect.arrayContaining([
+						{
+							'varchar ∪ varchar': 'C4-',
+							'varchar ∪ text': 'C4-',
+							'text ∪ varchar': 'TEXT STRING',
+							'text ∪ text': 'TEXT STRING',
+						},
+						{
+							'varchar ∪ varchar': 'C4-',
+							'varchar ∪ text': 'TEXT STRING',
+							'text ∪ varchar': 'C4-',
+							'text ∪ text': 'TEXT STRING',
+						},
+					]));
 
 					// ---- numstr ----
 					expect(
 						yield* unionAll(
-							db.select({ value: allTypesTable.bigintstr }).from(allTypesTable),
-							db.select({ value: allTypesTable.bigintstr }).from(allTypesTable),
+							db.select({
+								'bigintstr ∪ bigintstr': allTypesTable.bigintstr.as('bigintstr ∪ bigintstr'),
+								'bigintstr ∪ numeric': allTypesTable.bigintstr.as('bigintstr ∪ numeric'),
+								'numeric ∪ bigintstr': allTypesTable.numeric.as('numeric ∪ bigintstr'),
+								'numeric ∪ numeric': allTypesTable.numeric.as('numeric ∪ numeric'),
+							}).from(allTypesTable),
+							db.select({
+								'bigintstr ∪ bigintstr': allTypesTable.bigintstr.as('bigintstr ∪ bigintstr'),
+								'bigintstr ∪ numeric': allTypesTable.numeric.as('bigintstr ∪ numeric'),
+								'numeric ∪ bigintstr': allTypesTable.bigintstr.as('numeric ∪ bigintstr'),
+								'numeric ∪ numeric': allTypesTable.numeric.as('numeric ∪ numeric'),
+							}).from(allTypesTable),
 						),
-					).toStrictEqual([{ value: '5044565289845416380' }, { value: '5044565289845416380' }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.bigintstr }).from(allTypesTable),
-							db.select({ value: allTypesTable.numeric }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: '5044565289845416380' }, { value: '5044565289845416380' }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.numeric }).from(allTypesTable),
-							db.select({ value: allTypesTable.bigintstr }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: '5044565289845416380' }, { value: '5044565289845416380' }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.numeric }).from(allTypesTable),
-							db.select({ value: allTypesTable.numeric }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: '5044565289845416380' }, { value: '5044565289845416380' }]);
+					).toEqual(expect.arrayContaining([
+						{
+							'bigintstr ∪ bigintstr': '5044565289845416380',
+							'bigintstr ∪ numeric': '5044565289845416380',
+							'numeric ∪ bigintstr': '5044565289845416380',
+							'numeric ∪ numeric': '5044565289845416380',
+						},
+						{
+							'bigintstr ∪ bigintstr': '5044565289845416380',
+							'bigintstr ∪ numeric': '5044565289845416380',
+							'numeric ∪ bigintstr': '5044565289845416380',
+							'numeric ∪ numeric': '5044565289845416380',
+						},
+					]));
 
 					// ---- date ----
 					expect(
 						yield* unionAll(
-							db.select({ value: allTypesTable.date }).from(allTypesTable),
-							db.select({ value: allTypesTable.date }).from(allTypesTable),
+							db.select({
+								'date ∪ date': allTypesTable.date.as('date ∪ date'),
+								'date ∪ timestamp': allTypesTable.date.as('date ∪ timestamp'),
+								'date ∪ timestampTz': allTypesTable.date.as('date ∪ timestampTz'),
+								'timestamp ∪ date': allTypesTable.timestamp.as('timestamp ∪ date'),
+								'timestamp ∪ timestamp': allTypesTable.timestamp.as('timestamp ∪ timestamp'),
+								'timestamp ∪ timestampTz': allTypesTable.timestamp.as('timestamp ∪ timestampTz'),
+								'timestampTz ∪ date': allTypesTable.timestampTz.as('timestampTz ∪ date'),
+								'timestampTz ∪ timestamp': allTypesTable.timestampTz.as('timestampTz ∪ timestamp'),
+								'timestampTz ∪ timestampTz': allTypesTable.timestampTz.as('timestampTz ∪ timestampTz'),
+							}).from(allTypesTable),
+							db.select({
+								'date ∪ date': allTypesTable.date.as('date ∪ date'),
+								'date ∪ timestamp': allTypesTable.timestamp.as('date ∪ timestamp'),
+								'date ∪ timestampTz': allTypesTable.timestampTz.as('date ∪ timestampTz'),
+								'timestamp ∪ date': allTypesTable.date.as('timestamp ∪ date'),
+								'timestamp ∪ timestamp': allTypesTable.timestamp.as('timestamp ∪ timestamp'),
+								'timestamp ∪ timestampTz': allTypesTable.timestampTz.as('timestamp ∪ timestampTz'),
+								'timestampTz ∪ date': allTypesTable.date.as('timestampTz ∪ date'),
+								'timestampTz ∪ timestamp': allTypesTable.timestamp.as('timestampTz ∪ timestamp'),
+								'timestampTz ∪ timestampTz': allTypesTable.timestampTz.as('timestampTz ∪ timestampTz'),
+							}).from(allTypesTable),
 						),
-					).toStrictEqual([{ value: new Date('2025-03-12') }, { value: new Date('2025-03-12') }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.date }).from(allTypesTable),
-							db.select({ value: allTypesTable.timestamp }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: new Date('2025-03-12') }, { value: new Date('2025-03-12 01:32:41.623') }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.date }).from(allTypesTable),
-							db.select({ value: allTypesTable.timestampTz }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: new Date('2025-03-12') }, { value: new Date('2025-03-12 01:32:41.623+00') }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.timestamp }).from(allTypesTable),
-							db.select({ value: allTypesTable.date }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: new Date('2025-03-12 01:32:41.623') }, { value: new Date('2025-03-12') }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.timestamp }).from(allTypesTable),
-							db.select({ value: allTypesTable.timestamp }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: new Date('2025-03-12 01:32:41.623') }, {
-						value: new Date('2025-03-12 01:32:41.623'),
-					}]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.timestamp }).from(allTypesTable),
-							db.select({ value: allTypesTable.timestampTz }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: new Date('2025-03-12 01:32:41.623') }, {
-						value: new Date('2025-03-12 01:32:41.623+00'),
-					}]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.timestampTz }).from(allTypesTable),
-							db.select({ value: allTypesTable.date }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: new Date('2025-03-12 01:32:41.623+00') }, { value: new Date('2025-03-12') }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.timestampTz }).from(allTypesTable),
-							db.select({ value: allTypesTable.timestamp }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: new Date('2025-03-12 01:32:41.623+00') }, {
-						value: new Date('2025-03-12 01:32:41.623'),
-					}]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.timestampTz }).from(allTypesTable),
-							db.select({ value: allTypesTable.timestampTz }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: new Date('2025-03-12 01:32:41.623+00') }, {
-						value: new Date('2025-03-12 01:32:41.623+00'),
-					}]);
+					).toEqual(expect.arrayContaining([
+						{
+							'date ∪ date': new Date('2025-03-12'),
+							'date ∪ timestamp': new Date('2025-03-12'),
+							'date ∪ timestampTz': new Date('2025-03-12'),
+							'timestamp ∪ date': new Date('2025-03-12 01:32:41.623'),
+							'timestamp ∪ timestamp': new Date('2025-03-12 01:32:41.623'),
+							'timestamp ∪ timestampTz': new Date('2025-03-12 01:32:41.623'),
+							'timestampTz ∪ date': new Date('2025-03-12 01:32:41.623+00'),
+							'timestampTz ∪ timestamp': new Date('2025-03-12 01:32:41.623+00'),
+							'timestampTz ∪ timestampTz': new Date('2025-03-12 01:32:41.623+00'),
+						},
+						{
+							'date ∪ date': new Date('2025-03-12'),
+							'date ∪ timestamp': new Date('2025-03-12 01:32:41.623'),
+							'date ∪ timestampTz': new Date('2025-03-12 01:32:41.623+00'),
+							'timestamp ∪ date': new Date('2025-03-12'),
+							'timestamp ∪ timestamp': new Date('2025-03-12 01:32:41.623'),
+							'timestamp ∪ timestampTz': new Date('2025-03-12 01:32:41.623+00'),
+							'timestampTz ∪ date': new Date('2025-03-12'),
+							'timestampTz ∪ timestamp': new Date('2025-03-12 01:32:41.623'),
+							'timestampTz ∪ timestampTz': new Date('2025-03-12 01:32:41.623+00'),
+						},
+					]));
 
 					// ---- json ----
 					expect(
 						yield* unionAll(
-							db.select({ value: allTypesTable.json }).from(allTypesTable),
-							db.select({ value: allTypesTable.json }).from(allTypesTable),
+							db.select({
+								'json ∪ json': allTypesTable.json.as('json ∪ json'),
+								'json ∪ json1': allTypesTable.json.as('json ∪ json1'),
+								'json ∪ json2': allTypesTable.json.as('json ∪ json2'),
+								'json ∪ json3': allTypesTable.json.as('json ∪ json3'),
+								'json1 ∪ json': allTypesTable.json1.as('json1 ∪ json'),
+								'json1 ∪ json1': allTypesTable.json1.as('json1 ∪ json1'),
+								'json1 ∪ json2': allTypesTable.json1.as('json1 ∪ json2'),
+								'json1 ∪ json3': allTypesTable.json1.as('json1 ∪ json3'),
+								'json2 ∪ json': allTypesTable.json2.as('json2 ∪ json'),
+								'json2 ∪ json1': allTypesTable.json2.as('json2 ∪ json1'),
+								'json2 ∪ json2': allTypesTable.json2.as('json2 ∪ json2'),
+								'json2 ∪ json3': allTypesTable.json2.as('json2 ∪ json3'),
+								'json3 ∪ json': allTypesTable.json3.as('json3 ∪ json'),
+								'json3 ∪ json1': allTypesTable.json3.as('json3 ∪ json1'),
+								'json3 ∪ json2': allTypesTable.json3.as('json3 ∪ json2'),
+								'json3 ∪ json3': allTypesTable.json3.as('json3 ∪ json3'),
+							}).from(allTypesTable),
+							db.select({
+								'json ∪ json': allTypesTable.json.as('json ∪ json'),
+								'json ∪ json1': allTypesTable.json1.as('json ∪ json1'),
+								'json ∪ json2': allTypesTable.json2.as('json ∪ json2'),
+								'json ∪ json3': allTypesTable.json3.as('json ∪ json3'),
+								'json1 ∪ json': allTypesTable.json.as('json1 ∪ json'),
+								'json1 ∪ json1': allTypesTable.json1.as('json1 ∪ json1'),
+								'json1 ∪ json2': allTypesTable.json2.as('json1 ∪ json2'),
+								'json1 ∪ json3': allTypesTable.json3.as('json1 ∪ json3'),
+								'json2 ∪ json': allTypesTable.json.as('json2 ∪ json'),
+								'json2 ∪ json1': allTypesTable.json1.as('json2 ∪ json1'),
+								'json2 ∪ json2': allTypesTable.json2.as('json2 ∪ json2'),
+								'json2 ∪ json3': allTypesTable.json3.as('json2 ∪ json3'),
+								'json3 ∪ json': allTypesTable.json.as('json3 ∪ json'),
+								'json3 ∪ json1': allTypesTable.json1.as('json3 ∪ json1'),
+								'json3 ∪ json2': allTypesTable.json2.as('json3 ∪ json2'),
+								'json3 ∪ json3': allTypesTable.json3.as('json3 ∪ json3'),
+							}).from(allTypesTable),
 						),
-					).toStrictEqual([{ value: { str: 'strval', arr: ['str', 10] } }, {
-						value: { str: 'strval', arr: ['str', 10] },
-					}]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.json }).from(allTypesTable),
-							db.select({ value: allTypesTable.json1 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: { str: 'strval', arr: ['str', 10] } }, {
-						value: [{ key: 'value', num: 7 }, 'v', '11', 5],
-					}]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.json }).from(allTypesTable),
-							db.select({ value: allTypesTable.json2 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: { str: 'strval', arr: ['str', 10] } }, { value: 5 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.json }).from(allTypesTable),
-							db.select({ value: allTypesTable.json3 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: { str: 'strval', arr: ['str', 10] } }, { value: '5' }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.json1 }).from(allTypesTable),
-							db.select({ value: allTypesTable.json }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: [{ key: 'value', num: 7 }, 'v', '11', 5] }, {
-						value: { str: 'strval', arr: ['str', 10] },
-					}]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.json1 }).from(allTypesTable),
-							db.select({ value: allTypesTable.json1 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: [{ key: 'value', num: 7 }, 'v', '11', 5] }, {
-						value: [{ key: 'value', num: 7 }, 'v', '11', 5],
-					}]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.json1 }).from(allTypesTable),
-							db.select({ value: allTypesTable.json2 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: [{ key: 'value', num: 7 }, 'v', '11', 5] }, { value: 5 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.json1 }).from(allTypesTable),
-							db.select({ value: allTypesTable.json3 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: [{ key: 'value', num: 7 }, 'v', '11', 5] }, { value: '5' }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.json2 }).from(allTypesTable),
-							db.select({ value: allTypesTable.json }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 5 }, { value: { str: 'strval', arr: ['str', 10] } }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.json2 }).from(allTypesTable),
-							db.select({ value: allTypesTable.json1 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 5 }, { value: [{ key: 'value', num: 7 }, 'v', '11', 5] }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.json2 }).from(allTypesTable),
-							db.select({ value: allTypesTable.json2 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 5 }, { value: 5 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.json2 }).from(allTypesTable),
-							db.select({ value: allTypesTable.json3 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 5 }, { value: '5' }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.json3 }).from(allTypesTable),
-							db.select({ value: allTypesTable.json }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: '5' }, { value: { str: 'strval', arr: ['str', 10] } }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.json3 }).from(allTypesTable),
-							db.select({ value: allTypesTable.json1 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: '5' }, { value: [{ key: 'value', num: 7 }, 'v', '11', 5] }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.json3 }).from(allTypesTable),
-							db.select({ value: allTypesTable.json2 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: '5' }, { value: 5 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.json3 }).from(allTypesTable),
-							db.select({ value: allTypesTable.json3 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: '5' }, { value: '5' }]);
+					).toEqual(expect.arrayContaining([
+						{
+							'json ∪ json': { str: 'strval', arr: ['str', 10] },
+							'json ∪ json1': { str: 'strval', arr: ['str', 10] },
+							'json ∪ json2': { str: 'strval', arr: ['str', 10] },
+							'json ∪ json3': { str: 'strval', arr: ['str', 10] },
+							'json1 ∪ json': [{ key: 'value', num: 7 }, 'v', '11', 5],
+							'json1 ∪ json1': [{ key: 'value', num: 7 }, 'v', '11', 5],
+							'json1 ∪ json2': [{ key: 'value', num: 7 }, 'v', '11', 5],
+							'json1 ∪ json3': [{ key: 'value', num: 7 }, 'v', '11', 5],
+							'json2 ∪ json': 5,
+							'json2 ∪ json1': 5,
+							'json2 ∪ json2': 5,
+							'json2 ∪ json3': 5,
+							'json3 ∪ json': '5',
+							'json3 ∪ json1': '5',
+							'json3 ∪ json2': '5',
+							'json3 ∪ json3': '5',
+						},
+						{
+							'json ∪ json': { str: 'strval', arr: ['str', 10] },
+							'json ∪ json1': [{ key: 'value', num: 7 }, 'v', '11', 5],
+							'json ∪ json2': 5,
+							'json ∪ json3': '5',
+							'json1 ∪ json': { str: 'strval', arr: ['str', 10] },
+							'json1 ∪ json1': [{ key: 'value', num: 7 }, 'v', '11', 5],
+							'json1 ∪ json2': 5,
+							'json1 ∪ json3': '5',
+							'json2 ∪ json': { str: 'strval', arr: ['str', 10] },
+							'json2 ∪ json1': [{ key: 'value', num: 7 }, 'v', '11', 5],
+							'json2 ∪ json2': 5,
+							'json2 ∪ json3': '5',
+							'json3 ∪ json': { str: 'strval', arr: ['str', 10] },
+							'json3 ∪ json1': [{ key: 'value', num: 7 }, 'v', '11', 5],
+							'json3 ∪ json2': 5,
+							'json3 ∪ json3': '5',
+						},
+					]));
 
 					// ---- jsonb ----
 					expect(
 						yield* unionAll(
-							db.select({ value: allTypesTable.jsonb }).from(allTypesTable),
-							db.select({ value: allTypesTable.jsonb }).from(allTypesTable),
+							db.select({
+								'jsonb ∪ jsonb': allTypesTable.jsonb.as('jsonb ∪ jsonb'),
+								'jsonb ∪ jsonb1': allTypesTable.jsonb.as('jsonb ∪ jsonb1'),
+								'jsonb ∪ jsonb2': allTypesTable.jsonb.as('jsonb ∪ jsonb2'),
+								'jsonb ∪ jsonb3': allTypesTable.jsonb.as('jsonb ∪ jsonb3'),
+								'jsonb1 ∪ jsonb': allTypesTable.jsonb1.as('jsonb1 ∪ jsonb'),
+								'jsonb1 ∪ jsonb1': allTypesTable.jsonb1.as('jsonb1 ∪ jsonb1'),
+								'jsonb1 ∪ jsonb2': allTypesTable.jsonb1.as('jsonb1 ∪ jsonb2'),
+								'jsonb1 ∪ jsonb3': allTypesTable.jsonb1.as('jsonb1 ∪ jsonb3'),
+								'jsonb2 ∪ jsonb': allTypesTable.jsonb2.as('jsonb2 ∪ jsonb'),
+								'jsonb2 ∪ jsonb1': allTypesTable.jsonb2.as('jsonb2 ∪ jsonb1'),
+								'jsonb2 ∪ jsonb2': allTypesTable.jsonb2.as('jsonb2 ∪ jsonb2'),
+								'jsonb2 ∪ jsonb3': allTypesTable.jsonb2.as('jsonb2 ∪ jsonb3'),
+								'jsonb3 ∪ jsonb': allTypesTable.jsonb3.as('jsonb3 ∪ jsonb'),
+								'jsonb3 ∪ jsonb1': allTypesTable.jsonb3.as('jsonb3 ∪ jsonb1'),
+								'jsonb3 ∪ jsonb2': allTypesTable.jsonb3.as('jsonb3 ∪ jsonb2'),
+								'jsonb3 ∪ jsonb3': allTypesTable.jsonb3.as('jsonb3 ∪ jsonb3'),
+							}).from(allTypesTable),
+							db.select({
+								'jsonb ∪ jsonb': allTypesTable.jsonb.as('jsonb ∪ jsonb'),
+								'jsonb ∪ jsonb1': allTypesTable.jsonb1.as('jsonb ∪ jsonb1'),
+								'jsonb ∪ jsonb2': allTypesTable.jsonb2.as('jsonb ∪ jsonb2'),
+								'jsonb ∪ jsonb3': allTypesTable.jsonb3.as('jsonb ∪ jsonb3'),
+								'jsonb1 ∪ jsonb': allTypesTable.jsonb.as('jsonb1 ∪ jsonb'),
+								'jsonb1 ∪ jsonb1': allTypesTable.jsonb1.as('jsonb1 ∪ jsonb1'),
+								'jsonb1 ∪ jsonb2': allTypesTable.jsonb2.as('jsonb1 ∪ jsonb2'),
+								'jsonb1 ∪ jsonb3': allTypesTable.jsonb3.as('jsonb1 ∪ jsonb3'),
+								'jsonb2 ∪ jsonb': allTypesTable.jsonb.as('jsonb2 ∪ jsonb'),
+								'jsonb2 ∪ jsonb1': allTypesTable.jsonb1.as('jsonb2 ∪ jsonb1'),
+								'jsonb2 ∪ jsonb2': allTypesTable.jsonb2.as('jsonb2 ∪ jsonb2'),
+								'jsonb2 ∪ jsonb3': allTypesTable.jsonb3.as('jsonb2 ∪ jsonb3'),
+								'jsonb3 ∪ jsonb': allTypesTable.jsonb.as('jsonb3 ∪ jsonb'),
+								'jsonb3 ∪ jsonb1': allTypesTable.jsonb1.as('jsonb3 ∪ jsonb1'),
+								'jsonb3 ∪ jsonb2': allTypesTable.jsonb2.as('jsonb3 ∪ jsonb2'),
+								'jsonb3 ∪ jsonb3': allTypesTable.jsonb3.as('jsonb3 ∪ jsonb3'),
+							}).from(allTypesTable),
 						),
-					).toStrictEqual([{ value: { arr: ['strb', 11], str: 'strvalb' } }, {
-						value: { arr: ['strb', 11], str: 'strvalb' },
-					}]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.jsonb }).from(allTypesTable),
-							db.select({ value: allTypesTable.jsonb1 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: { arr: ['strb', 11], str: 'strvalb' } }, {
-						value: [{ key: 'value', num: 8 }, 'x', '10', 3],
-					}]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.jsonb }).from(allTypesTable),
-							db.select({ value: allTypesTable.jsonb2 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: { arr: ['strb', 11], str: 'strvalb' } }, { value: 7 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.jsonb }).from(allTypesTable),
-							db.select({ value: allTypesTable.jsonb3 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: { arr: ['strb', 11], str: 'strvalb' } }, { value: '7' }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.jsonb1 }).from(allTypesTable),
-							db.select({ value: allTypesTable.jsonb }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: [{ key: 'value', num: 8 }, 'x', '10', 3] }, {
-						value: { arr: ['strb', 11], str: 'strvalb' },
-					}]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.jsonb1 }).from(allTypesTable),
-							db.select({ value: allTypesTable.jsonb1 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: [{ key: 'value', num: 8 }, 'x', '10', 3] }, {
-						value: [{ key: 'value', num: 8 }, 'x', '10', 3],
-					}]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.jsonb1 }).from(allTypesTable),
-							db.select({ value: allTypesTable.jsonb2 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: [{ key: 'value', num: 8 }, 'x', '10', 3] }, { value: 7 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.jsonb1 }).from(allTypesTable),
-							db.select({ value: allTypesTable.jsonb3 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: [{ key: 'value', num: 8 }, 'x', '10', 3] }, { value: '7' }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.jsonb2 }).from(allTypesTable),
-							db.select({ value: allTypesTable.jsonb }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 7 }, { value: { arr: ['strb', 11], str: 'strvalb' } }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.jsonb2 }).from(allTypesTable),
-							db.select({ value: allTypesTable.jsonb1 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 7 }, { value: [{ key: 'value', num: 8 }, 'x', '10', 3] }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.jsonb2 }).from(allTypesTable),
-							db.select({ value: allTypesTable.jsonb2 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 7 }, { value: 7 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.jsonb2 }).from(allTypesTable),
-							db.select({ value: allTypesTable.jsonb3 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 7 }, { value: '7' }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.jsonb3 }).from(allTypesTable),
-							db.select({ value: allTypesTable.jsonb }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: '7' }, { value: { arr: ['strb', 11], str: 'strvalb' } }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.jsonb3 }).from(allTypesTable),
-							db.select({ value: allTypesTable.jsonb1 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: '7' }, { value: [{ key: 'value', num: 8 }, 'x', '10', 3] }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.jsonb3 }).from(allTypesTable),
-							db.select({ value: allTypesTable.jsonb2 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: '7' }, { value: 7 }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.jsonb3 }).from(allTypesTable),
-							db.select({ value: allTypesTable.jsonb3 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: '7' }, { value: '7' }]);
+					).toEqual(expect.arrayContaining([
+						{
+							'jsonb ∪ jsonb': { arr: ['strb', 11], str: 'strvalb' },
+							'jsonb ∪ jsonb1': { arr: ['strb', 11], str: 'strvalb' },
+							'jsonb ∪ jsonb2': { arr: ['strb', 11], str: 'strvalb' },
+							'jsonb ∪ jsonb3': { arr: ['strb', 11], str: 'strvalb' },
+							'jsonb1 ∪ jsonb': [{ key: 'value', num: 8 }, 'x', '10', 3],
+							'jsonb1 ∪ jsonb1': [{ key: 'value', num: 8 }, 'x', '10', 3],
+							'jsonb1 ∪ jsonb2': [{ key: 'value', num: 8 }, 'x', '10', 3],
+							'jsonb1 ∪ jsonb3': [{ key: 'value', num: 8 }, 'x', '10', 3],
+							'jsonb2 ∪ jsonb': 7,
+							'jsonb2 ∪ jsonb1': 7,
+							'jsonb2 ∪ jsonb2': 7,
+							'jsonb2 ∪ jsonb3': 7,
+							'jsonb3 ∪ jsonb': '7',
+							'jsonb3 ∪ jsonb1': '7',
+							'jsonb3 ∪ jsonb2': '7',
+							'jsonb3 ∪ jsonb3': '7',
+						},
+						{
+							'jsonb ∪ jsonb': { arr: ['strb', 11], str: 'strvalb' },
+							'jsonb ∪ jsonb1': [{ key: 'value', num: 8 }, 'x', '10', 3],
+							'jsonb ∪ jsonb2': 7,
+							'jsonb ∪ jsonb3': '7',
+							'jsonb1 ∪ jsonb': { arr: ['strb', 11], str: 'strvalb' },
+							'jsonb1 ∪ jsonb1': [{ key: 'value', num: 8 }, 'x', '10', 3],
+							'jsonb1 ∪ jsonb2': 7,
+							'jsonb1 ∪ jsonb3': '7',
+							'jsonb2 ∪ jsonb': { arr: ['strb', 11], str: 'strvalb' },
+							'jsonb2 ∪ jsonb1': [{ key: 'value', num: 8 }, 'x', '10', 3],
+							'jsonb2 ∪ jsonb2': 7,
+							'jsonb2 ∪ jsonb3': '7',
+							'jsonb3 ∪ jsonb': { arr: ['strb', 11], str: 'strvalb' },
+							'jsonb3 ∪ jsonb1': [{ key: 'value', num: 8 }, 'x', '10', 3],
+							'jsonb3 ∪ jsonb2': 7,
+							'jsonb3 ∪ jsonb3': '7',
+						},
+					]));
 
-					// ---- self ----
+					// ---- self-only ----
 					expect(
 						yield* unionAll(
-							db.select({ value: allTypesTable.char }).from(allTypesTable),
-							db.select({ value: allTypesTable.char }).from(allTypesTable),
+							db.select({
+								'char ∪ char': allTypesTable.char.as('char ∪ char'),
+								'cidr ∪ cidr': allTypesTable.cidr.as('cidr ∪ cidr'),
+								'inet ∪ inet': allTypesTable.inet.as('inet ∪ inet'),
+								'macaddr ∪ macaddr': allTypesTable.macaddr.as('macaddr ∪ macaddr'),
+								'macaddr8 ∪ macaddr8': allTypesTable.macaddr8.as('macaddr8 ∪ macaddr8'),
+								'uuid ∪ uuid': allTypesTable.uuid.as('uuid ∪ uuid'),
+								'interval ∪ interval': allTypesTable.interval.as('interval ∪ interval'),
+								'time ∪ time': allTypesTable.time.as('time ∪ time'),
+								'datestr ∪ datestr': allTypesTable.datestr.as('datestr ∪ datestr'),
+								'timestampstr ∪ timestampstr': allTypesTable.timestampstr.as('timestampstr ∪ timestampstr'),
+								'timestampTzstr ∪ timestampTzstr': allTypesTable.timestampTzstr.as('timestampTzstr ∪ timestampTzstr'),
+								'bool ∪ bool': allTypesTable.bool.as('bool ∪ bool'),
+								'bytea ∪ bytea': allTypesTable.bytea.as('bytea ∪ bytea'),
+								'enum ∪ enum': allTypesTable.enum.as('enum ∪ enum'),
+								'line ∪ line': allTypesTable.line.as('line ∪ line'),
+								'linetuple ∪ linetuple': allTypesTable.linetuple.as('linetuple ∪ linetuple'),
+								'point ∪ point': allTypesTable.point.as('point ∪ point'),
+								'pointtuple ∪ pointtuple': allTypesTable.pointtuple.as('pointtuple ∪ pointtuple'),
+							}).from(allTypesTable),
+							db.select({
+								'char ∪ char': allTypesTable.char.as('char ∪ char'),
+								'cidr ∪ cidr': allTypesTable.cidr.as('cidr ∪ cidr'),
+								'inet ∪ inet': allTypesTable.inet.as('inet ∪ inet'),
+								'macaddr ∪ macaddr': allTypesTable.macaddr.as('macaddr ∪ macaddr'),
+								'macaddr8 ∪ macaddr8': allTypesTable.macaddr8.as('macaddr8 ∪ macaddr8'),
+								'uuid ∪ uuid': allTypesTable.uuid.as('uuid ∪ uuid'),
+								'interval ∪ interval': allTypesTable.interval.as('interval ∪ interval'),
+								'time ∪ time': allTypesTable.time.as('time ∪ time'),
+								'datestr ∪ datestr': allTypesTable.datestr.as('datestr ∪ datestr'),
+								'timestampstr ∪ timestampstr': allTypesTable.timestampstr.as('timestampstr ∪ timestampstr'),
+								'timestampTzstr ∪ timestampTzstr': allTypesTable.timestampTzstr.as('timestampTzstr ∪ timestampTzstr'),
+								'bool ∪ bool': allTypesTable.bool.as('bool ∪ bool'),
+								'bytea ∪ bytea': allTypesTable.bytea.as('bytea ∪ bytea'),
+								'enum ∪ enum': allTypesTable.enum.as('enum ∪ enum'),
+								'line ∪ line': allTypesTable.line.as('line ∪ line'),
+								'linetuple ∪ linetuple': allTypesTable.linetuple.as('linetuple ∪ linetuple'),
+								'point ∪ point': allTypesTable.point.as('point ∪ point'),
+								'pointtuple ∪ pointtuple': allTypesTable.pointtuple.as('pointtuple ∪ pointtuple'),
+							}).from(allTypesTable),
 						),
-					).toStrictEqual([{ value: 'c' }, { value: 'c' }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.cidr }).from(allTypesTable),
-							db.select({ value: allTypesTable.cidr }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128' }, {
-						value: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
-					}]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.inet }).from(allTypesTable),
-							db.select({ value: allTypesTable.inet }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: '192.168.0.1/24' }, { value: '192.168.0.1/24' }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.macaddr }).from(allTypesTable),
-							db.select({ value: allTypesTable.macaddr }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: '08:00:2b:01:02:03' }, { value: '08:00:2b:01:02:03' }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.macaddr8 }).from(allTypesTable),
-							db.select({ value: allTypesTable.macaddr8 }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: '08:00:2b:01:02:03:04:05' }, { value: '08:00:2b:01:02:03:04:05' }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.uuid }).from(allTypesTable),
-							db.select({ value: allTypesTable.uuid }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c' }, {
-						value: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
-					}]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.interval }).from(allTypesTable),
-							db.select({ value: allTypesTable.interval }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: '-2 mons' }, { value: '-2 mons' }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.time }).from(allTypesTable),
-							db.select({ value: allTypesTable.time }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: '13:59:28' }, { value: '13:59:28' }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.datestr }).from(allTypesTable),
-							db.select({ value: allTypesTable.datestr }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: '2025-03-12' }, { value: '2025-03-12' }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.timestampstr }).from(allTypesTable),
-							db.select({ value: allTypesTable.timestampstr }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: '2025-03-12 01:32:41.623' }, { value: '2025-03-12 01:32:41.623' }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.timestampTzstr }).from(allTypesTable),
-							db.select({ value: allTypesTable.timestampTzstr }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: '2025-03-12 01:32:41.623+00' }, { value: '2025-03-12 01:32:41.623+00' }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.bool }).from(allTypesTable),
-							db.select({ value: allTypesTable.bool }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: true }, { value: true }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.bytea }).from(allTypesTable),
-							db.select({ value: allTypesTable.bytea }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: Buffer.from('BYTES') }, { value: Buffer.from('BYTES') }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.enum }).from(allTypesTable),
-							db.select({ value: allTypesTable.enum }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: 'enVal1' }, { value: 'enVal1' }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.line }).from(allTypesTable),
-							db.select({ value: allTypesTable.line }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: { a: 1, b: 2, c: 3 } }, { value: { a: 1, b: 2, c: 3 } }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.linetuple }).from(allTypesTable),
-							db.select({ value: allTypesTable.linetuple }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: [1, 2, 3] }, { value: [1, 2, 3] }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.point }).from(allTypesTable),
-							db.select({ value: allTypesTable.point }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: { x: 24.5, y: 49.6 } }, { value: { x: 24.5, y: 49.6 } }]);
-					expect(
-						yield* unionAll(
-							db.select({ value: allTypesTable.pointtuple }).from(allTypesTable),
-							db.select({ value: allTypesTable.pointtuple }).from(allTypesTable),
-						),
-					).toStrictEqual([{ value: [24.5, 49.6] }, { value: [24.5, 49.6] }]);
+					).toEqual(expect.arrayContaining([
+						{
+							'char ∪ char': 'c',
+							'cidr ∪ cidr': '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
+							'inet ∪ inet': '192.168.0.1/24',
+							'macaddr ∪ macaddr': '08:00:2b:01:02:03',
+							'macaddr8 ∪ macaddr8': '08:00:2b:01:02:03:04:05',
+							'uuid ∪ uuid': 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
+							'interval ∪ interval': '-2 mons',
+							'time ∪ time': '13:59:28',
+							'datestr ∪ datestr': '2025-03-12',
+							'timestampstr ∪ timestampstr': '2025-03-12 01:32:41.623',
+							'timestampTzstr ∪ timestampTzstr': '2025-03-12 01:32:41.623+00',
+							'bool ∪ bool': true,
+							'bytea ∪ bytea': Buffer.from('BYTES'),
+							'enum ∪ enum': 'enVal1',
+							'line ∪ line': { a: 1, b: 2, c: 3 },
+							'linetuple ∪ linetuple': [1, 2, 3],
+							'point ∪ point': { x: 24.5, y: 49.6 },
+							'pointtuple ∪ pointtuple': [24.5, 49.6],
+						},
+						{
+							'char ∪ char': 'c',
+							'cidr ∪ cidr': '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
+							'inet ∪ inet': '192.168.0.1/24',
+							'macaddr ∪ macaddr': '08:00:2b:01:02:03',
+							'macaddr8 ∪ macaddr8': '08:00:2b:01:02:03:04:05',
+							'uuid ∪ uuid': 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
+							'interval ∪ interval': '-2 mons',
+							'time ∪ time': '13:59:28',
+							'datestr ∪ datestr': '2025-03-12',
+							'timestampstr ∪ timestampstr': '2025-03-12 01:32:41.623',
+							'timestampTzstr ∪ timestampTzstr': '2025-03-12 01:32:41.623+00',
+							'bool ∪ bool': true,
+							'bytea ∪ bytea': Buffer.from('BYTES'),
+							'enum ∪ enum': 'enVal1',
+							'line ∪ line': { a: 1, b: 2, c: 3 },
+							'linetuple ∪ linetuple': [1, 2, 3],
+							'point ∪ point': { x: 24.5, y: 49.6 },
+							'pointtuple ∪ pointtuple': [24.5, 49.6],
+						},
+					]));
 				}),
 		);
 

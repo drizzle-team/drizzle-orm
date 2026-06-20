@@ -542,10 +542,30 @@ export class MySqlDialect {
 		}
 
 		return ignoreSelectionCastCodecs ? leftSelect : sql`select ${
-			this.buildSelection(outputSelection, {
-				isSingleTable: true,
-				ignoreCastCodecs: ignoreSelectionCastCodecs,
-			})
+			this.buildSelection(
+				outputSelection.map((field) => {
+					if (is(field.field, SQL.Aliased)) {
+						const ref = field.field.clone();
+						ref.isSelectionField = true;
+						return { ...field, field: ref };
+					}
+					if (is(field.field, Column) && field.field.isAlias) {
+						const ref = new SQL.Aliased(sql`${sql.identifier(field.field.name)}`, field.field.name);
+						ref.isSelectionField = true;
+						return { ...field, field: ref };
+					}
+					if (is(field.field, Subquery)) {
+						const ref = new SQL.Aliased(sql`${field.field.getSQL()}`, field.field._.alias);
+						ref.isSelectionField = true;
+						return { ...field, field: ref };
+					}
+					return field;
+				}),
+				{
+					isSingleTable: true,
+					ignoreCastCodecs: ignoreSelectionCastCodecs,
+				},
+			)
 		} from (${leftSelect}) ${sql.identifier('drizzle_union')}`;
 	}
 
