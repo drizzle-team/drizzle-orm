@@ -33,6 +33,7 @@ export default defineConfig({
 					'tests/sqlite/libsql-batch.test.ts',
 					'tests/pg/neon-http.test.ts',
 					'tests/pg/neon-http-batch.test.ts',
+					'tests/pg/netlify-db.test.ts',
 					'tests/utils/is-config.test.ts', // Uses external DBs in some cases
 					'js-tests/driver-init/commonjs/neon-http.test.cjs',
 					'js-tests/driver-init/commonjs/neon-ws.test.cjs',

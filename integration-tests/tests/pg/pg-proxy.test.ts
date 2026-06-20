@@ -398,7 +398,7 @@ test('test mode string for timestamp with timezone in different timezone', async
 	const timezone = await db.execute<{ TimeZone: string }>(sql`show timezone`);
 
 	// set timezone to HST (UTC - 10)
-	await db.execute(sql`set time zone 'HST'`);
+	await db.execute(sql`set time zone '-10'`);
 
 	const table = pgTable('all_columns', {
 		id: serial('id').primaryKey(),
