@@ -2,7 +2,7 @@
 import type { AnyColumn, AnyTable } from 'drizzle-orm';
 import { entityKind, eq, is, sql } from 'drizzle-orm';
 import type { MySqlTable, MySqlTableWithColumns } from 'drizzle-orm/mysql-core';
-import { MySqlDatabase } from 'drizzle-orm/mysql-core';
+import { MySqlAsyncDatabase } from 'drizzle-orm/mysql-core';
 import type { PgTable, PgTableWithColumns } from 'drizzle-orm/pg-core';
 import { getTableConfig as getTableConfigPg, type PgDialect } from 'drizzle-orm/pg-core';
 import { PgAsyncDatabase } from 'drizzle-orm/pg-core/async';
@@ -970,7 +970,7 @@ export class SeedService {
 			maxParametersNumber = db.constructor[entityKind] === 'PgliteDatabase'
 				? this.postgresPgLiteMaxParametersNumber
 				: this.postgresMaxParametersNumber;
-		} else if (is(db, MySqlDatabase<any, any>)) {
+		} else if (is(db, MySqlAsyncDatabase<any, any>)) {
 			maxParametersNumber = this.mysqlMaxParametersNumber;
 		} else if (is(db, SQLiteAsyncDatabase<any, any>)) {
 			maxParametersNumber = this.sqliteMaxParametersNumber;
@@ -1144,7 +1144,7 @@ export class SeedService {
 				return await query.overridingSystemValue().values(generatedValues);
 			}
 			await query.values(generatedValues);
-		} else if (is(db, MySqlDatabase<any, any>)) {
+		} else if (is(db, MySqlAsyncDatabase<any, any>)) {
 			await db
 				.insert((schema as { [key: string]: MySqlTable })[tableName]!)
 				.values(generatedValues);
@@ -1209,7 +1209,7 @@ export class SeedService {
 			await db.update(table).set(values).where(
 				eq(uniqueNotNullCol, uniqueNotNullColValue),
 			);
-		} else if (is(db, MySqlDatabase<any, any>)) {
+		} else if (is(db, MySqlAsyncDatabase<any, any>)) {
 			const table = (schema as { [key: string]: MySqlTableWithColumns<any> })[tableName]!;
 			await db.update(table).set(values).where(
 				eq(table[uniqueNotNullColName], uniqueNotNullColValue),

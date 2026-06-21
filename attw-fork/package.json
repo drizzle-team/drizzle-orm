@@ -37,7 +37,7 @@
 		"marked": "9.1.2",
 		"marked-terminal": "7.1.0",
 		"semver": "^7.5.4",
-		"typescript": "5.9.2",
+		"typescript": "5.9.3",
 		"validate-npm-package-name": "^5.0.0"
 	},
 	"devDependencies": {
