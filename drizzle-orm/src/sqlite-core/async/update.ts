@@ -117,7 +117,7 @@ export class SQLiteAsyncUpdateBase<
 > implements RunnableQuery<TReturning extends undefined ? TRunResult : TReturning[], 'sqlite'>, SQLWrapper {
 	static override readonly [entityKind]: string = 'SQLiteAsyncUpdate';
 
-	declare protected session: SQLiteAsyncSession<any, any, any>;
+	declare protected session: SQLiteAsyncSession<TResultType, TRunResult, any>;
 
 	/** @internal */
 	_prepare(prepare = false): SQLiteAsyncUpdatePrepare<this> {

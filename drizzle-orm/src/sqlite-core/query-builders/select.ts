@@ -21,7 +21,7 @@ import type { SubqueryWithSelection } from '~/sqlite-core/subquery.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import { getTableColumns, getTableLikeName, haveSameKeys, type ValueOrArray } from '~/utils.ts';
+import { getTableColumns, getTableLikeName, haveSameKeys, orderSelectedFields, type ValueOrArray } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { extractUsedTable } from '../utils.ts';
 import { SQLiteViewBase } from '../view-base.ts';
@@ -827,8 +827,8 @@ export class SQLiteSelectBase<
 		return this;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
+		this.config.fieldsFlat = orderSelectedFields<SQLiteColumn>(this.config.fields);
 		return this.dialect.buildSelectQuery(this.config);
 	}
 

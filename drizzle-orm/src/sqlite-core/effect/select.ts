@@ -7,12 +7,11 @@ import type {
 	SelectResult,
 } from '~/query-builders/select.types.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
-import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import { SQLiteSelectBase, type SQLiteSelectBuilder } from '~/sqlite-core/query-builders/select.ts';
 import type { SelectedFields, SQLiteSelectHKTBase } from '~/sqlite-core/query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '~/sqlite-core/session.ts';
-import { type Assume, orderSelectedFields } from '~/utils.ts';
-import type { SQLiteEffectPreparedQuery } from './session.ts';
+import type { Assume } from '~/utils.ts';
+import type { SQLiteEffectPreparedQuery, SQLiteEffectSession } from './session.ts';
 
 export type SQLiteEffectSelectExecute<T extends AnySQLiteEffectSelect> = T['_']['result'];
 
@@ -105,25 +104,28 @@ export class SQLiteEffectSelectBase<
 > {
 	static override readonly [entityKind]: string = 'SQLiteEffectSelect';
 
+	declare protected session: SQLiteEffectSession<TRunResult, TEffectHKT, any>;
+
 	/** @internal */
 	_prepare(prepare = false): SQLiteEffectSelectPrepare<this, TEffectHKT> {
-		if (!this.session) {
-			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
-		}
-		const fieldsList = orderSelectedFields<SQLiteColumn>(this.config.fields);
-		const query = this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
+		// Build query before accessing `fieldsFlat` - build mutates it
+		const query = this.dialect.sqlToQuery(this.getSQL());
+		const fieldsList = this.config.fieldsFlat!;
+		const mapper = this.dialect.mapperGenerators.rows(fieldsList, this.joinsNotNullableMap);
+
+		const preparedQuery = this.session.prepareQuery(
+			query,
 			'arrays',
 			prepare,
 			'all',
-			this.dialect.mapperGenerators.rows(fieldsList, this.joinsNotNullableMap),
+			mapper,
 			{
 				type: 'select',
 				tables: [...this.usedTables],
 			},
 			this.cacheConfig,
 		);
-		return query as ReturnType<this['prepare']>;
+		return preparedQuery as ReturnType<this['prepare']>;
 	}
 
 	prepare(): SQLiteEffectSelectPrepare<this, TEffectHKT> {

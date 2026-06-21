@@ -90,7 +90,7 @@ export class SQLiteEffectInsertBase<
 > implements RunnableQuery<TReturning extends undefined ? TRunResult : TReturning[], 'sqlite'>, SQLWrapper {
 	static override readonly [entityKind]: string = 'SQLiteEffectInsert';
 
-	declare protected session: SQLiteEffectSession<any, TEffectHKT, any>;
+	declare protected session: SQLiteEffectSession<TRunResult, TEffectHKT, any>;
 
 	/** @internal */
 	_prepare(prepare = false): SQLiteEffectInsertPrepare<this, TEffectHKT> {
