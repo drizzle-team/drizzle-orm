@@ -56,6 +56,7 @@ export const make = Effect.fn('MySqlDrizzle.make')(
 		const dialect = new MySqlDialect({
 			useJitMappers: jitCompatCheck(config.jit),
 			codecs: config.codecs ?? effectMysql2Codecs,
+			paginationToBigint: true,
 		});
 
 		const relations = config.relations ?? {} as TRelations;

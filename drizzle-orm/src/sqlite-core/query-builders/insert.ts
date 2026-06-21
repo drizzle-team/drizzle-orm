@@ -80,7 +80,7 @@ export class SQLiteInsertBuilder<
 			const cols = this.table[Table.Symbol.Columns];
 			for (const colKey of Object.keys(entry)) {
 				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue, cols[colKey]);
+				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue as any, cols[colKey]);
 			}
 			return result;
 		});

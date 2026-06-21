@@ -25,8 +25,8 @@ import {
 	relationToSQL,
 } from '~/relations.ts';
 import { and } from '~/sql/expressions/index.ts';
-import { isSQLWrapper, Param, SQL, sql, View } from '~/sql/sql.ts';
-import type { Name, Placeholder, Query, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
+import { isSQLWrapper, noopEncoder, Param, SQL, sql, View } from '~/sql/sql.ts';
+import type { DriverValueEncoder, Name, Placeholder, Query, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
 import {
@@ -58,6 +58,8 @@ export interface MySqlDialectConfig {
 	escapeParam?: (num: number) => string;
 	codecs?: MySqlCodecs;
 	useJitMappers?: boolean;
+	/** Resolves mysql binary protocol bug that rejects numbers in pagination */
+	paginationToBigint?: boolean;
 }
 
 export class MySqlDialect {
@@ -69,6 +71,7 @@ export class MySqlDialect {
 		relationalRows: RelationalRowsMapperGenerator;
 		$returning: typeof make$ReturningResponseMapper; // TODO: jit ver
 	};
+	readonly paginationEncoder: DriverValueEncoder<any, any>;
 
 	constructor(config?: MySqlDialectConfig) {
 		if (config?.escapeParam) {
@@ -87,6 +90,7 @@ export class MySqlDialect {
 				relationalRows: makeDefaultRqbMapper,
 				$returning: make$ReturningResponseMapper,
 			};
+		this.paginationEncoder = config?.paginationToBigint ? { mapToDriverValue: BigInt } : noopEncoder;
 	}
 
 	escapeName(name: string): string {
@@ -289,7 +293,7 @@ export class MySqlDialect {
 		return typeof limit === 'object'
 				|| (typeof limit === 'number' && limit >= 0)
 			// Binary protocol bug bypass
-			? sql` limit ${sql.param(limit, { mapToDriverValue: BigInt })}`
+			? sql` limit ${sql.param(limit, this.paginationEncoder)}`
 			: undefined;
 	}
 
@@ -471,7 +475,7 @@ export class MySqlDialect {
 
 		// Binary protocol bug bypass
 		const offsetSql = offset
-			? sql` offset ${sql.param(offset, { mapToDriverValue: BigInt })}`
+			? sql` offset ${sql.param(offset, this.paginationEncoder)}`
 			: undefined;
 
 		const useIndexSql = this.buildIndex({ indexes: useIndex, indexFor: 'USE' });
@@ -620,7 +624,7 @@ export class MySqlDialect {
 
 		// Binary protocol bug bypass
 		const offsetSql = offset
-			? sql` offset ${sql.param(offset, { mapToDriverValue: BigInt })}`
+			? sql` offset ${sql.param(offset, this.paginationEncoder)}`
 			: undefined;
 
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
@@ -1007,10 +1011,10 @@ export class MySqlDialect {
 		const query = sql`select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${
 			joins ? sql`${joins}` : undefined
 		}${where ? sql` where ${where}` : undefined}${order ? sql` order by ${order}` : undefined}${
-			limit !== undefined ? sql` limit ${sql.param(limit, { mapToDriverValue: BigInt })}` : undefined
+			limit !== undefined ? sql` limit ${sql.param(limit, this.paginationEncoder)}` : undefined
 		}${
 			offset !== undefined
-				? sql` offset ${sql.param(offset, { mapToDriverValue: BigInt })}`
+				? sql` offset ${sql.param(offset, this.paginationEncoder)}`
 				: undefined
 		}${comment ? sql` ${comment}` : undefined}`;
 
