@@ -49,8 +49,6 @@ export default defineConfig({
 			'tests/relational/vercel-v1.test.ts',
 			// Have a strange "invalid SQL: ERROR: must be owner of schema public" error. Will need to check with xata team
 			'tests/pg/xata-http.test.ts',
-			// https://github.com/Effect-TS/effect-smol/issues/2390
-			'tests/mysql/default/effect-mysql2.test.ts',
 			// todo: remove
 			'js-tests/driver-init/module/vercel.test.mjs',
 			'js-tests/driver-init/commonjs/vercel.test.cjs',

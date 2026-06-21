@@ -288,7 +288,8 @@ export class MySqlDialect {
 	private buildLimit(limit: number | Placeholder | undefined): SQL | undefined {
 		return typeof limit === 'object'
 				|| (typeof limit === 'number' && limit >= 0)
-			? sql` limit ${limit}`
+			// Binary protocol bug bypass
+			? sql` limit ${sql.param(limit, { mapToDriverValue: BigInt })}`
 			: undefined;
 	}
 
@@ -468,7 +469,10 @@ export class MySqlDialect {
 
 		const limitSql = this.buildLimit(limit);
 
-		const offsetSql = offset ? sql` offset ${offset}` : undefined;
+		// Binary protocol bug bypass
+		const offsetSql = offset
+			? sql` offset ${sql.param(offset, { mapToDriverValue: BigInt })}`
+			: undefined;
 
 		const useIndexSql = this.buildIndex({ indexes: useIndex, indexFor: 'USE' });
 
@@ -614,7 +618,10 @@ export class MySqlDialect {
 
 		const operatorChunk = sql.raw(`${type} ${isAll ? 'all ' : ''}`);
 
-		const offsetSql = offset ? sql` offset ${offset}` : undefined;
+		// Binary protocol bug bypass
+		const offsetSql = offset
+			? sql` offset ${sql.param(offset, { mapToDriverValue: BigInt })}`
+			: undefined;
 
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
@@ -1000,8 +1007,12 @@ export class MySqlDialect {
 		const query = sql`select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${
 			joins ? sql`${joins}` : undefined
 		}${where ? sql` where ${where}` : undefined}${order ? sql` order by ${order}` : undefined}${
-			limit !== undefined ? sql` limit ${limit}` : undefined
-		}${offset !== undefined ? sql` offset ${offset}` : undefined}${comment ? sql` ${comment}` : undefined}`;
+			limit !== undefined ? sql` limit ${sql.param(limit, { mapToDriverValue: BigInt })}` : undefined
+		}${
+			offset !== undefined
+				? sql` offset ${sql.param(offset, { mapToDriverValue: BigInt })}`
+				: undefined
+		}${comment ? sql` ${comment}` : undefined}`;
 
 		return {
 			sql: query,

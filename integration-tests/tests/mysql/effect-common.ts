@@ -489,7 +489,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 						with: {
 							self: true,
 						},
-					}).getSQL().inlineParams(),
+					}).getSQL(),
 				);
 				const { self: relationSelf, ...rootRaw } = relationRaw[0]!;
 				const relationRes = normalizeDataWithDbCodecs({
