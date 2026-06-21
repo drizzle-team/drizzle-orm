@@ -355,9 +355,15 @@ export class SeedService {
 				}
 
 				compositeKeyColumnNames = table.uniqueConstraints.filter((colNames) => colNames.includes(col.name));
-				if (compositeKeyColumnNames.length > 1) {
-					throw new Error('Currently, multiple composite unique keys that share the same column are not supported.');
-				}
+				// When the current column participates in more than one composite
+				// unique constraint (e.g. multi-tenant patterns like
+				// `unique(orgId, id)` + `unique(orgId, name)`), we don't bind it
+				// to any single composite generator — the column keeps its base
+				// generator, and the *other* column in each composite carries the
+				// uniqueness guarantee for that pair. That degrades to a valid
+				// superset of what PostgreSQL accepts (the non-shared columns end
+				// up globally unique rather than unique-within-tenant) but stops
+				// `drizzle-seed` from rejecting otherwise-legal schemas.
 
 				// to handle composite unique key generation, I will need a unique generator for each column in the composite key
 				if (compositeKeyColumnNames.length === 1) {
