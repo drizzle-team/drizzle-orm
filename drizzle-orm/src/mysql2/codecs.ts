@@ -8,9 +8,6 @@ export const mysql2Codecs = refineGenericMySqlCodecs({
 	'bigint:number': {
 		normalize: Number,
 	},
-	'bigint:string': {
-		normalize: String,
-	},
 	boolean: {
 		normalize: (value: number) => value === 1,
 	},

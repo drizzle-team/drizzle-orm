@@ -26,6 +26,7 @@ function construct<
 ): BunMySqlDatabase<TRelations> & {
 	$client: SQL;
 } {
+	client.options.bigint = true;
 	const dialect = new MySqlDialect({
 		useJitMappers: jitCompatCheck(config.jit),
 		codecs: config.codecs ?? bunSqlMySqlCodecs,
