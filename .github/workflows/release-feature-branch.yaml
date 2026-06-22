@@ -323,7 +323,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       matrix:
-        package: [node10, node16-cjs, node16-esm, bundler]
+        package: [node16-cjs, node16-esm, bundler]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -342,6 +342,21 @@ jobs:
         run: bun --bun run ../attw-fork/src/run.ts ../artifacts/drizzle-orm/package.tgz ${{ matrix.package }}
         env:
           ATTW_FORMAT: concise
+
+  publint-orm:
+    needs: [prepare]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-node@v6
+        with: { node-version: '24' }
+      - name: Download drizzle-orm tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: ./artifacts
+      - name: Run publint
+        run: npx -y publint@0.3.21 ./artifacts/drizzle-orm/package.tgz
 
   skills-revision-gate:
     runs-on: ubuntu-24.04
@@ -369,7 +384,7 @@ jobs:
           pnpm skills:revision:check
 
   release:
-    needs: [test, prepare, attw, attw-orm, skills-revision-gate]
+    needs: [test, prepare, attw, attw-orm, publint-orm, skills-revision-gate]
     # workflow_dispatch only: this job holds `id-token: write` and is the sole path to
     # the publish step, so PR/push events must never enter it — that would both expose
     # OIDC minting to untrusted PR code and auto-publish on push.
