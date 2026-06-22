@@ -34,6 +34,7 @@ function construct<
 ): MySql2Database<TRelations> & {
 	$client: AnyMySql2Connection extends TClient ? Pool : TClient;
 } {
+	client.config.supportBigNumbers = true;
 	const dialect = new MySqlDialect({
 		useJitMappers: jitCompatCheck(config.jit),
 		codecs: mysql2Codecs,
@@ -116,7 +117,6 @@ export function drizzle<
 	const instance = typeof connection === 'string'
 		? createPool({
 			uri: connection,
-			supportBigNumbers: true,
 		})
 		: createPool(connection!);
 	const db = construct(instance, DrizzleMySqlConfig);
