@@ -368,7 +368,6 @@ jobs:
     strategy:
       matrix:
         shard:
-          - node10
           - node16-cjs
           - node16-esm
           - bundler
@@ -452,6 +451,82 @@ jobs:
         env:
           ATTW_FORMAT: concise
 
+  publint-orm:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: pnpm/action-setup@v3
+        name: Install pnpm
+        id: pnpm-install
+        with:
+          version: latest
+          run_install: false
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache@v4
+        name: Setup pnpm cache
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - uses: actions/cache@v4
+        name: Cache node_modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Check preconditions
+        id: checks
+        shell: bash
+        working-directory: drizzle-orm
+        run: |
+          old_version="$(jq -r .version package.json)"
+          version="$old_version-$(git rev-parse --short HEAD)"
+          npm version $version
+          tag="${{ github.ref_name }}"
+          is_version_published="$(npm view drizzle-orm versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
+
+          if [[ "$is_version_published" == "true" ]]; then
+            echo "\`drizzle-orm$version\` already published, adding tag \`$tag\`" >> $GITHUB_STEP_SUMMARY
+            npm dist-tag add drizzle-orm@$version $tag
+          else
+            {
+              echo "version=$version"
+              echo "tag=$tag"
+              echo "has_new_release=true"
+            } >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build
+        if: steps.checks.outputs.has_new_release == 'true'
+        run: pnpm build
+
+      - name: Pack
+        if: steps.checks.outputs.has_new_release == 'true'
+        working-directory: drizzle-orm
+        run: npm run pack
+
+      - name: Run publint
+        if: steps.checks.outputs.has_new_release == 'true'
+        working-directory: drizzle-orm
+        run: npx -y publint@0.3.21 package.tgz
+
   release:
     permissions:
       contents: write # for creating GitHub releases
@@ -460,6 +535,7 @@ jobs:
       - test
       - attw
       - attw-orm
+      - publint-orm
     strategy:
       fail-fast: false
       matrix:
