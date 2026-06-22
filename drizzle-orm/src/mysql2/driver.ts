@@ -132,6 +132,6 @@ export namespace drizzle {
 	): MySql2Database<TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
-		return construct({} as any, config) as any;
+		return construct({ config: {} } as any, config) as any;
 	}
 }
