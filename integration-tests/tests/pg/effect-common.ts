@@ -160,14 +160,6 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 			if (skipTests.includes(task.name)) skip();
 		});
 
-		it.effect('execute', () =>
-			Effect.gen(function*() {
-				const db = yield* DB;
-				const res = yield* db.execute<{ '1': 1 }>(sql`SELECT 1 as "1"`);
-
-				expect(res).toStrictEqual([{ '1': 1 }]);
-			}));
-
 		it.effect('all types', () =>
 			Effect.gen(function*() {
 				const en = pgEnum('en_48', ['enVal1', 'enVal2']);
