@@ -2812,3 +2812,187 @@ test('non-admin', async () => {
 		},
 	]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5869
+test('issue #5869', async () => {
+	await db.query(`DROP TABLE IF EXISTS opclass_repro`);
+
+	await db.query(`CREATE TABLE opclass_repro (
+  id bigint PRIMARY KEY,
+  created_at timestamptz NOT NULL,
+  status text NOT NULL
+);`);
+	await db.query(`CREATE INDEX opclass_repro_id_created_idx ON opclass_repro (id, created_at);`);
+	await db.query(`CREATE INDEX opclass_repro_status_created_idx ON opclass_repro (status, created_at);`);
+
+	const {
+		generateSqlStatements: generateSqlStatements1,
+		generateStatements: generateStatements1,
+		pushSqlStatements: pushSqlStatements1,
+		pushStatements: pushStatements1,
+		ddlAfterPull: ddlAfterPull1,
+	} = await diffIntrospect(db, {}, '#5869');
+
+	expect(generateSqlStatements1).toStrictEqual([]);
+	expect(generateStatements1).toStrictEqual([]);
+	expect(pushSqlStatements1).toStrictEqual([]);
+	expect(pushStatements1).toStrictEqual([]);
+	expect(ddlAfterPull1.indexes.list()).toStrictEqual([
+		{
+			columns: [
+				{
+					asc: true,
+					isExpression: false,
+					nullsFirst: false,
+					opclass: null,
+					value: 'id',
+				},
+				{
+					asc: true,
+					isExpression: false,
+					nullsFirst: false,
+					opclass: null,
+					value: 'created_at',
+				},
+			],
+			concurrently: false,
+			entityType: 'indexes',
+			isUnique: false,
+			method: 'btree',
+			name: 'opclass_repro_id_created_idx',
+			nameExplicit: true,
+			schema: 'public',
+			table: 'opclass_repro',
+			where: null,
+			with: '',
+		},
+		{
+			columns: [
+				{
+					asc: true,
+					isExpression: false,
+					nullsFirst: false,
+					opclass: null,
+					value: 'status',
+				},
+				{
+					asc: true,
+					isExpression: false,
+					nullsFirst: false,
+					opclass: null,
+					value: 'created_at',
+				},
+			],
+			concurrently: false,
+			entityType: 'indexes',
+			isUnique: false,
+			method: 'btree',
+			name: 'opclass_repro_status_created_idx',
+			nameExplicit: true,
+			schema: 'public',
+			table: 'opclass_repro',
+			where: null,
+			with: '',
+		},
+	]);
+
+	await db.query(`DROP TABLE IF EXISTS opclass_repro`);
+
+	await db.query(`
+  CREATE TABLE opclass_repro (
+    id serial PRIMARY KEY,
+    created_at timestamptz NOT NULL,
+    status text NOT NULL,
+    name varchar(255) NOT NULL
+  )
+`);
+	// Non default op-classes
+	await db.query(`
+  CREATE INDEX opclass_repro_status_name_idx 
+  ON opclass_repro (status text_pattern_ops, name varchar_pattern_ops)
+`);
+	await db.query(`
+  CREATE INDEX opclass_repro_name_status_idx 
+  ON opclass_repro (name varchar_ops, status)
+`);
+
+	const {
+		generateSqlStatements: generateSqlStatements2,
+		generateStatements: generateStatements2,
+		pushSqlStatements: pushSqlStatements2,
+		pushStatements: pushStatements2,
+		ddlAfterPull: ddlAfterPull2,
+	} = await diffIntrospect(db, {}, '#5869');
+
+	expect(generateSqlStatements2).toStrictEqual([]);
+	expect(generateStatements2).toStrictEqual([]);
+	expect(pushSqlStatements2).toStrictEqual([]);
+	expect(pushStatements2).toStrictEqual([]);
+	expect(ddlAfterPull2.indexes.list()).toStrictEqual([
+		{
+			columns: [
+				{
+					asc: true,
+					isExpression: false,
+					nullsFirst: false,
+					opclass: {
+						default: false,
+						name: 'varchar_ops',
+					},
+					value: 'name',
+				},
+				{
+					asc: true,
+					isExpression: false,
+					nullsFirst: false,
+					opclass: null,
+					value: 'status',
+				},
+			],
+			concurrently: false,
+			entityType: 'indexes',
+			isUnique: false,
+			method: 'btree',
+			name: 'opclass_repro_name_status_idx',
+			nameExplicit: true,
+			schema: 'public',
+			table: 'opclass_repro',
+			where: null,
+			with: '',
+		},
+		{
+			columns: [
+				{
+					asc: true,
+					isExpression: false,
+					nullsFirst: false,
+					opclass: {
+						default: false,
+						name: 'text_pattern_ops',
+					},
+					value: 'status',
+				},
+				{
+					asc: true,
+					isExpression: false,
+					nullsFirst: false,
+					opclass: {
+						default: false,
+						name: 'varchar_pattern_ops',
+					},
+					value: 'name',
+				},
+			],
+			concurrently: false,
+			entityType: 'indexes',
+			isUnique: false,
+			method: 'btree',
+			name: 'opclass_repro_status_name_idx',
+			nameExplicit: true,
+			schema: 'public',
+			table: 'opclass_repro',
+			where: null,
+			with: '',
+		},
+	]);
+});

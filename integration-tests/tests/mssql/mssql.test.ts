@@ -36,6 +36,7 @@ import {
 	mssqlTable,
 	mssqlTableCreator,
 	mssqlView,
+	nvarchar,
 	primaryKey,
 	real,
 	text,
@@ -4974,4 +4975,34 @@ test('issue 5527. real() returns unprecise float64 values', async ({ db }) => {
 test.skipIf(Date.now() < +new Date('2026-06-20'))('Query error wrapping', async ({ db }) => {
 	await expect(db.insert(users2Table).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]))
 		.rejects.toBeInstanceOf(DrizzleQueryError);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5881
+test('insert into table with generated column', async ({ db }) => {
+	const docs = mssqlTable('docs', {
+		id: int().identity(),
+		value: nvarchar({ length: 'max' }).notNull(),
+		value_idx: nvarchar({ length: 450 }).generatedAlwaysAs(sql`(CONVERT([nvarchar](450),[value]))`),
+	});
+
+	await db.execute(sql`drop table if exists [docs]`);
+	await db.execute(sql`
+		create table [docs] (
+			[id] int identity,
+			[value] nvarchar(max) not null,
+			[value_idx] as (upper([value]))
+		);
+	`);
+
+	const query = db.insert(docs).values({ value: 'hello' });
+	expect(query.toSQL()).toStrictEqual({
+		params: [
+			'hello',
+		],
+		sql: 'insert into [docs] ([value]) values (@par0)',
+	});
+
+	await query;
+	const result = await db.select().from(docs);
+	expect(result).toEqual([{ id: 1, value: 'hello', value_idx: 'HELLO' }]);
 });
