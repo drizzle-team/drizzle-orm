@@ -1,8 +1,5 @@
-/// <reference types="@cloudflare/workers-types" />
-import type { SqliteClient } from '@effect/sql-sqlite-do/SqliteClient';
-import type * as Cause from 'effect/Cause';
+import type { D1Client } from '@effect/sql-d1/D1Client';
 import * as Effect from 'effect/Effect';
-import * as Exit from 'effect/Exit';
 import type { SqlError } from 'effect/unstable/sql/SqlError';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -10,7 +7,6 @@ import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
-import { TransactionRollbackError } from '~/errors.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
@@ -22,29 +18,28 @@ import {
 } from '~/sqlite-core/effect/session.ts';
 import type { PreparedQueryConfig, SQLiteExecuteMethod } from '~/sqlite-core/session.ts';
 
-export interface EffectSQLiteDoQueryEffectHKT extends QueryEffectHKTBase {
+export interface EffectSQLiteD1QueryEffectHKT extends QueryEffectHKTBase {
 	readonly error: EffectDrizzleQueryError;
 	readonly context: never;
 }
 
-export type EffectSQLiteDoRunResult = unknown;
+export type EffectSQLiteD1RunResult = unknown;
 
-export interface EffectSQLiteDOSessionOptions {
+export interface EffectSQLiteD1SessionOptions {
 	logger: EffectLoggerShape;
 	cache: EffectCacheShape;
-	storage: DurableObjectStorage;
 }
 
-export class EffectSQLiteDOSession<TRelations extends AnyRelations>
-	extends SQLiteEffectSession<EffectSQLiteDoRunResult, EffectSQLiteDoQueryEffectHKT, TRelations>
+export class EffectSQLiteD1Session<TRelations extends AnyRelations>
+	extends SQLiteEffectSession<EffectSQLiteD1RunResult, EffectSQLiteD1QueryEffectHKT, TRelations>
 {
-	static override readonly [entityKind]: string = 'EffectSQLiteDOSession';
+	static override readonly [entityKind]: string = 'EffectSQLiteD1Session';
 
 	constructor(
-		private client: SqliteClient,
+		private client: D1Client,
 		dialect: SQLiteDialect,
 		protected relations: TRelations,
-		private options: EffectSQLiteDOSessionOptions,
+		private options: EffectSQLiteD1SessionOptions,
 	) {
 		super(dialect);
 	}
@@ -60,7 +55,7 @@ export class EffectSQLiteDOSession<TRelations extends AnyRelations>
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): SQLiteEffectPreparedQuery<T, EffectSQLiteDoQueryEffectHKT> {
+	): SQLiteEffectPreparedQuery<T, EffectSQLiteD1QueryEffectHKT> {
 		const executors: SQLiteEffectQueryExecutors = {
 			all: (params) => {
 				const q = this.client.unsafe(query.sql, params);
@@ -78,7 +73,7 @@ export class EffectSQLiteDOSession<TRelations extends AnyRelations>
 			run: (params) => this.client.unsafe(query.sql, params).raw,
 		};
 
-		return new SQLiteEffectPreparedQuery<T, EffectSQLiteDoQueryEffectHKT>(
+		return new SQLiteEffectPreparedQuery<T, EffectSQLiteD1QueryEffectHKT>(
 			executeMethod,
 			executors,
 			query,
@@ -91,56 +86,37 @@ export class EffectSQLiteDOSession<TRelations extends AnyRelations>
 		);
 	}
 
+	// Kept in case D1 supports transactions
+	// Currently throws
 	override transaction<A, E, R>(
 		transaction: (
-			tx: EffectSQLiteDOTransaction<TRelations>,
+			tx: EffectSQLiteD1Transaction<TRelations>,
 		) => Effect.Effect<A, E, R>,
 	): Effect.Effect<A, E | SqlError, R> {
-		const { dialect, relations, options: { storage } } = this;
+		const { dialect, relations } = this;
 
-		// Bypass effect wrapper's transaction bug by using driver directly
-		return Effect.gen({ self: this }, function*() {
-			const context = yield* Effect.context<R>();
-			let cause: Cause.Cause<E> | undefined;
+		return this.client.withTransaction(Effect.gen({ self: this }, function*() {
+			const tx = new EffectSQLiteD1Transaction<TRelations>(
+				dialect,
+				this,
+				relations,
+				undefined,
+				true,
+			);
 
-			try {
-				return storage.transactionSync(() => {
-					const tx = new EffectSQLiteDOTransaction<TRelations>(dialect, this, relations);
-					const exit = Effect.runSyncExit(Effect.provideContext(transaction(tx), context));
-
-					if (Exit.isFailure(exit)) {
-						cause = exit.cause;
-						throw new TransactionRollbackError();
-					}
-
-					return exit.value;
-				});
-			} catch (e) {
-				if (cause) return yield* Effect.failCause(cause);
-				throw e;
-			}
-		});
-
-		// return this.client.withTransaction(Effect.gen({ self: this }, function*() {
-		// 	const tx = new EffectSQLiteDOTransaction<TRelations>(
-		// 		dialect,
-		// 		this,
-		// 		relations,
-		// 	);
-
-		// 	return yield* transaction(tx);
-		// }));
+			return yield* transaction(tx);
+		}));
 	}
 }
 
-export class EffectSQLiteDOTransaction<TRelations extends AnyRelations>
-	extends SQLiteEffectTransaction<EffectSQLiteDoQueryEffectHKT, EffectSQLiteDoRunResult, TRelations>
+export class EffectSQLiteD1Transaction<TRelations extends AnyRelations>
+	extends SQLiteEffectTransaction<EffectSQLiteD1QueryEffectHKT, EffectSQLiteD1RunResult, TRelations>
 {
-	static override readonly [entityKind]: string = 'EffectSQLiteDOTransaction';
+	static override readonly [entityKind]: string = 'EffectSQLiteD1Transaction';
 
 	override transaction<A, E, R>(
 		transaction: (
-			tx: SQLiteEffectTransaction<EffectSQLiteDoQueryEffectHKT, EffectSQLiteDoRunResult, TRelations>,
+			tx: SQLiteEffectTransaction<EffectSQLiteD1QueryEffectHKT, EffectSQLiteD1RunResult, TRelations>,
 		) => Effect.Effect<A, E, R>,
 	): Effect.Effect<A, E | SqlError, R> {
 		return this.session.transaction(transaction);
