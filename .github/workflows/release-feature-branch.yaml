@@ -205,6 +205,14 @@ jobs:
           name: build-dist
           path: .
 
+      # Required for packaging tests
+      - name: Download packed tarballs
+        if: matrix.shard == 'orm'
+        uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: .
+
       # No `pnpm build` here — we reuse dist to save time
 
       - uses: oven-sh/setup-bun@v2

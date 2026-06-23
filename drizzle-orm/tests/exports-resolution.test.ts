@@ -90,21 +90,13 @@ beforeAll(() => {
 	builtExports = JSON.parse(readFileSync(builtPackageJsonPath, 'utf8')).exports;
 });
 
-describe.skipIf(!ARTIFACTS_PRESENT)('import smoke across entry shapes', () => {
-	for (const mode of ['node16-cjs', 'node16-esm'] as const) {
-		test(`representative subpaths resolve under ${mode}`, async () => {
+describe.skipIf(!ARTIFACTS_PRESENT)('driven attw probe across entry shapes', () => {
+	for (const mode of RESOLUTION_MODES) {
+		test(`representative subpaths resolve cleanly under ${mode}`, async () => {
 			const analysis = await checkPackage(pkg, { entrypoints: REPRESENTATIVE_SUBPATHS, modes: modesFor(mode) });
 			const failing = problemsOf(analysis).filter((p) => isEntrypointProblem(p) && p.resolutionKind === mode);
 			expect(failing, failing.map((p) => `${p.kind}@${isEntrypointProblem(p) ? p.entrypoint : '?'}`).join(', '))
 				.toEqual([]);
-		});
-	}
-});
-
-describe.skipIf(!ARTIFACTS_PRESENT)('driven attw probe', () => {
-	for (const mode of RESOLUTION_MODES) {
-		test(`clean resolution under ${mode}`, async () => {
-			const analysis = await checkPackage(pkg, { entrypoints: REPRESENTATIVE_SUBPATHS, modes: modesFor(mode) });
 			expect(exitCodeForMode(analysis, mode)).toBe(0);
 		});
 	}
