@@ -13,8 +13,7 @@ import { eq } from '~/sql/expressions/index.ts';
 import { SQLiteEffectDatabase } from '~/sqlite-core/effect/db.ts';
 import { cities, users } from './tables.ts';
 
-// v4: Effect.Effect.AsEffect no longer exists. Extract Effect from Yieldable Self parameter.
-type AsEffect<T> = T extends Effect.Yieldable<infer Self, any, any, any> ? Self : T;
+type AsEffect<T> = T extends Effect.Effect<infer A, infer E, infer R> ? Effect.Effect<A, E, R> : T;
 
 {
 	const dbEffect = makeWithDefaults();

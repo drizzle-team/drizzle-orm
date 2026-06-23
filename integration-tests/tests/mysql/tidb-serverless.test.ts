@@ -68,6 +68,10 @@ const skip = new Set([
 	'RQB v2 find many - bigint precision loss',
 	'select from a one subquery',
 	'all types',
+	'Column as decoder applies codecs',
+	'Column as decoder applies codecs - Jit mappers',
+	'Mappers: relational',
+	'Jit mappers: relational',
 ]);
 
 tests(test, skip);

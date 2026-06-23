@@ -82,7 +82,8 @@ describe('mysql to snake case', () => {
 			.union(db.select({ firstName: users.firstName }).from(users));
 
 		expect(query.toSQL()).toEqual({
-			sql: '(select `first_name` from `users`) union (select `first_name` from `users`)',
+			sql:
+				'select `first_name` from ((select `first_name` from `users`) union (select `first_name` from `users`)) `drizzle_union`',
 			params: [],
 		});
 	});
@@ -94,7 +95,8 @@ describe('mysql to snake case', () => {
 		);
 
 		expect(query.toSQL()).toEqual({
-			sql: '(select `first_name` from `users`) union (select `first_name` from `users`)',
+			sql:
+				'select `first_name` from ((select `first_name` from `users`) union (select `first_name` from `users`)) `drizzle_union`',
 			params: [],
 		});
 	});

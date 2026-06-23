@@ -131,7 +131,6 @@ export class SQLiteRelationalQuery<THKT extends SQLiteRelationalQueryHKTBase, TR
 		this.table = table;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this._getQuery().sql;
 	}

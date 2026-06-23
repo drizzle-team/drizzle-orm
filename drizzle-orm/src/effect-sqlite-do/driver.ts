@@ -9,7 +9,6 @@ import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteEffectDatabase } from '~/sqlite-core/effect/db.ts';
 import type { EffectDrizzleSQLiteConfig } from '~/sqlite-core/effect/utils.ts';
-import { jitCompatCheck } from '~/utils.ts';
 import { type EffectSQLiteDoQueryEffectHKT, type EffectSQLiteDoRunResult, EffectSQLiteDOSession } from './session.ts';
 export { DefaultServices } from '~/effect-core/defaults.ts';
 
@@ -19,10 +18,12 @@ export class EffectSQLiteDoDatabase<TRelations extends AnyRelations = EmptyRelat
 	static override readonly [entityKind]: string = 'EffectSQLiteDoDatabase';
 }
 
-export type EffectDrizzleSQLiteDOConfig<TRelations extends AnyRelations> = EffectDrizzleSQLiteConfig<TRelations> & {
-	/** Required to make transactions functional by bypassing broken implementation from `@effect/sql-sqlite-do` wrapper */
-	storage: DurableObjectStorage;
-};
+export type EffectDrizzleSQLiteDoConfig<TRelations extends AnyRelations> =
+	& Omit<EffectDrizzleSQLiteConfig<TRelations>, 'jit'>
+	& {
+		/** Required to make transactions functional by bypassing broken implementation from `@effect/sql-sqlite-do` wrapper */
+		storage: DurableObjectStorage;
+	};
 
 /**
  * Creates an EffectSQLiteDoDatabase instance.
@@ -53,14 +54,12 @@ export type EffectDrizzleSQLiteDOConfig<TRelations extends AnyRelations> = Effec
 export const make = Effect.fn('SQLiteDODrizzle.make')(
 	function*<
 		TRelations extends AnyRelations = EmptyRelations,
-	>(config: EffectDrizzleSQLiteDOConfig<TRelations>) {
+	>(config: EffectDrizzleSQLiteDoConfig<TRelations>) {
 		const client = yield* SqliteClient;
 		const cache = yield* EffectCache;
 		const logger = yield* EffectLogger;
 
-		const dialect = new SQLiteDialect({
-			useJitMappers: jitCompatCheck(config.jit),
-		});
+		const dialect = new SQLiteDialect();
 
 		const relations = config.relations ?? {} as TRelations;
 		const session = new EffectSQLiteDOSession(client, dialect, relations, {
@@ -86,4 +85,4 @@ export const make = Effect.fn('SQLiteDODrizzle.make')(
  */
 export const makeWithDefaults = <
 	TRelations extends AnyRelations = EmptyRelations,
->(config: EffectDrizzleSQLiteDOConfig<TRelations>) => make(config).pipe(Effect.provide(DefaultServices));
+>(config: EffectDrizzleSQLiteDoConfig<TRelations>) => make(config).pipe(Effect.provide(DefaultServices));

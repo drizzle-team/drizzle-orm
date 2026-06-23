@@ -512,7 +512,7 @@ export class Param<TDataType = any, TDriverParamType = TDataType> implements SQL
 	 * @param encoder - Encoder to convert the value to a driver parameter
 	 */
 	constructor(
-		readonly value: TDataType,
+		readonly value: TDataType | Placeholder<string, TDataType>,
 		readonly encoder: DriverValueEncoder<TDataType, TDriverParamType> = noopEncoder,
 		public codec?: (value: any) => any,
 	) {}
@@ -632,7 +632,7 @@ export namespace sql {
 	}
 
 	export function param<TData, TDriver>(
-		value: TData,
+		value: TData | Placeholder<string, TData>,
 		encoder?: DriverValueEncoder<TData, TDriver>,
 	): Param<TData, TDriver> {
 		return new Param(value, encoder);
@@ -778,11 +778,12 @@ export function fillPlaceholders(params: unknown[], values: Record<string, unkno
 				throw new Error(`No value for placeholder "${p.value.name}" was provided`);
 			}
 
-			if (values[p.value.name] === null) return values[p.value.name];
+			const value = values[p.value.name];
+			if (value === null) return value;
 
 			const mapped = p.encoder.mapToDriverValue.isNoop
-				? values[p.value.name]
-				: p.encoder.mapToDriverValue(values[p.value.name]);
+				? value
+				: p.encoder.mapToDriverValue(value);
 
 			return p.codec ? p.codec(mapped) : mapped;
 		}

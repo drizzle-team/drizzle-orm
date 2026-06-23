@@ -377,6 +377,7 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 				field,
 				codec: codecs?.get(field, 'normalize'),
 				arrayDimensions: (<any> field).dimensions,
+				column: field,
 			});
 		} else if (is(field, SQL) || is(field, SQL.Aliased)) {
 			const col = getColumnFromDecoder(field);
@@ -387,6 +388,7 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 						field,
 						codec: codecs?.get(col, 'normalize'),
 						arrayDimensions: (<any> col).dimensions,
+						column: col,
 					}
 					: {
 						path: newPath,
@@ -394,14 +396,34 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 					},
 			);
 		} else if (is(field, Subquery)) {
-			const col = getColumnFromDecoder(field._.sql);
+			let column: Column | undefined;
+			const entries = Object.values(field._.selectedFields) as (SQL.Aliased | Column | SQL)[];
+			const entry = entries[0]!;
+
+			let fieldDecoder: DriverValueDecoder<any, any>;
+			if (is(entry, Column)) {
+				column = entry;
+				fieldDecoder = entry;
+			} else if (is(entry, SQL)) {
+				column = getColumnFromDecoder(entry);
+				fieldDecoder = entry.decoder;
+			} else {
+				column = getColumnFromDecoder(entry);
+				fieldDecoder = entry.sql.decoder;
+			}
+
+			if (fieldDecoder) {
+				field._.sql.decoder = fieldDecoder;
+			}
+
 			result.push(
-				col
+				column
 					? {
 						path: newPath,
 						field,
-						codec: codecs?.get(col, 'normalize'),
-						arrayDimensions: (<any> col).dimensions,
+						codec: codecs?.get(column, 'normalize'),
+						arrayDimensions: (<any> column).dimensions,
+						column,
 					}
 					: {
 						path: newPath,

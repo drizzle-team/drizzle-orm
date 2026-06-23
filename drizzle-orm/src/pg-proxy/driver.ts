@@ -1,8 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
-import { genericPgCodecs, type PgCodecs } from '~/pg-core/codecs.ts';
-import { PgDialect } from '~/pg-core/dialect.ts';
+import { PgDialect, type PgDialectConfig } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
@@ -22,14 +21,13 @@ export type RemoteCallback = (
 
 export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	callback: RemoteCallback,
-	config: DrizzlePgConfig<TRelations> & { codecs?: PgCodecs } = {},
-	_dialect: () => PgDialect = () =>
-		new PgDialect({
-			useJitMappers: jitCompatCheck(config.jit),
-			codecs: config.codecs ?? genericPgCodecs,
-		}),
+	config: DrizzlePgConfig<TRelations> = {},
+	_dialect: (config?: PgDialectConfig) => PgDialect = (cfg) => new PgDialect(cfg),
 ): PgRemoteDatabase<TRelations> {
-	const dialect = _dialect();
+	const dialect = _dialect({
+		useJitMappers: jitCompatCheck(config.jit),
+		codecs: config.codecs,
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

@@ -960,6 +960,7 @@ export abstract class CockroachSelectQueryBuilderBase<
 
 	/** @internal */
 	getSQL(): SQL {
+		this.config.fieldsFlat = orderSelectedFields<CockroachColumn>(this.config.fields);
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
@@ -1045,13 +1046,14 @@ export class CockroachSelectBase<
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): CockroachSelectPrepare<this> {
-		const { session, config, dialect, joinsNotNullableMap } = this;
+		const { session, dialect, joinsNotNullableMap } = this;
 		if (!session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const fieldsList = orderSelectedFields<CockroachColumn>(config.fields);
+			// Build query before accessing `fieldsFlat` - build mutates it
 			const query = dialect.sqlToQuery(this.getSQL());
+			const fieldsList = this.config.fieldsFlat!;
 			const preparedQuery = session.prepareQuery<
 				PreparedQueryConfig & { execute: TResult }
 			>(
