@@ -26,16 +26,12 @@ export class MySqlBooleanBuilder extends MySqlColumnBuilder<{
 export class MySqlBoolean<T extends ColumnBaseConfig<'boolean'>> extends MySqlColumn<T> {
 	static override readonly [entityKind]: string = 'MySqlBoolean';
 
+	/** @internal */
+	override readonly codec = 'boolean';
+
 	getSQLType(): string {
 		return 'boolean';
 	}
-
-	override mapFromDriverValue = (value: number | boolean): boolean => {
-		if (typeof value === 'boolean') {
-			return value;
-		}
-		return value === 1;
-	};
 }
 
 export function boolean(name?: string): MySqlBooleanBuilder {

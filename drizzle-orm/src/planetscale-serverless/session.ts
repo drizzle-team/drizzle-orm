@@ -4,14 +4,9 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
+import { MySqlAsyncPreparedQuery, MySqlAsyncSession, MySqlAsyncTransaction } from '~/mysql-core/async/session.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import {
-	MySqlPreparedQuery,
-	type MySqlPreparedQueryConfig,
-	type MySqlQueryResultHKT,
-	MySqlSession,
-	MySqlTransaction,
-} from '~/mysql-core/session.ts';
+import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT } from '~/mysql-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
 
@@ -20,7 +15,7 @@ export interface PlanetscaleSessionOptions {
 	cache?: Cache;
 }
 
-export class PlanetscaleSession<TRelations extends AnyRelations> extends MySqlSession<
+export class PlanetscaleSession<TRelations extends AnyRelations> extends MySqlAsyncSession<
 	MySqlQueryResultHKT,
 	TRelations
 > {
@@ -52,7 +47,7 @@ export class PlanetscaleSession<TRelations extends AnyRelations> extends MySqlSe
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): MySqlPreparedQuery<T> {
+	): MySqlAsyncPreparedQuery<T> {
 		const { client } = this;
 		const queryConfig = {
 			as: mode === 'arrays' ? 'array' : 'object' as any,
@@ -70,7 +65,7 @@ export class PlanetscaleSession<TRelations extends AnyRelations> extends MySqlSe
 			}));
 		};
 
-		return new MySqlPreparedQuery(
+		return new MySqlAsyncPreparedQuery(
 			executor,
 			undefined,
 			query,
@@ -96,7 +91,7 @@ export class PlanetscaleSession<TRelations extends AnyRelations> extends MySqlSe
 			);
 			const tx = new PlanetScaleTransaction<TRelations>(
 				this.dialect,
-				session as MySqlSession<any, any>,
+				session as MySqlAsyncSession<any, any>,
 				this.relations,
 			);
 			return transaction(tx);
@@ -106,7 +101,7 @@ export class PlanetscaleSession<TRelations extends AnyRelations> extends MySqlSe
 
 export class PlanetScaleTransaction<
 	TRelations extends AnyRelations,
-> extends MySqlTransaction<
+> extends MySqlAsyncTransaction<
 	PlanetscaleQueryResultHKT,
 	TRelations
 > {
@@ -114,7 +109,7 @@ export class PlanetScaleTransaction<
 
 	constructor(
 		dialect: MySqlDialect,
-		session: MySqlSession,
+		session: MySqlAsyncSession,
 		relations: TRelations,
 		nestedIndex = 0,
 	) {

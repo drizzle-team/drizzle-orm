@@ -30,18 +30,15 @@ export class MySqlTimestamp<T extends ColumnBaseConfig<'object date'>>
 {
 	static override readonly [entityKind]: string = 'MySqlTimestamp';
 
+	/** @internal */
+	override readonly codec = 'timestamp';
+
 	readonly fsp: number | undefined = this.config.fsp;
 
 	getSQLType(): string {
 		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
 		return `timestamp${precision}`;
 	}
-
-	override mapFromDriverValue = (value: Date | string): Date => {
-		if (typeof value === 'string') return new Date(value + '+0000');
-
-		return value;
-	};
 
 	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
@@ -75,21 +72,15 @@ export class MySqlTimestampString<T extends ColumnBaseConfig<'string timestamp'>
 {
 	static override readonly [entityKind]: string = 'MySqlTimestampString';
 
+	/** @internal */
+	override readonly codec = 'timestamp:string';
+
 	readonly fsp: number | undefined = this.config.fsp;
 
 	getSQLType(): string {
 		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
 		return `timestamp${precision}`;
 	}
-
-	override mapFromDriverValue = (value: Date | string): string => {
-		if (typeof value === 'string') return value;
-
-		const shortened = value.toISOString().slice(0, -1).replace('T', ' ');
-		if (shortened.endsWith('.000')) return shortened.slice(0, -4);
-
-		return shortened;
-	};
 
 	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;

@@ -60,6 +60,14 @@ runCommonEffectPgTests({
 	createDB: createDB as any,
 	usedSchema,
 	addTests: (it) => {
+		it.effect('execute', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const res = yield* db.execute<{ '1': 1 }>(sql`SELECT 1 as "1"`);
+
+				expect(res.rows).toStrictEqual([{ '1': 1 }]);
+			}));
+
 		it.effect('migrator : default migration strategy', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -86,7 +94,7 @@ runCommonEffectPgTests({
 						sql.identifier('__drizzle_migrations')
 					} limit 1;`,
 				);
-				expect((res[0]?.count ?? 0) > 0).toBeTruthy();
+				expect((res.rows[0]?.count ?? 0) > 0).toBeTruthy();
 
 				// test if the migrated table are working as expected
 				yield* db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
@@ -101,7 +109,7 @@ runCommonEffectPgTests({
 				const db = yield* DB;
 				const customTable = randomString();
 
-				const r1 = yield* migrate(db, { migrationsFolder: './drizzle2/pg', migrationsTable: customTable });
+				yield* migrate(db, { migrationsFolder: './drizzle2/pg', migrationsTable: customTable });
 
 				// test if the custom migrations table was created
 				const res = yield* db.execute<{ count: number }>(
@@ -109,7 +117,7 @@ runCommonEffectPgTests({
 						sql.identifier(customTable)
 					} limit 1;`,
 				);
-				expect((res[0]?.count ?? 0) > 0).toBeTruthy();
+				expect((res.rows[0]?.count ?? 0) > 0).toBeTruthy();
 
 				// test if the migrated table are working as expected
 				yield* db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
@@ -135,7 +143,7 @@ runCommonEffectPgTests({
 						sql.identifier(customTable)
 					} limit 1;`,
 				);
-				expect((res[0]?.count ?? 0) > 0).toBeTruthy();
+				expect((res.rows[0]?.count ?? 0) > 0).toBeTruthy();
 
 				// test if the migrated table are working as expected
 				yield* db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
@@ -174,7 +182,7 @@ runCommonEffectPgTests({
 
 				expect(migratorRes).toStrictEqual(undefined);
 				expect(meta.length).toStrictEqual(1);
-				expect(res[0]?.['tableExists']).toStrictEqual(false);
+				expect(res.rows[0]?.['tableExists']).toStrictEqual(false);
 			}));
 
 		it.effect('migrator : --init - local migrations error', () =>
@@ -208,7 +216,7 @@ runCommonEffectPgTests({
 				assert(Predicate.isTagged(migratorRes.failure, 'MigratorInitError'));
 				expect(migratorRes.failure.exitCode).toBe('localMigrations');
 				expect(meta.length).toStrictEqual(0);
-				expect(res[0]?.['tableExists']).toStrictEqual(false);
+				expect(res.rows[0]?.['tableExists']).toStrictEqual(false);
 			}));
 
 		it.effect('migrator : --init - db migrations error', () =>
@@ -248,7 +256,7 @@ runCommonEffectPgTests({
 				assert(Predicate.isTagged(migratorRes.failure, 'MigratorInitError'));
 				expect(migratorRes.failure.exitCode).toBe('databaseMigrations');
 				expect(meta.length).toStrictEqual(1);
-				expect(res[0]?.['tableExists']).toStrictEqual(true);
+				expect(res.rows[0]?.['tableExists']).toStrictEqual(true);
 			}));
 
 		it.effect('migrator : local migration is unapplied. Migrations timestamp is less than last db migration', () =>
