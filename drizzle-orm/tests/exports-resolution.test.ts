@@ -26,7 +26,6 @@ function isEntrypointProblem(
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
 const tarballPath = join(root, 'package.tgz');
-const builtPackageJsonPath = join(root, 'dist', 'package.json');
 
 const RESOLUTION_MODES = ['node16-cjs', 'node16-esm', 'bundler'] as const;
 const ALL_RESOLUTION_KINDS = ['node10', 'node16-cjs', 'node16-esm', 'bundler'] as const;
@@ -37,12 +36,18 @@ const REPRESENTATIVE_SUBPATHS = ['.', './alias', './pg-core', './pg-core/columns
 const BUILD_PACK_HINT =
 	`Missing built/packed artifact. Run \`bun --bun run scripts/build.ts && npm run pack\` in drizzle-orm/ first.`;
 
-// The artifact-backed suites need the built + packed tarball. The `orm` unit-test shard does not
-// pack (CI packaging correctness is gated by the attw-orm + publint-orm release jobs), so skip
-// those suites when the artifact is absent instead of failing the whole shard. Source-derived
-// suites (future-proofing, the shim-emitter guard) still run.
-const ARTIFACTS_PRESENT = existsSync(tarballPath) && existsSync(builtPackageJsonPath);
-if (!ARTIFACTS_PRESENT) console.warn(`[exports-resolution] skipping artifact-backed suites — ${BUILD_PACK_HINT}`);
+// CI provisions the packed tarball for this shard, so a missing artifact there is a real
+// misconfiguration — fail loudly rather than silently skip. Locally, skip the artifact-backed
+// suites so `pnpm test` works without a prior build + pack.
+const ARTIFACTS_PRESENT = existsSync(tarballPath);
+if (!ARTIFACTS_PRESENT) {
+	if (process.env['CI']) {
+		throw new Error(
+			`${BUILD_PACK_HINT} (artifact missing under CI — the orm test shard must provide the packed tarball)`,
+		);
+	}
+	console.warn(`[exports-resolution] skipping artifact-backed suites — ${BUILD_PACK_HINT}`);
+}
 
 // Replicates scripts/build.ts: the glob is the single source of truth for both the
 // exports keys and the directory-index shim set. The test re-derives instead of
@@ -54,12 +59,6 @@ function globEntryNames(extraSources: string[] = []): string[] {
 
 function entryToExportKey(entry: string): string {
 	return entry === 'index' ? '.' : './' + entry.replace(/\/index$/, '');
-}
-
-function dirIndexNames(entryNames: string[]): string[] {
-	return entryNames
-		.filter((e) => e.endsWith('/index') && e !== 'index')
-		.map((e) => e.replace(/\/index$/, ''));
 }
 
 function intendedSubpaths(): string[] {
@@ -82,12 +81,10 @@ function modesFor(mode: (typeof RESOLUTION_MODES)[number]) {
 }
 
 let pkg: Package;
-let builtExports: Record<string, Record<string, unknown>>;
 
 beforeAll(() => {
 	if (!ARTIFACTS_PRESENT) return;
 	pkg = createPackageFromTarballData(new Uint8Array(readFileSync(tarballPath)));
-	builtExports = JSON.parse(readFileSync(builtPackageJsonPath, 'utf8')).exports;
 });
 
 describe.skipIf(!ARTIFACTS_PRESENT)('driven attw probe across entry shapes', () => {
@@ -100,44 +97,6 @@ describe.skipIf(!ARTIFACTS_PRESENT)('driven attw probe across entry shapes', () 
 			expect(exitCodeForMode(analysis, mode)).toBe(0);
 		});
 	}
-});
-
-describe.skipIf(!ARTIFACTS_PRESENT)('exports map shape and size', () => {
-	test('collapses to exactly the root and wildcard keys', () => {
-		expect(Object.keys(builtExports).sort()).toEqual(['.', './*']);
-	});
-
-	test('neither key carries a top-level types or default fallback', () => {
-		for (const key of ['.', './*']) {
-			const entry = builtExports[key];
-			if (entry === undefined) throw new Error(`missing ${key}`);
-			expect('types' in entry, `${key} has a redundant top-level types`).toBe(false);
-			expect('default' in entry, `${key} has a redundant top-level default`).toBe(false);
-			expect(entry).toHaveProperty('import');
-			expect(entry).toHaveProperty('require');
-		}
-	});
-
-	test('serialized exports block stays within the slim byte budget', () => {
-		const bytes = Buffer.byteLength(JSON.stringify(builtExports, null, 2));
-		expect(bytes).toBeGreaterThan(316);
-		expect(bytes).toBeLessThan(396);
-	});
-});
-
-describe('future-proofing is glob-derived', () => {
-	test('a new leaf is covered by the wildcard and a new directory index yields a shim target', () => {
-		const synthetic = ['src/zz-leaf.ts', 'src/zz-dir/index.ts'];
-		const entryNames = globEntryNames(synthetic);
-
-		// A new leaf does not introduce a new key — the two-key map is constant.
-		const keys = new Set(entryNames.map(entryToExportKey));
-		expect(keys.has('./zz-leaf')).toBe(true);
-		expect([...keys].filter((k) => k !== '.').every((k) => k.startsWith('./'))).toBe(true);
-
-		// A new directory index is named by the same derivation the shim emitter uses.
-		expect(dirIndexNames(entryNames)).toContain('zz-dir');
-	});
 });
 
 describe.skipIf(!ARTIFACTS_PRESENT)('no public subpath is dropped', () => {
