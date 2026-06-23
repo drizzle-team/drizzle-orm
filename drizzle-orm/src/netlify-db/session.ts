@@ -81,14 +81,14 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 			if (mode === 'raw') {
 				// otherwise raw queries with .then crash due to .then not existing on raw mode queries
 				return (async () =>
-					this.httpClient(query.sql, params, {
+					this.clientQuery(query.sql, params ?? [], {
 						arrayMode: false,
 						fullResults: true,
 						authToken: this.options.authToken,
 					}))();
 			}
 
-			return this.httpClient(query.sql, params, {
+			return this.clientQuery(query.sql, params ?? [], {
 				arrayMode: mode === 'arrays',
 				fullResults: true,
 				authToken: this.options.authToken,
@@ -101,7 +101,7 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(queries: T) {
 		const preparedQueries: PgAsyncPreparedQuery<any>[] = [];
 		const builtQueries: NeonQueryPromise<any, true>[] = [];
-		const q = this.httpClient;
+		const q = this.clientQuery;
 
 		for (const query of queries) {
 			const preparedQuery = query._prepare() as PgAsyncPreparedQuery<any>;
