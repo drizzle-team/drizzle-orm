@@ -166,6 +166,12 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Required for packaging tests
+      - name: Pack drizzle-orm
+        if: matrix.shard == 'drizzle-orm'
+        working-directory: drizzle-orm
+        run: npm run pack
+
       - name: Run tests
         env:
           PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
