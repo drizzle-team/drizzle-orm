@@ -38,9 +38,8 @@ const createDB = <
 >(
 	schema: TSchema,
 	relations: (helpers: RelationsBuilder<TTables>) => TConfig,
-	useJitMappers?: boolean,
 ) =>
-	SQLiteDrizzle.make({ relations: defineRelations(schema, relations), jit: useJitMappers }).pipe(
+	SQLiteDrizzle.make({ relations: defineRelations(schema, relations) }).pipe(
 		Effect.provide(SQLiteDrizzle.DefaultServices),
 	);
 
