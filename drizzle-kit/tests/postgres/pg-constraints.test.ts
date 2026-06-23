@@ -2698,3 +2698,33 @@ test('Issue No5585. Alter unique constraint', async () => {
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5879
+test('issue #5879', async () => {
+	const to = {
+		table: pgTable(
+			'table',
+			{ col1: integer(), col2: integer(), col3: integer() },
+			(t) => [
+				unique('prices_unique')
+					.on(t.col1, t.col2, t.col3)
+					.nullsNotDistinct(),
+			],
+		),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, to, []);
+	const { sqlStatements: pst1 } = await push({ db, to: to });
+	const { sqlStatements: pst2 } = await push({ db, to: to });
+
+	const expectedSt1 = [`CREATE TABLE "table" (
+\t"col1" integer,
+\t"col2" integer,
+\t"col3" integer,
+\tCONSTRAINT \"prices_unique\" UNIQUE NULLS NOT DISTINCT(\"col1\",\"col2\",\"col3\")
+);\n`];
+
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+	expect(pst2).toStrictEqual([]);
+});
