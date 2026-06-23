@@ -98,7 +98,7 @@ export class EffectSQLiteDOSession<TRelations extends AnyRelations>
 	): Effect.Effect<A, E | SqlError, R> {
 		const { dialect, relations, options: { storage } } = this;
 
-		// Bypass effect wrappers' transaction bug by using driver directly
+		// Bypass effect wrapper's transaction bug by using driver directly
 		return Effect.gen({ self: this }, function*() {
 			const context = yield* Effect.context<R>();
 			let cause: Cause.Cause<E> | undefined;

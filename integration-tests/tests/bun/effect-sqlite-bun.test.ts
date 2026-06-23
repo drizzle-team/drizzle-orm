@@ -56,7 +56,7 @@ runCommonEffectSQLiteTests({
 	testLayer: TestLive,
 	SQLiteDrizzle: SQLiteDrizzle,
 	createDB,
-	skipTests: Date.now() < +new Date('2026-06-10')
+	skipTests: Date.now() < +new Date('2026-06-24')
 		? ['migrator : local migration is unapplied. Migrations timestamp is less than last db migration']
 		: [],
 	addTests: (it) => {
@@ -193,7 +193,7 @@ runCommonEffectSQLiteTests({
 				expect(!!res?.tableExists).toStrictEqual(true);
 			}));
 
-		// Driver bug - transaction with DDL is ignored after failed query
+		// Driver bug - misplaced trycatch throws an error past the effect
 		it.effect('migrator : local migration is unapplied. Migrations timestamp is less than last db migration', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;

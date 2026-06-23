@@ -28,6 +28,7 @@ import {
 	getTableColumns,
 	getTableLikeName,
 	haveSameKeys,
+	orderSelectedFields,
 	type ValueOrArray,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
@@ -1047,6 +1048,7 @@ export class PgSelectBase<
 	}
 
 	getSQL(): SQL {
+		this.config.fieldsFlat = orderSelectedFields<PgColumn>(this.config.fields, undefined, this.dialect.codecs);
 		return this.dialect.buildSelectQuery(this.config);
 	}
 

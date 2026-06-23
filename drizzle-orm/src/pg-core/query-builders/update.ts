@@ -32,7 +32,6 @@ import {
 	type Equal,
 	getTableLikeName,
 	mapUpdateSet,
-	type NeonAuthToken,
 	orderSelectedFields,
 	type Simplify,
 	type UpdateSet,
@@ -103,14 +102,6 @@ export class PgUpdateBuilder<
 		private builder: PgUpdateBuilderConstructor = PgUpdateBase,
 	) {}
 
-	/** @internal */
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
-	}
-
 	set(
 		values: PgUpdateSetSource<TTable>,
 	): PgUpdateWithout<
@@ -125,10 +116,6 @@ export class PgUpdateBuilder<
 			this.dialect,
 			this.withList,
 		) as AnyPgUpdate;
-
-		if ('setToken' in builder) {
-			(builder.setToken as (authToken?: NeonAuthToken) => typeof builder)(this.authToken);
-		}
 
 		return builder as any;
 	}

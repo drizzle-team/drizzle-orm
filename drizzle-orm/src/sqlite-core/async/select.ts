@@ -8,11 +8,10 @@ import type {
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
-import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import { SQLiteSelectBase, type SQLiteSelectBuilder } from '~/sqlite-core/query-builders/select.ts';
 import type { SelectedFields, SQLiteSelectHKTBase } from '~/sqlite-core/query-builders/select.types.ts';
-import { applyMixins, type Assume, orderSelectedFields } from '~/utils.ts';
-import type { SQLiteAsyncPreparedQuery, SQLiteAsyncPreparedQueryConfig } from './session.ts';
+import { applyMixins, type Assume } from '~/utils.ts';
+import type { SQLiteAsyncPreparedQuery, SQLiteAsyncPreparedQueryConfig, SQLiteAsyncSession } from './session.ts';
 
 export type SQLiteAsyncSelectExecute<T extends AnySQLiteAsyncSelect> = T['_']['result'];
 
@@ -130,25 +129,28 @@ export class SQLiteAsyncSelectBase<
 > implements RunnableQuery<TResult, 'sqlite'>, SQLWrapper {
 	static override readonly [entityKind]: string = 'SQLiteAsyncSelect';
 
+	declare protected session: SQLiteAsyncSession<TResultType, TRunResult, any>;
+
 	/** @internal */
 	_prepare(prepare = false): SQLiteAsyncSelectPrepare<this> {
-		if (!this.session) {
-			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
-		}
-		const fieldsList = orderSelectedFields<SQLiteColumn>(this.config.fields);
-		const query = this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
+		// Build query before accessing `fieldsFlat` - build mutates it
+		const query = this.dialect.sqlToQuery(this.getSQL());
+		const fieldsList = this.config.fieldsFlat!;
+		const mapper = this.dialect.mapperGenerators.rows(fieldsList, this.joinsNotNullableMap);
+
+		const preparedQuery = this.session.prepareQuery(
+			query,
 			'arrays',
 			prepare,
 			'all',
-			this.dialect.mapperGenerators.rows(fieldsList, this.joinsNotNullableMap),
+			mapper,
 			{
 				type: 'select',
 				tables: [...this.usedTables],
 			},
 			this.cacheConfig,
 		);
-		return query as ReturnType<this['prepare']>;
+		return preparedQuery as ReturnType<this['prepare']>;
 	}
 
 	prepare(): SQLiteAsyncSelectPrepare<this> {
