@@ -1,50 +1,59 @@
+import { Effect } from 'effect';
+import type { SqlError } from 'effect/unstable/sql/SqlError';
 import type { ResultSetHeader } from 'mysql2/promise';
-import type { Cache } from '~/cache/core/cache.ts';
+import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
+import type { MutationOption } from '~/cache/core/cache.ts';
+import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
+import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
-import type { MySqlDialect } from './dialect.ts';
-import { MySqlCountBuilder } from './query-builders/count.ts';
-import {
-	MySqlDeleteBase,
-	MySqlInsertBuilder,
-	MySqlSelectBuilder,
-	MySqlUpdateBuilder,
-	QueryBuilder,
-} from './query-builders/index.ts';
-import { RelationalQueryBuilder } from './query-builders/query.ts';
-import type { SelectedFields } from './query-builders/select.types.ts';
+import { MySqlInsertBuilder } from '../query-builders/insert.ts';
+import { QueryBuilder } from '../query-builders/query-builder.ts';
+import { RelationalQueryBuilder } from '../query-builders/query.ts';
+import { MySqlSelectBuilder } from '../query-builders/select.ts';
+import type { SelectedFields } from '../query-builders/select.types.ts';
+import { MySqlUpdateBuilder } from '../query-builders/update.ts';
 import type {
+	MySqlPreparedQueryConfig,
 	MySqlQueryResultHKT,
 	MySqlQueryResultKind,
-	MySqlSession,
-	MySqlTransaction,
 	MySqlTransactionConfig,
-} from './session.ts';
-import type { WithBuilder } from './subquery.ts';
-import type { MySqlTable } from './table.ts';
-import type { MySqlViewBase } from './view-base.ts';
-import type { MySqlView } from './view.ts';
+} from '../session.ts';
+import type { WithBuilder } from '../subquery.ts';
+import type { MySqlTable } from '../table.ts';
+import type { MySqlViewBase } from '../view-base.ts';
+import type { MySqlView } from '../view.ts';
+import { MySqlEffectCountBuilder } from './count.ts';
+import { MySqlEffectDeleteBase } from './delete.ts';
+import { MySqlEffectInsertBase, type MySqlEffectInsertHKT } from './insert.ts';
+import { MySqlEffectRelationalQuery, type MySqlEffectRelationalQueryHKT } from './query.ts';
+import { MySqlEffectRaw } from './raw.ts';
+import { MySqlEffectSelectBase, type MySqlEffectSelectBuilder } from './select.ts';
+import type { MySqlEffectSession, MySqlEffectTransaction } from './session.ts';
+import { MySqlEffectUpdateBase, type MySqlEffectUpdateHKT } from './update.ts';
 
-export class MySqlDatabase<
+export class MySqlEffectDatabase<
+	TEffectHKT extends QueryEffectHKTBase,
 	TQueryResult extends MySqlQueryResultHKT,
 	TRelations extends AnyRelations = EmptyRelations,
 > {
-	static readonly [entityKind]: string = 'MySqlDatabase';
+	static readonly [entityKind]: string = 'MySqlEffectDatabase';
 
 	declare readonly _: {
 		readonly relations: TRelations;
-		readonly session: MySqlSession<TQueryResult, TRelations>;
+		readonly session: MySqlEffectSession<TEffectHKT, TQueryResult, TRelations>;
 	};
 
 	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
 	query: {
 		[K in keyof TRelations]: RelationalQueryBuilder<
 			TRelations,
-			TRelations[K]
+			TRelations[K],
+			MySqlEffectRelationalQueryHKT<TEffectHKT>
 		>;
 	};
 
@@ -52,7 +61,7 @@ export class MySqlDatabase<
 		/** @internal */
 		readonly dialect: MySqlDialect,
 		/** @internal */
-		readonly session: MySqlSession<any, any>,
+		readonly session: MySqlEffectSession<TEffectHKT, any, any>,
 		relations: TRelations,
 	) {
 		this._ = {
@@ -61,21 +70,21 @@ export class MySqlDatabase<
 		};
 		this.query = {} as typeof this['query'];
 		for (const [tableName, relation] of Object.entries(relations)) {
-			(this.query as MySqlDatabase<
+			(this.query as MySqlEffectDatabase<
+				TEffectHKT,
 				TQueryResult,
 				AnyRelations
-			>['query'])[
-				tableName
-			] = new RelationalQueryBuilder(
+			>['query'])[tableName] = new RelationalQueryBuilder(
 				relations,
 				relations[relation.name]!.table as MySqlTable | MySqlView,
 				relation,
 				dialect,
 				session,
+				MySqlEffectRelationalQuery,
 			);
 		}
 
-		this.$cache = { invalidate: async (_params: any) => {} };
+		this.$cache = { invalidate: (_params: MutationOption) => Effect.void };
 	}
 
 	/**
@@ -95,7 +104,7 @@ export class MySqlDatabase<
 	 * // Create a subquery with alias 'sq' and use it in the select query
 	 * const sq = db.$with('sq').as(db.select().from(users).where(eq(users.id, 42)));
 	 *
-	 * const result = await db.with(sq).select().from(sq);
+	 * const result = yield* db.with(sq).select().from(sq);
 	 * ```
 	 *
 	 * To select arbitrary SQL values as fields in a CTE and reference them in other CTEs or in the main query, you need to add aliases to them:
@@ -107,11 +116,10 @@ export class MySqlDatabase<
 	 * })
 	 * .from(users));
 	 *
-	 * const result = await db.with(sq).select({ name: sq.name }).from(sq);
+	 * const result = yield* db.with(sq).select({ name: sq.name }).from(sq);
 	 * ```
 	 */
 	$with: WithBuilder = (alias: string, selection?: ColumnsSelection) => {
-		const self = this;
 		const as = (
 			qb:
 				| TypedQueryBuilder<ColumnsSelection | undefined>
@@ -119,15 +127,17 @@ export class MySqlDatabase<
 				| ((qb: QueryBuilder) => TypedQueryBuilder<ColumnsSelection | undefined> | SQL),
 		) => {
 			if (typeof qb === 'function') {
-				qb = qb(new QueryBuilder(self.dialect));
+				qb = qb(new QueryBuilder(this.dialect));
 			}
 
+			const sql = ('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL();
 			return new Proxy(
 				new WithSubquery(
-					qb.getSQL(),
+					sql,
 					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
 					alias,
 					true,
+					sql.usedTables ?? [],
 				),
 				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 			);
@@ -139,10 +149,10 @@ export class MySqlDatabase<
 		source: MySqlTable | MySqlViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	) {
-		return new MySqlCountBuilder({ source, filters, session: this.session, dialect: this.dialect });
+		return new MySqlEffectCountBuilder({ source, filters, session: this.session, dialect: this.dialect });
 	}
 
-	$cache: { invalidate: Cache['onMutate'] };
+	$cache: { invalidate: EffectCacheShape['onMutate'] };
 
 	/**
 	 * Incorporates a previously defined CTE (using `$with`) into the main query.
@@ -160,7 +170,7 @@ export class MySqlDatabase<
 	 * const sq = db.$with('sq').as(db.select().from(users).where(eq(users.id, 42)));
 	 *
 	 * // Incorporate the CTE 'sq' into the main query and select from it
-	 * const result = await db.with(sq).select().from(sq);
+	 * const result = yield* db.with(sq).select().from(sq);
 	 * ```
 	 */
 	with(...queries: WithSubquery[]) {
@@ -181,10 +191,10 @@ export class MySqlDatabase<
 		 *
 		 * ```ts
 		 * // Select all columns and all rows from the 'cars' table
-		 * const allCars: Car[] = await db.select().from(cars);
+		 * const allCars: Car[] = yield* db.select().from(cars);
 		 *
 		 * // Select specific columns and all rows from the 'cars' table
-		 * const carsIdsAndBrands: { id: number; brand: string }[] = await db.select({
+		 * const carsIdsAndBrands: { id: number; brand: string }[] = yield* db.select({
 		 *   id: cars.id,
 		 *   brand: cars.brand
 		 * })
@@ -195,24 +205,24 @@ export class MySqlDatabase<
 		 *
 		 * ```ts
 		 * // Select specific columns along with expression and all rows from the 'cars' table
-		 * const carsIdsAndLowerNames: { id: number; lowerBrand: string }[] = await db.select({
+		 * const carsIdsAndLowerNames: { id: number; lowerBrand: string }[] = yield* db.select({
 		 *   id: cars.id,
 		 *   lowerBrand: sql<string>`lower(${cars.brand})`,
 		 * })
 		 *   .from(cars);
 		 * ```
 		 */
-		function select(): MySqlSelectBuilder<undefined>;
+		function select(): MySqlEffectSelectBuilder<undefined, TEffectHKT>;
 		function select<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): MySqlSelectBuilder<TSelection>;
-		function select(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined> {
+		): MySqlEffectSelectBuilder<TSelection, TEffectHKT>;
+		function select(fields?: SelectedFields): MySqlEffectSelectBuilder<SelectedFields | undefined, TEffectHKT> {
 			return new MySqlSelectBuilder({
 				fields: fields ?? undefined,
 				session: self.session,
 				dialect: self.dialect,
 				withList: queries,
-			});
+			}, MySqlEffectSelectBase);
 		}
 
 		/**
@@ -229,30 +239,30 @@ export class MySqlDatabase<
 		 * @example
 		 * ```ts
 		 * // Select all unique rows from the 'cars' table
-		 * await db.selectDistinct()
+		 * yield* db.selectDistinct()
 		 *   .from(cars)
 		 *   .orderBy(cars.id, cars.brand, cars.color);
 		 *
 		 * // Select all unique brands from the 'cars' table
-		 * await db.selectDistinct({ brand: cars.brand })
+		 * yield* db.selectDistinct({ brand: cars.brand })
 		 *   .from(cars)
 		 *   .orderBy(cars.brand);
 		 * ```
 		 */
-		function selectDistinct(): MySqlSelectBuilder<undefined>;
+		function selectDistinct(): MySqlEffectSelectBuilder<undefined, TEffectHKT>;
 		function selectDistinct<TSelection extends SelectedFields>(
 			fields: TSelection,
-		): MySqlSelectBuilder<TSelection>;
+		): MySqlEffectSelectBuilder<TSelection, TEffectHKT>;
 		function selectDistinct(
 			fields?: SelectedFields,
-		): MySqlSelectBuilder<SelectedFields | undefined> {
+		): MySqlEffectSelectBuilder<SelectedFields | undefined, TEffectHKT> {
 			return new MySqlSelectBuilder({
 				fields: fields ?? undefined,
 				session: self.session,
 				dialect: self.dialect,
 				withList: queries,
 				distinct: true,
-			});
+			}, MySqlEffectSelectBase);
 		}
 
 		/**
@@ -270,16 +280,16 @@ export class MySqlDatabase<
 		 *
 		 * ```ts
 		 * // Update all rows in the 'cars' table
-		 * await db.update(cars).set({ color: 'red' });
+		 * yield* db.update(cars).set({ color: 'red' });
 		 *
 		 * // Update rows with filters and conditions
-		 * await db.update(cars).set({ color: 'red' }).where(eq(cars.brand, 'BMW'));
+		 * yield* db.update(cars).set({ color: 'red' }).where(eq(cars.brand, 'BMW'));
 		 * ```
 		 */
 		function update<TTable extends MySqlTable>(
 			table: TTable,
-		): MySqlUpdateBuilder<TTable, TQueryResult> {
-			return new MySqlUpdateBuilder(table, self.session, self.dialect, queries);
+		): MySqlUpdateBuilder<TTable, TQueryResult, MySqlEffectUpdateHKT<TEffectHKT>> {
+			return new MySqlUpdateBuilder(table, self.session, self.dialect, queries, MySqlEffectUpdateBase);
 		}
 
 		/**
@@ -295,16 +305,16 @@ export class MySqlDatabase<
 		 *
 		 * ```ts
 		 * // Delete all rows in the 'cars' table
-		 * await db.delete(cars);
+		 * yield* db.delete(cars);
 		 *
 		 * // Delete rows with filters and conditions
-		 * await db.delete(cars).where(eq(cars.color, 'green'));
+		 * yield* db.delete(cars).where(eq(cars.color, 'green'));
 		 * ```
 		 */
 		function delete_<TTable extends MySqlTable>(
 			table: TTable,
-		): MySqlDeleteBase<TTable, TQueryResult> {
-			return new MySqlDeleteBase(table, self.session, self.dialect, queries);
+		): MySqlEffectDeleteBase<TTable, TQueryResult, false, never, TEffectHKT> {
+			return new MySqlEffectDeleteBase(table, self.session, self.dialect, queries);
 		}
 
 		return { select, selectDistinct, update, delete: delete_ };
@@ -325,10 +335,10 @@ export class MySqlDatabase<
 	 *
 	 * ```ts
 	 * // Select all columns and all rows from the 'cars' table
-	 * const allCars: Car[] = await db.select().from(cars);
+	 * const allCars: Car[] = yield* db.select().from(cars);
 	 *
 	 * // Select specific columns and all rows from the 'cars' table
-	 * const carsIdsAndBrands: { id: number; brand: string }[] = await db.select({
+	 * const carsIdsAndBrands: { id: number; brand: string }[] = yield* db.select({
 	 *   id: cars.id,
 	 *   brand: cars.brand
 	 * })
@@ -339,17 +349,21 @@ export class MySqlDatabase<
 	 *
 	 * ```ts
 	 * // Select specific columns along with expression and all rows from the 'cars' table
-	 * const carsIdsAndLowerNames: { id: number; lowerBrand: string }[] = await db.select({
+	 * const carsIdsAndLowerNames: { id: number; lowerBrand: string }[] = yield* db.select({
 	 *   id: cars.id,
 	 *   lowerBrand: sql<string>`lower(${cars.brand})`,
 	 * })
 	 *   .from(cars);
 	 * ```
 	 */
-	select(): MySqlSelectBuilder<undefined>;
-	select<TSelection extends SelectedFields>(fields: TSelection): MySqlSelectBuilder<TSelection>;
-	select(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined> {
-		return new MySqlSelectBuilder({ fields: fields ?? undefined, session: this.session, dialect: this.dialect });
+	select(): MySqlEffectSelectBuilder<undefined, TEffectHKT>;
+	select<TSelection extends SelectedFields>(fields: TSelection): MySqlEffectSelectBuilder<TSelection, TEffectHKT>;
+	select(fields?: SelectedFields): MySqlEffectSelectBuilder<SelectedFields | undefined, TEffectHKT> {
+		return new MySqlSelectBuilder({
+			fields: fields ?? undefined,
+			session: this.session,
+			dialect: this.dialect,
+		}, MySqlEffectSelectBase);
 	}
 
 	/**
@@ -366,27 +380,27 @@ export class MySqlDatabase<
 	 * @example
 	 * ```ts
 	 * // Select all unique rows from the 'cars' table
-	 * await db.selectDistinct()
+	 * yield* db.selectDistinct()
 	 *   .from(cars)
 	 *   .orderBy(cars.id, cars.brand, cars.color);
 	 *
 	 * // Select all unique brands from the 'cars' table
-	 * await db.selectDistinct({ brand: cars.brand })
+	 * yield* db.selectDistinct({ brand: cars.brand })
 	 *   .from(cars)
 	 *   .orderBy(cars.brand);
 	 * ```
 	 */
-	selectDistinct(): MySqlSelectBuilder<undefined>;
+	selectDistinct(): MySqlEffectSelectBuilder<undefined, TEffectHKT>;
 	selectDistinct<TSelection extends SelectedFields>(
 		fields: TSelection,
-	): MySqlSelectBuilder<TSelection>;
-	selectDistinct(fields?: SelectedFields): MySqlSelectBuilder<SelectedFields | undefined> {
+	): MySqlEffectSelectBuilder<TSelection, TEffectHKT>;
+	selectDistinct(fields?: SelectedFields): MySqlEffectSelectBuilder<SelectedFields | undefined, TEffectHKT> {
 		return new MySqlSelectBuilder({
 			fields: fields ?? undefined,
 			session: this.session,
 			dialect: this.dialect,
 			distinct: true,
-		});
+		}, MySqlEffectSelectBase);
 	}
 
 	/**
@@ -404,14 +418,16 @@ export class MySqlDatabase<
 	 *
 	 * ```ts
 	 * // Update all rows in the 'cars' table
-	 * await db.update(cars).set({ color: 'red' });
+	 * yield* db.update(cars).set({ color: 'red' });
 	 *
 	 * // Update rows with filters and conditions
-	 * await db.update(cars).set({ color: 'red' }).where(eq(cars.brand, 'BMW'));
+	 * yield* db.update(cars).set({ color: 'red' }).where(eq(cars.brand, 'BMW'));
 	 * ```
 	 */
-	update<TTable extends MySqlTable>(table: TTable): MySqlUpdateBuilder<TTable, TQueryResult> {
-		return new MySqlUpdateBuilder(table, this.session, this.dialect);
+	update<TTable extends MySqlTable>(
+		table: TTable,
+	): MySqlUpdateBuilder<TTable, TQueryResult, MySqlEffectUpdateHKT<TEffectHKT>> {
+		return new MySqlUpdateBuilder(table, this.session, this.dialect, undefined, MySqlEffectUpdateBase);
 	}
 
 	/**
@@ -427,14 +443,16 @@ export class MySqlDatabase<
 	 *
 	 * ```ts
 	 * // Insert one row
-	 * await db.insert(cars).values({ brand: 'BMW' });
+	 * yield* db.insert(cars).values({ brand: 'BMW' });
 	 *
 	 * // Insert multiple rows
-	 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
+	 * yield* db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
 	 * ```
 	 */
-	insert<TTable extends MySqlTable>(table: TTable): MySqlInsertBuilder<TTable, TQueryResult> {
-		return new MySqlInsertBuilder(table, this.session, this.dialect);
+	insert<TTable extends MySqlTable>(
+		table: TTable,
+	): MySqlInsertBuilder<TTable, TQueryResult, MySqlEffectInsertHKT<TEffectHKT>> {
+		return new MySqlInsertBuilder(table, this.session, this.dialect, MySqlEffectInsertBase);
 	}
 
 	/**
@@ -450,44 +468,51 @@ export class MySqlDatabase<
 	 *
 	 * ```ts
 	 * // Delete all rows in the 'cars' table
-	 * await db.delete(cars);
+	 * yield* db.delete(cars);
 	 *
 	 * // Delete rows with filters and conditions
-	 * await db.delete(cars).where(eq(cars.color, 'green'));
+	 * yield* db.delete(cars).where(eq(cars.color, 'green'));
 	 * ```
 	 */
-	delete<TTable extends MySqlTable>(table: TTable): MySqlDeleteBase<TTable, TQueryResult> {
-		return new MySqlDeleteBase(table, this.session, this.dialect);
+	delete<TTable extends MySqlTable>(
+		table: TTable,
+	): MySqlEffectDeleteBase<TTable, TQueryResult, false, never, TEffectHKT> {
+		return new MySqlEffectDeleteBase(table, this.session, this.dialect);
 	}
 
 	execute<T extends { [column: string]: any } = ResultSetHeader>(
 		query: SQLWrapper | string,
-	): Promise<MySqlQueryResultKind<TQueryResult, T>> {
-		return this.session.execute(typeof query === 'string' ? sql.raw(query) : query.getSQL());
+	): MySqlEffectRaw<MySqlQueryResultKind<TQueryResult, T>, TEffectHKT> {
+		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
+		const builtQuery = this.dialect.sqlToQuery(sequel);
+		const prepared = this.session.prepareQuery<
+			MySqlPreparedQueryConfig & { execute: MySqlQueryResultKind<TQueryResult, T> }
+		>(builtQuery, 'raw');
+		return new MySqlEffectRaw(prepared, sequel, builtQuery);
 	}
 
-	transaction<T>(
+	transaction<A, E, R>(
 		transaction: (
-			tx: MySqlTransaction<TQueryResult, TRelations>,
-			config?: MySqlTransactionConfig,
-		) => Promise<T>,
+			tx: MySqlEffectTransaction<TEffectHKT, TQueryResult, TRelations>,
+		) => Effect.Effect<A, E, R>,
 		config?: MySqlTransactionConfig,
-	): Promise<T> {
+	): Effect.Effect<A, E | SqlError, R> {
 		return this.session.transaction(transaction, config);
 	}
 }
 
-export type MySQLWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
+export type MySqlEffectWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
 
 export const withReplicas = <
+	TEffectHKT extends QueryEffectHKTBase,
 	HKT extends MySqlQueryResultHKT,
 	TRelations extends AnyRelations,
-	Q extends MySqlDatabase<HKT, TRelations>,
+	Q extends MySqlEffectDatabase<TEffectHKT, HKT, TRelations>,
 >(
 	primary: Q,
 	replicas: [Q, ...Q[]],
 	getReplica: (replicas: Q[]) => Q = () => replicas[Math.floor(Math.random() * replicas.length)]!,
-): MySQLWithReplicas<Q> => {
+): MySqlEffectWithReplicas<Q> => {
 	const select: Q['select'] = (...args: []) => getReplica(replicas).select(...args);
 	const selectDistinct: Q['selectDistinct'] = (...args: []) => getReplica(replicas).selectDistinct(...args);
 	const $count: Q['$count'] = (...args: [any]) => getReplica(replicas).$count(...args);

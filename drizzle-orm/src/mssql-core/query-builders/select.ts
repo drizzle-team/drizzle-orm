@@ -814,6 +814,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 
 	/** @internal */
 	getSQL(): SQL {
+		this.config.fieldsFlat = orderSelectedFields<MsSqlColumn>(this.config.fields);
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
@@ -908,13 +909,15 @@ export class MsSqlSelectBase<
 		if (!this.session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
-		const fieldsList = orderSelectedFields<MsSqlColumn>(this.config.fields);
-		const query = this.session.prepareQuery<
+		// Build query before accessing `fieldsFlat` - build mutates it
+		const query = this.dialect.sqlToQuery(this.getSQL());
+		const fieldsList = this.config.fieldsFlat!;
+		const preparedQuery = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
 			TPreparedQueryHKT
-		>(this.dialect.sqlToQuery(this.getSQL()), fieldsList);
-		query.joinsNotNullableMap = this.joinsNotNullableMap;
-		return query as MsSqlSelectPrepare<this>;
+		>(query, fieldsList);
+		preparedQuery.joinsNotNullableMap = this.joinsNotNullableMap;
+		return preparedQuery as MsSqlSelectPrepare<this>;
 	}
 
 	execute = ((placeholderValues) => {

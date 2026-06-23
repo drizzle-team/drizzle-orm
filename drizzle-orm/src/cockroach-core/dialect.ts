@@ -26,7 +26,7 @@ import { type Name, Param, type Query, SQL, sql, type SQLChunk } from '~/sql/sql
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/cockroach.ts';
-import { orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import type { UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { CockroachSession } from './session.ts';
 import { CockroachViewBase } from './view-base.ts';
@@ -263,18 +263,39 @@ export class CockroachDialect {
 		const chunks = fields.flatMap(({ field }, i) => {
 			const chunk: SQLChunk[] = [];
 
-			if (is(field, SQL.Aliased) && field.isSelectionField) {
-				if (!isSingleTable && field.origin !== undefined) {
-					chunk.push(sql.identifier(field.origin), sql.raw('.'));
+			if (is(field, SQL.Aliased)) {
+				if (field.isSelectionField) {
+					if (!isSingleTable && field.origin !== undefined) {
+						chunk.push(sql.identifier(field.origin), sql.raw('.'));
+					}
+					chunk.push(sql.identifier(field.fieldAlias));
+				} else {
+					const query = field.sql;
+
+					if (isSingleTable) {
+						const newSql = new SQL(
+							query.queryChunks.map((c) => {
+								if (is(c, Column)) {
+									return sql.identifier(c.name);
+								}
+								return c;
+							}),
+						);
+
+						chunk.push(query.shouldInlineParams ? newSql.inlineParams() : newSql);
+					} else {
+						chunk.push(query);
+					}
+
+					chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 				}
-				chunk.push(sql.identifier(field.fieldAlias));
-			} else if (is(field, SQL.Aliased) || is(field, SQL)) {
-				const query = is(field, SQL.Aliased) ? field.sql : field;
+			} else if (is(field, SQL)) {
+				const query = field;
 
 				if (isSingleTable) {
 					const newSql = new SQL(
 						query.queryChunks.map((c) => {
-							if (is(c, CockroachColumn)) {
+							if (is(c, Column)) {
 								return sql.identifier(c.name);
 							}
 							return c;
@@ -284,10 +305,6 @@ export class CockroachDialect {
 					chunk.push(query.shouldInlineParams ? newSql.inlineParams() : newSql);
 				} else {
 					chunk.push(query);
-				}
-
-				if (is(field, SQL.Aliased)) {
-					chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 				}
 			} else if (is(field, Column)) {
 				if (isSingleTable) {
@@ -304,25 +321,11 @@ export class CockroachDialect {
 					);
 				}
 			} else if (is(field, Subquery)) {
-				const entries = Object.entries(field._.selectedFields) as [
-					string,
-					SQL.Aliased | Column | SQL,
-				][];
-
-				if (entries.length === 1) {
-					const entry = entries[0]![1];
-
-					const fieldDecoder = is(entry, SQL)
-						? entry.decoder
-						: is(entry, Column)
-						? { mapFromDriverValue: (v: any) => entry.mapFromDriverValue(v) }
-						: entry.sql.decoder;
-
-					if (fieldDecoder) {
-						field._.sql.decoder = fieldDecoder;
-					}
+				if (!field._.isWith) {
+					chunk.push(sql`(${field._.sql}) ${sql.identifier(field._.alias)}`);
+				} else {
+					chunk.push(field);
 				}
-				chunk.push(field);
 			}
 
 			if (i < columnsLen - 1) {
@@ -409,7 +412,6 @@ export class CockroachDialect {
 
 	buildSelectQuery({
 		withList,
-		fields,
 		fieldsFlat,
 		where,
 		having,
@@ -423,7 +425,10 @@ export class CockroachDialect {
 		distinct,
 		setOperators,
 	}: CockroachSelectConfig): SQL {
-		const fieldsList = fieldsFlat ?? orderSelectedFields<CockroachColumn>(fields);
+		if (!fieldsFlat) {
+			throw new Error('Select query builder must be provided with `fieldsFlat` on `buildSelectQuery` invocation');
+		}
+		const fieldsList = fieldsFlat;
 		for (const f of fieldsList) {
 			if (
 				is(f.field, Column)

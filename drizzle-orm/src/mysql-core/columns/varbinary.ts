@@ -31,17 +31,8 @@ export class MySqlVarBinary<
 > extends MySqlColumn<T, MySqlVarbinaryOptions> {
 	static override readonly [entityKind]: string = 'MySqlVarBinary';
 
-	override mapFromDriverValue = (value: string | Buffer | Uint8Array): string => {
-		if (typeof value === 'string') return value;
-		if (Buffer.isBuffer(value)) return value.toString();
-
-		const str: string[] = [];
-		for (const v of value) {
-			str.push(v === 49 ? '1' : '0');
-		}
-
-		return str.join('');
-	};
+	/** @internal */
+	override readonly codec = 'varbinary';
 
 	getSQLType(): string {
 		return this.length === undefined ? `varbinary` : `varbinary(${this.length})`;

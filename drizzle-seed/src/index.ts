@@ -3,7 +3,7 @@ import { is } from 'drizzle-orm';
 import type { Relations } from 'drizzle-orm/_relations';
 
 import type { MySqlColumn, MySqlSchema, MySqlTable } from 'drizzle-orm/mysql-core';
-import { MySqlDatabase } from 'drizzle-orm/mysql-core';
+import { MySqlAsyncDatabase } from 'drizzle-orm/mysql-core';
 
 import type { PgColumn, PgSchema, PgTable } from 'drizzle-orm/pg-core';
 import { PgAsyncDatabase } from 'drizzle-orm/pg-core/async';
@@ -87,7 +87,7 @@ export type InferCallbackType<
 		[key: string]: SchemaValuesType;
 	},
 > = DB extends PgAsyncDatabase<any, any> ? RefineTypes<SCHEMA, PgTable, PgColumn>
-	: DB extends MySqlDatabase<any, any> ? RefineTypes<SCHEMA, MySqlTable, MySqlColumn>
+	: DB extends MySqlAsyncDatabase<any, any> ? RefineTypes<SCHEMA, MySqlTable, MySqlColumn>
 	: DB extends SQLiteAsyncDatabase<any, any> ? RefineTypes<SCHEMA, SQLiteTable, SQLiteColumn>
 	: DB extends MsSqlDatabase<any, any> ? RefineTypes<SCHEMA, MsSqlTable, MsSqlColumn>
 	: DB extends CockroachDatabase<any, any> ? RefineTypes<SCHEMA, CockroachTable, CockroachColumn>
@@ -345,7 +345,7 @@ const seedFunc = async (
 
 	if (is(db, PgAsyncDatabase<any, any>)) {
 		await seedPostgres(db, schema, { ...options, version }, refinements);
-	} else if (is(db, MySqlDatabase<any, any>)) {
+	} else if (is(db, MySqlAsyncDatabase<any, any>)) {
 		await seedMySql(db, schema, { ...options, version }, refinements);
 	} else if (is(db, SQLiteAsyncDatabase<any, any>)) {
 		await seedSqlite(db, schema, { ...options, version }, refinements);
@@ -375,7 +375,7 @@ const seedFunc = async (
  * truncate tableName1, tableName2, ... cascade;
  * ```
  *
- * `If db is a MySqlDatabase object`, we will execute sql queries and delete data from your tables the following way:
+ * `If db is a MySqlAsyncDatabase object`, we will execute sql queries and delete data from your tables the following way:
  * ```sql
  * SET FOREIGN_KEY_CHECKS = 0;
  * truncate tableName1;
@@ -420,7 +420,7 @@ export async function reset<
 		if (Object.entries(pgTables).length > 0) {
 			await resetPostgres(db, pgTables);
 		}
-	} else if (is(db, MySqlDatabase<any, any>)) {
+	} else if (is(db, MySqlAsyncDatabase<any, any>)) {
 		const { mysqlTables } = filterMysqlTables(schema);
 
 		if (Object.entries(mysqlTables).length > 0) {

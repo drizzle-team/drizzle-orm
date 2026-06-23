@@ -16,6 +16,7 @@ import { ForeignKeyBuilder } from '~/mysql-core/foreign-keys.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { Update } from '~/utils.ts';
+import type { MySqlType } from '../codecs.ts';
 
 export type MySqlColumns = Record<string, MySqlColumn<any>>;
 
@@ -93,6 +94,9 @@ export abstract class MySqlColumn<
 	TRuntimeConfig extends object = {},
 > extends Column<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'MySqlColumn';
+
+	/** @internal */
+	abstract override readonly codec?: MySqlType;
 
 	/** @internal */
 	override readonly table: MySqlTable;

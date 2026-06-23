@@ -14,15 +14,13 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
+import { MySqlAsyncPreparedQuery, MySqlAsyncSession, MySqlAsyncTransaction } from '~/mysql-core/async/session.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import {
-	type AnyMySqlMapper,
-	MySqlPreparedQuery,
-	type MySqlPreparedQueryConfig,
-	type MySqlQueryResultHKT,
-	MySqlSession,
-	MySqlTransaction,
-	type MySqlTransactionConfig,
+import type {
+	AnyMySqlMapper,
+	MySqlPreparedQueryConfig,
+	MySqlQueryResultHKT,
+	MySqlTransactionConfig,
 } from '~/mysql-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
@@ -49,7 +47,7 @@ const typeCast: TypeCast = function(field, next) {
 
 export class MySql2Session<
 	TRelations extends AnyRelations,
-> extends MySqlSession<MySqlQueryResultHKT, TRelations> {
+> extends MySqlAsyncSession<MySqlQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'MySql2Session';
 
 	private logger: Logger;
@@ -75,7 +73,7 @@ export class MySql2Session<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): MySqlPreparedQuery<T> {
+	): MySqlAsyncPreparedQuery<T> {
 		const { client } = this;
 
 		const executor = async (params: any[] = []) => {
@@ -133,7 +131,7 @@ export class MySql2Session<
 			}
 		};
 
-		return new MySqlPreparedQuery(
+		return new MySqlAsyncPreparedQuery(
 			executor,
 			iterator,
 			query,
@@ -160,7 +158,7 @@ export class MySql2Session<
 			: this;
 		const tx = new MySql2Transaction<TRelations>(
 			this.dialect,
-			session as MySqlSession<any, any>,
+			session as MySqlAsyncSession<any, any>,
 			this.relations,
 			0,
 		);
@@ -191,7 +189,7 @@ export class MySql2Session<
 
 export class MySql2Transaction<
 	TRelations extends AnyRelations,
-> extends MySqlTransaction<
+> extends MySqlAsyncTransaction<
 	MySql2QueryResultHKT,
 	TRelations
 > {

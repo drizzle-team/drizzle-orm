@@ -25,15 +25,12 @@ export class MySqlYear<
 > extends MySqlColumn<T> {
 	static override readonly [entityKind]: string = 'MySqlYear';
 
+	/** @internal */
+	override readonly codec = 'year';
+
 	getSQLType(): string {
 		return `year`;
 	}
-
-	override mapFromDriverValue = (value: number | string): number => {
-		if (typeof value === 'number') return value;
-
-		return Number(value);
-	};
 }
 
 export function year(name?: string): MySqlYearBuilder {

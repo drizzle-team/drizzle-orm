@@ -37,6 +37,7 @@ import {
 	union,
 } from 'drizzle-orm/sqlite-core';
 import type { SQLiteEffectDatabase } from 'drizzle-orm/sqlite-core/effect/db';
+import { ConfigError } from 'effect/Config';
 import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
@@ -74,7 +75,7 @@ export const push = (db: SQLiteEffectDatabase<any, any, any>, schema: Record<str
 	});
 
 export interface RunCommonEffectSQLiteTestsOptions {
-	testLayer: Layer.Layer<DB | SqlClient, SqlError, never>;
+	testLayer: Layer.Layer<DB | SqlClient, SqlError | ConfigError, never>;
 	SQLiteDrizzle: {
 		make: (config?: any) => Effect.Effect<SQLiteEffectDatabase<QueryEffectHKTBase, any, EmptyRelations>, never, any>;
 		makeWithDefaults: (
@@ -2446,7 +2447,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				expect(result).toEqual([{ id: 1, name: 'Alice' }]);
 			}));
 
-		it.effect('Mappers: - correct mappers enabled', () =>
+		it.effect('Mappers: correct mappers enabled', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
 				const jitDb = yield* createDB({}, () => ({}), true);
@@ -3147,7 +3148,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				]);
 			}));
 
-		it.effect('Jit mappers: - simple select - no rows', () =>
+		it.effect('Jit mappers: simple select - no rows', () =>
 			Effect.gen(function*() {
 				const users = sqliteTable('jit_mappers_users_1', (t) => ({
 					id: t.numeric('id', { mode: 'number' }).primaryKey(),
@@ -3166,7 +3167,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				expect(result).toStrictEqual([]);
 			}));
 
-		it.effect('Jit mappers: - select - nothing to decode - text', () =>
+		it.effect('Jit mappers: select - nothing to decode - text', () =>
 			Effect.gen(function*() {
 				const users = sqliteTable('jit_mappers_users_2', (t) => ({
 					id: t.numeric('id', { mode: 'number' }).primaryKey(),
@@ -3191,7 +3192,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				expect(selected).toStrictEqual([{ name: 'First' }]);
 			}));
 
-		it.effect('Jit mappers: - select - nothing to decode - null', () =>
+		it.effect('Jit mappers: select - nothing to decode - null', () =>
 			Effect.gen(function*() {
 				const users = sqliteTable('jit_mappers_users_3', (t) => ({
 					id: t.numeric('id', { mode: 'number' }).primaryKey(),
@@ -3216,7 +3217,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				expect(selected).toStrictEqual([{ isBanned: null }]);
 			}));
 
-		it.effect('Jit mappers: - insert returning all + select + update returning + delete returning', () =>
+		it.effect('Jit mappers: insert returning all + select + update returning + delete returning', () =>
 			Effect.gen(function*() {
 				const users = sqliteTable('jit_mappers_users_4', (t) => ({
 					id: t.numeric('id', { mode: 'number' }).primaryKey(),
@@ -3309,7 +3310,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				}]));
 			}));
 
-		it.effect('Jit mappers: - select complex selections', () =>
+		it.effect('Jit mappers: select complex selections', () =>
 			Effect.gen(function*() {
 				const users = sqliteTable('jit_mappers_users_5', (t) => ({
 					id: t.numeric('id', { mode: 'number' }).primaryKey(),
@@ -3460,7 +3461,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				]);
 			}));
 
-		it.effect('Jit mappers: - relational', () =>
+		it.effect('Jit mappers: relational', () =>
 			Effect.gen(function*() {
 				const users = sqliteTable('jit_mappers_users_6', (t) => ({
 					id: t.numeric('id', { mode: 'number' }).primaryKey(),
