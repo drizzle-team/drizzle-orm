@@ -109,7 +109,8 @@ export abstract class MsSqlColumn<
 
 	/** @internal */
 	override shouldDisableInsert(): boolean {
-		return false;
+		// mssql has only generatedAlwaysAs
+		return !!this.config.generated;
 	}
 }
 

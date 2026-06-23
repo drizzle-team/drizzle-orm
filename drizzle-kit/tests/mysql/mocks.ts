@@ -162,6 +162,7 @@ export const diffIntrospect = async (
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
 		ddlAfterPull: ddl1,
+		ddlFromPulledTsSchema: ddl2,
 	};
 };
 
