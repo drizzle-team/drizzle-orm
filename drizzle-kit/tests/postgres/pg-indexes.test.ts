@@ -788,3 +788,28 @@ test('access method issue', async () => {
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5792
+test('issue #5792', async () => {
+	await db.query(`CREATE EXTENSION IF NOT EXISTS vector;`);
+
+	const schema = {
+		table: pgTable('readings', {
+			id: text('id').primaryKey(),
+			embedding: vector('embedding', { dimensions: 1536 }),
+		}, (table) => [
+			index('idx_readings_embedding')
+				.using('hnsw', table.embedding.op('vector_cosine_ops')),
+		]),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
+
+	const expectedSt1 = [
+		'CREATE TABLE "readings" (\n\t"id" text PRIMARY KEY,\n\t"embedding" vector(1536)\n);\n',
+		'CREATE INDEX "idx_readings_embedding" ON "readings" USING hnsw ("embedding" vector_cosine_ops);',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+});

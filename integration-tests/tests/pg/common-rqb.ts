@@ -1138,4 +1138,63 @@ export function tests(test: Test) {
 			);
 		});
 	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/5760
+	test.concurrent('issue 5760. bigint precision', async ({ createDB, push }) => {
+		const users = pgTable('users', {
+			id: bigint({ mode: 'bigint' }).primaryKey(),
+		});
+
+		const posts = pgTable('posts', {
+			id: bigint({ mode: 'bigint' }).primaryKey(),
+			title: text().notNull(),
+			author: bigint({ mode: 'bigint' })
+				.notNull()
+				.references(() => users.id, { onDelete: 'cascade' }),
+		});
+
+		const schema = { users, posts };
+		const db = createDB(schema, (r) => ({
+			users: {
+				posts: r.many.posts(),
+			},
+			posts: {
+				authorRel: r.one.users({
+					from: r.posts.author,
+					to: r.users.id,
+				}),
+			},
+		}));
+
+		await db.execute(sql`DROP TABLE IF EXISTS ${posts};`);
+		await db.execute(sql`DROP TABLE IF EXISTS ${users};`);
+
+		await push(schema);
+
+		await db.insert(users).values({ id: 1000000000000000001n });
+		await db.insert(posts).values([{ id: 1000000000000000002n, title: 'foo', author: 1000000000000000001n }, {
+			id: 1000000000000000003n,
+			title: 'bar',
+			author: 1000000000000000001n,
+		}]);
+
+		const res = await db.query.users.findMany({ with: { posts: true } });
+		expect(res).toStrictEqual([
+			{
+				id: 1000000000000000001n,
+				posts: [
+					{
+						author: 1000000000000000001n,
+						id: 1000000000000000002n,
+						title: 'foo',
+					},
+					{
+						author: 1000000000000000001n,
+						id: 1000000000000000003n,
+						title: 'bar',
+					},
+				],
+			},
+		]);
+	});
 }
