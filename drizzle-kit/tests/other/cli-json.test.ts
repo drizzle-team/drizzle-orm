@@ -12,6 +12,7 @@ import {
 	ORIGIN as _ORIGIN,
 	stageConflict as _stageConflict,
 	stageOut as _stageOut,
+	stageTableConflict as _stageTableConflict,
 	stageValid as _stageValid,
 	writeSnapshot as _writeSnapshot,
 } from '../sdk/check-fixtures';
@@ -2780,8 +2781,8 @@ describe('push postgres confirm_data_loss[primary_key] in json mode', () => {
 	});
 });
 
-describe('push postgres confirm_data_loss[add_not_null] in json mode', () => {
-	test('emits missing_hints when unresolved', async () => {
+describe('push postgres add_not_null in json mode', () => {
+	test('proceeds without a confirm and runs to ok', async () => {
 		vi.doMock('../../src/cli/commands/pull-postgres', () => ({
 			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
 		}));
@@ -2824,77 +2825,6 @@ describe('push postgres confirm_data_loss[add_not_null] in json mode', () => {
 
 		const pushPostgres = await import('../../src/cli/commands/push-postgres');
 		const hints = new HintsHandler();
-
-		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
-			pushPostgres.handle(
-				['schema.ts'],
-				false,
-				{} as never,
-				[] as never,
-				false,
-				false,
-				{ table: '__drizzle_migrations', schema: 'public' },
-				hints,
-			));
-
-		expect(env).toStrictEqual({
-			status: 'missing_hints',
-			unresolved: [
-				{
-					type: 'confirm_data_loss',
-					kind: 'add_not_null',
-					entity: ['public', 'users', 'email'],
-					reason: 'nulls_present',
-				},
-			],
-		});
-	});
-
-	test('applies matching hint and runs to ok', async () => {
-		vi.doMock('../../src/cli/commands/pull-postgres', () => ({
-			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
-		}));
-
-		vi.doMock('../../src/dialects/postgres/drizzle', () => ({
-			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [], matViews: [] })),
-			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [], warnings: [] })),
-		}));
-
-		vi.doMock('../../src/dialects/postgres/ddl', () => ({
-			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
-		}));
-
-		vi.doMock('../../src/dialects/postgres/diff', () => ({
-			ddlDiff: vi.fn(async () => ({
-				sqlStatements: ['ALTER TABLE "public"."users" ADD COLUMN "email" text NOT NULL;'],
-				statements: [{
-					type: 'add_column',
-					column: {
-						schema: 'public',
-						table: 'users',
-						name: 'email',
-						notNull: true,
-						default: null,
-						generated: false,
-						identity: null,
-					},
-					isPK: false,
-					isCompositePK: false,
-				}],
-				groupedStatements: [],
-			})),
-		}));
-
-		vi.doMock('../../src/cli/connections', () => ({
-			preparePostgresDB: vi.fn(async () => ({
-				query: vi.fn(async () => []),
-			})),
-		}));
-
-		const pushPostgres = await import('../../src/cli/commands/push-postgres');
-		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
-		]);
 
 		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushPostgres.handle(
@@ -2915,8 +2845,8 @@ describe('push postgres confirm_data_loss[add_not_null] in json mode', () => {
 	});
 });
 
-describe('push postgres confirm_data_loss[add_unique] in json mode', () => {
-	test('emits missing_hints when unresolved', async () => {
+describe('push postgres add_unique in json mode', () => {
+	test('proceeds without a confirm and runs to ok', async () => {
 		vi.doMock('../../src/cli/commands/pull-postgres', () => ({
 			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
 		}));
@@ -2956,74 +2886,6 @@ describe('push postgres confirm_data_loss[add_unique] in json mode', () => {
 
 		const pushPostgres = await import('../../src/cli/commands/push-postgres');
 		const hints = new HintsHandler();
-
-		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
-			pushPostgres.handle(
-				['schema.ts'],
-				false,
-				{} as never,
-				[] as never,
-				false,
-				false,
-				{ table: '__drizzle_migrations', schema: 'public' },
-				hints,
-			));
-
-		expect(env).toStrictEqual({
-			status: 'missing_hints',
-			unresolved: [
-				{
-					type: 'confirm_data_loss',
-					kind: 'add_unique',
-					entity: ['public', 'users', 'users_email_unique'],
-					reason: 'duplicates_present',
-				},
-			],
-		});
-	});
-
-	test('applies matching hint and runs to ok', async () => {
-		vi.doMock('../../src/cli/commands/pull-postgres', () => ({
-			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
-		}));
-
-		vi.doMock('../../src/dialects/postgres/drizzle', () => ({
-			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [], matViews: [] })),
-			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [], warnings: [] })),
-		}));
-
-		vi.doMock('../../src/dialects/postgres/ddl', () => ({
-			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
-		}));
-
-		vi.doMock('../../src/dialects/postgres/diff', () => ({
-			ddlDiff: vi.fn(async () => ({
-				sqlStatements: ['ALTER TABLE "public"."users" ADD CONSTRAINT "users_email_unique" UNIQUE("email");'],
-				statements: [{
-					type: 'add_unique',
-					unique: {
-						schema: 'public',
-						table: 'users',
-						name: 'users_email_unique',
-						columns: ['email'],
-						nameExplicit: true,
-						nullsNotDistinct: false,
-					},
-				}],
-				groupedStatements: [],
-			})),
-		}));
-
-		vi.doMock('../../src/cli/connections', () => ({
-			preparePostgresDB: vi.fn(async () => ({
-				query: vi.fn(async () => []),
-			})),
-		}));
-
-		const pushPostgres = await import('../../src/cli/commands/push-postgres');
-		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['public', 'users', 'users_email_unique'] },
-		]);
 
 		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushPostgres.handle(
@@ -3424,8 +3286,8 @@ describe('push mysql confirm_data_loss[primary_key] in json mode', () => {
 	});
 });
 
-describe('push mysql confirm_data_loss[add_not_null] add_column in json mode', () => {
-	test('emits missing_hints when unresolved', async () => {
+describe('push mysql add_not_null add_column in json mode', () => {
+	test('proceeds without a confirm and runs to ok', async () => {
 		vi.doMock('../../src/cli/commands/pull-mysql', () => ({
 			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
 		}));
@@ -3467,76 +3329,6 @@ describe('push mysql confirm_data_loss[add_not_null] add_column in json mode', (
 
 		const pushMysql = await import('../../src/cli/commands/push-mysql');
 		const hints = new HintsHandler();
-
-		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
-			pushMysql.handle(
-				['schema.ts'],
-				{} as never,
-				false,
-				false,
-				{} as never,
-				false,
-				{ table: '__drizzle_migrations', schema: '' },
-				hints,
-			));
-
-		expect(env).toStrictEqual({
-			status: 'missing_hints',
-			unresolved: [
-				{
-					type: 'confirm_data_loss',
-					kind: 'add_not_null',
-					entity: ['public', 'users', 'email'],
-					reason: 'nulls_present',
-				},
-			],
-		});
-	});
-
-	test('applies matching hint and runs to ok', async () => {
-		vi.doMock('../../src/cli/commands/pull-mysql', () => ({
-			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
-		}));
-
-		vi.doMock('../../src/dialects/drizzle', () => ({
-			extractMysqlExisting: vi.fn(() => ({})),
-		}));
-
-		vi.doMock('../../src/dialects/pull-utils', () => ({
-			prepareEntityFilter: vi.fn(() => () => true),
-		}));
-
-		vi.doMock('../../src/dialects/mysql/drizzle', () => ({
-			prepareFromSchemaFiles: vi.fn(async () => ({ tables: [], views: [] })),
-			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' } })),
-		}));
-
-		vi.doMock('../../src/dialects/mysql/ddl', () => ({
-			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
-		}));
-
-		vi.doMock('../../src/dialects/mysql/diff', () => ({
-			ddlDiff: vi.fn(async () => ({
-				sqlStatements: ['ALTER TABLE `users` ADD COLUMN `email` varchar(191) NOT NULL;'],
-				statements: [{
-					type: 'add_column',
-					column: { table: 'users', name: 'email', notNull: true, default: null, generated: false },
-				}],
-				groupedStatements: [],
-			})),
-		}));
-
-		vi.doMock('../../src/cli/connections', () => ({
-			connectToMySQL: vi.fn(async () => ({
-				db: { query: vi.fn(async () => []) },
-				database: 'db',
-			})),
-		}));
-
-		const pushMysql = await import('../../src/cli/commands/push-mysql');
-		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
-		]);
 
 		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMysql.handle(
@@ -3557,8 +3349,8 @@ describe('push mysql confirm_data_loss[add_not_null] add_column in json mode', (
 	});
 });
 
-describe('push mysql confirm_data_loss[add_not_null] alter_column in json mode', () => {
-	test('emits missing_hints when unresolved', async () => {
+describe('push mysql add_not_null alter_column in json mode', () => {
+	test('proceeds without a confirm and runs to ok', async () => {
 		vi.doMock('../../src/cli/commands/pull-mysql', () => ({
 			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
 		}));
@@ -3604,80 +3396,6 @@ describe('push mysql confirm_data_loss[add_not_null] alter_column in json mode',
 
 		const pushMysql = await import('../../src/cli/commands/push-mysql');
 		const hints = new HintsHandler();
-
-		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
-			pushMysql.handle(
-				['schema.ts'],
-				{} as never,
-				false,
-				false,
-				{} as never,
-				false,
-				{ table: '__drizzle_migrations', schema: '' },
-				hints,
-			));
-
-		expect(env).toStrictEqual({
-			status: 'missing_hints',
-			unresolved: [
-				{
-					type: 'confirm_data_loss',
-					kind: 'add_not_null',
-					entity: ['public', 'users', 'email'],
-					reason: 'nulls_present',
-				},
-			],
-		});
-	});
-
-	test('applies matching hint and runs to ok', async () => {
-		vi.doMock('../../src/cli/commands/pull-mysql', () => ({
-			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
-		}));
-
-		vi.doMock('../../src/dialects/drizzle', () => ({
-			extractMysqlExisting: vi.fn(() => ({})),
-		}));
-
-		vi.doMock('../../src/dialects/pull-utils', () => ({
-			prepareEntityFilter: vi.fn(() => () => true),
-		}));
-
-		vi.doMock('../../src/dialects/mysql/drizzle', () => ({
-			prepareFromSchemaFiles: vi.fn(async () => ({ tables: [], views: [] })),
-			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' } })),
-		}));
-
-		vi.doMock('../../src/dialects/mysql/ddl', () => ({
-			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
-		}));
-
-		vi.doMock('../../src/dialects/mysql/diff', () => ({
-			ddlDiff: vi.fn(async () => ({
-				sqlStatements: ['ALTER TABLE `users` MODIFY COLUMN `email` varchar(191) NOT NULL;'],
-				statements: [{
-					type: 'alter_column',
-					diff: { notNull: { from: false, to: true } },
-					column: { table: 'users', name: 'email', default: null, generated: false },
-					isPK: false,
-					wasPK: false,
-					origin: { table: 'users', column: 'email' },
-				}],
-				groupedStatements: [],
-			})),
-		}));
-
-		vi.doMock('../../src/cli/connections', () => ({
-			connectToMySQL: vi.fn(async () => ({
-				db: { query: vi.fn(async () => []) },
-				database: 'db',
-			})),
-		}));
-
-		const pushMysql = await import('../../src/cli/commands/push-mysql');
-		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
-		]);
 
 		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMysql.handle(
@@ -3854,8 +3572,8 @@ describe('push mysql confirm_data_loss[column] type_change in json mode', () => 
 	});
 });
 
-describe('push mysql confirm_data_loss[add_unique] in json mode', () => {
-	test('emits missing_hints when unresolved', async () => {
+describe('push mysql add_unique in json mode', () => {
+	test('proceeds without a confirm and runs to ok', async () => {
 		vi.doMock('../../src/cli/commands/pull-mysql', () => ({
 			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
 		}));
@@ -3906,85 +3624,6 @@ describe('push mysql confirm_data_loss[add_unique] in json mode', () => {
 
 		const pushMysql = await import('../../src/cli/commands/push-mysql');
 		const hints = new HintsHandler();
-
-		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
-			pushMysql.handle(
-				['schema.ts'],
-				{} as never,
-				false,
-				false,
-				{} as never,
-				false,
-				{ table: '__drizzle_migrations', schema: '' },
-				hints,
-			));
-
-		expect(env).toStrictEqual({
-			status: 'missing_hints',
-			unresolved: [
-				{
-					type: 'confirm_data_loss',
-					kind: 'add_unique',
-					entity: ['public', 'users', 'users_email_idx'],
-					reason: 'duplicates_present',
-				},
-			],
-		});
-	});
-
-	test('applies matching hint and runs to ok', async () => {
-		vi.doMock('../../src/cli/commands/pull-mysql', () => ({
-			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
-		}));
-
-		vi.doMock('../../src/dialects/drizzle', () => ({
-			extractMysqlExisting: vi.fn(() => ({})),
-		}));
-
-		vi.doMock('../../src/dialects/pull-utils', () => ({
-			prepareEntityFilter: vi.fn(() => () => true),
-		}));
-
-		vi.doMock('../../src/dialects/mysql/drizzle', () => ({
-			prepareFromSchemaFiles: vi.fn(async () => ({ tables: [], views: [] })),
-			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' } })),
-		}));
-
-		vi.doMock('../../src/dialects/mysql/ddl', () => ({
-			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
-		}));
-
-		vi.doMock('../../src/dialects/mysql/diff', () => ({
-			ddlDiff: vi.fn(async () => ({
-				sqlStatements: ['CREATE UNIQUE INDEX `users_email_idx` ON `users` (`email`);'],
-				statements: [{
-					type: 'create_index',
-					index: {
-						table: 'users',
-						columns: [{ value: 'email', isExpression: false }],
-						isUnique: true,
-						using: null,
-						algorithm: null,
-						lock: null,
-						name: 'users_email_idx',
-						nameExplicit: false,
-					},
-				}],
-				groupedStatements: [],
-			})),
-		}));
-
-		vi.doMock('../../src/cli/connections', () => ({
-			connectToMySQL: vi.fn(async () => ({
-				db: { query: vi.fn(async () => []) },
-				database: 'db',
-			})),
-		}));
-
-		const pushMysql = await import('../../src/cli/commands/push-mysql');
-		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['public', 'users', 'users_email_idx'] },
-		]);
 
 		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMysql.handle(
@@ -4410,7 +4049,7 @@ describe('push sqlite confirm_data_loss[add_not_null] in json mode', () => {
 					type: 'confirm_data_loss',
 					kind: 'add_not_null',
 					entity: ['public', 'users', 'email'],
-					reason: 'nulls_present',
+					reason: 'table_recreate',
 				},
 			],
 		});
@@ -5213,8 +4852,8 @@ describe('push mssql confirm_data_loss[primary_key] in json mode', () => {
 	});
 });
 
-describe('push mssql confirm_data_loss[add_not_null] add_column in json mode', () => {
-	test('emits missing_hints when unresolved', async () => {
+describe('push mssql add_not_null add_column in json mode', () => {
+	test('proceeds without a confirm and runs to ok', async () => {
 		vi.doMock('../../src/cli/connections', () => ({
 			connectToMsSQL: vi.fn(async () => ({ db: { query: vi.fn(async () => [1]) } })),
 		}));
@@ -5261,75 +4900,14 @@ describe('push mssql confirm_data_loss[add_not_null] add_column in json mode', (
 			));
 
 		expect(env).toStrictEqual({
-			status: 'missing_hints',
-			unresolved: [
-				{
-					type: 'confirm_data_loss',
-					kind: 'add_not_null',
-					entity: ['dbo', 'users', 'email'],
-					reason: 'nulls_present',
-				},
-			],
-		});
-	});
-
-	test('applies matching hint and runs to ok', async () => {
-		vi.doMock('../../src/cli/connections', () => ({
-			connectToMsSQL: vi.fn(async () => ({ db: { query: vi.fn(async () => []) } })),
-		}));
-		vi.doMock('../../src/cli/commands/pull-mssql', () => ({
-			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
-		}));
-		vi.doMock('../../src/dialects/drizzle', () => ({
-			extractMssqlExisting: vi.fn(() => ({})),
-		}));
-		vi.doMock('../../src/dialects/pull-utils', () => ({
-			prepareEntityFilter: vi.fn(() => () => true),
-		}));
-		vi.doMock('../../src/dialects/mssql/drizzle', () => ({
-			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [] })),
-			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [] })),
-		}));
-		vi.doMock('../../src/dialects/mssql/ddl', () => ({
-			interimToDDL: vi.fn((schema) => ({ ddl: { ...schema, defaults: { one: () => null } }, errors: [] })),
-		}));
-		vi.doMock('../../src/dialects/mssql/diff', () => ({
-			ddlDiff: vi.fn(async () => ({
-				sqlStatements: ['ALTER TABLE [users] ADD [email] varchar(255) NOT NULL;'],
-				statements: [{
-					type: 'add_column',
-					column: { schema: 'dbo', table: 'users', name: 'email', notNull: true },
-				}],
-				groupedStatements: [],
-			})),
-		}));
-
-		const pushMssql = await import('../../src/cli/commands/push-mssql');
-		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['dbo', 'users', 'email'] },
-		]);
-
-		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
-			pushMssql.handle(
-				['schema.ts'],
-				false,
-				{} as never,
-				[] as never,
-				false,
-				false,
-				{ table: '__drizzle_migrations', schema: 'dbo' },
-				hints,
-			));
-
-		expect(env).toStrictEqual({
 			status: 'ok',
 			dialect: 'mssql',
 		});
 	});
 });
 
-describe('push mssql confirm_data_loss[add_not_null] alter_column in json mode', () => {
-	test('emits missing_hints when unresolved', async () => {
+describe('push mssql add_not_null alter_column in json mode', () => {
+	test('proceeds without a confirm and runs to ok', async () => {
 		vi.doMock('../../src/cli/connections', () => ({
 			connectToMsSQL: vi.fn(async () => ({ db: { query: vi.fn(async () => [1]) } })),
 		}));
@@ -5376,75 +4954,14 @@ describe('push mssql confirm_data_loss[add_not_null] alter_column in json mode',
 			));
 
 		expect(env).toStrictEqual({
-			status: 'missing_hints',
-			unresolved: [
-				{
-					type: 'confirm_data_loss',
-					kind: 'add_not_null',
-					entity: ['dbo', 'users', 'email'],
-					reason: 'nulls_present',
-				},
-			],
-		});
-	});
-
-	test('applies matching hint and runs to ok', async () => {
-		vi.doMock('../../src/cli/connections', () => ({
-			connectToMsSQL: vi.fn(async () => ({ db: { query: vi.fn(async () => []) } })),
-		}));
-		vi.doMock('../../src/cli/commands/pull-mssql', () => ({
-			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
-		}));
-		vi.doMock('../../src/dialects/drizzle', () => ({
-			extractMssqlExisting: vi.fn(() => ({})),
-		}));
-		vi.doMock('../../src/dialects/pull-utils', () => ({
-			prepareEntityFilter: vi.fn(() => () => true),
-		}));
-		vi.doMock('../../src/dialects/mssql/drizzle', () => ({
-			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [] })),
-			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [] })),
-		}));
-		vi.doMock('../../src/dialects/mssql/ddl', () => ({
-			interimToDDL: vi.fn((schema) => ({ ddl: { ...schema, defaults: { one: () => null } }, errors: [] })),
-		}));
-		vi.doMock('../../src/dialects/mssql/diff', () => ({
-			ddlDiff: vi.fn(async () => ({
-				sqlStatements: ['ALTER TABLE [users] ALTER COLUMN [email] varchar(255) NOT NULL;'],
-				statements: [{
-					type: 'alter_column',
-					diff: { $right: { schema: 'dbo', table: 'users', name: 'email', notNull: true } },
-				}],
-				groupedStatements: [],
-			})),
-		}));
-
-		const pushMssql = await import('../../src/cli/commands/push-mssql');
-		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['dbo', 'users', 'email'] },
-		]);
-
-		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
-			pushMssql.handle(
-				['schema.ts'],
-				false,
-				{} as never,
-				[] as never,
-				false,
-				false,
-				{ table: '__drizzle_migrations', schema: 'dbo' },
-				hints,
-			));
-
-		expect(env).toStrictEqual({
 			status: 'ok',
 			dialect: 'mssql',
 		});
 	});
 });
 
-describe('push mssql confirm_data_loss[add_unique] in json mode', () => {
-	test('emits missing_hints when unresolved', async () => {
+describe('push mssql add_unique in json mode', () => {
+	test('proceeds without a confirm and runs to ok', async () => {
 		vi.doMock('../../src/cli/connections', () => ({
 			connectToMsSQL: vi.fn(async () => ({ db: { query: vi.fn(async () => [1]) } })),
 		}));
@@ -5482,72 +4999,6 @@ describe('push mssql confirm_data_loss[add_unique] in json mode', () => {
 
 		const pushMssql = await import('../../src/cli/commands/push-mssql');
 		const hints = new HintsHandler();
-
-		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
-			pushMssql.handle(
-				['schema.ts'],
-				false,
-				{} as never,
-				[] as never,
-				false,
-				false,
-				{ table: '__drizzle_migrations', schema: 'dbo' },
-				hints,
-			));
-
-		expect(env).toStrictEqual({
-			status: 'missing_hints',
-			unresolved: [
-				{
-					type: 'confirm_data_loss',
-					kind: 'add_unique',
-					entity: ['dbo', 'users', 'users_email_unique'],
-					reason: 'duplicates_present',
-				},
-			],
-		});
-	});
-
-	test('applies matching hint and runs to ok', async () => {
-		vi.doMock('../../src/cli/connections', () => ({
-			connectToMsSQL: vi.fn(async () => ({ db: { query: vi.fn(async () => []) } })),
-		}));
-		vi.doMock('../../src/cli/commands/pull-mssql', () => ({
-			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
-		}));
-		vi.doMock('../../src/dialects/drizzle', () => ({
-			extractMssqlExisting: vi.fn(() => ({})),
-		}));
-		vi.doMock('../../src/dialects/pull-utils', () => ({
-			prepareEntityFilter: vi.fn(() => () => true),
-		}));
-		vi.doMock('../../src/dialects/mssql/drizzle', () => ({
-			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [] })),
-			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [] })),
-		}));
-		vi.doMock('../../src/dialects/mssql/ddl', () => ({
-			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
-		}));
-		vi.doMock('../../src/dialects/mssql/diff', () => ({
-			ddlDiff: vi.fn(async () => ({
-				sqlStatements: ['ALTER TABLE [users] ADD CONSTRAINT [users_email_unique] UNIQUE ([email]);'],
-				statements: [{
-					type: 'add_unique',
-					unique: {
-						schema: 'dbo',
-						table: 'users',
-						name: 'users_email_unique',
-						columns: ['email'],
-					},
-				}],
-				groupedStatements: [],
-			})),
-		}));
-
-		const pushMssql = await import('../../src/cli/commands/push-mssql');
-		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['dbo', 'users', 'users_email_unique'] },
-		]);
 
 		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushMssql.handle(
@@ -6154,8 +5605,8 @@ describe('push cockroach confirm_data_loss[primary_key] in json mode', () => {
 	});
 });
 
-describe('push cockroach confirm_data_loss[add_not_null] in json mode', () => {
-	test('emits missing_hints when unresolved', async () => {
+describe('push cockroach add_not_null in json mode', () => {
+	test('proceeds without a confirm and runs to ok', async () => {
 		vi.doMock('../../src/cli/connections', () => ({
 			prepareCockroach: vi.fn(async () => ({ query: vi.fn(async () => [1]) })),
 		}));
@@ -6199,78 +5650,6 @@ describe('push cockroach confirm_data_loss[add_not_null] in json mode', () => {
 
 		const pushCockroach = await import('../../src/cli/commands/push-cockroach');
 		const hints = new HintsHandler();
-
-		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
-			pushCockroach.handle(
-				['schema.ts'],
-				false,
-				{} as never,
-				[] as never,
-				false,
-				false,
-				{ table: '__drizzle_migrations', schema: 'public' },
-				hints,
-			));
-
-		expect(env).toStrictEqual({
-			status: 'missing_hints',
-			unresolved: [
-				{
-					type: 'confirm_data_loss',
-					kind: 'add_not_null',
-					entity: ['public', 'users', 'email'],
-					reason: 'nulls_present',
-				},
-			],
-		});
-	});
-
-	test('applies matching hint and runs to ok', async () => {
-		vi.doMock('../../src/cli/connections', () => ({
-			prepareCockroach: vi.fn(async () => ({ query: vi.fn(async () => []) })),
-		}));
-		vi.doMock('../../src/cli/commands/pull-cockroach', () => ({
-			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
-		}));
-		vi.doMock('../../src/dialects/drizzle', () => ({
-			extractCrdbExisting: vi.fn(() => ({})),
-		}));
-		vi.doMock('../../src/dialects/pull-utils', () => ({
-			prepareEntityFilter: vi.fn(() => () => true),
-		}));
-		vi.doMock('../../src/dialects/cockroach/drizzle', () => ({
-			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [], matViews: [] })),
-			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [], warnings: [] })),
-		}));
-		vi.doMock('../../src/dialects/cockroach/ddl', () => ({
-			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
-		}));
-		vi.doMock('../../src/dialects/cockroach/diff', () => ({
-			ddlDiff: vi.fn(async () => ({
-				sqlStatements: ['ALTER TABLE "public"."users" ADD COLUMN "email" text NOT NULL;'],
-				statements: [{
-					type: 'add_column',
-					column: {
-						schema: 'public',
-						table: 'users',
-						name: 'email',
-						notNull: true,
-						default: null,
-						generated: null,
-						identity: null,
-						type: 'text',
-						typeSchema: null,
-						dimensions: 0,
-					},
-				}],
-				groupedStatements: [],
-			})),
-		}));
-
-		const pushCockroach = await import('../../src/cli/commands/push-cockroach');
-		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
-		]);
 
 		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushCockroach.handle(
@@ -6291,8 +5670,8 @@ describe('push cockroach confirm_data_loss[add_not_null] in json mode', () => {
 	});
 });
 
-describe('push cockroach confirm_data_loss[add_unique] in json mode', () => {
-	test('emits missing_hints when unresolved', async () => {
+describe('push cockroach add_unique in json mode', () => {
+	test('proceeds without a confirm and runs to ok', async () => {
 		vi.doMock('../../src/cli/connections', () => ({
 			prepareCockroach: vi.fn(async () => ({ query: vi.fn(async () => [1]) })),
 		}));
@@ -6335,77 +5714,6 @@ describe('push cockroach confirm_data_loss[add_unique] in json mode', () => {
 
 		const pushCockroach = await import('../../src/cli/commands/push-cockroach');
 		const hints = new HintsHandler();
-
-		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
-			pushCockroach.handle(
-				['schema.ts'],
-				false,
-				{} as never,
-				[] as never,
-				false,
-				false,
-				{ table: '__drizzle_migrations', schema: 'public' },
-				hints,
-			));
-
-		expect(env).toStrictEqual({
-			status: 'missing_hints',
-			unresolved: [
-				{
-					type: 'confirm_data_loss',
-					kind: 'add_unique',
-					entity: ['public', 'users', 'users_email_idx'],
-					reason: 'duplicates_present',
-				},
-			],
-		});
-	});
-
-	test('applies matching hint and runs to ok', async () => {
-		vi.doMock('../../src/cli/connections', () => ({
-			prepareCockroach: vi.fn(async () => ({ query: vi.fn(async () => []) })),
-		}));
-		vi.doMock('../../src/cli/commands/pull-cockroach', () => ({
-			introspect: vi.fn(async () => ({ schema: { from: 'db' } })),
-		}));
-		vi.doMock('../../src/dialects/drizzle', () => ({
-			extractCrdbExisting: vi.fn(() => ({})),
-		}));
-		vi.doMock('../../src/dialects/pull-utils', () => ({
-			prepareEntityFilter: vi.fn(() => () => true),
-		}));
-		vi.doMock('../../src/dialects/cockroach/drizzle', () => ({
-			prepareFromSchemaFiles: vi.fn(async () => ({ schemas: [], views: [], matViews: [] })),
-			fromDrizzleSchema: vi.fn(() => ({ schema: { to: 'schema' }, errors: [], warnings: [] })),
-		}));
-		vi.doMock('../../src/dialects/cockroach/ddl', () => ({
-			interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
-		}));
-		vi.doMock('../../src/dialects/cockroach/diff', () => ({
-			ddlDiff: vi.fn(async () => ({
-				sqlStatements: ['CREATE UNIQUE INDEX "users_email_idx" ON "public"."users" ("email");'],
-				statements: [{
-					type: 'create_index',
-					index: {
-						schema: 'public',
-						table: 'users',
-						name: 'users_email_idx',
-						isUnique: true,
-						nameExplicit: false,
-						columns: [{ value: 'email', isExpression: false, asc: true }],
-						where: null,
-						method: null,
-					},
-					newTable: false,
-				}],
-				groupedStatements: [],
-			})),
-		}));
-
-		const pushCockroach = await import('../../src/cli/commands/push-cockroach');
-		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_unique', entity: ['public', 'users', 'users_email_idx'] },
-		]);
 
 		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushCockroach.handle(
@@ -6812,8 +6120,8 @@ describe('push singlestore confirm_data_loss[column] in json mode', () => {
 	});
 });
 
-describe('push singlestore confirm_data_loss[add_not_null] in json mode', () => {
-	test('emits missing_hints when unresolved', async () => {
+describe('push singlestore add_not_null in json mode', () => {
+	test('proceeds without a confirm and runs to ok', async () => {
 		vi.doMock('hanji', async () => {
 			const actual = await vi.importActual<typeof import('hanji')>('hanji');
 			return {
@@ -6856,77 +6164,6 @@ describe('push singlestore confirm_data_loss[add_not_null] in json mode', () => 
 
 		const pushSinglestore = await import('../../src/cli/commands/push-singlestore');
 		const hints = new HintsHandler();
-
-		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
-			pushSinglestore.handle(
-				['schema.ts'],
-				{} as never,
-				[] as never,
-				false,
-				false,
-				false,
-				{ table: '__drizzle_migrations', schema: '' },
-				hints,
-			));
-
-		expect(env).toStrictEqual({
-			status: 'missing_hints',
-			unresolved: [
-				{
-					type: 'confirm_data_loss',
-					kind: 'add_not_null',
-					entity: ['public', 'users', 'email'],
-					reason: 'nulls_present',
-				},
-			],
-		});
-	});
-
-	test('applies matching hint and runs to ok', async () => {
-		vi.doMock('hanji', async () => {
-			const actual = await vi.importActual<typeof import('hanji')>('hanji');
-			return {
-				...actual,
-				renderWithTask: vi.fn(async (_view, promise: Promise<unknown>) => promise),
-			};
-		});
-		vi.doMock('../../src/cli/connections', () => ({
-			connectToSingleStore: vi.fn(async () => ({ db: { query: vi.fn(async () => []) }, database: 'db' })),
-		}));
-		vi.doMock('../../src/dialects/mysql/introspect', () => ({
-			fromDatabaseForDrizzle: vi.fn(async () => ({ from: 'db' })),
-		}));
-		vi.doMock('../../src/dialects/pull-utils', () => ({
-			prepareEntityFilter: vi.fn(() => () => true),
-		}));
-		vi.doMock('../../src/dialects/singlestore/drizzle', () => ({
-			prepareFromSchemaFiles: vi.fn(async () => ({ tables: [] })),
-			fromDrizzleSchema: vi.fn(() => ({ to: 'schema' })),
-		}));
-		vi.doMock('../../src/dialects/mysql/ddl', async () => {
-			const actual = await vi.importActual<typeof import('../../src/dialects/mysql/ddl')>(
-				'../../src/dialects/mysql/ddl',
-			);
-			return {
-				...actual,
-				interimToDDL: vi.fn((schema) => ({ ddl: schema, errors: [] })),
-			};
-		});
-		vi.doMock('../../src/dialects/singlestore/diff', () => ({
-			ddlDiff: vi.fn(async () => ({
-				sqlStatements: ['ALTER TABLE `users` ADD COLUMN `email` varchar(191) NOT NULL;'],
-				statements: [{
-					type: 'add_column',
-					column: { table: 'users', name: 'email', notNull: true, default: null, generated: false },
-				}],
-				groupedStatements: [],
-			})),
-		}));
-
-		const pushSinglestore = await import('../../src/cli/commands/push-singlestore');
-		const hints = new HintsHandler([
-			{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'users', 'email'] },
-		]);
 
 		const env = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			pushSinglestore.handle(
@@ -7035,6 +6272,7 @@ describe('check --output', () => {
 	const writeSnapshot = _writeSnapshot;
 	const stageValid = _stageValid;
 	const stageConflict = _stageConflict;
+	const stageTableConflict = _stageTableConflict;
 
 	const runCheck = (out: string, extra: string[] = []) =>
 		runCli(['check', `--out=${out}`, '--dialect=postgresql', ...extra]);
@@ -7145,10 +6383,40 @@ describe('check --output', () => {
 			expect(Array.isArray(detail.branches)).toBe(true);
 			expect(detail.branches.length).toBe(2);
 			for (const branch of detail.branches) {
-				expect(Object.keys(branch).sort()).toEqual(['leafId', 'leafPath', 'statementDescription']);
+				expect(Object.keys(branch).sort()).toEqual(
+					['action', 'leafId', 'leafPath', 'statementDescription', 'target'].sort(),
+				);
 				expect(branch.leafId === null || typeof branch.leafId === 'string').toBe(true);
 				expect(branch.leafPath === null || typeof branch.leafPath === 'string').toBe(true);
 				expect(typeof branch.statementDescription).toBe('string');
+				expect(typeof branch.action).toBe('string');
+				expect(typeof branch.target).toBe('object');
+				expect(typeof branch.target.kind).toBe('string');
+				expect(typeof branch.target.name).toBe('string');
+				expect(branch.target.kind).toBe('column');
+				expect(branch.target.name).toBe('email');
+				expect(branch.target.table).toBe('users');
+			}
+		}
+
+		expectNoHumanStrings(result.stdout);
+	});
+
+	test('a table-level conflict carries a table-kind target with its schema in json mode', () => {
+		const result = runCheck(stageTableConflict(), ['--output', 'json']);
+
+		expect(result.status).toBe(1);
+		const parsed = JSON.parse(result.stdout.trim());
+		expect(parsed.error.kind).toBe('conflicts');
+		expect(parsed.error.details.length).toBeGreaterThan(0);
+		for (const detail of parsed.error.details) {
+			for (const branch of detail.branches) {
+				// The structured kind for a create_table/create_table conflict is the table
+				// itself — not 'column' and not the schema — and it carries the schema so the
+				// consumer renders "<verb> `orders` in schema `public`" without parsing strings.
+				expect(branch.target.kind).toBe('table');
+				expect(branch.target.name).toBe('orders');
+				expect(branch.target.schema).toBe('public');
 			}
 		}
 

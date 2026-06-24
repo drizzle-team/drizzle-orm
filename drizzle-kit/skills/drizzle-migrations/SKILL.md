@@ -37,10 +37,10 @@ export default defineConfig({
 
 ## Generate vs push
 
-- **`generate`** — file-based. Computes the diff, writes a `.sql` file under `out`, and exits. The agent (or a human, or CI) reviews the SQL and applies it later via the driver's migrate runner. Safest for production. Pairs naturally with code-review workflows. Load the [drizzle-generate](../drizzle-generate/SKILL.md) skill for invocation details.
-- **`push`** — direct application. Computes the diff and executes the DDL against the live database immediately. No migration file. Fastest feedback loop during development. In production, destructive changes (drop, type change, add NOT NULL with NULLs, add UNIQUE with duplicates) return `status: 'missing_hints'` and require explicit approval via the [drizzle-hints](../drizzle-hints/SKILL.md) resolution loop before they apply. Load the [drizzle-push](../drizzle-push/SKILL.md) skill for invocation details.
+- **`generate`** — file-based. Computes the diff, writes a `.sql` file under `out`, and exits. The agent (or a human, or CI) reviews the SQL and applies it later via the driver's migrate runner. Safest for production. Pairs naturally with code-review workflows. Load the `drizzle-generate` skill for invocation details.
+- **`push`** — direct application. Computes the diff and executes the DDL against the live database immediately. No migration file. Fastest feedback loop during development. In production, destructive changes (dropping a non-empty entity, changing a column's SQL type, or recreating a SQLite table to add a `NOT NULL` column) return `status: 'missing_hints'` and require explicit approval via the `drizzle-hints` resolution loop before they apply. Load the `drizzle-push` skill for invocation details.
 
-Choose `generate` for production releases and review workflows; choose `push` for rapid local iteration. Both operations share one JSON envelope (decoded by [drizzle-responses-and-errors](../drizzle-responses-and-errors/SKILL.md)) and one hint vocabulary.
+Choose `generate` for production releases and review workflows; choose `push` for rapid local iteration. Both operations share one JSON envelope (decoded by the `drizzle-responses-and-errors` skill) and one hint vocabulary.
 
 To go the other direction — introspect an existing database into a Drizzle schema instead of driving the database from a schema — see the `drizzle-pull` skill.
 

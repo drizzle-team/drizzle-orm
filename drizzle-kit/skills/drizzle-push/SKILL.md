@@ -7,7 +7,7 @@ metadata:
 
 # Drizzle push
 
-The CLI flag `--output json` and the SDK `push(...)` function emit the same discriminated-union envelope, and the envelope (not the stdout text) is what the agent decodes. Output format and interactivity are separate axes: `--output json` selects the machine-readable envelope and is always non-interactive, so pass it whenever an agent calls the CLI. Under the default `--output text` the CLI prompts only when stdin is a TTY; in a non-TTY it prints the missing-decisions report and exits 2 (it never hangs prompting). See the [drizzle-output-modes](../drizzle-output-modes/SKILL.md) skill for the two modes and the interactivity rule. The SDK runs in JSON mode internally with no flag needed at the call site. Push is the live-DB counterpart to `generate`: `generate` is offline and writes a migration SQL file to disk, `push` connects to the database and executes the diff against it. The `drizzle-generate` skill covers the offline path; the `drizzle-migrations` skill covers the day-to-day workflow that combines them.
+The CLI flag `--output json` and the SDK `push(...)` function emit the same discriminated-union envelope, and the envelope (not the stdout text) is what the agent decodes. Output format and interactivity are separate axes: `--output json` selects the machine-readable envelope and is always non-interactive, so pass it whenever an agent calls the CLI. Under the default `--output text` the CLI prompts only when stdin is a TTY; in a non-TTY it prints the missing-decisions report and exits 2 (it never hangs prompting). See the `drizzle-output-modes` skill for the two modes and the interactivity rule. The SDK runs in JSON mode internally with no flag needed at the call site. Push is the live-DB counterpart to `generate`: `generate` is offline and writes a migration SQL file to disk, `push` connects to the database and executes the diff against it. The `drizzle-generate` skill covers the offline path; the `drizzle-migrations` skill covers the day-to-day workflow that combines them.
 
 ## CLI form
 
@@ -78,9 +78,9 @@ The SDK does not throw on user-level failures — every outcome flows through th
 
 ## Response shape
 
-Push's `'ok'` envelope is `{ status, dialect }` — no `migration_path`, since push executes the diff against the live DB rather than writing a file. `'ok'` (explain) carries `{ status, dialect, statements, hints }`. `'no_changes'`, `'missing_hints'`, and `'error'` are shared across operations. Full envelope shapes, exit-code mapping, and per-code error metadata live in [drizzle-responses-and-errors#response-envelope](../drizzle-responses-and-errors/SKILL.md#response-envelope).
+Push's `'ok'` envelope is `{ status, dialect }` — no `migration_path`, since push executes the diff against the live DB rather than writing a file. `'ok'` (explain) carries `{ status, dialect, statements, hints }`. `'no_changes'`, `'missing_hints'`, and `'error'` are shared across operations. Full envelope shapes, exit-code mapping, and per-code error metadata live in the `drizzle-responses-and-errors` skill's response-envelope section.
 
-`'missing_hints'` (exit 2) means the diff is ambiguous or unsafe — the resolution loop lives in the [drizzle-hints](../drizzle-hints/SKILL.md) skill. The most common error codes for `push` are `config_validation_error`, `config_connection_error`, `database_driver_error`, `query_error`, `unsupported_schema_change`, `invalid_hints`, `required_packages_error`, `internal_error`.
+`'missing_hints'` (exit 2) means the diff is ambiguous or unsafe — the resolution loop lives in the `drizzle-hints` skill. The most common error codes for `push` are `config_validation_error`, `config_connection_error`, `database_driver_error`, `query_error`, `unsupported_schema_change`, `invalid_hints`, `required_packages_error`, `internal_error`.
 
 ## Connection
 
@@ -110,13 +110,17 @@ Secrets belong in environment variables (`process.env.DATABASE_URL`, etc.) — `
 
 ## Destructive changes
 
-When push would drop a table, drop a column, drop a schema or view, drop a primary key, add `NOT NULL` to a column with existing nulls, or add `UNIQUE` to a column with duplicates, it does not execute. Instead it returns `status: 'missing_hints'` with `unresolved` items of `type: 'confirm_data_loss'`. The agent must approve each item with a matching `Hint` and re-invoke.
+When push would drop a non-empty table, column, schema, or view, drop a primary key, change a column's SQL type, or recreate a SQLite table to add a `NOT NULL` column (which wipes its rows), it does not execute. Instead it returns `status: 'missing_hints'` with `unresolved` items of `type: 'confirm_data_loss'`. The agent must approve each item with a matching `Hint` and re-invoke.
 
-Seven `confirm_data_loss` kinds fire here: `table`, `column`, `schema`, `view`, `primary_key`, `add_not_null`, `add_unique`. The four reasons (`non_empty`, `nulls_present`, `duplicates_present`, `type_change`) and the kinds they apply to are catalogued in [drizzle-hints#reasons](../drizzle-hints/SKILL.md#reasons). See the [drizzle-hints](../drizzle-hints/SKILL.md) skill for the full resolution loop (parse `unresolved` → build a `Hint` per item → pass `hints` back → re-invoke).
+Adding `NOT NULL` or `UNIQUE` on the server dialects (postgresql, mysql, mssql, cockroach, singlestore) does not trigger a confirmation request — the `ALTER` runs and the database enforces the constraint, rejecting a genuine violation cleanly. Only SQLite's `add_not_null` is a `confirm_data_loss`, because SQLite has no in-place path to add the column and so recreates the table and deletes all rows (reason `table_recreate`).
+
+The `confirm_data_loss` kinds that fire here: `table`, `column`, `schema`, `view`, `primary_key`, and (sqlite / turso only) `add_not_null`. The reasons (`non_empty`, `table_recreate`, `type_change`) and the kinds they apply to are catalogued in the `drizzle-hints` skill's reasons section. See the `drizzle-hints` skill for the full resolution loop (parse `unresolved` → build a `Hint` per item → pass `hints` back → re-invoke).
+
+Every entity tuple leads with a namespace segment for uniform arity, but only postgresql, cockroach, and mssql have a real schema namespace (the `schema` entity kind is wired only for those three). On the schemaless dialects (mysql, sqlite, singlestore) that leading segment is a synthesized `'public'` placeholder, not a real schema — echo it verbatim; on a schemaless dialect it is filler, never build a separate `schema` rename or create from it.
 
 ## Dialect notes
 
-Per-dialect quirks (postgresql, mysql, sqlite, mssql, cockroach, singlestore) — the same diff engine and dialect surface drives both `generate` and `push`, so the notes are shared. See [drizzle-migrations#dialect-notes](../drizzle-migrations/SKILL.md#dialect-notes).
+Per-dialect quirks (postgresql, mysql, sqlite, mssql, cockroach, singlestore) — the same diff engine and dialect surface drives both `generate` and `push`, so the notes are shared. See the `drizzle-migrations` skill's dialect-notes section.
 
 ## Examples
 

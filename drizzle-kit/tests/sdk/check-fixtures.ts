@@ -48,6 +48,21 @@ export const stageConflict = (): string => {
 	return out;
 };
 
+// Two branches each create a differently-shaped `orders` table from a shared parent
+// that lacks it — a create_table/create_table conflict whose target is the table itself
+// (kind 'table'), exercising the table path that stageConflict's column conflict does not.
+export const stageTableConflict = (): string => {
+	const out = stageOut();
+	const base = { users: pgTable('users', { id: pgInteger('id') }) };
+	const parent = makePgSnapshot('p1', [ORIGIN], base);
+	const left = makePgSnapshot('a1', ['p1'], { ...base, orders: pgTable('orders', { id: pgInteger('id') }) });
+	const right = makePgSnapshot('b1', ['p1'], { ...base, orders: pgTable('orders', { total: pgInteger('total') }) });
+	writeSnapshot(out, '0000_parent', parent);
+	writeSnapshot(out, '0001_left', left);
+	writeSnapshot(out, '0002_right', right);
+	return out;
+};
+
 export const stageUnsupported = (): string => {
 	const out = stageOut();
 	writeSnapshot(out, '0000_init', { version: '999', dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], ddl: [] });

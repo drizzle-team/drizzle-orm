@@ -131,9 +131,9 @@ export const handle = async (
 	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<Table>('table', 'public', config.hints),
-		resolver<Column>('column', 'public', config.hints),
-		resolver<View>('view', 'public', config.hints),
+		resolver<Table>('table', config.hints),
+		resolver<Column>('column', config.hints),
+		resolver<View>('view', config.hints),
 		'default',
 	);
 
