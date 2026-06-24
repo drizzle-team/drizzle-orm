@@ -63,8 +63,8 @@ const entityId = <K extends RenameCreateHintKind>(
 
 export const resolver = <T extends PromptEntityBase>(
 	entity: RenameCreateHintKind,
-	defaultSchema: 'public' | 'dbo' = 'public',
 	hints?: HintsHandler,
+	defaultSchema: 'public' | 'dbo' = 'public',
 ): Resolver<T> => {
 	/**
 	 * Resolves rename-or-create ambiguity for one entity kind by comparing the
@@ -74,15 +74,12 @@ export const resolver = <T extends PromptEntityBase>(
 	 * mode consults pre-supplied hints and records any missing hints without
 	 * prompting, while TTY mode interactively asks the user to choose the
 	 * resolution.
-	 *
-	 * Returns the resolved diff sets along with only the missing-hint items that
-	 * were added during this resolver invocation.
 	 */
 	return async (it: { created: T[]; deleted: T[] }) => {
 		const { created, deleted } = it;
 
 		if (created.length === 0 || deleted.length === 0) {
-			return { resolved: { created, deleted, renamedOrMoved: [] }, unresolved: [] };
+			return { created, deleted, renamedOrMoved: [] };
 		}
 
 		const createResult = () => ({
@@ -101,7 +98,6 @@ export const resolver = <T extends PromptEntityBase>(
 			const result = createResult();
 			let index = 0;
 			let leftMissing = [...deleted];
-			const unresolvedOffset = hints.missingHints.length;
 
 			do {
 				const newItem = created[index]!;
@@ -138,10 +134,7 @@ export const resolver = <T extends PromptEntityBase>(
 			humanLog(chalk.gray(`--- all ${humanizeKind(entity)} conflicts resolved ---\n`));
 			result.deleted.push(...leftMissing);
 
-			return {
-				resolved: result,
-				unresolved: hints.missingHints.slice(unresolvedOffset),
-			};
+			return result;
 		};
 
 		const resolveTtyMode = async () => {
@@ -204,10 +197,7 @@ export const resolver = <T extends PromptEntityBase>(
 			humanLog(chalk.gray(`--- all ${humanizeKind(entity)} conflicts resolved ---\n`));
 			result.deleted.push(...leftMissing);
 
-			return {
-				resolved: result,
-				unresolved: [],
-			};
+			return result;
 		};
 
 		return isInteractive() ? resolveTtyMode() : resolveFromHints();

@@ -54,7 +54,7 @@ export const usersView = snakeCase.view('users_view').as((qb) =>
 		...getTableColumns(usersTable),
 		postContent: postsTable.content,
 		createdAt: postsTable.createdAt,
-		counter: sql<string>`(select count(*) from ${usersTable} as ${alias(usersTable, 'count_source')} where ${
+		counter: sql<string | number>`(select count(*) from ${usersTable} as ${alias(usersTable, 'count_source')} where ${
 			ne(usersTable.id, 2)
 		})`
 			.mapWith((data) => {

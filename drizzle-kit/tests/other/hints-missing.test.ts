@@ -29,30 +29,35 @@ test('new HintsHandler reports no missing hints', () => {
 });
 
 test('resolver aggregates unresolved items across repeated calls on the same HintsHandler', async () => {
-	const { hints, tableResult, columnResult } = await runWithCliContext(
+	const { hints, tableDelta, columnDelta } = await runWithCliContext(
 		{ output: 'json', interactive: false },
 		async () => {
 			const hints = new HintsHandler();
-			const resolveTables = resolver<Entity>('table', 'public', hints);
-			const resolveColumns = resolver<Entity>('column', 'public', hints);
+			const resolveTables = resolver<Entity>('table', hints);
+			const resolveColumns = resolver<Entity>('column', hints);
 
-			const tableResult = await resolveTables({
+			const beforeTable = hints.missingHints.length;
+			await resolveTables({
 				created: [table('members', 'public')],
 				deleted: [table('users', 'public')],
 			});
-			const columnResult = await resolveColumns({
+			const tableDelta = hints.missingHints.slice(beforeTable);
+
+			const beforeColumn = hints.missingHints.length;
+			await resolveColumns({
 				created: [column('users', 'email', 'public')],
 				deleted: [column('users', 'name', 'public')],
 			});
+			const columnDelta = hints.missingHints.slice(beforeColumn);
 
-			return { hints, tableResult, columnResult };
+			return { hints, tableDelta, columnDelta };
 		},
 	);
 
-	expect(tableResult.unresolved).toStrictEqual([
+	expect(tableDelta).toStrictEqual([
 		{ type: 'rename_or_create', kind: 'table', entity: ['public', 'members'] },
 	]);
-	expect(columnResult.unresolved).toStrictEqual([
+	expect(columnDelta).toStrictEqual([
 		{ type: 'rename_or_create', kind: 'column', entity: ['public', 'users', 'email'] },
 	]);
 	expect(hints.toResponse()).toStrictEqual({
@@ -69,8 +74,8 @@ test('each HintsHandler instance owns its own missing hints state', async () => 
 		const firstHints = new HintsHandler();
 		const secondHints = new HintsHandler();
 
-		const resolveFirst = resolver<Entity>('table', 'public', firstHints);
-		const resolveSecond = resolver<Entity>('table', 'public', secondHints);
+		const resolveFirst = resolver<Entity>('table', firstHints);
+		const resolveSecond = resolver<Entity>('table', secondHints);
 
 		await resolveFirst({
 			created: [table('members', 'public')],
