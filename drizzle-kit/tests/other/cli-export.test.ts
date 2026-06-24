@@ -44,6 +44,7 @@ test('export #1', async (t) => {
 		dialect: 'postgresql',
 		filenames: [filename],
 		sql: true,
+		output: 'text',
 	});
 });
 
@@ -55,6 +56,7 @@ test('export #2', async (t) => {
 		dialect: 'postgresql',
 		filenames: [filename],
 		sql: true,
+		output: 'text',
 	});
 });
 
@@ -67,6 +69,7 @@ test('export #3', async (t) => {
 		dialect: 'sqlite',
 		filenames: [filename],
 		sql: true,
+		output: 'text',
 	});
 });
 
@@ -111,6 +114,7 @@ test('validate config #1', async (t) => {
 		dialect: 'postgresql',
 		filenames: [filename],
 		sql: false,
+		output: 'text',
 	};
 	expect(res.options).toStrictEqual(expected);
 });
@@ -130,6 +134,7 @@ test('validate config #2', async (t) => {
 		dialect: 'postgresql',
 		filenames: [filename],
 		sql: true,
+		output: 'text',
 	};
 	expect(res.options).toStrictEqual(expected);
 });

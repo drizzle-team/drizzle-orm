@@ -9,7 +9,7 @@ Output format, interactivity, and hint resolution are three orthogonal axes. The
 
 ## `--output text | json`
 
-`generate`, `push`, and `check` all accept `--output text | json`.
+`generate`, `push`, `check`, `pull`, `up`, and `export` all accept `--output text | json`.
 
 | Mode | Default | Emits |
 | --- | --- | --- |
@@ -19,6 +19,12 @@ Output format, interactivity, and hint resolution are three orthogonal axes. The
 Connection-layer driver-selection chatter (the `Using '<driver>' driver for database querying` lines a connecting command prints while it picks a database driver) follows the same rule: under `--output json` it is suppressed so stdout stays a single JSON envelope, and under `--output text` it still prints as human progress.
 
 `check` is a no-hint, non-interactive gate, so it never reaches the missing-decisions path. Under `--output text` it keeps its current human output (`Everything's fine 🐶🔥` on success, the colorized conflict tree on non-commutativity); under `--output json` it emits the `ok` / `check_error` envelopes documented in [`./JSON_CONTRACT.md`](./JSON_CONTRACT.md).
+
+`pull`, `up`, and `export` are likewise non-interactive (none of them ever reaches the missing-decisions path):
+
+- `pull` — under `--output text` it keeps its banners and hanji introspection progress; under `--output json` it suppresses that chatter and emits the single paths-manifest `ok` envelope (or an `error` envelope on a connect/introspect failure). `pull` connects to a live database, so the driver-selection chatter rule above applies to it too.
+- `export` — under `--output text` it prints the SQL statements and any schema warnings; under `--output json` it emits the `{ status, dialect, statements, warnings }` envelope.
+- `up` — under `--output text` its output is byte-identical to today's human output; under `--output json` it emits the `{ status, dialect, upgraded }` envelope.
 
 ## Interactivity
 

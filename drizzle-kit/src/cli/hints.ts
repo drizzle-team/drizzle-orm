@@ -75,8 +75,7 @@ type RenameCreateMissingHint<K extends RenameCreateHintKind> = {
 
 type ConfirmDataLossReasonDetails =
 	| { reason: 'non_empty' }
-	| { reason: 'nulls_present' }
-	| { reason: 'duplicates_present' }
+	| { reason: 'table_recreate' }
 	| { reason: 'type_change'; reason_details: { from: string; to: string } };
 
 type ConfirmDataLossMissingHint<K extends ConfirmEntityKind> = {
@@ -178,7 +177,7 @@ const confirmHintSchema = z.union(
 	) as unknown as UnionInput<ConfirmHintMembers>,
 );
 
-const hintSchema = z.array(z.union([
+export const hintSchema = z.array(z.union([
 	renameHintSchema,
 	createHintSchema,
 	confirmHintSchema,

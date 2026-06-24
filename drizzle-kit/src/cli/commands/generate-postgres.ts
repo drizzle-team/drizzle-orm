@@ -58,20 +58,20 @@ export const handle = async (
 	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<Schema>('schema', 'public', config.hints),
-		resolver<Enum>('enum', 'public', config.hints),
-		resolver<Sequence>('sequence', 'public', config.hints),
-		resolver<Policy>('policy', 'public', config.hints),
-		resolver<Role>('role', 'public', config.hints),
-		resolver<Privilege>('privilege', 'public', config.hints),
-		resolver<PostgresEntities['tables']>('table', 'public', config.hints),
-		resolver<Column>('column', 'public', config.hints),
-		resolver<View>('view', 'public', config.hints),
-		resolver<UniqueConstraint>('unique', 'public', config.hints),
-		resolver<Index>('index', 'public', config.hints),
-		resolver<CheckConstraint>('check', 'public', config.hints),
-		resolver<PrimaryKey>('primary_key', 'public', config.hints),
-		resolver<ForeignKey>('foreign key', 'public', config.hints),
+		resolver<Schema>('schema', config.hints),
+		resolver<Enum>('enum', config.hints),
+		resolver<Sequence>('sequence', config.hints),
+		resolver<Policy>('policy', config.hints),
+		resolver<Role>('role', config.hints),
+		resolver<Privilege>('privilege', config.hints),
+		resolver<PostgresEntities['tables']>('table', config.hints),
+		resolver<Column>('column', config.hints),
+		resolver<View>('view', config.hints),
+		resolver<UniqueConstraint>('unique', config.hints),
+		resolver<Index>('index', config.hints),
+		resolver<CheckConstraint>('check', config.hints),
+		resolver<PrimaryKey>('primary_key', config.hints),
+		resolver<ForeignKey>('foreign key', config.hints),
 		'default',
 	);
 
@@ -114,12 +114,9 @@ export const handleExport = async (config: ExportConfig) => {
 		res,
 		() => true,
 	);
-	if (warnings.length > 0) {
-		console.log(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
-	}
 
 	if (errors.length > 0) {
-		throw new CommandOutputCliError('generate', errors.map((it) => postgresSchemaError(it)).join('\n'), {
+		throw new CommandOutputCliError('export', errors.map((it) => postgresSchemaError(it)).join('\n'), {
 			stage: 'schema',
 			dialect: 'postgresql',
 		});
@@ -128,12 +125,15 @@ export const handleExport = async (config: ExportConfig) => {
 	const { ddl, errors: errors2 } = interimToDDL(schema);
 
 	if (errors2.length > 0) {
-		throw new CommandOutputCliError('generate', errors2.map((it) => postgresSchemaError(it)).join('\n'), {
+		throw new CommandOutputCliError('export', errors2.map((it) => postgresSchemaError(it)).join('\n'), {
 			stage: 'ddl',
 			dialect: 'postgresql',
 		});
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
-	console.log(sqlStatements.join('\n'));
+	return {
+		statements: sqlStatements,
+		warnings: warnings.map((it) => postgresSchemaWarning(it)),
+	};
 };
