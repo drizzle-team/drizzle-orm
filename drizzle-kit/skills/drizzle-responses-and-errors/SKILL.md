@@ -7,6 +7,8 @@ metadata:
 
 # Drizzle responses and errors
 
+If the `drizzle` skill has not been loaded yet this session, load it first — it carries the staleness check and the MCP-vs-CLI surface-selection rule that govern every drizzle-kit invocation.
+
 Both invocation surfaces share one envelope: the CLI prints it on stdout when `--output json` is passed, and the SDK functions `generate(...)` / `push(...)` / `check(...)` return the same object. The discriminator is always `status`. Decoding logic written for one surface works on the other. This skill does not invoke commands or author schemas — see `drizzle-generate` and `drizzle-push` for invocation, `drizzle-hints` for the `missing_hints` resolution loop.
 
 ## Response envelope
@@ -31,7 +33,7 @@ Per-operation extras on `'ok'`:
 
 `'missing_hints'` carries `unresolved`, an array of items the agent must resolve before retrying. Each item is `{ type: 'rename_or_create', kind, entity }` or `{ type: 'confirm_data_loss', kind, entity, reason, reason_details? }`. The resolution loop lives in the `drizzle-hints` skill.
 
-The table above describes `--output json`. Under `--output text` + non-TTY the same `missing_hints` information renders as the human-readable missing-decisions report on stdout, still exiting with code 2 — see the drizzle-kit `OUTPUT_MODES.md` reference for the text-report shape.
+The table above describes `--output json`. Under `--output text` + non-TTY the same `missing_hints` information renders as the human-readable missing-decisions report on stdout, still exiting with code 2 — see the `drizzle-output-modes` skill for the text-report shape.
 
 `'error'` carries `error.code` plus `meta` keys (variable per code). The runtime serializer flattens `{ code, ...meta }` into the `error` object — `code` is always present; the remaining keys vary. The envelope is the only shape an agent observes; no other fields are surfaced.
 

@@ -7,7 +7,9 @@ metadata:
 
 # Drizzle pull
 
-Pull introspects an existing database and writes a Drizzle schema from it: it connects, reads the live DDL, and emits `schema.ts`, a `relations.ts` (for the dialects that have one), and a snapshot under the configured `out` dir. It is the inverse of `generate` / `push` — those start from a schema and drive the database; pull starts from the database and writes the schema. The `drizzle-migrations` skill covers where pull sits in the overall workflow. Output format and interactivity are separate axes the same way they are for the other verbs — the `drizzle-output-modes` skill covers the text-vs-json choice — and `drizzle-responses-and-errors` decodes the envelope shapes below. The repo docs `JSON_CONTRACT.md` and `MCP.md` carry the canonical wire and MCP-tool details.
+If the `drizzle` skill has not been loaded yet this session, load it first — it carries the staleness check and the MCP-vs-CLI surface-selection rule that govern every drizzle-kit invocation.
+
+Pull introspects an existing database and writes a Drizzle schema from it: it connects, reads the live DDL, and emits `schema.ts`, a `relations.ts` (for the dialects that have one), and a snapshot under the configured `out` dir. It is the inverse of `generate` / `push` — those start from a schema and drive the database; pull starts from the database and writes the schema. The `drizzle-migrations` skill covers where pull sits in the overall workflow. Output format and interactivity are separate axes the same way they are for the other verbs — the `drizzle-output-modes` skill covers the text-vs-json choice — and `drizzle-responses-and-errors` decodes the envelope shapes below.
 
 ## CLI form
 
@@ -103,4 +105,4 @@ Pull is ok/error only. It never emits `missing_hints`: it introspects against an
 
 ## --init
 
-`--init` (CLI) / `init: true` (SDK) runs the initial migration against the live database in addition to writing the schema. That is a destructive write — it executes DDL against the connected database, not just disk — and on success it adds `migrationPath` to the ok manifest. The MCP `pull` tool surfaces this `init` escalation as a per-call destructive signal on its result; `MCP.md` and the `drizzle-responses-and-errors` skill carry the canonical shape of that signal.
+`--init` (CLI) / `init: true` (SDK) runs the initial migration against the live database in addition to writing the schema. That is a destructive write — it executes DDL against the connected database, not just disk — and on success it adds `migrationPath` to the ok manifest. The MCP `pull` tool surfaces this `init` escalation as a per-call destructive signal on its result; the `drizzle-responses-and-errors` skill carries the canonical shape of that signal.

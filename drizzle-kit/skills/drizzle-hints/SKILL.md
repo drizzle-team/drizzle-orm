@@ -7,6 +7,8 @@ metadata:
 
 # Drizzle hints
 
+If the `drizzle` skill has not been loaded yet this session, load it first — it carries the staleness check and the MCP-vs-CLI surface-selection rule that govern every drizzle-kit invocation.
+
 `status: 'missing_hints'` means the diff is ambiguous (a rename could also be a drop + create) or unsafe (would drop a non-empty entity, or would recreate a SQLite table and wipe its rows). Until hints are supplied the operation cannot proceed — the CLI exits `2`, the SDK returns the envelope without writing or applying anything.
 
 Under `--output text` + non-TTY the same unresolved decisions surface as the human-readable missing-decisions report on stdout (also exit code 2) rather than this envelope — the `drizzle-output-modes` skill covers the text-report shape.

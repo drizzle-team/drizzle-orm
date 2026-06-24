@@ -7,6 +7,8 @@ metadata:
 
 # Drizzle migrations
 
+If the `drizzle` skill has not been loaded yet this session, load it first — it carries the staleness check and the MCP-vs-CLI surface-selection rule that govern every drizzle-kit invocation.
+
 Entry-point skill for the drizzle-kit migration workflow. Three responsibilities live here: the `defineConfig` reference, the `generate` vs `push` comparison, and the per-dialect quirks catalog. Invocation details (CLI form, SDK form, response shapes) live in the operation skills.
 
 ## Configuration
