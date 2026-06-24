@@ -7,6 +7,8 @@ metadata:
 
 # Drizzle push
 
+If the `drizzle` skill has not been loaded yet this session, load it first — it carries the staleness check and the MCP-vs-CLI surface-selection rule that govern every drizzle-kit invocation.
+
 The CLI flag `--output json` and the SDK `push(...)` function emit the same discriminated-union envelope, and the envelope (not the stdout text) is what the agent decodes. Output format and interactivity are separate axes: `--output json` selects the machine-readable envelope and is always non-interactive, so pass it whenever an agent calls the CLI. Under the default `--output text` the CLI prompts only when stdin is a TTY; in a non-TTY it prints the missing-decisions report and exits 2 (it never hangs prompting). See the `drizzle-output-modes` skill for the two modes and the interactivity rule. The SDK runs in JSON mode internally with no flag needed at the call site. Push is the live-DB counterpart to `generate`: `generate` is offline and writes a migration SQL file to disk, `push` connects to the database and executes the diff against it. The `drizzle-generate` skill covers the offline path; the `drizzle-migrations` skill covers the day-to-day workflow that combines them.
 
 ## CLI form
