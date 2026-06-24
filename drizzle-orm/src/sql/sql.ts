@@ -400,11 +400,20 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 
 	mapWith<
 		TDecoder extends
-			| DriverValueDecoder<any, any>
-			| DriverValueDecoder<any, any>['mapFromDriverValue'],
-	>(decoder: TDecoder): SQL<GetDecoderResult<TDecoder>> {
+			| DriverValueDecoder<any, Exclude<T, null>>
+			| DriverValueDecoder<any, Exclude<T, null>>['mapFromDriverValue'],
+	>(
+		decoder: TDecoder,
+	): Equal<T, unknown> extends true ? SQL<GetDecoderResult<TDecoder>>
+		: Equal<T, any> extends true ? SQL<GetDecoderResult<TDecoder>>
+		: SQL<GetDecoderResult<TDecoder> | (null extends T ? null : never)>
+	{
 		this.decoder = typeof decoder === 'function' ? { mapFromDriverValue: decoder } : decoder;
-		return this as SQL<GetDecoderResult<TDecoder>>;
+		return this as SQL<any>;
+	}
+
+	nullable(): SQL<T | null> {
+		return this;
 	}
 
 	inlineParams(): this {
