@@ -79,7 +79,9 @@ export function createDrizzleMcpServer(): McpServer {
 				+ 'If the response has status "missing_hints", re-call with a "hints" array resolving each '
 				+ 'unresolved item (rename or create).',
 			inputSchema: z.object({
-				config: z.string().optional().describe('Path to drizzle.config.* (defaults to project root)'),
+				config: z.string().optional().describe(
+					'Custom config file path — relative to the drizzle-kit working directory, or absolute.',
+				),
 				hints: hintsInput.optional().describe(
 					'Resolutions for missing_hints items. Each entry is an object with a "type" discriminator '
 						+ '("rename" | "create" | "confirm_data_loss") echoing the unresolved item to resolve.',
@@ -116,7 +118,9 @@ export function createDrizzleMcpServer(): McpServer {
 				+ 'This is a destructive operation. If the response has status "missing_hints", re-call '
 				+ 'with a "hints" array resolving each unresolved item.',
 			inputSchema: z.object({
-				config: z.string().optional().describe('Path to drizzle.config.* (defaults to project root)'),
+				config: z.string().optional().describe(
+					'Custom config file path — relative to the drizzle-kit working directory, or absolute.',
+				),
 				hints: hintsInput.optional().describe(
 					'Resolutions for missing_hints items. Each entry is an object with a "type" discriminator '
 						+ '("rename" | "create" | "confirm_data_loss") echoing the unresolved item to resolve.',
@@ -146,8 +150,10 @@ export function createDrizzleMcpServer(): McpServer {
 			description: 'Check for migration conflicts in the snapshot history. '
 				+ 'Read-only and idempotent — no changes are written to the database or snapshot.',
 			inputSchema: z.object({
-				config: z.string().optional().describe('Path to drizzle.config.* (defaults to project root)'),
-				ignoreConflicts: z.boolean().optional().describe('Skip commutativity conflict checks'),
+				config: z.string().optional().describe(
+					'Custom config file path — relative to the drizzle-kit working directory, or absolute.',
+				),
+				ignoreConflicts: z.boolean().optional().describe('Skip conflict checks'),
 			}),
 			outputSchema: looseEnvelopeSchema,
 			annotations: { readOnlyHint: true, idempotentHint: true },
@@ -173,7 +179,9 @@ export function createDrizzleMcpServer(): McpServer {
 			description: 'Export the full schema as a SQL dump by diffing against empty state. '
 				+ 'Read-only and idempotent — no DB connection, no files written.',
 			inputSchema: z.object({
-				config: z.string().optional().describe('Path to drizzle.config.* (defaults to project root)'),
+				config: z.string().optional().describe(
+					'Custom config file path — relative to the drizzle-kit working directory, or absolute.',
+				),
 			}),
 			outputSchema: looseEnvelopeSchema,
 			annotations: { readOnlyHint: true, idempotentHint: true },
@@ -196,7 +204,9 @@ export function createDrizzleMcpServer(): McpServer {
 			description: 'Upgrade on-disk migration snapshots to the latest format. '
 				+ 'Rewrites meta/*_snapshot.json files in place; idempotent (re-running on already-latest snapshots is a no-op).',
 			inputSchema: z.object({
-				config: z.string().optional().describe('Path to drizzle.config.* (defaults to project root)'),
+				config: z.string().optional().describe(
+					'Custom config file path — relative to the drizzle-kit working directory, or absolute.',
+				),
 			}),
 			outputSchema: looseEnvelopeSchema,
 			annotations: { idempotentHint: true },
@@ -221,7 +231,9 @@ export function createDrizzleMcpServer(): McpServer {
 				+ 'migration against the live database (a destructive operation) and reports destructiveHint:true '
 				+ 'via the result _meta key "com.drizzle.team/pull.destructiveHint".',
 			inputSchema: z.object({
-				config: z.string().optional().describe('Path to drizzle.config.* (defaults to project root)'),
+				config: z.string().optional().describe(
+					'Custom config file path — relative to the drizzle-kit working directory, or absolute.',
+				),
 				init: z.boolean().optional().describe(
 					'Create migration metadata for the pulled schema in the database. '
 						+ 'This runs the initial migration against the LIVE database — a destructive operation.',
