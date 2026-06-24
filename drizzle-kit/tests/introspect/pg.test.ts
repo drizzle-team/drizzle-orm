@@ -456,6 +456,27 @@ test('introspect enum with similar name to native type', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+test('introspect enum whose name contains the substring "character"', async () => {
+	const client = new PGlite();
+
+	const characteristicsType = pgEnum('characteristics_type', ['a', 'b']);
+	const schema = {
+		characteristicsType,
+		things: pgTable('things', {
+			kind: characteristicsType('kind'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-enum-with-character-substring',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
 test('instrospect strings with single quotes', async () => {
 	const client = new PGlite();
 

@@ -1480,11 +1480,13 @@ WHERE
 							}
 						}
 
-						columnTypeMapped = columnTypeMapped
-							.replace('character varying', 'varchar')
-							.replace(' without time zone', '')
-							// .replace("timestamp without time zone", "timestamp")
-							.replace('character', 'char');
+						if (columnAdditionalDT !== 'USER-DEFINED') {
+							columnTypeMapped = columnTypeMapped
+								.replace('character varying', 'varchar')
+								.replace(' without time zone', '')
+								// .replace("timestamp without time zone", "timestamp")
+								.replace('character', 'char');
+						}
 
 						columnTypeMapped = trimChar(columnTypeMapped, '"');
 
@@ -1775,11 +1777,13 @@ WHERE
 							}
 						}
 
-						columnTypeMapped = columnTypeMapped
-							.replace('character varying', 'varchar')
-							.replace(' without time zone', '')
-							// .replace("timestamp without time zone", "timestamp")
-							.replace('character', 'char');
+						if (columnAdditionalDT !== 'USER-DEFINED') {
+							columnTypeMapped = columnTypeMapped
+								.replace('character varying', 'varchar')
+								.replace(' without time zone', '')
+								// .replace("timestamp without time zone", "timestamp")
+								.replace('character', 'char');
+						}
 
 						columnTypeMapped = trimChar(columnTypeMapped, '"');
 
