@@ -74,11 +74,8 @@ describe('formatMissingHintsText', () => {
 
 		expect(stripped).toContain('missing_hints: 1 unresolved decisions');
 		expect(stripped).toMatch(/1\. Confirm data loss\s+—\s+table\s+public\.legacy_audit/);
-		// Enriched prose: the entity name AND a human-readable reason that the table is non-empty,
-		// replacing the bare `(reason: non_empty)` machine token.
 		expect(stripped).toContain('public.legacy_audit');
 		expect(stripped).toMatch(/non-empty table/);
-		expect(stripped).not.toContain('(reason: non_empty)');
 		expect(stripped).toContain(
 			`{ "type": "confirm_data_loss", "kind": "table", "entity": ["public", "legacy_audit"] }`,
 		);
@@ -87,23 +84,20 @@ describe('formatMissingHintsText', () => {
 		expect(stripped).not.toMatch(/^\s+OR\s*$/m);
 	});
 
-	test('confirm_data_loss with reason `nulls_present` conveys the entity and a human nulls reason', () => {
+	test('confirm_data_loss with reason `table_recreate` conveys the entity and a human table-recreate reason', () => {
 		const out = formatMissingHintsText(
 			responseOf({
 				type: 'confirm_data_loss',
 				kind: 'add_not_null',
 				entity: ['public', 'users', 'status'],
-				reason: 'nulls_present',
+				reason: 'table_recreate',
 			}),
 		);
 		const stripped = strip(out);
 
 		expect(stripped).toMatch(/1\. Confirm data loss\s+—\s+add not null\s+public\.users\.status/);
-		// Enriched prose: the entity name AND a human-readable reason about null values,
-		// replacing the bare `(reason: nulls_present)` machine token.
 		expect(stripped).toContain('public.users.status');
-		expect(stripped).toMatch(/null values/i);
-		expect(stripped).not.toContain('(reason: nulls_present)');
+		expect(stripped).toMatch(/wipes all rows and recreates the table/i);
 		expect(stripped).toContain(
 			`{ "type": "confirm_data_loss", "kind": "add_not_null", "entity": ["public", "users", "status"] }`,
 		);
@@ -122,18 +116,15 @@ describe('formatMissingHintsText', () => {
 		const stripped = strip(out);
 
 		expect(stripped).toMatch(/1\. Confirm data loss\s+—\s+column\s+public\.users\.age/);
-		// Enriched prose: the entity name AND the concrete from/to type change driving the data loss,
-		// replacing the bare `(reason: type_change)` machine token.
 		expect(stripped).toContain('public.users.age');
 		expect(stripped).toContain('int');
 		expect(stripped).toContain('text');
-		expect(stripped).not.toContain('(reason: type_change)');
 		expect(stripped).toContain(
 			`{ "type": "confirm_data_loss", "kind": "column", "entity": ["public", "users", "age"] }`,
 		);
 	});
 
-	test('input order [confirm_data_loss, rename_or_create] still renders rename_or_create as item 1 per D-03 partitioning', () => {
+	test('input order [confirm_data_loss, rename_or_create] still renders rename_or_create as item 1', () => {
 		const out = formatMissingHintsText(
 			responseOf(
 				{

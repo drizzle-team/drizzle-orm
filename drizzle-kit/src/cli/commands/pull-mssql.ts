@@ -98,12 +98,12 @@ export const handle = async (
 			resolver<MssqlEntities['tables']>('table'),
 			resolver<Column>('column'),
 			resolver<View>('view'),
-			resolver<UniqueConstraint>('unique', 'dbo'), // uniques
-			resolver<Index>('index', 'dbo'), // indexes
-			resolver<CheckConstraint>('check', 'dbo'), // checks
-			resolver<PrimaryKey>('primary_key', 'dbo'), // pks
-			resolver<ForeignKey>('foreign key', 'dbo'), // fks
-			resolver<DefaultConstraint>('default', 'dbo'), // defaults
+			resolver<UniqueConstraint>('unique', undefined, 'dbo'), // uniques
+			resolver<Index>('index', undefined, 'dbo'), // indexes
+			resolver<CheckConstraint>('check', undefined, 'dbo'), // checks
+			resolver<PrimaryKey>('primary_key', undefined, 'dbo'), // pks
+			resolver<ForeignKey>('foreign key', undefined, 'dbo'), // fks
+			resolver<DefaultConstraint>('default', undefined, 'dbo'), // defaults
 			'default',
 		);
 

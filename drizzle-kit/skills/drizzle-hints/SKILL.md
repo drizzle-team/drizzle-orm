@@ -7,7 +7,7 @@ metadata:
 
 # Drizzle hints
 
-`status: 'missing_hints'` means the diff is ambiguous (a rename could also be a drop + create) or unsafe (would drop data, would add `NOT NULL` over `NULL`s, would add `UNIQUE` over duplicates). Until hints are supplied the operation cannot proceed — the CLI exits `2`, the SDK returns the envelope without writing or applying anything.
+`status: 'missing_hints'` means the diff is ambiguous (a rename could also be a drop + create) or unsafe (would drop a non-empty entity, or would recreate a SQLite table and wipe its rows). Until hints are supplied the operation cannot proceed — the CLI exits `2`, the SDK returns the envelope without writing or applying anything.
 
 Under `--output text` + non-TTY the same unresolved decisions surface as the human-readable missing-decisions report on stdout (also exit code 2) rather than this envelope — the `drizzle-output-modes` skill covers the text-report shape.
 
@@ -34,7 +34,7 @@ Each unresolved item maps to exactly one reply:
 
 ## Rename-vs-create kinds
 
-15 kinds. The `kind` literal in the reply must match the literal in the unresolved item exactly. Note that `foreign key` carries a single space — it is the one remaining non-snake_case literal in the union.
+The `kind` literal in the reply must match the literal in the unresolved item exactly. Note that `foreign key` carries a single space — it is the one remaining non-snake_case literal in the union.
 
 | kind | entity-tuple arity | dialect availability |
 |---|---|---|
@@ -58,7 +58,7 @@ The runtime only emits unresolved items for kinds that exist on the target diale
 
 ## Confirm-data-loss kinds
 
-7 kinds. Confirm-data-loss replies carry `type`, `kind`, and `entity` only — the `reason` and `reason_details` fields the request carries are runtime-only metadata and are dropped from the reply.
+Confirm-data-loss replies carry `type`, `kind`, and `entity` only — the `reason` and `reason_details` fields the request carries are runtime-only metadata and are dropped from the reply.
 
 | kind | entity-tuple arity | dialect availability |
 |---|---|---|
@@ -67,10 +67,9 @@ The runtime only emits unresolved items for kinds that exist on the target diale
 | `view` | `[schema, name]` | postgresql, cockroach (materialized views only) |
 | `column` | `[schema, table, name]` | all |
 | `primary_key` | `[schema, table, name]` | all except sqlite / turso |
-| `add_not_null` | `[schema, table, name]` | all |
-| `add_unique` | `[schema, table, name]` | all except sqlite / turso |
+| `add_not_null` | `[schema, table, name]` | sqlite / turso only |
 
-For `add_unique`, the third slot of the entity tuple is the CONSTRAINT NAME (e.g. `'users_email_unique'`), not a column name — the runtime emits the canonical constraint identifier, and the reply must echo it verbatim. Treating it as a column name produces `error.code: 'invalid_hints'` on the retry.
+`add_not_null` is the only confirmation-triggering constraint addition, and it fires only on sqlite / turso. The server dialects (postgresql, mysql, mssql, cockroach, singlestore) add `NOT NULL` / `UNIQUE` constraints without triggering a confirmation request — the `ALTER` runs and the database enforces the constraint, rejecting a genuine violation cleanly — so neither `add_not_null` nor `add_unique` surfaces as a `confirm_data_loss` on those dialects.
 
 ## Reasons
 
@@ -79,8 +78,7 @@ The unresolved item for a `confirm_data_loss` carries a `reason` (and, for `type
 | reason | applicable kinds | meaning | reason_details |
 |--------|------------------|---------|----------------|
 | `non_empty` | `table`, `column`, `schema`, `view`, `primary_key` | Target entity has ≥1 row; drop will lose data | — |
-| `nulls_present` | `add_not_null` | Target column has ≥1 `NULL`; `NOT NULL` DDL would fail | — |
-| `duplicates_present` | `add_unique` | Target column(s) have ≥1 duplicate; `UNIQUE` DDL would fail | — |
+| `table_recreate` | `add_not_null` (sqlite / turso only) | Adding the `NOT NULL` column has no in-place path on SQLite, so confirming wipes all rows and recreates the table | — |
 | `type_change` | `column` | Existing column SQL type changes (e.g. mysql / singlestore `ALTER COLUMN`) | `{ from: string, to: string }` |
 
 ## Resolution loop
@@ -137,7 +135,7 @@ The SDK and CLI consume the exact same `Hint` shape — anything that validates 
 
 ## Worked example
 
-A first invocation returns two ambiguities — one rename-or-create, one confirm-data-loss:
+A first invocation against a SQLite database returns two ambiguities — one rename-or-create, one confirm-data-loss:
 
 ```json
 {
@@ -145,22 +143,22 @@ A first invocation returns two ambiguities — one rename-or-create, one confirm
   "unresolved": [
     { "type": "rename_or_create", "kind": "column",
       "entity": ["public", "users", "email_v2"] },
-    { "type": "confirm_data_loss", "kind": "add_unique",
-      "entity": ["public", "users", "users_handle_unique"],
-      "reason": "duplicates_present" }
+    { "type": "confirm_data_loss", "kind": "add_not_null",
+      "entity": ["public", "users", "handle"],
+      "reason": "table_recreate" }
   ]
 }
 ```
 
-The reply resolves the rename-or-create as a rename of `email` → `email_v2`, and approves the unique-constraint addition:
+The `table_recreate` reason fires because SQLite has no in-place way to add a `NOT NULL` column — confirming it recreates the `users` table and wipes its rows. The reply resolves the rename-or-create as a rename of `email` → `email_v2`, and approves the `NOT NULL` addition:
 
 ```json
 [
   { "type": "rename", "kind": "column",
     "from": ["public", "users", "email"],
     "to":   ["public", "users", "email_v2"] },
-  { "type": "confirm_data_loss", "kind": "add_unique",
-    "entity": ["public", "users", "users_handle_unique"] }
+  { "type": "confirm_data_loss", "kind": "add_not_null",
+    "entity": ["public", "users", "handle"] }
 ]
 ```
 
@@ -176,13 +174,6 @@ Re-invoke with this array via `--hints-file ./hints.json` (CLI) or `hints: [...]
   "to":   ["app_owner", "analytics_role", "public", "orders_v2", "SELECT"] }
 ```
 
-### add_unique constraint-name confirm
+## Schema-namespace placeholder
 
-For `add_unique` (`confirm_data_loss`), slot 3 of the entity tuple is the **constraint name** the runtime emits — not a column name. Echo it verbatim from the unresolved item:
-
-```json
-{ "type": "confirm_data_loss", "kind": "add_unique",
-  "entity": ["public", "users", "users_email_unique"] }
-```
-
-Substituting a column name there (e.g. `"email"`) returns `error.code: 'invalid_hints'` on the retry, because the constraint identifier is the canonical entity the diff engine tracks.
+Every entity tuple leads with a namespace segment so its arity is uniform across dialects, but only postgresql, cockroach, and mssql have a real schema namespace — the `schema` entity kind is wired for those three dialects only. On the schemaless dialects (mysql, sqlite, singlestore) that leading segment is a synthesized `'public'` placeholder, not a real schema. Echo whatever the unresolved item carries in that slot verbatim; on a schemaless dialect it is filler — never build a separate `schema` rename or create from it.

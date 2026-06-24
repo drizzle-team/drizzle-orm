@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'fs';
 import { dirname } from 'path';
-import type { NonCommutativityReport, UnifiedBranchConflict } from './types';
+import type { ConflictTarget, NonCommutativityReport, UnifiedBranchConflict } from './types';
 
 type SnapshotNode<TSnapshot extends { id: string; prevIds: string[] }> = {
 	id: string;
@@ -214,6 +214,11 @@ export abstract class AbstractCommutativity<
 		info: CommutativityStatementInfo<TStatement, TTarget>,
 	): string;
 
+	protected abstract describeStatementTarget(
+		statement: TStatement,
+		info: CommutativityStatementInfo<TStatement, TTarget>,
+	): ConflictTarget;
+
 	protected getImplicitAncestors(_target: TTarget): TTarget[] {
 		return [];
 	}
@@ -363,6 +368,9 @@ export abstract class AbstractCommutativity<
 								bId,
 							);
 
+							const leftInfo = this.resolveStatement(intersected.leftStatement).info;
+							const rightInfo = this.resolveStatement(intersected.rightStatement).info;
+
 							conflicts.push({
 								parentId: prevId,
 								parentPath: parentNode?.folderPath,
@@ -370,15 +378,25 @@ export abstract class AbstractCommutativity<
 									chain: chainA,
 									statementDescription: this.describeStatement(
 										intersected.leftStatement,
-										this.resolveStatement(intersected.leftStatement).info,
+										leftInfo,
 									),
+									target: this.describeStatementTarget(
+										intersected.leftStatement,
+										leftInfo,
+									),
+									action: leftInfo.action,
 								},
 								branchB: {
 									chain: chainB,
 									statementDescription: this.describeStatement(
 										intersected.rightStatement,
-										this.resolveStatement(intersected.rightStatement).info,
+										rightInfo,
 									),
+									target: this.describeStatementTarget(
+										intersected.rightStatement,
+										rightInfo,
+									),
+									action: rightInfo.action,
 								},
 							});
 						}

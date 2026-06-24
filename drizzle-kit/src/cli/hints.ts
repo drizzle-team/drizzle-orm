@@ -75,8 +75,7 @@ type RenameCreateMissingHint<K extends RenameCreateHintKind> = {
 
 type ConfirmDataLossReasonDetails =
 	| { reason: 'non_empty' }
-	| { reason: 'nulls_present' }
-	| { reason: 'duplicates_present' }
+	| { reason: 'table_recreate' }
 	| { reason: 'type_change'; reason_details: { from: string; to: string } };
 
 type ConfirmDataLossMissingHint<K extends ConfirmEntityKind> = {

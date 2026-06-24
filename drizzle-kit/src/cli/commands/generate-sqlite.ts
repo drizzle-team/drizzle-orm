@@ -42,8 +42,8 @@ export const handle = async (
 	const { sqlStatements, warnings, renames, groupedStatements, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<SqliteEntities['tables']>('table', 'public', config.hints),
-		resolver<Column>('column', 'public', config.hints),
+		resolver<SqliteEntities['tables']>('table', config.hints),
+		resolver<Column>('column', config.hints),
 		'default',
 	);
 

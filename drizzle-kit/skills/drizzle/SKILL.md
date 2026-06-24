@@ -2,7 +2,7 @@
 name: drizzle
 description: Run a one-time staleness check against the installed `drizzle-kit` and notify the user if it ships an older agent-skills bundle than what's embedded here. Load before reading or editing any Drizzle file (anything importing from `drizzle-orm/*`), touching `drizzle.config.ts`, invoking `drizzle-kit <command>` or using the Drizzle SDK, or handling drizzle-kit output.
 metadata:
-  revision: 9
+  revision: 10
 ---
 
 # Drizzle

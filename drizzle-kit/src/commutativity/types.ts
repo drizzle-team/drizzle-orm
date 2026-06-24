@@ -3,16 +3,27 @@ export type MigrationNode = {
 	path: string;
 };
 
+export type ConflictTarget = {
+	kind: string;
+	name: string;
+	schema?: string;
+	table?: string;
+};
+
 export type UnifiedBranchConflict = {
 	parentId: string;
 	parentPath?: string;
 	branchA: {
 		chain: MigrationNode[];
 		statementDescription: string;
+		target: ConflictTarget;
+		action: string;
 	};
 	branchB: {
 		chain: MigrationNode[];
 		statementDescription: string;
+		target: ConflictTarget;
+		action: string;
 	};
 };
 
