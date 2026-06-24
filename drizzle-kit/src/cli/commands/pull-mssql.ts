@@ -25,11 +25,14 @@ import { prepareEntityFilter } from '../../dialects/pull-utils';
 import { type DB, originUUID } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
 import type { connectToMsSQL } from '../connections';
+import { outputFormat } from '../context';
+import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import type { Casing, EntitiesFilterConfig } from '../validations/common';
 import type { MssqlCredentials } from '../validations/mssql';
-import { IntrospectProgress, mssqlSchemaError } from '../views';
+import { humanLog, IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
+import { summarizeSchemaMappingErrors } from './pull-common';
 
 export const handle = async (
 	casing: Casing,
@@ -48,25 +51,31 @@ export const handle = async (
 		db = await connectToMsSQL(credentials);
 	}
 
+	const text = outputFormat() === 'text';
 	const filter = prepareEntityFilter('mssql', filters, []);
 
-	const progress = new IntrospectProgress(true);
-	const task = fromDatabaseForDrizzle(
-		db.db,
-		filter,
-		(stage, count, status) => {
-			progress.update(stage, count, status);
-		},
-		migrations,
-	);
-
-	const res = await renderWithTask(progress, task);
+	let res: Awaited<ReturnType<typeof fromDatabaseForDrizzle>>;
+	if (text) {
+		const progress = new IntrospectProgress(true);
+		const task = fromDatabaseForDrizzle(
+			db.db,
+			filter,
+			(stage, count, status) => {
+				progress.update(stage, count, status);
+			},
+			migrations,
+		);
+		res = await renderWithTask(progress, task);
+	} else {
+		res = await fromDatabaseForDrizzle(db.db, filter, () => {}, migrations);
+	}
 
 	const { ddl: ddl2, errors } = interimToDDL(res);
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
-		process.exit(1);
+		throw new CommandOutputCliError('pull', 'Failed to map the introspected schema', {
+			errors: summarizeSchemaMappingErrors(errors),
+		});
 	}
 
 	const ts = ddlToTypeScript(ddl2, res.viewColumns, casing);
@@ -76,8 +85,10 @@ export const handle = async (
 	writeFileSync(schemaFile, ts.file);
 	// const relationsFile = join(out, 'relations.ts');
 	// writeFileSync(relationsFile, relationsTs.file);
-	console.log();
+	humanLog();
 
+	let snapshotPath: string;
+	let migrationPath: string | undefined;
 	const { snapshots } = prepareOutFolder(out);
 	if (snapshots.length === 0) {
 		const { sqlStatements, renames } = await ddlDiff(
@@ -87,16 +98,16 @@ export const handle = async (
 			resolver<MssqlEntities['tables']>('table'),
 			resolver<Column>('column'),
 			resolver<View>('view'),
-			resolver<UniqueConstraint>('unique', 'dbo'), // uniques
-			resolver<Index>('index', 'dbo'), // indexes
-			resolver<CheckConstraint>('check', 'dbo'), // checks
-			resolver<PrimaryKey>('primary_key', 'dbo'), // pks
-			resolver<ForeignKey>('foreign key', 'dbo'), // fks
-			resolver<DefaultConstraint>('default', 'dbo'), // defaults
+			resolver<UniqueConstraint>('unique', undefined, 'dbo'), // uniques
+			resolver<Index>('index', undefined, 'dbo'), // indexes
+			resolver<CheckConstraint>('check', undefined, 'dbo'), // checks
+			resolver<PrimaryKey>('primary_key', undefined, 'dbo'), // pks
+			resolver<ForeignKey>('foreign key', undefined, 'dbo'), // fks
+			resolver<DefaultConstraint>('default', undefined, 'dbo'), // defaults
 			'default',
 		);
 
-		writeResult({
+		({ snapshotPath, migrationPath } = writeResult({
 			snapshot: toJsonSnapshot(ddl2, [originUUID], renames),
 			sqlStatements,
 			renames,
@@ -104,24 +115,35 @@ export const handle = async (
 			breakpoints,
 			type: 'introspect',
 			snapshots,
-		});
+		}));
 	} else {
+		snapshotPath = snapshots[snapshots.length - 1];
+		if (text) {
+			render(
+				`[${
+					chalk.blue(
+						'i',
+					)
+				}] No SQL generated, you already have migrations in project`,
+			);
+		}
+	}
+
+	if (text) {
 		render(
 			`[${
-				chalk.blue(
-					'i',
+				chalk.green(
+					'✓',
 				)
-			}] No SQL generated, you already have migrations in project`,
+			}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
 		);
 	}
 
-	render(
-		`[${
-			chalk.green(
-				'✓',
-			)
-		}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
-	);
+	return {
+		schemaPath: schemaFile,
+		snapshotPath,
+		...(migrationPath ? { migrationPath } : {}),
+	};
 };
 
 export const introspect = async (

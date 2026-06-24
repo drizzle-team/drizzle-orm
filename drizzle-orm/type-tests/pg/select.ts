@@ -1499,3 +1499,44 @@ await db
 		// @ts-expect-error
 		.crossJoinLateral(view);
 }
+
+// Dialect-agnostic test - do not duplicate
+{
+	const res = await db.select({
+		preNull: sql<number | null>`somequery`.mapWith((v) => {
+			Expect<Equal<typeof v, number>>;
+			return String(v);
+		}).as('sq1'),
+		postNull: sql<number>`somequery`.mapWith((v) => {
+			Expect<Equal<typeof v, number>>;
+			return String(v);
+		}).nullable().as('sq2'),
+		prePostNull: sql<number | null>`somequery`.mapWith((v) => {
+			Expect<Equal<typeof v, number>>;
+			return String(v);
+		}).nullable().as('sq3'),
+		default: sql`somequery`.mapWith((v) => {
+			Expect<Equal<typeof v, unknown>>;
+			return String(v);
+		}).as('sq4'),
+		unknown: sql<unknown>`somequery`.mapWith((v) => {
+			Expect<Equal<typeof v, unknown>>;
+			return String(v);
+		}).as('sq5'),
+		any: sql<any>`somequery`.mapWith((v) => {
+			Expect<Equal<typeof v, any>>;
+			return String(v);
+		}).as('sq6'),
+	}).from(users);
+
+	Expect<
+		Equal<typeof res, {
+			preNull: string | null;
+			postNull: string | null;
+			prePostNull: string | null;
+			default: string;
+			unknown: string;
+			any: string;
+		}[]>
+	>;
+}

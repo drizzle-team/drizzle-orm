@@ -1,4 +1,4 @@
-import { floatFromDouble, refineGenericMySqlCodecs } from '~/mysql-core/codecs.ts';
+import { castToText, floatFromDouble, refineGenericMySqlCodecs } from '~/mysql-core/codecs.ts';
 import { sql } from '~/sql/sql.ts';
 
 export const bunSqlMySqlCodecs = refineGenericMySqlCodecs({
@@ -23,10 +23,7 @@ export const bunSqlMySqlCodecs = refineGenericMySqlCodecs({
 		normalize: (value: Date) => value.toISOString().slice(0, -1).replace('T', ' '),
 	},
 	'timestamp:string': {
-		normalize: (value: Date) => {
-			const shortened = value.toISOString().slice(0, -1).replace('T', ' ');
-			return shortened.endsWith('.000') ? shortened.slice(0, -4) : shortened;
-		},
+		cast: castToText,
 	},
 	'decimal:number': {
 		normalize: Number,

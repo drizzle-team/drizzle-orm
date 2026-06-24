@@ -13,15 +13,18 @@ import {
 } from '../../dialects/sqlite/snapshot';
 import { mapEntries } from '../../utils';
 import { prepareOutFolder, validateWithReport } from '../../utils/utils-node';
+import { outputFormat } from '../context';
+import { CommandOutputCliError } from '../errors';
 import { embeddedMigrations } from './generate-common';
 import { migrateToFoldersV3 } from './utils';
 
-export const upSqliteHandler = (out: string) => {
+export const upSqliteHandler = (out: string): string[] => {
 	migrateToFoldersV3(out);
 
 	const { snapshots } = prepareOutFolder(out);
 	const report = validateWithReport(snapshots, 'sqlite');
 
+	const upgraded: string[] = [];
 	report.nonLatest
 		.map((it) => ({
 			path: it,
@@ -36,11 +39,13 @@ export const upSqliteHandler = (out: string) => {
 			} else if (it.raw['version'] === '6') {
 				result = updateToV7(sqliteSchemaV6.parse(it.raw));
 			} else {
-				throw new Error(`unexpected version of SQLite snapshot: ${it.raw['version']}`);
+				throw new CommandOutputCliError('up', `unexpected version of SQLite snapshot: ${it.raw['version']}`);
 			}
 
-			console.log(`[${chalk.green('✓')}] ${path}`);
+			if (outputFormat() === 'text') console.log(`[${chalk.green('✓')}] ${path}`);
 			writeFileSync(path, JSON.stringify(result, null, 2));
+
+			upgraded.push(path);
 		});
 
 	if (existsSync(join(out, 'migrations.js'))) {
@@ -48,7 +53,9 @@ export const upSqliteHandler = (out: string) => {
 		writeFileSync(`${out}/migrations.js`, js);
 	}
 
-	console.log("Everything's fine 🐶🔥");
+	if (outputFormat() === 'text') console.log("Everything's fine 🐶🔥");
+
+	return upgraded;
 };
 
 export const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
