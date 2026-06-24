@@ -16,7 +16,7 @@ vi.mock('hanji', async (importOriginal) => {
 });
 
 import * as hanji from 'hanji';
-import { push } from '../../../src/sdk';
+import { pull, push } from '../../../src/sdk';
 import { generate } from '../../../src/sdk';
 
 describe('hanji render is never called from SDK push path', () => {
@@ -43,6 +43,38 @@ describe('hanji render is never called from SDK push path', () => {
 
 		expect(result.status).toBe('error');
 		expect(hanji.render).toHaveBeenCalledTimes(0);
+	});
+});
+
+describe('hanji render is never called from SDK pull path', () => {
+	let originalPrefix: string | undefined;
+
+	beforeEach(() => {
+		originalPrefix = process.env.TEST_CONFIG_PATH_PREFIX;
+		delete process.env.TEST_CONFIG_PATH_PREFIX;
+		(hanji.render as ReturnType<typeof vi.fn>).mockClear();
+	});
+
+	afterEach(() => {
+		if (originalPrefix !== undefined) {
+			process.env.TEST_CONFIG_PATH_PREFIX = originalPrefix;
+		}
+	});
+
+	test('pull (unreachable-DB error smoke) does not call hanji.render', async () => {
+		const tmpDir = mkdtempSync(resolve(tmpdir(), 'drizzle-kit-no-interactive-pull-'));
+		try {
+			const result = await pull({
+				dialect: 'postgresql',
+				url: 'postgresql://invalid:invalid@127.0.0.1:1/none',
+				out: tmpDir,
+			});
+
+			expect(result.status).toBe('error');
+			expect(hanji.render).toHaveBeenCalledTimes(0);
+		} finally {
+			rmSync(tmpDir, { recursive: true, force: true });
+		}
 	});
 });
 

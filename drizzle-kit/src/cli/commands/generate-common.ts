@@ -27,7 +27,9 @@ type WriteResultConfigBase = {
 	snapshots: string[];
 };
 
-export function writeResult(config: WriteResultConfigBase & { type: 'introspect' }): void;
+export function writeResult(
+	config: WriteResultConfigBase & { type: 'introspect' },
+): { snapshotPath: string; migrationPath: string };
 export function writeResult(
 	config: WriteResultConfigBase & { type?: 'custom' | 'none' },
 ):
@@ -105,7 +107,9 @@ export function writeResult(
 		);
 	}
 
-	if (type === 'introspect') return;
+	if (type === 'introspect') {
+		return { snapshotPath: join(outFolder, `${tag}/snapshot.json`), migrationPath };
+	}
 
 	return { status: 'ok' as const, dialect, migration_path: migrationPath };
 }

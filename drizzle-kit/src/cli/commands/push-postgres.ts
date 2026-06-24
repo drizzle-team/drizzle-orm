@@ -100,20 +100,20 @@ export const handle = async (
 	const { sqlStatements, statements: jsonStatements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
-		resolver<Schema>('schema', 'public', hints),
-		resolver<Enum>('enum', 'public', hints),
-		resolver<Sequence>('sequence', 'public', hints),
-		resolver<Policy>('policy', 'public', hints),
-		resolver<Role>('role', 'public', hints),
-		resolver<Privilege>('privilege', 'public', hints),
-		resolver<PostgresEntities['tables']>('table', 'public', hints),
-		resolver<Column>('column', 'public', hints),
-		resolver<View>('view', 'public', hints),
-		resolver<UniqueConstraint>('unique', 'public', hints),
-		resolver<Index>('index', 'public', hints),
-		resolver<CheckConstraint>('check', 'public', hints),
-		resolver<PrimaryKey>('primary_key', 'public', hints),
-		resolver<ForeignKey>('foreign key', 'public', hints),
+		resolver<Schema>('schema', hints),
+		resolver<Enum>('enum', hints),
+		resolver<Sequence>('sequence', hints),
+		resolver<Policy>('policy', hints),
+		resolver<Role>('role', hints),
+		resolver<Privilege>('privilege', hints),
+		resolver<PostgresEntities['tables']>('table', hints),
+		resolver<Column>('column', hints),
+		resolver<View>('view', hints),
+		resolver<UniqueConstraint>('unique', hints),
+		resolver<Index>('index', hints),
+		resolver<CheckConstraint>('check', hints),
+		resolver<PrimaryKey>('primary_key', hints),
+		resolver<ForeignKey>('foreign key', hints),
 		'push',
 	);
 
@@ -308,72 +308,6 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
           AND constraint_type = 'PRIMARY KEY';`);
 
 			grouped.push({ hint, statement: `ALTER TABLE ${id} DROP CONSTRAINT "${pkName}"` });
-			continue;
-		}
-
-		// todo: alter column to not null no default
-		if (
-			statement.type === 'add_column' && statement.column.notNull && statement.column.default === null
-			&& !statement.column.generated && !statement.column.identity
-		) {
-			const column = statement.column;
-			const id = identifier({ schema: column.schema, name: column.table });
-			const entity = [column.schema, column.table, column.name] as const;
-			if (hints.matchConfirm('add_not_null', entity)) continue;
-			const res = await db.query(`select 1 from ${id} limit 1`);
-
-			if (res.length === 0) continue;
-			const hint = `You're about to add not-null ${
-				chalk.underline(statement.column.name)
-			} column without default value to a non-empty ${id} table`;
-
-			if (useHints) {
-				hints.pushMissingHint({
-					type: 'confirm_data_loss',
-					kind: 'add_not_null',
-					entity,
-					reason: 'nulls_present',
-				});
-			} else {
-				grouped.push({ hint });
-			}
-			// statementsToExecute.push(`truncate table ${id} cascade;`);
-			continue;
-		}
-
-		if (statement.type === 'add_unique') {
-			const unique = statement.unique;
-			const id = identifier({ schema: unique.schema, name: unique.table });
-			const entity = [unique.schema, unique.table, unique.name] as const;
-			if (hints.matchConfirm('add_unique', entity)) continue;
-
-			const res = await db.query(`select 1 from ${id} limit 1`);
-			if (res.length === 0) continue;
-
-			if (useHints) {
-				hints.pushMissingHint({
-					type: 'confirm_data_loss',
-					kind: 'add_unique',
-					entity,
-					reason: 'duplicates_present',
-				});
-			} else {
-				grouped.push({
-					hint: `You're about to add ${
-						chalk.underline(unique.name)
-					} unique constraint to a non-empty ${id} table which may fail`,
-				});
-			}
-			// const { status, data } = await render(
-			// 	new Select(['No, add the constraint without truncating the table', `Yes, truncate the table`]),
-			// );
-			// if (data?.index === 1) {
-			// 	statementsToExecute.push(
-			// 		`truncate table ${
-			// 			tableNameWithSchemaFrom(statement.schema, statement.tableName, renamedSchemas, renamedTables)
-			// 		} cascade;`,
-			// 	);
-			// }
 			continue;
 		}
 	}
