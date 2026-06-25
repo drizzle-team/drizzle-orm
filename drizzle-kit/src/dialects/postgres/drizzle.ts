@@ -885,3 +885,19 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 		relations,
 	};
 };
+
+export type PreparedPostgresSchema = Awaited<ReturnType<typeof prepareFromSchemaFiles>>;
+
+// Decouples the schema's origin (compiled `.ts` files vs. a supplied prebuilt schema) from its consumers.
+export interface SchemaSource {
+	load(): Promise<PreparedPostgresSchema>;
+}
+
+export const SchemaSource = {
+	fromFilenames(filenames: string[]): SchemaSource {
+		return { load: () => prepareFromSchemaFiles(filenames) };
+	},
+	fromSchema(schema: PreparedPostgresSchema): SchemaSource {
+		return { load: async () => schema };
+	},
+};

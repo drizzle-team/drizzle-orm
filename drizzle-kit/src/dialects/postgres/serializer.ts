@@ -3,14 +3,15 @@ import { humanLog, postgresSchemaError, postgresSchemaWarning } from '../../cli/
 import { assertUnreachable } from '../../utils';
 import type { PostgresDDL } from './ddl';
 import { createDDL, fromEntities, interimToDDL } from './ddl';
-import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
+import { fromDrizzleSchema } from './drizzle';
+import type { PreparedPostgresSchema } from './drizzle';
 import type { PostgresSnapshot } from './snapshot';
 import { drySnapshot, snapshotValidator } from './snapshot';
 import type { JsonStatement } from './statements';
 
 export const prepareSnapshot = async (
 	snapshots: string[],
-	filenames: string[],
+	prepared: PreparedPostgresSchema,
 	checkResult?: CheckHandlerResult,
 ): Promise<{
 	ddlPrev: PostgresDDL;
@@ -44,7 +45,7 @@ export const prepareSnapshot = async (
 	for (const entry of prevSnapshot.ddl) {
 		ddlPrev.entities.push(entry);
 	}
-	const res = await prepareFromSchemaFiles(filenames);
+	const res = prepared;
 
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
 	const { schema, errors, warnings } = fromDrizzleSchema(

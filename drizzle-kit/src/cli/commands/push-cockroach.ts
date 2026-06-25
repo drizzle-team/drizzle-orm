@@ -30,6 +30,7 @@ import type { CockroachCredentials } from '../validations/cockroach';
 import type { EntitiesFilterConfig } from '../validations/common';
 import {
 	cockroachSchemaError,
+	EmptyProgressView,
 	explain as explainView,
 	explainJsonOutput,
 	humanLog,
@@ -74,7 +75,9 @@ export const handle = async (
 		});
 	}
 
-	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
+	const progress = json
+		? new EmptyProgressView()
+		: new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
 	const { schema: schemaFrom } = await cockroachPushIntrospect(
 		db,
 		filter,
