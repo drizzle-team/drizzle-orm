@@ -1,6 +1,7 @@
 import { type Column, createDDL, interimToDDL, type SqliteEntities } from '../../dialects/sqlite/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/sqlite/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/sqlite/drizzle';
+import type { SchemaSource } from '../../dialects/sqlite/drizzle';
 import { prepareSqliteSnapshot } from '../../dialects/sqlite/serializer';
 import { prepareOutFolder } from '../../utils/utils-node';
 import { outputFormat } from '../context';
@@ -12,16 +13,17 @@ import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (
-	config: GenerateConfig,
+	config: GenerateConfig<SchemaSource>,
 	checkResult?: CheckHandlerResult,
 ) => {
 	const dialect = config.dialect === 'turso' ? 'turso' : 'sqlite';
 	const json = outputFormat() === 'json';
-	const { out: outFolder, filenames } = config;
+	const { out: outFolder } = config;
 	const { snapshots } = prepareOutFolder(outFolder);
+	const prepared = await config.schemaSource.load();
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSqliteSnapshot(
 		snapshots,
-		filenames,
+		prepared,
 		checkResult,
 	);
 	if (config.custom) {

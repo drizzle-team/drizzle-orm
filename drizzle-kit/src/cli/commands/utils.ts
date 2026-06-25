@@ -84,9 +84,12 @@ export const prepareDropParams = async (
 
 export type CheckConfig = { out: string; dialect: Dialect; ignoreConflicts: boolean | undefined };
 
-export type GenerateConfig = {
+type AnySchemaSource = { load(): Promise<unknown> };
+
+export type GenerateConfig<S extends AnySchemaSource = AnySchemaSource> = {
 	dialect: Dialect;
 	filenames: string[];
+	schemaSource: S;
 	out: string;
 	breakpoints: boolean;
 	name?: string;
@@ -141,12 +144,17 @@ export const prepareGenerateConfig = async (
 
 	const fileNames = prepareFilenames(schema);
 
+	const { SchemaSource } = dialect === 'sqlite' || dialect === 'turso'
+		? await import('../../dialects/sqlite/drizzle')
+		: await import('../../dialects/postgres/drizzle');
+
 	return {
 		dialect: dialect,
 		name: options.name,
 		custom: options.custom || false,
 		breakpoints: breakpoints ?? true,
 		filenames: fileNames,
+		schemaSource: SchemaSource.fromFilenames(fileNames),
 		out: out || 'drizzle',
 		bundle: driver === 'expo' || driver === 'durable-sqlite',
 		driver,

@@ -11,7 +11,9 @@ import {
 	varchar,
 } from 'drizzle-orm/mssql-core';
 import { eq, sql } from 'drizzle-orm/sql';
-// import { suggestions } from 'src/cli/commands/push-mssql';
+import { suggestions } from 'src/cli/commands/push-mssql';
+import { runWithCliContext } from 'src/cli/context';
+import { HintsHandler } from 'src/cli/hints';
 import { DB } from 'src/utils';
 import { diff, prepareTestDatabase, push, TestDatabase } from 'tests/mssql/mocks';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
@@ -1166,4 +1168,67 @@ test('hints + losses: add unique to column #2', async (t) => {
 
 	expect(pst1).toStrictEqual(st_01);
 	expect(error).not.toBeNull();
+});
+
+// In non-interactive / json mode `suggestions` throws a structured `unsupported_schema_change`
+// instead of pushing the unsupported-rename comment, so it is exercised directly with that context.
+test('renaming a schema throws `rename_schema_unsupported`', async () => {
+	const oldSchema = mssqlSchema('old_analytics');
+	const newSchema = mssqlSchema('analytics');
+	const before = {
+		oldSchema,
+		events: oldSchema.table('events', { id: int() }),
+	};
+	const after = {
+		newSchema,
+		events: newSchema.table('events', { id: int() }),
+	};
+	const renames = ['old_analytics->analytics'];
+
+	await push({ db, to: before });
+	const { statements, next } = await diff(before, after, renames);
+
+	await expect(
+		runWithCliContext(
+			{ output: 'json', interactive: false },
+			() => suggestions(db, statements, next, new HintsHandler()),
+		),
+	).rejects.toMatchObject({
+		code: 'unsupported_schema_change',
+		meta: {
+			kind: 'rename_schema_unsupported',
+			from: 'old_analytics',
+			to: 'analytics',
+			dialect: 'mssql',
+		},
+	});
+});
+
+test('renaming a column used in a check constraint throws `rename_blocked_by_check_constraint`', async () => {
+	const before = {
+		users: mssqlTable('users', { id: int() }, (t) => [check('hey', sql`${t.id} != 2`)]),
+	};
+	const after = {
+		users: mssqlTable('users', { id: int('id1') }, (t) => [check('hey', sql`${t.id} != 2`)]),
+	};
+	const renames = ['dbo.users.id->dbo.users.id1'];
+
+	await push({ db, to: before });
+	const { statements, next } = await diff(before, after, renames);
+
+	await expect(
+		runWithCliContext(
+			{ output: 'json', interactive: false },
+			() => suggestions(db, statements, next, new HintsHandler()),
+		),
+	).rejects.toMatchObject({
+		code: 'unsupported_schema_change',
+		meta: {
+			kind: 'rename_blocked_by_check_constraint',
+			schema: 'dbo',
+			table: 'users',
+			from: 'id',
+			to: 'id1',
+		},
+	});
 });

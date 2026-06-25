@@ -37,6 +37,9 @@ import {
 	varchar,
 	year,
 } from 'drizzle-orm/mysql-core';
+import { suggestions } from 'src/cli/commands/push-mysql';
+import { runWithCliContext } from 'src/cli/context';
+import { HintsHandler } from 'src/cli/hints';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -1238,4 +1241,107 @@ test('issue No4704. Composite index with sort outputs', async () => {
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
+});
+
+// In non-interactive / json mode `suggestions` throws a structured `unsupported_schema_change`
+// instead of pushing a human-readable hint, so it is exercised directly with that context.
+test('dropping a primary key referenced by a foreign key throws `drop_pk_dependency`', async () => {
+	const before = {
+		users: mysqlTable('users', { id: int().primaryKey() }),
+		orders: mysqlTable('orders', {
+			id: int().primaryKey(),
+			userId: int().references((): AnyMySqlColumn => before.users.id),
+		}),
+	};
+	const after = {
+		users: mysqlTable('users', { id: int() }),
+		orders: mysqlTable('orders', {
+			id: int().primaryKey(),
+			userId: int().references((): AnyMySqlColumn => after.users.id),
+		}),
+	};
+
+	await push({ db, to: before });
+	const { statements, next } = await diff(before, after, []);
+
+	await expect(
+		runWithCliContext(
+			{ output: 'json', interactive: false },
+			() => suggestions(db, statements, next, new HintsHandler()),
+		),
+	).rejects.toMatchObject({
+		code: 'unsupported_schema_change',
+		meta: {
+			kind: 'drop_pk_dependency',
+			table: 'users',
+			columns: ['id'],
+			blocking_fks: ['orders_userId_users_id_fkey'],
+		},
+	});
+});
+
+test('adding a foreign key to a non-unique target column throws `fk_target_not_unique`', async () => {
+	const before = {
+		users: mysqlTable('users', { id: int().primaryKey(), email: varchar({ length: 256 }) }),
+		orders: mysqlTable('orders', { id: int().primaryKey() }),
+	};
+	const usersAfter = mysqlTable('users', { id: int().primaryKey(), email: varchar({ length: 256 }) });
+	const after = {
+		users: usersAfter,
+		orders: mysqlTable('orders', {
+			id: int().primaryKey(),
+			userEmail: varchar({ length: 256 }),
+		}, (t) => [
+			foreignKey({ columns: [t.userEmail], foreignColumns: [usersAfter.email] }),
+		]),
+	};
+
+	await push({ db, to: before });
+	const { statements, next } = await diff(before, after, []);
+
+	await expect(
+		runWithCliContext(
+			{ output: 'json', interactive: false },
+			() => suggestions(db, statements, next, new HintsHandler()),
+		),
+	).rejects.toMatchObject({
+		code: 'unsupported_schema_change',
+		meta: {
+			kind: 'fk_target_not_unique',
+			table: 'orders',
+			columns: ['userEmail'],
+			table_to: 'users',
+			columns_to: ['email'],
+		},
+	});
+});
+
+// A column type change is a non-fatal `confirm_data_loss` missing hint rather than a throw,
+// so it is read back from the handler instead of asserting on a rejection.
+test('changing a column type records a `type_change` confirm_data_loss missing hint', async () => {
+	const before = {
+		users: mysqlTable('users', { id: int().primaryKey(), age: int() }),
+	};
+	const after = {
+		users: mysqlTable('users', { id: int().primaryKey(), age: varchar({ length: 50 }) }),
+	};
+
+	await push({ db, to: before });
+	const { statements, next } = await diff(before, after, []);
+
+	const hints = new HintsHandler();
+	await runWithCliContext(
+		{ output: 'json', interactive: false },
+		() => suggestions(db, statements, next, hints),
+	);
+
+	expect(hints.missingHints).toStrictEqual([
+		{
+			type: 'confirm_data_loss',
+			kind: 'column',
+			entity: ['public', 'users', 'age'],
+			reason: 'type_change',
+			reason_details: { from: 'int', to: 'varchar(50)' },
+		},
+	]);
 });

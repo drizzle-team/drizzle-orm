@@ -19,7 +19,8 @@ import type {
 } from '../../dialects/postgres/ddl';
 import { interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff } from '../../dialects/postgres/diff';
-import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
+import { fromDrizzleSchema } from '../../dialects/postgres/drizzle';
+import type { SchemaSource } from '../../dialects/postgres/drizzle';
 import type { JsonStatement } from '../../dialects/postgres/statements';
 import { prepareEntityFilter } from '../../dialects/pull-utils';
 import type { DB } from '../../utils';
@@ -32,6 +33,7 @@ import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/common';
 import type { PostgresCredentials } from '../validations/postgres';
 import {
+	EmptyProgressView,
 	explain as explainView,
 	explainJsonOutput,
 	humanLog,
@@ -41,7 +43,7 @@ import {
 } from '../views';
 
 export const handle = async (
-	filenames: string[],
+	schemaSource: SchemaSource,
 	verbose: boolean,
 	credentials: PostgresCredentials,
 	filters: EntitiesFilterConfig,
@@ -58,7 +60,7 @@ export const handle = async (
 	const { introspect } = await import('./pull-postgres');
 
 	const db = await preparePostgresDB(credentials);
-	const res = await prepareFromSchemaFiles(filenames);
+	const res = await schemaSource.load();
 
 	const existing = extractPostgresExisting(res.schemas, res.views, res.matViews);
 	const entityFilter = prepareEntityFilter('postgresql', filters, existing);
@@ -76,7 +78,9 @@ export const handle = async (
 		});
 	}
 
-	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
+	const progress = json
+		? new EmptyProgressView()
+		: new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
 
 	const { schema: schemaFrom } = await introspect(
 		db,
