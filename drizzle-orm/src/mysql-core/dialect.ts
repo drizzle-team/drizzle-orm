@@ -3,6 +3,7 @@ import { CodecsCollection } from '~/codecs.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	AnyOne,
 	BuildRelationalQueryResult,
@@ -641,11 +642,14 @@ export class MySqlDialect {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, MySqlColumn> = table[Table.Symbol.Columns];
-		const colEntries: [string, MySqlColumn][] = Object.entries(columns).filter(
-			([_, col]) => !col.shouldDisableInsert(),
-		);
+		const colEntries: [string, MySqlColumn][] = Object.entries(columns);
+		const colEntriesFiltered: [string, MySqlColumn][] = select && !is(valuesOrSelect, SQL)
+			? Object
+				.keys((valuesOrSelect as TypedQueryBuilder<any>).getSelectedFields())
+				.map((key) => [key, columns[key]] as [string, MySqlColumn])
+			: colEntries.filter(([_, col]) => !col.shouldDisableInsert());
 
-		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
+		const insertOrder = colEntriesFiltered.map(([, column]) => sql.identifier(column.name));
 		const generatedIdsResponse: Record<string, unknown>[] = [];
 
 		if (select) {
@@ -664,7 +668,7 @@ export class MySqlDialect {
 				const generatedIds: Record<string, unknown> = {};
 
 				const valueList: (SQLChunk | SQL)[] = [];
-				for (const [fieldName, col] of colEntries) {
+				for (const [fieldName, col] of colEntriesFiltered) {
 					const colValue = value[fieldName];
 					if (
 						colValue === undefined
