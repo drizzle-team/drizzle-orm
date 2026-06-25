@@ -3,6 +3,7 @@ import type { AnyColumn } from '~/column.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import {
 	type AnyOne,
 	// AggregatedField,
@@ -567,10 +568,14 @@ export class SQLiteDialect {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, SQLiteColumn> = table[Table.Symbol.Columns];
 
-		const colEntries: [string, SQLiteColumn][] = Object.entries(columns).filter(
-			([_, col]) => !col.shouldDisableInsert(),
-		);
-		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
+		const colEntries: [string, SQLiteColumn][] = Object.entries(columns);
+		const colEntriesFiltered: [string, SQLiteColumn][] = select && !is(valuesOrSelect, SQL)
+			? Object
+				.keys((valuesOrSelect as TypedQueryBuilder<any>).getSelectedFields())
+				.map((key) => [key, columns[key]] as [string, SQLiteColumn])
+			: colEntries.filter(([_, col]) => !col.shouldDisableInsert());
+
+		const insertOrder = colEntriesFiltered.map(([, column]) => sql.identifier(column.name));
 
 		if (select) {
 			const select = valuesOrSelect as AnySQLiteSelectQueryBuilder | SQL;
@@ -586,7 +591,7 @@ export class SQLiteDialect {
 
 			for (const [valueIndex, value] of values.entries()) {
 				const valueList: (SQLChunk | SQL)[] = [];
-				for (const [fieldName, col] of colEntries) {
+				for (const [fieldName, col] of colEntriesFiltered) {
 					const colValue = value[fieldName];
 					if (
 						colValue === undefined

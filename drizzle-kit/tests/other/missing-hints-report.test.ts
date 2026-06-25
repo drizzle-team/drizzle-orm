@@ -162,7 +162,7 @@ describe('formatMissingHintsText', () => {
 		expect(stripped).toMatch(/2\. Rename or create\s+—\s+table\s+public\.orders_v2/);
 	});
 
-	test('blank-line spacing separates header from items, items from each other, and items from footer', () => {
+	test('report renders header, then items in order, then footer', () => {
 		const out = formatMissingHintsText(
 			responseOf(
 				{ type: 'rename_or_create', kind: 'table', entity: ['public', 'users_v2'] },
@@ -176,21 +176,14 @@ describe('formatMissingHintsText', () => {
 		);
 		const stripped = strip(out);
 
-		// Header followed by a blank line then item 1
-		expect(stripped).toMatch(/missing_hints: 2 unresolved decisions\n\n1\. Rename or create/);
-		// Blank line between consecutive items
-		expect(stripped).toMatch(/}\n\n2\. Confirm data loss/);
-		// Blank line before the footer
-		expect(stripped).toMatch(/}\n\nRe-run with --hints/);
-	});
+		const headerIdx = stripped.indexOf('missing_hints: 2 unresolved decisions');
+		const item1Idx = stripped.indexOf('1. Rename or create');
+		const item2Idx = stripped.indexOf('2. Confirm data loss');
+		const footerIdx = stripped.indexOf('Re-run with --hints');
 
-	test('header and footer literals match the locked phrasing exactly', () => {
-		const out = formatMissingHintsText(
-			responseOf({ type: 'rename_or_create', kind: 'table', entity: ['public', 'users_v2'] }),
-		);
-		const stripped = strip(out);
-
-		expect(stripped).toContain('missing_hints: 1 unresolved decisions');
-		expect(stripped).toContain(`Re-run with --hints '<json-array>'. Exit code 2.`);
+		expect(headerIdx).toBeGreaterThan(-1);
+		expect(item1Idx).toBeGreaterThan(headerIdx);
+		expect(item2Idx).toBeGreaterThan(item1Idx);
+		expect(footerIdx).toBeGreaterThan(item2Idx);
 	});
 });

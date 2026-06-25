@@ -13,6 +13,7 @@ import type {
 } from '~/pg-core/query-builders/index.ts';
 import type { PgSelectConfig, SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import { PgTable } from '~/pg-core/table.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import {
 	type AnyOne,
 	// AggregatedField,
@@ -615,12 +616,17 @@ export class PgDialect {
 	}: PgInsertConfig): SQL {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
+		const colEntries: [string, PgColumn][] = Object.entries(columns);
 
-		const colEntries: [string, PgColumn][] = Object.entries(columns).filter(
-			([_, col]) => !col.shouldDisableInsert(),
-		);
+		const colFilteredEntries: [string, PgColumn][] = select && !is(valuesOrSelect, SQL)
+			? Object
+				.keys((valuesOrSelect as TypedQueryBuilder<any>).getSelectedFields())
+				.map((key) => [key, columns[key]] as [string, PgColumn])
+			: overridingSystemValue_
+			? colEntries
+			: colEntries.filter(([_, col]) => !col.shouldDisableInsert());
 
-		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
+		const insertOrder = colFilteredEntries.map(([, column]) => sql.identifier(column.name));
 
 		if (select) {
 			const select = valuesOrSelect as AnyPgSelectQueryBuilder | SQL;
@@ -636,7 +642,7 @@ export class PgDialect {
 
 			for (const [valueIndex, value] of values.entries()) {
 				const valueList: (SQLChunk | SQL)[] = [];
-				for (const [fieldName, col] of colEntries) {
+				for (const [fieldName, col] of colFilteredEntries) {
 					const colValue = value[fieldName];
 					if (
 						colValue === undefined
