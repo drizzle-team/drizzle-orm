@@ -24,6 +24,7 @@ export function* upgradeIfNeeded(
 
 	const rows = yield* YieldableQuery.withResult<{ column_name: string }>(
 		sql`SELECT name as column_name FROM pragma_table_info(${migrationsTable})`,
+		['column_name'],
 	);
 
 	const version = GET_VERSION_FOR.sqlite(rows.map((r) => r.column_name));
@@ -63,6 +64,7 @@ const upgradeFunctions: Record<
 		// this can be null from legacy implementation where id was serial
 		const dbRows = yield* YieldableQuery.withResult<{ id: number | null; hash: string; created_at: number }>(
 			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
+			['id', 'hash', 'created_at'] as any, // ts server randomly forgets the type is compatible, cast as any for now
 		);
 
 		// 2. Sort ASC by millis and if the same - sort by name

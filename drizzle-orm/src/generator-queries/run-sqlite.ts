@@ -42,6 +42,8 @@ export function runSync<TRes>(
 export async function runAsync<TRes>(
 	db: SQLiteAsyncDatabase<'async', any, any>,
 	generator: QueryGenerator<TRes>,
+	/** `sqlite-proxy` doesn't support object mode querying  */
+	noObjectMode?: boolean,
 ) {
 	const session = db.session as typeof db.session & {
 		batch?: (items: BatchItem<'sqlite'>[]) => Promise<any>;
@@ -72,8 +74,13 @@ export async function runAsync<TRes>(
 				await session.run(sql);
 				step = iter.next();
 			} else {
-				const result = await session.objects(sql);
-				step = iter.next(result);
+				if (noObjectMode) {
+					const raw = await session.arrays(sql);
+					step = iter.next(query.arrayToObjectShape ? raw.map((v) => query.reshape(v)) : raw);
+				} else {
+					const result = await session.objects(sql);
+					step = iter.next(result);
+				}
 			}
 		} else {
 			await runAsync(db, query);

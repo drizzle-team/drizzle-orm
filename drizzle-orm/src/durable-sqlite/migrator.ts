@@ -55,7 +55,7 @@ export function migrate<TRelations extends AnyRelations>(
 		try {
 			const migrationsTable = '__drizzle_migrations';
 
-			const { newDb } = runSync(db, upgradeIfNeeded(migrationsTable, migrations));
+			const { newDb } = runSync(tx, upgradeIfNeeded(migrationsTable, migrations));
 
 			if (newDb) {
 				const migrationTableCreate = sql`

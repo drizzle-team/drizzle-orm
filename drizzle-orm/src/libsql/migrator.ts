@@ -1,81 +1,13 @@
-import { runAsync } from '~/generator-queries/run-sqlite.ts';
 import type { MigrationConfig } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
-import { sql } from '~/sql/sql.ts';
-import { upgradeIfNeeded } from '~/up-migrations/sqlite.ts';
+import { migrateAsync } from '~/sqlite-core/index.ts';
 import type { LibSQLDatabase } from './driver.ts';
 
-export async function migrate<TRelations extends AnyRelations>(
+export function migrate<TRelations extends AnyRelations>(
 	db: LibSQLDatabase<TRelations>,
 	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);
-	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
-
-	const { newDb } = await runAsync(db, upgradeIfNeeded(migrationsTable, migrations));
-
-	if (newDb) {
-		const migrationTableCreate = sql`
-		CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
-			id INTEGER PRIMARY KEY,
-			hash text NOT NULL,
-			created_at numeric,
-			name text,
-			applied_at TEXT
-		)
-	`;
-		await db.session.run(migrationTableCreate);
-	}
-
-	const dbMigrations = await db.all<{ id: number; hash: string; created_at: string; name: string | null }>(
-		sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)}`,
-	);
-
-	if (config.init) {
-		if (dbMigrations.length) {
-			return { exitCode: 'databaseMigrations' as const };
-		}
-
-		if (migrations.length > 1) {
-			return { exitCode: 'localMigrations' as const };
-		}
-
-		const [migration] = migrations;
-
-		if (!migration) return;
-
-		await db.run(
-			sql`insert into ${
-				sql.identifier(migrationsTable)
-			} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
-				new Date().toISOString()
-			})`,
-		);
-
-		return;
-	}
-
-	const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
-	const statementToBatch = [];
-	for (const migration of migrationsToRun) {
-		for (const stmt of migration.sql) {
-			statementToBatch.push(db.run(sql.raw(stmt)));
-		}
-
-		statementToBatch.push(
-			db.run(
-				sql`INSERT INTO ${
-					sql.identifier(migrationsTable)
-				} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
-					new Date().toISOString()
-				})`,
-			),
-		);
-	}
-
-	await db.session.migrate(statementToBatch);
-
-	return;
+	return migrateAsync(migrations, db, config);
 }

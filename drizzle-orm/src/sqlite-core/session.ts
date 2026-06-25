@@ -2,7 +2,7 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { YieldableQuery } from '~/generator-queries/generator.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils';
+import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
@@ -118,6 +118,7 @@ export function* migrate(
 		name: string | null;
 	}>(
 		sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)};`,
+		['id', 'hash', 'created_at', 'name'] as any, // ts server randomly forgets the type is compatible, cast as any for now
 	);
 
 	if (typeof config === 'object' && config.init) {

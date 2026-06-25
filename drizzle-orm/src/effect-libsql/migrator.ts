@@ -9,5 +9,5 @@ export function migrate<TRelations extends AnyRelations>(
 	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);
-	return coreMigrate(migrations, db.session, config);
+	return coreMigrate(migrations, db, config);
 }

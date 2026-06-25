@@ -1,9 +1,10 @@
+import { runAsync } from '~/generator-queries/run-sqlite.ts';
 import type { MigrationConfig } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
-import { upgradeAsyncIfNeeded } from '~/up-migrations/sqlite-proxy.ts';
+import { upgradeIfNeeded } from '~/up-migrations/sqlite.ts';
 import type { SqliteRemoteDatabase } from './driver.ts';
 
 export type ProxyMigrator = (migrationQueries: string[]) => Promise<void>;
@@ -20,7 +21,7 @@ export async function migrate<TRelations extends AnyRelations>(
 		: config.migrationsTable ?? '__drizzle_migrations';
 
 	// Detect DB version and upgrade table schema if needed
-	const { newDb } = await upgradeAsyncIfNeeded(migrationsTable, db, callback, migrations);
+	const { newDb } = await runAsync(db, upgradeIfNeeded(migrationsTable, migrations), true);
 
 	if (newDb) {
 		const migrationTableCreate = sql`

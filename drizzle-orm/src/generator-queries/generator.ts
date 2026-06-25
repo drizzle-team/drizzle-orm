@@ -1,5 +1,5 @@
 import { entityKind } from '~/entity.ts';
-import { type SQL, sql } from '~/sql/sql.ts';
+import type { SQL } from '~/sql/sql.ts';
 
 export type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends ((k: infer I) => void) ? I
 	: never;
@@ -77,26 +77,3 @@ export type QueryGenerator<TRes = unknown> = Generator<
 	TRes,
 	any
 >;
-
-export function* yielder() {
-	yield* YieldableQuery.silent(sql`drop table if exists users;`);
-	yield* YieldableQuery.silent(sql`drop table if exists posts;`);
-
-	yield* YieldableQuery.silent(sql`create table users (id integer primary key, name text);`);
-	yield* YieldableQuery.silent(sql`create table posts (id integer primary key, content text, author_id integer);`);
-
-	yield* YieldableQuery.silent(sql`insert into users(id, name) values (1, 'First');`);
-	yield* YieldableQuery.silent(sql`insert into posts(id, author_id, content) values (1, 1, 'First''s post');`);
-
-	const users = yield* YieldableQuery.withResult<{ id: number; name: string }>(
-		sql`select id, name from users limit 1;`,
-	);
-
-	const posts = yield* YieldableQuery.withResult<{ post_id: number; content: string }>(
-		sql`select id as post_id, content from posts where posts.author_id = ${users[0]!.id} limit 1;`,
-	);
-
-	yield* YieldableQuery.batch([sql``, sql``]);
-
-	return posts[0]!;
-}
