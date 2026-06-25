@@ -922,9 +922,7 @@ test('hints + losses: add column with not null without default', async (t) => {
 	];
 
 	expect(pst1).toStrictEqual(st_01);
-	expect(hints).toStrictEqual([
-		{ hint: `You're about to add not-null [age] column without default value to a non-empty [users] table` },
-	]);
+	expect(hints).toStrictEqual([]);
 	expect(error).not.toBeNull();
 
 	// await expect(push({ db, to: to, force: true, ignoreSubsequent: true })).resolves.not.toThrowError();
@@ -960,9 +958,7 @@ test('hints + losses: add column with not null without default #2', async (t) =>
 	];
 
 	// expect(pst1).toStrictEqual(st_01);
-	expect(hints).toStrictEqual([
-		{ hint: `You're about to add not-null [age] column without default value to a non-empty [users] table` },
-	]);
+	expect(hints).toStrictEqual([]);
 });
 
 test('hints + losses: add column with not null with default', async (t) => {
@@ -1025,9 +1021,7 @@ test('hints + losses: alter column add not null without default', async (t) => {
 	];
 
 	expect(pst1).toStrictEqual(st_01);
-	expect(hints).toStrictEqual([
-		{ hint: `You're about to add not-null to [name] column without default value to a non-empty [users] table` },
-	]);
+	expect(hints).toStrictEqual([]);
 	expect(error).not.toBeNull();
 
 	// await expect(push({ db, to: to, force: true, ignoreSubsequent: true })).resolves.toThrowError();
@@ -1063,9 +1057,7 @@ test('hints + losses: alter column add not null without default #2', async (t) =
 	];
 
 	expect(pst1).toStrictEqual(st_01);
-	expect(hints).toStrictEqual([
-		{ hint: `You're about to add not-null to [name] column without default value to a non-empty [users] table` },
-	]);
+	expect(hints).toStrictEqual([]);
 	expect(error).not.toBeNull();
 
 	await expect(push({ db, to: to, force: true, ignoreSubsequent: true })).rejects.toThrowError();

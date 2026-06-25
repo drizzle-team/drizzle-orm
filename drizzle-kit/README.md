@@ -21,6 +21,16 @@ Under the hood the command runs the [skills](https://skills.sh) CLI against driz
 
 TanStack Intent users can still surface the same skills via `intent list` — `SKILL.md` files remain bundled in the npm tarball.
 
+### MCP server
+
+`drizzle-kit mcp` starts a Model Context Protocol server over stdio, exposing drizzle-kit's migration lifecycle (`generate`, `push`, `check`) as MCP tools to any MCP-capable agent. Launch it from the project root so config resolution defaults to the right working directory:
+
+```sh
+npx drizzle-kit mcp
+```
+
+See your MCP client's docs for how to add a server. For details, see [MCP.md](./MCP.md).
+
 ### How it works
 
 Drizzle Kit traverses a schema module and generates a snapshot to compare with the previous version, if there is one.

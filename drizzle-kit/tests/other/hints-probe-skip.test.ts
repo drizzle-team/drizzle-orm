@@ -116,20 +116,20 @@ const runPushDiff = async (
 	const diffResult = await ddlDiff(
 		ddlFrom,
 		ddlTo,
-		resolver<Schema>('schema', 'public', hints),
-		resolver<Enum>('enum', 'public', hints),
-		resolver<Sequence>('sequence', 'public', hints),
-		resolver<Policy>('policy', 'public', hints),
-		resolver<Role>('role', 'public', hints),
-		resolver<Privilege>('privilege', 'public', hints),
-		resolver<PostgresEntities['tables']>('table', 'public', hints),
-		resolver<Column>('column', 'public', hints),
-		resolver<View>('view', 'public', hints),
-		resolver<UniqueConstraint>('unique', 'public', hints),
-		resolver<Index>('index', 'public', hints),
-		resolver<CheckConstraint>('check', 'public', hints),
-		resolver<PrimaryKey>('primary_key', 'public', hints),
-		resolver<ForeignKey>('foreign key', 'public', hints),
+		resolver<Schema>('schema', hints),
+		resolver<Enum>('enum', hints),
+		resolver<Sequence>('sequence', hints),
+		resolver<Policy>('policy', hints),
+		resolver<Role>('role', hints),
+		resolver<Privilege>('privilege', hints),
+		resolver<PostgresEntities['tables']>('table', hints),
+		resolver<Column>('column', hints),
+		resolver<View>('view', hints),
+		resolver<UniqueConstraint>('unique', hints),
+		resolver<Index>('index', hints),
+		resolver<CheckConstraint>('check', hints),
+		resolver<PrimaryKey>('primary_key', hints),
+		resolver<ForeignKey>('foreign key', hints),
 		'push',
 	);
 
@@ -175,7 +175,7 @@ test('json mode auto-authorizes an empty materialized-view probe without recordi
 	});
 });
 
-test('json mode records add_not_null confirmation when the target table is non-empty', async () => {
+test('json mode neither probes nor records a confirm for an add_not_null column', async () => {
 	await runWithCliContext({ output: 'json', interactive: false }, async () => {
 		const hints = new HintsHandler();
 		const { db, queries } = createDb(async () => [{}]);
@@ -189,15 +189,8 @@ test('json mode records add_not_null confirmation when the target table is non-e
 		], hints);
 
 		expect(result).toStrictEqual([]);
-		expect(queries).toStrictEqual(['select 1 from "orders" limit 1']);
-		expect(unresolved(hints)).toStrictEqual([
-			{
-				type: 'confirm_data_loss',
-				kind: 'add_not_null',
-				entity: ['public', 'orders', 'status'],
-				reason: 'nulls_present',
-			},
-		]);
+		expect(queries).toStrictEqual([]);
+		expect(unresolved(hints)).toStrictEqual([]);
 	});
 });
 
@@ -218,7 +211,7 @@ test('text mode under non-TTY records a drop-table confirm_data_loss missing hin
 	});
 });
 
-test('text mode under non-TTY records an add_not_null confirm_data_loss missing hint instead of prose', async () => {
+test('text mode under non-TTY neither probes nor warns for an add_not_null column', async () => {
 	await runWithCliContext({ output: 'text', interactive: false }, async () => {
 		const hints = new HintsHandler();
 		const { db, queries } = createDb(async () => [{}]);
@@ -232,15 +225,8 @@ test('text mode under non-TTY records an add_not_null confirm_data_loss missing 
 		], hints);
 
 		expect(result).toStrictEqual([]);
-		expect(queries).toStrictEqual(['select 1 from "orders" limit 1']);
-		expect(unresolved(hints)).toStrictEqual([
-			{
-				type: 'confirm_data_loss',
-				kind: 'add_not_null',
-				entity: ['public', 'orders', 'status'],
-				reason: 'nulls_present',
-			},
-		]);
+		expect(queries).toStrictEqual([]);
+		expect(unresolved(hints)).toStrictEqual([]);
 	});
 });
 
@@ -256,10 +242,6 @@ test('json mode records only the risky probe sites when multiple probes have mix
 				return [];
 			}
 
-			if (sql === 'select 1 from "users" limit 1') {
-				return [{}];
-			}
-
 			throw new Error(`Unexpected SQL: ${sql}`);
 		});
 
@@ -273,16 +255,9 @@ test('json mode records only the risky probe sites when multiple probes have mix
 		expect(queries).toStrictEqual([
 			`select count(*) as count from information_schema.tables where table_schema = 'archive';`,
 			'select 1 from "legacy_users" limit 1',
-			'select 1 from "users" limit 1',
 		]);
 		expect(unresolved(hints)).toStrictEqual([
 			{ type: 'confirm_data_loss', kind: 'schema', entity: ['archive'], reason: 'non_empty' },
-			{
-				type: 'confirm_data_loss',
-				kind: 'add_unique',
-				entity: ['public', 'users', 'users_email_unique'],
-				reason: 'duplicates_present',
-			},
 		]);
 	});
 });

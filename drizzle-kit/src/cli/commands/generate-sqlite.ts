@@ -42,8 +42,8 @@ export const handle = async (
 	const { sqlStatements, warnings, renames, groupedStatements, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<SqliteEntities['tables']>('table', 'public', config.hints),
-		resolver<Column>('column', 'public', config.hints),
+		resolver<SqliteEntities['tables']>('table', config.hints),
+		resolver<Column>('column', config.hints),
 		'default',
 	);
 
@@ -93,12 +93,12 @@ export const handleExport = async (config: ExportConfig) => {
 	const { ddl, errors } = interimToDDL(schema);
 
 	if (errors.length > 0) {
-		throw new CommandOutputCliError('generate', errors.map((it) => sqliteSchemaError(it)).join('\n'), {
+		throw new CommandOutputCliError('export', errors.map((it) => sqliteSchemaError(it)).join('\n'), {
 			stage: 'ddl',
 			dialect: 'sqlite',
 		});
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
-	console.log(sqlStatements.join('\n'));
+	return { statements: sqlStatements, warnings: [] };
 };
