@@ -19,6 +19,21 @@ This monorepo's tests fall into two buckets: **unit-style** (no DB, run anywhere
 
 **4. Spawned subagents do not inherit this skill.** When delegating any test-writing or test-running work via the Agent tool, paste rules 1–3 verbatim into the subagent prompt. Subagents only see the prompt you give them, not the project's `.claude/skills/` directory. If a subagent's diff adds `import Docker` or its summary tells the operator to `docker run`, that's the failure mode this rule prevents.
 
+## Writing tests — design & quality
+
+The full, authoritative rules live in `.planning/codebase/TESTING.md` § **Test Quality Guidelines (drizzle-kit)**. The essentials (drizzle-kit):
+
+- **Minimize mocks; drive against real in-memory DBs.** PGlite (postgres, via the real `pglite` driver — pass `{ driver: 'pglite', client }` as credentials), `new BetterSqlite3(':memory:')` (sqlite), `@libsql/client` `:memory:` (turso); real servers for mysql/mssql/cockroach/singlestore. Run the REAL diff/introspect/`suggestions` engine — never `vi.doMock` `*/ddl`/`*/diff`/`*/serializer`/`*/introspect` to fabricate output.
+- **Only test what a real DB can actually produce.** Test redaction / error envelopes by triggering a real failure (unreachable URL + sentinel credential), not by injecting a fabricated error string. If a behavior can't occur on a real DB, drop it or move it to that dialect's real-DB test.
+- **One real-DB test per distinct behavior** — no per-dialect envelope matrices; keep dialect-specific behavior in that dialect's tests.
+- **Prefer dependency injection over module mocking** — e.g. `SchemaSource.fromSchema(fromExports(entities))` instead of `vi.doMock`-ing `prepareFromSchemaFiles`.
+- **Drop low-value tests** — things unlikely to ever change (presence/frontmatter/static reads), CLI≡SDK parity (shared core guarantees it), pure-function idempotence, defensive `expect(x).toBeDefined()`.
+- **No subprocess / built-`dist` / network deps** — no `spawnSync` tsx/node/npx, no `npx …@latest` — unless a single deliberate E2E smoke needs it (`tests/other/bin.test.ts`).
+- **House style** — no requirement-ID nomenclature (`MCP-05`, `CHECK-05`, `D-13`) or essay JSDoc in tests; explicit named tests over `test.each` where it aids readability; reuse `tests/<dialect>/mocks.ts`; express fixtures via `fromExports(...)`, not hand-built `{ tables, views, relations }` literals.
+- **Tests must run in a CI shard** — `kit:*` runs `./mysql ./sqlite ./other`, `./postgres`, `./cockroach`, `./mssql`, NOT `tests/sdk`/`tests/mcp`/`tests/skills`. Land new tests in `tests/other/`.
+
+When delegating test-writing to a subagent, paste these into the prompt too (subagents don't see this skill).
+
 ## Workflow (always run in this order)
 
 ### 1. Ensure `drizzle-kit/.env` exists
