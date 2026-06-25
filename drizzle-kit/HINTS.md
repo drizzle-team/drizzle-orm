@@ -4,7 +4,7 @@ This document describes the output-agnostic hint vocabulary shared by `drizzle-k
 
 ## Hints flow
 
-Some schema changes are ambiguous (rename vs. create+delete) or unsafe to apply automatically (drops on non-empty data, NOT NULL on nullable columns, etc.). In interactive mode, Drizzle Kit prompts the user. When non-interactive there are no prompts: callers either supply hints up front, or receive the unresolved decisions and reply with hints.
+Some schema changes are ambiguous (rename vs. create+delete) or unsafe to apply automatically (drops on non-empty data, recreating a SQLite table to add a `NOT NULL` column, etc.). In interactive mode, Drizzle Kit prompts the user. When non-interactive there are no prompts: callers either supply hints up front, or receive the unresolved decisions and reply with hints.
 
 For example, renaming a column in the schema:
 
@@ -115,7 +115,7 @@ Treat `display_name` as a truly new column. If `full_name` is also removed in th
 
 ## `confirm_data_loss`
 
-Approves a potentially destructive step — dropping a non-empty entity, adding a `NOT NULL` constraint to a column that currently contains nulls, adding a `UNIQUE` constraint to columns with duplicates, or changing an existing column's SQL type.
+Approves a potentially destructive step — dropping a non-empty entity, recreating a SQLite table to add a `NOT NULL` column (which wipes its rows), or changing an existing column's SQL type. Adding `NOT NULL` / `UNIQUE` on the server dialects (postgresql, mysql, mssql, cockroach, singlestore) does not trigger a confirmation request: the `ALTER` runs and the database enforces the constraint, rejecting a genuine violation cleanly.
 
 Available `kind` values and the `reason` each can fire under are catalogued in [Catalog: kinds](#catalog-kinds-in-unresolved-items) and [Catalog: reasons](#catalog-reasons-confirm_data_loss-only).
 
@@ -228,17 +228,18 @@ Unmarked kinds apply to all dialects (`postgresql`, `mysql`, `sqlite`, `turso`, 
 
 - `table`
 - `column`
-- `add_not_null`
-- `schema`¹
-- `view`²
-- `primary_key`³
-- `add_unique`³
+- `add_not_null`¹
+- `schema`²
+- `view`³
+- `primary_key`⁴
 
-¹ `postgresql`, `mssql`, `cockroach` only.
+¹ `sqlite`, `turso` only. The server dialects (`postgresql`, `mysql`, `mssql`, `cockroach`, `singlestore`) add `NOT NULL` / `UNIQUE` without triggering a confirmation request — the `ALTER` runs and the database enforces the constraint, rejecting a genuine violation cleanly — so neither `add_not_null` nor `add_unique` surfaces as a `confirm_data_loss` on those dialects.
 
-² `postgresql`, `cockroach` only — materialized-view drops only; regular-view drops do not emit `confirm_data_loss`.
+² `postgresql`, `mssql`, `cockroach` only.
 
-³ `postgresql`, `mysql`, `mssql`, `cockroach`, `singlestore` only (no `sqlite`/`turso`).
+³ `postgresql`, `cockroach` only — materialized-view drops only; regular-view drops do not emit `confirm_data_loss`.
+
+⁴ `postgresql`, `mysql`, `mssql`, `cockroach`, `singlestore` only (no `sqlite`/`turso`).
 
 ## Catalog: reasons (`confirm_data_loss` only)
 
@@ -247,8 +248,7 @@ Unmarked kinds apply to all dialects (`postgresql`, `mysql`, `sqlite`, `turso`, 
 | `reason` | applicable `kind`s | explanation | `reason_details` |
 |----------|--------------------|-------------|------------------|
 | `non_empty` | `table`, `column`, `schema`, `view`, `primary_key` | Runtime probed the target entity and found at least one row of existing data. Approval authorizes the DDL to proceed and acknowledges that existing rows will be lost. | — |
-| `nulls_present` | `add_not_null` | Runtime probed the target column and found at least one `NULL`. The `NOT NULL` DDL would fail; approval authorizes the runtime to attempt the DDL anyway, which still requires the caller to backfill (or accept the failure). | — |
-| `duplicates_present` | `add_unique` | Runtime probed the target column(s) and found at least one duplicate value. The `UNIQUE` DDL would fail; approval authorizes the runtime to attempt the DDL anyway, which still requires the caller to deduplicate (or accept the failure). | — |
+| `table_recreate` | `add_not_null` (`sqlite` / `turso` only) | SQLite has no in-place path to add a `NOT NULL` column, so confirming wipes all rows and recreates the table. Approval acknowledges that the table is recreated and its existing rows are lost. | — |
 | `type_change` | `column` | An existing column's SQL type would change via `alter_column` on MySQL or SingleStore. Approval authorizes the type change. `from`/`to` carry dialect-native column-type spellings (e.g. `varchar(100)`, `int`, `decimal(10,4)`) sourced from the underlying `JsonStatement`. | `{ from: string, to: string }` |
 
 ## Identifier formats
@@ -259,9 +259,9 @@ Each hint identifies an entity using an `entity`, `from`, or `to` tuple. The ari
 |--------|----------------|---------|
 | `[name]` | `schema`, `role` | `["tenant_a"]` |
 | `[schema, name]` | `table`, `enum`, `sequence`, `view` | `["public", "users"]` |
-| `[schema, table, name]` | `column`, `default`, `policy`, `check`, `index`, `unique`, `primary_key`, `foreign key`, `add_not_null`¹, `add_unique`¹ ² | `["public", "users", "email"]` |
+| `[schema, table, name]` | `column`, `default`, `policy`, `check`, `index`, `unique`, `primary_key`, `foreign key`, `add_not_null`¹ | `["public", "users", "email"]` |
 | `[grantor, grantee, schema, table, type]` | `privilege` | `["postgres", "app_user", "public", "users", "select"]` |
 
-¹ `confirm_data_loss` only.
+¹ `confirm_data_loss` only (`sqlite` / `turso`).
 
-² For `add_unique` (`confirm_data_loss`), the third slot is the **constraint name** (e.g. `users_email_unique`), not a column name. This disambiguates composite unique constraints that share a leading column.
+The leading namespace segment keeps tuple arity uniform across dialects, but only postgresql, cockroach, and mssql have a real schema namespace — the `schema` entity kind is wired only for those three. On the schemaless dialects (mysql, sqlite, singlestore) that leading segment is a synthesized `'public'` placeholder, not a real schema. Echo it verbatim; on a schemaless dialect it is filler, never build a separate `schema` rename or create from it.

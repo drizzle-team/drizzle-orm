@@ -61,8 +61,8 @@ export const handle = async (
 	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
-		resolver<Table>('table', 'public', hints),
-		resolver<Column>('column', 'public', hints),
+		resolver<Table>('table', hints),
+		resolver<Column>('column', hints),
 		'push',
 	);
 
@@ -182,7 +182,7 @@ export const suggestions = async (
 						type: 'confirm_data_loss',
 						kind: 'add_not_null',
 						entity,
-						reason: 'nulls_present',
+						reason: 'table_recreate',
 					});
 				} else {
 					grouped.push(

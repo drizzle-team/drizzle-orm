@@ -1,15 +1,23 @@
 import { expectTypeOf, test } from 'vitest';
 import type { GenerateOptions, PushOptions } from '../../src/cli/contract';
 import type { Hint } from '../../src/cli/hints';
-import { defineConfig, generate, push } from '../../src/index';
+import { check, defineConfig, exportSql, generate, pull, push, up } from '../../src/index';
 import type { Config } from '../../src/index';
 
 type GenerateResponse = Awaited<ReturnType<typeof generate>>;
 type PushResponse = Awaited<ReturnType<typeof push>>;
+type CheckResponse = Awaited<ReturnType<typeof check>>;
+type PullResponse = Awaited<ReturnType<typeof pull>>;
+type UpResponse = Awaited<ReturnType<typeof up>>;
+type ExportResponse = Awaited<ReturnType<typeof exportSql>>;
 type Unresolved = Extract<GenerateResponse, { status: 'missing_hints' }>['unresolved'][number];
 
 declare const generateResponse: GenerateResponse;
 declare const pushResponse: PushResponse;
+declare const checkResponse: CheckResponse;
+declare const pullResponse: PullResponse;
+declare const upResponse: UpResponse;
+declare const exportResponse: ExportResponse;
 declare function resolveHint(item: Unresolved): Hint;
 declare const config: Config;
 
@@ -36,6 +44,40 @@ function _pushNarrowing() {
 		expectTypeOf(pushResponse.dialect).toExtend<string | undefined>();
 	} else if (pushResponse.status === 'error') {
 		expectTypeOf(pushResponse.error.code).toBeString();
+	}
+}
+
+function _checkNarrowing() {
+	if (checkResponse.status === 'ok') {
+		expectTypeOf(checkResponse.dialect).toExtend<string | undefined>();
+	} else if (checkResponse.status === 'error') {
+		expectTypeOf(checkResponse.error.code).toBeString();
+	}
+}
+
+function _pullNarrowing() {
+	if (pullResponse.status === 'ok') {
+		expectTypeOf(pullResponse.schemaPath).toBeString();
+		expectTypeOf(pullResponse.snapshotPath).toBeString();
+	} else if (pullResponse.status === 'error') {
+		expectTypeOf(pullResponse.error.code).toBeString();
+	}
+}
+
+function _upNarrowing() {
+	if (upResponse.status === 'ok') {
+		expectTypeOf(upResponse.upgraded).toEqualTypeOf<string[]>();
+	} else if (upResponse.status === 'error') {
+		expectTypeOf(upResponse.error.code).toBeString();
+	}
+}
+
+function _exportNarrowing() {
+	if (exportResponse.status === 'ok') {
+		expectTypeOf(exportResponse.statements).toEqualTypeOf<string[]>();
+		expectTypeOf(exportResponse.warnings).toEqualTypeOf<string[]>();
+	} else if (exportResponse.status === 'error') {
+		expectTypeOf(exportResponse.error.code).toBeString();
 	}
 }
 
@@ -66,6 +108,22 @@ function _defineConfigSnippet() {
 test('generate/push responses narrow on their status discriminator', () => {
 	expectTypeOf(_generateNarrowing).toBeFunction();
 	expectTypeOf(_pushNarrowing).toBeFunction();
+});
+
+test('check response narrows on its status discriminator', () => {
+	expectTypeOf(_checkNarrowing).toBeFunction();
+});
+
+test('pull response narrows on its status discriminator', () => {
+	expectTypeOf(_pullNarrowing).toBeFunction();
+});
+
+test('up response narrows on its status discriminator', () => {
+	expectTypeOf(_upNarrowing).toBeFunction();
+});
+
+test('export response narrows on its status discriminator', () => {
+	expectTypeOf(_exportNarrowing).toBeFunction();
 });
 
 test('generateWithHints re-invokes generate with a raw Hint[]', () => {

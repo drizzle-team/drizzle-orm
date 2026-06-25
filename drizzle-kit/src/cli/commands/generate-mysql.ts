@@ -131,9 +131,9 @@ export const handle = async (
 	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<Table>('table', 'public', config.hints),
-		resolver<Column>('column', 'public', config.hints),
-		resolver<View>('view', 'public', config.hints),
+		resolver<Table>('table', config.hints),
+		resolver<Column>('column', config.hints),
+		resolver<View>('view', config.hints),
 		'default',
 	);
 
@@ -181,12 +181,12 @@ export const handleExport = async (config: ExportConfig) => {
 	const { ddl, errors } = interimToDDL(schema);
 
 	if (errors.length > 0) {
-		throw new CommandOutputCliError('generate', errors.map((it) => mysqlSchemaError(it)).join('\n'), {
+		throw new CommandOutputCliError('export', errors.map((it) => mysqlSchemaError(it)).join('\n'), {
 			stage: 'ddl',
 			dialect: 'mysql',
 		});
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
-	console.log(sqlStatements.join('\n'));
+	return { statements: sqlStatements, warnings: [] };
 };

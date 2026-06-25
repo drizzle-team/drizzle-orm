@@ -197,6 +197,8 @@ export const checkHandler = async (
 						leafId: leafOf(branch.chain)?.id ?? null,
 						leafPath: leafOf(branch.chain)?.path ?? null,
 						statementDescription: branch.statementDescription,
+						target: branch.target,
+						action: branch.action,
 					})),
 				}));
 				throw new CheckCliError('conflicts', nonCommutativityMessage, {
