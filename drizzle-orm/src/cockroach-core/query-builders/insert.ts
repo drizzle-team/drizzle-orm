@@ -65,6 +65,13 @@ export type NoUnknownKeysInInsertSelection<
 	TSelection extends CockroachInsertSelection<any>,
 > = {
 	[K in keyof TSelection]: K extends keyof InferInsertModel<TTable> ? TSelection[K]
+		: K extends keyof InferInsertModel<TTable, { override: true }> ? DrizzleTypeError<
+				`Column "${
+					& K
+					& string}" in table "${TTable['_'][
+					'name'
+				]}" is a generated column - manual value insertion restricted`
+			>
 		: DrizzleTypeError<`Column "${K & string}" does not exist in table "${TTable['_']['name']}"`>;
 };
 
