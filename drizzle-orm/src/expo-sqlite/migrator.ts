@@ -47,7 +47,7 @@ export async function migrate<TRelations extends AnyRelations = EmptyRelations>(
 	config: MigrationConfig,
 ) {
 	const migrations = await readMigrationFiles(config);
-	return migrateSync(migrations, db.session);
+	return migrateSync(migrations, db);
 }
 
 interface State {

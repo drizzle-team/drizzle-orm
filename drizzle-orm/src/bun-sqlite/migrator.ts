@@ -34,11 +34,11 @@ export function migrate<TRelations extends AnyRelations = EmptyRelations>(
 			name: d.name,
 		}));
 
-		return migrateSync(migrations, db.session, {
+		return migrateSync(migrations, db, {
 			migrationsTable,
 		});
 	}
 
 	const migrations = readMigrationFiles(config as MigrationConfig);
-	return migrateSync(migrations, db.session, config as MigrationConfig);
+	return migrateSync(migrations, db, config as MigrationConfig);
 }
