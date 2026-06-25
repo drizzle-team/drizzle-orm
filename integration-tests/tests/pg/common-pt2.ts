@@ -1758,6 +1758,43 @@ export function tests(test: Test) {
 			]);
 		});
 
+		test.concurrent('proper json and jsonb handling - sql operator', async ({ db, push }) => {
+			const jsonTable = pgTable('json_table_sql_3', {
+				json: json('json').$type<{ name: string; age: number }>(),
+				jsonb: jsonb('jsonb').$type<{ name: string; age: number }>(),
+			});
+
+			await push({ jsonTable });
+
+			await db.execute(
+				sql`insert into ${jsonTable} ("json", "jsonb") values (${{ name: 'Tom', age: 75 }}, ${{
+					name: 'Pete',
+					age: 23,
+				}})`,
+			);
+
+			const result = await db.select().from(jsonTable);
+
+			const justNames = await db.select({
+				name1: sql<string>`${jsonTable.json}->>'name'`.as('name1'),
+				name2: sql<string>`${jsonTable.jsonb}->>'name'`.as('name2'),
+			}).from(jsonTable);
+
+			expect(result).toStrictEqual([
+				{
+					json: { name: 'Tom', age: 75 },
+					jsonb: { name: 'Pete', age: 23 },
+				},
+			]);
+
+			expect(justNames).toStrictEqual([
+				{
+					name1: 'Tom',
+					name2: 'Pete',
+				},
+			]);
+		});
+
 		test.concurrent(
 			'set json/jsonb fields with objects and retrieve with the ->> operator',
 			async ({ db, push }) => {
@@ -2167,18 +2204,89 @@ export function tests(test: Test) {
 
 				await push({ users1, users2 });
 
-				expect(() =>
-					db.insert(users1).select(
-						db
-							.select({
-								name: users2.name,
-								id: users2.id,
-							})
-							.from(users2),
-					)
-				).toThrowError();
+				await db.insert(users2).values({ id: 1, name: 'First' });
+				const res = await db.insert(users1).select(
+					db
+						.select({
+							name: users2.name,
+							id: users2.id,
+						})
+						.from(users2),
+				).returning();
+
+				expect(res).toStrictEqual([{
+					id: 1,
+					name: 'First',
+				}]);
 			},
 		);
+
+		test.concurrent('insert into ... select with generated column', async ({ db, push }) => {
+			const users1 = pgTable('users1_iswgc', {
+				id: integer().generatedAlwaysAsIdentity().primaryKey(),
+				name: text('name').notNull(),
+			});
+			const users2 = pgTable('users2_iswgc', {
+				id: integer().generatedAlwaysAsIdentity().primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ users1, users2 });
+
+			await db.insert(users1).values([
+				{ name: 'Alice' },
+				{ name: 'Bob' },
+				{ name: 'Charlie' },
+			]);
+
+			const result1 = await db.insert(users2).select(db.select({ name: users1.name }).from(users1))
+				.returning();
+			const result2 = await db.insert(users2).overridingSystemValue().select((db) =>
+				db.select({ id: sql`${users1.id} + 3`.as('id'), name: users1.name }).from(users1)
+			).returning();
+
+			expect(result1).toStrictEqual([
+				{ id: 1, name: 'Alice' },
+				{ id: 2, name: 'Bob' },
+				{ id: 3, name: 'Charlie' },
+			]);
+			expect(result2).toStrictEqual([
+				{ id: 4, name: 'Alice' },
+				{ id: 5, name: 'Bob' },
+				{ id: 6, name: 'Charlie' },
+			]);
+
+			// @ts-expect-error
+			db.insert(users2).select(db.select({ name: users1.name, id: users1.id }).from(users1));
+			// @ts-expect-error
+			expect(() => db.insert(users2).select(db.select({ name: users1.name, unknown: users1.id }).from(users1)))
+				.toThrowError();
+		});
+
+		test.concurrent('ignore generated columns in insert', async ({ db, push }) => {
+			const users = pgTable('users_ignore_generated_columns_in_insert', {
+				id: integer().generatedAlwaysAsIdentity(),
+				otherId: integer('other_id').generatedByDefaultAsIdentity(),
+				firstName: text('first_name').notNull(),
+				lastName: text('last_name').notNull(),
+				name: text().generatedAlwaysAs((): any => sql`${users.firstName} || ' ' || ${users.lastName}`),
+			});
+
+			await push({ users });
+
+			const values = {
+				id: 5,
+				otherId: 10,
+				firstName: 'John',
+				lastName: 'Doe',
+				name: 'N/A',
+			};
+			const result = await db.insert(users).values(values).returning();
+
+			expect(result).toEqual([
+				{ id: 1, otherId: 10, firstName: 'John', lastName: 'Doe', name: 'John Doe' },
+			]);
+		});
 
 		test.concurrent('$count separate', async ({ db, push }) => {
 			const countTestTable = pgTable('count_test_33', {

@@ -454,6 +454,12 @@ export abstract class PgColumn<
 	}
 
 	/** @internal */
+	override shouldDisableInsert(): boolean {
+		return (this.config.generatedIdentity !== undefined && this.config.generatedIdentity.type !== 'byDefault')
+			|| (this.config.generated !== undefined && this.config.generated.type !== 'byDefault');
+	}
+
+	/** @internal */
 	private mapArrayElements(value: unknown, mapper: (v: unknown) => unknown, depth: number): unknown {
 		if (depth > 0 && Array.isArray(value)) {
 			return value.map((v) => v === null ? null : this.mapArrayElements(v, mapper, depth - 1));

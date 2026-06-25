@@ -8,8 +8,8 @@ import type { IndexColumn } from '~/sqlite-core/indexes.ts';
 import type { SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { Subquery } from '~/subquery.ts';
-import { type InferInsertModel, Table, TableColumns } from '~/table.ts';
-import { type Assume, haveSameKeys, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils.ts';
+import { type InferInsertModel, Table } from '~/table.ts';
+import { type Assume, type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils.ts';
 import type { AnySQLiteColumn, SQLiteColumn } from '../columns/common.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
@@ -17,7 +17,7 @@ import type { SQLiteUpdateSetSource } from './update.ts';
 
 export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 	table: TTable;
-	values: Record<string, Param | SQL>[] | SQLiteInsertSelectQueryBuilder<TTable> | SQL;
+	values: Record<string, Param | SQL>[] | TypedQueryBuilder<SQLiteInsertSelection<TTable>> | SQL;
 	withList?: Subquery[];
 	onConflict?: SQL[];
 	returning?: SelectedFieldsOrdered;
@@ -33,12 +33,23 @@ export type SQLiteInsertValue<
 	}
 >;
 
-export type SQLiteInsertSelectQueryBuilder<
+export type SQLiteInsertSelection<TTable extends SQLiteTable> =
+	& {
+		[K in keyof InferInsertModel<TTable>]:
+			| AnySQLiteColumn
+			| SQL
+			| SQL.Aliased
+			| InferInsertModel<TTable>[K];
+	}
+	& {};
+
+export type NoUnknownKeysInInsertSelection<
 	TTable extends SQLiteTable,
-	TModel extends Record<string, any> = InferInsertModel<TTable>,
-> = TypedQueryBuilder<
-	{ [K in keyof TModel]: AnySQLiteColumn | SQL | SQL.Aliased | TModel[K] }
->;
+	TSelection extends SQLiteInsertSelection<any>,
+> = {
+	[K in keyof TSelection]: K extends keyof InferInsertModel<TTable> ? TSelection[K]
+		: DrizzleTypeError<`Column "${K & string}" does not exist in table "${TTable['_']['name']}"`>;
+};
 
 export interface SQLiteInsertBuilderConstructor {
 	new(
@@ -94,29 +105,35 @@ export class SQLiteInsertBuilder<
 		return new this.builder(this.table, mappedValues, this.session, this.dialect, this.withList) as any;
 	}
 
-	select(
-		selectQuery: (qb: QueryBuilder) => SQLiteInsertSelectQueryBuilder<TTable>,
+	select<TSelection extends SQLiteInsertSelection<TTable>>(
+		selectQuery: (qb: QueryBuilder) => TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection>>,
 	): SQLiteInsertKind<THKT, TTable, TRunResult>;
 	select(selectQuery: (qb: QueryBuilder) => SQL): SQLiteInsertKind<THKT, TTable, TRunResult>;
 	select(selectQuery: SQL): SQLiteInsertKind<THKT, TTable, TRunResult>;
-	select(
-		selectQuery: SQLiteInsertSelectQueryBuilder<TTable>,
+	select<TSelection extends SQLiteInsertSelection<TTable>>(
+		selectQuery: TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection>>,
 	): SQLiteInsertKind<THKT, TTable, TRunResult>;
 	select(
 		selectQuery:
 			| SQL
-			| SQLiteInsertSelectQueryBuilder<TTable>
-			| ((qb: QueryBuilder) => SQLiteInsertSelectQueryBuilder<TTable> | SQL),
+			| TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, SQLiteInsertSelection<TTable>>>
+			| ((qb: QueryBuilder) =>
+				| TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, SQLiteInsertSelection<TTable>>>
+				| SQL),
 	): SQLiteInsertKind<THKT, TTable, TRunResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
 
-		if (
-			!is(select, SQL)
-			&& !haveSameKeys(this.table[TableColumns], select._.selectedFields)
-		) {
-			throw new Error(
-				'Insert select error: selected fields are not the same or are in a different order compared to the table definition',
-			);
+		if (!is(select, SQL)) {
+			const insertCols = Object.keys(this.table[Table.Symbol.Columns]);
+			const selected = Object.keys(select._.selectedFields);
+
+			for (const col of selected) {
+				if (!insertCols.includes(col)) {
+					throw new Error(
+						`Insert select error: column "${col}" does not exist in table "${this.table[Table.Symbol.Name]}"`,
+					);
+				}
+			}
 		}
 
 		return new this.builder(this.table, select, this.session, this.dialect, this.withList, true) as any;
