@@ -25,6 +25,7 @@ export type VercelPgClient = VercelPool | VercelClient | VercelPoolClient;
 export interface VercelPgSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	maskParams?: boolean;
 }
 
 const noop = (val: any) => val;
@@ -54,6 +55,7 @@ export class VercelPgSession<
 
 	private logger: Logger;
 	private cache: Cache;
+	private maskParams: boolean;
 
 	constructor(
 		private client: VercelPgClient,
@@ -64,6 +66,7 @@ export class VercelPgSession<
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.maskParams = options.maskParams ?? false;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -101,6 +104,7 @@ export class VercelPgSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.maskParams,
 		);
 	}
 

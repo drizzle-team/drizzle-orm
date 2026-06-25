@@ -18,9 +18,10 @@ export class EffectPgDatabase<TRelations extends AnyRelations = EmptyRelations>
 	static override readonly [entityKind]: string = 'EffectPgDatabase';
 }
 
+// `maskParams` targets DrizzleQueryError; effect-postgres uses its own EffectDrizzleQueryError, so it's excluded here.
 export type EffectDrizzlePgConfig<
 	TRelations extends AnyRelations = EmptyRelations,
-> = Omit<DrizzlePgConfig<TRelations>, 'cache' | 'logger'>;
+> = Omit<DrizzlePgConfig<TRelations>, 'cache' | 'logger' | 'maskParams'>;
 
 export const DefaultServices = Layer.merge(
 	EffectCache.Default,

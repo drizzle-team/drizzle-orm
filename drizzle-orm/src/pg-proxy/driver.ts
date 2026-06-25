@@ -38,7 +38,11 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	}
 
 	const relations = config.relations ?? {} as TRelations;
-	const session = new PgRemoteSession(callback, dialect, relations, { logger, cache: config.cache });
+	const session = new PgRemoteSession(callback, dialect, relations, {
+		logger,
+		cache: config.cache,
+		maskParams: config.maskParams,
+	});
 	const db = new PgRemoteDatabase(
 		dialect,
 		session,

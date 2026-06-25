@@ -15,6 +15,7 @@ import type { Query } from '~/sql/sql.ts';
 export interface BunSQLSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	maskParams?: boolean;
 }
 
 export class BunSQLSession<
@@ -25,6 +26,7 @@ export class BunSQLSession<
 
 	logger: Logger;
 	private cache: Cache;
+	private maskParams: boolean;
 
 	constructor(
 		readonly client: TSQL,
@@ -36,6 +38,7 @@ export class BunSQLSession<
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.maskParams = options.maskParams ?? false;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -68,6 +71,7 @@ export class BunSQLSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.maskParams,
 		);
 	}
 

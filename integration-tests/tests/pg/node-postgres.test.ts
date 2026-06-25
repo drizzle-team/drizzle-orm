@@ -1,4 +1,5 @@
-import { sql } from 'drizzle-orm';
+import { DrizzleQueryError, sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { getTableConfig, integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
@@ -570,5 +571,59 @@ describe('migrator', () => {
 		expect(res2).toStrictEqual(expected);
 
 		rmSync(migrationDir, { recursive: true });
+	});
+});
+
+describe('maskParams', () => {
+	const maskTable = pgTable('users_mask_params', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	const createMaskTable = async (client: any) => {
+		await client.query('drop table if exists users_mask_params');
+		await client.query('create table users_mask_params (id integer primary key, name text not null)');
+	};
+
+	// trigger a failure by inserting two rows with the same primary key
+	const failingInsert = async (db: ReturnType<typeof drizzle>) => {
+		try {
+			await db.insert(maskTable).values([
+				{ id: 1, name: 'SECRET_A' },
+				{ id: 1, name: 'SECRET_B' },
+			]);
+		} catch (e) {
+			return e as DrizzleQueryError;
+		}
+		throw new Error('expected the insert to fail');
+	};
+
+	test('off (default): params are present in message and .params', async ({ client }) => {
+		await createMaskTable(client);
+		const db = drizzle({ client });
+
+		const error = await failingInsert(db);
+
+		expect(error).toBeInstanceOf(DrizzleQueryError);
+		expect(error.message).toContain('SECRET_A');
+		expect(error.message).toContain('SECRET_B');
+		expect(error.params).toContain('SECRET_A');
+		expect(error.params).toContain('SECRET_B');
+	});
+
+	test('on: param values are redacted in message and .params', async ({ client }) => {
+		await createMaskTable(client);
+		const db = drizzle({ client, maskParams: true });
+
+		const error = await failingInsert(db);
+
+		expect(error).toBeInstanceOf(DrizzleQueryError);
+		expect(error.message).not.toContain('SECRET_A');
+		expect(error.message).not.toContain('SECRET_B');
+		expect(error.params).not.toContain('SECRET_A');
+		expect(error.params).not.toContain('SECRET_B');
+		// arity is preserved: every value is masked with '?'
+		expect(error.params.length).toBeGreaterThan(0);
+		expect(error.params.every((p) => p === '?')).toBe(true);
 	});
 });

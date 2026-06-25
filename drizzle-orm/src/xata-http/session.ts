@@ -24,6 +24,7 @@ export interface QueryResults<ArrayMode extends 'json' | 'array'> {
 export interface XataHttpSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	maskParams?: boolean;
 }
 
 export class XataHttpSession<TRelations extends AnyRelations> extends PgAsyncSession<
@@ -34,6 +35,7 @@ export class XataHttpSession<TRelations extends AnyRelations> extends PgAsyncSes
 
 	private logger: Logger;
 	private cache: Cache;
+	private maskParams: boolean;
 
 	constructor(
 		private client: XataHttpClient,
@@ -44,6 +46,7 @@ export class XataHttpSession<TRelations extends AnyRelations> extends PgAsyncSes
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.maskParams = options.maskParams ?? false;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -85,6 +88,7 @@ export class XataHttpSession<TRelations extends AnyRelations> extends PgAsyncSes
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.maskParams,
 		);
 	}
 

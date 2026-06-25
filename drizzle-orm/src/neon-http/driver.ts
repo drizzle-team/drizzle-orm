@@ -62,6 +62,7 @@ function construct<
 	const session = new NeonHttpSession(client, dialect, relations ?? {} as EmptyRelations, {
 		logger,
 		cache: config.cache,
+		maskParams: config.maskParams,
 	});
 
 	types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);

@@ -45,6 +45,7 @@ const typeConfig: CustomTypesConfig = {
 export interface NeonSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	maskParams?: boolean;
 }
 
 export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession<NeonQueryResultHKT, TRelations> {
@@ -52,6 +53,7 @@ export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession
 
 	private logger: Logger;
 	private cache: Cache;
+	private maskParams: boolean;
 
 	constructor(
 		private client: NeonClient,
@@ -62,6 +64,7 @@ export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.maskParams = options.maskParams ?? false;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -99,6 +102,7 @@ export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.maskParams,
 		);
 	}
 

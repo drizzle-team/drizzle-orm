@@ -41,6 +41,7 @@ const typeConfig: CustomTypesConfig = {
 export interface NodePgSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	maskParams?: boolean;
 }
 
 export class NodePgSession<
@@ -50,6 +51,7 @@ export class NodePgSession<
 
 	private logger: Logger;
 	private cache: Cache;
+	private maskParams: boolean;
 
 	constructor(
 		private client: NodePgClient,
@@ -60,6 +62,7 @@ export class NodePgSession<
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.maskParams = options.maskParams ?? false;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -97,6 +100,7 @@ export class NodePgSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.maskParams,
 		);
 	}
 

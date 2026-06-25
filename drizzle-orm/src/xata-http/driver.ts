@@ -39,6 +39,7 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	const session = new XataHttpSession(client, dialect, relations ?? {} as EmptyRelations, {
 		logger,
 		cache: config.cache,
+		maskParams: config.maskParams,
 	});
 
 	const db = new XataHttpDatabase(

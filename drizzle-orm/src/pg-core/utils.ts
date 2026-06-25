@@ -103,4 +103,13 @@ export function getMaterializedViewConfig<
 
 export type DrizzlePgConfig<TRelations extends AnyRelations> =
 	& Omit<DrizzleConfig<Record<string, never>, TRelations>, 'schema'>
-	& { codecs?: PgCodecs | undefined };
+	& {
+		codecs?: PgCodecs | undefined;
+		/**
+		 * When `true`, query parameter values are redacted from {@link DrizzleQueryError}
+		 * (both its message and `.params` field), so they don't leak into error reporting.
+		 *
+		 * @default false
+		 */
+		maskParams?: boolean | undefined;
+	};

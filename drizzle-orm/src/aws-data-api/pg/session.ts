@@ -22,6 +22,7 @@ export type AwsDataApiClient = RDSDataClient;
 export interface AwsDataApiSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	maskParams?: boolean;
 	database: string;
 	resourceArn: string;
 	secretArn: string;
@@ -42,6 +43,7 @@ export class AwsDataApiSession<
 	readonly rawQuery: AwsDataApiQueryBase;
 	private cache: Cache;
 	private logger: Logger;
+	private maskParams: boolean;
 
 	constructor(
 		/** @internal */
@@ -60,6 +62,7 @@ export class AwsDataApiSession<
 		};
 		this.cache = options.cache ?? new NoopCache();
 		this.logger = options.logger ?? new NoopLogger();
+		this.maskParams = options.maskParams ?? false;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig>(
@@ -139,6 +142,7 @@ export class AwsDataApiSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.maskParams,
 		);
 	}
 

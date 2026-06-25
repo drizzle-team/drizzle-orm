@@ -88,6 +88,7 @@ function construct<
 	const session = new NetlifyDbSession(httpClient, pool, dialect, relations ?? {}, {
 		logger: logger,
 		cache: config.cache,
+		maskParams: config.maskParams,
 		transactionCodecs: config.transactionCodecs ?? netlifyDbTransactionCodecs,
 	});
 

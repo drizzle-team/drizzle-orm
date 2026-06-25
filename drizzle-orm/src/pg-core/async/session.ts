@@ -43,6 +43,8 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 		} | undefined,
 		// config that was passed through $withCache
 		protected cacheConfig: WithCacheConfig | undefined,
+		// when true, redact param values from any DrizzleQueryError thrown here
+		protected maskParams = false,
 	) {
 		super(query);
 		this.mapper = mapper;
@@ -68,7 +70,7 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 				: fillPlaceholders(query.params, placeholderValues);
 			logger.logQuery(sql, params);
 			const res = executor(params).catch((e) => {
-				throw new DrizzleQueryError(sql, params, e as Error);
+				throw new DrizzleQueryError(sql, params, e as Error, this.maskParams);
 			});
 			if (!mapper) return res;
 
@@ -115,7 +117,7 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 
 		if (cacheStrat.type === 'skip') {
 			return query().catch((e) => {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw new DrizzleQueryError(queryString, params, e as Error, this.maskParams);
 			});
 		}
 
@@ -127,7 +129,7 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 				query(),
 				cache.onMutate({ tables: cacheStrat.tables }),
 			]).then((res) => res[0]).catch((e) => {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw new DrizzleQueryError(queryString, params, e as Error, this.maskParams);
 			});
 		}
 
@@ -142,7 +144,7 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 
 			if (fromCache === undefined) {
 				const result = await query().catch((e) => {
-					throw new DrizzleQueryError(queryString, params, e as Error);
+					throw new DrizzleQueryError(queryString, params, e as Error, this.maskParams);
 				});
 				// put actual key
 				await cache.put(

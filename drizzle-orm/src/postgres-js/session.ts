@@ -15,6 +15,7 @@ import type { Assume } from '~/utils.ts';
 export interface PostgresJsSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	maskParams?: boolean;
 }
 
 export class PostgresJsSession<TSQL extends Sql, TRelations extends AnyRelations>
@@ -24,6 +25,7 @@ export class PostgresJsSession<TSQL extends Sql, TRelations extends AnyRelations
 
 	logger: Logger;
 	private cache: Cache;
+	private maskParams: boolean;
 
 	constructor(
 		public client: TSQL,
@@ -35,6 +37,7 @@ export class PostgresJsSession<TSQL extends Sql, TRelations extends AnyRelations
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.maskParams = options.maskParams ?? false;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -73,6 +76,7 @@ export class PostgresJsSession<TSQL extends Sql, TRelations extends AnyRelations
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.maskParams,
 		);
 	}
 	override transaction<T>(

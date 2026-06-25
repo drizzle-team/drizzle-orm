@@ -18,6 +18,7 @@ export interface NeonHttpSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
 	authToken?: NeonAuthToken;
+	maskParams?: boolean;
 }
 
 export class NeonHttpSession<TRelations extends AnyRelations>
@@ -27,6 +28,7 @@ export class NeonHttpSession<TRelations extends AnyRelations>
 
 	private logger: Logger;
 	private cache: Cache;
+	private maskParams: boolean;
 
 	/** @internal */
 	readonly client: NeonHttpClient;
@@ -43,6 +45,7 @@ export class NeonHttpSession<TRelations extends AnyRelations>
 		// `client` is a fallback for earlier versions
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.maskParams = options.maskParams ?? false;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -78,7 +81,17 @@ export class NeonHttpSession<TRelations extends AnyRelations>
 			}).then((it: any) => it.rows);
 		};
 
-		return new PgAsyncPreparedQuery(executor, query, mapper, mode, this.logger, this.cache, queryMetadata, cacheConfig);
+		return new PgAsyncPreparedQuery(
+			executor,
+			query,
+			mapper,
+			mode,
+			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
+			this.maskParams,
+		);
 	}
 
 	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(queries: T) {

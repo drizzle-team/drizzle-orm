@@ -49,6 +49,7 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 	private clientQuery: (sql: string, params: any[], opts: Record<string, any>) => NeonQueryPromise<any, any>;
 	private logger: Logger;
 	private cache: Cache;
+	private maskParams: boolean;
 
 	constructor(
 		readonly httpClient: NeonHttpClient,
@@ -64,6 +65,7 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 		this.clientQuery = (httpClient as any).query ?? httpClient as any;
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.maskParams = options.maskParams ?? false;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -95,7 +97,17 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 			}).then((it: any) => it.rows);
 		};
 
-		return new PgAsyncPreparedQuery(executor, query, mapper, mode, this.logger, this.cache, queryMetadata, cacheConfig);
+		return new PgAsyncPreparedQuery(
+			executor,
+			query,
+			mapper,
+			mode,
+			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
+			this.maskParams,
+		);
 	}
 
 	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(queries: T) {
@@ -207,6 +219,7 @@ export class NetlifyDbWsSession<TRelations extends AnyRelations>
 
 	private logger: Logger;
 	private cache: Cache;
+	private maskParams: boolean;
 
 	constructor(
 		private client: PoolClient,
@@ -217,6 +230,7 @@ export class NetlifyDbWsSession<TRelations extends AnyRelations>
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.maskParams = options.maskParams ?? false;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -254,6 +268,7 @@ export class NetlifyDbWsSession<TRelations extends AnyRelations>
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.maskParams,
 		);
 	}
 	override async transaction<T>(

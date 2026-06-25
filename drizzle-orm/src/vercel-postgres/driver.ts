@@ -36,6 +36,7 @@ function construct<TRelations extends AnyRelations = EmptyRelations>(
 	const session = new VercelPgSession(client, dialect, relations ?? {} as EmptyRelations, {
 		logger,
 		cache: config.cache,
+		maskParams: config.maskParams,
 	});
 	const db = new VercelPgDatabase(
 		dialect,

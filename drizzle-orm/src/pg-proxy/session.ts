@@ -14,6 +14,7 @@ import type { RemoteCallback } from './driver.ts';
 export interface PgRemoteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	maskParams?: boolean;
 }
 
 export class PgRemoteSession<
@@ -23,6 +24,7 @@ export class PgRemoteSession<
 
 	private logger: Logger;
 	private cache: Cache;
+	private maskParams: boolean;
 
 	constructor(
 		private client: RemoteCallback,
@@ -33,6 +35,7 @@ export class PgRemoteSession<
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.maskParams = options.maskParams ?? false;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -61,6 +64,7 @@ export class PgRemoteSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.maskParams,
 		);
 	}
 
