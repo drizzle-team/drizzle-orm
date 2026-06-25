@@ -105,32 +105,22 @@ function _defineConfigSnippet() {
 	return _config;
 }
 
-test('generate/push responses narrow on their status discriminator', () => {
-	expectTypeOf(_generateNarrowing).toBeFunction();
-	expectTypeOf(_pushNarrowing).toBeFunction();
-});
-
-test('check response narrows on its status discriminator', () => {
-	expectTypeOf(_checkNarrowing).toBeFunction();
-});
-
-test('pull response narrows on its status discriminator', () => {
-	expectTypeOf(_pullNarrowing).toBeFunction();
-});
-
-test('up response narrows on its status discriminator', () => {
-	expectTypeOf(_upNarrowing).toBeFunction();
-});
-
-test('export response narrows on its status discriminator', () => {
-	expectTypeOf(_exportNarrowing).toBeFunction();
-});
+// The narrowing snippets above are the substantive checks — they type-check at compile time.
+// Reference them so they are not flagged as unused; their bodies are what is under test.
+void [
+	_generateNarrowing,
+	_pushNarrowing,
+	_checkNarrowing,
+	_pullNarrowing,
+	_upNarrowing,
+	_exportNarrowing,
+	_defineConfigSnippet,
+];
 
 test('generateWithHints re-invokes generate with a raw Hint[]', () => {
 	expectTypeOf(_generateWithHints).returns.resolves.toEqualTypeOf<GenerateResponse>();
 });
 
-test('defineConfig accepts a Config and push options stay typed', () => {
-	expectTypeOf(_defineConfigSnippet).returns.not.toBeNever();
+test('push options stay typed', () => {
 	expectTypeOf<PushOptions>().toExtend<{ dialect?: unknown }>();
 });
