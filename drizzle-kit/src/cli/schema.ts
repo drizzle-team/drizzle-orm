@@ -108,16 +108,16 @@ export const runGenerate = async (
 
 	if (dialect === 'postgresql') {
 		const { handle } = await import('./commands/generate-postgres');
-		return await handle(config, checkResult);
+		return await handle(config as Parameters<typeof handle>[0], checkResult);
 	} else if (dialect === 'mysql') {
 		const { handle } = await import('./commands/generate-mysql');
 		return await handle(config, checkResult);
 	} else if (dialect === 'sqlite') {
 		const { handle } = await import('./commands/generate-sqlite');
-		return await handle(config, checkResult);
+		return await handle(config as Parameters<typeof handle>[0], checkResult);
 	} else if (dialect === 'turso') {
 		const { handle } = await import('./commands/generate-libsql');
-		return await handle(config, checkResult);
+		return await handle(config as Parameters<typeof handle>[0], checkResult);
 	} else if (dialect === 'singlestore') {
 		const { handle } = await import('./commands/generate-singlestore');
 		return await handle(config);
@@ -226,9 +226,10 @@ export const runPush = async (
 			}
 		}
 
+		const { SchemaSource } = await import('../dialects/postgres/drizzle');
 		const { handle } = await import('./commands/push-postgres');
 		return await handle(
-			filenames,
+			SchemaSource.fromFilenames(filenames),
 			verbose,
 			credentials,
 			filters,
@@ -243,10 +244,11 @@ export const runPush = async (
 			? await connectToSQLite(credentials as SqliteCredentials)
 			: await connectToLibSQL(credentials as LibSQLCredentials);
 
+		const { SchemaSource } = await import('../dialects/sqlite/drizzle');
 		const { handle: sqlitePush } = await import('./commands/push-sqlite');
 		return await sqlitePush(
 			db,
-			filenames,
+			SchemaSource.fromFilenames(filenames),
 			verbose,
 			credentials,
 			filters,

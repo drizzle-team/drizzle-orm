@@ -1,6 +1,6 @@
 import { test as brotest } from '@drizzle-team/brocli';
 import { unlinkSync } from 'node:fs';
-import { afterEach, assert, expect, test, vi } from 'vitest';
+import { afterEach, assert, expect, test } from 'vitest';
 import { CheckConfig } from '../../src/cli/commands/utils';
 import { check } from '../../src/cli/schema';
 import { wrapParam } from '../../src/cli/validations/common';
@@ -98,8 +98,8 @@ test('validate config #5', async (t) => {
 
 type CheckConfigWithOutput = CheckConfig & { output: 'text' | 'json' };
 
-test('output option parses json mode', async (t) => {
-	const res = await brotest(check, `--dialect=postgresql --out=test --output=json`);
+test.each(['json', 'text'] as const)('output option parses %s mode', async (mode) => {
+	const res = await brotest(check, `--dialect=postgresql --out=test --output=${mode}`);
 
 	assert.equal(res.type, 'handler');
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
@@ -108,22 +108,7 @@ test('output option parses json mode', async (t) => {
 		dialect: 'postgresql',
 		out: 'test',
 		ignoreConflicts: undefined,
-		output: 'json',
-	};
-	expect(res.options).toStrictEqual(expected);
-});
-
-test('output option parses text mode', async (t) => {
-	const res = await brotest(check, `--dialect=postgresql --out=test --output=text`);
-
-	assert.equal(res.type, 'handler');
-	if (res.type !== 'handler') assert.fail(res.type, 'handler');
-
-	const expected: CheckConfigWithOutput = {
-		dialect: 'postgresql',
-		out: 'test',
-		ignoreConflicts: undefined,
-		output: 'text',
+		output: mode,
 	};
 	expect(res.options).toStrictEqual(expected);
 });

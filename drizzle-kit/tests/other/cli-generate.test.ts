@@ -55,6 +55,7 @@ test('generate #1', async (t) => {
 		custom: false,
 		breakpoints: true,
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'drizzle',
 		bundle: false,
 
@@ -78,6 +79,7 @@ test('generate #2', async (t) => {
 		custom: false,
 		breakpoints: true,
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'out',
 		bundle: false,
 
@@ -98,6 +100,7 @@ test('generate #3', async (t) => {
 		custom: false,
 		breakpoints: true,
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'drizzle',
 		bundle: false,
 
@@ -119,6 +122,7 @@ test('generate #4', async (t) => {
 		custom: true,
 		breakpoints: true,
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'drizzle',
 		bundle: false,
 
@@ -139,6 +143,7 @@ test('generate #5', async (t) => {
 		custom: false,
 		breakpoints: true,
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'drizzle',
 		bundle: false,
 
@@ -159,6 +164,7 @@ test('generate #6', async (t) => {
 		custom: false,
 		breakpoints: true,
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'drizzle',
 		bundle: false,
 
@@ -179,6 +185,7 @@ test('generate #7', async (t) => {
 		custom: true,
 		breakpoints: true,
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'drizzle',
 		bundle: false,
 
@@ -200,6 +207,7 @@ test('generate #8', async (t) => {
 		custom: false,
 		breakpoints: true,
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'drizzle',
 		bundle: true, // expo driver
 
@@ -220,6 +228,7 @@ test('generate #9', async (t) => {
 		custom: false,
 		breakpoints: true,
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'drizzle',
 		bundle: true, // expo driver
 
@@ -244,6 +253,7 @@ test('generate #9', async (t) => {
 		custom: true,
 		breakpoints: true,
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'out',
 		bundle: false,
 
@@ -273,6 +283,7 @@ test('generate #10 tsconfig paths', async () => {
 
 			driver: undefined,
 			filenames: [filename],
+			schemaSource: expect.anything(),
 			explain: false,
 			hints: expect.any(HintsHandler),
 		});
@@ -297,6 +308,7 @@ test('generate --explain', async (t) => {
 		custom: false,
 		breakpoints: true,
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'drizzle',
 		bundle: false,
 		driver: undefined,
@@ -375,6 +387,7 @@ test('validate config #1', async (t) => {
 	const expected: GenerateConfig = {
 		dialect: 'postgresql',
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		breakpoints: false,
 		bundle: false,
 		custom: false,
@@ -415,6 +428,7 @@ test('validate config #2', async (t) => {
 	const expected: GenerateConfig = {
 		dialect: 'postgresql',
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		breakpoints: true,
 		bundle: false,
 		custom: false,
@@ -481,6 +495,7 @@ test('validate config #5', async (t) => {
 	const expected: GenerateConfig = {
 		dialect: 'sqlite',
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		breakpoints: true,
 		bundle: false,
 		custom: false,
