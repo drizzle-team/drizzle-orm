@@ -16,7 +16,14 @@ import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
-import { explain as explainView, explainJsonOutput, humanLog, mysqlSchemaError, ProgressView } from '../views';
+import {
+	EmptyProgressView,
+	explain as explainView,
+	explainJsonOutput,
+	humanLog,
+	mysqlSchemaError,
+	ProgressView,
+} from '../views';
 import { introspect } from './pull-mysql';
 
 export const handle = async (
@@ -42,10 +49,12 @@ export const handle = async (
 	const filter = prepareEntityFilter('mysql', filters, existing);
 
 	const { db, database } = await connectToMySQL(credentials);
-	const progress = new ProgressView(
-		'Pulling schema from database...',
-		'Pulling schema from database...',
-	);
+	const progress = json
+		? new EmptyProgressView()
+		: new ProgressView(
+			'Pulling schema from database...',
+			'Pulling schema from database...',
+		);
 
 	const { schema: interimFromDB } = await introspect({ db, database, progress, filter, migrations });
 

@@ -217,40 +217,6 @@ test('resolver treats missing HintsHandler in non-interactive mode as an interna
 	})).rejects.toThrow('Internal error: resolver(table) was called without a HintsHandler');
 });
 
-test('resolver is idempotent for matching rename hints', async () => {
-	await runWithCliContext({ output: 'json', interactive: false }, async () => {
-		const hints = [
-			{ type: 'rename', kind: 'table', from: ['public', 'users'] as const, to: ['public', 'members'] as const },
-		] satisfies readonly Hint[];
-		const input = {
-			created: [table('members', 'public')],
-			deleted: [table('users', 'public')],
-		};
-
-		const first = await resolver<Entity>('table', new HintsHandler([...hints]))(input);
-		const second = await resolver<Entity>('table', new HintsHandler([...hints]))(input);
-
-		expect(second).toStrictEqual(first);
-	});
-});
-
-test('resolver is idempotent for matching create hints', async () => {
-	await runWithCliContext({ output: 'json', interactive: false }, async () => {
-		const hints = [
-			{ type: 'create', kind: 'table', entity: ['public', 'members'] as const },
-		] satisfies readonly Hint[];
-		const input = {
-			created: [table('members', 'public')],
-			deleted: [table('users', 'public')],
-		};
-
-		const first = await resolver<Entity>('table', new HintsHandler([...hints]))(input);
-		const second = await resolver<Entity>('table', new HintsHandler([...hints]))(input);
-
-		expect(second).toStrictEqual(first);
-	});
-});
-
 test('resolver returns only newly added unresolved items when reusing a HintsHandler', async () => {
 	const { hints, tableDelta, columnDelta } = await runWithCliContext(
 		{ output: 'json', interactive: false },

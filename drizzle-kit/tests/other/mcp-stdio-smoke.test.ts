@@ -54,7 +54,7 @@ describe('drizzle-kit mcp stdio smoke', () => {
 			await client.close();
 
 			const stderr = Buffer.concat(stderrChunks).toString('utf8');
-			// MCP-01: server prints a version banner to stderr at startup
+			// server prints a version banner to stderr at startup
 			expect(stderr).toMatch(/drizzle-kit\s+mcp\s+v\d/i);
 		},
 		30_000,

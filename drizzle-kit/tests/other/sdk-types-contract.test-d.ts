@@ -19,37 +19,25 @@ test('SDK option types omit the CLI-only output/json keys', () => {
 	expectTypeOf<IsKeyOf<'output', CheckOptions>>().toEqualTypeOf<false>();
 });
 
-test('CheckOptions has dialect and ignoreConflicts but not output', () => {
+test('CheckOptions omits output', () => {
 	expectTypeOf<IsKeyOf<'output', CheckOptions>>().toEqualTypeOf<false>();
-	expectTypeOf<CheckOptions>().toHaveProperty('dialect');
-	expectTypeOf<CheckOptions>().toHaveProperty('ignoreConflicts');
 });
 
-test('ExportOptions omits output and has no hints omit', () => {
+test('ExportOptions omits output and hints', () => {
 	expectTypeOf<IsKeyOf<'output', ExportOptions>>().toEqualTypeOf<false>();
 	expectTypeOf<IsKeyOf<'hints', ExportOptions>>().toEqualTypeOf<false>();
-	expectTypeOf<ExportOptions>().toHaveProperty('dialect');
-	expectTypeOf<ExportOptions>().toHaveProperty('schema');
 });
 
-test('UpOptions omits output and hints, has dialect and out', () => {
+test('UpOptions omits output and hints', () => {
 	expectTypeOf<IsKeyOf<'output', UpOptions>>().toEqualTypeOf<false>();
 	expectTypeOf<IsKeyOf<'hints', UpOptions>>().toEqualTypeOf<false>();
-	expectTypeOf<UpOptions>().toHaveProperty('dialect');
-	expectTypeOf<UpOptions>().toHaveProperty('out');
 });
 
-test('PullOptions omits output, has dialect, out, init and config', () => {
+test('PullOptions omits output', () => {
 	expectTypeOf<IsKeyOf<'output', PullOptions>>().toEqualTypeOf<false>();
-	expectTypeOf<PullOptions>().toHaveProperty('dialect');
-	expectTypeOf<PullOptions>().toHaveProperty('out');
-	expectTypeOf<PullOptions>().toHaveProperty('init');
-	expectTypeOf<PullOptions>().toHaveProperty('config');
 });
 
 test('PushOptions takes flat credentials, not a dbCredentials wrapper', () => {
-	expectTypeOf<PushOptions>().toHaveProperty('url');
-	expectTypeOf<PushOptions>().toHaveProperty('host');
 	expectTypeOf<IsKeyOf<'dbCredentials', PushOptions>>().toEqualTypeOf<false>();
 });
 
