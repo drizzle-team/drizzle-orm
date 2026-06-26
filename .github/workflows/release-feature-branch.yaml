@@ -323,7 +323,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       matrix:
-        package: [node10, node16-cjs, node16-esm, bundler]
+        package: [node16-cjs, node16-esm, bundler]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
