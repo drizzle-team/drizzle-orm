@@ -368,7 +368,6 @@ jobs:
     strategy:
       matrix:
         shard:
-          - node10
           - node16-cjs
           - node16-esm
           - bundler
