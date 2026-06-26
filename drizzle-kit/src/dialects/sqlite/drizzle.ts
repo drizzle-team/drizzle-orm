@@ -263,6 +263,22 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	return { tables: Array.from(new Set(tables)), views, relations };
 };
 
+export type PreparedSqliteSchema = Awaited<ReturnType<typeof prepareFromSchemaFiles>>;
+
+// Decouples the schema's origin (compiled `.ts` files vs. a supplied prebuilt schema) from its consumers.
+export interface SchemaSource {
+	load(): Promise<PreparedSqliteSchema>;
+}
+
+export const SchemaSource = {
+	fromFilenames(filenames: string[]): SchemaSource {
+		return { load: () => prepareFromSchemaFiles(filenames) };
+	},
+	fromSchema(schema: PreparedSqliteSchema): SchemaSource {
+		return { load: async () => schema };
+	},
+};
+
 export const defaultFromColumn = (
 	column: AnySQLiteColumn,
 ): Column['default'] => {
