@@ -273,3 +273,25 @@ test('handle unsigned numerical types', async () => {
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
+
+test('introspect smallint, mediumint, bigint, double and float columns with a zero default', async () => {
+	const schema = {
+		table: singlestoreTable('table', {
+			col1: smallint('col1').default(0),
+			col2: mediumint('col2').default(0),
+			col3: bigint('col3', { mode: 'number' }).default(0),
+			col4: double('col4').default(0),
+			col5: float('col5').default(0),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectSingleStoreToFile(
+		client,
+		schema,
+		'introspect-zero-default-numeric-columns',
+		'drizzle',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
