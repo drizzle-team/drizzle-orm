@@ -33,6 +33,7 @@ const pgImportsList = new Set([
 	'integer',
 	'bigint',
 	'boolean',
+	'bytea',
 	'text',
 	'varchar',
 	'char',
@@ -709,6 +710,10 @@ const mapDefault = (
 		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 	}
 
+	if (lowered.startsWith('bytea')) {
+		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	}
+
 	if (lowered.startsWith('double precision')) {
 		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 	}
@@ -887,6 +892,11 @@ const column = (
 
 	if (lowered.startsWith('boolean')) {
 		let out = `${withCasing(name, casing)}: boolean(${dbColumnName({ name, casing })})`;
+		return out;
+	}
+
+	if (lowered.startsWith('bytea')) {
+		let out = `${withCasing(name, casing)}: bytea(${dbColumnName({ name, casing })})`;
 		return out;
 	}
 
