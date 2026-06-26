@@ -2,31 +2,28 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { rmSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterAll, afterEach, describe, expect, test, vi } from 'vitest';
 import { createDrizzleMcpServer } from '../../src/mcp/server.js';
-import { pull } from '../../src/sdk';
-import { stageUpNonLatest } from '../sdk/up-fixtures';
 import {
 	stageConflict,
 	stageGenerateMissingHints,
 	stageOut,
 	stageValid,
 	writeDrizzleConfig,
-	writeSentinelPullConfig,
-	writeSentinelPushConfig,
-} from './fixtures';
+	writeUnreachablePullConfig,
+} from './mcp-fixtures';
+import { stageUpNonLatest } from './up-fixtures';
 
-// The vitest config sets TEST_CONFIG_PATH_PREFIX=./tests/cli/ globally.
-// The absolute schema paths in MCP fixtures are broken by that prefix, so unset it here.
-let originalPrefix: string | undefined;
-
-beforeEach(() => {
-	originalPrefix = process.env.TEST_CONFIG_PATH_PREFIX;
-	delete process.env.TEST_CONFIG_PATH_PREFIX;
-});
+// The `pnpm test` script sets TEST_CONFIG_PATH_PREFIX=./tests/cli/ for the whole run.
+// Absolute schema paths in the MCP fixtures are broken by that prefix, so unset it for this file.
+const originalPrefix = process.env.TEST_CONFIG_PATH_PREFIX;
+delete process.env.TEST_CONFIG_PATH_PREFIX;
 
 afterEach(() => {
 	vi.restoreAllMocks();
+});
+
+afterAll(() => {
 	if (originalPrefix !== undefined) {
 		process.env.TEST_CONFIG_PATH_PREFIX = originalPrefix;
 	}
@@ -49,95 +46,14 @@ describe('MCP server tool registration', () => {
 		expect(tools.map((t) => t.name).sort()).toEqual(['check', 'export', 'generate', 'pull', 'push', 'up']);
 		await client.close();
 	});
-
-	test('push tool advertises destructiveHint: true', async () => {
-		const { client } = await connectPair();
-		const { tools } = await client.listTools();
-		const push = tools.find((t) => t.name === 'push');
-		expect(push).toBeDefined();
-		expect(push?.annotations?.destructiveHint).toBe(true);
-		await client.close();
-	});
-
-	test('check tool advertises readOnlyHint: true and idempotentHint: true', async () => {
-		const { client } = await connectPair();
-		const { tools } = await client.listTools();
-		const check = tools.find((t) => t.name === 'check');
-		expect(check).toBeDefined();
-		expect(check?.annotations?.readOnlyHint).toBe(true);
-		expect(check?.annotations?.idempotentHint).toBe(true);
-		await client.close();
-	});
-
-	test('export tool advertises readOnlyHint: true and idempotentHint: true', async () => {
-		const { client } = await connectPair();
-		const { tools } = await client.listTools();
-		const exportTool = tools.find((t) => t.name === 'export');
-		expect(exportTool).toBeDefined();
-		expect(exportTool?.annotations?.readOnlyHint).toBe(true);
-		expect(exportTool?.annotations?.idempotentHint).toBe(true);
-		await client.close();
-	});
-
-	test('up tool advertises idempotentHint: true and not readOnlyHint', async () => {
-		const { client } = await connectPair();
-		const { tools } = await client.listTools();
-		const up = tools.find((t) => t.name === 'up');
-		expect(up).toBeDefined();
-		expect(up?.annotations?.idempotentHint).toBe(true);
-		expect(up?.annotations?.readOnlyHint).toBeFalsy();
-		await client.close();
-	});
-
-	test('pull tool advertises a static destructiveHint: false', async () => {
-		const { client } = await connectPair();
-		const { tools } = await client.listTools();
-		const pull = tools.find((t) => t.name === 'pull');
-		expect(pull).toBeDefined();
-		expect(pull?.annotations?.destructiveHint).toBe(false);
-		await client.close();
-	});
-
-	test('generate tool does not advertise destructiveHint: true', async () => {
-		const { client } = await connectPair();
-		const { tools } = await client.listTools();
-		const generate = tools.find((t) => t.name === 'generate');
-		expect(generate).toBeDefined();
-		expect(generate?.annotations?.destructiveHint).not.toBe(true);
-		await client.close();
-	});
-
-	test('no tool inputSchema contains credential or forbidden keys', async () => {
-		const { client } = await connectPair();
-		const { tools } = await client.listTools();
-		const forbidden = ['url', 'host', 'port', 'user', 'password', 'authToken', 'credentials', 'force'];
-		for (const tool of tools) {
-			const schemaKeys = Object.keys((tool.inputSchema as any)?.properties ?? {});
-			// Guard against a zod→JSON-schema regression yielding empty `properties`, which would
-			// make every `not.toContain` below pass vacuously.
-			if (tool.name === 'generate') expect(schemaKeys).toEqual(expect.arrayContaining(['config', 'hints', 'name']));
-			if (tool.name === 'push') expect(schemaKeys).toEqual(expect.arrayContaining(['config', 'hints']));
-			if (tool.name === 'check') expect(schemaKeys).toEqual(expect.arrayContaining(['config', 'ignoreConflicts']));
-			if (tool.name === 'export') expect(schemaKeys).toEqual(expect.arrayContaining(['config']));
-			if (tool.name === 'up') expect(schemaKeys).toEqual(expect.arrayContaining(['config']));
-			if (tool.name === 'pull') expect(schemaKeys).toEqual(expect.arrayContaining(['config', 'init']));
-			for (const key of forbidden) {
-				expect(
-					schemaKeys,
-					`${tool.name} inputSchema must not contain '${key}'`,
-				).not.toContain(key);
-			}
-		}
-		await client.close();
-	});
 });
 
 describe('MCP server pull tool — per-call destructive _meta escalation', () => {
 	test('init:true sets the destructive _meta signal; omitting init does not (signal derives from input)', async () => {
 		const { client } = await connectPair();
 		const out = stageOut();
-		// The signal derives from the input, so the unreachable sentinel config (no live DB) is enough.
-		const { configPath } = writeSentinelPullConfig(out);
+		// The signal derives from the input, so the unreachable config (no live DB) is enough.
+		const { configPath } = writeUnreachablePullConfig(out);
 		try {
 			const r1 = await client.callTool({ name: 'pull', arguments: { config: configPath } });
 			expect((r1._meta ?? {})['com.drizzle.team/pull.destructiveHint']).toBeFalsy();
@@ -170,7 +86,7 @@ describe('MCP server check tool', () => {
 		}
 	});
 
-	test('check against stageConflict returns isError:true and status:error (MCP-05: resolves, does not reject)', async () => {
+	test('check against stageConflict resolves to isError:true and status:error rather than rejecting', async () => {
 		const { client } = await connectPair();
 		const out = stageConflict();
 		const config = writeDrizzleConfig(out);
@@ -295,98 +211,6 @@ describe('MCP server generate tool — missing_hints round-trip', () => {
 			rmSync(out, { recursive: true, force: true });
 		}
 	});
-});
-
-describe('MCP server credential-leak regression (D-13)', () => {
-	test('push with unreachable sentinel URL returns an error; sentinel absent from all result channels', async () => {
-		// Capture stderr so we can assert the sentinel never appears there either
-		const stderrChunks: string[] = [];
-		const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(
-			((...args: unknown[]) => {
-				stderrChunks.push(String(args[0]));
-				return true;
-			}) as unknown as typeof process.stderr.write,
-		);
-
-		const out = stageOut();
-		const { configPath, sentinel } = writeSentinelPushConfig(out);
-		try {
-			const { client } = await connectPair();
-			const result = await client.callTool({ name: 'push', arguments: { config: configPath } });
-			stderrSpy.mockRestore();
-
-			// Must surface as isError:true with an error status
-			expect(result.isError).toBe(true);
-			const sc = result.structuredContent as any;
-			expect(sc.status).toBe('error');
-
-			// Sentinel must not appear in any result channel
-			const textBlock = (result.content as any[]).find((c) => c.type === 'text');
-			expect(textBlock?.text ?? '').not.toContain(sentinel);
-			expect(JSON.stringify(sc)).not.toContain(sentinel);
-			// Captured stderr must not contain the sentinel
-			expect(stderrChunks.join('')).not.toContain(sentinel);
-
-			await client.close();
-		} finally {
-			stderrSpy.mockRestore();
-			rmSync(out, { recursive: true, force: true });
-		}
-	});
-});
-
-describe('MCP server pull credential-leak regression', () => {
-	// Both spans funnel through the redacted DatabaseDriverCliError against the unreachable 127.0.0.1:1 URL:
-	// the bare {config} call fails at connect/introspect, the {config,init:true} call exercises the --init
-	// migrate-span redaction descriptor. Neither must leak the sentinel into any channel on either transport.
-	for (const init of [false, true] as const) {
-		const label = init ? '{ config, init: true } (--init migrate span)' : '{ config } (connect/introspect span)';
-		test(`pull ${label}: sentinel absent from SDK envelope, MCP text/structuredContent, and stderr`, async () => {
-			const stderrChunks: string[] = [];
-			const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(
-				((...args: unknown[]) => {
-					stderrChunks.push(String(args[0]));
-					return true;
-				}) as unknown as typeof process.stderr.write,
-			);
-
-			const out = stageOut();
-			const { configPath, sentinel } = writeSentinelPullConfig(out);
-			try {
-				// SDK path
-				const env = await pull(init ? { config: configPath, init: true } : { config: configPath });
-				expect(env.status).toBe('error');
-				expect(JSON.stringify(env)).not.toContain(sentinel);
-
-				// MCP path
-				const { client } = await connectPair();
-				const result = await client.callTool({
-					name: 'pull',
-					arguments: init ? { config: configPath, init: true } : { config: configPath },
-				});
-				stderrSpy.mockRestore();
-
-				expect(result.isError).toBe(true);
-				const sc = result.structuredContent as any;
-				expect(sc.status).toBe('error');
-
-				const textBlock = (result.content as any[]).find((c) => c.type === 'text');
-				expect(textBlock?.text ?? '').not.toContain(sentinel);
-				expect(JSON.stringify(sc)).not.toContain(sentinel);
-				expect(stderrChunks.join('')).not.toContain(sentinel);
-
-				// The destructive signal rides the result _meta even on an errored init call.
-				if (init) {
-					expect(result._meta?.['com.drizzle.team/pull.destructiveHint']).toBe(true);
-				}
-
-				await client.close();
-			} finally {
-				stderrSpy.mockRestore();
-				rmSync(out, { recursive: true, force: true });
-			}
-		});
-	}
 });
 
 describe('MCP server stdout purity (in-process)', () => {

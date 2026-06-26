@@ -17,6 +17,7 @@ import type {
 import { createDDL, interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
+import type { SchemaSource } from '../../dialects/postgres/drizzle';
 import { prepareSnapshot } from '../../dialects/postgres/serializer';
 import { prepareOutFolder } from '../../utils/utils-node';
 import { outputFormat } from '../context';
@@ -28,16 +29,17 @@ import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (
-	config: GenerateConfig,
+	config: GenerateConfig<SchemaSource>,
 	checkResult?: CheckHandlerResult,
 ) => {
-	const { out: outFolder, filenames } = config;
+	const { out: outFolder } = config;
 	const json = outputFormat() === 'json';
 
 	const { snapshots } = prepareOutFolder(outFolder);
+	const prepared = await config.schemaSource.load();
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(
 		snapshots,
-		filenames,
+		prepared,
 		checkResult,
 	);
 

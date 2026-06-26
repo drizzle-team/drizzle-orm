@@ -28,7 +28,14 @@ import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/common';
 import type { MssqlCredentials } from '../validations/mssql';
-import { explain as explainView, explainJsonOutput, humanLog, mssqlSchemaError, ProgressView } from '../views';
+import {
+	EmptyProgressView,
+	explain as explainView,
+	explainJsonOutput,
+	humanLog,
+	mssqlSchemaError,
+	ProgressView,
+} from '../views';
 
 export const handle = async (
 	filenames: string[],
@@ -62,7 +69,9 @@ export const handle = async (
 		});
 	}
 
-	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
+	const progress = json
+		? new EmptyProgressView()
+		: new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
 	const { schema: schemaFrom } = await introspect(db, filter, progress, migrations);
 
 	const { ddl: ddl1 } = interimToDDL(schemaFrom);
