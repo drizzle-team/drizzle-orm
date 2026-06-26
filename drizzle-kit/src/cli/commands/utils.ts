@@ -1,7 +1,6 @@
 import chalk from 'chalk';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
-import { inspect } from 'util';
 import { object, string } from 'zod';
 import { assertUnreachable, type Journal } from '../../utils';
 import { type Dialect, dialect } from '../../utils/schemaValidator';
@@ -960,7 +959,7 @@ export const drizzleConfigFromFile = async (
 	// --- get response and then check by each dialect independently
 	const res = configCommonSchema.safeParse(content);
 	if (!res.success) {
-		throw new ConfigValidationCliError(inspect(res.error), res.error.issues as never, { cause: res.error });
+		throw new ConfigValidationCliError(res.error.message, res.error.issues as never, { cause: res.error });
 	}
 
 	return res.data;
