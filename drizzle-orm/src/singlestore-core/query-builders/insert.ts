@@ -34,7 +34,7 @@ export type AnySingleStoreInsertConfig = SingleStoreInsertConfig<SingleStoreTabl
 
 export type SingleStoreInsertValue<TTable extends SingleStoreTable> =
 	& {
-		[Key in keyof TTable['$inferInsert']]: TTable['$inferInsert'][Key] | SQL | Placeholder;
+		[Key in keyof TTable['$inferInsert']]: TTable['$inferInsert'][Key] | Readonly<TTable['$inferInsert'][Key]> | SQL | Placeholder;
 	}
 	& {};
 

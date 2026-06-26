@@ -38,7 +38,7 @@ export type AnyMySqlInsertConfig = MySqlInsertConfig<MySqlTable>;
 
 export type MySqlInsertValue<TTable extends MySqlTable> =
 	& {
-		[Key in keyof TTable['$inferInsert']]: TTable['$inferInsert'][Key] | SQL | Placeholder;
+		[Key in keyof TTable['$inferInsert']]: TTable['$inferInsert'][Key] | Readonly<TTable['$inferInsert'][Key]> | SQL | Placeholder;
 	}
 	& {};
 
