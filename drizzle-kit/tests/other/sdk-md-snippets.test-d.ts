@@ -1,7 +1,8 @@
 import { expectTypeOf, test } from 'vitest';
+import { check, exportSql, generate, pull, push, up } from '../../src/cli-sdk';
 import type { GenerateOptions, PushOptions } from '../../src/cli/contract';
 import type { Hint } from '../../src/cli/hints';
-import { check, defineConfig, exportSql, generate, pull, push, up } from '../../src/index';
+import { defineConfig } from '../../src/index';
 import type { Config } from '../../src/index';
 
 type GenerateResponse = Awaited<ReturnType<typeof generate>>;

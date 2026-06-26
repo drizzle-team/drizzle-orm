@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join, resolve } from 'path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { check, exportSql, generate, pull, push, up } from '../../src/sdk';
+import { check, exportSql, generate, pull, push, up } from '../../src/cli-sdk';
 import { stageValid } from './check-fixtures';
 import { stageUpNonLatest } from './up-fixtures';
 
