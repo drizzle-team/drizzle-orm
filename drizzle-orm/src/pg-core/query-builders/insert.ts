@@ -43,13 +43,17 @@ export type PgInsertValue<
 	}
 	& {};
 
-export type PgInsertSelection<TTable extends PgTable<TableConfig>, OverrideT extends boolean = false> =
+export type PgInsertSelection<
+	TTable extends PgTable<TableConfig>,
+	OverrideT extends boolean = false,
+	TModel extends Record<string, unknown> = InferInsertModel<TTable, { override: OverrideT }>,
+> =
 	& {
-		[K in keyof InferInsertModel<TTable, { override: OverrideT }>]:
+		[K in keyof TModel]:
 			| AnyPgColumn
 			| SQL
 			| SQL.Aliased
-			| InferInsertModel<TTable, { override: OverrideT }>[K];
+			| TModel[K];
 	}
 	& {};
 

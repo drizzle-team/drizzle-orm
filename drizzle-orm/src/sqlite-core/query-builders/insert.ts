@@ -9,7 +9,7 @@ import type { SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { Subquery } from '~/subquery.ts';
 import { type InferInsertModel, Table } from '~/table.ts';
-import { type Assume, type DrizzleTypeError, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils.ts';
+import { type Assume, type DrizzleTypeError, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
 import type { AnySQLiteColumn, SQLiteColumn } from '../columns/common.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
@@ -27,19 +27,22 @@ export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 export type SQLiteInsertValue<
 	TTable extends SQLiteTable,
 	TModel extends Record<string, any> = InferInsertModel<TTable>,
-> = Simplify<
-	{
+> =
+	& {
 		[Key in keyof TModel]: TModel[Key] | SQL | Placeholder;
 	}
->;
+	& {};
 
-export type SQLiteInsertSelection<TTable extends SQLiteTable> =
+export type SQLiteInsertSelection<
+	TTable extends SQLiteTable,
+	TModel extends Record<string, unknown> = InferInsertModel<TTable>,
+> =
 	& {
-		[K in keyof InferInsertModel<TTable>]:
+		[K in keyof TModel]:
 			| AnySQLiteColumn
 			| SQL
 			| SQL.Aliased
-			| InferInsertModel<TTable>[K];
+			| TModel[K];
 	}
 	& {};
 
