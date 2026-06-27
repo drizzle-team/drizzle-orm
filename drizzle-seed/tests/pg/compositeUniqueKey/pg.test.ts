@@ -164,4 +164,46 @@ test('composite unique includes a fk column', async ({ db, push }) => {
 
 	expect(composite.length).toBe(1000);
 });
+/**
+ * @see https://github.com/drizzle-team/drizzle-orm/issues/5919
+ */
+test('shared column in two composite unique constraints (#5919)', async ({ db, push }) => {
+	const currSchema = { sharedColumnInTwoComposites: schema.sharedColumnInTwoComposites };
+	await push(currSchema);
+
+	// Default generators — no .refine(). Used to throw "Currently, multiple
+	// composite unique keys that share the same column are not supported."
+	await seed(db, currSchema, { count: 16 });
+	let rows = await db.select().from(schema.sharedColumnInTwoComposites);
+	expect(rows.length).toBe(16);
+
+	// Both composite uniques must hold: PostgreSQL would have rejected the
+	// INSERTs otherwise. Sanity-check on the seed output too.
+	const orgIdAndId = new Set(rows.map((r) => `${r.orgId}|${r.id}`));
+	const orgIdAndName = new Set(rows.map((r) => `${r.orgId}|${r.name}`));
+	expect(orgIdAndId.size).toBe(16);
+	expect(orgIdAndName.size).toBe(16);
+	await reset(db, currSchema);
+
+	// Mixed-cardinality refine: small set of org IDs reused across many rows,
+	// distinct id / name per row. This is the multi-tenant shape the reporter
+	// filed against, and the throw used to fire before .refine() was applied.
+	await seed(db, currSchema, { count: 12 }).refine((funcs) => ({
+		sharedColumnInTwoComposites: {
+			columns: {
+				orgId: funcs.valuesFromArray({ values: [1, 2, 3] }),
+				id: funcs.valuesFromArray({ values: [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21] }),
+				name: funcs.valuesFromArray({
+					values: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l'],
+				}),
+			},
+		},
+	}));
+	rows = await db.select().from(schema.sharedColumnInTwoComposites);
+	expect(rows.length).toBe(12);
+	expect(new Set(rows.map((r) => `${r.orgId}|${r.id}`)).size).toBe(12);
+	expect(new Set(rows.map((r) => `${r.orgId}|${r.name}`)).size).toBe(12);
+	await reset(db, currSchema);
+});
+
 // TODO add test with composite foreign key
