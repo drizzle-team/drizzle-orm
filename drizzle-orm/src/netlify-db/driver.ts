@@ -12,6 +12,7 @@ import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { isConfig, jitCompatCheck } from '~/utils.ts';
 import { netlifyDbCodecs, netlifyDbTransactionCodecs } from './codecs.ts';
+import { createRefreshingNeonHttpClient, resolveNetlifyDbUrl } from './connection.ts';
 import { type NetlifyDbClient, NetlifyDbSession } from './session.ts';
 
 export interface ServerlessDrizzleClient {
@@ -210,10 +211,13 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 		const driver = process.env['NETLIFY_DB_DRIVER'];
 
 		if (driver === 'server') {
+			// Long-running server driver: the connection string is resolved once.
 			return drizzleNodePg({ connection: connectionString, ...drizzleConfig }) as any;
 		}
 
-		const httpClient = neon(connectionString);
+		// The HTTP client re-resolves NETLIFY_DB_URL per query instead of pinning
+		// it here, so rotated credentials are picked up automatically.
+		const httpClient = createRefreshingNeonHttpClient(resolveNetlifyDbUrl);
 		const pool = new Pool({ connectionString });
 		return construct(httpClient, pool, drizzleConfig) as any;
 	}
