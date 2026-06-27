@@ -117,7 +117,7 @@ export class PgEffectUpdateBase<
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgEffectUpdatePrepare<this, TEffectHKT> {
-		const { session, config, dialect, joinsNotNullableMap, cacheConfig } = this;
+		const { session, config, dialect, joinsNotNullableMap } = this;
 		const { returning: fields } = config;
 
 		const query = dialect.sqlToQuery(this.getSQL());
@@ -131,7 +131,6 @@ export class PgEffectUpdateBase<
 			name ?? generateName,
 			mapper,
 			{ type: 'update', tables: [...extractUsedTable(this.config.table)] },
-			cacheConfig,
 		);
 
 		return preparedQuery;

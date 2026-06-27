@@ -84,7 +84,7 @@ export const usersView = snakeCase.view('users_view').as((qb) =>
 		...getTableColumns(usersTable),
 		postContent: postsTable.content,
 		createdAt: postsTable.createdAt,
-		counter: sql<string>`(select count(*) from ${usersTable} as ${alias(usersTable, 'count_source')} where ${
+		counter: sql<string | number>`(select count(*) from ${usersTable} as ${alias(usersTable, 'count_source')} where ${
 			ne(usersTable.id, 2)
 		})`
 			.mapWith((data) => {
@@ -144,7 +144,7 @@ export const schemaUsersView = rqbSchema.view('users_sch_view').as((qb) =>
 		...getTableColumns(schemaUsers),
 		postContent: schemaPosts.content,
 		createdAt: schemaPosts.createdAt,
-		counter: sql<string>`(select count(*) from ${schemaUsers} as ${alias(schemaUsers, 'count_source')} where ${
+		counter: sql<string | number>`(select count(*) from ${schemaUsers} as ${alias(schemaUsers, 'count_source')} where ${
 			ne(schemaUsers.id, 2)
 		})`
 			.mapWith((data) => {

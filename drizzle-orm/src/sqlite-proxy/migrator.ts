@@ -8,8 +8,8 @@ import type { SqliteRemoteDatabase } from './driver.ts';
 
 export type ProxyMigrator = (migrationQueries: string[]) => Promise<void>;
 
-export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: SqliteRemoteDatabase<TSchema, TRelations>,
+export async function migrate<TRelations extends AnyRelations>(
+	db: SqliteRemoteDatabase<TRelations>,
 	callback: ProxyMigrator,
 	config: MigrationConfig,
 ) {

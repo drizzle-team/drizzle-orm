@@ -37,6 +37,7 @@ test('imports-issues', () => {
 			'@hono/*',
 			'crypto',
 			'hanji',
+			'hanji/utils',
 			'chalk',
 			'dotenv/config',
 			'camelcase',

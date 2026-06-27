@@ -1,6 +1,6 @@
 {
 	"name": "eslint-plugin-drizzle",
-	"version": "1.0.0-rc.3",
+	"version": "1.0.0-rc.4",
 	"description": "Eslint plugin for drizzle users to avoid common pitfalls",
 	"main": "src/index.js",
 	"scripts": {
@@ -30,7 +30,7 @@
 		"@typescript-eslint/utils": "^6.10.0",
 		"cpy-cli": "^5.0.0",
 		"eslint": "^8.53.0",
-		"typescript": "^5.9.2"
+		"typescript": "5.9.3"
 	},
 	"peerDependencies": {
 		"eslint": ">=8.0.0"

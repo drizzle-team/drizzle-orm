@@ -1,4 +1,3 @@
-import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { IndexColumn } from '~/pg-core/indexes.ts';
@@ -7,12 +6,12 @@ import type { PgTable, TableConfig } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, Placeholder, Query, SqlCommenterInput, SQLWrapper } from '~/sql/sql.ts';
+import type { ColumnsSelection, CommentInput, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { InferInsertModel } from '~/table.ts';
-import { getTableName, Table, TableColumns } from '~/table.ts';
-import { type Assume, haveSameKeys, mapUpdateSet, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
+import { getTableName, Table } from '~/table.ts';
+import { type Assume, type DrizzleTypeError, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
 import type { AnyPgColumn, PgColumn } from '../columns/common.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
@@ -20,7 +19,7 @@ import type { PgUpdateSetSource } from './update.ts';
 
 export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	table: TTable;
-	values: Record<string, Param | SQL>[] | PgInsertSelectQueryBuilder<TTable> | SQL;
+	values: Record<string, Param | SQL>[] | TypedQueryBuilder<PgInsertSelection<TTable>> | SQL;
 	withList?: Subquery[];
 	onConflict?: SQL;
 	returningFields?: SelectedFieldsFlat;
@@ -34,7 +33,7 @@ export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 export type PgInsertValue<
 	TTable extends PgTable<TableConfig>,
 	OverrideT extends boolean = false,
-	TModel extends Record<string, any> = InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>,
+	TModel extends Record<string, any> = InferInsertModel<TTable, { override: OverrideT }>,
 > =
 	& {
 		[Key in keyof TModel]:
@@ -44,12 +43,35 @@ export type PgInsertValue<
 	}
 	& {};
 
-export type PgInsertSelectQueryBuilder<
-	TTable extends PgTable,
-	TModel extends Record<string, any> = InferInsertModel<TTable>,
-> = TypedQueryBuilder<
-	{ [K in keyof TModel]: AnyPgColumn | SQL | SQL.Aliased | TModel[K] }
->;
+export type PgInsertSelection<
+	TTable extends PgTable<TableConfig>,
+	OverrideT extends boolean = false,
+	TModel extends Record<string, unknown> = InferInsertModel<TTable, { override: OverrideT }>,
+> =
+	& {
+		[K in keyof TModel]:
+			| AnyPgColumn
+			| SQL
+			| SQL.Aliased
+			| TModel[K];
+	}
+	& {};
+
+export type NoUnknownKeysInInsertSelection<
+	TTable extends PgTable<TableConfig>,
+	TSelection extends PgInsertSelection<any, any>,
+	OverrideT extends boolean = false,
+> = {
+	[K in keyof TSelection]: K extends keyof InferInsertModel<TTable, { override: OverrideT }> ? TSelection[K]
+		: K extends keyof InferInsertModel<TTable, { override: true }> ? DrizzleTypeError<
+				`Column "${
+					& K
+					& string}" in table "${TTable['_'][
+					'name'
+				]}" is a generated column. Use \`.overridingSystemValue()\` to manually insert into this column`
+			>
+		: DrizzleTypeError<`Column "${K & string}" does not exist in table "${TTable['_']['name']}"`>;
+};
 
 export interface PgInsertBuilderConstructor {
 	new(
@@ -80,14 +102,6 @@ export class PgInsertBuilder<
 		private builder: PgInsertBuilderConstructor = PgInsertBase,
 	) {}
 
-	/** @internal */
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
-	}
-
 	overridingSystemValue(): Omit<PgInsertBuilder<TTable, TQueryResult, true, TBuilderHKT>, 'overridingSystemValue'> {
 		this.overridingSystemValue_ = true;
 		return this as any;
@@ -107,7 +121,7 @@ export class PgInsertBuilder<
 			const cols = this.table[Table.Symbol.Columns];
 			for (const colKey of Object.keys(entry)) {
 				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue, cols[colKey]);
+				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue as any, cols[colKey]);
 			}
 			return result;
 		});
@@ -122,42 +136,50 @@ export class PgInsertBuilder<
 			this.overridingSystemValue_,
 		);
 
-		if ('setToken' in builder) {
-			(builder.setToken as (authToken?: NeonAuthToken) => typeof builder)(this.authToken);
-		}
-
 		return builder as any;
 	}
 
-	select(
-		selectQuery: (qb: QueryBuilder) => PgInsertSelectQueryBuilder<TTable>,
+	select<TSelection extends PgInsertSelection<TTable, OverrideT>>(
+		selectQuery: (qb: QueryBuilder) => TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection, OverrideT>>,
 	): PgInsertKind<TBuilderHKT, TTable, TQueryResult>;
 	select(selectQuery: (qb: QueryBuilder) => SQL): PgInsertKind<TBuilderHKT, TTable, TQueryResult>;
 	select(selectQuery: SQL): PgInsertBase<TBuilderHKT, TTable, TQueryResult>;
-	select(selectQuery: PgInsertSelectQueryBuilder<TTable>): PgInsertKind<TBuilderHKT, TTable, TQueryResult>;
+	select<TSelection extends PgInsertSelection<TTable, OverrideT>>(
+		selectQuery: TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection, OverrideT>>,
+	): PgInsertKind<TBuilderHKT, TTable, TQueryResult>;
 	select(
 		selectQuery:
 			| SQL
-			| PgInsertSelectQueryBuilder<TTable>
-			| ((qb: QueryBuilder) => PgInsertSelectQueryBuilder<TTable> | SQL),
+			| TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, PgInsertSelection<TTable, OverrideT>, OverrideT>>
+			| ((qb: QueryBuilder) =>
+				| TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, PgInsertSelection<TTable, OverrideT>, OverrideT>>
+				| SQL),
 	): PgInsertKind<TBuilderHKT, TTable, TQueryResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
 		if ('withoutSelectionCastCodecs' in select) select.withoutSelectionCastCodecs();
 
-		if (
-			!is(select, SQL)
-			&& !haveSameKeys(this.table[TableColumns], select._.selectedFields)
-		) {
-			throw new Error(
-				'Insert select error: selected fields are not the same or are in a different order compared to the table definition',
-			);
+		if (!is(select, SQL)) {
+			const insertCols = Object.keys(this.table[Table.Symbol.Columns]);
+			const selected = Object.keys(select._.selectedFields);
+
+			for (const col of selected) {
+				if (!insertCols.includes(col)) {
+					throw new Error(
+						`Insert select error: column "${col}" does not exist in table "${this.table[Table.Symbol.Name]}"`,
+					);
+				}
+			}
 		}
 
-		const builder = new this.builder(this.table, select, this.session, this.dialect, this.withList, true) as any;
-
-		if ('setToken' in builder) {
-			(builder.setToken as (authToken?: NeonAuthToken) => typeof builder)(this.authToken);
-		}
+		const builder = new this.builder(
+			this.table,
+			select,
+			this.session,
+			this.dialect,
+			this.withList,
+			true,
+			this.overridingSystemValue_,
+		) as any;
 
 		return builder as any;
 	}
@@ -330,7 +352,6 @@ export class PgInsertBase<
 	static readonly [entityKind]: string = 'PgInsert';
 
 	protected config: PgInsertConfig<TTable>;
-	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		table: TTable,
@@ -473,7 +494,7 @@ export class PgInsertBase<
 	/**
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
-	comment(comment: SqlCommenterInput): PgInsertWithout<this, TDynamic, 'comment'> {
+	comment(comment: CommentInput): PgInsertWithout<this, TDynamic, 'comment'> {
 		this.config.comment = sql.comment(comment);
 		return this as any;
 	}

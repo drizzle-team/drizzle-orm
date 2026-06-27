@@ -1,4 +1,3 @@
-import Docker from 'dockerode';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import {
 	and,
@@ -83,7 +82,6 @@ import {
 	varbit,
 	varchar,
 } from 'drizzle-orm/cockroach-core';
-import getPort from 'get-port';
 import { v4 as uuidV4 } from 'uuid';
 import { afterAll, afterEach, beforeEach, describe, expect, expectTypeOf, test } from 'vitest';
 import { Expect } from '~/utils';
@@ -322,44 +320,15 @@ const jsonTestTable = cockroachTable('jsontest', {
 	jsonb: jsonb('jsonb').$type<{ string: string; number: number }>(),
 });
 
-let cockroachContainer: Docker.Container;
-
-export async function createDockerDB(): Promise<{
-	connectionString: string;
-	container: Docker.Container;
-}> {
-	const docker = new Docker();
-	const port = await getPort({ port: 26257 });
-	const image = 'cockroachdb/cockroach:v24.1.0';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => err ? reject(err) : resolve(err))
-	);
-
-	cockroachContainer = await docker.createContainer({
-		Image: image,
-		Cmd: ['start-single-node', '--insecure'],
-		name: `drizzle-integration-tests-${uuidV4()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'26257/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await cockroachContainer.start();
-
-	return {
-		connectionString: `postgresql://root@127.0.0.1:${port}/defaultdb?sslmode=disable`,
-		container: cockroachContainer,
-	};
+export function requireCockroachConnectionString(): string {
+	const url = process.env['COCKROACH_CONNECTION_STRING'];
+	if (!url) {
+		throw new Error(
+			'COCKROACH_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up cockroach` and export the connection string before running tests.',
+		);
+	}
+	return url;
 }
-
-afterAll(async () => {
-	await cockroachContainer?.stop().catch(console.error);
-});
 
 export function tests() {
 	describe('common', () => {
@@ -6178,16 +6147,69 @@ export function tests() {
 				)
 			`);
 
-			expect(() =>
-				db.insert(users1).select(
-					db
-						.select({
-							name: users2.name,
-							id: users2.id,
-						})
-						.from(users2),
+			await db.insert(users2).values({ id: 1, name: 'First' });
+			const res = await db.insert(users1).select(
+				db
+					.select({
+						name: users2.name,
+						id: users2.id,
+					})
+					.from(users2),
+			).returning();
+
+			expect(res).toStrictEqual([{
+				id: 1,
+				name: 'First',
+			}]);
+		});
+
+		test('insert into ... select with generated column', async (ctx) => {
+			const { db } = ctx.cockroach;
+
+			const users1 = cockroachTable('users1_iswgc', {
+				id: int4('id').generatedAlwaysAsIdentity().primaryKey(),
+				name: text('name').notNull(),
+			});
+			const users2 = cockroachTable('users2_iswgc', {
+				id: int4('id').generatedAlwaysAsIdentity().primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists users1_iswgc`);
+			await db.execute(sql`drop table if exists users2_iswgc`);
+			await db.execute(sql`
+				create table users1_iswgc (
+					id int4 primary key generated always as identity,
+					name text not null
 				)
-			).toThrowError();
+			`);
+			await db.execute(sql`
+				create table users2_iswgc (
+					id int4 primary key generated always as identity,
+					name text not null
+				)
+			`);
+
+			await db.insert(users1).values([
+				{ name: 'Alice' },
+				{ name: 'Bob' },
+				{ name: 'Charlie' },
+			]);
+
+			const result1 = await db.insert(users2).select(db.select({ name: users1.name }).from(users1))
+				.returning();
+
+			expect(result1).toStrictEqual([
+				{ id: 1, name: 'Alice' },
+				{ id: 2, name: 'Bob' },
+				{ id: 3, name: 'Charlie' },
+			]);
+
+			// @ts-expect-error
+			db.insert(users2).select(db.select({ name: users1.name, id: users1.id }).from(users1));
+			// @ts-expect-error
+			expect(() => db.insert(users2).select(db.select({ name: users1.name, unknown: users1.id }).from(users1)))
+				.toThrowError();
 		});
 
 		test('policy', () => {
@@ -7643,7 +7665,7 @@ export function tests() {
 			});
 		});
 
-		test.skipIf(Date.now() < +new Date('2026-06-20'))('Query error wrapping', async ({ cockroach: { db } }) => {
+		test.skipIf(Date.now() < +new Date('2026-07-01'))('Query error wrapping', async ({ cockroach: { db } }) => {
 			await expect(db.insert(users2Table).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]))
 				.rejects.toBeInstanceOf(DrizzleQueryError);
 		});

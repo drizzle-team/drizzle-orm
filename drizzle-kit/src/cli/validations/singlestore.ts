@@ -1,6 +1,7 @@
 import type { TypeOf } from 'zod';
 import { boolean, coerce, object, string, union } from 'zod';
-import { error } from '../views';
+import { ConfigConnectionCliError } from '../errors';
+import { error, humanLog } from '../views';
 import { wrapParam } from './common';
 import { outputs } from './outputs';
 
@@ -36,27 +37,37 @@ export const printCliConnectionIssues = (options: any) => {
 	const { uri, host, database } = options || {};
 
 	if (!uri && (!host || !database)) {
-		console.log(outputs.singlestore.connection.required());
+		humanLog(outputs.singlestore.connection.required());
 	}
 };
 
 export const printConfigConnectionIssues = (
 	options: Record<string, unknown>,
-) => {
+): never => {
 	if ('url' in options) {
 		let text = `Please provide required params for SingleStore driver:\n`;
-		console.log(error(text));
-		console.log(wrapParam('url', options.url, false, 'url'));
-		process.exit(1);
+		throw new ConfigConnectionCliError(
+			'singlestore',
+			['url'],
+			[
+				error(text),
+				wrapParam('url', options.url, false, 'url'),
+			].join('\n'),
+		);
 	}
 
 	let text = `Please provide required params for SingleStore driver:\n`;
-	console.log(error(text));
-	console.log(wrapParam('host', options.host));
-	console.log(wrapParam('port', options.port, true));
-	console.log(wrapParam('user', options.user, true));
-	console.log(wrapParam('password', options.password, true, 'secret'));
-	console.log(wrapParam('database', options.database));
-	console.log(wrapParam('ssl', options.ssl, true));
-	process.exit(1);
+	throw new ConfigConnectionCliError(
+		'singlestore',
+		['host', 'database'],
+		[
+			error(text),
+			wrapParam('host', options.host),
+			wrapParam('port', options.port, true),
+			wrapParam('user', options.user, true),
+			wrapParam('password', options.password, true, 'secret'),
+			wrapParam('database', options.database),
+			wrapParam('ssl', options.ssl, true),
+		].join('\n'),
+	);
 };

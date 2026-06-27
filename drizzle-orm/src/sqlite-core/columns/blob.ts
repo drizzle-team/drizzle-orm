@@ -180,11 +180,11 @@ export function blob<TMode extends BlobMode = BlobMode>(
 	: SQLiteBlobJsonBuilder;
 export function blob(a?: string | BlobConfig, b?: BlobConfig) {
 	const { name, config } = getColumnNameAndConfig<BlobConfig | undefined>(a, b);
-	if (config?.mode === 'json') {
-		return new SQLiteBlobJsonBuilder(name);
-	}
 	if (config?.mode === 'bigint') {
 		return new SQLiteBigIntBuilder(name);
 	}
-	return new SQLiteBlobBufferBuilder(name);
+	if (config?.mode === 'buffer') {
+		return new SQLiteBlobBufferBuilder(name);
+	}
+	return new SQLiteBlobJsonBuilder(name);
 }

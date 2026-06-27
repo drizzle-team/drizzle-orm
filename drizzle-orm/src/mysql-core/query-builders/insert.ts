@@ -1,32 +1,22 @@
-import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import type {
-	AnyMySqlQueryResultHKT,
-	MySqlPreparedQuery,
-	MySqlPreparedQueryConfig,
-	MySqlQueryResultHKT,
-	MySqlQueryResultKind,
-	MySqlSession,
-} from '~/mysql-core/session.ts';
+import type { AnyMySqlQueryResultHKT, MySqlQueryResultHKT, MySqlQueryResultKind } from '~/mysql-core/session.ts';
+import type { MySqlSession } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import { QueryPromise } from '~/query-promise.ts';
-import type { RunnableQuery } from '~/runnable-query.ts';
-import type { Placeholder, Query, SqlCommenterInput, SQLWrapper } from '~/sql/sql.ts';
+import type { CommentInput, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
 import type { InferInsertModel, InferModelFromColumns } from '~/table.ts';
-import { Table, TableColumns } from '~/table.ts';
-import { haveSameKeys, mapUpdateSet } from '~/utils.ts';
+import { Table } from '~/table.ts';
+import { type Assume, type DrizzleTypeError, mapUpdateSet } from '~/utils.ts';
 import type { AnyMySqlColumn } from '../columns/common.ts';
-import { extractUsedTable } from '../utils.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 import type { MySqlUpdateSetSource } from './update.ts';
 
 export interface MySqlInsertConfig<TTable extends MySqlTable = MySqlTable> {
 	table: TTable;
-	values: Record<string, Param | SQL>[] | MySqlInsertSelectQueryBuilder<TTable> | SQL;
+	values: Record<string, Param | SQL>[] | TypedQueryBuilder<MySqlInsertSelection<TTable>> | SQL;
 	ignore: boolean;
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
@@ -45,16 +35,49 @@ export type MySqlInsertValue<
 	}
 	& {};
 
-export type MySqlInsertSelectQueryBuilder<
+export type MySqlInsertSelection<
 	TTable extends MySqlTable,
-	TModel extends Record<string, any> = InferInsertModel<TTable>,
-> = TypedQueryBuilder<
-	{ [K in keyof TModel]: AnyMySqlColumn | SQL | SQL.Aliased | TModel[K] }
->;
+	TModel extends Record<string, unknown> = InferInsertModel<TTable>,
+> =
+	& {
+		[K in keyof TModel]:
+			| AnyMySqlColumn
+			| SQL
+			| SQL.Aliased
+			| TModel[K];
+	}
+	& {};
+
+export type NoUnknownKeysInInsertSelection<
+	TTable extends MySqlTable,
+	TSelection extends MySqlInsertSelection<any>,
+> = {
+	[K in keyof TSelection]: K extends keyof InferInsertModel<TTable> ? TSelection[K]
+		: K extends keyof InferInsertModel<TTable, { override: true }> ? DrizzleTypeError<
+				`Column "${
+					& K
+					& string}" in table "${TTable['_'][
+					'name'
+				]}" is a generated column - manual value insertion restricted`
+			>
+		: DrizzleTypeError<`Column "${K & string}" does not exist in table "${TTable['_']['name']}"`>;
+};
+
+export interface MySqlInsertBuilderConstructor {
+	new(
+		table: MySqlTable,
+		values: MySqlInsertConfig['values'],
+		ignore: boolean,
+		session: MySqlSession,
+		dialect: MySqlDialect,
+		select?: boolean,
+	): AnyMySqlInsert;
+}
 
 export class MySqlInsertBuilder<
 	TTable extends MySqlTable,
 	TQueryResult extends MySqlQueryResultHKT,
+	TBuilderHKT extends MySqlInsertHKTBase = MySqlInsertHKT,
 > {
 	static readonly [entityKind]: string = 'MySqlInsertBuilder';
 
@@ -64,6 +87,7 @@ export class MySqlInsertBuilder<
 		private table: TTable,
 		private session: MySqlSession,
 		private dialect: MySqlDialect,
+		private builder: MySqlInsertBuilderConstructor = MySqlInsertBase as unknown as MySqlInsertBuilderConstructor,
 	) {}
 
 	ignore(): this {
@@ -71,11 +95,11 @@ export class MySqlInsertBuilder<
 		return this;
 	}
 
-	values(value: MySqlInsertValue<TTable>): MySqlInsertBase<TTable, TQueryResult>;
-	values(values: MySqlInsertValue<TTable>[]): MySqlInsertBase<TTable, TQueryResult>;
+	values(value: MySqlInsertValue<TTable>): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult>;
+	values(values: MySqlInsertValue<TTable>[]): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult>;
 	values(
 		values: MySqlInsertValue<TTable> | MySqlInsertValue<TTable>[],
-	): MySqlInsertBase<TTable, TQueryResult> {
+	): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult> {
 		values = Array.isArray(values) ? values : [values];
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
@@ -85,68 +109,71 @@ export class MySqlInsertBuilder<
 			const cols = this.table[Table.Symbol.Columns];
 			for (const colKey of Object.keys(entry)) {
 				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue, cols[colKey]);
+				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue as any, cols[colKey]);
 			}
 			return result;
 		});
 
-		return new MySqlInsertBase(this.table, mappedValues, this.shouldIgnore, this.session, this.dialect);
+		return new this.builder(this.table, mappedValues, this.shouldIgnore, this.session, this.dialect) as any;
 	}
 
-	select(
-		selectQuery: (qb: QueryBuilder) => MySqlInsertSelectQueryBuilder<TTable>,
-	): MySqlInsertBase<TTable, TQueryResult>;
-	select(selectQuery: (qb: QueryBuilder) => SQL): MySqlInsertBase<TTable, TQueryResult>;
-	select(selectQuery: SQL): MySqlInsertBase<TTable, TQueryResult>;
-	select(selectQuery: MySqlInsertSelectQueryBuilder<TTable>): MySqlInsertBase<TTable, TQueryResult>;
+	select<TSelection extends MySqlInsertSelection<TTable>>(
+		selectQuery: (qb: QueryBuilder) => TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection>>,
+	): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult>;
+	select(selectQuery: (qb: QueryBuilder) => SQL): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult>;
+	select(selectQuery: SQL): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult>;
+	select<TSelection extends MySqlInsertSelection<TTable>>(
+		selectQuery: TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection>>,
+	): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult>;
 	select(
 		selectQuery:
 			| SQL
-			| MySqlInsertSelectQueryBuilder<TTable>
-			| ((qb: QueryBuilder) => MySqlInsertSelectQueryBuilder<TTable> | SQL),
-	): MySqlInsertBase<TTable, TQueryResult> {
+			| TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, MySqlInsertSelection<TTable>>>
+			| ((qb: QueryBuilder) =>
+				| TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, MySqlInsertSelection<TTable>>>
+				| SQL),
+	): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
+		if ('withoutSelectionCastCodecs' in select) select.withoutSelectionCastCodecs();
 
-		if (
-			!is(select, SQL)
-			&& !haveSameKeys(this.table[TableColumns], select._.selectedFields)
-		) {
-			throw new Error(
-				'Insert select error: selected fields are not the same or are in a different order compared to the table definition',
-			);
+		if (!is(select, SQL)) {
+			const insertCols = Object.keys(this.table[Table.Symbol.Columns]);
+			const selected = Object.keys(select._.selectedFields);
+
+			for (const col of selected) {
+				if (!insertCols.includes(col)) {
+					throw new Error(
+						`Insert select error: column "${col}" does not exist in table "${this.table[Table.Symbol.Name]}"`,
+					);
+				}
+			}
 		}
 
-		return new MySqlInsertBase(this.table, select, this.shouldIgnore, this.session, this.dialect, true);
+		return new this.builder(this.table, select, this.shouldIgnore, this.session, this.dialect, true) as any;
 	}
 }
 
 export type MySqlInsertWithout<T extends AnyMySqlInsert, TDynamic extends boolean, K extends keyof T & string> =
 	TDynamic extends true ? T
 		: Omit<
-			MySqlInsertBase<
+			MySqlInsertKind<
+				T['_']['hkt'],
 				T['_']['table'],
 				T['_']['queryResult'],
 				T['_']['returning'],
 				TDynamic,
-				T['_']['excludedMethods'] | '$returning'
+				T['_']['excludedMethods'] | K
 			>,
 			T['_']['excludedMethods'] | K
 		>;
 
-export type MySqlInsertDynamic<T extends AnyMySqlInsert> = MySqlInsert<
+export type MySqlInsertDynamic<T extends AnyMySqlInsert> = MySqlInsertKind<
+	T['_']['hkt'],
 	T['_']['table'],
 	T['_']['queryResult'],
-	T['_']['returning']
->;
-
-export type MySqlInsertPrepare<
-	T extends AnyMySqlInsert,
-	TReturning extends Record<string, unknown> | undefined = undefined,
-> = MySqlPreparedQuery<
-	MySqlPreparedQueryConfig & {
-		execute: TReturning extends undefined ? MySqlQueryResultKind<T['_']['queryResult'], never> : TReturning[];
-		iterator: never;
-	}
+	T['_']['returning'],
+	true,
+	never
 >;
 
 export type MySqlInsertOnDuplicateKeyUpdateConfig<T extends AnyMySqlInsert> = {
@@ -157,34 +184,70 @@ export type MySqlInsert<
 	TTable extends MySqlTable = MySqlTable,
 	TQueryResult extends MySqlQueryResultHKT = AnyMySqlQueryResultHKT,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
-> = MySqlInsertBase<TTable, TQueryResult, TReturning, true, never>;
+> = MySqlInsertBase<MySqlInsertHKT, TTable, TQueryResult, TReturning, true, never>;
 
-export type MySqlInsertReturning<
-	T extends AnyMySqlInsert,
-	TDynamic extends boolean,
-> = MySqlInsertBase<
-	T['_']['table'],
-	T['_']['queryResult'],
-	InferModelFromColumns<GetPrimarySerialOrDefaultKeys<T['_']['table']['_']['columns']>>,
-	TDynamic,
-	T['_']['excludedMethods'] | '$returning'
->;
+export type MySqlInsertReturning<T extends AnyMySqlInsert> = T extends any ? MySqlInsertWithout<
+		MySqlInsertKind<
+			T['_']['hkt'],
+			T['_']['table'],
+			T['_']['queryResult'],
+			InferModelFromColumns<GetPrimarySerialOrDefaultKeys<T['_']['table']['_']['columns']>>,
+			T['_']['dynamic'],
+			T['_']['excludedMethods']
+		>,
+		T['_']['dynamic'],
+		'$returningId'
+	>
+	: never;
 
-export type AnyMySqlInsert = MySqlInsertBase<any, any, any, any, any>;
+export type AnyMySqlInsert = MySqlInsertBase<any, any, any, any, any, any>;
 
-export interface MySqlInsertBase<
+export interface MySqlInsertHKTBase {
+	table: unknown;
+	queryResult: unknown;
+	returning: unknown;
+	dynamic: boolean;
+	excludedMethods: string;
+	_type: unknown;
+}
+
+export interface MySqlInsertHKT extends MySqlInsertHKTBase {
+	_type: MySqlInsertBase<
+		MySqlInsertHKT,
+		Assume<this['table'], MySqlTable>,
+		Assume<this['queryResult'], MySqlQueryResultHKT>,
+		Assume<this['returning'], Record<string, unknown> | undefined>,
+		this['dynamic'],
+		this['excludedMethods']
+	>;
+}
+
+export type MySqlInsertKind<
+	T extends MySqlInsertHKTBase,
 	TTable extends MySqlTable,
 	TQueryResult extends MySqlQueryResultHKT,
 	TReturning extends Record<string, unknown> | undefined = undefined,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-> extends
-	QueryPromise<TReturning extends undefined ? MySqlQueryResultKind<TQueryResult, never> : TReturning[]>,
-	RunnableQuery<TReturning extends undefined ? MySqlQueryResultKind<TQueryResult, never> : TReturning[], 'mysql'>,
-	SQLWrapper
-{
+> = (T & {
+	table: TTable;
+	queryResult: TQueryResult;
+	returning: TReturning;
+	dynamic: TDynamic;
+	excludedMethods: TExcludedMethods;
+})['_type'];
+
+export interface MySqlInsertBase<
+	THKT extends MySqlInsertHKTBase,
+	TTable extends MySqlTable,
+	TQueryResult extends MySqlQueryResultHKT,
+	TReturning extends Record<string, unknown> | undefined = undefined,
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+> extends SQLWrapper {
 	readonly _: {
 		readonly dialect: 'mysql';
+		readonly hkt: THKT;
 		readonly table: TTable;
 		readonly queryResult: TQueryResult;
 		readonly dynamic: TDynamic;
@@ -207,35 +270,31 @@ export type GetPrimarySerialOrDefaultKeys<T extends Record<string, AnyMySqlColum
 };
 
 export class MySqlInsertBase<
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	THKT extends MySqlInsertHKTBase,
 	TTable extends MySqlTable,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TQueryResult extends MySqlQueryResultHKT,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TReturning extends Record<string, unknown> | undefined = undefined,
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<TReturning extends undefined ? MySqlQueryResultKind<TQueryResult, never> : TReturning[]>
-	implements
-		RunnableQuery<TReturning extends undefined ? MySqlQueryResultKind<TQueryResult, never> : TReturning[], 'mysql'>,
-		SQLWrapper
-{
-	static override readonly [entityKind]: string = 'MySqlInsert';
+> implements SQLWrapper {
+	static readonly [entityKind]: string = 'MySqlInsert';
 
 	declare protected $table: TTable;
 
-	private config: MySqlInsertConfig<TTable>;
-	protected cacheConfig?: WithCacheConfig;
+	protected config: MySqlInsertConfig<TTable>;
 
 	constructor(
 		table: TTable,
 		values: MySqlInsertConfig['values'],
 		ignore: boolean,
-		private session: MySqlSession,
-		private dialect: MySqlDialect,
+		protected session: MySqlSession,
+		protected dialect: MySqlDialect,
 		select?: boolean,
 	) {
-		super();
 		this.config = { table, values: values as any, select, ignore };
 	}
 
@@ -273,11 +332,7 @@ export class MySqlInsertBase<
 		return this as any;
 	}
 
-	$returningId(): MySqlInsertWithout<
-		MySqlInsertReturning<this, TDynamic>,
-		TDynamic,
-		'$returningId'
-	> {
+	$returningId(): MySqlInsertReturning<this> {
 		const returning: SelectedFieldsOrdered = [];
 		for (const [key, value] of Object.entries(this.config.table[Table.Symbol.Columns])) {
 			if (value.primary) {
@@ -291,12 +346,11 @@ export class MySqlInsertBase<
 	/**
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
-	comment(comment: SqlCommenterInput): MySqlInsertWithout<this, TDynamic, 'comment'> {
+	comment(comment: CommentInput): MySqlInsertWithout<this, TDynamic, 'comment'> {
 		this.config.comment = sql.comment(comment);
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildInsertQuery(this.config).sql;
 	}
@@ -304,33 +358,6 @@ export class MySqlInsertBase<
 	toSQL(): Query {
 		return this.dialect.sqlToQuery(this.getSQL());
 	}
-
-	prepare(): MySqlInsertPrepare<this, TReturning> {
-		const { sql, generatedIds } = this.dialect.buildInsertQuery(this.config);
-		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(sql),
-			'raw',
-			this.dialect.mapperGenerators.$returning(this.config.returning, generatedIds),
-			{
-				type: 'insert',
-				tables: extractUsedTable(this.config.table),
-			},
-			this.cacheConfig,
-		) as MySqlInsertPrepare<this, TReturning>;
-	}
-
-	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this.prepare().execute(placeholderValues);
-	};
-
-	private createIterator = (): ReturnType<this['prepare']>['iterator'] => {
-		const self = this;
-		return async function*(placeholderValues) {
-			yield* self.prepare().iterator(placeholderValues);
-		};
-	};
-
-	iterator = this.createIterator();
 
 	$dynamic(): MySqlInsertDynamic<this> {
 		return this as any;

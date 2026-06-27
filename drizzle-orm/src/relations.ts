@@ -1,6 +1,6 @@
 import { IsAlias, OriginalName, Table, TableColumns, TableSchema } from '~/table.ts';
 import { aliasedTable } from './alias.ts';
-import type { NormalizeArrayCodec, NormalizeCodec } from './codecs.ts';
+import type { CodecsCollection, NormalizeArrayCodec, NormalizeCodec } from './codecs.ts';
 import { type AnyColumn, Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
 import { DrizzleError } from './errors.ts';
@@ -38,6 +38,7 @@ import {
 	type DrizzleTypeError,
 	type Equal,
 	FnConstructor,
+	getColumnFromDecoder,
 	type Simplify,
 	type ValueOrArray,
 } from './utils.ts';
@@ -756,7 +757,6 @@ export function mapRelationalRow(
 	rows: Record<string, unknown> | Record<string, unknown>[],
 	isOne: boolean,
 	buildQueryResultSelection: BuildRelationalQueryResult['selection'],
-	mapColumnValue?: (value: unknown) => unknown,
 	/** Needed for SQLite as it returns JSON values as strings */
 	parseJson: boolean = false,
 	/** Needed for SingleStore as it returns JSON arrays as strings */
@@ -769,11 +769,6 @@ export function mapRelationalRow(
 		({ field, codec, arrayDimensions }) => {
 			let decoder;
 			if (is(field, Column)) {
-				// Support for old custom column JSON field API
-				if (useJsonMappers && (<any> field).mapFromJsonValue) {
-					return (v) => (<(value: unknown) => unknown> (<any> field).mapFromJsonValue)(v);
-				}
-
 				decoder = field;
 			} else if (is(field, SQL)) {
 				decoder = field.decoder;
@@ -783,6 +778,11 @@ export function mapRelationalRow(
 				decoder = noopDecoder;
 			} else {
 				decoder = field.getSQL().decoder;
+			}
+
+			// Support for old custom column JSON field API
+			if (useJsonMappers && (<any> field).mapFromJsonValue) {
+				return (v) => (<(value: unknown) => unknown> (<any> field).mapFromJsonValue)(v);
 			}
 
 			return decoder.mapFromDriverValue.isNoop
@@ -816,7 +816,6 @@ export function mapRelationalRow(
 						row[selectionItem.key] as Array<Record<string, unknown>>,
 						false,
 						selectionItem.selection!,
-						mapColumnValue,
 						false,
 						parseJsonIfString,
 					);
@@ -828,7 +827,6 @@ export function mapRelationalRow(
 					row[selectionItem.key] as Record<string, unknown>,
 					true,
 					selectionItem.selection!,
-					mapColumnValue,
 					false,
 					parseJsonIfString,
 				);
@@ -836,7 +834,6 @@ export function mapRelationalRow(
 				continue;
 			}
 
-			if (mapColumnValue) row[selectionItem.key] = mapColumnValue(row[selectionItem.key]);
 			if (row[selectionItem.key] === null) continue;
 
 			const decoder = decoders[selectionItemIdx];
@@ -853,7 +850,6 @@ export function mapRelationalRowFromArrays(
 	rows: unknown[][] | unknown[],
 	isOne: boolean,
 	buildQueryResultSelection: BuildRelationalQueryResult['selection'],
-	mapColumnValue?: (value: unknown) => unknown,
 	/** Needed for SQLite as it returns JSON values as strings */
 	parseJson: boolean = false,
 	/** Needed for SingleStore as it returns JSON arrays as strings */
@@ -916,7 +912,6 @@ export function mapRelationalRowFromArrays(
 						value as Array<Record<string, unknown>>,
 						false,
 						selectionItem.selection!,
-						mapColumnValue,
 						false,
 						parseJsonIfString,
 					);
@@ -925,7 +920,6 @@ export function mapRelationalRowFromArrays(
 						value as Record<string, unknown>,
 						true,
 						selectionItem.selection!,
-						mapColumnValue,
 						false,
 						parseJsonIfString,
 					);
@@ -935,7 +929,6 @@ export function mapRelationalRowFromArrays(
 				continue;
 			}
 
-			if (mapColumnValue) value = mapColumnValue(value);
 			if (value === null) {
 				result[selectionItem.key] = null;
 				continue;
@@ -959,12 +952,10 @@ export interface RelationalRowsMapper<T = any> {
 
 export type RelationalRowsMapperGenerator<T = any> = (
 	config: RelationalQueryMapperConfig,
-	mapColumnValue?: (value: unknown) => unknown,
 ) => RelationalRowsMapper<T>;
 
 export function makeDefaultRqbMapper<T = any>(
 	{ selection, isFirst, parseJson, parseJsonIfString, rootJsonMappers, arrayModeRoot }: RelationalQueryMapperConfig,
-	mapColumnValue?: (value: unknown) => unknown,
 ): RelationalRowsMapper<T> {
 	return ((rows) => {
 		if (isFirst && !rows[0]) return rows[0];
@@ -974,7 +965,6 @@ export function makeDefaultRqbMapper<T = any>(
 				(isFirst ? rows[0]! : rows) as unknown[][] | unknown[],
 				isFirst,
 				selection,
-				mapColumnValue,
 				parseJson,
 				parseJsonIfString,
 			)
@@ -982,7 +972,6 @@ export function makeDefaultRqbMapper<T = any>(
 				(isFirst ? rows[0]! : rows) as Record<string, unknown>[] | Record<string, unknown>,
 				isFirst,
 				selection,
-				mapColumnValue,
 				parseJson,
 				parseJsonIfString,
 				rootJsonMappers,
@@ -994,7 +983,6 @@ function makeJitRqbMapperInner(
 	selection: BuildRelationalQueryResult['selection'],
 	rowExpr: string,
 	selectionVar: string,
-	mapColumnValue: ((value: unknown) => unknown) | undefined,
 	/** Needed for SQLite as it returns JSON values as strings */
 	parseJson: boolean,
 	/** Needed for SingleStore as it returns JSON arrays as strings */
@@ -1046,7 +1034,6 @@ function makeJitRqbMapperInner(
 					innerSelection,
 					`${slot}[${j}]`,
 					nestedSelVar,
-					mapColumnValue,
 					false,
 					parseJsonIfString,
 					true,
@@ -1070,7 +1057,6 @@ function makeJitRqbMapperInner(
 					innerSelection,
 					slot,
 					nestedSelVar,
-					mapColumnValue,
 					false,
 					parseJsonIfString,
 					true,
@@ -1108,13 +1094,23 @@ function makeJitRqbMapperInner(
 				decoderExpr = `dec${id}.mapFromDriverValue`;
 			}
 		} else if (is(field, SQL)) {
-			if (!field.decoder.mapFromDriverValue.isNoop) {
+			if (useJsonMappers && (<any> field.decoder).mapFromJsonValue) {
+				bypassCodecs = true;
+				const id = counter.n++;
+				destructure = `field: { decoder: dec${id} }`;
+				decoderExpr = `dec${id}.mapFromJsonValue`;
+			} else if (!field.decoder.mapFromDriverValue.isNoop) {
 				const id = counter.n++;
 				destructure = `field: { decoder: dec${id} }`;
 				decoderExpr = `dec${id}.mapFromDriverValue`;
 			}
 		} else if (is(field, SQL.Aliased)) {
-			if (!field.sql.decoder.mapFromDriverValue.isNoop) {
+			if (useJsonMappers && (<any> field.sql.decoder).mapFromJsonValue) {
+				bypassCodecs = true;
+				const id = counter.n++;
+				destructure = `field: { sql: { decoder: dec${id} } }`;
+				decoderExpr = `dec${id}.mapFromJsonValue`;
+			} else if (!field.sql.decoder.mapFromDriverValue.isNoop) {
 				const id = counter.n++;
 				destructure = `field: { sql: { decoder: dec${id} } }`;
 				decoderExpr = `dec${id}.mapFromDriverValue`;
@@ -1122,7 +1118,14 @@ function makeJitRqbMapperInner(
 		} else if (is(field, Table) || is(field, View)) {
 			// no decoder
 		} else {
-			if (!field.getSQL().decoder.mapFromDriverValue.isNoop) {
+			const sqlExpr = field.getSQL();
+
+			if (useJsonMappers && (<any> sqlExpr.decoder).mapFromJsonValue) {
+				bypassCodecs = true;
+				const id = counter.n++;
+				preFn.push(`const dec${id} = ${sel}.field.getSQL().decoder;`);
+				decoderExpr = `dec${id}.mapFromJsonValue`;
+			} else if (!sqlExpr.decoder.mapFromDriverValue.isNoop) {
 				const id = counter.n++;
 				preFn.push(`const dec${id} = ${sel}.field.getSQL().decoder;`);
 				decoderExpr = `dec${id}.mapFromDriverValue`;
@@ -1141,17 +1144,7 @@ function makeJitRqbMapperInner(
 			preFn.push(`const { ${parts.join(', ')} } = ${sel};`);
 		}
 
-		if (mapColumnValue) {
-			hasWork = true;
-			bodyStmts.push(`${slot} = mapColumnValue(${slot});`);
-			if (decoderExpr || codecVar) {
-				let decoded = slot;
-				if (codecVar) decoded = `${codecVar}(${decoded}, ${arrayDimensions})`;
-				if (decoderExpr) decoded = `${decoderExpr}(${decoded})`;
-				bodyStmts.push(`if (${slot} !== null) ${slot} = ${decoded};`);
-			}
-			literalEntries.push(`${keyStr}: ${slot}`);
-		} else if (decoderExpr || codecVar) {
+		if (decoderExpr || codecVar) {
 			hasWork = true;
 			let decoded = slot;
 			if (codecVar) decoded = `${codecVar}(${decoded}, ${arrayDimensions})`;
@@ -1183,7 +1176,6 @@ export interface RelationalQueryMapperConfig {
 
 export function makeJitRqbMapper<T = unknown>(
 	{ selection, isFirst, parseJson, parseJsonIfString, rootJsonMappers, arrayModeRoot }: RelationalQueryMapperConfig,
-	mapColumnValue?: (value: unknown) => unknown,
 ): RelationalRowsMapper<T> {
 	const preFn: string[] = [];
 	const counter = { n: 0 };
@@ -1192,7 +1184,6 @@ export function makeJitRqbMapper<T = unknown>(
 		selection,
 		'row',
 		'selection',
-		mapColumnValue,
 		parseJson,
 		parseJsonIfString,
 		arrayModeRoot ? false : rootJsonMappers,
@@ -1203,7 +1194,7 @@ export function makeJitRqbMapper<T = unknown>(
 
 	const lines: string[] = [];
 	lines.push(`\t"use strict";
-	const { selection${mapColumnValue ? `, mapColumnValue` : ''} } = this;`);
+	const { selection } = this;`);
 	for (const p of preFn) lines.push(`\t${p}`);
 
 	if (arrayModeRoot) {
@@ -1248,7 +1239,6 @@ export function makeJitRqbMapper<T = unknown>(
 			compiled,
 		).bind({
 			selection,
-			mapColumnValue,
 		}),
 		{ body: `function jitRqbMapper (rows) {\n${compiled}\n}` },
 	) as RelationalRowsMapper<T>;
@@ -1949,6 +1939,8 @@ export function relationsOrderToSQL(
 export function relationExtrasToSQL(
 	table: SchemaEntry,
 	extras: Extras,
+	codecs?: CodecsCollection,
+	inJson?: boolean,
 ) {
 	const subqueries: SQL[] = [];
 	const selection: BuildRelationalQueryResult['selection'] = [];
@@ -1959,15 +1951,29 @@ export function relationExtrasToSQL(
 		if (!field) continue;
 		const extra = typeof field === 'function' ? field(table as any, { sql: operators.sql }) : field;
 
-		const query = sql`(${extra.getSQL()}) as ${sql.identifier(key)}`;
-
-		query.decoder = extra.getSQL().decoder;
+		const subq = extra.getSQL();
+		const column = codecs ? getColumnFromDecoder(subq) : undefined;
+		// Codec bypass for custom columns with enabled legacy JSON api
+		const query = column && (!inJson || !(<any> column).jsonSelectIdentifier)
+			? sql`${codecs!.apply(column, inJson ? 'castInJson' : 'cast', sql`(${subq})`)} as ${sql.identifier(key)}`
+			: sql`(${subq}) as ${sql.identifier(key)}`;
+		query.decoder = subq.decoder;
 
 		subqueries.push(query);
-		selection.push({
-			key,
-			field: query,
-		});
+		selection.push(
+			// Codec bypass for custom columns with enabled legacy JSON api
+			column && (!inJson || !(<any> column).mapFromJsonValue)
+				? {
+					key,
+					field: query,
+					codec: codecs!.get(column, inJson ? 'normalizeInJson' : 'normalize'),
+					arrayDimensions: (<any> column).dimensions,
+				}
+				: {
+					key,
+					field: query,
+				},
+		);
 	}
 
 	return {

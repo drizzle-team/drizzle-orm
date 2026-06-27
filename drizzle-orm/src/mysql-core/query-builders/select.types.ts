@@ -22,10 +22,9 @@ import type { ColumnsSelection, Placeholder, SQL, View } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, ValidateShape } from '~/utils.ts';
-import type { MySqlPreparedQuery, MySqlPreparedQueryConfig } from '../session.ts';
 import type { MySqlViewBase } from '../view-base.ts';
 import type { MySqlViewWithSelection } from '../view.ts';
-import type { IndexConfig, MySqlSelectBase, MySqlSelectQueryBuilderBase } from './select.ts';
+import type { IndexConfig, MySqlSelectBase } from './select.ts';
 
 export type MySqlJoinType = Exclude<JoinType, 'full'>;
 
@@ -83,6 +82,7 @@ export interface MySqlSelectConfig {
 	forceIndex?: string[];
 	ignoreIndex?: string[];
 	comment?: SQL;
+	ignoreSelectionCastCodecs?: boolean;
 }
 
 export type MySqlJoin<
@@ -199,21 +199,8 @@ export type MySqlSelectKind<
 })['_type'];
 
 export interface MySqlSelectQueryBuilderHKT extends MySqlSelectHKTBase {
-	_type: MySqlSelectQueryBuilderBase<
-		MySqlSelectQueryBuilderHKT,
-		this['tableName'],
-		Assume<this['selection'], ColumnsSelection>,
-		this['selectMode'],
-		Assume<this['nullabilityMap'], Record<string, JoinNullability>>,
-		this['dynamic'],
-		this['excludedMethods'],
-		Assume<this['result'], any[]>,
-		Assume<this['selectedFields'], ColumnsSelection>
-	>;
-}
-
-export interface MySqlSelectHKT extends MySqlSelectHKTBase {
 	_type: MySqlSelectBase<
+		MySqlSelectQueryBuilderHKT,
 		this['tableName'],
 		Assume<this['selection'], ColumnsSelection>,
 		this['selectMode'],
@@ -255,13 +242,6 @@ export type MySqlSelectWithout<
 	TResetExcluded extends true ? K : T['_']['excludedMethods'] | K
 >;
 
-export type MySqlSelectPrepare<T extends AnyMySqlSelect> = MySqlPreparedQuery<
-	MySqlPreparedQueryConfig & {
-		execute: T['_']['result'];
-		iterator: T['_']['result'][number];
-	}
->;
-
 export type MySqlSelectDynamic<T extends AnyMySqlSelectQueryBuilder> = MySqlSelectKind<
 	T['_']['hkt'],
 	T['_']['tableName'],
@@ -274,14 +254,6 @@ export type MySqlSelectDynamic<T extends AnyMySqlSelectQueryBuilder> = MySqlSele
 	T['_']['selectedFields']
 >;
 
-export type CreateMySqlSelectFromBuilderMode<
-	TBuilderMode extends 'db' | 'qb',
-	TTableName extends string | undefined,
-	TSelection extends ColumnsSelection,
-	TSelectMode extends SelectMode,
-> = TBuilderMode extends 'db' ? MySqlSelectBase<TTableName, TSelection, TSelectMode>
-	: MySqlSelectQueryBuilderBase<MySqlSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode>;
-
 export type MySqlSelectQueryBuilder<
 	THKT extends MySqlSelectHKTBase = MySqlSelectQueryBuilderHKT,
 	TTableName extends string | undefined = string | undefined,
@@ -290,7 +262,7 @@ export type MySqlSelectQueryBuilder<
 	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
 	TResult extends any[] = unknown[],
 	TSelectedFields extends ColumnsSelection = ColumnsSelection,
-> = MySqlSelectQueryBuilderBase<
+> = MySqlSelectBase<
 	THKT,
 	TTableName,
 	TSelection,
@@ -302,11 +274,12 @@ export type MySqlSelectQueryBuilder<
 	TSelectedFields
 >;
 
-export type AnyMySqlSelectQueryBuilder = MySqlSelectQueryBuilderBase<any, any, any, any, any, any, any, any, any>;
+export type AnyMySqlSelectQueryBuilder = MySqlSelectBase<any, any, any, any, any, any, any, any, any>;
 
-export type AnyMySqlSetOperatorInterface = MySqlSetOperatorInterface<any, any, any, any, any, any, any, any>;
+export type AnyMySqlSetOperatorInterface = MySqlSetOperatorInterface<any, any, any, any, any, any, any, any, any>;
 
 export interface MySqlSetOperatorInterface<
+	THKT extends MySqlSelectHKTBase,
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
@@ -318,7 +291,7 @@ export interface MySqlSetOperatorInterface<
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > {
 	_: {
-		readonly hkt: MySqlSelectHKT;
+		readonly hkt: THKT;
 		readonly tableName: TTableName;
 		readonly selection: TSelection;
 		readonly selectMode: TSelectMode;
@@ -331,6 +304,7 @@ export interface MySqlSetOperatorInterface<
 }
 
 export type MySqlSetOperatorWithResult<TResult extends any[]> = MySqlSetOperatorInterface<
+	MySqlSelectQueryBuilderHKT,
 	any,
 	any,
 	any,
@@ -341,21 +315,13 @@ export type MySqlSetOperatorWithResult<TResult extends any[]> = MySqlSetOperator
 	any
 >;
 
-export type MySqlSelect<
-	TTableName extends string | undefined = string | undefined,
-	TSelection extends ColumnsSelection = Record<string, any>,
-	TSelectMode extends SelectMode = SelectMode,
-	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
-> = MySqlSelectBase<TTableName, TSelection, TSelectMode, TNullabilityMap, true, never>;
-
-export type AnyMySqlSelect = MySqlSelectBase<any, any, any, any, any, any, any, any>;
-
 export type MySqlSetOperator<
 	TTableName extends string | undefined = string | undefined,
 	TSelection extends ColumnsSelection = Record<string, any>,
 	TSelectMode extends SelectMode = SelectMode,
 	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
 > = MySqlSelectBase<
+	MySqlSelectQueryBuilderHKT,
 	TTableName,
 	TSelection,
 	TSelectMode,
@@ -367,7 +333,8 @@ export type MySqlSetOperator<
 export type SetOperatorRightSelect<
 	TValue extends MySqlSetOperatorWithResult<TResult>,
 	TResult extends any[],
-> = TValue extends MySqlSetOperatorInterface<any, any, any, any, any, any, infer TValueResult, any> ? ValidateShape<
+> = TValue extends MySqlSetOperatorInterface<any, any, any, any, any, any, any, infer TValueResult, any>
+	? ValidateShape<
 		TValueResult[number],
 		TResult[number],
 		TypedQueryBuilder<any, TValueResult>
@@ -378,7 +345,7 @@ export type SetOperatorRestSelect<
 	TValue extends readonly MySqlSetOperatorWithResult<TResult>[],
 	TResult extends any[],
 > = TValue extends [infer First, ...infer Rest]
-	? First extends MySqlSetOperatorInterface<any, any, any, any, any, any, infer TValueResult, any>
+	? First extends MySqlSetOperatorInterface<any, any, any, any, any, any, any, infer TValueResult, any>
 		? Rest extends AnyMySqlSetOperatorInterface[] ? [
 				ValidateShape<TValueResult[number], TResult[number], TypedQueryBuilder<any, TValueResult>>,
 				...SetOperatorRestSelect<Rest, TResult>,
@@ -388,6 +355,7 @@ export type SetOperatorRestSelect<
 	: TValue;
 
 export type MySqlCreateSetOperatorFn = <
+	THKT extends MySqlSelectHKTBase,
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
@@ -401,6 +369,7 @@ export type MySqlCreateSetOperatorFn = <
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 >(
 	leftSelect: MySqlSetOperatorInterface<
+		THKT,
 		TTableName,
 		TSelection,
 		TSelectMode,
@@ -414,6 +383,7 @@ export type MySqlCreateSetOperatorFn = <
 	...restSelects: SetOperatorRestSelect<TRest, TResult>
 ) => MySqlSelectWithout<
 	MySqlSelectBase<
+		THKT,
 		TTableName,
 		TSelection,
 		TSelectMode,

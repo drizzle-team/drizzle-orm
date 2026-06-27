@@ -27,16 +27,12 @@ export class MySqlInt<T extends ColumnBaseConfig<'number int32' | 'number uint32
 {
 	static override readonly [entityKind]: string = 'MySqlInt';
 
+	/** @internal */
+	override readonly codec = 'int';
+
 	getSQLType(): string {
 		return `int${this.config.unsigned ? ' unsigned' : ''}`;
 	}
-
-	override mapFromDriverValue = (value: number | string): number => {
-		if (typeof value === 'string') {
-			return Number(value);
-		}
-		return value;
-	};
 }
 
 export interface MySqlIntConfig<TUnsigned extends boolean | undefined = boolean | undefined> {

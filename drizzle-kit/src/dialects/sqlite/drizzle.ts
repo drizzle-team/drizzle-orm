@@ -5,12 +5,12 @@ import {
 	getTableConfig,
 	getViewConfig,
 	SQLiteBaseInteger,
-	SQLiteSyncDialect,
+	SQLiteDialect,
 	SQLiteTable,
 	SQLiteTimestamp,
 	SQLiteView,
 } from 'drizzle-orm/sqlite-core';
-import { loadModule } from 'src/utils/utils-node';
+import { loadModule } from '../../utils/utils-node';
 import { sqlToStr } from '../drizzle';
 import type {
 	CheckConstraint,
@@ -30,7 +30,7 @@ export const fromDrizzleSchema = (
 	dTables: AnySQLiteTable[],
 	dViews: SQLiteView[],
 ): InterimSchema => {
-	const dialect = new SQLiteSyncDialect();
+	const dialect = new SQLiteDialect();
 	const tableConfigs = dTables.map((it) => ({ table: it, config: getTableConfig(it) }));
 	const tables: Table[] = tableConfigs.map((it) => {
 		return {
@@ -261,6 +261,22 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	}
 
 	return { tables: Array.from(new Set(tables)), views, relations };
+};
+
+export type PreparedSqliteSchema = Awaited<ReturnType<typeof prepareFromSchemaFiles>>;
+
+// Decouples the schema's origin (compiled `.ts` files vs. a supplied prebuilt schema) from its consumers.
+export interface SchemaSource {
+	load(): Promise<PreparedSqliteSchema>;
+}
+
+export const SchemaSource = {
+	fromFilenames(filenames: string[]): SchemaSource {
+		return { load: () => prepareFromSchemaFiles(filenames) };
+	},
+	fromSchema(schema: PreparedSqliteSchema): SchemaSource {
+		return { load: async () => schema };
+	},
 };
 
 export const defaultFromColumn = (

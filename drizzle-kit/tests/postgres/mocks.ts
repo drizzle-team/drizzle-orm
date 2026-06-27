@@ -58,6 +58,8 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import pg from 'pg';
 import { introspect } from 'src/cli/commands/pull-postgres';
 import { suggestions } from 'src/cli/commands/push-postgres';
+import { runWithCliContext } from 'src/cli/context';
+import { HintsHandler } from 'src/cli/hints';
 import { EmptyProgressView, explain, psqlExplain } from 'src/cli/views';
 import { hash } from 'src/dialects/common';
 import { defaultToSQL, isSystemNamespace, isSystemRole } from 'src/dialects/postgres/grammar';
@@ -275,10 +277,13 @@ export const push = async (config: {
 		'push',
 	);
 
-	const hints = await suggestions(db, statements);
+	const hints = await runWithCliContext(
+		{ output: 'text', interactive: true },
+		() => suggestions(db, statements, new HintsHandler()),
+	);
 
 	if (config.explain) {
-		const explainMessage = explain('postgres', groupedStatements, false, []);
+		const explainMessage = explain('postgres', groupedStatements, []);
 		console.log(explainMessage);
 		return { sqlStatements, statements, hints };
 	}
@@ -395,7 +400,7 @@ export const diffIntrospect = async (
 	} = await ddlDiffDry(ddl1, ddl2, 'push');
 
 	if (pushAfterFileSqlStatements.length > 0) {
-		console.log(chalk.bgRed('After push: ') + '\n' + explain('postgres', pushAfterFileGroupedStatements, true, []));
+		console.log(chalk.bgRed('After push: ') + '\n' + explain('postgres', pushAfterFileGroupedStatements, []));
 	}
 
 	const {
@@ -406,7 +411,7 @@ export const diffIntrospect = async (
 
 	if (generateAfterFileSqlStatements.length > 0) {
 		console.log(
-			chalk.bgRed('After generate: ') + '\n' + explain('postgres', generateAfterFileGroupedStatements, true, []),
+			chalk.bgRed('After generate: ') + '\n' + explain('postgres', generateAfterFileGroupedStatements, []),
 		);
 	}
 

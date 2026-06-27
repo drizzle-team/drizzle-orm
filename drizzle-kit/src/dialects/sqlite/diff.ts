@@ -1,5 +1,5 @@
-import { mockResolver } from 'src/utils/mocks';
 import { prepareMigrationRenames } from '../../utils';
+import { mockResolver } from '../../utils/mocks';
 import type { Resolver } from '../common';
 import { diff } from '../dialect';
 import { groupDiffs, preserveEntityNames } from '../utils';
@@ -33,11 +33,7 @@ export const ddlDiff = async (
 }> => {
 	const tablesDiff = diff(ddl1, ddl2, 'tables');
 
-	const {
-		created: createdTables,
-		deleted: deletedTables,
-		renamedOrMoved: renamedTables,
-	} = await tablesResolver({
+	const { created: createdTables, deleted: deletedTables, renamedOrMoved: renamedTables } = await tablesResolver({
 		created: tablesDiff.filter((it) => it.$diffType === 'create'),
 		deleted: tablesDiff.filter((it) => it.$diffType === 'drop'),
 	});

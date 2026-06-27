@@ -11,7 +11,9 @@ import {
 	varchar,
 } from 'drizzle-orm/mssql-core';
 import { eq, sql } from 'drizzle-orm/sql';
-// import { suggestions } from 'src/cli/commands/push-mssql';
+import { suggestions } from 'src/cli/commands/push-mssql';
+import { runWithCliContext } from 'src/cli/context';
+import { HintsHandler } from 'src/cli/hints';
 import { DB } from 'src/utils';
 import { diff, prepareTestDatabase, push, TestDatabase } from 'tests/mssql/mocks';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
@@ -718,7 +720,7 @@ test('hints + losses: drop table that is not empty', async (t) => {
 
 	expect(st2).toStrictEqual(st_02);
 	expect(pst2).toStrictEqual(st_02);
-	expect(hints).toStrictEqual([{ hint: "· You're about to delete non-empty [users] table" }]);
+	expect(hints).toStrictEqual([{ hint: "You're about to delete non-empty [users] table" }]);
 	expect(error).toBeNull();
 });
 
@@ -757,7 +759,7 @@ test('hints + losses: drop column that is not empty', async (t) => {
 
 	expect(st2).toStrictEqual(st_02);
 	expect(pst2).toStrictEqual(st_02);
-	expect(hints).toStrictEqual([{ hint: "· You're about to delete non-empty [name] column in [users] table" }]);
+	expect(hints).toStrictEqual([{ hint: "You're about to delete non-empty [name] column in [users] table" }]);
 	expect(error).toBeNull();
 });
 
@@ -857,7 +859,7 @@ test('hints + losses: drop schema with tables', async (t) => {
 	];
 
 	expect(pst1).toStrictEqual(st_01);
-	expect(hints).toStrictEqual([{ hint: `· You're about to delete [test] schema with 1 table` }]);
+	expect(hints).toStrictEqual([{ hint: `You're about to delete [test] schema with 1 table` }]);
 	expect(error).toBeNull();
 });
 
@@ -922,9 +924,7 @@ test('hints + losses: add column with not null without default', async (t) => {
 	];
 
 	expect(pst1).toStrictEqual(st_01);
-	expect(hints).toStrictEqual([
-		{ hint: `· You're about to add not-null [age] column without default value to a non-empty [users] table` },
-	]);
+	expect(hints).toStrictEqual([]);
 	expect(error).not.toBeNull();
 
 	// await expect(push({ db, to: to, force: true, ignoreSubsequent: true })).resolves.not.toThrowError();
@@ -960,9 +960,7 @@ test('hints + losses: add column with not null without default #2', async (t) =>
 	];
 
 	// expect(pst1).toStrictEqual(st_01);
-	expect(hints).toStrictEqual([
-		{ hint: `· You're about to add not-null [age] column without default value to a non-empty [users] table` },
-	]);
+	expect(hints).toStrictEqual([]);
 });
 
 test('hints + losses: add column with not null with default', async (t) => {
@@ -1025,9 +1023,7 @@ test('hints + losses: alter column add not null without default', async (t) => {
 	];
 
 	expect(pst1).toStrictEqual(st_01);
-	expect(hints).toStrictEqual([
-		{ hint: `· You're about to add not-null to [name] column without default value to a non-empty [users] table` },
-	]);
+	expect(hints).toStrictEqual([]);
 	expect(error).not.toBeNull();
 
 	// await expect(push({ db, to: to, force: true, ignoreSubsequent: true })).resolves.toThrowError();
@@ -1063,9 +1059,7 @@ test('hints + losses: alter column add not null without default #2', async (t) =
 	];
 
 	expect(pst1).toStrictEqual(st_01);
-	expect(hints).toStrictEqual([
-		{ hint: `· You're about to add not-null to [name] column without default value to a non-empty [users] table` },
-	]);
+	expect(hints).toStrictEqual([]);
 	expect(error).not.toBeNull();
 
 	await expect(push({ db, to: to, force: true, ignoreSubsequent: true })).rejects.toThrowError();
@@ -1174,4 +1168,67 @@ test('hints + losses: add unique to column #2', async (t) => {
 
 	expect(pst1).toStrictEqual(st_01);
 	expect(error).not.toBeNull();
+});
+
+// In non-interactive / json mode `suggestions` throws a structured `unsupported_schema_change`
+// instead of pushing the unsupported-rename comment, so it is exercised directly with that context.
+test('renaming a schema throws `rename_schema_unsupported`', async () => {
+	const oldSchema = mssqlSchema('old_analytics');
+	const newSchema = mssqlSchema('analytics');
+	const before = {
+		oldSchema,
+		events: oldSchema.table('events', { id: int() }),
+	};
+	const after = {
+		newSchema,
+		events: newSchema.table('events', { id: int() }),
+	};
+	const renames = ['old_analytics->analytics'];
+
+	await push({ db, to: before });
+	const { statements, next } = await diff(before, after, renames);
+
+	await expect(
+		runWithCliContext(
+			{ output: 'json', interactive: false },
+			() => suggestions(db, statements, next, new HintsHandler()),
+		),
+	).rejects.toMatchObject({
+		code: 'unsupported_schema_change',
+		meta: {
+			kind: 'rename_schema_unsupported',
+			from: 'old_analytics',
+			to: 'analytics',
+			dialect: 'mssql',
+		},
+	});
+});
+
+test('renaming a column used in a check constraint throws `rename_blocked_by_check_constraint`', async () => {
+	const before = {
+		users: mssqlTable('users', { id: int() }, (t) => [check('hey', sql`${t.id} != 2`)]),
+	};
+	const after = {
+		users: mssqlTable('users', { id: int('id1') }, (t) => [check('hey', sql`${t.id} != 2`)]),
+	};
+	const renames = ['dbo.users.id->dbo.users.id1'];
+
+	await push({ db, to: before });
+	const { statements, next } = await diff(before, after, renames);
+
+	await expect(
+		runWithCliContext(
+			{ output: 'json', interactive: false },
+			() => suggestions(db, statements, next, new HintsHandler()),
+		),
+	).rejects.toMatchObject({
+		code: 'unsupported_schema_change',
+		meta: {
+			kind: 'rename_blocked_by_check_constraint',
+			schema: 'dbo',
+			table: 'users',
+			from: 'id',
+			to: 'id1',
+		},
+	});
 });

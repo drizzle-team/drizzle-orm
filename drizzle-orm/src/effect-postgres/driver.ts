@@ -1,31 +1,23 @@
 import { PgClient } from '@effect/sql-pg/PgClient';
 import * as Effect from 'effect/Effect';
-import * as Layer from 'effect/Layer';
 import { EffectCache } from '~/cache/core/cache-effect.ts';
+import { DefaultServices } from '~/effect-core/defaults.ts';
 import { EffectLogger } from '~/effect-core/index.ts';
 import { entityKind } from '~/entity.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectDatabase } from '~/pg-core/effect/db.ts';
-import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
+import type { EffectDrizzlePgConfig } from '~/pg-core/effect/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
 import { effectPgCodecs } from './codecs.ts';
 import { type EffectPgQueryEffectHKT, type EffectPgQueryResultHKT, EffectPgSession } from './session.ts';
+export { DefaultServices } from '~/effect-core/defaults.ts';
 
 export class EffectPgDatabase<TRelations extends AnyRelations = EmptyRelations>
 	extends PgEffectDatabase<EffectPgQueryEffectHKT, EffectPgQueryResultHKT, TRelations>
 {
 	static override readonly [entityKind]: string = 'EffectPgDatabase';
 }
-
-export type EffectDrizzlePgConfig<
-	TRelations extends AnyRelations = EmptyRelations,
-> = Omit<DrizzlePgConfig<TRelations>, 'cache' | 'logger'>;
-
-export const DefaultServices = Layer.merge(
-	EffectCache.Default,
-	EffectLogger.Default,
-);
 
 /**
  * Creates an EffectPgDatabase instance.
@@ -70,7 +62,6 @@ export const make = Effect.fn('PgDrizzle.make')(
 		const session = new EffectPgSession(client, dialect, relations, {
 			logger,
 			cache,
-			useJitMappers: jitCompatCheck(config.jit),
 		});
 		const db = new EffectPgDatabase(dialect, session, relations) as EffectPgDatabase<TRelations>;
 		(<any> db).$client = client;

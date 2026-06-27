@@ -146,10 +146,10 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			binary: '1',
 			boolean: true,
 			char: 'c',
-			date: new Date(1741743161623),
-			dateStr: new Date(1741743161623).toISOString().slice(0, 19).replace('T', ' '),
-			datetime: new Date(1741743161623),
-			datetimeStr: new Date(1741743161623).toISOString().slice(0, 19).replace('T', ' '),
+			date: new Date('2025-03-12T00:00:00.000Z'),
+			dateStr: '2025-03-12',
+			datetime: new Date('2025-03-12T01:32:42.000Z'),
+			datetimeStr: '2025-03-12 01:32:41',
 			decimal: '47521',
 			decimalNum: 9007199254740991,
 			decimalBig: 5044565289845416380n,
@@ -166,8 +166,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			medInt: 560,
 			smallInt: 14,
 			time: '04:13:22',
-			timestamp: new Date(1741743161623),
-			timestampStr: new Date(1741743161623).toISOString().slice(0, 19).replace('T', ' '),
+			timestamp: new Date('2025-03-12T01:32:42.000Z'),
+			timestampStr: '2025-03-12 01:32:41',
 			tinyInt: 7,
 			varbin: '1010110101001101',
 			varchar: 'VCHAR',
@@ -242,7 +242,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				decimalNum: 9007199254740991,
 				decimalBig: 5044565289845416380n,
 				double: 15.35325689124218,
-				float: 1.0486,
+				float: 1.048596,
 				int: 621,
 				json: { arr: ['str', 10], str: 'strval' },
 				medInt: 560,
@@ -338,19 +338,53 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 		await push({ users1, users2 });
 
-		expect(
-			() =>
-				db
-					.insert(users1)
-					.select(
-						db
-							.select({
-								name: users2.name,
-								id: users2.id,
-							})
-							.from(users2),
-					),
-		).toThrowError();
+		await db.insert(users2).values({ id: 1, name: 'First' });
+		await db.insert(users1).select(
+			db
+				.select({
+					name: users2.name,
+					id: users2.id,
+				})
+				.from(users2),
+		);
+		const res = await db.select().from(users1);
+
+		expect(res).toStrictEqual([{
+			id: 1,
+			name: 'First',
+		}]);
+	});
+
+	test.concurrent('insert into ... select with generated column', async ({ db, push }) => {
+		const users1 = mysqlTable('users1_iswgc', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+		const users2 = mysqlTable('users2_iswgc', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await push({ users1, users2 });
+
+		await db.insert(users1).values([
+			{ name: 'Alice' },
+			{ name: 'Bob' },
+			{ name: 'Charlie' },
+		]);
+
+		await db.insert(users2).select(db.select({ name: users1.name }).from(users1));
+		const result1 = await db.select().from(users2);
+
+		expect(result1).toStrictEqual([
+			{ id: 1, name: 'Alice' },
+			{ id: 2, name: 'Bob' },
+			{ id: 3, name: 'Charlie' },
+		]);
+
+		// @ts-expect-error
+		expect(() => db.insert(users2).select(db.select({ name: users1.name, unknown: users1.id }).from(users1)))
+			.toThrowError();
 	});
 
 	test.concurrent('MySqlTable :: select with `use index` hint', async ({ db, push }) => {
