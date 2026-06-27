@@ -182,7 +182,13 @@ export class UpstashCache extends Cache {
 		}
 
 		for (const table of tables) {
-			pipeline.sadd(this.addTablePrefix(table), compositeKey);
+			const setKey = this.addTablePrefix(table);
+			pipeline.sadd(setKey, compositeKey);
+			// Refresh the Set key's TTL so it auto-expires when the table goes idle
+			// (e.g. read-only workloads that never trigger `onMutate`). Without this,
+			// `__CTS__<table>` accumulates a new composite-key member on every cache
+			// write and is never trimmed, leading to unbounded Redis memory growth.
+			pipeline.expire(setKey, ttlSeconds);
 		}
 
 		await pipeline.exec();
