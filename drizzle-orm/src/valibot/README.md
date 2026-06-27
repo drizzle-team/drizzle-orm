@@ -6,6 +6,24 @@ Allows you to generate [valibot](https://valibot.dev/) schemas from Drizzle ORM 
 - Create insert and update schemas for tables.
 - Supported dialects: CockroachDB, MSSQL, MySQL, PostgreSQL, SingleStore, SQLite.
 
+## Migrating from `drizzle-valibot`
+
+If you were using the separate `drizzle-valibot` package (v0.x), it has been merged into `drizzle-orm` as of V1 beta. You no longer need the separate package.
+
+**Steps to migrate:**
+1. Uninstall `drizzle-valibot`: `npm uninstall drizzle-valibot`
+2. Update your imports:
+
+```ts
+// Before
+import { createSelectSchema, createInsertSchema } from 'drizzle-valibot';
+
+// After
+import { createSelectSchema, createInsertSchema } from 'drizzle-orm/valibot';
+```
+
+The API is otherwise identical.
+
 # Usage
 
 ```ts
