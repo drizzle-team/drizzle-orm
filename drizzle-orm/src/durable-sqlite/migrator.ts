@@ -1,8 +1,9 @@
+import { runSync } from '~/generator-queries/run-sqlite.ts';
 import type { MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import { formatToMillis, getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/index.ts';
-import { upgradeSyncIfNeeded } from '~/up-migrations/sqlite.ts';
+import { upgradeIfNeeded } from '~/up-migrations/sqlite.ts';
 import type { DrizzleSqliteDODatabase } from './driver.ts';
 
 interface MigrationConfig {
@@ -54,7 +55,7 @@ export function migrate<TRelations extends AnyRelations>(
 		try {
 			const migrationsTable = '__drizzle_migrations';
 
-			const { newDb } = upgradeSyncIfNeeded(migrationsTable, db.session, migrations);
+			const { newDb } = runSync(tx, upgradeIfNeeded(migrationsTable, migrations));
 
 			if (newDb) {
 				const migrationTableCreate = sql`
