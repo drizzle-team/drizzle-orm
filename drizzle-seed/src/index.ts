@@ -3,13 +3,13 @@ import { is } from 'drizzle-orm';
 import type { Relations } from 'drizzle-orm/_relations';
 
 import type { MySqlColumn, MySqlSchema, MySqlTable } from 'drizzle-orm/mysql-core';
-import { MySqlDatabase } from 'drizzle-orm/mysql-core';
+import { MySqlAsyncDatabase } from 'drizzle-orm/mysql-core';
 
 import type { PgColumn, PgSchema, PgTable } from 'drizzle-orm/pg-core';
 import { PgAsyncDatabase } from 'drizzle-orm/pg-core/async';
 
 import type { SQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core';
-import { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
+import { SQLiteAsyncDatabase } from 'drizzle-orm/sqlite-core';
 
 import type { MsSqlColumn, MsSqlSchema, MsSqlTable } from 'drizzle-orm/mssql-core';
 import { MsSqlDatabase } from 'drizzle-orm/mssql-core';
@@ -87,8 +87,8 @@ export type InferCallbackType<
 		[key: string]: SchemaValuesType;
 	},
 > = DB extends PgAsyncDatabase<any, any> ? RefineTypes<SCHEMA, PgTable, PgColumn>
-	: DB extends MySqlDatabase<any, any> ? RefineTypes<SCHEMA, MySqlTable, MySqlColumn>
-	: DB extends BaseSQLiteDatabase<any, any> ? RefineTypes<SCHEMA, SQLiteTable, SQLiteColumn>
+	: DB extends MySqlAsyncDatabase<any, any> ? RefineTypes<SCHEMA, MySqlTable, MySqlColumn>
+	: DB extends SQLiteAsyncDatabase<any, any> ? RefineTypes<SCHEMA, SQLiteTable, SQLiteColumn>
 	: DB extends MsSqlDatabase<any, any> ? RefineTypes<SCHEMA, MsSqlTable, MsSqlColumn>
 	: DB extends CockroachDatabase<any, any> ? RefineTypes<SCHEMA, CockroachTable, CockroachColumn>
 	: DB extends SingleStoreDatabase<any, any> ? RefineTypes<SCHEMA, SingleStoreTable, SingleStoreColumn>
@@ -345,9 +345,9 @@ const seedFunc = async (
 
 	if (is(db, PgAsyncDatabase<any, any>)) {
 		await seedPostgres(db, schema, { ...options, version }, refinements);
-	} else if (is(db, MySqlDatabase<any, any>)) {
+	} else if (is(db, MySqlAsyncDatabase<any, any>)) {
 		await seedMySql(db, schema, { ...options, version }, refinements);
-	} else if (is(db, BaseSQLiteDatabase<any, any>)) {
+	} else if (is(db, SQLiteAsyncDatabase<any, any>)) {
 		await seedSqlite(db, schema, { ...options, version }, refinements);
 	} else if (is(db, MsSqlDatabase<any, any>)) {
 		await seedMsSql(db, schema, { ...options, version }, refinements);
@@ -375,7 +375,7 @@ const seedFunc = async (
  * truncate tableName1, tableName2, ... cascade;
  * ```
  *
- * `If db is a MySqlDatabase object`, we will execute sql queries and delete data from your tables the following way:
+ * `If db is a MySqlAsyncDatabase object`, we will execute sql queries and delete data from your tables the following way:
  * ```sql
  * SET FOREIGN_KEY_CHECKS = 0;
  * truncate tableName1;
@@ -387,7 +387,7 @@ const seedFunc = async (
  * SET FOREIGN_KEY_CHECKS = 1;
  * ```
  *
- * `If db is a BaseSQLiteDatabase object`, we will execute sql queries and delete data from your tables the following way:
+ * `If db is a SQLiteAsyncDatabase object`, we will execute sql queries and delete data from your tables the following way:
  * ```sql
  * PRAGMA foreign_keys = OFF;
  * delete from tableName1;
@@ -420,13 +420,13 @@ export async function reset<
 		if (Object.entries(pgTables).length > 0) {
 			await resetPostgres(db, pgTables);
 		}
-	} else if (is(db, MySqlDatabase<any, any>)) {
+	} else if (is(db, MySqlAsyncDatabase<any, any>)) {
 		const { mysqlTables } = filterMysqlTables(schema);
 
 		if (Object.entries(mysqlTables).length > 0) {
 			await resetMySql(db, mysqlTables);
 		}
-	} else if (is(db, BaseSQLiteDatabase<any, any>)) {
+	} else if (is(db, SQLiteAsyncDatabase<any, any>)) {
 		const { sqliteTables } = filterSqliteTables(schema);
 
 		if (Object.entries(sqliteTables).length > 0) {

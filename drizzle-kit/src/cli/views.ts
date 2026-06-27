@@ -1,25 +1,27 @@
 import chalk from 'chalk';
 import { Prompt, render, SelectState, TaskView } from 'hanji';
+import { stripAnsi } from 'hanji/utils';
 import type {
 	SchemaError as CockroachSchemaError,
 	SchemaWarning as CockroachSchemaWarning,
-} from 'src/dialects/cockroach/ddl';
-import type { SchemaError as MssqlSchemaError } from 'src/dialects/mssql/ddl';
-import type { SchemaError as MysqlSchemaError } from 'src/dialects/mysql/ddl';
+} from '../dialects/cockroach/ddl';
+import type { JsonStatement as StatementCockroach } from '../dialects/cockroach/statements';
+import type { SchemaError as MssqlSchemaError } from '../dialects/mssql/ddl';
+import type { JsonStatement as StatementMssql } from '../dialects/mssql/statements';
+import type { SchemaError as MysqlSchemaError } from '../dialects/mysql/ddl';
+import type { JsonStatement as StatementMysql } from '../dialects/mysql/statements';
 import type {
 	SchemaError as PostgresSchemaError,
 	SchemaWarning as PostgresSchemaWarning,
 	View,
-} from 'src/dialects/postgres/ddl';
-import type { JsonStatement as StatementCockraoch } from '../dialects/cockroach/statements';
-import type { JsonStatement as StatementMssql } from '../dialects/mssql/statements';
-import type { JsonStatement as StatementMysql } from '../dialects/mysql/statements';
+} from '../dialects/postgres/ddl';
 import { vectorOps } from '../dialects/postgres/grammar';
 import type { JsonStatement as StatementPostgres } from '../dialects/postgres/statements';
 import type { SchemaError as SqliteSchemaError } from '../dialects/sqlite/ddl';
 import type { JsonStatement as StatementSqlite } from '../dialects/sqlite/statements';
 import type { Named, NamedWithSchema } from '../dialects/utils';
 import { assertUnreachable } from '../utils';
+import { outputFormat } from './context';
 import { highlightSQL } from './highlighter';
 import { withStyle } from './validations/outputs';
 
@@ -28,8 +30,22 @@ export const warning = (msg: string) => {
 };
 
 export const err = (msg: string) => {
-	render(`${chalk.bold.red('Error')} ${msg}`);
+	render(errText(msg));
 };
+
+export const errText = (msg: string) => `${chalk.bold.red('Error')} ${msg}`;
+
+export const humanLog = (...args: Parameters<typeof console.log>) => {
+	if (outputFormat() === 'json') return;
+	console.log(...args);
+};
+
+export const humanError = (...args: Parameters<typeof console.error>) => {
+	if (outputFormat() === 'json') return;
+	console.error(...args);
+};
+
+export const humanizeKind = (kind: string): string => kind.replaceAll('_', ' ');
 
 export const info = (msg: string, greyMsg: string = ''): string => {
 	return `${chalk.blue.bold('Info:')} ${msg} ${greyMsg ? chalk.grey(greyMsg) : ''}`.trim();
@@ -134,10 +150,9 @@ function formatOptionChanges(
 export const explain = (
 	dialect: 'postgres' | 'mysql' | 'sqlite' | 'singlestore' | 'mssql' | 'common' | 'cockroach',
 	grouped: {
-		jsonStatement: StatementPostgres | StatementSqlite | StatementMysql | StatementMssql | StatementCockraoch;
+		jsonStatement: StatementPostgres | StatementSqlite | StatementMysql | StatementMssql | StatementCockroach;
 		sqlStatements: string[];
 	}[],
-	explain: boolean,
 	hints: { hint: string; statement?: string }[],
 ) => {
 	const res = [];
@@ -152,7 +167,7 @@ export const explain = (
 			: dialect === 'mssql'
 			? mssqlExplain(jsonStatement as StatementMssql)
 			: dialect === 'cockroach'
-			? cockroachExplain(jsonStatement as StatementCockraoch)
+			? cockroachExplain(jsonStatement as StatementCockroach)
 			: null;
 
 		if (res) {
@@ -164,14 +179,14 @@ export const explain = (
 			}
 			msg += `└───\n`;
 			explains.push(msg);
-		} else if (explain) {
+		} else {
 			explains.push(...sqlStatements.map((x) => highlightSQL(x)));
 		}
 	}
 
 	if (explains.length > 0) {
 		res.push('\n');
-		if (explain) res.push(chalk.gray(`--- Generated migration statements ---\n`));
+		res.push(chalk.gray(`--- Generated migration statements ---\n`));
 		res.push(explains.join('\n'));
 	}
 
@@ -180,8 +195,7 @@ export const explain = (
 		res.push(withStyle.warning(`There're potential data loss statements:\n`));
 
 		for (const h of hints) {
-			res.push(h.hint);
-			res.push('\n');
+			res.push(`· ${h.hint}\n`);
 			if (h.statement) res.push(highlightSQL(h.statement), '\n');
 		}
 	}
@@ -371,7 +385,7 @@ export const psqlExplain = (st: StatementPostgres) => {
 	return null;
 };
 
-export const cockroachExplain = (st: StatementCockraoch) => {
+export const cockroachExplain = (st: StatementCockroach) => {
 	let title = '';
 	let cause = '';
 
@@ -861,6 +875,19 @@ export const sqliteExplain = (
 	return null;
 };
 
+export const explainJsonOutput = (
+	dialect: string,
+	statements: (StatementPostgres | StatementSqlite | StatementMysql | StatementMssql | StatementCockroach)[],
+	hints: { hint: string; statement?: string }[],
+) => {
+	return {
+		status: 'ok' as const,
+		dialect,
+		statements,
+		hints: hints.map((h) => ({ hint: stripAnsi(h.hint) })),
+	};
+};
+
 export const postgresSchemaError = (error: PostgresSchemaError): string => {
 	if (error.type === 'constraint_name_duplicate') {
 		const { name, schema, table } = error;
@@ -1248,26 +1275,26 @@ export const mssqlSchemaError = (error: MssqlSchemaError): string => {
 	assertUnreachable(error);
 };
 
-export interface RenamePropmtItem<T> {
+export interface RenamePromptItem<T> {
 	from: T;
 	to: T;
 }
 
 export const isRenamePromptItem = <T extends EntityBase>(
-	item: RenamePropmtItem<T> | T,
-): item is RenamePropmtItem<T> => {
+	item: RenamePromptItem<T> | T,
+): item is RenamePromptItem<T> => {
 	return 'from' in item && 'to' in item;
 };
 
 export class ResolveColumnSelect<T extends Named> extends Prompt<
-	RenamePropmtItem<T> | T
+	RenamePromptItem<T> | T
 > {
-	private readonly data: SelectState<RenamePropmtItem<T> | T>;
+	private readonly data: SelectState<RenamePromptItem<T> | T>;
 
 	constructor(
 		private readonly tableName: string,
 		private readonly base: Named,
-		data: (RenamePropmtItem<T> | T)[],
+		data: (RenamePromptItem<T> | T)[],
 	) {
 		super();
 		this.on('attach', (terminal) => terminal.toggleCursor('hide'));
@@ -1300,7 +1327,7 @@ export class ResolveColumnSelect<T extends Named> extends Prompt<
 
 		const labelLength: number = this.data.items
 			.filter((it) => isRenamePromptItem(it))
-			.map((it: RenamePropmtItem<T>) => {
+			.map((it: RenamePromptItem<T>) => {
 				return this.base.name.length + 3 + it['from'].name.length;
 			})
 			.reduce((a, b) => {
@@ -1326,7 +1353,7 @@ export class ResolveColumnSelect<T extends Named> extends Prompt<
 		return text;
 	}
 
-	result(): RenamePropmtItem<T> | T {
+	result(): RenamePromptItem<T> | T {
 		return this.data.items[this.data.selectedIdx]!;
 	}
 }
@@ -1338,13 +1365,13 @@ export const tableKey = (it: NamedWithSchema) => {
 };
 
 export class ResolveSelectNamed<T extends Named> extends Prompt<
-	RenamePropmtItem<T> | T
+	RenamePromptItem<T> | T
 > {
-	private readonly state: SelectState<RenamePropmtItem<T> | T>;
+	private readonly state: SelectState<RenamePromptItem<T> | T>;
 
 	constructor(
 		private readonly base: T,
-		data: (RenamePropmtItem<T> | T)[],
+		data: (RenamePromptItem<T> | T)[],
 		private readonly entityType: 'role' | 'policy',
 	) {
 		super();
@@ -1358,8 +1385,9 @@ export class ResolveSelectNamed<T extends Named> extends Prompt<
 			return '';
 		}
 		const key = this.base.name;
+		const humanType = humanizeKind(this.entityType);
 
-		let text = `\nIs ${chalk.bold.blue(key)} ${this.entityType} created or renamed from another ${this.entityType}?\n`;
+		let text = `\nIs ${chalk.bold.blue(key)} ${humanType} created or renamed from another ${humanType}?\n`;
 
 		const isSelectedRenamed = isRenamePromptItem(
 			this.state.items[this.state.selectedIdx],
@@ -1372,7 +1400,7 @@ export class ResolveSelectNamed<T extends Named> extends Prompt<
 		const labelLength: number = this.state.items
 			.filter((it) => isRenamePromptItem(it))
 			.map((_) => {
-				const it = _ as RenamePropmtItem<T>;
+				const it = _ as RenamePromptItem<T>;
 				const keyFrom = it.from.name;
 				return key.length + 3 + keyFrom.length;
 			})
@@ -1383,7 +1411,7 @@ export class ResolveSelectNamed<T extends Named> extends Prompt<
 				return b;
 			}, 0);
 
-		const entityType = this.entityType;
+		const entityType = humanizeKind(this.entityType);
 		this.state.items.forEach((it, idx) => {
 			const isSelected = idx === this.state.selectedIdx;
 			const isRenamed = isRenamePromptItem(it);
@@ -1402,7 +1430,7 @@ export class ResolveSelectNamed<T extends Named> extends Prompt<
 		return text;
 	}
 
-	result(): RenamePropmtItem<T> | T {
+	result(): RenamePromptItem<T> | T {
 		return this.state.items[this.state.selectedIdx]!;
 	}
 }
@@ -1416,18 +1444,19 @@ const keyFor = (it: EntityBase, defaultSchema: 'dbo' | 'public' = 'public') => {
 };
 
 export class ResolveSelect<T extends EntityBase> extends Prompt<
-	RenamePropmtItem<T> | T
+	RenamePromptItem<T> | T
 > {
-	private readonly state: SelectState<RenamePropmtItem<T> | T>;
+	private readonly state: SelectState<RenamePromptItem<T> | T>;
 
 	constructor(
 		private readonly base: T,
-		data: (RenamePropmtItem<T> | T)[],
+		data: (RenamePromptItem<T> | T)[],
 		private readonly entityType:
 			| 'schema'
 			| 'enum'
 			| 'table'
 			| 'column'
+			| 'default'
 			| 'sequence'
 			| 'view'
 			| 'privilege'
@@ -1436,9 +1465,8 @@ export class ResolveSelect<T extends EntityBase> extends Prompt<
 			| 'check'
 			| 'index'
 			| 'unique'
-			| 'primary key'
-			| 'foreign key'
-			| 'default',
+			| 'primary_key'
+			| 'foreign key',
 		private defaultSchema: 'dbo' | 'public' = 'public',
 	) {
 		super();
@@ -1453,7 +1481,8 @@ export class ResolveSelect<T extends EntityBase> extends Prompt<
 		}
 
 		const key = keyFor(this.base, this.defaultSchema);
-		let text = `\nIs ${chalk.bold.blue(key)} ${this.entityType} created or renamed from another ${this.entityType}?\n`;
+		const humanType = humanizeKind(this.entityType);
+		let text = `\nIs ${chalk.bold.blue(key)} ${humanType} created or renamed from another ${humanType}?\n`;
 
 		const isSelectedRenamed = isRenamePromptItem(
 			this.state.items[this.state.selectedIdx],
@@ -1466,7 +1495,7 @@ export class ResolveSelect<T extends EntityBase> extends Prompt<
 		const labelLength: number = this.state.items
 			.filter((it) => isRenamePromptItem(it))
 			.map((_) => {
-				const it = _ as RenamePropmtItem<T>;
+				const it = _ as RenamePromptItem<T>;
 				const keyFrom = keyFor(it.from);
 				return key.length + 3 + keyFrom.length;
 			})
@@ -1477,7 +1506,7 @@ export class ResolveSelect<T extends EntityBase> extends Prompt<
 				return b;
 			}, 0);
 
-		const entityType = this.entityType;
+		const entityType = humanizeKind(this.entityType);
 		this.state.items.forEach((it, idx) => {
 			const isSelected = idx === this.state.selectedIdx;
 			const isRenamed = isRenamePromptItem(it);
@@ -1496,17 +1525,17 @@ export class ResolveSelect<T extends EntityBase> extends Prompt<
 		return text;
 	}
 
-	result(): RenamePropmtItem<T> | T {
+	result(): RenamePromptItem<T> | T {
 		return this.state.items[this.state.selectedIdx]!;
 	}
 }
 
 export class ResolveSchemasSelect<T extends Named> extends Prompt<
-	RenamePropmtItem<T> | T
+	RenamePromptItem<T> | T
 > {
-	private readonly state: SelectState<RenamePropmtItem<T> | T>;
+	private readonly state: SelectState<RenamePromptItem<T> | T>;
 
-	constructor(private readonly base: Named, data: (RenamePropmtItem<T> | T)[]) {
+	constructor(private readonly base: Named, data: (RenamePromptItem<T> | T)[]) {
 		super();
 		this.on('attach', (terminal) => terminal.toggleCursor('hide'));
 		this.state = new SelectState(data);
@@ -1532,7 +1561,7 @@ export class ResolveSchemasSelect<T extends Named> extends Prompt<
 
 		const labelLength: number = this.state.items
 			.filter((it) => isRenamePromptItem(it))
-			.map((it: RenamePropmtItem<T>) => {
+			.map((it: RenamePromptItem<T>) => {
 				return this.base.name.length + 3 + it['from'].name.length;
 			})
 			.reduce((a, b) => {
@@ -1558,7 +1587,7 @@ export class ResolveSchemasSelect<T extends Named> extends Prompt<
 		return text;
 	}
 
-	result(): RenamePropmtItem<T> | T {
+	result(): RenamePromptItem<T> | T {
 		return this.state.items[this.state.selectedIdx]!;
 	}
 }
@@ -1787,7 +1816,18 @@ export class ProgressView extends TaskView {
 		this.on('detach', () => clearInterval(this.timeout));
 	}
 
+	stop() {
+		if (this.timeout) {
+			clearInterval(this.timeout);
+			this.timeout = undefined;
+		}
+	}
+
 	render(status: 'pending' | 'done' | 'rejected', error?: Error): string {
+		if (outputFormat() === 'json') {
+			return '';
+		}
+
 		if (status === 'rejected') {
 			if (error?.cause) {
 				console.log('\n');

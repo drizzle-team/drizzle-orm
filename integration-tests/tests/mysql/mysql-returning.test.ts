@@ -2,14 +2,11 @@ import 'dotenv/config';
 
 import type { TestFn } from 'ava';
 import anyTest from 'ava';
-import Docker from 'dockerode';
 import { DefaultLogger, sql } from 'drizzle-orm';
 import { boolean, json, mysqlTable, serial, text, timestamp, varchar } from 'drizzle-orm/mysql-core';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { drizzle } from 'drizzle-orm/mysql2';
-import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
-import { v4 as uuid } from 'uuid';
 
 const ENABLE_LOGGING = false;
 
@@ -22,44 +19,20 @@ const usersTable = mysqlTable('userstest', {
 });
 
 interface Context {
-	docker: Docker;
-	mysqlContainer: Docker.Container;
 	db: MySql2Database;
 	client: mysql.Connection;
 }
 
 const test = anyTest as TestFn<Context>;
 
-async function createDockerDB(ctx: Context): Promise<string> {
-	const docker = (ctx.docker = new Docker());
-	const port = await getPort({ port: 3306 });
-	const image = 'mysql:8';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	);
-
-	ctx.mysqlContainer = await docker.createContainer({
-		Image: image,
-		Env: ['MYSQL_ROOT_PASSWORD=mysql', 'MYSQL_DATABASE=drizzle'],
-		name: `drizzle-integration-tests-${uuid()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'3306/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await ctx.mysqlContainer.start();
-
-	return `mysql://root:mysql@127.0.0.1:${port}/drizzle`;
-}
-
 test.before(async (t) => {
 	const ctx = t.context;
-	const connectionString = process.env['MYSQL_CONNECTION_STRING'] ?? await createDockerDB(ctx);
+	const connectionString = process.env['MYSQL_CONNECTION_STRING'];
+	if (!connectionString) {
+		throw new Error(
+			'MYSQL_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up mysql` and export the connection string before running tests.',
+		);
+	}
 
 	const sleep = 1000;
 	let timeLeft = 20000;
@@ -80,7 +53,6 @@ test.before(async (t) => {
 	if (!connected) {
 		console.error('Cannot connect to MySQL');
 		await ctx.client?.end().catch(console.error);
-		await ctx.mysqlContainer?.stop().catch(console.error);
 		throw lastError;
 	}
 	ctx.db = drizzle({ client: ctx.client, logger: ENABLE_LOGGING ? new DefaultLogger() : undefined });
@@ -89,7 +61,6 @@ test.before(async (t) => {
 test.after.always(async (t) => {
 	const ctx = t.context;
 	await ctx.client?.end().catch(console.error);
-	await ctx.mysqlContainer?.stop().catch(console.error);
 });
 
 test.beforeEach(async (t) => {

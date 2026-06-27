@@ -1,9 +1,11 @@
-import { boolean, command, number, string } from '@drizzle-team/brocli';
+import { boolean, command, type GenericBuilderInternals, number, string } from '@drizzle-team/brocli';
 import chalk from 'chalk';
-import 'dotenv/config';
 import { mkdirSync } from 'fs';
 import { renderWithTask } from 'hanji';
-import { dialects } from 'src/utils/schemaValidator';
+import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { dialects } from '../utils/schemaValidator';
 import '../@types/utils';
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
 import { assertUnreachable } from '../utils';
@@ -26,12 +28,275 @@ import {
 	preparePushConfig,
 	prepareStudioConfig,
 } from './commands/utils';
+import { outputFormat, setCliContext } from './context';
+import type {
+	CheckOptionsInput,
+	ExportOptionsInput,
+	GenerateOptionsInput,
+	PullOptionsInput,
+	PushOptionsInput,
+	UpOptionsInput,
+} from './contract';
+import {
+	CommandOutputCliError,
+	DatabaseDriverCliError,
+	OrmDriverVersionCliError,
+	UnsupportedCommandCliError,
+	UnsupportedCommandDialectCliError,
+} from './errors';
+import { formatMissingHintsText } from './missing-hints-report';
 import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersionGt } from './utils';
 import { assertCollisions, drivers } from './validations/common';
 import type { LibSQLCredentials } from './validations/libsql';
 import { withStyle } from './validations/outputs';
 import type { SqliteCredentials } from './validations/sqlite';
-import { error, grey, MigrateProgress } from './views';
+import { grey, MigrateProgress } from './views';
+
+type EnvelopeStatus =
+	| Awaited<ReturnType<typeof runGenerate>>['status']
+	| Awaited<ReturnType<typeof runPush>>['status']
+	| 'error';
+
+// Identify already-typed CLI errors structurally rather than via instanceof: under
+// test module-resetting the errors module can be duplicated, breaking instanceof.
+const isTypedCliError = (e: unknown): boolean =>
+	e instanceof Error && typeof (e as { code?: unknown }).code === 'string'
+	&& typeof (e as { humanMessage?: unknown }).humanMessage === 'string';
+
+export const statusToExitCode = (status: EnvelopeStatus): 0 | 1 | 2 => {
+	switch (status) {
+		case 'ok':
+			return 0;
+		case 'no_changes':
+			return 0;
+		case 'missing_hints':
+			return 2;
+		case 'error':
+			return 1;
+		default:
+			assertUnreachable(status);
+	}
+};
+
+export const prepareGenerate = async (opts: GenerateOptionsInput) => {
+	const output = opts.output ?? outputFormat();
+	const interactive = output === 'text' && !!process.stdin.isTTY;
+	setCliContext({ output, interactive });
+	const from = assertCollisions(
+		'generate',
+		opts,
+		['name', 'custom', 'ignoreConflicts', 'explain', 'output', 'hints', 'hintsFile'],
+		['driver', 'breakpoints', 'schema', 'out', 'dialect'],
+	);
+	return prepareGenerateConfig(opts as Parameters<typeof prepareGenerateConfig>[0], from);
+};
+
+export const runGenerate = async (
+	config: Awaited<ReturnType<typeof prepareGenerate>>,
+) => {
+	await assertOrmCoreVersion();
+	await assertPackages('drizzle-orm');
+
+	assertV3OutFolder(config.out);
+
+	const dialect = config.dialect;
+	const checkResult = await checkHandler(
+		config.out,
+		dialect,
+		config.ignoreConflicts,
+	);
+
+	if (dialect === 'postgresql') {
+		const { handle } = await import('./commands/generate-postgres');
+		return await handle(config as Parameters<typeof handle>[0], checkResult);
+	} else if (dialect === 'mysql') {
+		const { handle } = await import('./commands/generate-mysql');
+		return await handle(config, checkResult);
+	} else if (dialect === 'sqlite') {
+		const { handle } = await import('./commands/generate-sqlite');
+		return await handle(config as Parameters<typeof handle>[0], checkResult);
+	} else if (dialect === 'turso') {
+		const { handle } = await import('./commands/generate-libsql');
+		return await handle(config as Parameters<typeof handle>[0], checkResult);
+	} else if (dialect === 'singlestore') {
+		const { handle } = await import('./commands/generate-singlestore');
+		return await handle(config);
+	} else if (dialect === 'mssql') {
+		const { handle } = await import('./commands/generate-mssql');
+		return await handle(config);
+	} else if (dialect === 'cockroach') {
+		const { handle } = await import('./commands/generate-cockroach');
+		return await handle(config);
+	} else if (dialect === 'duckdb') {
+		throw new UnsupportedCommandCliError(
+			'generate',
+			"You can't use 'generate' command with DuckDb dialect",
+			{
+				dialect: 'DuckDb',
+			},
+		);
+	}
+	assertUnreachable(dialect);
+};
+
+export const preparePush = async (opts: PushOptionsInput) => {
+	const output = opts.output ?? outputFormat();
+	const interactive = output === 'text' && !!process.stdin.isTTY;
+	setCliContext({ output, interactive });
+	const from = assertCollisions(
+		'push',
+		opts,
+		['force', 'verbose', 'strict', 'explain', 'output', 'hints', 'hintsFile'],
+		[
+			'schema',
+			'dialect',
+			'driver',
+			'url',
+			'host',
+			'port',
+			'user',
+			'password',
+			'database',
+			'ssl',
+			'authToken',
+			'schemaFilters',
+			'extensionsFilters',
+			'tablesFilter',
+			'tlsSecurity',
+		],
+	);
+
+	if (typeof opts.strict !== 'undefined') {
+		throw new UnsupportedCommandCliError(
+			'push',
+			withStyle.fullWarning("⚠️ Deprecated: Do not use 'strict' flag. Use 'explain' instead"),
+			{ option: 'strict' },
+		);
+	}
+
+	return preparePushConfig(opts, from);
+};
+
+export const runPush = async (
+	config: Awaited<ReturnType<typeof preparePush>>,
+) => {
+	await assertPackages('drizzle-orm');
+	await assertOrmCoreVersion();
+
+	const {
+		dialect,
+		verbose,
+		credentials,
+		force,
+		filters,
+		explain,
+		migrations,
+		filenames,
+		hints,
+	} = config;
+
+	if (dialect === 'mysql') {
+		const { handle } = await import('./commands/push-mysql');
+		return await handle(
+			filenames,
+			credentials,
+			verbose,
+			force,
+			filters,
+			explain,
+			migrations,
+			hints,
+		);
+	} else if (dialect === 'postgresql') {
+		if ('driver' in credentials) {
+			const { driver } = credentials;
+			if (driver === 'aws-data-api' && !(await ormVersionGt('0.30.10'))) {
+				throw new OrmDriverVersionCliError(
+					'aws-data-api',
+					'0.30.10',
+					"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
+				);
+			}
+			if (driver === 'pglite' && !(await ormVersionGt('0.30.6'))) {
+				throw new OrmDriverVersionCliError(
+					'pglite',
+					'0.30.6',
+					"To use 'pglite' driver - please update drizzle-orm to the latest version",
+				);
+			}
+		}
+
+		const { SchemaSource } = await import('../dialects/postgres/drizzle');
+		const { handle } = await import('./commands/push-postgres');
+		return await handle(
+			SchemaSource.fromFilenames(filenames),
+			verbose,
+			credentials,
+			filters,
+			force,
+			explain,
+			migrations,
+			hints,
+		);
+	} else if (dialect === 'sqlite' || dialect === 'turso') {
+		const { connectToSQLite, connectToTursoRemote: connectToLibSQL } = await import('./connections');
+		const db = dialect === 'sqlite'
+			? await connectToSQLite(credentials as SqliteCredentials)
+			: await connectToLibSQL(credentials as LibSQLCredentials);
+
+		const { SchemaSource } = await import('../dialects/sqlite/drizzle');
+		const { handle: sqlitePush } = await import('./commands/push-sqlite');
+		return await sqlitePush(
+			db,
+			SchemaSource.fromFilenames(filenames),
+			verbose,
+			credentials,
+			filters,
+			force,
+			explain,
+			migrations,
+			dialect === 'turso' ? 'turso' : 'sqlite',
+			hints,
+		);
+	} else if (dialect === 'singlestore') {
+		const { handle } = await import('./commands/push-singlestore');
+		return await handle(
+			filenames,
+			credentials,
+			filters,
+			verbose,
+			force,
+			explain,
+			migrations,
+			hints,
+		);
+	} else if (dialect === 'cockroach') {
+		const { handle } = await import('./commands/push-cockroach');
+		return await handle(
+			filenames,
+			verbose,
+			credentials,
+			filters,
+			force,
+			explain,
+			migrations,
+			hints,
+		);
+	} else if (dialect === 'mssql') {
+		const { handle } = await import('./commands/push-mssql');
+		return await handle(
+			filenames,
+			verbose,
+			credentials,
+			filters,
+			force,
+			explain,
+			migrations,
+			hints,
+		);
+	}
+	assertUnreachable(dialect);
+};
 
 const optionDialect = string('dialect')
 	.enum(...dialects)
@@ -51,73 +316,39 @@ const optionDriver = string()
 const optionIgnoreConflicts = boolean('ignore-conflicts').desc(
 	'Skip commutativity conflict checks',
 );
+const optionHints = string().desc('Inline JSON array of hints');
+const optionHintsFile = string('hints-file').desc('Path to a JSON file containing a hints array');
+const optionOutput = string('output').enum('text', 'json').desc('Output format').default('text');
+
+export const generateOptions = {
+	config: optionConfig,
+	dialect: optionDialect,
+	driver: optionDriver,
+	schema: string().desc('Path to a schema file or folder'),
+	out: optionOut,
+	name: string().desc('Migration file name'),
+	breakpoints: optionBreakpoints,
+	custom: boolean()
+		.desc('Prepare empty migration file for custom SQL')
+		.default(false),
+	ignoreConflicts: optionIgnoreConflicts,
+	explain: boolean()
+		.desc('Print the planned SQL changes (dry run)')
+		.default(false),
+	output: optionOutput,
+	hints: optionHints,
+	hintsFile: optionHintsFile,
+} as const satisfies Record<string, GenericBuilderInternals>;
 
 export const generate = command({
 	name: 'generate',
-	options: {
-		config: optionConfig,
-		dialect: optionDialect,
-		driver: optionDriver,
-		schema: string().desc('Path to a schema file or folder'),
-		out: optionOut,
-		name: string().desc('Migration file name'),
-		breakpoints: optionBreakpoints,
-		custom: boolean()
-			.desc('Prepare empty migration file for custom SQL')
-			.default(false),
-		ignoreConflicts: optionIgnoreConflicts,
-	},
-	transform: async (opts) => {
-		const from = assertCollisions(
-			'generate',
-			opts,
-			['name', 'custom', 'ignoreConflicts'],
-			['driver', 'breakpoints', 'schema', 'out', 'dialect'],
-		);
-		return prepareGenerateConfig(opts, from);
-	},
-	handler: async (opts) => {
-		await assertOrmCoreVersion();
-		await assertPackages('drizzle-orm');
-
-		assertV3OutFolder(opts.out);
-
-		const dialect = opts.dialect;
-		const checkResult = await checkHandler(
-			opts.out,
-			dialect,
-			opts.ignoreConflicts,
-		);
-
-		if (dialect === 'postgresql') {
-			const { handle } = await import('./commands/generate-postgres');
-			await handle(opts, checkResult);
-		} else if (dialect === 'mysql') {
-			const { handle } = await import('./commands/generate-mysql');
-			await handle(opts, checkResult);
-		} else if (dialect === 'sqlite') {
-			const { handle } = await import('./commands/generate-sqlite');
-			await handle(opts, checkResult);
-		} else if (dialect === 'turso') {
-			const { handle } = await import('./commands/generate-libsql');
-			await handle(opts, checkResult);
-		} else if (dialect === 'singlestore') {
-			const { handle } = await import('./commands/generate-singlestore');
-			await handle(opts);
-		} else if (dialect === 'mssql') {
-			const { handle } = await import('./commands/generate-mssql');
-			await handle(opts);
-		} else if (dialect === 'cockroach') {
-			const { handle } = await import('./commands/generate-cockroach');
-			await handle(opts);
-		} else if (dialect === 'duckdb') {
-			console.log(
-				error(`You can't use 'generate' command with DuckDb dialect`),
-			);
-			process.exit(1);
-		} else {
-			assertUnreachable(dialect);
-		}
+	options: generateOptions,
+	transform: prepareGenerate,
+	handler: async (cfg) => {
+		const env = await runGenerate(cfg);
+		if (outputFormat() === 'json') process.stdout.write(JSON.stringify(env) + '\n');
+		else if (env.status === 'missing_hints') process.stdout.write(formatMissingHintsText(env));
+		process.exit(statusToExitCode(env.status));
 	},
 });
 
@@ -139,9 +370,7 @@ export const migrate = command({
 	handler: async (opts) => {
 		await assertOrmCoreVersion();
 		await assertPackages('drizzle-orm');
-
 		assertV3OutFolder(opts.out);
-
 		const { dialect, schema, table, out, credentials, ignoreConflicts } = opts;
 
 		await checkHandler(out, dialect, ignoreConflicts);
@@ -211,7 +440,7 @@ export const migrate = command({
 				}),
 			);
 		} else if (dialect === 'turso') {
-			const { connectToLibSQL } = await import('./connections');
+			const { connectToTursoRemote: connectToLibSQL } = await import('./connections');
 			const { migrate } = await connectToLibSQL(credentials);
 			await renderWithTask(
 				new MigrateProgress(),
@@ -273,476 +502,447 @@ const optionsDatabaseCredentials = {
 	driver: optionDriver,
 } as const;
 
+export const pushOptions = {
+	config: optionConfig,
+	dialect: optionDialect,
+	schema: string().desc('Path to a schema file or folder'),
+	...optionsFilters,
+	...optionsDatabaseCredentials,
+	verbose: boolean()
+		.desc('Print all statements for each push')
+		.default(false),
+	strict: boolean().desc('Always ask for confirmation'),
+	force: boolean()
+		.desc(
+			'Auto-approve all data loss statements. Note: Data loss statements may truncate your tables and data',
+		)
+		.default(false),
+	output: optionOutput,
+	explain: boolean()
+		.desc('Print the planned SQL changes (dry run)')
+		.default(false),
+	hints: optionHints,
+	hintsFile: optionHintsFile,
+} as const satisfies Record<string, GenericBuilderInternals>;
+
 export const push = command({
 	name: 'push',
-	options: {
-		config: optionConfig,
-		dialect: optionDialect,
-		schema: string().desc('Path to a schema file or folder'),
-		...optionsFilters,
-		...optionsDatabaseCredentials,
-		verbose: boolean()
-			.desc('Print all statements for each push')
-			.default(false),
-		strict: boolean().desc('Always ask for confirmation'),
-		force: boolean()
-			.desc(
-				'Auto-approve all data loss statements. Note: Data loss statements may truncate your tables and data',
-			)
-			.default(false),
-		explain: boolean()
-			.desc('Print the planned SQL changes (dry run)')
-			.default(false),
-	},
-	transform: async (opts) => {
-		const from = assertCollisions(
-			'push',
-			opts,
-			['force', 'verbose', 'strict', 'explain'],
-			[
-				'schema',
-				'dialect',
-				'driver',
-				'url',
-				'host',
-				'port',
-				'user',
-				'password',
-				'database',
-				'ssl',
-				'authToken',
-				'schemaFilters',
-				'extensionsFilters',
-				'tablesFilter',
-				'tlsSecurity',
-			],
-		);
-
-		if (typeof opts.strict !== 'undefined') {
-			console.log(
-				withStyle.fullWarning(
-					"⚠️ Deprecated: Do not use 'strict' flag. Use 'explain' instead",
-				),
-			);
-			process.exit(1);
-		}
-
-		return preparePushConfig(opts, from);
-	},
-	handler: async (config) => {
-		await assertPackages('drizzle-orm');
-		await assertOrmCoreVersion();
-
-		const {
-			dialect,
-			verbose,
-			credentials,
-			force,
-			filters,
-			explain,
-			migrations,
-			filenames,
-		} = config;
-
-		if (dialect === 'mysql') {
-			const { handle } = await import('./commands/push-mysql');
-			await handle(
-				filenames,
-				credentials,
-				verbose,
-				force,
-				filters,
-				explain,
-				migrations,
-			);
-		} else if (dialect === 'postgresql') {
-			if ('driver' in credentials) {
-				const { driver } = credentials;
-				if (driver === 'aws-data-api' && !(await ormVersionGt('0.30.10'))) {
-					console.log(
-						"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
-					);
-					process.exit(1);
-				}
-				if (driver === 'pglite' && !(await ormVersionGt('0.30.6'))) {
-					console.log(
-						"To use 'pglite' driver - please update drizzle-orm to the latest version",
-					);
-					process.exit(1);
-				}
-			}
-
-			const { handle } = await import('./commands/push-postgres');
-			await handle(
-				filenames,
-				verbose,
-				credentials,
-				filters,
-				force,
-				explain,
-				migrations,
-			);
-		} else if (dialect === 'sqlite' || dialect === 'turso') {
-			const { connectToSQLite, connectToLibSQL } = await import('./connections');
-			const db = dialect === 'sqlite'
-				? await connectToSQLite(credentials as SqliteCredentials)
-				: await connectToLibSQL(credentials as LibSQLCredentials);
-
-			const { handle: sqlitePush } = await import('./commands/push-sqlite');
-			await sqlitePush(
-				db,
-				filenames,
-				verbose,
-				credentials,
-				filters,
-				force,
-				explain,
-				migrations,
-			);
-		} else if (dialect === 'singlestore') {
-			const { handle } = await import('./commands/push-singlestore');
-			await handle(
-				filenames,
-				credentials,
-				filters,
-				verbose,
-				force,
-				explain,
-				migrations,
-			);
-		} else if (dialect === 'cockroach') {
-			const { handle } = await import('./commands/push-cockroach');
-			await handle(
-				filenames,
-				verbose,
-				credentials,
-				filters,
-				force,
-				explain,
-				migrations,
-			);
-		} else if (dialect === 'mssql') {
-			const { handle } = await import('./commands/push-mssql');
-			await handle(
-				filenames,
-				verbose,
-				credentials,
-				filters,
-				force,
-				explain,
-				migrations,
-			);
-		} else {
-			assertUnreachable(dialect);
-		}
+	options: pushOptions,
+	transform: preparePush,
+	handler: async (cfg) => {
+		const env = await runPush(cfg);
+		if (outputFormat() === 'json') process.stdout.write(JSON.stringify(env) + '\n');
+		else if (env.status === 'missing_hints') process.stdout.write(formatMissingHintsText(env));
+		process.exit(statusToExitCode(env.status));
 	},
 });
+
+export const checkOptions = {
+	config: optionConfig,
+	dialect: optionDialect,
+	out: optionOut,
+	ignoreConflicts: optionIgnoreConflicts,
+	output: optionOutput,
+} as const satisfies Record<string, GenericBuilderInternals>;
+
+export const prepareCheck = async (opts: CheckOptionsInput) => {
+	const output = opts.output ?? outputFormat();
+	const interactive = output === 'text' && !!process.stdin.isTTY;
+	setCliContext({ output, interactive });
+	const from = assertCollisions(
+		'check',
+		opts,
+		['ignoreConflicts', 'output'],
+		['dialect', 'out'],
+	);
+	const config: CheckConfig & { output: 'text' | 'json' } = {
+		...(await prepareCheckParams(opts, from)),
+		ignoreConflicts: opts.ignoreConflicts,
+		output,
+	};
+	return config;
+};
+
+export const runCheck = async (
+	config: Awaited<ReturnType<typeof prepareCheck>>,
+) => {
+	await assertOrmCoreVersion();
+	assertV3OutFolder(config.out);
+	const { out, dialect, ignoreConflicts } = config;
+	await checkHandler(out, dialect, ignoreConflicts);
+	return { status: 'ok' as const, dialect };
+};
 
 export const check = command({
 	name: 'check',
-	options: {
-		config: optionConfig,
-		dialect: optionDialect,
-		out: optionOut,
-		ignoreConflicts: optionIgnoreConflicts,
-	},
-	transform: async (opts) => {
-		const from = assertCollisions(
-			'check',
-			opts,
-			['ignoreConflicts'],
-			['dialect', 'out'],
-		);
-		const config: CheckConfig = {
-			...(await prepareCheckParams(opts, from)),
-			ignoreConflicts: opts.ignoreConflicts,
-		};
-		return config;
-	},
-	handler: async (config) => {
-		await assertOrmCoreVersion();
-
-		assertV3OutFolder(config.out);
-
-		const { out, dialect, ignoreConflicts } = config;
-		await checkHandler(out, dialect, ignoreConflicts);
-		console.log("Everything's fine 🐶🔥");
+	options: checkOptions,
+	transform: prepareCheck,
+	handler: async (cfg) => {
+		const env = await runCheck(cfg);
+		if (outputFormat() === 'json') process.stdout.write(JSON.stringify(env) + '\n');
+		else console.log("Everything's fine 🐶🔥");
+		process.exit(statusToExitCode(env.status));
 	},
 });
+
+export const upOptions = {
+	config: optionConfig,
+	dialect: optionDialect,
+	out: optionOut,
+	output: optionOutput,
+} as const satisfies Record<string, GenericBuilderInternals>;
+
+export const prepareUp = async (opts: UpOptionsInput) => {
+	const output = opts.output ?? outputFormat();
+	const interactive = output === 'text' && !!process.stdin.isTTY;
+	setCliContext({ output, interactive });
+	const from = assertCollisions('up', opts, ['output'], ['dialect', 'out']);
+	const config = { ...(await prepareCheckParams(opts, from)), output };
+	return config;
+};
+
+export const runUp = async (
+	config: Awaited<ReturnType<typeof prepareUp>>,
+) => {
+	await assertOrmCoreVersion();
+	await assertPackages('drizzle-orm');
+
+	const { out, dialect } = config;
+	let upgraded: string[];
+	if (dialect === 'postgresql') {
+		upgraded = upPgHandler(out);
+	} else if (dialect === 'mysql') {
+		upgraded = upMysqlHandler(out);
+	} else if (dialect === 'sqlite' || dialect === 'turso') {
+		upgraded = upSqliteHandler(out);
+	} else if (dialect === 'singlestore') {
+		upgraded = upSinglestoreHandler(out);
+	} else if (dialect === 'cockroach') {
+		upgraded = upCockroachHandler(out);
+	} else if (dialect === 'mssql') {
+		upgraded = upMssqlHandler(out);
+	} else if (dialect === 'duckdb') {
+		throw new UnsupportedCommandDialectCliError('up', 'duckdb');
+	} else {
+		assertUnreachable(dialect);
+	}
+
+	return { status: 'ok' as const, dialect, upgraded };
+};
 
 export const up = command({
 	name: 'up',
-	options: {
-		config: optionConfig,
-		dialect: optionDialect,
-		out: optionOut,
-	},
-	transform: async (opts) => {
-		const from = assertCollisions('check', opts, [], ['dialect', 'out']);
-		return prepareCheckParams(opts, from);
-	},
-	handler: async (config) => {
-		await assertOrmCoreVersion();
-
-		const { out, dialect } = config;
-		await assertPackages('drizzle-orm');
-
-		if (dialect === 'postgresql') {
-			return upPgHandler(out);
-		}
-
-		if (dialect === 'mysql') {
-			return upMysqlHandler(out);
-		}
-
-		if (dialect === 'sqlite' || dialect === 'turso') {
-			return upSqliteHandler(out);
-		}
-
-		if (dialect === 'singlestore') {
-			return upSinglestoreHandler(out);
-		}
-
-		if (dialect === 'cockroach') {
-			return upCockroachHandler(out);
-		}
-
-		if (dialect === 'mssql') {
-			return upMssqlHandler(out);
-		}
-
-		if (dialect === 'duckdb') {
-			throw new Error(`You can't use 'pull' command with '${dialect}' dialect`);
-		}
-
-		assertUnreachable(dialect);
+	options: upOptions,
+	transform: prepareUp,
+	handler: async (cfg) => {
+		const env = await runUp(cfg);
+		if (outputFormat() === 'json') process.stdout.write(JSON.stringify(env) + '\n');
+		process.exit(statusToExitCode(env.status));
 	},
 });
 
-export const pull = command({
-	name: 'pull',
-	aliases: ['introspect'],
-	options: {
-		config: optionConfig,
-		dialect: optionDialect,
-		out: optionOut,
-		breakpoints: optionBreakpoints,
-		casing: string('introspect-casing').enum('camel', 'preserve'),
-		init: boolean('init').desc(
-			'Create migration metadata for pulled schema in database',
-		),
-		...optionsFilters,
-		...optionsDatabaseCredentials,
-	},
-	transform: async (opts) => {
-		const from = assertCollisions(
-			'introspect',
-			opts,
-			['init'],
-			[
-				'dialect',
-				'driver',
-				'out',
-				'url',
-				'host',
-				'port',
-				'user',
-				'password',
-				'database',
-				'ssl',
-				'authToken',
-				'casing',
-				'breakpoints',
-				'tablesFilter',
-				'schemaFilters',
-				'extensionsFilters',
-				'tlsSecurity',
-			],
-		);
-		return preparePullConfig(opts, from);
-	},
-	handler: async (config) => {
-		await assertPackages('drizzle-orm');
-		await assertOrmCoreVersion();
+export const pullOptions = {
+	config: optionConfig,
+	dialect: optionDialect,
+	out: optionOut,
+	breakpoints: optionBreakpoints,
+	casing: string('introspect-casing').enum('camel', 'preserve'),
+	init: boolean('init').desc(
+		'Create migration metadata for pulled schema in database',
+	),
+	...optionsFilters,
+	...optionsDatabaseCredentials,
+	output: optionOutput,
+} as const satisfies Record<string, GenericBuilderInternals>;
 
-		const {
-			dialect,
-			credentials,
-			out,
-			casing,
-			breakpoints,
-			filters,
-			init,
-			migrations,
-		} = config;
-		mkdirSync(out, { recursive: true });
+export const preparePull = async (opts: PullOptionsInput) => {
+	const output = opts.output ?? outputFormat();
+	const interactive = output === 'text' && !!process.stdin.isTTY;
+	setCliContext({ output, interactive });
+	const from = assertCollisions(
+		'introspect',
+		opts,
+		['init', 'output'],
+		[
+			'dialect',
+			'driver',
+			'out',
+			'url',
+			'host',
+			'port',
+			'user',
+			'password',
+			'database',
+			'ssl',
+			'authToken',
+			'casing',
+			'breakpoints',
+			'tablesFilter',
+			'schemaFilters',
+			'extensionsFilters',
+			'tlsSecurity',
+		],
+	);
+	return { ...(await preparePullConfig(opts, from)), output };
+};
 
-		let migrate:
-			| ((config: MigrationConfig) => Promise<void | MigratorInitFailResponse>)
-			| undefined;
-		if (dialect === 'postgresql') {
-			if ('driver' in credentials) {
-				const { driver } = credentials;
-				if (driver === 'aws-data-api') {
-					if (!(await ormVersionGt('0.30.10'))) {
-						console.log(
-							"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
-						);
-						process.exit(1);
-					}
-				} else if (driver === 'pglite') {
-					if (!(await ormVersionGt('0.30.6'))) {
-						console.log(
-							"To use 'pglite' driver - please update drizzle-orm to the latest version",
-						);
-						process.exit(1);
-					}
-				} else {
-					assertUnreachable(driver);
-				}
+type PullManifest = {
+	schemaPath: string;
+	relationsPath?: string;
+	snapshotPath: string;
+	migrationPath?: string;
+};
+
+export const runPull = async (
+	config: Awaited<ReturnType<typeof preparePull>>,
+) => {
+	await assertPackages('drizzle-orm');
+	await assertOrmCoreVersion();
+
+	const {
+		dialect,
+		credentials,
+		out,
+		casing,
+		breakpoints,
+		filters,
+		init,
+		migrations,
+	} = config;
+	mkdirSync(out, { recursive: true });
+
+	let migrate:
+		| ((config: MigrationConfig) => Promise<void | MigratorInitFailResponse>)
+		| undefined;
+	// Redaction descriptor captured per-dialect so the `--init` migrate span can
+	// re-throw driver failures as the same DatabaseDriverCliError used above,
+	// instead of leaking QueryError sql/params/credentials into the json envelope.
+	let driverError: { database: string; packages: string[]; message: string } | undefined;
+	let manifest: PullManifest;
+	if (dialect === 'postgresql') {
+		if ('driver' in credentials) {
+			const { driver } = credentials;
+			if (driver === 'aws-data-api' && !(await ormVersionGt('0.30.10'))) {
+				throw new OrmDriverVersionCliError(
+					'aws-data-api',
+					'0.30.10',
+					"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
+				);
 			}
+			if (driver === 'pglite' && !(await ormVersionGt('0.30.6'))) {
+				throw new OrmDriverVersionCliError(
+					'pglite',
+					'0.30.6',
+					"To use 'pglite' driver - please update drizzle-orm to the latest version",
+				);
+			}
+		}
 
+		// connectX returns lazy query proxies; runtime connect/introspect failures
+		// surface as QueryError and would leak sql/params/credentials into the
+		// envelope, so re-throw as a redacted DatabaseDriverCliError.
+		try {
 			const { preparePostgresDB } = await import('./connections');
 			const db = await preparePostgresDB(credentials);
 			migrate = db.migrate;
+			driverError = {
+				database: 'postgresql',
+				packages: ['pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres'],
+				message: 'Failed to connect to or introspect the Postgres database',
+			};
 
 			const { handle: introspectPostgres } = await import(
 				'./commands/pull-postgres'
 			);
-			await introspectPostgres(
-				casing,
-				out,
-				breakpoints,
-				credentials,
-				filters,
-				migrations,
-				db,
+			manifest = await introspectPostgres(casing, out, breakpoints, credentials, filters, migrations, db);
+		} catch (e) {
+			if (isTypedCliError(e)) throw e;
+			throw new DatabaseDriverCliError(
+				'postgresql',
+				['pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres'],
+				'Failed to connect to or introspect the Postgres database',
 			);
-		} else if (dialect === 'mysql') {
+		}
+	} else if (dialect === 'mysql') {
+		try {
 			const { connectToMySQL } = await import('./connections');
 			const db = await connectToMySQL(credentials);
 			migrate = db.migrate;
+			driverError = {
+				database: 'mysql',
+				packages: ['mysql2', 'bun', '@planetscale/database'],
+				message: 'Failed to connect to or introspect the MySQL database',
+			};
 
 			const { handle: introspectMysql } = await import('./commands/pull-mysql');
-			await introspectMysql(
-				casing,
-				out,
-				breakpoints,
-				credentials,
-				filters,
-				migrations,
-				db,
+			manifest = await introspectMysql(casing, out, breakpoints, credentials, filters, migrations, db);
+		} catch (e) {
+			if (isTypedCliError(e)) throw e;
+			throw new DatabaseDriverCliError(
+				'mysql',
+				['mysql2', 'bun', '@planetscale/database'],
+				'Failed to connect to or introspect the MySQL database',
 			);
-		} else if (dialect === 'sqlite') {
+		}
+	} else if (dialect === 'sqlite') {
+		try {
 			const { connectToSQLite } = await import('./connections');
 			const db = await connectToSQLite(credentials);
 			migrate = db.migrate;
+			driverError = {
+				database: 'sqlite',
+				packages: ['better-sqlite3', 'bun', '@libsql/client', '@tursodatabase/database', 'node:sqlite'],
+				message: 'Failed to connect to or introspect the SQLite database',
+			};
 
 			const { handle } = await import('./commands/pull-sqlite');
-			await handle(
-				casing,
-				out,
-				breakpoints,
-				credentials,
-				filters,
+			manifest = await handle(casing, out, breakpoints, credentials, filters, 'sqlite', migrations, db);
+		} catch (e) {
+			if (isTypedCliError(e)) throw e;
+			throw new DatabaseDriverCliError(
 				'sqlite',
-				migrations,
-				db,
+				['better-sqlite3', 'bun', '@libsql/client', '@tursodatabase/database', 'node:sqlite'],
+				'Failed to connect to or introspect the SQLite database',
 			);
-		} else if (dialect === 'turso') {
-			const { connectToLibSQL } = await import('./connections');
+		}
+	} else if (dialect === 'turso') {
+		try {
+			const { connectToTursoRemote: connectToLibSQL } = await import('./connections');
 			const db = await connectToLibSQL(credentials);
 			migrate = db.migrate;
+			driverError = {
+				database: 'turso',
+				packages: ['@libsql/client', '@tursodatabase/database', '@tursodatabase/serverless'],
+				message: 'Failed to connect to or introspect the Turso database',
+			};
 
 			const { handle } = await import('./commands/pull-libsql');
-			await handle(
-				casing,
-				out,
-				breakpoints,
-				credentials,
-				filters,
-				'libsql',
-				migrations,
-				db,
+			manifest = await handle(casing, out, breakpoints, credentials, filters, 'libsql', migrations, db);
+		} catch (e) {
+			if (isTypedCliError(e)) throw e;
+			throw new DatabaseDriverCliError(
+				'turso',
+				['@libsql/client', '@tursodatabase/database', '@tursodatabase/serverless'],
+				'Failed to connect to or introspect the Turso database',
 			);
-		} else if (dialect === 'singlestore') {
+		}
+	} else if (dialect === 'singlestore') {
+		try {
 			const { connectToSingleStore } = await import('./connections');
 			const db = await connectToSingleStore(credentials);
 			migrate = db.migrate;
+			driverError = {
+				database: 'singlestore',
+				packages: ['mysql2'],
+				message: 'Failed to connect to or introspect the SingleStore database',
+			};
 
 			const { handle } = await import('./commands/pull-singlestore');
-			await handle(
-				casing,
-				out,
-				breakpoints,
-				credentials,
-				filters,
-				migrations,
-				db,
+			manifest = await handle(casing, out, breakpoints, credentials, filters, migrations, db);
+		} catch (e) {
+			if (isTypedCliError(e)) throw e;
+			throw new DatabaseDriverCliError(
+				'singlestore',
+				['mysql2'],
+				'Failed to connect to or introspect the SingleStore database',
 			);
-		} else if (dialect === 'mssql') {
+		}
+	} else if (dialect === 'mssql') {
+		try {
 			const { connectToMsSQL } = await import('./connections');
 			const db = await connectToMsSQL(credentials);
 			migrate = db.migrate;
+			driverError = {
+				database: 'mssql',
+				packages: ['mssql'],
+				message: 'Failed to connect to or introspect the MsSQL database',
+			};
 
 			const { handle } = await import('./commands/pull-mssql');
-			await handle(
-				casing,
-				out,
-				breakpoints,
-				credentials,
-				filters,
-				migrations,
-				db,
+			manifest = await handle(casing, out, breakpoints, credentials, filters, migrations, db);
+		} catch (e) {
+			if (isTypedCliError(e)) throw e;
+			throw new DatabaseDriverCliError(
+				'mssql',
+				['mssql'],
+				'Failed to connect to or introspect the MsSQL database',
 			);
-		} else if (dialect === 'cockroach') {
+		}
+	} else if (dialect === 'cockroach') {
+		try {
 			const { prepareCockroach } = await import('./connections');
 			const db = await prepareCockroach(credentials);
 			migrate = db.migrate;
-
-			const { handle } = await import('./commands/pull-cockroach');
-			await handle(
-				casing,
-				out,
-				breakpoints,
-				credentials,
-				filters,
-				migrations,
-				db,
-			);
-		} else {
-			assertUnreachable(dialect);
-		}
-
-		if (init) {
-			if (!migrate) {
-				throw new Error(`--init can't be used with '${dialect}' dialect`);
-			}
-
-			console.log();
-			console.log(grey('Applying migration metadata to the database'));
-
-			const migrateInput = {
-				migrationsFolder: out,
-				migrationsTable: migrations.table,
-				migrationsSchema: migrations.schema,
-				// Internal param - won't be displayed in types. Do not remove.
-				init: true,
+			driverError = {
+				database: 'cockroach',
+				packages: ['pg'],
+				message: 'Failed to connect to or introspect the Cockroach database',
 			};
 
-			const error = await migrate(migrateInput);
+			const { handle } = await import('./commands/pull-cockroach');
+			manifest = await handle(casing, out, breakpoints, credentials, filters, migrations, db);
+		} catch (e) {
+			if (isTypedCliError(e)) throw e;
+			throw new DatabaseDriverCliError(
+				'cockroach',
+				['pg'],
+				'Failed to connect to or introspect the Cockroach database',
+			);
+		}
+	} else {
+		assertUnreachable(dialect);
+	}
 
-			if (error) {
-				if (error.exitCode === 'localMigrations') {
-					throw new Error("--init can't be used with existing migrations");
-				}
-				if (error.exitCode === 'databaseMigrations') {
-					throw new Error(
-						"--init can't be used when database already has migrations set",
-					);
-				}
+	if (init) {
+		if (outputFormat() === 'text') {
+			console.log();
+			console.log(grey('Applying migration metadata to the database'));
+		}
+
+		const migrateInput = {
+			migrationsFolder: out,
+			migrationsTable: migrations.table,
+			migrationsSchema: migrations.schema,
+			// Internal param - won't be displayed in types. Do not remove.
+			init: true,
+		};
+
+		// migrate() runs live driver queries; an unexpected failure throws a raw
+		// QueryError carrying sql/params (and possibly credentials in e.message),
+		// so re-throw it redacted exactly like the connect/introspect span above.
+		let error: void | MigratorInitFailResponse;
+		try {
+			error = await migrate!(migrateInput);
+		} catch (e) {
+			if (isTypedCliError(e)) throw e;
+			throw new DatabaseDriverCliError(driverError!.database, driverError!.packages, driverError!.message);
+		}
+
+		if (error) {
+			if (error.exitCode === 'localMigrations') {
+				throw new CommandOutputCliError('pull', "--init can't be used with existing migrations");
+			}
+			if (error.exitCode === 'databaseMigrations') {
+				throw new CommandOutputCliError(
+					'pull',
+					"--init can't be used when database already has migrations set",
+				);
 			}
 		}
+	}
+
+	return { status: 'ok' as const, dialect, ...manifest };
+};
+
+export const pull = command({
+	name: 'pull',
+	aliases: ['introspect'],
+	options: pullOptions,
+	transform: preparePull,
+	handler: async (cfg) => {
+		const env = await runPull(cfg);
+		if (outputFormat() === 'json') process.stdout.write(JSON.stringify(env) + '\n');
+		process.exit(statusToExitCode(env.status));
 	},
 });
 
@@ -906,55 +1106,149 @@ export const studio = command({
 	},
 });
 
+export const exportOptions = {
+	sql: boolean('sql').default(true).desc('Generate as sql'),
+	config: optionConfig,
+	dialect: optionDialect,
+	schema: string().desc('Path to a schema file or folder'),
+	output: optionOutput,
+} as const satisfies Record<string, GenericBuilderInternals>;
+
+export const prepareExport = async (opts: ExportOptionsInput) => {
+	const output = opts.output ?? outputFormat();
+	const interactive = output === 'text' && !!process.stdin.isTTY;
+	setCliContext({ output, interactive });
+	const from = assertCollisions(
+		'export',
+		opts,
+		['sql', 'output'],
+		['dialect', 'schema'],
+	);
+	const config = { ...(await prepareExportConfig(opts, from)), output };
+	return config;
+};
+
+export const runExport = async (
+	config: Awaited<ReturnType<typeof prepareExport>>,
+) => {
+	await assertOrmCoreVersion();
+	await assertPackages('drizzle-orm');
+
+	const dialect = config.dialect;
+	let statements: string[];
+	let warnings: string[];
+	if (dialect === 'postgresql') {
+		const { handleExport } = await import('./commands/generate-postgres');
+		({ statements, warnings } = await handleExport(config));
+	} else if (dialect === 'mysql') {
+		const { handleExport } = await import('./commands/generate-mysql');
+		({ statements, warnings } = await handleExport(config));
+	} else if (dialect === 'sqlite') {
+		const { handleExport } = await import('./commands/generate-sqlite');
+		({ statements, warnings } = await handleExport(config));
+	} else if (dialect === 'turso') {
+		const { handleExport } = await import('./commands/generate-libsql');
+		({ statements, warnings } = await handleExport(config));
+	} else if (dialect === 'singlestore') {
+		const { handleExport } = await import('./commands/generate-singlestore');
+		({ statements, warnings } = await handleExport(config));
+	} else if (dialect === 'mssql') {
+		const { handleExport } = await import('./commands/generate-mssql');
+		({ statements, warnings } = await handleExport(config));
+	} else if (dialect === 'cockroach') {
+		const { handleExport } = await import('./commands/generate-cockroach');
+		({ statements, warnings } = await handleExport(config));
+	} else if (dialect === 'duckdb') {
+		throw new UnsupportedCommandDialectCliError('export', 'duckdb');
+	} else {
+		assertUnreachable(dialect);
+	}
+
+	return { status: 'ok' as const, dialect, statements, warnings };
+};
+
 export const exportRaw = command({
 	name: 'export',
 	desc: 'Generate diff between current state and empty state in specified formats: sql',
-	options: {
-		sql: boolean('sql').default(true).desc('Generate as sql'),
-		config: optionConfig,
-		dialect: optionDialect,
-		schema: string().desc('Path to a schema file or folder'),
-	},
-	transform: async (opts) => {
-		const from = assertCollisions(
-			'export',
-			opts,
-			['sql'],
-			['dialect', 'schema'],
-		);
-		return prepareExportConfig(opts, from);
-	},
-	handler: async (opts) => {
-		await assertOrmCoreVersion();
-		await assertPackages('drizzle-orm');
-
-		const dialect = opts.dialect;
-		if (dialect === 'postgresql') {
-			const { handleExport } = await import('./commands/generate-postgres');
-			await handleExport(opts);
-		} else if (dialect === 'mysql') {
-			const { handleExport } = await import('./commands/generate-mysql');
-			await handleExport(opts);
-		} else if (dialect === 'sqlite') {
-			const { handleExport } = await import('./commands/generate-sqlite');
-			await handleExport(opts);
-		} else if (dialect === 'turso') {
-			const { handleExport } = await import('./commands/generate-libsql');
-			await handleExport(opts);
-		} else if (dialect === 'singlestore') {
-			const { handleExport } = await import('./commands/generate-singlestore');
-			await handleExport(opts);
-		} else if (dialect === 'mssql') {
-			const { handleExport } = await import('./commands/generate-mssql');
-			await handleExport(opts);
-		} else if (dialect === 'cockroach') {
-			const { handleExport } = await import('./commands/generate-cockroach');
-			await handleExport(opts);
-		} else if (dialect === 'duckdb') {
-			console.log(error(`You can't use 'export' command with DuckDb dialect`));
-			process.exit(1);
-		} else {
-			assertUnreachable(dialect);
+	options: exportOptions,
+	transform: prepareExport,
+	handler: async (cfg) => {
+		const env = await runExport(cfg);
+		if (outputFormat() === 'json') process.stdout.write(JSON.stringify(env) + '\n');
+		else {
+			if (env.warnings.length > 0) console.log(env.warnings.join('\n\n'));
+			console.log(env.statements.join('\n'));
 		}
+		process.exit(statusToExitCode(env.status));
+	},
+});
+
+const detectInstaller = (): { cmd: 'pnpm' | 'bunx' | 'yarn' | 'npx'; args: string[] } => {
+	const userAgent = process.env.npm_config_user_agent ?? '';
+	const token = userAgent.split(' ')[0] ?? '';
+	const [name, version] = token.split('/');
+
+	if (name === 'pnpm') return { cmd: 'pnpm', args: ['dlx'] };
+	if (name === 'bun') return { cmd: 'bunx', args: [] };
+	if (name === 'yarn') {
+		const major = Number.parseInt(version ?? '', 10);
+		if (Number.isFinite(major) && major >= 2) return { cmd: 'yarn', args: ['dlx'] };
+		return { cmd: 'npx', args: ['-y'] };
+	}
+	return { cmd: 'npx', args: ['-y'] };
+};
+
+const skillsVersion = command({
+	name: 'version',
+	options: {},
+	handler: () => {
+		const revision = process.env.DRIZZLE_KIT_SKILLS_REVISION;
+		process.stdout.write(`${revision ? revision : '--'}\n`);
+	},
+});
+
+export const mcp = command({
+	name: 'mcp',
+	options: {},
+	handler: async () => {
+		const { startMcpServer } = await import('../mcp/server');
+		await startMcpServer();
+	},
+});
+
+export const skills = command({
+	name: 'skills',
+	options: {},
+	subcommands: [skillsVersion],
+	handler: async () => {
+		const candidates = [resolve(__dirname, 'skills'), resolve(__dirname, '../../skills')];
+		const skillsDir = candidates.find((p) => existsSync(p));
+		if (!skillsDir) {
+			process.stderr.write('Could not locate bundled skills directory.\n');
+			process.exit(1);
+		}
+
+		const { cmd, args } = detectInstaller();
+		process.stderr.write(`Installing via ${cmd}…\n`);
+		// On Windows `shell: true` re-tokenizes argv via cmd.exe, so a `skillsDir` with spaces
+		// (e.g. `C:\Program Files\…`) would split across args. Quote the path to neutralize that.
+		const onWindows = process.platform === 'win32';
+		const skillsArg = onWindows ? `"${skillsDir}"` : skillsDir;
+		const child = spawn(cmd, [...args, 'skills@latest', 'add', skillsArg], {
+			stdio: 'inherit',
+			shell: onWindows,
+		});
+		// Awaiting child exit prevents the outer brocli `after` hook from racing process.exit(0)
+		// past a non-zero child exit code.
+		const exitCode = await new Promise<number>((resolve) => {
+			child.on('error', () => {
+				process.stderr.write(`Failed to spawn ${cmd}. Make sure ${cmd} is installed and on PATH.\n`);
+				resolve(1);
+			});
+			child.on('exit', (code, signal) => {
+				resolve(signal ? 1 : (code ?? 0));
+			});
+		});
+		process.exit(exitCode);
 	},
 });

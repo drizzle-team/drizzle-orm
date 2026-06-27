@@ -1,11 +1,18 @@
 import { test as brotest } from '@drizzle-team/brocli';
 import { unlinkSync } from 'node:fs';
-import { join } from 'node:path';
-import { assert, expect, test, vi } from 'vitest';
+import { afterEach, assert, expect, test } from 'vitest';
 import { pull } from '../../src/cli/schema';
+import { wrapParam } from '../../src/cli/validations/common';
+import { error } from '../../src/cli/views';
 import { createConfig } from './utils';
 
-test('pull #1', async (t) => {
+const originalPrefix = process.env.TEST_CONFIG_PATH_PREFIX;
+process.env.TEST_CONFIG_PATH_PREFIX = './tests/cli/';
+afterEach(() => {
+	process.env.TEST_CONFIG_PATH_PREFIX = originalPrefix ?? './tests/cli/';
+});
+
+test('pull #1', async () => {
 	const res = await brotest(pull, '');
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
 
@@ -24,6 +31,7 @@ test('pull #1', async (t) => {
 			tables: undefined,
 		},
 		init: false,
+		output: 'text',
 		migrations: {
 			table: '__drizzle_migrations',
 			schema: 'drizzle',
@@ -31,7 +39,7 @@ test('pull #1', async (t) => {
 	});
 });
 
-test('pull #2', async (t) => {
+test('pull #2', async () => {
 	const res = await brotest(pull, '--config=turso.config.ts');
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
 	expect(res.options).toStrictEqual({
@@ -50,6 +58,7 @@ test('pull #2', async (t) => {
 			tables: undefined,
 		},
 		init: false,
+		output: 'text',
 		migrations: {
 			table: '__drizzle_migrations',
 			schema: 'drizzle',
@@ -57,7 +66,7 @@ test('pull #2', async (t) => {
 	});
 });
 
-test('pull #3', async (t) => {
+test('pull #3', async () => {
 	const res = await brotest(pull, '--config=d1http.config.ts');
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
 	expect(res.options).toStrictEqual({
@@ -78,6 +87,7 @@ test('pull #3', async (t) => {
 			tables: undefined,
 		},
 		init: false,
+		output: 'text',
 		migrations: {
 			table: '__drizzle_migrations',
 			schema: 'drizzle',
@@ -85,7 +95,7 @@ test('pull #3', async (t) => {
 	});
 });
 
-test('pull #4', async (t) => {
+test('pull #4', async () => {
 	const res = await brotest(pull, '--config=postgres.config.ts');
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
 	expect(res.options).toStrictEqual({
@@ -107,6 +117,7 @@ test('pull #4', async (t) => {
 			tables: undefined,
 		},
 		init: false,
+		output: 'text',
 		migrations: {
 			table: '__drizzle_migrations',
 			schema: 'drizzle',
@@ -115,14 +126,14 @@ test('pull #4', async (t) => {
 });
 
 // --- errors ---
-test('err #1', async (t) => {
+test('err #1', async () => {
 	const res = await brotest(pull, '--config=expo.config.ts');
 	assert.equal(res.type, 'error');
 });
 
 // should point to test/cli
 const prefix = process.env.TEST_CONFIG_PATH_PREFIX || '';
-test('validate config #1', async (t) => {
+test('validate config #1', async () => {
 	const { path, name } = createConfig({
 		dialect: 'postgresql',
 		schema: 'schema.ts',
@@ -174,6 +185,7 @@ test('validate config #1', async (t) => {
 			],
 		},
 		init: false,
+		output: 'text',
 		migrations: {
 			schema: 'new_schema',
 			table: '__drizzle_migrations',
@@ -182,7 +194,7 @@ test('validate config #1', async (t) => {
 	expect(res.options).toStrictEqual(expected);
 });
 
-test('validate config #2', async (t) => {
+test('validate config #2', async () => {
 	const { path, name } = createConfig({
 		dialect: 'mssql',
 		schema: 'schema.ts',
@@ -237,6 +249,7 @@ test('validate config #2', async (t) => {
 			],
 		},
 		init: true,
+		output: 'text',
 		migrations: {
 			schema: 'new_schema',
 			table: '__drizzle_migrations',
@@ -245,7 +258,7 @@ test('validate config #2', async (t) => {
 	expect(res.options).toStrictEqual(expected);
 });
 
-test('validate config #3', async (t) => {
+test('validate config #3', async () => {
 	const { path, name } = createConfig({
 		dialect: 'sqlite',
 		schema: 'schema.ts',
@@ -296,6 +309,7 @@ test('validate config #3', async (t) => {
 			tables: 'test',
 		},
 		init: false,
+		output: 'text',
 		migrations: {
 			schema: 'drizzle',
 			table: 'test_table',
@@ -304,7 +318,7 @@ test('validate config #3', async (t) => {
 	expect(res.options).toStrictEqual(expected);
 });
 
-test('validate config #4', async (t) => {
+test('validate config #4', async () => {
 	const { path, name } = createConfig({
 		dialect: 'mysql',
 		dbCredentials: {
@@ -333,6 +347,7 @@ test('validate config #4', async (t) => {
 			tables: undefined,
 		},
 		init: false,
+		output: 'text',
 		migrations: {
 			schema: 'drizzle',
 			table: '__drizzle_migrations',
@@ -341,9 +356,7 @@ test('validate config #4', async (t) => {
 	expect(res.options).toStrictEqual(expected);
 });
 
-test('validate config #5', async (t) => {
-	const spy = vi.spyOn(console, 'log');
-
+test('validate config #5', async () => {
 	// @ts-expect-error
 	const { path, name } = createConfig({
 		// dialect: 'mysql',
@@ -357,25 +370,13 @@ test('validate config #5', async (t) => {
 	unlinkSync(path);
 
 	expect(res.type).toBe('error');
-
-	expect(spy).toHaveBeenNthCalledWith(1, `Reading config file '${path}'`);
-	expect(spy).toHaveBeenNthCalledWith(
-		2,
-		`Error  Please provide required params:
-    [x] dialect: undefined`,
+	if (res.type !== 'error') return;
+	expect((res.error as Error).message).toBe(
+		[error('Please provide required params:'), wrapParam('dialect', undefined)].join('\n'),
 	);
-
-	let error: any = res.type === 'error' ? res.error : undefined;
-	expect(error).toBeDefined();
-	expect(error).toBeInstanceOf(Error);
-	expect(error.message).toBe('process.exit unexpectedly called with "1"');
-
-	spy.mockRestore();
 });
 
-test('validate config #6', async (t) => {
-	const spy = vi.spyOn(console, 'log');
-
+test('validate config #6', async () => {
 	const { path, name } = createConfig({
 		dialect: 'mysql',
 		dbCredentials: {
@@ -388,17 +389,6 @@ test('validate config #6', async (t) => {
 	unlinkSync(path);
 
 	expect(res.type).toBe('error');
-
-	expect(spy).toHaveBeenNthCalledWith(1, `Reading config file '${path}'`);
-	expect(spy).toHaveBeenNthCalledWith(
-		2,
-		'Error  Please provide required params for MySQL driver:',
-	);
-
-	let error: any = res.type === 'error' ? res.error : undefined;
-	expect(error).toBeDefined();
-	expect(error).toBeInstanceOf(Error);
-	expect(error.message).toBe('process.exit unexpectedly called with "1"');
-
-	spy.mockRestore();
+	if (res.type !== 'error') return;
+	expect((res.error as Error).message).toContain('MySQL driver');
 });

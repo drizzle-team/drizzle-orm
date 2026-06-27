@@ -13,8 +13,10 @@ import {
 	int,
 	json,
 	longblob,
+	longtext,
 	mediumblob,
 	mediumint,
+	mediumtext,
 	type MySqlColumn,
 	mysqlEnum,
 	mysqlSchema,
@@ -28,6 +30,7 @@ import {
 	timestamp,
 	tinyblob,
 	tinyint,
+	tinytext,
 	uniqueIndex,
 	varbinary,
 	varchar,
@@ -101,6 +104,85 @@ export const allTypesTable = mysqlTable('all_types', {
 	stringtinyblob: tinyblob('stringtinyblob', { mode: 'string' }),
 	stringmediumblob: mediumblob('stringmediumblob', { mode: 'string' }),
 	stringlongblob: longblob('stringlongblob', { mode: 'string' }),
+});
+
+export const allTypesCodecsTable = mysqlTable('all_types_codecs', {
+	serial: serial('serial'),
+	bigint53: bigint('bigint53', {
+		mode: 'number',
+	}).notNull(),
+	bigint64: bigint('bigint64', {
+		mode: 'bigint',
+	}).notNull(),
+	bigintstr: bigint('bigintstr', {
+		mode: 'string',
+	}).notNull(),
+	binary: binary('binary').notNull(),
+	boolean: boolean('boolean').notNull(),
+	char: char('char').notNull(),
+	date: date('date', {
+		mode: 'date',
+	}).notNull(),
+	datestr: date('datestr', {
+		mode: 'string',
+	}).notNull(),
+	datetime: datetime('datetime', {
+		mode: 'date',
+		fsp: 3,
+	}).notNull(),
+	datetimestr: datetime('datetimestr', {
+		mode: 'string',
+		fsp: 3,
+	}).notNull(),
+	decimal: decimal('decimal').notNull(),
+	decimalnum: decimal('decimalnum', {
+		precision: 30,
+		mode: 'number',
+	}).notNull(),
+	decimalbig: decimal('decimalbig', {
+		precision: 30,
+		mode: 'bigint',
+	}).notNull(),
+	double: double('double').notNull(),
+	float: float('float').notNull(),
+	int: int('int').notNull(),
+	json1: json('json1').notNull(),
+	json2: json('json2').notNull(),
+	json3: json('json3').notNull(),
+	json4: json('json4').notNull(),
+	medint: mediumint('medint').notNull(),
+	smallint: smallint('smallint').notNull(),
+	real: real('real').notNull(),
+	text: text('text').notNull(),
+	tinytext: tinytext('tinytext').notNull(),
+	mediumtext: mediumtext('mediumtext').notNull(),
+	longtext: longtext('longtext').notNull(),
+	time: time('time').notNull(),
+	timestamp: timestamp('timestamp', {
+		mode: 'date',
+		fsp: 3,
+	}).notNull(),
+	timestampstr: timestamp('timestampstr', {
+		mode: 'string',
+		fsp: 3,
+	}).notNull(),
+	tinyint: tinyint('tinyint').notNull(),
+	varbin: varbinary('varbin', {
+		length: 16,
+	}).notNull(),
+	varchar: varchar('varchar', {
+		length: 255,
+	}).notNull(),
+	year: year('year').notNull(),
+	enum: mysqlEnum('enum', ['enV1', 'enV2']).notNull(),
+	blob: blob('blob').notNull(),
+	tinyblob: tinyblob('tinyblob').notNull(),
+	mediumblob: mediumblob('mediumblob').notNull(),
+	longblob: longblob('longblob').notNull(),
+	stringblob: blob('stringblob', { mode: 'string' }).notNull(),
+	stringtinyblob: tinyblob('stringtinyblob', { mode: 'string' }).notNull(),
+	stringmediumblob: mediumblob('stringmediumblob', { mode: 'string' }).notNull(),
+	stringlongblob: longblob('stringlongblob', { mode: 'string' }).notNull(),
 });
 
 export const createUserTable = (name: string) => {

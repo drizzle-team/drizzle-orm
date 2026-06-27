@@ -35,6 +35,9 @@ export class MySqlVarChar<
 > extends MySqlStringBaseColumn<T, MySqlVarCharConfig<T['enumValues']>> {
 	static override readonly [entityKind]: string = 'MySqlVarChar';
 
+	/** @internal */
+	override readonly codec = 'varchar';
+
 	override readonly enumValues = this.config.enum;
 
 	getSQLType(): string {

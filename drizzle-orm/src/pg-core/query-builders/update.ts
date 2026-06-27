@@ -1,4 +1,3 @@
-import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { GetColumnData } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -18,11 +17,11 @@ import type {
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import {
 	type ColumnsSelection,
+	type CommentInput,
 	type Placeholder,
 	type Query,
 	SQL,
 	sql,
-	type SqlCommenterInput,
 	type SQLWrapper,
 } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
@@ -33,7 +32,6 @@ import {
 	type Equal,
 	getTableLikeName,
 	mapUpdateSet,
-	type NeonAuthToken,
 	orderSelectedFields,
 	type Simplify,
 	type UpdateSet,
@@ -104,14 +102,6 @@ export class PgUpdateBuilder<
 		private builder: PgUpdateBuilderConstructor = PgUpdateBase,
 	) {}
 
-	/** @internal */
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
-	}
-
 	set(
 		values: PgUpdateSetSource<TTable>,
 	): PgUpdateWithout<
@@ -126,10 +116,6 @@ export class PgUpdateBuilder<
 			this.dialect,
 			this.withList,
 		) as AnyPgUpdate;
-
-		if ('setToken' in builder) {
-			(builder.setToken as (authToken?: NeonAuthToken) => typeof builder)(this.authToken);
-		}
 
 		return builder as any;
 	}
@@ -468,7 +454,6 @@ export class PgUpdateBase<
 	protected config: PgUpdateConfig;
 	protected tableName: string | undefined;
 	protected joinsNotNullableMap: Record<string, boolean>;
-	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		table: TTable,
@@ -677,7 +662,7 @@ export class PgUpdateBase<
 	/**
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
-	comment(comment: SqlCommenterInput): PgUpdateWithout<this, TDynamic, 'comment'> {
+	comment(comment: CommentInput): PgUpdateWithout<this, TDynamic, 'comment'> {
 		this.config.comment = sql.comment(comment);
 		return this as any;
 	}

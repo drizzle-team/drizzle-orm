@@ -4,15 +4,14 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
+import { MySqlAsyncPreparedQuery, MySqlAsyncSession, type MySqlAsyncTransaction } from '~/mysql-core/async/session.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import type { MySqlTransaction } from '~/mysql-core/index.ts';
 import type {
 	AnyMySqlMapper,
 	MySqlPreparedQueryConfig,
 	MySqlQueryResultHKT,
 	MySqlTransactionConfig,
 } from '~/mysql-core/session.ts';
-import { MySqlPreparedQuery, MySqlSession } from '~/mysql-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import type { RemoteCallback } from './driver.ts';
@@ -26,7 +25,7 @@ export interface MySqlRemoteSessionOptions {
 
 export class MySqlRemoteSession<
 	TRelations extends AnyRelations,
-> extends MySqlSession<
+> extends MySqlAsyncSession<
 	MySqlRemoteQueryResultHKT,
 	TRelations
 > {
@@ -55,7 +54,7 @@ export class MySqlRemoteSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): MySqlPreparedQuery<T> {
+	): MySqlAsyncPreparedQuery<T> {
 		const executor = async (params: any[] = []) => {
 			const raw = this.client(query.sql, params, mode === 'arrays' ? 'all' : 'execute');
 
@@ -68,7 +67,7 @@ export class MySqlRemoteSession<
 			}));
 		};
 
-		return new MySqlPreparedQuery(
+		return new MySqlAsyncPreparedQuery(
 			executor,
 			undefined,
 			query,
@@ -82,7 +81,7 @@ export class MySqlRemoteSession<
 	}
 
 	override async transaction<T>(
-		_transaction: (tx: MySqlTransaction<MySqlRemoteQueryResultHKT, TRelations>) => Promise<T>,
+		_transaction: (tx: MySqlAsyncTransaction<MySqlRemoteQueryResultHKT, TRelations>) => Promise<T>,
 		_config?: MySqlTransactionConfig,
 	): Promise<T> {
 		throw new Error('Transactions are not supported by the MySql Proxy driver');

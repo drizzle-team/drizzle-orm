@@ -75,7 +75,7 @@ export class PgAsyncInsertBase<
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgInsertPrepare<this> {
-		const { session, config, dialect, cacheConfig } = this;
+		const { session, config, dialect } = this;
 		const { returning: fields } = config;
 
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
@@ -90,7 +90,6 @@ export class PgAsyncInsertBase<
 				name ?? generateName,
 				mapper,
 				{ type: 'insert', tables: [...extractUsedTable(this.config.table)] },
-				cacheConfig,
 			);
 
 			return preparedQuery;

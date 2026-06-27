@@ -448,7 +448,7 @@ test('rename column #3. Part of check constraint', async (t) => {
 	expect(error).not.toBeNull();
 	expect(phints).toStrictEqual([{
 		hint:
-			'· You are trying to rename column from id to id1, but it is not possible to rename a column if it is used in a check constraint on the table.'
+			'You are trying to rename column from id to id1, but it is not possible to rename a column if it is used in a check constraint on the table.'
 			+ '\n'
 			+ 'To rename the column, first drop the check constraint, then rename the column, and finally recreate the check constraint',
 	}]);

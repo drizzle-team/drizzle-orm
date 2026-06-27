@@ -96,6 +96,13 @@ export type AddAliasToSelection<
 				? ChangeColumnTableName<TSelection[Key], TAlias, TDialect>
 				: TSelection[Key] extends Table ? AddAliasToSelection<TSelection[Key]['_']['columns'], TAlias, TDialect>
 				: TSelection[Key] extends SQL | SQL.Aliased ? TSelection[Key]
+				: TSelection[Key] extends Subquery ? FromSingleKeyObject<
+						TSelection[Key]['_']['selectedFields'],
+						TSelection[Key]['_']['selectedFields'] extends { [key: string]: infer TValue }
+							? SQL.Aliased<SelectResultField<TValue>>
+							: never,
+						'You can only select one column in the subquery'
+					>
 				: TSelection[Key] extends ColumnsSelection ? MapColumnsToTableAlias<TSelection[Key], TAlias, TDialect>
 				: never;
 		}
@@ -125,6 +132,13 @@ export type BuildSubquerySelection<
 				: TSelection[Key] extends Table ? BuildSubquerySelection<TSelection[Key]['_']['columns'], TNullability>
 				: TSelection[Key] extends Column
 					? ApplyNullabilityToColumn<TSelection[Key], TNullability[TSelection[Key]['_']['tableName']]>
+				: TSelection[Key] extends Subquery ? FromSingleKeyObject<
+						TSelection[Key]['_']['selectedFields'],
+						TSelection[Key]['_']['selectedFields'] extends { [key: string]: infer TValue }
+							? SQL.Aliased<SelectResultField<TValue>>
+							: never,
+						'You can only select one column in the subquery'
+					>
 				: TSelection[Key] extends ColumnsSelection ? BuildSubquerySelection<TSelection[Key], TNullability>
 				: never;
 		}

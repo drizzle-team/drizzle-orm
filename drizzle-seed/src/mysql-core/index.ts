@@ -1,6 +1,6 @@
 import { type AnyColumn, getTableName, is, sql } from 'drizzle-orm';
 import { Relations } from 'drizzle-orm/_relations';
-import type { MySqlDatabase, MySqlSchema } from 'drizzle-orm/mysql-core';
+import type { MySqlAsyncDatabase, MySqlSchema } from 'drizzle-orm/mysql-core';
 import { MySqlTable } from 'drizzle-orm/mysql-core';
 import { getSchemaInfo } from '../common.ts';
 import { SeedService } from '../SeedService.ts';
@@ -9,7 +9,7 @@ import type { Column } from '../types/tables.ts';
 
 // MySql-----------------------------------------------------------------------------------------------------
 export const resetMySql = async (
-	db: MySqlDatabase<any, any>,
+	db: MySqlAsyncDatabase<any, any>,
 	schema: { [key: string]: MySqlTable },
 ) => {
 	const tablesToTruncate = Object.entries(schema).map(([_tsTableName, table]) => {
@@ -51,7 +51,7 @@ export const filterMysqlTables = (schema: {
 };
 
 export const seedMySql = async (
-	db: MySqlDatabase<any, any>,
+	db: MySqlAsyncDatabase<any, any>,
 	schema: {
 		[key: string]:
 			| MySqlTable

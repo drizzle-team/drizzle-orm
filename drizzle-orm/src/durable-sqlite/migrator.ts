@@ -44,11 +44,8 @@ function readMigrationFiles({ migrations }: MigrationConfig): MigrationMeta[] {
 	return migrationQueries;
 }
 
-export function migrate<
-	TSchema extends Record<string, unknown>,
-	TRelations extends AnyRelations,
->(
-	db: DrizzleSqliteDODatabase<TSchema, TRelations>,
+export function migrate<TRelations extends AnyRelations>(
+	db: DrizzleSqliteDODatabase<TRelations>,
 	config: MigrationConfig,
 ): void | MigratorInitFailResponse {
 	const migrations = readMigrationFiles(config);

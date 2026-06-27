@@ -46,4 +46,7 @@ export type SelectedFieldsOrdered<TColumn extends Column> = {
 	field: TColumn | SQL | SQL.Aliased | Subquery;
 	codec?: NormalizeCodec | NormalizeArrayCodec;
 	arrayDimensions?: number;
+	column?: Column;
+	/** Set operators may mutate type, set appropriate codec for resulting type */
+	codecOverride?: string;
 }[];

@@ -4,6 +4,7 @@ import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable, MySqlTable } from '~/mysql-core/table.ts';
 import type { SQL, SQLGenerator } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
+import { type MySqlColumnType, type MySqlType, resolveMySqlTypeAlias } from '../codecs.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type ConvertCustomConfig<T extends Partial<CustomTypeValues>> =
@@ -50,64 +51,35 @@ export class MySqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'
 export class MySqlCustomColumn<T extends ColumnBaseConfig<'custom'>> extends MySqlColumn<T> {
 	static override readonly [entityKind]: string = 'MySqlCustomColumn';
 
+	/** @internal */
+	override readonly codec?: MySqlType | undefined;
+
 	private sqlName: string;
-	private mapTo?: (value: T['data']) => T['driverParam'];
-	private mapFrom?: (value: T['driverParam']) => T['data'];
-	private mapJson?: (value: unknown) => T['data'];
-	private forJsonSelect?: (name: SQL, sql: SQLGenerator) => SQL;
+	readonly mapFromJsonValue?: (value: unknown) => T['data'];
+	readonly jsonSelectIdentifier?: (identifier: SQL, sql: SQLGenerator, arrayDimensions?: number) => SQL;
 
 	constructor(
 		table: AnyMySqlTable<{ name: T['tableName'] }>,
 		config: MySqlCustomColumnBuilder<T>['config'],
 	) {
-		super(table, config);
+		super(table, config as any);
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
-		this.mapTo = config.customTypeParams.toDriver;
-		this.mapFrom = config.customTypeParams.fromDriver;
-		this.mapJson = config.customTypeParams.fromJson;
-		this.forJsonSelect = config.customTypeParams.forJsonSelect;
+		this.mapToDriverValue = config.customTypeParams.toDriver ?? this.mapToDriverValue;
+		this.mapFromDriverValue = config.customTypeParams.fromDriver ?? this.mapFromDriverValue;
+		this.mapFromJsonValue = config.customTypeParams.fromJson;
+		this.jsonSelectIdentifier = config.customTypeParams.forJsonSelect;
+		const cfgCodec =
+			typeof config.customTypeParams.codec === 'string' || typeof config.customTypeParams.codec === 'undefined'
+				? config.customTypeParams.codec
+				: config.customTypeParams.codec(config.fieldConfig);
+		this.codec = typeof cfgCodec === 'string'
+			? resolveMySqlTypeAlias(cfgCodec) as MySqlType // If it isn't `MySqlType`, codec search will simply resolve to no codec, which is supported behaviour
+			: undefined;
 	}
 
 	getSQLType(): string {
 		return this.sqlName;
 	}
-
-	override mapFromDriverValue = (value: T['driverParam']): T['data'] => {
-		return typeof this.mapFrom === 'function' ? this.mapFrom(value) : value as T['data'];
-	};
-
-	mapFromJsonValue(value: unknown): T['data'] {
-		return typeof this.mapJson === 'function' ? this.mapJson(value) : this.mapFromDriverValue(value) as T['data'];
-	}
-
-	jsonSelectIdentifier(identifier: SQL, sql: SQLGenerator): SQL {
-		if (typeof this.forJsonSelect === 'function') return this.forJsonSelect(identifier, sql);
-
-		const rawType = this.getSQLType().toLowerCase();
-		const parenPos = rawType.indexOf('(');
-		const type = (parenPos + 1) ? rawType.slice(0, parenPos) : rawType;
-
-		switch (type) {
-			case 'binary':
-			case 'varbinary': {
-				return sql`hex(${identifier})`;
-			}
-			case 'time':
-			case 'datetime':
-			case 'decimal':
-			case 'float':
-			case 'bigint': {
-				return sql`cast(${identifier} as char)`;
-			}
-			default: {
-				return identifier;
-			}
-		}
-	}
-
-	override mapToDriverValue = (value: T['data']): T['driverParam'] => {
-		return typeof this.mapTo === 'function' ? this.mapTo(value) : value as T['data'];
-	};
 }
 
 export interface CustomTypeValues {
@@ -123,6 +95,13 @@ export interface CustomTypeValues {
 	data: unknown;
 
 	/**
+	 * Type helper, that represents what type database driver is accepting for specific database data type
+	 */
+	driverData?: unknown;
+
+	/**
+	 * @deprecated Use codecs instead
+	 *
 	 * Type helper, that represents what type database driver is returning for specific database data type
 	 *
 	 * Needed only in case driver's output and input for type differ
@@ -132,11 +111,8 @@ export interface CustomTypeValues {
 	driverOutput?: unknown;
 
 	/**
-	 * Type helper, that represents what type database driver is accepting for specific database data type
-	 */
-	driverData?: unknown;
-
-	/**
+	 * @deprecated Use codecs instead
+	 *
 	 * Type helper, that represents what type field returns after being aggregated to JSON
 	 */
 	jsonData?: unknown;
@@ -247,6 +223,8 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	fromDriver?: (value: 'driverOutput' extends keyof T ? T['driverOutput'] : T['driverData']) => T['data'];
 
 	/**
+	 * @deprecated Use codecs instead; bypasses JSON codecs if used
+	 *
 	 * Optional mapping function, that is used for transforming data returned by transofmed to JSON in database data to desired format
 	 *
 	 * Used by [relational queries](https://orm.drizzle.team/docs/rqb-v2)
@@ -277,6 +255,8 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	fromJson?: (value: T['jsonData']) => T['data'];
 
 	/**
+	 * @deprecated Use codecs instead; bypasses JSON codecs if used
+	 *
 	 * Optional selection modifier function, that is used for modifying selection of column inside [JSON functions](https://orm.drizzle.team/docs/json-functions)
 	 *
 	 * Additional mapping that could be required for such scenarios can be handled using {@link fromJson} function
@@ -331,6 +311,16 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	forJsonSelect?: (identifier: SQL, sql: SQLGenerator) => SQL;
+
+	/**
+	 * Select which column type codec will be used for this column
+	 */
+	codec?:
+		| MySqlColumnType
+		| undefined
+		| ((
+			config: T['config'] | (Equal<T['configRequired'], true> extends true ? never : undefined),
+		) => MySqlColumnType | undefined);
 }
 
 /**

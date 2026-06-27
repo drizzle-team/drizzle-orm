@@ -16,6 +16,7 @@ import {
 	serial,
 	text,
 	timestamp,
+	uuid,
 } from 'drizzle-orm/pg-core';
 import { describe, expect } from 'vitest';
 import type { Test } from './instrumentation';
@@ -688,8 +689,6 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4209
-		// postpone
-		// casing bug
 		test.concurrent('2 consecutive use of .toSQL', async ({ db }) => {
 			const t1 = pgTable('table', (t) => ({
 				id: t.text().primaryKey(),
@@ -1067,7 +1066,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/2872
-		test.skipIf(Date.now() < +new Date('2026-06-20')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-07-01')).concurrent(
 			'prepared statement with placeholder in .inArray',
 			async ({ db, push }) => {
 				const usersTable = pgTable('users_392', {
@@ -1820,6 +1819,42 @@ export function tests(test: Test) {
 					usersCount: 1,
 				},
 			]);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/5780
+		test.concurrent('issue #5780. .onUpdateFn()', async ({ db, push }) => {
+			const table = pgTable('example', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+				updatedById: text('updated_by_id')
+					.$onUpdate(() => sql`1`)
+					.notNull(),
+			});
+
+			await push({ table });
+
+			await db.insert(table).values({ name: 'foo', updatedById: 'some-uuid' });
+
+			// This should NOT invoke the $onUpdate callback — updatedById is explicitly provided.
+			// ----
+			await db.update(table).set({ name: 'foo', updatedById: 'new-some-uuid-new' }).where(
+				eq(table.updatedById, 'some-uuid'),
+			);
+			const result = (await db.select({ updatedById: table.updatedById }).from(table))[0];
+
+			expect(result).toStrictEqual({
+				updatedById: 'new-some-uuid-new',
+			});
+
+			// ----
+			await db.update(table).set({ name: 'foo' }).where(
+				eq(table.updatedById, 'new-some-uuid-new'),
+			);
+
+			const result2 = (await db.select({ updatedById: table.updatedById }).from(table))[0];
+			expect(result2).toStrictEqual({
+				updatedById: '1',
+			});
 		});
 	});
 }

@@ -3,23 +3,25 @@ import { writeFileSync } from 'fs';
 import type { TaskView } from 'hanji';
 import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
-import type { EntityFilter } from 'src/dialects/pull-utils';
-import { prepareEntityFilter } from 'src/dialects/pull-utils';
-import { createDDL, interimToDDL, sqliteToRelationsPull } from 'src/dialects/sqlite/ddl';
-import { toJsonSnapshot } from 'src/dialects/sqlite/snapshot';
+import type { EntityFilter } from '../../dialects/pull-utils';
+import { prepareEntityFilter } from '../../dialects/pull-utils';
+import { createDDL, interimToDDL, sqliteToRelationsPull } from '../../dialects/sqlite/ddl';
 import { ddlDiffDry } from '../../dialects/sqlite/diff';
 import { fromDatabaseForDrizzle } from '../../dialects/sqlite/introspect';
+import { toJsonSnapshot } from '../../dialects/sqlite/snapshot';
 import { ddlToTypeScript } from '../../dialects/sqlite/typescript';
 import { originUUID } from '../../utils';
 import type { SQLiteDB } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
 import type { connectToSQLite } from '../connections';
+import { outputFormat } from '../context';
+import { CommandOutputCliError } from '../errors';
 import type { EntitiesFilterConfig } from '../validations/common';
 import type { Casing } from '../validations/common';
 import type { SqliteCredentials } from '../validations/sqlite';
-import { IntrospectProgress, type IntrospectStage, type IntrospectStatus } from '../views';
+import { humanLog, IntrospectProgress, type IntrospectStage, type IntrospectStatus } from '../views';
 import { writeResult } from './generate-common';
-import { relationsToTypeScript } from './pull-common';
+import { relationsToTypeScript, summarizeSchemaMappingErrors } from './pull-common';
 
 export const handle = async (
 	casing: Casing,
@@ -39,29 +41,46 @@ export const handle = async (
 		db = await connectToSQLite(credentials);
 	}
 
-	const progress = new IntrospectProgress();
+	const text = outputFormat() === 'text';
 	const filter = prepareEntityFilter('sqlite', filters, []);
-	const { ddl, viewColumns } = await introspect(db, filter, progress, (stage, count, status) => {
-		progress.update(stage, count, status);
-	}, migrations);
+	let ddl: ReturnType<typeof interimToDDL>['ddl'];
+	let errors: ReturnType<typeof interimToDDL>['errors'];
+	let viewColumns: Awaited<ReturnType<typeof fromDatabaseForDrizzle>>['viewsToColumns'];
+	if (text) {
+		const progress = new IntrospectProgress();
+		({ ddl, errors, viewColumns } = await introspect(db, filter, progress, (stage, count, status) => {
+			progress.update(stage, count, status);
+		}, migrations));
+	} else {
+		const schema = await fromDatabaseForDrizzle(db, filter, () => {}, migrations);
+		({ ddl, errors } = interimToDDL(schema));
+		viewColumns = schema.viewsToColumns;
+	}
+
+	if (errors.length > 0) {
+		throw new CommandOutputCliError('pull', 'Failed to map the introspected schema', {
+			errors: summarizeSchemaMappingErrors(errors),
+		});
+	}
 
 	const ts = ddlToTypeScript(ddl, casing, viewColumns, type);
 	const relationsTs = relationsToTypeScript(sqliteToRelationsPull(ddl), casing);
 
-	// check orm and orm-pg api version
 	const schemaFile = join(out, 'schema.ts');
 	writeFileSync(schemaFile, ts.file);
 
 	const relationsFile = join(out, 'relations.ts');
 	writeFileSync(relationsFile, relationsTs.file);
 
-	console.log();
+	humanLog();
+	let snapshotPath: string;
+	let migrationPath: string | undefined;
 	const { snapshots } = prepareOutFolder(out);
 
 	if (snapshots.length === 0) {
 		const { sqlStatements, renames } = await ddlDiffDry(createDDL(), ddl, 'default');
 
-		writeResult({
+		({ snapshotPath, migrationPath } = writeResult({
 			snapshot: toJsonSnapshot(ddl, originUUID, [], renames),
 			sqlStatements,
 			renames,
@@ -69,35 +88,47 @@ export const handle = async (
 			breakpoints,
 			type: 'introspect',
 			snapshots,
-		});
+		}));
 	} else {
+		snapshotPath = snapshots[snapshots.length - 1];
+		if (text) {
+			render(
+				`[${
+					chalk.blue(
+						'i',
+					)
+				}] No SQL generated, you already have migrations in project`,
+			);
+		}
+	}
+
+	if (text) {
 		render(
 			`[${
-				chalk.blue(
-					'i',
+				chalk.green(
+					'✓',
 				)
-			}] No SQL generated, you already have migrations in project`,
+			}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
+		);
+		render(
+			`[${
+				chalk.green(
+					'✓',
+				)
+			}] Your relations file is ready ➜ ${
+				chalk.bold.underline.blue(
+					relationsFile,
+				)
+			} 🚀`,
 		);
 	}
 
-	render(
-		`[${
-			chalk.green(
-				'✓',
-			)
-		}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
-	);
-	render(
-		`[${
-			chalk.green(
-				'✓',
-			)
-		}] Your relations file is ready ➜ ${
-			chalk.bold.underline.blue(
-				relationsFile,
-			)
-		} 🚀`,
-	);
+	return {
+		schemaPath: schemaFile,
+		relationsPath: relationsFile,
+		snapshotPath,
+		...(migrationPath ? { migrationPath } : {}),
+	};
 };
 
 export const introspect = async (

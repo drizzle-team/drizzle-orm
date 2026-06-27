@@ -31,6 +31,9 @@ export class MySqlEnumColumn<T extends ColumnBaseConfig<'string enum'>>
 {
 	static override readonly [entityKind]: string = 'MySqlEnumColumn';
 
+	/** @internal */
+	override readonly codec = 'enum';
+
 	override readonly enumValues = this.config.enumValues;
 
 	getSQLType(): string {
@@ -65,6 +68,9 @@ export class MySqlEnumObjectColumn<T extends ColumnBaseConfig<'string enum'>>
 	extends MySqlStringBaseColumn<T, { enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'MySqlEnumObjectColumn';
+
+	/** @internal */
+	override readonly codec = 'enum';
 
 	override readonly enumValues = this.config.enumValues;
 
