@@ -3,6 +3,9 @@ import { expect, test } from 'vitest';
 
 test.each([
 	["'a'::my_enum", "'a'"],
+	[`'customer'::"user-role"`, `'customer'`],
+	[`'admin'::"my-custom-enum"`, `'admin'`],
+	[`'{a,b}'::"my-enum"[]`, `'{a,b}'`],
 	["'abc'::text", "'abc'"],
 	["'abc'::character varying", "'abc'"],
 	["'abc'::bpchar", "'abc'"],
