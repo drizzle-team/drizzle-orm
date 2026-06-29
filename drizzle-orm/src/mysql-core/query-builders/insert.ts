@@ -35,13 +35,16 @@ export type MySqlInsertValue<
 	}
 	& {};
 
-export type MySqlInsertSelection<TTable extends MySqlTable> =
+export type MySqlInsertSelection<
+	TTable extends MySqlTable,
+	TModel extends Record<string, unknown> = InferInsertModel<TTable>,
+> =
 	& {
-		[K in keyof InferInsertModel<TTable>]:
+		[K in keyof TModel]:
 			| AnyMySqlColumn
 			| SQL
 			| SQL.Aliased
-			| InferInsertModel<TTable>[K];
+			| TModel[K];
 	}
 	& {};
 

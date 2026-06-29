@@ -8,6 +8,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, describe, expect, test, vi } from 'vitest';
+import { check as sdkCheck } from '../../src/cli-sdk';
 import { HintsHandler } from '../../src/cli/hints';
 import {
 	fromExports as pgFromExports,
@@ -18,7 +19,6 @@ import {
 	fromExports as sqliteFromExports,
 	SchemaSource as SqliteSchemaSource,
 } from '../../src/dialects/sqlite/drizzle';
-import { check as sdkCheck } from '../../src/sdk';
 import {
 	ORIGIN as _ORIGIN,
 	stageConflict as _stageConflict,

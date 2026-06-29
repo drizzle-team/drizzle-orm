@@ -40,7 +40,6 @@ test('imports-issues', () => {
 			'hanji/utils',
 			'chalk',
 			'dotenv/config',
-			'util',
 			'camelcase',
 			'semver',
 			'env-paths',

@@ -15,7 +15,7 @@ vi.mock('hanji', async (importOriginal) => {
 });
 
 import * as hanji from 'hanji';
-import { generate, pull, push } from '../../src/sdk';
+import { generate, pull, push } from '../../src/cli-sdk';
 
 let cleanups: Array<() => void> = [];
 
