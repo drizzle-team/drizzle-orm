@@ -17,6 +17,7 @@ import {
 	max,
 	min,
 	Name,
+	notInArray,
 	sql,
 	sum,
 	sumDistinct,
@@ -1641,6 +1642,34 @@ test('with ... select', async ({ db }) => {
 			product: 'B',
 			productUnits: 9,
 			productSales: 90,
+		},
+	]);
+});
+
+test('inArray with empty array', async ({ db }) => {
+	await db.insert(usersTable).values({ name: 'John' });
+	const result = await db
+		.select()
+		.from(usersTable)
+		.where(inArray(usersTable.id, []));
+
+	expect(result).toEqual([]);
+});
+
+test('notInArray with empty array', async ({ db }) => {
+	await db.insert(usersTable).values({ name: 'John' });
+	const result = await db
+		.select()
+		.from(usersTable)
+		.where(notInArray(usersTable.id, []));
+
+	expect(result).toEqual([
+		{
+			id: 1,
+			name: 'John',
+			verified: false,
+			jsonb: null,
+			createdAt: result[0]!.createdAt,
 		},
 	]);
 });
