@@ -133,7 +133,8 @@ export const bufferToBinary = (str: Buffer) => {
 	return '0x' + (str.toString('hex')).toUpperCase();
 };
 
-export const parseDefault = (type: string, def: string) => {
+export const parseDefault = (type: string, def: string | null): DefaultConstraint['default'] => {
+	if (def === null) return null;
 	const grammarType = typeFor(type);
 	return grammarType.defaultFromIntrospect(def);
 };
