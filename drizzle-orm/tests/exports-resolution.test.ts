@@ -1,6 +1,5 @@
 import { globSync } from 'glob';
-import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +8,7 @@ import { checkPackage } from '../../attw-fork/src/checkPackage.ts';
 import { getExitCode } from '../../attw-fork/src/cli/getExitCode.ts';
 import { createPackageFromTarballData, type Package } from '../../attw-fork/src/createPackage.ts';
 import type { CheckResult, Problem } from '../../attw-fork/src/types.ts';
+import { emitDirIndexShims } from '../scripts/emit-dir-index-shims.ts';
 
 // `checkPackage` returns `Analysis | UntypedResult`; `.problems` exists only on the
 // typed variant, so narrow on `types` (the same discriminant `getExitCode` uses).
@@ -115,65 +115,18 @@ describe.skipIf(!ARTIFACTS_PRESENT)('no public subpath is dropped', () => {
 });
 
 describe('directory-index shim emitter refuses to shadow a source artifact', () => {
-	test('throws a path-named error on a synthetic collision', () => {
-		const sandbox = mkdtempSync(join(tmpdir(), 'shim-guard-'));
+	test('throws a path-named error on a synthetic collision', async () => {
+		const outDir = mkdtempSync(join(tmpdir(), 'shim-guard-'));
 		try {
-			// The shim emitter lives in scripts/build.ts. It is driven in a child process
-			// so that importing build.ts (which starts a build on import today) cannot
-			// touch the real dist/ or kill the test runner. The child writes a mock
-			// source-emitted artifact at the shim target, then invokes the emitter and,
-			// on the expected guard-throw, propagates a NON-ZERO exit with the caught
-			// error message on stdout — so the parent's execFileSync rejects and the
-			// catch can assert the path-named message (a zero-exit success path leaves
-			// execFileSync returning normally with the piped output discarded).
-			const driver = join(sandbox, 'drive.mjs');
-			const outDir = join(sandbox, 'out');
-			const buildModule = JSON.stringify(join(root, 'scripts', 'build.ts'));
-			writeFileSync(
-				driver,
-				[
-					`import { mkdirSync, writeFileSync } from 'node:fs';`,
-					`import { join } from 'node:path';`,
-					`const outDir = ${JSON.stringify(outDir)};`,
-					`mkdirSync(join(outDir, 'zz-dir'), { recursive: true });`,
-					`writeFileSync(join(outDir, 'zz-dir', 'index.js'), 'export const real = 1;');`,
-					// A real source-emitted artifact already occupies the shim target path.
-					`writeFileSync(join(outDir, 'zz-dir.js'), 'export const sourceEmitted = 1;');`,
-					`const mod = await import(${buildModule});`,
-					`if (typeof mod.emitDirIndexShims !== 'function') {`,
-					`  process.stdout.write('NO_EXPORT'); process.exit(7);`,
-					`}`,
-					`try {`,
-					`  await mod.emitDirIndexShims(['src/zz-dir/index.ts'], outDir);`,
-					`  process.stdout.write('NO_THROW'); process.exit(8);`,
-					`} catch (e) {`,
-					`  const msg = String(e && e.message || e);`,
-					// Emit the raw caught message so the parent asserts on the real,
-					// path-named throw rather than a sentinel; exit non-zero so
-					// execFileSync surfaces it.
-					`  process.stdout.write(msg); process.exit(42);`,
-					`}`,
-				].join('\n'),
-			);
+			mkdirSync(join(outDir, 'zz-dir'));
+			writeFileSync(join(outDir, 'zz-dir', 'index.js'), 'export const real = 1;');
+			// A real source-emitted artifact already occupies the shim target path.
+			writeFileSync(join(outDir, 'zz-dir.js'), 'export const sourceEmitted = 1;');
 
-			let stdout = '';
-			let exitCode = 0;
-			let threw = false;
-			try {
-				execFileSync('bun', [driver], { stdio: ['ignore', 'pipe', 'ignore'], timeout: 60_000 });
-			} catch (e) {
-				threw = true;
-				const err = e as { status?: number; stdout?: Buffer | string };
-				exitCode = typeof err.status === 'number' ? err.status : 1;
-				stdout = err.stdout ? String(err.stdout) : '';
-			}
-
-			expect(threw, 'driver was expected to exit non-zero on the guard throw').toBe(true);
-			expect(exitCode, `driver stdout: ${stdout}`).toBe(42);
-			expect(stdout).toContain('refusing to overwrite source-emitted artifact:');
-			expect(stdout).toContain('zz-dir.js');
+			await expect(emitDirIndexShims(['src/zz-dir/index.ts'], outDir))
+				.rejects.toThrow(/refusing to overwrite source-emitted artifact:[\s\S]*zz-dir\.js/);
 		} finally {
-			rmSync(sandbox, { recursive: true, force: true });
+			rmSync(outDir, { recursive: true, force: true });
 		}
-	}, 90_000);
+	});
 });
