@@ -3,7 +3,7 @@ import type { MsSqlColumn } from '~/mssql-core/columns/index.ts';
 import type { MsSqlDialect } from '~/mssql-core/dialect.ts';
 import type { MsSqlSession, PreparedQueryConfig, PreparedQueryHKTBase } from '~/mssql-core/session.ts';
 import type { SubqueryWithSelection } from '~/mssql-core/subquery.ts';
-import type { MsSqlTable } from '~/mssql-core/table.ts';
+import { MsSqlTable } from '~/mssql-core/table.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	BuildSubquerySelection,
@@ -50,6 +50,10 @@ import type {
 	SetOperatorRightSelect,
 } from './select.types.ts';
 
+export type MsSqlTableHintConfig = {
+	withNoLock?: boolean;
+};
+
 // Shared base class for `from()`
 class MsSqlSelectFromBuilderBase<
 	TSelection extends SelectedFields | undefined,
@@ -86,6 +90,8 @@ class MsSqlSelectFromBuilderBase<
 
 	from<TFrom extends MsSqlTable | Subquery | MsSqlViewBase | SQL>(
 		source: TFrom,
+		tableHints?: TFrom extends MsSqlTable ? MsSqlTableHintConfig
+			: 'Table hint configuration is allowed only for MsSqlTable and not for subqueries or views',
 	): Omit<
 		CreateMsSqlSelectFromBuilderMode<
 			TBuilderMode,
@@ -116,6 +122,11 @@ class MsSqlSelectFromBuilderBase<
 			fields = getTableColumns<MsSqlTable>(source);
 		}
 
+		let withNoLock: boolean | undefined;
+		if (is(source, MsSqlTable) && tableHints && typeof tableHints !== 'string') {
+			withNoLock = tableHints.withNoLock;
+		}
+
 		return new MsSqlSelectBase({
 			table: source,
 			fields,
@@ -125,6 +136,7 @@ class MsSqlSelectFromBuilderBase<
 			withList: this.withList,
 			distinct: this.distinct,
 			topValue: this.topValue,
+			withNoLock,
 		}) as any;
 	}
 }
@@ -187,7 +199,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 	protected dialect: MsSqlDialect;
 
 	constructor(
-		{ table, fields, isPartialSelect, session, dialect, withList, distinct, topValue }: {
+		{ table, fields, isPartialSelect, session, dialect, withList, distinct, topValue, withNoLock }: {
 			table: MsSqlSelectConfig['table'];
 			fields: MsSqlSelectConfig['fields'];
 			isPartialSelect: boolean;
@@ -196,6 +208,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 			withList: Subquery[];
 			distinct: boolean | undefined;
 			topValue: number | undefined | Placeholder;
+			withNoLock?: boolean;
 		},
 	) {
 		super();
@@ -206,6 +219,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 			distinct,
 			setOperators: [],
 			top: topValue,
+			withNoLock,
 		};
 		this.isPartialSelect = isPartialSelect;
 		this.session = session;
@@ -223,6 +237,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 		return (
 			table: MsSqlTable | Subquery | MsSqlViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
+			tableHints?: MsSqlTableHintConfig | string,
 		) => {
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
@@ -261,7 +276,12 @@ export abstract class MsSqlSelectQueryBuilderBase<
 				this.config.joins = [];
 			}
 
-			this.config.joins.push({ on, table, joinType, alias: tableName });
+			let withNoLock: boolean | undefined;
+			if (is(table, MsSqlTable) && tableHints && typeof tableHints !== 'string') {
+				withNoLock = tableHints.withNoLock;
+			}
+
+			this.config.joins.push({ on, table, joinType, alias: tableName, withNoLock });
 
 			if (typeof tableName === 'string') {
 				switch (joinType) {
@@ -409,6 +429,26 @@ export abstract class MsSqlSelectQueryBuilderBase<
 	 * ```
 	 */
 	fullJoin = this.createJoin('full');
+
+	/**
+	 * Applies the `WITH (NOLOCK)` table hint to the main table and all joined tables of the query.
+	 *
+	 * Equivalent to passing `{ withNoLock: true }` to `.from()` and to every join individually. Only tables receive the hint; subqueries, views and raw SQL sources are left untouched.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Select all users and their pets without taking shared locks
+	 * await db.select()
+	 *   .from(users)
+	 *   .leftJoin(pets, eq(users.id, pets.ownerId))
+	 *   .withNoLock();
+	 * ```
+	 */
+	withNoLock(): MsSqlSelectWithout<this, TDynamic, 'withNoLock'> {
+		this.config.allWithNoLock = true;
+		return this as any;
+	}
 
 	private createSetOperator(
 		type: SetOperator,

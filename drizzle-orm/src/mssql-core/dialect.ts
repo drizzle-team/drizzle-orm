@@ -414,6 +414,8 @@ export class MsSqlDialect {
 		offset,
 		distinct,
 		setOperators,
+		withNoLock,
+		allWithNoLock,
 	}: MsSqlSelectConfig): SQL {
 		if (!fieldsFlat) {
 			throw new Error('Select query builder must be provided with `fieldsFlat` on `buildSelectQuery` invocation');
@@ -498,6 +500,10 @@ export class MsSqlDialect {
 			return table;
 		})();
 
+		const tableNoLockSql = (withNoLock || allWithNoLock) && is(table, MsSqlTable)
+			? sql` with (nolock)`
+			: undefined;
+
 		const joinsArray: SQL[] = [];
 
 		if (joins) {
@@ -513,10 +519,13 @@ export class MsSqlDialect {
 					const tableSchema = table[MsSqlTable.Symbol.Schema];
 					const origTableName = table[MsSqlTable.Symbol.OriginalName];
 					const alias = tableName === origTableName ? undefined : joinMeta.alias;
+					const joinNoLockSql = joinMeta.withNoLock || allWithNoLock ? sql` with (nolock)` : undefined;
 					joinsArray.push(
 						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
 							tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
-						}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+						}${sql.identifier(origTableName)}${
+							alias && sql` ${sql.identifier(alias)}`
+						}${joinNoLockSql} on ${joinMeta.on}`,
 					);
 				} else if (is(table, View)) {
 					const viewName = table[ViewBaseConfig].name;
@@ -573,7 +582,7 @@ export class MsSqlDialect {
 		}
 
 		const finalQuery =
-			sql`${withSql}select${distinctSql}${topSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${offsetSql}${fetchSql}${forSQL}`;
+			sql`${withSql}select${distinctSql}${topSql} ${selection} from ${tableSql}${tableNoLockSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${offsetSql}${fetchSql}${forSQL}`;
 
 		if (setOperators.length > 0) {
 			return this.buildSetOperations(finalQuery, setOperators);

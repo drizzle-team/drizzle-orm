@@ -738,6 +738,60 @@ test('build query', async ({ db }) => {
 	});
 });
 
+test('Query check: select with nolock table hint', async ({ db }) => {
+	const query = db
+		.select({ id: users2Table.id, name: users2Table.name })
+		.from(users2Table, { withNoLock: true })
+		.toSQL();
+
+	expect(query).toEqual({
+		sql: 'select [id], [name] from [users2] with (nolock)',
+		params: [],
+	});
+});
+
+test('Query check: select with nolock table hint on join', async ({ db }) => {
+	const query = db
+		.select({ userName: users2Table.name, cityName: citiesTable.name })
+		.from(users2Table, { withNoLock: true })
+		.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id), { withNoLock: true })
+		.toSQL();
+
+	expect(query).toEqual({
+		sql:
+			'select [users2].[name], [cities].[name] from [users2] with (nolock) left join [cities] with (nolock) on [users2].[city_id] = [cities].[id]',
+		params: [],
+	});
+});
+
+test('Query check: withNoLock applies nolock table hint to all tables', async ({ db }) => {
+	const query = db
+		.select({ userName: users2Table.name, cityName: citiesTable.name })
+		.from(users2Table)
+		.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+		.withNoLock()
+		.toSQL();
+
+	expect(query).toEqual({
+		sql:
+			'select [users2].[name], [cities].[name] from [users2] with (nolock) left join [cities] with (nolock) on [users2].[city_id] = [cities].[id]',
+		params: [],
+	});
+});
+
+test('select with nolock table hint', async ({ db }) => {
+	await db.insert(citiesTable).values({ id: 1, name: 'Paris' });
+	await db.insert(users2Table).values({ id: 1, name: 'John', cityId: 1 });
+
+	const result = await db
+		.select({ userName: users2Table.name, cityName: citiesTable.name })
+		.from(users2Table)
+		.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+		.withNoLock();
+
+	expect(result).toEqual([{ userName: 'John', cityName: 'Paris' }]);
+});
+
 test('Query check: Insert all defaults in 1 row', async ({ db }) => {
 	const users = mssqlTable('users', {
 		id: int('id').identity().primaryKey(),

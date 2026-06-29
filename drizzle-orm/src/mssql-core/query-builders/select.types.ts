@@ -25,7 +25,7 @@ import type { Assume, ValidateShape } from '~/utils.ts';
 import type { PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
 import type { MsSqlViewBase } from '../view-base.ts';
 import type { MsSqlView, MsSqlViewWithSelection } from '../view.ts';
-import type { MsSqlSelectBase, MsSqlSelectQueryBuilderBase } from './select.ts';
+import type { MsSqlSelectBase, MsSqlSelectQueryBuilderBase, MsSqlTableHintConfig } from './select.ts';
 
 export interface MsSqlSelectJoinConfig {
 	on: SQL | undefined;
@@ -33,6 +33,7 @@ export interface MsSqlSelectJoinConfig {
 	alias: string | undefined;
 	joinType: JoinType;
 	lateral?: boolean;
+	withNoLock?: boolean;
 }
 
 export type BuildAliasTable<TTable extends MsSqlTable | MsSqlView, TAlias extends string> = TTable extends Table<any>
@@ -76,6 +77,8 @@ export interface MsSqlSelectConfig {
 	top?: number | Placeholder;
 	offset?: number | Placeholder;
 	distinct?: boolean;
+	withNoLock?: boolean;
+	allWithNoLock?: boolean;
 	setOperators: {
 		rightSelect: TypedQueryBuilder<any, any>;
 		type: SetOperator;
@@ -127,6 +130,8 @@ export type MsSqlJoinFn<
 >(
 	table: TJoinedTable,
 	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
+	tableHints?: TJoinedTable extends MsSqlTable ? MsSqlTableHintConfig
+		: 'Table hint configuration is allowed only for MsSqlTable and not for subqueries or views',
 ) => MsSqlJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
 export type SelectedFieldsFlat = SelectedFieldsFlatBase<MsSqlColumn>;
@@ -220,7 +225,8 @@ export type MsSqlSetOperatorExcludedMethods =
 	| 'leftJoin'
 	| 'rightJoin'
 	| 'innerJoin'
-	| 'fullJoin';
+	| 'fullJoin'
+	| 'withNoLock';
 
 export type MsSqlSelectWithout<
 	T extends AnyMsSqlSelectQueryBuilder,
