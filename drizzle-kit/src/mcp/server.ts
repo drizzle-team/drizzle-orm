@@ -2,8 +2,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { check, exportSql, generate, pull, push, up } from '../sdk/index.js';
-import type { Hint } from '../sdk/index.js';
+import { check, exportSql, generate, pull, push, up } from '../cli-sdk/index.js';
+import type { Hint } from '../cli-sdk/index.js';
 
 // Under moduleResolution:"node", the MCP SDK's registerTool generic — which resolves
 // both zod/v3 and zod/v4/core as distinct module paths and unifies them against the

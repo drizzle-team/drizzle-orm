@@ -328,7 +328,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       matrix:
-        package: [node10, node16-cjs, node16-esm, bundler]
+        package: [node16-cjs, node16-esm, bundler]
     steps:
       - name: Setup PATH
         run: |
