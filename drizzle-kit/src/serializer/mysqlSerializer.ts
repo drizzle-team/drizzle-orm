@@ -34,9 +34,8 @@ export const indexName = (tableName: string, columns: string[]) => {
 };
 
 const handleEnumType = (type: string) => {
-	let str = type.split('(')[1];
-	str = str.substring(0, str.length - 1);
-	const values = str.split(',').map((v) => `'${escapeSingleQuotes(v.substring(1, v.length - 1))}'`);
+	const str = type.split('(')[1].slice(0, -1);
+	const values = [...str.matchAll(/'((?:[^']|'')*)'/g)].map((m) => `'${escapeSingleQuotes(m[1])}'`);
 	return `enum(${values.join(',')})`;
 };
 
