@@ -2,7 +2,7 @@ import type { z } from 'zod/v4';
 import type { CockroachEnum } from '~/cockroach-core/columns/enum.ts';
 import type { PgEnum } from '~/pg-core/columns/enum.ts';
 import type { View } from '~/sql/sql.ts';
-import type { InferInsertModel, InferSelectModel, Table } from '~/table.ts';
+import type { InferInsertModel, InferSelectModel, InferUpsertModel, Table } from '~/table.ts';
 import type { BuildRefine, BuildSchema, NoUnknownKeys } from './schema.types.internal.ts';
 
 export interface CreateSelectSchema<
@@ -53,6 +53,19 @@ export interface CreateUpdateSchema<
 		table: TTable,
 		refine?: TRefine,
 	): BuildSchema<'update', TTable['_']['columns'], TRefine, TCoerce>;
+}
+
+export interface CreateUpsertSchema<
+	TCoerce extends CoerceOptions,
+> {
+	<TTable extends Table>(table: TTable): BuildSchema<'upsert', TTable['_']['columns'], undefined, TCoerce>;
+	<
+		TTable extends Table,
+		TRefine extends BuildRefine<Pick<TTable['_']['columns'], keyof InferUpsertModel<TTable>>, TCoerce>,
+	>(
+		table: TTable,
+		refine?: NoUnknownKeys<TRefine, InferUpsertModel<TTable>>,
+	): BuildSchema<'upsert', TTable['_']['columns'], TRefine, TCoerce>;
 }
 
 export interface CreateSchemaFactoryOptions<

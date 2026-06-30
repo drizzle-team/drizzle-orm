@@ -152,7 +152,7 @@ export type MapColumnName<TName extends string, TColumn extends Column, TDBColum
 
 export type InferModelFromColumns<
 	TColumns extends Columns,
-	TInferMode extends 'select' | 'insert' = 'select',
+	TInferMode extends 'select' | 'insert' | 'upsert' = 'select',
 	TConfig extends { override?: boolean } = { dbColumnNames: false; override: false },
 > = Simplify<
 	TInferMode extends 'insert' ?
@@ -195,6 +195,11 @@ export type InferInsertModel<
 	TTable extends Table,
 	TOverride extends { override?: boolean } = { override: false },
 > = InferModelFromColumns<TTable['_']['columns'], 'insert', TOverride>;
+
+export type InferUpsertModel<
+	TTable extends Table,
+	TOverride extends { override?: boolean } = { override: false },
+> = InferModelFromColumns<TTable['_']['columns'], 'upsert', TOverride>;
 
 export type InferEnum<T> = T extends { enumValues: readonly (infer U)[] } ? U
 	: never;

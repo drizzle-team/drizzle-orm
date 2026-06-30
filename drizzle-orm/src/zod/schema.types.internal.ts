@@ -26,7 +26,7 @@ export type BuildRefine<
 };
 
 type HandleRefinement<
-	TType extends 'select' | 'insert' | 'update',
+	TType extends 'select' | 'insert' | 'update' | 'upsert',
 	TRefinement,
 	TColumn extends Column,
 > = TRefinement extends (schema: any) => z.ZodType ? (TColumn['_']['notNull'] extends true ? ReturnType<TRefinement>
@@ -43,7 +43,7 @@ type IsRefinementDefined<
 	: false;
 
 export type BuildSchema<
-	TType extends 'select' | 'insert' | 'update',
+	TType extends 'select' | 'insert' | 'update' | 'upsert',
 	TColumns extends Record<string, any>,
 	TRefinements extends Record<string, any> | undefined,
 	TCoerce extends CoerceOptions,

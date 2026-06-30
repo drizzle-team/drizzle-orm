@@ -1,7 +1,13 @@
 import { type Equal, sql } from 'drizzle-orm';
 import { customType, int, json, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
 import { CONSTANTS } from 'drizzle-orm/utils';
-import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from 'drizzle-orm/zod';
+import {
+	createInsertSchema,
+	createSchemaFactory,
+	createSelectSchema,
+	createUpdateSchema,
+	createUpsertSchema,
+} from 'drizzle-orm/zod';
 import { bigintStringModeSchema, jsonSchema, unsignedBigintStringModeSchema } from 'drizzle-orm/zod/column';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
@@ -81,6 +87,23 @@ test('table - update', (t) => {
 	const expected = z.object({
 		id: serialOptionalSchema,
 		name: textOptionalSchema,
+		age: intNullableOptionalSchema,
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('table - upsert', (t) => {
+	const table = mysqlTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+		age: int(),
+	});
+
+	const result = createUpsertSchema(table);
+	const expected = z.object({
+		id: serialOptionalSchema,
+		name: textSchema,
 		age: intNullableOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -197,6 +220,27 @@ test('nullability - update', (t) => {
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
+test('nullability - upsert', (t) => {
+	const table = mysqlTable('test', {
+		c1: int(),
+		c2: int().notNull(),
+		c3: int().default(1),
+		c4: int().notNull().default(1),
+		c5: int().generatedAlwaysAs(sql`1`),
+	});
+
+	const result = createUpsertSchema(table);
+	const expected = z.object({
+		c1: intNullableOptionalSchema,
+		c2: intSchema,
+		c3: intNullableOptionalSchema,
+		c4: intOptionalSchema,
+		c5: intNullableOptionalSchema,
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
 test('refine table - select', (t) => {
 	const table = mysqlTable('test', {
 		c1: int(),
@@ -281,6 +325,28 @@ test('refine table - update', (t) => {
 		c1: intNullableOptionalSchema,
 		c2: extendedOptionalSchema,
 		c3: customSchema,
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('refine table - upsert', (t) => {
+	const table = mysqlTable('test', {
+		c1: int(),
+		c2: int().notNull(),
+		c3: int().notNull(),
+		c4: int().generatedAlwaysAs(sql`1`),
+	});
+
+	const result = createUpsertSchema(table, {
+		c2: (schema) => schema.lte(1000),
+		c3: z.string().transform(Number),
+	});
+	const expected = z.object({
+		c1: intNullableOptionalSchema,
+		c2: extendedSchema,
+		c3: customSchema,
+		c4: intNullableOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -574,6 +640,12 @@ test('type coercion - mixed', (t) => {
 	const table = mysqlTable('test', { id: int() });
 	// @ts-expect-error
 	createUpdateSchema(table, { unknown: z.string() });
+}
+
+/* Disallow unknown keys in table refinement - upsert */ {
+	const table = mysqlTable('test', { id: int() });
+	// @ts-expect-error
+	createUpsertSchema(table, { unknown: z.string() });
 }
 
 /* Disallow unknown keys in view qb - select */ {
