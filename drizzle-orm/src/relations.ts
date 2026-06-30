@@ -1358,12 +1358,14 @@ export interface RelationFieldsFilterInternals<T> {
 	AND?: RelationsFieldFilter<T>[] | undefined;
 }
 
+export type Primitive = string | number | bigint | boolean | symbol | null | undefined;
+
 export type RelationsFieldFilter<T = unknown> =
 	| RelationFieldsFilterInternals<T>
 	| (
-		unknown extends T ? never : T extends object ? never : T
+		unknown extends T ? never : T extends Primitive ? T : never
 	)
-	// Bleeds into filters - discuss removal
+	// TODO: Bleeds into filters - discuss removal
 	| Placeholder;
 
 export interface RelationsFilterCommons<

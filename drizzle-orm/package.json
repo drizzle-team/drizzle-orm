@@ -259,7 +259,6 @@
 		"@opentelemetry/api": "^1.4.1",
 		"@originjs/vite-plugin-commonjs": "^1.0.3",
 		"@planetscale/database": "^1.16.0",
-		"@prisma/client": "5.14.0",
 		"@sinclair/typebox": "^0.34.48",
 		"@sqlitecloud/drivers": "^1.0.653",
 		"@tidbcloud/serverless": "^0.1.1",

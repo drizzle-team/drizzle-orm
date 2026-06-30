@@ -10,8 +10,6 @@ packages:
 onlyBuiltDependencies:
   - '@contrast/fn-inspect'
   - '@newrelic/native-metrics'
-  - '@prisma/client'
-  - '@prisma/engines'
   - better-sqlite3
   - bufferutil
   - cpu-features
@@ -20,7 +18,6 @@ onlyBuiltDependencies:
   - es5-ext
   - esbuild
   - msgpackr-extract
-  - prisma
   - protobufjs
   - sqlite3
   - ssh2
