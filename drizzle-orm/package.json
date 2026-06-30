@@ -57,6 +57,7 @@
 		"@effect/sql-sqlite-do": ">=4.0.0-beta.83 || >=4.0.0",
 		"@effect/sql-sqlite-node": ">=4.0.0-beta.83 || >=4.0.0",
 		"@effect/sql-sqlite-wasm": ">=4.0.0-beta.83 || >=4.0.0",
+		"@effect/sql-tursodatabase": ">=4.0.0-beta.83 || >=4.0.0",
 		"@electric-sql/pglite": ">=0.2.0",
 		"@libsql/client": ">=0.10.0",
 		"@libsql/client-wasm": ">=0.10.0",
@@ -227,6 +228,9 @@
 		"@effect/sql-libsql": {
 			"optional": true
 		},
+		"@effect/sql-tursodatabase": {
+			"optional": true
+		},
 		"typebox": {
 			"optional": true
 		},
@@ -250,6 +254,7 @@
 		"@effect/sql-sqlite-do": "4.0.0-beta.83",
 		"@effect/sql-sqlite-node": "4.0.0-beta.83",
 		"@effect/sql-sqlite-wasm": "4.0.0-beta.83",
+		"@effect/sql-tursodatabase": "4.0.0-beta.83",
 		"@electric-sql/pglite": "^0.4.6",
 		"@libsql/client": "^0.10.0",
 		"@libsql/client-wasm": "^0.10.0",
