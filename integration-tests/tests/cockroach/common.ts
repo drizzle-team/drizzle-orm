@@ -7234,6 +7234,48 @@ export function tests() {
 			expect(updateResp[0]?.updatedAt.getTime() ?? 0).greaterThan(now);
 		});
 
+		test('$onUpdateFn called only when needed', async (ctx) => {
+			const { db } = ctx.cockroach;
+
+			let counter = 0;
+			const table = cockroachTable('on_update_call_test', {
+				id: int4('id').primaryKey(),
+				name: text('name').notNull(),
+				inc: int4('inc').$onUpdateFn(() => counter++),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(sql`create table ${table} (
+				id int4 primary key,
+				name text not null,
+				inc int4
+			)`);
+
+			let res = await db.insert(table).values({ id: 1, name: 'First', inc: 0 }).returning();
+			expect(counter).toStrictEqual(0);
+			expect(res).toStrictEqual([{ id: 1, name: 'First', inc: 0 }]);
+
+			res = await db.update(table).set({ name: 'Second', inc: null }).returning();
+			expect(counter).toStrictEqual(0);
+			expect(res).toStrictEqual([{ id: 1, name: 'Second', inc: null }]);
+
+			res = await db.update(table).set({ name: 'Third', inc: 10 }).returning();
+			expect(counter).toStrictEqual(0);
+			expect(res).toStrictEqual([{ id: 1, name: 'Third', inc: 10 }]);
+
+			res = await db.update(table).set({ name: 'Fourth' }).returning();
+			expect(counter).toStrictEqual(1);
+			expect(res).toStrictEqual([{ id: 1, name: 'Fourth', inc: 0 }]);
+
+			res = await db.update(table).set({ name: 'Fifth' }).returning();
+			expect(counter).toStrictEqual(2);
+			expect(res).toStrictEqual([{ id: 1, name: 'Fifth', inc: 1 }]);
+
+			res = await db.insert(table).values({ id: 2, name: 'Second' }).returning();
+			expect(counter).toStrictEqual(3);
+			expect(res).toStrictEqual([{ id: 2, name: 'Second', inc: 2 }]);
+		});
+
 		test('placeholder + sql dates', async (ctx) => {
 			const { db } = ctx.cockroach;
 
