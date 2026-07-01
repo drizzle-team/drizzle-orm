@@ -6146,8 +6146,8 @@ export function tests(test: Test, exclude: string[] = []) {
 			panelBackground: t.text('panel_background'),
 		}));
 
-		await db.run(sql`DROP TABLE IF EXISTS ${orgs};`);
 		await db.run(sql`DROP TABLE IF EXISTS ${branding};`);
+		await db.run(sql`DROP TABLE IF EXISTS ${orgs};`);
 		await push({ orgs, branding });
 
 		await db.insert(orgs).values([{ id: 1, name: 'Acme' }, { id: 2, name: 'NoBranding' }]);
@@ -6184,8 +6184,8 @@ export function tests(test: Test, exclude: string[] = []) {
 		}));
 
 		const db = createDB({ orgs, branding }, () => ({}), true);
-		await db.run(sql`DROP TABLE IF EXISTS ${orgs};`);
 		await db.run(sql`DROP TABLE IF EXISTS ${branding};`);
+		await db.run(sql`DROP TABLE IF EXISTS ${orgs};`);
 		await push({ orgs, branding });
 
 		await db.insert(orgs).values([{ id: 1, name: 'Acme' }, { id: 2, name: 'NoBranding' }]);
