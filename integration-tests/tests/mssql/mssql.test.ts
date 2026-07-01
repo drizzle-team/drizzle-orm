@@ -404,6 +404,50 @@ test('select distinct', async ({ db }) => {
 	]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/1603
+test('Nested partial select left join: null first column', async ({ db }) => {
+	const orgs = mssqlTable('issue1603_orgs', {
+		id: int('id').primaryKey(),
+		name: varchar('name', { length: 255 }).notNull(),
+	});
+	const branding = mssqlTable('issue1603_branding', {
+		id: int('id').primaryKey(),
+		orgId: int('org_id'),
+		logo: varchar('logo', { length: 255 }),
+		panelBackground: varchar('panel_background', { length: 255 }),
+	});
+
+	await db.execute(sql`drop table if exists ${branding}`);
+	await db.execute(sql`drop table if exists ${orgs}`);
+	await db.execute(sql`create table ${orgs} (id int primary key, name varchar(255) not null)`);
+	await db.execute(
+		sql`create table ${branding} (id int primary key, org_id int, logo varchar(255), panel_background varchar(255))`,
+	);
+
+	await db.insert(orgs).values([{ id: 1, name: 'Acme' }, { id: 2, name: 'NoBranding' }]);
+	await db.insert(branding).values({ id: 1, orgId: 1, logo: null, panelBackground: '#1a8cff' });
+
+	const withBranding = await db.select({
+		name: orgs.name,
+		branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+	}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 1));
+
+	expect(withBranding).toStrictEqual([{
+		name: 'Acme',
+		branding: { logo: null, panelBackground: '#1a8cff' },
+	}]);
+
+	const withoutBranding = await db.select({
+		name: orgs.name,
+		branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+	}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 2));
+
+	expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
+
+	await db.execute(sql`drop table ${branding}`);
+	await db.execute(sql`drop table ${orgs}`);
+});
+
 test('insert returning sql', async ({ db }) => {
 	const result = await db.insert(usersTable).values({ name: 'John' });
 
