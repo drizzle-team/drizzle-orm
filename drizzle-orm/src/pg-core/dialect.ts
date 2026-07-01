@@ -112,7 +112,7 @@ export class PgDialect {
 	}
 
 	escapeName(name: string): string {
-		return `"${name}"`;
+		return `"${name.replace(/"/g, '""')}"`;
 	}
 
 	escapeParam(num: number): string {

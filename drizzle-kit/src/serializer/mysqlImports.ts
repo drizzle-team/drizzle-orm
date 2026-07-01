@@ -1,5 +1,6 @@
 import { is } from 'drizzle-orm';
-import { AnyMySqlTable, MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
+import type { AnyMySqlTable } from 'drizzle-orm/mysql-core';
+import { MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
 import { safeRegister } from '../cli/commands/utils';
 
 export const prepareFromExports = (exports: Record<string, unknown>) => {
@@ -24,15 +25,16 @@ export const prepareFromMySqlImports = async (imports: string[]) => {
 	const tables: AnyMySqlTable[] = [];
 	const views: MySqlView[] = [];
 
-	const { unregister } = await safeRegister();
-	for (let i = 0; i < imports.length; i++) {
-		const it = imports[i];
-		const i0: Record<string, unknown> = require(`${it}`);
-		const prepared = prepareFromExports(i0);
+	await safeRegister(async () => {
+		for (let i = 0; i < imports.length; i++) {
+			const it = imports[i];
+			const i0: Record<string, unknown> = require(`${it}`);
+			const prepared = prepareFromExports(i0);
 
-		tables.push(...prepared.tables);
-		views.push(...prepared.views);
-	}
-	unregister();
+			tables.push(...prepared.tables);
+			views.push(...prepared.views);
+		}
+	});
+
 	return { tables: Array.from(new Set(tables)), views };
 };

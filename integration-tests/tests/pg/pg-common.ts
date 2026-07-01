@@ -5996,6 +5996,32 @@ export function tests() {
 			expect(result2).toEqual([{ userId: 2, data: { name: 'Jane' } }]);
 		});
 
+		test('sql.identifier escape', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const users = pgTable('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${users}`);
+			await db.execute(sql`create table ${users} (id serial not null primary key, name text not null)`);
+			await db.insert(users).values([
+				{ name: 'John' },
+				{ name: 'Jane' },
+			]);
+
+			const pgDialect = new PgDialect();
+			const userInput = 'id" ASC, CAST((SELECT name FROM users LIMIT 1) AS int)--';
+
+			const query = sql`SELECT * FROM ${sql.identifier('users')} ORDER BY ${sql.identifier(userInput)} ASC`;
+
+			const str = pgDialect.sqlToQuery(query);
+			expect(str.sql).toBe(
+				'SELECT * FROM "users" ORDER BY "id"" ASC, CAST((SELECT name FROM users LIMIT 1) AS int)--" ASC',
+			);
+		});
+
 		test('cross join', async (ctx) => {
 			const { db } = ctx.pg;
 

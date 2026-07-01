@@ -9,6 +9,8 @@ on:
         required: true
       # NEON_HTTP_CONNECTION_STRING:
       #   required: true
+      NETLIFY_DB_URL:
+        required: true
       TIDB_CONNECTION_STRING:
         required: true
       XATA_API_KEY:
@@ -35,6 +37,7 @@ jobs:
           - singlestore-custom
           - neon-http
           - neon-serverless
+          - netlify-db
           - drizzle-orm
           - drizzle-kit
           - drizzle-zod
@@ -152,6 +155,7 @@ jobs:
           # NEON_HTTP_CONNECTION_STRING: postgres://postgres:postgres@db.localtest.me:5432/postgres
           NEON_HTTP_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
           NEON_SERVERLESS_CONNECTION_STRING: postgres://postgres:postgres@localhost:5445/postgres
+          NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
           TIDB_CONNECTION_STRING: ${{ secrets.TIDB_CONNECTION_STRING }}
           XATA_API_KEY: ${{ secrets.XATA_API_KEY }}
           XATA_BRANCH: ${{ secrets.XATA_BRANCH }}
@@ -210,6 +214,10 @@ jobs:
               docker compose -f docker-neon.yml down
             ;;
 
+            netlify-db)
+              pnpm vitest run tests/pg/netlify-db.test.ts
+            ;;
+
             drizzle-orm|drizzle-kit|drizzle-zod|drizzle-seed|drizzle-typebox|drizzle-valibot|drizzle-arktype)
               (cd .. && pnpm test --filter ${{ matrix.shard }})
             ;;
@@ -226,7 +234,8 @@ jobs:
                 --exclude tests/singlestore/singlestore-custom.test.ts \
                 --exclude tests/pg/neon-http.test.ts \
                 --exclude tests/pg/neon-http-batch.test.ts \
-                --exclude tests/pg/neon-serverless.test.ts
+                --exclude tests/pg/neon-serverless.test.ts \
+                --exclude tests/pg/netlify-db.test.ts 
             ;;
 
           esac
