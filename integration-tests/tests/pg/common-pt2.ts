@@ -5690,6 +5690,78 @@ export function tests(test: Test) {
 			expect(jitDialect.mapperGenerators.rows === makeJitQueryMapper).toStrictEqual(true);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/1603
+		test.concurrent('Nested partial select left join: null first column', async ({ db, push }) => {
+			const orgs = pgTable('issue1603_orgs', (t) => ({
+				id: t.integer('id').primaryKey(),
+				name: t.text('name').notNull(),
+			}));
+			const branding = pgTable('issue1603_branding', (t) => ({
+				id: t.integer('id').primaryKey(),
+				orgId: t.integer('org_id').references(() => orgs.id),
+				logo: t.text('logo'),
+				panelBackground: t.text('panel_background'),
+			}));
+
+			await push({ orgs, branding });
+
+			await db.insert(orgs).values([{ id: 1, name: 'Acme' }, { id: 2, name: 'NoBranding' }]);
+			await db.insert(branding).values({ id: 1, orgId: 1, logo: null, panelBackground: '#1a8cff' });
+
+			const withBranding = await db.select({
+				name: orgs.name,
+				branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+			}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 1));
+
+			expect(withBranding).toStrictEqual([{
+				name: 'Acme',
+				branding: { logo: null, panelBackground: '#1a8cff' },
+			}]);
+
+			const withoutBranding = await db.select({
+				name: orgs.name,
+				branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+			}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 2));
+
+			expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
+		});
+
+		test.concurrent('Nested partial select left join: null first column - jit', async ({ createDB, push }) => {
+			const orgs = pgTable('issue1603_orgs_jit', (t) => ({
+				id: t.integer('id').primaryKey(),
+				name: t.text('name').notNull(),
+			}));
+			const branding = pgTable('issue1603_branding_jit', (t) => ({
+				id: t.integer('id').primaryKey(),
+				orgId: t.integer('org_id').references(() => orgs.id),
+				logo: t.text('logo'),
+				panelBackground: t.text('panel_background'),
+			}));
+
+			await push({ orgs, branding });
+			const db = createDB({ orgs, branding }, () => ({}), true);
+
+			await db.insert(orgs).values([{ id: 1, name: 'Acme' }, { id: 2, name: 'NoBranding' }]);
+			await db.insert(branding).values({ id: 1, orgId: 1, logo: null, panelBackground: '#1a8cff' });
+
+			const withBranding = await db.select({
+				name: orgs.name,
+				branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+			}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 1));
+
+			expect(withBranding).toStrictEqual([{
+				name: 'Acme',
+				branding: { logo: null, panelBackground: '#1a8cff' },
+			}]);
+
+			const withoutBranding = await db.select({
+				name: orgs.name,
+				branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+			}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 2));
+
+			expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
+		});
+
 		const mappersDate = new Date('2026-04-02T00:00:00.000Z');
 
 		test.concurrent('Mappers: simple select - no rows', async ({ db, push }) => {

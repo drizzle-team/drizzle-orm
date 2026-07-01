@@ -21,6 +21,8 @@ export function mapResultRow<TResult>(
 ): TResult {
 	// Key -> nested object key, value -> table name if all fields in the nested object are from the same table, false otherwise
 	const nullifyMap: Record<string, string | false> = {};
+	// Key -> nested object key, value -> whether every field in the nested object is null so far
+	const allNullMap: Record<string, boolean> = {};
 
 	const result = columns.reduce<Record<string, any>>(
 		(result, { path, field, codec, arrayDimensions }, columnIndex) => {
@@ -49,13 +51,14 @@ export function mapResultRow<TResult>(
 
 					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
 						const objectName = path[0]!;
+						const tableName = getTableName(field.table);
 						if (!(objectName in nullifyMap)) {
-							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
-						} else if (
-							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
-						) {
+							nullifyMap[objectName] = tableName;
+						} else if (typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== tableName) {
 							nullifyMap[objectName] = false;
 						}
+						// Only nullify the whole object when EVERY field from the joined table is null
+						allNullMap[objectName] = (allNullMap[objectName] ?? true) && value === null;
 					}
 				}
 			}
@@ -67,7 +70,7 @@ export function mapResultRow<TResult>(
 	// Nullify all nested objects from nullifyMap that are nullable
 	if (joinsNotNullableMap && Object.keys(nullifyMap).length > 0) {
 		for (const [objectName, tableName] of Object.entries(nullifyMap)) {
-			if (typeof tableName === 'string' && !joinsNotNullableMap[tableName]) {
+			if (typeof tableName === 'string' && allNullMap[objectName] && !joinsNotNullableMap[tableName]) {
 				result[objectName] = null;
 			}
 		}
@@ -244,21 +247,24 @@ export function makeDefaultQueryMapper<TResult>(
 	joinsNotNullableMap: Record<string, boolean> | undefined,
 ): RowsMapper<TResult> {
 	const interpretedData = columns.map(({ field, codec, arrayDimensions, path }) => {
-		let processNullifyMap: ((nullifyMap: Record<string, string | false>, value: any) => void) | undefined;
+		let processNullifyMap:
+			| ((nullifyMap: Record<string, string | false>, allNullMap: Record<string, boolean>, value: any) => void)
+			| undefined;
 		let decoderSrc: DriverValueDecoder<unknown, unknown>;
 		if (is(field, Column)) {
 			decoderSrc = field;
 
 			if (joinsNotNullableMap && path.length === 2) {
 				const objectName = path[0]!;
-				processNullifyMap = (nullifyMap, value) => {
+				processNullifyMap = (nullifyMap, allNullMap, value) => {
+					const tableName = getTableName(field.table);
 					if (!(objectName in nullifyMap)) {
-						nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
-					} else if (
-						typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
-					) {
+						nullifyMap[objectName] = tableName;
+					} else if (typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== tableName) {
 						nullifyMap[objectName] = false;
 					}
+					// Only nullify the whole object when EVERY field from the joined table is null
+					allNullMap[objectName] = (allNullMap[objectName] ?? true) && value === null;
 				};
 			}
 		} else if (is(field, SQL)) {
@@ -285,6 +291,8 @@ export function makeDefaultQueryMapper<TResult>(
 		rows.map((row) => {
 			// Key -> nested object key, value -> table name if all fields in the nested object are from the same table, false otherwise
 			const nullifyMap: Record<string, string | false> = {};
+			// Key -> nested object key, value -> whether every field in the nested object is null
+			const allNullMap: Record<string, boolean> = {};
 
 			const result = columns.reduce<Record<string, any>>(
 				(result, { path }, columnIndex) => {
@@ -305,7 +313,7 @@ export function makeDefaultQueryMapper<TResult>(
 								? decoder(rawValue)
 								: rawValue;
 
-							processNullifyMap?.(nullifyMap, value);
+							processNullifyMap?.(nullifyMap, allNullMap, value);
 						}
 					}
 					return result;
@@ -316,7 +324,7 @@ export function makeDefaultQueryMapper<TResult>(
 			// Nullify all nested objects from nullifyMap that are nullable
 			if (joinsNotNullableMap && Object.keys(nullifyMap).length > 0) {
 				for (const [objectName, tableName] of Object.entries(nullifyMap)) {
-					if (typeof tableName === 'string' && !joinsNotNullableMap[tableName]) {
+					if (typeof tableName === 'string' && allNullMap[objectName] && !joinsNotNullableMap[tableName]) {
 						result[objectName] = null;
 					}
 				}

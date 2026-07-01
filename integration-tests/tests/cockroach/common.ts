@@ -7711,5 +7711,44 @@ export function tests() {
 			await expect(db.insert(users2Table).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]))
 				.rejects.toBeInstanceOf(DrizzleQueryError);
 		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/1603
+		test('Nested partial select left join: null first column', async ({ cockroach: { db } }) => {
+			const orgs = cockroachTable('issue1603_orgs', {
+				id: int4('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+			const branding = cockroachTable('issue1603_branding', {
+				id: int4('id').primaryKey(),
+				orgId: int4('org_id'),
+				logo: text('logo'),
+				panelBackground: text('panel_background'),
+			});
+
+			await db.execute(sql`create table issue1603_orgs (id int4 primary key, name text not null)`);
+			await db.execute(
+				sql`create table issue1603_branding (id int4 primary key, org_id int4, logo text, panel_background text)`,
+			);
+
+			await db.insert(orgs).values([{ id: 1, name: 'Acme' }, { id: 2, name: 'NoBranding' }]);
+			await db.insert(branding).values({ id: 1, orgId: 1, logo: null, panelBackground: '#1a8cff' });
+
+			const withBranding = await db.select({
+				name: orgs.name,
+				branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+			}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 1));
+
+			expect(withBranding).toStrictEqual([{
+				name: 'Acme',
+				branding: { logo: null, panelBackground: '#1a8cff' },
+			}]);
+
+			const withoutBranding = await db.select({
+				name: orgs.name,
+				branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+			}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 2));
+
+			expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
+		});
 	});
 }
