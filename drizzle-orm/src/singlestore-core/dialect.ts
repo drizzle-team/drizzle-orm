@@ -206,11 +206,14 @@ export class SingleStoreDialect {
 			columnNames.flatMap((colName, i) => {
 				const col = tableColumns[colName]!;
 
-				const onUpdateFnResult = col.onUpdateFn?.();
-				const value = set[colName]
-					?? (is(onUpdateFnResult, SQL)
-						? onUpdateFnResult
-						: sql.param(onUpdateFnResult, col));
+				let value;
+				if (set[colName] !== undefined) {
+					value = set[colName];
+				} else {
+					const updateRes = col.onUpdateFn?.();
+					value = is(updateRes, SQL) ? updateRes : sql.param(updateRes, col);
+				}
+
 				const res = sql`${sql.identifier(col.name)} = ${value}`;
 
 				if (i < setLength - 1) {

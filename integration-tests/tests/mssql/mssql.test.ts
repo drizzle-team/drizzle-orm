@@ -3074,6 +3074,49 @@ test('test $onUpdateFn and $onUpdate works updating', async ({ db }) => {
 	}
 });
 
+test('$onUpdateFn called only when needed', async ({ db }) => {
+	let counter = 0;
+	const table = mssqlTable('on_update_call_test', {
+		id: int('id').primaryKey(),
+		name: text('name').notNull(),
+		inc: int('inc').$onUpdateFn(() => counter++),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+	await db.execute(sql`create table ${table} (
+		id int not null primary key,
+		[name] text not null,
+		inc int
+	)`);
+
+	await db.insert(table).values({ id: 1, name: 'First', inc: 0 });
+	expect(counter).toStrictEqual(0);
+	expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'First', inc: 0 }]);
+
+	await db.update(table).set({ name: 'Second', inc: null });
+	expect(counter).toStrictEqual(0);
+	expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'Second', inc: null }]);
+
+	await db.update(table).set({ name: 'Third', inc: 10 });
+	expect(counter).toStrictEqual(0);
+	expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'Third', inc: 10 }]);
+
+	await db.update(table).set({ name: 'Fourth' });
+	expect(counter).toStrictEqual(1);
+	expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'Fourth', inc: 0 }]);
+
+	await db.update(table).set({ name: 'Fifth' });
+	expect(counter).toStrictEqual(2);
+	expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'Fifth', inc: 1 }]);
+
+	await db.insert(table).values({ id: 2, name: 'Second' });
+	expect(counter).toStrictEqual(3);
+	expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([
+		{ id: 1, name: 'Fifth', inc: 1 },
+		{ id: 2, name: 'Second', inc: 2 },
+	]);
+});
+
 test('aggregate function: count', async ({ db }) => {
 	const table = aggregateTable;
 	await setupAggregateFunctionsTest(db);
