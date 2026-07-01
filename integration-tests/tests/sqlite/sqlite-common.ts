@@ -3955,6 +3955,7 @@ export function tests(test: Test, exclude: string[] = []) {
 				inc: integer('inc').$onUpdateFn(() => counter++),
 			});
 
+			await db.run(sql`DROP TABLE IF EXISTS ${table}`);
 			await push({ table });
 
 			let res = await db.insert(table).values({ id: 1, name: 'First', inc: 0 }).returning();
