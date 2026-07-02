@@ -24,6 +24,36 @@ const db = drizzle({ client: new Database(':memory:') });
 const fullName = sql`${users.first_name} || ' ' || ${users.last_name}`.as('name');
 
 describe('sqlite to camel case', () => {
+	it('qualifier preservation for sql fields', ({ expect }) => {
+		const a = camelCase.table('a', { id: integer('id').primaryKey(), cId: integer().notNull() });
+		const b = camelCase.table('b', { id: integer('id').primaryKey(), cId: integer().notNull(), label: text() });
+		const corr = sql`(select ${b.label} from ${b} where ${b.cId} = ${a.cId})`;
+
+		expect(db.select({ id: a.id, bRaw: corr }).from(a).toSQL().sql).toEqual(
+			'select "id", (select "b"."label" from "b" where "b"."cId" = "a"."cId") from "a"',
+		);
+		expect(db.select({ id: a.id, bRaw: corr.as('b_raw') }).from(a).toSQL().sql).toEqual(
+			'select "id", (select "b"."label" from "b" where "b"."cId" = "a"."cId") as "b_raw" from "a"',
+		);
+		expect(db.select({ id: a.id }).from(a).where(corr).toSQL().sql).toEqual(
+			'select "id" from "a" where (select "b"."label" from "b" where "b"."cId" = "a"."cId")',
+		);
+	});
+
+	it('qualifier preservation for subquery fields', ({ expect }) => {
+		const sq = db.select({ id: users.id, name: fullName }).from(users).as('sq');
+		const query = db
+			.select({ id: sq.id, name: sq.name })
+			.from(users)
+			.leftJoin(sq, eq(users.id, sq.id));
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select "sq"."id", "sq"."name" from "users" left join (select "id", "users"."firstName" || \' \' || "users"."lastName" as "name" from "users") "sq" on "users"."id" = "sq"."id"',
+			params: [],
+		});
+	});
+
 	it('select', ({ expect }) => {
 		const query = db
 			.select({ name: fullName, age: users.age })
@@ -55,7 +85,8 @@ describe('sqlite to camel case', () => {
 		const query = db.with(cte).select().from(cte);
 
 		expect(query.toSQL()).toEqual({
-			sql: 'with "cte" as (select "firstName" || \' \' || "lastName" as "name" from "users") select "name" from "cte"',
+			sql:
+				'with "cte" as (select "users"."firstName" || \' \' || "users"."lastName" as "name" from "users") select "name" from "cte"',
 			params: [],
 		});
 	});
@@ -65,7 +96,8 @@ describe('sqlite to camel case', () => {
 		const query = db.with(cte).select().from(cte);
 
 		expect(query.toSQL()).toEqual({
-			sql: 'with "cte" as (select "firstName" || \' \' || "lastName" as "name" from "users") select "name" from "cte"',
+			sql:
+				'with "cte" as (select "users"."firstName" || \' \' || "users"."lastName" as "name" from "users") select "name" from "cte"',
 			params: [],
 		});
 	});

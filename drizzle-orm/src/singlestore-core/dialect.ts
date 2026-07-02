@@ -277,42 +277,10 @@ export class SingleStoreDialect {
 					}
 					chunk.push(sql.identifier(field.fieldAlias));
 				} else {
-					const query = field.sql;
-
-					if (isSingleTable) {
-						const newSql = new SQL(
-							query.queryChunks.map((c) => {
-								if (is(c, Column)) {
-									return sql.identifier(c.name);
-								}
-								return c;
-							}),
-						);
-
-						chunk.push(query.shouldInlineParams ? newSql.inlineParams() : newSql);
-					} else {
-						chunk.push(query);
-					}
-
-					chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
+					chunk.push(field, sql` as ${sql.identifier(field.fieldAlias)}`);
 				}
 			} else if (is(field, SQL)) {
-				const query = field;
-
-				if (isSingleTable) {
-					const newSql = new SQL(
-						query.queryChunks.map((c) => {
-							if (is(c, Column)) {
-								return sql.identifier(c.name);
-							}
-							return c;
-						}),
-					);
-
-					chunk.push(query.shouldInlineParams ? newSql.inlineParams() : newSql);
-				} else {
-					chunk.push(query);
-				}
+				chunk.push(field);
 			} else if (is(field, Column)) {
 				if (isSingleTable) {
 					chunk.push(

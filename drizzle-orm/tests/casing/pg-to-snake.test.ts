@@ -48,6 +48,36 @@ const cache = {
 const fullName = sql`${users.firstName} || ' ' || ${users.lastName}`.as('name');
 
 describe('postgres to snake case', () => {
+	it('qualifier preservation for sql fields', ({ expect }) => {
+		const a = snakeCase.table('a', { id: integer('id').primaryKey(), cId: integer().notNull() });
+		const b = snakeCase.table('b', { id: integer('id').primaryKey(), cId: integer().notNull(), label: text() });
+		const corr = sql`(select ${b.label} from ${b} where ${b.cId} = ${a.cId})`;
+
+		expect(db.select({ id: a.id, bRaw: corr }).from(a).toSQL().sql).toEqual(
+			'select "id", (select "b"."label" from "b" where "b"."c_id" = "a"."c_id") from "a"',
+		);
+		expect(db.select({ id: a.id, bRaw: corr.as('b_raw') }).from(a).toSQL().sql).toEqual(
+			'select "id", (select "b"."label" from "b" where "b"."c_id" = "a"."c_id") as "b_raw" from "a"',
+		);
+		expect(db.select({ id: a.id }).from(a).where(corr).toSQL().sql).toEqual(
+			'select "id" from "a" where (select "b"."label" from "b" where "b"."c_id" = "a"."c_id")',
+		);
+	});
+
+	it('qualifier preservation for subquery fields', ({ expect }) => {
+		const sq = db.select({ id: users.id, name: fullName }).from(users).as('sq');
+		const query = db
+			.select({ id: sq.id, name: sq.name })
+			.from(users)
+			.leftJoin(sq, eq(users.id, sq.id));
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select "sq"."id", "sq"."name" from "users" left join (select "id", "users"."first_name" || \' \' || "users"."last_name" as "name" from "users") "sq" on "users"."id" = "sq"."id"',
+			params: [],
+		});
+	});
+
 	it('select', ({ expect }) => {
 		const query = db
 			.select({ name: fullName, age: users.age })
@@ -81,7 +111,7 @@ describe('postgres to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'with "cte" as (select "first_name" || \' \' || "last_name" as "name" from "users") select "name" from "cte"',
+				'with "cte" as (select "users"."first_name" || \' \' || "users"."last_name" as "name" from "users") select "name" from "cte"',
 			params: [],
 		});
 	});
@@ -92,7 +122,7 @@ describe('postgres to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'with "cte" as (select "first_name" || \' \' || "last_name" as "name" from "users") select "name" from "cte"',
+				'with "cte" as (select "users"."first_name" || \' \' || "users"."last_name" as "name" from "users") select "name" from "cte"',
 			params: [],
 		});
 	});
