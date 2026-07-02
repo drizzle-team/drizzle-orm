@@ -20,7 +20,33 @@ beforeEach(async () => {
 });
 
 test('view definition', () => {
-	parseViewSQL('CREATE VIEW current_cycle AS\nSELECT\n* from users;');
+	expect(parseViewSQL('CREATE VIEW current_cycle AS\nSELECT\n* from users;')).toBe('SELECT\n* from users;');
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5964
+test.each([
+	[
+		'block comment between AS and SELECT',
+		'CREATE VIEW current_cycle AS /* comment */ SELECT * from users',
+		'SELECT * from users',
+	],
+	[
+		'line comment between AS and SELECT',
+		'CREATE VIEW current_cycle AS\n-- comment\nSELECT * from users',
+		'SELECT * from users',
+	],
+	[
+		'column alias does not anchor the match',
+		'CREATE VIEW current_cycle AS SELECT id AS user_id from users',
+		'SELECT id AS user_id from users',
+	],
+	[
+		'cte body with comment',
+		'CREATE VIEW current_cycle AS /* comment */ WITH cte AS (SELECT 1) SELECT * FROM cte',
+		'WITH cte AS (SELECT 1) SELECT * FROM cte',
+	],
+])('view definition: %s', (_, sql, expected) => {
+	expect(parseViewSQL(sql)).toBe(expected);
 });
 
 describe('parse ddl', (t) => {
