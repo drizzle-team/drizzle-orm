@@ -210,28 +210,14 @@ export class MySqlDialect {
 		fields: SelectedFieldsOrdered,
 		{ isSingleTable = false, ignoreCastCodecs = false }: { isSingleTable?: boolean; ignoreCastCodecs?: boolean } = {},
 	): SQL {
-		const columnsLen = fields.length;
+		const { length: columnsLen } = fields;
+		const chunks: SQLChunk[] = [];
 
-		const chunks = fields.flatMap(({ field, codecOverride, column }, i) => {
-			const chunk: SQLChunk[] = [];
+		for (let i = 0; i < columnsLen; ++i) {
+			const { field, codecOverride, column } = fields[i]!;
 			const override = codecOverride as MySqlType | undefined;
 
-			if (is(field, SQL.Aliased)) {
-				if (field.isSelectionField) {
-					const query = !isSingleTable && field.origin !== undefined
-						? sql`${sql.identifier(field.origin)}.${sql.identifier(field.fieldAlias)}`
-						: sql.identifier(field.fieldAlias);
-					if (column && !ignoreCastCodecs) chunk.push(this.codecs.apply(column, 'cast', query, override));
-					else chunk.push(query);
-				} else {
-					chunk.push(
-						column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field,
-						sql` as ${sql.identifier(field.fieldAlias)}`,
-					);
-				}
-			} else if (is(field, SQL)) {
-				chunk.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
-			} else if (is(field, Column)) {
+			if (is(field, Column)) {
 				let name: Name | Column;
 				if (isSingleTable) {
 					name = field.isAlias
@@ -242,24 +228,37 @@ export class MySqlDialect {
 				}
 
 				const casted = ignoreCastCodecs ? name : this.codecs.apply(field, 'cast', name, override);
-				chunk.push(field.isAlias ? sql`${casted} as ${field}` : casted);
+				chunks.push(field.isAlias ? sql`${casted} as ${field}` : casted);
+			} else if (is(field, SQL.Aliased)) {
+				if (field.isSelectionField) {
+					const query = !isSingleTable && field.origin !== undefined
+						? sql`${sql.identifier(field.origin)}.${sql.identifier(field.fieldAlias)}`
+						: sql.identifier(field.fieldAlias);
+					if (column && !ignoreCastCodecs) chunks.push(this.codecs.apply(column, 'cast', query, override));
+					else chunks.push(query);
+				} else {
+					chunks.push(
+						column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field.sql, override) : field.sql,
+						sql` as ${sql.identifier(field.fieldAlias)}`,
+					);
+				}
+			} else if (is(field, SQL)) {
+				chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
 			} else if (is(field, Subquery)) {
 				if (column && !ignoreCastCodecs && !field._.isWith) {
 					const innerCasted = this.codecs.apply(column, 'cast', sql`(${field._.sql})`, override);
-					chunk.push(sql`${innerCasted} ${sql.identifier(field._.alias)}`);
+					chunks.push(sql`${innerCasted} ${sql.identifier(field._.alias)}`);
 				} else {
-					chunk.push(column ? this.codecs.apply(column, 'cast', field) : field, override);
+					chunks.push(column ? this.codecs.apply(column, 'cast', field) : field, override);
 				}
 			}
 
 			if (i < columnsLen - 1) {
-				chunk.push(sql`, `);
+				chunks.push(sql`, `);
 			}
+		}
 
-			return chunk;
-		});
-
-		return sql.join(chunks);
+		return new SQL(chunks);
 	}
 
 	private buildLimit(limit: number | Placeholder | undefined): SQL | undefined {
