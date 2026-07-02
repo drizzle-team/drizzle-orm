@@ -81,8 +81,8 @@ export async function migrate<TRelations extends AnyRelations>(
 	}
 }
 
-export async function rollback<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: DrizzleD1Database<TSchema, TRelations>,
+export async function rollback<TRelations extends AnyRelations>(
+	db: DrizzleD1Database<TRelations>,
 	config: MigrationConfig,
 	steps: number = 1,
 ) {

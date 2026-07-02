@@ -12,8 +12,8 @@ export async function migrate<TRelations extends AnyRelations>(
 	return await coreMigrate(migrations, db, config);
 }
 
-export async function rollback<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: VercelPgDatabase<TSchema, TRelations>,
+export async function rollback<TRelations extends AnyRelations>(
+	db: VercelPgDatabase<TRelations>,
 	config: MigrationConfig,
 	steps?: number,
 ) {

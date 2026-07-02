@@ -96,8 +96,8 @@ export async function migrate<TRelations extends AnyRelations>(
 	}
 }
 
-export async function rollback<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: SQLiteCloudDatabase<TSchema, TRelations>,
+export async function rollback<TRelations extends AnyRelations>(
+	db: SQLiteCloudDatabase<TRelations>,
 	config: MigrationConfig,
 	steps: number = 1,
 ) {
@@ -110,7 +110,7 @@ export async function rollback<TSchema extends Record<string, unknown>, TRelatio
 		? '__drizzle_migrations'
 		: config.migrationsTable ?? '__drizzle_migrations';
 
-	const dbMigrations = await session.all<{ id: number; hash: string; created_at: string; name: string | null }>(
+	const dbMigrations = await session.objects<{ id: number; hash: string; created_at: string; name: string | null }>(
 		sql`SELECT id, hash, name FROM ${sql.identifier(migrationsTable)} ORDER BY id DESC LIMIT ${sql.raw(String(steps))}`,
 	);
 

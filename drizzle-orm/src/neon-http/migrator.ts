@@ -91,8 +91,8 @@ export async function migrate<TRelations extends AnyRelations>(
  * NOTE: The Neon HTTP driver does not support transactions. This means that if any part of a rollback fails,
  * no automatic rollback of the rollback will be executed. Partially rolled-back state is possible.
  */
-export async function rollback<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: NeonHttpDatabase<TSchema, TRelations>,
+export async function rollback<TRelations extends AnyRelations>(
+	db: NeonHttpDatabase<TRelations>,
 	config: MigrationConfig,
 	steps: number = 1,
 ) {
@@ -100,7 +100,7 @@ export async function rollback<TSchema extends Record<string, unknown>, TRelatio
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 	const migrationsSchema = config.migrationsSchema ?? 'drizzle';
 
-	const dbMigrations = await db.session.all<{ id: number; hash: string; created_at: string; name: string | null }>(
+	const dbMigrations = await db.session.objects<{ id: number; hash: string; created_at: string; name: string | null }>(
 		sql`select id, hash, name from ${sql.identifier(migrationsSchema)}.${
 			sql.identifier(migrationsTable)
 		} order by id desc limit ${sql.raw(String(steps))}`,

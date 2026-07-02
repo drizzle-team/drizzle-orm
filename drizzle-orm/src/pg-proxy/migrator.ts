@@ -88,8 +88,8 @@ export async function migrate<TRelations extends AnyRelations>(
 	return;
 }
 
-export async function rollback<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: PgRemoteDatabase<TSchema, TRelations>,
+export async function rollback<TRelations extends AnyRelations>(
+	db: PgRemoteDatabase<TRelations>,
 	callback: ProxyMigrator,
 	config: MigrationConfig,
 	steps: number = 1,
@@ -98,7 +98,7 @@ export async function rollback<TSchema extends Record<string, unknown>, TRelatio
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 	const migrationsSchema = config.migrationsSchema ?? 'drizzle';
 
-	const dbMigrations = await db.session.all<{ id: number; hash: string; created_at: string; name: string | null }>(
+	const dbMigrations = await db.execute<{ id: number; hash: string; created_at: string; name: string | null }>(
 		sql`select id, hash, name from ${sql.identifier(migrationsSchema)}.${
 			sql.identifier(migrationsTable)
 		} order by id desc limit ${sql.raw(String(steps))}`,

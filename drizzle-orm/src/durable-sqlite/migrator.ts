@@ -128,8 +128,8 @@ export function migrate<TRelations extends AnyRelations>(
 	});
 }
 
-export function rollback<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: DrizzleSqliteDODatabase<TSchema, TRelations>,
+export function rollback<TRelations extends AnyRelations>(
+	db: DrizzleSqliteDODatabase<TRelations>,
 	config: MigrationConfig,
 	steps: number = 1,
 ): void {

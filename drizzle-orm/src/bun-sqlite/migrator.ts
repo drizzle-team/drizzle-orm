@@ -7,7 +7,7 @@ import type {
 } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { migrateSync } from '~/sqlite-core/async/session.ts';
+import { migrateSync, rollbackSync } from '~/sqlite-core/async/session.ts';
 import type { SQLiteBunDatabase } from './driver.ts';
 
 export function migrate<TRelations extends AnyRelations = EmptyRelations>(
@@ -43,11 +43,11 @@ export function migrate<TRelations extends AnyRelations = EmptyRelations>(
 	return migrateSync(migrations, db.session, config as MigrationConfig);
 }
 
-export function rollback<TSchema extends Record<string, unknown>, TRelations extends AnyRelations = EmptyRelations>(
-	db: SQLiteBunDatabase<TSchema, TRelations>,
+export function rollback<TRelations extends AnyRelations = EmptyRelations>(
+	db: SQLiteBunDatabase<TRelations>,
 	config: MigrationConfig,
 	steps?: number,
 ) {
 	const migrations = readMigrationFiles(config);
-	return db.dialect.rollback(migrations, db.session, config, steps);
+	return rollbackSync(migrations, db.session, config, steps);
 }

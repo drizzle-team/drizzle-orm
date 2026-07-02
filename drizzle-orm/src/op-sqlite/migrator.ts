@@ -2,7 +2,7 @@ import { useEffect, useReducer } from 'react';
 import type { MigrationMeta } from '~/migrator.ts';
 import { formatToMillis } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
-import { migrateAsync } from '~/sqlite-core/async/session.ts';
+import { migrateAsync, rollbackAsync } from '~/sqlite-core/async/session.ts';
 import type { OPSQLiteDatabase } from './driver.ts';
 
 interface MigrationConfig {
@@ -58,13 +58,13 @@ export async function migrate<TRelations extends AnyRelations>(
 	return await migrateAsync(migrations, db);
 }
 
-export async function rollback<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: OPSQLiteDatabase<TSchema, TRelations>,
+export async function rollback<TRelations extends AnyRelations>(
+	db: OPSQLiteDatabase<TRelations>,
 	config: MigrationConfig,
 	steps: number = 1,
 ) {
 	const migrations = await readMigrationFiles(config);
-	return await db.dialect.rollback(migrations, db.session, undefined, steps);
+	return await rollbackAsync(migrations, db.session, undefined, steps);
 }
 
 interface State {

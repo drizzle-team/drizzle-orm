@@ -133,6 +133,7 @@ export const configCommonSchema = object({
 export type CliConfig = TypeOf<typeof configCommonSchema> & {
 	schema?: string | string[];
 	sql?: boolean;
+	generateDownMigrations?: boolean;
 	migrations?: TypeOf<typeof configMigrations>;
 	tablesFilter?: string | string[];
 	schemaFilter?: string | string[];

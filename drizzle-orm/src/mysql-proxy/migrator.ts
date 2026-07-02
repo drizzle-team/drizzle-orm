@@ -88,8 +88,8 @@ export async function migrate<TRelations extends AnyRelations>(
 	await callback(queriesToRun);
 }
 
-export async function rollback<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: MySqlRemoteDatabase<TSchema, TRelations>,
+export async function rollback<TRelations extends AnyRelations>(
+	db: MySqlRemoteDatabase<TRelations>,
 	callback: ProxyMigrator,
 	config: MigrationConfig,
 	steps: number = 1,
@@ -97,9 +97,15 @@ export async function rollback<TSchema extends Record<string, unknown>, TRelatio
 	const migrations = readMigrationFiles(config);
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 
-	const dbMigrations = await db.session.all<{ id: number; hash: string; name: string | null }>(
-		sql`select id, hash, name from ${sql.identifier(migrationsTable)} order by id desc limit ${sql.raw(String(steps))}`,
-	);
+	const dbMigrations = await db.select({
+		id: sql.raw('id'),
+		hash: sql.raw('hash'),
+		name: sql.raw('name'),
+	}).from(sql.identifier(migrationsTable).getSQL()).orderBy(sql.raw('id desc')).limit(steps) as {
+		id: number;
+		hash: string;
+		name: string | null;
+	}[];
 
 	if (dbMigrations.length === 0) return;
 

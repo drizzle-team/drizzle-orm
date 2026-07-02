@@ -90,15 +90,15 @@ export interface MigrationConfig {
 	}
 }
 
-export async function rollback<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: XataHttpDatabase<TSchema, TRelations>,
+export async function rollback<TRelations extends AnyRelations = EmptyRelations>(
+	db: XataHttpDatabase<TRelations>,
 	config: MigrationConfig,
 	steps: number = 1,
 ) {
 	const migrations = readMigrationFiles(config);
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 
-	const dbMigrations = await db.session.all<{ id: number; hash: string; name: string | null }>(
+	const dbMigrations = await db.session.objects<{ id: number; hash: string; name: string | null }>(
 		sql`select id, hash, name from ${sql.identifier(migrationsTable)} order by id desc limit ${sql.raw(String(steps))}`,
 	);
 

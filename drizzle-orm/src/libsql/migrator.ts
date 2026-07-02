@@ -80,8 +80,8 @@ export async function migrate<TRelations extends AnyRelations>(
 	return;
 }
 
-export async function rollback<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: LibSQLDatabase<TSchema, TRelations>,
+export async function rollback<TRelations extends AnyRelations>(
+	db: LibSQLDatabase<TRelations>,
 	config: MigrationConfig,
 	steps: number = 1,
 ) {

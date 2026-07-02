@@ -2,7 +2,7 @@ import { useEffect, useReducer } from 'react';
 import type { MigrationMeta } from '~/migrator.ts';
 import { formatToMillis } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { migrateSync } from '~/sqlite-core/async/session.ts';
+import { migrateSync, rollbackSync } from '~/sqlite-core/async/session.ts';
 import type { ExpoSQLiteDatabase } from './driver.ts';
 
 interface MigrationConfig {
@@ -59,15 +59,14 @@ export async function migrate<TRelations extends AnyRelations = EmptyRelations>(
 }
 
 export async function rollback<
-	TSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations = EmptyRelations,
 >(
-	db: ExpoSQLiteDatabase<TSchema, TRelations>,
+	db: ExpoSQLiteDatabase<TRelations>,
 	config: MigrationConfig,
 	steps: number = 1,
 ) {
 	const migrations = await readMigrationFiles(config);
-	return await db.dialect.rollback(migrations, db.session, undefined, steps);
+	return rollbackSync(migrations, db.session, undefined, steps);
 }
 
 interface State {

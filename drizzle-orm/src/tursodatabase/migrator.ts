@@ -1,7 +1,7 @@
 import type { MigrationConfig } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
 import type { AnyRelations } from '~/relations.ts';
-import { migrateAsync } from '~/sqlite-core/async/session.ts';
+import { migrateAsync, rollbackAsync } from '~/sqlite-core/async/session.ts';
 import type { TursoDatabaseDatabase } from './driver-core.ts';
 
 export async function migrate<TRelations extends AnyRelations>(
@@ -12,11 +12,11 @@ export async function migrate<TRelations extends AnyRelations>(
 	return migrateAsync(migrations, db, config);
 }
 
-export async function rollback<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: TursoDatabaseDatabase<TSchema, TRelations>,
+export async function rollback<TRelations extends AnyRelations>(
+	db: TursoDatabaseDatabase<TRelations>,
 	config: MigrationConfig,
 	steps?: number,
 ) {
 	const migrations = readMigrationFiles(config);
-	return await db.dialect.rollback(migrations, db.session as any, config, steps);
+	return await rollbackAsync(migrations, db.session as any, config, steps);
 }

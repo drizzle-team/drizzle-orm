@@ -365,7 +365,7 @@ export async function migrate(
 
 export async function rollback(
 	migrations: MigrationMeta[],
-	db: PgAsyncDatabase<PgQueryResultHKT, any, any, any>,
+	db: PgAsyncDatabase<PgQueryResultHKT, any>,
 	config: string | MigrationConfig,
 	steps: number = 1,
 ): Promise<void> {
@@ -374,7 +374,7 @@ export async function rollback(
 		: config.migrationsTable ?? '__drizzle_migrations';
 	const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
 
-	const dbMigrations = await db.session.all<{ id: number; hash: string; created_at: string; name: string | null }>(
+	const dbMigrations = await db.session.objects<{ id: number; hash: string; created_at: string; name: string | null }>(
 		sql`select id, hash, name from ${sql.identifier(migrationsSchema)}.${
 			sql.identifier(migrationsTable)
 		} order by id desc limit ${sql.raw(String(steps))}`,

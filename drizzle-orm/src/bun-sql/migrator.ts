@@ -37,8 +37,8 @@ export namespace migrate {
 	}
 }
 
-export async function rollback<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: BunSQLDatabase<TSchema, TRelations>,
+export async function rollback<TRelations extends AnyRelations>(
+	db: BunSQLDatabase<TRelations>,
 	config: MigrationConfig,
 	steps?: number,
 ) {
@@ -46,24 +46,24 @@ export async function rollback<TSchema extends Record<string, unknown>, TRelatio
 }
 
 export namespace rollback {
-	export async function postgres<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-		db: BunSQLDatabase<TSchema, TRelations>,
+	export async function postgres<TRelations extends AnyRelations>(
+		db: BunSQLDatabase<TRelations>,
 		config: MigrationConfig,
 		steps?: number,
 	) {
 		return pgRollback(db, config, steps);
 	}
 
-	export async function sqlite<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-		db: BunSQLiteDatabase<TSchema, TRelations>,
+	export async function sqlite<TRelations extends AnyRelations>(
+		db: BunSQLiteDatabase<TRelations>,
 		config: MigrationConfig,
 		steps?: number,
 	) {
 		return sqliteRollback(db, config, steps);
 	}
 
-	export async function mysql<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-		db: BunMySqlDatabase<TSchema, TRelations>,
+	export async function mysql<TRelations extends AnyRelations>(
+		db: BunMySqlDatabase<TRelations>,
 		config: MigrationConfig,
 		steps?: number,
 	) {
