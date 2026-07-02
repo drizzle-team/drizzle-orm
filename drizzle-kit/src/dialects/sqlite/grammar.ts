@@ -6,7 +6,10 @@ import type { Import } from './typescript';
 
 const namedCheckPattern = /CONSTRAINT\s+["'`[]?(\w+)["'`\]]?\s+CHECK\s*\((.*)\)/gi;
 const unnamedCheckPattern = /CHECK\s+\((.*)\)/gi;
-const viewAsStatementRegex = new RegExp(`\\bAS\\b\\s+(WITH.+|SELECT.+)$`, 'is'); // 'i' for case-insensitive, 's' for dotall mode
+// whitespace, `-- line` comments and `/* block */` comments allowed between AS and the view body
+// https://github.com/drizzle-team/drizzle-orm/issues/5964
+const commentableGap = String.raw`(?:\s|--[^\n]*(?:\n|$)|/\*[\s\S]*?\*/)*`;
+const viewAsStatementRegex = new RegExp(`\\bAS\\b${commentableGap}((?:WITH|SELECT).+)$`, 'is'); // 'i' for case-insensitive, 's' for dotall mode
 
 export const nameForForeignKey = (fk: Pick<ForeignKey, 'table' | 'columns' | 'tableTo' | 'columnsTo'>) => {
 	return `fk_${fk.table}_${fk.columns.join('_')}_${fk.tableTo}_${fk.columnsTo.join('_')}_fk`;

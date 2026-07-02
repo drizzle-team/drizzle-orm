@@ -112,8 +112,14 @@ export const parseFkAction = (type: string): OnAction => {
 	}
 };
 
-const viewAsStatementRegex =
-	/\bAS\b\s*\(?\s*(WITH[\s\S]+?SELECT[\s\S]*?|SELECT[\s\S]*?)\)?(?=\s+WITH CHECK OPTION\b|\s*;?$)/i;
+// whitespace, `-- line` comments and `/* block */` comments allowed between AS and the view body
+// https://github.com/drizzle-team/drizzle-orm/issues/5964
+const commentableGap = String.raw`(?:\s|--[^\n]*(?:\n|$)|/\*[\s\S]*?\*/)*`;
+const viewAsStatementRegex = new RegExp(
+	String
+		.raw`\bAS\b${commentableGap}\(?${commentableGap}(WITH[\s\S]+?SELECT[\s\S]*?|SELECT[\s\S]*?)\)?(?=\s+WITH CHECK OPTION\b|\s*;?$)`,
+	'i',
+);
 export const parseViewSQL = (sql: string | null): string | null => {
 	if (!sql) return ''; // this means that used is_encrypted
 
