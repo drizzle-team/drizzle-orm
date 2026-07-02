@@ -488,3 +488,25 @@ test('insert via db.execute w/ query builder', async () => {
 	);
 	expect(Array.prototype.slice.call(result)).toEqual([{ id: 1, name: 'John' }]);
 });
+
+// Regression test for https://github.com/drizzle-team/drizzle-orm/issues/5789
+// A JS `Date` bound as a raw `sql` template parameter against a timestamptz
+// column must round-trip correctly, not throw `TypeError [ERR_INVALID_ARG_TYPE]`
+// from postgres.js's Bind() step.
+test('insert via raw sql`` with a Date param does not throw (#5789)', async () => {
+	const now = new Date();
+
+	await db.execute(
+		sql`insert into ${usersTable} (${new Name(usersTable.name.name)}, ${
+			new Name(usersTable.createdAt.name)
+		}) values (${'Jane'}, ${now})`,
+	);
+
+	const result = await db.execute<{ id: number; name: string; created_at: string }>(
+		sql`select id, name, created_at from "users" where name = ${'Jane'}`,
+	);
+	const rows = Array.prototype.slice.call(result);
+	expect(rows).toHaveLength(1);
+	expect(rows[0].name).toBe('Jane');
+	expect(new Date(rows[0].created_at).getTime()).toBe(now.getTime());
+});
