@@ -265,52 +265,51 @@ export class SingleStoreDialect {
 		fields: SelectedFieldsOrdered,
 		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
 	): SQL {
-		const columnsLen = fields.length;
+		const { length: columnsLen } = fields;
+		const chunks: SQLChunk[] = [];
 
-		const chunks = fields.flatMap(({ field }, i) => {
-			const chunk: SQLChunk[] = [];
+		for (let i = 0; i < columnsLen; ++i) {
+			const { field } = fields[i]!;
 
-			if (is(field, SQL.Aliased)) {
-				if (field.isSelectionField) {
-					if (!isSingleTable && field.origin !== undefined) {
-						chunk.push(sql.identifier(field.origin), sql.raw('.'));
-					}
-					chunk.push(sql.identifier(field.fieldAlias));
-				} else {
-					chunk.push(field, sql` as ${sql.identifier(field.fieldAlias)}`);
-				}
-			} else if (is(field, SQL)) {
-				chunk.push(field);
-			} else if (is(field, Column)) {
+			if (is(field, Column)) {
 				if (isSingleTable) {
-					chunk.push(
+					chunks.push(
 						field.isAlias
 							? sql`${sql.identifier(getOriginalColumnFromAlias(field).name)} as ${field}`
 							: sql.identifier(field.name),
 					);
 				} else {
-					chunk.push(
+					chunks.push(
 						field.isAlias
 							? sql`${getOriginalColumnFromAlias(field)} as ${field}`
 							: field,
 					);
 				}
+			} else if (is(field, SQL.Aliased)) {
+				if (field.isSelectionField) {
+					if (!isSingleTable && field.origin !== undefined) {
+						chunks.push(sql.identifier(field.origin), sql.raw('.'));
+					}
+					chunks.push(sql.identifier(field.fieldAlias));
+				} else {
+					chunks.push(field.sql, sql` as ${sql.identifier(field.fieldAlias)}`);
+				}
+			} else if (is(field, SQL)) {
+				chunks.push(field);
 			} else if (is(field, Subquery)) {
 				if (!field._.isWith) {
-					chunk.push(sql`(${field._.sql}) ${sql.identifier(field._.alias)}`);
+					chunks.push(sql`(${field._.sql}) ${sql.identifier(field._.alias)}`);
 				} else {
-					chunk.push(field);
+					chunks.push(field);
 				}
 			}
 
 			if (i < columnsLen - 1) {
-				chunk.push(sql`, `);
+				chunks.push(sql`, `);
 			}
+		}
 
-			return chunk;
-		});
-
-		return sql.join(chunks);
+		return new SQL(chunks);
 	}
 
 	private buildLimit(limit: number | Placeholder | undefined): SQL | undefined {
