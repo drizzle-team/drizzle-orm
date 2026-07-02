@@ -229,44 +229,13 @@ export class PgDialect {
 					if (column && !ignoreCastCodecs) chunk.push(this.codecs.apply(column, 'cast', query, override));
 					else chunk.push(query);
 				} else {
-					const query = field.sql;
-
-					if (isSingleTable) {
-						const newSql = new SQL(
-							query.queryChunks.map((c) => {
-								if (is(c, PgColumn)) {
-									return sql.identifier(c.name);
-								}
-								return c;
-							}),
-						);
-
-						if (query.shouldInlineParams) newSql.inlineParams();
-						chunk.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', newSql, override) : newSql);
-					} else {
-						chunk.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', query, override) : query);
-					}
-
-					chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
+					chunk.push(
+						column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field,
+						sql` as ${sql.identifier(field.fieldAlias)}`,
+					);
 				}
 			} else if (is(field, SQL)) {
-				const query = field;
-
-				if (isSingleTable) {
-					const newSql = new SQL(
-						query.queryChunks.map((c) => {
-							if (is(c, PgColumn)) {
-								return sql.identifier(c.name);
-							}
-							return c;
-						}),
-					);
-
-					if (query.shouldInlineParams) newSql.inlineParams();
-					chunk.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', newSql, override) : newSql);
-				} else {
-					chunk.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', query, override) : query);
-				}
+				chunk.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
 			} else if (is(field, Column)) {
 				let name: Name | Column;
 				if (isSingleTable) {
