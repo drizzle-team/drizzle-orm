@@ -2554,7 +2554,7 @@ test('all date and time columns', async () => {
 		},
 	]);
 
-	// await db.execute(sql`drop table if exists ${table}`);
+	await db.execute(sql`drop table if exists ${table}`);
 });
 
 test('all date and time columns with timezone second case mode date', async () => {

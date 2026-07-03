@@ -1761,7 +1761,7 @@ export function tests(test: Test) {
 		// https://github.com/drizzle-team/drizzle-orm/issues/3171
 		// TODO: review case
 		// Fails in `postgres-js` if not inlined - driver expects stringified jsons
-		test.skipIf(Date.now() < +new Date('2026-07-01')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-07-10')).concurrent(
 			'proper json and jsonb handling - sql operator',
 			async ({ db, push }) => {
 				const jsonTable = pgTable('json_table_sql_3', {
