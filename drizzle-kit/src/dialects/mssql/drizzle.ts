@@ -362,7 +362,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 		const it = imports[i];
 
 		const i0: Record<string, unknown> = await loadModule(it);
-		const prepared = fromExport(i0);
+		const prepared = fromExports(i0);
 
 		tables.push(...prepared.tables);
 		schemas.push(...prepared.schemas);
@@ -378,7 +378,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	};
 };
 
-const fromExport = (exports: Record<string, unknown>) => {
+export const fromExports = (exports: Record<string, unknown>) => {
 	const tables: AnyMsSqlTable[] = [];
 	const schemas: MsSqlSchema[] = [];
 	const views: MsSqlView[] = [];

@@ -70,24 +70,16 @@ function humanizeAction(action) {
 	return rest.length ? `${conjugated} ${rest.join(' ')}` : conjugated;
 }
 
-// statementDescription formats produced by the dialects' describeStatement():
-//   "<action>: <name> on <table> table"
-//   "<action>: <object> in <schema> schema"
-//   "<action>: <schema> schema"
-//   "<action> on <object> table"
-function humanizeDescription(raw) {
-	if (typeof raw !== 'string' || raw.length === 0) return raw ?? '';
-	let m = raw.match(/^([a-z0-9_]+): (.+) on (.+) table$/);
-	if (m) return `${humanizeAction(m[1])} \`${m[2]}\` on table \`${m[3]}\``;
-	m = raw.match(/^([a-z0-9_]+): (.+) in (.+) schema$/);
-	if (m) return `${humanizeAction(m[1])} \`${m[2]}\` in schema \`${m[3]}\``;
-	m = raw.match(/^([a-z0-9_]+): (.+) schema$/);
-	if (m) return `${humanizeAction(m[1])} \`${m[2]}\``;
-	m = raw.match(/^([a-z0-9_]+): (.+)$/);
-	if (m) return `${humanizeAction(m[1])} \`${m[2]}\``;
-	m = raw.match(/^([a-z0-9_]+) on (.+) table$/);
-	if (m) return `${humanizeAction(m[1])} on table \`${m[2]}\``;
-	return raw;
+function describeBranch(branch) {
+	const action = branch.action ?? '';
+	const target = branch.target;
+	if (!target || typeof target.name !== 'string') {
+		return humanizeAction(action);
+	}
+	const { name, schema, table } = target;
+	if (table) return `${humanizeAction(action)} \`${name}\` on table \`${table}\``;
+	if (schema) return `${humanizeAction(action)} \`${name}\` in schema \`${schema}\``;
+	return `${humanizeAction(action)} \`${name}\``;
 }
 
 function normalizedWd() {
@@ -180,25 +172,10 @@ function descriptionsByLeaf(error) {
 		for (const branch of Array.isArray(conflict.branches) ? conflict.branches : []) {
 			if (!branch.leafPath) continue;
 			if (!map.has(branch.leafPath)) map.set(branch.leafPath, new Set());
-			map.get(branch.leafPath).add(humanizeDescription(branch.statementDescription ?? ''));
+			map.get(branch.leafPath).add(describeBranch(branch));
 		}
 	}
 	return map;
-}
-
-function describeTarget(raw) {
-	if (typeof raw !== 'string') return null;
-	let m = raw.match(/^[a-z0-9_]+: (.+) on .+ table$/);
-	if (m) return m[1];
-	m = raw.match(/^[a-z0-9_]+: (.+) in .+ schema$/);
-	if (m) return m[1];
-	m = raw.match(/^[a-z0-9_]+: (.+) schema$/);
-	if (m) return m[1];
-	m = raw.match(/^[a-z0-9_]+: (.+)$/);
-	if (m) return m[1];
-	m = raw.match(/^[a-z0-9_]+ on (.+) table$/);
-	if (m) return m[1];
-	return null;
 }
 
 // Object names (enum/table/column) each conflicting migration touches, keyed by folder.
@@ -207,10 +184,10 @@ function conflictTargets(error) {
 	for (const conflict of Array.isArray(error.details) ? error.details : []) {
 		for (const branch of Array.isArray(conflict.branches) ? conflict.branches : []) {
 			if (!branch.leafPath) continue;
-			const target = describeTarget(branch.statementDescription ?? '');
-			if (!target) continue;
+			const name = branch.target?.name;
+			if (typeof name !== 'string' || name.length === 0) continue;
 			if (!map.has(branch.leafPath)) map.set(branch.leafPath, new Set());
-			map.get(branch.leafPath).add(target);
+			map.get(branch.leafPath).add(name);
 		}
 	}
 	return map;

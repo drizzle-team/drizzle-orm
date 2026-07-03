@@ -1,13 +1,15 @@
 ---
 name: drizzle-responses-and-errors
-description: Decode the drizzle-kit response JSON envelope, error codes, and exit codes from the CLI `--output json` flag or the SDK `generate(...)` / `push(...)` functions. Load whenever drizzle-kit output contains a non-zero exit, an error code (`config_validation_error`, `database_driver_error`, `invalid_hints`, `unsupported_schema_change`, etc.), or any drizzle-kit JSON response needs parsing or inspection.
+description: Decode the drizzle-kit response JSON envelope, error codes, and exit codes — from the CLI `--output json` output or any drizzle-kit SDK return value. Load whenever drizzle-kit output contains a non-zero exit, an error code (`config_validation_error`, `database_driver_error`, `invalid_hints`, `unsupported_schema_change`, etc.), or any drizzle-kit JSON response needs parsing or inspection.
 metadata:
   version: "1.0.0"
 ---
 
 # Drizzle responses and errors
 
-Both invocation surfaces share one envelope: the CLI prints it on stdout when `--output json` is passed, and the SDK functions `generate(...)` / `push(...)` return the same object. The discriminator is always `status`. Decoding logic written for one surface works on the other. This skill does not invoke commands or author schemas — see `drizzle-generate` and `drizzle-push` for invocation, `drizzle-hints` for the `missing_hints` resolution loop.
+If the `drizzle` skill has not been loaded yet this session, load it first — it carries the staleness check and the MCP-vs-CLI surface-selection rule that govern every drizzle-kit invocation.
+
+Both invocation surfaces share one envelope: the CLI prints it on stdout when `--output json` is passed, and the SDK functions `generate(...)` / `push(...)` / `check(...)` return the same object. The discriminator is always `status`. Decoding logic written for one surface works on the other. This skill does not invoke commands or author schemas — see `drizzle-generate` and `drizzle-push` for invocation, `drizzle-hints` for the `missing_hints` resolution loop.
 
 ## Response envelope
 
@@ -24,11 +26,14 @@ Per-operation extras on `'ok'`:
 
 - `generate` (write mode) — `{ status, dialect, migration_path }`
 - `push` (write mode) — `{ status, dialect }`
+- `pull` — `{ status, dialect, schemaPath, snapshotPath, relationsPath?, migrationPath? }` (`relationsPath?` omitted for mssql; `migrationPath?` only with `--init`). `pull` is ok-or-error only — never `missing_hints`, never `no_changes`.
+- `export` — `{ status, dialect, statements, warnings }` (the individual SQL statements plus rendered warnings — there is no joined `sql` field).
+- `up` — `{ status, dialect, upgraded }` (`upgraded` is the array of rewritten snapshot paths; `[]` means a no-op).
 - `--explain` (either command, non-empty diff) — `{ status, dialect, statements, hints }`
 
 `'missing_hints'` carries `unresolved`, an array of items the agent must resolve before retrying. Each item is `{ type: 'rename_or_create', kind, entity }` or `{ type: 'confirm_data_loss', kind, entity, reason, reason_details? }`. The resolution loop lives in the `drizzle-hints` skill.
 
-The table above describes `--output json`. Under `--output text` + non-TTY the same `missing_hints` information renders as the human-readable missing-decisions report on stdout, still exiting with code 2 — see the drizzle-kit `OUTPUT_MODES.md` reference for the text-report shape.
+The table above describes `--output json`. Under `--output text` + non-TTY the same `missing_hints` information renders as the human-readable missing-decisions report on stdout, still exiting with code 2 — see the `drizzle-output-modes` skill for the text-report shape.
 
 `'error'` carries `error.code` plus `meta` keys (variable per code). The runtime serializer flattens `{ code, ...meta }` into the `error` object — `code` is always present; the remaining keys vary. The envelope is the only shape an agent observes; no other fields are surfaced.
 
@@ -52,7 +57,7 @@ The canonical subset surfacing from `generate` and `push`. `code` is the discrim
 | `ambiguous_params_error`            | a flag conflicts with a `defineConfig` field (or two flags collide)                 | `command`, `configOption`                                       |
 | `unsupported_command_dialect_error` | the requested command isn't valid for the chosen dialect                            | `command`, `dialect?`                                           |
 | `config_connection_error`           | `dbCredentials` shape doesn't match the chosen driver                               | `driver`, `params`, `command?`                                  |
-| `database_driver_error`             | driver-specific connect failure — usually a missing or version-mismatched package   | `database`, `packages`, `note?`                                 |
+| `database_driver_error`             | driver-specific connect failure — usually a missing or version-mismatched package; also arises from `pull`'s connect/introspect span and its `--init` migrate span | `database`, `packages`, `note?`                                 |
 | `orm_version_error`                 | `drizzle-orm` is missing, too old, or `drizzle-kit` itself is outdated              | `kind: 'orm_missing'\|'orm_too_old'\|'kit_outdated'`            |
 | `required_packages_error`           | one or more dialect driver packages need installing                                 | `packages`                                                      |
 | `migrations_outdated_error`         | migrations folder format is outdated and needs upgrading                            | `out`                                                           |
@@ -79,7 +84,7 @@ When fired:
 
 ## Check errors
 
-`check_error` surfaces from `drizzle-kit check`, and also from `generate` / `migrate` when their pre-flight migrations-folder gate fails. `check` itself has no SDK function, but because `generate` is a documented SDK export, an SDK `generate(...)` caller can receive a `check_error` envelope too. It exits with code 1 and carries a `kind` discriminator.
+`check_error` surfaces from the `check()` SDK export and `drizzle-kit check`, returning the envelope on integrity or conflict failures exactly as the CLI does. It also surfaces from `generate` / `migrate` when their pre-flight migrations-folder gate fails. It exits with code 1 and carries a `kind` discriminator.
 
 | meta.kind     | meta keys                | when fired                                                              |
 | ------------- | ------------------------ | ---------------------------------------------------------------------- |
@@ -138,7 +143,7 @@ Common failure modes and their fixes — keyed by `error.code` / `meta.kind`:
 - `missing_required_params_error` — `meta.params` names the missing fields (e.g. `['dialect']`). Add them via config or CLI flag.
 - `ambiguous_params_error` — a flag and a `defineConfig` field both set the same value. Pick one source of truth — `meta.command` plus `meta.configOption` name the conflict.
 - `config_connection_error` — the `dbCredentials` keys don't match what `meta.driver` expects. `meta.params` lists the keys the driver needs. Reshape `dbCredentials` accordingly.
-- `database_driver_error` — driver could not connect. `meta.packages` lists the npm packages required for the driver; install them. `meta.note` may carry a connection-specific hint (e.g. SSL).
+- `database_driver_error` — driver could not connect. `meta.packages` lists the npm packages required for the driver; install them. `meta.note` may carry a connection-specific hint (e.g. SSL). Beyond `push`, this also fires from `pull`'s connect/introspect span and the `--init` migrate span — the meta is always the redacted `{ database, packages, note? }`; the connection string, SQL, and params are never spread into the envelope.
 - `orm_version_error` — `meta.kind` discriminates: `orm_missing` (install `drizzle-orm`), `orm_too_old` (bump `drizzle-orm`), `kit_outdated` (bump `drizzle-kit` itself).
 - `required_packages_error` — `meta.packages` lists the npm packages to install. Common for dialect drivers (`pg`, `mysql2`, `better-sqlite3`, `@libsql/client`, `mssql`).
 - `unsupported_command_dialect_error` — the command isn't supported for `meta.dialect`. Use a different command or switch dialects.

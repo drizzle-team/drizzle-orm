@@ -3,6 +3,7 @@ import {
 	type CommutativityStatementDefinitions,
 	type CommutativityStatementInfo,
 } from '../../commutativity/engine';
+import type { ConflictTarget } from '../../commutativity/types';
 import { createDDL, type PostgresDDL } from './ddl';
 import { ddlDiffDry } from './diff';
 import { drySnapshot, type PostgresSnapshot } from './snapshot';
@@ -707,6 +708,76 @@ class PostgresCommutativity extends AbstractCommutativity<
 		}
 
 		return `${info.action} on ${info.primary.objectName} table`;
+	}
+
+	private enumLevelActions = new Set([
+		'create_enum',
+		'drop_enum',
+		'alter_enum',
+		'recreate_enum',
+		'rename_enum',
+		'move_enum',
+		'alter_type_drop_value',
+	]);
+
+	private viewLevelActions = new Set([
+		'create_view',
+		'drop_view',
+		'alter_view',
+		'rename_view',
+		'move_view',
+	]);
+
+	private sequenceLevelActions = new Set([
+		'create_sequence',
+		'drop_sequence',
+		'alter_sequence',
+		'rename_sequence',
+		'move_sequence',
+	]);
+
+	protected override describeStatementTarget(
+		statement: JsonStatement,
+		info: StatementInfo,
+	): ConflictTarget {
+		if (
+			statement.type === 'create_index'
+			|| statement.type === 'drop_index'
+			|| statement.type === 'recreate_index'
+		) {
+			return { kind: 'index', name: statement.index.name, table: statement.index.table };
+		}
+
+		if (
+			info.action === 'create_schema'
+			|| info.action === 'drop_schema'
+			|| info.action === 'rename_schema'
+		) {
+			return { kind: 'schema', name: info.primary.schema };
+		}
+
+		if (this.enumLevelActions.has(info.action)) {
+			return { kind: 'enum', name: info.primary.objectName, schema: info.primary.schema };
+		}
+
+		if (this.viewLevelActions.has(info.action)) {
+			return { kind: 'view', name: info.primary.objectName, schema: info.primary.schema };
+		}
+
+		if (this.sequenceLevelActions.has(info.action)) {
+			return { kind: 'sequence', name: info.primary.objectName, schema: info.primary.schema };
+		}
+
+		if (info.primary.columnName) {
+			return {
+				kind: 'column',
+				name: info.primary.columnName,
+				table: info.primary.objectName,
+				schema: info.primary.schema,
+			};
+		}
+
+		return { kind: 'table', name: info.primary.objectName, schema: info.primary.schema };
 	}
 
 	protected override getImplicitAncestors(target: FootprintTarget): FootprintTarget[] {

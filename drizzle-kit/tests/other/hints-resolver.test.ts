@@ -25,7 +25,7 @@ const runTableResolver = async (
 ) => {
 	return runWithCliContext({ output: 'json', interactive: false }, async () => {
 		const handler = new HintsHandler(hints);
-		const resolve = resolver<Entity>('table', 'public', handler);
+		const resolve = resolver<Entity>('table', handler);
 		return { handler, result: await resolve(input) };
 	});
 };
@@ -41,12 +41,9 @@ test('resolver applies a matching rename hint and removes both sides from the di
 	);
 
 	expect(result).toStrictEqual({
-		resolved: {
-			created: [],
-			deleted: [],
-			renamedOrMoved: [{ from: deleted, to: created }],
-		},
-		unresolved: [],
+		created: [],
+		deleted: [],
+		renamedOrMoved: [{ from: deleted, to: created }],
 	});
 	expect(handler.missingHints).toStrictEqual([]);
 });
@@ -62,12 +59,9 @@ test('resolver keeps an entity in created when a matching create hint exists', a
 	);
 
 	expect(result).toStrictEqual({
-		resolved: {
-			created: [created],
-			deleted: [deleted],
-			renamedOrMoved: [],
-		},
-		unresolved: [],
+		created: [created],
+		deleted: [deleted],
+		renamedOrMoved: [],
 	});
 	expect(handler.missingHints).toStrictEqual([]);
 });
@@ -77,19 +71,16 @@ test('resolver records a missing hint and keeps both entities when no hint match
 		const created = table('members', 'public');
 		const deleted = table('users', 'public');
 		const hints = new HintsHandler();
-		const resolve = resolver<Entity>('table', 'public', hints);
+		const resolve = resolver<Entity>('table', hints);
 		const result = await resolve({ created: [created], deleted: [deleted] });
 
 		return { hints, result };
 	});
 
 	expect(result).toStrictEqual({
-		resolved: {
-			created: [table('members', 'public')],
-			deleted: [table('users', 'public')],
-			renamedOrMoved: [],
-		},
-		unresolved: [{ type: 'rename_or_create', kind: 'table', entity: ['public', 'members'] }],
+		created: [table('members', 'public')],
+		deleted: [table('users', 'public')],
+		renamedOrMoved: [],
 	});
 	expect(hints.toResponse()).toStrictEqual({
 		status: 'missing_hints',
@@ -107,12 +98,9 @@ test('resolver ignores excess hints that do not correspond to the diff', async (
 	);
 
 	expect(result).toStrictEqual({
-		resolved: {
-			created: [created],
-			deleted: [],
-			renamedOrMoved: [],
-		},
-		unresolved: [],
+		created: [created],
+		deleted: [],
+		renamedOrMoved: [],
 	});
 	expect(handler.missingHints).toStrictEqual([]);
 });
@@ -128,12 +116,11 @@ test('resolver prefers a rename hint over a create hint for the same entity', as
 		{ created: [created], deleted: [deleted] },
 	);
 
-	expect(result.resolved).toStrictEqual({
+	expect(result).toStrictEqual({
 		created: [],
 		deleted: [],
 		renamedOrMoved: [{ from: deleted, to: created }],
 	});
-	expect(result.unresolved).toStrictEqual([]);
 });
 
 test('resolver matches hints against the default schema when entity schema is omitted', async () => {
@@ -146,12 +133,11 @@ test('resolver matches hints against the default schema when entity schema is om
 		{ created: [created], deleted: [deleted] },
 	);
 
-	expect(result.resolved).toStrictEqual({
+	expect(result).toStrictEqual({
 		created: [],
 		deleted: [],
 		renamedOrMoved: [{ from: deleted, to: created }],
 	});
-	expect(result.unresolved).toStrictEqual([]);
 });
 
 test('resolver matches primary key entity types against primary key hints', async () => {
@@ -168,11 +154,7 @@ test('resolver matches primary key entity types against primary key hints', asyn
 					to: ['public', 'users', 'members_pkey'] as const,
 				},
 			]);
-			const resolve = resolver<Entity>(
-				'primary_key',
-				'public',
-				hints,
-			);
+			const resolve = resolver<Entity>('primary_key', hints);
 
 			return {
 				created,
@@ -183,12 +165,11 @@ test('resolver matches primary key entity types against primary key hints', asyn
 		},
 	);
 
-	expect(result.resolved).toStrictEqual({
+	expect(result).toStrictEqual({
 		created: [],
 		deleted: [],
 		renamedOrMoved: [{ from: deleted, to: created }],
 	});
-	expect(result.unresolved).toStrictEqual([]);
 	expect(hints.missingHints).toStrictEqual([]);
 });
 
@@ -206,11 +187,7 @@ test('resolver matches default entity types against default hints', async () => 
 					to: ['dbo', 'users', 'members_default'] as const,
 				},
 			]);
-			const resolve = resolver<Entity>(
-				'default',
-				'dbo',
-				hints,
-			);
+			const resolve = resolver<Entity>('default', hints, 'dbo');
 
 			return {
 				created,
@@ -221,18 +198,17 @@ test('resolver matches default entity types against default hints', async () => 
 		},
 	);
 
-	expect(result.resolved).toStrictEqual({
+	expect(result).toStrictEqual({
 		created: [],
 		deleted: [],
 		renamedOrMoved: [{ from: deleted, to: created }],
 	});
-	expect(result.unresolved).toStrictEqual([]);
 	expect(hints.missingHints).toStrictEqual([]);
 });
 
 test('resolver treats missing HintsHandler in non-interactive mode as an internal invariant failure', async () => {
 	await expect(runWithCliContext({ output: 'json', interactive: false }, async () => {
-		const resolve = resolver<Entity>('table', 'public');
+		const resolve = resolver<Entity>('table');
 
 		return resolve({
 			created: [table('members', 'public')],
@@ -241,66 +217,38 @@ test('resolver treats missing HintsHandler in non-interactive mode as an interna
 	})).rejects.toThrow('Internal error: resolver(table) was called without a HintsHandler');
 });
 
-test('resolver is idempotent for matching rename hints', async () => {
-	await runWithCliContext({ output: 'json', interactive: false }, async () => {
-		const hints = [
-			{ type: 'rename', kind: 'table', from: ['public', 'users'] as const, to: ['public', 'members'] as const },
-		] satisfies readonly Hint[];
-		const input = {
-			created: [table('members', 'public')],
-			deleted: [table('users', 'public')],
-		};
-
-		const first = await resolver<Entity>('table', 'public', new HintsHandler([...hints]))(input);
-		const second = await resolver<Entity>('table', 'public', new HintsHandler([...hints]))(input);
-
-		expect(second).toStrictEqual(first);
-	});
-});
-
-test('resolver is idempotent for matching create hints', async () => {
-	await runWithCliContext({ output: 'json', interactive: false }, async () => {
-		const hints = [
-			{ type: 'create', kind: 'table', entity: ['public', 'members'] as const },
-		] satisfies readonly Hint[];
-		const input = {
-			created: [table('members', 'public')],
-			deleted: [table('users', 'public')],
-		};
-
-		const first = await resolver<Entity>('table', 'public', new HintsHandler([...hints]))(input);
-		const second = await resolver<Entity>('table', 'public', new HintsHandler([...hints]))(input);
-
-		expect(second).toStrictEqual(first);
-	});
-});
-
 test('resolver returns only newly added unresolved items when reusing a HintsHandler', async () => {
-	const { hints, tableResult, columnResult } = await runWithCliContext(
+	const { hints, tableDelta, columnDelta } = await runWithCliContext(
 		{ output: 'json', interactive: false },
 		async () => {
 			const hints = new HintsHandler();
 			hints.pushMissingHint({ type: 'rename_or_create', kind: 'table', entity: ['public', 'existing'] });
 
-			const resolveTables = resolver<Entity>('table', 'public', hints);
-			const resolveColumns = resolver<Entity>('column', 'public', hints);
-			const tableResult = await resolveTables({
+			const resolveTables = resolver<Entity>('table', hints);
+			const resolveColumns = resolver<Entity>('column', hints);
+
+			const beforeTable = hints.missingHints.length;
+			await resolveTables({
 				created: [table('members', 'public')],
 				deleted: [table('users', 'public')],
 			});
-			const columnResult = await resolveColumns({
+			const tableDelta = hints.missingHints.slice(beforeTable);
+
+			const beforeColumn = hints.missingHints.length;
+			await resolveColumns({
 				created: [{ name: 'email', table: 'users', schema: 'public' }],
 				deleted: [{ name: 'name', table: 'users', schema: 'public' }],
 			});
+			const columnDelta = hints.missingHints.slice(beforeColumn);
 
-			return { hints, tableResult, columnResult };
+			return { hints, tableDelta, columnDelta };
 		},
 	);
 
-	expect(tableResult.unresolved).toStrictEqual([
+	expect(tableDelta).toStrictEqual([
 		{ type: 'rename_or_create', kind: 'table', entity: ['public', 'members'] },
 	]);
-	expect(columnResult.unresolved).toStrictEqual([
+	expect(columnDelta).toStrictEqual([
 		{ type: 'rename_or_create', kind: 'column', entity: ['public', 'users', 'email'] },
 	]);
 	expect(hints.missingHints).toStrictEqual([

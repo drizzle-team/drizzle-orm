@@ -7,8 +7,8 @@ import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { CommentInput, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
 import type { InferInsertModel, InferModelFromColumns } from '~/table.ts';
-import { Table, TableColumns } from '~/table.ts';
-import { type Assume, haveSameKeys, mapUpdateSet } from '~/utils.ts';
+import { Table } from '~/table.ts';
+import { type Assume, type DrizzleTypeError, mapUpdateSet } from '~/utils.ts';
 import type { AnyMySqlColumn } from '../columns/common.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
@@ -16,7 +16,7 @@ import type { MySqlUpdateSetSource } from './update.ts';
 
 export interface MySqlInsertConfig<TTable extends MySqlTable = MySqlTable> {
 	table: TTable;
-	values: Record<string, Param | SQL>[] | MySqlInsertSelectQueryBuilder<TTable> | SQL;
+	values: Record<string, Param | SQL>[] | TypedQueryBuilder<MySqlInsertSelection<TTable>> | SQL;
 	ignore: boolean;
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
@@ -35,12 +35,33 @@ export type MySqlInsertValue<
 	}
 	& {};
 
-export type MySqlInsertSelectQueryBuilder<
+export type MySqlInsertSelection<
 	TTable extends MySqlTable,
-	TModel extends Record<string, any> = InferInsertModel<TTable>,
-> = TypedQueryBuilder<
-	{ [K in keyof TModel]: AnyMySqlColumn | SQL | SQL.Aliased | TModel[K] }
->;
+	TModel extends Record<string, unknown> = InferInsertModel<TTable>,
+> =
+	& {
+		[K in keyof TModel]:
+			| AnyMySqlColumn
+			| SQL
+			| SQL.Aliased
+			| TModel[K];
+	}
+	& {};
+
+export type NoUnknownKeysInInsertSelection<
+	TTable extends MySqlTable,
+	TSelection extends MySqlInsertSelection<any>,
+> = {
+	[K in keyof TSelection]: K extends keyof InferInsertModel<TTable> ? TSelection[K]
+		: K extends keyof InferInsertModel<TTable, { override: true }> ? DrizzleTypeError<
+				`Column "${
+					& K
+					& string}" in table "${TTable['_'][
+					'name'
+				]}" is a generated column - manual value insertion restricted`
+			>
+		: DrizzleTypeError<`Column "${K & string}" does not exist in table "${TTable['_']['name']}"`>;
+};
 
 export interface MySqlInsertBuilderConstructor {
 	new(
@@ -96,28 +117,36 @@ export class MySqlInsertBuilder<
 		return new this.builder(this.table, mappedValues, this.shouldIgnore, this.session, this.dialect) as any;
 	}
 
-	select(
-		selectQuery: (qb: QueryBuilder) => MySqlInsertSelectQueryBuilder<TTable>,
+	select<TSelection extends MySqlInsertSelection<TTable>>(
+		selectQuery: (qb: QueryBuilder) => TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection>>,
 	): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult>;
 	select(selectQuery: (qb: QueryBuilder) => SQL): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult>;
 	select(selectQuery: SQL): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult>;
-	select(selectQuery: MySqlInsertSelectQueryBuilder<TTable>): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult>;
+	select<TSelection extends MySqlInsertSelection<TTable>>(
+		selectQuery: TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection>>,
+	): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult>;
 	select(
 		selectQuery:
 			| SQL
-			| MySqlInsertSelectQueryBuilder<TTable>
-			| ((qb: QueryBuilder) => MySqlInsertSelectQueryBuilder<TTable> | SQL),
+			| TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, MySqlInsertSelection<TTable>>>
+			| ((qb: QueryBuilder) =>
+				| TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, MySqlInsertSelection<TTable>>>
+				| SQL),
 	): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
 		if ('withoutSelectionCastCodecs' in select) select.withoutSelectionCastCodecs();
 
-		if (
-			!is(select, SQL)
-			&& !haveSameKeys(this.table[TableColumns], select._.selectedFields)
-		) {
-			throw new Error(
-				'Insert select error: selected fields are not the same or are in a different order compared to the table definition',
-			);
+		if (!is(select, SQL)) {
+			const insertCols = Object.keys(this.table[Table.Symbol.Columns]);
+			const selected = Object.keys(select._.selectedFields);
+
+			for (const col of selected) {
+				if (!insertCols.includes(col)) {
+					throw new Error(
+						`Insert select error: column "${col}" does not exist in table "${this.table[Table.Symbol.Name]}"`,
+					);
+				}
+			}
 		}
 
 		return new this.builder(this.table, select, this.shouldIgnore, this.session, this.dialect, true) as any;

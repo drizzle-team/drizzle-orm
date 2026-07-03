@@ -64,6 +64,7 @@
 	},
 	"devDependencies": {
 		"@aws-sdk/client-rds-data": "^3.556.0",
+		"@modelcontextprotocol/sdk": "^1.29.0",
 		"@cloudflare/workers-types": "^4.20230518.0",
 		"@duckdb/node-api": "1.5.0-r.1",
 		"@effect/sql": "^0.48.5",
@@ -124,7 +125,7 @@
 		"typescript": "5.9.3",
 		"uuid": "^9.0.1",
 		"ws": "^8.18.2",
-		"zod": "^3.20.2",
+		"zod": "^3.25",
 		"zx": "^8.8.5"
 	},
 	"exports": {
@@ -175,6 +176,66 @@
 			},
 			"types": "./api-sqlite.d.mts",
 			"default": "./api-sqlite.mjs"
+		},
+		"./cli": {
+			"import": {
+				"types": "./cli.d.mts",
+				"default": "./cli.mjs"
+			},
+			"require": {
+				"types": "./cli.d.ts",
+				"default": "./cli.js"
+			},
+			"types": "./cli.d.mts",
+			"default": "./cli.mjs"
+		},
+		"./payload/postgres": {
+			"import": {
+				"types": "./payload-postgres.d.mts",
+				"default": "./payload-postgres.mjs"
+			},
+			"require": {
+				"types": "./payload-postgres.d.ts",
+				"default": "./payload-postgres.js"
+			},
+			"types": "./payload-postgres.d.mts",
+			"default": "./payload-postgres.mjs"
+		},
+		"./payload/mysql": {
+			"import": {
+				"types": "./payload-mysql.d.mts",
+				"default": "./payload-mysql.mjs"
+			},
+			"require": {
+				"types": "./payload-mysql.d.ts",
+				"default": "./payload-mysql.js"
+			},
+			"types": "./payload-mysql.d.mts",
+			"default": "./payload-mysql.mjs"
+		},
+		"./payload/sqlite": {
+			"import": {
+				"types": "./payload-sqlite.d.mts",
+				"default": "./payload-sqlite.mjs"
+			},
+			"require": {
+				"types": "./payload-sqlite.d.ts",
+				"default": "./payload-sqlite.js"
+			},
+			"types": "./payload-sqlite.d.mts",
+			"default": "./payload-sqlite.mjs"
+		},
+		"./payload/mssql": {
+			"import": {
+				"types": "./payload-mssql.d.mts",
+				"default": "./payload-mssql.mjs"
+			},
+			"require": {
+				"types": "./payload-mssql.d.ts",
+				"default": "./payload-mssql.js"
+			},
+			"types": "./payload-mssql.d.mts",
+			"default": "./payload-mssql.mjs"
 		}
 	}
 }

@@ -28,7 +28,14 @@ import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/common';
 import type { MssqlCredentials } from '../validations/mssql';
-import { explain as explainView, explainJsonOutput, humanLog, mssqlSchemaError, ProgressView } from '../views';
+import {
+	EmptyProgressView,
+	explain as explainView,
+	explainJsonOutput,
+	humanLog,
+	mssqlSchemaError,
+	ProgressView,
+} from '../views';
 
 export const handle = async (
 	filenames: string[],
@@ -62,7 +69,9 @@ export const handle = async (
 		});
 	}
 
-	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
+	const progress = json
+		? new EmptyProgressView()
+		: new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
 	const { schema: schemaFrom } = await introspect(db, filter, progress, migrations);
 
 	const { ddl: ddl1 } = interimToDDL(schemaFrom);
@@ -77,16 +86,16 @@ export const handle = async (
 	const { sqlStatements, statements: jsonStatements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
-		resolver<Schema>('schema', 'dbo', hints),
-		resolver<MssqlEntities['tables']>('table', 'dbo', hints),
-		resolver<Column>('column', 'dbo', hints),
-		resolver<View>('view', 'dbo', hints),
-		resolver<UniqueConstraint>('unique', 'dbo', hints),
-		resolver<Index>('index', 'dbo', hints),
-		resolver<CheckConstraint>('check', 'dbo', hints),
-		resolver<PrimaryKey>('primary_key', 'dbo', hints),
-		resolver<ForeignKey>('foreign key', 'dbo', hints),
-		resolver<DefaultConstraint>('default', 'dbo', hints),
+		resolver<Schema>('schema', hints, 'dbo'),
+		resolver<MssqlEntities['tables']>('table', hints, 'dbo'),
+		resolver<Column>('column', hints, 'dbo'),
+		resolver<View>('view', hints, 'dbo'),
+		resolver<UniqueConstraint>('unique', hints, 'dbo'),
+		resolver<Index>('index', hints, 'dbo'),
+		resolver<CheckConstraint>('check', hints, 'dbo'),
+		resolver<PrimaryKey>('primary_key', hints, 'dbo'),
+		resolver<ForeignKey>('foreign key', hints, 'dbo'),
+		resolver<DefaultConstraint>('default', hints, 'dbo'),
 		'push',
 	);
 
@@ -214,71 +223,6 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			continue;
 		}
 
-		// add not null without default
-		if (
-			statement.type === 'alter_column' && statement.diff.$right.notNull
-			&& !ddl2.defaults.one({
-				column: statement.diff.$right.name,
-				schema: statement.diff.$right.schema,
-				table: statement.diff.$right.table,
-			})
-		) {
-			const column = statement.diff.$right;
-			const key = identifier({ schema: column.schema, table: column.table });
-			const entity = [column.schema ?? 'dbo', column.table, column.name] as const;
-			if (hints.matchConfirm('add_not_null', entity)) continue;
-			const res = await db.query(`select top(1) 1 from ${key};`);
-
-			if (res.length === 0) continue;
-			const hint =
-				`You're about to add not-null to [${statement.diff.$right.name}] column without default value to a non-empty ${key} table`;
-
-			if (useHints) {
-				hints.pushMissingHint({
-					type: 'confirm_data_loss',
-					kind: 'add_not_null',
-					entity,
-					reason: 'nulls_present',
-				});
-			} else {
-				grouped.push({ hint });
-			}
-
-			continue;
-		}
-
-		if (
-			statement.type === 'add_column' && statement.column.notNull
-			&& !ddl2.defaults.one({
-				column: statement.column.name,
-				schema: statement.column.schema,
-				table: statement.column.table,
-			})
-		) {
-			const column = statement.column;
-			const key = identifier({ schema: column.schema, table: column.table });
-			const entity = [column.schema ?? 'dbo', column.table, column.name] as const;
-			if (hints.matchConfirm('add_not_null', entity)) continue;
-			const res = await db.query(`select top(1) 1 from ${key};`);
-
-			if (res.length === 0) continue;
-			const hint =
-				`You're about to add not-null [${statement.column.name}] column without default value to a non-empty ${key} table`;
-
-			if (useHints) {
-				hints.pushMissingHint({
-					type: 'confirm_data_loss',
-					kind: 'add_not_null',
-					entity,
-					reason: 'nulls_present',
-				});
-			} else {
-				grouped.push({ hint });
-			}
-
-			continue;
-		}
-
 		if (statement.type === 'drop_pk') {
 			const schema = statement.pk.schema ?? 'dbo';
 			const table = statement.pk.table;
@@ -299,33 +243,6 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 				} else {
 					grouped.push({ hint });
 				}
-			}
-
-			continue;
-		}
-
-		if (statement.type === 'add_unique') {
-			const unique = statement.unique;
-			const id = identifier({ schema: unique.schema, table: unique.table });
-			const entity = [unique.schema ?? 'dbo', unique.table, unique.name] as const;
-			if (hints.matchConfirm('add_unique', entity)) continue;
-
-			const res = await db.query(`select top(1) 1 from ${id};`);
-			if (res.length === 0) continue;
-
-			if (useHints) {
-				hints.pushMissingHint({
-					type: 'confirm_data_loss',
-					kind: 'add_unique',
-					entity,
-					reason: 'duplicates_present',
-				});
-			} else {
-				grouped.push({
-					hint: `You're about to add ${
-						chalk.underline(unique.name)
-					} unique constraint to a non-empty ${id} table which may fail`,
-				});
 			}
 
 			continue;

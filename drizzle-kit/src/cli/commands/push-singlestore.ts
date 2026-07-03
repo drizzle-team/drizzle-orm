@@ -12,7 +12,14 @@ import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
-import { explain as explainView, explainJsonOutput, humanLog, mysqlSchemaError, ProgressView } from '../views';
+import {
+	EmptyProgressView,
+	explain as explainView,
+	explainJsonOutput,
+	humanLog,
+	mysqlSchemaError,
+	ProgressView,
+} from '../views';
 import { suggestions } from './push-mysql';
 
 export const handle = async (
@@ -40,10 +47,12 @@ export const handle = async (
 	const filter = prepareEntityFilter('singlestore', filters, []);
 
 	const { db, database } = await connectToSingleStore(credentials);
-	const progress = new ProgressView(
-		'Pulling schema from database...',
-		'Pulling schema from database...',
-	);
+	const progress = json
+		? new EmptyProgressView()
+		: new ProgressView(
+			'Pulling schema from database...',
+			'Pulling schema from database...',
+		);
 	const interimFromDB = await renderWithTask(
 		progress,
 		fromDatabaseForDrizzle(db, database, filter, () => {}, migrations),
@@ -67,9 +76,9 @@ export const handle = async (
 	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
-		resolver<Table>('table', 'public', hints),
-		resolver<Column>('column', 'public', hints),
-		resolver<View>('view', 'public', hints),
+		resolver<Table>('table', hints),
+		resolver<Column>('column', hints),
+		resolver<View>('view', hints),
 		'push',
 	);
 
