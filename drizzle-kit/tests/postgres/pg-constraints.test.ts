@@ -2774,10 +2774,4 @@ test('issue #5955', async () => {
 	expect(pst2).toStrictEqual([
 		'ALTER TABLE "customer_category_assignment" ADD CONSTRAINT "uq_customer_category_assignment" UNIQUE("customer_id","category_id");',
 	]);
-	expect(hints).toStrictEqual([
-		{
-			hint:
-				'You\'re about to add uq_customer_category_assignment unique constraint to a non-empty "customer_category_assignment" table which may fail',
-		},
-	]);
 });

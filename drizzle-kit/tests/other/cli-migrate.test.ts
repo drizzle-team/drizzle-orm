@@ -125,7 +125,7 @@ test('validate config #1', async (t) => {
 		schema: 'schema.ts',
 		dbCredentials: { url: 'test_url' },
 		introspect: { casing: 'preserve' },
-		strict: true,
+		// strict: true, // removed. strict by def for now
 		schemaFilter: ['public'],
 		breakpoints: false,
 	}, prefix);
@@ -154,7 +154,7 @@ test('validate config #2', async (t) => {
 		schema: 'schema.ts',
 		dbCredentials: { url: 'test_url' },
 		introspect: { casing: 'preserve' },
-		strict: true,
+		// strict: true, // removed. strict by def for now
 		schemaFilter: ['public'],
 		breakpoints: false,
 		entities: {
@@ -191,7 +191,7 @@ test('validate config #3', async (t) => {
 		// schema: 'schema.ts',
 		dbCredentials: { url: 'test_url' },
 		introspect: { casing: 'preserve' },
-		strict: true,
+		// strict: true, // removed. strict by def for now
 		schemaFilter: ['public'],
 		breakpoints: false,
 		entities: {
