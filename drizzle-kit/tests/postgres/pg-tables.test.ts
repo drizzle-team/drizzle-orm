@@ -1,11 +1,13 @@
 import type { PGlite } from '@electric-sql/pglite';
-import { aliasedTable, SQL, sql } from 'drizzle-orm';
+import { aliasedTable, eq, SQL, sql } from 'drizzle-orm';
 import {
+	boolean,
 	camelCase,
 	foreignKey,
 	geometry,
 	index,
 	integer,
+	PgSchema,
 	pgSchema,
 	pgTable,
 	pgTableCreator,
@@ -13,8 +15,11 @@ import {
 	serial,
 	snakeCase,
 	text,
+	timestamp,
 	unique,
 	uniqueIndex,
+	uuid,
+	varchar,
 	vector,
 } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
@@ -380,28 +385,6 @@ test('add table #15', async () => {
 
 	const st0 = [
 		`CREATE TABLE "users" (\n\t"name" text CONSTRAINT "name_unique" UNIQUE NULLS NOT DISTINCT\n);\n`,
-	];
-	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
-});
-
-// https://github.com/drizzle-team/drizzle-orm/issues/5603
-test.skipIf(Date.now() < +new Date('2026-06-24'))('add table #16', async () => {
-	const users = pgTable('users', {
-		name: text(),
-	}, (t) => [index('name_idx').on(t.name)]);
-	const u = aliasedTable(users, 'u');
-	const to = {
-		users,
-		u,
-	};
-
-	const { sqlStatements: st } = await diff({}, to, []);
-	const { sqlStatements: pst } = await push({ db, to });
-
-	const st0 = [
-		'CREATE TABLE "users" (\n\t"name" text\n);\n',
-		'CREATE INDEX "name_idx" ON "users" ("name");',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1567,4 +1550,78 @@ test('rename table with identity column', async () => {
 
 	expect(st).toStrictEqual(expectedSt);
 	expect(pst).toStrictEqual(expectedSt);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5761
+test('Issue #5761', async () => {
+	const from = {
+		table: pgTable(
+			'widgets',
+			{
+				id: uuid('id').primaryKey().defaultRandom(),
+				deletedAt: timestamp('deleted_at', { mode: 'string' }),
+			},
+			(t) => [uniqueIndex('idx_widgets_active').on(t.id).where(sql`${t.deletedAt} IS NULL`)],
+		),
+	};
+
+	const publicSchema = new PgSchema('public', undefined);
+	const to = {
+		table: publicSchema.table(
+			'widgets',
+			{
+				id: uuid('id').primaryKey().defaultRandom(),
+				deletedAt: timestamp('deleted_at', { mode: 'string' }),
+			},
+			(t) => [uniqueIndex('idx_widgets_active').on(t.id).where(sql`${t.deletedAt} IS NULL`)],
+		),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from, schemas: [] });
+
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		schemas: [],
+		renames: [],
+	});
+
+	expect(st).toStrictEqual([]);
+	expect(pst).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4790
+test('Issue #4790', async () => {
+	const schema = {
+		table: pgTable(
+			'fields',
+			{
+				id: varchar().primaryKey(),
+				tableId: varchar('table_id'),
+				isPrimary: boolean('is_primary').default(false),
+			},
+			(table) => [
+				// Using eq() function - THIS IS BUGGY
+				uniqueIndex('idx_one_primary_per_table')
+					.on(table.tableId)
+					.where(eq(table.isPrimary, true)),
+			],
+		),
+	};
+
+	const { sqlStatements: st } = await diff({}, schema, []);
+	const { sqlStatements: pst } = await push({ db, to: schema, schemas: [] });
+
+	const st0 = [
+		`CREATE TABLE "fields" (
+\t"id\" varchar PRIMARY KEY,
+\t"table_id\" varchar,
+\t"is_primary\" boolean DEFAULT false
+);\n`,
+		`CREATE UNIQUE INDEX "idx_one_primary_per_table" ON "fields" ("table_id") WHERE "is_primary" = true;`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });

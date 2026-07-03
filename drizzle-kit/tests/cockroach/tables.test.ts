@@ -1152,7 +1152,7 @@ test.concurrent('push after migrate with custom migrations table #1', async ({ d
 	};
 
 	const { sqlStatements: st2 } = await diff({}, to, []);
-	const { sqlStatements: pst2 } = await push({ db, to, migrationsConfig, log: 'statements' });
+	const { sqlStatements: pst2 } = await push({ db, to, migrationsConfig });
 	const expectedSt2 = [
 		'CREATE TABLE "table1" (\n\t"col1" int4\n);\n',
 	];

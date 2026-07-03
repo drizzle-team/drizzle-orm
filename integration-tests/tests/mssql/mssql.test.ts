@@ -17,6 +17,7 @@ import {
 	max,
 	min,
 	Name,
+	notInArray,
 	sql,
 	sum,
 	sumDistinct,
@@ -5005,4 +5006,43 @@ test('insert into table with generated column', async ({ db }) => {
 	await query;
 	const result = await db.select().from(docs);
 	expect(result).toEqual([{ id: 1, value: 'hello', value_idx: 'HELLO' }]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5632
+test('issue #5632', async ({ db }) => {
+	const docs = mssqlTable('docs', {
+		id: int().identity(),
+		value: nvarchar({ length: 'max' }).notNull(),
+		value_idx: nvarchar({ length: 450 }).generatedAlwaysAs(sql`(CONVERT([nvarchar](450),[value]))`),
+	});
+
+	await db.execute(sql`drop table if exists [docs]`);
+	await db.execute(sql`
+		create table [docs] (
+			[id] int identity,
+			[value] nvarchar(max) not null,
+			[value_idx] as (upper([value]))
+		);
+	`);
+
+	await db.execute(sql`INSERT INTO ${docs}([${sql.raw(docs.value.name)}]) VALUES ('hello'), ('world');`);
+
+	const arr: string[] = [];
+
+	const res1 = await db.select().from(docs).where(inArray(docs.value, arr));
+	const res2 = await db.select().from(docs).where(notInArray(docs.value, arr));
+
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([
+		{
+			id: 1,
+			value: 'hello',
+			value_idx: 'HELLO',
+		},
+		{
+			id: 2,
+			value: 'world',
+			value_idx: 'WORLD',
+		},
+	]);
 });

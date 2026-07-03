@@ -723,11 +723,11 @@ export const fromDatabase = async (
 		}
 
 		columnTypeMapped = columnTypeMapped
-			.replace('character varying', 'varchar')
-			.replace(' without time zone', '')
+			.replace(/\bcharacter varying\b/, 'varchar')
+			.replace(/ without time zone\b/, '')
 			// .replace(' with time zone', '')
 			// .replace("timestamp without time zone", "timestamp")
-			.replace('character', 'char');
+			.replace(/\bcharacter\b/, 'char');
 
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
@@ -1067,10 +1067,10 @@ export const fromDatabase = async (
 		columnTypeMapped += '[]'.repeat(it.dimensions);
 
 		columnTypeMapped = columnTypeMapped
-			.replace('character varying', 'varchar')
-			.replace(' without time zone', '')
+			.replace(/\bcharacter varying\b/, 'varchar')
+			.replace(/ without time zone\b/, '')
 			// .replace("timestamp without time zone", "timestamp")
-			.replace('character', 'char');
+			.replace(/\bcharacter\b/, 'char');
 
 		const typeDimensions = it.type.split('[]').length - 1;
 

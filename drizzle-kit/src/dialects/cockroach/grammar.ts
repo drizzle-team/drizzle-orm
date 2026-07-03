@@ -1588,7 +1588,6 @@ export const Custom: SqlType = {
 	},
 	drizzleImport: () => 'customType',
 	defaultFromDrizzle: (value) => {
-		if (!value) return '';
 		return String(value);
 	},
 	defaultArrayFromDrizzle: (value) => {

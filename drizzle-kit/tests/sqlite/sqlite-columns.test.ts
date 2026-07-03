@@ -1704,6 +1704,7 @@ test('filter out system tables created by analyze', async () => {
 	expect(pst1).toStrictEqual(expectedSql1);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5619
 test('add column with reference', async (t) => {
 	const schema1 = {
 		users: sqliteTable('users', {
@@ -1771,8 +1772,8 @@ test('issue #5822. Add column - table recreation', async () => {
 	};
 
 	const { sqlStatements: st } = await diff(schemaFrom, schemaTo, []);
-	await push({ db, to: schemaFrom, log: 'statements' });
-	const { sqlStatements: pst } = await push({ db, to: schemaTo, log: 'statements' });
+	await push({ db, to: schemaFrom });
+	const { sqlStatements: pst } = await push({ db, to: schemaTo });
 
 	const st0: string[] = [
 		'ALTER TABLE `test` ADD `column3` text NOT NULL;',
@@ -1789,4 +1790,103 @@ test('issue #5822. Add column - table recreation', async () => {
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5564
+test('issue #5564', async () => {
+	const users1 = sqliteTable('users', {
+		id: text('id').primaryKey(),
+		email: text('email').notNull(),
+		name: text('name'), // will change to .notNull() in next push
+	}, (t) => [
+		uniqueIndex('users_email_idx').on(t.email),
+	]);
+	const schema1 = {
+		users: users1,
+		projects: sqliteTable('projects', {
+			id: text('id').primaryKey(),
+			ownerId: text('owner_id').notNull().references(() => users1.id),
+			title: text('title'), // will change to .notNull() in next push
+			createdAt: text('created_at').default(sql`(datetime('now'))`),
+		}, (t) => [
+			index('projects_owner_idx').on(t.ownerId),
+		]),
+	};
+
+	const users2 = sqliteTable('users', {
+		id: text('id').primaryKey(),
+		email: text('email').notNull(),
+		name: text('name').notNull(), // will change to .notNull() in next push
+	}, (t) => [
+		uniqueIndex('users_email_idx').on(t.email),
+	]);
+	const schema2 = {
+		users: users2,
+		projects: sqliteTable('projects', {
+			id: text('id').primaryKey(),
+			ownerId: text('owner_id').notNull().references(() => users2.id),
+			title: text('title').notNull(),
+			createdAt: text('created_at').default(sql`(datetime('now'))`),
+		}, (t) => [
+			index('projects_owner_idx').on(t.ownerId),
+		]),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		'PRAGMA foreign_keys=OFF;',
+		`CREATE TABLE \`__new_users\` (
+\t\`id\` text PRIMARY KEY,
+\t\`email\` text NOT NULL,
+\t\`name\` text NOT NULL
+);\n`,
+		'INSERT INTO `__new_users`(`id`, `email`, `name`) SELECT `id`, `email`, `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+		'PRAGMA foreign_keys=OFF;',
+		`CREATE TABLE \`__new_projects\` (
+\t\`id\` text PRIMARY KEY,
+\t\`owner_id\` text NOT NULL,
+\t\`title\` text NOT NULL,
+\t\`created_at\` text DEFAULT (datetime('now')),
+\tCONSTRAINT \`fk_projects_owner_id_users_id_fk\` FOREIGN KEY (\`owner_id\`) REFERENCES \`users\`(\`id\`)
+);\n`,
+		'INSERT INTO `__new_projects`(`id`, `owner_id`, `title`, `created_at`) SELECT `id`, `owner_id`, `title`, `created_at` FROM `projects`;',
+		'DROP TABLE `projects`;',
+		'ALTER TABLE `__new_projects` RENAME TO `projects`;',
+		'PRAGMA foreign_keys=ON;',
+		'CREATE UNIQUE INDEX `users_email_idx` ON `users` (`email`);',
+		'CREATE INDEX `projects_owner_idx` ON `projects` (`owner_id`);',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4809
+test('issue #4809', async () => {
+	const users1 = sqliteTable('users', {
+		id: text('id').primaryKey(),
+		email: text('email').notNull(),
+	});
+
+	const users2 = sqliteTable('users', {
+		id: text('id').primaryKey(),
+		email: text('email').notNull(),
+		age: int('age').notNull().default(0),
+	});
+
+	await push({ db, to: { users1 } });
+
+	await db.run(`INSERT INTO \`users\` VALUES ('1', '1'), ('2','2')`);
+	const { sqlStatements: pst, hints } = await push({ db, to: { users2 } });
+
+	const st0: string[] = [
+		'ALTER TABLE `users` ADD `age` integer DEFAULT 0 NOT NULL;',
+	];
+	expect(pst).toStrictEqual(st0);
+	expect(hints).toStrictEqual([]);
 });

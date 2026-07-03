@@ -5404,7 +5404,7 @@ export function tests(test: Test) {
 			});
 			const schema = { payments };
 			await push(schema);
-			db.insert(payments).values({
+			await db.insert(payments).values({
 				id: 1,
 				amount: '10.12',
 				completedAt: new Date(),
