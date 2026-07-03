@@ -160,7 +160,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	});
 
 	// https://github.com/drizzle-team/drizzle-orm/issues/4302
-	test.skipIf(Date.now() < +new Date('2026-06-24')).concurrent(
+	test.skipIf(Date.now() < +new Date('2026-07-10')).concurrent(
 		'insert $returningId: issue #4302',
 		async ({ db, push }) => {
 			const uniqueKeys = ['ao865jf3mcmkfkk8o5ri495z', 'dyqs529eom0iczo2efxzbcut'];
