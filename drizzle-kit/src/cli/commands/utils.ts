@@ -270,7 +270,6 @@ export const preparePushConfig = async (
 	);
 
 	raw.verbose ||= options.verbose; // if provided in cli to debug
-	raw.strict ||= options.strict; // if provided in cli only
 
 	const parsed = pushParams.safeParse(raw);
 

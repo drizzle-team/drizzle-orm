@@ -1139,6 +1139,7 @@ test('line + line arrays', async () => {
 	expect.soft(res10).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5569
 test('enum + enum arrays', async () => {
 	const moodEnum = pgEnum('mood_enum', [
 		'sad',
@@ -1149,9 +1150,14 @@ test('enum + enum arrays', async () => {
 		"mo''\",\\`}{od",
 		'mo\`od',
 	]);
-	const pre = { moodEnum };
+	const moodEnum2 = pgEnum('mood-enum2', [
+		'sad',
+		'ok',
+	]);
+	const pre = { moodEnum, moodEnum2 };
 
 	const res1 = await diffDefault(_, moodEnum().default('ok'), `'ok'::"mood_enum"`, pre);
+	const res1_1 = await diffDefault(_, moodEnum2().default('ok'), `'ok'::"mood-enum2"`, pre);
 	const res2 = await diffDefault(_, moodEnum().default('ha\\ppy'), `'ha\\ppy'::"mood_enum"`, pre);
 	const res3 = await diffDefault(_, moodEnum().default(`mo''",\\\`}{od`), `'mo''''",\\\`}{od'::"mood_enum"`, pre);
 	const res4 = await diffDefault(_, moodEnum().default(`text'text"`), `'text''text"'::"mood_enum"`, pre);
@@ -1164,6 +1170,7 @@ test('enum + enum arrays', async () => {
 	const res10 = await diffDefault(_, moodEnum().array('[][]').default([['ok']]), `'{{ok}}'::"mood_enum"[]`, pre);
 
 	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res1_1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
 	expect.soft(res4).toStrictEqual([]);

@@ -1,5 +1,5 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { and, asc, eq, exists, gt, inArray, lt, notInArray, sql } from 'drizzle-orm';
+import { and, asc, eq, exists, getViewSelectedFields, gt, inArray, lt, notInArray, sql } from 'drizzle-orm';
 import {
 	alias,
 	boolean,
@@ -11,8 +11,10 @@ import {
 	macaddr,
 	macaddr8,
 	numeric,
+	pgEnum,
 	pgTable,
 	pgTableCreator,
+	pgView,
 	serial,
 	text,
 	timestamp,
@@ -1821,40 +1823,133 @@ export function tests(test: Test) {
 			]);
 		});
 
-		// https://github.com/drizzle-team/drizzle-orm/issues/5780
-		test.concurrent('issue #5780. .onUpdateFn()', async ({ db, push }) => {
+		// https://github.com/drizzle-team/drizzle-orm/issues/5485
+		test.concurrent('issue #5485', async ({ db, push }) => {
 			const table = pgTable('example', {
 				id: uuid('id').primaryKey().defaultRandom(),
-				name: text('name').notNull(),
-				updatedById: text('updated_by_id')
-					.$onUpdate(() => sql`1`)
-					.notNull(),
+				meta: jsonb('meta').notNull(),
+				meta2: jsonb('meta_2').notNull(),
 			});
 
 			await push({ table });
 
-			await db.insert(table).values({ name: 'foo', updatedById: 'some-uuid' });
+			await db.insert(table).values({ meta: '0.1', meta2: 0.1 });
 
-			// This should NOT invoke the $onUpdate callback — updatedById is explicitly provided.
-			// ----
-			await db.update(table).set({ name: 'foo', updatedById: 'new-some-uuid-new' }).where(
-				eq(table.updatedById, 'some-uuid'),
-			);
-			const result = (await db.select({ updatedById: table.updatedById }).from(table))[0];
+			const result = (await db.select({ meta: table.meta, meta2: table.meta2 }).from(table))[0];
 
 			expect(result).toStrictEqual({
-				updatedById: 'new-some-uuid-new',
+				meta: '0.1',
+				meta2: 0.1,
 			});
+		});
 
-			// ----
-			await db.update(table).set({ name: 'foo' }).where(
-				eq(table.updatedById, 'new-some-uuid-new'),
+		// https://github.com/drizzle-team/drizzle-orm/issues/4917
+		test.concurrent('issue #4917', async ({ db, push }) => {
+			const featureFlag = pgTable('feature_flag', (d) => ({
+				id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+				name: d.varchar({ length: 256 }).notNull().unique(),
+				description: d.text(),
+				// createdAt: d
+				// 	.timestamp({ withTimezone: true })
+				// 	.default(sql`CURRENT_TIMESTAMP`)
+				// 	.notNull(),
+				// updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
+			}));
+
+			const scopeEnum = pgEnum('scope', ['global', 'user']);
+			const featureFlagSetting = pgTable('feature_flag_setting', (d) => ({
+				id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+				featureFlagId: d
+					.integer()
+					.references(() => featureFlag.id)
+					.notNull(),
+				scope: scopeEnum().notNull(), // These become problematic since the are defined without name
+				entityId: d.text(), // These become problematic since the are defined without name
+				enabled: d.boolean().notNull(), // These become problematic since the are defined without name
+				// createdAt: d
+				// 	.timestamp({ withTimezone: true })
+				// 	.default(sql`CURRENT_TIMESTAMP`)
+				// 	.notNull(),
+				// updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
+			}));
+
+			const featureFlagView = pgView('feature_flag_view').as((qb) =>
+				qb
+					.select({
+						id: featureFlag.id,
+						name: featureFlag.name,
+						description: featureFlag.description,
+						scope: featureFlagSetting.scope,
+						entityId: featureFlagSetting.entityId,
+						enabled: featureFlagSetting.enabled,
+						// createdAt: featureFlagSetting.createdAt,
+						// updatedAt: featureFlagSetting.updatedAt,
+					})
+					.from(featureFlag)
+					.leftJoin(
+						featureFlagSetting,
+						eq(featureFlag.id, featureFlagSetting.featureFlagId),
+					)
 			);
 
-			const result2 = (await db.select({ updatedById: table.updatedById }).from(table))[0];
-			expect(result2).toStrictEqual({
-				updatedById: '1',
-			});
+			const schema = { featureFlag, scopeEnum, featureFlagSetting, featureFlagView };
+
+			await push(schema);
+
+			await db.insert(featureFlag).values({ name: 'name', id: 1 });
+			await db.insert(featureFlagSetting).values({ enabled: true, featureFlagId: 1, scope: 'user', id: 1 });
+
+			const res = await db
+				.select({
+					// id: featureFlagView.id,
+					// name: featureFlagView.name,
+					// description: featureFlagView.description,
+					// scope: featureFlagView.scope,
+					// entityId: featureFlagView.entityId,
+					// enabled: featureFlagView.enabled,
+					// createdAt: featureFlagView.createdAt,
+					// updatedAt: featureFlagView.updatedAt,
+					...getViewSelectedFields(featureFlagView),
+				})
+				.from(featureFlagView);
+
+			expect(res).toStrictEqual(
+				[
+					{
+						description: null,
+						enabled: true,
+						entityId: null,
+						id: 1,
+						name: 'name',
+						scope: 'user',
+					},
+				],
+			);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4518
+		test.concurrent('issue #4518', async ({ db, push }) => {
+			const table = pgTable('table', (d) => ({
+				column: d.jsonb(),
+				column2: d.jsonb(),
+			}));
+
+			await push({ table });
+
+			await db.insert(table).values({ column: '2', column2: 2 });
+
+			const res = await db
+				.select()
+				.from(table);
+
+			expect(res).toStrictEqual(
+				[
+					{
+						column: '2',
+						column2: 2,
+					},
+				],
+			);
 		});
 	});
 }

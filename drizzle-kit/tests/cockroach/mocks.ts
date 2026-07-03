@@ -509,6 +509,7 @@ const prepareClient = async (url: string, n: string, tx: boolean) => {
 	}
 
 	const clear = async () => {
+		await client.query('RESET ROLE;');
 		if (tx) {
 			await client.query('ROLLBACK');
 			await client.query('BEGIN');
