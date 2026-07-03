@@ -23,6 +23,8 @@ const driversPackages = [
 	'@sqlitecloud/drivers',
 	'@tursodatabase/database',
 	'bun',
+	// mssql drivers
+	'mssql',
 	// duckdb drivers
 	'duckdb',
 	'@duckdb/node-api',
@@ -96,7 +98,7 @@ const TSDOWN_TEMP_DIR = './dist/__dts-temp';
 async function buildDeclarations() {
 	// Use tsdown for declaration bundling - it handles path resolution and creates bundled .d.ts files
 	await tsdown({
-		entry: ['./src/index.ts'],
+		entry: { index: './src/index.ts', cli: './src/cli-sdk/index.ts' },
 		outDir: TSDOWN_TEMP_DIR,
 		external: [...driversPackages, /^drizzle-orm\/?/],
 		dts: { emitDtsOnly: true },
@@ -112,7 +114,15 @@ async function buildDeclarations() {
 	});
 
 	await tsdown({
-		entry: ['./src/ext/api-postgres.ts', './src/ext/api-mysql.ts', './src/ext/api-sqlite.ts'],
+		entry: {
+			'api-postgres': './src/ext/api-postgres.ts',
+			'api-mysql': './src/ext/api-mysql.ts',
+			'api-sqlite': './src/ext/api-sqlite.ts',
+			'payload-postgres': './src/payload/postgres.ts',
+			'payload-mysql': './src/payload/mysql.ts',
+			'payload-sqlite': './src/payload/sqlite.ts',
+			'payload-mssql': './src/payload/mssql.ts',
+		},
 		outDir: TSDOWN_TEMP_DIR,
 		external: ['esbuild', 'drizzle-orm', ...driversPackages, /^drizzle-orm\/?/],
 		dts: { emitDtsOnly: true },
@@ -141,7 +151,15 @@ async function copyDeclarationsAndCleanTemp() {
 }
 
 async function postProcessApiFiles() {
-	const apiFiles = ['dist/api-postgres.js', 'dist/api-mysql.js', 'dist/api-sqlite.js'];
+	const apiFiles = [
+		'dist/api-postgres.js',
+		'dist/api-mysql.js',
+		'dist/api-sqlite.js',
+		'dist/payload-postgres.js',
+		'dist/payload-mysql.js',
+		'dist/payload-sqlite.js',
+		'dist/payload-mssql.js',
+	];
 	await Promise.all(
 		apiFiles.map(async (file) => {
 			if (existsSync(file)) {
@@ -204,6 +222,66 @@ async function main() {
 			name: 'api-sqlite-esm',
 			input: './src/ext/api-sqlite.ts',
 			outputName: 'api-sqlite.mjs',
+			format: 'esm',
+		}),
+		buildBundle({
+			name: 'cli-cjs',
+			input: './src/cli-sdk/index.ts',
+			outputName: 'cli.js',
+			format: 'cjs',
+		}),
+		buildBundle({
+			name: 'cli-esm',
+			input: './src/cli-sdk/index.ts',
+			outputName: 'cli.mjs',
+			format: 'esm',
+		}),
+		buildBundle({
+			name: 'payload-postgres-cjs',
+			input: './src/payload/postgres.ts',
+			outputName: 'payload-postgres.js',
+			format: 'cjs',
+		}),
+		buildBundle({
+			name: 'payload-postgres-esm',
+			input: './src/payload/postgres.ts',
+			outputName: 'payload-postgres.mjs',
+			format: 'esm',
+		}),
+		buildBundle({
+			name: 'payload-mysql-cjs',
+			input: './src/payload/mysql.ts',
+			outputName: 'payload-mysql.js',
+			format: 'cjs',
+		}),
+		buildBundle({
+			name: 'payload-mysql-esm',
+			input: './src/payload/mysql.ts',
+			outputName: 'payload-mysql.mjs',
+			format: 'esm',
+		}),
+		buildBundle({
+			name: 'payload-sqlite-cjs',
+			input: './src/payload/sqlite.ts',
+			outputName: 'payload-sqlite.js',
+			format: 'cjs',
+		}),
+		buildBundle({
+			name: 'payload-sqlite-esm',
+			input: './src/payload/sqlite.ts',
+			outputName: 'payload-sqlite.mjs',
+			format: 'esm',
+		}),
+		buildBundle({
+			name: 'payload-mssql-cjs',
+			input: './src/payload/mssql.ts',
+			outputName: 'payload-mssql.js',
+			format: 'cjs',
+		}),
+		buildBundle({
+			name: 'payload-mssql-esm',
+			input: './src/payload/mssql.ts',
+			outputName: 'payload-mssql.mjs',
 			format: 'esm',
 		}),
 		buildDeclarations(),

@@ -5,7 +5,8 @@ import { prepareEntityFilter } from '../../dialects/pull-utils';
 import type { Column, Table } from '../../dialects/sqlite/ddl';
 import { interimToDDL } from '../../dialects/sqlite/ddl';
 import { ddlDiff } from '../../dialects/sqlite/diff';
-import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/sqlite/drizzle';
+import { fromDrizzleSchema } from '../../dialects/sqlite/drizzle';
+import type { SchemaSource } from '../../dialects/sqlite/drizzle';
 import type { JsonStatement } from '../../dialects/sqlite/statements';
 import type { SQLiteClient } from '../../utils';
 import { isInteractive, outputFormat } from '../context';
@@ -16,11 +17,18 @@ import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/common';
 import type { SqliteCredentials } from '../validations/sqlite';
-import { explain as explainView, explainJsonOutput, humanLog, ProgressView, sqliteSchemaError } from '../views';
+import {
+	EmptyProgressView,
+	explain as explainView,
+	explainJsonOutput,
+	humanLog,
+	ProgressView,
+	sqliteSchemaError,
+} from '../views';
 
 export const handle = async (
 	db: SQLiteClient,
-	filenames: string[],
+	schemaSource: SchemaSource,
 	verbose: boolean,
 	credentials: SqliteCredentials,
 	filters: EntitiesFilterConfig,
@@ -37,7 +45,7 @@ export const handle = async (
 
 	const { introspect: sqliteIntrospect } = await import('./pull-sqlite');
 
-	const res = await prepareFromSchemaFiles(filenames);
+	const res = await schemaSource.load();
 
 	const existing = extractSqliteExisting(res.views);
 	const filter = prepareEntityFilter('sqlite', filters, existing);
@@ -51,18 +59,20 @@ export const handle = async (
 		});
 	}
 
-	const progress = new ProgressView(
-		'Pulling schema from database...',
-		'Pulling schema from database...',
-	);
+	const progress = json
+		? new EmptyProgressView()
+		: new ProgressView(
+			'Pulling schema from database...',
+			'Pulling schema from database...',
+		);
 
 	const { ddl: ddl1 } = await sqliteIntrospect(db, filter, progress, () => {}, migrations);
 
 	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
-		resolver<Table>('table', 'public', hints),
-		resolver<Column>('column', 'public', hints),
+		resolver<Table>('table', hints),
+		resolver<Column>('column', hints),
 		'push',
 	);
 
@@ -182,7 +192,7 @@ export const suggestions = async (
 						type: 'confirm_data_loss',
 						kind: 'add_not_null',
 						entity,
-						reason: 'nulls_present',
+						reason: 'table_recreate',
 					});
 				} else {
 					grouped.push(

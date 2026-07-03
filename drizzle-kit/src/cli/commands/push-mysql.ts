@@ -16,7 +16,14 @@ import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { EntitiesFilterConfig } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
-import { explain as explainView, explainJsonOutput, humanLog, mysqlSchemaError, ProgressView } from '../views';
+import {
+	EmptyProgressView,
+	explain as explainView,
+	explainJsonOutput,
+	humanLog,
+	mysqlSchemaError,
+	ProgressView,
+} from '../views';
 import { introspect } from './pull-mysql';
 
 export const handle = async (
@@ -42,10 +49,12 @@ export const handle = async (
 	const filter = prepareEntityFilter('mysql', filters, existing);
 
 	const { db, database } = await connectToMySQL(credentials);
-	const progress = new ProgressView(
-		'Pulling schema from database...',
-		'Pulling schema from database...',
-	);
+	const progress = json
+		? new EmptyProgressView()
+		: new ProgressView(
+			'Pulling schema from database...',
+			'Pulling schema from database...',
+		);
 
 	const { schema: interimFromDB } = await introspect({ db, database, progress, filter, migrations });
 
@@ -64,9 +73,9 @@ export const handle = async (
 	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
-		resolver<Table>('table', 'public', hints),
-		resolver<Column>('column', 'public', hints),
-		resolver<View>('view', 'public', hints),
+		resolver<Table>('table', hints),
+		resolver<Column>('column', hints),
+		resolver<View>('view', hints),
 		'push',
 	);
 
@@ -231,64 +240,9 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			continue;
 		}
 
-		if (
-			statement.type === 'add_column' && statement.column.notNull && statement.column.default === null
-			&& !statement.column.generated
-		) {
-			const column = statement.column;
-			const id = identifier({ table: column.table });
-			const entity = ['public', column.table, column.name] as const;
-			if (hints.matchConfirm('add_not_null', entity)) continue;
-			const res = await db.query(`select 1 from ${id} limit 1`);
-
-			if (res.length === 0) continue;
-			const hint = `You're about to add not-null ${
-				chalk.underline(statement.column.name)
-			} column without default value to a non-empty ${chalk.underline(statement.column.table)} table`;
-
-			if (useHints) {
-				hints.pushMissingHint({
-					type: 'confirm_data_loss',
-					kind: 'add_not_null',
-					entity,
-					reason: 'nulls_present',
-				});
-			} else {
-				grouped.push({ hint });
-			}
-			continue;
-		}
-
 		if (statement.type === 'alter_column') {
 			const tableName = identifier({ table: statement.origin.table });
 			const columnName = identifier({ column: statement.origin.column });
-
-			// add not null without default or generated
-			if (
-				statement.diff.notNull && statement.diff.notNull.to && statement.column.default === null
-				&& !statement.column.generated
-			) {
-				const entity = ['public', statement.column.table, statement.column.name] as const;
-				if (hints.matchConfirm('add_not_null', entity)) continue;
-				const columnRes = await db.query(`select ${columnName} from ${tableName} WHERE ${columnName} IS NULL limit 1`);
-
-				if (columnRes.length > 0) {
-					const hint = `You're about to add not-null to a non-empty ${
-						chalk.underline(columnName)
-					} column without default value in ${chalk.underline(statement.column.table)} table`;
-
-					if (useHints) {
-						hints.pushMissingHint({
-							type: 'confirm_data_loss',
-							kind: 'add_not_null',
-							entity,
-							reason: 'nulls_present',
-						});
-					} else {
-						grouped.push({ hint });
-					}
-				}
-			}
 
 			if (statement.diff.type) {
 				const entity = ['public', statement.column.table, statement.column.name] as const;
@@ -317,34 +271,6 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 				}
 			}
 
-			continue;
-		}
-
-		if (statement.type === 'create_index') {
-			if (!statement.index.isUnique) continue;
-
-			const unique = statement.index;
-			const id = identifier({ table: unique.table });
-			const entity = ['public', unique.table, unique.name] as const;
-			if (hints.matchConfirm('add_unique', entity)) continue;
-
-			const res = await db.query(`select 1 from ${id} limit 1`);
-			if (res.length === 0) continue;
-
-			if (useHints) {
-				hints.pushMissingHint({
-					type: 'confirm_data_loss',
-					kind: 'add_unique',
-					entity,
-					reason: 'duplicates_present',
-				});
-			} else {
-				grouped.push({
-					hint: `You're about to add ${chalk.underline(unique.name)} unique index to a non-empty ${
-						chalk.underline(unique.table)
-					} table which may fail`,
-				});
-			}
 			continue;
 		}
 

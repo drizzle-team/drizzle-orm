@@ -49,10 +49,8 @@ const confirmReasonProse = (item: Extract<MissingHint, { type: 'confirm_data_los
 	switch (item.reason) {
 		case 'non_empty':
 			return `non-empty ${humanizeKind(item.kind)}`;
-		case 'nulls_present':
-			return 'existing rows hold null values';
-		case 'duplicates_present':
-			return 'existing rows hold duplicate values';
+		case 'table_recreate':
+			return 'confirming wipes all rows and recreates the table';
 		case 'type_change':
 			return `type change from ${item.reason_details.from} to ${item.reason_details.to}`;
 	}

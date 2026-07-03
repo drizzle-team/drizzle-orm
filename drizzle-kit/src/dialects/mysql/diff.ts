@@ -30,10 +30,10 @@ export const ddlDiff = async (
 }> => {
 	const tablesDiff = diff(ddl1, ddl2, 'tables');
 
-	const { created: createdTables, deleted: deletedTables, renamedOrMoved: renamedTables } = (await tablesResolver({
+	const { created: createdTables, deleted: deletedTables, renamedOrMoved: renamedTables } = await tablesResolver({
 		created: tablesDiff.filter((it) => it.$diffType === 'create'),
 		deleted: tablesDiff.filter((it) => it.$diffType === 'drop'),
-	})).resolved;
+	});
 
 	for (const renamed of renamedTables) {
 		ddl1.tables.update({
@@ -109,8 +109,10 @@ export const ddlDiff = async (
 	const columnDeletes = [] as Column[];
 
 	for (let it of groupedByTable) {
-		const { renamedOrMoved: renamed, created, deleted } =
-			(await columnsResolver({ deleted: it.deleted, created: it.inserted })).resolved;
+		const { renamedOrMoved: renamed, created, deleted } = await columnsResolver({
+			deleted: it.deleted,
+			created: it.inserted,
+		});
 
 		columnCreates.push(...created);
 		columnDeletes.push(...deleted);
@@ -185,10 +187,10 @@ export const ddlDiff = async (
 
 	const viewsDiff = diff(ddl1, ddl2, 'views');
 
-	const { created: createdViews, deleted: deletedViews, renamedOrMoved: renamedViews } = (await viewsResolver({
+	const { created: createdViews, deleted: deletedViews, renamedOrMoved: renamedViews } = await viewsResolver({
 		created: viewsDiff.filter((it) => it.$diffType === 'create'),
 		deleted: viewsDiff.filter((it) => it.$diffType === 'drop'),
-	})).resolved;
+	});
 
 	for (const rename of renamedViews) {
 		ddl1.views.update({

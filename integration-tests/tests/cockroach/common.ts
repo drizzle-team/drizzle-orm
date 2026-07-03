@@ -6147,16 +6147,69 @@ export function tests() {
 				)
 			`);
 
-			expect(() =>
-				db.insert(users1).select(
-					db
-						.select({
-							name: users2.name,
-							id: users2.id,
-						})
-						.from(users2),
+			await db.insert(users2).values({ id: 1, name: 'First' });
+			const res = await db.insert(users1).select(
+				db
+					.select({
+						name: users2.name,
+						id: users2.id,
+					})
+					.from(users2),
+			).returning();
+
+			expect(res).toStrictEqual([{
+				id: 1,
+				name: 'First',
+			}]);
+		});
+
+		test('insert into ... select with generated column', async (ctx) => {
+			const { db } = ctx.cockroach;
+
+			const users1 = cockroachTable('users1_iswgc', {
+				id: int4('id').generatedAlwaysAsIdentity().primaryKey(),
+				name: text('name').notNull(),
+			});
+			const users2 = cockroachTable('users2_iswgc', {
+				id: int4('id').generatedAlwaysAsIdentity().primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists users1_iswgc`);
+			await db.execute(sql`drop table if exists users2_iswgc`);
+			await db.execute(sql`
+				create table users1_iswgc (
+					id int4 primary key generated always as identity,
+					name text not null
 				)
-			).toThrowError();
+			`);
+			await db.execute(sql`
+				create table users2_iswgc (
+					id int4 primary key generated always as identity,
+					name text not null
+				)
+			`);
+
+			await db.insert(users1).values([
+				{ name: 'Alice' },
+				{ name: 'Bob' },
+				{ name: 'Charlie' },
+			]);
+
+			const result1 = await db.insert(users2).select(db.select({ name: users1.name }).from(users1))
+				.returning();
+
+			expect(result1).toStrictEqual([
+				{ id: 1, name: 'Alice' },
+				{ id: 2, name: 'Bob' },
+				{ id: 3, name: 'Charlie' },
+			]);
+
+			// @ts-expect-error
+			db.insert(users2).select(db.select({ name: users1.name, id: users1.id }).from(users1));
+			// @ts-expect-error
+			expect(() => db.insert(users2).select(db.select({ name: users1.name, unknown: users1.id }).from(users1)))
+				.toThrowError();
 		});
 
 		test('policy', () => {

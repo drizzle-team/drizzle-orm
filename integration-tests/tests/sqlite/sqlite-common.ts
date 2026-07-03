@@ -5752,18 +5752,67 @@ export function tests(test: Test, exclude: string[] = []) {
 			)
 		`);
 
-			await expect(async () => {
-				await db.insert(users1).select(
-					db
-						.select({
-							name: users2.name,
-							id: users2.id,
-						})
-						.from(users2),
-				);
-			}).rejects.toThrowError();
+			await db.insert(users2).values({ id: 1, name: 'First' });
+			const res = await db.insert(users1).select(
+				db
+					.select({
+						name: users2.name,
+						id: users2.id,
+					})
+					.from(users2),
+			).returning();
+
+			expect(res).toStrictEqual([{
+				id: 1,
+				name: 'First',
+			}]);
 		},
 	);
+
+	test.concurrent('insert into ... select with generated column', async ({ db }) => {
+		const users1 = sqliteTable('users1_iswgc', {
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+		});
+		const users2 = sqliteTable('users2_iswgc', {
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+		});
+
+		await db.run(sql`drop table if exists users1_iswgc`);
+		await db.run(sql`drop table if exists users2_iswgc`);
+		await db.run(sql`
+			create table users1_iswgc (
+				id integer primary key autoincrement,
+				name text not null
+			)
+		`);
+		await db.run(sql`
+			create table users2_iswgc (
+				id integer primary key autoincrement,
+				name text not null
+			)
+		`);
+
+		await db.insert(users1).values([
+			{ name: 'Alice' },
+			{ name: 'Bob' },
+			{ name: 'Charlie' },
+		]);
+
+		const result1 = await db.insert(users2).select(db.select({ name: users1.name }).from(users1))
+			.returning();
+
+		expect(result1).toStrictEqual([
+			{ id: 1, name: 'Alice' },
+			{ id: 2, name: 'Bob' },
+			{ id: 3, name: 'Charlie' },
+		]);
+
+		// @ts-expect-error
+		expect(() => db.insert(users2).select(db.select({ name: users1.name, unknown: users1.id }).from(users1)))
+			.toThrowError();
+	});
 
 	test.concurrent('Object keys as column names', async ({ db }) => {
 		// Tests the following:

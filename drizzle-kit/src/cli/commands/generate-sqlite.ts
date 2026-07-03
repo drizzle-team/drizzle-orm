@@ -1,6 +1,7 @@
 import { type Column, createDDL, interimToDDL, type SqliteEntities } from '../../dialects/sqlite/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/sqlite/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/sqlite/drizzle';
+import type { SchemaSource } from '../../dialects/sqlite/drizzle';
 import { prepareSqliteSnapshot } from '../../dialects/sqlite/serializer';
 import { prepareOutFolder } from '../../utils/utils-node';
 import { outputFormat } from '../context';
@@ -12,16 +13,17 @@ import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (
-	config: GenerateConfig,
+	config: GenerateConfig<SchemaSource>,
 	checkResult?: CheckHandlerResult,
 ) => {
 	const dialect = config.dialect === 'turso' ? 'turso' : 'sqlite';
 	const json = outputFormat() === 'json';
-	const { out: outFolder, filenames } = config;
+	const { out: outFolder } = config;
 	const { snapshots } = prepareOutFolder(outFolder);
+	const prepared = await config.schemaSource.load();
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSqliteSnapshot(
 		snapshots,
-		filenames,
+		prepared,
 		checkResult,
 	);
 	if (config.custom) {
@@ -42,8 +44,8 @@ export const handle = async (
 	const { sqlStatements, warnings, renames, groupedStatements, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<SqliteEntities['tables']>('table', 'public', config.hints),
-		resolver<Column>('column', 'public', config.hints),
+		resolver<SqliteEntities['tables']>('table', config.hints),
+		resolver<Column>('column', config.hints),
 		'default',
 	);
 
@@ -93,12 +95,12 @@ export const handleExport = async (config: ExportConfig) => {
 	const { ddl, errors } = interimToDDL(schema);
 
 	if (errors.length > 0) {
-		throw new CommandOutputCliError('generate', errors.map((it) => sqliteSchemaError(it)).join('\n'), {
+		throw new CommandOutputCliError('export', errors.map((it) => sqliteSchemaError(it)).join('\n'), {
 			stage: 'ddl',
 			dialect: 'sqlite',
 		});
 	}
 
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
-	console.log(sqlStatements.join('\n'));
+	return { statements: sqlStatements, warnings: [] };
 };

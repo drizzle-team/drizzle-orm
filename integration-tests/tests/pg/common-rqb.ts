@@ -1211,7 +1211,6 @@ export function tests(test: Test) {
 		});
 
 		const schema = { users, posts };
-		await push(schema);
 		const db = createDB(schema, (r) => ({
 			users: {
 				posts: r.many.posts(),
@@ -1223,6 +1222,11 @@ export function tests(test: Test) {
 				}),
 			},
 		}));
+
+		await db.execute(sql`DROP TABLE IF EXISTS ${posts};`);
+		await db.execute(sql`DROP TABLE IF EXISTS ${users};`);
+
+		await push(schema);
 
 		await db.insert(users).values({ id: 1000000000000000001n });
 		await db.insert(posts).values([{ id: 1000000000000000002n, title: 'foo', author: 1000000000000000001n }, {

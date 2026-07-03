@@ -269,8 +269,14 @@ Expect<
 			qb.select({ admin: users1.admin }).from(users1),
 		);
 
+	db.insert(users1).select(db.select({ name: users1.name, admin: users1.admin }).from(users1));
+	db.insert(users1).select(() => db.select({ name: users1.name, admin: users1.admin }).from(users1));
+	db.insert(users1).select((qb) => qb.select({ name: users1.name, admin: users1.admin }).from(users1));
+	// @ts-expect-error selecting generated always key
 	db.insert(users1).select(db.select().from(users1));
+	// @ts-expect-error selecting generated always key
 	db.insert(users1).select(() => db.select().from(users1));
+	// @ts-expect-error selecting generated always key
 	db.insert(users1).select((qb) => qb.select().from(users1));
 	// @ts-expect-error tables have different keys
 	db.insert(users1).select(db.select().from(users2));

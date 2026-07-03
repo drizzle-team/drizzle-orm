@@ -1,15 +1,24 @@
 import { expectTypeOf, test } from 'vitest';
+import { check, exportSql, generate, pull, push, up } from '../../src/cli-sdk';
 import type { GenerateOptions, PushOptions } from '../../src/cli/contract';
 import type { Hint } from '../../src/cli/hints';
-import { defineConfig, generate, push } from '../../src/index';
+import { defineConfig } from '../../src/index';
 import type { Config } from '../../src/index';
 
 type GenerateResponse = Awaited<ReturnType<typeof generate>>;
 type PushResponse = Awaited<ReturnType<typeof push>>;
+type CheckResponse = Awaited<ReturnType<typeof check>>;
+type PullResponse = Awaited<ReturnType<typeof pull>>;
+type UpResponse = Awaited<ReturnType<typeof up>>;
+type ExportResponse = Awaited<ReturnType<typeof exportSql>>;
 type Unresolved = Extract<GenerateResponse, { status: 'missing_hints' }>['unresolved'][number];
 
 declare const generateResponse: GenerateResponse;
 declare const pushResponse: PushResponse;
+declare const checkResponse: CheckResponse;
+declare const pullResponse: PullResponse;
+declare const upResponse: UpResponse;
+declare const exportResponse: ExportResponse;
 declare function resolveHint(item: Unresolved): Hint;
 declare const config: Config;
 
@@ -39,6 +48,40 @@ function _pushNarrowing() {
 	}
 }
 
+function _checkNarrowing() {
+	if (checkResponse.status === 'ok') {
+		expectTypeOf(checkResponse.dialect).toExtend<string | undefined>();
+	} else if (checkResponse.status === 'error') {
+		expectTypeOf(checkResponse.error.code).toBeString();
+	}
+}
+
+function _pullNarrowing() {
+	if (pullResponse.status === 'ok') {
+		expectTypeOf(pullResponse.schemaPath).toBeString();
+		expectTypeOf(pullResponse.snapshotPath).toBeString();
+	} else if (pullResponse.status === 'error') {
+		expectTypeOf(pullResponse.error.code).toBeString();
+	}
+}
+
+function _upNarrowing() {
+	if (upResponse.status === 'ok') {
+		expectTypeOf(upResponse.upgraded).toEqualTypeOf<string[]>();
+	} else if (upResponse.status === 'error') {
+		expectTypeOf(upResponse.error.code).toBeString();
+	}
+}
+
+function _exportNarrowing() {
+	if (exportResponse.status === 'ok') {
+		expectTypeOf(exportResponse.statements).toEqualTypeOf<string[]>();
+		expectTypeOf(exportResponse.warnings).toEqualTypeOf<string[]>();
+	} else if (exportResponse.status === 'error') {
+		expectTypeOf(exportResponse.error.code).toBeString();
+	}
+}
+
 async function _generateWithHints(): Promise<GenerateResponse> {
 	const baseOptions: GenerateOptions = {
 		dialect: 'postgresql',
@@ -63,16 +106,22 @@ function _defineConfigSnippet() {
 	return _config;
 }
 
-test('generate/push responses narrow on their status discriminator', () => {
-	expectTypeOf(_generateNarrowing).toBeFunction();
-	expectTypeOf(_pushNarrowing).toBeFunction();
-});
+// The narrowing snippets above are the substantive checks — they type-check at compile time.
+// Reference them so they are not flagged as unused; their bodies are what is under test.
+void [
+	_generateNarrowing,
+	_pushNarrowing,
+	_checkNarrowing,
+	_pullNarrowing,
+	_upNarrowing,
+	_exportNarrowing,
+	_defineConfigSnippet,
+];
 
 test('generateWithHints re-invokes generate with a raw Hint[]', () => {
 	expectTypeOf(_generateWithHints).returns.resolves.toEqualTypeOf<GenerateResponse>();
 });
 
-test('defineConfig accepts a Config and push options stay typed', () => {
-	expectTypeOf(_defineConfigSnippet).returns.not.toBeNever();
+test('push options stay typed', () => {
 	expectTypeOf<PushOptions>().toExtend<{ dialect?: unknown }>();
 });

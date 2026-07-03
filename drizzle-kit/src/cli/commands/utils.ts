@@ -1,7 +1,6 @@
 import chalk from 'chalk';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
-import { inspect } from 'util';
 import { object, string } from 'zod';
 import { assertUnreachable, type Journal } from '../../utils';
 import { type Dialect, dialect } from '../../utils/schemaValidator';
@@ -84,9 +83,12 @@ export const prepareDropParams = async (
 
 export type CheckConfig = { out: string; dialect: Dialect; ignoreConflicts: boolean | undefined };
 
-export type GenerateConfig = {
+type AnySchemaSource = { load(): Promise<unknown> };
+
+export type GenerateConfig<S extends AnySchemaSource = AnySchemaSource> = {
 	dialect: Dialect;
 	filenames: string[];
+	schemaSource: S;
 	out: string;
 	breakpoints: boolean;
 	name?: string;
@@ -102,6 +104,7 @@ export type ExportConfig = {
 	dialect: Dialect;
 	sql: boolean;
 	filenames: string[];
+	output: 'text' | 'json';
 };
 
 export const prepareGenerateConfig = async (
@@ -140,12 +143,17 @@ export const prepareGenerateConfig = async (
 
 	const fileNames = prepareFilenames(schema);
 
+	const { SchemaSource } = dialect === 'sqlite' || dialect === 'turso'
+		? await import('../../dialects/sqlite/drizzle')
+		: await import('../../dialects/postgres/drizzle');
+
 	return {
 		dialect: dialect,
 		name: options.name,
 		custom: options.custom || false,
 		breakpoints: breakpoints ?? true,
 		filenames: fileNames,
+		schemaSource: SchemaSource.fromFilenames(fileNames),
 		out: out || 'drizzle',
 		bundle: driver === 'expo' || driver === 'durable-sqlite',
 		driver,
@@ -160,10 +168,10 @@ export const prepareExportConfig = async (
 		config?: string;
 		schema?: string;
 		dialect?: Dialect;
-		sql: boolean;
+		sql?: boolean;
 	},
 	from: 'config' | 'cli',
-): Promise<ExportConfig> => {
+): Promise<Omit<ExportConfig, 'output'>> => {
 	const config = from === 'config'
 		? await drizzleConfigFromFile(options.config, true)
 		: options;
@@ -950,7 +958,7 @@ export const drizzleConfigFromFile = async (
 	// --- get response and then check by each dialect independently
 	const res = configCommonSchema.safeParse(content);
 	if (!res.success) {
-		throw new ConfigValidationCliError(inspect(res.error), res.error.issues as never, { cause: res.error });
+		throw new ConfigValidationCliError(res.error.message, res.error.issues as never, { cause: res.error });
 	}
 
 	return res.data;
