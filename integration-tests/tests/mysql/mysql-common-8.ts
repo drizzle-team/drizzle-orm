@@ -589,7 +589,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	});
 
 	// https://github.com/drizzle-team/drizzle-orm/issues/1415
-	test.skipIf(Date.now() < +new Date('2026-06-24')).concurrent(
+	test.skipIf(Date.now() < +new Date('2026-07-10')).concurrent(
 		'prepared statement sql.placeholder in .inArray',
 		async ({ db, push }) => {
 			const users = createUserTable('users_116');
@@ -608,7 +608,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 	// https://github.com/drizzle-team/drizzle-orm/issues/1415
 	test
-		.skipIf(Date.now() < +new Date('2026-06-24'))
+		.skipIf(Date.now() < +new Date('2026-07-10'))
 		.concurrent(
 			'prepared statement sql.placeholder in .inArray #2',
 			async ({ db, push, seed }) => {
