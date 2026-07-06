@@ -1,10 +1,9 @@
 <div align="center">
-  <img src="./misc/readme/logo-github-sq-dark.svg#gh-dark-mode-only" />
-  <img src="./misc/readme/logo-github-sq-light.svg#gh-light-mode-only" />
-</div>
-
-<br/>
-<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./misc/readme/logo-github-sq-dark.svg">
+    <img alt="Drizzle ORM" src="./misc/readme/logo-github-sq-light.svg">
+  </picture>
+  <br/>
   <h3>Headless ORM for NodeJS, TypeScript and JavaScript 🚀</h3>
   <a href="https://orm.drizzle.team">Website</a> •
   <a href="https://orm.drizzle.team/docs/overview">Documentation</a> •
