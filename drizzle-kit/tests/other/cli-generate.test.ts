@@ -373,7 +373,7 @@ test('validate config #1', async (t) => {
 		schema: 'schema.ts',
 		dbCredentials: { url: '' },
 		introspect: { casing: 'preserve' },
-		strict: true,
+		// strict: true, // removed. strict by def for now
 		schemaFilter: ['public'],
 		breakpoints: false,
 	}, prefix);
@@ -407,7 +407,7 @@ test('validate config #2', async (t) => {
 		schema: 'schema.ts',
 		dbCredentials: { url: '' },
 		introspect: { casing: 'preserve' },
-		strict: true,
+		// strict: true, // removed. strict by def for now
 		schemaFilter: ['public'],
 		breakpoints: true,
 		driver: 'pglite',

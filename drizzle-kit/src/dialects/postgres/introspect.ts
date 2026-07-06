@@ -728,12 +728,12 @@ export const fromDatabase = async (
 		let columnTypeMapped = enumType ? enumType.name : column.type.replaceAll('[]', '');
 
 		columnTypeMapped = columnTypeMapped
-			.replace('character varying', 'varchar')
-			.replace(' without time zone', '')
+			.replace(/\bcharacter varying\b/, 'varchar')
+			.replace(/ without time zone\b/, '')
 			// .replace(' with time zone', '')
 			// .replace("timestamp without time zone", "timestamp")
-			.replace('character', 'char')
-			.replace('geometry(Point', 'geometry(point');
+			.replace(/\bcharacter\b/, 'char')
+			.replace(/\bgeometry\(Point\b/, 'geometry(point');
 
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
@@ -1081,10 +1081,10 @@ export const fromDatabase = async (
 		}
 
 		columnTypeMapped = columnTypeMapped
-			.replace('character varying', 'varchar')
-			.replace(' without time zone', '')
+			.replace(/\bcharacter varying\b/, 'varchar')
+			.replace(/ without time zone\b/, '')
 			// .replace("timestamp without time zone", "timestamp")
-			.replace('character', 'char')
+			.replace(/\bcharacter\b/, 'char')
 			.replace('geometry(Point)', 'geometry(point)');
 
 		columnTypeMapped += '[]'.repeat(it.dimensions);

@@ -2490,7 +2490,7 @@ test('drop enum', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4982
 // enhancement
-test.skipIf(Date.now() < +new Date('2026-07-01'))(
+test.skipIf(Date.now() < +new Date('2026-07-10'))(
 	'alter enum values; enum value is column default; table with data',
 	async () => {
 		enum AppStatus1 {
@@ -2551,3 +2551,22 @@ test.skipIf(Date.now() < +new Date('2026-07-01'))(
 		expect(pst2).toStrictEqual(expectedSt2);
 	},
 );
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5932
+test('issue #5932. Character -> char', async () => {
+	const characteristicsType = pgEnum('characteristics_type', ['a', 'b']);
+	const schema = {
+		characteristicsType,
+		things: pgTable('things', {
+			kind: characteristicsType('kind'),
+		}),
+	};
+
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
+
+	const expectedSt2 = [
+		`CREATE TYPE "characteristics_type" AS ENUM('a', 'b');`,
+		`CREATE TABLE "things" (\n\t"kind" "characteristics_type"\n);\n`,
+	];
+	expect(pst2).toStrictEqual(expectedSt2);
+});

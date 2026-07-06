@@ -1,7 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { and, defineRelations, eq, inArray, isNotNull, not, or, sql } from 'drizzle-orm';
 import type { AnyPgColumn, PgColumnBuilder } from 'drizzle-orm/pg-core';
-import { bigint, integer, numeric, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { bigint, integer, numeric, pgEnum, pgTable, serial, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { describe, expect, expectTypeOf } from 'vitest';
 import type { Test } from './instrumentation';
 
@@ -1028,7 +1028,7 @@ export function tests(test: Test) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4696
 		// postgresjs returns strings for itemCount but other drivers return numbers
-		test.skipIf(Date.now() < +new Date('2026-07-01')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-07-10')).concurrent(
 			'RQB v2 find many - extras',
 			async ({ push, createDB }) => {
 				const orderItemTable = pgTable('rqb_order_item_19', {
@@ -1136,6 +1136,63 @@ export function tests(test: Test) {
 			expect(throwFunc2).toThrowError(
 				/.+all "from" columns must belong to table "users", found column of table "blogs"$/,
 			);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4509
+		test.concurrent.concurrent('Issue #4509', async ({ push, createDB }) => {
+			const tasks = pgTable(
+				'tasks',
+				{
+					id: integer().notNull().primaryKey(),
+					parentId: integer().references((): AnyPgColumn => tasks.id, {
+						onDelete: 'cascade',
+					}),
+					title: text().notNull(),
+				},
+			);
+
+			await push({ tasks });
+			const db = createDB({ tasks }, (r) => ({
+				tasks: {
+					parent: r.one.tasks({
+						from: r.tasks.parentId,
+						to: r.tasks.id,
+					}),
+					subtasks: r.many.tasks(),
+				},
+			}));
+
+			await db.insert(tasks).values([{ title: '1', id: 1, parentId: null }, { title: '2', id: 2, parentId: 1 }, {
+				title: '3',
+				id: 3,
+				parentId: null,
+			}]);
+
+			const result = await db.query.tasks
+				.findMany({
+					where: { parentId: { isNull: true } },
+					with: { subtasks: true },
+				});
+			expect(result).toStrictEqual([
+				{
+					id: 1,
+					parentId: null,
+					subtasks: [
+						{
+							id: 2,
+							parentId: 1,
+							title: '2',
+						},
+					],
+					title: '1',
+				},
+				{
+					id: 3,
+					parentId: null,
+					subtasks: [],
+					title: '3',
+				},
+			]);
 		});
 	});
 

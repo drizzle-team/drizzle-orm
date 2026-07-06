@@ -678,3 +678,15 @@ export const newYorkersWithSubquery = mysqlView('new_yorkers_with_sq')
 
 	Expect<Equal<{ enum: Role | null }[], typeof res>>;
 }
+
+{
+	// https://github.com/drizzle-team/drizzle-orm/issues/4294
+	const test = mysqlTable('test', {
+		id: varchar('id').primaryKey().unique(),
+		parentRef: varchar('parentRef').$type<string | null>(),
+	});
+
+	type InsertTest = typeof test.$inferInsert;
+
+	Expect<Equal<InsertTest, { id: string; parentRef?: string | null }>>;
+}

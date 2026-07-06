@@ -2463,8 +2463,8 @@ test('select from enum', async () => {
 	await db.execute(sql`drop type ${sql.identifier(categoryEnum.enumName)}`);
 });
 
-// https://github.com/drizzle-team/drizzle-orm/issues/4311s
-test.skip('all date and time columns', async () => {
+// https://github.com/drizzle-team/drizzle-orm/issues/4311
+test('all date and time columns', async () => {
 	const table = pgTable('all_columns', {
 		id: serial('id').primaryKey(),
 		dateString: date('date_string', { mode: 'string' }).notNull(),
@@ -7988,5 +7988,140 @@ test('Column as decoder applies codecs - Jit mappers', async () => {
 				arrCus: [exDate],
 			},
 		},
+	);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5451
+test('issue #5451', async () => {
+	try {
+		const users = pgTable('users', {
+			id: serial().primaryKey(),
+			name: text().notNull(),
+		});
+		const posts = pgTable('posts', {
+			id: serial().primaryKey(),
+			userId: integer('user_id').notNull(),
+			dateCreated: timestamp('date_created', { withTimezone: true }).defaultNow(),
+		});
+
+		await db.execute(sql`drop table if exists ${posts}`);
+		await db.execute(sql`drop table if exists ${users}`);
+		await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
+		await db.execute(
+			sql`create table ${posts} (id serial primary key, user_id integer not null references users(id), date_created timestamptz default now())`,
+		);
+
+		await db.execute(sql`INSERT INTO ${users}(name) VALUES ('Alex'), ('Andrew')`);
+		await db.execute(sql`INSERT INTO ${posts}(user_id) VALUES (1), (2)`);
+
+		// Example 1: Core Query Builder count
+		const [userCount] = await db.select({ count: count() }).from(users);
+
+		// Example 2: Core Query Builder select
+		const postsList = await db.select({
+			id: posts.id,
+			userId: posts.userId,
+		}).from(posts);
+
+		expect(userCount).toStrictEqual({ count: 2 });
+		expect(postsList).toStrictEqual(
+			[
+				{
+					id: 1,
+					userId: 1,
+				},
+				{
+					id: 2,
+					userId: 2,
+				},
+			],
+		);
+	} finally {
+		await clear(db);
+	}
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5062
+test('Issue #5062', async () => {
+	const workTable = pgTable('work', {
+		workno: text('workno').unique().notNull(),
+		name: text('name').notNull(),
+		updatedAt: timestamp('updated_at', { precision: 3, mode: 'date' })
+			.notNull(),
+	});
+	const workTable2 = pgTable('work2', {
+		workno: text('workno').unique().notNull(),
+		name: text('name').notNull(),
+		updatedAt: timestamp('updated_at', { precision: 3, mode: 'string' })
+			.notNull(),
+	});
+
+	const db = drizzle({
+		connection: process.env['PG_CONNECTION_STRING']!,
+		relations: defineRelations({ workTable, workTable2 }),
+	});
+
+	await db.execute(sql`CREATE TABLE work (
+    workno text NOT NULL UNIQUE,
+    name text NOT NULL,
+    updated_at timestamp(3) without time zone NOT NULL
+);`);
+	await db.execute(sql`CREATE TABLE work2 (
+    workno text NOT NULL UNIQUE,
+    name text NOT NULL,
+    updated_at timestamp(3) without time zone NOT NULL
+);`);
+
+	const date = '2026-07-01T11:38:42.236Z';
+	await db.insert(workTable).values({ workno: '1', name: '1', updatedAt: new Date(date) });
+	await db.insert(workTable2).values({ workno: '1', name: '1', updatedAt: date });
+
+	const result = await db.query.workTable.findMany();
+	const result2 = await db.query.workTable2.findMany();
+
+	expect(result).toStrictEqual(
+		[
+			{
+				name: '1',
+				updatedAt: new Date(date),
+				workno: '1',
+			},
+		],
+	);
+	expect(result2).toStrictEqual([
+		{
+			name: '1',
+			updatedAt: '2026-07-01 11:38:42.236',
+			workno: '1',
+		},
+	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5090
+test('Issue #5090', async () => {
+	const table = pgTable('table', {
+		id: integer(),
+		updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true })
+			.notNull(),
+	});
+
+	const db = drizzle({
+		connection: process.env['PG_CONNECTION_STRING']!,
+	});
+
+	await db.execute(sql`CREATE TABLE "table" (id integer, updated_at timestamp with time zone);`);
+
+	const date = '2025-12-31 04:17:26.222644+00';
+	await db.execute(sql`INSERT INTO ${table} VALUES (1, ${date})`);
+
+	const result = await db.select().from(table);
+
+	expect(result).toStrictEqual(
+		[
+			{
+				id: 1,
+				updatedAt: '2025-12-31 04:17:26.222644+00',
+			},
+		],
 	);
 });

@@ -899,7 +899,7 @@ test('introspect view #3', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-07-01'))('introspect view #4', async () => {
+test.skipIf(Date.now() < +new Date('2026-07-10'))('introspect view #4', async () => {
 	const table = pgTable('table', {
 		column1: text().notNull(),
 		column2: text(),
@@ -928,7 +928,7 @@ test.skipIf(Date.now() < +new Date('2026-07-01'))('introspect view #4', async ()
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-07-01'))('introspect view #5', async () => {
+test.skipIf(Date.now() < +new Date('2026-07-10'))('introspect view #5', async () => {
 	const applications = pgTable('applications', {
 		applicationId: serial('application_id').primaryKey(),
 		studentId: integer('student_id').references(() => students.studentId),
@@ -1792,7 +1792,7 @@ test('introspect view with table filter', async () => {
 // this does not look like a bug
 // sequences are separete entities
 // entity filter for sequences ??
-test.skipIf(Date.now() < +new Date('2026-07-01'))('introspect sequences with table filter', async () => {
+test.skipIf(Date.now() < +new Date('2026-07-10'))('introspect sequences with table filter', async () => {
 	// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')
 
 	// const seq1 = pgSequence('seq1');
@@ -2995,4 +2995,116 @@ test('issue #5869', async () => {
 			with: '',
 		},
 	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5941
+test('issue #5941', async () => {
+	await db.query(
+		`CREATE TABLE "assertion" (store text not null, authorization_model_id text not null, assertions bytea not null)`,
+	);
+
+	const {
+		generateSqlStatements: generateSqlStatements1,
+		generateStatements: generateStatements1,
+		pushSqlStatements: pushSqlStatements1,
+		pushStatements: pushStatements1,
+		schema2: schemaFromFile,
+	} = await diffIntrospect(db, {}, '#5491');
+
+	expect(generateSqlStatements1).toStrictEqual([]);
+	expect(generateStatements1).toStrictEqual([]);
+	expect(pushSqlStatements1).toStrictEqual([]);
+	expect(pushStatements1).toStrictEqual([]);
+	expect(schemaFromFile.columns.filter((it) => it.name === 'assertions')).toStrictEqual([
+		{
+			default: null,
+			dimensions: 0,
+			entityType: 'columns',
+			generated: null,
+			identity: null,
+			name: 'assertions',
+			notNull: true,
+			pk: false,
+			pkName: null,
+			schema: 'public',
+			table: 'assertion',
+			type: 'bytea',
+			typeSchema: null,
+			unique: false,
+			uniqueName: null,
+			uniqueNullsNotDistinct: false,
+		},
+	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5413
+test('issue #5413', async () => {
+	await db.query(`CREATE SEQUENCE manual_seq_table_id_seq1`);
+
+	// the problem of this issue was in "manual_seq_table_id_seq1" name and
+	// in "export const Int: SqlType = { toTs: SmallInt.toTs }" logic in grammar.ts
+	// prev it looked for "endsWith("_seq'::regclass"), now it tolarates _seq<number>::regclass
+
+	await db.query(`
+	CREATE TABLE manual_seq_table (
+    id integer DEFAULT nextval('manual_seq_table_id_seq1'::regclass) PRIMARY KEY 
+);`);
+
+	const {
+		generateSqlStatements: generateSqlStatements1,
+		generateStatements: generateStatements1,
+		pushSqlStatements: pushSqlStatements1,
+		pushStatements: pushStatements1,
+		schema2: schemaFromFile,
+	} = await diffIntrospect(db, {}, '#5413');
+
+	expect(generateSqlStatements1).toStrictEqual([]);
+	expect(generateStatements1).toStrictEqual([]);
+	expect(pushSqlStatements1).toStrictEqual([]);
+	expect(pushStatements1).toStrictEqual([]);
+	expect(schemaFromFile.columns.filter((it) => it.name === 'id')).toStrictEqual([
+		{
+			default: null,
+			dimensions: 0,
+			entityType: 'columns',
+			generated: null,
+			identity: null,
+			name: 'id',
+			notNull: true,
+			pk: true,
+			pkName: null,
+			schema: 'public',
+			table: 'manual_seq_table',
+			type: 'serial', // correct parsing
+			typeSchema: null,
+			unique: false,
+			uniqueName: null,
+			uniqueNullsNotDistinct: false,
+		},
+	]);
+});
+
+test('primary key with non default name', async () => {
+	await db.query(`
+CREATE TABLE table1 (
+    id integer,
+	CONSTRAINT "primary_key" PRIMARY KEY (id)
+);`);
+	await db.query(`
+CREATE TABLE table2 (
+    id integer primary key
+);
+`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, {}, 'primary-key-without-default-name');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });

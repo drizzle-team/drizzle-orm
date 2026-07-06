@@ -14,7 +14,7 @@ import type {
 	View,
 	ViewColumn,
 } from './ddl';
-import { typeFor } from './grammar';
+import { nameForPk, typeFor } from './grammar';
 
 export const imports = ['integer', 'real', 'text', 'numeric', 'blob', 'customType'] as const;
 export type Import = typeof imports[number];
@@ -82,7 +82,7 @@ export const ddlToTypeScript = (
 	const columnTypes = new Set<string>([]);
 	for (const it of schema.entities.list()) {
 		if (it.entityType === 'indexes') imports.add(it.isUnique ? 'uniqueIndex' : 'index');
-		if (it.entityType === 'pks' && it.columns.length > 1) imports.add('primaryKey');
+		if (it.entityType === 'pks') imports.add('primaryKey');
 		if (it.entityType === 'uniques') imports.add('unique');
 		if (it.entityType === 'checks') imports.add('check');
 		if (it.entityType === 'columns') columnTypes.add(it.type);
@@ -122,17 +122,22 @@ export const ddlToTypeScript = (
 			return it.columns.length > 1;
 		});
 
+		const hasPkCallback = Boolean(
+			pk
+				&& (pk.columns.length > 1
+					|| (pk.columns.length === 1 && pk.name !== nameForPk(table.name))),
+		);
 		if (
 			indexes.length > 0
 			|| filteredFKs.length > 0
-			|| pk && pk.columns.length > 1
+			|| hasPkCallback
 			|| uniqies.length > 0
 			|| checks.length > 0
 		) {
 			statement += ',\n(table) => [';
 			statement += createTableIndexes(table.name, indexes, casing);
 			statement += createTableFKs(Object.values(filteredFKs), casing);
-			statement += pk && pk.columns.length > 1 ? createTablePK(pk, casing) : '';
+			statement += hasPkCallback ? createTablePK(pk!, casing) : '';
 			statement += createTableUniques(uniqies, casing);
 			statement += createTableChecks(checks, casing);
 			statement += ']';
@@ -267,7 +272,8 @@ const createTableColumns = (
 ): string => {
 	let statement = '';
 	for (const it of columns) {
-		const isPrimary = pk && pk.columns.length === 1 && pk.columns[0] === it.name && pk.table === it.table;
+		const isPrimary = pk && pk.columns.length === 1 && pk.columns[0] === it.name && pk.table === it.table
+			&& pk.name === nameForPk(it.table);
 
 		statement += '\t';
 		statement += column(it.type, it.name, it.default, casing);
