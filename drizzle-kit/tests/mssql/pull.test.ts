@@ -724,7 +724,7 @@ test('Issue #5964. View with comments', async () => {
 	const { sqlStatements, statements, fromFileDDL, introspectDDL } = await diffIntrospect(
 		db,
 		{},
-		'single_quote_default',
+		'#5964',
 	);
 
 	expect(sqlStatements).toStrictEqual([]);

@@ -282,8 +282,6 @@ export const push = async (config: {
 		() => suggestions(db, statements, new HintsHandler()),
 	);
 
-	console.log('hints: ', hints);
-
 	if (config.explain) {
 		const explainMessage = explain('postgres', groupedStatements, []);
 		console.log(explainMessage);
