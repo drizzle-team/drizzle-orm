@@ -1,5 +1,5 @@
 import { describe, test } from 'vitest';
-import { pgTable, text, serial } from '~/pg-core/index.ts';
+import { pgTable, serial, text } from '~/pg-core/index.ts';
 import { mapResultRow } from '~/utils.ts';
 
 const orgTable = pgTable('org', {
