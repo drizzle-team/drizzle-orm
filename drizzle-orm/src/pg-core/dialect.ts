@@ -843,7 +843,7 @@ export class PgDialect {
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
 
-		const where: SQL | undefined = params?.where && relationWhere
+		const where: SQL | undefined = params && 'where' in params && relationWhere
 			? and(
 				relationsFilterToSQL(
 					table,
@@ -853,7 +853,7 @@ export class PgDialect {
 				),
 				relationWhere,
 			)
-			: params?.where
+			: params && 'where' in params
 			? relationsFilterToSQL(
 				table,
 				params.where,
@@ -861,7 +861,6 @@ export class PgDialect {
 				schema,
 			)
 			: relationWhere;
-
 		const order = params?.orderBy
 			? relationsOrderToSQL(table, params.orderBy)
 			: undefined;
