@@ -1157,7 +1157,7 @@ export class SingleStoreDialect {
 
 		const columns = this.buildColumns(table, selection, params);
 
-		const where: SQL | undefined = params?.where && relationWhere
+		const where: SQL | undefined = params && 'where' in params && relationWhere
 			? and(
 				relationsFilterToSQL(
 					table,
@@ -1167,7 +1167,7 @@ export class SingleStoreDialect {
 				),
 				relationWhere,
 			)
-			: params?.where
+			: params && 'where' in params
 			? relationsFilterToSQL(
 				table,
 				params.where,
