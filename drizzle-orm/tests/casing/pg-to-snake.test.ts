@@ -73,7 +73,7 @@ describe('postgres to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select "sq"."id", "sq"."name" from "users" left join (select "id", "users"."first_name" || \' \' || "users"."last_name" as "name" from "users") "sq" on "users"."id" = "sq"."id"',
+				'select "sq"."id", "sq"."name" from "users" left join (select "id", "first_name" || \' \' || "last_name" as "name" from "users") "sq" on "users"."id" = "sq"."id"',
 			params: [],
 		});
 	});
@@ -111,7 +111,7 @@ describe('postgres to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'with "cte" as (select "users"."first_name" || \' \' || "users"."last_name" as "name" from "users") select "name" from "cte"',
+				'with "cte" as (select "first_name" || \' \' || "last_name" as "name" from "users") select "name" from "cte"',
 			params: [],
 		});
 	});
@@ -122,7 +122,7 @@ describe('postgres to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'with "cte" as (select "users"."first_name" || \' \' || "users"."last_name" as "name" from "users") select "name" from "cte"',
+				'with "cte" as (select "first_name" || \' \' || "last_name" as "name" from "users") select "name" from "cte"',
 			params: [],
 		});
 	});

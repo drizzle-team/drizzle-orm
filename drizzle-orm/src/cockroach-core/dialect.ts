@@ -171,7 +171,7 @@ export class CockroachDialect {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true, table })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -239,7 +239,7 @@ export class CockroachDialect {
 		const joinsSql = this.buildJoins(joins);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: !from })}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: !from, table })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -260,10 +260,20 @@ export class CockroachDialect {
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
-		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
+		{ isSingleTable = false, table }: {
+			isSingleTable?: boolean;
+			table?: CockroachTable | CockroachViewBase | SQL | Subquery;
+		} = {},
 	): SQL {
 		const { length: columnsLen } = fields;
 		const chunks: SQLChunk[] = [];
+		const tableName = table
+			? is(table, SQL) || is(table, Subquery)
+				? undefined
+				: (table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
+					? table[Table.Symbol.Name]
+					: `${table[Table.Symbol.Schema]}.${table[Table.Symbol.Name]}`)
+			: undefined;
 
 		for (let i = 0; i < columnsLen; ++i) {
 			const { field } = fields[i]!;
@@ -289,10 +299,74 @@ export class CockroachDialect {
 					}
 					chunks.push(sql.identifier(field.fieldAlias));
 				} else {
-					chunks.push(field.sql, sql` as ${sql.identifier(field.fieldAlias)}`);
+					if (isSingleTable) {
+						const { queryChunks } = field.sql;
+						const newChunks: SQLChunk[] = Array.from({ length: queryChunks.length });
+						let abort = false;
+
+						for (let i = 0; i < queryChunks.length; ++i) {
+							const c = queryChunks[i]!;
+							if (is(c, Column)) {
+								const { table } = c;
+								const columnTableName = table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
+									? table[Table.Symbol.Name]
+									: `${table[Table.Symbol.Schema]}.${table[Table.Symbol.Name]}`;
+								if (columnTableName !== tableName) {
+									abort = true;
+									break;
+								}
+
+								newChunks[i] = sql.identifier(c.name);
+							} else {
+								newChunks[i] = c;
+							}
+						}
+
+						if (abort) {
+							chunks.push(field.sql);
+						} else {
+							const newSql = new SQL(newChunks);
+							if (field.sql.shouldInlineParams) newSql.inlineParams();
+							chunks.push(newSql);
+						}
+					} else {
+						chunks.push(field.sql);
+					}
+
+					chunks.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 				}
 			} else if (is(field, SQL)) {
-				chunks.push(field);
+				if (isSingleTable) {
+					const { queryChunks } = field;
+					const newChunks: SQLChunk[] = Array.from({ length: queryChunks.length });
+					let abort = false;
+
+					for (let i = 0; i < queryChunks.length; ++i) {
+						const c = queryChunks[i]!;
+						if (is(c, Column)) {
+							const { table } = c;
+							const columnTableName = table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
+								? table[Table.Symbol.Name]
+								: `${table[Table.Symbol.Schema]}.${table[Table.Symbol.Name]}`;
+							if (columnTableName !== tableName) {
+								abort = true;
+								break;
+							}
+
+							newChunks[i] = sql.identifier(c.name);
+						} else {
+							newChunks[i] = c;
+						}
+					}
+
+					if (abort) {
+						chunks.push(field);
+					} else {
+						const newSql = new SQL(newChunks);
+						if (field.shouldInlineParams) newSql.inlineParams();
+						chunks.push(newSql);
+					}
+				} else chunks.push(field);
 			} else if (is(field, Subquery)) {
 				if (!field._.isWith) {
 					chunks.push(sql`(${field._.sql}) ${sql.identifier(field._.alias)}`);
@@ -442,7 +516,7 @@ export class CockroachDialect {
 				: sql` distinct on (${sql.join(distinct.on, sql`, `)})`;
 		}
 
-		const selection = this.buildSelection(fieldsList, { isSingleTable });
+		const selection = this.buildSelection(fieldsList, { isSingleTable, table });
 
 		const tableSql = this.buildFromTable(table);
 
@@ -643,7 +717,7 @@ export class CockroachDialect {
 		const valuesSql = sql.join(valuesSqlList);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true, table })}`
 			: undefined;
 
 		const onConflictSql = onConflict

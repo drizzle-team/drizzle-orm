@@ -58,7 +58,7 @@ describe('postgres to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select "sq"."id", "sq"."name" from "users" left join (select "id", "users"."firstName" || \' \' || "users"."lastName" as "name" from "users") "sq" on "users"."id" = "sq"."id"',
+				'select "sq"."id", "sq"."name" from "users" left join (select "id", "firstName" || \' \' || "lastName" as "name" from "users") "sq" on "users"."id" = "sq"."id"',
 			params: [],
 		});
 	});
@@ -95,8 +95,7 @@ describe('postgres to camel case', () => {
 		const query = db.with(cte).select().from(cte);
 
 		expect(query.toSQL()).toEqual({
-			sql:
-				'with "cte" as (select "users"."firstName" || \' \' || "users"."lastName" as "name" from "users") select "name" from "cte"',
+			sql: 'with "cte" as (select "firstName" || \' \' || "lastName" as "name" from "users") select "name" from "cte"',
 			params: [],
 		});
 	});
@@ -106,8 +105,7 @@ describe('postgres to camel case', () => {
 		const query = db.with(cte).select().from(cte);
 
 		expect(query.toSQL()).toEqual({
-			sql:
-				'with "cte" as (select "users"."firstName" || \' \' || "users"."lastName" as "name" from "users") select "name" from "cte"',
+			sql: 'with "cte" as (select "firstName" || \' \' || "lastName" as "name" from "users") select "name" from "cte"',
 			params: [],
 		});
 	});
