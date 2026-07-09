@@ -466,14 +466,27 @@ export class MySqlAsyncDatabase<
 		return new MySqlAsyncDeleteBase(table, this.session, this.dialect);
 	}
 
+	execute<TRow extends unknown[] = unknown[]>(
+		query: SQLWrapper | string,
+		mode: 'arrays',
+	): MySqlAsyncRaw<TRow[]>;
+	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+		query: SQLWrapper | string,
+		mode: 'objects',
+	): MySqlAsyncRaw<TRow[]>;
 	execute<T extends { [column: string]: any } = ResultSetHeader>(
 		query: SQLWrapper | string,
-	): MySqlAsyncRaw<MySqlQueryResultKind<TQueryResult, T>> {
+		mode?: 'raw' | undefined,
+	): MySqlAsyncRaw<MySqlQueryResultKind<TQueryResult, T>>;
+	execute(
+		query: SQLWrapper | string,
+		mode?: 'raw' | 'objects' | 'arrays' | undefined,
+	): unknown {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sequel);
 		const prepared = this.session.prepareQuery<
-			MySqlPreparedQueryConfig & { execute: MySqlQueryResultKind<TQueryResult, T> }
-		>(builtQuery, 'raw');
+			MySqlPreparedQueryConfig & { execute: unknown }
+		>(builtQuery, mode ?? 'raw');
 		return new MySqlAsyncRaw(prepared, sequel, builtQuery);
 	}
 
@@ -507,7 +520,7 @@ export const withReplicas = <
 	const update: Q['update'] = (...args: [any]) => primary.update(...args);
 	const insert: Q['insert'] = (...args: [any]) => primary.insert(...args);
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
-	const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
+	const execute: Q['execute'] = ((...args: [any]) => primary.execute(...args)) as Q['execute'];
 	const transaction: Q['transaction'] = (...args: [any, any]) => primary.transaction(...args);
 
 	return {

@@ -725,6 +725,53 @@ test('$default function', async () => {
 	}]);
 });
 
+test('db.execute modes', async () => {
+	const users = pgTable('users_execute_modes_1', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`create table ${users} (id integer primary key, name text not null)`);
+
+	await db.insert(users).values([
+		{
+			id: 1,
+			name: 'First',
+		},
+		{
+			id: 2,
+			name: 'Second',
+		},
+	]);
+
+	const rObj = await db.execute<{ id: number; name: string }>(
+		sql`select ${users.id}, ${users.name} from ${users} order by ${users.id}`,
+		'objects',
+	);
+	const rArr = await db.execute<[number, string]>(
+		sql`select ${users.id}, ${users.name} from ${users} order by ${users.id}`,
+		'arrays',
+	);
+
+	Expect<Equal<{ id: number; name: string }[], typeof rObj>>;
+	Expect<Equal<[number, string][], typeof rArr>>;
+
+	expect(rObj).toEqual([
+		{
+			id: 1,
+			name: 'First',
+		},
+		{
+			id: 2,
+			name: 'Second',
+		},
+	]);
+	expect(rArr).toEqual([[1, 'First'], [2, 'Second']]);
+
+	await db.execute(sql`drop table ${users}`);
+});
+
 test('select distinct', async () => {
 	const usersDistinctTable = pgTable('users_distinct', {
 		id: integer('id').notNull(),
@@ -4825,19 +4872,20 @@ test('insert into ... select with keys in different order', async () => {
 		)
 	`);
 
-	expect(
-		() =>
-			db
-				.insert(users1)
-				.select(
-					db
-						.select({
-							name: users2.name,
-							id: users2.id,
-						})
-						.from(users2),
-				),
-	).toThrowError();
+	await db.insert(users2).values({ id: 1, name: 'First' });
+	const res = await db.insert(users1).select(
+		db
+			.select({
+				name: users2.name,
+				id: users2.id,
+			})
+			.from(users2),
+	).returning();
+
+	expect(res).toStrictEqual([{
+		id: 1,
+		name: 'First',
+	}]);
 });
 
 test('policy', () => {

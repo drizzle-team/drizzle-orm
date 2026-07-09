@@ -616,14 +616,27 @@ export class PgAsyncDatabase<
 		return new PgAsyncRefreshMaterializedView(view, this.session, this.dialect);
 	}
 
+	execute<TRow extends unknown[] = unknown[]>(
+		query: SQLWrapper | string,
+		mode: 'arrays',
+	): PgAsyncRaw<TRow[]>;
 	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
 		query: SQLWrapper | string,
-	): PgAsyncRaw<PgQueryResultKind<TQueryResult, TRow>> {
+		mode: 'objects',
+	): PgAsyncRaw<TRow[]>;
+	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+		query: SQLWrapper | string,
+		mode?: 'raw' | undefined,
+	): PgAsyncRaw<PgQueryResultKind<TQueryResult, TRow>>;
+	execute(
+		query: SQLWrapper | string,
+		mode?: 'raw' | 'objects' | 'arrays' | undefined,
+	): unknown {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sequel);
 		const prepared = this.session.prepareQuery<
-			PreparedQueryConfig & { execute: PgQueryResultKind<TQueryResult, TRow> }
-		>(builtQuery, 'raw', false);
+			PreparedQueryConfig & { execute: unknown }
+		>(builtQuery, mode ?? 'raw', false);
 		return new PgAsyncRaw(prepared, sequel, builtQuery);
 	}
 
@@ -656,7 +669,7 @@ export const withReplicas = <
 	const update: Q['update'] = (...args: [any]) => primary.update(...args);
 	const insert: Q['insert'] = (...args: [any]) => primary.insert(...args);
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
-	const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
+	const execute: Q['execute'] = ((...args: [any]) => primary.execute(...args)) as Q['execute'];
 	const transaction: Q['transaction'] = (...args: [any]) => primary.transaction(...args);
 
 	const refreshMaterializedView: Q['refreshMaterializedView'] = (...args: [any]) =>
