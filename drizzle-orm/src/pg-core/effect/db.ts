@@ -631,16 +631,29 @@ export class PgEffectDatabase<
 		return new PgEffectRefreshMaterializedView(view, this.session, this.dialect);
 	}
 
-	execute<TRow extends Record<string, unknown>>(
+	execute<TRow extends unknown[] = unknown[]>(
 		query: SQLWrapper | string,
-	): PgEffectRaw<PgQueryResultKind<TQueryResult, TRow>, TEffectHKT> {
+		mode: 'arrays',
+	): PgEffectRaw<TRow[], TEffectHKT>;
+	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+		query: SQLWrapper | string,
+		mode: 'objects',
+	): PgEffectRaw<TRow[], TEffectHKT>;
+	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+		query: SQLWrapper | string,
+		mode?: 'raw' | undefined,
+	): PgEffectRaw<PgQueryResultKind<TQueryResult, TRow>, TEffectHKT>;
+	execute(
+		query: SQLWrapper | string,
+		mode?: 'raw' | 'objects' | 'arrays' | undefined,
+	): unknown {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sequel);
 		const prepared = this.session.prepareQuery<
-			PreparedQueryConfig & { execute: PgQueryResultKind<TQueryResult, TRow> }
+			PreparedQueryConfig & { execute: unknown }
 		>(
 			builtQuery,
-			'raw',
+			mode ?? 'raw',
 			false,
 		);
 		return new PgEffectRaw(prepared, sequel, builtQuery);
@@ -677,7 +690,7 @@ export const withReplicas = <
 	const update: Q['update'] = (...args: [any]) => primary.update(...args);
 	const insert: Q['insert'] = (...args: [any]) => primary.insert(...args);
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
-	const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
+	const execute: Q['execute'] = ((...args: [any]) => primary.execute(...args)) as Q['execute'];
 	const transaction: Q['transaction'] = (...args: [any]) => primary.transaction(...args);
 	const refreshMaterializedView: Q['refreshMaterializedView'] = (...args: [any]) =>
 		primary.refreshMaterializedView(...args);

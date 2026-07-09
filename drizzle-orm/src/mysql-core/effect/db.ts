@@ -480,14 +480,27 @@ export class MySqlEffectDatabase<
 		return new MySqlEffectDeleteBase(table, this.session, this.dialect);
 	}
 
+	execute<TRow extends unknown[] = unknown[]>(
+		query: SQLWrapper | string,
+		mode: 'arrays',
+	): MySqlEffectRaw<TRow[], TEffectHKT>;
+	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+		query: SQLWrapper | string,
+		mode: 'objects',
+	): MySqlEffectRaw<TRow[], TEffectHKT>;
 	execute<T extends { [column: string]: any } = ResultSetHeader>(
 		query: SQLWrapper | string,
-	): MySqlEffectRaw<MySqlQueryResultKind<TQueryResult, T>, TEffectHKT> {
+		mode?: 'raw' | undefined,
+	): MySqlEffectRaw<MySqlQueryResultKind<TQueryResult, T>, TEffectHKT>;
+	execute(
+		query: SQLWrapper | string,
+		mode?: 'raw' | 'objects' | 'arrays' | undefined,
+	): unknown {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sequel);
 		const prepared = this.session.prepareQuery<
-			MySqlPreparedQueryConfig & { execute: MySqlQueryResultKind<TQueryResult, T> }
-		>(builtQuery, 'raw');
+			MySqlPreparedQueryConfig & { execute: unknown }
+		>(builtQuery, mode ?? 'raw');
 		return new MySqlEffectRaw(prepared, sequel, builtQuery);
 	}
 
@@ -521,7 +534,7 @@ export const withReplicas = <
 	const update: Q['update'] = (...args: [any]) => primary.update(...args);
 	const insert: Q['insert'] = (...args: [any]) => primary.insert(...args);
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
-	const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
+	const execute: Q['execute'] = ((...args: [any]) => primary.execute(...args)) as Q['execute'];
 	const transaction: Q['transaction'] = (...args: [any, any]) => primary.transaction(...args);
 
 	return {

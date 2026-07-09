@@ -1518,6 +1518,50 @@ describe('common', () => {
 		expect(result).toStrictEqual([{ id: 1, name: 'John' }]);
 	});
 
+	test('db.execute modes', async () => {
+		const users = mysqlTable('users_execute_modes_1', {
+			id: int('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await push({ users });
+
+		await db.insert(users).values([
+			{
+				id: 1,
+				name: 'First',
+			},
+			{
+				id: 2,
+				name: 'Second',
+			},
+		]);
+
+		const rObj = await db.execute<{ id: number; name: string }>(
+			sql`select ${users.id}, ${users.name} from ${users} order by ${users.id}`,
+			'objects',
+		);
+		const rArr = await db.execute<[number, string]>(
+			sql`select ${users.id}, ${users.name} from ${users} order by ${users.id}`,
+			'arrays',
+		);
+
+		Expect<Equal<{ id: number; name: string }[], typeof rObj>>;
+		Expect<Equal<[number, string][], typeof rArr>>;
+
+		expect(rObj).toStrictEqual([
+			{
+				id: 1,
+				name: 'First',
+			},
+			{
+				id: 2,
+				name: 'Second',
+			},
+		]);
+		expect(rArr).toStrictEqual([[1, 'First'], [2, 'Second']]);
+	});
+
 	test('insert via db.execute w/ query builder', async () => {
 		const inserted = await db.execute(
 			db.insert(usersTable).values({ name: 'John' }),
@@ -5080,19 +5124,21 @@ test('insert into ... select with keys in different order', async () => {
 		)
 	`);
 
-	expect(
-		() =>
-			db
-				.insert(users1)
-				.select(
-					db
-						.select({
-							name: users2.name,
-							id: users2.id,
-						})
-						.from(users2),
-				),
-	).toThrowError();
+	await db.insert(users2).values({ id: 1, name: 'First' });
+	await db.insert(users1).select(
+		db
+			.select({
+				name: users2.name,
+				id: users2.id,
+			})
+			.from(users2),
+	);
+	const res = await db.select().from(users1);
+
+	expect(res).toStrictEqual([{
+		id: 1,
+		name: 'First',
+	}]);
 });
 
 test('MySqlTable :: select with `use index` hint', async () => {

@@ -5768,6 +5768,53 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				);
 			}));
 
+		it.effect('db.execute modes', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+
+				const users = pgTable('users_execute_modes_1', (t) => ({
+					id: t.integer().primaryKey(),
+					name: t.text().notNull(),
+				}));
+
+				yield* push(db, { users });
+
+				yield* db.insert(users).values([
+					{
+						id: 1,
+						name: 'First',
+					},
+					{
+						id: 2,
+						name: 'Second',
+					},
+				]);
+
+				const rObj = yield* db.execute<{ id: number; name: string }>(
+					sql`select ${users.id}, ${users.name} from ${users} order by ${users.id}`,
+					'objects',
+				);
+				const rArr = yield* db.execute<[number, string]>(
+					sql`select ${users.id}, ${users.name} from ${users} order by ${users.id}`,
+					'arrays',
+				);
+
+				expectTypeOf(rObj).toEqualTypeOf<{ id: number; name: string }[]>();
+				expectTypeOf(rArr).toEqualTypeOf<[number, string][]>();
+
+				expect(rObj).toStrictEqual([
+					{
+						id: 1,
+						name: 'First',
+					},
+					{
+						id: 2,
+						name: 'Second',
+					},
+				]);
+				expect(rArr).toStrictEqual([[1, 'First'], [2, 'Second']]);
+			}));
+
 		addTests?.(it);
 	});
 };
