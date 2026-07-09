@@ -22,9 +22,10 @@ export class Subquery<
 		alias: TAlias;
 		isWith: boolean;
 		usedTables?: string[];
+		columnList: string[] | undefined;
 	};
 
-	constructor(sql: SQL, fields: TSelectedFields, alias: string, isWith = false, usedTables: string[] = []) {
+	constructor(sql: SQL, fields: TSelectedFields, alias: string, isWith = false, usedTables: string[] = [], columnList?: string[]) {
 		this._ = {
 			brand: 'Subquery',
 			sql,
@@ -32,6 +33,7 @@ export class Subquery<
 			alias: alias as TAlias,
 			isWith,
 			usedTables,
+			columnList,
 		};
 	}
 
