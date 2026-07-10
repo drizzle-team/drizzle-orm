@@ -1,6 +1,7 @@
 import { bigint } from './bigint.ts';
 import { bigserial } from './bigserial.ts';
 import { boolean } from './boolean.ts';
+import { bytea } from './bytea.ts';
 import { char } from './char.ts';
 import { cidr } from './cidr.ts';
 import { customType } from './custom.ts';
@@ -36,6 +37,7 @@ export function getPgColumnBuilders() {
 		bigint,
 		bigserial,
 		boolean,
+		bytea,
 		char,
 		cidr,
 		customType,
