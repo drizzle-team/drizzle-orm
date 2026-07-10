@@ -36,10 +36,12 @@ on:
         required: true
       SQLITE_MANY_CLOUD_CONNECTION_STRING:
         required: true
-      TURBO_TOKEN: 
+      TURBO_TOKEN:
         required: true
-      NETLIFY_DB_URL: 
+      NETLIFY_DB_URL:
         required: true
+      GH_PACKAGES_TOKEN:
+        required: false
 
 concurrency:
   group: feature-${{ github.workflow }}-${{ github.ref }}
@@ -433,7 +435,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    permissions: { contents: read, id-token: write, packages: write }
+    permissions: { contents: read, id-token: write }
     
     # force empty so npm can use OIDC
     env:
@@ -458,7 +460,16 @@ jobs:
         run: npm install -g npm@11 # npm 12.0.0 ships without sigstore in its bundled tree and breaks `npm publish`
       - name: Configure GitHub Packages auth
         if: inputs.publish_to_github
-        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
+        env:
+          # a PAT instead of GITHUB_TOKEN: workflow-token publishes link the package to this
+          # public repo and inherit its visibility; PAT publishes default to private
+          GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+        run: |
+          if [[ -z "$GH_PACKAGES_TOKEN" ]]; then
+            echo "::error::Set the GH_PACKAGES_TOKEN secret (classic PAT with write:packages) to publish to GitHub Packages"
+            exit 1
+          fi
+          echo "//npm.pkg.github.com/:_authToken=$GH_PACKAGES_TOKEN" >> "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
       - name: Download package tarball
         uses: actions/download-artifact@v4
         with:
@@ -471,14 +482,14 @@ jobs:
           set -euxo pipefail
 
           if [[ "${{ inputs.publish_to_github }}" == "true" ]]; then
-            # GitHub Packages only accepts packages scoped to the repo owner, and the
-            # repository field must point at this repo for GITHUB_TOKEN publishes
+            # GitHub Packages only accepts packages scoped to the repo owner; the repository
+            # field is stripped so the package isn't linked to this public repo and stays private
             pkg_name="@${{ github.repository_owner }}/${{ matrix.package }}"
-            repo_url="git+https://github.com/${{ github.repository }}.git"
+            strip_repo="true"
             registry_args=(--registry=https://npm.pkg.github.com)
           else
             pkg_name="${{ matrix.package }}"
-            repo_url=""
+            strip_repo="false"
             registry_args=()
           fi
 
@@ -495,8 +506,8 @@ jobs:
           tmpdir="$(mktemp -d)"
           tar -xzf ./artifacts/${{ matrix.package }}/package.tgz -C "$tmpdir"
 
-          jq --arg v "$version" --arg n "$pkg_name" --arg r "$repo_url" \
-            '.version = $v | .name = $n | if $r != "" then .repository = { type: "git", url: $r } else . end' \
+          jq --arg v "$version" --arg n "$pkg_name" --argjson strip_repo "$strip_repo" \
+            '.version = $v | .name = $n | if $strip_repo then del(.repository) else . end' \
             "$tmpdir/package/package.json" > "$tmpdir/package/package.json.tmp"
             mv "$tmpdir/package/package.json.tmp" "$tmpdir/package/package.json"
 
