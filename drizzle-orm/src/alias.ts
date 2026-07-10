@@ -106,21 +106,46 @@ export function aliasedTableColumn<T extends AnyColumn>(column: T, tableAlias: s
 	);
 }
 
-export function mapColumnsInAliasedSQLToAlias(query: SQL.Aliased, alias: string): SQL.Aliased {
-	return new SQL.Aliased(mapColumnsInSQLToAlias(query.sql, alias), query.fieldAlias);
+export function mapColumnsInAliasedSQLToAlias(query: SQL.Aliased, alias: string, table?: Table): SQL.Aliased {
+	return new SQL.Aliased(mapColumnsInSQLToAlias(query.sql, alias, table), query.fieldAlias);
 }
 
-export function mapColumnsInSQLToAlias(query: SQL, alias: string): SQL {
+export function mapColumnsInSQLToAlias(query: SQL, alias: string, table?: Table): SQL {
 	return sql.join(query.queryChunks.map((c) => {
 		if (is(c, Column)) {
+			// Only re-alias columns that belong to `table` (the table being aliased). When a
+			// nested SQL embeds columns of *another* table — e.g. `$count(otherTable, <filter>)`
+			// used as a relational-query `extras` value — those foreign columns must keep their
+			// own table qualifier; re-aliasing them to `alias` produces a reference to a column
+			// that doesn't exist on the aliased table. When `table` is omitted the historical
+			// behaviour (re-alias every column) is preserved.
+			if (table !== undefined && !columnBelongsToTable(c, table)) {
+				return c;
+			}
 			return aliasedTableColumn(c, alias);
 		}
 		if (is(c, SQL)) {
-			return mapColumnsInSQLToAlias(c, alias);
+			return mapColumnsInSQLToAlias(c, alias, table);
 		}
 		if (is(c, SQL.Aliased)) {
-			return mapColumnsInAliasedSQLToAlias(c, alias);
+			return mapColumnsInAliasedSQLToAlias(c, alias, table);
 		}
 		return c;
 	}));
+}
+
+function columnBelongsToTable(column: Column, table: Table): boolean {
+	const columnTable = column.table;
+	// If the column isn't attributable to a concrete table (e.g. it belongs to a view or
+	// subquery selection), fall back to the historical behaviour of re-aliasing it.
+	if (!is(columnTable, Table)) {
+		return true;
+	}
+	return tableOriginalUniqueName(columnTable) === tableOriginalUniqueName(table);
+}
+
+// Identifies a table by its *original* (pre-alias) schema-qualified name, so that a column
+// referenced through an alias proxy still matches the underlying table it was defined on.
+function tableOriginalUniqueName(table: Table): string {
+	return `${table[Table.Symbol.Schema] ?? 'public'}.${table[Table.Symbol.OriginalName]}`;
 }

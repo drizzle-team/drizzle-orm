@@ -652,7 +652,7 @@ export class SingleStoreDialect {
 				const whereSql = typeof config.where === 'function'
 					? config.where(aliasedColumns, getOperators())
 					: config.where;
-				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
+				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias, table);
 			}
 
 			const fieldsSelection: {
@@ -726,7 +726,7 @@ export class SingleStoreDialect {
 				for (const [tsKey, value] of Object.entries(extras)) {
 					fieldsSelection.push({
 						tsKey,
-						value: mapColumnsInAliasedSQLToAlias(value, tableAlias),
+						value: mapColumnsInAliasedSQLToAlias(value, tableAlias, table),
 					});
 				}
 			}
@@ -761,7 +761,7 @@ export class SingleStoreDialect {
 						tableAlias,
 					) as SingleStoreColumn;
 				}
-				return mapColumnsInSQLToAlias(orderByValue, tableAlias);
+				return mapColumnsInSQLToAlias(orderByValue, tableAlias, table);
 			});
 
 			limit = config.limit;
