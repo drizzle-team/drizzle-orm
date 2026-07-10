@@ -1,5 +1,5 @@
 import { SQL, sql } from 'drizzle-orm';
-import { int, mysqlTable, text } from 'drizzle-orm/mysql-core';
+import { bigint, customType, customIndex, int, mysqlTable, text, varchar } from 'drizzle-orm/mysql-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemasMysql } from './schemaDiffer';
 
@@ -1286,5 +1286,95 @@ test('generated as string: change generated constraint', async () => {
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` drop column `gen_name`;',
 		"ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'hello') VIRTUAL;",
+	]);
+});
+
+export const vector = customType<{
+	data: string;
+	config: { length: number };
+	configRequired: true;
+}>({
+	dataType(config) {
+		return `VECTOR(${config.length})`;
+	},
+});
+
+test.only('generated as string: custom index using sql', async () => {
+	const from = {};
+	const to = {
+		users: mysqlTable('users', {
+			id: bigint({ mode: "bigint" }).autoincrement().primaryKey(),
+			name: varchar({ length: 255 }).notNull(),
+			embedding: vector("embedding", { length: 3 }),
+		}, () => {
+			return {
+				idx_embedding_oceanbase: customIndex({
+					name: 'idx_embedding_oceanbase',
+					raw: 'CREATE VECTOR INDEX idx_embedding_oceanbase ON users(embedding) WITH (distance=L2, type=hnsw);',
+				}),
+				idx_embedding_oceanbase_without_semicolon: customIndex({
+					name: 'idx_embedding_oceanbase_without_semicolon',
+					raw: 'CREATE VECTOR INDEX idx_embedding_oceanbase_without_semicolon ON users(embedding) WITH (distance=L2, type=hnsw)',
+				}),
+				idx_embedding_mysql: customIndex({
+					name: 'idx_embedding_mysql',
+					raw: 'CREATE VECTOR INDEX idx_embedding_mysql ON users(embedding) SECONDARY_ENGINE_ATTRIBUTE=\'{"type":"spann", "distance":"cosine"}\';',
+				}),
+			};
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasMysql(
+		from,
+		to,
+		[],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			type: 'create_table',
+			tableName: 'users',
+			schema: undefined,
+			columns: [{ "name": "id", "type": "bigint", "primaryKey": false, "notNull": true, "autoincrement": true }, { "name": "name", "type": "varchar(255)", "primaryKey": false, "notNull": true, "autoincrement": false }, { "name": "embedding", "type": "VECTOR(3)", "primaryKey": false, "notNull": false, "autoincrement": false }],
+			compositePKs: ['users_id;id'],
+			compositePkName: 'users_id',
+			uniqueConstraints: [],
+			internals: { tables: {}, indexes: {} },
+			checkConstraints: []
+		},
+		{
+			type: 'create_index',
+			tableName: 'users',
+			data: 'idx_embedding_oceanbase;;false;;;;CREATE VECTOR INDEX idx_embedding_oceanbase ON users(embedding) WITH (distance=L2, type=hnsw)%3B',
+			schema: undefined,
+			internal: { tables: {}, indexes: {} }
+		},
+		{
+			type: 'create_index',
+			tableName: 'users',
+			data: 'idx_embedding_oceanbase_without_semicolon;;false;;;;CREATE VECTOR INDEX idx_embedding_oceanbase_without_semicolon ON users(embedding) WITH (distance=L2, type=hnsw)%3B',
+			schema: undefined,
+			internal: { tables: {}, indexes: {} }
+		},
+		{
+			type: 'create_index',
+			tableName: 'users',
+			data: `idx_embedding_mysql;;false;;;;CREATE VECTOR INDEX idx_embedding_mysql ON users(embedding) SECONDARY_ENGINE_ATTRIBUTE='{"type":"spann", "distance":"cosine"}'%3B`,
+			schema: undefined,
+			internal: { tables: {}, indexes: {} }
+		}
+	]);
+
+	expect(sqlStatements).toStrictEqual([
+		`CREATE TABLE \`users\` (
+	\`id\` bigint AUTO_INCREMENT NOT NULL,
+	\`name\` varchar(255) NOT NULL,
+	\`embedding\` VECTOR(3),
+	CONSTRAINT \`users_id\` PRIMARY KEY(\`id\`)
+);
+`,
+		'CREATE VECTOR INDEX idx_embedding_oceanbase ON users(embedding) WITH (distance=L2, type=hnsw);',
+		'CREATE VECTOR INDEX idx_embedding_oceanbase_without_semicolon ON users(embedding) WITH (distance=L2, type=hnsw);',
+		'CREATE VECTOR INDEX idx_embedding_mysql ON users(embedding) SECONDARY_ENGINE_ATTRIBUTE=\'{"type":"spann", "distance":"cosine"}\';',
 	]);
 });
