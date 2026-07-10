@@ -974,7 +974,7 @@ export interface RelationalRowsMapper<T = any> {
 
 export type RelationalRowsMapperGenerator<T = any> = (
 	config: RelationalQueryMapperConfig,
-) => RelationalRowsMapper<T>;
+) => RelationalRowsMapper<T> | undefined;
 
 export function makeDefaultRqbMapper<T = any>(
 	{ selection, isFirst, parseJson, parseJsonIfString, rootJsonMappers, arrayModeRoot }: RelationalQueryMapperConfig,

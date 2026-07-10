@@ -41,6 +41,10 @@ export class PgAsyncRelationalQuery<TResult> extends PgRelationalQuery<PgAsyncRe
 				name ?? generateName,
 				mapper,
 				// TODO: implement cache
+				undefined,
+				undefined,
+				// No shape: a relational query's nested subtrees arrive as JSON, which a shape cannot decode.
+				undefined,
 			);
 		});
 	}
