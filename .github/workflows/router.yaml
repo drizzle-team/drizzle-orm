@@ -64,6 +64,7 @@ jobs:
       SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
+      GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
 
   run-latest:
     needs: switch
