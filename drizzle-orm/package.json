@@ -16,6 +16,16 @@
 	"main": "./index.cjs",
 	"module": "./index.js",
 	"types": "./index.d.ts",
+	"exports": {
+		".": {
+			"import": { "types": "./index.d.ts", "default": "./index.js" },
+			"require": { "types": "./index.d.cts", "default": "./index.cjs" }
+		},
+		"./*": {
+			"import": { "types": "./*.d.ts", "default": "./*.js" },
+			"require": { "types": "./*.d.cts", "default": "./*.cjs" }
+		}
+	},
 	"sideEffects": false,
 	"publishConfig": {
 		"provenance": true

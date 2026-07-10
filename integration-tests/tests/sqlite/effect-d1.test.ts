@@ -38,8 +38,6 @@ const createDB = <
 >(
 	schema: TSchema,
 	relations: (helpers: RelationsBuilder<TTables>) => TConfig,
-	// CF Workers don't support `new Function(...)`
-	_useJitMappers?: boolean,
 ) =>
 	SQLiteDrizzle.make({ relations: defineRelations(schema, relations) }).pipe(
 		Effect.provide(SQLiteDrizzle.DefaultServices),
