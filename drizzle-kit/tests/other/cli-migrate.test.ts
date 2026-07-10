@@ -1,6 +1,6 @@
 import { test as brotest } from '@drizzle-team/brocli';
 import { unlinkSync } from 'fs';
-import { afterEach, assert, expect, test, vi } from 'vitest';
+import { afterEach, assert, expect, test } from 'vitest';
 import { migrate } from '../../src/cli/schema';
 import { wrapParam } from '../../src/cli/validations/common';
 import { error } from '../../src/cli/views';
