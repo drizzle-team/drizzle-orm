@@ -1,12 +1,18 @@
 import { makePgArray, parsePgArray } from '~/pg-core/array.ts';
 import {
 	arrayCompatNormalize,
+	arrayCompatNormalizeInput,
 	castToText,
 	castToTextArr,
 	genericPgCodecs,
 	parseGeometryTuple,
 	parseGeometryXY,
+	parseLineABC,
+	parseLineTuple,
 	parsePgArrayAndNormalize,
+	parsePgVector,
+	parsePointTuple,
+	parsePointXY,
 	refineGenericPgCodecs,
 	textToDate,
 	textToDateWithTz,
@@ -30,6 +36,8 @@ export const pgliteCodecs = refineGenericPgCodecs({
 	'bigint:number': {
 		cast: castToText,
 		castArray: castToTextArr,
+		normalize: Number,
+		normalizeArray: arrayCompatNormalize(Number),
 	},
 	// Otherwise outputs are inconsistent
 	bigserial: {
@@ -42,6 +50,8 @@ export const pgliteCodecs = refineGenericPgCodecs({
 	'bigserial:number': {
 		cast: castToText,
 		castArray: castToTextArr,
+		normalize: Number,
+		normalizeArray: arrayCompatNormalize(Number),
 	},
 	bytea: {
 		normalizeInJson: typeof Buffer === 'undefined' ? base64ToUint8Array : genericPgCodecs.bytea?.normalizeInJson,
@@ -85,29 +95,70 @@ export const pgliteCodecs = refineGenericPgCodecs({
 	json: {
 		// Driver handles objects, other types need to be stringified
 		normalizeParam: (v) => typeof v === 'object' ? v : JSON.stringify(v),
+		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
 	jsonb: {
 		// Driver handles objects, other types need to be stringified
 		normalizeParam: (v) => typeof v === 'object' ? v : JSON.stringify(v),
+		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
+	},
+	enum: {
+		castArray: castToTextArr,
+		normalizeParamArray: makePgArray,
+	},
+	numeric: {
+		castArray: castToTextArr,
+	},
+	'numeric:number': {
+		castArray: castToTextArr,
+		normalize: Number,
+		normalizeArray: arrayCompatNormalize(Number),
+	},
+	'numeric:bigint': {
+		castArray: castToTextArr,
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
+	},
+	line: {
+		normalize: parseLineABC,
+		normalizeArray: arrayCompatNormalize(parseLineABC),
+	},
+	'line:tuple': {
+		normalize: parseLineTuple,
+		normalizeArray: arrayCompatNormalize(parseLineTuple),
+	},
+	point: {
+		normalize: parsePointXY,
+		normalizeArray: arrayCompatNormalize(parsePointXY),
+	},
+	'point:tuple': {
+		normalize: parsePointTuple,
+		normalizeArray: arrayCompatNormalize(parsePointTuple),
 	},
 	'geometry(point)': {
+		normalize: parseGeometryXY,
 		normalizeArray: parsePgArrayAndNormalize(parseGeometryXY),
 		castParam: (name) => `${name}::geometry`,
 		castArrayParam: (name, _column, dimensions) => `${name}::geometry${'[]'.repeat(dimensions)}`,
 		normalizeParamArray: makePgArray,
 	},
 	'geometry(point):tuple': {
+		normalize: parseGeometryTuple,
 		normalizeArray: parsePgArrayAndNormalize(parseGeometryTuple),
 		castParam: (name) => `${name}::geometry`,
 		castArrayParam: (name, _column, dimensions) => `${name}::geometry${'[]'.repeat(dimensions)}`,
 		normalizeParamArray: makePgArray,
 	},
 	halfvec: {
+		normalize: parsePgVector,
+		normalizeArray: parsePgArrayAndNormalize(parsePgVector),
 		castParam: (name) => `${name}::halfvec`,
 		castArrayParam: (name, _column, dimensions) => `${name}::halfvec${'[]'.repeat(dimensions)}`,
 		normalizeParamArray: makePgArray,
 	},
 	vector: {
+		normalize: parsePgVector,
+		normalizeArray: parsePgArrayAndNormalize(parsePgVector),
 		castParam: (name) => `${name}::vector`,
 		castArrayParam: (name, _column, dimensions) => `${name}::vector${'[]'.repeat(dimensions)}`,
 		normalizeParamArray: makePgArray,

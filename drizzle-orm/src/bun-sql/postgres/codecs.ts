@@ -6,7 +6,12 @@ import {
 	castToTextArr,
 	parseGeometryTuple,
 	parseGeometryXY,
+	parseLineABC,
+	parseLineTuple,
 	parsePgArrayAndNormalize,
+	parsePgVector,
+	parsePointTuple,
+	parsePointXY,
 	refineGenericPgCodecs,
 } from '~/pg-core/codecs.ts';
 
@@ -43,14 +48,26 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 	bigint: {
 		normalizeParamArray: makePgArray,
 	},
-	'bigint:number': { normalizeParamArray: makePgArray },
+	'bigint:number': {
+		normalize: Number,
+		normalizeArray: arrayCompatNormalize(Number),
+		normalizeParamArray: makePgArray,
+	},
 	'bigint:string': {
 		cast: castToText,
 		castArray: castToTextArr,
 		normalizeParamArray: makePgArray,
 	},
-	bigserial: { normalizeParamArray: makePgArray },
-	'bigserial:number': { normalizeParamArray: makePgArray },
+	bigserial: {
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
+		normalizeParamArray: makePgArray,
+	},
+	'bigserial:number': {
+		normalize: Number,
+		normalizeArray: arrayCompatNormalize(Number),
+		normalizeParamArray: makePgArray,
+	},
 	int: {
 		normalizeArray: (
 			value: any,
@@ -142,7 +159,10 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 	varchar: { normalizeParamArray: makePgArray },
 	xml: { normalizeParamArray: makePgArray },
 	bytea: { normalizeParamArray: makePgArray },
-	enum: { normalizeParamArray: makePgArray },
+	enum: {
+		castArray: castToTextArr,
+		normalizeParamArray: makePgArray,
+	},
 	json: {
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
@@ -150,10 +170,12 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
 	'geometry(point)': {
+		normalize: parseGeometryXY,
 		normalizeArray: parsePgArrayAndNormalize(parseGeometryXY),
 		normalizeParamArray: makePgArray,
 	},
 	'geometry(point):tuple': {
+		normalize: parseGeometryTuple,
 		normalizeArray: parsePgArrayAndNormalize(parseGeometryTuple),
 		normalizeParamArray: makePgArray,
 	},
@@ -164,11 +186,15 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 	line: {
 		cast: castToText,
 		castArray: castToTextArr,
+		normalize: parseLineABC,
+		normalizeArray: arrayCompatNormalize(parseLineABC),
 		normalizeParamArray: makePgArray,
 	},
 	'line:tuple': {
 		cast: castToText,
 		castArray: castToTextArr,
+		normalize: parseLineTuple,
+		normalizeArray: arrayCompatNormalize(parseLineTuple),
 		normalizeParamArray: makePgArray,
 	},
 	macaddr8: {
@@ -176,23 +202,48 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 		castArray: castToTextArr,
 		normalizeParamArray: makePgArray,
 	},
-	numeric: { normalizeParamArray: makePgArray },
-	'numeric:number': { normalizeParamArray: makePgArray },
-	'numeric:bigint': { normalizeParamArray: makePgArray },
+	numeric: {
+		castArray: castToTextArr,
+		normalizeParamArray: makePgArray,
+	},
+	'numeric:number': {
+		castArray: castToTextArr,
+		normalize: Number,
+		normalizeArray: arrayCompatNormalize(Number),
+		normalizeParamArray: makePgArray,
+	},
+	'numeric:bigint': {
+		castArray: castToTextArr,
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
+		normalizeParamArray: makePgArray,
+	},
 	point: {
 		cast: castToText,
 		castArray: castToTextArr,
+		normalize: parsePointXY,
+		normalizeArray: arrayCompatNormalize(parsePointXY),
 		normalizeParamArray: makePgArray,
 	},
 	'point:tuple': {
 		cast: castToText,
 		castArray: castToTextArr,
+		normalize: parsePointTuple,
+		normalizeArray: arrayCompatNormalize(parsePointTuple),
 		normalizeParamArray: makePgArray,
 	},
-	halfvec: { normalizeParamArray: makePgArray },
+	halfvec: {
+		normalize: parsePgVector,
+		normalizeArray: parsePgArrayAndNormalize(parsePgVector),
+		normalizeParamArray: makePgArray,
+	},
 	sparsevec: {
 		normalizeArray: parsePgArray,
 		normalizeParamArray: makePgArray,
 	},
-	vector: { normalizeParamArray: makePgArray },
+	vector: {
+		normalize: parsePgVector,
+		normalizeArray: parsePgArrayAndNormalize(parsePgVector),
+		normalizeParamArray: makePgArray,
+	},
 });

@@ -1352,6 +1352,347 @@ export function tests(test: Test) {
 			]);
 		});
 
+		test.concurrent("No nullification on non-joined table's all-null object", async ({ db, push }) => {
+			const users = pgTable('nullify1_users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				bio: text('bio'),
+				city: text('city'),
+			});
+
+			await push({ users });
+
+			await db.insert(users).values({ name: 'John' });
+
+			const res = await db
+				.select({ id: users.id, meta: { bio: users.bio, city: users.city } })
+				.from(users);
+
+			expect(res).toEqual([{ id: 1, meta: { bio: null, city: null } }]);
+		});
+
+		test.concurrent('Cross-table group never nullified', async ({ db, push }) => {
+			const citiesTable = pgTable('nullify2_cities', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('nullify2_users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				bio: text('bio'),
+				cityId: integer('city_id').references(() => citiesTable.id),
+			});
+
+			await push({ citiesTable, users2Table });
+
+			await db.insert(citiesTable).values([{ name: 'Paris' }]);
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+			const res = await db
+				.select({
+					id: users2Table.id,
+					g: { user: users2Table.name, cityId: citiesTable.id, cityName: citiesTable.name },
+				})
+				.from(users2Table)
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+				.orderBy(users2Table.id);
+
+			expect(res).toEqual([
+				{ id: 1, g: { user: 'John', cityId: 1, cityName: 'Paris' } },
+				{ id: 2, g: { user: 'Jane', cityId: null, cityName: null } },
+			]);
+
+			const onlyJoinedSideNotNull = await db
+				.select({ id: users2Table.id, g: { bio: users2Table.bio, cityId: citiesTable.id } })
+				.from(users2Table)
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+				.orderBy(users2Table.id);
+
+			expect(onlyJoinedSideNotNull).toEqual([
+				{ id: 1, g: { bio: null, cityId: 1 } },
+				{ id: 2, g: { bio: null, cityId: null } },
+			]);
+		});
+
+		test.concurrent('SQL field groups are never nullified', async ({ db, push }) => {
+			const citiesTable = pgTable('nullify3_cities', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('nullify3_users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => citiesTable.id),
+			});
+
+			await push({ citiesTable, users2Table });
+
+			await db.insert(citiesTable).values([{ name: 'Paris' }]);
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+			const res = await db
+				.select({
+					id: users2Table.id,
+					calc: {
+						user: sql<string>`upper(${users2Table.name})`,
+						city: sql<string | null>`upper(${citiesTable.name})`,
+					},
+				})
+				.from(users2Table)
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+				.orderBy(users2Table.id);
+
+			expect(res).toEqual([
+				{ id: 1, calc: { user: 'JOHN', city: 'PARIS' } },
+				{ id: 2, calc: { user: 'JANE', city: null } },
+			]);
+		});
+
+		test.concurrent('Nullify all-null group from from nullable join', async ({ db, push }) => {
+			const citiesTable = pgTable('nullify4_cities', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				state: text('state'),
+				zip: text('zip'),
+			});
+
+			const users2Table = pgTable('nullify4_users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => citiesTable.id),
+			});
+
+			await push({ citiesTable, users2Table });
+
+			await db.insert(citiesTable).values([{ name: 'Paris', state: 'IDF', zip: '75' }, { name: 'London' }]);
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+				{ name: 'Jack' },
+			]);
+
+			const res = await db
+				.select({ name: users2Table.name, c: { state: citiesTable.state, zip: citiesTable.zip } })
+				.from(users2Table)
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+				.orderBy(users2Table.id);
+
+			expect(res).toEqual([
+				{ name: 'John', c: { state: 'IDF', zip: '75' } },
+				{ name: 'Jane', c: null },
+				{ name: 'Jack', c: null },
+			]);
+		});
+
+		test.concurrent('Disregard added SQL field during join nullification', async ({ db, push }) => {
+			const citiesTable = pgTable('nullify5_cities', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				state: text('state'),
+			});
+
+			const users2Table = pgTable('nullify5_users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => citiesTable.id),
+			});
+
+			await push({ citiesTable, users2Table });
+
+			await db.insert(citiesTable).values([{ name: 'Paris', state: 'IDF' }, { name: 'London' }]);
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 2 }]);
+
+			const res = await db
+				.select({
+					name: users2Table.name,
+					c: { state: citiesTable.state, cityUpper: sql<string>`upper(${citiesTable.name})` },
+				})
+				.from(users2Table)
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+				.orderBy(users2Table.id);
+
+			expect(res).toEqual([
+				{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
+				{ name: 'Jane', c: null },
+			]);
+		});
+		test.concurrent("No nullification on non-joined table's all-null object - jit", async ({ createDB, push }) => {
+			const users = pgTable('nullify1_users_jit', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				bio: text('bio'),
+				city: text('city'),
+			});
+
+			await push({ users });
+			const db = createDB({ users }, () => ({}), true);
+
+			await db.insert(users).values({ name: 'John' });
+
+			const res = await db
+				.select({ id: users.id, meta: { bio: users.bio, city: users.city } })
+				.from(users);
+
+			expect(res).toEqual([{ id: 1, meta: { bio: null, city: null } }]);
+		});
+
+		test.concurrent('Cross-table group never nullified - jit', async ({ createDB, push }) => {
+			const citiesTable = pgTable('nullify2_cities_jit', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('nullify2_users_jit', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				bio: text('bio'),
+				cityId: integer('city_id').references(() => citiesTable.id),
+			});
+
+			await push({ citiesTable, users2Table });
+			const db = createDB({ citiesTable, users2Table }, () => ({}), true);
+
+			await db.insert(citiesTable).values([{ name: 'Paris' }]);
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+			const res = await db
+				.select({
+					id: users2Table.id,
+					g: { user: users2Table.name, cityId: citiesTable.id, cityName: citiesTable.name },
+				})
+				.from(users2Table)
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+				.orderBy(users2Table.id);
+
+			expect(res).toEqual([
+				{ id: 1, g: { user: 'John', cityId: 1, cityName: 'Paris' } },
+				{ id: 2, g: { user: 'Jane', cityId: null, cityName: null } },
+			]);
+
+			const onlyJoinedSideNotNull = await db
+				.select({ id: users2Table.id, g: { bio: users2Table.bio, cityId: citiesTable.id } })
+				.from(users2Table)
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+				.orderBy(users2Table.id);
+
+			expect(onlyJoinedSideNotNull).toEqual([
+				{ id: 1, g: { bio: null, cityId: 1 } },
+				{ id: 2, g: { bio: null, cityId: null } },
+			]);
+		});
+
+		test.concurrent('SQL field groups are never nullified - jit', async ({ createDB, push }) => {
+			const citiesTable = pgTable('nullify3_cities_jit', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('nullify3_users_jit', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => citiesTable.id),
+			});
+
+			await push({ citiesTable, users2Table });
+			const db = createDB({ citiesTable, users2Table }, () => ({}), true);
+
+			await db.insert(citiesTable).values([{ name: 'Paris' }]);
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+			const res = await db
+				.select({
+					id: users2Table.id,
+					calc: {
+						user: sql<string>`upper(${users2Table.name})`,
+						city: sql<string | null>`upper(${citiesTable.name})`,
+					},
+				})
+				.from(users2Table)
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+				.orderBy(users2Table.id);
+
+			expect(res).toEqual([
+				{ id: 1, calc: { user: 'JOHN', city: 'PARIS' } },
+				{ id: 2, calc: { user: 'JANE', city: null } },
+			]);
+		});
+
+		test.concurrent(
+			'Nullify all-null group from from nullable join - jit',
+			async ({ createDB, push }) => {
+				const citiesTable = pgTable('nullify4_cities_jit', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					state: text('state'),
+					zip: text('zip'),
+				});
+
+				const users2Table = pgTable('nullify4_users_jit', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					cityId: integer('city_id').references(() => citiesTable.id),
+				});
+
+				await push({ citiesTable, users2Table });
+				const db = createDB({ citiesTable, users2Table }, () => ({}), true);
+
+				await db.insert(citiesTable).values([{ name: 'Paris', state: 'IDF', zip: '75' }, { name: 'London' }]);
+				await db.insert(users2Table).values([
+					{ name: 'John', cityId: 1 },
+					{ name: 'Jane', cityId: 2 },
+					{ name: 'Jack' },
+				]);
+
+				const res = await db
+					.select({ name: users2Table.name, c: { state: citiesTable.state, zip: citiesTable.zip } })
+					.from(users2Table)
+					.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+					.orderBy(users2Table.id);
+
+				expect(res).toEqual([
+					{ name: 'John', c: { state: 'IDF', zip: '75' } },
+					{ name: 'Jane', c: null },
+					{ name: 'Jack', c: null },
+				]);
+			},
+		);
+
+		test.concurrent('Disregard added SQL field during join nullification - jit', async ({ createDB, push }) => {
+			const citiesTable = pgTable('nullify5_cities_jit', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				state: text('state'),
+			});
+
+			const users2Table = pgTable('nullify5_users_jit', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => citiesTable.id),
+			});
+
+			await push({ citiesTable, users2Table });
+			const db = createDB({ citiesTable, users2Table }, () => ({}), true);
+
+			await db.insert(citiesTable).values([{ name: 'Paris', state: 'IDF' }, { name: 'London' }]);
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 2 }]);
+
+			const res = await db
+				.select({
+					name: users2Table.name,
+					c: { state: citiesTable.state, cityUpper: sql<string>`upper(${citiesTable.name})` },
+				})
+				.from(users2Table)
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+				.orderBy(users2Table.id);
+
+			expect(res).toEqual([
+				{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
+				{ name: 'Jane', c: null },
+			]);
+		});
+
 		test.concurrent('join subquery', async ({ db, push }) => {
 			const courseCategoriesTable = pgTable('course_categories_54', {
 				id: serial('id').primaryKey(),

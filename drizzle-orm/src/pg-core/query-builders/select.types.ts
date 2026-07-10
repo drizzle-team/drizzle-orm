@@ -76,6 +76,7 @@ export interface PgSelectConfig {
 		limit?: number | Placeholder;
 		offset?: number | Placeholder;
 	}[];
+	setFieldsFlat?: SelectedFieldsOrdered;
 	comment?: SQL;
 	ignoreSelectionCastCodecs?: boolean;
 	tagged?: boolean;

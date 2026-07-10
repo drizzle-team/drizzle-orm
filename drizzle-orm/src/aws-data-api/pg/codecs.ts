@@ -6,7 +6,12 @@ import {
 	castToTextArr,
 	parseGeometryTuple,
 	parseGeometryXY,
+	parseLineABC,
+	parseLineTuple,
 	parsePgArrayAndNormalize,
+	parsePgVector,
+	parsePointTuple,
+	parsePointXY,
 	refineGenericPgCodecs,
 	textToDate,
 	textToDateWithTz,
@@ -52,12 +57,14 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 	'geometry(point)': {
 		castParam: (name) => `${name}::geometry`,
 		castArrayParam: (name, _column, dim) => `${name}::geometry${'[]'.repeat(dim)}`,
+		normalize: parseGeometryXY,
 		normalizeArray: parsePgArrayAndNormalize(parseGeometryXY),
 		normalizeParamArray: makePgArray,
 	},
 	'geometry(point):tuple': {
 		castParam: (name) => `${name}::geometry`,
 		castArrayParam: (name, _column, dim) => `${name}::geometry${'[]'.repeat(dim)}`,
+		normalize: parseGeometryTuple,
 		normalizeArray: parsePgArrayAndNormalize(parseGeometryTuple),
 		normalizeParamArray: makePgArray,
 	},
@@ -73,6 +80,8 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		castArray: castToTextArr,
 		castParam: (name) => `${name}::line`,
 		castArrayParam: (name, _column, dim) => `${name}::line${'[]'.repeat(dim)}`,
+		normalize: parseLineABC,
+		normalizeArray: arrayCompatNormalize(parseLineABC),
 		normalizeParamArray: makePgArray,
 	},
 	'line:tuple': {
@@ -80,6 +89,8 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		castArray: castToTextArr,
 		castParam: (name) => `${name}::line`,
 		castArrayParam: (name, _column, dim) => `${name}::line${'[]'.repeat(dim)}`,
+		normalize: parseLineTuple,
+		normalizeArray: arrayCompatNormalize(parseLineTuple),
 		normalizeParamArray: makePgArray,
 	},
 	macaddr: {
@@ -116,6 +127,8 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		castArray: castToTextArr,
 		castParam: (name) => `${name}::point`,
 		castArrayParam: (name, _column, dim) => `${name}::point${'[]'.repeat(dim)}`,
+		normalize: parsePointXY,
+		normalizeArray: arrayCompatNormalize(parsePointXY),
 		normalizeParamArray: makePgArray,
 	},
 	'point:tuple': {
@@ -123,11 +136,15 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		castArray: castToTextArr,
 		castParam: (name) => `${name}::point`,
 		castArrayParam: (name, _column, dim) => `${name}::point${'[]'.repeat(dim)}`,
+		normalize: parsePointTuple,
+		normalizeArray: arrayCompatNormalize(parsePointTuple),
 		normalizeParamArray: makePgArray,
 	},
 	halfvec: {
 		castParam: (name) => `${name}::halfvec`,
 		castArrayParam: (name, _column, dim) => `${name}::halfvec${'[]'.repeat(dim)}`,
+		normalize: parsePgVector,
+		normalizeArray: parsePgArrayAndNormalize(parsePgVector),
 		normalizeParamArray: makePgArray,
 	},
 	sparsevec: {
@@ -139,6 +156,8 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 	vector: {
 		castParam: (name) => `${name}::vector`,
 		castArrayParam: (name, _column, dim) => `${name}::vector${'[]'.repeat(dim)}`,
+		normalize: parsePgVector,
+		normalizeArray: parsePgArrayAndNormalize(parsePgVector),
 		normalizeParamArray: makePgArray,
 	},
 

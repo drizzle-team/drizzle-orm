@@ -41,18 +41,41 @@ import {
 	getColumnFromDecoder,
 	makeDefaultQueryMapper,
 	makeJitQueryMapper,
-	orderSelectedFields,
 	type RowsMapperGenerator,
 	type UpdateSet,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
-import { type PgCodecs, type PostgresType, resolvePgTypeAlias, unionsTypeTable } from './codecs.ts';
+import { type PgCodecs, type PostgresType, resolvePgTypeAlias } from './codecs.ts';
 import { PgViewBase } from './view-base.ts';
 import type { PgMaterializedView, PgView } from './view.ts';
+
+/** Used to build mappers directly in driver in minipg */
+export type PreparedQuerySelection = {
+	type: 'plain';
+	fields: SelectedFieldsOrdered;
+} | {
+	type: 'relational';
+	fields: BuildRelationalQueryResult['selection'];
+};
+
+/**
+ * Builds a driver-side row shape from a query's selection, replacing drizzle's own row mapper. Returning
+ * `undefined` means the selection is not expressible as a shape and the mapper stays in charge.
+ *
+ * A generated shape suppresses the selection's `cast` codecs, so the shape must declare each column's own type.
+ * `joinsNotNullableMap` is absent where drizzle never nullifies a joined object (an insert/delete `returning()`).
+ */
+export type ShapeGenerator = (
+	selection: PreparedQuerySelection,
+	joinsNotNullableMap: Record<string, boolean> | undefined,
+	codecs: CodecsCollection<PostgresType>,
+) => any;
 
 export interface PgDialectConfig {
 	codecs?: PgCodecs;
 	useJitMappers?: boolean;
+	// Mapper replacement for driver-side mapping
+	shapeGenerator?: ShapeGenerator;
 }
 
 export class PgDialect {
@@ -63,9 +86,11 @@ export class PgDialect {
 		rows: RowsMapperGenerator;
 		relationalRows: RelationalRowsMapperGenerator;
 	};
+	readonly shapeGenerator?: ShapeGenerator;
 
 	constructor(config?: PgDialectConfig) {
 		this.codecs = new CodecsCollection<PostgresType>(resolvePgTypeAlias, config?.codecs);
+		this.shapeGenerator = config?.shapeGenerator;
 		this.mapperGenerators = config?.useJitMappers
 			? {
 				rows: makeJitQueryMapper,
@@ -429,6 +454,7 @@ export class PgDialect {
 		lockingClause,
 		distinct,
 		setOperators,
+		setFieldsFlat: setSelection,
 		comment,
 		ignoreSelectionCastCodecs,
 	}: PgSelectConfig): SQL {
@@ -536,7 +562,7 @@ export class PgDialect {
 			}`;
 
 		if (setOperators.length > 0) {
-			return this.buildSetOperations(finalQuery, fieldsList, ignoreSelectionCastCodecs, setOperators);
+			return this.buildSetOperations(finalQuery, setSelection!, ignoreSelectionCastCodecs, setOperators);
 		}
 
 		return finalQuery;
@@ -544,38 +570,13 @@ export class PgDialect {
 
 	buildSetOperations(
 		leftSelect: SQL,
-		leftSelection: SelectedFieldsOrdered,
+		outputSelection: SelectedFieldsOrdered,
 		ignoreSelectionCastCodecs: boolean | undefined,
 		setOperators: PgSelectConfig['setOperators'],
 	): SQL {
-		const outputSelection = leftSelection;
 		for (let i = 0; i < setOperators.length; ++i) {
-			const setOperator = setOperators[i];
-			if (!setOperator) {
-				throw new Error('Cannot pass undefined values to any set operator');
-			}
-
+			const setOperator = setOperators[i]!;
 			leftSelect = this.buildSetOperationQuery({ leftSelect, setOperator });
-			const rightSelection = orderSelectedFields(setOperator.rightSelect.getSelectedFields());
-			for (let j = 0; j < outputSelection.length; ++j) {
-				const l = outputSelection[j]!;
-				const lPath = l.path.join('.');
-				const r = rightSelection.find((e) => e.path.join('.') === lPath)!; // Equivalency of selections is a pre-requisite for unions
-
-				const lc = l.codecOverride ?? l.column?.codec;
-				const rc = r.codecOverride ?? r.column?.codec;
-
-				outputSelection[j]!.codecOverride = (lc && rc)
-					? (<Record<string, Record<string, PostgresType>>> unionsTypeTable)[lc]?.[rc]
-					: lc;
-			}
-		}
-
-		for (let i = 0; i < outputSelection.length; ++i) {
-			const out = outputSelection[i]!;
-			out.codec = out.codecOverride
-				? this.codecs.get(out.column!, 'normalize', out.codecOverride as PostgresType)
-				: out.codec;
 		}
 
 		return ignoreSelectionCastCodecs ? leftSelect : sql`select ${

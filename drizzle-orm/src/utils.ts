@@ -85,7 +85,7 @@ export const FnConstructor = Object.getPrototypeOf(() => null).constructor as ty
 /** @internal */
 function makeJitQueryMapperInner(
 	columns: SelectedFieldsOrdered<AnyColumn>,
-	joinsNotNullableMap: Record<string, boolean> = {},
+	joinsNotNullableMap?: Record<string, boolean>,
 ): string {
 	const preFn = [] as string[];
 	const fn = [] as string[];
@@ -136,10 +136,14 @@ function makeJitQueryMapperInner(
 		else objectIds[path[0]!]?.push(`c${idx}`);
 		const [objectName] = path as [string];
 		const tableName = getTableName((<Column> field).table);
-		nullifyMap[objectName] = joinsNotNullableMap[tableName] ? false : typeof nullifyMap[objectName] === 'string'
-			? nullifyMap[objectName] === tableName ? tableName : false
-			: tableName;
+		if (!(objectName in nullifyMap)) nullifyMap[objectName] = tableName;
+		else if (nullifyMap[objectName] !== tableName) nullifyMap[objectName] = false;
 	}
+
+	const nullifiable = (objectName: string) => {
+		const tableName = nullifyMap[objectName];
+		return !!joinsNotNullableMap && typeof tableName === 'string' && !joinsNotNullableMap[tableName];
+	};
 
 	fn.push(`mapped[i] = {`);
 	let currentObjectPath: string[] = [];
@@ -163,7 +167,7 @@ function makeJitQueryMapperInner(
 		for (let d = commonLen; d < objectPath.length; ++d) {
 			fn.push(
 				`${'\t'.repeat(d + 1)}${jsonPath[d]}: ${
-					d === 0 && objectPath.length === 1 && typeof nullifyMap[path[0]!] === 'string'
+					d === 0 && objectPath.length === 1 && nullifiable(path[0]!)
 						? `${objectIds[path[0]!]?.map((c) => `${c} === null`).join(' && ')} ? null : {`
 						: '{'
 				}`,
@@ -187,7 +191,7 @@ function makeJitQueryMapperInner(
 export type RowsMapperGenerator = <TResult = any>(
 	columns: SelectedFieldsOrdered<AnyColumn>,
 	joinsNotNullableMap: Record<string, boolean> | undefined,
-) => RowsMapper<TResult>;
+) => RowsMapper<TResult> | undefined;
 export interface RowsMapper<TResult = Record<string, unknown>[]> {
 	(rows: unknown[][]): TResult;
 	/** @internal jit mapper's function body for debugging */
