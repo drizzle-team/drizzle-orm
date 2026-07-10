@@ -7,6 +7,7 @@ import {
 	pgEnum,
 	pgSchema,
 	pgTable,
+	text,
 	timestamp,
 	varchar,
 } from '~/pg-core';
@@ -220,5 +221,15 @@ describe('PgColumn.toBuilder', () => {
 		const schema = pgSchema('tenant');
 		const derived = schema.table('derived', { price: source.price.toBuilder() });
 		expect(getTableColumns(derived).price.getSQLType()).toBe('numeric(10, 2)');
+	});
+
+	test('text({ enum }) keeps enumValues through the round-trip', () => {
+		const withTextEnum = pgTable('with_text_enum', {
+			role: text('role', { enum: ['admin', 'user'] }),
+		});
+		const cloned = pgTable('cloned', {
+			role: getTableColumns(withTextEnum).role.toBuilder(),
+		});
+		expect(getTableColumns(cloned).role.enumValues).toEqual(['admin', 'user']);
 	});
 });
