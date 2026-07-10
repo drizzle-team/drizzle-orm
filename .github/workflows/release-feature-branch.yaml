@@ -455,7 +455,7 @@ jobs:
     
       # >= 11.5.1 for trusted publishing
       - name: Update NPM
-        run: npm install -g npm@latest
+        run: npm install -g npm@11 # npm 12.0.0 ships without sigstore in its bundled tree and breaks `npm publish`
       - name: Configure GitHub Packages auth
         if: inputs.publish_to_github
         run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
