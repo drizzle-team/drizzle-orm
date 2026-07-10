@@ -549,7 +549,7 @@ export const squashGelScheme = (
 					? GelSquasher.squashPolicyPush(policy)
 					: GelSquasher.squashPolicy(policy);
 			});
-			const squashedChecksContraints = mapValues(
+			const squashedChecksConstraints = mapValues(
 				it[1].checkConstraints,
 				(check) => {
 					return GelSquasher.squashCheck(check);
@@ -567,7 +567,7 @@ export const squashGelScheme = (
 					compositePrimaryKeys: squashedPKs,
 					uniqueConstraints: squashedUniqueConstraints,
 					policies: squashedPolicies,
-					checkConstraints: squashedChecksContraints,
+					checkConstraints: squashedChecksConstraints,
 					isRLSEnabled: it[1].isRLSEnabled ?? false,
 				},
 			];

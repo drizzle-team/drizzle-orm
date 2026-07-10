@@ -329,7 +329,7 @@ test('set data type. set default', async (t) => {
 	);
 });
 
-test('add foriegn key', async (t) => {
+test('add foreign key', async (t) => {
 	const schema = {
 		table: sqliteTable('table', {
 			id: int('id').primaryKey({ autoIncrement: true }),
@@ -374,7 +374,7 @@ test('add foriegn key', async (t) => {
 	);
 });
 
-test('drop foriegn key', async (t) => {
+test('drop foreign key', async (t) => {
 	const schema = {
 		table: sqliteTable('table', {
 			id: int('id').primaryKey({ autoIncrement: true }),
@@ -448,7 +448,7 @@ test('drop foriegn key', async (t) => {
 	expect(sqlStatements[5]).toBe(`PRAGMA foreign_keys=ON;`);
 });
 
-test('alter foriegn key', async (t) => {
+test('alter foreign key', async (t) => {
 	const tableRef = sqliteTable('table', {
 		id: int('id').primaryKey({ autoIncrement: true }),
 		name: text('name'),
@@ -537,7 +537,7 @@ test('alter foriegn key', async (t) => {
 	expect(sqlStatements[5]).toBe(`PRAGMA foreign_keys=ON;`);
 });
 
-test('add foriegn key for multiple columns', async (t) => {
+test('add foreign key for multiple columns', async (t) => {
 	const tableRef = sqliteTable('table', {
 		id: int('id').primaryKey({ autoIncrement: true }),
 		age: int('age'),
@@ -642,7 +642,7 @@ test('add foriegn key for multiple columns', async (t) => {
 	expect(sqlStatements[5]).toBe(`PRAGMA foreign_keys=ON;`);
 });
 
-test('drop foriegn key for multiple columns', async (t) => {
+test('drop foreign key for multiple columns', async (t) => {
 	const tableRef = sqliteTable('table', {
 		id: int('id').primaryKey({ autoIncrement: true }),
 		age: int('age'),
