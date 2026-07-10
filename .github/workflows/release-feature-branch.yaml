@@ -7,6 +7,10 @@ on:
         description: 'Publish to GitHub Packages instead of npm'
         type: boolean
         default: false
+      packages:
+        description: 'Comma-separated list of packages to publish, or "all"'
+        type: string
+        default: 'all'
     secrets:
       PLANETSCALE_CONNECTION_STRING:
         required: true
@@ -45,10 +49,35 @@ jobs:
   prepare:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    outputs:
+      publish_matrix: ${{ steps.publish-matrix.outputs.packages }}
     env:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_TEAM: 'team_KbvYUtAn1Tqytsj8HbNcYDqV'
     steps:
+      - name: Compute publish matrix
+        id: publish-matrix
+        shell: bash
+        env:
+          PACKAGES_FILTER: ${{ inputs.packages }}
+        run: |
+          set -euo pipefail
+          all='["drizzle-orm","drizzle-kit","drizzle-seed","eslint-plugin-drizzle"]'
+          if [[ -z "$PACKAGES_FILTER" || "$PACKAGES_FILTER" == "all" ]]; then
+            selected="$all"
+          else
+            selected="$(jq -cn --arg f "$PACKAGES_FILTER" '$f | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""))')"
+            unknown="$(jq -cn --argjson all "$all" --argjson sel "$selected" '$sel - $all')"
+            if [[ "$unknown" != "[]" ]]; then
+              echo "::error::Unknown package(s) in filter: $unknown"
+              exit 1
+            fi
+            if [[ "$selected" == "[]" ]]; then
+              echo "::error::Empty package filter"
+              exit 1
+            fi
+          fi
+          echo "packages=$selected" >> "$GITHUB_OUTPUT"
       - uses: oven-sh/setup-bun@v2
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
@@ -389,7 +418,7 @@ jobs:
       NPM_TOKEN: ""
     strategy:
       matrix:
-        package: [drizzle-orm, drizzle-kit, drizzle-seed, eslint-plugin-drizzle]
+        package: ${{ fromJson(needs.prepare.outputs.publish_matrix) }}
     steps:
       - uses: actions/checkout@v5
 
