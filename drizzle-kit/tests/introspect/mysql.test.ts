@@ -13,6 +13,7 @@ import {
 	mysqlEnum,
 	mysqlTable,
 	mysqlView,
+	real,
 	serial,
 	smallint,
 	text,
@@ -261,6 +262,47 @@ test('handle float type', async () => {
 		client,
 		schema,
 		'handle-float-type',
+		'drizzle',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('handle float type with not null default', async () => {
+	const schema = {
+		table: mysqlTable('table', {
+			col1: float().notNull().default(1.5),
+			col2: float().notNull().default(0),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectMySQLToFile(
+		client,
+		schema,
+		'handle-float-type-with-not-null-default',
+		'drizzle',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('handle numeric types with a zero default', async () => {
+	const schema = {
+		table: mysqlTable('table', {
+			col1: smallint().notNull().default(0),
+			col2: mediumint().notNull().default(0),
+			col3: bigint({ mode: 'number' }).notNull().default(0),
+			col4: double().notNull().default(0),
+			col5: real().notNull().default(0),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectMySQLToFile(
+		client,
+		schema,
+		'handle-numeric-types-with-a-zero-default',
 		'drizzle',
 	);
 
