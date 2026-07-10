@@ -8,6 +8,10 @@ on:
         description: 'Publish to GitHub Packages instead of npm'
         type: boolean
         default: false
+      packages:
+        description: 'Comma-separated list of packages to publish, or "all"'
+        type: string
+        default: 'all'
 
 jobs:
   switch:
@@ -25,6 +29,10 @@ jobs:
               echo "::error::Publishing to GitHub Packages is only supported for feature-branch dispatches, not main"
               exit 1
             fi
+            if [[ -n "${{ inputs.packages }}" && "${{ inputs.packages }}" != "all" ]]; then
+              echo "::error::Package filtering is only supported for feature-branch dispatches, not main"
+              exit 1
+            fi
             echo "target=latest" >> $GITHUB_OUTPUT
           else
             # workflow_dispatch on a non-main ref and any pull request (same-repo or
@@ -40,6 +48,7 @@ jobs:
     uses: ./.github/workflows/release-feature-branch.yaml
     with:
       publish_to_github: ${{ inputs.publish_to_github == true }}
+      packages: ${{ inputs.packages || 'all' }}
     secrets:
       PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
       NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
