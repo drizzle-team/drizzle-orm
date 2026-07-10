@@ -455,23 +455,10 @@ export abstract class PgColumn<
 
 	/**
 	 * Transforms this built column back into a fresh {@link PgColumnBuilder} in the exact same state:
-	 * a bare `toBuilder()` yields a builder whose built column is config-identical to this one — same
-	 * SQL type (`getSQLType()`), mode/precision/scale/length/`withTimezone`, array `dimensions`
-	 * (including the array codec applied on build), enum instance, geometry `srid`, driver codecs
-	 * (`mapToDriverValue`/`mapFromDriverValue`), and every value/constraint clause: `primaryKey`,
-	 * `notNull`, `default`/`$defaultFn`/`$onUpdateFn`, `unique`, `generated`, and generated identity.
+	 * a bare `toBuilder()` yields a builder whose built column is config-identical to this one.
 	 *
 	 * Useful for deriving a table from an existing one — pass the returned builder to `pgTable()` or
 	 * `pgSchema().table()` — while adjusting individual clauses through {@link overrides}.
-	 *
-	 * Override semantics, per key:
-	 * - key absent → keep this column's value;
-	 * - key present → replace it. `default`, `defaultFn`, `onUpdateFn`, `generated` and
-	 *   `generatedIdentity` are cleared by an explicit `undefined`; `notNull` and `primaryKey` by
-	 *   `false`; `unique` by `false` (or set with `true` / `{ name?, nulls? }`). `hasDefault` is
-	 *   re-derived from the resulting default and identity clauses.
-	 *
-	 * `name` renames the cloned column (and stops it from inheriting its table key as its name).
 	 */
 	toBuilder(overrides?: PgColumnToBuilderOverrides<T['data']>): PgColumnBuilder {
 		const config = { ...this.config };
@@ -521,7 +508,6 @@ export abstract class PgColumn<
 	}
 }
 
-/** Per-clause overrides for {@link PgColumn.toBuilder}; an absent key keeps the source column's value. */
 export interface PgColumnToBuilderOverrides<TData = unknown> {
 	name?: string;
 	notNull?: boolean;
