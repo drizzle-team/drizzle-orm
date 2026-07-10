@@ -40,6 +40,7 @@ export type GelInsertValue<TTable extends GelTable<TableConfig>, OverrideT exten
 	& {
 		[Key in keyof InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>]:
 			| InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>[Key]
+			| Readonly<InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>[Key]>
 			| SQL
 			| Placeholder;
 	}

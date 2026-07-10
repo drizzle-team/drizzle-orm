@@ -43,6 +43,7 @@ export type PgInsertValue<TTable extends PgTable<TableConfig>, OverrideT extends
 	& {
 		[Key in keyof InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>]:
 			| InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>[Key]
+			| Readonly<InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>[Key]>
 			| SQL
 			| Placeholder;
 	}

@@ -29,7 +29,7 @@ export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 
 export type SQLiteInsertValue<TTable extends SQLiteTable> = Simplify<
 	{
-		[Key in keyof TTable['$inferInsert']]: TTable['$inferInsert'][Key] | SQL | Placeholder;
+		[Key in keyof TTable['$inferInsert']]: TTable['$inferInsert'][Key] | Readonly<TTable['$inferInsert'][Key]> | SQL | Placeholder;
 	}
 >;
 
