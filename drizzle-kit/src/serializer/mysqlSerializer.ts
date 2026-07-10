@@ -561,6 +561,31 @@ function clearDefaults(defaultValue: any, collate: string) {
 	}
 }
 
+/**
+ * Returns `true` when `error` is the "information_schema.check_constraints
+ * is not a known table" error a pre-8.0.16 MySQL server (5.7, 8.0.0–8.0.15)
+ * raises during introspection. Used by the `fromDatabase` pull path to
+ * downgrade that specific failure to "no check constraints" instead of
+ * exiting `drizzle-kit pull` with an unsurfaced error (issue #5921).
+ *
+ * Exported for unit testing; not part of the public surface.
+ */
+export const isMissingCheckConstraintsView = (error: unknown): boolean => {
+	if (!error || typeof error !== 'object') return false;
+	const code = String((error as { code?: unknown }).code ?? '');
+	const message = String((error as { message?: unknown }).message ?? '');
+	// MySQL 5.7 raises ER_NO_SUCH_TABLE; "Unknown table 'check_constraints'
+	// in information_schema". Other dialects / drivers may stringify the
+	// error differently, so also fall back to a message-level match that
+	// pins both halves: the missing-table phrasing AND the specific table
+	// name. That keeps unrelated SQL failures from being silently swallowed.
+	if (code === 'ER_NO_SUCH_TABLE' && /check_constraints/i.test(message)) return true;
+	return (
+		/check_constraints/i.test(message)
+		&& /(?:unknown table|doesn't exist|does not exist)/i.test(message)
+	);
+};
+
 export const fromDatabase = async (
 	db: DB,
 	inputSchema: string,
@@ -947,21 +972,36 @@ export const fromDatabase = async (
 		progressCallback('views', viewsCount, 'done');
 	}
 
-	const checkConstraints = await db.query(
-		`SELECT 
-    tc.table_name, 
-    tc.constraint_name, 
+	// information_schema.check_constraints only exists on MySQL 8.0.16+
+	// and MariaDB 10.2+. On MySQL 5.7 the introspection query errors with
+	// ER_NO_SUCH_TABLE / "Unknown table 'check_constraints'"; before this
+	// guard the whole `drizzle-kit pull` would exit 1 with no surfaced
+	// error, looking like a silent failure (issue #5921). Treat it as
+	// "this server does not support CHECK constraints" — every other
+	// failure (auth, connectivity, unrelated SQL) still throws so the
+	// real diagnostic surfaces instead of being swallowed.
+	let checkConstraints: any[] = [];
+	try {
+		checkConstraints = await db.query(
+			`SELECT
+    tc.table_name,
+    tc.constraint_name,
     cc.check_clause
-FROM 
+FROM
     information_schema.table_constraints tc
-JOIN 
-    information_schema.check_constraints cc 
+JOIN
+    information_schema.check_constraints cc
     ON tc.constraint_name = cc.constraint_name
-WHERE 
+WHERE
     tc.constraint_schema = '${inputSchema}'
-AND 
+AND
     tc.constraint_type = 'CHECK';`,
-	);
+		);
+	} catch (e) {
+		if (!isMissingCheckConstraintsView(e)) {
+			throw e;
+		}
+	}
 
 	checksCount += checkConstraints.length;
 	if (progressCallback) {
