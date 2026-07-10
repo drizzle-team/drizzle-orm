@@ -2,6 +2,11 @@ name: Release (feature branch)
 
 on:
   workflow_call:
+    inputs:
+      publish_to_github:
+        description: 'Publish to GitHub Packages instead of npm'
+        type: boolean
+        default: false
     secrets:
       PLANETSCALE_CONNECTION_STRING:
         required: true
@@ -376,7 +381,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    permissions: { contents: read, id-token: write }
+    permissions: { contents: read, id-token: write, packages: write }
     
     # force empty so npm can use OIDC
     env:
@@ -399,6 +404,9 @@ jobs:
       # >= 11.5.1 for trusted publishing
       - name: Update NPM
         run: npm install -g npm@latest
+      - name: Configure GitHub Packages auth
+        if: inputs.publish_to_github
+        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
       - name: Download package tarball
         uses: actions/download-artifact@v4
         with:
@@ -409,7 +417,19 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          
+
+          if [[ "${{ inputs.publish_to_github }}" == "true" ]]; then
+            # GitHub Packages only accepts packages scoped to the repo owner, and the
+            # repository field must point at this repo for GITHUB_TOKEN publishes
+            pkg_name="@${{ github.repository_owner }}/${{ matrix.package }}"
+            repo_url="git+https://github.com/${{ github.repository }}.git"
+            registry_args=(--registry=https://npm.pkg.github.com)
+          else
+            pkg_name="${{ matrix.package }}"
+            repo_url=""
+            registry_args=()
+          fi
+
           _version="$(tar -xOf ./artifacts/${{ matrix.package }}/package.tgz package/package.json | jq -r .version)"
           branch="${{ github.ref_name }}"
           if [[ "$branch" == "beta" ]]; then
@@ -423,16 +443,18 @@ jobs:
           tmpdir="$(mktemp -d)"
           tar -xzf ./artifacts/${{ matrix.package }}/package.tgz -C "$tmpdir"
 
-          jq --arg v "$version" '.version = $v' \
+          jq --arg v "$version" --arg n "$pkg_name" --arg r "$repo_url" \
+            '.version = $v | .name = $n | if $r != "" then .repository = { type: "git", url: $r } else . end' \
             "$tmpdir/package/package.json" > "$tmpdir/package/package.json.tmp"
             mv "$tmpdir/package/package.json.tmp" "$tmpdir/package/package.json"
 
           tar -czf ./artifacts/${{ matrix.package }}/package.tgz -C "$tmpdir" package
           rm -rf "$tmpdir"
 
-          is_published="$(npm view ${{ matrix.package }} versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
+          # tolerate 404 (never published) and a single-version string response
+          is_published="$(npm view "$pkg_name" versions --json "${registry_args[@]}" 2>/dev/null | jq -r --arg v "$version" '[.] | flatten | any(. == $v)' || echo false)"
           if [[ "$is_published" == "true" ]]; then
-            echo "\`${{ matrix.package }}@$version\` already published, tagging \`$tag\`" >> $GITHUB_STEP_SUMMARY
+            echo "\`$pkg_name@$version\` already published, tagging \`$tag\`" >> $GITHUB_STEP_SUMMARY
           else
             { echo "version=$version"; echo "tag=$tag"; echo "has_new_release=true"; } >> $GITHUB_OUTPUT
           fi
@@ -441,5 +463,11 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          npm publish ./artifacts/${{ matrix.package }}/package.tgz --tag "${{ steps.checks.outputs.tag }}"
-          echo "npm: \`${{ matrix.package }}@${{ steps.checks.outputs.tag }} | ${{ steps.checks.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ inputs.publish_to_github }}" == "true" ]]; then
+            # provenance is npmjs-only
+            npm publish ./artifacts/${{ matrix.package }}/package.tgz --tag "${{ steps.checks.outputs.tag }}" --registry=https://npm.pkg.github.com --no-provenance
+            echo "GitHub Packages: \`@${{ github.repository_owner }}/${{ matrix.package }}@${{ steps.checks.outputs.tag }} | ${{ steps.checks.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          else
+            npm publish ./artifacts/${{ matrix.package }}/package.tgz --tag "${{ steps.checks.outputs.tag }}"
+            echo "npm: \`${{ matrix.package }}@${{ steps.checks.outputs.tag }} | ${{ steps.checks.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          fi

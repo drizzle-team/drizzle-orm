@@ -3,6 +3,11 @@ name: Release Router
 on:
   pull_request:
   workflow_dispatch:
+    inputs:
+      publish_to_github:
+        description: 'Publish to GitHub Packages instead of npm'
+        type: boolean
+        default: false
 
 jobs:
   switch:
@@ -16,6 +21,10 @@ jobs:
         run: |
           HEAD_REPO="${{ github.event.pull_request.head.repo.full_name }}"
           if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "${GITHUB_REF##*/}" == "main" ]]; then
+            if [[ "${{ inputs.publish_to_github }}" == "true" ]]; then
+              echo "::error::Publishing to GitHub Packages is only supported for feature-branch dispatches, not main"
+              exit 1
+            fi
             echo "target=latest" >> $GITHUB_OUTPUT
           else
             # workflow_dispatch on a non-main ref and any pull request (same-repo or
@@ -29,6 +38,8 @@ jobs:
     needs: switch
     if: needs.switch.outputs.target == 'feature'
     uses: ./.github/workflows/release-feature-branch.yaml
+    with:
+      publish_to_github: ${{ inputs.publish_to_github == true }}
     secrets:
       PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
       NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
