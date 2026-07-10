@@ -80,7 +80,7 @@ jobs:
           echo "packages=$selected" >> "$GITHUB_OUTPUT"
       - uses: oven-sh/setup-bun@v2
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with: { run_install: false }
       - uses: actions/setup-node@v6
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
@@ -92,7 +92,7 @@ jobs:
       - name: Build all
         run: pnpm build:artifact
       - name: Upload build-dist
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-dist
           path: |
@@ -100,7 +100,7 @@ jobs:
             **/*.tsbuildinfo
       - name: Pack
         run: pnpm pack:artifact
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with: 
           name: packages
           path: |
@@ -112,7 +112,7 @@ jobs:
       # Tiny marker so other jobs can wait without failing
       - name: Upload build-ready marker
         run: mkdir -p .gh && echo "ok" > .gh/build-ready
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: build-ready
           path: .gh/build-ready
@@ -180,7 +180,7 @@ jobs:
     name: ${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with: { run_install: false }
       - uses: actions/setup-node@v6
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
@@ -340,7 +340,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with: { run_install: false }
       - uses: actions/setup-node@v6
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
@@ -368,7 +368,7 @@ jobs:
         package: [node16-cjs, node16-esm, bundler]
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with: { run_install: false }
       - uses: actions/setup-node@v6
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
@@ -411,7 +411,7 @@ jobs:
         uses: actions/checkout@v5
         with: { fetch-depth: 0 }
       - if: github.event_name == 'pull_request'
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with: { run_install: false }
       - if: github.event_name == 'pull_request'
         uses: actions/setup-node@v6
