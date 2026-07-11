@@ -3,6 +3,7 @@ import fs from 'fs';
 import * as glob from 'glob';
 import Path from 'path';
 import { CasingType } from 'src/cli/validations/common';
+import { writeInfoOutput } from '../cli/output';
 import { error } from '../cli/views';
 import type { MySqlSchemaInternal } from './mysqlSchema';
 import type { PgSchemaInternal } from './pgSchema';
@@ -15,7 +16,7 @@ export const serializeMySql = async (
 ): Promise<MySqlSchemaInternal> => {
 	const filenames = prepareFilenames(path);
 
-	console.log(chalk.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
+	writeInfoOutput(chalk.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
 
 	const { prepareFromMySqlImports } = await import('./mysqlImports');
 	const { generateMySqlSnapshot } = await import('./mysqlSerializer');
@@ -60,7 +61,7 @@ export const serializeSingleStore = async (
 ): Promise<SingleStoreSchemaInternal> => {
 	const filenames = prepareFilenames(path);
 
-	console.log(chalk.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
+	writeInfoOutput(chalk.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
 
 	const { prepareFromSingleStoreImports } = await import('./singlestoreImports');
 	const { generateSingleStoreSnapshot } = await import('./singlestoreSerializer');
@@ -70,7 +71,10 @@ export const serializeSingleStore = async (
 	return generateSingleStoreSnapshot(tables, /* views, */ casing);
 };
 
-export const prepareFilenames = (path: string | string[]) => {
+export const prepareFilenames = (
+	path: string | string[],
+	machineReadableOutput?: boolean,
+) => {
 	if (typeof path === 'string') {
 		path = [path];
 	}
@@ -109,7 +113,7 @@ export const prepareFilenames = (path: string | string[]) => {
 
 	// when schema: "./schema" and not "./schema.ts"
 	if (res.length === 0) {
-		console.log(
+		writeInfoOutput(
 			error(
 				`No schema files found for path config [${
 					path
@@ -117,11 +121,13 @@ export const prepareFilenames = (path: string | string[]) => {
 						.join(', ')
 				}]`,
 			),
+			{ machineReadable: machineReadableOutput },
 		);
-		console.log(
+		writeInfoOutput(
 			error(
 				`If path represents a file - please make sure to use .ts or other extension in the path`,
 			),
+			{ machineReadable: machineReadableOutput },
 		);
 		process.exit(1);
 	}

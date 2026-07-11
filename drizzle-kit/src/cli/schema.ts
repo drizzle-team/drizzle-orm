@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import 'dotenv/config';
 import { mkdirSync } from 'fs';
 import { renderWithTask } from 'hanji';
+import { GenerateMigrationQuestionsError } from '../migrationQuestions';
 import { dialects } from 'src/schemaValidator';
 import '../@types/utils';
 import { assertUnreachable } from '../global';
@@ -29,6 +30,7 @@ import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersi
 import { assertCollisions, drivers, prefixes } from './validations/common';
 import { withStyle } from './validations/outputs';
 import { error, grey, MigrateProgress } from './views';
+import { withMachineOutput } from './output';
 
 const optionDialect = string('dialect')
 	.enum(...dialects)
@@ -39,6 +41,12 @@ const optionOut = string().desc("Output folder, 'drizzle' by default");
 const optionConfig = string().desc('Path to drizzle config file');
 const optionBreakpoints = boolean().desc(
 	`Prepare SQL statements with breakpoints`,
+);
+const optionPreflight = boolean().desc(
+	'Export unresolved generate conflicts as JSON instead of writing a migration',
+);
+const optionAnswers = string().desc(
+	'Conflict answers as a JSON file path or inline JSON string',
 );
 
 const optionDriver = string()
@@ -58,6 +66,8 @@ export const generate = command({
 		out: optionOut,
 		name: string().desc('Migration file name'),
 		breakpoints: optionBreakpoints,
+		preflight: optionPreflight,
+		answers: optionAnswers,
 		custom: boolean()
 			.desc('Prepare empty migration file for custom SQL')
 			.default(false),
@@ -69,7 +79,7 @@ export const generate = command({
 		const from = assertCollisions(
 			'generate',
 			opts,
-			['prefix', 'name', 'custom'],
+			['prefix', 'name', 'custom', 'preflight', 'answers'],
 			['driver', 'breakpoints', 'schema', 'out', 'dialect', 'casing'],
 		);
 		return prepareGenerateConfig(opts, from);
@@ -78,37 +88,67 @@ export const generate = command({
 		await assertOrmCoreVersion();
 		await assertPackages('drizzle-orm');
 
-		// const parsed = cliConfigGenerate.parse(opts);
+		await withMachineOutput(opts.preflight, async () => {
+			const {
+				prepareAndMigratePg,
+				prepareAndMigrateMysql,
+				prepareAndMigrateSqlite,
+				prepareAndMigrateLibSQL,
+				prepareAndMigrateSingleStore,
+			} = await import('./commands/migrate');
 
-		const {
-			prepareAndMigratePg,
-			prepareAndMigrateMysql,
-			prepareAndMigrateSqlite,
-			prepareAndMigrateLibSQL,
-			prepareAndMigrateSingleStore,
-		} = await import('./commands/migrate');
+			try {
+				const dialect = opts.dialect;
+				if (dialect === 'postgresql') {
+					const questions = await prepareAndMigratePg(opts);
+					if (opts.preflight) {
+						console.log(JSON.stringify(questions, null, 2));
+					}
+				} else if (dialect === 'mysql') {
+					const questions = await prepareAndMigrateMysql(opts);
+					if (opts.preflight) {
+						console.log(JSON.stringify(questions, null, 2));
+					}
+				} else if (dialect === 'sqlite') {
+					const questions = await prepareAndMigrateSqlite(opts);
+					if (opts.preflight) {
+						console.log(JSON.stringify(questions, null, 2));
+					}
+				} else if (dialect === 'turso') {
+					const questions = await prepareAndMigrateLibSQL(opts);
+					if (opts.preflight) {
+						console.log(JSON.stringify(questions, null, 2));
+					}
+				} else if (dialect === 'singlestore') {
+					const questions = await prepareAndMigrateSingleStore(opts);
+					if (opts.preflight) {
+						console.log(JSON.stringify(questions, null, 2));
+					}
+				} else if (dialect === 'gel') {
+					console.log(
+						error(
+							`You can't use 'generate' command with Gel dialect`,
+						),
+					);
+					process.exit(1);
+				} else {
+					assertUnreachable(dialect);
+				}
+			} catch (e) {
+				if (e instanceof GenerateMigrationQuestionsError) {
+					console.log(
+						error(
+							`Not all migration conflicts were answered. Re-run with "--preflight" to export the remaining questions.`,
+						),
+					);
+					console.log(JSON.stringify(e.questions, null, 2));
+					process.exit(1);
+				}
 
-		const dialect = opts.dialect;
-		if (dialect === 'postgresql') {
-			await prepareAndMigratePg(opts);
-		} else if (dialect === 'mysql') {
-			await prepareAndMigrateMysql(opts);
-		} else if (dialect === 'sqlite') {
-			await prepareAndMigrateSqlite(opts);
-		} else if (dialect === 'turso') {
-			await prepareAndMigrateLibSQL(opts);
-		} else if (dialect === 'singlestore') {
-			await prepareAndMigrateSingleStore(opts);
-		} else if (dialect === 'gel') {
-			console.log(
-				error(
-					`You can't use 'generate' command with Gel dialect`,
-				),
-			);
-			process.exit(1);
-		} else {
-			assertUnreachable(dialect);
-		}
+				console.error(e);
+				process.exit(1);
+			}
+		});
 	},
 });
 

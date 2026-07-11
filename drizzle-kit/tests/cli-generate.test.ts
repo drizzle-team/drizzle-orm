@@ -33,6 +33,8 @@ test('generate #1', async (t) => {
 		dialect: 'postgresql',
 		name: undefined,
 		custom: false,
+		preflight: false,
+		answers: undefined,
 		prefix: 'index',
 		breakpoints: true,
 		schema: 'schema.ts',
@@ -54,6 +56,8 @@ test('generate #2', async (t) => {
 		dialect: 'postgresql',
 		name: undefined,
 		custom: false,
+		preflight: false,
+		answers: undefined,
 		prefix: 'index',
 		breakpoints: true,
 		schema: 'schema.ts',
@@ -72,6 +76,8 @@ test('generate #3', async (t) => {
 		dialect: 'postgresql',
 		name: undefined,
 		custom: false,
+		preflight: false,
+		answers: undefined,
 		prefix: 'index',
 		breakpoints: true,
 		schema: './schema.ts',
@@ -91,6 +97,8 @@ test('generate #4', async (t) => {
 		dialect: 'postgresql',
 		name: undefined,
 		custom: true,
+		preflight: false,
+		answers: undefined,
 		prefix: 'index',
 		breakpoints: true,
 		schema: './schema.ts',
@@ -109,6 +117,8 @@ test('generate #5', async (t) => {
 		dialect: 'postgresql',
 		name: 'custom',
 		custom: false,
+		preflight: false,
+		answers: undefined,
 		prefix: 'index',
 		breakpoints: true,
 		schema: './schema.ts',
@@ -127,6 +137,8 @@ test('generate #6', async (t) => {
 		dialect: 'postgresql',
 		name: undefined,
 		custom: false,
+		preflight: false,
+		answers: undefined,
 		prefix: 'timestamp',
 		breakpoints: true,
 		schema: './schema.ts',
@@ -148,6 +160,8 @@ test('generate #7', async (t) => {
 		dialect: 'postgresql',
 		name: 'custom',
 		custom: true,
+		preflight: false,
+		answers: undefined,
 		prefix: 'timestamp',
 		breakpoints: true,
 		schema: './schema.ts',
@@ -167,6 +181,8 @@ test('generate #8', async (t) => {
 		dialect: 'sqlite',
 		name: undefined,
 		custom: false,
+		preflight: false,
+		answers: undefined,
 		prefix: 'index',
 		breakpoints: true,
 		schema: './schema.ts',
@@ -185,6 +201,8 @@ test('generate #9', async (t) => {
 		dialect: 'sqlite',
 		name: undefined,
 		custom: false,
+		preflight: false,
+		answers: undefined,
 		prefix: 'index',
 		breakpoints: true,
 		schema: './schema.ts',
@@ -207,6 +225,8 @@ test('generate #9', async (t) => {
 		dialect: 'postgresql',
 		name: 'custom',
 		custom: true,
+		preflight: false,
+		answers: undefined,
 		prefix: 'timestamp',
 		breakpoints: true,
 		schema: 'schema.ts',
@@ -214,6 +234,55 @@ test('generate #9', async (t) => {
 		bundle: false,
 		casing: undefined,
 		driver: undefined,
+	});
+});
+
+test('generate preflight #1', async () => {
+	const res = await brotest(
+		generate,
+		'--dialect=postgresql --schema=schema.ts --preflight',
+	);
+
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+	expect(res.options).toStrictEqual({
+		dialect: 'postgresql',
+		name: undefined,
+		custom: false,
+		preflight: true,
+		answers: undefined,
+		prefix: 'index',
+		breakpoints: true,
+		schema: 'schema.ts',
+		out: 'drizzle',
+		bundle: false,
+		casing: undefined,
+		driver: undefined,
+	});
+});
+
+test('generate preflight #2', async () => {
+	const res = await brotest(
+		generate,
+		'--config=expo.config.ts --preflight --answers=./tests/cli/generate.answers.json',
+	);
+
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+	expect(res.options).toStrictEqual({
+		dialect: 'sqlite',
+		name: undefined,
+		custom: false,
+		preflight: true,
+		answers: {
+			version: 1,
+			questions: [],
+		},
+		prefix: 'index',
+		breakpoints: true,
+		schema: './schema.ts',
+		out: 'drizzle',
+		bundle: true,
+		casing: undefined,
+		driver: 'expo',
 	});
 });
 
@@ -255,5 +324,18 @@ test('err #7', async (t) => {
 
 test('err #8', async (t) => {
 	const res = await brotest(generate, '--config=drizzle.config.ts --dialect=postgresql');
+	assert.equal(res.type, 'error');
+});
+
+test('err #9', async () => {
+	const res = await brotest(generate, '--custom --preflight');
+	assert.equal(res.type, 'error');
+});
+
+test('err #10', async () => {
+	const res = await brotest(
+		generate,
+		'--config=expo.config.ts --custom --answers=./tests/cli/generate.answers.json',
+	);
 	assert.equal(res.type, 'error');
 });

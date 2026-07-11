@@ -1,10 +1,14 @@
 import chalk from 'chalk';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { render } from 'hanji';
 import { join, resolve } from 'path';
 import { object, string } from 'zod';
 import { getTablesFilterByExtensions } from '../../extensions/getTablesFilterByExtensions';
 import { assertUnreachable } from '../../global';
+import {
+	type GenerateMigrationQuestions,
+	parseGenerateMigrationQuestions,
+} from '../../migrationQuestions';
 import { type Dialect, dialect } from '../../schemaValidator';
 import { prepareFilenames } from '../../serializer';
 import type { Entities } from '../validations/cli';
@@ -29,6 +33,7 @@ import type { SqliteCredentials } from '../validations/sqlite';
 import { printConfigConnectionIssues as printIssuesSqlite, sqliteCredentials } from '../validations/sqlite';
 import { studioCliParams, studioConfig } from '../validations/studio';
 import { error } from '../views';
+import { writeInfoOutput } from '../output';
 
 // NextJs default config is target: es5, which esbuild-register can't consume
 const assertES5 = async () => {
@@ -158,6 +163,8 @@ export type GenerateConfig = {
 	bundle: boolean;
 	casing?: CasingType;
 	driver?: Driver;
+	preflight: boolean;
+	answers?: GenerateMigrationQuestions;
 };
 
 export type ExportConfig = {
@@ -178,10 +185,14 @@ export const prepareGenerateConfig = async (
 		driver?: Driver;
 		prefix?: Prefix;
 		casing?: CasingType;
+		preflight?: boolean;
+		answers?: string;
 	},
 	from: 'config' | 'cli',
 ): Promise<GenerateConfig> => {
-	const config = from === 'config' ? await drizzleConfigFromFile(options.config) : options;
+	const config = from === 'config'
+		? await drizzleConfigFromFile(options.config, false, options.preflight ?? false)
+		: options;
 
 	const { schema, out, breakpoints, dialect, driver, casing } = config;
 
@@ -193,14 +204,36 @@ export const prepareGenerateConfig = async (
 		process.exit(1);
 	}
 
-	const fileNames = prepareFilenames(schema);
+	const fileNames = prepareFilenames(schema, options.preflight ?? false);
 	if (fileNames.length === 0) {
 		render(`[${chalk.blue('i')}] No schema file in ${schema} was found`);
 		process.exit(0);
 	}
 
+	if (options.custom && (options.preflight || options.answers)) {
+		console.log(error(`"--custom" can't be combined with "--preflight" or "--answers"`));
+		process.exit(1);
+	}
+
 	const prefix = ('migrations' in config ? config.migrations?.prefix : options.prefix)
 		|| 'index';
+
+	let answers: GenerateMigrationQuestions | undefined;
+	if (options.answers) {
+		const raw = existsSync(options.answers)
+			? readFileSync(resolve(options.answers), 'utf8')
+			: options.answers;
+
+		try {
+			answers = parseGenerateMigrationQuestions(JSON.parse(raw));
+		} catch (e) {
+			console.log(
+				error(`Unable to parse "--answers". Pass a JSON file path or an inline JSON string.`),
+			);
+			console.error(e);
+			process.exit(1);
+		}
+	}
 
 	return {
 		dialect: dialect,
@@ -213,6 +246,8 @@ export const prepareGenerateConfig = async (
 		bundle: driver === 'expo' || driver === 'durable-sqlite',
 		casing,
 		driver,
+		preflight: options.preflight ?? false,
+		answers,
 	};
 };
 
@@ -887,6 +922,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 export const drizzleConfigFromFile = async (
 	configPath?: string,
 	isExport?: boolean,
+	machineReadableOutput = false,
 ): Promise<CliConfig> => {
 	const prefix = process.env.TEST_CONFIG_PATH_PREFIX || '';
 
@@ -903,21 +939,28 @@ export const drizzleConfigFromFile = async (
 		: 'drizzle.config.json';
 
 	if (!configPath && !isExport) {
-		console.log(
+		writeInfoOutput(
 			chalk.gray(
 				`No config path provided, using default '${defaultConfigPath}'`,
 			),
+			{ machineReadable: machineReadableOutput },
 		);
 	}
 
 	const path: string = resolve(join(prefix, configPath ?? defaultConfigPath));
 
 	if (!existsSync(path)) {
-		console.log(`${path} file does not exist`);
+		writeInfoOutput(`${path} file does not exist`, {
+			machineReadable: machineReadableOutput,
+		});
 		process.exit(1);
 	}
 
-	if (!isExport) console.log(chalk.grey(`Reading config file '${path}'`));
+	if (!isExport) {
+		writeInfoOutput(chalk.grey(`Reading config file '${path}'`), {
+			machineReadable: machineReadableOutput,
+		});
+	}
 
 	return safeRegister(async () => {
 		const required = require(`${path}`);
