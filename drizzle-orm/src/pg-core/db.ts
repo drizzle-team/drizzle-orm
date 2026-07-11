@@ -4,6 +4,7 @@ import type { PgDialect } from '~/pg-core/dialect.ts';
 import {
 	PgDeleteBase,
 	PgInsertBuilder,
+	PgMergeBuilder,
 	PgSelectBuilder,
 	PgUpdateBuilder,
 	QueryBuilder,
@@ -393,7 +394,11 @@ export class PgDatabase<
 			return new PgDeleteBase(table, self.session, self.dialect, queries);
 		}
 
-		return { select, selectDistinct, selectDistinctOn, update, insert, delete: delete_ };
+		function merge<TTable extends PgTable>(table: TTable): PgMergeBuilder<TTable, TQueryResult> {
+			return new PgMergeBuilder(table, self.session, self.dialect, queries);
+		}
+
+		return { select, selectDistinct, selectDistinctOn, update, insert, delete: delete_, merge };
 	}
 
 	/**
@@ -604,6 +609,43 @@ export class PgDatabase<
 	 */
 	delete<TTable extends PgTable>(table: TTable): PgDeleteBase<TTable, TQueryResult> {
 		return new PgDeleteBase(table, this.session, this.dialect);
+	}
+
+	/**
+	 * Creates a MERGE statement (upsert / conditional insert-update-delete).
+	 *
+	 * Use `.using()` to specify the source, then chain `.whenMatched()` and `.whenNotMatched()` clauses.
+	 * Each clause requires a terminal action (`.thenUpdate()`, `.thenDelete()`, `.thenInsert()`, or `.thenDoNothing()`).
+	 *
+	 * **Requires PostgreSQL 15+.** The `.returning()` clause requires PostgreSQL 17+.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/merge}
+	 *
+	 * @param table The target table to merge into.
+	 *
+	 * @example
+	 * ```ts
+	 * // Upsert: update existing rows, insert new ones
+	 * await db.merge(users)
+	 *   .using(newUsers, eq(users.id, newUsers.id))
+	 *   .whenMatched()
+	 *   .update({ name: newUsers.name, email: newUsers.email })
+	 *   .whenNotMatched()
+	 *   .insert({ id: newUsers.id, name: newUsers.name, email: newUsers.email });
+	 *
+	 * // Conditional update or delete
+	 * await db.merge(users)
+	 *   .using(updates, eq(users.id, updates.id))
+	 *   .whenMatched(eq(updates.status, 'active'))
+	 *   .update({ name: updates.name })
+	 *   .whenMatched()
+	 *   .delete()
+	 *   .whenNotMatched()
+	 *   .doNothing();
+	 * ```
+	 */
+	merge<TTable extends PgTable>(table: TTable): PgMergeBuilder<TTable, TQueryResult> {
+		return new PgMergeBuilder(table, this.session, this.dialect);
 	}
 
 	refreshMaterializedView<TView extends PgMaterializedView>(view: TView): PgRefreshMaterializedView<TQueryResult> {
