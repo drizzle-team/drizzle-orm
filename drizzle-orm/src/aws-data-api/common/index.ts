@@ -39,6 +39,14 @@ export function getValueFromDataApi(field: Field) {
 	}
 }
 
+/**
+ * The Data API only exposes six `typeHint` values — JSON, UUID, TIMESTAMP, DATE, TIME, DECIMAL.
+ * For everything else (enums, arrays, custom domains, citext, ltree, geometry, hstore, ...),
+ * there is no hint and the value arrives at Postgres as `text` — see `AwsPgDialect.wrapParam`
+ * which emits explicit `cast(...)` SQL for those.
+ *
+ * Reference: https://docs.aws.amazon.com/rdsdataservice/latest/APIReference/API_SqlParameter.html
+ */
 export function typingsToAwsTypeHint(typings?: QueryTypingsValue): TypeHint | undefined {
 	if (typings === 'date') {
 		return TypeHint.DATE;
@@ -66,6 +74,10 @@ export function toValueParam(value: any, typings?: QueryTypingsValue): { value: 
 	if (value === null) {
 		response.value = { isNull: true };
 	} else if (typeof value === 'string') {
+		// Format requirements per https://docs.aws.amazon.com/rdsdataservice/latest/APIReference/API_SqlParameter.html#rdsdtataservice-Type-SqlParameter-typeHint:
+		//   DATE      → YYYY-MM-DD
+		//   TIMESTAMP → YYYY-MM-DD HH:MM:SS[.FFF]
+		//   TIME      → HH:MM:SS[.FFF]
 		switch (response.typeHint) {
 			case TypeHint.DATE: {
 				response.value = { stringValue: value.split('T')[0]! };

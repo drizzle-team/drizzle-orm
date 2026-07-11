@@ -35,6 +35,19 @@ export interface BuildQueryConfig {
 	escapeParam(num: number, value: unknown): string;
 	escapeString(str: string): string;
 	prepareTyping?: (encoder: DriverValueEncoder<unknown, unknown>) => QueryTypingsValue;
+	/**
+	 * Optional hook that lets a dialect transform the SQL emitted for a single bound parameter.
+	 *
+	 * Returning a different string replaces the `$1` (or `:1`, etc.) emitted by `escapeParam`.
+	 * The `column` argument is the column the param is bound to (via `eq`, `set`, `values`, etc.)
+	 * or `undefined` when the param has no column encoder (e.g. a raw `${value}` in `sql` tag).
+	 * Used by drivers that cannot rely on parameter type negotiation (e.g. AWS RDS Data API,
+	 * which only exposes a small fixed set of `typeHint` values —
+	 * https://docs.aws.amazon.com/rdsdataservice/latest/APIReference/API_SqlParameter.html)
+	 * to inject explicit `cast(...)` expressions for column types Postgres won't implicitly
+	 * coerce from text — enums, uuid, arrays, custom domains, etc.
+	 */
+	wrapParam?: (paramSql: string, column?: AnyColumn) => string;
 	paramStartIndex?: { value: number };
 	inlineParams?: boolean;
 	invokeSource?: 'indexes' | undefined;
@@ -156,6 +169,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 			escapeName,
 			escapeParam,
 			prepareTyping,
+			wrapParam,
 			inlineParams,
 			paramStartIndex,
 		} = config;
@@ -232,7 +246,14 @@ export class SQL<T = unknown> implements SQLWrapper {
 
 			if (is(chunk, Param)) {
 				if (is(chunk.value, Placeholder)) {
-					return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
+					let placeholderSql = escapeParam(paramStartIndex.value++, chunk);
+					if (wrapParam) {
+						placeholderSql = wrapParam(
+							placeholderSql,
+							is(chunk.encoder, Column) ? chunk.encoder : undefined,
+						);
+					}
+					return { sql: placeholderSql, params: [chunk], typings: ['none'] };
 				}
 
 				const mappedValue = chunk.value === null ? null : chunk.encoder.mapToDriverValue(chunk.value);
@@ -250,7 +271,11 @@ export class SQL<T = unknown> implements SQLWrapper {
 					typings = [prepareTyping(chunk.encoder)];
 				}
 
-				return { sql: escapeParam(paramStartIndex.value++, mappedValue), params: [mappedValue], typings };
+				let paramSql = escapeParam(paramStartIndex.value++, mappedValue);
+				if (wrapParam) {
+					paramSql = wrapParam(paramSql, is(chunk.encoder, Column) ? chunk.encoder : undefined);
+				}
+				return { sql: paramSql, params: [mappedValue], typings };
 			}
 
 			if (is(chunk, Placeholder)) {

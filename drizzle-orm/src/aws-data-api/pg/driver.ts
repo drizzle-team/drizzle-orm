@@ -1,11 +1,11 @@
 import { RDSDataClient, type RDSDataClientConfig } from '@aws-sdk/client-rds-data';
+import type { AnyColumn } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgColumn, PgInsertConfig, PgTable, TableConfig } from '~/pg-core/index.ts';
-import { PgArray } from '~/pg-core/index.ts';
+import { PgEnumColumn, PgEnumObjectColumn } from '~/pg-core/index.ts';
 import type { PgRaw } from '~/pg-core/query-builders/raw.ts';
 import {
 	createTableRelationsHelpers,
@@ -13,9 +13,8 @@ import {
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import { Param, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
-import { Table } from '~/table.ts';
-import type { DrizzleConfig, UpdateSet } from '~/utils.ts';
+import type { SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import type { AwsDataApiClient, AwsDataApiPgQueryResult, AwsDataApiPgQueryResultHKT } from './session.ts';
 import { AwsDataApiSession } from './session.ts';
 
@@ -54,41 +53,29 @@ export class AwsPgDialect extends PgDialect {
 		return `:${num + 1}`;
 	}
 
-	override buildInsertQuery(
-		{ table, values, onConflict, returning, select, withList }: PgInsertConfig<PgTable<TableConfig>>,
-	): SQL<unknown> {
-		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
-
-		if (!select) {
-			for (const value of (values as Record<string, Param | SQL>[])) {
-				for (const fieldName of Object.keys(columns)) {
-					const colValue = value[fieldName];
-					if (
-						is(colValue, Param) && colValue.value !== undefined && is(colValue.encoder, PgArray)
-						&& Array.isArray(colValue.value)
-					) {
-						value[fieldName] = sql`cast(${colValue} as ${sql.raw(colValue.encoder.getSQLType())})`;
-					}
-				}
-			}
-		}
-
-		return super.buildInsertQuery({ table, values, onConflict, returning, withList });
+	/**
+	 * AWS RDS Data API ships parameters over JSON without parameter type negotiation.
+	 * String values arrive at Postgres typed as `text`, and Postgres has no implicit cast
+	 * from `text` to types like `uuid`, enums, arrays, or custom domains — so queries like
+	 * `where uuid_col = $1` fail with "operator does not exist: uuid = text".
+	 *
+	 * `typeHint` covers only JSON, UUID, TIMESTAMP, DATE, TIME, and DECIMAL — nothing else
+	 * (see https://docs.aws.amazon.com/rdsdataservice/latest/APIReference/API_SqlParameter.html).
+	 * To make the driver work with every column type, we emit an explicit `cast(...)` for
+	 * every parameter bound to a `PgColumn` encoder. Redundant casts (e.g. `cast($1 as uuid)`
+	 * on top of `typeHint: UUID`) are harmless.
+	 */
+	override wrapParam(paramSql: string, column?: AnyColumn): string {
+		if (!column) return paramSql;
+		return `cast(${paramSql} as ${this.castTypeFor(column)})`;
 	}
 
-	override buildUpdateSet(table: PgTable<TableConfig>, set: UpdateSet): SQL<unknown> {
-		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
-
-		for (const [colName, colValue] of Object.entries(set)) {
-			const currentColumn = columns[colName];
-			if (
-				currentColumn && is(colValue, Param) && colValue.value !== undefined && is(colValue.encoder, PgArray)
-				&& Array.isArray(colValue.value)
-			) {
-				set[colName] = sql`cast(${colValue} as ${sql.raw(colValue.encoder.getSQLType())})`;
-			}
+	private castTypeFor(column: AnyColumn): string {
+		if (is(column, PgEnumColumn) || is(column, PgEnumObjectColumn)) {
+			const { schema, enumName } = column.enum;
+			return schema ? `${this.escapeName(schema)}.${this.escapeName(enumName)}` : this.escapeName(enumName);
 		}
-		return super.buildUpdateSet(table, set);
+		return column.getSQLType();
 	}
 }
 
