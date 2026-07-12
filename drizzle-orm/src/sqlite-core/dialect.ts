@@ -933,6 +933,15 @@ export abstract class SQLiteDialect {
 	}
 }
 
+// SQLite ignores PRAGMA foreign_keys inside a transaction; hoist it before BEGIN when needed.
+// fkOffRe / fkPragmaRe assume drizzle-kit's current rebuild signature: OFF/ON pragmas in a
+// single migration file, outside any savepoint. If drizzle-kit ever splits the pragmas
+// across files or wraps the rebuild in a savepoint, the hoist-to-session strategy below
+// needs revisiting.
+const fkOffRe = /^\s*PRAGMA\s+foreign_keys\s*=\s*(OFF|0)\s*;?\s*$/i;
+const fkPragmaRe = /^\s*PRAGMA\s+foreign_keys\s*=/i;
+const hasFkOffPragma = (migrations: MigrationMeta[]) => migrations.some((m) => m.sql.some((s) => fkOffRe.test(s)));
+
 export class SQLiteSyncDialect extends SQLiteDialect {
 	static override readonly [entityKind]: string = 'SQLiteSyncDialect';
 
@@ -966,31 +975,38 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 		);
 
 		const lastDbMigration = dbMigrations[0] ?? undefined;
+		const migrationsToRun = migrations.filter((m) => !lastDbMigration || Number(lastDbMigration[2])! < m.folderMillis);
+		const needsFkHoist = hasFkOffPragma(migrationsToRun);
+		let prevFkEnabled = 1;
+		if (needsFkHoist) {
+			const row = session.get<{ foreign_keys: number }>(sql`PRAGMA foreign_keys`);
+			prevFkEnabled = row?.foreign_keys ?? 1;
+			if (prevFkEnabled) session.run(sql`PRAGMA foreign_keys=OFF`);
+		}
+
 		session.run(sql`BEGIN`);
 
 		try {
-			for (const migration of migrations) {
-				if (
-					!lastDbMigration
-					|| Number(lastDbMigration[2])! < migration.folderMillis
-				) {
-					for (const stmt of migration.sql) {
-						session.run(sql.raw(stmt));
-					}
-					session.run(
-						sql`INSERT INTO ${
-							sql.identifier(
-								migrationsTable,
-							)
-						} ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
-					);
+			for (const migration of migrationsToRun) {
+				for (const stmt of migration.sql) {
+					if (needsFkHoist && fkPragmaRe.test(stmt)) continue;
+					session.run(sql.raw(stmt));
 				}
+				session.run(
+					sql`INSERT INTO ${
+						sql.identifier(
+							migrationsTable,
+						)
+					} ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
+				);
 			}
 
 			session.run(sql`COMMIT`);
 		} catch (e) {
 			session.run(sql`ROLLBACK`);
 			throw e;
+		} finally {
+			if (needsFkHoist && prevFkEnabled) session.run(sql`PRAGMA foreign_keys=ON`);
 		}
 	}
 }
@@ -1023,14 +1039,20 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 		);
 
 		const lastDbMigration = dbMigrations[0] ?? undefined;
+		const migrationsToRun = migrations.filter((m) => !lastDbMigration || Number(lastDbMigration[2])! < m.folderMillis);
+		const needsFkHoist = hasFkOffPragma(migrationsToRun);
+		let prevFkEnabled = 1;
+		if (needsFkHoist) {
+			const row = await session.get<{ foreign_keys: number }>(sql`PRAGMA foreign_keys`);
+			prevFkEnabled = row?.foreign_keys ?? 1;
+			if (prevFkEnabled) await session.run(sql`PRAGMA foreign_keys=OFF`);
+		}
 
-		await session.transaction(async (tx) => {
-			for (const migration of migrations) {
-				if (
-					!lastDbMigration
-					|| Number(lastDbMigration[2])! < migration.folderMillis
-				) {
+		try {
+			await session.transaction(async (tx) => {
+				for (const migration of migrationsToRun) {
 					for (const stmt of migration.sql) {
+						if (needsFkHoist && fkPragmaRe.test(stmt)) continue;
 						await tx.run(sql.raw(stmt));
 					}
 					await tx.run(
@@ -1041,7 +1063,9 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 						} ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
 					);
 				}
-			}
-		});
+			});
+		} finally {
+			if (needsFkHoist && prevFkEnabled) await session.run(sql`PRAGMA foreign_keys=ON`);
+		}
 	}
 }
