@@ -1573,16 +1573,22 @@ WHERE
 
 					const dbIndexFromConstraint = await db.query(
 						`SELECT
-          idx.indexrelname AS index_name,
-          idx.relname AS table_name,
-          schemaname,
-          CASE WHEN con.conname IS NOT NULL THEN 1 ELSE 0 END AS generated_by_constraint
+          i.relname AS index_name,
+          t.relname AS table_name,
+          ns.nspname AS schemaname,
+          CASE WHEN con.oid IS NOT NULL THEN 1 ELSE 0 END AS generated_by_constraint
         FROM
-          pg_stat_user_indexes idx
+          pg_class t
         LEFT JOIN
-          pg_constraint con ON con.conindid = idx.indexrelid
-        WHERE idx.relname = '${tableName}' and schemaname = '${tableSchema}'
-        group by index_name, table_name,schemaname, generated_by_constraint;`,
+          pg_namespace ns ON ns.oid = t.relnamespace
+        LEFT JOIN
+          pg_index x ON x.indrelid  = t.oid
+        LEFT JOIN
+          pg_class i ON i.oid = x.indexrelid
+        LEFT JOIN
+          pg_constraint con ON con.conindid = i.oid
+        WHERE t.relname = '${tableName}' AND ns.nspname = '${tableSchema}'
+        GROUP BY i.relname, t.relname, ns.nspname, generated_by_constraint;`,
 					);
 
 					const idxsInConsteraint = dbIndexFromConstraint.filter((it) => it.generated_by_constraint === 1).map((it) =>
