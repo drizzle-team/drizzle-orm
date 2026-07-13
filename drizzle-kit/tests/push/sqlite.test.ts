@@ -1175,6 +1175,7 @@ test('recreate table with added column not null and without default with data', 
 		type: 'recreate_table',
 		uniqueConstraints: [],
 		checkConstraints: [],
+		addedColumns: ['new_column'],
 	});
 
 	expect(sqlStatements!.length).toBe(4);
@@ -1201,6 +1202,67 @@ test('recreate table with added column not null and without default with data', 
 	expect(tablesToRemove!.length).toBe(0);
 	expect(tablesToTruncate!.length).toBe(1);
 	expect(tablesToTruncate![0]).toBe('users');
+});
+
+test('recreate table with new nullable column preserves data in INSERT', async (t) => {
+	const client = new Database(':memory:');
+
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			name: text('name'),
+		}),
+	};
+
+	const schema2 = {
+		users: sqliteTable(
+			'users',
+			{
+				id: int('id').primaryKey({ autoIncrement: false }),
+				name: text('name'),
+				referralCode: text('referral_code').unique(),
+			},
+		),
+	};
+
+	const seedStatements = [
+		`INSERT INTO \`users\` ("name") VALUES ('drizzle')`,
+		`INSERT INTO \`users\` ("name") VALUES ('turso')`,
+	];
+
+	const {
+		statements,
+		sqlStatements,
+		columnsToRemove,
+		infoToPrint,
+		shouldAskForApprove,
+		tablesToRemove,
+		tablesToTruncate,
+	} = await diffTestSchemasPushSqlite(
+		client,
+		schema1,
+		schema2,
+		[],
+		false,
+		seedStatements,
+	);
+
+	// The recreate_table statement handles the autoincrement change and new column
+	const recreateStmt = statements!.find((s) => s.type === 'recreate_table');
+	expect(recreateStmt).toBeDefined();
+
+	// The INSERT INTO SELECT should only include columns that existed in the old table
+	// i.e. "id" and "name" — NOT "referral_code" which is new
+	const insertStatement = sqlStatements.find((s) => s.startsWith('INSERT INTO'));
+	expect(insertStatement).toBeDefined();
+	expect(insertStatement).toBe(
+		`INSERT INTO \`__new_users\`("id", "name") SELECT "id", "name" FROM \`users\`;`,
+	);
+	expect(insertStatement).not.toContain('referral_code');
+
+	expect(columnsToRemove!.length).toBe(0);
+	expect(shouldAskForApprove).toBe(false);
+	expect(tablesToTruncate!.length).toBe(0);
 });
 
 test('add check constraint to table', async (t) => {

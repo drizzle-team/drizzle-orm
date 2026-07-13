@@ -867,6 +867,7 @@ test('recreate table with added column not null and without default', async (t) 
 		type: 'recreate_table',
 		uniqueConstraints: [],
 		checkConstraints: [],
+		addedColumns: ['new_column'],
 	});
 
 	expect(sqlStatements!.length).toBe(4);

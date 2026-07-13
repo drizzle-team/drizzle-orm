@@ -3769,9 +3769,12 @@ class SQLiteRecreateTableConvertor extends Convertor {
 	}
 
 	convert(statement: JsonRecreateTableStatement): string | string[] {
-		const { tableName, columns, compositePKs, referenceData, checkConstraints } = statement;
+		const { tableName, columns, compositePKs, referenceData, checkConstraints, addedColumns } = statement;
 
-		const columnNames = columns.map((it) => `"${it.name}"`).join(', ');
+		const existingColumns = addedColumns?.length
+			? columns.filter((it) => !addedColumns.includes(it.name))
+			: columns;
+		const existingColumnNames = existingColumns.map((it) => `"${it.name}"`).join(', ');
 		const newTableName = `__new_${tableName}`;
 
 		const sqlStatements: string[] = [];
@@ -3796,10 +3799,12 @@ class SQLiteRecreateTableConvertor extends Convertor {
 			}),
 		);
 
-		// migrate data
-		sqlStatements.push(
-			`INSERT INTO \`${newTableName}\`(${columnNames}) SELECT ${columnNames} FROM \`${tableName}\`;`,
-		);
+		// migrate data - only SELECT columns that exist in the old table
+		if (existingColumnNames.length > 0) {
+			sqlStatements.push(
+				`INSERT INTO \`${newTableName}\`(${existingColumnNames}) SELECT ${existingColumnNames} FROM \`${tableName}\`;`,
+			);
+		}
 
 		// drop table
 		sqlStatements.push(
@@ -3836,9 +3841,12 @@ class LibSQLRecreateTableConvertor extends Convertor {
 	}
 
 	convert(statement: JsonRecreateTableStatement): string[] {
-		const { tableName, columns, compositePKs, referenceData, checkConstraints } = statement;
+		const { tableName, columns, compositePKs, referenceData, checkConstraints, addedColumns } = statement;
 
-		const columnNames = columns.map((it) => `"${it.name}"`).join(', ');
+		const existingColumns = addedColumns?.length
+			? columns.filter((it) => !addedColumns.includes(it.name))
+			: columns;
+		const existingColumnNames = existingColumns.map((it) => `"${it.name}"`).join(', ');
 		const newTableName = `__new_${tableName}`;
 
 		const sqlStatements: string[] = [];
@@ -3862,10 +3870,12 @@ class LibSQLRecreateTableConvertor extends Convertor {
 			}),
 		);
 
-		// migrate data
-		sqlStatements.push(
-			`INSERT INTO \`${newTableName}\`(${columnNames}) SELECT ${columnNames} FROM \`${tableName}\`;`,
-		);
+		// migrate data - only SELECT columns that exist in the old table
+		if (existingColumnNames.length > 0) {
+			sqlStatements.push(
+				`INSERT INTO \`${newTableName}\`(${existingColumnNames}) SELECT ${existingColumnNames} FROM \`${tableName}\`;`,
+			);
+		}
 
 		// drop table
 		sqlStatements.push(
