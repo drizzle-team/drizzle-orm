@@ -25,6 +25,7 @@ type WriteResultConfigBase = {
 	driver?: Driver;
 	renames: string[];
 	snapshots: string[];
+	provider: 'supabase' | undefined;
 };
 
 export function writeResult(
@@ -50,6 +51,7 @@ export function writeResult(
 		dialect,
 		driver,
 		snapshots,
+		provider,
 	} = config;
 	const json = outputFormat() === 'json';
 
@@ -91,6 +93,11 @@ export function writeResult(
 		// adding new migration to the list of all migrations
 		const js = embeddedMigrations([...snapshots || [], join(outFolder, `${tag}/snapshot.json`)], driver);
 		fs.writeFileSync(`${outFolder}/migrations.js`, js);
+	}
+
+	if (provider === 'supabase') {
+		// add migrations that are compatible with "supabase db push"
+		fs.writeFileSync(`${outFolder}/${tag}.sql`, sql);
 	}
 
 	if (!json) {

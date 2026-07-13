@@ -128,6 +128,7 @@ export const configCommonSchema = object({
 	verbose: boolean().optional().default(false),
 	driver: driver.optional(),
 	dbCredentials: any().optional(),
+	provider: literal('supabase').optional(),
 }).passthrough();
 
 export type CliConfig = TypeOf<typeof configCommonSchema> & {

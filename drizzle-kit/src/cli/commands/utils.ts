@@ -98,6 +98,7 @@ export type GenerateConfig<S extends AnySchemaSource = AnySchemaSource> = {
 	ignoreConflicts?: boolean;
 	explain: boolean;
 	hints: HintsHandler;
+	provider: 'supabase' | undefined;
 };
 
 export type ExportConfig = {
@@ -128,7 +129,10 @@ export const prepareGenerateConfig = async (
 	const config = from === 'config' ? await drizzleConfigFromFile(options.config) : options;
 	const hints = await HintsHandler.fromCli(options);
 
-	const { schema, out, breakpoints, dialect, driver } = config;
+	// "provider" comes from drizzleConfigFromFile
+	const { schema, out, breakpoints, dialect, driver, provider } = 'provider' in config
+		? config
+		: { ...config, provider: undefined };
 
 	if (!schema || !dialect) {
 		throw new RequiredParamsCliError(
@@ -160,6 +164,7 @@ export const prepareGenerateConfig = async (
 		ignoreConflicts: options.ignoreConflicts !== undefined && options.ignoreConflicts,
 		explain: options.explain ?? false,
 		hints,
+		provider,
 	};
 };
 
