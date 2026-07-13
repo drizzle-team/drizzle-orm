@@ -1,11 +1,11 @@
 import { sql } from 'drizzle-orm';
-import { migrate } from 'drizzle-orm/minipg/migrator';
 import { getTableConfig, integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { migrate } from 'drizzle-orm/postgres/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe, expect } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
-import { minipgTest as test } from './instrumentation';
+import { postgresTest as test } from './instrumentation';
 import { usersMigratorTable, usersTable } from './schema';
 
 // Shapeless execute returns jsons as strings

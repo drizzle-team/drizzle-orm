@@ -12,26 +12,26 @@ import { preparedStatementName } from '~/query-name-generator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
 import type { Simplify } from '~/utils.ts';
-export type MiniPgClient = Pool | Connection;
+export type PostgresClient = Pool | Connection;
 
-export interface MiniPgSessionOptions {
+export interface PostgresSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
 }
 
-export class MiniPgSession<
+export class PostgresSession<
 	TRelations extends AnyRelations,
-> extends PgAsyncSession<MiniPgQueryResultHKT, TRelations> {
-	static override readonly [entityKind]: string = 'MiniPgSession';
+> extends PgAsyncSession<PostgresQueryResultHKT, TRelations> {
+	static override readonly [entityKind]: string = 'PostgresSession';
 
 	private logger: Logger;
 	private cache: Cache;
 
 	constructor(
-		private client: MiniPgClient,
+		private client: PostgresClient,
 		dialect: PgDialect,
 		private relations: TRelations,
-		private options: MiniPgSessionOptions = {},
+		private options: PostgresSessionOptions = {},
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
@@ -86,19 +86,19 @@ export class MiniPgSession<
 	}
 
 	override async transaction<T>(
-		transaction: (tx: MiniPgTransaction<TRelations>) => Promise<T>,
+		transaction: (tx: PostgresTransaction<TRelations>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
 		const isPool = this.client instanceof Pool || Object.getPrototypeOf(this.client).constructor.name.includes('Pool'); // oxlint-disable-line drizzle-internal/no-instanceof
 		const session = isPool
-			? new MiniPgSession(
+			? new PostgresSession(
 				await (this.client as Pool).acquire(),
 				this.dialect,
 				this.relations,
 				this.options,
 			)
 			: this;
-		const tx = new MiniPgTransaction<TRelations>(
+		const tx = new PostgresTransaction<TRelations>(
 			this.dialect,
 			session,
 			this.relations,
@@ -120,16 +120,16 @@ export class MiniPgSession<
 	}
 }
 
-export class MiniPgTransaction<
+export class PostgresTransaction<
 	TRelations extends AnyRelations,
-> extends PgAsyncTransaction<MiniPgQueryResultHKT, TRelations> {
-	static override readonly [entityKind]: string = 'MiniPgTransaction';
+> extends PgAsyncTransaction<PostgresQueryResultHKT, TRelations> {
+	static override readonly [entityKind]: string = 'PostgresTransaction';
 
 	override async transaction<T>(
-		transaction: (tx: MiniPgTransaction<TRelations>) => Promise<T>,
+		transaction: (tx: PostgresTransaction<TRelations>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new MiniPgTransaction<TRelations>(
+		const tx = new PostgresTransaction<TRelations>(
 			this.dialect,
 			this.session,
 			this._.relations,
@@ -148,6 +148,6 @@ export class MiniPgTransaction<
 	}
 }
 
-export interface MiniPgQueryResultHKT extends PgQueryResultHKT {
+export interface PostgresQueryResultHKT extends PgQueryResultHKT {
 	type: Simplify<Omit<QueryResult<this['row']>, 'metrics' | 'debug'>>;
 }

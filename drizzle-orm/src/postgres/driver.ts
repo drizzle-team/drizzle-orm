@@ -7,24 +7,24 @@ import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
 import { miniPgCodecs } from './codecs.ts';
-import type { MiniPgClient, MiniPgQueryResultHKT } from './session.ts';
-import { MiniPgSession } from './session.ts';
+import type { PostgresClient, PostgresQueryResultHKT } from './session.ts';
+import { PostgresSession } from './session.ts';
 import { buildShape } from './shape.ts';
 
-export class MiniPgDatabase<
+export class PostgresDatabase<
 	TRelations extends AnyRelations = EmptyRelations,
-> extends PgAsyncDatabase<MiniPgQueryResultHKT, TRelations> {
-	static override readonly [entityKind]: string = 'MiniPgDatabase';
+> extends PgAsyncDatabase<PostgresQueryResultHKT, TRelations> {
+	static override readonly [entityKind]: string = 'PostgresDatabase';
 }
 
 function construct<
 	TRelations extends AnyRelations = EmptyRelations,
-	TClient extends MiniPgClient = MiniPgClient,
+	TClient extends PostgresClient = PostgresClient,
 >(
 	client: TClient,
 	config: DrizzlePgConfig<TRelations> = {},
-): MiniPgDatabase<TRelations> & {
-	$client: MiniPgClient extends TClient ? Pool : TClient;
+): PostgresDatabase<TRelations> & {
+	$client: PostgresClient extends TClient ? Pool : TClient;
 } {
 	const dialect = new PgDialect({
 		codecs: config.codecs ?? miniPgCodecs,
@@ -39,16 +39,16 @@ function construct<
 	}
 
 	const relations = config.relations ?? {};
-	const session = new MiniPgSession(client, dialect, relations, {
+	const session = new PostgresSession(client, dialect, relations, {
 		logger,
 		cache: config.cache,
 	});
 
-	const db = new MiniPgDatabase(
+	const db = new PostgresDatabase(
 		dialect,
 		session,
 		relations,
-	) as MiniPgDatabase<TRelations>;
+	) as PostgresDatabase<TRelations>;
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {
@@ -60,7 +60,7 @@ function construct<
 
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
-	TClient extends MiniPgClient = Pool,
+	TClient extends PostgresClient = Pool,
 >(
 	...params:
 		| [
@@ -78,8 +78,8 @@ export function drizzle<
 				connection: string | PoolConfig;
 			}),
 		]
-): MiniPgDatabase<TRelations> & {
-	$client: MiniPgClient extends TClient ? Pool : TClient;
+): PostgresDatabase<TRelations> & {
+	$client: PostgresClient extends TClient ? Pool : TClient;
 } {
 	if (typeof params[0] === 'string') {
 		const instance = createPool({
@@ -118,7 +118,7 @@ export namespace drizzle {
 		TRelations extends AnyRelations = EmptyRelations,
 	>(
 		config?: DrizzlePgConfig<TRelations>,
-	): MiniPgDatabase<TRelations> & {
+	): PostgresDatabase<TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;
