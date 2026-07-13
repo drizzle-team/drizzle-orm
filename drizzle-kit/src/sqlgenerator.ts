@@ -3769,9 +3769,10 @@ class SQLiteRecreateTableConvertor extends Convertor {
 	}
 
 	convert(statement: JsonRecreateTableStatement): string | string[] {
-		const { tableName, columns, compositePKs, referenceData, checkConstraints } = statement;
+		const { tableName, columns, compositePKs, referenceData, checkConstraints, columnsToTransfer } = statement;
 
-		const columnNames = columns.map((it) => `"${it.name}"`).join(', ');
+		const transferColumns = columnsToTransfer ?? columns.map((it) => it.name);
+		const columnNames = transferColumns.map((it) => `"${it}"`).join(', ');
 		const newTableName = `__new_${tableName}`;
 
 		const sqlStatements: string[] = [];
@@ -3836,9 +3837,10 @@ class LibSQLRecreateTableConvertor extends Convertor {
 	}
 
 	convert(statement: JsonRecreateTableStatement): string[] {
-		const { tableName, columns, compositePKs, referenceData, checkConstraints } = statement;
+		const { tableName, columns, compositePKs, referenceData, checkConstraints, columnsToTransfer } = statement;
 
-		const columnNames = columns.map((it) => `"${it.name}"`).join(', ');
+		const transferColumns = columnsToTransfer ?? columns.map((it) => it.name);
+		const columnNames = transferColumns.map((it) => `"${it}"`).join(', ');
 		const newTableName = `__new_${tableName}`;
 
 		const sqlStatements: string[] = [];
