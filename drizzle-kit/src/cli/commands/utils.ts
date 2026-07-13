@@ -98,7 +98,7 @@ export type GenerateConfig<S extends AnySchemaSource = AnySchemaSource> = {
 	ignoreConflicts?: boolean;
 	explain: boolean;
 	hints: HintsHandler;
-	provider: 'supabase' | undefined;
+	provider?: 'supabase';
 };
 
 export type ExportConfig = {

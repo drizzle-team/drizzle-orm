@@ -25,7 +25,7 @@ type WriteResultConfigBase = {
 	driver?: Driver;
 	renames: string[];
 	snapshots: string[];
-	provider: 'supabase' | undefined;
+	provider?: 'supabase';
 };
 
 export function writeResult(
