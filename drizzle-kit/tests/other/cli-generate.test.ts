@@ -397,6 +397,7 @@ test('validate config #1', async (t) => {
 		name: undefined,
 		explain: false,
 		hints: expect.any(HintsHandler) as any,
+		provider: undefined,
 	};
 	expect(res.options).toStrictEqual(expected);
 });
@@ -417,6 +418,7 @@ test('validate config #2', async (t) => {
 		},
 		extensionsFilters: ['postgis'],
 		verbose: false,
+		provider: 'supabase',
 	}, prefix);
 
 	const res = await brotest(generate, `--config=${name}`);
@@ -438,6 +440,7 @@ test('validate config #2', async (t) => {
 		name: undefined,
 		explain: false,
 		hints: expect.any(HintsHandler) as any,
+		provider: 'supabase',
 	};
 	expect(res.options).toStrictEqual(expected);
 });
@@ -505,6 +508,7 @@ test('validate config #5', async (t) => {
 		name: undefined,
 		explain: false,
 		hints: expect.any(HintsHandler) as any,
+		provider: undefined,
 	};
 	expect(res.options).toStrictEqual(expected);
 });

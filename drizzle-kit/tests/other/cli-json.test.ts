@@ -432,6 +432,7 @@ test('generate writeResult emits json for no-op when json mode is active', async
 			dialect: 'postgresql',
 			renames: [],
 			snapshots: [],
+			provider: undefined,
 		}));
 
 	expect(env).toStrictEqual({
@@ -454,6 +455,7 @@ test('generate writeResult emits json payload when a migration is written in jso
 			dialect: 'postgresql',
 			renames: [],
 			snapshots: [],
+			provider: undefined,
 		}));
 
 	expect(env).toMatchObject({
