@@ -117,7 +117,9 @@ export abstract class SQLiteDialect {
 			columnNames.flatMap((colName, i) => {
 				const col = tableColumns[colName]!;
 
-				const onUpdateFnResult = col.onUpdateFn?.();
+				// Only invoke the `$onUpdate` callback when the column is absent
+				// from `set` — see drizzle-team/drizzle-orm#5780.
+				const onUpdateFnResult = set[colName] !== undefined ? undefined : col.onUpdateFn?.();
 				const value = set[colName]
 					?? (is(onUpdateFnResult, SQL)
 						? onUpdateFnResult

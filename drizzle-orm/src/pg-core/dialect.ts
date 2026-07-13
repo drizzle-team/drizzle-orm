@@ -160,7 +160,12 @@ export class PgDialect {
 		return sql.join(columnNames.flatMap((colName, i) => {
 			const col = tableColumns[colName]!;
 
-			const onUpdateFnResult = col.onUpdateFn?.();
+			// Only invoke the `$onUpdate` callback when the column is absent from
+			// `set` — eagerly calling it for every column would re-introduce the
+			// regression in #5780 where side-effecting callbacks (logging,
+			// throwing, reading external state) fire on every UPDATE even when
+			// the caller explicitly provided the column value.
+			const onUpdateFnResult = set[colName] !== undefined ? undefined : col.onUpdateFn?.();
 			const value = set[colName] ?? (is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col));
 			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
 
