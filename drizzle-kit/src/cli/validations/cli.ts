@@ -1,6 +1,6 @@
 import { array, boolean, intersection, literal, object, string, TypeOf, union } from 'zod';
 import { dialect } from '../../schemaValidator';
-import { casing, casingType, prefix } from './common';
+import { casing, casingType, entitiesSchema, prefix } from './common';
 
 export const cliConfigGenerate = object({
 	dialect: dialect.optional(),
@@ -26,13 +26,7 @@ export const pushParams = object({
 	extensionsFilters: literal('postgis').array().optional(),
 	verbose: boolean().optional(),
 	strict: boolean().optional(),
-	entities: object({
-		roles: boolean().or(object({
-			provider: string().optional(),
-			include: string().array().optional(),
-			exclude: string().array().optional(),
-		})).optional().default(false),
-	}).optional(),
+	entities: entitiesSchema.optional(),
 }).passthrough();
 
 export type PushParams = TypeOf<typeof pushParams>;
@@ -51,13 +45,7 @@ export const pullParams = object({
 	migrations: object({
 		prefix: prefix.optional().default('index'),
 	}).optional(),
-	entities: object({
-		roles: boolean().or(object({
-			provider: string().optional(),
-			include: string().array().optional(),
-			exclude: string().array().optional(),
-		})).optional().default(false),
-	}).optional(),
+	entities: entitiesSchema.optional(),
 }).passthrough();
 
 export type Entities = TypeOf<typeof pullParams>['entities'];
