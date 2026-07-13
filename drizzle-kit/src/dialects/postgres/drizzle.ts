@@ -35,8 +35,8 @@ import {
 	PgView,
 	uniqueKeyName,
 } from 'drizzle-orm/pg-core';
-import { loadModule } from 'src/utils/utils-node';
 import { assertUnreachable } from '../../utils';
+import { loadModule } from '../../utils/utils-node';
 import type { EntityFilter } from '../pull-utils';
 import { getOrNull } from '../utils';
 import type {
@@ -884,4 +884,20 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 		policies,
 		relations,
 	};
+};
+
+export type PreparedPostgresSchema = Awaited<ReturnType<typeof prepareFromSchemaFiles>>;
+
+// Decouples the schema's origin (compiled `.ts` files vs. a supplied prebuilt schema) from its consumers.
+export interface SchemaSource {
+	load(): Promise<PreparedPostgresSchema>;
+}
+
+export const SchemaSource = {
+	fromFilenames(filenames: string[]): SchemaSource {
+		return { load: () => prepareFromSchemaFiles(filenames) };
+	},
+	fromSchema(schema: PreparedPostgresSchema): SchemaSource {
+		return { load: async () => schema };
+	},
 };

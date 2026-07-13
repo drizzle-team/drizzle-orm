@@ -400,11 +400,20 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 
 	mapWith<
 		TDecoder extends
-			| DriverValueDecoder<any, any>
-			| DriverValueDecoder<any, any>['mapFromDriverValue'],
-	>(decoder: TDecoder): SQL<GetDecoderResult<TDecoder>> {
+			| DriverValueDecoder<any, Exclude<T, null>>
+			| DriverValueDecoder<any, Exclude<T, null>>['mapFromDriverValue'],
+	>(
+		decoder: TDecoder,
+	): Equal<T, unknown> extends true ? SQL<GetDecoderResult<TDecoder>>
+		: Equal<T, any> extends true ? SQL<GetDecoderResult<TDecoder>>
+		: SQL<GetDecoderResult<TDecoder> | (null extends T ? null : never)>
+	{
 		this.decoder = typeof decoder === 'function' ? { mapFromDriverValue: decoder } : decoder;
-		return this as SQL<GetDecoderResult<TDecoder>>;
+		return this as SQL<any>;
+	}
+
+	nullable(): SQL<T | null> {
+		return this;
 	}
 
 	inlineParams(): this {
@@ -512,7 +521,7 @@ export class Param<TDataType = any, TDriverParamType = TDataType> implements SQL
 	 * @param encoder - Encoder to convert the value to a driver parameter
 	 */
 	constructor(
-		readonly value: TDataType,
+		readonly value: TDataType | Placeholder<string, TDataType>,
 		readonly encoder: DriverValueEncoder<TDataType, TDriverParamType> = noopEncoder,
 		public codec?: (value: any) => any,
 	) {}
@@ -632,7 +641,7 @@ export namespace sql {
 	}
 
 	export function param<TData, TDriver>(
-		value: TData,
+		value: TData | Placeholder<string, TData>,
 		encoder?: DriverValueEncoder<TData, TDriver>,
 	): Param<TData, TDriver> {
 		return new Param(value, encoder);
@@ -778,11 +787,12 @@ export function fillPlaceholders(params: unknown[], values: Record<string, unkno
 				throw new Error(`No value for placeholder "${p.value.name}" was provided`);
 			}
 
-			if (values[p.value.name] === null) return values[p.value.name];
+			const value = values[p.value.name];
+			if (value === null) return value;
 
 			const mapped = p.encoder.mapToDriverValue.isNoop
-				? values[p.value.name]
-				: p.encoder.mapToDriverValue(values[p.value.name]);
+				? value
+				: p.encoder.mapToDriverValue(value);
 
 			return p.codec ? p.codec(mapped) : mapped;
 		}
@@ -891,7 +901,7 @@ export type InferSelectViewModel<TView extends View> =
 Column.prototype.getSQL = function() {
 	return new SQL([this]);
 };
-// Defined separately from the Column class to resolve circular dependency
+// Defined separately from the Subquery class to resolve circular dependency
 Subquery.prototype.getSQL = function() {
 	return new SQL([this]);
 };

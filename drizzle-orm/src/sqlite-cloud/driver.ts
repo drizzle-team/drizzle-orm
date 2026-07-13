@@ -1,40 +1,34 @@
 import { Database } from '@sqlitecloud/drivers';
-import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
-import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
+import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
+import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
+import { jitCompatCheck } from '~/utils.ts';
 import { SQLiteCloudSession } from './session.ts';
 
 export type SQLiteCloudRunResult = unknown;
 
-export class SQLiteCloudDatabase<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
-> extends BaseSQLiteDatabase<'async', SQLiteCloudRunResult, TSchema, TRelations> {
+export class SQLiteCloudDatabase<TRelations extends AnyRelations = EmptyRelations>
+	extends SQLiteAsyncDatabase<'async', SQLiteCloudRunResult, TRelations>
+{
 	static override readonly [entityKind]: string = 'SQLiteCloudDatabase';
 
 	/** @internal */
-	declare readonly session: SQLiteCloudSession<
-		TSchema,
-		TRelations,
-		V1.ExtractTablesWithRelations<TSchema>
-	>;
+	declare readonly session: SQLiteCloudSession<TRelations>;
 }
 
 /** @internal */
-export function construct<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
->(
+export function construct<TRelations extends AnyRelations = EmptyRelations>(
 	client: Database,
-	config: DrizzleConfig<TSchema, TRelations> = {},
-): SQLiteCloudDatabase<TSchema, TRelations> & {
+	config: DrizzleSQLiteConfig<TRelations> = {},
+): SQLiteCloudDatabase<TRelations> & {
 	$client: Database;
 } {
-	const dialect = new SQLiteAsyncDialect();
+	const dialect = new SQLiteDialect({
+		useJitMappers: jitCompatCheck(config.jit),
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -42,38 +36,14 @@ export function construct<
 		logger = config.logger;
 	}
 
-	let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;
-	if (config.schema) {
-		const tablesConfig = V1.extractTablesRelationalConfig(
-			config.schema,
-			V1.createTableRelationsHelpers,
-		);
-		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
-			tableNamesMap: tablesConfig.tableNamesMap,
-		};
-	}
-
 	const relations = config.relations ?? {} as TRelations;
 	const session = new SQLiteCloudSession(
 		client,
 		dialect,
 		relations,
-		schema,
-		{ logger, cache: config.cache, useJitMappers: jitCompatCheck(config.jit) },
+		{ logger, cache: config.cache },
 	);
-	const db = new SQLiteCloudDatabase(
-		'async',
-		dialect,
-		session as SQLiteCloudSession<
-			TSchema,
-			TRelations,
-			V1.ExtractTablesWithRelations<TSchema>
-		>,
-		relations,
-		schema as V1.RelationalSchemaConfig<any>,
-	) as SQLiteCloudDatabase<TSchema, TRelations>;
+	const db = new SQLiteCloudDatabase('async', dialect, session, relations);
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {
@@ -86,19 +56,15 @@ export type DatabaseOpts = (Database extends { new(path: string, opts: infer D):
 	path: string;
 };
 
-export function drizzle<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
-	TClient extends Database = Database,
->(
+export function drizzle<TRelations extends AnyRelations = EmptyRelations, TClient extends Database = Database>(
 	...params: [
 		string,
 	] | [
 		string,
-		DrizzleConfig<TSchema, TRelations>,
+		DrizzleSQLiteConfig<TRelations>,
 	] | [
 		(
-			& DrizzleConfig<TSchema, TRelations>
+			& DrizzleSQLiteConfig<TRelations>
 			& ({
 				connection: string | DatabaseOpts;
 			} | {
@@ -106,7 +72,7 @@ export function drizzle<
 			})
 		),
 	]
-): SQLiteCloudDatabase<TSchema, TRelations> & {
+): SQLiteCloudDatabase<TRelations> & {
 	$client: TClient;
 } {
 	if (typeof params[0] === 'string') {
@@ -115,26 +81,23 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	const { connection, client, ...drizzleConfig } = params[0] as
+	const { connection, client, ...DrizzleSQLiteConfig } = params[0] as
 		& { connection?: DatabaseOpts; client?: TClient }
-		& DrizzleConfig<TSchema, TRelations>;
+		& DrizzleSQLiteConfig<TRelations>;
 
-	if (client) return construct(client, drizzleConfig) as any;
+	if (client) return construct(client, DrizzleSQLiteConfig) as any;
 
 	const instance = typeof connection === 'string'
 		? new Database(connection)
 		: new Database(connection.path, connection);
 
-	return construct(instance, drizzleConfig) as any;
+	return construct(instance, DrizzleSQLiteConfig) as any;
 }
 
 export namespace drizzle {
-	export function mock<
-		TSchema extends Record<string, unknown> = Record<string, never>,
-		TRelations extends AnyRelations = EmptyRelations,
-	>(
-		config?: DrizzleConfig<TSchema, TRelations>,
-	): SQLiteCloudDatabase<TSchema, TRelations> & {
+	export function mock<TRelations extends AnyRelations = EmptyRelations>(
+		config?: DrizzleSQLiteConfig<TRelations>,
+	): SQLiteCloudDatabase<TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;

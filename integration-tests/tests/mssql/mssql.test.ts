@@ -36,6 +36,7 @@ import {
 	mssqlTable,
 	mssqlTableCreator,
 	mssqlView,
+	nvarchar,
 	primaryKey,
 	real,
 	text,
@@ -1200,8 +1201,6 @@ test('migrator : --init - db migrations error', async ({ db }) => {
 		ELSE 0
 	END AS ${sql.identifier('tableExists')};`);
 
-	console.log(res);
-
 	expect(migratorRes).toStrictEqual({ exitCode: 'databaseMigrations' });
 	expect(meta.length).toStrictEqual(2);
 	expect(!!res.recordset[0]?.tableExists).toStrictEqual(true);
@@ -2083,6 +2082,61 @@ test('transaction', async ({ db }) => {
 			.update(products)
 			.set({ stock: product.stock - 1 })
 			.where(eq(products.id, product.id));
+	});
+
+	const result = await db.select().from(users);
+
+	expect(result).toEqual([{ id: 1, balance: 90 }]);
+
+	await db.execute(sql`drop table ${users}`);
+	await db.execute(sql`drop table ${products}`);
+});
+
+test('transaction - set isolation level', async ({ db }) => {
+	const users = mssqlTable('users_transactions', {
+		id: int('id').identity().primaryKey(),
+		balance: int('balance').notNull(),
+	});
+	const products = mssqlTable('products_transactions', {
+		id: int('id').identity().primaryKey(),
+		price: int('price').notNull(),
+		stock: int('stock').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`drop table if exists ${products}`);
+
+	await db.execute(
+		sql`create table users_transactions (id int identity not null primary key, balance int not null)`,
+	);
+	await db.execute(
+		sql`create table products_transactions (id int identity not null primary key, price int not null, stock int not null)`,
+	);
+
+	await db.insert(users).values({ balance: 100 });
+	const user = await db
+		.select()
+		.from(users)
+		.where(eq(users.id, 1))
+		.then((rows) => rows[0]!);
+	await db.insert(products).values({ price: 10, stock: 10 });
+	const product = await db
+		.select()
+		.from(products)
+		.where(eq(products.id, 1))
+		.then((rows) => rows[0]!);
+
+	await db.transaction(async (tx) => {
+		await tx
+			.update(users)
+			.set({ balance: user.balance - product.price })
+			.where(eq(users.id, user.id));
+		await tx
+			.update(products)
+			.set({ stock: product.stock - 1 })
+			.where(eq(products.id, product.id));
+	}, {
+		isolationLevel: 'read committed',
 	});
 
 	const result = await db.select().from(users);
@@ -4971,7 +5025,37 @@ test('issue 5527. real() returns unprecise float64 values', async ({ db }) => {
 	expect(res).toStrictEqual({ id: 1, age: 0.01 });
 });
 
-test.skipIf(Date.now() < +new Date('2026-06-20'))('Query error wrapping', async ({ db }) => {
+test.skipIf(Date.now() < +new Date('2026-07-01'))('Query error wrapping', async ({ db }) => {
 	await expect(db.insert(users2Table).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]))
 		.rejects.toBeInstanceOf(DrizzleQueryError);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5881
+test('insert into table with generated column', async ({ db }) => {
+	const docs = mssqlTable('docs', {
+		id: int().identity(),
+		value: nvarchar({ length: 'max' }).notNull(),
+		value_idx: nvarchar({ length: 450 }).generatedAlwaysAs(sql`(CONVERT([nvarchar](450),[value]))`),
+	});
+
+	await db.execute(sql`drop table if exists [docs]`);
+	await db.execute(sql`
+		create table [docs] (
+			[id] int identity,
+			[value] nvarchar(max) not null,
+			[value_idx] as (upper([value]))
+		);
+	`);
+
+	const query = db.insert(docs).values({ value: 'hello' });
+	expect(query.toSQL()).toStrictEqual({
+		params: [
+			'hello',
+		],
+		sql: 'insert into [docs] ([value]) values (@par0)',
+	});
+
+	await query;
+	const result = await db.select().from(docs);
+	expect(result).toEqual([{ id: 1, value: 'hello', value_idx: 'HELLO' }]);
 });

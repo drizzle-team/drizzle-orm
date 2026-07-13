@@ -13,6 +13,7 @@ import type {
 } from '~/pg-core/query-builders/index.ts';
 import type { PgSelectConfig, SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import { PgTable } from '~/pg-core/table.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import {
 	type AnyOne,
 	// AggregatedField,
@@ -37,6 +38,7 @@ import { type Name, Param, type Query, SQL, sql, type SQLChunk } from '~/sql/sql
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
 import {
+	getColumnFromDecoder,
 	makeDefaultQueryMapper,
 	makeJitQueryMapper,
 	orderSelectedFields,
@@ -44,7 +46,7 @@ import {
 	type UpdateSet,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
-import { type PgCodecs, type PostgresType, resolvePgTypeAlias } from './codecs.ts';
+import { type PgCodecs, type PostgresType, resolvePgTypeAlias, unionsTypeTable } from './codecs.ts';
 import { PgViewBase } from './view-base.ts';
 import type { PgMaterializedView, PgView } from './view.ts';
 
@@ -208,23 +210,44 @@ export class PgDialect {
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
-		{ isSingleTable = false, ignoreCastCodecs = false }: {
-			isSingleTable?: boolean;
-			ignoreCastCodecs?: boolean;
-		} = {},
+		{ isSingleTable = false, ignoreCastCodecs = false }: { isSingleTable?: boolean; ignoreCastCodecs?: boolean } = {},
 	): SQL {
 		const columnsLen = fields.length;
 
-		const chunks = fields.flatMap(({ field }, i) => {
+		const chunks = fields.flatMap(({ field, codecOverride, column }, i) => {
 			const chunk: SQLChunk[] = [];
+			const override = codecOverride as PostgresType | undefined;
 
-			if (is(field, SQL.Aliased) && field.isSelectionField) {
-				if (!isSingleTable && field.origin !== undefined) {
-					chunk.push(sql.identifier(field.origin), sql.raw('.'));
+			if (is(field, SQL.Aliased)) {
+				if (field.isSelectionField) {
+					const query = !isSingleTable && field.origin !== undefined
+						? sql`${sql.identifier(field.origin)}.${sql.identifier(field.fieldAlias)}`
+						: sql.identifier(field.fieldAlias);
+					if (column && !ignoreCastCodecs) chunk.push(this.codecs.apply(column, 'cast', query, override));
+					else chunk.push(query);
+				} else {
+					const query = field.sql;
+
+					if (isSingleTable) {
+						const newSql = new SQL(
+							query.queryChunks.map((c) => {
+								if (is(c, PgColumn)) {
+									return sql.identifier(c.name);
+								}
+								return c;
+							}),
+						);
+
+						if (query.shouldInlineParams) newSql.inlineParams();
+						chunk.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', newSql, override) : newSql);
+					} else {
+						chunk.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', query, override) : query);
+					}
+
+					chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 				}
-				chunk.push(sql.identifier(field.fieldAlias));
-			} else if (is(field, SQL.Aliased) || is(field, SQL)) {
-				const query = is(field, SQL.Aliased) ? field.sql : field;
+			} else if (is(field, SQL)) {
+				const query = field;
 
 				if (isSingleTable) {
 					const newSql = new SQL(
@@ -236,13 +259,10 @@ export class PgDialect {
 						}),
 					);
 
-					chunk.push(query.shouldInlineParams ? newSql.inlineParams() : newSql);
+					if (query.shouldInlineParams) newSql.inlineParams();
+					chunk.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', newSql, override) : newSql);
 				} else {
-					chunk.push(query);
-				}
-
-				if (is(field, SQL.Aliased)) {
-					chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
+					chunk.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', query, override) : query);
 				}
 			} else if (is(field, Column)) {
 				let name: Name | Column;
@@ -254,25 +274,15 @@ export class PgDialect {
 					name = field.isAlias ? getOriginalColumnFromAlias(field) : field;
 				}
 
-				const casted = ignoreCastCodecs ? name : this.codecs.apply(field, 'cast', name);
+				const casted = ignoreCastCodecs ? name : this.codecs.apply(field, 'cast', name, override);
 				chunk.push(field.isAlias ? sql`${casted} as ${field}` : casted);
 			} else if (is(field, Subquery)) {
-				const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
-
-				if (entries.length === 1) {
-					const entry = entries[0]![1];
-
-					const fieldDecoder = is(entry, SQL)
-						? entry.decoder
-						: is(entry, Column)
-						? { mapFromDriverValue: (v: any) => entry.mapFromDriverValue(v) }
-						: entry.sql.decoder;
-
-					if (fieldDecoder) {
-						field._.sql.decoder = fieldDecoder;
-					}
+				if (column && !ignoreCastCodecs && !field._.isWith) {
+					const innerCasted = this.codecs.apply(column, 'cast', sql`(${field._.sql})`, override);
+					chunk.push(sql`${innerCasted} ${sql.identifier(field._.alias)}`);
+				} else {
+					chunk.push(column ? this.codecs.apply(column, 'cast', field) : field, override);
 				}
-				chunk.push(field);
 			}
 
 			if (i < columnsLen - 1) {
@@ -357,7 +367,6 @@ export class PgDialect {
 
 	buildSelectQuery({
 		withList,
-		fields,
 		fieldsFlat,
 		where,
 		having,
@@ -373,8 +382,10 @@ export class PgDialect {
 		comment,
 		ignoreSelectionCastCodecs,
 	}: PgSelectConfig): SQL {
-		const fieldsList = fieldsFlat
-			?? orderSelectedFields<PgColumn>(fields, undefined, this.codecs);
+		if (!fieldsFlat) {
+			throw new Error('Select query builder must be provided with `fieldsFlat` on `buildSelectQuery` invocation');
+		}
+		const fieldsList = fieldsFlat;
 		for (const f of fieldsList) {
 			if (
 				is(f.field, Column)
@@ -417,7 +428,10 @@ export class PgDialect {
 				: sql` distinct on (${sql.join(distinct.on, sql`, `)})`;
 		}
 
-		const selection = this.buildSelection(fieldsList, { isSingleTable, ignoreCastCodecs: ignoreSelectionCastCodecs });
+		const selection = this.buildSelection(fieldsList, {
+			isSingleTable,
+			ignoreCastCodecs: ignoreSelectionCastCodecs || setOperators.length > 0,
+		});
 
 		const tableSql = this.buildFromTable(table);
 
@@ -471,7 +485,7 @@ export class PgDialect {
 			}`;
 
 		if (setOperators.length > 0) {
-			return this.buildSetOperations(finalQuery, setOperators);
+			return this.buildSetOperations(finalQuery, fieldsList, ignoreSelectionCastCodecs, setOperators);
 		}
 
 		return finalQuery;
@@ -479,23 +493,66 @@ export class PgDialect {
 
 	buildSetOperations(
 		leftSelect: SQL,
+		leftSelection: SelectedFieldsOrdered,
+		ignoreSelectionCastCodecs: boolean | undefined,
 		setOperators: PgSelectConfig['setOperators'],
 	): SQL {
-		const [setOperator, ...rest] = setOperators;
+		const outputSelection = leftSelection;
+		for (let i = 0; i < setOperators.length; ++i) {
+			const setOperator = setOperators[i];
+			if (!setOperator) {
+				throw new Error('Cannot pass undefined values to any set operator');
+			}
 
-		if (!setOperator) {
-			throw new Error('Cannot pass undefined values to any set operator');
+			leftSelect = this.buildSetOperationQuery({ leftSelect, setOperator });
+			const rightSelection = orderSelectedFields(setOperator.rightSelect.getSelectedFields());
+			for (let j = 0; j < outputSelection.length; ++j) {
+				const l = outputSelection[j]!;
+				const lPath = l.path.join('.');
+				const r = rightSelection.find((e) => e.path.join('.') === lPath)!; // Equivalency of selections is a pre-requisite for unions
+
+				const lc = l.codecOverride ?? l.column?.codec;
+				const rc = r.codecOverride ?? r.column?.codec;
+
+				outputSelection[j]!.codecOverride = (lc && rc)
+					? (<Record<string, Record<string, PostgresType>>> unionsTypeTable)[lc]?.[rc]
+					: lc;
+			}
 		}
 
-		if (rest.length === 0) {
-			return this.buildSetOperationQuery({ leftSelect, setOperator });
+		for (let i = 0; i < outputSelection.length; ++i) {
+			const out = outputSelection[i]!;
+			out.codec = out.codecOverride
+				? this.codecs.get(out.column!, 'normalize', out.codecOverride as PostgresType)
+				: out.codec;
 		}
 
-		// Some recursive magic here
-		return this.buildSetOperations(
-			this.buildSetOperationQuery({ leftSelect, setOperator }),
-			rest,
-		);
+		return ignoreSelectionCastCodecs ? leftSelect : sql`select ${
+			this.buildSelection(
+				outputSelection.map((field) => {
+					if (is(field.field, SQL.Aliased)) {
+						const ref = field.field.clone();
+						ref.isSelectionField = true;
+						return { ...field, field: ref };
+					}
+					if (is(field.field, Column) && field.field.isAlias) {
+						const ref = new SQL.Aliased(sql`${sql.identifier(field.field.name)}`, field.field.name);
+						ref.isSelectionField = true;
+						return { ...field, field: ref };
+					}
+					if (is(field.field, Subquery)) {
+						const ref = new SQL.Aliased(sql`${field.field.getSQL()}`, field.field._.alias);
+						ref.isSelectionField = true;
+						return { ...field, field: ref };
+					}
+					return field;
+				}),
+				{
+					isSingleTable: true,
+					ignoreCastCodecs: ignoreSelectionCastCodecs,
+				},
+			)
+		} from (${leftSelect}) ${sql.identifier('drizzle_union')}`;
 	}
 
 	buildSetOperationQuery({
@@ -506,7 +563,7 @@ export class PgDialect {
 		setOperator: PgSelectConfig['setOperators'][number];
 	}): SQL {
 		const leftChunk = sql`(${leftSelect.getSQL()}) `;
-		const rightChunk = sql`(${rightSelect.getSQL()})`;
+		const rightChunk = sql`(${rightSelect.withoutSelectionCastCodecs().getSQL()})`;
 
 		let orderBySql;
 		if (orderBy && orderBy.length > 0) {
@@ -559,12 +616,17 @@ export class PgDialect {
 	}: PgInsertConfig): SQL {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
+		const colEntries: [string, PgColumn][] = Object.entries(columns);
 
-		const colEntries: [string, PgColumn][] = Object.entries(columns).filter(
-			([_, col]) => !col.shouldDisableInsert(),
-		);
+		const colFilteredEntries: [string, PgColumn][] = select && !is(valuesOrSelect, SQL)
+			? Object
+				.keys((valuesOrSelect as TypedQueryBuilder<any>).getSelectedFields())
+				.map((key) => [key, columns[key]] as [string, PgColumn])
+			: overridingSystemValue_
+			? colEntries
+			: colEntries.filter(([_, col]) => !col.shouldDisableInsert());
 
-		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
+		const insertOrder = colFilteredEntries.map(([, column]) => sql.identifier(column.name));
 
 		if (select) {
 			const select = valuesOrSelect as AnyPgSelectQueryBuilder | SQL;
@@ -580,7 +642,7 @@ export class PgDialect {
 
 			for (const [valueIndex, value] of values.entries()) {
 				const valueList: (SQLChunk | SQL)[] = [];
-				for (const [fieldName, col] of colEntries) {
+				for (const [fieldName, col] of colFilteredEntries) {
 					const colValue = value[fieldName];
 					if (
 						colValue === undefined
@@ -672,121 +734,110 @@ export class PgDialect {
 		});
 	}
 
-	private nestedSelectionerror() {
+	private buildRqbColumn(table: Table | View, field: unknown, key: string, inJson: boolean) {
+		if (is(field, Column)) {
+			const name = sql`${table}.${sql.identifier(field.name)}`;
+			const casted = inJson && (<PgCustomColumn<any>> field).jsonSelectIdentifier
+				? (<PgCustomColumn<any>> field).jsonSelectIdentifier!(name, sql, (<PgCustomColumn<any>> field).dimensions)
+				: this.codecs.apply(field, inJson ? 'castInJson' : 'cast', name);
+
+			return sql`${casted} as ${sql.identifier(key)}`;
+		}
+
+		if (is(field, SQL.Aliased)) {
+			const column = getColumnFromDecoder(field);
+			const q = sql`${table}.${sql.identifier(field.fieldAlias)}`;
+			return sql`${column ? this.codecs.apply(column, inJson ? 'castInJson' : 'cast', q) : q} as ${
+				sql.identifier(key)
+			}`;
+		}
+
+		if (isSQLWrapper(field)) {
+			const column = getColumnFromDecoder(field);
+			const q = sql`${table}.${sql.identifier(key)}`;
+			return sql`${column ? this.codecs.apply(column, inJson ? 'castInJson' : 'cast', q) : q} as ${
+				sql.identifier(key)
+			}`;
+		}
+
 		throw new DrizzleError({
 			message: `Views with nested selections are not supported by the relational query builder`,
 		});
 	}
 
-	private buildRqbColumn(table: Table | View, column: unknown, key: string, inJson: boolean) {
-		if (is(column, Column)) {
-			const name = sql`${table}.${sql.identifier(column.name)}`;
-			const casted = inJson && (<PgCustomColumn<any>> column).jsonSelectIdentifier
-				? (<PgCustomColumn<any>> column).jsonSelectIdentifier!(name, sql, (<PgCustomColumn<any>> column).dimensions)
-				: this.codecs.apply(column, inJson ? 'castInJson' : 'cast', name);
-
-			return sql`${casted} as ${sql.identifier(key)}`;
+	private resolveSelection(field: unknown, key: string, inJson: boolean) {
+		if (is(field, Column)) {
+			return {
+				key,
+				field: field,
+				codec: this.codecs.get(field, inJson ? 'normalizeInJson' : 'normalize'),
+				arrayDimensions: (<PgColumn> field).dimensions,
+			};
 		}
 
-		return sql`${table}.${
-			is(column, SQL.Aliased)
-				? sql.identifier(column.fieldAlias)
-				: isSQLWrapper(column)
-				? sql.identifier(key)
-				: this.nestedSelectionerror()
-		} as ${sql.identifier(key)}`;
+		const decoderColumn = getColumnFromDecoder(field as SQL | SQLWrapper | SQL.Aliased);
+		return decoderColumn
+			? {
+				key,
+				field: field as SQL | SQLWrapper | SQL.Aliased,
+				codec: decoderColumn && (!inJson || !(<PgCustomColumn<any>> decoderColumn).mapFromJsonValue)
+					? this.codecs.get(decoderColumn, inJson ? 'normalizeInJson' : 'normalize')
+					: undefined,
+				arrayDimensions: (<PgColumn> decoderColumn).dimensions,
+			}
+			: {
+				key,
+				field: field as SQL | SQLWrapper | SQL.Aliased,
+			};
 	}
-
-	private unwrapAllColumns = (
-		table: Table | View,
-		selection: BuildRelationalQueryResult['selection'],
-		inJson: boolean,
-	) => {
-		return sql.join(
-			Object.entries(table[TableColumns]).map(([k, v]) => {
-				selection.push(
-					is(v, Column)
-						? {
-							key: k,
-							codec: this.codecs.get(v, inJson ? 'normalizeInJson' : 'normalize'),
-							arrayDimensions: (<PgColumn> v).dimensions,
-							field: v,
-						}
-						: {
-							key: k,
-							field: v as SQL | SQLWrapper | SQL.Aliased,
-						},
-				);
-
-				return this.buildRqbColumn(table, v, k, inJson);
-			}),
-			sql`, `,
-		);
-	};
 
 	private buildColumns = (
 		table: Table | View,
 		selection: BuildRelationalQueryResult['selection'],
 		inJson: boolean,
 		config?: DBQueryConfigWithComment<'many'>,
-	) =>
-		config?.columns
-			? (() => {
-				const entries = Object.entries(config.columns);
-				const columnContainer: Record<string, unknown> = table[TableColumns];
+	) => {
+		if (!config?.columns) {
+			return sql.join(
+				Object.entries(table[TableColumns]).map(([k, v]) => {
+					selection.push(this.resolveSelection(v, k, inJson));
 
-				const columnIdentifiers: SQL[] = [];
-				let colSelectionMode: boolean | undefined;
-				for (const [k, v] of entries) {
-					if (v === undefined) continue;
-					colSelectionMode = colSelectionMode || v;
+					return this.buildRqbColumn(table, v, k, inJson);
+				}),
+				sql`, `,
+			);
+		}
 
-					if (v) {
-						const column = columnContainer[k];
-						columnIdentifiers.push(this.buildRqbColumn(table, column, k, inJson));
+		const entries = Object.entries(config.columns);
+		const columnContainer: Record<string, unknown> = table[TableColumns];
 
-						selection.push(
-							is(column, Column)
-								? {
-									key: k,
-									codec: this.codecs.get(column, inJson ? 'normalizeInJson' : 'normalize'),
-									arrayDimensions: (<PgColumn> column).dimensions,
-									field: column,
-								}
-								: {
-									key: k,
-									field: column as SQL | SQLWrapper | SQL.Aliased,
-								},
-						);
-					}
-				}
+		const columnIdentifiers: SQL[] = [];
+		let colSelectionMode: boolean | undefined;
+		for (const [k, v] of entries) {
+			if (v === undefined) continue;
+			colSelectionMode = colSelectionMode || v;
 
-				if (colSelectionMode === false) {
-					for (const [k, v] of Object.entries(columnContainer)) {
-						if (config.columns[k] === false) continue;
-						columnIdentifiers.push(this.buildRqbColumn(table, v, k, inJson));
+			if (v) {
+				const column = columnContainer[k];
+				columnIdentifiers.push(this.buildRqbColumn(table, column, k, inJson));
 
-						selection.push(
-							is(v, Column)
-								? {
-									key: k,
-									codec: this.codecs.get(v, inJson ? 'normalizeInJson' : 'normalize'),
-									arrayDimensions: (<PgColumn> v).dimensions,
-									field: v,
-								}
-								: {
-									key: k,
-									field: v as SQL | SQLWrapper | SQL.Aliased,
-								},
-						);
-					}
-				}
+				selection.push(this.resolveSelection(column, k, inJson));
+			}
+		}
 
-				return columnIdentifiers.length
-					? sql.join(columnIdentifiers, sql`, `)
-					: undefined;
-			})()
-			: this.unwrapAllColumns(table, selection, inJson);
+		if (colSelectionMode === false) {
+			for (const [k, v] of Object.entries(columnContainer)) {
+				if (config.columns[k] === false) continue;
+				columnIdentifiers.push(this.buildRqbColumn(table, v, k, inJson));
+
+				selection.push(this.resolveSelection(v, k, inJson));
+			}
+		}
+
+		return columnIdentifiers.length
+			? sql.join(columnIdentifiers, sql`, `)
+			: undefined;
+	};
 
 	buildRelationalQuery({
 		schema,
@@ -845,7 +896,7 @@ export class PgDialect {
 			: undefined;
 		const columns = this.buildColumns(table, selection, !!nested, params);
 		const extras = params?.extras
-			? relationExtrasToSQL(table, params.extras)
+			? relationExtrasToSQL(table, params.extras, this.codecs, nested)
 			: undefined;
 		if (extras) selection.push(...extras.selection);
 

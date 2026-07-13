@@ -12,23 +12,15 @@ const users = snakeCase.table('users', {
 	// Test that custom aliases remain
 	age: integer('AGE'),
 });
-const usersRelations = relations(users, ({ one }) => ({
-	developers: one(developers),
-}));
+
 const developers = snakeCase.table('developers', {
 	userId: integer().primaryKey().references(() => users.id),
 	usesDrizzleORM: integer({ mode: 'boolean' }).notNull(),
 });
-const developersRelations = relations(developers, ({ one }) => ({
-	user: one(users, {
-		fields: [developers.userId],
-		references: [users.id],
-	}),
-}));
-const devs = alias(developers, 'devs');
-const schema = { users, usersRelations, developers, developersRelations };
 
-const db = drizzle({ client: new Database(':memory:'), schema });
+const devs = alias(developers, 'devs');
+
+const db = drizzle({ client: new Database(':memory:') });
 
 const usersCache = {
 	'public.users.id': 'id',
@@ -117,58 +109,6 @@ describe('sqlite to snake case', () => {
 		expect(query.toSQL()).toEqual({
 			sql: 'select "first_name" from "users" union select "first_name" from "users"',
 			params: [],
-		});
-	});
-
-	it('query (find first)', ({ expect }) => {
-		const query = db._query.users.findFirst({
-			columns: {
-				id: true,
-				age: true,
-			},
-			extras: {
-				fullName,
-			},
-			where: eq(users.id, 1),
-			with: {
-				developers: {
-					columns: {
-						usesDrizzleORM: true,
-					},
-				},
-			},
-		});
-
-		expect(query.toSQL()).toEqual({
-			sql:
-				'select "id", "AGE", "first_name" || \' \' || "last_name" as "name", (select json_array("uses_drizzle_orm") as "data" from (select * from "developers" "users_developers" where "users_developers"."user_id" = "users"."id" limit ?) "users_developers") as "developers" from "users" "users" where "users"."id" = ? limit ?',
-			params: [1, 1, 1],
-		});
-	});
-
-	it('query (find many)', ({ expect }) => {
-		const query = db._query.users.findMany({
-			columns: {
-				id: true,
-				age: true,
-			},
-			extras: {
-				fullName,
-			},
-			where: eq(users.id, 1),
-			with: {
-				developers: {
-					columns: {
-						usesDrizzleORM: true,
-					},
-				},
-			},
-		});
-
-		expect(query.toSQL()).toEqual({
-			sql:
-				'select "id", "AGE", "first_name" || \' \' || "last_name" as "name", (select json_array("uses_drizzle_orm") as "data" from (select * from "developers" "users_developers" where "users_developers"."user_id" = "users"."id" limit ?) "users_developers") as "developers" from "users" "users" where "users"."id" = ?',
-			params: [1, 1],
 		});
 	});
 

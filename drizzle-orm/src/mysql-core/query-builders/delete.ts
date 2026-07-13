@@ -1,31 +1,23 @@
 import { entityKind } from '~/entity.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import type {
-	AnyMySqlQueryResultHKT,
-	MySqlPreparedQuery,
-	MySqlPreparedQueryConfig,
-	MySqlQueryResultHKT,
-	MySqlQueryResultKind,
-	MySqlSession,
-} from '~/mysql-core/session.ts';
+import type { AnyMySqlQueryResultHKT, MySqlQueryResultHKT } from '~/mysql-core/session.ts';
+import type { MySqlSession } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
-import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import { type Placeholder, type Query, type SQL, sql, type SqlCommenterInput, type SQLWrapper } from '~/sql/sql.ts';
+import { type CommentInput, type Placeholder, type Query, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import type { ValueOrArray } from '~/utils.ts';
+import type { Assume, ValueOrArray } from '~/utils.ts';
 import type { MySqlColumn } from '../columns/common.ts';
-import { extractUsedTable } from '../utils.ts';
-import type { SelectedFieldsOrdered } from './select.types.ts';
 
 export type MySqlDeleteWithout<
-	T extends AnyMySqlDeleteBase,
+	T extends AnyMySqlDelete,
 	TDynamic extends boolean,
 	K extends keyof T & string,
 > = TDynamic extends true ? T
 	: Omit<
-		MySqlDeleteBase<
+		MySqlDeleteKind<
+			T['_']['hkt'],
 			T['_']['table'],
 			T['_']['queryResult'],
 			TDynamic,
@@ -37,39 +29,67 @@ export type MySqlDeleteWithout<
 export type MySqlDelete<
 	TTable extends MySqlTable = MySqlTable,
 	TQueryResult extends MySqlQueryResultHKT = AnyMySqlQueryResultHKT,
-> = MySqlDeleteBase<TTable, TQueryResult, true, never>;
-
-export type MySqlDeletePrepare<T extends AnyMySqlDeleteBase> = MySqlPreparedQuery<
-	MySqlPreparedQueryConfig & {
-		execute: MySqlQueryResultKind<T['_']['queryResult'], never>;
-		iterator: never;
-	}
->;
+> = MySqlDeleteBase<MySqlDeleteHKT, TTable, TQueryResult, true, never>;
 
 export interface MySqlDeleteConfig {
 	where?: SQL | undefined;
 	limit?: number | Placeholder;
 	orderBy?: (MySqlColumn | SQL | SQL.Aliased)[];
 	table: MySqlTable;
-	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
 	comment?: SQL;
 }
 
-type MySqlDeleteDynamic<T extends AnyMySqlDeleteBase> = MySqlDelete<
+export type MySqlDeleteDynamic<T extends AnyMySqlDelete> = MySqlDeleteKind<
+	T['_']['hkt'],
 	T['_']['table'],
-	T['_']['queryResult']
+	T['_']['queryResult'],
+	true,
+	never
 >;
 
-type AnyMySqlDeleteBase = MySqlDeleteBase<any, any, any, any>;
+export type AnyMySqlDelete = MySqlDeleteBase<any, any, any, any, any>;
 
-export interface MySqlDeleteBase<
+export interface MySqlDeleteHKTBase {
+	table: unknown;
+	queryResult: unknown;
+	dynamic: boolean;
+	excludedMethods: string;
+	_type: unknown;
+}
+
+export interface MySqlDeleteHKT extends MySqlDeleteHKTBase {
+	_type: MySqlDeleteBase<
+		MySqlDeleteHKT,
+		Assume<this['table'], MySqlTable>,
+		Assume<this['queryResult'], MySqlQueryResultHKT>,
+		this['dynamic'],
+		this['excludedMethods']
+	>;
+}
+
+export type MySqlDeleteKind<
+	T extends MySqlDeleteHKTBase,
 	TTable extends MySqlTable,
 	TQueryResult extends MySqlQueryResultHKT,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-> extends QueryPromise<MySqlQueryResultKind<TQueryResult, never>> {
+> = (T & {
+	table: TTable;
+	queryResult: TQueryResult;
+	dynamic: TDynamic;
+	excludedMethods: TExcludedMethods;
+})['_type'];
+
+export interface MySqlDeleteBase<
+	THKT extends MySqlDeleteHKTBase,
+	TTable extends MySqlTable,
+	TQueryResult extends MySqlQueryResultHKT,
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+> extends SQLWrapper {
 	readonly _: {
+		readonly hkt: THKT;
 		readonly table: TTable;
 		readonly queryResult: TQueryResult;
 		readonly dynamic: TDynamic;
@@ -78,23 +98,25 @@ export interface MySqlDeleteBase<
 }
 
 export class MySqlDeleteBase<
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	THKT extends MySqlDeleteHKTBase,
 	TTable extends MySqlTable,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TQueryResult extends MySqlQueryResultHKT,
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<MySqlQueryResultKind<TQueryResult, never>> implements SQLWrapper {
-	static override readonly [entityKind]: string = 'MySqlDelete';
+> implements SQLWrapper {
+	static readonly [entityKind]: string = 'MySqlDelete';
 
-	private config: MySqlDeleteConfig;
+	protected config: MySqlDeleteConfig;
 
 	constructor(
 		private table: TTable,
-		private session: MySqlSession,
-		private dialect: MySqlDialect,
+		protected session: MySqlSession,
+		protected dialect: MySqlDialect,
 		withList?: Subquery[],
 	) {
-		super();
 		this.config = { table, withList };
 	}
 
@@ -166,12 +188,11 @@ export class MySqlDeleteBase<
 	/**
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
-	comment(comment: SqlCommenterInput): MySqlDeleteWithout<this, TDynamic, 'comment'> {
+	comment(comment: CommentInput): MySqlDeleteWithout<this, TDynamic, 'comment'> {
 		this.config.comment = sql.comment(comment);
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildDeleteQuery(this.config);
 	}
@@ -179,31 +200,6 @@ export class MySqlDeleteBase<
 	toSQL(): Query {
 		return this.dialect.sqlToQuery(this.getSQL());
 	}
-
-	prepare(): MySqlDeletePrepare<this> {
-		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
-			'raw',
-			this.dialect.mapperGenerators.$returning(this.config.returning),
-			{
-				type: 'delete',
-				tables: extractUsedTable(this.config.table),
-			},
-		);
-	}
-
-	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this.prepare().execute(placeholderValues);
-	};
-
-	private createIterator = (): ReturnType<this['prepare']>['iterator'] => {
-		const self = this;
-		return async function*(placeholderValues) {
-			yield* self.prepare().iterator(placeholderValues);
-		};
-	};
-
-	iterator = this.createIterator();
 
 	$dynamic(): MySqlDeleteDynamic<this> {
 		return this as any;

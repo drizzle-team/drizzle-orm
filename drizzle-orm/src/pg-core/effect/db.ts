@@ -643,12 +643,7 @@ export class PgEffectDatabase<
 			'raw',
 			false,
 		);
-		return new PgEffectRaw(
-			() => prepared.execute(),
-			sequel,
-			builtQuery,
-			(result) => prepared.mapResult(result, true),
-		);
+		return new PgEffectRaw(prepared, sequel, builtQuery);
 	}
 
 	transaction<A, E, R>(

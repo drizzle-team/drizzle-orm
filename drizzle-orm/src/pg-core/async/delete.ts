@@ -74,7 +74,7 @@ export class PgAsyncDeleteBase<
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgAsyncDeletePrepare<this> {
-		const { session, config, dialect, cacheConfig } = this;
+		const { session, config, dialect } = this;
 		const { returning: fields } = config;
 
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
@@ -89,7 +89,6 @@ export class PgAsyncDeleteBase<
 				name ?? generateName,
 				mapper,
 				{ type: 'delete', tables: [...extractUsedTable(this.config.table)] },
-				cacheConfig,
 			);
 
 			return preparedQuery;

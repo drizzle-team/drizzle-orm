@@ -222,7 +222,7 @@ export const snapshotValidator = validator({
 	ddl: array<CockroachEntity>((it) => {
 		const res = ddl.entities.validate(it);
 		if (!res) {
-			console.log(it);
+			console.error(JSON.stringify(it));
 		}
 		return res;
 	}),

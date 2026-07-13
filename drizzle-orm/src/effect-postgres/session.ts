@@ -26,7 +26,6 @@ export interface EffectPgQueryResultHKT extends PgQueryResultHKT {
 export interface EffectPgSessionOptions {
 	logger: EffectLoggerShape;
 	cache: EffectCacheShape;
-	useJitMappers?: boolean;
 }
 
 export class EffectPgSession<
@@ -59,7 +58,8 @@ export class EffectPgSession<
 			const q = this.client.unsafe(query.sql, params);
 
 			if (mode === 'arrays') return q.values;
-			return q.withoutTransform;
+			if (mode === 'objects') return q.withoutTransform;
+			return q.raw;
 		};
 
 		return new PgEffectPreparedQuery<T, EffectPgQueryEffectHKT>(

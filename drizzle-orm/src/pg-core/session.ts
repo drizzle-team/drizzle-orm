@@ -15,23 +15,11 @@ export abstract class PgBasePreparedQuery implements PreparedQuery {
 		protected query: Query,
 	) {}
 
-	// TODO: remove after rewriting all dialects - bound to core interface
-	mapResult(_: unknown, __?: boolean): unknown {
-		throw new Error('Method not implemented.');
-	}
-
 	getQuery(): Query {
 		return this.query;
 	}
 
 	abstract execute(placeholderValues?: Record<string, unknown>): unknown;
-
-	/** @internal */
-	protected abstract queryWithCache(
-		queryString: string,
-		params: any[],
-		query: unknown,
-	): unknown;
 }
 
 export interface PgTransactionConfig {

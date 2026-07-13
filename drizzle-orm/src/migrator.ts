@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import fs, { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { formatToMillis } from './migrator.utils';
+import { formatToMillis } from './migrator.utils.ts';
 
 export interface KitConfig {
 	out: string;

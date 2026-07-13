@@ -3,6 +3,7 @@ import {
 	type CommutativityStatementDefinitions,
 	type CommutativityStatementInfo,
 } from '../../commutativity/engine';
+import type { ConflictTarget } from '../../commutativity/types';
 import { createDDL, type MysqlDDL } from './ddl';
 import { ddlDiffDry } from './diff';
 import { drySnapshot, type MysqlSnapshot } from './snapshot';
@@ -291,6 +292,28 @@ class MysqlCommutativity extends AbstractCommutativity<
 		return `${info.action} on ${info.primary.objectName} table`;
 	}
 
+	private viewLevelActions = new Set([
+		'create_view',
+		'drop_view',
+		'alter_view',
+		'rename_view',
+	]);
+
+	protected override describeStatementTarget(
+		_statement: JsonStatement,
+		info: StatementInfo,
+	): ConflictTarget {
+		if (this.viewLevelActions.has(info.action)) {
+			return { kind: 'view', name: info.primary.objectName };
+		}
+
+		if (info.primary.columnName) {
+			return { kind: 'column', name: info.primary.columnName, table: info.primary.objectName };
+		}
+
+		return { kind: 'table', name: info.primary.objectName };
+	}
+
 	protected override getDrySnapshot(): MysqlSnapshot {
 		return drySnapshot;
 	}
@@ -302,8 +325,8 @@ class MysqlCommutativity extends AbstractCommutativity<
 		const fromDDL: MysqlDDL = createDDL();
 		const toDDL: MysqlDDL = createDDL();
 
-		for (const e of fromSnapshot.ddl) fromDDL.entities.push(e);
-		for (const e of toSnapshot.ddl) toDDL.entities.push(e);
+		fromDDL.entities.pushAll(fromSnapshot.ddl);
+		toDDL.entities.pushAll(toSnapshot.ddl);
 
 		const { statements } = await ddlDiffDry(fromDDL, toDDL, 'default');
 		return { statements };

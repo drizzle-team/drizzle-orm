@@ -30,11 +30,7 @@ export const ddlDiff = async (
 }> => {
 	const tablesDiff = diff(ddl1, ddl2, 'tables');
 
-	const {
-		created: createdTables,
-		deleted: deletedTables,
-		renamedOrMoved: renamedTables, // renamed or moved
-	} = await tablesResolver({
+	const { created: createdTables, deleted: deletedTables, renamedOrMoved: renamedTables } = await tablesResolver({
 		created: tablesDiff.filter((it) => it.$diffType === 'create'),
 		deleted: tablesDiff.filter((it) => it.$diffType === 'drop'),
 	});
@@ -191,11 +187,7 @@ export const ddlDiff = async (
 
 	const viewsDiff = diff(ddl1, ddl2, 'views');
 
-	const {
-		created: createdViews,
-		deleted: deletedViews,
-		renamedOrMoved: renamedViews, // renamed or moved
-	} = await viewsResolver({
+	const { created: createdViews, deleted: deletedViews, renamedOrMoved: renamedViews } = await viewsResolver({
 		created: viewsDiff.filter((it) => it.$diffType === 'create'),
 		deleted: viewsDiff.filter((it) => it.$diffType === 'drop'),
 	});

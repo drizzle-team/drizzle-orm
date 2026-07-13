@@ -1,8 +1,8 @@
-import { parse } from 'src/utils/when-json-met-bigint';
 import { prepareMigrationRenames, trimChar } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import { deepStrictEqual } from '../../utils/node-assert/deep-strict-equal';
 import { diffStringArrays } from '../../utils/sequence-matcher';
+import { parse } from '../../utils/when-json-met-bigint';
 import type { Resolver } from '../common';
 import { diff } from '../dialect';
 import { groupDiffs, preserveEntityNames } from '../utils';
@@ -240,7 +240,7 @@ export const ddlDiff = async (
 	const {
 		created: createdTables,
 		deleted: deletedTables,
-		renamedOrMoved: renamedOrMovedTables, // renamed or moved
+		renamedOrMoved: renamedOrMovedTables,
 	} = await tablesResolver({
 		created: tablesDiff.filter((it) => it.$diffType === 'create'),
 		deleted: tablesDiff.filter((it) => it.$diffType === 'drop'),
@@ -623,11 +623,7 @@ export const ddlDiff = async (
 
 	const viewsDiff = diff(ddl1, ddl2, 'views');
 
-	const {
-		created: createdViews,
-		deleted: deletedViews,
-		renamedOrMoved: renamedOrMovedViews,
-	} = await viewsResolver({
+	const { created: createdViews, deleted: deletedViews, renamedOrMoved: renamedOrMovedViews } = await viewsResolver({
 		created: viewsDiff.filter((it) => it.$diffType === 'create'),
 		deleted: viewsDiff.filter((it) => it.$diffType === 'drop'),
 	});

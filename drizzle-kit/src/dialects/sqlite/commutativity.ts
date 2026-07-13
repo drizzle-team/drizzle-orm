@@ -3,6 +3,7 @@ import {
 	type CommutativityStatementDefinitions,
 	type CommutativityStatementInfo,
 } from '../../commutativity/engine';
+import type { ConflictTarget } from '../../commutativity/types';
 import { createDDL, type SQLiteDDL } from './ddl';
 import { ddlDiffDry } from './diff';
 import { drySqliteSnapshot, type SqliteSnapshot } from './snapshot';
@@ -245,6 +246,27 @@ class SqliteCommutativity extends AbstractCommutativity<
 		return `${info.action} on ${info.primary.objectName} table`;
 	}
 
+	private viewLevelActions = new Set<JsonStatement['type']>([
+		'create_view',
+		'drop_view',
+		'rename_view',
+	]);
+
+	protected override describeStatementTarget(
+		_statement: JsonStatement,
+		info: StatementInfo,
+	): ConflictTarget {
+		if (this.viewLevelActions.has(info.action)) {
+			return { kind: 'view', name: info.primary.objectName };
+		}
+
+		if (info.primary.columnName) {
+			return { kind: 'column', name: info.primary.columnName, table: info.primary.objectName };
+		}
+
+		return { kind: 'table', name: info.primary.objectName };
+	}
+
 	protected override getDrySnapshot(): SqliteSnapshot {
 		return drySqliteSnapshot;
 	}
@@ -256,8 +278,8 @@ class SqliteCommutativity extends AbstractCommutativity<
 		const fromDDL: SQLiteDDL = createDDL();
 		const toDDL: SQLiteDDL = createDDL();
 
-		for (const e of fromSnapshot.ddl) fromDDL.entities.push(e);
-		for (const e of toSnapshot.ddl) toDDL.entities.push(e);
+		fromDDL.entities.pushAll(fromSnapshot.ddl);
+		toDDL.entities.pushAll(toSnapshot.ddl);
 
 		const { statements } = await ddlDiffDry(fromDDL, toDDL, 'default');
 		return { statements };

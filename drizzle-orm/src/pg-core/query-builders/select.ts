@@ -19,7 +19,7 @@ import type {
 } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { SQL, sql, View } from '~/sql/sql.ts';
-import type { ColumnsSelection, Placeholder, Query, SqlCommenterInput, SQLWrapper } from '~/sql/sql.ts';
+import type { ColumnsSelection, CommentInput, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import {
@@ -28,6 +28,7 @@ import {
 	getTableColumns,
 	getTableLikeName,
 	haveSameKeys,
+	orderSelectedFields,
 	type ValueOrArray,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
@@ -99,7 +100,7 @@ export class PgSelectBuilder<
 			this.withList = config.withList;
 		}
 		this.distinct = config.distinct;
-		this.tagged = config.tagged;
+		// this.tagged = config.tagged; // TODO: bugged, to be remade
 	}
 
 	/**
@@ -159,7 +160,7 @@ export class PgSelectBuilder<
 			dialect: this.dialect,
 			withList: this.withList,
 			distinct: this.distinct,
-			tagged: this.tagged,
+			// tagged: this.tagged,  // TODO: bugged, to be remade
 		}) as any;
 	}
 }
@@ -260,7 +261,7 @@ export class PgSelectBase<
 			fields: { ...config.fields },
 			distinct: config.distinct,
 			setOperators: [],
-			_tagged: config.tagged,
+			// tagged: config.tagged, // TODO: bugged, to be remade
 		};
 		this.isPartialSelect = config.isPartialSelect;
 		this._ = {
@@ -1041,12 +1042,13 @@ export class PgSelectBase<
 	/**
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
-	comment(comment: SqlCommenterInput): PgSelectWithout<this, TDynamic, 'comment'> {
+	comment(comment: CommentInput): PgSelectWithout<this, TDynamic, 'comment'> {
 		this.config.comment = sql.comment(comment);
 		return this as any;
 	}
 
 	getSQL(): SQL {
+		this.config.fieldsFlat = orderSelectedFields<PgColumn>(this.config.fields, undefined, this.dialect.codecs);
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
