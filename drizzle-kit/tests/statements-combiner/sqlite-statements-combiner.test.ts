@@ -137,6 +137,7 @@ test(`renamed column and altered this column type`, async (t) => {
 			referenceData: [],
 			uniqueConstraints: [],
 			checkConstraints: [],
+			columnRenames: [{ oldName: 'lastName', newName: 'lastName123' }],
 		},
 	];
 	expect(sqliteCombineStatements(statements, json2)).toStrictEqual(
@@ -1208,4 +1209,83 @@ test(`add column and fk`, async (t) => {
 	expect(sqliteCombineStatements(statements, json2)).toStrictEqual(
 		newJsonStatements,
 	);
+});
+
+test(`renamed table + renamed column + altered column type should absorb rename into recreate`, async (t) => {
+	const statements: JsonStatement[] = [
+		{
+			type: 'rename_table',
+			tableNameFrom: 'task',
+			tableNameTo: 'todo',
+			schema: '',
+		} as unknown as JsonStatement,
+		{
+			type: 'alter_table_rename_column',
+			tableName: 'todo',
+			oldColumnName: 'is_invisible',
+			newColumnName: 'is_visible',
+			schema: '',
+		},
+		{
+			type: 'alter_table_alter_column_set_type',
+			tableName: 'todo',
+			columnName: 'is_visible',
+			newDataType: 'integer',
+			oldDataType: 'text',
+			schema: '',
+			columnDefault: undefined,
+			columnOnUpdate: undefined,
+			columnNotNull: false,
+			columnAutoIncrement: false,
+			columnPk: false,
+			columnIsUnique: false,
+		} as unknown as JsonStatement,
+	];
+
+	const json2: SQLiteSchemaSquashed = {
+		version: '6',
+		dialect: 'sqlite',
+		tables: {
+			todo: {
+				name: 'todo',
+				columns: {
+					id: {
+						name: 'id',
+						type: 'integer',
+						primaryKey: true,
+						notNull: true,
+						autoincrement: false,
+					},
+					is_visible: {
+						name: 'is_visible',
+						type: 'integer',
+						primaryKey: false,
+						notNull: false,
+						autoincrement: false,
+					},
+				},
+				indexes: {},
+				foreignKeys: {},
+				compositePrimaryKeys: {},
+				uniqueConstraints: {},
+				checkConstraints: {},
+			},
+		},
+		enums: {},
+		views: {},
+	};
+
+	const result = sqliteCombineStatements(statements, json2);
+
+	const renameColStmts = result.filter((s) => s.type === 'alter_table_rename_column');
+	expect(renameColStmts).toHaveLength(0);
+
+	const renameTableStmts = result.filter((s) => s.type === 'rename_table');
+	expect(renameTableStmts).toHaveLength(1);
+
+	const recreateStmts = result.filter((s) => s.type === 'recreate_table');
+	expect(recreateStmts).toHaveLength(1);
+	expect((recreateStmts[0] as any).columnRenames).toStrictEqual([
+		{ oldName: 'is_invisible', newName: 'is_visible' },
+	]);
 });
