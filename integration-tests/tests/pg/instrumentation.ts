@@ -15,6 +15,7 @@ import {
 } from 'drizzle-orm';
 import { Cache, type MutationOption } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
+import { drizzle as drizzleMinipg } from 'drizzle-orm/minipg';
 import { drizzle as drizzleNeonHttp, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { drizzle as drizzleNeonWs } from 'drizzle-orm/neon-serverless';
 import { drizzle as drizzleNetlify, type ServerlessDrizzleClient } from 'drizzle-orm/netlify-db';
@@ -35,6 +36,7 @@ import { drizzle as drizzleProxy } from 'drizzle-orm/pg-proxy';
 import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
 import { drizzle as drizzlePostgresjs } from 'drizzle-orm/postgres-js';
 import Keyv from 'keyv';
+import { createPool as createMinipgPool } from 'minipg';
 import { Client as ClientNodePostgres, types as typesNodePostgres } from 'pg';
 import postgres from 'postgres';
 import { test as base } from 'vitest';
@@ -287,6 +289,29 @@ export const prepareNodePostgres = async (db: string) => {
 	return { client, query, batch };
 };
 
+export const prepareMinipg = async (db: string) => {
+	const url = new URL(process.env['PG_CONNECTION_STRING']!);
+	url.pathname = `/${db}`;
+	if (!url) throw new Error();
+
+	const client = createMinipgPool({ url: url.toString(), max: 1, temporal: 'string' });
+
+	await client.query('drop schema if exists public, "mySchema" cascade;');
+	await client.query('create schema public');
+	await client.query('create schema "mySchema";');
+
+	const query = async (sql: string, params: any[] = []) => {
+		const res = await client.query(sql, params);
+		return res.rows;
+	};
+
+	const batch = async (statements: string[]) => {
+		return Promise.all(statements.map((x) => client.query(x))).then((results) => [results] as any);
+	};
+
+	return { client, query, batch };
+};
+
 export const preparePostgresjs = async (db: string) => {
 	const url = new URL(process.env['PG_CONNECTION_STRING']!);
 	url.pathname = `/${db}`;
@@ -446,6 +471,34 @@ export const provideForNodePostgres = async () => {
 	return providerClosure(clients);
 };
 
+export const provideForMinipg = async () => {
+	const url = process.env['PG_CONNECTION_STRING'];
+	if (!url) throw new Error();
+	const client = new ClientNodePostgres({ connectionString: url });
+	client.connect();
+
+	await client.query(`drop database if exists db0`);
+	await client.query(`drop database if exists db1`);
+	await client.query(`drop database if exists db2`);
+	await client.query(`drop database if exists db3`);
+	await client.query(`drop database if exists db4`);
+	await client.query('create database db0;');
+	await client.query('create database db1;');
+	await client.query('create database db2;');
+	await client.query('create database db3;');
+	await client.query('create database db4;');
+
+	const clients = [
+		await prepareMinipg('db0'),
+		await prepareMinipg('db1'),
+		await prepareMinipg('db2'),
+		await prepareMinipg('db3'),
+		await prepareMinipg('db4'),
+	];
+
+	return providerClosure(clients);
+};
+
 export const provideForPostgresjs = async () => {
 	const url = process.env['PG_CONNECTION_STRING'];
 	if (!url) throw new Error();
@@ -515,6 +568,7 @@ type ProviderNeonHttp = Awaited<ReturnType<typeof providerForNeonHttp>>;
 type ProviderNeonWs = Awaited<ReturnType<typeof providerForNeonWs>>;
 type ProvideForPglite = Awaited<ReturnType<typeof provideForPglite>>;
 type ProvideForNodePostgres = Awaited<ReturnType<typeof provideForNodePostgres>>;
+type ProvideForMinipg = Awaited<ReturnType<typeof provideForMinipg>>;
 type ProvideForPostgresjs = Awaited<ReturnType<typeof provideForPostgresjs>>;
 type ProvideForProxy = Awaited<ReturnType<typeof provideForProxy>>;
 type ProvideForNetlifyDb = Awaited<ReturnType<typeof provideForNetlifyDb>>;
@@ -524,12 +578,21 @@ type Provider =
 	| ProviderNeonWs
 	| ProvideForPglite
 	| ProvideForNodePostgres
+	| ProvideForMinipg
 	| ProvideForPostgresjs
 	| ProvideForProxy
 	| ProvideForNetlifyDb;
 
 const testFor = (
-	vendor: 'neon-http' | 'neon-serverless' | 'pglite' | 'node-postgres' | 'postgresjs' | 'proxy' | 'netlify-db',
+	vendor:
+		| 'neon-http'
+		| 'neon-serverless'
+		| 'pglite'
+		| 'node-postgres'
+		| 'minipg'
+		| 'postgresjs'
+		| 'proxy'
+		| 'netlify-db',
 ) => {
 	return base.extend<{
 		provider: Provider;
@@ -562,6 +625,8 @@ const testFor = (
 					? await provideForPglite()
 					: vendor === 'node-postgres'
 					? await provideForNodePostgres()
+					: vendor === 'minipg'
+					? await provideForMinipg()
 					: vendor === 'postgresjs'
 					? await provideForPostgresjs()
 					: vendor === 'proxy'
@@ -618,6 +683,8 @@ const testFor = (
 					? drizzlePglite({ client: kit.client as any, relations })
 					: vendor === 'node-postgres'
 					? drizzleNodePostgres({ client: kit.client as any, relations })
+					: vendor === 'minipg'
+					? drizzleMinipg({ client: kit.client as any, relations })
 					: vendor === 'postgresjs'
 					? drizzlePostgresjs({ client: kit.client as any, relations })
 					: vendor === 'netlify-db'
@@ -661,6 +728,9 @@ const testFor = (
 					}
 					if (vendor === 'node-postgres') {
 						return drizzleNodePostgres({ client: kit.client as any, relations, jit: useJitMappers });
+					}
+					if (vendor === 'minipg') {
+						return drizzleMinipg({ client: kit.client as any, relations, jit: useJitMappers });
 					}
 					if (vendor === 'postgresjs') {
 						return drizzlePostgresjs({ client: kit.client as any, relations, jit: useJitMappers });
@@ -729,6 +799,8 @@ const testFor = (
 					? drizzlePglite(config1)
 					: vendor === 'node-postgres'
 					? drizzleNodePostgres(config1)
+					: vendor === 'minipg'
+					? drizzleMinipg(config1)
 					: vendor === 'postgresjs'
 					? drizzlePostgresjs(config1)
 					: vendor === 'netlify-db'
@@ -743,6 +815,8 @@ const testFor = (
 					? drizzlePglite(config2)
 					: vendor === 'node-postgres'
 					? drizzleNodePostgres(config2)
+					: vendor === 'minipg'
+					? drizzleMinipg(config2)
 					: vendor === 'postgresjs'
 					? drizzlePostgresjs(config2)
 					: vendor === 'netlify-db'
@@ -769,6 +843,7 @@ export const neonHttpTest = testFor('neon-http').extend<{ neonhttp: NeonHttpData
 export const neonWsTest = testFor('neon-serverless');
 export const pgliteTest = testFor('pglite');
 export const nodePostgresTest = testFor('node-postgres');
+export const minipgTest = testFor('minipg');
 export const postgresjsTest = testFor('postgresjs');
 export const netlifyDbTest = testFor('netlify-db');
 export const proxyTest = testFor('proxy').extend<{ simulator: ServerSimulator }>({

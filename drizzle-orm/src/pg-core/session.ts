@@ -43,6 +43,8 @@ export abstract class PgSession {
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
+		/** Usef for driver-side mapping if supported by driver & compatible */
+		driverShape?: unknown,
 	): PgBasePreparedQuery;
 
 	abstract execute(query: SQL): unknown;

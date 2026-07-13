@@ -6,7 +6,12 @@ import {
 	castToTextArr,
 	parseGeometryTuple,
 	parseGeometryXY,
+	parseLineABC,
+	parseLineTuple,
 	parsePgArrayAndNormalize,
+	parsePgVector,
+	parsePointTuple,
+	parsePointXY,
 	refineGenericPgCodecs,
 	textToDate,
 	textToDateWithTz,
@@ -40,10 +45,12 @@ export const effectPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: makePgArray,
 	},
 	'geometry(point)': {
+		normalize: parseGeometryXY,
 		normalizeArray: parsePgArrayAndNormalize(parseGeometryXY),
 		normalizeParamArray: makePgArray,
 	},
 	'geometry(point):tuple': {
+		normalize: parseGeometryTuple,
 		normalizeArray: parsePgArrayAndNormalize(parseGeometryTuple),
 		normalizeParamArray: makePgArray,
 	},
@@ -55,11 +62,15 @@ export const effectPgCodecs = refineGenericPgCodecs({
 	line: {
 		cast: castToText,
 		castArray: castToTextArr,
+		normalize: parseLineABC,
+		normalizeArray: arrayCompatNormalize(parseLineABC),
 		normalizeParamArray: makePgArray,
 	},
 	'line:tuple': {
 		cast: castToText,
 		castArray: castToTextArr,
+		normalize: parseLineTuple,
+		normalizeArray: arrayCompatNormalize(parseLineTuple),
 		normalizeParamArray: makePgArray,
 	},
 	macaddr8: {
@@ -70,11 +81,15 @@ export const effectPgCodecs = refineGenericPgCodecs({
 	point: {
 		cast: castToText,
 		castArray: castToTextArr,
+		normalize: parsePointXY,
+		normalizeArray: arrayCompatNormalize(parsePointXY),
 		normalizeParamArray: makePgArray,
 	},
 	'point:tuple': {
 		cast: castToText,
 		castArray: castToTextArr,
+		normalize: parsePointTuple,
+		normalizeArray: arrayCompatNormalize(parsePointTuple),
 		normalizeParamArray: makePgArray,
 	},
 	timestamp: {
@@ -162,20 +177,52 @@ export const effectPgCodecs = refineGenericPgCodecs({
 	varchar: { normalizeParamArray: makePgArray },
 	xml: { normalizeParamArray: makePgArray },
 	bytea: { normalizeParamArray: makePgArray },
-	enum: { normalizeParamArray: makePgArray },
-	numeric: { normalizeParamArray: makePgArray },
-	'numeric:number': { normalizeParamArray: makePgArray },
-	'numeric:bigint': { normalizeParamArray: makePgArray },
-	'bigint:number': { normalizeParamArray: makePgArray },
+	enum: {
+		castArray: castToTextArr,
+		normalizeParamArray: makePgArray,
+	},
+	numeric: {
+		castArray: castToTextArr,
+		normalizeParamArray: makePgArray,
+	},
+	'numeric:number': {
+		castArray: castToTextArr,
+		normalize: Number,
+		normalizeArray: arrayCompatNormalize(Number),
+		normalizeParamArray: makePgArray,
+	},
+	'numeric:bigint': {
+		castArray: castToTextArr,
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
+		normalizeParamArray: makePgArray,
+	},
+	'bigint:number': {
+		normalize: Number,
+		normalizeArray: arrayCompatNormalize(Number),
+		normalizeParamArray: makePgArray,
+	},
 	'bigint:string': { normalizeParamArray: makePgArray },
-	'bigserial:number': { normalizeParamArray: makePgArray },
+	'bigserial:number': {
+		normalize: Number,
+		normalizeArray: arrayCompatNormalize(Number),
+		normalizeParamArray: makePgArray,
+	},
 	float4: { normalizeParamArray: makePgArray },
 	int: { normalizeParamArray: makePgArray },
 	uuid: { normalizeParamArray: makePgArray },
-	halfvec: { normalizeParamArray: makePgArray },
+	halfvec: {
+		normalize: parsePgVector,
+		normalizeArray: parsePgArrayAndNormalize(parsePgVector),
+		normalizeParamArray: makePgArray,
+	},
 	sparsevec: {
 		normalizeArray: parsePgArray,
 		normalizeParamArray: makePgArray,
 	},
-	vector: { normalizeParamArray: makePgArray },
+	vector: {
+		normalize: parsePgVector,
+		normalizeArray: parsePgArrayAndNormalize(parsePgVector),
+		normalizeParamArray: makePgArray,
+	},
 });

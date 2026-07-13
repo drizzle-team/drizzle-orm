@@ -3948,6 +3948,341 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				expect(jitDialect.mapperGenerators.rows === makeJitQueryMapper).toStrictEqual(true);
 			}));
 
+		it.effect("No nullification on non-joined table's all-null object", () =>
+			Effect.gen(function*() {
+				const users = pgTable('nullify1_users', (t) => ({
+					id: t.serial('id').primaryKey(),
+					name: t.text('name').notNull(),
+					bio: t.text('bio'),
+					city: t.text('city'),
+				}));
+
+				const db = yield* DB;
+				yield* push(db, { users });
+
+				yield* db.insert(users).values({ name: 'John' });
+
+				const res = yield* db.select({ id: users.id, meta: { bio: users.bio, city: users.city } }).from(users);
+
+				expect(res).toStrictEqual([{ id: 1, meta: { bio: null, city: null } }]);
+			}));
+
+		it.effect('Cross-table group never nullified', () =>
+			Effect.gen(function*() {
+				const cities = pgTable('nullify2_cities', (t) => ({
+					id: t.serial('id').primaryKey(),
+					name: t.text('name').notNull(),
+				}));
+				const users = pgTable('nullify2_users', (t) => ({
+					id: t.serial('id').primaryKey(),
+					name: t.text('name').notNull(),
+					bio: t.text('bio'),
+					cityId: t.integer('city_id').references(() => cities.id),
+				}));
+
+				const db = yield* DB;
+				yield* push(db, { cities, users });
+
+				yield* db.insert(cities).values([{ name: 'Paris' }]);
+				yield* db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+				const res = yield* db
+					.select({ id: users.id, g: { user: users.name, cityId: cities.id, cityName: cities.name } })
+					.from(users)
+					.leftJoin(cities, eq(users.cityId, cities.id))
+					.orderBy(users.id);
+
+				expect(res).toStrictEqual([
+					{ id: 1, g: { user: 'John', cityId: 1, cityName: 'Paris' } },
+					{ id: 2, g: { user: 'Jane', cityId: null, cityName: null } },
+				]);
+
+				const onlyJoinedSideNotNull = yield* db
+					.select({ id: users.id, g: { bio: users.bio, cityId: cities.id } })
+					.from(users)
+					.leftJoin(cities, eq(users.cityId, cities.id))
+					.orderBy(users.id);
+
+				expect(onlyJoinedSideNotNull).toStrictEqual([
+					{ id: 1, g: { bio: null, cityId: 1 } },
+					{ id: 2, g: { bio: null, cityId: null } },
+				]);
+			}));
+
+		it.effect('SQL field groups are never nullified', () =>
+			Effect.gen(function*() {
+				const cities = pgTable('nullify3_cities', (t) => ({
+					id: t.serial('id').primaryKey(),
+					name: t.text('name').notNull(),
+				}));
+				const users = pgTable('nullify3_users', (t) => ({
+					id: t.serial('id').primaryKey(),
+					name: t.text('name').notNull(),
+					cityId: t.integer('city_id').references(() => cities.id),
+				}));
+
+				const db = yield* DB;
+				yield* push(db, { cities, users });
+
+				yield* db.insert(cities).values([{ name: 'Paris' }]);
+				yield* db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+				const res = yield* db
+					.select({
+						id: users.id,
+						calc: { user: sql<string>`upper(${users.name})`, city: sql<string | null>`upper(${cities.name})` },
+					})
+					.from(users)
+					.leftJoin(cities, eq(users.cityId, cities.id))
+					.orderBy(users.id);
+
+				expect(res).toStrictEqual([
+					{ id: 1, calc: { user: 'JOHN', city: 'PARIS' } },
+					{ id: 2, calc: { user: 'JANE', city: null } },
+				]);
+			}));
+
+		it.effect('Nullify all-null group from from nullable join', () =>
+			Effect.gen(function*() {
+				const cities = pgTable('nullify4_cities', (t) => ({
+					id: t.serial('id').primaryKey(),
+					name: t.text('name').notNull(),
+					state: t.text('state'),
+					zip: t.text('zip'),
+				}));
+				const users = pgTable('nullify4_users', (t) => ({
+					id: t.serial('id').primaryKey(),
+					name: t.text('name').notNull(),
+					cityId: t.integer('city_id').references(() => cities.id),
+				}));
+
+				const db = yield* DB;
+				yield* push(db, { cities, users });
+
+				yield* db.insert(cities).values([
+					{ name: 'Paris', state: 'IDF', zip: '75' },
+					{ name: 'London' },
+				]);
+				yield* db.insert(users).values([
+					{ name: 'John', cityId: 1 },
+					{ name: 'Jane', cityId: 2 },
+					{ name: 'Jack' },
+				]);
+
+				const res = yield* db
+					.select({ name: users.name, c: { state: cities.state, zip: cities.zip } })
+					.from(users)
+					.leftJoin(cities, eq(users.cityId, cities.id))
+					.orderBy(users.id);
+
+				expect(res).toStrictEqual([
+					{ name: 'John', c: { state: 'IDF', zip: '75' } },
+					{ name: 'Jane', c: null },
+					{ name: 'Jack', c: null },
+				]);
+			}));
+
+		it.effect('Disregard added SQL field during join nullification', () =>
+			Effect.gen(function*() {
+				const cities = pgTable('nullify5_cities', (t) => ({
+					id: t.serial('id').primaryKey(),
+					name: t.text('name').notNull(),
+					state: t.text('state'),
+				}));
+				const users = pgTable('nullify5_users', (t) => ({
+					id: t.serial('id').primaryKey(),
+					name: t.text('name').notNull(),
+					cityId: t.integer('city_id').references(() => cities.id),
+				}));
+
+				const db = yield* DB;
+				yield* push(db, { cities, users });
+
+				yield* db.insert(cities).values([{ name: 'Paris', state: 'IDF' }, { name: 'London' }]);
+				yield* db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 2 }]);
+
+				const res = yield* db
+					.select({
+						name: users.name,
+						c: { state: cities.state, cityUpper: sql<string>`upper(${cities.name})` },
+					})
+					.from(users)
+					.leftJoin(cities, eq(users.cityId, cities.id))
+					.orderBy(users.id);
+
+				expect(res).toStrictEqual([
+					{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
+					{ name: 'Jane', c: null },
+				]);
+			}));
+
+		it.effect("No nullification on non-joined table's all-null object - jit", () =>
+			Effect.gen(function*() {
+				const users = pgTable('nullify1_users_jit', (t) => ({
+					id: t.serial('id').primaryKey(),
+					name: t.text('name').notNull(),
+					bio: t.text('bio'),
+					city: t.text('city'),
+				}));
+
+				const db = yield* createDB({}, () => ({}), true);
+				yield* push(db, { users });
+
+				yield* db.insert(users).values({ name: 'John' });
+
+				const res = yield* db.select({ id: users.id, meta: { bio: users.bio, city: users.city } }).from(users);
+
+				expect(res).toStrictEqual([{ id: 1, meta: { bio: null, city: null } }]);
+			}));
+
+		it.effect('Cross-table group never nullified - jit', () =>
+			Effect.gen(function*() {
+				const cities = pgTable('nullify2_cities_jit', (t) => ({
+					id: t.serial('id').primaryKey(),
+					name: t.text('name').notNull(),
+				}));
+				const users = pgTable('nullify2_users_jit', (t) => ({
+					id: t.serial('id').primaryKey(),
+					name: t.text('name').notNull(),
+					bio: t.text('bio'),
+					cityId: t.integer('city_id').references(() => cities.id),
+				}));
+
+				const db = yield* createDB({}, () => ({}), true);
+				yield* push(db, { cities, users });
+
+				yield* db.insert(cities).values([{ name: 'Paris' }]);
+				yield* db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+				const res = yield* db
+					.select({ id: users.id, g: { user: users.name, cityId: cities.id, cityName: cities.name } })
+					.from(users)
+					.leftJoin(cities, eq(users.cityId, cities.id))
+					.orderBy(users.id);
+
+				expect(res).toStrictEqual([
+					{ id: 1, g: { user: 'John', cityId: 1, cityName: 'Paris' } },
+					{ id: 2, g: { user: 'Jane', cityId: null, cityName: null } },
+				]);
+
+				const onlyJoinedSideNotNull = yield* db
+					.select({ id: users.id, g: { bio: users.bio, cityId: cities.id } })
+					.from(users)
+					.leftJoin(cities, eq(users.cityId, cities.id))
+					.orderBy(users.id);
+
+				expect(onlyJoinedSideNotNull).toStrictEqual([
+					{ id: 1, g: { bio: null, cityId: 1 } },
+					{ id: 2, g: { bio: null, cityId: null } },
+				]);
+			}));
+
+		it.effect('SQL field groups are never nullified - jit', () =>
+			Effect.gen(function*() {
+				const cities = pgTable('nullify3_cities_jit', (t) => ({
+					id: t.serial('id').primaryKey(),
+					name: t.text('name').notNull(),
+				}));
+				const users = pgTable('nullify3_users_jit', (t) => ({
+					id: t.serial('id').primaryKey(),
+					name: t.text('name').notNull(),
+					cityId: t.integer('city_id').references(() => cities.id),
+				}));
+
+				const db = yield* createDB({}, () => ({}), true);
+				yield* push(db, { cities, users });
+
+				yield* db.insert(cities).values([{ name: 'Paris' }]);
+				yield* db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+				const res = yield* db
+					.select({
+						id: users.id,
+						calc: { user: sql<string>`upper(${users.name})`, city: sql<string | null>`upper(${cities.name})` },
+					})
+					.from(users)
+					.leftJoin(cities, eq(users.cityId, cities.id))
+					.orderBy(users.id);
+
+				expect(res).toStrictEqual([
+					{ id: 1, calc: { user: 'JOHN', city: 'PARIS' } },
+					{ id: 2, calc: { user: 'JANE', city: null } },
+				]);
+			}));
+
+		it.effect('Nullify all-null group from from nullable join - jit', () =>
+			Effect.gen(function*() {
+				const cities = pgTable('nullify4_cities_jit', (t) => ({
+					id: t.serial('id').primaryKey(),
+					name: t.text('name').notNull(),
+					state: t.text('state'),
+					zip: t.text('zip'),
+				}));
+				const users = pgTable('nullify4_users_jit', (t) => ({
+					id: t.serial('id').primaryKey(),
+					name: t.text('name').notNull(),
+					cityId: t.integer('city_id').references(() => cities.id),
+				}));
+
+				const db = yield* createDB({}, () => ({}), true);
+				yield* push(db, { cities, users });
+
+				yield* db.insert(cities).values([
+					{ name: 'Paris', state: 'IDF', zip: '75' },
+					{ name: 'London' },
+				]);
+				yield* db.insert(users).values([
+					{ name: 'John', cityId: 1 },
+					{ name: 'Jane', cityId: 2 },
+					{ name: 'Jack' },
+				]);
+
+				const res = yield* db
+					.select({ name: users.name, c: { state: cities.state, zip: cities.zip } })
+					.from(users)
+					.leftJoin(cities, eq(users.cityId, cities.id))
+					.orderBy(users.id);
+
+				expect(res).toStrictEqual([
+					{ name: 'John', c: { state: 'IDF', zip: '75' } },
+					{ name: 'Jane', c: null },
+					{ name: 'Jack', c: null },
+				]);
+			}));
+
+		it.effect('Disregard added SQL field during join nullification - jit', () =>
+			Effect.gen(function*() {
+				const cities = pgTable('nullify5_cities_jit', (t) => ({
+					id: t.serial('id').primaryKey(),
+					name: t.text('name').notNull(),
+					state: t.text('state'),
+				}));
+				const users = pgTable('nullify5_users_jit', (t) => ({
+					id: t.serial('id').primaryKey(),
+					name: t.text('name').notNull(),
+					cityId: t.integer('city_id').references(() => cities.id),
+				}));
+
+				const db = yield* createDB({}, () => ({}), true);
+				yield* push(db, { cities, users });
+
+				yield* db.insert(cities).values([{ name: 'Paris', state: 'IDF' }, { name: 'London' }]);
+				yield* db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 2 }]);
+
+				const res = yield* db
+					.select({
+						name: users.name,
+						c: { state: cities.state, cityUpper: sql<string>`upper(${cities.name})` },
+					})
+					.from(users)
+					.leftJoin(cities, eq(users.cityId, cities.id))
+					.orderBy(users.id);
+
+				expect(res).toStrictEqual([
+					{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
+					{ name: 'Jane', c: null },
+				]);
+			}));
 		const mappersDate = new Date('2026-04-02T00:00:00.000Z');
 
 		it.effect('Mappers: simple select - no rows', () =>

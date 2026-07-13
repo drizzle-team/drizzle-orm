@@ -180,6 +180,7 @@ export abstract class PgAsyncSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
+		driverShape?: unknown,
 	): PgAsyncPreparedQuery<T>;
 
 	override execute<T>(query: SQL): Promise<T[]> {
