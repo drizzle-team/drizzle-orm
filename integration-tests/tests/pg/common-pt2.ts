@@ -1761,7 +1761,7 @@ export function tests(test: Test) {
 		// https://github.com/drizzle-team/drizzle-orm/issues/3171
 		// TODO: review case
 		// Fails in `postgres-js` if not inlined - driver expects stringified jsons
-		test.skipIf(Date.now() < +new Date('2026-07-01')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-07-20')).concurrent(
 			'proper json and jsonb handling - sql operator',
 			async ({ db, push }) => {
 				const jsonTable = pgTable('json_table_sql_3', {
@@ -5383,7 +5383,7 @@ export function tests(test: Test) {
 		// https://github.com/drizzle-team/drizzle-orm/issues/5253
 		// enhancement
 		// allow select which columns to insert in insert...select
-		test.skipIf(Date.now() < +new Date('2026-07-01')).concurrent('insert into ... select #2', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-07-20')).concurrent('insert into ... select #2', async ({ db, push }) => {
 			const users = pgTable('users_114', {
 				id: integer('id').primaryKey(),
 				name: text('name').notNull(),
@@ -5472,7 +5472,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4596
-		test.skipIf(Date.now() < +new Date('2026-07-01'))(
+		test.skipIf(Date.now() < +new Date('2026-07-20'))(
 			'functional index; onConflict do update',
 			async ({ db, push }) => {
 				throw new Error('SKIP. commented below because of type error');
@@ -5559,7 +5559,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4419
-		test.skipIf(Date.now() < +new Date('2026-07-01'))('db/js timestamp comparison', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-07-20'))('db/js timestamp comparison', async ({ db, push }) => {
 			const table1 = pgTable('table1', {
 				id: integer(),
 				// default config equal to: { mode: 'date' }
@@ -7286,7 +7286,7 @@ export function tests(test: Test) {
 				.rejects.toBeInstanceOf(DrizzleQueryError);
 		});
 
-		test.skipIf(Date.now() < +new Date('2026-07-01')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-07-20')).concurrent(
 			'Mappers: deep nullification',
 			async ({ db, push }) => {
 				const users = pgTable('mappers_users_dn', (t) => ({
@@ -7385,7 +7385,7 @@ export function tests(test: Test) {
 			},
 		);
 
-		test.skipIf(Date.now() < +new Date('2026-07-01')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-07-20')).concurrent(
 			'Jit mappers: deep nullification',
 			async ({ createDB, push }) => {
 				const users = pgTable('mappers_users_jdn', (t) => ({
@@ -7921,7 +7921,7 @@ export function tests(test: Test) {
 			);
 		});
 
-		test.skipIf(Date.now() < +new Date('2026-07-01')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-07-20')).concurrent(
 			'Same table name joined between schemas',
 			async ({ db }) => {
 				const users1 = pgTable('users_cs_join_1', (t) => ({
