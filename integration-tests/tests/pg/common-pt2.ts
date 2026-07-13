@@ -57,6 +57,7 @@ import {
 	macaddr,
 	macaddr8,
 	numeric,
+	parsePgArray,
 	PgAsyncSession,
 	PgDialect,
 	pgEnum,
@@ -5455,7 +5456,9 @@ export function tests(test: Test) {
 
 			const subquery = db
 				.select({
-					tags_array: sql<string[] | null>`array_agg(${myTable.tag})`.as(
+					tags_array: sql<string[] | string | null>`array_agg(${myTable.tag})`.mapWith((v) =>
+						typeof v === 'string' ? parsePgArray(v) as string[] : v
+					).as(
 						'selectedIds',
 					),
 				})
