@@ -531,9 +531,14 @@ jobs:
           if [[ "${{ inputs.publish_to_github }}" == "true" ]]; then
             # provenance is npmjs-only
             npm publish ./artifacts/${{ matrix.package }}/package.tgz --tag "${{ steps.checks.outputs.tag }}" --registry=https://npm.pkg.github.com --no-provenance
-            pkg_url="$(curl -fsSL -H "Authorization: Bearer $GH_PACKAGES_TOKEN" \
-              "https://api.github.com/orgs/${{ github.repository_owner }}/packages/npm/${{ matrix.package }}/versions?per_page=100" \
-              | jq -r --arg v "${{ steps.checks.outputs.version }}" 'first(.[] | select(.name == $v) | .html_url) // empty' || true)"
+            pkg_url=""
+            SECONDS=0
+            until [[ -n "$pkg_url" ]] || (( SECONDS >= 10 )); do
+              pkg_url="$(curl -fsSL -H "Authorization: Bearer $GH_PACKAGES_TOKEN" \
+                "https://api.github.com/orgs/${{ github.repository_owner }}/packages/npm/${{ matrix.package }}/versions?per_page=100" \
+                | jq -r --arg v "${{ steps.checks.outputs.version }}" 'first(.[] | select(.name == $v) | .html_url) // empty' || true)"
+              [[ -n "$pkg_url" ]] || sleep 2
+            done
             pkg_url="${pkg_url:-https://github.com/orgs/${{ github.repository_owner }}/packages/npm/package/${{ matrix.package }}}"
             echo "GitHub Packages: [\`@${{ github.repository_owner }}/${{ matrix.package }}@${{ steps.checks.outputs.tag }} | ${{ steps.checks.outputs.version }}\`]($pkg_url)" >> $GITHUB_STEP_SUMMARY
           else
