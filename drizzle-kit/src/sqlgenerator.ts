@@ -539,7 +539,8 @@ class MySqlCreateTableConvertor extends Convertor {
 		if (typeof compositePKs !== 'undefined' && compositePKs.length > 0) {
 			statement += ',\n';
 			const compositePK = MySqlSquasher.unsquashPK(compositePKs[0]);
-			statement += `\tCONSTRAINT \`${st.compositePkName}\` PRIMARY KEY(\`${compositePK.columns.join(`\`,\``)}\`)`;
+			// MySQL does not allow naming PRIMARY KEY constraints - the name is always implicitly "PRIMARY"
+			statement += `\tPRIMARY KEY(\`${compositePK.columns.join(`\`,\``)}\`)`;
 		}
 
 		if (
