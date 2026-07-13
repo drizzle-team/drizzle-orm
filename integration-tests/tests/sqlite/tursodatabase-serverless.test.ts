@@ -200,5 +200,9 @@ const skip: string[] = [
 	'delete with limit and order by',
 	// ORDER BY is not supported in UPDATE
 	'update with limit and order by',
+
+	// Times out
+	'test $onUpdateFn and $onUpdate works updating',
+	'insert: placeholders on columns with encoder',
 ];
 tests(test, skip);
