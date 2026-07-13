@@ -296,7 +296,7 @@
 		"effect": "4.0.0-beta.83",
 		"expo-sqlite": "^14.0.0",
 		"glob": "^11.0.1",
-		"minipg": "file:../minipg-0.1.0.tgz",
+		"minipg": "file:../vendor/minipg-0.1.0.tgz",
 		"mysql2": "^3.14.1",
 		"pg": "^8.11.0",
 		"postgres": "^3.3.5",
