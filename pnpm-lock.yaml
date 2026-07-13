@@ -480,8 +480,8 @@ importers:
         specifier: ^11.0.1
         version: 11.1.0
       minipg:
-        specifier: file:../minipg-0.1.0.tgz
-        version: file:minipg-0.1.0.tgz(typescript@5.9.3)
+        specifier: file:../vendor/minipg-0.1.0.tgz
+        version: file:vendor/minipg-0.1.0.tgz(typescript@5.9.3)
       mysql2:
         specifier: ^3.14.1
         version: 3.14.1
@@ -757,8 +757,8 @@ importers:
         specifier: ^7.3.1
         version: 7.3.1
       minipg:
-        specifier: file:../minipg-0.1.0.tgz
-        version: file:minipg-0.1.0.tgz(typescript@5.9.3)
+        specifier: file:../vendor/minipg-0.1.0.tgz
+        version: file:vendor/minipg-0.1.0.tgz(typescript@5.9.3)
       mssql:
         specifier: ^11.0.1
         version: 11.0.1
@@ -7111,8 +7111,8 @@ packages:
     resolution: {integrity: sha512-qOOzS1cBTWYF4BH8fVePDBOO9iptMnGUEZwNc/cMWnTV2nVLZ7VoNWEPHkYczZA0pdoA7dl6e7FL659nX9S2aw==}
     engines: {node: '>=16 || 14 >=14.17'}
 
-  minipg@file:minipg-0.1.0.tgz:
-    resolution: {integrity: sha512-zZgrQpqmBqySONXb+bcjcnNVb1i6/qQGo4tSiNxe6laE/92XFx3BSGcRN9Ce68WRpsiF76PE03TzSPg/UkHXYQ==, tarball: file:minipg-0.1.0.tgz}
+  minipg@file:vendor/minipg-0.1.0.tgz:
+    resolution: {integrity: sha512-zZgrQpqmBqySONXb+bcjcnNVb1i6/qQGo4tSiNxe6laE/92XFx3BSGcRN9Ce68WRpsiF76PE03TzSPg/UkHXYQ==, tarball: file:vendor/minipg-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=18'}
     peerDependencies:
@@ -17138,7 +17138,7 @@ snapshots:
 
   minipass@7.1.2: {}
 
-  minipg@file:minipg-0.1.0.tgz(typescript@5.9.3):
+  minipg@file:vendor/minipg-0.1.0.tgz(typescript@5.9.3):
     dependencies:
       typescript: 5.9.3
 
