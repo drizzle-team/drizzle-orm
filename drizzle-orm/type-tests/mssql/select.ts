@@ -22,14 +22,14 @@ import {
 	notLike,
 	or,
 } from '~/sql/expressions';
-import { sql } from '~/sql/sql.ts';
+import { type InferSelectViewModel, sql } from '~/sql/sql.ts';
 
 import type { IRecordSet } from 'mssql';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { type MsSqlSelect, type MsSqlSelectQueryBuilder, QueryBuilder } from '~/mssql-core/index.ts';
 import { db } from './db.ts';
-import { cities, classes, newYorkers, users } from './tables.ts';
+import { cities, classes, newYorkers, newYorkersWithSubquery, users } from './tables.ts';
 
 const city = alias(cities, 'city');
 const city1 = alias(cities, 'city1');
@@ -417,6 +417,35 @@ await db.select().from(users);
 		Equal<
 			{
 				userId: number;
+			}[],
+			typeof result
+		>
+	>;
+}
+
+{
+	const result = await db.select().from(newYorkersWithSubquery);
+	Expect<
+		Equal<
+			{
+				id: number;
+				class: 'A' | 'C';
+				cityCount: number;
+				lastCityId: number;
+			}[],
+			typeof result
+		>
+	>;
+	Expect<Equal<typeof result, typeof newYorkersWithSubquery.$inferSelect[]>>;
+	Expect<Equal<typeof result, InferSelectViewModel<typeof newYorkersWithSubquery>[]>>;
+}
+
+{
+	const result = await db.select({ cityCount: newYorkersWithSubquery.cityCount }).from(newYorkersWithSubquery);
+	Expect<
+		Equal<
+			{
+				cityCount: number;
 			}[],
 			typeof result
 		>

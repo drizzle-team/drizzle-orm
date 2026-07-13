@@ -1,6 +1,6 @@
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { MySqlDatabase } from '~/mysql-core/db.ts';
+import { MySqlAsyncDatabase } from '~/mysql-core/async/db.ts';
 import { MySqlDialect, type MySqlDialectConfig } from '~/mysql-core/dialect.ts';
 import type { DrizzleMySqlConfig } from '~/mysql-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -9,7 +9,7 @@ import { type MySqlRemoteQueryResultHKT, MySqlRemoteSession } from './session.ts
 
 export class MySqlRemoteDatabase<
 	TRelations extends AnyRelations = EmptyRelations,
-> extends MySqlDatabase<MySqlRemoteQueryResultHKT, TRelations> {
+> extends MySqlAsyncDatabase<MySqlRemoteQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'MySqlRemoteDatabase';
 }
 
@@ -26,6 +26,7 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 ): MySqlRemoteDatabase<TRelations> {
 	const dialect = _dialect({
 		useJitMappers: jitCompatCheck(config.jit),
+		codecs: config.codecs,
 	});
 	let logger;
 	if (config.logger === true) {

@@ -8,7 +8,7 @@ import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './operations.ts'
 import type { TableLike } from './query-builders/select.types.ts';
 import type { AnyRelations, EmptyRelations } from './relations.ts';
 import { Param, SQL, View } from './sql/sql.ts';
-import type { DriverValueDecoder } from './sql/sql.ts';
+import type { DriverValueDecoder, SQLWrapper } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
 import { getTableName, Table } from './table.ts';
 import { ViewBaseConfig } from './view-common.ts';
@@ -377,9 +377,59 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 				field,
 				codec: codecs?.get(field, 'normalize'),
 				arrayDimensions: (<any> field).dimensions,
+				column: field,
 			});
-		} else if (is(field, Column) || is(field, SQL) || is(field, SQL.Aliased) || is(field, Subquery)) {
-			result.push({ path: newPath, field });
+		} else if (is(field, SQL) || is(field, SQL.Aliased)) {
+			const col = getColumnFromDecoder(field);
+			result.push(
+				col
+					? {
+						path: newPath,
+						field,
+						codec: codecs?.get(col, 'normalize'),
+						arrayDimensions: (<any> col).dimensions,
+						column: col,
+					}
+					: {
+						path: newPath,
+						field,
+					},
+			);
+		} else if (is(field, Subquery)) {
+			let column: Column | undefined;
+			const entries = Object.values(field._.selectedFields) as (SQL.Aliased | Column | SQL)[];
+			const entry = entries[0]!;
+
+			let fieldDecoder: DriverValueDecoder<any, any>;
+			if (is(entry, Column)) {
+				column = entry;
+				fieldDecoder = entry;
+			} else if (is(entry, SQL)) {
+				column = getColumnFromDecoder(entry);
+				fieldDecoder = entry.decoder;
+			} else {
+				column = getColumnFromDecoder(entry);
+				fieldDecoder = entry.sql.decoder;
+			}
+
+			if (fieldDecoder) {
+				field._.sql.decoder = fieldDecoder;
+			}
+
+			result.push(
+				column
+					? {
+						path: newPath,
+						field,
+						codec: codecs?.get(column, 'normalize'),
+						arrayDimensions: (<any> column).dimensions,
+						column,
+					}
+					: {
+						path: newPath,
+						field,
+					},
+			);
 		} else if (is(field, Table)) {
 			result.push(...orderSelectedFields(field[Table.Symbol.Columns], newPath, codecs));
 		} else {
@@ -387,6 +437,13 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 		}
 		return result;
 	}, []) as SelectedFieldsOrdered<TColumn>;
+}
+
+export function getColumnFromDecoder(source: SQL | SQL.Aliased | SQLWrapper): Column | undefined {
+	const query = source.getSQL();
+
+	if (is(query.decoder, Column)) return query.decoder;
+	return undefined;
 }
 
 export function haveSameKeys(left: Record<string, unknown>, right: Record<string, unknown>) {

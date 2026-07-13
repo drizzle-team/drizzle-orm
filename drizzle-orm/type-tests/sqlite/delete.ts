@@ -1,6 +1,7 @@
 import type { RunResult } from 'better-sqlite3';
 import { eq } from '~/sql/expressions/index.ts';
 
+import type { Changes } from 'bun:sqlite';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { sql } from '~/sql/sql.ts';
@@ -22,7 +23,7 @@ const deleteValues = db.delete(users).values();
 Expect<Equal<DrizzleTypeError<'.values() cannot be used without .returning()'>, typeof deleteValues>>;
 
 const deleteRunBun = bunDb.delete(users).run();
-Expect<Equal<void, typeof deleteRunBun>>;
+Expect<Equal<Changes, typeof deleteRunBun>>;
 
 const deleteAllBun = bunDb.delete(users).all();
 Expect<Equal<DrizzleTypeError<'.all() cannot be used without .returning()'>, typeof deleteAllBun>>;
@@ -46,7 +47,7 @@ const deleteValuesWhere = db.delete(users).where(eq(users.id, 1)).values();
 Expect<Equal<DrizzleTypeError<'.values() cannot be used without .returning()'>, typeof deleteValuesWhere>>;
 
 const deleteRunBunWhere = bunDb.delete(users).where(eq(users.id, 1)).run();
-Expect<Equal<void, typeof deleteRunBunWhere>>;
+Expect<Equal<Changes, typeof deleteRunBunWhere>>;
 
 const deleteAllBunWhere = bunDb.delete(users).where(eq(users.id, 1)).all();
 Expect<Equal<DrizzleTypeError<'.all() cannot be used without .returning()'>, typeof deleteAllBunWhere>>;
@@ -70,7 +71,7 @@ const deleteValuesReturning = db.delete(users).returning().values();
 Expect<Equal<any[][], typeof deleteValuesReturning>>;
 
 const deleteRunBunReturning = bunDb.delete(users).returning().run();
-Expect<Equal<void, typeof deleteRunBunReturning>>;
+Expect<Equal<Changes, typeof deleteRunBunReturning>>;
 
 const deleteAllBunReturning = bunDb.delete(users).returning().all();
 Expect<Equal<typeof users.$inferSelect[], typeof deleteAllBunReturning>>;

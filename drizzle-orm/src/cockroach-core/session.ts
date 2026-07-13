@@ -99,18 +99,6 @@ export abstract class CockroachSession<
 		).all();
 	}
 
-	async count(sql: SQL): Promise<number>;
-	/** @internal */
-	async count(sql: SQL, token?: NeonAuthToken): Promise<number>;
-	/** @internal */
-	async count(sql: SQL, token?: NeonAuthToken): Promise<number> {
-		const res = await this.execute<[{ count: string }]>(sql, token);
-
-		return Number(
-			res[0]['count'],
-		);
-	}
-
 	abstract transaction<T>(
 		transaction: (tx: CockroachTransaction<TQueryResult, TFullSchema, TSchema>) => Promise<T>,
 		config?: CockroachTransactionConfig,

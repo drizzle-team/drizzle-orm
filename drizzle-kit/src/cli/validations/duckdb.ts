@@ -1,4 +1,5 @@
 import { object, string, type TypeOf, undefined as undefinedType } from 'zod';
+import { ConfigConnectionCliError } from '../errors';
 import { error } from '../views';
 import { wrapParam } from './common';
 
@@ -14,9 +15,14 @@ export type DuckDbCredentials = TypeOf<typeof duckdbCredentials>;
 
 export const printConfigConnectionIssues = (
 	options: Record<string, unknown>,
-) => {
+): never => {
 	const text = `Please provide required params:\n`;
-	console.log(error(text));
-	console.log(wrapParam('url', options.url));
-	process.exit(1);
+	throw new ConfigConnectionCliError(
+		'duckdb',
+		['url'],
+		[
+			error(text),
+			wrapParam('url', options.url),
+		].join('\n'),
+	);
 };

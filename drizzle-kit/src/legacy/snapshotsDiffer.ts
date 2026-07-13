@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import { render } from 'hanji';
 import type { TypeOf, ZodTypeAny } from 'zod';
 import { any, array, boolean, enum as enumType, literal, never, object, record, string, union } from 'zod';
+import { isInteractive } from '../cli/context';
 import { ResolveColumnSelect, ResolveSchemasSelect, ResolveSelect, ResolveSelectNamed } from '../cli/views';
 import { _prepareAddColumns, _prepareDropColumns } from './jsonStatements';
 import type { ViewSquashed } from './mysql-v5/mysqlSchema';
@@ -658,9 +659,9 @@ export const promptColumnsConflicts = async <T extends Named>(
 
 		const promptData: (RenamePropmtItem<T> | T)[] = [created, ...renames];
 
-		const { status, data } = await render(
-			new ResolveColumnSelect<T>(tableName, created, promptData),
-		);
+		const { status, data } = isInteractive()
+			? await render(new ResolveColumnSelect<T>(tableName, created, promptData))
+			: { status: 'submitted' as const, data: created };
 		if (status === 'aborted') {
 			console.error('ERROR');
 			process.exit(1);
@@ -731,9 +732,9 @@ export const promptNamedConflict = async <T extends Named>(
 
 		const promptData: (RenamePropmtItem<T> | T)[] = [created, ...renames];
 
-		const { status, data } = await render(
-			new ResolveSelectNamed<T>(created, promptData, entity),
-		);
+		const { status, data } = isInteractive()
+			? await render(new ResolveSelectNamed<T>(created, promptData, entity))
+			: { status: 'submitted' as const, data: created };
 		if (status === 'aborted') {
 			console.error('ERROR');
 			process.exit(1);
@@ -806,9 +807,9 @@ export const promptNamedWithSchemasConflict = async <T extends NamedWithSchema>(
 
 		const promptData: (RenamePropmtItem<T> | T)[] = [created, ...renames];
 
-		const { status, data } = await render(
-			new ResolveSelect<T>(created, promptData, entity),
-		);
+		const { status, data } = isInteractive()
+			? await render(new ResolveSelect<T>(created, promptData, entity))
+			: { status: 'submitted' as const, data: created };
 		if (status === 'aborted') {
 			console.error('ERROR');
 			process.exit(1);
@@ -884,9 +885,9 @@ export const promptSchemasConflict = async <T extends Named>(
 
 		const promptData: (RenamePropmtItem<T> | T)[] = [created, ...renames];
 
-		const { status, data } = await render(
-			new ResolveSchemasSelect<T>(created, promptData),
-		);
+		const { status, data } = isInteractive()
+			? await render(new ResolveSchemasSelect<T>(created, promptData))
+			: { status: 'submitted' as const, data: created };
 		if (status === 'aborted') {
 			console.error('ERROR');
 			process.exit(1);

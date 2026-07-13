@@ -6,15 +6,9 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
+import { MySqlAsyncPreparedQuery, MySqlAsyncSession, MySqlAsyncTransaction } from '~/mysql-core/async/session.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import {
-	MySqlPreparedQuery,
-	type MySqlPreparedQueryConfig,
-	type MySqlQueryResultHKT,
-	MySqlSession,
-	MySqlTransaction,
-	type MySqlTransactionConfig,
-} from '~/mysql-core/session.ts';
+import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT, MySqlTransactionConfig } from '~/mysql-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 export interface BunMySqlSessionOptions {
@@ -25,7 +19,7 @@ export interface BunMySqlSessionOptions {
 export class BunMySqlSession<
 	TSQL extends BunSQL,
 	TRelations extends AnyRelations,
-> extends MySqlSession<MySqlQueryResultHKT, TRelations> {
+> extends MySqlAsyncSession<MySqlQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'BunMySqlSession';
 
 	private logger: Logger;
@@ -51,7 +45,7 @@ export class BunMySqlSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): MySqlPreparedQuery<T> {
+	): MySqlAsyncPreparedQuery<T> {
 		const { client } = this;
 
 		const executor = async (params: any[] = []) => {
@@ -66,7 +60,7 @@ export class BunMySqlSession<
 			}));
 		};
 
-		return new MySqlPreparedQuery(
+		return new MySqlAsyncPreparedQuery(
 			executor,
 			undefined,
 			query,
@@ -98,7 +92,7 @@ export class BunMySqlSession<
 			);
 			const tx = new BunMySqlTransaction<TRelations>(
 				this.dialect,
-				session as MySqlSession<any, any>,
+				session as MySqlAsyncSession<any, any>,
 				this.relations,
 				0,
 			);
@@ -115,7 +109,7 @@ export class BunMySqlSession<
 
 export class BunMySqlTransaction<
 	TRelations extends AnyRelations,
-> extends MySqlTransaction<
+> extends MySqlAsyncTransaction<
 	BunMySqlQueryResultHKT,
 	TRelations
 > {
@@ -133,7 +127,7 @@ export class BunMySqlTransaction<
 			);
 			const tx = new BunMySqlTransaction<TRelations>(
 				this.dialect,
-				session as MySqlSession<any, any>,
+				session as MySqlAsyncSession<any, any>,
 				this.relations,
 				this.nestedIndex + 1,
 			);

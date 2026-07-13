@@ -25,7 +25,7 @@ export const jsonSchema = S.Union([
 	S.Array(S.Any),
 ]) satisfies Schema<Json>;
 
-export const bufferSchema = S.instanceOf(Buffer) satisfies Schema<Buffer>;
+export const bufferSchema = (typeof Buffer === 'undefined' ? S.Unknown : S.instanceOf(Buffer)) as Schema<Buffer>;
 
 export function columnToSchema(
 	column: Column,

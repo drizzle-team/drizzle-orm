@@ -1,6 +1,5 @@
 import Database from 'better-sqlite3';
 import { describe, it } from 'vitest';
-import { relations } from '~/_relations';
 import { drizzle } from '~/better-sqlite3';
 import { asc, eq, sql } from '~/sql';
 import { alias, camelCase, integer, text, union } from '~/sqlite-core';
@@ -12,23 +11,15 @@ const users = camelCase.table('users', {
 	// Test that custom aliases remain
 	age: integer('AGE'),
 });
-const usersRelations = relations(users, ({ one }) => ({
-	developers: one(developers),
-}));
+
 const developers = camelCase.table('developers', {
 	user_id: integer().primaryKey().references(() => users.id),
 	uses_drizzle_orm: integer({ mode: 'boolean' }).notNull(),
 });
-const developersRelations = relations(developers, ({ one }) => ({
-	user: one(users, {
-		fields: [developers.user_id],
-		references: [users.id],
-	}),
-}));
-const devs = alias(developers, 'devs');
-const schema = { users, usersRelations, developers, developersRelations };
 
-const db = drizzle({ client: new Database(':memory:'), schema });
+const devs = alias(developers, 'devs');
+
+const db = drizzle({ client: new Database(':memory:') });
 
 const fullName = sql`${users.first_name} || ' ' || ${users.last_name}`.as('name');
 
@@ -100,58 +91,6 @@ describe('sqlite to camel case', () => {
 		expect(query.toSQL()).toEqual({
 			sql: 'select "firstName" from "users" union select "firstName" from "users"',
 			params: [],
-		});
-	});
-
-	it('query (find first)', ({ expect }) => {
-		const query = db._query.users.findFirst({
-			columns: {
-				id: true,
-				age: true,
-			},
-			extras: {
-				fullName,
-			},
-			where: eq(users.id, 1),
-			with: {
-				developers: {
-					columns: {
-						uses_drizzle_orm: true,
-					},
-				},
-			},
-		});
-
-		expect(query.toSQL()).toEqual({
-			sql:
-				'select "id", "AGE", "firstName" || \' \' || "lastName" as "name", (select json_array("usesDrizzleOrm") as "data" from (select * from "developers" "users_developers" where "users_developers"."userId" = "users"."id" limit ?) "users_developers") as "developers" from "users" "users" where "users"."id" = ? limit ?',
-			params: [1, 1, 1],
-		});
-	});
-
-	it('query (find many)', ({ expect }) => {
-		const query = db._query.users.findMany({
-			columns: {
-				id: true,
-				age: true,
-			},
-			extras: {
-				fullName,
-			},
-			where: eq(users.id, 1),
-			with: {
-				developers: {
-					columns: {
-						uses_drizzle_orm: true,
-					},
-				},
-			},
-		});
-
-		expect(query.toSQL()).toEqual({
-			sql:
-				'select "id", "AGE", "firstName" || \' \' || "lastName" as "name", (select json_array("usesDrizzleOrm") as "data" from (select * from "developers" "users_developers" where "users_developers"."userId" = "users"."id" limit ?) "users_developers") as "developers" from "users" "users" where "users"."id" = ?',
-			params: [1, 1],
 		});
 	});
 

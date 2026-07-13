@@ -1,26 +1,23 @@
 import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
-import { QueryPromise } from '~/query-promise.ts';
-import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { IndexColumn } from '~/sqlite-core/indexes.ts';
-import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
+import type { SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { Subquery } from '~/subquery.ts';
-import { type InferInsertModel, Table, TableColumns } from '~/table.ts';
-import { type DrizzleTypeError, haveSameKeys, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils.ts';
+import { type InferInsertModel, Table } from '~/table.ts';
+import { type Assume, type DrizzleTypeError, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
 import type { AnySQLiteColumn, SQLiteColumn } from '../columns/common.ts';
-import { extractUsedTable } from '../utils.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { SQLiteUpdateSetSource } from './update.ts';
 
 export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 	table: TTable;
-	values: Record<string, Param | SQL>[] | SQLiteInsertSelectQueryBuilder<TTable> | SQL;
+	values: Record<string, Param | SQL>[] | TypedQueryBuilder<SQLiteInsertSelection<TTable>> | SQL;
 	withList?: Subquery[];
 	onConflict?: SQL[];
 	returning?: SelectedFieldsOrdered;
@@ -30,38 +27,71 @@ export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 export type SQLiteInsertValue<
 	TTable extends SQLiteTable,
 	TModel extends Record<string, any> = InferInsertModel<TTable>,
-> = Simplify<
-	{
+> =
+	& {
 		[Key in keyof TModel]: TModel[Key] | SQL | Placeholder;
 	}
->;
+	& {};
 
-export type SQLiteInsertSelectQueryBuilder<
+export type SQLiteInsertSelection<
 	TTable extends SQLiteTable,
-	TModel extends Record<string, any> = InferInsertModel<TTable>,
-> = TypedQueryBuilder<
-	{ [K in keyof TModel]: AnySQLiteColumn | SQL | SQL.Aliased | TModel[K] }
->;
+	TModel extends Record<string, unknown> = InferInsertModel<TTable>,
+> =
+	& {
+		[K in keyof TModel]:
+			| AnySQLiteColumn
+			| SQL
+			| SQL.Aliased
+			| TModel[K];
+	}
+	& {};
+
+export type NoUnknownKeysInInsertSelection<
+	TTable extends SQLiteTable,
+	TSelection extends SQLiteInsertSelection<any>,
+> = {
+	[K in keyof TSelection]: K extends keyof InferInsertModel<TTable> ? TSelection[K]
+		: K extends keyof InferInsertModel<TTable, { override: true }> ? DrizzleTypeError<
+				`Column "${
+					& K
+					& string}" in table "${TTable['_'][
+					'name'
+				]}" is a generated column - manual value insertion restricted`
+			>
+		: DrizzleTypeError<`Column "${K & string}" does not exist in table "${TTable['_']['name']}"`>;
+};
+
+export interface SQLiteInsertBuilderConstructor {
+	new(
+		table: SQLiteTable,
+		values: SQLiteInsertConfig['values'],
+		session: SQLiteSession<any, any>,
+		dialect: SQLiteDialect,
+		withList?: Subquery[],
+		select?: boolean,
+	): AnySQLiteInsert;
+}
 
 export class SQLiteInsertBuilder<
 	TTable extends SQLiteTable,
-	TResultType extends 'sync' | 'async',
 	TRunResult,
+	THKT extends SQLiteInsertHKTBase = SQLiteInsertQueryBuilderHKT,
 > {
 	static readonly [entityKind]: string = 'SQLiteInsertBuilder';
 
 	constructor(
 		protected table: TTable,
-		protected session: SQLiteSession<any, any, any, any, any>,
+		protected session: SQLiteSession<any, any>,
 		protected dialect: SQLiteDialect,
 		private withList?: Subquery[],
+		private builder: SQLiteInsertBuilderConstructor = SQLiteInsertBase,
 	) {}
 
-	values(value: SQLiteInsertValue<TTable>): SQLiteInsertBase<TTable, TResultType, TRunResult>;
-	values(values: SQLiteInsertValue<TTable>[]): SQLiteInsertBase<TTable, TResultType, TRunResult>;
+	values(value: SQLiteInsertValue<TTable>): SQLiteInsertKind<THKT, TTable, TRunResult>;
+	values(values: SQLiteInsertValue<TTable>[]): SQLiteInsertKind<THKT, TTable, TRunResult>;
 	values(
 		values: SQLiteInsertValue<TTable> | SQLiteInsertValue<TTable>[],
-	): SQLiteInsertBase<TTable, TResultType, TRunResult> {
+	): SQLiteInsertKind<THKT, TTable, TRunResult> {
 		values = Array.isArray(values) ? values : [values];
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
@@ -71,7 +101,7 @@ export class SQLiteInsertBuilder<
 			const cols = this.table[Table.Symbol.Columns];
 			for (const colKey of Object.keys(entry)) {
 				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue, cols[colKey]);
+				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue as any, cols[colKey]);
 			}
 			return result;
 		});
@@ -82,42 +112,87 @@ export class SQLiteInsertBuilder<
 		// 	);
 		// }
 
-		return new SQLiteInsertBase(this.table, mappedValues, this.session, this.dialect, this.withList);
+		return new this.builder(this.table, mappedValues, this.session, this.dialect, this.withList) as any;
 	}
 
-	select(
-		selectQuery: (qb: QueryBuilder) => SQLiteInsertSelectQueryBuilder<TTable>,
-	): SQLiteInsertBase<TTable, TResultType, TRunResult>;
-	select(selectQuery: (qb: QueryBuilder) => SQL): SQLiteInsertBase<TTable, TResultType, TRunResult>;
-	select(selectQuery: SQL): SQLiteInsertBase<TTable, TResultType, TRunResult>;
-	select(selectQuery: SQLiteInsertSelectQueryBuilder<TTable>): SQLiteInsertBase<TTable, TResultType, TRunResult>;
+	select<TSelection extends SQLiteInsertSelection<TTable>>(
+		selectQuery: (qb: QueryBuilder) => TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection>>,
+	): SQLiteInsertKind<THKT, TTable, TRunResult>;
+	select(selectQuery: (qb: QueryBuilder) => SQL): SQLiteInsertKind<THKT, TTable, TRunResult>;
+	select(selectQuery: SQL): SQLiteInsertKind<THKT, TTable, TRunResult>;
+	select<TSelection extends SQLiteInsertSelection<TTable>>(
+		selectQuery: TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection>>,
+	): SQLiteInsertKind<THKT, TTable, TRunResult>;
 	select(
 		selectQuery:
 			| SQL
-			| SQLiteInsertSelectQueryBuilder<TTable>
-			| ((qb: QueryBuilder) => SQLiteInsertSelectQueryBuilder<TTable> | SQL),
-	): SQLiteInsertBase<TTable, TResultType, TRunResult> {
+			| TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, SQLiteInsertSelection<TTable>>>
+			| ((qb: QueryBuilder) =>
+				| TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, SQLiteInsertSelection<TTable>>>
+				| SQL),
+	): SQLiteInsertKind<THKT, TTable, TRunResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
 
-		if (
-			!is(select, SQL)
-			&& !haveSameKeys(this.table[TableColumns], select._.selectedFields)
-		) {
-			throw new Error(
-				'Insert select error: selected fields are not the same or are in a different order compared to the table definition',
-			);
+		if (!is(select, SQL)) {
+			const insertCols = Object.keys(this.table[Table.Symbol.Columns]);
+			const selected = Object.keys(select._.selectedFields);
+
+			for (const col of selected) {
+				if (!insertCols.includes(col)) {
+					throw new Error(
+						`Insert select error: column "${col}" does not exist in table "${this.table[Table.Symbol.Name]}"`,
+					);
+				}
+			}
 		}
 
-		return new SQLiteInsertBase(this.table, select, this.session, this.dialect, this.withList, true);
+		return new this.builder(this.table, select, this.session, this.dialect, this.withList, true) as any;
 	}
 }
+
+export interface SQLiteInsertHKTBase {
+	table: unknown;
+	resultType: unknown;
+	runResult: unknown;
+	returning: unknown;
+	dynamic: boolean;
+	excludedMethods: string;
+	result: unknown;
+	_type: unknown;
+}
+
+export interface SQLiteInsertQueryBuilderHKT extends SQLiteInsertHKTBase {
+	_type: SQLiteInsertBase<
+		SQLiteInsertQueryBuilderHKT,
+		Assume<this['table'], SQLiteTable>,
+		this['runResult'],
+		this['returning'],
+		this['dynamic'],
+		this['excludedMethods']
+	>;
+}
+
+export type SQLiteInsertKind<
+	T extends SQLiteInsertHKTBase,
+	TTable extends SQLiteTable,
+	TRunResult,
+	TReturning = undefined,
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+> = (T & {
+	table: TTable;
+	runResult: TRunResult;
+	returning: TReturning;
+	dynamic: TDynamic;
+	excludedMethods: TExcludedMethods;
+})['_type'];
 
 export type SQLiteInsertWithout<T extends AnySQLiteInsert, TDynamic extends boolean, K extends keyof T & string> =
 	TDynamic extends true ? T
 		: Omit<
-			SQLiteInsertBase<
+			SQLiteInsertKind<
+				T['_']['hkt'],
 				T['_']['table'],
-				T['_']['resultType'],
 				T['_']['runResult'],
 				T['_']['returning'],
 				TDynamic,
@@ -131,9 +206,9 @@ export type SQLiteInsertReturning<
 	TDynamic extends boolean,
 	TSelectedFields extends SelectedFieldsFlat,
 > = SQLiteInsertWithout<
-	SQLiteInsertBase<
+	SQLiteInsertKind<
+		T['_']['hkt'],
 		T['_']['table'],
-		T['_']['resultType'],
 		T['_']['runResult'],
 		SelectResultFields<TSelectedFields>,
 		TDynamic,
@@ -147,9 +222,9 @@ export type SQLiteInsertReturningAll<
 	T extends AnySQLiteInsert,
 	TDynamic extends boolean,
 > = SQLiteInsertWithout<
-	SQLiteInsertBase<
+	SQLiteInsertKind<
+		T['_']['hkt'],
 		T['_']['table'],
-		T['_']['resultType'],
 		T['_']['runResult'],
 		T['_']['table']['$inferSelect'],
 		TDynamic,
@@ -169,55 +244,35 @@ export type SQLiteInsertOnConflictDoUpdateConfig<T extends AnySQLiteInsert> = {
 	set: SQLiteUpdateSetSource<T['_']['table']>;
 };
 
-export type SQLiteInsertDynamic<T extends AnySQLiteInsert> = SQLiteInsert<
+export type SQLiteInsertDynamic<T extends AnySQLiteInsert> = SQLiteInsertKind<
+	T['_']['hkt'],
 	T['_']['table'],
-	T['_']['resultType'],
 	T['_']['runResult'],
-	T['_']['returning']
->;
-
-export type SQLiteInsertExecute<T extends AnySQLiteInsert> = T['_']['returning'] extends undefined ? T['_']['runResult']
-	: T['_']['returning'][];
-
-export type SQLiteInsertPrepare<T extends AnySQLiteInsert> = SQLitePreparedQuery<
-	{
-		type: T['_']['resultType'];
-		run: T['_']['runResult'];
-		all: T['_']['returning'] extends undefined ? DrizzleTypeError<'.all() cannot be used without .returning()'>
-			: T['_']['returning'][];
-		get: T['_']['returning'] extends undefined ? DrizzleTypeError<'.get() cannot be used without .returning()'>
-			: T['_']['returning'];
-		values: T['_']['returning'] extends undefined ? DrizzleTypeError<'.values() cannot be used without .returning()'>
-			: any[][];
-		execute: SQLiteInsertExecute<T>;
-	}
+	T['_']['returning'],
+	true,
+	never
 >;
 
 export type AnySQLiteInsert = SQLiteInsertBase<any, any, any, any, any, any>;
 
 export type SQLiteInsert<
 	TTable extends SQLiteTable = SQLiteTable,
-	TResultType extends 'sync' | 'async' = 'sync' | 'async',
 	TRunResult = unknown,
 	TReturning = any,
-> = SQLiteInsertBase<TTable, TResultType, TRunResult, TReturning, true, never>;
+> = SQLiteInsertBase<SQLiteInsertQueryBuilderHKT, TTable, TRunResult, TReturning, true, never>;
 
 export interface SQLiteInsertBase<
+	THKT extends SQLiteInsertHKTBase,
 	TTable extends SQLiteTable,
-	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TReturning = undefined,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-> extends
-	SQLWrapper,
-	QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]>,
-	RunnableQuery<TReturning extends undefined ? TRunResult : TReturning[], 'sqlite'>
-{
+> extends SQLWrapper {
 	readonly _: {
 		readonly dialect: 'sqlite';
+		readonly hkt: THKT;
 		readonly table: TTable;
-		readonly resultType: TResultType;
 		readonly runResult: TRunResult;
 		readonly returning: TReturning;
 		readonly dynamic: TDynamic;
@@ -227,19 +282,18 @@ export interface SQLiteInsertBase<
 }
 
 export class SQLiteInsertBase<
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	THKT extends SQLiteInsertHKTBase,
 	TTable extends SQLiteTable,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TResultType extends 'sync' | 'async',
 	TRunResult,
-	TReturning = undefined,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TReturning = undefined,
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]>
-	implements RunnableQuery<TReturning extends undefined ? TRunResult : TReturning[], 'sqlite'>, SQLWrapper
-{
-	static override readonly [entityKind]: string = 'SQLiteInsert';
+> implements SQLWrapper {
+	static readonly [entityKind]: string = 'SQLiteInsert';
 
 	/** @internal */
 	config: SQLiteInsertConfig<TTable>;
@@ -247,12 +301,11 @@ export class SQLiteInsertBase<
 	constructor(
 		table: TTable,
 		values: SQLiteInsertConfig['values'],
-		private session: SQLiteSession<any, any, any, any, any>,
-		private dialect: SQLiteDialect,
+		protected session: SQLiteSession<any, any>,
+		protected dialect: SQLiteDialect,
 		withList?: Subquery[],
 		select?: boolean,
 	) {
-		super();
 		this.config = { table, values: values as any, withList, select };
 	}
 
@@ -371,51 +424,12 @@ export class SQLiteInsertBase<
 		return this;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildInsertQuery(this.config);
 	}
 
 	toSQL(): Query {
 		return this.dialect.sqlToQuery(this.getSQL());
-	}
-
-	/** @internal */
-	_prepare(isOneTimeQuery = true): SQLiteInsertPrepare<this> {
-		return this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
-			this.dialect.sqlToQuery(this.getSQL()),
-			this.config.returning,
-			this.config.returning ? 'all' : 'run',
-			undefined,
-			{
-				type: 'insert',
-				tables: extractUsedTable(this.config.table),
-			},
-		) as SQLiteInsertPrepare<this>;
-	}
-
-	prepare(): SQLiteInsertPrepare<this> {
-		return this._prepare(false);
-	}
-
-	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
-		return this._prepare().run(placeholderValues);
-	};
-
-	all: ReturnType<this['prepare']>['all'] = (placeholderValues) => {
-		return this._prepare().all(placeholderValues);
-	};
-
-	get: ReturnType<this['prepare']>['get'] = (placeholderValues) => {
-		return this._prepare().get(placeholderValues);
-	};
-
-	values: ReturnType<this['prepare']>['values'] = (placeholderValues) => {
-		return this._prepare().values(placeholderValues);
-	};
-
-	override async execute(): Promise<SQLiteInsertExecute<this>> {
-		return (this.config.returning ? this.all() : this.run()) as SQLiteInsertExecute<this>;
 	}
 
 	$dynamic(): SQLiteInsertDynamic<this> {

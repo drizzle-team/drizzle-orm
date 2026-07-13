@@ -1,17 +1,18 @@
 import type { CheckHandlerResult } from '../../cli/commands/check';
-import { sqliteSchemaError } from '../../cli/views';
+import { humanLog, sqliteSchemaError } from '../../cli/views';
 import { assertUnreachable } from '../../utils';
 import { findLeafSnapshotIds } from '../../utils/utils-node';
 import type { Column, ForeignKey, Index, PrimaryKey, SQLiteDDL, UniqueConstraint } from './ddl';
 import { createDDL, fromEntities, interimToDDL } from './ddl';
-import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
+import { fromDrizzleSchema } from './drizzle';
+import type { PreparedSqliteSchema } from './drizzle';
 import type { SqliteSnapshot } from './snapshot';
 import { drySqliteSnapshot, snapshotValidator } from './snapshot';
 import type { JsonStatement } from './statements';
 
 export const prepareSqliteSnapshot = async (
 	snapshots: string[],
-	filenames: string[],
+	prepared: PreparedSqliteSchema,
 	checkResult?: CheckHandlerResult,
 ): Promise<{
 	ddlPrev: SQLiteDDL;
@@ -46,13 +47,13 @@ export const prepareSqliteSnapshot = async (
 		ddlPrev.entities.push(entry);
 	}
 
-	const { tables, views } = await prepareFromSchemaFiles(filenames);
+	const { tables, views } = prepared;
 	const interim = fromDrizzleSchema(tables, views);
 
 	const { ddl: ddlCur, errors } = interimToDDL(interim);
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => sqliteSchemaError(it)).join('\n\n'));
+		humanLog(errors.map((it) => sqliteSchemaError(it)).join('\n\n'));
 		process.exit();
 	}
 

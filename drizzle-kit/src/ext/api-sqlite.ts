@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 import type { Relations } from 'drizzle-orm/_relations';
 import type { AnySQLiteTable } from 'drizzle-orm/sqlite-core';
-import type { SqliteCredentials } from 'src/cli/validations/sqlite';
+import type { SqliteCredentials } from '../cli/validations/sqlite';
 
 export const startStudioServer = async (
 	imports: Record<string, unknown>,
@@ -20,6 +20,7 @@ export const startStudioServer = async (
 	const { SQLiteTable } = await import('drizzle-orm/sqlite-core');
 	const { Relations } = await import('drizzle-orm/_relations');
 	const { drizzleForSQLite, prepareServer } = await import('../cli/commands/studio');
+	const { humanLog } = await import('../cli/views');
 
 	const sqliteSchema: Record<string, Record<string, AnySQLiteTable>> = {};
 	const relations: Record<string, Relations> = {};
@@ -50,7 +51,7 @@ export const startStudioServer = async (
 			if (err) {
 				console.error(err);
 			} else {
-				console.log(`Studio is running at ${options?.key ? 'https' : 'http'}://${host}:${port}`);
+				humanLog(`Studio is running at ${options?.key ? 'https' : 'http'}://${host}:${port}`);
 			}
 		},
 	});

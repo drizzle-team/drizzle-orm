@@ -2,17 +2,18 @@ import type { Config } from '@planetscale/database';
 import { Client } from '@planetscale/database';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { MySqlDatabase } from '~/mysql-core/db.ts';
+import { MySqlAsyncDatabase } from '~/mysql-core/async/db.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { DrizzleMySqlConfig } from '~/mysql-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
+import { planetscaleServerlessCodecs } from './codecs.ts';
 import type { PlanetscaleQueryResultHKT } from './session.ts';
 import { PlanetscaleSession } from './session.ts';
 
 export class PlanetScaleDatabase<
 	TRelations extends AnyRelations = EmptyRelations,
-> extends MySqlDatabase<PlanetscaleQueryResultHKT, TRelations> {
+> extends MySqlAsyncDatabase<PlanetscaleQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'PlanetScaleDatabase';
 }
 
@@ -44,6 +45,7 @@ const db = drizzle({ client });
 
 	const dialect = new MySqlDialect({
 		useJitMappers: jitCompatCheck(config.jit),
+		codecs: config.codecs ?? planetscaleServerlessCodecs,
 	});
 	let logger;
 	if (config.logger === true) {

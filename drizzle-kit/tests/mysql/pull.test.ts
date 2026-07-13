@@ -1057,3 +1057,23 @@ CREATE USER 'ghost_user'@'%' IDENTIFIED BY 'temp123';`);
 	expect(statements).toStrictEqual([]);
 	expect(sqlStatements).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5911
+test('issue #5911', async () => {
+	await db.query(`CREATE TABLE products (
+  id        INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name      VARCHAR(255) NOT NULL,
+  rating    FLOAT         NOT NULL DEFAULT 1.3
+);`);
+
+	const { statements, sqlStatements, ddlAfterPull, ddlFromPulledTsSchema } = await diffIntrospect(db, {}, '#5546');
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+	const afterPull = ddlAfterPull.columns.one({ name: 'rating' });
+	const afterTs = ddlFromPulledTsSchema.columns.one({ name: 'rating' });
+	expect(afterPull?.default).toBe('1.3');
+	expect(afterPull?.notNull).toBe(true);
+	expect(afterTs?.default).toBe('1.3');
+	expect(afterTs?.notNull).toBe(true);
+});

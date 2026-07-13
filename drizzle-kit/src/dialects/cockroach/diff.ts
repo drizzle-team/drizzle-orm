@@ -77,11 +77,7 @@ export const ddlDiff = async (
 	}
 
 	const schemasDiff = diff(ddl1, ddl2, 'schemas');
-	const {
-		created: createdSchemas,
-		deleted: deletedSchemas,
-		renamedOrMoved: renamedSchemas,
-	} = await schemasResolver({
+	const { created: createdSchemas, deleted: deletedSchemas, renamedOrMoved: renamedSchemas } = await schemasResolver({
 		created: schemasDiff.filter((it) => it.$diffType === 'create'),
 		deleted: schemasDiff.filter((it) => it.$diffType === 'drop'),
 	});
@@ -107,11 +103,7 @@ export const ddlDiff = async (
 	}
 
 	const enumsDiff = diff(ddl1, ddl2, 'enums');
-	const {
-		created: createdEnums,
-		deleted: deletedEnums,
-		renamedOrMoved: renamedOrMovedEnums,
-	} = await enumsResolver({
+	const { created: createdEnums, deleted: deletedEnums, renamedOrMoved: renamedOrMovedEnums } = await enumsResolver({
 		created: enumsDiff.filter((it) => it.$diffType === 'create'),
 		deleted: enumsDiff.filter((it) => it.$diffType === 'drop'),
 	});
@@ -163,14 +155,11 @@ export const ddlDiff = async (
 	}
 
 	const sequencesDiff = diff(ddl1, ddl2, 'sequences');
-	const {
-		created: createdSequences,
-		deleted: deletedSequences,
-		renamedOrMoved: renamedOrMovedSequences,
-	} = await sequencesResolver({
-		created: sequencesDiff.filter((it) => it.$diffType === 'create'),
-		deleted: sequencesDiff.filter((it) => it.$diffType === 'drop'),
-	});
+	const { created: createdSequences, deleted: deletedSequences, renamedOrMoved: renamedOrMovedSequences } =
+		await sequencesResolver({
+			created: sequencesDiff.filter((it) => it.$diffType === 'create'),
+			deleted: sequencesDiff.filter((it) => it.$diffType === 'drop'),
+		});
 
 	const renamedSequences = renamedOrMovedSequences.filter((it) => it.from.schema === it.to.schema);
 	const movedSequences = renamedOrMovedSequences.filter((it) => it.from.schema !== it.to.schema);
@@ -207,14 +196,12 @@ export const ddlDiff = async (
 
 	const tablesDiff = diff(ddl1, ddl2, 'tables');
 
-	const {
-		created: createdTables,
-		deleted: deletedTables,
-		renamedOrMoved: renamedOrMovedTables, // renamed or moved
-	} = await tablesResolver({
-		created: tablesDiff.filter((it) => it.$diffType === 'create'),
-		deleted: tablesDiff.filter((it) => it.$diffType === 'drop'),
-	});
+	const { created: createdTables, deleted: deletedTables, renamedOrMoved: renamedOrMovedTables } = await tablesResolver(
+		{
+			created: tablesDiff.filter((it) => it.$diffType === 'create'),
+			deleted: tablesDiff.filter((it) => it.$diffType === 'drop'),
+		},
+	);
 
 	const renamedTables = renamedOrMovedTables.filter((it) => it.from.name !== it.to.name);
 	const movedTables = renamedOrMovedTables.filter((it) => it.from.schema !== it.to.schema);
@@ -273,10 +260,7 @@ export const ddlDiff = async (
 	const groupedByTable = groupDiffs(columnsDiff);
 
 	for (let it of groupedByTable) {
-		const { created, deleted, renamedOrMoved } = await columnsResolver({
-			created: it.inserted,
-			deleted: it.deleted,
-		});
+		const { created, deleted, renamedOrMoved } = await columnsResolver({ created: it.inserted, deleted: it.deleted });
 
 		columnsToCreate.push(...created);
 		columnsToDelete.push(...deleted);
@@ -429,10 +413,7 @@ export const ddlDiff = async (
 	const pksDeletes = [] as PrimaryKey[];
 
 	for (const entry of groupedPKsDiff) {
-		const { renamedOrMoved, created, deleted } = await pksResolver({
-			created: entry.inserted,
-			deleted: entry.deleted,
-		});
+		const { renamedOrMoved, created, deleted } = await pksResolver({ created: entry.inserted, deleted: entry.deleted });
 
 		pksCreates.push(...created);
 		pksDeletes.push(...deleted);
@@ -459,10 +440,7 @@ export const ddlDiff = async (
 	const fksDeletes = [] as ForeignKey[];
 
 	for (const entry of groupedFKsDiff) {
-		const { renamedOrMoved, created, deleted } = await fksResolver({
-			created: entry.inserted,
-			deleted: entry.deleted,
-		});
+		const { renamedOrMoved, created, deleted } = await fksResolver({ created: entry.inserted, deleted: entry.deleted });
 
 		fksCreates.push(...created);
 		fksDeletes.push(...deleted);
@@ -515,11 +493,7 @@ export const ddlDiff = async (
 
 	const viewsDiff = diff(ddl1, ddl2, 'views');
 
-	const {
-		created: createdViews,
-		deleted: deletedViews,
-		renamedOrMoved: renamedOrMovedViews,
-	} = await viewsResolver({
+	const { created: createdViews, deleted: deletedViews, renamedOrMoved: renamedOrMovedViews } = await viewsResolver({
 		created: viewsDiff.filter((it) => it.$diffType === 'create'),
 		deleted: viewsDiff.filter((it) => it.$diffType === 'drop'),
 	});

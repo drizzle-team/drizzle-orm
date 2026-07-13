@@ -46,7 +46,7 @@ export const relations = defineRelations({
 	},
 }));
 
-let db: SQLiteBunDatabase<never, typeof relations>;
+let db: SQLiteBunDatabase<typeof relations>;
 
 beforeAll(async () => {
 	try {

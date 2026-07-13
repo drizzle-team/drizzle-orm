@@ -7,21 +7,19 @@ import type {
 } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import { migrateSync } from '~/sqlite-core/async/session.ts';
 import type { SQLiteBunDatabase } from './driver.ts';
 
-export function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations = EmptyRelations>(
-	db: SQLiteBunDatabase<TSchema, TRelations>,
+export function migrate<TRelations extends AnyRelations = EmptyRelations>(
+	db: SQLiteBunDatabase<TRelations>,
 	config: MigrationConfig,
 ): void | MigratorInitFailResponse;
-export function migrate<
-	TSchema extends Record<string, unknown>,
-	TRelations extends AnyRelations = EmptyRelations,
->(
-	db: SQLiteBunDatabase<TSchema, TRelations>,
+export function migrate<TRelations extends AnyRelations = EmptyRelations>(
+	db: SQLiteBunDatabase<TRelations>,
 	config: MigrationFromJournalConfig | MigrationsJournal,
 ): void;
-export function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations = EmptyRelations>(
-	db: SQLiteBunDatabase<TSchema, TRelations>,
+export function migrate<TRelations extends AnyRelations = EmptyRelations>(
+	db: SQLiteBunDatabase<TRelations>,
 	config: MigrationConfig | MigrationFromJournalConfig | MigrationsJournal,
 ): void | MigratorInitFailResponse {
 	if (Array.isArray(config) || 'migrationsJournal' in config) {
@@ -36,11 +34,11 @@ export function migrate<TSchema extends Record<string, unknown>, TRelations exte
 			name: d.name,
 		}));
 
-		return db.dialect.migrate(migrations, db.session, {
+		return migrateSync(migrations, db.session, {
 			migrationsTable,
 		});
 	}
 
 	const migrations = readMigrationFiles(config as MigrationConfig);
-	return db.dialect.migrate(migrations, db.session, config as MigrationConfig);
+	return migrateSync(migrations, db.session, config as MigrationConfig);
 }
