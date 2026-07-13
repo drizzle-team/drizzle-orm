@@ -257,6 +257,7 @@ export const push = command({
 			.desc('Print all statements for each push')
 			.default(false),
 		strict: boolean().desc('Always ask for confirmation').default(false),
+		safe: boolean().desc('Only run non-data-loss statements, aborting if not possible').default(false),
 		force: boolean()
 			.desc(
 				'Auto-approve all data loss statements. Note: Data loss statements may truncate your tables and data',
@@ -267,7 +268,7 @@ export const push = command({
 		const from = assertCollisions(
 			'push',
 			opts,
-			['force', 'verbose', 'strict'],
+			['force', 'verbose', 'strict', 'safe'],
 			[
 				'schema',
 				'dialect',
@@ -305,6 +306,7 @@ export const push = command({
 			force,
 			casing,
 			entities,
+			safe,
 		} = config;
 
 		try {
@@ -318,6 +320,7 @@ export const push = command({
 					verbose,
 					force,
 					casing,
+					safe,
 				);
 			} else if (dialect === 'postgresql') {
 				if ('driver' in credentials) {
@@ -352,6 +355,7 @@ export const push = command({
 					entities,
 					force,
 					casing,
+					safe,
 				);
 			} else if (dialect === 'sqlite') {
 				const { sqlitePush } = await import('./commands/push');
@@ -363,6 +367,7 @@ export const push = command({
 					tablesFilter,
 					force,
 					casing,
+					safe,
 				);
 			} else if (dialect === 'turso') {
 				const { libSQLPush } = await import('./commands/push');
@@ -374,6 +379,7 @@ export const push = command({
 					tablesFilter,
 					force,
 					casing,
+					safe,
 				);
 			} else if (dialect === 'singlestore') {
 				const { singlestorePush } = await import('./commands/push');
@@ -385,6 +391,7 @@ export const push = command({
 					verbose,
 					force,
 					casing,
+					safe,
 				);
 			} else if (dialect === 'gel') {
 				console.log(
