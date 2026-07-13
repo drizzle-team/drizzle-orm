@@ -138,7 +138,9 @@ export const validateWithReport = (snapshots: string[], dialect: Dialect) => {
 
 	const result = snapshots.reduce(
 		(accum, it) => {
-			const raw = JSON.parse(readFileSync(`./${it}`).toString());
+			// Ensure the path starts with `./`
+			const filePath = ensureDotSlash(it);
+			const raw = JSON.parse(readFileSync(filePath).toString());
 
 			accum.rawMap[it] = raw;
 
@@ -359,6 +361,10 @@ export function findAddedAndRemoved(columnNames1: string[], columnNames2: string
 	const removedColumns = columnNames1.filter((it) => !set2.has(it));
 
 	return { addedColumns, removedColumns };
+}
+
+export function ensureDotSlash(p: string): string {
+	return p.replace(/^\.\//, '').replace(/^\//, '').replace(/^/, './');
 }
 
 export function escapeSingleQuotes(str: string) {
