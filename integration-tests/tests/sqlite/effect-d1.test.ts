@@ -70,6 +70,8 @@ runCommonEffectSQLiteTests({
 		'full join with alias',
 		'select from alias',
 		'Mappers: select complex selections',
+		'Cross-table group never nullified',
+		'Cross-table group never nullified - jit',
 
 		// Cloudflare workers environment doesn't support 'new Function(...)'
 		'Mappers: correct mappers enabled',
