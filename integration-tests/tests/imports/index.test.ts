@@ -39,7 +39,7 @@ for (const [i, key] of exportSubpaths.entries()) {
 		|| o1.startsWith('drizzle-orm/expo-sqlite') || o1.startsWith('drizzle-orm/libsql/wasm')
 		|| o1.startsWith('drizzle-orm/bun-sql') || o1.startsWith('drizzle-orm/tursodatabase/wasm')
 		|| o1.startsWith('drizzle-orm/prisma') || o1.startsWith('drizzle-orm/node-sqlite')
-		|| o1.startsWith('drizzle-orm/effect-sqlite-bun')
+		|| o1.startsWith('drizzle-orm/effect-sqlite-bun') || o1.startsWith('drizzle-orm/minipg')
 	) {
 		continue;
 	}
