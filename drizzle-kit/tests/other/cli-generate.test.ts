@@ -63,6 +63,7 @@ test('generate #1', async (t) => {
 		ignoreConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
+		provider: undefined,
 	});
 });
 
@@ -87,6 +88,7 @@ test('generate #2', async (t) => {
 		ignoreConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
+		provider: undefined,
 	});
 });
 
@@ -108,6 +110,7 @@ test('generate #3', async (t) => {
 		ignoreConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
+		provider: undefined,
 	});
 });
 
@@ -130,6 +133,7 @@ test('generate #4', async (t) => {
 		ignoreConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
+		provider: undefined,
 	});
 });
 
@@ -151,6 +155,7 @@ test('generate #5', async (t) => {
 		ignoreConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
+		provider: undefined,
 	});
 });
 
@@ -172,6 +177,7 @@ test('generate #6', async (t) => {
 		ignoreConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
+		provider: undefined,
 	});
 });
 
@@ -193,6 +199,7 @@ test('generate #7', async (t) => {
 		ignoreConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
+		provider: undefined,
 	});
 });
 
@@ -215,6 +222,7 @@ test('generate #8', async (t) => {
 		ignoreConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
+		provider: undefined,
 	});
 });
 
@@ -236,6 +244,7 @@ test('generate #9', async (t) => {
 		ignoreConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
+		provider: undefined,
 	});
 });
 
@@ -261,6 +270,7 @@ test('generate #9', async (t) => {
 		ignoreConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
+		provider: undefined,
 	});
 });
 
@@ -286,6 +296,7 @@ test('generate #10 tsconfig paths', async () => {
 			schemaSource: expect.anything(),
 			explain: false,
 			hints: expect.any(HintsHandler),
+			provider: undefined,
 		});
 	} finally {
 		if (originalPrefix === undefined) {
@@ -315,6 +326,7 @@ test('generate --explain', async (t) => {
 		ignoreConflicts: false,
 		explain: true,
 		hints: expect.any(HintsHandler),
+		provider: undefined,
 	});
 });
 
@@ -397,6 +409,7 @@ test('validate config #1', async (t) => {
 		name: undefined,
 		explain: false,
 		hints: expect.any(HintsHandler) as any,
+		provider: undefined,
 	};
 	expect(res.options).toStrictEqual(expected);
 });
@@ -417,6 +430,7 @@ test('validate config #2', async (t) => {
 		},
 		extensionsFilters: ['postgis'],
 		verbose: false,
+		provider: 'supabase',
 	}, prefix);
 
 	const res = await brotest(generate, `--config=${name}`);
@@ -438,6 +452,7 @@ test('validate config #2', async (t) => {
 		name: undefined,
 		explain: false,
 		hints: expect.any(HintsHandler) as any,
+		provider: 'supabase',
 	};
 	expect(res.options).toStrictEqual(expected);
 });
@@ -505,6 +520,7 @@ test('validate config #5', async (t) => {
 		name: undefined,
 		explain: false,
 		hints: expect.any(HintsHandler) as any,
+		provider: undefined,
 	};
 	expect(res.options).toStrictEqual(expected);
 });

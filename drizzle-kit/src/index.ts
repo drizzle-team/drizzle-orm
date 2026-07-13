@@ -180,6 +180,10 @@ export type Config =
 			};
 		}
 		| {
+			dialect: Verify<Dialect, 'postgresql'>;
+			provider?: 'supabase';
+		}
+		| {
 			dialect: Verify<Dialect, 'mysql'>;
 			dbCredentials:
 				| {

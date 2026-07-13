@@ -54,6 +54,7 @@ export const handle = async (
 			type: 'custom',
 			renames: [],
 			snapshots,
+			provider: config.provider,
 		});
 	}
 
@@ -91,6 +92,7 @@ export const handle = async (
 			dialect: 'postgresql',
 			renames,
 			snapshots,
+			provider: config.provider,
 		});
 	}
 

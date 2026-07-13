@@ -91,6 +91,7 @@ export const handle = async (
 			breakpoints,
 			type: 'introspect',
 			snapshots,
+			provider: undefined,
 		}));
 	} else {
 		snapshotPath = snapshots[snapshots.length - 1];

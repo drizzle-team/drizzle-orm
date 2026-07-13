@@ -121,30 +121,10 @@ export const fromDatabase = async (
 			throw err;
 		});
 
-	const defaultsQuery = db.query<{
-		tableId: number | string;
-		ordinality: number;
-		expression: string;
-	}>(`
-		SELECT
-			adrelid AS "tableId",
-			adnum AS "ordinality",
-			pg_catalog.pg_get_expr(adbin, adrelid) AS "expression"
-		FROM
-			pg_catalog.pg_attrdef;
-	`).then((rows) => {
-		queryCallback('defaults', rows, null);
-		return rows;
-	}).catch((err) => {
-		queryCallback('defaults', [], err);
-		throw err;
-	});
-
-	const [ams, tablespaces, namespaces, defaultsList] = await Promise.all([
+	const [ams, tablespaces, namespaces] = await Promise.all([
 		accessMethodsQuery,
 		tablespacesQuery,
 		namespacesQuery,
-		defaultsQuery,
 	]);
 
 	const { other: filteredNamespaces } = namespaces.reduce<{ system: Namespace[]; other: Namespace[] }>(
@@ -160,7 +140,6 @@ export const fromDatabase = async (
 	);
 
 	const filteredNamespacesStringForSQL = filteredNamespaces.map((ns) => `'${ns.name}'`).join(',');
-
 	schemas.push(...filteredNamespaces.map<Schema>((it) => ({ entityType: 'schemas', name: it.name })));
 
 	// TABLES
@@ -227,6 +206,26 @@ export const fromDatabase = async (
 
 	const filterByTableIds = filteredTableIds.length > 0 ? `(${filteredTableIds.join(',')})` : '';
 	const filterByTableAndViewIds = filteredViewsAndTableIds.length > 0 ? `(${filteredViewsAndTableIds.join(',')})` : '';
+
+	const defaultsQuery = db.query<{
+		tableId: number | string;
+		ordinality: number;
+		expression: string;
+	}>(`
+		SELECT
+			adrelid AS "tableId",
+			adnum AS "ordinality",
+			pg_catalog.pg_get_expr(adbin, adrelid) AS "expression"
+		FROM
+			pg_catalog.pg_attrdef
+		WHERE ${filterByTableAndViewIds ? ` adrelid IN ${filterByTableAndViewIds}` : 'false'};
+	`).then((rows) => {
+		queryCallback('defaults', rows, null);
+		return rows;
+	}).catch((err) => {
+		queryCallback('defaults', [], err);
+		throw err;
+	});
 
 	for (const table of filteredTables) {
 		tables.push({
@@ -574,6 +573,7 @@ export const fromDatabase = async (
 		privilegesList,
 		constraintsList,
 		columnsList,
+		defaultsList,
 	] = await Promise
 		.all([
 			dependQuery,
@@ -585,6 +585,7 @@ export const fromDatabase = async (
 			privilegesQuery,
 			constraintsQuery,
 			columnsQuery,
+			defaultsQuery,
 		]);
 
 	const groupedEnums = enumsList.reduce((acc, it) => {
