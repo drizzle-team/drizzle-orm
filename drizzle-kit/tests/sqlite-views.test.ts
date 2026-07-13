@@ -216,3 +216,36 @@ test('rename view and alter ".as"', async () => {
 	expect(sqlStatements[0]).toBe('DROP VIEW `view`;');
 	expect(sqlStatements[1]).toBe(`CREATE VIEW \`new_view\` AS SELECT * FROM users WHERE 1=1;`);
 });
+
+test('views with dependencies are created in correct order', async () => {
+	const users = sqliteTable('users', {
+		id: int('id').primaryKey().notNull(),
+		score: int('score'),
+	});
+
+	const userScoresView = sqliteView('user_scores').as((qb) =>
+		qb.select({ id: users.id, score: users.score }).from(users)
+	);
+
+	const topScoresView = sqliteView('top_scores', { id: int('id'), score: int('score') }).as(
+		sql`select "id", "score" from "user_scores" where "score" > 100`,
+	);
+
+	const to = {
+		users,
+		topScoresView,
+		userScoresView,
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasSqlite({}, to, []);
+
+	const createViewStatements = statements.filter(
+		(s) => s.type === 'sqlite_create_view',
+	);
+	expect(createViewStatements.length).toBe(2);
+
+	const viewNames = createViewStatements.map((s) => s.name);
+	const userScoresIdx = viewNames.indexOf('user_scores');
+	const topScoresIdx = viewNames.indexOf('top_scores');
+	expect(userScoresIdx).toBeLessThan(topScoresIdx);
+});
