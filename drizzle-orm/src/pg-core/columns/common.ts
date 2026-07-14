@@ -83,13 +83,13 @@ export abstract class PgColumnBuilder<
 		return this;
 	}
 
-	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL)): HasGenerated<this, {
+	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL), config?: { mode?: 'virtual' | 'stored' }): HasGenerated<this, {
 		type: 'always';
 	}> {
 		this.config.generated = {
 			as,
 			type: 'always',
-			mode: 'stored',
+			mode: config?.mode ?? 'stored',
 		};
 		return this as HasGenerated<this, {
 			type: 'always';
