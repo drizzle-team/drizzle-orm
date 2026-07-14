@@ -182,7 +182,7 @@ export const logSuggestionsAndReturn = async (
 						chalk.underline(
 							statement.oldDataType,
 						)
-					} to ${chalk.underline(statement.newDataType)} with ${count} items`,
+					} to ${chalk.underline(statement.newDataType)} in ${statement.tableName} table with ${count} items`,
 				);
 				statementsToExecute.push(`truncate table ${statement.tableName};`);
 				tablesToTruncate.push(statement.tableName);
@@ -201,7 +201,7 @@ export const logSuggestionsAndReturn = async (
 							chalk.underline(
 								statement.columnName,
 							)
-						} not-null column with ${count} items`,
+						} not-null column in ${statement.tableName} table with ${count} items`,
 					);
 
 					tablesToTruncate.push(statement.tableName);
@@ -224,7 +224,7 @@ export const logSuggestionsAndReturn = async (
 							chalk.underline(
 								statement.columnName,
 							)
-						} column without default, which contains ${count} items`,
+						} column without default in ${statement.tableName} table, which contains ${count} items`,
 					);
 
 					tablesToTruncate.push(statement.tableName);
@@ -298,7 +298,7 @@ export const logSuggestionsAndReturn = async (
 							chalk.underline(
 								statement.column.name,
 							)
-						} column without default value, which contains ${count} items`,
+						} column without default value to ${statement.tableName} table, which contains ${count} items`,
 					);
 
 					tablesToTruncate.push(statement.tableName);
