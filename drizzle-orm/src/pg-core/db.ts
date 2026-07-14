@@ -124,6 +124,7 @@ export class PgDatabase<
 	 */
 	$with: WithBuilder = (alias: string, selection?: ColumnsSelection) => {
 		const self = this;
+		let isMaterialized: boolean | undefined;
 		const as = (
 			qb:
 				| TypedQueryBuilder<ColumnsSelection | undefined>
@@ -140,11 +141,17 @@ export class PgDatabase<
 					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
 					alias,
 					true,
+					undefined,
+					isMaterialized,
 				),
 				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 			);
 		};
-		return { as };
+		const materialized = (shouldBeMaterialized: boolean) => {
+			isMaterialized = shouldBeMaterialized;
+			return { as };
+		};
+		return { as, materialized };
 	};
 
 	$count(
