@@ -18,3 +18,4 @@ export * from './unique-constraint.ts';
 export * from './utils.ts';
 export * from './view-common.ts';
 export * from './view.ts';
+export { createTableRelationsHelpers } from '~/relations.ts';
