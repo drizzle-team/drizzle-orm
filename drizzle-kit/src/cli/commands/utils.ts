@@ -11,6 +11,8 @@ import type { Entities } from '../validations/cli';
 import { pullParams, pushParams } from '../validations/cli';
 import type { Casing, CasingType, CliConfig, Driver, Prefix } from '../validations/common';
 import { configCommonSchema, configMigrations, wrapParam } from '../validations/common';
+import type { FirebirdCredentials } from '../validations/firebird';
+import { firebirdCredentials, printConfigConnectionIssues as printIssuesFirebird } from '../validations/firebird';
 import type { GelCredentials } from '../validations/gel';
 import { gelCredentials, printConfigConnectionIssues as printIssuesGel } from '../validations/gel';
 import type { LibSQLCredentials } from '../validations/libsql';
@@ -296,6 +298,10 @@ export const preparePushConfig = async (
 			dialect: 'singlestore';
 			credentials: SingleStoreCredentials;
 		}
+		| {
+			dialect: 'firebird';
+			credentials: FirebirdCredentials;
+		}
 	) & {
 		schemaPath: string | string[];
 		verbose: boolean;
@@ -404,6 +410,26 @@ export const preparePushConfig = async (
 			verbose: config.verbose ?? false,
 			force: (options.force as boolean) ?? false,
 			credentials: parsed.data,
+			casing: config.casing,
+			tablesFilter,
+			schemasFilter,
+		};
+	}
+
+	if (config.dialect === 'firebird') {
+		const parsed = firebirdCredentials.safeParse(config);
+		if (!parsed.success) {
+			printIssuesFirebird(config);
+			process.exit(1);
+		}
+
+		return {
+			dialect: 'firebird',
+			schemaPath: config.schema,
+			strict: config.strict ?? false,
+			verbose: config.verbose ?? false,
+			force: (options.force as boolean) ?? false,
+			credentials: parsed.data,
 			tablesFilter,
 			schemasFilter,
 		};
@@ -483,6 +509,10 @@ export const preparePullConfig = async (
 		| {
 			dialect: 'singlestore';
 			credentials: SingleStoreCredentials;
+		}
+		| {
+			dialect: 'firebird';
+			credentials: FirebirdCredentials;
 		}
 		| {
 			dialect: 'gel';
@@ -587,6 +617,26 @@ export const preparePullConfig = async (
 
 		return {
 			dialect: 'singlestore',
+			out: config.out,
+			breakpoints: config.breakpoints,
+			casing: config.casing,
+			credentials: parsed.data,
+			tablesFilter,
+			schemasFilter,
+			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
+		};
+	}
+
+	if (dialect === 'firebird') {
+		const parsed = firebirdCredentials.safeParse(config);
+		if (!parsed.success) {
+			printIssuesFirebird(config);
+			process.exit(1);
+		}
+
+		return {
+			dialect,
 			out: config.out,
 			breakpoints: config.breakpoints,
 			casing: config.casing,
@@ -728,6 +778,23 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 		};
 	}
 
+	if (dialect === 'firebird') {
+		const parsed = firebirdCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printIssuesFirebird(flattened as Record<string, unknown>);
+			process.exit(1);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			schema,
+			host,
+			port,
+			credentials,
+			casing,
+		};
+	}
+
 	if (dialect === 'sqlite') {
 		const parsed = sqliteCredentials.safeParse(flattened);
 		if (!parsed.success) {
@@ -829,6 +896,22 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 		const parsed = singlestoreCredentials.safeParse(flattened);
 		if (!parsed.success) {
 			printIssuesSingleStore(flattened as Record<string, unknown>);
+			process.exit(1);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			out,
+			credentials,
+			schema,
+			table,
+		};
+	}
+
+	if (dialect === 'firebird') {
+		const parsed = firebirdCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printIssuesFirebird(flattened as Record<string, unknown>);
 			process.exit(1);
 		}
 		const credentials = parsed.data;

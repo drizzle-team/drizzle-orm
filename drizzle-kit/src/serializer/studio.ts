@@ -5,6 +5,8 @@ import { zValidator } from '@hono/zod-validator';
 import { createHash } from 'crypto';
 import type { AnyColumn, AnyTable } from 'drizzle-orm';
 import { is } from 'drizzle-orm';
+import type { AnyFirebirdTable } from 'drizzle-orm/firebird-core';
+import { FirebirdTable, getTableConfig as firebirdTableConfig } from 'drizzle-orm/firebird-core';
 import type { AnyMySqlTable } from 'drizzle-orm/mysql-core';
 import { getTableConfig as mysqlTableConfig, MySqlTable } from 'drizzle-orm/mysql-core';
 import type { AnyPgTable } from 'drizzle-orm/pg-core';
@@ -32,6 +34,7 @@ import type { LibSQLCredentials } from 'src/cli/validations/libsql';
 import { assertUnreachable } from 'src/global';
 import { z } from 'zod';
 import { safeRegister } from '../cli/commands/utils';
+import type { FirebirdCredentials } from '../cli/validations/firebird';
 import type { MysqlCredentials } from '../cli/validations/mysql';
 import type { PostgresCredentials } from '../cli/validations/postgres';
 import type { SingleStoreCredentials } from '../cli/validations/singlestore';
@@ -54,7 +57,7 @@ type SchemaFile = {
 
 export type Setup = {
 	dbHash: string;
-	dialect: 'postgresql' | 'mysql' | 'sqlite' | 'singlestore';
+	dialect: 'postgresql' | 'mysql' | 'sqlite' | 'singlestore' | 'firebird';
 	packageName:
 		| '@aws-sdk/client-rds-data'
 		| 'pglite'
@@ -68,7 +71,8 @@ export type Setup = {
 		| 'd1-http'
 		| 'd1'
 		| '@libsql/client'
-		| 'better-sqlite3';
+		| 'better-sqlite3'
+		| 'node-firebird';
 	driver?: 'aws-data-api' | 'd1-http' | 'd1' | 'turso' | 'pglite';
 	databaseName?: string; // for planetscale (driver remove database name from connection string)
 	proxy: Proxy;
@@ -238,6 +242,40 @@ export const prepareSingleStoreSchema = async (path: string | string[]) => {
 	return { schema: singlestoreSchema, relations, files };
 };
 
+export const prepareFirebirdSchema = async (path: string | string[]) => {
+	const imports = prepareFilenames(path);
+	const firebirdSchema: Record<string, Record<string, AnyFirebirdTable>> = {
+		public: {},
+	};
+	const relations: Record<string, Relations> = {};
+
+	const files = imports.map((it, index) => ({
+		name: it.split('/').pop() || `schema${index}.ts`,
+		content: fs.readFileSync(it, 'utf-8'),
+	}));
+
+	await safeRegister(async () => {
+		for (let i = 0; i < imports.length; i++) {
+			const it = imports[i];
+
+			const i0: Record<string, unknown> = require(`${it}`);
+			const i0values = Object.entries(i0);
+
+			i0values.forEach(([k, t]) => {
+				if (is(t, FirebirdTable)) {
+					firebirdSchema.public[k] = t;
+				}
+
+				if (is(t, Relations)) {
+					relations[k] = t;
+				}
+			});
+		}
+	});
+
+	return { schema: firebirdSchema, relations, files };
+};
+
 const getCustomDefaults = <T extends AnyTable<{}>>(
 	schema: Record<string, Record<string, T>>,
 	casing?: CasingType,
@@ -256,6 +294,8 @@ const getCustomDefaults = <T extends AnyTable<{}>>(
 				tableConfig = mysqlTableConfig(table);
 			} else if (is(table, SQLiteTable)) {
 				tableConfig = sqliteTableConfig(table);
+			} else if (is(table, FirebirdTable)) {
+				tableConfig = firebirdTableConfig(table);
 			} else {
 				tableConfig = singlestoreTableConfig(table as SingleStoreTable);
 			}
@@ -501,6 +541,42 @@ export const drizzleForSingleStore = async (
 	};
 };
 
+export const drizzleForFirebird = async (
+	credentials: FirebirdCredentials,
+	firebirdSchema: Record<string, Record<string, AnyFirebirdTable>>,
+	relations: Record<string, Relations>,
+	schemaFiles?: SchemaFile[],
+	casing?: CasingType,
+): Promise<Setup> => {
+	const { connectToFirebird } = await import('../cli/connections');
+	const { proxy, transactionProxy, database, packageName } = await connectToFirebird(credentials);
+
+	const customDefaults = getCustomDefaults(firebirdSchema, casing);
+
+	const dbUrl =
+		`firebird-studio-sqlite://${credentials.user ?? 'SYSDBA'}:${credentials.password ?? 'masterkey'}@${
+			credentials.host
+		}:${credentials.port ?? 3050}/${credentials.database}`;
+
+	const dbHash = createHash('sha256').update(dbUrl).digest('hex');
+
+	return {
+		dbHash,
+		// The hosted Studio frontend does not know the Firebird dialect yet.
+		// Expose it through SQLite's no-schema path and translate Studio SQL in the local proxy.
+		dialect: 'sqlite',
+		databaseName: database,
+		packageName,
+		proxy,
+		transactionProxy,
+		customDefaults,
+		schema: firebirdSchema,
+		relations,
+		schemaFiles,
+		casing,
+	};
+};
+
 type Relation = {
 	name: string;
 	type: 'one' | 'many';
@@ -544,6 +620,8 @@ export const extractRelations = (
 					} else if (is(refTable, MySqlTable)) {
 						refSchema = mysqlTableConfig(refTable).schema;
 					} else if (is(refTable, SQLiteTable)) {
+						refSchema = undefined;
+					} else if (is(refTable, FirebirdTable)) {
 						refSchema = undefined;
 					} else if (is(refTable, SingleStoreTable)) {
 						refSchema = singlestoreTableConfig(refTable).schema;

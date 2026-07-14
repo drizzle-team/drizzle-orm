@@ -13,6 +13,8 @@ const driversPackages = [
 	// sqlite drivers
 	'@libsql/client',
 	'better-sqlite3',
+	// firebird drivers
+	'node-firebird',
 ];
 
 esbuild.buildSync({
