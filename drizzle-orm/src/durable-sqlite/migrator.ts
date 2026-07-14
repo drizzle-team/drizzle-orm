@@ -38,12 +38,12 @@ function readMigrationFiles({ journal, migrations }: MigrationConfig): Migration
 	return migrationQueries;
 }
 
-export async function migrate<
+export function migrate<
 	TSchema extends Record<string, unknown>,
 >(
 	db: DrizzleSqliteDODatabase<TSchema>,
 	config: MigrationConfig,
-): Promise<void> {
+) {
 	const migrations = readMigrationFiles(config);
 
 	db.transaction((tx) => {
