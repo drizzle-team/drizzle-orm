@@ -5,6 +5,7 @@ import type {
 	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
 	HasGenerated,
+	IsUnique,
 	MakeColumnConfig,
 } from '~/column-builder.ts';
 import { ColumnBuilder } from '~/column-builder.ts';
@@ -75,11 +76,11 @@ export abstract class GelColumnBuilder<
 	unique(
 		name?: string,
 		config?: { nulls: 'distinct' | 'not distinct' },
-	): this {
+	): IsUnique<this> {
 		this.config.isUnique = true;
 		this.config.uniqueName = name;
 		this.config.uniqueType = config?.nulls;
-		return this;
+		return this as IsUnique<this>;
 	}
 
 	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL)): HasGenerated<this, {

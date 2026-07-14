@@ -130,10 +130,123 @@ Expect<Equal<InferInsertModel<typeof users>, typeof users['_']['inferInsert']>>;
 export const cities = pgTable('cities_table', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
+	postalCode: text('postal_code').notNull().unique(),
 	population: integer('population').default(0),
 }, (cities) => ({
 	citiesNameIdx: index().on(cities.id),
 }));
+
+Expect<
+	Equal<
+		{
+			id: PgColumn<
+				{
+					name: 'id';
+					tableName: 'cities_table';
+					dataType: 'number';
+					columnType: 'PgSerial';
+					data: number;
+					driverParam: number;
+					notNull: true;
+					hasDefault: true;
+					isPrimaryKey: true;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+					enumValues: undefined;
+					baseColumn: never;
+					identity: undefined;
+					generated: undefined;
+				},
+				{},
+				{}
+			>;
+			name: PgColumn<
+				{
+					name: 'name';
+					tableName: 'cities_table';
+					dataType: 'string';
+					columnType: 'PgText';
+					data: string;
+					driverParam: string;
+					notNull: true;
+					hasDefault: false;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+					enumValues: [string, ...string[]];
+					baseColumn: never;
+					identity: undefined;
+					generated: undefined;
+				},
+				{},
+				{}
+			>;
+			postalCode: PgColumn<
+				{
+					name: 'postal_code';
+					tableName: 'cities_table';
+					dataType: 'string';
+					columnType: 'PgText';
+					data: string;
+					driverParam: string;
+					notNull: true;
+					hasDefault: false;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+					enumValues: [string, ...string[]];
+					baseColumn: never;
+					identity: undefined;
+					generated: undefined;
+				},
+				{},
+				{
+					isUnique: true;
+				}
+			>;
+			population: PgColumn<
+				{
+					name: 'population';
+					tableName: 'cities_table';
+					dataType: 'number';
+					columnType: 'PgInteger';
+					data: number;
+					driverParam: string | number;
+					notNull: false;
+					hasDefault: true;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+					enumValues: undefined;
+					baseColumn: never;
+					identity: undefined;
+					generated: undefined;
+				},
+				{},
+				{}
+			>;
+		},
+		typeof cities._.columns
+	>
+>;
+
+Expect<
+	Equal<{
+		id: number;
+		name: string;
+		postal_code: string;
+		population: number | null;
+	}, InferSelectModel<typeof cities, { dbColumnNames: true }>>
+>;
+
+Expect<
+	Equal<{
+		id?: number;
+		name: string;
+		postalCode: string;
+		population?: number | null;
+	}, typeof cities.$inferInsert>
+>;
 
 export const smallSerialTest = pgTable('cities_table', {
 	id: smallserial('id').primaryKey(),
