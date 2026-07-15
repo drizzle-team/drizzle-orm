@@ -22,6 +22,23 @@ export interface MySqlCustomColumnInnerConfig {
 	customTypeValues: CustomTypeValues;
 }
 
+/**
+ * Helper function to wrap a column in custom SQL
+ * Used for custom types that need special SQL wrapping when selected
+ * @example
+ * ```ts
+ * // Wrap column in ST_AsText() for PostGIS geometry
+ * wrapInSQL('location', (name) => sql`ST_AsText(${name})`)
+ * ```
+ */
+export function wrapInSQL<T extends string>(
+	columnName: T,
+	wrapper: (name: string) => SQL | string,
+): SQL {
+	const wrapped = wrapper(columnName);
+	return typeof wrapped === 'string' ? wrapped as any : wrapped;
+}
+
 export class MySqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom', 'MySqlCustomColumn'>>
 	extends MySqlColumnBuilder<
 		T,
@@ -63,6 +80,7 @@ export class MySqlCustomColumn<T extends ColumnBaseConfig<'custom', 'MySqlCustom
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
+	private select?: (name: string) => SQL;
 
 	constructor(
 		table: AnyMySqlTable<{ name: T['tableName'] }>,
@@ -72,10 +90,23 @@ export class MySqlCustomColumn<T extends ColumnBaseConfig<'custom', 'MySqlCustom
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
 		this.mapTo = config.customTypeParams.toDriver;
 		this.mapFrom = config.customTypeParams.fromDriver;
+		this.select = config.customTypeParams.select;
 	}
 
 	getSQLType(): string {
 		return this.sqlName;
+	}
+
+	/**
+	 * Default select implementation for custom types
+	 * Uses the custom type's select function if provided, otherwise falls back to column name
+	 */
+	asDefaultSelect(): SQL {
+		if (this.select) {
+			return this.select(this.name);
+		}
+		// Fallback to default column selection
+		return this as any;
 	}
 
 	override mapFromDriverValue(value: T['driverParam']): T['data'] {
@@ -195,6 +226,16 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	fromDriver?: (value: T['driverData']) => T['data'];
+
+	/**
+	 * Optional select function for custom types that need special handling when selecting
+	 * @example
+	 * For PostGIS geometry types that need ST_AsText wrapper:
+	 * ```
+	 * select: (name) => sql\`ST_AsText(\${name})\`
+	 * ```
+	 */
+	select?: (name: string) => SQL;
 }
 
 /**
