@@ -20,6 +20,15 @@ import type {
 import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { mapResultRow } from '~/utils.ts';
 
+const VALID_TX_BEHAVIORS = new Set(['deferred', 'immediate', 'exclusive']);
+
+function validateTxBehavior(behavior: string | undefined): string {
+	if (behavior && !VALID_TX_BEHAVIORS.has(behavior)) {
+		throw new Error(`Invalid transaction behavior: "${behavior}". Must be one of: ${[...VALID_TX_BEHAVIORS].join(', ')}`);
+	}
+	return behavior ? ` ${behavior}` : '';
+}
+
 export interface SQLiteD1SessionOptions {
 	logger?: Logger;
 	cache?: Cache;
@@ -113,7 +122,7 @@ export class SQLiteD1Session<
 		config?: SQLiteTransactionConfig,
 	): Promise<T> {
 		const tx = new D1Transaction('async', this.dialect, this, this.schema);
-		await this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
+		await this.run(sql.raw(`begin${validateTxBehavior(config?.behavior)}`));
 		try {
 			const result = await transaction(tx);
 			await this.run(sql`commit`);

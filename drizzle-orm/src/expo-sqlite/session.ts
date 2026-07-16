@@ -22,6 +22,14 @@ export interface ExpoSQLiteSessionOptions {
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
+const VALID_TX_BEHAVIORS = new Set(['deferred', 'immediate', 'exclusive']);
+
+function validateTxBehavior(behavior: string | undefined): string {
+	if (behavior && !VALID_TX_BEHAVIORS.has(behavior)) {
+		throw new Error(`Invalid transaction behavior: "${behavior}". Must be one of: ${[...VALID_TX_BEHAVIORS].join(', ')}`);
+	}
+	return behavior ? ` ${behavior}` : '';
+}
 export class ExpoSQLiteSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
@@ -64,7 +72,7 @@ export class ExpoSQLiteSession<
 		config: SQLiteTransactionConfig = {},
 	): T {
 		const tx = new ExpoSQLiteTransaction('sync', this.dialect, this, this.schema);
-		this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
+		this.run(sql.raw(`begin${validateTxBehavior(config?.behavior)}`));
 		try {
 			const result = transaction(tx);
 			this.run(sql`commit`);

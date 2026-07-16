@@ -21,6 +21,8 @@ export interface SQLJsSessionOptions {
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
+const VALID_TX_BEHAVIORS = new Set(['deferred', 'immediate', 'exclusive']);
+
 export class SQLJsSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
@@ -53,7 +55,11 @@ export class SQLJsSession<
 		config: SQLiteTransactionConfig = {},
 	): T {
 		const tx = new SQLJsTransaction('sync', this.dialect, this, this.schema);
-		this.run(sql.raw(`begin${config.behavior ? ` ${config.behavior}` : ''}`));
+		const behavior = config.behavior;
+		const behaviorClause = behavior
+			? (VALID_TX_BEHAVIORS.has(behavior) ? ` ${behavior}` : (() => { throw new Error(`Invalid transaction behavior: "${behavior}". Must be one of: ${[...VALID_TX_BEHAVIORS].join(', ')}`); })())
+			: '';
+		this.run(sql.raw(`begin${behaviorClause}`));
 		try {
 			const result = transaction(tx);
 			this.run(sql`commit`);
@@ -86,126 +92,112 @@ export class SQLJsTransaction<
 	}
 }
 
-export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
-	{ type: 'sync'; run: void; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
-> {
+export class PreparedQuery<T extends Omit<PreparedQueryConfig, 'run'>> extends PreparedQueryBase<T> {
 	static override readonly [entityKind]: string = 'SQLJsPreparedQuery';
+
+	private stmt: ReturnType<Database['prepare']> | undefined;
 
 	constructor(
 		private client: Database,
 		query: Query,
 		private logger: Logger,
-		private fields: SelectedFieldsOrdered | undefined,
+		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
-		private _isResponseInArrayMode: boolean,
-		private customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown,
+		isResponseInArrayMode: boolean,
 	) {
-		super('sync', executeMethod, query);
-	}
-
-	run(placeholderValues?: Record<string, unknown>): void {
-		const stmt = this.client.prepare(this.query.sql);
-
-		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-		this.logger.logQuery(this.query.sql, params);
-		const result = stmt.run(params as BindParams);
-
-		stmt.free();
-
-		return result;
+		super('sync', executeMethod, query, fields, isResponseInArrayMode);
 	}
 
 	all(placeholderValues?: Record<string, unknown>): T['all'] {
-		const stmt = this.client.prepare(this.query.sql);
+		const params = this.query.params
+			? fillPlaceholders(this.query.params, placeholderValues ?? {})
+			: [];
 
-		const { fields, joinsNotNullableMap, logger, query, customResultMapper } = this;
-		if (!fields && !customResultMapper) {
-			const params = fillPlaceholders(query.params, placeholderValues ?? {});
-			logger.logQuery(query.sql, params);
-			stmt.bind(params as BindParams);
-			const rows: unknown[] = [];
-			while (stmt.step()) {
-				rows.push(stmt.getAsObject());
-			}
+		this.logger.logQuery(this.query.sql, params);
 
-			stmt.free();
+		this._ensureStmt();
+		this.stmt!.bind(params as BindParams);
 
-			return rows;
+		const rows: unknown[][] = [];
+		while (this.stmt!.step()) {
+			rows.push(this.stmt!.get());
+		}
+		this.stmt!.reset();
+
+		if (this.fields) {
+			return rows.map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
 		}
 
-		const rows = this.values(placeholderValues) as unknown[][];
-
-		if (customResultMapper) {
-			return customResultMapper(rows, normalizeFieldValue) as T['all'];
-		}
-
-		return rows.map((row) => mapResultRow(fields!, row.map((v) => normalizeFieldValue(v)), joinsNotNullableMap));
+		return rows as T['all'];
 	}
 
 	get(placeholderValues?: Record<string, unknown>): T['get'] {
-		const stmt = this.client.prepare(this.query.sql);
+		const params = this.query.params
+			? fillPlaceholders(this.query.params, placeholderValues ?? {})
+			: [];
 
-		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 
-		const { fields, joinsNotNullableMap, customResultMapper } = this;
-		if (!fields && !customResultMapper) {
-			const result = stmt.getAsObject(params as BindParams);
+		this._ensureStmt();
+		this.stmt!.bind(params as BindParams);
 
-			stmt.free();
+		const rows: unknown[][] = [];
+		while (this.stmt!.step()) {
+			rows.push(this.stmt!.get());
+		}
+		this.stmt!.reset();
 
-			return result;
+		const row = rows[0];
+
+		if (!row) {
+			return undefined as T['get'];
 		}
 
-		const row = stmt.get(params as BindParams);
-
-		stmt.free();
-
-		if (!row || (row.length === 0 && fields!.length > 0)) {
-			return undefined;
+		if (this.fields) {
+			return mapResultRow(this.fields, row, this.joinsNotNullableMap) as T['get'];
 		}
 
-		if (customResultMapper) {
-			return customResultMapper([row], normalizeFieldValue) as T['get'];
-		}
+		return row as T['get'];
+	}
 
-		return mapResultRow(fields!, row.map((v) => normalizeFieldValue(v)), joinsNotNullableMap);
+	run(placeholderValues?: Record<string, unknown>): T['run'] {
+		const params = this.query.params
+			? fillPlaceholders(this.query.params, placeholderValues ?? {})
+			: [];
+
+		this.logger.logQuery(this.query.sql, params);
+
+		this._ensureStmt();
+		this.stmt!.bind(params as BindParams);
+		this.stmt!.step();
+		this.stmt!.reset();
+
+		return undefined as T['run'];
 	}
 
 	values(placeholderValues?: Record<string, unknown>): T['values'] {
-		const stmt = this.client.prepare(this.query.sql);
+		const params = this.query.params
+			? fillPlaceholders(this.query.params, placeholderValues ?? {})
+			: [];
 
-		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		stmt.bind(params as BindParams);
-		const rows: unknown[] = [];
-		while (stmt.step()) {
-			rows.push(stmt.get());
+
+		this._ensureStmt();
+		this.stmt!.bind(params as BindParams);
+
+		const rows: unknown[][] = [];
+		while (this.stmt!.step()) {
+			rows.push(this.stmt!.get());
 		}
+		this.stmt!.reset();
 
-		stmt.free();
-
-		return rows;
+		return rows as T['values'];
 	}
 
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
-	}
-}
-
-function normalizeFieldValue(value: unknown) {
-	if (value instanceof Uint8Array) { // eslint-disable-line no-instanceof/no-instanceof
-		if (typeof Buffer !== 'undefined') {
-			if (!(value instanceof Buffer)) { // eslint-disable-line no-instanceof/no-instanceof
-				return Buffer.from(value);
-			}
-			return value;
+	private _ensureStmt() {
+		if (this.stmt) {
+			return;
 		}
-		if (typeof TextDecoder !== 'undefined') {
-			return new TextDecoder().decode(value);
-		}
-		throw new Error('TextDecoder is not available. Please provide either Buffer or TextDecoder polyfill.');
+		this.stmt = this.client.prepare(this.query.sql);
 	}
-	return value;
 }
