@@ -69,7 +69,11 @@ export async function migrate<TRelations extends AnyRelations>(
 	}
 
 	const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
-	const queriesToRun: string[] = [];
+	const queriesToRun: string[] = [
+		// Keep unqualified CREATE TABLE on public even when migrationsSchema
+		// matches the DB username (Postgres $user search_path entry).
+		'set search_path to public',
+	];
 	for (const migration of migrationsToRun) {
 		queriesToRun.push(
 			...migration.sql,

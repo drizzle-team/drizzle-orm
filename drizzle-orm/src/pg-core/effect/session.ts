@@ -299,6 +299,9 @@ export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEf
 
 	yield* session.transaction((tx) =>
 		Effect.gen(function*() {
+			// Keep unqualified CREATE TABLE on public even when migrationsSchema
+			// matches the DB username (Postgres $user search_path entry).
+			yield* tx.execute(sql`set local search_path to public`);
 			for (const migration of migrationsToRun) {
 				for (const stmt of migration.sql) {
 					yield* tx.execute(sql.raw(stmt));

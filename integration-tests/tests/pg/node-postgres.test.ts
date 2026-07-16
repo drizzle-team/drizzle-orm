@@ -51,6 +51,41 @@ describe('migrator', () => {
 		await db.execute(sql`drop table ${sql.identifier(customSchema)}."__drizzle_migrations"`);
 	});
 
+	test('migrator : migrationsSchema matching DB username keeps app tables on public', async ({ db }) => {
+		// Postgres search_path is "$user", public. Creating a migrations schema
+		// named like the DB user makes unqualified CREATE TABLE land on $user
+		// unless we pin search_path to public first (#5889).
+		const userRes = await db.execute<{ current_user: string }>(sql`select current_user`);
+		const dbUser = userRes.rows[0]!.current_user;
+
+		await db.execute(sql`drop table if exists public.all_columns`);
+		await db.execute(sql`drop table if exists public.users12`);
+		await db.execute(sql`drop table if exists ${sql.identifier(dbUser)}.all_columns`);
+		await db.execute(sql`drop table if exists ${sql.identifier(dbUser)}.users12`);
+		await db.execute(sql`drop table if exists ${sql.identifier(dbUser)}."__drizzle_migrations"`);
+
+		await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsSchema: dbUser });
+
+		const publicTables = await db.execute<{ tablename: string }>(
+			sql`select tablename from pg_tables where schemaname = 'public' and tablename in ('all_columns', 'users12')`,
+		);
+		expect(publicTables.rows.map((r) => r.tablename).sort()).toEqual(['all_columns', 'users12']);
+
+		const userSchemaTables = await db.execute<{ tablename: string }>(
+			sql`select tablename from pg_tables where schemaname = ${dbUser} and tablename in ('all_columns', 'users12')`,
+		);
+		expect(userSchemaTables.rows).toEqual([]);
+
+		const { rowCount } = await db.execute(
+			sql`select * from ${sql.identifier(dbUser)}."__drizzle_migrations";`,
+		);
+		expect(rowCount && rowCount > 0).toBeTruthy();
+
+		await db.execute(sql`drop table if exists public.all_columns`);
+		await db.execute(sql`drop table if exists public.users12`);
+		await db.execute(sql`drop table if exists ${sql.identifier(dbUser)}."__drizzle_migrations"`);
+	});
+
 	test('migrator : migrate with custom table', async ({ db }) => {
 		const customTable = randomString();
 		await db.execute(sql`drop table if exists all_columns`);

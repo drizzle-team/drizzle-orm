@@ -68,6 +68,9 @@ export async function migrate<TRelations extends AnyRelations>(
 
 	const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
 	const rowsToInsert: SQL[] = [];
+	// Neon HTTP has no transactions; set search_path for this session before
+	// applying unqualified migration statements (see #5889).
+	await db.session.execute(sql`set search_path to public`);
 	for await (const migration of migrationsToRun) {
 		for (const stmt of migration.sql) {
 			await db.session.execute(sql.raw(stmt));
