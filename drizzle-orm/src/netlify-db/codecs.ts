@@ -4,6 +4,8 @@ import {
 	arrayCompatNormalizeInput,
 	castToText,
 	castToTextArr,
+	makeGeometryArray,
+	parseGeometryArrayAndNormalize,
 	parseGeometryTuple,
 	parseGeometryXY,
 	parseLineABC,
@@ -35,7 +37,7 @@ export const netlifyDbCodecs = refineGenericPgCodecs({
 		normalizeArray: arrayCompatNormalize(Number),
 	},
 	bit: {
-		normalizeArray: parsePgArray,
+		normalizeArray: (v) => parsePgArray(v),
 	},
 	numeric: {
 		castArray: castToTextArr,
@@ -79,11 +81,13 @@ export const netlifyDbCodecs = refineGenericPgCodecs({
 	},
 	'geometry(point)': {
 		normalize: parseGeometryXY,
-		normalizeArray: parsePgArrayAndNormalize(parseGeometryXY),
+		normalizeArray: parseGeometryArrayAndNormalize(parseGeometryXY),
+		normalizeParamArray: makeGeometryArray,
 	},
 	'geometry(point):tuple': {
 		normalize: parseGeometryTuple,
-		normalizeArray: parsePgArrayAndNormalize(parseGeometryTuple),
+		normalizeArray: parseGeometryArrayAndNormalize(parseGeometryTuple),
+		normalizeParamArray: makeGeometryArray,
 	},
 	interval: {
 		castArray: castToTextArr,
@@ -99,7 +103,7 @@ export const netlifyDbCodecs = refineGenericPgCodecs({
 	},
 	enum: {
 		castArray: castToTextArr,
-		normalizeParamArray: makePgArray,
+		normalizeParamArray: (v) => makePgArray(v),
 	},
 	line: {
 		cast: castToText,
@@ -134,7 +138,7 @@ export const netlifyDbCodecs = refineGenericPgCodecs({
 		normalizeArray: parsePgArrayAndNormalize(parsePgVector),
 	},
 	sparsevec: {
-		normalizeArray: parsePgArray,
+		normalizeArray: (v) => parsePgArray(v),
 	},
 	vector: {
 		normalize: parsePgVector,
@@ -160,7 +164,7 @@ export const netlifyDbTransactionCodecs = refineGenericPgCodecs({
 		normalizeArray: arrayCompatNormalize(Number),
 	},
 	bit: {
-		normalizeArray: parsePgArray,
+		normalizeArray: (v) => parsePgArray(v),
 	},
 	numeric: {
 		castArray: castToTextArr,
@@ -201,11 +205,13 @@ export const netlifyDbTransactionCodecs = refineGenericPgCodecs({
 	},
 	'geometry(point)': {
 		normalize: parseGeometryXY,
-		normalizeArray: parsePgArrayAndNormalize(parseGeometryXY),
+		normalizeArray: parseGeometryArrayAndNormalize(parseGeometryXY),
+		normalizeParamArray: makeGeometryArray,
 	},
 	'geometry(point):tuple': {
 		normalize: parseGeometryTuple,
-		normalizeArray: parsePgArrayAndNormalize(parseGeometryTuple),
+		normalizeArray: parseGeometryArrayAndNormalize(parseGeometryTuple),
+		normalizeParamArray: makeGeometryArray,
 	},
 	interval: {
 		castArray: castToTextArr,
@@ -221,7 +227,7 @@ export const netlifyDbTransactionCodecs = refineGenericPgCodecs({
 	},
 	enum: {
 		castArray: castToTextArr,
-		normalizeParamArray: makePgArray,
+		normalizeParamArray: (v) => makePgArray(v),
 	},
 	line: {
 		cast: castToText,
@@ -256,7 +262,7 @@ export const netlifyDbTransactionCodecs = refineGenericPgCodecs({
 		normalizeArray: parsePgArrayAndNormalize(parsePgVector),
 	},
 	sparsevec: {
-		normalizeArray: parsePgArray,
+		normalizeArray: (v) => parsePgArray(v),
 	},
 	vector: {
 		normalize: parsePgVector,

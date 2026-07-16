@@ -1,4 +1,11 @@
-function parsePgArrayValue(arrayString: string, startFrom: number, inQuotes: boolean): [string, number] {
+const DEFAULT_DELIM = ',';
+
+function parsePgArrayValue(
+	arrayString: string,
+	startFrom: number,
+	inQuotes: boolean,
+	delim: string,
+): [string, number] {
 	for (let i = startFrom; i < arrayString.length; i++) {
 		const char = arrayString[i];
 
@@ -15,7 +22,7 @@ function parsePgArrayValue(arrayString: string, startFrom: number, inQuotes: boo
 			continue;
 		}
 
-		if (char === ',' || char === '}') {
+		if (char === delim || char === '}') {
 			return [arrayString.slice(startFrom, i).replace(/\\(.)/g, '$1'), i];
 		}
 	}
@@ -23,24 +30,24 @@ function parsePgArrayValue(arrayString: string, startFrom: number, inQuotes: boo
 	return [arrayString.slice(startFrom).replace(/\\(.)/g, '$1'), arrayString.length];
 }
 
-export function parsePgNestedArray(arrayString: string, startFrom = 0): [any[], number] {
+export function parsePgNestedArray(arrayString: string, startFrom = 0, delim = DEFAULT_DELIM): [any[], number] {
 	const result: any[] = [];
 	let i = startFrom;
-	let lastCharIsComma = false;
+	let lastCharIsDelim = false;
 
 	while (i < arrayString.length) {
 		const char = arrayString[i];
 
-		if (char === ',') {
-			if (lastCharIsComma || i === startFrom) {
+		if (char === delim) {
+			if (lastCharIsDelim || i === startFrom) {
 				result.push('');
 			}
-			lastCharIsComma = true;
+			lastCharIsDelim = true;
 			i++;
 			continue;
 		}
 
-		lastCharIsComma = false;
+		lastCharIsDelim = false;
 
 		if (char === '\\') {
 			i += 2;
@@ -48,7 +55,7 @@ export function parsePgNestedArray(arrayString: string, startFrom = 0): [any[], 
 		}
 
 		if (char === '"') {
-			const [value, startFrom] = parsePgArrayValue(arrayString, i + 1, true);
+			const [value, startFrom] = parsePgArrayValue(arrayString, i + 1, true, delim);
 			result.push(value);
 			i = startFrom;
 			continue;
@@ -59,13 +66,13 @@ export function parsePgNestedArray(arrayString: string, startFrom = 0): [any[], 
 		}
 
 		if (char === '{') {
-			const [value, startFrom] = parsePgNestedArray(arrayString, i + 1);
+			const [value, startFrom] = parsePgNestedArray(arrayString, i + 1, delim);
 			result.push(value);
 			i = startFrom;
 			continue;
 		}
 
-		const [value, newStartFrom] = parsePgArrayValue(arrayString, i, false);
+		const [value, newStartFrom] = parsePgArrayValue(arrayString, i, false, delim);
 		result.push(value);
 		i = newStartFrom;
 	}
@@ -73,16 +80,16 @@ export function parsePgNestedArray(arrayString: string, startFrom = 0): [any[], 
 	return [result, i];
 }
 
-export function parsePgArray(arrayString: string): any[] {
-	const [result] = parsePgNestedArray(arrayString, 1);
+export function parsePgArray(arrayString: string, delim: string = DEFAULT_DELIM): any[] {
+	const [result] = parsePgNestedArray(arrayString, 1, delim);
 	return result;
 }
 
-export function makePgArray(array: any[]): string {
+function buildPgArray(array: any[], delim: string): string {
 	return `{${
 		array.map((item) => {
 			if (Array.isArray(item)) {
-				return makePgArray(item);
+				return buildPgArray(item, delim);
 			}
 
 			if (typeof item === 'string') {
@@ -90,6 +97,10 @@ export function makePgArray(array: any[]): string {
 			}
 
 			return `${item}`;
-		}).join(',')
+		}).join(delim)
 	}}`;
+}
+
+export function makePgArray(array: any[], delim: string = DEFAULT_DELIM): string {
+	return buildPgArray(array, delim);
 }

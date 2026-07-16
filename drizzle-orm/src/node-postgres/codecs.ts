@@ -4,6 +4,8 @@ import {
 	arrayCompatNormalizeInput,
 	castToText,
 	castToTextArr,
+	makeGeometryArray,
+	parseGeometryArrayAndNormalize,
 	parseGeometryTuple,
 	parseGeometryXY,
 	parseLineABC,
@@ -35,7 +37,7 @@ export const nodePgCodecs = refineGenericPgCodecs({
 		normalizeArray: arrayCompatNormalize(Number),
 	},
 	bit: {
-		normalizeArray: parsePgArray,
+		normalizeArray: (v) => parsePgArray(v),
 	},
 	numeric: {
 		castArray: castToTextArr,
@@ -76,11 +78,13 @@ export const nodePgCodecs = refineGenericPgCodecs({
 	},
 	'geometry(point)': {
 		normalize: parseGeometryXY,
-		normalizeArray: parsePgArrayAndNormalize(parseGeometryXY),
+		normalizeArray: parseGeometryArrayAndNormalize(parseGeometryXY),
+		normalizeParamArray: makeGeometryArray,
 	},
 	'geometry(point):tuple': {
 		normalize: parseGeometryTuple,
-		normalizeArray: parsePgArrayAndNormalize(parseGeometryTuple),
+		normalizeArray: parseGeometryArrayAndNormalize(parseGeometryTuple),
+		normalizeParamArray: makeGeometryArray,
 	},
 	interval: {
 		castArray: castToTextArr,
@@ -96,7 +100,7 @@ export const nodePgCodecs = refineGenericPgCodecs({
 	},
 	enum: {
 		castArray: castToTextArr,
-		normalizeParamArray: makePgArray,
+		normalizeParamArray: (v) => makePgArray(v),
 	},
 	line: {
 		cast: castToText,
@@ -131,7 +135,7 @@ export const nodePgCodecs = refineGenericPgCodecs({
 		normalizeArray: parsePgArrayAndNormalize(parsePgVector),
 	},
 	sparsevec: {
-		normalizeArray: parsePgArray,
+		normalizeArray: (v) => parsePgArray(v),
 	},
 	vector: {
 		normalize: parsePgVector,

@@ -806,7 +806,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		]);
 	});
 
-	test.concurrent('Disregard added SQL field during join nullification', async ({ db, push }) => {
+	test.concurrent("Don't disregard added SQL field during join nullification", async ({ db, push }) => {
 		const cities = mysqlTable('nullify5_cities', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
@@ -831,7 +831,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 		expect(res).toEqual([
 			{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
-			{ name: 'Jane', c: null },
+			{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
 		]);
 	});
 
@@ -961,7 +961,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		},
 	);
 
-	test.concurrent('Disregard added SQL field during join nullification - jit', async ({ createDB, push }) => {
+	test.concurrent("Don't disregard added SQL field during join nullification - jit", async ({ createDB, push }) => {
 		const cities = mysqlTable('nullify5_cities_jit', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
@@ -987,7 +987,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 		expect(res).toEqual([
 			{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
-			{ name: 'Jane', c: null },
+			{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
 		]);
 	});
 }

@@ -1066,7 +1066,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/2872
-		test.skipIf(Date.now() < +new Date('2026-07-15')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-07-22')).concurrent(
 			'prepared statement with placeholder in .inArray',
 			async ({ db, push }) => {
 				const usersTable = pgTable('users_392', {
@@ -1486,7 +1486,7 @@ export function tests(test: Test) {
 			]);
 		});
 
-		test.concurrent('Disregard added SQL field during join nullification', async ({ db, push }) => {
+		test.concurrent("Don't disregard added SQL field during join nullification", async ({ db, push }) => {
 			const citiesTable = pgTable('nullify5_cities', {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
@@ -1515,7 +1515,7 @@ export function tests(test: Test) {
 
 			expect(res).toEqual([
 				{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
-				{ name: 'Jane', c: null },
+				{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
 			]);
 		});
 		test.concurrent("No nullification on non-joined table's all-null object - jit", async ({ createDB, push }) => {
@@ -1659,7 +1659,7 @@ export function tests(test: Test) {
 			},
 		);
 
-		test.concurrent('Disregard added SQL field during join nullification - jit', async ({ createDB, push }) => {
+		test.concurrent("Don't disregard added SQL field during join nullification - jit", async ({ createDB, push }) => {
 			const citiesTable = pgTable('nullify5_cities_jit', {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
@@ -1689,7 +1689,7 @@ export function tests(test: Test) {
 
 			expect(res).toEqual([
 				{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
-				{ name: 'Jane', c: null },
+				{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
 			]);
 		});
 

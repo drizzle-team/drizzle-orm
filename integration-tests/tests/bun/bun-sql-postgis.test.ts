@@ -1,13 +1,9 @@
+import { SQL as BunSQL } from 'bun';
+import { beforeAll, beforeEach, expect, test } from 'bun:test';
 import { defineRelations, sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/bun-sql';
+import type { BunSQLDatabase } from 'drizzle-orm/bun-sql/postgres';
 import { bigserial, customType, geometry, integer, line, pgTable, point } from 'drizzle-orm/pg-core';
-import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import postgres, { type Sql } from 'postgres';
-import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-
-const ENABLE_LOGGING = false;
-
-let client: Sql;
-let db: PostgresJsDatabase<typeof relations>;
 
 const items = pgTable('items', {
 	id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -29,24 +25,21 @@ const relations = defineRelations({ items }, (r) => ({
 	},
 }));
 
+let db: BunSQLDatabase<typeof relations>;
+
 beforeAll(async () => {
 	const connectionString = process.env['PG_POSTGIS_CONNECTION_STRING'];
-	if (!connectionString) throw new Error('PG_POSTGIS_CONNECTION_STRING is not set in env variables');
+	if (!connectionString) {
+		throw new Error(
+			'PG_POSTGIS_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up postgres-postgis` and export the connection string before running tests.',
+		);
+	}
+	const connClient = new BunSQL(connectionString, { max: 1 });
+	await connClient.unsafe(`select 1`);
 
-	client = postgres(connectionString, {
-		max: 1,
-		onnotice: () => {
-			// disable notices
-		},
-	});
-	await client`select 1`;
-	db = drizzle({ client, logger: ENABLE_LOGGING, relations });
+	db = drizzle({ client: connClient, logger: false, relations });
 
 	await db.execute(sql`CREATE EXTENSION IF NOT EXISTS postgis;`);
-});
-
-afterAll(async () => {
-	await client?.end().catch(console.error);
 });
 
 beforeEach(async () => {
@@ -54,15 +47,15 @@ beforeEach(async () => {
 	await db.execute(sql`drop table if exists geofences cascade`);
 	await db.execute(sql`
 		CREATE TABLE items (
-		          id bigserial PRIMARY KEY, 
-		          "point" point,
-		          "point_xy" point,
-		          "line" line,
-		          "line_abc" line,
-				  "geo" geometry(point),
-				  "geo_obj" geometry(point),
-				  "geo_options" geometry(point,4000)
-		      );
+			id bigserial PRIMARY KEY,
+			"point" point,
+			"point_xy" point,
+			"line" line,
+			"line_abc" line,
+			"geo" geometry(point),
+			"geo_obj" geometry(point),
+			"geo_options" geometry(point,4000)
+		);
 	`);
 });
 
@@ -102,34 +95,74 @@ test('insert + select', async () => {
 	}]);
 });
 
+test('null geometries survive driver-side parsing', async () => {
+	await db.insert(items).values([{}]);
+
+	const response = await db.select().from(items);
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		point: null,
+		pointObj: null,
+		line: null,
+		lineObj: null,
+		geo: null,
+		geoObj: null,
+		geoSrid: null,
+	}]);
+});
+
+test('point arrays are parsed item by item', async () => {
+	await db.execute(sql`drop table if exists point_arrays cascade`);
+	await db.execute(sql`
+		CREATE TABLE point_arrays (
+			id integer PRIMARY KEY,
+			"points" point[],
+			"points_xy" point[]
+		);
+	`);
+
+	const pointArrays = pgTable('point_arrays', {
+		id: integer('id').primaryKey(),
+		points: point('points').array(),
+		pointsXy: point('points_xy', { mode: 'xy' }).array(),
+	});
+
+	await db.insert(pointArrays).values({
+		id: 1,
+		points: [[1, 2], [3, 4]],
+		pointsXy: [{ x: 1, y: 2 }, { x: 3, y: 4 }],
+	});
+
+	const response = await db.select().from(pointArrays);
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		points: [[1, 2], [3, 4]],
+		pointsXy: [{ x: 1, y: 2 }, { x: 3, y: 4 }],
+	}]);
+
+	await db.execute(sql`drop table point_arrays cascade`);
+});
+
 test('geometry arrays are parsed item by item', async () => {
 	await db.execute(sql`drop table if exists geo_arrays cascade`);
 	await db.execute(sql`
 		CREATE TABLE geo_arrays (
 			id integer PRIMARY KEY,
-			"geos" geometry(point)[],
-			"pts" point[]
+			"geos" geometry(point)[]
 		);
 	`);
 
 	const geoArrays = pgTable('geo_arrays', {
 		id: integer('id').primaryKey(),
 		geos: geometry('geos', { type: 'point', mode: 'xy' }).array(),
-		pts: point('pts', { mode: 'xy' }).array(),
 	});
 
-	await db.insert(geoArrays).values({
-		id: 1,
-		geos: [{ x: 5, y: 6 }, { x: 7, y: 8 }],
-		pts: [{ x: 5, y: 6 }, { x: 7, y: 8 }],
-	});
+	await db.insert(geoArrays).values({ id: 1, geos: [{ x: 5, y: 6 }, { x: 7, y: 8 }] });
 
 	const response = await db.select().from(geoArrays);
-	expect(response).toStrictEqual([{
-		id: 1,
-		geos: [{ x: 5, y: 6 }, { x: 7, y: 8 }],
-		pts: [{ x: 5, y: 6 }, { x: 7, y: 8 }],
-	}]);
+	expect(response).toStrictEqual([{ id: 1, geos: [{ x: 5, y: 6 }, { x: 7, y: 8 }] }]);
 
 	await db.execute(sql`drop table geo_arrays cascade`);
 });
@@ -152,9 +185,6 @@ test('RQBv2', async () => {
 			self: true,
 		},
 	}))!;
-
-	expectTypeOf(rootRqbResponse).toEqualTypeOf(rawResponse);
-	expectTypeOf(nestedRqbResponse).toEqualTypeOf(rawResponse);
 
 	expect(rootRqbResponse).toStrictEqual(rawResponse);
 	expect(nestedRqbResponse).toStrictEqual(rawResponse);
@@ -181,7 +211,6 @@ test('No wrong codec autoresolution', async () => {
 			const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
 
 			let offset = 0;
-
 			const littleEndian = view.getUint8(offset) === 1;
 			offset += 1;
 
@@ -190,7 +219,6 @@ test('No wrong codec autoresolution', async () => {
 				offset += 4;
 				return val;
 			};
-
 			const getFloat64 = () => {
 				const val = view.getFloat64(offset, littleEndian);
 				offset += 8;
@@ -198,27 +226,16 @@ test('No wrong codec autoresolution', async () => {
 			};
 
 			const typeWithFlags = getUint32();
-			const hasSRID = (typeWithFlags & 0x20000000) !== 0;
-			if (hasSRID) {
-				const srid = getUint32();
-			}
+			if ((typeWithFlags & 0x20000000) !== 0) getUint32();
 
 			const numRings = getUint32();
 			const rings: [number, number][][] = [];
-
 			for (let i = 0; i < numRings; i++) {
 				const numPoints = getUint32();
 				const ring: [number, number][] = [];
-
-				for (let j = 0; j < numPoints; j++) {
-					const x = getFloat64();
-					const y = getFloat64();
-					ring.push([x, y]);
-				}
-
+				for (let j = 0; j < numPoints; j++) ring.push([getFloat64(), getFloat64()]);
 				rings.push(ring);
 			}
-
 			return rings;
 		},
 	});

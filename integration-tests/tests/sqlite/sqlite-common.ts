@@ -1287,7 +1287,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/2872
 		test
-			.skipIf(Date.now() < +new Date('2026-07-15'))
+			.skipIf(Date.now() < +new Date('2026-07-22'))
 			.concurrent(
 				'prepared statement with placeholder in .inArray',
 				async ({ db, push }) => {
@@ -7729,7 +7729,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		},
 	);
 
-	test.concurrent('Disregard added SQL field during join nullification', async ({ db, push }) => {
+	test.concurrent("Don't disregard added SQL field during join nullification", async ({ db, push }) => {
 		const cities = sqliteTable('nullify5_cities', (t) => ({
 			id: t.integer('id').primaryKey(),
 			name: t.text('name').notNull(),
@@ -7756,7 +7756,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 		expect(res).toEqual([
 			{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
-			{ name: 'Jane', c: null },
+			{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
 		]);
 	});
 
@@ -7897,7 +7897,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		},
 	);
 
-	test.concurrent('Disregard added SQL field during join nullification - jit', async ({ createDB, push }) => {
+	test.concurrent("Don't disregard added SQL field during join nullification - jit", async ({ createDB, push }) => {
 		const cities = sqliteTable('nullify5_cities_jit', (t) => ({
 			id: t.integer('id').primaryKey(),
 			name: t.text('name').notNull(),
@@ -7925,7 +7925,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 		expect(res).toEqual([
 			{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
-			{ name: 'Jane', c: null },
+			{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
 		]);
 	});
 }

@@ -1,16 +1,14 @@
-import { type Connection, Pool, type QueryResult, type ShapeSpec } from 'minipg';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
+import type { Connection, Pool, QueryResult, ShapeSpec } from 'minipg';
+import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
-import { PgAsyncPreparedQuery } from '~/pg-core/async/session.ts';
-import { PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
+import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgQueryResultHKT, PgTransactionConfig } from '~/pg-core/session.ts';
-import type { PreparedQueryConfig } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
 import type { AnyRelations } from '~/relations.ts';
-import { type Query, sql } from '~/sql/sql.ts';
+import type { Query } from '~/sql/sql.ts';
 import type { Simplify } from '~/utils.ts';
 export type PostgresClient = Pool | Connection;
 
@@ -76,7 +74,7 @@ export class PostgresSession<
 		return new PgAsyncPreparedQuery<T>(
 			executor,
 			query,
-			shape ? undefined : mapper,
+			mapper,
 			mode,
 			this.logger,
 			this.cache,
@@ -89,34 +87,22 @@ export class PostgresSession<
 		transaction: (tx: PostgresTransaction<TRelations>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
-		const isPool = this.client instanceof Pool || Object.getPrototypeOf(this.client).constructor.name.includes('Pool'); // oxlint-disable-line drizzle-internal/no-instanceof
-		const session = isPool
-			? new PostgresSession(
-				await (this.client as Pool).acquire(),
+		return this.client.transaction({
+			deferrable: config?.deferrable,
+			isolation: config?.isolationLevel,
+			readOnly: config?.accessMode === 'read only',
+		}, (clTx) => {
+			const session = new PostgresSession(clTx, this.dialect, this.relations, this.options);
+			const tx = new PostgresTransaction<TRelations>(
 				this.dialect,
+				session,
 				this.relations,
-				this.options,
-			)
-			: this;
-		const tx = new PostgresTransaction<TRelations>(
-			this.dialect,
-			session,
-			this.relations,
-			undefined,
-			false,
-		);
+				undefined,
+				false,
+			);
 
-		await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
-		try {
-			const result = await transaction(tx);
-			await tx.execute(sql`commit`);
-			return result;
-		} catch (error) {
-			await tx.execute(sql`rollback`);
-			throw error;
-		} finally {
-			if (isPool) (this.client as Pool).release(session.client as Connection);
-		}
+			return transaction(tx);
+		});
 	}
 }
 
@@ -128,23 +114,7 @@ export class PostgresTransaction<
 	override async transaction<T>(
 		transaction: (tx: PostgresTransaction<TRelations>) => Promise<T>,
 	): Promise<T> {
-		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new PostgresTransaction<TRelations>(
-			this.dialect,
-			this.session,
-			this._.relations,
-			this.nestedIndex + 1,
-			false,
-		);
-		await tx.execute(sql.raw(`savepoint ${savepointName}`));
-		try {
-			const result = await transaction(tx);
-			await tx.execute(sql.raw(`release savepoint ${savepointName}`));
-			return result;
-		} catch (err) {
-			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
-			throw err;
-		}
+		return this.session.transaction(transaction);
 	}
 }
 

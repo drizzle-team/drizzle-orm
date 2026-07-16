@@ -1,41 +1,47 @@
 import {
 	Collect,
-	type CollectMarker,
 	CollectNullable,
+	type CustomMarker,
+	Json,
+	JsonArray,
+	type JsonMarker,
+	type JsonSpec,
 	Nullable,
 	type ShapeSpec,
 	Transform,
 	type TransformMarker,
 	type TypeSpec,
 } from 'minipg';
-import { CodecsCollection, type NormalizeArrayCodec, type NormalizeCodec } from '~/codecs.ts';
+import { geometry as pgGeometry } from 'minipg/geometry';
+import { getOriginalColumnFromAlias } from '~/alias.ts';
 import { Column } from '~/column.ts';
 import { is } from '~/entity.ts';
 import type { SelectedFieldsOrdered } from '~/operations.ts';
-import { arrayCompatNormalize, type PostgresType, resolvePgTypeAlias } from '~/pg-core/codecs.ts';
-import type { PgColumn } from '~/pg-core/columns/index.ts';
-import type { PreparedQuerySelection } from '~/pg-core/dialect';
-import { type DriverValueDecoder, SQL, type View } from '~/sql/sql.ts';
+import type { PostgresType } from '~/pg-core/codecs.ts';
+import type { PgColumn } from '~/pg-core/columns/common.ts';
+import type { PreparedQuerySelection } from '~/pg-core/dialect.ts';
+import { type DriverValueDecoder, SQL, type SQLWrapper, type View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, type Table } from '~/table.ts';
-import { getColumns, orderSelectedFields } from '~/utils.ts';
-import { miniPgCodecs } from './codecs.ts';
+import { getColumnFromDecoder, getColumns, orderSelectedFields } from '~/utils.ts';
 
-type ShapeType = [element: string, js?: string, driverNormalized?: true];
+type ShapeType = [element: string, as?: string];
+
+type WireSpec = TypeSpec | CustomMarker;
 
 const SHAPE_TYPES: Partial<Record<PostgresType, ShapeType>> = {
 	smallint: ['int2'],
 	smallserial: ['int2'],
 	int: ['int4'],
 	serial: ['int4'],
-	bigint: ['int8'],
-	'bigint:number': ['int8'],
-	'bigint:string': ['int8'],
-	bigserial: ['int8'],
-	'bigserial:number': ['int8'],
+	bigint: ['int8', 'bigint'],
+	'bigint:number': ['int8', 'number'],
+	'bigint:string': ['int8', 'string'],
+	bigserial: ['int8', 'bigint'],
+	'bigserial:number': ['int8', 'number'],
 	numeric: ['numeric'],
-	'numeric:number': ['numeric'],
-	'numeric:bigint': ['numeric'],
+	'numeric:number': ['numeric', 'number'],
+	'numeric:bigint': ['numeric', 'bigint'],
 	float4: ['float4'],
 	float8: ['float8'],
 	money: ['money'],
@@ -43,12 +49,12 @@ const SHAPE_TYPES: Partial<Record<PostgresType, ShapeType>> = {
 	varchar: ['varchar'],
 	text: ['text'],
 	bytea: ['bytea'],
-	date: ['date', 'string'],
+	date: ['date', 'date'],
 	'date:string': ['date', 'string'],
 	time: ['time'],
-	timestamp: ['timestamp', 'string'],
+	timestamp: ['timestamp', 'date'],
 	'timestamp:string': ['timestamp', 'string'],
-	timestamptz: ['timestamptz', 'string'],
+	timestamptz: ['timestamptz', 'date'],
 	'timestamptz:string': ['timestamptz', 'string'],
 	interval: ['interval'],
 	'interval:tuple': ['interval'],
@@ -57,53 +63,47 @@ const SHAPE_TYPES: Partial<Record<PostgresType, ShapeType>> = {
 	json: ['json'],
 	jsonb: ['jsonb'],
 	oid: ['oid'],
-	point: ['point', 'xy', true],
-	'point:tuple': ['point', 'tuple', true],
-	vector: ['vector', 'array', true],
-	halfvec: ['halfvec', 'array', true],
+	point: ['point', 'xy'],
+	'point:tuple': ['point', 'tuple'],
+	line: ['line', 'abc'],
+	'line:tuple': ['line', 'tuple'],
+	vector: ['vector', 'array'],
+	halfvec: ['halfvec', 'array'],
 	sparsevec: ['sparsevec', 'string'],
-	box2d: ['box2d', 'string'],
-	box3d: ['box3d', 'string'],
+};
+
+/** Types minipg decodes only through a registry marker, which carries no spec string to name it by. */
+const CUSTOM_MARKERS: Partial<Record<PostgresType, { scalar: CustomMarker; array: CustomMarker }>> = {
+	'geometry(point)': {
+		scalar: pgGeometry('xy'),
+		array: pgGeometry.array('xy'),
+	},
+	'geometry(point):tuple': {
+		scalar: pgGeometry('tuple'),
+		array: pgGeometry.array('tuple'),
+	},
 };
 
 const TEXT: ShapeType = ['text'];
 
-const KNOWN_ARRAY_TYPES = new Set([
-	'int2',
-	'int4',
-	'int8',
-	'oid',
-	'float4',
-	'float8',
-	'numeric',
-	'money',
-	'bool',
-	'bpchar',
-	'varchar',
-	'text',
-	'bytea',
-	'uuid',
-	'date',
-	'time',
-	'timestamp',
-	'timestamptz',
-	'interval',
-	'json',
-	'jsonb',
-]);
-
-function typeSpecFor(element: string, js: string | undefined, dimensions: number | undefined): TypeSpec {
-	if (!dimensions) return (js ? `${element}:${js}` : element) as TypeSpec;
-	if (!KNOWN_ARRAY_TYPES.has(element)) return 'text[]';
-	return (js ? `${element}[]:${js}` : `${element}[]`) as TypeSpec;
+/** The spec a codec type declares by name, at `dimensions` array depth. Anything unmapped reads as text. */
+function namedSpecFor(codecType: PostgresType, dimensions: number | undefined): TypeSpec {
+	const [element, as] = SHAPE_TYPES[codecType] ?? TEXT;
+	const pg = dimensions ? `${element}[]` : element;
+	return (as ? `${pg}:${as}` : pg) as TypeSpec;
 }
 
-const arrayNormalizers = new WeakMap<NormalizeCodec, NormalizeArrayCodec>();
-function getCachedArrayNormalizer(item: NormalizeCodec): NormalizeArrayCodec {
-	let lifted = arrayNormalizers.get(item);
-	if (!lifted) arrayNormalizers.set(item, lifted = arrayCompatNormalize(item));
-	return lifted;
+/** What a codec type declares on the wire, at `dimensions` array depth. Includes Markers not supported in JSON shape. */
+function wireSpecFor(codecType: PostgresType, dimensions: number | undefined): WireSpec {
+	const custom = CUSTOM_MARKERS[codecType];
+	if (custom) return dimensions ? custom.array : custom.scalar;
+
+	return namedSpecFor(codecType, dimensions);
 }
+
+type RelationalSelection = Extract<PreparedQuerySelection, { type: 'relational' }>['fields'];
+type RelationalItem = RelationalSelection[number];
+type RelationalItemDecodedField = Exclude<RelationalItem['field'], Table | View>;
 
 function getDecoder(field: SelectedFieldsOrdered<Column>[number]['field']): DriverValueDecoder<any, any> {
 	if (is(field, Column)) return field;
@@ -112,145 +112,257 @@ function getDecoder(field: SelectedFieldsOrdered<Column>[number]['field']): Driv
 	return field.sql.decoder;
 }
 
-const transformCache = new WeakMap<object, Map<TypeSpec, { codec: unknown; marker: TransformMarker }>>();
-function getTransformer(
-	decoder: DriverValueDecoder<any, any>,
-	codec: NormalizeCodec | undefined,
+function getRqbDecoder(field: RelationalItemDecodedField): DriverValueDecoder<any, any> {
+	if (is(field, Column)) return field;
+	return field.getSQL().decoder;
+}
+
+function getRqbColumn(field: RelationalItemDecodedField): Column | undefined {
+	return is(field, Column) ? field : getColumnFromDecoder(field as SQL | SQL.Aliased | SQLWrapper);
+}
+
+const transformCache = new WeakMap<object, Map<string, { codec: unknown; marker: TransformMarker }>>();
+
+const markerKeys = new WeakMap<CustomMarker, string>();
+let nextMarkerKey = 0;
+
+/** Marker can't be stringified directly to acquire key */
+function specKey(spec: WireSpec): string {
+	if (typeof spec === 'string') return spec;
+
+	let key = markerKeys.get(spec);
+	if (!key) markerKeys.set(spec, key = `marker:${++nextMarkerKey}`);
+	return key;
+}
+
+function memoizedTransform(
+	decoderKey: object,
+	spec: WireSpec,
+	codec: unknown,
 	dimensions: number | undefined,
-): (value: any) => unknown {
-	const normalize = !codec
-		? undefined
-		: dimensions
-		? (value: any) => getCachedArrayNormalizer(codec)(value, dimensions)
-		: codec;
+	build: () => TransformMarker,
+): TransformMarker {
+	let byKey = transformCache.get(decoderKey);
+	if (!byKey) transformCache.set(decoderKey, byKey = new Map());
 
-	if (decoder.mapFromDriverValue.isNoop) return normalize!;
+	const cacheKey = `${specKey(spec)}\u0000${dimensions ?? 0}`;
+	const cached = byKey.get(cacheKey);
+	if (cached && cached.codec === codec) return cached.marker;
 
-	const decode = decoder.mapFromDriverValue.bind(decoder);
-	return normalize ? (value: any) => decode(normalize(value)) : decode;
+	const marker = build();
+	byKey.set(cacheKey, { codec, marker });
+	return marker;
 }
 
 function leafFor(
 	decoder: DriverValueDecoder<any, any>,
-	spec: TypeSpec,
-	codec: NormalizeCodec | undefined,
+	spec: WireSpec,
 	dimensions: number | undefined,
-): TypeSpec | TransformMarker {
-	if (!codec && decoder.mapFromDriverValue.isNoop) return spec;
+): WireSpec | TransformMarker {
+	if (decoder.mapFromDriverValue.isNoop) return spec;
 
-	const key = is(decoder, Column) ? decoder : decoder.mapFromDriverValue;
-	let bySpec = transformCache.get(key);
-	if (!bySpec) transformCache.set(key, bySpec = new Map());
+	const key = is(decoder, Column) ? getOriginalColumnFromAlias(decoder) : decoder.mapFromDriverValue;
+	const decode = decoder.mapFromDriverValue.bind(decoder);
 
-	const cached = bySpec.get(spec);
-	if (cached && cached.codec === codec) return cached.marker;
-
-	const marker = Transform(spec, getTransformer(decoder, codec, dimensions));
-	bySpec.set(spec, { codec: codec, marker });
-	return marker;
+	return memoizedTransform(key, spec, undefined, dimensions, () => Transform(spec as TypeSpec, decode));
 }
 
-interface GroupPlan {
-	nullable: boolean;
-	required: ReadonlySet<number>;
+function wireLeaf(
+	decoder: DriverValueDecoder<any, any>,
+	column: Column | undefined,
+	codecOverride: string | undefined,
+	arrayDimensions: number | undefined,
+): WireSpec | TransformMarker {
+	const codecType = column ? (codecOverride ?? column.codec) as PostgresType | undefined : undefined;
+	const spec: WireSpec = codecType ? wireSpecFor(codecType, arrayDimensions) : 'unknown';
+
+	return leafFor(decoder, spec, arrayDimensions);
 }
 
-const NO_LEAVES: ReadonlySet<number> = new Set();
-function planGroups(
-	fields: SelectedFieldsOrdered<Column>,
+type ShapeEntry = ShapeSpec[string];
+
+interface PlainLeaf {
+	path: readonly string[];
+	leaf: WireSpec | TransformMarker;
+	column: Column | undefined;
+}
+
+function groupIsNullable(
+	leaves: PlainLeaf[],
 	joinsNotNullableMap: Record<string, boolean> | undefined,
-): Map<string, GroupPlan> | undefined {
-	const groups = new Map<string, number[]>();
+): boolean {
+	if (!joinsNotNullableMap) return false;
 
-	for (const [index, { path }] of fields.entries()) {
-		if (path.length !== 2) continue;
-		const group = groups.get(path[0]!);
-		if (group) group.push(index);
-		else groups.set(path[0]!, [index]);
+	let table: string | undefined;
+	for (const { column } of leaves) {
+		if (!column) continue;
+		const name = getTableName(column.table);
+		if (table === undefined) table = name;
+		else if (table !== name) return false;
 	}
 
-	const plans = new Map<string, GroupPlan>();
+	return table !== undefined && !joinsNotNullableMap[table];
+}
 
-	for (const [name, leaves] of groups) {
-		const columns = leaves.filter((index) => is(fields[index]!.field, Column));
-		const tables = new Set(columns.map((index) => getTableName((fields[index]!.field as Column).table)));
+function assembleGroupBody(
+	leaves: PlainLeaf[],
+	depth: number,
+	nullableLeaves: boolean,
+): ShapeSpec {
+	const order: string[] = [];
+	const directLeaves = new Map<string, ShapeEntry>();
+	const groups = new Map<string, PlainLeaf[]>();
 
-		const [table] = tables;
-		if (!joinsNotNullableMap || tables.size !== 1 || joinsNotNullableMap[table!]) {
-			plans.set(name, { nullable: false, required: NO_LEAVES });
+	for (const leaf of leaves) {
+		const key = leaf.path[depth]!;
+		if (leaf.path.length === depth + 1) {
+			if (!directLeaves.has(key)) order.push(key);
+			directLeaves.set(key, nullableLeaves ? Nullable(leaf.leaf) : leaf.leaf);
+			continue;
+		}
+		let nested = groups.get(key);
+		if (!nested) {
+			groups.set(key, nested = []);
+			order.push(key);
+		}
+		nested.push(leaf);
+	}
+
+	const spec: ShapeSpec = {};
+	for (const key of order) {
+		const nested = groups.get(key);
+		spec[key] = nested ? Collect(assembleGroupBody(nested, depth + 1, false)) : directLeaves.get(key)!;
+	}
+	return spec;
+}
+
+const JSON_LEAF: TypeSpec = 'unknown';
+
+function jsonSpecForField(field: RelationalItemDecodedField, arrayDimensions: number | undefined): TypeSpec {
+	const codecType = getRqbColumn(field)?.codec as PostgresType | undefined;
+
+	if (!codecType) return JSON_LEAF;
+	// Parse jsons of unknown shape as 'unknown' type
+	if (codecType === 'json' || codecType === 'jsonb') return JSON_LEAF;
+
+	return namedSpecFor(codecType, arrayDimensions);
+}
+
+function jsonLeafFor(item: RelationalItem): TypeSpec | TransformMarker {
+	const { field, codec, arrayDimensions } = item;
+
+	const mapFromJsonValue = (<{ mapFromJsonValue?: (value: unknown) => unknown }> field).mapFromJsonValue;
+	const decoder = getRqbDecoder(field as RelationalItemDecodedField);
+	const isNoop = decoder.mapFromDriverValue.isNoop;
+
+	if (!mapFromJsonValue && !codec && isNoop) {
+		return jsonSpecForField(field as RelationalItemDecodedField, arrayDimensions);
+	}
+
+	const spec = codec ? JSON_LEAF : jsonSpecForField(field as RelationalItemDecodedField, arrayDimensions);
+	const key = is(field, Column) ? getOriginalColumnFromAlias(field) : (mapFromJsonValue ?? decoder.mapFromDriverValue);
+	return memoizedTransform(key, spec, mapFromJsonValue ?? codec, arrayDimensions, () => {
+		const fn = mapFromJsonValue
+			? (value: any) => mapFromJsonValue(value)
+			: isNoop
+			? (value: any) => codec!(value, arrayDimensions!)
+			: codec
+			? (value: any) => decoder.mapFromDriverValue(codec(value, arrayDimensions!))
+			: (value: any) => decoder.mapFromDriverValue(value);
+
+		return Transform(spec, fn);
+	});
+}
+
+function jsonSpecFor(selection: RelationalSelection): JsonSpec {
+	const spec: JsonSpec = {};
+
+	for (const item of selection) {
+		spec[item.key] = item.selection ? jsonMarkerFor(item) : jsonLeafFor(item);
+	}
+
+	return spec;
+}
+
+function jsonMarkerFor(item: RelationalItem): JsonMarker {
+	const spec = jsonSpecFor(item.selection!);
+	return item.isArray ? JsonArray(spec) : Json(spec);
+}
+
+function relationalShape(selection: RelationalSelection): ShapeSpec {
+	const root: ShapeSpec = {};
+
+	for (const item of selection) {
+		if (item.selection) {
+			root[item.key] = jsonMarkerFor(item);
 			continue;
 		}
 
-		const required = new Set(columns.filter((index) => (fields[index]!.field as Column).notNull));
-		if (!required.size && columns.length !== leaves.length) return undefined;
-
-		plans.set(name, { nullable: true, required });
+		const field = item.field as RelationalItemDecodedField;
+		root[item.key] = wireLeaf(
+			getRqbDecoder(field),
+			getRqbColumn(field),
+			undefined,
+			item.arrayDimensions,
+		);
 	}
 
-	return plans;
+	return root;
 }
-
-const defaultCodecs = new CodecsCollection<PostgresType>(resolvePgTypeAlias, miniPgCodecs);
 
 export function buildShape(
 	selection: PreparedQuerySelection,
 	joinsNotNullableMap?: Record<string, boolean>,
-	codecs: CodecsCollection<PostgresType> = defaultCodecs,
-): ShapeSpec | undefined {
-	// TODO: RQB
-	if (selection.type !== 'plain') return undefined;
+): ShapeSpec {
+	if (selection.type === 'relational') return relationalShape(selection.fields);
 
 	const { fields } = selection;
-	// Deep objects aren't supported
-	if (!fields.length || fields.some(({ path }) => path.length > 2)) return undefined;
+	if (!fields.length) return {};
 
-	const plans = planGroups(fields, joinsNotNullableMap);
-	if (!plans) return undefined;
+	const order: string[] = [];
+	const rootLeaves = new Map<string, ShapeEntry>();
+	const groups = new Map<string, PlainLeaf[]>();
 
-	const root: ShapeSpec = {};
-	const groups = new Map<string, ShapeSpec>();
+	for (let i = 0; i < fields.length; ++i) {
+		const { path, field, column, codecOverride, arrayDimensions } = fields[i]!;
+		const leaf = wireLeaf(getDecoder(field), column, codecOverride, arrayDimensions);
 
-	for (const [index, { path, field, column, codecOverride, arrayDimensions }] of fields.entries()) {
-		const codecType = column ? (codecOverride ?? column.codec) as PostgresType | undefined : undefined;
-
-		let spec: TypeSpec = 'unknown';
-		let item: NormalizeCodec | undefined;
-		if (codecType) {
-			const [element, js, driverNormalized] = SHAPE_TYPES[codecType] ?? TEXT;
-			spec = typeSpecFor(element, js, arrayDimensions);
-			// An array falls back to `text[]`, whose items minipg hands over as strings, so the codec still runs.
-			if (!driverNormalized || arrayDimensions) item = codecs.codecs[codecType]?.normalize;
-		}
-
-		const leaf = leafFor(getDecoder(field), spec, item, arrayDimensions);
-
+		const key = path[0]!;
 		if (path.length === 1) {
-			root[path[0]!] = leaf;
+			if (!rootLeaves.has(key)) order.push(key);
+			rootLeaves.set(key, leaf);
 			continue;
 		}
 
-		const [group, key] = path as [string, string];
-		const plan = plans.get(group)!;
-		let nested = groups.get(group);
-		if (!nested) {
-			groups.set(group, nested = {});
-			root[group] = (plan.nullable ? CollectNullable(nested) : Collect(nested)) as CollectMarker;
+		let group = groups.get(key);
+		if (!group) {
+			groups.set(key, group = []);
+			order.push(key);
+		}
+		group.push({ path, leaf, column: is(field, Column) ? field : undefined });
+	}
+
+	const root: ShapeSpec = {};
+	for (const key of order) {
+		const group = groups.get(key);
+		if (!group) {
+			root[key] = rootLeaves.get(key)!;
+			continue;
 		}
 
-		nested[key] = plan.nullable && !plan.required.has(index) ? Nullable(leaf) : leaf;
+		const nullable = groupIsNullable(group, joinsNotNullableMap);
+		const body = assembleGroupBody(group, 1, nullable);
+		root[key] = nullable ? CollectNullable(body) : Collect(body);
 	}
 
 	return root;
 }
 
 export namespace buildShape {
-	export function fromTableOrView(source: Table, codecs?: CodecsCollection<PostgresType>): ShapeSpec;
-	export function fromTableOrView(source: View, codecs?: CodecsCollection<PostgresType>): ShapeSpec | undefined;
-	export function fromTableOrView(
-		source: Table | View,
-		codecs: CodecsCollection<PostgresType> = defaultCodecs,
-	): ShapeSpec | undefined {
-		const fields = orderSelectedFields<PgColumn>(getColumns(source), undefined, codecs);
-		return buildShape({ type: 'plain', fields }, undefined, codecs);
+	export function fromTableOrView(source: Table): ShapeSpec;
+	export function fromTableOrView(source: View): ShapeSpec;
+	export function fromTableOrView(source: Table | View): ShapeSpec {
+		const fields = orderSelectedFields<PgColumn>(getColumns(source));
+		return buildShape({ type: 'plain', fields }, undefined);
 	}
 }

@@ -5,9 +5,10 @@ import {
 	castToText,
 	castToTextArr,
 	genericPgCodecs,
+	makeGeometryArray,
+	parseGeometryArrayAndNormalize,
 	parseGeometryTuple,
 	parseGeometryXY,
-	parsePgArrayAndNormalize,
 } from '~/pg-core/codecs.ts';
 import { base64ToUint8Array } from '~/utils.ts';
 import { effectPgCodecs } from '../effect-postgres/codecs.ts';
@@ -50,16 +51,16 @@ export const effectPgliteCodecs = refineCodecs(effectPgCodecs, {
 			: arrayCompatNormalize((v: Uint8Array) => Buffer.from(v)),
 	},
 	'geometry(point)': {
-		normalizeArray: parsePgArrayAndNormalize(parseGeometryXY),
+		normalizeArray: parseGeometryArrayAndNormalize(parseGeometryXY),
 		castParam: (name) => `${name}::geometry`,
 		castArrayParam: (name, _column, dimensions) => `${name}::geometry${'[]'.repeat(dimensions)}`,
-		normalizeParamArray: makePgArray,
+		normalizeParamArray: makeGeometryArray,
 	},
 	'geometry(point):tuple': {
-		normalizeArray: parsePgArrayAndNormalize(parseGeometryTuple),
+		normalizeArray: parseGeometryArrayAndNormalize(parseGeometryTuple),
 		castParam: (name) => `${name}::geometry`,
 		castArrayParam: (name, _column, dimensions) => `${name}::geometry${'[]'.repeat(dimensions)}`,
-		normalizeParamArray: makePgArray,
+		normalizeParamArray: makeGeometryArray,
 	},
 	bit: {
 		normalizeArray: undefined,
@@ -67,17 +68,17 @@ export const effectPgliteCodecs = refineCodecs(effectPgCodecs, {
 	halfvec: {
 		castParam: (name) => `${name}::halfvec`,
 		castArrayParam: (name, _column, dimensions) => `${name}::halfvec${'[]'.repeat(dimensions)}`,
-		normalizeParamArray: makePgArray,
+		normalizeParamArray: (v) => makePgArray(v),
 	},
 	vector: {
 		castParam: (name) => `${name}::vector`,
 		castArrayParam: (name, _column, dimensions) => `${name}::vector${'[]'.repeat(dimensions)}`,
-		normalizeParamArray: makePgArray,
+		normalizeParamArray: (v) => makePgArray(v),
 	},
 	sparsevec: {
-		normalizeArray: parsePgArray,
+		normalizeArray: (v) => parsePgArray(v),
 		castParam: (name) => `${name}::sparsevec`,
 		castArrayParam: (name, _column, dimensions) => `${name}::sparsevec${'[]'.repeat(dimensions)}`,
-		normalizeParamArray: makePgArray,
+		normalizeParamArray: (v) => makePgArray(v),
 	},
 });

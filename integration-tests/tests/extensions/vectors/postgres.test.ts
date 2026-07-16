@@ -1,5 +1,5 @@
 import { defineRelations, eq, hammingDistance, jaccardDistance, l2Distance, not, sql } from 'drizzle-orm';
-import { bigserial, bit, halfvec, integer, pgTable, sparsevec, vector } from 'drizzle-orm/pg-core';
+import { bigserial, bit, customType, halfvec, integer, pgTable, sparsevec, vector } from 'drizzle-orm/pg-core';
 import type { PostgresDatabase } from 'drizzle-orm/postgres';
 import { drizzle } from 'drizzle-orm/postgres';
 import type { Pool } from 'minipg';
@@ -367,6 +367,68 @@ test('vector arrays are parsed item by item', async () => {
 	expect(response).toStrictEqual([{ id: 1, vectors: [[1, 2, 3], [4, 5, 6]] }]);
 
 	await db.execute(sql`drop table vector_arrays cascade`);
+});
+
+test('halfvec and sparsevec arrays are parsed item by item', async () => {
+	await db.execute(sql`drop table if exists vec_arrays cascade`);
+	await db.execute(sql`
+		CREATE TABLE vec_arrays (
+			id integer PRIMARY KEY,
+			"halfvecs" halfvec(3)[],
+			"sparsevecs" sparsevec(5)[]
+		);
+	`);
+
+	const vecArrays = pgTable('vec_arrays', {
+		id: integer('id').primaryKey(),
+		halfvecs: halfvec('halfvecs', { dimensions: 3 }).array(),
+		sparsevecs: sparsevec('sparsevecs', { dimensions: 5 }).array(),
+	});
+
+	await db.insert(vecArrays).values({
+		id: 1,
+		halfvecs: [[1, 2, 3], [4, 5, 6]],
+		sparsevecs: ['{1:1,3:2,5:3}/5', '{2:9}/5'],
+	});
+
+	const response = await db.select().from(vecArrays);
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		halfvecs: [[1, 2, 3], [4, 5, 6]],
+		sparsevecs: ['{1:1,3:2,5:3}/5', '{2:9}/5'],
+	}]);
+
+	await db.execute(sql`drop table vec_arrays cascade`);
+});
+
+test('a custom column over a vector type decodes on top of the parsed vector', async () => {
+	await db.execute(sql`drop table if exists custom_vectors cascade`);
+	await db.execute(sql`
+		CREATE TABLE custom_vectors (
+			id integer PRIMARY KEY,
+			"summed" vector(3)
+		);
+	`);
+
+	const summedVector = customType<{ data: number; driverData: number[]; config: { dimensions: number } }>({
+		dataType: (config) => `vector(${config!.dimensions})`,
+		codec: 'vector',
+		toDriver: () => sql`'[1,2,3]'`,
+		fromDriver: (value) => value.reduce((acc, v) => acc + v, 0),
+	});
+
+	const customVectors = pgTable('custom_vectors', {
+		id: integer('id').primaryKey(),
+		summed: summedVector('summed', { dimensions: 3 }),
+	});
+
+	await db.insert(customVectors).values({ id: 1, summed: 0 });
+
+	const response = await db.select().from(customVectors);
+	expect(response).toStrictEqual([{ id: 1, summed: 6 }]);
+
+	await db.execute(sql`drop table custom_vectors cascade`);
 });
 
 test('RQBv2', async () => {

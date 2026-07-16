@@ -2595,7 +2595,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				]);
 			}));
 
-		it.effect('Disregard added SQL field during join nullification', () =>
+		it.effect("Don't disregard added SQL field during join nullification", () =>
 			Effect.gen(function*() {
 				const cities = sqliteTable('nullify5_cities', (t) => ({
 					id: t.integer('id').primaryKey(),
@@ -2625,7 +2625,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 
 				expect(res).toStrictEqual([
 					{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
-					{ name: 'Jane', c: null },
+					{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
 				]);
 			}));
 		it.effect("No nullification on non-joined table's all-null object - jit", () =>
@@ -2762,7 +2762,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				]);
 			}));
 
-		it.effect('Disregard added SQL field during join nullification - jit', () =>
+		it.effect("Don't disregard added SQL field during join nullification - jit", () =>
 			Effect.gen(function*() {
 				const cities = sqliteTable('nullify5_cities_jit', (t) => ({
 					id: t.integer('id').primaryKey(),
@@ -2792,7 +2792,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 
 				expect(res).toStrictEqual([
 					{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
-					{ name: 'Jane', c: null },
+					{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
 				]);
 			}));
 
