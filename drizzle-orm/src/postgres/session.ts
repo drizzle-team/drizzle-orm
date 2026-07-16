@@ -114,7 +114,7 @@ export class PostgresTransaction<
 	override async transaction<T>(
 		transaction: (tx: PostgresTransaction<TRelations>) => Promise<T>,
 	): Promise<T> {
-		return this.session.transaction(transaction);
+		return this.session.transaction(transaction as any);
 	}
 }
 
