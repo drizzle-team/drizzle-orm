@@ -331,6 +331,9 @@ export async function migrate(
 
 	const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
 	await db.transaction(async (tx) => {
+		// Keep unqualified CREATE TABLE on public even when migrationsSchema
+		// matches the DB username (Postgres $user search_path entry).
+		await tx.execute(sql`set local search_path to public`);
 		for (const migration of migrationsToRun) {
 			for (const stmt of migration.sql) {
 				await tx.execute(sql.raw(stmt));
