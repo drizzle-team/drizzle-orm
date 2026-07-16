@@ -4750,7 +4750,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				]);
 			}));
 
-		it.effect('Disregard added SQL field during join nullification', () =>
+		it.effect("Don't disregard added SQL field during join nullification", () =>
 			Effect.gen(function*() {
 				const cities = mysqlTable('nullify5_cities', (t) => ({
 					id: t.serial('id').primaryKey(),
@@ -4778,9 +4778,11 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 					.leftJoin(cities, eq(users.cityId, cities.id))
 					.orderBy(users.id);
 
+				// Jane's city (London) matched but has no `state`; the added `cityUpper` sql field is non-null, so
+				// the all-null rule keeps the object rather than nullifying it on the lone column.
 				expect(res).toStrictEqual([
 					{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
-					{ name: 'Jane', c: null },
+					{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
 				]);
 			}));
 
@@ -4918,7 +4920,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				]);
 			}));
 
-		it.effect('Disregard added SQL field during join nullification - jit', () =>
+		it.effect("Don't disregard added SQL field during join nullification - jit", () =>
 			Effect.gen(function*() {
 				const cities = mysqlTable('nullify5_cities_jit', (t) => ({
 					id: t.serial('id').primaryKey(),
@@ -4946,9 +4948,11 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 					.leftJoin(cities, eq(users.cityId, cities.id))
 					.orderBy(users.id);
 
+				// Jane's city (London) matched but has no `state`; the added `cityUpper` sql field is non-null, so
+				// the all-null rule keeps the object rather than nullifying it on the lone column.
 				expect(res).toStrictEqual([
 					{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
-					{ name: 'Jane', c: null },
+					{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
 				]);
 			}));
 

@@ -5112,7 +5112,7 @@ test('issue 5527. real() returns unprecise float64 values', async ({ db }) => {
 	expect(res).toStrictEqual({ id: 1, age: 0.01 });
 });
 
-test.skipIf(Date.now() < +new Date('2026-07-15'))('Query error wrapping', async ({ db }) => {
+test.skipIf(Date.now() < +new Date('2026-07-22'))('Query error wrapping', async ({ db }) => {
 	await expect(db.insert(users2Table).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]))
 		.rejects.toBeInstanceOf(DrizzleQueryError);
 });

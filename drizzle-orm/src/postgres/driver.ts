@@ -6,7 +6,7 @@ import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
-import { miniPgCodecs } from './codecs.ts';
+import { minipgShapeCodecs } from './codecs.ts';
 import type { PostgresClient, PostgresQueryResultHKT } from './session.ts';
 import { PostgresSession } from './session.ts';
 import { buildShape } from './shape.ts';
@@ -26,10 +26,15 @@ function construct<
 ): PostgresDatabase<TRelations> & {
 	$client: PostgresClient extends TClient ? Pool : TClient;
 } {
+	// Provided overridable codec set assumes string temporals, force in config
+	if (config.codecs && (<any> client)?.cfg?.temporal) (<any> client).cfg.temporal = 'string';
+
 	const dialect = new PgDialect({
-		codecs: config.codecs ?? miniPgCodecs,
+		codecs: config.codecs ?? minipgShapeCodecs,
 		useJitMappers: jitCompatCheck(config.jit),
-		shapeGenerator: buildShape,
+		// Shape generator is statically linked to own set of codecs
+		// Overriden codecs are impossible to determine shape for
+		shapeGenerator: config.codecs ? undefined : buildShape,
 	});
 	let logger;
 	if (config.logger === true) {
@@ -100,15 +105,9 @@ export function drizzle<
 
 	if (client) return construct(client, config);
 
-	// `temporal` is drizzle's to decide: a column's `mode` already says whether it wants a `Date` or the raw
-	// text, and text is the lossless form (µs, BC eras, `infinity`). Pinning it here - and pinning `:string` in
-	// the shape - is what lets the temporal codecs drop their `typeof value === 'string'` guard.
 	const instance = typeof connection === 'string'
-		? createPool({
-			url: connection,
-			temporal: 'string',
-		})
-		: createPool({ ...connection!, temporal: 'string' });
+		? createPool({ url: connection })
+		: createPool({ ...connection! });
 
 	return construct(instance, config) as any;
 }

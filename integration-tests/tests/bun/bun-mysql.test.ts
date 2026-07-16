@@ -10201,7 +10201,7 @@ test('Nullify all-null group from from nullable join', async () => {
 	await db.execute(sql`DROP TABLE nullify4_cities`);
 });
 
-test('Disregard added SQL field during join nullification', async () => {
+test("Don't disregard added SQL field during join nullification", async () => {
 	const cities = mysqlTable('nullify5_cities', (t) => ({
 		id: t.serial('id').primaryKey(),
 		name: t.text('name').notNull(),
@@ -10229,7 +10229,7 @@ test('Disregard added SQL field during join nullification', async () => {
 
 	expect(res).toEqual([
 		{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
-		{ name: 'Jane', c: null },
+		{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
 	]);
 
 	await db.execute(sql`DROP TABLE nullify5_users`);
@@ -10397,7 +10397,7 @@ test('Nullify all-null group from from nullable join - jit', async () => {
 	await db.execute(sql`DROP TABLE nullify4_cities_jit`);
 });
 
-test('Disregard added SQL field during join nullification - jit', async () => {
+test("Don't disregard added SQL field during join nullification - jit", async () => {
 	const cities = mysqlTable('nullify5_cities_jit', (t) => ({
 		id: t.serial('id').primaryKey(),
 		name: t.text('name').notNull(),
@@ -10427,7 +10427,7 @@ test('Disregard added SQL field during join nullification - jit', async () => {
 
 	expect(res).toEqual([
 		{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
-		{ name: 'Jane', c: null },
+		{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
 	]);
 
 	await db.execute(sql`DROP TABLE nullify5_users_jit`);

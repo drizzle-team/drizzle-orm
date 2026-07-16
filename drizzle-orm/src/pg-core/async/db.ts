@@ -50,7 +50,7 @@ export class PgAsyncDatabase<
 		/** @internal */
 		readonly dialect: PgDialect,
 		/** @internal */
-		readonly session: PgAsyncSession<any, any>,
+		readonly session: PgAsyncSession<TQueryResult, TRelations>,
 		relations: TRelations,
 		parseRqbJson: boolean = false,
 		readonly tagged: boolean = false,

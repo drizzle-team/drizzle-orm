@@ -109,9 +109,7 @@ export class PgAsyncSelectBase<
 			const shape = dialect.shapeGenerator?.(
 				{ type: 'plain', fields: fieldsList },
 				joinsNotNullableMap,
-				dialect.codecs,
 			);
-			if (shape) this.withoutSelectionCastCodecs();
 
 			const query = config.tagged ? dialect._sqlToQuery(this.getSQL()) : dialect.sqlToQuery(this.getSQL());
 			const mapper = shape ? undefined : dialect.mapperGenerators.rows(fieldsList, joinsNotNullableMap);

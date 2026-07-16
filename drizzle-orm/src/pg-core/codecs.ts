@@ -1011,11 +1011,16 @@ export const arrayCompatNormalizeInput = (normalize: NormalizeCodec, transformTo
 	return transformToPgArray ? (v: any, d: number) => makePgArray(loop(v, d)) : loop;
 };
 
-/** Parses a raw PG array text representation, then applies a per-item normalizer */
-export const parsePgArrayAndNormalize = (normalize: NormalizeCodec): NormalizeArrayCodec => {
+export const parsePgArrayAndNormalize = (normalize: NormalizeCodec, delim?: string): NormalizeArrayCodec => {
 	const codec = arrayCompatNormalize(normalize);
-	return (value, arrayDimensions) => codec(parsePgArray(value), arrayDimensions);
+	return (value, arrayDimensions) => codec(parsePgArray(value, delim), arrayDimensions);
 };
+
+export const parseGeometryArrayAndNormalize = (normalize: NormalizeCodec): NormalizeArrayCodec =>
+	parsePgArrayAndNormalize(normalize, ':');
+export const makeGeometryArray: NormalizeArrayCodec = (value) => makePgArray(value, ':');
+
+export const makeBoxArray: NormalizeArrayCodec = (value) => makePgArray(value, ';');
 
 export const parseLineTuple = (v: string): [number, number, number] => {
 	const [a, b, c] = v.slice(1, -1).split(',');

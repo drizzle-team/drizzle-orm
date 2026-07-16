@@ -23,6 +23,10 @@ export class ColumnTableAliasProxyHandler<TColumn extends Column> implements Pro
 			return false;
 		}
 
+		if (prop === OriginalColumn && !this.ignoreColumnAlias) {
+			return () => columnObj;
+		}
+
 		return columnObj[prop as keyof TColumn];
 	}
 }

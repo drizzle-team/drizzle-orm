@@ -97,6 +97,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { PgAsyncDatabase } from 'drizzle-orm/pg-core/async/db';
 import { PgQueryResultHKT } from 'drizzle-orm/pg-core/session';
+import { allTypesData, makeAllTypes } from '~/pg/all-types';
 import { clear, init, rqbPost, rqbUser } from '~/pg/schema';
 import { normalizeDataWithDbCodecs } from '~/pg/utils';
 import { Expect } from '~/utils';
@@ -218,142 +219,7 @@ const jsonTestTable = pgTable('jsontest', {
 
 const en = pgEnum('en', ['enVal1', 'enVal2']);
 
-const allTypesTable = pgTable('all_types', {
-	serial: serial('serial'),
-	bigserial53: bigserial('bigserial53', {
-		mode: 'number',
-	}),
-	bigserial64: bigserial('bigserial64', {
-		mode: 'bigint',
-	}),
-	int: integer('int'),
-	bigint53: bigint('bigint53', {
-		mode: 'number',
-	}),
-	bigint64: bigint('bigint64', {
-		mode: 'bigint',
-	}),
-	bool: boolean('bool'),
-	char: char('char'),
-	cidr: cidr('cidr'),
-	date: date('date', {
-		mode: 'date',
-	}),
-	dateStr: date('date_str', {
-		mode: 'string',
-	}),
-	double: doublePrecision('double'),
-	enum: en('enum'),
-	inet: inet('inet'),
-	interval: interval('interval'),
-	json: json('json'),
-	jsonb: jsonb('jsonb'),
-	line: line('line', {
-		mode: 'abc',
-	}),
-	lineTuple: line('line_tuple', {
-		mode: 'tuple',
-	}),
-	macaddr: macaddr('macaddr'),
-	macaddr8: macaddr8('macaddr8'),
-	numeric: numeric('numeric'),
-	numericNum: numeric('numeric_num', {
-		mode: 'number',
-	}),
-	numericBig: numeric('numeric_big', {
-		mode: 'bigint',
-	}),
-	point: point('point', {
-		mode: 'xy',
-	}),
-	pointTuple: point('point_tuple', {
-		mode: 'tuple',
-	}),
-	real: real('real'),
-	smallint: smallint('smallint'),
-	smallserial: smallserial('smallserial'),
-	text: text('text'),
-	time: time('time'),
-	timestamp: timestamp('timestamp', {
-		mode: 'date',
-	}),
-	timestampTz: timestamp('timestamp_tz', {
-		mode: 'date',
-		withTimezone: true,
-	}),
-	timestampStr: timestamp('timestamp_str', {
-		mode: 'string',
-	}),
-	timestampTzStr: timestamp('timestamp_tz_str', {
-		mode: 'string',
-		withTimezone: true,
-	}),
-	uuid: uuid('uuid'),
-	varchar: varchar('varchar'),
-	arrint: integer('arrint').array(),
-	arrbigint53: bigint('arrbigint53', {
-		mode: 'number',
-	}).array(),
-	arrbigint64: bigint('arrbigint64', {
-		mode: 'bigint',
-	}).array(),
-	arrbool: boolean('arrbool').array(),
-	arrchar: char('arrchar').array(),
-	arrcidr: cidr('arrcidr').array(),
-	arrdate: date('arrdate', {
-		mode: 'date',
-	}).array(),
-	arrdateStr: date('arrdate_str', {
-		mode: 'string',
-	}).array(),
-	arrdouble: doublePrecision('arrdouble').array(),
-	arrenum: en('arrenum').array(),
-	arrinet: inet('arrinet').array(),
-	arrinterval: interval('arrinterval').array(),
-	arrjson: json('arrjson').array(),
-	arrjsonb: jsonb('arrjsonb').array(),
-	arrline: line('arrline', {
-		mode: 'abc',
-	}).array(),
-	arrlineTuple: line('arrline_tuple', {
-		mode: 'tuple',
-	}).array(),
-	arrmacaddr: macaddr('arrmacaddr').array(),
-	arrmacaddr8: macaddr8('arrmacaddr8').array(),
-	arrnumeric: numeric('arrnumeric').array(),
-	arrnumericNum: numeric('arrnumeric_num', {
-		mode: 'number',
-	}).array(),
-	arrnumericBig: numeric('arrnumeric_big', {
-		mode: 'bigint',
-	}).array(),
-	arrpoint: point('arrpoint', {
-		mode: 'xy',
-	}).array(),
-	arrpointTuple: point('arrpoint_tuple', {
-		mode: 'tuple',
-	}).array(),
-	arrreal: real('arrreal').array(),
-	arrsmallint: smallint('arrsmallint').array(),
-	arrtext: text('arrtext').array(),
-	arrtime: time('arrtime').array(),
-	arrtimestamp: timestamp('arrtimestamp', {
-		mode: 'date',
-	}).array(),
-	arrtimestampTz: timestamp('arrtimestamp_tz', {
-		mode: 'date',
-		withTimezone: true,
-	}).array(),
-	arrtimestampStr: timestamp('arrtimestamp_str', {
-		mode: 'string',
-	}).array(),
-	arrtimestampTzStr: timestamp('arrtimestamp_tz_str', {
-		mode: 'string',
-		withTimezone: true,
-	}).array(),
-	arruuid: uuid('arruuid').array(),
-	arrvarchar: varchar('arrvarchar').array(),
-});
+const { allTypesTable } = makeAllTypes('all_types', 'en');
 
 let db: BunSQLDatabase<typeof relations>;
 
@@ -6024,344 +5890,110 @@ test('RQB v2 transaction find many - placeholders', async () => {
 });
 
 test('all types', async () => {
-	await db.execute(sql`CREATE TYPE "public"."en" AS ENUM('enVal1', 'enVal2');`);
+	// Same fixture and data as the other suites' `all types` (see ~/pg/all-types.ts). The DDL is the schema
+	// drizzle-kit emits for that table - this suite has no push fixture to build it from the definition.
+	await db.execute(sql`CREATE TYPE "en" AS ENUM('enVal1', 'enVal2');`);
 	await db.execute(sql`
-				CREATE TABLE "all_types" (
-					"serial" serial NOT NULL,
-					"bigserial53" bigserial NOT NULL,
-					"bigserial64" bigserial,
-					"int" integer,
-					"bigint53" bigint,
-					"bigint64" bigint,
-					"bool" boolean,
-					"char" char,
-					"cidr" "cidr",
-					"date" date,
-					"date_str" date,
-					"double" double precision,
-					"enum" "en",
-					"inet" "inet",
-					"interval" interval,
-					"json" json,
-					"jsonb" jsonb,
-					"line" "line",
-					"line_tuple" "line",
-					"macaddr" "macaddr",
-					"macaddr8" "macaddr8",
-					"numeric" numeric,
-					"numeric_num" numeric,
-					"numeric_big" numeric,
-					"point" "point",
-					"point_tuple" "point",
-					"real" real,
-					"smallint" smallint,
-					"smallserial" "smallserial" NOT NULL,
-					"text" text,
-					"time" time,
-					"timestamp" timestamp,
-					"timestamp_tz" timestamp with time zone,
-					"timestamp_str" timestamp,
-					"timestamp_tz_str" timestamp with time zone,
-					"uuid" uuid,
-					"varchar" varchar,
-					"arrint" integer[],
-					"arrbigint53" bigint[],
-					"arrbigint64" bigint[],
-					"arrbool" boolean[],
-					"arrchar" char[],
-					"arrcidr" "cidr"[],
-					"arrdate" date[],
-					"arrdate_str" date[],
-					"arrdouble" double precision[],
-					"arrenum" "en"[],
-					"arrinet" "inet"[],
-					"arrinterval" interval[],
-					"arrjson" json[],
-					"arrjsonb" jsonb[],
-					"arrline" "line"[],
-					"arrline_tuple" "line"[],
-					"arrmacaddr" "macaddr"[],
-					"arrmacaddr8" "macaddr8"[],
-					"arrnumeric" numeric[],
-					"arrnumeric_num" numeric[],
-					"arrnumeric_big" numeric[],
-					"arrpoint" "point"[],
-					"arrpoint_tuple" "point"[],
-					"arrreal" real[],
-					"arrsmallint" smallint[],
-					"arrtext" text[],
-					"arrtime" time[],
-					"arrtimestamp" timestamp[],
-					"arrtimestamp_tz" timestamp with time zone[],
-					"arrtimestamp_str" timestamp[],
-					"arrtimestamp_tz_str" timestamp with time zone[],
-					"arruuid" uuid[],
-					"arrvarchar" varchar[]
-				);
-			`);
+		CREATE TABLE "all_types" (
+			"serial" serial,
+			"bigserial" bigserial,
+			"bigserialnum" bigserial,
+			"int" integer NOT NULL,
+			"bigint" bigint NOT NULL,
+			"bigintnum" bigint NOT NULL,
+			"bigintstr" bigint NOT NULL,
+			"bool" boolean NOT NULL,
+			"bytea" bytea NOT NULL,
+			"char" char NOT NULL,
+			"cidr" cidr NOT NULL,
+			"date" date NOT NULL,
+			"datestr" date NOT NULL,
+			"double" double precision NOT NULL,
+			"enum" "en" NOT NULL,
+			"inet" inet NOT NULL,
+			"interval" interval NOT NULL,
+			"json" json NOT NULL,
+			"jsonb" jsonb NOT NULL,
+			"json1" json NOT NULL,
+			"json2" json,
+			"jsonb1" jsonb NOT NULL,
+			"jsonb2" jsonb,
+			"json3" json NOT NULL,
+			"jsonb3" jsonb NOT NULL,
+			"line" line NOT NULL,
+			"linetuple" line NOT NULL,
+			"macaddr" macaddr NOT NULL,
+			"macaddr8" macaddr8 NOT NULL,
+			"numeric" numeric NOT NULL,
+			"numericnum" numeric NOT NULL,
+			"numericbig" numeric NOT NULL,
+			"point" point NOT NULL,
+			"pointtuple" point NOT NULL,
+			"real" real NOT NULL,
+			"smallint" smallint NOT NULL,
+			"smallserial" smallserial,
+			"text" text NOT NULL,
+			"time" time NOT NULL,
+			"timestamp" timestamp NOT NULL,
+			"timestampTz" timestamp with time zone NOT NULL,
+			"timestampstr" timestamp NOT NULL,
+			"timestampTzstr" timestamp with time zone NOT NULL,
+			"uuid" uuid NOT NULL,
+			"varchar" varchar NOT NULL,
+			"arrint" integer[] NOT NULL,
+			"arrbigint" bigint[] NOT NULL,
+			"arrbigintnum" bigint[] NOT NULL,
+			"arrbigintstr" bigint[] NOT NULL,
+			"arrbool" boolean[] NOT NULL,
+			"arrbytea" bytea[] NOT NULL,
+			"mtxbytea" bytea[][] NOT NULL,
+			"arrchar" char[] NOT NULL,
+			"arrcidr" cidr[] NOT NULL,
+			"arrdate" date[] NOT NULL,
+			"arrdatestr" date[] NOT NULL,
+			"arrdouble" double precision[] NOT NULL,
+			"arrenum" "en"[] NOT NULL,
+			"arrinet" inet[] NOT NULL,
+			"arrinterval" interval[] NOT NULL,
+			"arrjson" json[] NOT NULL,
+			"arrjsonb" jsonb[] NOT NULL,
+			"arrjson1" json[] NOT NULL,
+			"arrjsonb1" jsonb[] NOT NULL,
+			"arrjson2" json[] NOT NULL,
+			"arrjsonb2" jsonb[] NOT NULL,
+			"arrjson3" json[] NOT NULL,
+			"arrjsonb3" jsonb[] NOT NULL,
+			"arrline" line[] NOT NULL,
+			"arrlinetuple" line[] NOT NULL,
+			"arrmacaddr" macaddr[] NOT NULL,
+			"arrmacaddr8" macaddr8[] NOT NULL,
+			"arrnumeric" numeric[] NOT NULL,
+			"arrnumericnum" numeric[] NOT NULL,
+			"arrnumericbig" numeric[] NOT NULL,
+			"arrpoint" point[] NOT NULL,
+			"arrpointtuple" point[] NOT NULL,
+			"arrreal" real[] NOT NULL,
+			"arrsmallint" smallint[] NOT NULL,
+			"arrtext" text[] NOT NULL,
+			"arrtime" time[] NOT NULL,
+			"arrtimestamp" timestamp[] NOT NULL,
+			"arrtimestampTz" timestamp with time zone[] NOT NULL,
+			"arrtimestampstr" timestamp[] NOT NULL,
+			"arrtimestampTzstr" timestamp with time zone[] NOT NULL,
+			"arruuid" uuid[] NOT NULL,
+			"arrvarchar" varchar[] NOT NULL
+		);
+	`);
 
-	await db.insert(allTypesTable).values({
-		serial: 1,
-		smallserial: 15,
-		bigint53: 9007199254740991,
-		bigint64: 5044565289845416380n,
-		bigserial53: 9007199254740991,
-		bigserial64: 5044565289845416380n,
-		bool: true,
-		char: 'c',
-		cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
-		inet: '192.168.0.1/24',
-		macaddr: '08:00:2b:01:02:03',
-		macaddr8: '08:00:2b:01:02:03:04:05',
-		date: new Date(1741743161623),
-		dateStr: new Date(1741743161623).toISOString(),
-		double: 15.35325689124218,
-		enum: 'enVal1',
-		int: 621,
-		interval: '2 months ago',
-		json: {
-			str: 'strval',
-			arr: ['str', 10],
-		},
-		jsonb: {
-			str: 'strvalb',
-			arr: ['strb', 11],
-		},
-		line: {
-			a: 1,
-			b: 2,
-			c: 3,
-		},
-		lineTuple: [1, 2, 3],
-		numeric: '475452353476',
-		numericNum: 9007199254740991,
-		numericBig: 5044565289845416380n,
-		point: {
-			x: 24.5,
-			y: 49.6,
-		},
-		pointTuple: [57.2, 94.3],
-		real: 1.048596,
-		smallint: 10,
-		text: 'TEXT STRING',
-		time: '13:59:28',
-		timestamp: new Date(1741743161623),
-		timestampTz: new Date(1741743161623),
-		timestampStr: new Date(1741743161623).toISOString(),
-		timestampTzStr: new Date(1741743161623).toISOString(),
-		uuid: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
-		varchar: 'C4-',
-		arrbigint53: [9007199254740991],
-		arrbigint64: [5044565289845416380n],
-		arrbool: [true],
-		arrchar: ['c'],
-		arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
-		arrinet: ['192.168.0.1/24'],
-		arrmacaddr: ['08:00:2b:01:02:03'],
-		arrmacaddr8: ['08:00:2b:01:02:03:04:05'],
-		arrdate: [new Date(1741743161623)],
-		arrdateStr: [new Date(1741743161623).toISOString()],
-		arrdouble: [15.35325689124218],
-		arrenum: ['enVal1'],
-		arrint: [621],
-		arrinterval: ['2 months ago'],
-		arrjson: [{
-			str: 'strval',
-			arr: ['str', 10],
-		}],
-		arrjsonb: [{
-			str: 'strvalb',
-			arr: ['strb', 11],
-		}],
-		arrline: [{
-			a: 1,
-			b: 2,
-			c: 3,
-		}],
-		arrlineTuple: [[1, 2, 3]],
-		arrnumeric: ['475452353476'],
-		arrnumericNum: [9007199254740991],
-		arrnumericBig: [5044565289845416380n],
-		arrpoint: [{
-			x: 24.5,
-			y: 49.6,
-		}],
-		arrpointTuple: [[57.2, 94.3]],
-		arrreal: [1.048596],
-		arrsmallint: [10],
-		arrtext: ['TEXT STRING'],
-		arrtime: ['13:59:28'],
-		arrtimestamp: [new Date(1741743161623)],
-		arrtimestampTz: [new Date(1741743161623)],
-		arrtimestampStr: [new Date(1741743161623).toISOString()],
-		arrtimestampTzStr: [new Date(1741743161623).toISOString()],
-		arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
-		arrvarchar: ['C4-'],
-	});
+	// Driver can't handle numbers in json fields
+	const { json2: _json2, jsonb2: _jsonb2, ...bunAllTypesData } = allTypesData;
+	const { json2: _c1, jsonb2: _c2, ...bunAllTypesColumns } = getTableColumns(allTypesTable);
 
-	const rawRes = await db.select().from(allTypesTable);
+	await db.insert(allTypesTable).values(bunAllTypesData as typeof allTypesData);
 
-	type ExpectedType = {
-		serial: number;
-		bigserial53: number;
-		bigserial64: bigint;
-		int: number | null;
-		bigint53: number | null;
-		bigint64: bigint | null;
-		bool: boolean | null;
-		char: string | null;
-		cidr: string | null;
-		date: Date | null;
-		dateStr: string | null;
-		double: number | null;
-		enum: 'enVal1' | 'enVal2' | null;
-		inet: string | null;
-		interval: string | null;
-		json: unknown;
-		jsonb: unknown;
-		line: {
-			a: number;
-			b: number;
-			c: number;
-		} | null;
-		lineTuple: [number, number, number] | null;
-		macaddr: string | null;
-		macaddr8: string | null;
-		numeric: string | null;
-		numericNum: number | null;
-		numericBig: bigint | null;
-		point: {
-			x: number;
-			y: number;
-		} | null;
-		pointTuple: [number, number] | null;
-		real: number | null;
-		smallint: number | null;
-		smallserial: number;
-		text: string | null;
-		time: string | null;
-		timestamp: Date | null;
-		timestampTz: Date | null;
-		timestampStr: string | null;
-		timestampTzStr: string | null;
-		uuid: string | null;
-		varchar: string | null;
-		arrint: number[] | null;
-		arrbigint53: number[] | null;
-		arrbigint64: bigint[] | null;
-		arrbool: boolean[] | null;
-		arrchar: string[] | null;
-		arrcidr: string[] | null;
-		arrdate: Date[] | null;
-		arrdateStr: string[] | null;
-		arrdouble: number[] | null;
-		arrenum: ('enVal1' | 'enVal2')[] | null;
-		arrinet: string[] | null;
-		arrinterval: string[] | null;
-		arrjson: unknown[] | null;
-		arrjsonb: unknown[] | null;
-		arrline: {
-			a: number;
-			b: number;
-			c: number;
-		}[] | null;
-		arrlineTuple: [number, number, number][] | null;
-		arrmacaddr: string[] | null;
-		arrmacaddr8: string[] | null;
-		arrnumeric: string[] | null;
-		arrnumericNum: number[] | null;
-		arrnumericBig: bigint[] | null;
-		arrpoint: { x: number; y: number }[] | null;
-		arrpointTuple: [number, number][] | null;
-		arrreal: number[] | null;
-		arrsmallint: number[] | null;
-		arrtext: string[] | null;
-		arrtime: string[] | null;
-		arrtimestamp: Date[] | null;
-		arrtimestampTz: Date[] | null;
-		arrtimestampStr: string[] | null;
-		arrtimestampTzStr: string[] | null;
-		arruuid: string[] | null;
-		arrvarchar: string[] | null;
-	}[];
+	const rawRes = await db.select(bunAllTypesColumns).from(allTypesTable);
 
-	const expectedRes: ExpectedType = [
-		{
-			serial: 1,
-			bigserial53: 9007199254740991,
-			bigserial64: 5044565289845416380n,
-			int: 621,
-			bigint53: 9007199254740991,
-			bigint64: 5044565289845416380n,
-			bool: true,
-			char: 'c',
-			cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
-			date: new Date('2025-03-12T00:00:00.000Z'),
-			dateStr: '2025-03-12',
-			double: 15.35325689124218,
-			enum: 'enVal1',
-			inet: '192.168.0.1/24',
-			interval: '-2 mons',
-			json: { str: 'strval', arr: ['str', 10] },
-			jsonb: { arr: ['strb', 11], str: 'strvalb' },
-			line: { a: 1, b: 2, c: 3 },
-			lineTuple: [1, 2, 3],
-			macaddr: '08:00:2b:01:02:03',
-			macaddr8: '08:00:2b:01:02:03:04:05',
-			numeric: '475452353476',
-			numericNum: 9007199254740991,
-			numericBig: 5044565289845416380n,
-			point: { x: 24.5, y: 49.6 },
-			pointTuple: [57.2, 94.3],
-			real: 1.048596,
-			smallint: 10,
-			smallserial: 15,
-			text: 'TEXT STRING',
-			time: '13:59:28',
-			timestamp: new Date('2025-03-12T01:32:41.623Z'),
-			timestampTz: new Date('2025-03-12T01:32:41.623Z'),
-			timestampStr: '2025-03-12 01:32:41.623',
-			timestampTzStr: '2025-03-12 01:32:41.623+00',
-			uuid: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
-			varchar: 'C4-',
-			arrint: [621],
-			arrbigint53: [9007199254740991],
-			arrbigint64: [5044565289845416380n],
-			arrbool: [true],
-			arrchar: ['c'],
-			arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
-			arrdate: [new Date('2025-03-12T00:00:00.000Z')],
-			arrdateStr: ['2025-03-12'],
-			arrdouble: [15.35325689124218],
-			arrenum: ['enVal1'],
-			arrinet: ['192.168.0.1/24'],
-			arrinterval: ['-2 mons'],
-			arrjson: [{ str: 'strval', arr: ['str', 10] }],
-			arrjsonb: [{ arr: ['strb', 11], str: 'strvalb' }],
-			arrline: [{ a: 1, b: 2, c: 3 }],
-			arrlineTuple: [[1, 2, 3]],
-			arrmacaddr: ['08:00:2b:01:02:03'],
-			arrmacaddr8: ['08:00:2b:01:02:03:04:05'],
-			arrnumeric: ['475452353476'],
-			arrnumericNum: [9007199254740991],
-			arrnumericBig: [5044565289845416380n],
-			arrpoint: [{ x: 24.5, y: 49.6 }],
-			arrpointTuple: [[57.2, 94.3]],
-			arrreal: [1.048596],
-			arrsmallint: [10],
-			arrtext: ['TEXT STRING'],
-			arrtime: ['13:59:28'],
-			arrtimestamp: [new Date('2025-03-12T01:32:41.623Z')],
-			arrtimestampTz: [new Date('2025-03-12T01:32:41.623Z')],
-			arrtimestampStr: ['2025-03-12 01:32:41.623'],
-			arrtimestampTzStr: ['2025-03-12 01:32:41.623+00'],
-			arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
-			arrvarchar: ['C4-'],
-		},
-	];
-
-	Expect<Equal<typeof rawRes, ExpectedType>>;
-	expect(rawRes).toStrictEqual(expectedRes);
+	expect(rawRes).toStrictEqual([bunAllTypesData]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5287
@@ -8230,7 +7862,7 @@ test('Nullify all-null group from from nullable join', async () => {
 	await db.execute(sql`DROP TABLE nullify4_cities`);
 });
 
-test('Disregard added SQL field during join nullification', async () => {
+test("Don't disregard added SQL field during join nullification", async () => {
 	const cities = pgTable('nullify5_cities', (t) => ({
 		id: t.serial('id').primaryKey(),
 		name: t.text('name').notNull(),
@@ -8258,7 +7890,7 @@ test('Disregard added SQL field during join nullification', async () => {
 
 	expect(res).toEqual([
 		{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
-		{ name: 'Jane', c: null },
+		{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
 	]);
 
 	await db.execute(sql`DROP TABLE nullify5_users`);
@@ -8425,7 +8057,7 @@ test('Nullify all-null group from from nullable join - jit', async () => {
 	await db.execute(sql`DROP TABLE nullify4_cities_jit`);
 });
 
-test('Disregard added SQL field during join nullification - jit', async () => {
+test("Don't disregard added SQL field during join nullification - jit", async () => {
 	const cities = pgTable('nullify5_cities_jit', (t) => ({
 		id: t.serial('id').primaryKey(),
 		name: t.text('name').notNull(),
@@ -8455,7 +8087,7 @@ test('Disregard added SQL field during join nullification - jit', async () => {
 
 	expect(res).toEqual([
 		{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
-		{ name: 'Jane', c: null },
+		{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
 	]);
 
 	await db.execute(sql`DROP TABLE nullify5_users_jit`);

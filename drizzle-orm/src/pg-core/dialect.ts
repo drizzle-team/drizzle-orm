@@ -58,17 +58,10 @@ export type PreparedQuerySelection = {
 	fields: BuildRelationalQueryResult['selection'];
 };
 
-/**
- * Builds a driver-side row shape from a query's selection, replacing drizzle's own row mapper. Returning
- * `undefined` means the selection is not expressible as a shape and the mapper stays in charge.
- *
- * A generated shape suppresses the selection's `cast` codecs, so the shape must declare each column's own type.
- * `joinsNotNullableMap` is absent where drizzle never nullifies a joined object (an insert/delete `returning()`).
- */
+/** Selection shape converter for driver-side mapping, provided per driver where supported */
 export type ShapeGenerator = (
 	selection: PreparedQuerySelection,
 	joinsNotNullableMap: Record<string, boolean> | undefined,
-	codecs: CodecsCollection<PostgresType>,
 ) => any;
 
 export interface PgDialectConfig {

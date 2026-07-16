@@ -1,4 +1,4 @@
-import { defineRelations, sql } from 'drizzle-orm';
+import { defineRelations, eq, sql } from 'drizzle-orm';
 import { bigserial, customType, geometry, integer, line, pgTable, point } from 'drizzle-orm/pg-core';
 import type { PostgresDatabase } from 'drizzle-orm/postgres';
 import { drizzle } from 'drizzle-orm/postgres';
@@ -143,6 +143,82 @@ test('point arrays are parsed item by item', async () => {
 	}]);
 
 	await db.execute(sql`drop table point_arrays cascade`);
+});
+
+test('a custom column over a geometry codec decodes on top of the parsed geometry', async () => {
+	await db.execute(sql`drop table if exists custom_geo cascade`);
+	await db.execute(sql`
+		CREATE TABLE custom_geo (
+			id integer PRIMARY KEY,
+			"xy" geometry(point),
+			"tup" geometry(point),
+			"xys" geometry(point)[]
+		);
+	`);
+
+	const labelled = customType<{ data: string; driverData: { x: number; y: number } }>({
+		dataType: () => 'geometry(point)',
+		codec: 'geometry(point)',
+		toDriver: (value) => sql`ST_GeomFromText(${`POINT(${value})`})`,
+		fromDriver: (value) => `${value.x}/${value.y}`,
+	});
+
+	const labelledTuple = customType<{ data: string; driverData: [number, number] }>({
+		dataType: () => 'geometry(point)',
+		codec: 'geometry(point):tuple',
+		toDriver: (value) => sql`ST_GeomFromText(${`POINT(${value})`})`,
+		fromDriver: ([x, y]) => `${x}/${y}`,
+	});
+
+	const customGeo = pgTable('custom_geo', {
+		id: integer('id').primaryKey(),
+		xy: labelled('xy'),
+		tup: labelledTuple('tup'),
+		xys: labelled('xys').array(),
+	});
+
+	await db.execute(sql`
+		INSERT INTO custom_geo (id, xy, tup, xys) VALUES (
+			1,
+			ST_GeomFromText('POINT(1 2)'),
+			ST_GeomFromText('POINT(3 4)'),
+			ARRAY[ST_GeomFromText('POINT(5 6)'), ST_GeomFromText('POINT(7 8)')]
+		)
+	`);
+
+	const response = await db.select().from(customGeo);
+	expect(response).toStrictEqual([{ id: 1, xy: '1/2', tup: '3/4', xys: ['5/6', '7/8'] }]);
+
+	await db.execute(sql`INSERT INTO custom_geo (id) VALUES (2)`);
+	const withNulls = await db.select().from(customGeo).where(eq(customGeo.id, 2));
+	expect(withNulls).toStrictEqual([{ id: 2, xy: null, tup: null, xys: null }]);
+
+	await db.execute(sql`drop table custom_geo cascade`);
+});
+
+test('geometry arrays are parsed item by item', async () => {
+	await db.execute(sql`drop table if exists geo_arrays cascade`);
+	await db.execute(sql`
+		CREATE TABLE geo_arrays (
+			id integer PRIMARY KEY,
+			"geos" geometry(point)[]
+		);
+	`);
+
+	const geoArrays = pgTable('geo_arrays', {
+		id: integer('id').primaryKey(),
+		geos: geometry('geos', { type: 'point', mode: 'xy' }).array(),
+	});
+
+	await db.insert(geoArrays).values({
+		id: 1,
+		geos: [{ x: 5, y: 6 }, { x: 7, y: 8 }],
+	});
+
+	const response = await db.select().from(geoArrays);
+	expect(response).toStrictEqual([{ id: 1, geos: [{ x: 5, y: 6 }, { x: 7, y: 8 }] }]);
+
+	await db.execute(sql`drop table geo_arrays cascade`);
 });
 
 test('RQBv2', async () => {
