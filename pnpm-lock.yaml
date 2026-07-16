@@ -7112,7 +7112,7 @@ packages:
     engines: {node: '>=16 || 14 >=14.17'}
 
   minipg@file:vendor/minipg-0.1.0.tgz:
-    resolution: {integrity: sha512-jp2TU/L1qx7GH835NZ7YN+fs6MORUkWhFuAHZiVBtmWdUnc2dysiLDTxBlCsac6iIavVu6Q0raYNfwCoB4pHlw==, tarball: file:vendor/minipg-0.1.0.tgz}
+    resolution: {integrity: sha512-TzZobYSqWVO//lEkHOEEAMT0Q+MkdPEs0e8n8D+buG/FOpqq6JTnPeBPJv+lC/q6xMYgbTvqwHTQuNl8c83vrg==, tarball: file:vendor/minipg-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=18'}
     peerDependencies:
