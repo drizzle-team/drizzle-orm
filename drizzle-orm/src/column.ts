@@ -126,6 +126,14 @@ export abstract class Column<
 	}
 }
 
+export interface Column<
+	T extends ColumnBaseConfig<ColumnDataType, string>,
+	TRuntimeConfig extends object,
+	TTypeConfig extends object,
+> {
+	as(alias: string): SQL.Aliased<GetColumnData<this>>;
+}
+
 export type UpdateColConfig<
 	T extends ColumnBaseConfig<ColumnDataType, string>,
 	TUpdate extends Partial<ColumnBaseConfig<ColumnDataType, string>>,
