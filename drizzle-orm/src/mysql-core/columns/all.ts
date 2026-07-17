@@ -12,6 +12,7 @@ import { float } from './float.ts';
 import { int } from './int.ts';
 import { json } from './json.ts';
 import { mediumint } from './mediumint.ts';
+import { point } from './point.ts';
 import { real } from './real.ts';
 import { serial } from './serial.ts';
 import { smallint } from './smallint.ts';
@@ -52,6 +53,7 @@ export function getMySqlColumnBuilders() {
 		longtext,
 		mediumtext,
 		tinytext,
+		point,
 	};
 }
 
