@@ -161,7 +161,7 @@ export const SingleStoreSquasher = {
 		return { name: splitted[0], columns: splitted[1].split(',') };
 	},
 	squashUnique: (unq: UniqueConstraint) => {
-		return `${unq.name};${unq.columns.join(',')}`;
+		return `${unq.name};${unq.columns.sort().join(',')}`;
 	},
 	unsquashUnique: (unq: string): UniqueConstraint => {
 		const [name, columns] = unq.split(';');
