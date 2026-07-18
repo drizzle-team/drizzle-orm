@@ -55,6 +55,7 @@ import type {
 	SingleStoreYear,
 } from 'drizzle-orm/singlestore-core';
 import type { SQLiteInteger, SQLiteReal, SQLiteText } from 'drizzle-orm/sqlite-core';
+import type { DateDuration, Duration, LocalDate, LocalDateTime, LocalTime, RelativeDuration } from 'gel';
 import { CONSTANTS } from './constants.ts';
 import { isColumnType, isWithEnum } from './utils.ts';
 import type { BufferSchema, JsonSchema } from './utils.ts';
@@ -63,6 +64,26 @@ export const literalSchema = t.Union([t.String(), t.Number(), t.Boolean(), t.Nul
 export const jsonSchema: JsonSchema = t.Union([literalSchema, t.Array(t.Any()), t.Record(t.String(), t.Any())]) as any;
 TypeRegistry.Set('Buffer', (_, value) => value instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
 export const bufferSchema: BufferSchema = { [Kind]: 'Buffer', type: 'buffer' } as any;
+
+// Gel driver classes are optional -- checked by constructor name rather than `instanceof` so drizzle-typebox
+// doesn't require the `gel` package to be installed just to type-check or run for non-Gel users.
+const gelClassNames = [
+	'DateDuration',
+	'Duration',
+	'RelativeDuration',
+	'LocalDate',
+	'LocalTime',
+	'LocalDateTime',
+] as const;
+for (const className of gelClassNames) {
+	TypeRegistry.Set(
+		`Gel${className}`,
+		(_, value) => value != null && typeof value === 'object' && (value as any).constructor?.name === className,
+	);
+}
+function gelInstanceSchema<T>(className: typeof gelClassNames[number]): TSchema {
+	return { [Kind]: `Gel${className}`, type: `gel-${className.toLowerCase()}` } as any as TSchema & T;
+}
 
 export function mapEnumValues(values: string[]) {
 	return Object.fromEntries(values.map((value) => [value, value]));
@@ -130,6 +151,18 @@ export function columnToSchema(column: Column, t: typeof typebox): TSchema {
 			schema = t.Any();
 		} else if (column.dataType === 'buffer') {
 			schema = bufferSchema;
+		} else if (column.dataType === 'dateDuration') {
+			schema = gelInstanceSchema<DateDuration>('DateDuration');
+		} else if (column.dataType === 'duration') {
+			schema = gelInstanceSchema<Duration>('Duration');
+		} else if (column.dataType === 'relDuration') {
+			schema = gelInstanceSchema<RelativeDuration>('RelativeDuration');
+		} else if (column.dataType === 'localDate') {
+			schema = gelInstanceSchema<LocalDate>('LocalDate');
+		} else if (column.dataType === 'localTime') {
+			schema = gelInstanceSchema<LocalTime>('LocalTime');
+		} else if (column.dataType === 'localDateTime') {
+			schema = gelInstanceSchema<LocalDateTime>('LocalDateTime');
 		}
 	}
 
