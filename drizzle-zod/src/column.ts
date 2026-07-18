@@ -53,6 +53,7 @@ import type {
 	SingleStoreYear,
 } from 'drizzle-orm/singlestore-core';
 import type { SQLiteInteger, SQLiteReal, SQLiteText } from 'drizzle-orm/sqlite-core';
+import type { DateDuration, Duration, LocalDate, LocalDateTime, LocalTime, RelativeDuration } from 'gel';
 import { z as zod } from 'zod/v4';
 import { CONSTANTS } from './constants.ts';
 import type { CreateSchemaFactoryOptions } from './schema.types.ts';
@@ -66,6 +67,16 @@ export const jsonSchema: zod.ZodType<Json> = zod.union([
 	zod.array(zod.any()),
 ]);
 export const bufferSchema: zod.ZodType<Buffer> = zod.custom<Buffer>((v) => v instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
+
+// Gel driver classes (dateDuration/duration/relDuration/localDate/localTime/localDateTime) are optional --
+// checked by constructor name rather than `instanceof` so drizzle-zod doesn't require the `gel` package
+// to be installed just to type-check or run for non-Gel users.
+function gelInstanceSchema<T>(z: typeof zod, className: string): zod.ZodType<T> {
+	return z.custom<T>(
+		(v) => v != null && typeof v === 'object' && (v as any).constructor?.name === className,
+		{ message: `Expected a Gel ${className} instance` },
+	);
+}
 
 export function columnToSchema(
 	column: Column,
@@ -124,6 +135,18 @@ export function columnToSchema(
 			schema = z.any();
 		} else if (column.dataType === 'buffer') {
 			schema = bufferSchema;
+		} else if (column.dataType === 'dateDuration') {
+			schema = gelInstanceSchema<DateDuration>(z, 'DateDuration');
+		} else if (column.dataType === 'duration') {
+			schema = gelInstanceSchema<Duration>(z, 'Duration');
+		} else if (column.dataType === 'relDuration') {
+			schema = gelInstanceSchema<RelativeDuration>(z, 'RelativeDuration');
+		} else if (column.dataType === 'localDate') {
+			schema = gelInstanceSchema<LocalDate>(z, 'LocalDate');
+		} else if (column.dataType === 'localTime') {
+			schema = gelInstanceSchema<LocalTime>(z, 'LocalTime');
+		} else if (column.dataType === 'localDateTime') {
+			schema = gelInstanceSchema<LocalDateTime>(z, 'LocalDateTime');
 		}
 	}
 

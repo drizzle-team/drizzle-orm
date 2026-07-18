@@ -54,6 +54,7 @@ import type {
 	SingleStoreYear,
 } from 'drizzle-orm/singlestore-core';
 import type { SQLiteInteger, SQLiteReal, SQLiteText } from 'drizzle-orm/sqlite-core';
+import type { DateDuration, Duration, LocalDate, LocalDateTime, LocalTime, RelativeDuration } from 'gel';
 import { CONSTANTS } from './constants.ts';
 import { isColumnType, isWithEnum } from './utils.ts';
 
@@ -61,6 +62,33 @@ export const literalSchema = type.string.or(type.number).or(type.boolean).or(typ
 export const jsonSchema = literalSchema.or(type.unknown.as<any>().array()).or(type.object.as<Record<string, any>>());
 export const bufferSchema = type.unknown.narrow((value) => value instanceof Buffer).as<Buffer>().describe( // eslint-disable-line no-instanceof/no-instanceof
 	'a Buffer instance',
+);
+
+// Gel driver classes are optional -- checked by constructor name rather than `instanceof` so drizzle-arktype
+// doesn't require the `gel` package to be installed just to type-check or run for non-Gel users.
+// NOTE: kept as 6 concrete schemas (mirroring bufferSchema above) rather than a generic
+// gelInstanceSchema<T>() helper -- arktype's `.as<T>()` requires a concrete/constrained type
+// argument (validateChainedAsArgs<T>) and rejects an unconstrained generic passed through a
+// wrapper function, even though the same `.as<Buffer>()` call works fine with a concrete type.
+const gelClassNarrow = (className: string) => (value: unknown) =>
+	value != null && typeof value === 'object' && (value as any).constructor?.name === className;
+const dateDurationSchema = type.unknown.narrow(gelClassNarrow('DateDuration')).as<DateDuration>().describe(
+	'a Gel DateDuration instance',
+);
+const durationSchema = type.unknown.narrow(gelClassNarrow('Duration')).as<Duration>().describe(
+	'a Gel Duration instance',
+);
+const relDurationSchema = type.unknown.narrow(gelClassNarrow('RelativeDuration')).as<RelativeDuration>().describe(
+	'a Gel RelativeDuration instance',
+);
+const localDateSchema = type.unknown.narrow(gelClassNarrow('LocalDate')).as<LocalDate>().describe(
+	'a Gel LocalDate instance',
+);
+const localTimeSchema = type.unknown.narrow(gelClassNarrow('LocalTime')).as<LocalTime>().describe(
+	'a Gel LocalTime instance',
+);
+const localDateTimeSchema = type.unknown.narrow(gelClassNarrow('LocalDateTime')).as<LocalDateTime>().describe(
+	'a Gel LocalDateTime instance',
 );
 
 export function columnToSchema(column: Column): Type {
@@ -115,6 +143,18 @@ export function columnToSchema(column: Column): Type {
 			schema = type.unknown;
 		} else if (column.dataType === 'buffer') {
 			schema = bufferSchema;
+		} else if (column.dataType === 'dateDuration') {
+			schema = dateDurationSchema;
+		} else if (column.dataType === 'duration') {
+			schema = durationSchema;
+		} else if (column.dataType === 'relDuration') {
+			schema = relDurationSchema;
+		} else if (column.dataType === 'localDate') {
+			schema = localDateSchema;
+		} else if (column.dataType === 'localTime') {
+			schema = localTimeSchema;
+		} else if (column.dataType === 'localDateTime') {
+			schema = localDateTimeSchema;
 		}
 	}
 

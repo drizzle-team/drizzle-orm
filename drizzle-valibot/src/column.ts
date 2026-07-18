@@ -53,6 +53,7 @@ import type {
 	SingleStoreYear,
 } from 'drizzle-orm/singlestore-core';
 import type { SQLiteInteger, SQLiteReal, SQLiteText } from 'drizzle-orm/sqlite-core';
+import type { DateDuration, Duration, LocalDate, LocalDateTime, LocalTime, RelativeDuration } from 'gel';
 import * as v from 'valibot';
 import { CONSTANTS } from './constants.ts';
 import { isColumnType, isWithEnum } from './utils.ts';
@@ -65,6 +66,12 @@ export const jsonSchema: v.GenericSchema<Json> = v.union([
 	v.record(v.string(), v.any()),
 ]);
 export const bufferSchema: v.GenericSchema<Buffer> = v.custom<Buffer>((v) => v instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
+
+// Gel driver classes are optional -- checked by constructor name rather than `instanceof` so drizzle-valibot
+// doesn't require the `gel` package to be installed just to type-check or run for non-Gel users.
+function gelInstanceSchema<T>(className: string): v.GenericSchema<T> {
+	return v.custom<T>((val) => val != null && typeof val === 'object' && (val as any).constructor?.name === className);
+}
 
 export function mapEnumValues(values: string[]) {
 	return Object.fromEntries(values.map((value) => [value, value]));
@@ -115,6 +122,18 @@ export function columnToSchema(column: Column): v.GenericSchema {
 			schema = v.any();
 		} else if (column.dataType === 'buffer') {
 			schema = bufferSchema;
+		} else if (column.dataType === 'dateDuration') {
+			schema = gelInstanceSchema<DateDuration>('DateDuration');
+		} else if (column.dataType === 'duration') {
+			schema = gelInstanceSchema<Duration>('Duration');
+		} else if (column.dataType === 'relDuration') {
+			schema = gelInstanceSchema<RelativeDuration>('RelativeDuration');
+		} else if (column.dataType === 'localDate') {
+			schema = gelInstanceSchema<LocalDate>('LocalDate');
+		} else if (column.dataType === 'localTime') {
+			schema = gelInstanceSchema<LocalTime>('LocalTime');
+		} else if (column.dataType === 'localDateTime') {
+			schema = gelInstanceSchema<LocalDateTime>('LocalDateTime');
 		}
 	}
 
