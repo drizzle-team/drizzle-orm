@@ -311,6 +311,8 @@ runCommonEffectPgTests({
 				const insertResult = yield* db.insert(users2).values({ name: 'John', email: '', age: 30 }).pipe(Effect.result);
 				assert(Result.isFailure(insertResult));
 				assert(Predicate.isTagged(insertResult.failure, 'EffectDrizzleQueryError'));
+				// cause is the driver error itself, so standard Error#cause consumers can walk the chain
+				assert(insertResult.failure.cause instanceof Error);
 
 				// insert migration with earlier timestamp
 				mkdirSync(`${migrationDir}/20240202020202_second`, { recursive: true });

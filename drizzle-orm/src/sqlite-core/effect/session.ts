@@ -1,4 +1,3 @@
-import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/unstable/sql/SqlError';
 import { EffectCache, type EffectCacheShape } from '~/cache/core/cache-effect.ts';
@@ -187,7 +186,7 @@ export class SQLiteEffectPreparedQuery<
 		}).pipe(
 			Effect.provideService(EffectCache, this.cache),
 			Effect.catch((e) => {
-				return Effect.fail(new EffectDrizzleQueryError({ query: queryString, params, cause: Cause.fail(e) }));
+				return Effect.fail(new EffectDrizzleQueryError({ query: queryString, params, cause: e }));
 			}),
 		);
 	}
