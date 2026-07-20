@@ -438,6 +438,77 @@ export const diffIntrospect = async (
 	};
 };
 
+// Like diffIntrospect, but seeds the database with raw SQL statements instead
+// of pushing a drizzle schema. This lets a test set up constraint names that
+// don't follow drizzle's own naming convention -- e.g. a table migrated in
+// from another tool, or created by hand -- which a drizzle push can't do
+// since push always derives drizzle's default names.
+export const diffIntrospectRaw = async (
+	db: DB,
+	setupSql: string[],
+	testName: string,
+	schemas: string[] = ['public'],
+	entities?: EntitiesFilter,
+) => {
+	for (const st of setupSql) await db.query(st);
+
+	const filter = prepareEntityFilter('postgresql', {
+		tables: [],
+		schemas,
+		entities,
+		extensions: [],
+	}, []);
+	// introspect to schema
+	const schema = await fromDatabaseForDrizzle(db, filter, () => true, {
+		schema: 'drizzle',
+		table: '__drizzle_migrations',
+	});
+	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
+
+	// schema
+	const filePath = `${tmpDir}/${testName}.ts`;
+	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
+	writeFileSync(filePath, file.file);
+	await tsc(file.file).catch((e) => {
+		throw new Error(`tsc error in file ${filePath}`, { cause: e });
+	});
+
+	// generate snapshot from ts file
+	const response = await prepareFromSchemaFiles([
+		filePath,
+	]);
+
+	const {
+		schema: schema2,
+		errors: e2,
+	} = fromDrizzleSchema(response, () => true);
+	const { ddl: ddl2, errors: e3 } = interimToDDL(schema2);
+
+	const {
+		sqlStatements: pushAfterFileSqlStatements,
+		statements: pushAfterFileStatements,
+	} = await ddlDiffDry(ddl1, ddl2, 'push');
+
+	const {
+		sqlStatements: generateAfterFileSqlStatements,
+		statements: generateAfterFileStatements,
+	} = await ddlDiffDry(ddl1, ddl2, 'default');
+
+	if ([...generateAfterFileSqlStatements, ...pushAfterFileSqlStatements].length === 0) {
+		rmSync(`tests/postgres/tmp/${testName}.ts`);
+	}
+
+	return {
+		pushSqlStatements: pushAfterFileSqlStatements,
+		pushStatements: pushAfterFileStatements,
+		generateSqlStatements: generateAfterFileSqlStatements,
+		generateStatements: generateAfterFileStatements,
+		ddlAfterPull: ddl1,
+		schemaFile: file.file,
+		schema2,
+	};
+};
+
 export const diffDefault = async <T extends PgColumnBuilder>(
 	kit: TestDatabase<any>,
 	builder: T,
