@@ -22,7 +22,7 @@ import type { PgColumn } from '~/pg-core/columns/common.ts';
 import type { PreparedQuerySelection } from '~/pg-core/dialect.ts';
 import { type DriverValueDecoder, SQL, type SQLWrapper, type View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { getTableName, type Table } from '~/table.ts';
+import { getTableName, Table } from '~/table.ts';
 import { getColumnFromDecoder, getColumns, orderSelectedFields } from '~/utils.ts';
 
 type ShapeType = [element: string, as?: string];
@@ -359,10 +359,28 @@ export function buildShape(
 }
 
 export namespace buildShape {
-	export function fromTableOrView(source: Table): ShapeSpec;
-	export function fromTableOrView(source: View): ShapeSpec;
-	export function fromTableOrView(source: Table | View): ShapeSpec {
-		const fields = orderSelectedFields<PgColumn>(getColumns(source));
-		return buildShape({ type: 'plain', fields }, undefined);
+	export function fromTableOrView(source: Table): { shape: ShapeSpec; jsDbNameMap: Record<string, string> };
+	export function fromTableOrView(source: View): { shape: ShapeSpec; jsDbNameMap: undefined };
+	export function fromTableOrView(
+		source: Table | View,
+	): { shape: ShapeSpec; jsDbNameMap: Record<string, string> | undefined } {
+		const columns = getColumns(source);
+		const fields = orderSelectedFields<PgColumn>(columns);
+		const jsDbNameMap = is(source, Table)
+			? Object.fromEntries(
+				Object.entries(columns as Record<string, Column>).reduce<[string, string][]>((p, [k, c]) => {
+					const { name } = c;
+					if (k === name) return p;
+
+					p.push([k, name]);
+					return p;
+				}, []),
+			)
+			: undefined;
+
+		return {
+			shape: buildShape({ type: 'plain', fields }),
+			jsDbNameMap,
+		};
 	}
 }
