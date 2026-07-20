@@ -7,7 +7,9 @@ import {
 	type JsonMarker,
 	type JsonSpec,
 	Nullable,
+	type ShapeEntries,
 	type ShapeSpec,
+	type ShapeValue,
 	type TableShape,
 	Transform,
 	type TransformMarker,
@@ -180,7 +182,7 @@ function wireLeaf(
 	return leafFor(decoder, spec, arrayDimensions);
 }
 
-type ShapeEntry = ShapeSpec[string];
+type ShapeEntry = ShapeValue;
 
 interface PlainLeaf {
 	path: readonly string[];
@@ -209,7 +211,7 @@ function assembleGroupBody(
 	leaves: PlainLeaf[],
 	depth: number,
 	nullableLeaves: boolean,
-): ShapeSpec {
+): ShapeEntries {
 	const order: string[] = [];
 	const directLeaves = new Map<string, ShapeEntry>();
 	const groups = new Map<string, PlainLeaf[]>();
@@ -229,10 +231,10 @@ function assembleGroupBody(
 		nested.push(leaf);
 	}
 
-	const spec: ShapeSpec = {};
+	const spec: [string, ShapeEntry][] = [];
 	for (const key of order) {
 		const nested = groups.get(key);
-		spec[key] = nested ? Collect(assembleGroupBody(nested, depth + 1, false)) : directLeaves.get(key)!;
+		spec.push([key, nested ? Collect(assembleGroupBody(nested, depth + 1, false)) : directLeaves.get(key)!]);
 	}
 	return spec;
 }
@@ -276,10 +278,10 @@ function jsonLeafFor(item: RelationalItem): TypeSpec | TransformMarker {
 }
 
 function jsonSpecFor(selection: RelationalSelection): JsonSpec {
-	const spec: JsonSpec = {};
+	const spec: [string, TypeSpec | JsonMarker | TransformMarker][] = [];
 
 	for (const item of selection) {
-		spec[item.key] = item.selection ? jsonMarkerFor(item) : jsonLeafFor(item);
+		spec.push([item.key, item.selection ? jsonMarkerFor(item) : jsonLeafFor(item)]);
 	}
 
 	return spec;
@@ -290,22 +292,25 @@ function jsonMarkerFor(item: RelationalItem): JsonMarker {
 	return item.isArray ? JsonArray(spec) : Json(spec);
 }
 
-function relationalShape(selection: RelationalSelection): ShapeSpec {
-	const root: ShapeSpec = {};
+function relationalShape(selection: RelationalSelection): ShapeEntries {
+	const root: [string, ShapeEntry][] = [];
 
 	for (const item of selection) {
 		if (item.selection) {
-			root[item.key] = jsonMarkerFor(item);
+			root.push([item.key, jsonMarkerFor(item)]);
 			continue;
 		}
 
 		const field = item.field as RelationalItemDecodedField;
-		root[item.key] = wireLeaf(
-			getRqbDecoder(field),
-			getRqbColumn(field),
-			undefined,
-			item.arrayDimensions,
-		);
+		root.push([
+			item.key,
+			wireLeaf(
+				getRqbDecoder(field),
+				getRqbColumn(field),
+				undefined,
+				item.arrayDimensions,
+			),
+		]);
 	}
 
 	return root;
@@ -318,7 +323,6 @@ export function buildShape(
 	if (selection.type === 'relational') return relationalShape(selection.fields);
 
 	const { fields } = selection;
-	if (!fields.length) return {};
 
 	const order: string[] = [];
 	const rootLeaves = new Map<string, ShapeEntry>();
@@ -343,17 +347,17 @@ export function buildShape(
 		group.push({ path, leaf, column: is(field, Column) ? field : undefined });
 	}
 
-	const root: ShapeSpec = {};
+	const root: [string, ShapeEntry][] = [];
 	for (const key of order) {
 		const group = groups.get(key);
 		if (!group) {
-			root[key] = rootLeaves.get(key)!;
+			root.push([key, rootLeaves.get(key)!]);
 			continue;
 		}
 
 		const nullable = groupIsNullable(group, joinsNotNullableMap);
 		const body = assembleGroupBody(group, 1, nullable);
-		root[key] = nullable ? CollectNullable(body) : Collect(body);
+		root.push([key, nullable ? CollectNullable(body) : Collect(body)]);
 	}
 
 	return root;
