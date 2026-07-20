@@ -47,7 +47,7 @@ import fs from 'fs';
 import { fromDatabase, fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { DB } from 'src/utils';
-import { diffIntrospect, prepareTestDatabase, push, TestDatabase } from 'tests/postgres/mocks';
+import { diffIntrospect, diffIntrospectRaw, prepareTestDatabase, push, TestDatabase } from 'tests/postgres/mocks';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 
 // @vitest-environment-options {"max-concurrency":1}
@@ -1593,6 +1593,64 @@ test('introspect foreign keys #2', async () => {
 		.map((fk) => fk.columns.length !== 0 && fk.columnsTo.length !== 0)
 		.every((val) => val === true);
 	expect(predicate).toBe(true);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6025
+// Single-column PK/FK constraints whose names don't follow drizzle's own
+// naming convention (e.g. a table migrated in from another tool, or created
+// by hand) must round-trip through pull -> generate without producing any
+// rename-or-create diff, and the generated schema.ts must carry the
+// constraint names explicitly via table-level primaryKey()/foreignKey().
+test('introspect legacy-named single-column PK/FK constraint names', async () => {
+	await db.query(`
+		CREATE TABLE "customer" (
+			"customer_id" integer NOT NULL,
+			"name" text,
+			CONSTRAINT "pk_customer_legacy" PRIMARY KEY ("customer_id")
+		);
+	`);
+	await db.query(`
+		CREATE TABLE "billing_account" (
+			"billing_account_id" integer NOT NULL,
+			"customer_id" integer,
+			CONSTRAINT "pk_billing_account_legacy" PRIMARY KEY ("billing_account_id"),
+			CONSTRAINT "fk_billing_account_customer_legacy" FOREIGN KEY ("customer_id") REFERENCES "customer" ("customer_id")
+		);
+	`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+		schemaFile,
+	} = await diffIntrospectRaw(
+		db,
+		[],
+		'introspect-legacy-named-single-column-pk-fk',
+		['public'],
+	);
+
+	// pull -> generate must be idempotent: no rename-or-create hints
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+
+	// the legacy names must have been preserved through introspection
+	expect(
+		ddlAfterPull.pks.one({ schema: 'public', table: 'customer' })?.name,
+	).toBe('pk_customer_legacy');
+	expect(
+		ddlAfterPull.fks.one({ schema: 'public', table: 'billing_account' })?.name,
+	).toBe('fk_billing_account_customer_legacy');
+
+	// the generated schema.ts must emit those names explicitly, via the
+	// named table-level primaryKey()/foreignKey() renderers -- not silently
+	// drop them into the name-less .primaryKey()/.references() shorthand
+	expect(schemaFile).toContain('pk_customer_legacy');
+	expect(schemaFile).toContain('fk_billing_account_customer_legacy');
 });
 
 test('introspect table with self reference', async () => {
