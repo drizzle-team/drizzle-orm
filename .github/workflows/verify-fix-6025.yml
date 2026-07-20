@@ -32,6 +32,8 @@ jobs:
           chmod +x compose/wait.sh
           compose/wait.sh postgres
 
+      - uses: oven-sh/setup-bun@v2
+
       - name: Build workspace (drizzle-orm dist needed by drizzle-kit)
         run: pnpm build:artifact
 
