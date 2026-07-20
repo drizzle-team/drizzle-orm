@@ -371,24 +371,25 @@ export const ddlToTypeScript = (
 		);
 		statement += '}';
 
-		// more than 2 fields or self reference or cyclic
-		// Andrii: I switched this one off until we will get custom names in .references()
+		// more than 2 fields, self reference, cyclic, or an explicitly-named
+		// single-column constraint (which .primaryKey()/.references() can't express)
 		const filteredFKs = table.fks.filter((it) => {
-			return it.columns.length > 1 || isSelf(it);
+			return it.columns.length > 1 || isSelf(it) || it.nameExplicit;
 		});
+
+		const hasNamedPk = table.pk && (table.pk.columns.length > 1 || table.pk.nameExplicit);
 
 		const hasCallback = table.indexes.length > 0
 			|| filteredFKs.length > 0
 			|| table.policies.length > 0
-			|| (table.pk && table.pk.columns.length > 1)
+			|| hasNamedPk
 			|| table.uniques.length > 0
 			|| table.checks.length > 0;
 
 		if (hasCallback) {
 			statement += ', ';
 			statement += '(table) => [\n';
-			// TODO: or pk has non-default name
-			statement += table.pk && table.pk.columns.length > 1 ? createTablePK(table.pk, casing) : '';
+			statement += hasNamedPk ? createTablePK(table.pk!, casing) : '';
 			statement += createTableFKs(filteredFKs, schemas, casing);
 			statement += createTableIndexes(table.name, table.indexes, casing);
 			statement += createTableUniques(table.uniques, casing);
@@ -548,12 +549,15 @@ const createTableColumns = (
 ): string => {
 	let statement = '';
 
-	// no self refs and no cyclic
+	// no self refs, no cyclic, and no explicitly-named constraints
+	// (those render via the named table-level foreignKey() instead, since
+	// .references() has no way to carry a custom constraint name)
 	const oneColumnsFKs = Object.values(fks)
 		.filter((it) => {
 			return !isSelf(it);
 		})
-		.filter((it) => it.columns.length === 1);
+		.filter((it) => it.columns.length === 1)
+		.filter((it) => !it.nameExplicit);
 
 	const fkByColumnName = oneColumnsFKs.reduce((res, it) => {
 		const arr = res[it.columns[0]] || [];
@@ -576,7 +580,10 @@ const createTableColumns = (
 		const opts = inspect(options);
 		const comma = (dbName && opts) ? ', ' : '';
 
-		const pk = primaryKey && primaryKey.columns.length === 1 && primaryKey.columns[0] === it.name
+		const pk = primaryKey
+				&& primaryKey.columns.length === 1
+				&& primaryKey.columns[0] === it.name
+				&& !primaryKey.nameExplicit
 			? primaryKey
 			: null;
 
