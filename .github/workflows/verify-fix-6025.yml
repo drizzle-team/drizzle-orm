@@ -1,0 +1,42 @@
+name: Verify PK/FK fix (self-hosted check)
+
+# Runs in our own fork so we don't need upstream's action_required approval
+# or their cloud DB secrets. Only spins up local postgres via docker compose,
+# mirroring the 'kit:postgres' shard from release-feature-branch.yaml.
+on:
+  push:
+    branches: [fix/6025-legacy-named-single-column-pk-fk]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with: { run_install: false }
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Start postgres
+        run: |
+          docker compose -f compose/postgres.yml up -d
+          chmod +x compose/wait.sh
+          compose/wait.sh postgres
+
+      - name: Build workspace (drizzle-orm dist needed by drizzle-kit)
+        run: pnpm build:artifact
+
+      - name: Run regression test
+        working-directory: drizzle-kit
+        env:
+          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
+        run: pnpm --stream vitest run ./postgres/ -t "legacy-named single-column"
