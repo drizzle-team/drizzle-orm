@@ -34,8 +34,8 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
-      - name: Build workspace (drizzle-orm dist needed by drizzle-kit)
-        run: pnpm build:artifact
+      - name: Build only drizzle-orm + drizzle-kit (turbo filter, skips seed/eslint-plugin/etc.)
+        run: pnpm exec turbo run build:artifact --filter=...drizzle-kit --color
 
       - name: Run regression test
         working-directory: drizzle-kit
