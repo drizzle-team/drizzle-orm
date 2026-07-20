@@ -1,4 +1,5 @@
 import { createPool, type Pool, type PoolConfig } from 'minipg';
+import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
@@ -15,6 +16,15 @@ export class PostgresDatabase<
 	TRelations extends AnyRelations = EmptyRelations,
 > extends PgAsyncDatabase<PostgresQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'PostgresDatabase';
+
+	/** @intenal */
+	declare session: PostgresSession<TRelations>;
+
+	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(
+		batch: T,
+	): Promise<BatchResponse<T>> {
+		return this.session.batch(batch) as Promise<BatchResponse<T>>;
+	}
 }
 
 function construct<

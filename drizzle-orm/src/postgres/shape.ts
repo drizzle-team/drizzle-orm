@@ -8,6 +8,7 @@ import {
 	type JsonSpec,
 	Nullable,
 	type ShapeSpec,
+	type TableShape,
 	Transform,
 	type TransformMarker,
 	type TypeSpec,
@@ -359,11 +360,11 @@ export function buildShape(
 }
 
 export namespace buildShape {
-	export function fromTableOrView(source: Table): { shape: ShapeSpec; jsDbNameMap: Record<string, string> };
-	export function fromTableOrView(source: View): { shape: ShapeSpec; jsDbNameMap: undefined };
+	export function fromTableOrView(source: Table): TableShape;
+	export function fromTableOrView(source: View): TableShape;
 	export function fromTableOrView(
 		source: Table | View,
-	): { shape: ShapeSpec; jsDbNameMap: Record<string, string> | undefined } {
+	): TableShape {
 		const columns = getColumns(source);
 		const fields = orderSelectedFields<PgColumn>(columns);
 		const jsDbNameMap = is(source, Table)
@@ -379,8 +380,10 @@ export namespace buildShape {
 			: undefined;
 
 		return {
-			shape: buildShape({ type: 'plain', fields }),
-			jsDbNameMap,
+			shape: buildShape({ type: 'plain', fields }) as TableShape['shape'],
+			schema: source[Table.Symbol.Schema],
+			table: source[Table.Symbol.OriginalName],
+			columns: jsDbNameMap,
 		};
 	}
 }

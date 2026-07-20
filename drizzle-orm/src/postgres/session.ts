@@ -1,4 +1,6 @@
-import type { Connection, Pool, QueryResult, ShapeSpec } from 'minipg';
+import type { Connection, PoolQuery, QueryResult, ShapeSpec } from 'minipg';
+import { Pool } from 'minipg';
+import type { BatchItem } from '~/batch';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
@@ -71,7 +73,7 @@ export class PostgresSession<
 			return q.then((r) => r.rows);
 		};
 
-		return new PgAsyncPreparedQuery<T>(
+		return new PostgresPreparedQuery<T>(
 			executor,
 			query,
 			mapper,
@@ -80,7 +82,46 @@ export class PostgresSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			shape,
 		);
+	}
+
+	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(queries: T) {
+		const preparedQueries: PostgresPreparedQuery<any>[] = [];
+		const builtQueries: PoolQuery[] = Array.from({ length: preparedQueries.length });
+
+		const q = this.client;
+		if (!(q instanceof Pool)) throw new Error('`batch` method is only supported on connection pools!'); // oxlint-disable-line no-instanceof-builtins drizzle-internal/no-instanceof
+		for (let i = 0; i < queries.length; ++i) {
+			const query = queries[i]!;
+			const preparedQuery = query._prepare() as PostgresPreparedQuery<any>;
+			const builtQuery = preparedQuery.getQuery();
+			preparedQueries[i] = preparedQuery;
+			builtQueries[i] = preparedQuery.mode === 'arrays'
+				? q.query(builtQuery.sql, builtQuery.params, {
+					mode: 'array',
+					shape: preparedQuery.shape,
+				})
+				: q.query(builtQuery.sql, builtQuery.params, {
+					mode: 'object',
+					shape: preparedQuery.shape,
+				});
+		}
+
+		const batchResults = await q.batch(builtQueries);
+		const response = Array.from({ length: batchResults.length });
+		for (let i = 0; i < batchResults.length; ++i) {
+			const { mapper, mode } = preparedQueries[i]!;
+			const result = batchResults[i]!;
+
+			response[i] = mapper
+				? mapper(result.rows)
+				: mode === 'raw'
+				? result
+				: result.rows;
+		}
+
+		return response;
 	}
 
 	override async transaction<T>(
@@ -118,6 +159,32 @@ export class PostgresTransaction<
 	}
 }
 
+export type PostgresQueryResult<T> = Omit<QueryResult<T>, 'metrics' | 'debug'>;
+
 export interface PostgresQueryResultHKT extends PgQueryResultHKT {
 	type: Simplify<Omit<QueryResult<this['row']>, 'metrics' | 'debug'>>;
+}
+
+export class PostgresPreparedQuery<T extends PreparedQueryConfig> extends PgAsyncPreparedQuery<T> {
+	static override readonly [entityKind]: string = 'PostgresPreparedQuery';
+
+	constructor(
+		executor: (params?: unknown[]) => Promise<any>,
+		query: Query,
+		mapper: ((rows: any[]) => any) | undefined,
+		mode: 'arrays' | 'objects' | 'raw',
+		logger: Logger,
+		// cache instance
+		cache: Cache | undefined,
+		// per query related metadata
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		// config that was passed through $withCache
+		cacheConfig: WithCacheConfig | undefined,
+		readonly shape?: ShapeSpec,
+	) {
+		super(executor, query, mapper, mode, logger, cache, queryMetadata, cacheConfig);
+	}
 }
