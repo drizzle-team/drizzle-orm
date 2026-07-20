@@ -1,6 +1,6 @@
 import { defineRelations, sql } from 'drizzle-orm';
 import { boolean, getTableConfig, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres';
+import { drizzle as drizzlePostgres, PostgresDatabase } from 'drizzle-orm/postgres';
 import { minipgCodecs } from 'drizzle-orm/postgres/codecs';
 import { migrate } from 'drizzle-orm/postgres/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
@@ -20,7 +20,7 @@ describe('migrator', () => {
 		await db.execute(sql`drop table if exists users12`);
 		await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-		await migrate(db, { migrationsFolder: './drizzle2/pg' });
+		await migrate(db as any as PostgresDatabase<any>, { migrationsFolder: './drizzle2/pg' });
 
 		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 
@@ -39,7 +39,10 @@ describe('migrator', () => {
 		await db.execute(sql`drop table if exists users12`);
 		await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-		await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsSchema: customSchema });
+		await migrate(db as any as PostgresDatabase<any>, {
+			migrationsFolder: './drizzle2/pg',
+			migrationsSchema: customSchema,
+		});
 
 		// test if the custom migrations table was created
 		const { rowCount } = await db.execute(sql`select * from ${sql.identifier(customSchema)}."__drizzle_migrations";`);
@@ -61,7 +64,10 @@ describe('migrator', () => {
 		await db.execute(sql`drop table if exists users12`);
 		await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-		await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsTable: customTable });
+		await migrate(db as any as PostgresDatabase<any>, {
+			migrationsFolder: './drizzle2/pg',
+			migrationsTable: customTable,
+		});
 
 		// test if the custom migrations table was created
 		const { rowCount } = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
@@ -84,7 +90,7 @@ describe('migrator', () => {
 		await db.execute(sql`drop table if exists users12`);
 		await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-		await migrate(db, {
+		await migrate(db as any as PostgresDatabase<any>, {
 			migrationsFolder: './drizzle2/pg',
 			migrationsTable: customTable,
 			migrationsSchema: customSchema,
@@ -114,7 +120,7 @@ describe('migrator', () => {
 		await db.execute(sql`drop schema if exists public cascade`);
 		await db.execute(sql`create schema public`);
 
-		const migratorRes = await migrate(db, {
+		const migratorRes = await migrate(db as any as PostgresDatabase<any>, {
 			migrationsFolder: './drizzle2/pg-init',
 			migrationsTable,
 			migrationsSchema,
@@ -147,7 +153,7 @@ describe('migrator', () => {
 		await db.execute(sql`drop schema if exists public cascade`);
 		await db.execute(sql`create schema public`);
 
-		const migratorRes = await migrate(db, {
+		const migratorRes = await migrate(db as any as PostgresDatabase<any>, {
 			migrationsFolder: './drizzle2/pg',
 			migrationsTable,
 			migrationsSchema,
@@ -180,13 +186,13 @@ describe('migrator', () => {
 		await db.execute(sql`drop schema if exists public cascade`);
 		await db.execute(sql`create schema public`);
 
-		await migrate(db, {
+		await migrate(db as any as PostgresDatabase<any>, {
 			migrationsFolder: './drizzle2/pg-init',
 			migrationsSchema,
 			migrationsTable,
 		});
 
-		const migratorRes = await migrate(db, {
+		const migratorRes = await migrate(db as any as PostgresDatabase<any>, {
 			migrationsFolder: './drizzle2/pg',
 			migrationsTable,
 			migrationsSchema,
@@ -247,7 +253,7 @@ describe('migrator', () => {
 			`ALTER TABLE "migration_users" ADD COLUMN "age" integer;`,
 		);
 
-		await migrate(db, { migrationsFolder: migrationDir });
+		await migrate(db as any as PostgresDatabase<any>, { migrationsFolder: migrationDir });
 		const res1 = await db.insert(users).values({ name: 'John', email: '', age: 30 }).returning();
 
 		// second migration was not applied yet
@@ -259,7 +265,7 @@ describe('migrator', () => {
 			`${migrationDir}/20240202020202_second/migration.sql`,
 			`CREATE TABLE "migration_users2" (\n"id" serial PRIMARY KEY NOT NULL,\n"name" text NOT NULL,\n"email" text NOT NULL\n,"age" integer\n);`,
 		);
-		await migrate(db, { migrationsFolder: migrationDir });
+		await migrate(db as any as PostgresDatabase<any>, { migrationsFolder: migrationDir });
 
 		const res2 = await db.insert(users2).values({ name: 'John', email: '', age: 30 }).returning();
 
