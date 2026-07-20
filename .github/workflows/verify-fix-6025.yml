@@ -37,8 +37,14 @@ jobs:
       - name: Build only drizzle-orm + drizzle-kit (turbo filter, skips seed/eslint-plugin/etc.)
         run: pnpm exec turbo run build:artifact --filter=...drizzle-kit --color
 
-      - name: Run regression test
+      - name: Run new regression test only
         working-directory: drizzle-kit
         env:
           PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
         run: pnpm --stream vitest run ./postgres/ -t "legacy-named single-column"
+
+      - name: Run FULL postgres suite (check for regressions in default-named constraint rendering)
+        working-directory: drizzle-kit
+        env:
+          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
+        run: pnpm --stream run test:postgres
