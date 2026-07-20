@@ -35,16 +35,19 @@ jobs:
       - uses: oven-sh/setup-bun@v2
 
       - name: Build only drizzle-orm + drizzle-kit (turbo filter, skips seed/eslint-plugin/etc.)
-        run: pnpm exec turbo run build:artifact --filter=...drizzle-kit --color
+        timeout-minutes: 8
+        run: pnpm exec turbo run build:artifact --filter=...drizzle-kit --color --no-daemon
 
       - name: Run new regression test only
         working-directory: drizzle-kit
+        timeout-minutes: 5
         env:
           PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
         run: pnpm --stream vitest run ./postgres/ -t "legacy-named single-column"
 
       - name: Run FULL postgres suite (check for regressions in default-named constraint rendering)
         working-directory: drizzle-kit
+        timeout-minutes: 15
         env:
           PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
         run: pnpm --stream run test:postgres
