@@ -798,6 +798,103 @@ export function tests(test: Test, exclude: string[] = []) {
 			]);
 		});
 
+		test.concurrent(
+			'insert with explicit column list',
+			async ({ db }) => {
+				const table = sqliteTable('column_selection', {
+					id: integer('id').primaryKey({ autoIncrement: true }),
+					name: text('name').notNull(),
+					verified: integer('verified', { mode: 'boolean' }).notNull().default(false),
+					note: text('note'),
+				});
+
+				await db.run(sql`drop table if exists ${table}`);
+				await db.run(
+					sql`create table ${table} (id integer primary key autoincrement, name text not null, verified integer not null default 0, note text)`,
+				);
+
+				await db
+					.insert(table, 'name')
+					.values([{ name: 'John' }, { name: 'Jane' }])
+					.run();
+				await db.insert(table, 'name', 'note').values({ name: 'Jack' }).run();
+				await db.insert(table, 'note', 'name').values({ name: 'Jill', note: 'hi' }).run();
+
+				const result = await db.select().from(table).orderBy(table.id).all();
+				expect(result).toEqual([
+					{ id: 1, name: 'John', verified: false, note: null },
+					{ id: 2, name: 'Jane', verified: false, note: null },
+					{ id: 3, name: 'Jack', verified: false, note: null },
+					{ id: 4, name: 'Jill', verified: false, note: 'hi' },
+				]);
+
+				await db.run(sql`drop table ${table}`);
+			},
+		);
+
+		test.concurrent(
+			'insert with explicit column list - select',
+			async ({ db }) => {
+				const src = sqliteTable('column_selection_select_src', {
+					id: integer('id').primaryKey(),
+					name: text('name').notNull(),
+				});
+				const dst = sqliteTable('column_selection_select_dst', {
+					id: integer('id').primaryKey({ autoIncrement: true }),
+					name: text('name').notNull(),
+					verified: integer('verified', { mode: 'boolean' }).notNull().default(false),
+				});
+
+				await db.run(sql`drop table if exists ${src}`);
+				await db.run(sql`drop table if exists ${dst}`);
+				await db.run(sql`create table ${src} (id integer primary key, name text not null)`);
+				await db.run(
+					sql`create table ${dst} (id integer primary key autoincrement, name text not null, verified integer not null default 0)`,
+				);
+
+				await db.insert(src).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]).run();
+
+				await db.insert(dst, 'name').select(db.select({ name: src.name }).from(src)).run();
+
+				const result = await db.select().from(dst).orderBy(dst.id).all();
+				expect(result).toEqual([
+					{ id: 1, name: 'John', verified: false },
+					{ id: 2, name: 'Jane', verified: false },
+				]);
+
+				await db.run(sql`drop table ${src}`);
+				await db.run(sql`drop table ${dst}`);
+			},
+		);
+
+		test.concurrent(
+			'insert with explicit column list - on conflict',
+			async ({ db }) => {
+				const table = sqliteTable('column_selection_conflict', {
+					id: integer('id').primaryKey(),
+					name: text('name').notNull(),
+					note: text('note'),
+				});
+
+				await db.run(sql`drop table if exists ${table}`);
+				await db.run(
+					sql`create table ${table} (id integer primary key, name text not null, note text)`,
+				);
+
+				await db.insert(table, 'id', 'name').values({ id: 1, name: 'John' }).run();
+				await db
+					.insert(table, 'id', 'name')
+					.values({ id: 1, name: 'Jane' })
+					.onConflictDoUpdate({ target: table.id, set: { name: 'Updated' } })
+					.run();
+
+				const result = await db.select().from(table).all();
+				expect(result).toEqual([{ id: 1, name: 'Updated', note: null }]);
+
+				await db.run(sql`drop table ${table}`);
+			},
+		);
+
 		test.concurrent('update with returning all fields', async ({ db }) => {
 			const now = Date.now();
 

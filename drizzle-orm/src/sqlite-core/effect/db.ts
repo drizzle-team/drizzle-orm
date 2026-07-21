@@ -16,12 +16,14 @@ import { SQLiteEffectRelationalQuery, type SQLiteEffectRelationalQueryHKT } from
 import { SQLiteEffectRaw } from '~/sqlite-core/effect/raw.ts';
 import { SQLiteEffectSelectBase, type SQLiteEffectSelectBuilder } from '~/sqlite-core/effect/select.ts';
 import { SQLiteEffectUpdateBase, type SQLiteEffectUpdateBuilder } from '~/sqlite-core/effect/update.ts';
-import { SQLiteInsertBuilder } from '~/sqlite-core/query-builders/insert.ts';
+import { type NoDuplicateColumns, SQLiteInsertBuilder } from '~/sqlite-core/query-builders/insert.ts';
 import { RelationalQueryBuilder } from '~/sqlite-core/query-builders/query.ts';
 import { SQLiteSelectBuilder } from '~/sqlite-core/query-builders/select.ts';
 import { SQLiteUpdateBuilder } from '~/sqlite-core/query-builders/update.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { WithSubquery } from '~/subquery.ts';
+import type { InferInsertModel, RequiredInsertKeys } from '~/table.ts';
+import type { DrizzleTypeError, IsNever, JoinUnion } from '~/utils.ts';
 import { QueryBuilder } from '../query-builders/query-builder.ts';
 import type { SelectedFields } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig, SQLiteTransactionConfig } from '../session.ts';
@@ -319,16 +321,43 @@ export class SQLiteEffectDatabase<
 		 * // Insert multiple rows
 		 * yield* db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
 		 *
+		 * // Insert only selected columns
+		 * yield* db.insert(cars, 'brand', 'productionYear').values([{ brand: 'BMW', productionYear: 1995 }, { brand: 'Porsche', productionYear: 1989 }]);
+		 *
 		 * // Insert with returning clause
 		 * const insertedCar: Car[] = yield* db.insert(cars)
 		 *   .values({ brand: 'BMW' })
 		 *   .returning();
 		 * ```
 		 */
+		function insert<
+			TTable extends SQLiteTable,
+			TColumnList extends (keyof InferInsertModel<TTable>)[] = [],
+			TRequiredKeys extends string = RequiredInsertKeys<TTable>,
+		>(
+			into: TTable,
+			...columns: TColumnList extends [] ? []
+				: IsNever<TRequiredKeys> extends true ? TColumnList & NoDuplicateColumns<TColumnList>
+				: [TRequiredKeys] extends [TColumnList[number]] ? TColumnList & NoDuplicateColumns<TColumnList>
+				: DrizzleTypeError<
+					`Column selection is missing following required columns: ${JoinUnion<
+						`"${Exclude<TRequiredKeys, TColumnList[number]>}"`,
+						', '
+					>}`
+				>[]
+		): SQLiteEffectInsertBuilder<TTable, TRunResult, TEffectHKT, TColumnList extends [] ? 'all' : TColumnList>;
 		function insert<TTable extends SQLiteTable>(
 			into: TTable,
+			...columns: string[]
 		): SQLiteEffectInsertBuilder<TTable, TRunResult, TEffectHKT> {
-			return new SQLiteInsertBuilder(into, self.session, self.dialect, queries, SQLiteEffectInsertBase);
+			return new SQLiteInsertBuilder(
+				into,
+				self.session,
+				self.dialect,
+				queries,
+				columns.length ? columns : undefined,
+				SQLiteEffectInsertBase,
+			);
 		}
 
 		/**
@@ -502,16 +531,43 @@ export class SQLiteEffectDatabase<
 	 * // Insert multiple rows
 	 * yield* db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
 	 *
+	 * // Insert only selected columns
+	 * yield* db.insert(cars, 'brand', 'productionYear').values([{ brand: 'BMW', productionYear: 1995 }, { brand: 'Porsche', productionYear: 1989 }]);
+	 *
 	 * // Insert with returning clause
 	 * const insertedCar: Car[] = yield* db.insert(cars)
 	 *   .values({ brand: 'BMW' })
 	 *   .returning();
 	 * ```
 	 */
+	insert<
+		TTable extends SQLiteTable,
+		TColumnList extends (keyof InferInsertModel<TTable>)[] = [],
+		TRequiredKeys extends string = RequiredInsertKeys<TTable>,
+	>(
+		into: TTable,
+		...columns: TColumnList extends [] ? []
+			: IsNever<TRequiredKeys> extends true ? TColumnList & NoDuplicateColumns<TColumnList>
+			: [TRequiredKeys] extends [TColumnList[number]] ? TColumnList & NoDuplicateColumns<TColumnList>
+			: DrizzleTypeError<
+				`Column selection is missing following required columns: ${JoinUnion<
+					`"${Exclude<TRequiredKeys, TColumnList[number]>}"`,
+					', '
+				>}`
+			>[]
+	): SQLiteEffectInsertBuilder<TTable, TRunResult, TEffectHKT, TColumnList extends [] ? 'all' : TColumnList>;
 	insert<TTable extends SQLiteTable>(
 		into: TTable,
+		...columns: string[]
 	): SQLiteEffectInsertBuilder<TTable, TRunResult, TEffectHKT> {
-		return new SQLiteInsertBuilder(into, this.session, this.dialect, undefined, SQLiteEffectInsertBase);
+		return new SQLiteInsertBuilder(
+			into,
+			this.session,
+			this.dialect,
+			undefined,
+			columns.length ? columns : undefined,
+			SQLiteEffectInsertBase,
+		);
 	}
 
 	/**
@@ -620,7 +676,7 @@ export const withReplicas = <
 	const $with: Q['with'] = (...args: []) => getReplica(replicas).with(...args);
 
 	const update: Q['update'] = (...args: [any]) => primary.update(...args);
-	const insert: Q['insert'] = (...args: [any]) => primary.insert(...args);
+	const insert: Q['insert'] = ((...args: [any]) => primary.insert(...args)) as Q['insert'];
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
 	const run: Q['run'] = (...args: [any]) => primary.run(...args);
 	const all: Q['all'] = (...args: [any]) => primary.all(...args);

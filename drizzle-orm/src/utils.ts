@@ -575,10 +575,6 @@ export type Writable<T> = {
 
 export type NonArray<T> = T extends any[] ? never : T;
 
-/**
- * @deprecated
- * Use `getColumns` instead
- */
 export function getTableColumns<T extends Table>(table: T): T['_']['columns'] {
 	return table[Table.Symbol.Columns];
 }
@@ -820,3 +816,20 @@ export function base64ToUint8Array(base64: string): Uint8Array {
 export type PartialWithUndefined<T> = {
 	[K in keyof T]?: T[K] | undefined;
 };
+
+export type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends ((k: infer I) => void) ? I
+	: never;
+
+export type LastInUnion<U> = UnionToIntersection<U extends any ? (x: U) => void : never> extends (x: infer M) => void
+	? M
+	: never;
+
+export type UnionToTuple<U, Last = LastInUnion<U>> = [U] extends [never] ? []
+	: [...UnionToTuple<Exclude<U, Last>>, Last];
+
+export type JoinTuple<T extends any[], Separator extends string> = T extends [] ? ''
+	: T extends [string | number | boolean | bigint] ? `${T[0]}`
+	: T extends [string | number | boolean | bigint, ...infer U] ? `${T[0]}${Separator}${JoinTuple<U, Separator>}`
+	: string;
+
+export type JoinUnion<U extends string, Separator extends string> = JoinTuple<UnionToTuple<U>, Separator>;

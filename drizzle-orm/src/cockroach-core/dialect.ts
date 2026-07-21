@@ -650,11 +650,14 @@ export class CockroachDialect {
 		returning,
 		withList,
 		select,
+		columnList,
 	}: CockroachInsertConfig): SQL {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, CockroachColumn> = table[Table.Symbol.Columns];
 
-		const colEntries: [string, CockroachColumn][] = Object.entries(columns);
+		const colEntries: [string, CockroachColumn][] = columnList
+			? columnList.map((name) => [name, columns[name]!])
+			: Object.entries(columns);
 		const colEntriesFiltered: [string, CockroachColumn][] = select && !is(valuesOrSelect, SQL)
 			? Object
 				.keys((valuesOrSelect as TypedQueryBuilder<any>).getSelectedFields())

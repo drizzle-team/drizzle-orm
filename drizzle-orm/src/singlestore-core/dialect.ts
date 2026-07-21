@@ -634,6 +634,7 @@ export class SingleStoreDialect {
 		values,
 		ignore,
 		onConflict,
+		columnList,
 	}: SingleStoreInsertConfig): {
 		sql: SQL;
 		generatedIds: Record<string, unknown>[];
@@ -641,9 +642,11 @@ export class SingleStoreDialect {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, SingleStoreColumn> = table[Table.Symbol.Columns];
-		const colEntries: [string, SingleStoreColumn][] = Object.entries(
-			columns,
-		).filter(([_, col]) => !col.shouldDisableInsert());
+		const colEntries: [string, SingleStoreColumn][] = columnList
+			? columnList.map((name) => [name, columns[name]!] as [string, SingleStoreColumn])
+			: Object.entries(
+				columns,
+			).filter(([_, col]) => !col.shouldDisableInsert());
 
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 		const generatedIdsResponse: Record<string, unknown>[] = [];
