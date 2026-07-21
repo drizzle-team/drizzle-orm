@@ -2232,14 +2232,9 @@ test('fk multistep #4', async () => {
 
 test('unique multistep #3', async () => {
 	await db.query(`CREATE TABLE "users" ("id" integer CONSTRAINT "id_uniq" UNIQUE);`);
-	const interim = await fromDatabase(db);
-	const { ddl: ddl1 } = interimToDDL(interim);
-	const { ddl: ddl2 } = interimToDDL(interim);
-
-	ddl2.tables.update({
-		set: { name: 'users2' },
-		where: { name: 'users' },
-	});
+	const { ddl: ddl1 } = interimToDDL(await fromDatabase(db));
+	await db.query(`alter table users rename to users2`);
+	const { ddl: ddl2 } = interimToDDL(await fromDatabase(db));
 
 	const { sqlStatements: st1 } = await diff(ddl1, ddl2, ['public.users->public.users2']);
 	expect(st1).toStrictEqual(['ALTER TABLE "users" RENAME TO "users2";']);

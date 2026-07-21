@@ -1650,7 +1650,7 @@ test('fk #12', async () => {
 	const users2 = sqliteTable('users2', {
 		id1: int().primaryKey(),
 		id2: int(),
-	}, (t) => [foreignKey({ columns: [t.id2], foreignColumns: [users.id1] })]);
+	}, (t) => [foreignKey({ columns: [t.id2], foreignColumns: [t.id1] })]);
 
 	const from = { users };
 	const to = { users: users2 };
@@ -1676,7 +1676,7 @@ test('fk #13', async () => {
 	const users2 = sqliteTable('users2', {
 		id1: int().primaryKey(),
 		id2: int(),
-	}, (t) => [foreignKey({ name: 'hey_fk', columns: [t.id2], foreignColumns: [users.id1] })]);
+	}, (t) => [foreignKey({ name: 'hey_fk', columns: [t.id2], foreignColumns: [t.id1] })]);
 
 	const from = { users };
 	const to = { users: users2 };
@@ -1703,7 +1703,7 @@ test('fk #14', async () => {
 	const users2 = sqliteTable('users2', {
 		id1: int(),
 		id2: int(),
-	}, (t) => [foreignKey({ name: 'hey_fk', columns: [t.id2, t.id1], foreignColumns: [users.id1, users.id1] })]);
+	}, (t) => [foreignKey({ name: 'hey_fk', columns: [t.id2, t.id1], foreignColumns: [t.id1, t.id1] })]);
 
 	const from = { users };
 	const to = { users: users2 };
@@ -1739,7 +1739,7 @@ test('fk #15', async () => {
 	const users2 = sqliteTable('users2', {
 		id1: int(),
 		id2: int(),
-	}, (t) => [foreignKey({ columns: [t.id2, t.id1], foreignColumns: [users.id1, users.id1] })]);
+	}, (t) => [foreignKey({ columns: [t.id2, t.id1], foreignColumns: [t.id1, t.id1] })]);
 
 	const from = { users };
 	const to = { users: users2 };
@@ -1755,7 +1755,7 @@ test('fk #15', async () => {
 		`CREATE TABLE \`__new_users2\` (
 	\`id1\` integer,
 	\`id2\` integer,
-	CONSTRAINT \`fk_users2_id2_id1_users_id1_id1_fk\` FOREIGN KEY (\`id2\`,\`id1\`) REFERENCES \`users2\`(\`id1\`,\`id1\`)
+	CONSTRAINT \`fk_users2_id2_id1_users2_id1_id1_fk\` FOREIGN KEY (\`id2\`,\`id1\`) REFERENCES \`users2\`(\`id1\`,\`id1\`)
 );\n`,
 		'INSERT INTO `__new_users2`(`id1`, `id2`) SELECT `id1`, `id2` FROM `users2`;',
 		'DROP TABLE `users2`;',

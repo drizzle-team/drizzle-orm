@@ -1,12 +1,14 @@
 import type { SchemaForPull } from '../../cli/commands/pull-common';
+import type { Alter, Create, Drop } from '../dialect';
 import { create } from '../dialect';
 import { nameForPk, nameForUnique } from './grammar';
 
-export const createDDL = () => {
-	return create({
-		tables: {},
+export const createDDL = () =>
+	create({
+		tables: { name: 'string' },
 		columns: {
-			table: 'required',
+			table: 'string',
+			name: 'string',
 			type: 'string',
 			notNull: 'boolean',
 			autoincrement: 'boolean?',
@@ -17,7 +19,8 @@ export const createDDL = () => {
 			},
 		},
 		indexes: {
-			table: 'required',
+			table: 'string',
+			name: 'string',
 			columns: [{
 				value: 'string',
 				isExpression: 'boolean',
@@ -38,7 +41,8 @@ export const createDDL = () => {
 		// We already have tests on preserving names after renaming tables/columns
 		// It was important that newcomers would not experience any issues
 		fks: {
-			table: 'required',
+			table: 'string',
+			name: 'string',
 			columns: 'string[]',
 			tableTo: 'string',
 			columnsTo: 'string[]',
@@ -47,7 +51,8 @@ export const createDDL = () => {
 			nameExplicit: 'boolean',
 		},
 		pks: {
-			table: 'required',
+			table: 'string',
+			name: 'string',
 			columns: 'string[]',
 			nameExplicit: 'boolean',
 		},
@@ -60,31 +65,68 @@ export const createDDL = () => {
 		 * We do not have sufficient information for upping snapshots to beta v1
 		 */
 		uniques: {
-			table: 'required',
+			table: 'string',
+			name: 'string',
 			columns: 'string[]',
 			nameExplicit: 'boolean',
 		},
 		checks: {
-			table: 'required',
+			table: 'string',
+			name: 'string',
 			value: 'string',
 		},
 		views: {
+			name: 'string',
 			definition: 'string?',
 			isExisting: 'boolean',
 			error: 'string?',
 		},
+	}, {
+		identity: {
+			tables: (r) => JSON.stringify([r.name]),
+			columns: (r) => JSON.stringify([r.table, r.name]),
+			indexes: (r) => JSON.stringify([r.table, r.name]),
+			fks: (r) => JSON.stringify([r.table, r.name]),
+			pks: (r) => JSON.stringify([r.table, r.name]),
+			uniques: (r) => JSON.stringify([r.table, r.name]),
+			checks: (r) => JSON.stringify([r.table, r.name]),
+			views: (r) => JSON.stringify([r.name]),
+		},
+		edges: {
+			columns: [{ to: 'tables', map: { name: 'table' } }],
+			checks: [{ to: 'tables', map: { name: 'table' } }],
+			// constraint/index → its table AND the columns it is built on (renaming a column
+			// rewrites the stored column list). Index columns are objects (the `value` slot),
+			// skipping expression entries; pk/unique/fk carry plain string[].
+			indexes: [
+				{ to: 'tables', map: { name: 'table' } },
+				{ to: 'columns', map: { table: 'table', name: { list: 'columns', pick: 'value', skipWhen: 'isExpression' } } },
+			],
+			pks: [
+				{ to: 'tables', map: { name: 'table' } },
+				{ to: 'columns', map: { table: 'table', name: { list: 'columns' } } },
+			],
+			uniques: [
+				{ to: 'tables', map: { name: 'table' } },
+				{ to: 'columns', map: { table: 'table', name: { list: 'columns' } } },
+			],
+			fks: [
+				{ to: 'tables', map: { name: 'table' } },
+				{ to: 'columns', map: { table: 'table', name: { list: 'columns' } } },
+				{ to: 'tables', map: { name: 'tableTo' } },
+				{ to: 'columns', map: { table: 'tableTo', name: { list: 'columnsTo' } } },
+			],
+		},
 	});
-};
 
 export type SQLiteDDL = ReturnType<typeof createDDL>;
 
-export type SqliteEntities = SQLiteDDL['_']['types'];
+export type SqliteEntities = NonNullable<SQLiteDDL['$entities']>;
 export type SqliteEntity = SqliteEntities[keyof SqliteEntities];
-export type SqliteDefinition = SQLiteDDL['_']['definition'];
-export type SqliteDiffEntities = SQLiteDDL['_']['diffs'];
 
-export type DiffColumn = SqliteDiffEntities['alter']['columns'];
-export type DiffEntities = SQLiteDDL['_']['diffs']['alter'];
+export type DiffEntities = { [K in keyof SqliteEntities]: Alter<SqliteEntities[K]> };
+export type DiffColumn = DiffEntities['columns'];
+export type CreateDropEntities = { [K in keyof SqliteEntities]: Create<SqliteEntities[K]> | Drop<SqliteEntities[K]> };
 
 export type Table = SqliteEntities['tables'];
 export type Column = SqliteEntities['columns'];

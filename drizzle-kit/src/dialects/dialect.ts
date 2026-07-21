@@ -1,999 +1,571 @@
-type DataType = 'string' | 'string[]' | 'number' | 'boolean';
+export type Row = Record<string, any>;
 
-type TypeMap = {
-	string: string;
-	number: number;
-	boolean: boolean;
-	'string[]': string[];
-};
+export type Field =
+	| 'string'
+	| 'number'
+	| 'boolean'
+	| 'string[]'
+	| 'string?'
+	| 'number?'
+	| 'boolean?'
+	| readonly (string | null)[] // enum
+	| { [k: string]: Field } // nested object
+	| readonly [{ [k: string]: Field }]; // array of objects
+export type Def = Record<string, Field>;
 
-type Simplify<T> =
-	& {
-		[K in keyof T]: T[K];
-	}
-	& {};
+type Simplify<T> = { [K in keyof T]: T[K] } & {};
 
-type Assume<T, U> = T extends U ? T : U;
-
-type ExtendedType =
-	| (`${Exclude<DataType, 'string[]'>}?` | DataType)
-	| 'required'
-	| [string, ...(string | null)[]]
-	| {
-		[K: string]: Exclude<ExtendedType, 'required'>;
-	}
-	| ([{
-		[K: string]: Exclude<ExtendedType, 'required'>;
-	}]);
-
-type InferField<T extends ExtendedType> = T extends (string | null)[] ? T[number]
-	: T extends [Record<string, ExtendedType>] ? {
-			[K in keyof T[0]]: InferField<T[0][K]>;
-		}[]
-	: T extends Record<string, ExtendedType> ?
-			| {
-				[K in keyof T]: InferField<T[K]>;
-			}
-			| null
-	: T extends `${infer Type extends DataType}?` ? TypeMap[Type] | null
-	: T extends DataType ? TypeMap[T]
+type FieldType<F> = F extends 'string' ? string
+	: F extends 'number' ? number
+	: F extends 'boolean' ? boolean
+	: F extends 'string[]' ? string[]
+	: F extends 'string?' ? string | null
+	: F extends 'number?' ? number | null
+	: F extends 'boolean?' ? boolean | null
+	: F extends readonly [infer E] ? (E extends Record<string, Field> ? InferRow<E>[] : F[number])
+	: F extends readonly (string | null)[] ? F[number]
+	: F extends Record<string, Field> ? InferRow<F> | null
 	: never;
 
-type Definition = Record<string, Schema>;
+type InferRow<D> = Simplify<{ -readonly [K in keyof D]: FieldType<D[K]> }>;
 
-type InferSchema<TSchema extends Schema> = Simplify<
-	{
-		-readonly [K in keyof TSchema]: K extends keyof Common ? Exclude<Common[K], null>
-			: InferField<Assume<TSchema[K], ExtendedType>>;
-	}
+export type InferEntities<D> = { [K in keyof D]: Simplify<InferRow<D[K]> & { entityType: K }> };
+
+export type Alter<T extends Row> = Simplify<
+	& { $diffType: 'alter' }
+	& { [K in keyof T as K extends 'schema' | 'table' | 'name' | 'entityType' ? K : never]: T[K] }
+	& { [K in keyof T as K extends 'schema' | 'table' | 'name' | 'entityType' ? never : K]?: { from: T[K]; to: T[K] } }
+	& { $left: T; $right: T }
 >;
+export type Create<T extends Row> = Simplify<{ $diffType: 'create' } & T>;
+export type Drop<T extends Row> = Simplify<{ $diffType: 'drop' } & T>;
 
-type NullAsUndefined<TData extends Record<string, any>> =
+type CreatesOf<M extends Record<string, Row>, K extends keyof M> = { [P in K]: Create<M[P]> }[K];
+type DropsOf<M extends Record<string, Row>, K extends keyof M> = { [P in K]: Drop<M[P]> }[K];
+type AltersOf<M extends Record<string, Row>, K extends keyof M> = { [P in K]: Alter<M[P]> }[K];
+
+export type IdFn = (row: Row) => string;
+export type FieldSrc = string | { list: string; pick?: string; skipWhen?: string };
+
+export type EdgeSpec<T extends string = string> = {
+	to: T;
+	map: Record<string, FieldSrc>;
+	cascade?: boolean;
+	when?: (r: Row) => boolean;
+};
+
+type FieldName<F> = Extract<keyof F, string>;
+type Src<S> = FieldName<S> | { list: FieldName<S>; pick?: string; skipWhen?: string };
+export type EdgeOf<D, S extends keyof D> = {
+	[T in keyof D]: {
+		to: T;
+		map: { [P in FieldName<D[T]>]?: Src<D[S]> };
+		cascade?: boolean;
+		when?: (r: Row) => boolean;
+	};
+}[keyof D];
+
+export type Edge = {
+	to: string;
+	cascade: boolean;
+	resolve: (r: Row) => string[];
+	relocate: (r: Row, from: Row, to: Row) => Row | null;
+};
+
+export type Store = Map<string, Map<string, Row>>; // entityType → (identityKey → row)
+
+type Dep = { row: Row; edge: Edge; type: string };
+
+type Internals = {
+	store: Store;
+	defs: Record<string, Def>;
+	identity: Record<string, IdFn>;
+	edges: Record<string, Edge[]>;
+	nulls: Record<string, Row>;
+};
+
+type Where<T> = { [K in keyof T]?: T[K] | { CONTAINS: any } } & Record<string, any>;
+type SetOps<T> = { [K in keyof T]?: T[K] | ((item: any) => any) } & Record<string, any>;
+
+type Processors<T extends Row = Row> = {
+	push: (
+		input: Partial<T> & Record<string, any>,
+		uniques?: (keyof T & string)[],
+	) => { status: 'OK' | 'CONFLICT'; data: T };
+	pushAll: (items: Iterable<Row>) => { status: 'OK'; count: number } | { status: 'CONFLICT'; key: string };
+	list: (where?: Where<T>) => T[];
+	one: (where?: Where<T>) => T | null;
+	update: (cfg: { set: SetOps<T>; where?: Where<T> }) => { status: 'OK' | 'CONFLICT'; data: T[] };
+	delete: (where?: Where<T>) => T[];
+	drop: (where?: Where<T>) => T[];
+	validate: (row: unknown) => boolean;
+	hasDiff: (alter: Row) => boolean;
+};
+
+export type DDL<TMap extends Record<string, Row> = Record<string, Row>> =
+	& { [K in keyof TMap]: Processors<TMap[K]> }
 	& {
-		[K in keyof TData as null extends TData[K] ? K : never]: TData[K] | undefined;
-	}
-	& {
-		[K in keyof TData as null extends TData[K] ? never : K]: TData[K];
+		entities: Processors<TMap[keyof TMap]>;
+		key: (type: string, row: Row) => string;
+		_: Internals;
+		$entities?: TMap;
 	};
 
-type Schema =
-	& Record<string, ExtendedType>
-	& {
-		[K in keyof Common as null extends Common[K] ? K : never]?: 'required';
-	}
-	& {
-		[K in keyof Common as null extends Common[K] ? never : K]?: never;
-	}
-	& {
-		[K in `${keyof Common}?`]?: never;
-	}
-	& {
-		entityType?: never;
-		CONTAINS?: never;
-	};
-
-type Common = {
-	schema: string | null;
-	table: string | null;
-	name: string;
+export type AnyDDL = {
+	entities: { list: (where?: Row) => Row[] };
+	key: (type: string, row: Row) => string;
 };
 
-const commonConfig: Record<string, `${DataType}${'' | '?'}`> = {
-	schema: 'string?',
-	table: 'string?',
-	name: 'string',
-};
+const qual = (t: string, k: string) => t + '\0' + k; // the two families are unique only WITHIN a bucket
 
-type InferEntities<
-	TDefinition extends Definition,
-> = {
-	[K in keyof TDefinition]: Simplify<
-		& InferSchema<TDefinition[K]>
-		& {
-			[C in keyof Common as C extends keyof TDefinition[K] ? never : null extends Common[C] ? never : C]: Common[C];
-		}
-		& {
-			entityType: K;
-		}
-	>;
-};
-
-type Filter<TInput extends Record<string, any> = Record<string, any>> = {
-	[K in keyof TInput]?:
-		| TInput[K]
-		| (TInput[K] extends (any[] | null) ? {
-				CONTAINS: TInput[K][number];
-			}
-			: never);
-};
-
-type UpdateOperators<TInput extends Record<string, any>> = {
-	[K in keyof TInput]?:
-		| TInput[K]
-		| ((
-			item: TInput[K] extends any[] | null ? Exclude<TInput[K], null>[number] : TInput[K],
-		) => TInput[K] extends any[] | null ? Exclude<TInput[K], null>[number] : TInput[K]);
-};
-
-type CollectionStore = {
-	collection: Record<string, any>[];
-};
-
-function matchesFilters(item: Record<string, any>, filter: Filter): boolean {
-	for (const [k, v] of Object.entries(filter)) {
-		if (v === undefined) continue;
-		const target = item[k];
-
-		if ((v && typeof v === 'object' && v.CONTAINS !== undefined)) {
-			if (!Array.isArray(target)) return false;
-			if (!target.find((e) => isEqual(e, v.CONTAINS))) return false;
-		} else {
-			if (!isEqual(target, v)) return false;
-		}
-	}
-
-	return true;
-}
-
-function filterCollection(collection: Record<string, any>[], filter: Filter) {
-	return collection.filter((e) => matchesFilters(e, filter));
-}
-
-type CommonEntity = Common & {
-	entityType: string;
-};
-
-function getCompositeKey(
-	row: CommonEntity,
-): string {
-	return `${row.schema ?? ''}:${row.table ?? ''}:${row.name}:${row.entityType}`;
-}
-
-function findCompositeKey(dataSource: (CommonEntity)[], target: CommonEntity) {
-	const targetKey = getCompositeKey(target);
-	const match = dataSource.find((e) => getCompositeKey(e) === targetKey);
-
-	return match;
-}
-
-function findCompositeKeys(dataSource: (CommonEntity)[], target: CommonEntity) {
-	const targetKey = getCompositeKey(target);
-	const match = dataSource.filter((e) => getCompositeKey(e) === targetKey);
-
-	return match;
-}
-
-// function replaceValue(arr: Array<any>, target: any, update: any) {
-// 	for (var i = 0; i < arr.length; i++) {
-// 		if (arr[i] === target) {
-// 			arr[i] = update;
-// 		}
-// 	}
-// 	return arr;
-// }
-
-export type InferInsert<TShape extends Record<string, any>, TCommon extends boolean = false> = TShape extends
-	infer Shape ? Simplify<
-		TCommon extends true ? NullAsUndefined<
-				{
-					[
-						K in keyof Shape as K extends keyof Common ? (null extends Common[K] ? null extends Shape[K] ? never
-								: K
-								: K)
-							: K
-					]: Shape[K];
-				}
-			>
-			: Omit<
-				NullAsUndefined<
-					{
-						[
-							K in keyof TShape as K extends keyof Common ? (null extends Common[K] ? null extends TShape[K] ? never
-									: K
-									: K)
-								: K
-						]: TShape[K];
-					}
-				>,
-				'entityType'
-			>
-	>
-	: never;
-
-type PushFn<
-	TInput extends Record<string, any>,
-	TCommon extends boolean = false,
-> = (
-	input: InferInsert<TInput, TCommon>,
-	uniques?: TInput extends infer Input ? (Exclude<Assume<keyof Input, string>, 'entityType'>)[] : never,
-) => {
-	status: 'OK' | 'CONFLICT';
-	data: TInput extends [Record<string, any>, Record<string, any>, ...Record<string, any>[]] ? TInput[] : TInput;
-};
-type ListFn<TInput extends Record<string, any>> = (where?: Filter<TInput>) => TInput[];
-type OneFn<TInput extends Record<string, any>> = (where?: Filter<TInput>) => TInput | null;
-type UpdateFn<TInput extends Record<string, any>> = (
-	config: TInput extends infer Input extends Record<string, any>
-		? { set: Simplify<UpdateOperators<Omit<Input, 'entityType'>>>; where?: Filter<Input> }
-		: never,
-) => {
-	status: 'OK' | 'CONFLICT';
-	data: TInput[];
-};
-type DeleteFn<TInput extends Record<string, any>> = (
-	where?: TInput extends infer Input extends Record<string, any> ? Filter<Input> : never,
-) => TInput[];
-type ValidateFn<TInput extends Record<string, any>> = (data: unknown) => data is TInput;
-type HasDiffFn<
-	TSchema extends Record<string, any>,
-	TType extends string,
-> = (
-	input: DiffAlter<TSchema, TType>,
-) => boolean;
-
-type PushAllFn = (
-	items: Iterable<Record<string, any>>,
-) => { status: 'OK'; count: number } | { status: 'CONFLICT'; key: string };
-
-const generatePushAll: (configs: Record<string, Config>, store: CollectionStore, type?: string) => PushAllFn = (
-	configs,
-	store,
-	type,
-) => {
-	const nullsByType = new Map<string, Record<string, any>>();
-	const getNulls = (entityType: string) => {
-		let cached = nullsByType.get(entityType);
-		if (cached) return cached;
-		cached = Object.fromEntries(
-			Object.keys(configs[entityType]).map((e) => [e, null]),
-		);
-		nullsByType.set(entityType, cached);
-		return cached;
-	};
-
-	return (items) => {
-		const seen = new Set<string>();
-		for (const existing of store.collection as CommonEntity[]) {
-			seen.add(getCompositeKey(existing));
-		}
-
-		const prepared: Record<string, any>[] = [];
-		for (const input of items) {
-			const filtered: Record<string, any> = {};
-			for (const k in input) {
-				if (input[k] !== undefined) filtered[k] = input[k];
-			}
-			const entityType = (type ?? filtered.entityType) as string;
-			const mapped = { ...getNulls(entityType), ...filtered, entityType };
-			const key = getCompositeKey(mapped as CommonEntity);
-			if (seen.has(key)) {
-				return { status: 'CONFLICT', key };
-			}
-			seen.add(key);
-			prepared.push(mapped);
-		}
-
-		for (const row of prepared) store.collection.push(row);
-		return { status: 'OK', count: prepared.length };
-	};
-};
-
-const generateInsert: (configs: Record<string, Config>, store: CollectionStore, type?: string) => PushFn<any> = (
-	configs,
-	store,
-	type,
-) => {
-	let nulls = type
-		? Object.fromEntries(
-			Object.keys(configs[type]).filter((e) => !commonConfig[e] || !(commonConfig[e] as string).endsWith('?')).map((
-				e,
-			) => [e, null]),
-		)
-		: undefined;
-
-	return (input, uniques) => {
-		const filteredElement = Object.fromEntries(Object.entries(input).filter(([_, value]) => value !== undefined));
-		const localType = (type ?? filteredElement.entityType) as string;
-		const localNulls = nulls ?? Object.fromEntries(
-			Object.keys(configs[localType]).map((
-				e,
-			) => [e, null]),
-		);
-
-		const mapped = {
-			...localNulls,
-			...filteredElement,
-			entityType: localType,
-		};
-
-		const conflict = uniques
-			? store.collection.find((e) => {
-				if ((e as CommonEntity).entityType !== mapped.entityType) return false;
-				for (const k of uniques) {
-					if (k in mapped && !isEqual(mapped[k as keyof typeof mapped], e[k])) return false;
-				}
-
-				return true;
-			})
-			: findCompositeKey(store.collection as CommonEntity[], mapped as CommonEntity);
-		if (conflict) {
-			return { status: 'CONFLICT', data: conflict };
-		}
-
-		store.collection.push(mapped);
-
-		return { status: 'OK', data: mapped };
-	};
-};
-
-const generateList: (store: CollectionStore, type?: string) => ListFn<any> = (
-	store,
-	type,
-) => {
-	return (where) => {
-		const from = type
-			? filterCollection(store.collection, {
-				entityType: type,
-			})
-			: store.collection;
-
-		if (!where) return from;
-
-		return (filterCollection(from, where));
-	};
-};
-
-const generateOne: (store: CollectionStore, type?: string) => OneFn<any> = (
-	store,
-	type,
-) => {
-	return (where) => {
-		const from = type
-			? filterCollection(store.collection, {
-				entityType: type,
-			})
-			: store.collection;
-
-		if (!where) return from[0] ?? null;
-
-		return (filterCollection(from, where)[0] ?? null);
-	};
-};
-
-const generateUpdate: (store: CollectionStore, type?: string) => UpdateFn<any> = (
-	store,
-	type,
-) => {
-	return ({ set, where }) => {
-		const filter = type
-			? {
-				...where,
-				entityType: type,
-			}
-			: where;
-
-		const targets = filter ? filterCollection(store.collection, filter) : store.collection;
-		const entries = Object.entries(set);
-		const newItems: {
-			index: number;
-			item: Record<string, any>;
-		}[] = [];
-		let i = 0;
-		const dupes: Record<string, any>[] = [];
-
-		for (const item of targets) {
-			const newItem: Record<string, any> = { ...item };
-
-			for (const [k, v] of entries) {
-				if (!(k in item)) continue;
-				const target = item[k];
-
-				newItem[k] = typeof v === 'function'
-					? (Array.isArray(target))
-						? target.map(v)
-						: v(target)
-					: v;
-			}
-
-			const dupe = findCompositeKeys(store.collection as CommonEntity[], newItem as CommonEntity).filter((e) =>
-				e !== item
-			);
-
-			dupes.push(...dupe.filter((e) => !dupes.find((d) => d === e)));
-
-			if (!dupe.length) {
-				newItems.push({
-					item: newItem,
-					index: i++,
-				});
-			}
-		}
-
-		// Swap this
-		if (dupes.length) {
-			return {
-				status: 'CONFLICT',
-				data: dupes,
-			};
-		}
-
-		// ^ with this
-		// If you want non-conflicting changes to apply regardless of conflicts' existence
-		for (const { index, item } of newItems) {
-			Object.assign(targets[index]!, item);
-		}
-
-		return { status: 'OK', data: targets };
-	};
-};
-
-const generateDelete: (store: CollectionStore, type?: string) => DeleteFn<any> = (
-	store,
-	type,
-) => {
-	return (where) => {
-		const updatedCollection = [] as Record<string, any>[];
-		const deleted = [] as Record<string, any>[];
-
-		const filter = type
-			? {
-				...where,
-				entityType: type,
-			}
-			: where;
-
-		if (!filter) {
-			store.collection = updatedCollection;
-
-			return deleted;
-		}
-
-		store.collection.forEach((e) => {
-			if (matchesFilters(e, filter)) deleted.push(e);
-			else updatedCollection.push(e);
-		});
-
-		store.collection = updatedCollection;
-
-		return deleted;
-	};
-};
-
-const generateHasDiff: (
-	lengths: Record<string, number>,
-) => HasDiffFn<any, any> = (
-	lengths,
-) => {
-	return (input) => {
-		const type = input.entityType;
-		const length = lengths[type];
-
-		return Object.keys(input).length > length;
-	};
-};
-
-function validate(data: any, schema: Config, deep = false): boolean {
-	if (typeof data !== 'object' || data === null) return false;
-
-	for (const k of Array.from(new Set([...Object.keys(data), ...Object.keys(schema)]))) {
-		if (!deep && k === 'entityType') continue;
-
-		if (!schema[k]) return false;
-
-		if (schema[k] === 'string[]') {
-			if (!Array.isArray(data[k])) return false;
-
-			if (!data[k].every((e) => typeof e === 'string')) return false;
-		} else if (typeof schema[k] === 'string') {
-			const isNullable = schema[k].endsWith('?');
-			if (data[k] === null && !isNullable) return false;
-			if (data[k] !== null && typeof data[k] !== removeQuestionMark(schema[k])) return false;
-		} else if (Array.isArray(schema[k])) {
-			if (typeof schema[k][0] === 'string') {
-				if (!schema[k].some((e) => e === data[k])) return false;
-			} else {
-				if (!Array.isArray(data[k])) return false;
-				if (
-					!data[k].every(
-						(e) => validate(e, (schema[k] as [Config])[0]),
-						true,
-					)
-				) return false;
-			}
-		} else {
-			if (data[k] !== null && !validate(data[k], schema[k], true)) return false;
-		}
-	}
-
-	return true;
-}
-
-const generateValidate: (configs: Record<string, Config>, type?: string) => ValidateFn<any> = (
-	configs,
-	type,
-) => {
-	return ((data) => {
-		if (typeof data !== 'object' || data === null) return false;
-
-		const localType = type ?? (<any> data).entityType as string;
-		if (typeof localType !== 'string' || (<any> data).entityType !== localType) return false;
-
-		const config = configs[localType];
-		if (!config) return false;
-
-		return validate(data, config);
-	}) as ValidateFn<any>;
-};
-
-type GenerateProcessors<
-	T extends AnyDbConfig,
-	TCommon extends boolean = false,
-	TTypes extends Record<string, any> = T['types'],
-> = {
-	[K in keyof TTypes]: {
-		push: PushFn<TTypes[K], TCommon>;
-		pushAll: PushAllFn;
-		list: ListFn<TTypes[K]>;
-		one: OneFn<TTypes[K]>;
-		update: UpdateFn<TTypes[K]>;
-		delete: DeleteFn<TTypes[K]>;
-		validate: ValidateFn<TTypes[K]>;
-		hasDiff: HasDiffFn<T['definition'], K & string>;
-	};
-};
-
-function initSchemaProcessors<T extends Omit<DbConfig<any>, 'diffs'>, TCommon extends boolean>(
-	{ entities }: T,
-	store: CollectionStore,
-	common: TCommon,
-	extraConfigs?: Record<string, Config>,
-): GenerateProcessors<T, TCommon> {
-	const entries = Object.entries(entities);
-
-	// left, right, entityType, diffType
-	const extraKeys = 4;
-
-	const lengths: Record<string, number> = Object.fromEntries(
-		Object.entries(common ? extraConfigs! : entities).map(([k, v]) => {
-			// name, table?, schema?
-			const commonCount = Object.keys(v).filter((e) => e in commonConfig).length;
-
-			return [k, commonCount + extraKeys];
-		}),
-	);
-
-	return Object.fromEntries(entries.map(([k, _v]) => {
-		return [k, {
-			push: generateInsert(common ? extraConfigs! : entities, store, common ? undefined : k),
-			pushAll: generatePushAll(common ? extraConfigs! : entities, store, common ? undefined : k),
-			list: generateList(store, common ? undefined : k),
-			one: generateOne(store, common ? undefined : k),
-			update: generateUpdate(store, common ? undefined : k),
-			delete: generateDelete(store, common ? undefined : k),
-			validate: generateValidate(common ? extraConfigs! : entities, common ? undefined : k),
-			hasDiff: generateHasDiff(lengths),
-		}];
-	})) as GenerateProcessors<T, TCommon>;
-}
-
-export type Config = {
-	[K: string]: `${Exclude<DataType, 'string['>}?` | DataType | [string, ...string[]] | Config | [Config];
-};
-
-type DbConfig<TDefinition extends Definition> = {
-	/** Type-level fields only, do not attempt to access at runtime */
-	types: InferEntities<TDefinition>;
-	/** Type-level fields only, do not attempt to access at runtime */
-	definition: TDefinition;
-	entities: {
-		[K in keyof TDefinition]: Config;
-	};
-	diffs: {
-		alter: {
-			[K in keyof TDefinition | 'entities']: DiffAlter<TDefinition, K>;
-		};
-		create: {
-			[K in keyof TDefinition | 'entities']: DiffCreate<TDefinition, K>;
-		};
-		drop: {
-			[K in keyof TDefinition | 'entities']: DiffDrop<TDefinition, K>;
-		};
-		createdrop: {
-			[K in keyof TDefinition | 'entities']: DiffCreate<TDefinition, K> | DiffDrop<TDefinition, K>;
-		};
-		all: {
-			[K in keyof TDefinition | 'entities']: DiffStatement<TDefinition, K>;
-		};
-	};
-	store: CollectionStore;
-};
-
-type AnyDbConfig = {
-	/** Type-level fields only, do not attempt to access at runtime */
-	types: Record<string, Record<string, any>>;
-	entities: Record<string, Config>;
-	definition: Record<string, any>;
-};
-
-type ValueOf<T> = T[keyof T];
-
-export type DiffCreate<
-	TSchema extends Definition = {},
-	TType extends keyof TSchema | 'entities' = string,
-	TShape extends Record<string, any> = TType extends 'entities' ? {} : Simplify<
-		InferSchema<TSchema[TType]> & Omit<Common, keyof TSchema[TType]> & {
-			entityType: TType;
-		}
-	>,
-> = TType extends 'entities' ? ValueOf<
-		{
-			[K in keyof TSchema]: DiffCreate<TSchema, K>;
-		}
-	>
-	: Simplify<
-		& {
-			$diffType: 'create';
-			entityType: TType;
-		}
-		& {
-			[
-				K in keyof Common as K extends keyof TShape ? null extends TShape[K] ? never : K : K
-			]: Exclude<Common[K], null>;
-		}
-		& Omit<TShape, keyof CommonEntity>
-	>;
-
-export type DiffDrop<
-	TSchema extends Definition = {},
-	TType extends keyof TSchema | 'entities' = string,
-	TShape extends Record<string, any> = TType extends 'entities' ? {} : Simplify<
-		InferSchema<TSchema[TType]> & Omit<Common, keyof TSchema[TType]> & {
-			entityType: TType;
-		}
-	>,
-> = TType extends 'entities' ? ValueOf<
-		{
-			[K in keyof TSchema]: DiffDrop<TSchema, K>;
-		}
-	>
-	: Simplify<
-		& {
-			$diffType: 'drop';
-			entityType: TType;
-		}
-		& {
-			[
-				K in keyof Common as K extends keyof TShape ? null extends TShape[K] ? never : K : K
-			]: Exclude<Common[K], null>;
-		}
-		& Omit<TShape, keyof CommonEntity>
-	>;
-
-export type DiffAlter<
-	TSchema extends Definition = {},
-	TType extends keyof TSchema | 'entities' = string,
-	TShape extends Record<string, any> = TType extends 'entities' ? {} : Simplify<
-		InferSchema<TSchema[TType]> & Omit<Common, keyof TSchema[TType]> & {
-			entityType: TType;
-		}
-	>,
-	TFullShape extends Record<string, any> = TType extends 'entities' ? {} : Simplify<
-		& InferSchema<TSchema[TType]>
-		& {
-			[C in keyof Common as C extends keyof TSchema[TType] ? never : null extends Common[C] ? never : C]: Common[C];
-		}
-		& {
-			entityType: TType;
-		}
-	>,
-> = TType extends 'entities' ? ValueOf<
-		{
-			[K in keyof TSchema]: DiffAlter<TSchema, K>;
-		}
-	>
-	: Simplify<
-		& {
-			$diffType: 'alter';
-			entityType: TType;
-		}
-		& {
-			[
-				K in keyof Common as K extends keyof TShape ? null extends TShape[K] ? never : K : K
-			]: Exclude<Common[K], null>;
-		}
-		& {
-			[K in Exclude<keyof TShape, keyof CommonEntity>]?: {
-				from: TShape[K];
-				to: TShape[K];
-			};
-		}
-		& {
-			$left: TFullShape;
-			$right: TFullShape;
-		}
-	>;
-
-export type DiffStatement<
-	TSchema extends Definition,
-	TType extends keyof TSchema | 'entities',
-> =
-	| DiffCreate<TSchema, TType>
-	| DiffDrop<TSchema, TType>
-	| DiffAlter<TSchema, TType>;
-
-type CollectionRow = Record<string, any> & Common & {
-	entityType: string;
-	key: string;
-};
-
-const ignoreChanges: Record<keyof Common | 'entityType', true> = {
-	entityType: true,
-	name: true,
-	schema: true,
-	table: true,
-};
+const COMMON_FIELDS = ['schema', 'table', 'name'] as const;
 
 function isEqual(a: any, b: any): boolean {
+	if (a === b) return true;
 	if (typeof a !== typeof b) return false;
-
 	if (Array.isArray(a) && Array.isArray(b)) {
-		if (a.length !== b.length) return false;
-		return a.every((v, i) => isEqual(v, b[i]));
+		return a.length === b.length && a.every((v, i) => isEqual(v, b[i]));
 	}
-
-	if (typeof a === 'object') {
-		if (a === b) return true;
-		if ((a === null || b === null) && a !== b) return false;
-
+	if (a && b && typeof a === 'object') {
 		const keys = Array.from(new Set([...Object.keys(a), ...Object.keys(b)]));
-
 		return keys.every((k) => isEqual(a[k], b[k]));
 	}
-
-	return a === b;
+	return false;
 }
 
-function sanitizeRow(row: Record<string, any>) {
-	return Object.fromEntries(
-		Object.entries(row).filter(([k, _v]) => !ignoreChanges[k as keyof typeof ignoreChanges]),
-	);
+function matches(row: Row, where: Row): boolean {
+	for (const [k, v] of Object.entries(where)) {
+		if (v === undefined) continue;
+		if (v && typeof v === 'object' && (v as any).CONTAINS !== undefined) {
+			const t = row[k];
+			if (!Array.isArray(t) || !t.some((e) => isEqual(e, (v as any).CONTAINS))) return false;
+		} else if (!isEqual(row[k], v)) return false;
+	}
+	return true;
 }
 
-function getRowCommons(row: Record<string, any>): {
-	[K in keyof Common]: Common[K];
-} {
-	const res: Record<string, any> = {};
-	for (const k of Object.keys(commonConfig)) {
-		if (row[k] === undefined || row[k] === null) continue;
+const unq = (s: string) => (s.endsWith('?') ? s.slice(0, -1) : s);
 
-		res[k] = row[k];
-	}
-
-	return res as any;
-}
-
-function _diff<
-	TDefinition extends Definition,
-	TCollection extends keyof TDefinition | 'entities' = 'entities',
-	TMode extends 'all' | 'create' | 'drop' | 'createdrop' | 'alter' = 'all',
-	TDataBase extends SimpleDb<TDefinition> = SimpleDb<TDefinition>,
->(
-	dbOld: SimpleDb<TDefinition>,
-	dbNew: SimpleDb<TDefinition>,
-	collection?: TCollection,
-	mode?: TMode,
-): Simplify<TDataBase['_']['diffs'][TMode][TCollection]>[] {
-	collection = collection ?? 'entities' as TCollection;
-	mode = mode ?? 'all' as TMode;
-
-	const leftEntities = dbOld.entities.list(
-		collection === 'entities' ? undefined : {
-			// @ts-ignore
-			entityType: collection,
-		},
-	) as CollectionRow[];
-	const rightEntities = dbNew.entities.list(
-		collection === 'entities' ? undefined : {
-			// @ts-ignore
-			entityType: collection,
-		},
-	) as CollectionRow[];
-
-	const left: Record<string, CollectionRow> = {};
-	const right: Record<string, CollectionRow> = {};
-
-	for (const row of leftEntities) {
-		left[getCompositeKey(row)] = row;
-	}
-	for (const row of rightEntities) {
-		right[getCompositeKey(row)] = row;
-	}
-
-	const created: DiffCreate[] = [];
-	const dropped: DiffDrop[] = [];
-	const altered: DiffAlter[] = [];
-
-	for (const [key, oldRow] of Object.entries(left)) {
-		const newRow = right[key];
-		if (!newRow) {
-			if (mode === 'all' || mode === 'drop' || mode === 'createdrop') {
-				dropped.push({
-					$diffType: 'drop',
-					entityType: oldRow.entityType,
-					...getRowCommons(oldRow),
-					...sanitizeRow(oldRow),
-				});
+function validateRow(data: any, def: Def, deep = false): boolean {
+	if (typeof data !== 'object' || data === null) return false;
+	for (const k of new Set([...Object.keys(data), ...Object.keys(def)])) {
+		if (!deep && k === 'entityType') continue;
+		const f = (def as any)[k] as Field | undefined;
+		if (!f) return false;
+		if (f === 'string[]') {
+			if (!Array.isArray(data[k]) || !data[k].every((e: any) => typeof e === 'string')) return false;
+		} else if (typeof f === 'string') {
+			const nullable = f.endsWith('?');
+			if (data[k] === null) {
+				if (!nullable) return false;
+			} else if (typeof data[k] !== unq(f)) return false;
+		} else if (Array.isArray(f)) {
+			if (typeof f[0] === 'string' || f[0] === null) {
+				if (!(f as readonly any[]).some((e) => e === data[k])) return false; // enum
+			} else {
+				if (!Array.isArray(data[k])) return false; // array of objects
+				if (!data[k].every((e: any) => validateRow(e, (f as any)[0], true))) return false;
 			}
-		} else if (mode === 'all' || mode === 'alter') {
-			const changes: Record<string, any> = {};
-			let isChanged = false;
+		} else {
+			if (data[k] !== null && !validateRow(data[k], f as Def, true)) return false; // nested object
+		}
+	}
+	return true;
+}
 
-			for (const [k, _v] of Object.entries(oldRow)) {
-				if (ignoreChanges[k as keyof typeof ignoreChanges]) continue;
+function compileEdge(spec: EdgeSpec, idOf: IdFn): Edge {
+	type LE = { tf: string; list: string; pick?: string; skipWhen?: string };
+	const scalars: [string, string][] = []; // [targetField, sourceField]
+	let listE: LE | null = null;
+	for (const [tf, src] of Object.entries(spec.map)) {
+		if (typeof src === 'string') scalars.push([tf, src]);
+		else listE = { tf, ...src };
+	}
+	const readList = (row: Row): string[] => {
+		const arr = row[listE!.list];
+		if (!Array.isArray(arr)) return [];
+		const out: string[] = [];
+		for (const it of arr) {
+			if (listE!.skipWhen && it?.[listE!.skipWhen]) continue;
+			const v = listE!.pick ? it?.[listE!.pick] : it;
+			if (typeof v === 'string') out.push(v);
+		}
+		return out;
+	};
 
-				if (!isEqual(oldRow[k], newRow[k])) {
-					isChanged = true;
-					changes[k] = { from: oldRow[k], to: newRow[k] };
+	return {
+		to: spec.to,
+		cascade: spec.cascade ?? true,
+		resolve: (row) => {
+			if (spec.when && !spec.when(row)) return [];
+			const base: Row = {};
+			for (const [tf, sf] of scalars) base[tf] = row[sf];
+			if (!listE) return [idOf(base)];
+			return readList(row).map((v) => idOf({ ...base, [listE!.tf]: v }));
+		},
+		// null unless the row's mapped fields currently equal `from`'s identity
+		// components (self-guard); else the patch re-pointing them at `to`.
+		relocate: (row, from, to) => {
+			if (spec.when && !spec.when(row)) return null;
+			for (const [tf, sf] of scalars) {
+				if (!isEqual(row[sf], from[tf])) return null; // this row doesn't point at `from`
+			}
+			if (!listE) {
+				const patch: Row = {};
+				for (const [tf, sf] of scalars) patch[sf] = to[tf]; // scalar edge: rewrite the mapped source fields
+				return patch;
+			}
+			// list edge: rewrite only the matching element, plus the shared prefix.
+			const arr = row[listE.list];
+			if (!Array.isArray(arr)) return null;
+			let changed = false;
+			const next = arr.map((it) => {
+				if (listE!.skipWhen && it?.[listE!.skipWhen]) return it;
+				const v = listE!.pick ? it?.[listE!.pick] : it;
+				if (!isEqual(v, from[listE!.tf])) return it;
+				changed = true;
+				return listE!.pick ? { ...it, [listE!.pick]: to[listE!.tf] } : to[listE!.tf];
+			});
+			if (!changed) return null;
+			const patch: Row = { [listE.list]: next };
+			for (const [tf, sf] of scalars) patch[sf] = to[tf];
+			return patch;
+		},
+	};
+}
+
+function reverseIndex(store: Store, edges: Record<string, Edge[]>): Map<string, Dep[]> {
+	const idx = new Map<string, Dep[]>();
+	for (const [type, bucket] of store) {
+		const es = edges[type];
+		if (!es || !es.length) continue;
+		for (const row of bucket.values()) {
+			for (const edge of es) {
+				for (const tk of edge.resolve(row)) {
+					const q = qual(edge.to, tk);
+					let list = idx.get(q);
+					if (!list) idx.set(q, list = []);
+					list.push({ row, edge, type });
+				}
+			}
+		}
+	}
+	return idx;
+}
+
+function makeProcessors(ctx: Internals, type?: string): Processors {
+	const { store, defs, identity, edges, nulls } = ctx;
+	const keyOf = (row: Row) => identity[row.entityType](row);
+	const bucketOf = (t: string) => {
+		let b = store.get(t);
+		if (!b) store.set(t, b = new Map());
+		return b;
+	};
+	const scope = (): Row[] => {
+		if (type) return [...(store.get(type)?.values() ?? [])];
+		const out: Row[] = [];
+		for (const b of store.values()) out.push(...b.values());
+		return out;
+	};
+	const setRow = (row: Row) => bucketOf(row.entityType).set(keyOf(row), row);
+
+	const rekey = () => {
+		const all: Row[] = [];
+		for (const b of store.values()) all.push(...b.values());
+		for (const b of store.values()) b.clear();
+		for (const r of all) bucketOf(r.entityType).set(keyOf(r), r);
+	};
+
+	const prepare = (input: Row): Row => {
+		const et = type ?? input.entityType;
+		const out: Row = { ...nulls[et] };
+		for (const k in input) if (input[k] !== undefined && k in out) out[k] = input[k];
+		out.entityType = et;
+		return out;
+	};
+
+	const push: Processors['push'] = (input, uniques) => {
+		const row = prepare(input);
+		const k = keyOf(row);
+		let conflict: Row | undefined;
+		if (uniques) {
+			conflict = scope().find((e) => e.entityType === row.entityType && uniques.every((u) => isEqual(row[u], e[u])));
+		} else conflict = store.get(row.entityType)?.get(k);
+		if (conflict) return { status: 'CONFLICT', data: conflict };
+		setRow(row);
+		return { status: 'OK', data: row };
+	};
+
+	const pushAll: Processors['pushAll'] = (items) => {
+		const seen = new Set<string>();
+		for (const [t, b] of store) for (const key of b.keys()) seen.add(qual(t, key));
+		const prepared: Row[] = [];
+		for (const it of items) {
+			const row = prepare(it);
+			const q = qual(row.entityType, keyOf(row));
+			if (seen.has(q)) return { status: 'CONFLICT', key: keyOf(row) };
+			seen.add(q);
+			prepared.push(row);
+		}
+		for (const row of prepared) setRow(row);
+		return { status: 'OK', count: prepared.length };
+	};
+
+	const list: Processors['list'] = (where) => {
+		const from = scope();
+		return where ? from.filter((r) => matches(r, where)) : from;
+	};
+	const one: Processors['one'] = (
+		where,
+	) => (where ? scope().find((r) => matches(r, where)) ?? null : scope()[0] ?? null);
+
+	const applySet = (row: Row, set: Row): Row => {
+		const next: Row = { ...row };
+		for (const [k, v] of Object.entries(set)) {
+			if (!(k in row)) continue;
+			const cur = row[k];
+			next[k] = typeof v === 'function' ? (Array.isArray(cur) ? cur.map(v as any) : (v as any)(cur)) : v;
+		}
+		return next;
+	};
+
+	const update: Processors['update'] = ({ set, where }) => {
+		const targets = list(where);
+		const planned = targets.map((row) => ({ row, next: applySet(row, set) }));
+
+		const snap: [string, Row][] = [];
+		for (const b of store.values()) for (const r of b.values()) snap.push([r.entityType, { ...r }]);
+
+		type Seed = { type: string; oldKey: string; oldRow: Row; newRow: Row };
+		const seeds: Seed[] = [];
+		for (const { row, next } of planned) {
+			const oldRow = { ...row };
+			const oldKey = keyOf(oldRow);
+			Object.assign(row, next);
+			if (keyOf(row) !== oldKey) seeds.push({ type: row.entityType, oldKey, oldRow, newRow: row });
+		}
+
+		if (seeds.length) {
+			const idx = reverseIndex(store, edges);
+			const visited = new Set(seeds.map((s) => qual(s.type, s.oldKey)));
+			const queue = [...seeds];
+			for (let i = 0; i < queue.length; i++) {
+				const s = queue[i];
+				for (const dep of idx.get(qual(s.type, s.oldKey)) ?? []) {
+					const patch = dep.edge.relocate(dep.row, s.oldRow, s.newRow);
+					if (!patch) continue;
+					const depOld = { ...dep.row };
+					const depOldKey = keyOf(depOld);
+					Object.assign(dep.row, patch);
+					const depNewKey = keyOf(dep.row);
+					if (depNewKey !== depOldKey) {
+						const q = qual(dep.type, depOldKey);
+						if (!visited.has(q)) {
+							visited.add(q);
+							queue.push({ type: dep.type, oldKey: depOldKey, oldRow: depOld, newRow: dep.row });
+						}
+					}
 				}
 			}
 
-			if (isChanged) {
+			const held = new Set<string>();
+			const colliders: Row[] = [];
+			for (const b of store.values()) {
+				for (const r of b.values()) {
+					const q = qual(r.entityType, keyOf(r));
+					if (held.has(q)) colliders.push(r);
+					else held.add(q);
+				}
+			}
+			if (colliders.length) {
+				for (const b of store.values()) b.clear();
+				for (const [t, r] of snap) bucketOf(t).set(keyOf(r), r);
+				return { status: 'CONFLICT', data: colliders };
+			}
+
+			rekey(); // rows moved keys — rebuild the buckets once.
+		}
+		return { status: 'OK', data: targets };
+	};
+
+	const del: Processors['delete'] = (where) => {
+		const targets = list(where);
+		for (const row of targets) store.get(row.entityType)?.delete(keyOf(row));
+		return targets;
+	};
+
+	const drop: Processors['drop'] = (where) => {
+		const targets = list(where);
+		if (!targets.length) return [];
+		const idx = reverseIndex(store, edges);
+		const seen = new Set<string>();
+		const queue: Row[] = [];
+		const seed = (row: Row) => {
+			const q = qual(row.entityType, keyOf(row));
+			if (!seen.has(q)) {
+				seen.add(q);
+				queue.push(row);
+			}
+		};
+		targets.forEach(seed);
+		const deleted: Row[] = [];
+		for (let i = 0; i < queue.length; i++) {
+			const row = queue[i];
+			store.get(row.entityType)?.delete(keyOf(row));
+			deleted.push(row);
+			for (const dep of idx.get(qual(row.entityType, keyOf(row))) ?? []) {
+				if (dep.edge.cascade) seed(dep.row);
+			}
+		}
+		return deleted;
+	};
+
+	const validate: Processors['validate'] = (row) => {
+		if (typeof row !== 'object' || row === null) return false;
+		const et = type ?? (row as any).entityType;
+		const d = defs[et];
+		return d ? validateRow(row, d) : false;
+	};
+
+	const hasDiff: Processors['hasDiff'] = (alter) => {
+		for (const [k, v] of Object.entries(alter)) {
+			if (k === '$left' || k === '$right' || k === '$diffType' || k === 'entityType') continue;
+			if (v && typeof v === 'object' && 'from' in v && 'to' in v) return true;
+		}
+		return false;
+	};
+
+	return { push, pushAll, list, one, update, delete: del, drop, validate, hasDiff };
+}
+
+export function create<const D extends Record<string, Def>>(
+	defs: D,
+	opts: {
+		identity: Record<keyof D, IdFn>;
+		edges?: { [S in keyof D]?: EdgeOf<D, S>[] };
+	},
+): DDL<InferEntities<D>> {
+	const { identity, edges: edgeSpecs = {} } = opts as {
+		identity: Record<string, IdFn>;
+		edges?: Record<string, EdgeSpec[]>;
+	};
+
+	const store: Store = new Map();
+	const nulls: Record<string, Row> = {};
+	for (const t of Object.keys(defs)) {
+		if (t === 'entities' || t === '_' || t === 'key') throw new Error(`Illegal entity type name: "${t}"`);
+		if (!identity[t]) throw new Error(`Missing identity generator for "${t}"`);
+		store.set(t, new Map());
+		nulls[t] = Object.fromEntries(Object.keys(defs[t]).map((k) => [k, null]));
+	}
+	const edges: Record<string, Edge[]> = {};
+	for (const [t, specs] of Object.entries(edgeSpecs)) {
+		edges[t] = (specs as EdgeSpec[]).map((s) => {
+			if (!identity[s.to]) throw new Error(`Edge on "${t}" targets unknown type "${s.to}"`);
+			return compileEdge(s, identity[s.to]);
+		});
+	}
+
+	const internals: Internals = { store, defs, identity, edges, nulls };
+	const ddl: any = { _: internals, key: (t: string, row: Row) => identity[t](row) };
+	ddl.entities = makeProcessors(internals); // aggregate view
+	for (const t of Object.keys(defs)) ddl[t] = makeProcessors(internals, t);
+	return ddl as DDL<InferEntities<D>>;
+}
+
+function _diff(
+	a: AnyDDL,
+	b: AnyDDL,
+	type: string | undefined,
+	mode: 'all' | 'create' | 'drop' | 'createdrop' | 'alter',
+): Row[] {
+	const where = type ? { entityType: type } : undefined;
+	const keyBy = (ddl: AnyDDL, rows: Row[]) => {
+		const m: Record<string, Row> = {};
+		for (const r of rows) m[qual(r.entityType, ddl.key(r.entityType, r))] = r;
+		return m;
+	};
+	const left = keyBy(a, a.entities.list(where));
+	const right = keyBy(b, b.entities.list(where));
+
+	const created: Row[] = [];
+	const dropped: Row[] = [];
+	const altered: Row[] = [];
+
+	for (const [k, oldRow] of Object.entries(left)) {
+		const newRow = right[k];
+		if (!newRow) {
+			if (mode === 'all' || mode === 'drop' || mode === 'createdrop') {
+				dropped.push({ $diffType: 'drop', ...oldRow });
+			}
+		} else if (mode === 'all' || mode === 'alter') {
+			const changes: Row = {};
+			let changed = false;
+			for (const f of new Set([...Object.keys(oldRow), ...Object.keys(newRow)])) {
+				if (f === 'entityType') continue;
+				if (!isEqual(oldRow[f], newRow[f])) {
+					changed = true;
+					changes[f] = { from: oldRow[f], to: newRow[f] };
+				}
+			}
+			if (changed) {
+				const commons: Row = {};
+				for (const c of COMMON_FIELDS) if (newRow[c] !== undefined && newRow[c] !== null) commons[c] = newRow[c];
 				altered.push({
 					$diffType: 'alter',
 					entityType: newRow.entityType,
-					...getRowCommons(newRow),
+					...commons,
 					...changes,
 					$left: oldRow,
 					$right: newRow,
 				});
 			}
 		}
-
-		delete right[key];
+		delete right[k];
 	}
-
 	if (mode === 'all' || mode === 'create' || mode === 'createdrop') {
-		for (const newRow of Object.values(right)) {
-			created.push({
-				$diffType: 'create',
-				entityType: newRow.entityType as string,
-				...getRowCommons(newRow),
-				...sanitizeRow(newRow),
-			});
-		}
+		for (const newRow of Object.values(right)) created.push({ $diffType: 'create', ...newRow });
 	}
-
-	return [...created, ...dropped, ...altered] as any;
+	return [...created, ...dropped, ...altered];
 }
 
-export function diff<
-	TDefinition extends Definition,
-	TCollection extends keyof TDefinition | 'entities' = 'entities',
->(dbOld: SimpleDb<TDefinition>, dbNew: SimpleDb<TDefinition>, collection?: TCollection) {
-	return _diff(dbOld, dbNew, collection, 'createdrop');
+type Coll<M> = keyof M & string;
+export function diff<M extends Record<string, Row>, K extends Coll<M> = Coll<M>>(
+	a: DDL<M>,
+	b: DDL<M>,
+	type?: K,
+): (CreatesOf<M, K> | DropsOf<M, K>)[] {
+	return _diff(a, b, type, 'createdrop') as any;
 }
-
 export namespace diff {
-	export function all<
-		TDefinition extends Definition,
-		TCollection extends keyof TDefinition | 'entities' = 'entities',
-	>(dbOld: SimpleDb<TDefinition>, dbNew: SimpleDb<TDefinition>, collection?: TCollection) {
-		return _diff(dbOld, dbNew, collection, 'all');
+	export function all<M extends Record<string, Row>, K extends Coll<M> = Coll<M>>(
+		a: DDL<M>,
+		b: DDL<M>,
+		type?: K,
+	): (CreatesOf<M, K> | DropsOf<M, K> | AltersOf<M, K>)[] {
+		return _diff(a, b, type, 'all') as any;
 	}
-
-	export function creates<
-		TDefinition extends Definition,
-		TCollection extends keyof TDefinition | 'entities' = 'entities',
-	>(dbOld: SimpleDb<TDefinition>, dbNew: SimpleDb<TDefinition>, collection?: TCollection) {
-		return _diff(dbOld, dbNew, collection, 'create');
+	export function creates<M extends Record<string, Row>, K extends Coll<M> = Coll<M>>(
+		a: DDL<M>,
+		b: DDL<M>,
+		type?: K,
+	): CreatesOf<M, K>[] {
+		return _diff(a, b, type, 'create') as any;
 	}
-
-	export function drops<
-		TDefinition extends Definition,
-		TCollection extends keyof TDefinition | 'entities' = 'entities',
-	>(dbOld: SimpleDb<TDefinition>, dbNew: SimpleDb<TDefinition>, collection?: TCollection) {
-		return _diff(dbOld, dbNew, collection, 'drop');
+	export function drops<M extends Record<string, Row>, K extends Coll<M> = Coll<M>>(
+		a: DDL<M>,
+		b: DDL<M>,
+		type?: K,
+	): DropsOf<M, K>[] {
+		return _diff(a, b, type, 'drop') as any;
 	}
-
-	export function alters<
-		TDefinition extends Definition,
-		TCollection extends keyof TDefinition | 'entities' = 'entities',
-	>(dbOld: SimpleDb<TDefinition>, dbNew: SimpleDb<TDefinition>, collection?: TCollection) {
-		return _diff(dbOld, dbNew, collection, 'alter');
-	}
-}
-
-function removeQuestionMark<T extends string, TResult extends string = T extends `${infer R}?` ? R : T>(
-	str: T,
-): TResult {
-	if (!str.endsWith('?')) return str as string as TResult;
-
-	return str.slice(0, str.length - 1) as TResult;
-}
-
-class SimpleDb<TDefinition extends Definition = Record<string, any>> {
-	public readonly _: DbConfig<TDefinition> = {
-		diffs: {} as any,
-		store: {
-			collection: [] as Record<string, any>[],
-		},
-	} as any;
-
-	public entities: GenerateProcessors<{
-		types: {
-			entities: InferEntities<TDefinition> extends infer TInferred ? Simplify<
-					ValueOf<TInferred>
-				>
-				: never;
-		};
-		entities: any;
-		definition: TDefinition;
-	}, true>['entities'];
-
-	constructor(definition: TDefinition) {
-		const entries = Object.entries(definition);
-		const configs = Object.fromEntries(entries.map(([type, def]) => {
-			if (type === 'entities' || type === '_') throw new Error(`Illegal entity type name: "${type}"`);
-			const cloneDef: Record<string, any> = {};
-
-			Object.entries(def).forEach(([fieldName, fieldValue]) => {
-				cloneDef[fieldName] = fieldValue;
-
-				if (fieldValue === 'required') {
-					if (!(fieldName in commonConfig)) {
-						throw new Error(
-							`Type value "required" is only applicable to common keys [ ${
-								Object.keys(commonConfig).map((e) => `"${e}"`).join(', ')
-							} ], used on: "${fieldName}"`,
-						);
-					}
-
-					cloneDef[fieldName] = (removeQuestionMark(commonConfig[fieldName] as string)) as Exclude<
-						ExtendedType,
-						'required'
-					>;
-				} else {
-					if (fieldName in commonConfig) {
-						throw new Error(`Used forbidden key "${fieldName}" in entity "${type}"`);
-					}
-				}
-			});
-
-			for (const k in commonConfig) {
-				if (commonConfig[k].endsWith('?')) continue;
-
-				cloneDef[k] = commonConfig[k];
-			}
-
-			return [type, cloneDef];
-		}));
-
-		this._.entities = configs as any;
-
-		const entConfig = {
-			...this._,
-			entities: {
-				entities: commonConfig,
-			},
-		};
-
-		this.entities = initSchemaProcessors(entConfig, this._.store, true, this._.entities).entities as any;
+	export function alters<M extends Record<string, Row>, K extends Coll<M> = Coll<M>>(
+		a: DDL<M>,
+		b: DDL<M>,
+		type?: K,
+	): AltersOf<M, K>[] {
+		return _diff(a, b, type, 'alter') as any;
 	}
 }
 
-export function create<
-	TDefinition extends Definition,
-	TResult = SimpleDb<TDefinition> extends infer DB extends SimpleDb<any> ? Simplify<DB & GenerateProcessors<DB['_']>>
-		: never,
->(
-	definition: TDefinition,
-): TResult {
-	const db = new SimpleDb(definition);
-
-	const processors = initSchemaProcessors(db._, db._.store, false);
-	for (const [k, v] of Object.entries(processors)) {
-		(db as any)[k] = v;
-	}
-
-	return db as any;
-}
+export const key = (ddl: AnyDDL, type: string, row: Row): string => ddl.key(type, row);

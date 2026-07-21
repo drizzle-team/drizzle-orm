@@ -5,7 +5,6 @@ import { InvalidHintsCliError, type JsonValue } from './errors';
 const singleTupleSchema = z.tuple([z.string()]);
 const pairTupleSchema = z.tuple([z.string(), z.string()]);
 const tripleTupleSchema = z.tuple([z.string(), z.string(), z.string()]);
-const privilegeTupleSchema = z.tuple([z.string(), z.string(), z.string(), z.string(), z.string()]);
 
 const renameCreateEntitySchemas = [
 	{ kind: 'table', schema: pairTupleSchema },
@@ -17,7 +16,6 @@ const renameCreateEntitySchemas = [
 	{ kind: 'view', schema: pairTupleSchema },
 	{ kind: 'policy', schema: tripleTupleSchema },
 	{ kind: 'role', schema: singleTupleSchema },
-	{ kind: 'privilege', schema: privilegeTupleSchema },
 	{ kind: 'check', schema: tripleTupleSchema },
 	{ kind: 'index', schema: tripleTupleSchema },
 	{ kind: 'unique', schema: tripleTupleSchema },

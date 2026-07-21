@@ -244,16 +244,20 @@ export interface JsonAlterUnique {
 export interface JsonAddCheck {
 	type: 'add_check';
 	check: CheckConstraint;
+	columns: string[];
 }
 
 export interface JsonDropCheck {
 	type: 'drop_check';
 	check: CheckConstraint;
+	columns: string[];
 }
 
 export interface JsonAlterCheck {
 	type: 'alter_check';
 	diff: DiffEntities['checks'];
+	newColumns: string[];
+	oldColumns: string[];
 }
 
 export interface JsonAddPrimaryKey {
@@ -272,6 +276,7 @@ export interface JsonRenameConstraint {
 	table: string;
 	from: string;
 	to: string;
+	columns: string[];
 }
 
 export interface JsonAlterPrimaryKey {
@@ -296,8 +301,10 @@ export interface JsonDropIndex {
 export interface JsonRenameIndex {
 	type: 'rename_index';
 	schema: string;
+	table: string;
 	from: string;
 	to: string;
+	columns: string[];
 }
 
 export interface JsonRenameColumn {

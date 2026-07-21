@@ -1,18 +1,21 @@
 import type { SchemaForPull } from '../../cli/commands/pull-common';
+import type { Alter } from '../dialect';
 import { create } from '../dialect';
 import { defaultNameForPK, defaultNameForUnique } from './grammar';
 
 export const createDDL = () => {
 	return create({
-		schemas: {},
-		tables: { schema: 'required', isRlsEnabled: 'boolean' },
+		schemas: { name: 'string' },
+		tables: { schema: 'string', name: 'string', isRlsEnabled: 'boolean' },
 		enums: {
-			schema: 'required',
+			schema: 'string',
+			name: 'string',
 			values: 'string[]',
 		},
 		columns: {
-			schema: 'required',
-			table: 'required',
+			schema: 'string',
+			table: 'string',
+			name: 'string',
 			type: 'string',
 			typeSchema: 'string?',
 			notNull: 'boolean',
@@ -34,8 +37,9 @@ export const createDDL = () => {
 			},
 		},
 		indexes: {
-			schema: 'required',
-			table: 'required',
+			schema: 'string',
+			table: 'string',
+			name: 'string',
 			nameExplicit: 'boolean',
 			columns: [
 				{
@@ -56,8 +60,9 @@ export const createDDL = () => {
 			concurrently: 'boolean',
 		},
 		fks: {
-			schema: 'required',
-			table: 'required',
+			schema: 'string',
+			table: 'string',
+			name: 'string',
 			nameExplicit: 'boolean',
 			columns: 'string[]',
 			schemaTo: 'string',
@@ -67,25 +72,29 @@ export const createDDL = () => {
 			onDelete: ['NO ACTION', 'RESTRICT', 'SET NULL', 'CASCADE', 'SET DEFAULT', null],
 		},
 		pks: {
-			schema: 'required',
-			table: 'required',
+			schema: 'string',
+			table: 'string',
+			name: 'string',
 			columns: 'string[]',
 			nameExplicit: 'boolean',
 		},
 		uniques: {
-			schema: 'required',
-			table: 'required',
+			schema: 'string',
+			table: 'string',
+			name: 'string',
 			nameExplicit: 'boolean',
 			columns: 'string[]',
 			nullsNotDistinct: 'boolean',
 		},
 		checks: {
-			schema: 'required',
-			table: 'required',
+			schema: 'string',
+			table: 'string',
+			name: 'string',
 			value: 'string',
 		},
 		sequences: {
-			schema: 'required',
+			schema: 'string',
+			name: 'string',
 			incrementBy: 'string?',
 			minValue: 'string?',
 			maxValue: 'string?',
@@ -94,6 +103,7 @@ export const createDDL = () => {
 			cycle: 'boolean?',
 		},
 		roles: {
+			name: 'string',
 			superuser: 'boolean?',
 			createDb: 'boolean?',
 			createRole: 'boolean?',
@@ -108,14 +118,15 @@ export const createDDL = () => {
 		privileges: {
 			grantor: 'string',
 			grantee: 'string',
-			schema: 'required',
-			table: 'required',
+			schema: 'string',
+			table: 'string',
 			type: ['ALL', 'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'],
 			isGrantable: 'boolean',
 		},
 		policies: {
-			schema: 'required',
-			table: 'required',
+			schema: 'string',
+			table: 'string',
+			name: 'string',
 			as: ['PERMISSIVE', 'RESTRICTIVE'],
 			for: ['ALL', 'SELECT', 'INSERT', 'UPDATE', 'DELETE'],
 			roles: 'string[]', // TO { role_name | PUBLIC | CURRENT_ROLE | SESSION_USER }
@@ -123,7 +134,8 @@ export const createDDL = () => {
 			withCheck: 'string?',
 		},
 		views: {
-			schema: 'required',
+			schema: 'string',
+			name: 'string',
 			definition: 'string?',
 			with: {
 				checkOption: ['local', 'cascaded', null],
@@ -153,15 +165,74 @@ export const createDDL = () => {
 			tablespace: 'string?',
 			materialized: 'boolean',
 		},
+	}, {
+		identity: {
+			schemas: (r) => JSON.stringify([r.name]),
+			tables: (r) => JSON.stringify([r.schema, r.name]),
+			enums: (r) => JSON.stringify([r.schema, r.name]),
+			columns: (r) => JSON.stringify([r.schema, r.table, r.name]),
+			indexes: (r) => JSON.stringify([r.schema, r.table, r.name]),
+			fks: (r) => JSON.stringify([r.schema, r.table, r.name]),
+			pks: (r) => JSON.stringify([r.schema, r.table, r.name]),
+			uniques: (r) => JSON.stringify([r.schema, r.table, r.name]),
+			checks: (r) => JSON.stringify([r.schema, r.table, r.name]),
+			sequences: (r) => JSON.stringify([r.schema, r.name]),
+			roles: (r) => JSON.stringify([r.name]),
+			privileges: (r) => JSON.stringify([r.schema, r.table, r.grantor, r.grantee, r.type]),
+			policies: (r) => JSON.stringify([r.schema, r.table, r.name]),
+			views: (r) => JSON.stringify([r.schema, r.name]),
+		},
+		edges: {
+			tables: [{ to: 'schemas', map: { name: 'schema' } }],
+			enums: [{ to: 'schemas', map: { name: 'schema' } }],
+			sequences: [{ to: 'schemas', map: { name: 'schema' } }],
+			views: [{ to: 'schemas', map: { name: 'schema' } }],
+			checks: [{ to: 'tables', map: { schema: 'schema', name: 'table' } }],
+			policies: [{ to: 'tables', map: { schema: 'schema', name: 'table' } }],
+			privileges: [{ to: 'tables', map: { schema: 'schema', name: 'table' } }],
+			columns: [
+				{ to: 'tables', map: { schema: 'schema', name: 'table' } },
+				{
+					to: 'enums',
+					cascade: false,
+					when: (r) => !!r.typeSchema && r.typeSchema !== 'pg_catalog',
+					map: { schema: 'typeSchema', name: 'type' },
+				},
+			],
+			indexes: [
+				{ to: 'tables', map: { schema: 'schema', name: 'table' } },
+				{
+					to: 'columns',
+					map: { schema: 'schema', table: 'table', name: { list: 'columns', pick: 'value', skipWhen: 'isExpression' } },
+				},
+			],
+			pks: [
+				{ to: 'tables', map: { schema: 'schema', name: 'table' } },
+				{ to: 'columns', map: { schema: 'schema', table: 'table', name: { list: 'columns' } } },
+			],
+			uniques: [
+				{ to: 'tables', map: { schema: 'schema', name: 'table' } },
+				{ to: 'columns', map: { schema: 'schema', table: 'table', name: { list: 'columns' } } },
+			],
+
+			// an fk belongs to its table and its own columns, and references another table plus
+			// that table's columns (columnsTo).
+			fks: [
+				{ to: 'tables', map: { schema: 'schema', name: 'table' } },
+				{ to: 'columns', map: { schema: 'schema', table: 'table', name: { list: 'columns' } } },
+				{ to: 'tables', map: { schema: 'schemaTo', name: 'tableTo' } },
+				{ to: 'columns', map: { schema: 'schemaTo', table: 'tableTo', name: { list: 'columnsTo' } } },
+			],
+		},
 	});
 };
 
 export type PostgresDDL = ReturnType<typeof createDDL>;
 
-export type PostgresEntities = PostgresDDL['_']['types'];
+export type PostgresEntities = NonNullable<PostgresDDL['$entities']>;
 export type PostgresEntity = PostgresEntities[keyof PostgresEntities];
 
-export type DiffEntities = PostgresDDL['_']['diffs']['alter'];
+export type DiffEntities = { [K in keyof PostgresEntities]: Alter<PostgresEntities[K]> };
 
 export type Schema = PostgresEntities['schemas'];
 export type Enum = PostgresEntities['enums'];
@@ -570,9 +641,10 @@ export const interimToDDL = (
 	for (const it of schema.privileges) {
 		const res = ddl.privileges.push(it);
 		if (res.status === 'CONFLICT') {
+			// Privileges have no DB name; label the duplicate by its identity for the message.
 			errors.push({
 				type: 'privilege_duplicate',
-				name: it.name,
+				name: `${it.grantor}_${it.grantee}_${it.type}`,
 			});
 		}
 	}

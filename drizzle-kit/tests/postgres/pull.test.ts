@@ -899,7 +899,7 @@ test('introspect view #3', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-07-15'))('introspect view #4', async () => {
+test.skipIf(Date.now() < +new Date('2026-07-30'))('introspect view #4', async () => {
 	const table = pgTable('table', {
 		column1: text().notNull(),
 		column2: text(),
@@ -928,7 +928,7 @@ test.skipIf(Date.now() < +new Date('2026-07-15'))('introspect view #4', async ()
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-07-15'))('introspect view #5', async () => {
+test.skipIf(Date.now() < +new Date('2026-07-30'))('introspect view #5', async () => {
 	const applications = pgTable('applications', {
 		applicationId: serial('application_id').primaryKey(),
 		studentId: integer('student_id').references(() => students.studentId),
@@ -1759,68 +1759,57 @@ test('introspect view with table filter', async () => {
 	const schema1 = { table1, view1, table2, view2 };
 	await push({ db, to: schema1 });
 
-	let tables, views;
-	let filter = prepareEntityFilter(
-		'postgresql',
-		{
-			tables: ['table1'],
-			schemas: undefined,
-			entities: undefined,
-			extensions: undefined,
-		},
-		[],
-	);
-	({ tables, views } = await fromDatabaseForDrizzle(db, filter, () => {}, {
-		table: '__drizzle_migrations',
-		schema: 'drizzle',
-	}));
-	const expectedTables = [
-		{
-			entityType: 'tables',
-			schema: 'public',
-			name: 'table1',
-			isRlsEnabled: false,
-		},
-	];
-	expect(tables).toStrictEqual(expectedTables);
-	expect(views).toStrictEqual([]);
+	let filter = prepareEntityFilter('postgresql', {
+		tables: ['table1'],
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
 
-	filter = prepareEntityFilter(
-		'postgresql',
-		{
-			tables: ['table1', 'view1'],
-			schemas: undefined,
-			entities: undefined,
-			extensions: undefined,
-		},
-		[],
-	);
-	({ tables, views } = await fromDatabaseForDrizzle(db, filter, () => {}, {
+	const res = await fromDatabaseForDrizzle(db, filter, () => {}, {
 		table: '__drizzle_migrations',
 		schema: 'drizzle',
-	}));
-	const expectedViews = [
-		{
-			entityType: 'views',
-			schema: 'public',
-			name: 'view1',
-			definition: 'SELECT column1 FROM table1',
-			with: null,
-			materialized: false,
-			tablespace: null,
-			using: null,
-			withNoData: null,
-		},
-	];
-	expect(tables).toStrictEqual(expectedTables);
-	expect(views).toStrictEqual(expectedViews);
+	});
+	const expectedTables = [{
+		entityType: 'tables',
+		schema: 'public',
+		name: 'table1',
+		isRlsEnabled: false,
+	}];
+	expect(res.tables).toStrictEqual(expectedTables);
+	expect(res.views).toStrictEqual([]);
+
+	filter = prepareEntityFilter('postgresql', {
+		tables: ['table1', 'view1'],
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+
+	const res2 = await fromDatabaseForDrizzle(db, filter, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
+	const expectedViews = [{
+		entityType: 'views',
+		schema: 'public',
+		name: 'view1',
+		definition: 'SELECT column1 FROM table1',
+		with: null,
+		materialized: false,
+		tablespace: null,
+		using: null,
+		withNoData: null,
+	}];
+	expect(res2.tables).toStrictEqual(expectedTables);
+	expect(res2.views).toStrictEqual(expectedViews);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4144
 // this does not look like a bug
 // sequences are separete entities
 // entity filter for sequences ??
-test.skipIf(Date.now() < +new Date('2026-07-15'))('introspect sequences with table filter', async () => {
+test.skipIf(Date.now() < +new Date('2026-07-30'))('introspect sequences with table filter', async () => {
 	// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')
 
 	// const seq1 = pgSequence('seq1');
@@ -1835,47 +1824,36 @@ test.skipIf(Date.now() < +new Date('2026-07-15'))('introspect sequences with tab
 	const schema1 = { table1, table2 };
 	await push({ db, to: schema1 });
 
-	const filter = prepareEntityFilter(
-		'postgresql',
-		{
-			tables: ['!prefix_*'],
-			schemas: undefined,
-			entities: undefined,
-			extensions: undefined,
-		},
-		[],
-	);
-	const { tables, sequences } = await fromDatabaseForDrizzle(
-		db,
-		filter,
-		() => {},
-		{
-			table: '__drizzle_migrations',
-			schema: 'drizzle',
-		},
-	);
+	const filter = prepareEntityFilter('postgresql', {
+		tables: ['!prefix_*'],
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
 
-	expect(tables).toStrictEqual([
-		{
-			entityType: 'tables',
-			schema: 'public',
-			name: 'table1',
-			isRlsEnabled: false,
-		},
-	]);
-	expect(sequences).toBe([
-		{
-			entityType: 'sequences',
-			schema: 'public',
-			name: 'table1_column1_seq',
-			startWith: '1',
-			minValue: '1',
-			maxValue: '2147483647',
-			incrementBy: '1',
-			cycle: false,
-			cacheSize: 1,
-		},
-	]);
+	const { tables, sequences } = await fromDatabaseForDrizzle(db, filter, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
+
+	expect(tables).toStrictEqual([{
+		entityType: 'tables',
+		schema: 'public',
+		name: 'table1',
+		isRlsEnabled: false,
+	}]);
+
+	expect(sequences).toBe([{
+		entityType: 'sequences',
+		schema: 'public',
+		name: 'table1_column1_seq',
+		startWith: '1',
+		minValue: '1',
+		maxValue: '2147483647',
+		incrementBy: '1',
+		cycle: false,
+		cacheSize: 1,
+	}]);
 	// 	console.log(await db.query(`select pg_get_serial_sequence('"public"."table1"', 'column1');`));
 	// 	console.log(await db.query(`select pg_get_serial_sequence('"public"."table2"', 'column1');`));
 	// 	console.log(

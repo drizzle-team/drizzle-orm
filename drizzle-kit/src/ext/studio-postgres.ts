@@ -174,20 +174,19 @@ export const diffPostgresql = async (from: InterimStudioSchema, to: InterimStudi
 	const { sqlStatements, groupedStatements, statements } = await ddlDiff(
 		ddl1,
 		ddl2,
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
+		mockResolver(renames), // schemas
+		mockResolver(renames), // enums
+		mockResolver(renames), // sequences
+		mockResolver(renames), // policies
+		mockResolver(renames), // roles
+		mockResolver(renames), // tables
+		mockResolver(renames), // columns
 		mockResolver(renames), // views
 		mockResolver(renames), // uniques
 		mockResolver(renames), // indexes
 		mockResolver(renames), // checks
 		mockResolver(renames), // pks
+		mockResolver(renames), // fks
 		'default',
 	);
 

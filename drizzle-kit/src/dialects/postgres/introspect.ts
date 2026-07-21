@@ -668,8 +668,6 @@ export const fromDatabase = async (
 	for (const privilege of privilegesList) {
 		privileges.push({
 			entityType: 'privileges',
-			// TODO: remove name and implement custom pk
-			name: `${privilege.grantor}_${privilege.grantee}_${privilege.schema}_${privilege.table}_${privilege.type}`,
 			grantor: privilege.grantor,
 			grantee: privilege.grantee,
 			schema: privilege.schema,

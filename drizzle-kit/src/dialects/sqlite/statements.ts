@@ -1,5 +1,14 @@
 import type { DiffEntities } from '../cockroach/ddl';
-import type { Column, DiffColumn, ForeignKey, Index, SQLiteDDL, TableFull, View } from './ddl';
+import type {
+	Column,
+	CreateDropEntities,
+	DiffColumn,
+	DiffEntities as SqliteDiffEntities,
+	ForeignKey,
+	Index,
+	TableFull,
+	View,
+} from './ddl';
 
 export interface JsonCreateTableStatement {
 	type: 'create_table';
@@ -10,20 +19,20 @@ export interface JsonRecreateTableStatement {
 	type: 'recreate_table';
 	to: TableFull;
 	from: TableFull;
-	checkDiffs: SQLiteDDL['_']['diffs']['createdrop']['checks'][];
-	uniquesDiff: SQLiteDDL['_']['diffs']['createdrop']['uniques'][];
-	pksDiff: SQLiteDDL['_']['diffs']['createdrop']['pks'][];
-	fksDiff: SQLiteDDL['_']['diffs']['createdrop']['fks'][];
-	indexesDiff: SQLiteDDL['_']['diffs']['createdrop']['indexes'][];
+	checkDiffs: CreateDropEntities['checks'][];
+	uniquesDiff: CreateDropEntities['uniques'][];
+	pksDiff: CreateDropEntities['pks'][];
+	fksDiff: CreateDropEntities['fks'][];
+	indexesDiff: CreateDropEntities['indexes'][];
 
-	alteredColumnsBecameGenerated: SQLiteDDL['_']['diffs']['alter']['columns'][];
+	alteredColumnsBecameGenerated: SqliteDiffEntities['columns'][];
 	newStoredColumns: Column[];
 
-	columnAlters: SQLiteDDL['_']['diffs']['alter']['columns'][];
-	pksAlters: SQLiteDDL['_']['diffs']['alter']['pks'][];
-	fksAlters: SQLiteDDL['_']['diffs']['alter']['fks'][];
-	uniquesAlters: SQLiteDDL['_']['diffs']['alter']['uniques'][];
-	checksAlters: SQLiteDDL['_']['diffs']['alter']['checks'][];
+	columnAlters: SqliteDiffEntities['columns'][];
+	pksAlters: SqliteDiffEntities['pks'][];
+	fksAlters: SqliteDiffEntities['fks'][];
+	uniquesAlters: SqliteDiffEntities['uniques'][];
+	checksAlters: SqliteDiffEntities['checks'][];
 }
 
 export interface JsonDropTableStatement {
