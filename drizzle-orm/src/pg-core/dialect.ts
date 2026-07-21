@@ -657,11 +657,14 @@ export class PgDialect {
 		select,
 		overridingSystemValue_,
 		comment,
+		columnList,
 		ignoreSelectionCastCodecs,
 	}: PgInsertConfig): SQL {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
-		const colEntries: [string, PgColumn][] = Object.entries(columns);
+		const colEntries: [string, PgColumn][] = columnList
+			? columnList.map((name) => [name, columns[name]!])
+			: Object.entries(columns);
 
 		const colFilteredEntries: [string, PgColumn][] = select && !is(valuesOrSelect, SQL)
 			? Object

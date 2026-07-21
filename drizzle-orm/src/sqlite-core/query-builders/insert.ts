@@ -22,23 +22,29 @@ export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 	onConflict?: SQL[];
 	returning?: SelectedFieldsOrdered;
 	select?: boolean;
+	columnList?: string[];
 }
 
 export type SQLiteInsertValue<
 	TTable extends SQLiteTable,
+	TColumnsList extends string[] | 'all' = 'all',
 	TModel extends Record<string, any> = InferInsertModel<TTable>,
 > =
 	& {
-		[Key in keyof TModel]: TModel[Key] | SQL | Placeholder;
+		[K in keyof TModel as TColumnsList extends 'all' ? K : Extract<K, TColumnsList[number]>]:
+			| TModel[K]
+			| SQL
+			| Placeholder;
 	}
 	& {};
 
 export type SQLiteInsertSelection<
 	TTable extends SQLiteTable,
+	TColumnsList extends string[] | 'all' = 'all',
 	TModel extends Record<string, unknown> = InferInsertModel<TTable>,
 > =
 	& {
-		[K in keyof TModel]:
+		[K in keyof TModel as TColumnsList extends 'all' ? K : Extract<K, TColumnsList[number]>]:
 			| AnySQLiteColumn
 			| SQL
 			| SQL.Aliased
@@ -46,19 +52,39 @@ export type SQLiteInsertSelection<
 	}
 	& {};
 
+export type NoDuplicateColumns<
+	T extends readonly unknown[],
+	TSeen = never,
+> = T extends readonly [infer Head, ...infer Tail] ? [
+		Head extends TSeen ? DrizzleTypeError<`Duplicate columns are not allowed in insert selection: "${Head & string}"`>
+			: Head,
+		...NoDuplicateColumns<Tail, TSeen | Head>,
+	]
+	: T;
+
+export type ValidateInsertSelectionKey<
+	TTable extends SQLiteTable,
+	TSelection extends SQLiteInsertSelection<any>,
+	K extends keyof TSelection,
+> = K extends keyof InferInsertModel<TTable> ? TSelection[K]
+	: K extends keyof InferInsertModel<TTable, { override: true }> ? DrizzleTypeError<
+			`Column "${
+				& K
+				& string}" in table "${TTable['_'][
+				'name'
+			]}" is a generated column - manual value insertion restricted`
+		>
+	: DrizzleTypeError<`Column "${K & string}" does not exist in table "${TTable['_']['name']}"`>;
+
 export type NoUnknownKeysInInsertSelection<
 	TTable extends SQLiteTable,
 	TSelection extends SQLiteInsertSelection<any>,
+	TColumnList extends string[] | 'all' = 'all',
 > = {
-	[K in keyof TSelection]: K extends keyof InferInsertModel<TTable> ? TSelection[K]
-		: K extends keyof InferInsertModel<TTable, { override: true }> ? DrizzleTypeError<
-				`Column "${
-					& K
-					& string}" in table "${TTable['_'][
-					'name'
-				]}" is a generated column - manual value insertion restricted`
-			>
-		: DrizzleTypeError<`Column "${K & string}" does not exist in table "${TTable['_']['name']}"`>;
+	[K in keyof TSelection]: TColumnList extends string[]
+		? K extends TColumnList[number] ? ValidateInsertSelectionKey<TTable, TSelection, K>
+		: DrizzleTypeError<`Column "${K & string}" is not included in the insert column selection`>
+		: ValidateInsertSelectionKey<TTable, TSelection, K>;
 };
 
 export interface SQLiteInsertBuilderConstructor {
@@ -69,12 +95,14 @@ export interface SQLiteInsertBuilderConstructor {
 		dialect: SQLiteDialect,
 		withList?: Subquery[],
 		select?: boolean,
+		columnList?: string[],
 	): AnySQLiteInsert;
 }
 
 export class SQLiteInsertBuilder<
 	TTable extends SQLiteTable,
 	TRunResult,
+	TColumnList extends string[] | 'all' = 'all',
 	THKT extends SQLiteInsertHKTBase = SQLiteInsertQueryBuilderHKT,
 > {
 	static readonly [entityKind]: string = 'SQLiteInsertBuilder';
@@ -84,13 +112,14 @@ export class SQLiteInsertBuilder<
 		protected session: SQLiteSession<any, any>,
 		protected dialect: SQLiteDialect,
 		private withList?: Subquery[],
+		private columnList?: string[],
 		private builder: SQLiteInsertBuilderConstructor = SQLiteInsertBase,
 	) {}
 
-	values(value: SQLiteInsertValue<TTable>): SQLiteInsertKind<THKT, TTable, TRunResult>;
-	values(values: SQLiteInsertValue<TTable>[]): SQLiteInsertKind<THKT, TTable, TRunResult>;
+	values(value: SQLiteInsertValue<TTable, TColumnList>): SQLiteInsertKind<THKT, TTable, TRunResult>;
+	values(values: SQLiteInsertValue<TTable, TColumnList>[]): SQLiteInsertKind<THKT, TTable, TRunResult>;
 	values(
-		values: SQLiteInsertValue<TTable> | SQLiteInsertValue<TTable>[],
+		values: SQLiteInsertValue<TTable, TColumnList> | SQLiteInsertValue<TTable, TColumnList>[],
 	): SQLiteInsertKind<THKT, TTable, TRunResult> {
 		values = Array.isArray(values) ? values : [values];
 		if (values.length === 0) {
@@ -112,23 +141,37 @@ export class SQLiteInsertBuilder<
 		// 	);
 		// }
 
-		return new this.builder(this.table, mappedValues, this.session, this.dialect, this.withList) as any;
+		return new this.builder(
+			this.table,
+			mappedValues,
+			this.session,
+			this.dialect,
+			this.withList,
+			false,
+			this.columnList,
+		) as any;
 	}
 
-	select<TSelection extends SQLiteInsertSelection<TTable>>(
-		selectQuery: (qb: QueryBuilder) => TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection>>,
+	select<TSelection extends SQLiteInsertSelection<TTable, TColumnList>>(
+		selectQuery: (
+			qb: QueryBuilder,
+		) => TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection, TColumnList>>,
 	): SQLiteInsertKind<THKT, TTable, TRunResult>;
 	select(selectQuery: (qb: QueryBuilder) => SQL): SQLiteInsertKind<THKT, TTable, TRunResult>;
 	select(selectQuery: SQL): SQLiteInsertKind<THKT, TTable, TRunResult>;
-	select<TSelection extends SQLiteInsertSelection<TTable>>(
-		selectQuery: TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection>>,
+	select<TSelection extends SQLiteInsertSelection<TTable, TColumnList>>(
+		selectQuery: TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection, TColumnList>>,
 	): SQLiteInsertKind<THKT, TTable, TRunResult>;
 	select(
 		selectQuery:
 			| SQL
-			| TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, SQLiteInsertSelection<TTable>>>
+			| TypedQueryBuilder<
+				NoUnknownKeysInInsertSelection<TTable, SQLiteInsertSelection<TTable, TColumnList>, TColumnList>
+			>
 			| ((qb: QueryBuilder) =>
-				| TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, SQLiteInsertSelection<TTable>>>
+				| TypedQueryBuilder<
+					NoUnknownKeysInInsertSelection<TTable, SQLiteInsertSelection<TTable, TColumnList>, TColumnList>
+				>
 				| SQL),
 	): SQLiteInsertKind<THKT, TTable, TRunResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
@@ -146,7 +189,15 @@ export class SQLiteInsertBuilder<
 			}
 		}
 
-		return new this.builder(this.table, select, this.session, this.dialect, this.withList, true) as any;
+		return new this.builder(
+			this.table,
+			select,
+			this.session,
+			this.dialect,
+			this.withList,
+			true,
+			this.columnList,
+		) as any;
 	}
 }
 
@@ -305,8 +356,9 @@ export class SQLiteInsertBase<
 		protected dialect: SQLiteDialect,
 		withList?: Subquery[],
 		select?: boolean,
+		columnList?: string[],
 	) {
-		this.config = { table, values: values as any, withList, select };
+		this.config = { table, values: values as any, withList, select, columnList };
 	}
 
 	/**

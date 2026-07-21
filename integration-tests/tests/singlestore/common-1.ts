@@ -405,6 +405,56 @@ export function tests(test: Test) {
 			expect(result).toEqual([{ id: 1, name: 'John', verified: true, jsonb: null, createdAt: result[0]!.createdAt }]);
 		});
 
+		test.concurrent('insert with explicit column list', async ({ db }) => {
+			const table = singlestoreTable('column_selection', {
+				id: int('id').primaryKey(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+				note: text('note'),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (id int primary key, name text not null, verified boolean not null default false, note text)`,
+			);
+
+			await db.insert(table, 'id', 'name').values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+			await db.insert(table, 'id', 'name', 'note').values({ id: 3, name: 'Jack' });
+			await db.insert(table, 'note', 'name', 'id').values({ id: 4, name: 'Jill', note: 'hi' });
+
+			const result = await db.select().from(table).orderBy(table.id);
+			expect(result).toEqual([
+				{ id: 1, name: 'John', verified: false, note: null },
+				{ id: 2, name: 'Jane', verified: false, note: null },
+				{ id: 3, name: 'Jack', verified: false, note: null },
+				{ id: 4, name: 'Jill', verified: false, note: 'hi' },
+			]);
+
+			await db.execute(sql`drop table ${table}`);
+		});
+
+		test.concurrent('insert with explicit column list - on duplicate key update', async ({ db }) => {
+			const table = singlestoreTable('column_selection_conflict', {
+				id: int('id').primaryKey(),
+				name: text('name').notNull(),
+				note: text('note'),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(sql`create table ${table} (id int primary key, name text not null, note text)`);
+
+			await db.insert(table, 'id', 'name').values({ id: 1, name: 'John' });
+			await db
+				.insert(table, 'id', 'name')
+				.values({ id: 1, name: 'Jane' })
+				.onDuplicateKeyUpdate({ set: { name: 'Updated' } });
+
+			const result = await db.select().from(table);
+			expect(result).toEqual([{ id: 1, name: 'Updated', note: null }]);
+
+			await db.execute(sql`drop table ${table}`);
+		});
+
 		test.concurrent('insert many', async ({ db }) => {
 			await db.insert(usersTable).values([
 				{ id: 1, name: 'John' },

@@ -688,12 +688,15 @@ export class MySqlDialect {
 		ignore,
 		onConflict,
 		select,
+		columnList,
 		comment,
 	}: MySqlInsertConfig): { sql: SQL; generatedIds: Record<string, unknown>[] } {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, MySqlColumn> = table[Table.Symbol.Columns];
-		const colEntries: [string, MySqlColumn][] = Object.entries(columns);
+		const colEntries: [string, MySqlColumn][] = columnList
+			? columnList.map((name) => [name, columns[name]!])
+			: Object.entries(columns);
 		const colEntriesFiltered: [string, MySqlColumn][] = select && !is(valuesOrSelect, SQL)
 			? Object
 				.keys((valuesOrSelect as TypedQueryBuilder<any>).getSelectedFields())

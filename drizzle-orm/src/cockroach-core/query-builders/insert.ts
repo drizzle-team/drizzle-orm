@@ -35,16 +35,18 @@ export interface CockroachInsertConfig<TTable extends CockroachTable = Cockroach
 	returningFields?: SelectedFieldsFlat;
 	returning?: SelectedFieldsOrdered;
 	select?: boolean;
+	columnList?: string[];
 }
 
 export type CockroachInsertValue<
 	TTable extends CockroachTable<TableConfig>,
 	OverrideT extends boolean = false,
+	TColumnsList extends string[] | 'all' = 'all',
 	TModel extends Record<string, any> = InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>,
 > =
 	& {
-		[Key in keyof TModel]:
-			| TModel[Key]
+		[K in keyof TModel as TColumnsList extends 'all' ? K : Extract<K, TColumnsList[number]>]:
+			| TModel[K]
 			| SQL
 			| Placeholder;
 	}
@@ -52,10 +54,11 @@ export type CockroachInsertValue<
 
 export type CockroachInsertSelection<
 	TTable extends CockroachTable<TableConfig>,
+	TColumnsList extends string[] | 'all' = 'all',
 	TModel extends Record<string, unknown> = InferInsertModel<TTable>,
 > =
 	& {
-		[K in keyof TModel]:
+		[K in keyof TModel as TColumnsList extends 'all' ? K : Extract<K, TColumnsList[number]>]:
 			| AnyCockroachColumn
 			| SQL
 			| SQL.Aliased
@@ -63,24 +66,45 @@ export type CockroachInsertSelection<
 	}
 	& {};
 
+export type NoDuplicateColumns<
+	T extends readonly unknown[],
+	TSeen = never,
+> = T extends readonly [infer Head, ...infer Tail] ? [
+		Head extends TSeen ? DrizzleTypeError<`Duplicate columns are not allowed in insert selection: "${Head & string}"`>
+			: Head,
+		...NoDuplicateColumns<Tail, TSeen | Head>,
+	]
+	: T;
+
+export type ValidateInsertSelectionKey<
+	TTable extends CockroachTable<TableConfig>,
+	TSelection extends CockroachInsertSelection<any>,
+	K extends keyof TSelection,
+> = K extends keyof InferInsertModel<TTable> ? TSelection[K]
+	: K extends keyof InferInsertModel<TTable, { override: true }> ? DrizzleTypeError<
+			`Column "${
+				& K
+				& string}" in table "${TTable['_'][
+				'name'
+			]}" is a generated column - manual value insertion restricted`
+		>
+	: DrizzleTypeError<`Column "${K & string}" does not exist in table "${TTable['_']['name']}"`>;
+
 export type NoUnknownKeysInInsertSelection<
 	TTable extends CockroachTable<TableConfig>,
 	TSelection extends CockroachInsertSelection<any>,
+	TColumnList extends string[] | 'all' = 'all',
 > = {
-	[K in keyof TSelection]: K extends keyof InferInsertModel<TTable> ? TSelection[K]
-		: K extends keyof InferInsertModel<TTable, { override: true }> ? DrizzleTypeError<
-				`Column "${
-					& K
-					& string}" in table "${TTable['_'][
-					'name'
-				]}" is a generated column - manual value insertion restricted`
-			>
-		: DrizzleTypeError<`Column "${K & string}" does not exist in table "${TTable['_']['name']}"`>;
+	[K in keyof TSelection]: TColumnList extends string[]
+		? K extends TColumnList[number] ? ValidateInsertSelectionKey<TTable, TSelection, K>
+		: DrizzleTypeError<`Column "${K & string}" is not included in the insert column selection`>
+		: ValidateInsertSelectionKey<TTable, TSelection, K>;
 };
 
 export class CockroachInsertBuilder<
 	TTable extends CockroachTable,
 	TQueryResult extends CockroachQueryResultHKT,
+	TColumnList extends string[] | 'all' = 'all',
 	OverrideT extends boolean = false,
 > {
 	static readonly [entityKind]: string = 'CockroachInsertBuilder';
@@ -90,12 +114,17 @@ export class CockroachInsertBuilder<
 		private session: CockroachSession,
 		private dialect: CockroachDialect,
 		private withList?: Subquery[],
+		private columnList?: string[],
 	) {}
 
-	values(value: CockroachInsertValue<TTable, OverrideT>): CockroachInsertBase<TTable, TQueryResult>;
-	values(values: CockroachInsertValue<TTable, OverrideT>[]): CockroachInsertBase<TTable, TQueryResult>;
+	values(value: CockroachInsertValue<TTable, OverrideT, TColumnList>): CockroachInsertBase<TTable, TQueryResult>;
+	values(values: CockroachInsertValue<TTable, OverrideT, TColumnList>[]): CockroachInsertBase<TTable, TQueryResult>;
 	values(
-		values: CockroachInsertValue<TTable, OverrideT> | CockroachInsertValue<TTable, OverrideT>[],
+		values: CockroachInsertValue<TTable, OverrideT, TColumnList> | CockroachInsertValue<
+			TTable,
+			OverrideT,
+			TColumnList
+		>[],
 	): CockroachInsertBase<TTable, TQueryResult> {
 		values = Array.isArray(values) ? values : [values];
 		if (values.length === 0) {
@@ -118,23 +147,30 @@ export class CockroachInsertBuilder<
 			this.dialect,
 			this.withList,
 			false,
+			this.columnList,
 		) as any;
 	}
 
-	select<TSelection extends CockroachInsertSelection<TTable>>(
-		selectQuery: (qb: QueryBuilder) => TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection>>,
+	select<TSelection extends CockroachInsertSelection<TTable, TColumnList>>(
+		selectQuery: (
+			qb: QueryBuilder,
+		) => TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection, TColumnList>>,
 	): CockroachInsertBase<TTable, TQueryResult>;
 	select(selectQuery: (qb: QueryBuilder) => SQL): CockroachInsertBase<TTable, TQueryResult>;
 	select(selectQuery: SQL): CockroachInsertBase<TTable, TQueryResult>;
-	select<TSelection extends CockroachInsertSelection<TTable>>(
-		selectQuery: TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection>>,
+	select<TSelection extends CockroachInsertSelection<TTable, TColumnList>>(
+		selectQuery: TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection, TColumnList>>,
 	): CockroachInsertBase<TTable, TQueryResult>;
 	select(
 		selectQuery:
 			| SQL
-			| TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, CockroachInsertSelection<TTable>>>
+			| TypedQueryBuilder<
+				NoUnknownKeysInInsertSelection<TTable, CockroachInsertSelection<TTable, TColumnList>, TColumnList>
+			>
 			| ((qb: QueryBuilder) =>
-				| TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, CockroachInsertSelection<TTable>>>
+				| TypedQueryBuilder<
+					NoUnknownKeysInInsertSelection<TTable, CockroachInsertSelection<TTable, TColumnList>, TColumnList>
+				>
 				| SQL),
 	): CockroachInsertBase<TTable, TQueryResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
@@ -152,7 +188,15 @@ export class CockroachInsertBuilder<
 			}
 		}
 
-		return new CockroachInsertBase(this.table, select, this.session, this.dialect, this.withList, true);
+		return new CockroachInsertBase(
+			this.table,
+			select,
+			this.session,
+			this.dialect,
+			this.withList,
+			true,
+			this.columnList,
+		);
 	}
 }
 
@@ -290,9 +334,10 @@ export class CockroachInsertBase<
 		private dialect: CockroachDialect,
 		withList?: Subquery[],
 		select?: boolean,
+		columnList?: string[],
 	) {
 		super();
-		this.config = { table, values: values as any, withList, select };
+		this.config = { table, values: values as any, withList, select, columnList };
 	}
 
 	/**

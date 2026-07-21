@@ -15,7 +15,7 @@ import { QueryPromise } from '~/query-promise.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL } from '~/sql/sql.ts';
 import { type InferInsertModel, type InferSelectModel, Table } from '~/table.ts';
-import { orderSelectedFields } from '~/utils.ts';
+import { type DrizzleTypeError, orderSelectedFields } from '~/utils.ts';
 import type { MsSqlColumn } from '../columns/common.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
@@ -23,28 +23,45 @@ export interface MsSqlInsertConfig<TTable extends MsSqlTable = MsSqlTable> {
 	table: TTable;
 	values: Record<string, Param | SQL>[];
 	output?: SelectedFieldsOrdered;
+	columnList?: string[];
 }
 
 export type MsSqlInsertValue<
 	TTable extends MsSqlTable,
+	TColumnsList extends string[] | 'all' = 'all',
 	TModel extends Record<string, any> = InferInsertModel<TTable>,
 > =
 	& {
-		[Key in keyof TModel]: TModel[Key] | SQL | Placeholder;
+		[K in keyof TModel as TColumnsList extends 'all' ? K : Extract<K, TColumnsList[number]>]:
+			| TModel[K]
+			| SQL
+			| Placeholder;
 	}
 	& {};
+
+export type NoDuplicateColumns<
+	T extends readonly unknown[],
+	TSeen = never,
+> = T extends readonly [infer Head, ...infer Tail] ? [
+		Head extends TSeen ? DrizzleTypeError<`Duplicate columns are not allowed in insert selection: "${Head & string}"`>
+			: Head,
+		...NoDuplicateColumns<Tail, TSeen | Head>,
+	]
+	: T;
 
 export class MsSqlInsertBuilder<
 	TTable extends MsSqlTable,
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TOutput extends Record<string, unknown> | undefined = undefined,
+	TColumnList extends string[] | 'all' = 'all',
 > {
 	static readonly [entityKind]: string = 'MsSqlInsertBuilder';
 
 	private config: {
 		output?: SelectedFieldsOrdered;
 		table: TTable;
+		columnList?: string[];
 	};
 
 	protected table: TTable;
@@ -56,20 +73,23 @@ export class MsSqlInsertBuilder<
 		session: MsSqlSession,
 		dialect: MsSqlDialect,
 		output?: SelectedFieldsOrdered,
+		columnList?: string[],
 	) {
 		this.table = table;
 		this.session = session;
 		this.dialect = dialect;
 
-		this.config = { table, output };
+		this.config = { table, output, columnList };
 	}
 
 	values(
-		value: MsSqlInsertValue<TTable>,
+		value: MsSqlInsertValue<TTable, TColumnList>,
 	): MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT, TOutput>;
-	values(values: MsSqlInsertValue<TTable>[]): MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT, TOutput>;
 	values(
-		values: MsSqlInsertValue<TTable> | MsSqlInsertValue<TTable>[],
+		values: MsSqlInsertValue<TTable, TColumnList>[],
+	): MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT, TOutput>;
+	values(
+		values: MsSqlInsertValue<TTable, TColumnList> | MsSqlInsertValue<TTable, TColumnList>[],
 	): MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT, TOutput> {
 		values = Array.isArray(values) ? values : [values];
 		if (values.length === 0) {
@@ -85,7 +105,14 @@ export class MsSqlInsertBuilder<
 			return result;
 		});
 
-		return new MsSqlInsertBase(this.table, mappedValues, this.session, this.dialect, this.config.output);
+		return new MsSqlInsertBase(
+			this.table,
+			mappedValues,
+			this.session,
+			this.dialect,
+			this.config.output,
+			this.config.columnList,
+		);
 	}
 
 	/**
@@ -200,9 +227,10 @@ export class MsSqlInsertBase<
 		private session: MsSqlSession,
 		private dialect: MsSqlDialect,
 		output?: SelectedFieldsOrdered,
+		columnList?: string[],
 	) {
 		super();
-		this.config = { table, values, output };
+		this.config = { table, values, output, columnList };
 	}
 
 	/** @internal */

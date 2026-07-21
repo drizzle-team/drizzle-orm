@@ -607,12 +607,15 @@ export class SQLiteDialect {
 		returning,
 		withList,
 		select,
+		columnList,
 	}: SQLiteInsertConfig): SQL {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, SQLiteColumn> = table[Table.Symbol.Columns];
 
-		const colEntries: [string, SQLiteColumn][] = Object.entries(columns);
+		const colEntries: [string, SQLiteColumn][] = columnList
+			? columnList.map((name) => [name, columns[name]!])
+			: Object.entries(columns);
 		const colEntriesFiltered: [string, SQLiteColumn][] = select && !is(valuesOrSelect, SQL)
 			? Object
 				.keys((valuesOrSelect as TypedQueryBuilder<any>).getSelectedFields())

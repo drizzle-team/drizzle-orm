@@ -168,6 +168,50 @@ describe('mssql to camel case', () => {
 		});
 	});
 
+	it('insert (column selection)', ({ expect }) => {
+		const query = db
+			.insert(users, 'first_name', 'last_name', 'age')
+			.values({ first_name: 'John', last_name: 'Doe', age: 30 });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into [users] ([firstName], [lastName], [AGE]) values (@par0, @par1, @par2)',
+			params: ['John', 'Doe', 30],
+		});
+	});
+
+	it('insert (column selection, multiple rows)', ({ expect }) => {
+		const query = db
+			.insert(users, 'first_name', 'last_name')
+			.values([{ first_name: 'John', last_name: 'Doe' }, { first_name: 'Jane', last_name: 'Roe' }]);
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into [users] ([firstName], [lastName]) values (@par0, @par1), (@par2, @par3)',
+			params: ['John', 'Doe', 'Jane', 'Roe'],
+		});
+	});
+
+	it('insert (column selection, omitted optional column)', ({ expect }) => {
+		const query = db
+			.insert(users, 'first_name', 'last_name', 'age')
+			.values({ first_name: 'John', last_name: 'Doe' });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into [users] ([firstName], [lastName], [AGE]) values (@par0, @par1, default)',
+			params: ['John', 'Doe'],
+		});
+	});
+
+	it('insert (column selection) emits columns in list order', ({ expect }) => {
+		const query = db
+			.insert(users, 'age', 'last_name', 'first_name')
+			.values({ first_name: 'John', last_name: 'Doe', age: 30 });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into [users] ([AGE], [lastName], [firstName]) values (@par0, @par1, @par2)',
+			params: [30, 'Doe', 'John'],
+		});
+	});
+
 	it('update', ({ expect }) => {
 		const query = db
 			.update(users)

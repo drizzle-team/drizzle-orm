@@ -21,6 +21,7 @@ export interface MySqlInsertConfig<TTable extends MySqlTable = MySqlTable> {
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
 	select?: boolean;
+	columnList?: string[];
 	comment?: SQL;
 }
 
@@ -28,19 +29,24 @@ export type AnyMySqlInsertConfig = MySqlInsertConfig<MySqlTable>;
 
 export type MySqlInsertValue<
 	TTable extends MySqlTable,
+	TColumnsList extends string[] | 'all' = 'all',
 	TModel extends Record<string, any> = InferInsertModel<TTable>,
 > =
 	& {
-		[Key in keyof TModel]: TModel[Key] | SQL | Placeholder;
+		[K in keyof TModel as TColumnsList extends 'all' ? K : Extract<K, TColumnsList[number]>]:
+			| TModel[K]
+			| SQL
+			| Placeholder;
 	}
 	& {};
 
 export type MySqlInsertSelection<
 	TTable extends MySqlTable,
+	TColumnsList extends string[] | 'all' = 'all',
 	TModel extends Record<string, unknown> = InferInsertModel<TTable>,
 > =
 	& {
-		[K in keyof TModel]:
+		[K in keyof TModel as TColumnsList extends 'all' ? K : Extract<K, TColumnsList[number]>]:
 			| AnyMySqlColumn
 			| SQL
 			| SQL.Aliased
@@ -48,19 +54,39 @@ export type MySqlInsertSelection<
 	}
 	& {};
 
+export type NoDuplicateColumns<
+	T extends readonly unknown[],
+	TSeen = never,
+> = T extends readonly [infer Head, ...infer Tail] ? [
+		Head extends TSeen ? DrizzleTypeError<`Duplicate columns are not allowed in insert selection: "${Head & string}"`>
+			: Head,
+		...NoDuplicateColumns<Tail, TSeen | Head>,
+	]
+	: T;
+
+export type ValidateInsertSelectionKey<
+	TTable extends MySqlTable,
+	TSelection extends MySqlInsertSelection<any>,
+	K extends keyof TSelection,
+> = K extends keyof InferInsertModel<TTable> ? TSelection[K]
+	: K extends keyof InferInsertModel<TTable, { override: true }> ? DrizzleTypeError<
+			`Column "${
+				& K
+				& string}" in table "${TTable['_'][
+				'name'
+			]}" is a generated column - manual value insertion restricted`
+		>
+	: DrizzleTypeError<`Column "${K & string}" does not exist in table "${TTable['_']['name']}"`>;
+
 export type NoUnknownKeysInInsertSelection<
 	TTable extends MySqlTable,
 	TSelection extends MySqlInsertSelection<any>,
+	TColumnList extends string[] | 'all' = 'all',
 > = {
-	[K in keyof TSelection]: K extends keyof InferInsertModel<TTable> ? TSelection[K]
-		: K extends keyof InferInsertModel<TTable, { override: true }> ? DrizzleTypeError<
-				`Column "${
-					& K
-					& string}" in table "${TTable['_'][
-					'name'
-				]}" is a generated column - manual value insertion restricted`
-			>
-		: DrizzleTypeError<`Column "${K & string}" does not exist in table "${TTable['_']['name']}"`>;
+	[K in keyof TSelection]: TColumnList extends string[]
+		? K extends TColumnList[number] ? ValidateInsertSelectionKey<TTable, TSelection, K>
+		: DrizzleTypeError<`Column "${K & string}" is not included in the insert column selection`>
+		: ValidateInsertSelectionKey<TTable, TSelection, K>;
 };
 
 export interface MySqlInsertBuilderConstructor {
@@ -71,12 +97,14 @@ export interface MySqlInsertBuilderConstructor {
 		session: MySqlSession,
 		dialect: MySqlDialect,
 		select?: boolean,
+		columnList?: string[],
 	): AnyMySqlInsert;
 }
 
 export class MySqlInsertBuilder<
 	TTable extends MySqlTable,
 	TQueryResult extends MySqlQueryResultHKT,
+	TColumnList extends string[] | 'all' = 'all',
 	TBuilderHKT extends MySqlInsertHKTBase = MySqlInsertHKT,
 > {
 	static readonly [entityKind]: string = 'MySqlInsertBuilder';
@@ -87,6 +115,7 @@ export class MySqlInsertBuilder<
 		private table: TTable,
 		private session: MySqlSession,
 		private dialect: MySqlDialect,
+		private columnList?: string[],
 		private builder: MySqlInsertBuilderConstructor = MySqlInsertBase as unknown as MySqlInsertBuilderConstructor,
 	) {}
 
@@ -95,10 +124,10 @@ export class MySqlInsertBuilder<
 		return this;
 	}
 
-	values(value: MySqlInsertValue<TTable>): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult>;
-	values(values: MySqlInsertValue<TTable>[]): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult>;
+	values(value: MySqlInsertValue<TTable, TColumnList>): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult>;
+	values(values: MySqlInsertValue<TTable, TColumnList>[]): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult>;
 	values(
-		values: MySqlInsertValue<TTable> | MySqlInsertValue<TTable>[],
+		values: MySqlInsertValue<TTable, TColumnList> | MySqlInsertValue<TTable, TColumnList>[],
 	): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult> {
 		values = Array.isArray(values) ? values : [values];
 		if (values.length === 0) {
@@ -114,23 +143,37 @@ export class MySqlInsertBuilder<
 			return result;
 		});
 
-		return new this.builder(this.table, mappedValues, this.shouldIgnore, this.session, this.dialect) as any;
+		return new this.builder(
+			this.table,
+			mappedValues,
+			this.shouldIgnore,
+			this.session,
+			this.dialect,
+			false,
+			this.columnList,
+		) as any;
 	}
 
-	select<TSelection extends MySqlInsertSelection<TTable>>(
-		selectQuery: (qb: QueryBuilder) => TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection>>,
+	select<TSelection extends MySqlInsertSelection<TTable, TColumnList>>(
+		selectQuery: (
+			qb: QueryBuilder,
+		) => TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection, TColumnList>>,
 	): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult>;
 	select(selectQuery: (qb: QueryBuilder) => SQL): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult>;
 	select(selectQuery: SQL): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult>;
-	select<TSelection extends MySqlInsertSelection<TTable>>(
-		selectQuery: TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection>>,
+	select<TSelection extends MySqlInsertSelection<TTable, TColumnList>>(
+		selectQuery: TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection, TColumnList>>,
 	): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult>;
 	select(
 		selectQuery:
 			| SQL
-			| TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, MySqlInsertSelection<TTable>>>
+			| TypedQueryBuilder<
+				NoUnknownKeysInInsertSelection<TTable, MySqlInsertSelection<TTable, TColumnList>, TColumnList>
+			>
 			| ((qb: QueryBuilder) =>
-				| TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, MySqlInsertSelection<TTable>>>
+				| TypedQueryBuilder<
+					NoUnknownKeysInInsertSelection<TTable, MySqlInsertSelection<TTable, TColumnList>, TColumnList>
+				>
 				| SQL),
 	): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
@@ -149,7 +192,15 @@ export class MySqlInsertBuilder<
 			}
 		}
 
-		return new this.builder(this.table, select, this.shouldIgnore, this.session, this.dialect, true) as any;
+		return new this.builder(
+			this.table,
+			select,
+			this.shouldIgnore,
+			this.session,
+			this.dialect,
+			true,
+			this.columnList,
+		) as any;
 	}
 }
 
@@ -294,8 +345,9 @@ export class MySqlInsertBase<
 		protected session: MySqlSession,
 		protected dialect: MySqlDialect,
 		select?: boolean,
+		columnList?: string[],
 	) {
-		this.config = { table, values: values as any, select, ignore };
+		this.config = { table, values: values as any, select, ignore, columnList };
 	}
 
 	/**

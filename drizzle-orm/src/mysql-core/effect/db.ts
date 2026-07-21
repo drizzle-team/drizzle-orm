@@ -11,7 +11,9 @@ import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
-import { MySqlInsertBuilder } from '../query-builders/insert.ts';
+import type { InferInsertModel, RequiredInsertKeys } from '~/table.ts';
+import type { DrizzleTypeError, IsNever, JoinUnion } from '~/utils.ts';
+import { MySqlInsertBuilder, type NoDuplicateColumns } from '../query-builders/insert.ts';
 import { QueryBuilder } from '../query-builders/query-builder.ts';
 import { RelationalQueryBuilder } from '../query-builders/query.ts';
 import { MySqlSelectBuilder } from '../query-builders/select.ts';
@@ -447,12 +449,43 @@ export class MySqlEffectDatabase<
 	 *
 	 * // Insert multiple rows
 	 * yield* db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
+	 *
+	 * // Insert only selected columns
+	 * yield* db.insert(cars, 'brand', 'productionYear').values([{ brand: 'BMW', productionYear: 1995 }, { brand: 'Porsche', productionYear: 1989 }]);
 	 * ```
 	 */
+	insert<
+		TTable extends MySqlTable,
+		TColumnList extends (keyof InferInsertModel<TTable>)[] = [],
+		TRequiredKeys extends string = RequiredInsertKeys<TTable>,
+	>(
+		table: TTable,
+		...columns: TColumnList extends [] ? []
+			: IsNever<TRequiredKeys> extends true ? TColumnList & NoDuplicateColumns<TColumnList>
+			: [TRequiredKeys] extends [TColumnList[number]] ? TColumnList & NoDuplicateColumns<TColumnList>
+			: DrizzleTypeError<
+				`Column selection is missing following required columns: ${JoinUnion<
+					`"${Exclude<TRequiredKeys, TColumnList[number]>}"`,
+					', '
+				>}`
+			>[]
+	): MySqlInsertBuilder<
+		TTable,
+		TQueryResult,
+		TColumnList extends [] ? 'all' : TColumnList,
+		MySqlEffectInsertHKT<TEffectHKT>
+	>;
 	insert<TTable extends MySqlTable>(
 		table: TTable,
-	): MySqlInsertBuilder<TTable, TQueryResult, MySqlEffectInsertHKT<TEffectHKT>> {
-		return new MySqlInsertBuilder(table, this.session, this.dialect, MySqlEffectInsertBase);
+		...columns: string[]
+	): MySqlInsertBuilder<TTable, TQueryResult, 'all', MySqlEffectInsertHKT<TEffectHKT>> {
+		return new MySqlInsertBuilder(
+			table,
+			this.session,
+			this.dialect,
+			columns.length ? columns : undefined,
+			MySqlEffectInsertBase,
+		);
 	}
 
 	/**
@@ -532,7 +565,7 @@ export const withReplicas = <
 	const $with: Q['with'] = (...args: []) => getReplica(replicas).with(...args);
 
 	const update: Q['update'] = (...args: [any]) => primary.update(...args);
-	const insert: Q['insert'] = (...args: [any]) => primary.insert(...args);
+	const insert: Q['insert'] = ((...args: [any]) => primary.insert(...args)) as Q['insert'];
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
 	const execute: Q['execute'] = ((...args: [any]) => primary.execute(...args)) as Q['execute'];
 	const transaction: Q['transaction'] = (...args: [any, any]) => primary.transaction(...args);

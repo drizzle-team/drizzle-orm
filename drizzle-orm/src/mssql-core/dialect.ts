@@ -692,13 +692,15 @@ export class MsSqlDialect {
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${offsetSql}${fetchSql}`;
 	}
 
-	buildInsertQuery({ table, values, output }: MsSqlInsertConfig): SQL {
+	buildInsertQuery({ table, values, output, columnList }: MsSqlInsertConfig): SQL {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, MsSqlColumn> = table[Table.Symbol.Columns];
-		const colEntries: [string, MsSqlColumn][] = Object.entries(columns).filter(
-			([_, col]) => !col.shouldDisableInsert(),
-		);
+		const colEntries: [string, MsSqlColumn][] = columnList
+			? columnList.map((name) => [name, columns[name]!] as [string, MsSqlColumn])
+			: Object.entries(columns).filter(
+				([_, col]) => !col.shouldDisableInsert(),
+			);
 
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 

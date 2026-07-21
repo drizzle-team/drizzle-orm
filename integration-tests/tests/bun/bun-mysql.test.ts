@@ -829,6 +829,88 @@ describe('common', () => {
 		}]);
 	});
 
+	test('insert with explicit column list', async () => {
+		const table = mysqlTable('column_selection', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			verified: boolean('verified').notNull().default(false),
+			note: text('note'),
+		});
+
+		await db.execute(sql`drop table if exists ${table}`);
+		await db.execute(
+			sql`create table ${table} (id serial primary key, name text not null, verified boolean not null default false, note text)`,
+		);
+
+		await db.insert(table, 'name').values([{ name: 'John' }, { name: 'Jane' }]);
+		await db.insert(table, 'name', 'note').values({ name: 'Jack' });
+		await db.insert(table, 'note', 'name').values({ name: 'Jill', note: 'hi' });
+
+		const result = await db.select().from(table).orderBy(table.id);
+		expect(result).toStrictEqual([
+			{ id: 1, name: 'John', verified: false, note: null },
+			{ id: 2, name: 'Jane', verified: false, note: null },
+			{ id: 3, name: 'Jack', verified: false, note: null },
+			{ id: 4, name: 'Jill', verified: false, note: 'hi' },
+		]);
+
+		await db.execute(sql`drop table ${table}`);
+	});
+
+	test('insert with explicit column list - select', async () => {
+		const src = mysqlTable('column_selection_select_src', {
+			id: int('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+		const dst = mysqlTable('column_selection_select_dst', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			verified: boolean('verified').notNull().default(false),
+		});
+
+		await db.execute(sql`drop table if exists ${src}`);
+		await db.execute(sql`drop table if exists ${dst}`);
+		await db.execute(sql`create table ${src} (id int primary key, name text not null)`);
+		await db.execute(
+			sql`create table ${dst} (id serial primary key, name text not null, verified boolean not null default false)`,
+		);
+
+		await db.insert(src).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+
+		await db.insert(dst, 'name').select(db.select({ name: src.name }).from(src).orderBy(src.id));
+
+		const result = await db.select().from(dst).orderBy(dst.id);
+		expect(result).toStrictEqual([
+			{ id: 1, name: 'John', verified: false },
+			{ id: 2, name: 'Jane', verified: false },
+		]);
+
+		await db.execute(sql`drop table ${src}`);
+		await db.execute(sql`drop table ${dst}`);
+	});
+
+	test('insert with explicit column list - on duplicate key update', async () => {
+		const table = mysqlTable('column_selection_conflict', {
+			id: int('id').primaryKey(),
+			name: text('name').notNull(),
+			note: text('note'),
+		});
+
+		await db.execute(sql`drop table if exists ${table}`);
+		await db.execute(sql`create table ${table} (id int primary key, name text not null, note text)`);
+
+		await db.insert(table, 'id', 'name').values({ id: 1, name: 'John' });
+		await db
+			.insert(table, 'id', 'name')
+			.values({ id: 1, name: 'Jane' })
+			.onDuplicateKeyUpdate({ set: { name: 'Updated' } });
+
+		const result = await db.select().from(table);
+		expect(result).toStrictEqual([{ id: 1, name: 'Updated', note: null }]);
+
+		await db.execute(sql`drop table ${table}`);
+	});
+
 	test('insert many', async () => {
 		await db.insert(usersTable).values([
 			{ name: 'John' },

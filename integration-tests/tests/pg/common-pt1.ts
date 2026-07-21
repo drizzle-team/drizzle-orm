@@ -486,6 +486,72 @@ export function tests(test: Test) {
 			]);
 		});
 
+		test.concurrent('insert with explicit column list', async ({ db, push }) => {
+			const table = pgTable('column_selection', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+				note: text('note'),
+			});
+
+			await push({ table });
+
+			await db.insert(table, 'name').values([{ name: 'John' }, { name: 'Jane' }]);
+			await db.insert(table, 'name', 'note').values({ name: 'Jack' });
+			await db.insert(table, 'note', 'name').values({ name: 'Jill', note: 'hi' });
+
+			const result = await db.select().from(table).orderBy(table.id);
+			expect(result).toEqual([
+				{ id: 1, name: 'John', verified: false, note: null },
+				{ id: 2, name: 'Jane', verified: false, note: null },
+				{ id: 3, name: 'Jack', verified: false, note: null },
+				{ id: 4, name: 'Jill', verified: false, note: 'hi' },
+			]);
+		});
+
+		test.concurrent('insert with explicit column list - select', async ({ db, push }) => {
+			const src = pgTable('column_selection_select_src', {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+			const dst = pgTable('column_selection_select_dst', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+			});
+
+			await push({ src, dst });
+
+			await db.insert(src).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+
+			await db.insert(dst, 'name').select(db.select({ name: src.name }).from(src).orderBy(src.id));
+
+			const result = await db.select().from(dst).orderBy(dst.id);
+			expect(result).toEqual([
+				{ id: 1, name: 'John', verified: false },
+				{ id: 2, name: 'Jane', verified: false },
+			]);
+		});
+
+		test.concurrent('insert with explicit column list - on conflict', async ({ db, push }) => {
+			const table = pgTable('column_selection_conflict', {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+				note: text('note'),
+			});
+
+			await push({ table });
+
+			await db.insert(table, 'id', 'name').values({ id: 1, name: 'John' });
+			await db
+				.insert(table, 'id', 'name')
+				.values({ id: 1, name: 'Jane' })
+				.onConflictDoUpdate({ target: table.id, set: { name: 'Updated' } });
+
+			const result = await db.select().from(table);
+			expect(result).toEqual([{ id: 1, name: 'Updated', note: null }]);
+		});
+
 		test.concurrent('insert many', async ({ db, push }) => {
 			const users = pgTable('users_19', {
 				id: serial('id' as string).primaryKey(),

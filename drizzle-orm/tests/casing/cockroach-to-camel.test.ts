@@ -214,6 +214,76 @@ describe('cockroach to camel case', () => {
 		});
 	});
 
+	it('insert (column selection)', ({ expect }) => {
+		const query = db
+			.insert(users, 'first_name', 'last_name', 'age')
+			.values({ first_name: 'John', last_name: 'Doe', age: 30 })
+			.returning({ first_name: users.first_name, age: users.age });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "users" ("firstName", "lastName", "AGE") values ($1, $2, $3) returning "firstName", "AGE"',
+			params: ['John', 'Doe', 30],
+		});
+	});
+
+	it('insert (column selection, multiple rows)', ({ expect }) => {
+		const query = db
+			.insert(users, 'first_name', 'last_name')
+			.values([{ first_name: 'John', last_name: 'Doe' }, { first_name: 'Jane', last_name: 'Roe' }]);
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "users" ("firstName", "lastName") values ($1, $2), ($3, $4)',
+			params: ['John', 'Doe', 'Jane', 'Roe'],
+		});
+	});
+
+	it('insert (column selection, omitted optional column)', ({ expect }) => {
+		const query = db
+			.insert(users, 'first_name', 'last_name', 'age')
+			.values({ first_name: 'John', last_name: 'Doe' });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "users" ("firstName", "lastName", "AGE") values ($1, $2, default)',
+			params: ['John', 'Doe'],
+		});
+	});
+
+	it('insert (column selection) with select', ({ expect }) => {
+		const query = db
+			.insert(users, 'first_name', 'last_name')
+			.select(db.select({ first_name: users.first_name, last_name: users.last_name }).from(users));
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "users" ("firstName", "lastName") select "firstName", "lastName" from "users"',
+			params: [],
+		});
+	});
+
+	it('insert (column selection) emits columns in list order', ({ expect }) => {
+		const query = db
+			.insert(users, 'age', 'last_name', 'first_name')
+			.values({ first_name: 'John', last_name: 'Doe', age: 30 });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "users" ("AGE", "lastName", "firstName") values ($1, $2, $3)',
+			params: [30, 'Doe', 'John'],
+		});
+	});
+
+	it('insert (column selection) on conflict do update', ({ expect }) => {
+		const query = db
+			.insert(users, 'first_name', 'last_name', 'age')
+			.values({ first_name: 'John', last_name: 'Doe', age: 30 })
+			.onConflictDoUpdate({ target: users.first_name, set: { age: 31 } })
+			.returning({ first_name: users.first_name, age: users.age });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'insert into "users" ("firstName", "lastName", "AGE") values ($1, $2, $3) on conflict ("firstName") do update set "AGE" = $4 returning "firstName", "AGE"',
+			params: ['John', 'Doe', 30, 31],
+		});
+	});
+
 	it('update', ({ expect }) => {
 		const query = db
 			.update(users)
