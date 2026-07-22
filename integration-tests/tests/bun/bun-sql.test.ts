@@ -1,5 +1,5 @@
 import { SQL as BunSQL } from 'bun';
-import { afterEach, beforeAll, beforeEach, expect, test } from 'bun:test';
+import { afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import {
 	and,
@@ -102,6 +102,11 @@ import { clear, init, rqbPost, rqbUser } from '~/pg/schema';
 import { normalizeDataWithDbCodecs } from '~/pg/utils';
 import { Expect } from '~/utils';
 import { relations } from '../pg/relations';
+import {
+	assertMalformedSnapshotRejected,
+	assertSnapshotIdNotInjectable,
+	assertSnapshotIsolatesTransaction,
+} from '../pg/snapshot';
 
 export const usersTable = pgTable('users', {
 	id: serial('id' as string).primaryKey(),
@@ -8174,4 +8179,131 @@ test("Don't disregard added SQL field during join nullification - jit", async ()
 
 	await db.execute(sql`DROP TABLE nullify5_users_jit`);
 	await db.execute(sql`DROP TABLE nullify5_cities_jit`);
+});
+
+describe('transaction config', () => {
+	test('transaction with options (set isolationLevel)', async () => {
+		const users = pgTable('users_tx_cfg_iso_bun', {
+			id: serial('id').primaryKey(),
+			balance: integer('balance').notNull(),
+		});
+		const products = pgTable('products_tx_cfg_iso_bun', {
+			id: serial('id').primaryKey(),
+			price: integer('price').notNull(),
+			stock: integer('stock').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists users_tx_cfg_iso_bun, products_tx_cfg_iso_bun`);
+		await db.execute(
+			sql`create table users_tx_cfg_iso_bun (id serial not null primary key, balance integer not null)`,
+		);
+		await db.execute(
+			sql`create table products_tx_cfg_iso_bun (id serial not null primary key, price integer not null, stock integer not null)`,
+		);
+
+		const [user] = await db.insert(users).values({ balance: 100 }).returning();
+		const [product] = await db.insert(products).values({ price: 10, stock: 10 }).returning();
+
+		await db.transaction(async (tx) => {
+			await tx.update(users).set({ balance: user!.balance - product!.price }).where(eq(users.id, user!.id));
+			await tx.update(products).set({ stock: product!.stock - 1 }).where(eq(products.id, product!.id));
+		}, { isolationLevel: 'serializable' });
+
+		expect(await db.select().from(users)).toEqual([{ id: 1, balance: 90 }]);
+
+		await db.execute(sql`drop table users_tx_cfg_iso_bun, products_tx_cfg_iso_bun`);
+	});
+
+	test('transaction with options (accessMode read only)', async () => {
+		const users = pgTable('users_tx_cfg_ro_bun', {
+			id: serial('id').primaryKey(),
+			balance: integer('balance').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists users_tx_cfg_ro_bun`);
+		await db.execute(sql`create table users_tx_cfg_ro_bun (id serial not null primary key, balance integer not null)`);
+		await db.insert(users).values({ balance: 100 });
+
+		let failure: any;
+		try {
+			await db.transaction(async (tx) => {
+				await tx.insert(users).values({ balance: 200 });
+			}, { accessMode: 'read only' });
+		} catch (e) {
+			failure = e;
+		}
+		expect(String(failure?.cause?.message ?? failure?.message)).toContain('read-only transaction');
+
+		const read = await db.transaction(async (tx) => tx.select().from(users), { accessMode: 'read only' });
+		expect(read).toEqual([{ id: 1, balance: 100 }]);
+
+		await db.execute(sql`drop table users_tx_cfg_ro_bun`);
+	});
+
+	test('transaction with options (deferrable)', async () => {
+		const users = pgTable('users_tx_cfg_deferrable_bun', {
+			id: serial('id').primaryKey(),
+			balance: integer('balance').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists users_tx_cfg_deferrable_bun`);
+		await db.execute(
+			sql`create table users_tx_cfg_deferrable_bun (id serial not null primary key, balance integer not null)`,
+		);
+		await db.insert(users).values({ balance: 100 });
+
+		const read = await db.transaction(async (tx) => tx.select().from(users), {
+			isolationLevel: 'serializable',
+			accessMode: 'read only',
+			deferrable: true,
+		});
+		expect(read).toEqual([{ id: 1, balance: 100 }]);
+
+		const notDeferrable = await db.transaction(async (tx) => tx.select().from(users), {
+			isolationLevel: 'serializable',
+			accessMode: 'read only',
+			deferrable: false,
+		});
+		expect(notDeferrable).toEqual([{ id: 1, balance: 100 }]);
+
+		await db.execute(sql`drop table users_tx_cfg_deferrable_bun`);
+	});
+
+	test('transaction with an empty options object', async () => {
+		const users = pgTable('users_tx_cfg_empty_bun', {
+			id: serial('id').primaryKey(),
+			balance: integer('balance').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists users_tx_cfg_empty_bun`);
+		await db.execute(
+			sql`create table users_tx_cfg_empty_bun (id serial not null primary key, balance integer not null)`,
+		);
+		await db.insert(users).values({ balance: 100 });
+
+		const read = await db.transaction(async (tx) => tx.select().from(users), {});
+		expect(read).toEqual([{ id: 1, balance: 100 }]);
+
+		await db.execute(sql`drop table users_tx_cfg_empty_bun`);
+	});
+});
+
+describe('transaction snapshot', () => {
+	test('isolates the transaction', async () => {
+		const peerClient = new BunSQL(process.env['PG_CONNECTION_STRING']!, { max: 1 });
+		const peer = { query: (sql: string) => peerClient.unsafe(sql) };
+		try {
+			await assertSnapshotIsolatesTransaction(db, peer, expect, 'bunsql');
+		} finally {
+			await peerClient.end();
+		}
+	});
+
+	test('rejects a malformed id', async () => {
+		await assertMalformedSnapshotRejected(db, expect);
+	});
+
+	test('does not let the id inject SQL', async () => {
+		await assertSnapshotIdNotInjectable(db, expect, 'bunsql');
+	});
 });

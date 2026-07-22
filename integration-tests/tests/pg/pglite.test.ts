@@ -10,6 +10,7 @@ import { describe, expect, test as vitestTest } from 'vitest';
 import { tests } from './common';
 import { _push, pgliteTest as test } from './instrumentation';
 import { usersMigratorTable, usersTable } from './schema';
+import { assertMalformedSnapshotRejected, assertSnapshotIdNotInjectable } from './snapshot';
 import { normalizeDataWithDbCodecs } from './utils';
 
 tests(test, []);
@@ -329,5 +330,15 @@ describe('pglite extensions', () => {
 		expect(rootRes).toStrictEqual(expectedRes);
 
 		await client.close();
+	});
+});
+
+describe('transaction snapshot', () => {
+	test('rejects a malformed id', async ({ db }) => {
+		await assertMalformedSnapshotRejected(db, expect);
+	});
+
+	test('does not let the id inject SQL', async ({ db }) => {
+		await assertSnapshotIdNotInjectable(db, expect, 'pglite');
 	});
 });

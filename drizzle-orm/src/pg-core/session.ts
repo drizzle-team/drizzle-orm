@@ -22,11 +22,21 @@ export abstract class PgBasePreparedQuery implements PreparedQuery {
 	abstract execute(placeholderValues?: Record<string, unknown>): unknown;
 }
 
-export interface PgTransactionConfig {
-	isolationLevel?: 'read uncommitted' | 'read committed' | 'repeatable read' | 'serializable';
-	accessMode?: 'read only' | 'read write';
-	deferrable?: boolean;
-}
+export type PgTransactionConfig =
+	| {
+		isolationLevel?: 'read uncommitted' | 'read committed' | 'repeatable read' | 'serializable' | undefined;
+		accessMode?: 'read only' | 'read write' | undefined;
+		deferrable?: boolean | undefined;
+		/** `snapshot` cannot be used with `isolationLevel: 'read uncommitted' | 'read committed'`  */
+		snapshot?: undefined;
+	}
+	| {
+		/** `snapshot` cannot be used with `isolationLevel: 'read uncommitted' | 'read committed'`  */
+		isolationLevel?: 'repeatable read' | 'serializable' | undefined;
+		accessMode?: 'read only' | 'read write' | undefined;
+		deferrable?: boolean | undefined;
+		snapshot?: string | undefined;
+	};
 
 export abstract class PgSession {
 	static readonly [entityKind]: string = 'PgSession';

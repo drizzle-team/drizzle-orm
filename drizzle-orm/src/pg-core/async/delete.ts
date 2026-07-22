@@ -79,7 +79,7 @@ export class PgAsyncDeleteBase<
 
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const shape = fields
-				? dialect.shapeGenerator?.({ type: 'plain', fields }, undefined)
+				? config.shape ??= dialect.shapeGenerator?.({ type: 'plain', fields }, undefined)
 				: undefined;
 
 			const query = dialect.sqlToQuery(this.getSQL());

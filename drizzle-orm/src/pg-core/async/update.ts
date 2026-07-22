@@ -107,7 +107,7 @@ export class PgAsyncUpdateBase<
 
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const shape = fields
-				? dialect.shapeGenerator?.({ type: 'plain', fields }, joinsNotNullableMap)
+				? config.shape ??= dialect.shapeGenerator?.({ type: 'plain', fields }, joinsNotNullableMap)
 				: undefined;
 			if (shape) this.withoutSelectionCastCodecs();
 

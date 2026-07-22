@@ -223,7 +223,7 @@ export const prepareNeonHttpClient = async (db: string) => {
 		return Promise.all(statements.map((x) => client(x))).then((results) => [results] as any);
 	};
 
-	return { client, query, batch };
+	return { client, query, batch, database: db };
 };
 
 export const prepareNeonWsClient = async (db: string) => {
@@ -245,7 +245,7 @@ export const prepareNeonWsClient = async (db: string) => {
 		return Promise.all(statements.map((x) => client.query(x))).then((results) => [results] as any);
 	};
 
-	return { client, query, batch };
+	return { client, query, batch, database: db };
 };
 
 export const preparePglite = async () => {
@@ -262,7 +262,7 @@ export const preparePglite = async () => {
 		return Promise.all(statements.map((x) => client.query(x))).then((results) => [results] as any);
 	};
 
-	return { client, query, batch };
+	return { client, query, batch, database: undefined };
 };
 
 export const prepareNodePostgres = async (db: string) => {
@@ -286,7 +286,7 @@ export const prepareNodePostgres = async (db: string) => {
 		return Promise.all(statements.map((x) => client.query(x))).then((results) => [results] as any);
 	};
 
-	return { client, query, batch };
+	return { client, query, batch, database: db };
 };
 
 export const preparePostgres = async (db: string) => {
@@ -309,7 +309,7 @@ export const preparePostgres = async (db: string) => {
 		return Promise.all(statements.map((x) => client.query(x))).then((results) => [results] as any);
 	};
 
-	return { client, query, batch };
+	return { client, query, batch, database: db };
 };
 
 export const preparePostgresjs = async (db: string) => {
@@ -331,7 +331,7 @@ export const preparePostgresjs = async (db: string) => {
 		return Promise.all(statements.map((x) => client.unsafe(x))).then((results) => [results] as any);
 	};
 
-	return { client, query, batch };
+	return { client, query, batch, database: db };
 };
 
 export const prepareProxy = async (db: string) => {
@@ -355,7 +355,7 @@ export const prepareProxy = async (db: string) => {
 		return Promise.all(statements.map((x) => client.query(x))).then((results) => [results] as any);
 	};
 
-	return { client, query, batch };
+	return { client, query, batch, database: db };
 };
 
 export const prepareNetlifyDb = async (db: string) => {
@@ -386,8 +386,57 @@ export const prepareNetlifyDb = async (db: string) => {
 		return Promise.all(statements.map((x) => client.pool.query(x))).then((results) => [results] as any);
 	};
 
-	return { client, query, batch };
+	return { client, query, batch, database: db };
 };
+
+/** A second independent connection to the same database for transaction snapsot tests */
+export interface SnapshotPeer {
+	query: (sql: string) => Promise<any[]>;
+	close: () => Promise<void>;
+}
+
+const openPeer = async (vendor: Vendor, database: string | undefined): Promise<SnapshotPeer | undefined> => {
+	if (vendor === 'pglite' || database === undefined) return undefined;
+
+	const hosted = vendor === 'neon-serverless' || vendor === 'netlify-db';
+	const url = new URL(
+		process.env[
+			vendor === 'netlify-db' ? 'NETLIFY_DB_URL' : vendor === 'neon-serverless'
+				? 'NEON_CONNECTION_STRING'
+				: 'PG_CONNECTION_STRING'
+		]!,
+	);
+	url.pathname = `/${database}`;
+
+	if (hosted) {
+		const pool = new NeonPool({ connectionString: url.toString(), max: 1 });
+		const client = await pool.connect();
+		return {
+			query: async (sql) => (await client.query(sql)).rows,
+			close: async () => {
+				client.release();
+				await pool.end();
+			},
+		};
+	}
+
+	const client = new ClientNodePostgres(url.toString());
+	await client.connect();
+	return {
+		query: async (sql) => (await client.query(sql)).rows,
+		close: () => client.end(),
+	};
+};
+
+type Vendor =
+	| 'neon-http'
+	| 'neon-serverless'
+	| 'pglite'
+	| 'node-postgres'
+	| 'postgres'
+	| 'postgresjs'
+	| 'proxy'
+	| 'netlify-db';
 
 const providerClosure = async <T>(items: T[]) => {
 	return async () => {
@@ -583,24 +632,16 @@ type Provider =
 	| ProvideForProxy
 	| ProvideForNetlifyDb;
 
-const testFor = (
-	vendor:
-		| 'neon-http'
-		| 'neon-serverless'
-		| 'pglite'
-		| 'node-postgres'
-		| 'postgres'
-		| 'postgresjs'
-		| 'proxy'
-		| 'netlify-db',
-) => {
+const testFor = (vendor: Vendor) => {
 	return base.extend<{
 		provider: Provider;
 		kit: {
 			client: any;
 			query: (sql: string, params?: any[]) => Promise<any[]>;
 			batch: (statements: string[]) => Promise<any>;
+			database: string | undefined;
 		};
+		peer: SnapshotPeer | undefined;
 		client: any;
 		db: PgAsyncDatabase<any, typeof relations>;
 		push: (schema: any, params?: { log: 'statements' }) => Promise<void>;
@@ -641,8 +682,8 @@ const testFor = (
 		],
 		kit: [
 			async ({ provider }, use) => {
-				const { client, batch, query, release } = await provider();
-				await use({ client: client as any, query, batch });
+				const { client, batch, query, release, database } = await provider();
+				await use({ client: client as any, query, batch, database });
 				release();
 			},
 			{ scope: 'test' },
@@ -650,6 +691,14 @@ const testFor = (
 		client: [
 			async ({ kit }, use) => {
 				await use(kit.client);
+			},
+			{ scope: 'test' },
+		],
+		peer: [
+			async ({ kit }, use) => {
+				const peer = await openPeer(vendor, kit.database);
+				await use(peer);
+				await peer?.close();
 			},
 			{ scope: 'test' },
 		],
