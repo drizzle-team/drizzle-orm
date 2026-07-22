@@ -106,7 +106,7 @@ export class PgAsyncSelectBase<
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const fieldsList = this._resolveSelection();
 
-			const shape = dialect.shapeGenerator?.(
+			const shape = config.shape ??= dialect.shapeGenerator?.(
 				{ type: 'plain', fields: fieldsList },
 				joinsNotNullableMap,
 			);

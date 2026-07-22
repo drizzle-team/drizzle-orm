@@ -24,7 +24,7 @@ import type { PgColumn } from '../columns/common.ts';
 import { QueryBuilder } from '../query-builders/query-builder.ts';
 import type { SelectedFields } from '../query-builders/select.types.ts';
 import { PgUpdateBuilder } from '../query-builders/update.ts';
-import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '../session.ts';
+import type { PgQueryResultHKT, PgQueryResultKind, PgTransactionConfig, PreparedQueryConfig } from '../session.ts';
 import type { WithBuilder } from '../subquery.ts';
 import type { PgMaterializedView } from '../view.ts';
 import { PgEffectDeleteBase } from './delete.ts';
@@ -733,8 +733,9 @@ export class PgEffectDatabase<
 		transaction: (
 			tx: PgEffectTransaction<TEffectHKT, TQueryResult, TRelations>,
 		) => Effect.Effect<A, E, R>,
+		config?: PgTransactionConfig,
 	): Effect.Effect<A, E | SqlError, R> {
-		return this.session.transaction(transaction);
+		return this.session.transaction(transaction, config);
 	}
 }
 

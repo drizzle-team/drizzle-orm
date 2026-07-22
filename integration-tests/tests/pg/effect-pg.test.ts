@@ -17,10 +17,12 @@ import * as Predicate from 'effect/Predicate';
 import * as Redacted from 'effect/Redacted';
 import * as Result from 'effect/Result';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
+import { Client as PgPeerClient } from 'pg';
 import { randomString } from '~/utils';
 import { DB, runCommonEffectPgTests } from './effect-common';
 import { relations } from './relations';
 import { usersMigratorTable } from './schema';
+import { assertSnapshotIsolatesTransaction } from './snapshot';
 
 const connectionStr = Redacted.make(
 	process.env['PG_CONNECTION_STRING'] ?? 'postgres://postgres:postgres@localhost:55433/drizzle',
@@ -60,6 +62,19 @@ runCommonEffectPgTests({
 	createDB: createDB as any,
 	usedSchema,
 	addTests: (it) => {
+		it.effect('transaction snapshot: isolates the transaction', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+
+				const peerClient = new PgPeerClient(Redacted.value(connectionStr));
+				yield* Effect.promise(() => peerClient.connect());
+				const peer = { query: async (sql: string) => (await peerClient.query(sql)).rows };
+
+				yield* Effect.promise(() => assertSnapshotIsolatesTransaction(db, peer, expect, 'ef')).pipe(
+					Effect.ensuring(Effect.promise(() => peerClient.end())),
+				);
+			}));
+
 		it.effect('execute', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;

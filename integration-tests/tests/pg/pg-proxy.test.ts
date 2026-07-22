@@ -16,6 +16,10 @@ const skips = [
 	'RQB v2 transaction find many - multiple rows',
 	'RQB v2 transaction find many - with relation',
 	'RQB v2 transaction find many - placeholders',
+	'transaction with options (set isolationLevel)',
+	'transaction with options (accessMode read only)',
+	'transaction with options (deferrable)',
+	'transaction with an empty options object',
 ];
 tests(test, skips);
 

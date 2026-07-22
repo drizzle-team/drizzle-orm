@@ -109,6 +109,21 @@ export interface RunCommonEffectPgTestsOptions {
 	addTests?: (it: Vitest.MethodsNonLive<DB | SqlClient>) => void;
 }
 
+const failureMessage = (failure: unknown): string => {
+	const seen = new Set<unknown>();
+	const messages: string[] = [];
+
+	let e: any = failure;
+	while (e && typeof e === 'object' && !seen.has(e)) {
+		seen.add(e);
+		messages.push(typeof e.message === 'string' ? e.message : String(e));
+		e = e.cause;
+	}
+	if (typeof e === 'string') messages.push(e);
+
+	return messages.join(' | ');
+};
+
 export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): void => {
 	const { testLayer, usedSchema, PgDrizzle, createDB, addTests, skipTests = [] } = opts;
 
@@ -4730,6 +4745,128 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 
 				const result = yield* db.select().from(table);
 				expect(result).toEqual([{ id: 1, name: 'Updated', note: null }]);
+			}));
+
+		it.effect('transaction with options (set isolationLevel)', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const users = pgTable('users_tx_cfg_iso_ef', {
+					id: serial('id').primaryKey(),
+					balance: integer('balance').notNull(),
+				});
+				const products = pgTable('products_tx_cfg_iso_ef', {
+					id: serial('id').primaryKey(),
+					price: integer('price').notNull(),
+					stock: integer('stock').notNull(),
+				});
+
+				yield* push(db, { users, products });
+
+				const [user] = yield* db.insert(users).values({ balance: 100 }).returning();
+				const [product] = yield* db.insert(products).values({ price: 10, stock: 10 }).returning();
+
+				yield* db.transaction((tx) =>
+					Effect.gen(function*() {
+						yield* tx.update(users).set({ balance: user!.balance - product!.price }).where(eq(users.id, user!.id));
+						yield* tx.update(products).set({ stock: product!.stock - 1 }).where(eq(products.id, product!.id));
+					}), { isolationLevel: 'serializable' });
+
+				expect(yield* db.select().from(users)).toEqual([{ id: 1, balance: 90 }]);
+			}));
+
+		it.effect('transaction with options (accessMode read only)', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const users = pgTable('users_tx_cfg_ro_ef', {
+					id: serial('id').primaryKey(),
+					balance: integer('balance').notNull(),
+				});
+
+				yield* push(db, { users });
+				yield* db.insert(users).values({ balance: 100 });
+
+				const res = yield* db.transaction((tx) => tx.insert(users).values({ balance: 200 }), {
+					accessMode: 'read only',
+				}).pipe(Effect.result);
+
+				assert(Result.isFailure(res));
+				expect(failureMessage(res.failure)).toContain('read-only transaction');
+
+				const read = yield* db.transaction((tx) => tx.select().from(users), { accessMode: 'read only' });
+				expect(read).toEqual([{ id: 1, balance: 100 }]);
+			}));
+
+		it.effect('transaction with options (deferrable)', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const users = pgTable('users_tx_cfg_deferrable_ef', {
+					id: serial('id').primaryKey(),
+					balance: integer('balance').notNull(),
+				});
+
+				yield* push(db, { users });
+				yield* db.insert(users).values({ balance: 100 });
+
+				const read = yield* db.transaction((tx) => tx.select().from(users), {
+					isolationLevel: 'serializable',
+					accessMode: 'read only',
+					deferrable: true,
+				});
+				expect(read).toEqual([{ id: 1, balance: 100 }]);
+
+				const notDeferrable = yield* db.transaction((tx) => tx.select().from(users), {
+					isolationLevel: 'serializable',
+					accessMode: 'read only',
+					deferrable: false,
+				});
+				expect(notDeferrable).toEqual([{ id: 1, balance: 100 }]);
+			}));
+
+		it.effect('transaction with an empty options object', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const users = pgTable('users_tx_cfg_empty_ef', {
+					id: serial('id').primaryKey(),
+					balance: integer('balance').notNull(),
+				});
+
+				yield* push(db, { users });
+				yield* db.insert(users).values({ balance: 100 });
+
+				const read = yield* db.transaction((tx) => tx.select().from(users), {});
+				expect(read).toEqual([{ id: 1, balance: 100 }]);
+			}));
+
+		it.effect('transaction snapshot: rejects a malformed id', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+
+				const res = yield* db.transaction(() => Effect.void, {
+					isolationLevel: 'repeatable read',
+					snapshot: 'not-a-snapshot',
+				}).pipe(Effect.result);
+
+				assert(Result.isFailure(res));
+				expect(failureMessage(res.failure)).toContain('invalid snapshot identifier: "not-a-snapshot"');
+			}));
+
+		it.effect('transaction snapshot: does not let the id inject SQL', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const table = pgTable('tx_snapshot_injection_ef', { id: integer('id').primaryKey() });
+
+				yield* push(db, { table });
+
+				const payload = `x'; drop table tx_snapshot_injection_ef; --`;
+				const res = yield* db.transaction(() => Effect.void, {
+					isolationLevel: 'repeatable read',
+					snapshot: payload,
+				}).pipe(Effect.result);
+
+				assert(Result.isFailure(res));
+				expect(failureMessage(res.failure)).toContain(`invalid snapshot identifier: "${payload}"`);
+
+				expect(yield* db.select().from(table)).toEqual([]);
 			}));
 
 		addTests?.(it);

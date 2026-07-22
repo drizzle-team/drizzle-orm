@@ -2,12 +2,16 @@ import { Name, sql } from 'drizzle-orm';
 import { boolean, getTableConfig, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import { describe } from 'node:test';
-import { expect } from 'vitest';
+import { describe, expect } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
 import { postgresjsTest as test } from './instrumentation';
 import { usersMigratorTable } from './schema';
+import {
+	assertMalformedSnapshotRejected,
+	assertSnapshotIdNotInjectable,
+	assertSnapshotIsolatesTransaction,
+} from './snapshot';
 
 tests(test, []);
 
@@ -597,5 +601,19 @@ describe('postgresjs', () => {
 		expect(migratorRes).toStrictEqual({ exitCode: 'databaseMigrations' });
 		expect(meta.length).toStrictEqual(1);
 		expect(res[0]?.tableExists).toStrictEqual(true);
+	});
+});
+
+describe('transaction snapshot', () => {
+	test('isolates the transaction', async ({ db, peer }) => {
+		await assertSnapshotIsolatesTransaction(db, peer!, expect, 'pgjs');
+	});
+
+	test('rejects a malformed id', async ({ db }) => {
+		await assertMalformedSnapshotRejected(db, expect);
+	});
+
+	test('does not let the id inject SQL', async ({ db }) => {
+		await assertSnapshotIdNotInjectable(db, expect, 'pgjs');
 	});
 });

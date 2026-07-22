@@ -24,6 +24,7 @@ export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	onConflict?: SQL;
 	returningFields?: SelectedFieldsFlat;
 	returning?: SelectedFieldsOrdered;
+	shape?: any;
 	select?: boolean;
 	columnList?: string[];
 	overridingSystemValue_?: boolean;

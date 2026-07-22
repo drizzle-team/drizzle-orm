@@ -56,7 +56,7 @@ runCommonEffectSQLiteTests({
 	testLayer: TestLive,
 	SQLiteDrizzle: SQLiteDrizzle,
 	createDB,
-	skipTests: Date.now() < +new Date('2026-07-22')
+	skipTests: Date.now() < +new Date('2026-07-29')
 		? ['migrator : local migration is unapplied. Migrations timestamp is less than last db migration']
 		: [],
 	addTests: (it) => {

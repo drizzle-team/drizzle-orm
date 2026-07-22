@@ -132,7 +132,7 @@ export class PostgresSession<
 			deferrable: config?.deferrable,
 			isolation: config?.isolationLevel,
 			readOnly: config?.accessMode === 'read only',
-		}, (clTx) => {
+		}, async (clTx) => {
 			const session = new PostgresSession(clTx, this.dialect, this.relations, this.options);
 			const tx = new PostgresTransaction<TRelations>(
 				this.dialect,
@@ -141,6 +141,10 @@ export class PostgresSession<
 				undefined,
 				false,
 			);
+
+			if (typeof config?.snapshot === 'string') {
+				await tx.execute(tx.setTransactionSnapshotSQL(config.snapshot));
+			}
 
 			return transaction(tx);
 		});

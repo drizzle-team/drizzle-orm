@@ -197,6 +197,7 @@ export abstract class PgEffectSession<
 		transaction: (
 			tx: PgEffectTransaction<TEffectHKT, TQueryResult, TRelations>,
 		) => Effect.Effect<A, E, R>,
+		config?: PgTransactionConfig,
 	): Effect.Effect<A, E | SqlError, R>;
 }
 
@@ -222,7 +223,7 @@ export abstract class PgEffectTransaction<
 	}
 
 	/** @internal */
-	getTransactionConfigSQL(config: PgTransactionConfig): SQL {
+	getTransactionConfigChunks(config: PgTransactionConfig): string[] {
 		const chunks: string[] = [];
 		if (config.isolationLevel) {
 			chunks.push(`isolation level ${config.isolationLevel}`);
@@ -233,12 +234,53 @@ export abstract class PgEffectTransaction<
 		if (typeof config.deferrable === 'boolean') {
 			chunks.push(config.deferrable ? 'deferrable' : 'not deferrable');
 		}
-		return sql.raw(chunks.join(' '));
+		return chunks;
+	}
+
+	/** @internal */
+	getTransactionConfigSQL(config: PgTransactionConfig): SQL {
+		return sql.raw(this.getTransactionConfigChunks(config).join(' '));
+	}
+
+	/** @internal */
+	setTransactionSnapshotSQL(snapshot: string): SQL {
+		return sql`set transaction snapshot ${snapshot}`.inlineParams();
+	}
+
+	/** @internal */
+	getTransactionConfigStatements(config: PgTransactionConfig): string[] {
+		const statements: string[] = [];
+
+		const chunks = this.getTransactionConfigChunks(config);
+		if (chunks.length) statements.push(`set transaction ${chunks.join(' ')}`);
+
+		if (typeof config.snapshot === 'string') {
+			statements.push(this.dialect.sqlToQuery(this.setTransactionSnapshotSQL(config.snapshot)).sql);
+		}
+
+		return statements;
 	}
 
 	setTransaction(config: PgTransactionConfig) {
-		return this.session.execute<void>(sql`set transaction ${this.getTransactionConfigSQL(config)}`);
+		const chunks = this.getTransactionConfigChunks(config);
+		const setOptions = chunks.length
+			? Effect.asVoid(this.session.execute<void>(sql.raw(`set transaction ${chunks.join(' ')}`)))
+			: Effect.void;
+
+		if (typeof config.snapshot === 'string') {
+			return Effect.flatMap(
+				setOptions,
+				() => Effect.asVoid(this.session.execute<void>(this.setTransactionSnapshotSQL(config.snapshot!))),
+			);
+		}
+		return setOptions;
 	}
+
+	abstract override transaction<A, E, R>(
+		transaction: (
+			tx: PgEffectTransaction<TEffectHKT, TQueryResult, TRelations>,
+		) => Effect.Effect<A, E, R>,
+	): Effect.Effect<A, E | SqlError, R>;
 }
 
 export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEffectHKTBase>(

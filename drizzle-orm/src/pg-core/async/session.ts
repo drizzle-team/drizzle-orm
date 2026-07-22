@@ -252,7 +252,7 @@ export abstract class PgAsyncTransaction<
 	}
 
 	/** @internal */
-	getTransactionConfigSQL(config: PgTransactionConfig): SQL {
+	getTransactionConfigChunks(config: PgTransactionConfig): string[] {
 		const chunks: string[] = [];
 		if (config.isolationLevel) {
 			chunks.push(`isolation level ${config.isolationLevel}`);
@@ -263,11 +263,28 @@ export abstract class PgAsyncTransaction<
 		if (typeof config.deferrable === 'boolean') {
 			chunks.push(config.deferrable ? 'deferrable' : 'not deferrable');
 		}
-		return sql.raw(chunks.join(' '));
+		return chunks;
 	}
 
-	setTransaction(config: PgTransactionConfig): Promise<unknown> {
-		return this.session.execute<void>(sql`set transaction ${this.getTransactionConfigSQL(config)}`);
+	/** @internal */
+	getTransactionConfigSQL(config: PgTransactionConfig): SQL {
+		return sql.raw(this.getTransactionConfigChunks(config).join(' '));
+	}
+
+	/** @internal */
+	setTransactionSnapshotSQL(snapshot: string): SQL {
+		return sql`set transaction snapshot ${snapshot}`.inlineParams();
+	}
+
+	async setTransaction(config: PgTransactionConfig): Promise<unknown> {
+		const chunks = this.getTransactionConfigChunks(config);
+		if (chunks.length) {
+			await this.session.execute<void>(sql.raw(`set transaction ${chunks.join(' ')}`));
+		}
+		if (typeof config.snapshot === 'string') {
+			return this.session.execute(this.setTransactionSnapshotSQL(config.snapshot));
+		}
+		return undefined;
 	}
 
 	abstract override transaction<T>(

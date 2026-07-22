@@ -54,6 +54,7 @@ export interface PgUpdateConfig {
 	joins: PgSelectJoinConfig[];
 	returningFields?: SelectedFields;
 	returning?: SelectedFieldsOrdered;
+	shape?: any;
 	withList?: Subquery[];
 	comment?: SQL;
 	ignoreSelectionCastCodecs?: boolean;

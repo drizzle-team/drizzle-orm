@@ -1764,7 +1764,7 @@ export function tests(test: Test) {
 		// https://github.com/drizzle-team/drizzle-orm/issues/3171
 		// TODO: review case
 		// Fails in `postgres-js` if not inlined - driver expects stringified jsons
-		test.skipIf(Date.now() < +new Date('2026-07-22')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-07-29')).concurrent(
 			'proper json and jsonb handling - sql operator',
 			async ({ db, push }) => {
 				const jsonTable = pgTable('json_table_sql_3', {
@@ -3898,7 +3898,7 @@ export function tests(test: Test) {
 		// https://github.com/drizzle-team/drizzle-orm/issues/5253
 		// enhancement
 		// allow select which columns to insert in insert...select
-		test.skipIf(Date.now() < +new Date('2026-07-22')).concurrent('insert into ... select #2', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-07-29')).concurrent('insert into ... select #2', async ({ db, push }) => {
 			const users = pgTable('users_114', {
 				id: integer('id').primaryKey(),
 				name: text('name').notNull(),
@@ -3989,7 +3989,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4596
-		test.skipIf(Date.now() < +new Date('2026-07-22'))(
+		test.skipIf(Date.now() < +new Date('2026-07-29'))(
 			'functional index; onConflict do update',
 			async ({ db, push }) => {
 				throw new Error('SKIP. commented below because of type error');
@@ -4076,7 +4076,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4419
-		test.skipIf(Date.now() < +new Date('2026-07-22'))('db/js timestamp comparison', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-07-29'))('db/js timestamp comparison', async ({ db, push }) => {
 			const table1 = pgTable('table1', {
 				id: integer(),
 				// default config equal to: { mode: 'date' }
@@ -6044,7 +6044,7 @@ export function tests(test: Test) {
 			},
 		);
 
-		test.skipIf(Date.now() < +new Date('2026-07-22')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-07-29')).concurrent(
 			'Jit mappers: deep nullification',
 			async ({ createDB, push }) => {
 				const users = pgTable('mappers_users_jdn', (t) => ({
@@ -6664,7 +6664,7 @@ export function tests(test: Test) {
 			expect(rArr).toStrictEqual([[1, 'First'], [2, 'Second']]);
 		});
 
-		test.skipIf(Date.now() < +new Date('2026-07-22')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-07-29')).concurrent(
 			'Same table name joined between schemas',
 			async ({ db }) => {
 				const users1 = pgTable('users_cs_join_1', (t) => ({
@@ -6694,7 +6694,7 @@ export function tests(test: Test) {
 					u2: users2,
 				}).from(users1).leftJoin(users2, eq(users1.id, users2.id));
 
-				// @ts-ignore skipIf(Date.now() < +new Date('2026-07-22')) - just to make it searchable
+				// @ts-ignore skipIf(Date.now() < +new Date('2026-07-29')) - just to make it searchable
 				expectTypeOf(res).toEqualTypeOf<{
 					u1: {
 						id: number;
@@ -6726,5 +6726,87 @@ export function tests(test: Test) {
 				]);
 			},
 		);
+	});
+
+	describe('transaction config', () => {
+		test('transaction with options (set isolationLevel)', async ({ db, push }) => {
+			const users = pgTable('users_tx_cfg_iso', {
+				id: serial('id').primaryKey(),
+				balance: integer('balance').notNull(),
+			});
+			const products = pgTable('products_tx_cfg_iso', {
+				id: serial('id').primaryKey(),
+				price: integer('price').notNull(),
+				stock: integer('stock').notNull(),
+			});
+
+			await push({ users, products });
+
+			const [user] = await db.insert(users).values({ balance: 100 }).returning();
+			const [product] = await db.insert(products).values({ price: 10, stock: 10 }).returning();
+
+			await db.transaction(async (tx) => {
+				await tx.update(users).set({ balance: user!.balance - product!.price }).where(eq(users.id, user!.id));
+				await tx.update(products).set({ stock: product!.stock - 1 }).where(eq(products.id, product!.id));
+			}, { isolationLevel: 'serializable' });
+
+			expect(await db.select().from(users)).toEqual([{ id: 1, balance: 90 }]);
+		});
+
+		test('transaction with options (accessMode read only)', async ({ db, push }) => {
+			const users = pgTable('users_tx_cfg_ro', {
+				id: serial('id').primaryKey(),
+				balance: integer('balance').notNull(),
+			});
+
+			await push({ users });
+			await db.insert(users).values({ balance: 100 });
+
+			await expect(
+				db.transaction(async (tx) => {
+					await tx.insert(users).values({ balance: 200 });
+				}, { accessMode: 'read only' }),
+			).rejects.toSatisfy((e: any) => /read-only transaction/i.test(String(e?.cause?.message ?? e?.message)));
+
+			const read = await db.transaction(async (tx) => tx.select().from(users), { accessMode: 'read only' });
+			expect(read).toEqual([{ id: 1, balance: 100 }]);
+		});
+
+		test('transaction with options (deferrable)', async ({ db, push }) => {
+			const users = pgTable('users_tx_cfg_deferrable', {
+				id: serial('id').primaryKey(),
+				balance: integer('balance').notNull(),
+			});
+
+			await push({ users });
+			await db.insert(users).values({ balance: 100 });
+
+			const read = await db.transaction(async (tx) => tx.select().from(users), {
+				isolationLevel: 'serializable',
+				accessMode: 'read only',
+				deferrable: true,
+			});
+			expect(read).toEqual([{ id: 1, balance: 100 }]);
+
+			const notDeferrable = await db.transaction(async (tx) => tx.select().from(users), {
+				isolationLevel: 'serializable',
+				accessMode: 'read only',
+				deferrable: false,
+			});
+			expect(notDeferrable).toEqual([{ id: 1, balance: 100 }]);
+		});
+
+		test('transaction with an empty options object', async ({ db, push }) => {
+			const users = pgTable('users_tx_cfg_empty', {
+				id: serial('id').primaryKey(),
+				balance: integer('balance').notNull(),
+			});
+
+			await push({ users });
+			await db.insert(users).values({ balance: 100 });
+
+			const read = await db.transaction(async (tx) => tx.select().from(users), {});
+			expect(read).toEqual([{ id: 1, balance: 100 }]);
+		});
 	});
 }

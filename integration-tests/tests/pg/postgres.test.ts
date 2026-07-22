@@ -11,6 +11,11 @@ import { assertAllTypesUnions } from './all-types-unions';
 import { tests } from './common';
 import { postgresTest as test } from './instrumentation';
 import { usersMigratorTable, usersTable } from './schema';
+import {
+	assertMalformedSnapshotRejected,
+	assertSnapshotIdNotInjectable,
+	assertSnapshotIsolatesTransaction,
+} from './snapshot';
 
 tests(test, ['raw jsons', 'all types ~codecs~']);
 
@@ -647,5 +652,19 @@ describe('driver-specific', () => {
 		expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
 
 		await assertAllTypesUnions(db);
+	});
+});
+
+describe('transaction snapshot', () => {
+	test('isolates the transaction', async ({ db, peer }) => {
+		await assertSnapshotIsolatesTransaction(db, peer!, expect, 'minipg');
+	});
+
+	test('rejects a malformed id', async ({ db }) => {
+		await assertMalformedSnapshotRejected(db, expect);
+	});
+
+	test('does not let the id inject SQL', async ({ db }) => {
+		await assertSnapshotIdNotInjectable(db, expect, 'minipg');
 	});
 });
