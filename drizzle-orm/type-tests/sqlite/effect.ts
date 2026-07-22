@@ -1,10 +1,26 @@
 import type { SqliteClient } from '@effect/sql-sqlite-node/SqliteClient';
+import type { OPSQLiteConnection, QueryResult } from '@op-engineering/op-sqlite';
 import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { SQLiteDatabase, SQLiteRunResult } from 'expo-sqlite';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import type { EffectDrizzleQueryError, MigratorInitError } from '~/effect-core/errors.ts';
 import { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
+import {
+	type EffectExpoSQLiteDatabase,
+	ExpoSQLiteClient,
+	make as makeExpoSQLite,
+	makeWithDefaults as makeExpoSQLiteWithDefaults,
+} from '~/effect-expo-sqlite/index.ts';
+import { migrate as migrateExpoSQLite } from '~/effect-expo-sqlite/migrator.ts';
+import {
+	type EffectOPSQLiteDatabase,
+	make as makeOPSQLite,
+	makeWithDefaults as makeOPSQLiteWithDefaults,
+	OPSQLiteClient,
+} from '~/effect-op-sqlite/index.ts';
+import { migrate as migrateOPSQLite } from '~/effect-op-sqlite/migrator.ts';
 import type { EffectSQLiteNodeDatabase } from '~/effect-sqlite-node/index.ts';
 import { make, makeWithDefaults } from '~/effect-sqlite-node/index.ts';
 import { migrate } from '~/effect-sqlite-node/migrator.ts';
@@ -41,6 +57,116 @@ type AsEffect<T> = T extends Effect.Effect<infer A, infer E, infer R> ? Effect.E
 				| import('~/cache/core/cache-effect.ts').EffectCache
 				| SqliteClient
 			>
+		>
+	>;
+}
+
+{
+	const dbEffect = makeExpoSQLiteWithDefaults();
+	type DbEffect = typeof dbEffect;
+
+	Expect<
+		Equal<
+			DbEffect,
+			Effect.Effect<
+				EffectExpoSQLiteDatabase<EmptyRelations> & { $client: SQLiteDatabase },
+				never,
+				ExpoSQLiteClient
+			>
+		>
+	>;
+}
+
+{
+	const dbEffect = makeExpoSQLite();
+	type DbEffect = typeof dbEffect;
+
+	Expect<
+		Equal<
+			DbEffect,
+			Effect.Effect<
+				EffectExpoSQLiteDatabase<EmptyRelations> & { $client: SQLiteDatabase },
+				never,
+				| import('~/effect-core/logger.ts').EffectLogger
+				| import('~/cache/core/cache-effect.ts').EffectCache
+				| ExpoSQLiteClient
+			>
+		>
+	>;
+}
+
+declare const expoDb: EffectExpoSQLiteDatabase<Record<string, never>>;
+
+{
+	const run = expoDb.run('somequery');
+	type RunEffect = AsEffect<typeof run>;
+
+	Expect<Equal<RunEffect, Effect.Effect<SQLiteRunResult, EffectDrizzleQueryError, never>>>;
+}
+
+{
+	const migrateResult = migrateExpoSQLite(expoDb, { migrations: { '0000_test': 'select 1' } });
+	type MigrateEffect = typeof migrateResult;
+
+	Expect<
+		Equal<
+			MigrateEffect,
+			Effect.Effect<undefined, SqlError | EffectDrizzleQueryError | MigratorInitError, never>
+		>
+	>;
+}
+
+{
+	const dbEffect = makeOPSQLiteWithDefaults();
+	type DbEffect = typeof dbEffect;
+
+	Expect<
+		Equal<
+			DbEffect,
+			Effect.Effect<
+				EffectOPSQLiteDatabase<EmptyRelations> & { $client: OPSQLiteConnection },
+				never,
+				OPSQLiteClient
+			>
+		>
+	>;
+}
+
+{
+	const dbEffect = makeOPSQLite();
+	type DbEffect = typeof dbEffect;
+
+	Expect<
+		Equal<
+			DbEffect,
+			Effect.Effect<
+				EffectOPSQLiteDatabase<EmptyRelations> & { $client: OPSQLiteConnection },
+				never,
+				| import('~/effect-core/logger.ts').EffectLogger
+				| import('~/cache/core/cache-effect.ts').EffectCache
+				| OPSQLiteClient
+			>
+		>
+	>;
+}
+
+declare const opDb: EffectOPSQLiteDatabase<Record<string, never>>;
+
+{
+	const run = opDb.run('somequery');
+	type RunEffect = AsEffect<typeof run>;
+
+	Expect<Equal<RunEffect, Effect.Effect<QueryResult, EffectDrizzleQueryError, never>>>;
+}
+
+{
+	const migrateResult = migrateOPSQLite(opDb, { migrations: { '0000_test': 'select 1' } });
+	type MigrateEffect = typeof migrateResult;
+
+	Expect<
+		Equal<
+			MigrateEffect,
+			Effect.Effect<undefined, SqlError | EffectDrizzleQueryError | MigratorInitError, never>
 		>
 	>;
 }
