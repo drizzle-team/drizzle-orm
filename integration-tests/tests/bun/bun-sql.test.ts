@@ -1,5 +1,5 @@
 import { SQL as BunSQL } from 'bun';
-import { afterEach, beforeAll, beforeEach, expect, test } from 'bun:test';
+import { afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import {
 	and,
@@ -97,10 +97,16 @@ import {
 } from 'drizzle-orm/pg-core';
 import { PgAsyncDatabase } from 'drizzle-orm/pg-core/async/db';
 import { PgQueryResultHKT } from 'drizzle-orm/pg-core/session';
+import { allTypesData, makeAllTypes } from '~/pg/all-types';
 import { clear, init, rqbPost, rqbUser } from '~/pg/schema';
 import { normalizeDataWithDbCodecs } from '~/pg/utils';
 import { Expect } from '~/utils';
 import { relations } from '../pg/relations';
+import {
+	assertMalformedSnapshotRejected,
+	assertSnapshotIdNotInjectable,
+	assertSnapshotIsolatesTransaction,
+} from '../pg/snapshot';
 
 export const usersTable = pgTable('users', {
 	id: serial('id' as string).primaryKey(),
@@ -218,142 +224,7 @@ const jsonTestTable = pgTable('jsontest', {
 
 const en = pgEnum('en', ['enVal1', 'enVal2']);
 
-const allTypesTable = pgTable('all_types', {
-	serial: serial('serial'),
-	bigserial53: bigserial('bigserial53', {
-		mode: 'number',
-	}),
-	bigserial64: bigserial('bigserial64', {
-		mode: 'bigint',
-	}),
-	int: integer('int'),
-	bigint53: bigint('bigint53', {
-		mode: 'number',
-	}),
-	bigint64: bigint('bigint64', {
-		mode: 'bigint',
-	}),
-	bool: boolean('bool'),
-	char: char('char'),
-	cidr: cidr('cidr'),
-	date: date('date', {
-		mode: 'date',
-	}),
-	dateStr: date('date_str', {
-		mode: 'string',
-	}),
-	double: doublePrecision('double'),
-	enum: en('enum'),
-	inet: inet('inet'),
-	interval: interval('interval'),
-	json: json('json'),
-	jsonb: jsonb('jsonb'),
-	line: line('line', {
-		mode: 'abc',
-	}),
-	lineTuple: line('line_tuple', {
-		mode: 'tuple',
-	}),
-	macaddr: macaddr('macaddr'),
-	macaddr8: macaddr8('macaddr8'),
-	numeric: numeric('numeric'),
-	numericNum: numeric('numeric_num', {
-		mode: 'number',
-	}),
-	numericBig: numeric('numeric_big', {
-		mode: 'bigint',
-	}),
-	point: point('point', {
-		mode: 'xy',
-	}),
-	pointTuple: point('point_tuple', {
-		mode: 'tuple',
-	}),
-	real: real('real'),
-	smallint: smallint('smallint'),
-	smallserial: smallserial('smallserial'),
-	text: text('text'),
-	time: time('time'),
-	timestamp: timestamp('timestamp', {
-		mode: 'date',
-	}),
-	timestampTz: timestamp('timestamp_tz', {
-		mode: 'date',
-		withTimezone: true,
-	}),
-	timestampStr: timestamp('timestamp_str', {
-		mode: 'string',
-	}),
-	timestampTzStr: timestamp('timestamp_tz_str', {
-		mode: 'string',
-		withTimezone: true,
-	}),
-	uuid: uuid('uuid'),
-	varchar: varchar('varchar'),
-	arrint: integer('arrint').array(),
-	arrbigint53: bigint('arrbigint53', {
-		mode: 'number',
-	}).array(),
-	arrbigint64: bigint('arrbigint64', {
-		mode: 'bigint',
-	}).array(),
-	arrbool: boolean('arrbool').array(),
-	arrchar: char('arrchar').array(),
-	arrcidr: cidr('arrcidr').array(),
-	arrdate: date('arrdate', {
-		mode: 'date',
-	}).array(),
-	arrdateStr: date('arrdate_str', {
-		mode: 'string',
-	}).array(),
-	arrdouble: doublePrecision('arrdouble').array(),
-	arrenum: en('arrenum').array(),
-	arrinet: inet('arrinet').array(),
-	arrinterval: interval('arrinterval').array(),
-	arrjson: json('arrjson').array(),
-	arrjsonb: jsonb('arrjsonb').array(),
-	arrline: line('arrline', {
-		mode: 'abc',
-	}).array(),
-	arrlineTuple: line('arrline_tuple', {
-		mode: 'tuple',
-	}).array(),
-	arrmacaddr: macaddr('arrmacaddr').array(),
-	arrmacaddr8: macaddr8('arrmacaddr8').array(),
-	arrnumeric: numeric('arrnumeric').array(),
-	arrnumericNum: numeric('arrnumeric_num', {
-		mode: 'number',
-	}).array(),
-	arrnumericBig: numeric('arrnumeric_big', {
-		mode: 'bigint',
-	}).array(),
-	arrpoint: point('arrpoint', {
-		mode: 'xy',
-	}).array(),
-	arrpointTuple: point('arrpoint_tuple', {
-		mode: 'tuple',
-	}).array(),
-	arrreal: real('arrreal').array(),
-	arrsmallint: smallint('arrsmallint').array(),
-	arrtext: text('arrtext').array(),
-	arrtime: time('arrtime').array(),
-	arrtimestamp: timestamp('arrtimestamp', {
-		mode: 'date',
-	}).array(),
-	arrtimestampTz: timestamp('arrtimestamp_tz', {
-		mode: 'date',
-		withTimezone: true,
-	}).array(),
-	arrtimestampStr: timestamp('arrtimestamp_str', {
-		mode: 'string',
-	}).array(),
-	arrtimestampTzStr: timestamp('arrtimestamp_tz_str', {
-		mode: 'string',
-		withTimezone: true,
-	}).array(),
-	arruuid: uuid('arruuid').array(),
-	arrvarchar: varchar('arrvarchar').array(),
-});
+const { allTypesTable } = makeAllTypes('all_types', 'en');
 
 let db: BunSQLDatabase<typeof relations>;
 
@@ -725,6 +596,53 @@ test('$default function', async () => {
 	}]);
 });
 
+test('db.execute modes', async () => {
+	const users = pgTable('users_execute_modes_1', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`create table ${users} (id integer primary key, name text not null)`);
+
+	await db.insert(users).values([
+		{
+			id: 1,
+			name: 'First',
+		},
+		{
+			id: 2,
+			name: 'Second',
+		},
+	]);
+
+	const rObj = await db.execute<{ id: number; name: string }>(
+		sql`select ${users.id}, ${users.name} from ${users} order by ${users.id}`,
+		'objects',
+	);
+	const rArr = await db.execute<[number, string]>(
+		sql`select ${users.id}, ${users.name} from ${users} order by ${users.id}`,
+		'arrays',
+	);
+
+	Expect<Equal<{ id: number; name: string }[], typeof rObj>>;
+	Expect<Equal<[number, string][], typeof rArr>>;
+
+	expect(rObj).toEqual([
+		{
+			id: 1,
+			name: 'First',
+		},
+		{
+			id: 2,
+			name: 'Second',
+		},
+	]);
+	expect(rArr).toEqual([[1, 'First'], [2, 'Second']]);
+
+	await db.execute(sql`drop table ${users}`);
+});
+
 test('select distinct', async () => {
 	const usersDistinctTable = pgTable('users_distinct', {
 		id: integer('id').notNull(),
@@ -934,6 +852,88 @@ test('insert with overridden default values', async () => {
 	expect(result).toEqual([
 		{ id: 1, name: 'John', verified: true, jsonb: null, createdAt: result[0]!.createdAt },
 	]);
+});
+
+test('insert with explicit column list', async () => {
+	const table = pgTable('column_selection', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		note: text('note'),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+	await db.execute(
+		sql`create table ${table} (id serial primary key, name text not null, verified boolean not null default false, note text)`,
+	);
+
+	await db.insert(table, 'name').values([{ name: 'John' }, { name: 'Jane' }]);
+	await db.insert(table, 'name', 'note').values({ name: 'Jack' });
+	await db.insert(table, 'note', 'name').values({ name: 'Jill', note: 'hi' });
+
+	const result = await db.select().from(table).orderBy(table.id);
+	expect(result).toEqual([
+		{ id: 1, name: 'John', verified: false, note: null },
+		{ id: 2, name: 'Jane', verified: false, note: null },
+		{ id: 3, name: 'Jack', verified: false, note: null },
+		{ id: 4, name: 'Jill', verified: false, note: 'hi' },
+	]);
+
+	await db.execute(sql`drop table ${table}`);
+});
+
+test('insert with explicit column list - select', async () => {
+	const src = pgTable('column_selection_select_src', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+	const dst = pgTable('column_selection_select_dst', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+	});
+
+	await db.execute(sql`drop table if exists ${src}`);
+	await db.execute(sql`drop table if exists ${dst}`);
+	await db.execute(sql`create table ${src} (id integer primary key, name text not null)`);
+	await db.execute(
+		sql`create table ${dst} (id serial primary key, name text not null, verified boolean not null default false)`,
+	);
+
+	await db.insert(src).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+
+	await db.insert(dst, 'name').select(db.select({ name: src.name }).from(src).orderBy(src.id));
+
+	const result = await db.select().from(dst).orderBy(dst.id);
+	expect(result).toEqual([
+		{ id: 1, name: 'John', verified: false },
+		{ id: 2, name: 'Jane', verified: false },
+	]);
+
+	await db.execute(sql`drop table ${src}`);
+	await db.execute(sql`drop table ${dst}`);
+});
+
+test('insert with explicit column list - on conflict', async () => {
+	const table = pgTable('column_selection_conflict', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+		note: text('note'),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+	await db.execute(sql`create table ${table} (id integer primary key, name text not null, note text)`);
+
+	await db.insert(table, 'id', 'name').values({ id: 1, name: 'John' });
+	await db
+		.insert(table, 'id', 'name')
+		.values({ id: 1, name: 'Jane' })
+		.onConflictDoUpdate({ target: table.id, set: { name: 'Updated' } });
+
+	const result = await db.select().from(table);
+	expect(result).toEqual([{ id: 1, name: 'Updated', note: null }]);
+
+	await db.execute(sql`drop table ${table}`);
 });
 
 test('insert many', async () => {
@@ -3716,6 +3716,46 @@ test('test $onUpdateFn and $onUpdate works updating', async () => {
 	}
 });
 
+test('$onUpdateFn called only when needed', async () => {
+	let counter = 0;
+	const table = pgTable('on_update_call_test', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+		inc: integer('inc').$onUpdateFn(() => counter++),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+	await db.execute(sql`create table ${table} (
+		id integer primary key,
+		name text not null,
+		inc integer
+	)`);
+
+	let res = await db.insert(table).values({ id: 1, name: 'First', inc: 0 }).returning();
+	expect(counter).toStrictEqual(0);
+	expect(res).toStrictEqual([{ id: 1, name: 'First', inc: 0 }]);
+
+	res = await db.update(table).set({ name: 'Second', inc: null }).returning();
+	expect(counter).toStrictEqual(0);
+	expect(res).toStrictEqual([{ id: 1, name: 'Second', inc: null }]);
+
+	res = await db.update(table).set({ name: 'Third', inc: 10 }).returning();
+	expect(counter).toStrictEqual(0);
+	expect(res).toStrictEqual([{ id: 1, name: 'Third', inc: 10 }]);
+
+	res = await db.update(table).set({ name: 'Fourth' }).returning();
+	expect(counter).toStrictEqual(1);
+	expect(res).toStrictEqual([{ id: 1, name: 'Fourth', inc: 0 }]);
+
+	res = await db.update(table).set({ name: 'Fifth' }).returning();
+	expect(counter).toStrictEqual(2);
+	expect(res).toStrictEqual([{ id: 1, name: 'Fifth', inc: 1 }]);
+
+	res = await db.insert(table).values({ id: 2, name: 'Second' }).returning();
+	expect(counter).toStrictEqual(3);
+	expect(res).toStrictEqual([{ id: 2, name: 'Second', inc: 2 }]);
+});
+
 test('test if method with sql operators', async () => {
 	const users = pgTable('users', {
 		id: serial('id').primaryKey(),
@@ -4785,19 +4825,20 @@ test('insert into ... select with keys in different order', async () => {
 		)
 	`);
 
-	expect(
-		() =>
-			db
-				.insert(users1)
-				.select(
-					db
-						.select({
-							name: users2.name,
-							id: users2.id,
-						})
-						.from(users2),
-				),
-	).toThrowError();
+	await db.insert(users2).values({ id: 1, name: 'First' });
+	const res = await db.insert(users1).select(
+		db
+			.select({
+				name: users2.name,
+				id: users2.id,
+			})
+			.from(users2),
+	).returning();
+
+	expect(res).toStrictEqual([{
+		id: 1,
+		name: 'First',
+	}]);
 });
 
 test('policy', () => {
@@ -5936,344 +5977,110 @@ test('RQB v2 transaction find many - placeholders', async () => {
 });
 
 test('all types', async () => {
-	await db.execute(sql`CREATE TYPE "public"."en" AS ENUM('enVal1', 'enVal2');`);
+	// Same fixture and data as the other suites' `all types` (see ~/pg/all-types.ts). The DDL is the schema
+	// drizzle-kit emits for that table - this suite has no push fixture to build it from the definition.
+	await db.execute(sql`CREATE TYPE "en" AS ENUM('enVal1', 'enVal2');`);
 	await db.execute(sql`
-				CREATE TABLE "all_types" (
-					"serial" serial NOT NULL,
-					"bigserial53" bigserial NOT NULL,
-					"bigserial64" bigserial,
-					"int" integer,
-					"bigint53" bigint,
-					"bigint64" bigint,
-					"bool" boolean,
-					"char" char,
-					"cidr" "cidr",
-					"date" date,
-					"date_str" date,
-					"double" double precision,
-					"enum" "en",
-					"inet" "inet",
-					"interval" interval,
-					"json" json,
-					"jsonb" jsonb,
-					"line" "line",
-					"line_tuple" "line",
-					"macaddr" "macaddr",
-					"macaddr8" "macaddr8",
-					"numeric" numeric,
-					"numeric_num" numeric,
-					"numeric_big" numeric,
-					"point" "point",
-					"point_tuple" "point",
-					"real" real,
-					"smallint" smallint,
-					"smallserial" "smallserial" NOT NULL,
-					"text" text,
-					"time" time,
-					"timestamp" timestamp,
-					"timestamp_tz" timestamp with time zone,
-					"timestamp_str" timestamp,
-					"timestamp_tz_str" timestamp with time zone,
-					"uuid" uuid,
-					"varchar" varchar,
-					"arrint" integer[],
-					"arrbigint53" bigint[],
-					"arrbigint64" bigint[],
-					"arrbool" boolean[],
-					"arrchar" char[],
-					"arrcidr" "cidr"[],
-					"arrdate" date[],
-					"arrdate_str" date[],
-					"arrdouble" double precision[],
-					"arrenum" "en"[],
-					"arrinet" "inet"[],
-					"arrinterval" interval[],
-					"arrjson" json[],
-					"arrjsonb" jsonb[],
-					"arrline" "line"[],
-					"arrline_tuple" "line"[],
-					"arrmacaddr" "macaddr"[],
-					"arrmacaddr8" "macaddr8"[],
-					"arrnumeric" numeric[],
-					"arrnumeric_num" numeric[],
-					"arrnumeric_big" numeric[],
-					"arrpoint" "point"[],
-					"arrpoint_tuple" "point"[],
-					"arrreal" real[],
-					"arrsmallint" smallint[],
-					"arrtext" text[],
-					"arrtime" time[],
-					"arrtimestamp" timestamp[],
-					"arrtimestamp_tz" timestamp with time zone[],
-					"arrtimestamp_str" timestamp[],
-					"arrtimestamp_tz_str" timestamp with time zone[],
-					"arruuid" uuid[],
-					"arrvarchar" varchar[]
-				);
-			`);
+		CREATE TABLE "all_types" (
+			"serial" serial,
+			"bigserial" bigserial,
+			"bigserialnum" bigserial,
+			"int" integer NOT NULL,
+			"bigint" bigint NOT NULL,
+			"bigintnum" bigint NOT NULL,
+			"bigintstr" bigint NOT NULL,
+			"bool" boolean NOT NULL,
+			"bytea" bytea NOT NULL,
+			"char" char NOT NULL,
+			"cidr" cidr NOT NULL,
+			"date" date NOT NULL,
+			"datestr" date NOT NULL,
+			"double" double precision NOT NULL,
+			"enum" "en" NOT NULL,
+			"inet" inet NOT NULL,
+			"interval" interval NOT NULL,
+			"json" json NOT NULL,
+			"jsonb" jsonb NOT NULL,
+			"json1" json NOT NULL,
+			"json2" json,
+			"jsonb1" jsonb NOT NULL,
+			"jsonb2" jsonb,
+			"json3" json NOT NULL,
+			"jsonb3" jsonb NOT NULL,
+			"line" line NOT NULL,
+			"linetuple" line NOT NULL,
+			"macaddr" macaddr NOT NULL,
+			"macaddr8" macaddr8 NOT NULL,
+			"numeric" numeric NOT NULL,
+			"numericnum" numeric NOT NULL,
+			"numericbig" numeric NOT NULL,
+			"point" point NOT NULL,
+			"pointtuple" point NOT NULL,
+			"real" real NOT NULL,
+			"smallint" smallint NOT NULL,
+			"smallserial" smallserial,
+			"text" text NOT NULL,
+			"time" time NOT NULL,
+			"timestamp" timestamp NOT NULL,
+			"timestampTz" timestamp with time zone NOT NULL,
+			"timestampstr" timestamp NOT NULL,
+			"timestampTzstr" timestamp with time zone NOT NULL,
+			"uuid" uuid NOT NULL,
+			"varchar" varchar NOT NULL,
+			"arrint" integer[] NOT NULL,
+			"arrbigint" bigint[] NOT NULL,
+			"arrbigintnum" bigint[] NOT NULL,
+			"arrbigintstr" bigint[] NOT NULL,
+			"arrbool" boolean[] NOT NULL,
+			"arrbytea" bytea[] NOT NULL,
+			"mtxbytea" bytea[][] NOT NULL,
+			"arrchar" char[] NOT NULL,
+			"arrcidr" cidr[] NOT NULL,
+			"arrdate" date[] NOT NULL,
+			"arrdatestr" date[] NOT NULL,
+			"arrdouble" double precision[] NOT NULL,
+			"arrenum" "en"[] NOT NULL,
+			"arrinet" inet[] NOT NULL,
+			"arrinterval" interval[] NOT NULL,
+			"arrjson" json[] NOT NULL,
+			"arrjsonb" jsonb[] NOT NULL,
+			"arrjson1" json[] NOT NULL,
+			"arrjsonb1" jsonb[] NOT NULL,
+			"arrjson2" json[] NOT NULL,
+			"arrjsonb2" jsonb[] NOT NULL,
+			"arrjson3" json[] NOT NULL,
+			"arrjsonb3" jsonb[] NOT NULL,
+			"arrline" line[] NOT NULL,
+			"arrlinetuple" line[] NOT NULL,
+			"arrmacaddr" macaddr[] NOT NULL,
+			"arrmacaddr8" macaddr8[] NOT NULL,
+			"arrnumeric" numeric[] NOT NULL,
+			"arrnumericnum" numeric[] NOT NULL,
+			"arrnumericbig" numeric[] NOT NULL,
+			"arrpoint" point[] NOT NULL,
+			"arrpointtuple" point[] NOT NULL,
+			"arrreal" real[] NOT NULL,
+			"arrsmallint" smallint[] NOT NULL,
+			"arrtext" text[] NOT NULL,
+			"arrtime" time[] NOT NULL,
+			"arrtimestamp" timestamp[] NOT NULL,
+			"arrtimestampTz" timestamp with time zone[] NOT NULL,
+			"arrtimestampstr" timestamp[] NOT NULL,
+			"arrtimestampTzstr" timestamp with time zone[] NOT NULL,
+			"arruuid" uuid[] NOT NULL,
+			"arrvarchar" varchar[] NOT NULL
+		);
+	`);
 
-	await db.insert(allTypesTable).values({
-		serial: 1,
-		smallserial: 15,
-		bigint53: 9007199254740991,
-		bigint64: 5044565289845416380n,
-		bigserial53: 9007199254740991,
-		bigserial64: 5044565289845416380n,
-		bool: true,
-		char: 'c',
-		cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
-		inet: '192.168.0.1/24',
-		macaddr: '08:00:2b:01:02:03',
-		macaddr8: '08:00:2b:01:02:03:04:05',
-		date: new Date(1741743161623),
-		dateStr: new Date(1741743161623).toISOString(),
-		double: 15.35325689124218,
-		enum: 'enVal1',
-		int: 621,
-		interval: '2 months ago',
-		json: {
-			str: 'strval',
-			arr: ['str', 10],
-		},
-		jsonb: {
-			str: 'strvalb',
-			arr: ['strb', 11],
-		},
-		line: {
-			a: 1,
-			b: 2,
-			c: 3,
-		},
-		lineTuple: [1, 2, 3],
-		numeric: '475452353476',
-		numericNum: 9007199254740991,
-		numericBig: 5044565289845416380n,
-		point: {
-			x: 24.5,
-			y: 49.6,
-		},
-		pointTuple: [57.2, 94.3],
-		real: 1.048596,
-		smallint: 10,
-		text: 'TEXT STRING',
-		time: '13:59:28',
-		timestamp: new Date(1741743161623),
-		timestampTz: new Date(1741743161623),
-		timestampStr: new Date(1741743161623).toISOString(),
-		timestampTzStr: new Date(1741743161623).toISOString(),
-		uuid: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
-		varchar: 'C4-',
-		arrbigint53: [9007199254740991],
-		arrbigint64: [5044565289845416380n],
-		arrbool: [true],
-		arrchar: ['c'],
-		arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
-		arrinet: ['192.168.0.1/24'],
-		arrmacaddr: ['08:00:2b:01:02:03'],
-		arrmacaddr8: ['08:00:2b:01:02:03:04:05'],
-		arrdate: [new Date(1741743161623)],
-		arrdateStr: [new Date(1741743161623).toISOString()],
-		arrdouble: [15.35325689124218],
-		arrenum: ['enVal1'],
-		arrint: [621],
-		arrinterval: ['2 months ago'],
-		arrjson: [{
-			str: 'strval',
-			arr: ['str', 10],
-		}],
-		arrjsonb: [{
-			str: 'strvalb',
-			arr: ['strb', 11],
-		}],
-		arrline: [{
-			a: 1,
-			b: 2,
-			c: 3,
-		}],
-		arrlineTuple: [[1, 2, 3]],
-		arrnumeric: ['475452353476'],
-		arrnumericNum: [9007199254740991],
-		arrnumericBig: [5044565289845416380n],
-		arrpoint: [{
-			x: 24.5,
-			y: 49.6,
-		}],
-		arrpointTuple: [[57.2, 94.3]],
-		arrreal: [1.048596],
-		arrsmallint: [10],
-		arrtext: ['TEXT STRING'],
-		arrtime: ['13:59:28'],
-		arrtimestamp: [new Date(1741743161623)],
-		arrtimestampTz: [new Date(1741743161623)],
-		arrtimestampStr: [new Date(1741743161623).toISOString()],
-		arrtimestampTzStr: [new Date(1741743161623).toISOString()],
-		arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
-		arrvarchar: ['C4-'],
-	});
+	// Driver can't handle numbers in json fields
+	const { json2: _json2, jsonb2: _jsonb2, ...bunAllTypesData } = allTypesData;
+	const { json2: _c1, jsonb2: _c2, ...bunAllTypesColumns } = getTableColumns(allTypesTable);
 
-	const rawRes = await db.select().from(allTypesTable);
+	await db.insert(allTypesTable).values(bunAllTypesData as typeof allTypesData);
 
-	type ExpectedType = {
-		serial: number;
-		bigserial53: number;
-		bigserial64: bigint;
-		int: number | null;
-		bigint53: number | null;
-		bigint64: bigint | null;
-		bool: boolean | null;
-		char: string | null;
-		cidr: string | null;
-		date: Date | null;
-		dateStr: string | null;
-		double: number | null;
-		enum: 'enVal1' | 'enVal2' | null;
-		inet: string | null;
-		interval: string | null;
-		json: unknown;
-		jsonb: unknown;
-		line: {
-			a: number;
-			b: number;
-			c: number;
-		} | null;
-		lineTuple: [number, number, number] | null;
-		macaddr: string | null;
-		macaddr8: string | null;
-		numeric: string | null;
-		numericNum: number | null;
-		numericBig: bigint | null;
-		point: {
-			x: number;
-			y: number;
-		} | null;
-		pointTuple: [number, number] | null;
-		real: number | null;
-		smallint: number | null;
-		smallserial: number;
-		text: string | null;
-		time: string | null;
-		timestamp: Date | null;
-		timestampTz: Date | null;
-		timestampStr: string | null;
-		timestampTzStr: string | null;
-		uuid: string | null;
-		varchar: string | null;
-		arrint: number[] | null;
-		arrbigint53: number[] | null;
-		arrbigint64: bigint[] | null;
-		arrbool: boolean[] | null;
-		arrchar: string[] | null;
-		arrcidr: string[] | null;
-		arrdate: Date[] | null;
-		arrdateStr: string[] | null;
-		arrdouble: number[] | null;
-		arrenum: ('enVal1' | 'enVal2')[] | null;
-		arrinet: string[] | null;
-		arrinterval: string[] | null;
-		arrjson: unknown[] | null;
-		arrjsonb: unknown[] | null;
-		arrline: {
-			a: number;
-			b: number;
-			c: number;
-		}[] | null;
-		arrlineTuple: [number, number, number][] | null;
-		arrmacaddr: string[] | null;
-		arrmacaddr8: string[] | null;
-		arrnumeric: string[] | null;
-		arrnumericNum: number[] | null;
-		arrnumericBig: bigint[] | null;
-		arrpoint: { x: number; y: number }[] | null;
-		arrpointTuple: [number, number][] | null;
-		arrreal: number[] | null;
-		arrsmallint: number[] | null;
-		arrtext: string[] | null;
-		arrtime: string[] | null;
-		arrtimestamp: Date[] | null;
-		arrtimestampTz: Date[] | null;
-		arrtimestampStr: string[] | null;
-		arrtimestampTzStr: string[] | null;
-		arruuid: string[] | null;
-		arrvarchar: string[] | null;
-	}[];
+	const rawRes = await db.select(bunAllTypesColumns).from(allTypesTable);
 
-	const expectedRes: ExpectedType = [
-		{
-			serial: 1,
-			bigserial53: 9007199254740991,
-			bigserial64: 5044565289845416380n,
-			int: 621,
-			bigint53: 9007199254740991,
-			bigint64: 5044565289845416380n,
-			bool: true,
-			char: 'c',
-			cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
-			date: new Date('2025-03-12T00:00:00.000Z'),
-			dateStr: '2025-03-12',
-			double: 15.35325689124218,
-			enum: 'enVal1',
-			inet: '192.168.0.1/24',
-			interval: '-2 mons',
-			json: { str: 'strval', arr: ['str', 10] },
-			jsonb: { arr: ['strb', 11], str: 'strvalb' },
-			line: { a: 1, b: 2, c: 3 },
-			lineTuple: [1, 2, 3],
-			macaddr: '08:00:2b:01:02:03',
-			macaddr8: '08:00:2b:01:02:03:04:05',
-			numeric: '475452353476',
-			numericNum: 9007199254740991,
-			numericBig: 5044565289845416380n,
-			point: { x: 24.5, y: 49.6 },
-			pointTuple: [57.2, 94.3],
-			real: 1.048596,
-			smallint: 10,
-			smallserial: 15,
-			text: 'TEXT STRING',
-			time: '13:59:28',
-			timestamp: new Date('2025-03-12T01:32:41.623Z'),
-			timestampTz: new Date('2025-03-12T01:32:41.623Z'),
-			timestampStr: '2025-03-12 01:32:41.623',
-			timestampTzStr: '2025-03-12 01:32:41.623+00',
-			uuid: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
-			varchar: 'C4-',
-			arrint: [621],
-			arrbigint53: [9007199254740991],
-			arrbigint64: [5044565289845416380n],
-			arrbool: [true],
-			arrchar: ['c'],
-			arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
-			arrdate: [new Date('2025-03-12T00:00:00.000Z')],
-			arrdateStr: ['2025-03-12'],
-			arrdouble: [15.35325689124218],
-			arrenum: ['enVal1'],
-			arrinet: ['192.168.0.1/24'],
-			arrinterval: ['-2 mons'],
-			arrjson: [{ str: 'strval', arr: ['str', 10] }],
-			arrjsonb: [{ arr: ['strb', 11], str: 'strvalb' }],
-			arrline: [{ a: 1, b: 2, c: 3 }],
-			arrlineTuple: [[1, 2, 3]],
-			arrmacaddr: ['08:00:2b:01:02:03'],
-			arrmacaddr8: ['08:00:2b:01:02:03:04:05'],
-			arrnumeric: ['475452353476'],
-			arrnumericNum: [9007199254740991],
-			arrnumericBig: [5044565289845416380n],
-			arrpoint: [{ x: 24.5, y: 49.6 }],
-			arrpointTuple: [[57.2, 94.3]],
-			arrreal: [1.048596],
-			arrsmallint: [10],
-			arrtext: ['TEXT STRING'],
-			arrtime: ['13:59:28'],
-			arrtimestamp: [new Date('2025-03-12T01:32:41.623Z')],
-			arrtimestampTz: [new Date('2025-03-12T01:32:41.623Z')],
-			arrtimestampStr: ['2025-03-12 01:32:41.623'],
-			arrtimestampTzStr: ['2025-03-12 01:32:41.623+00'],
-			arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
-			arrvarchar: ['C4-'],
-		},
-	];
-
-	Expect<Equal<typeof rawRes, ExpectedType>>;
-	expect(rawRes).toStrictEqual(expectedRes);
+	expect(rawRes).toStrictEqual([bunAllTypesData]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5287
@@ -7989,4 +7796,514 @@ test('Column as decoder applies codecs - Jit mappers', async () => {
 			},
 		},
 	);
+});
+
+test("No nullification on non-joined table's all-null object", async () => {
+	const users = pgTable('nullify1_users', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		bio: t.text('bio'),
+		city: t.text('city'),
+	}));
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify1_users`);
+	await db.execute(sql`CREATE TABLE nullify1_users (id SERIAL PRIMARY KEY, name TEXT NOT NULL, bio TEXT, city TEXT)`);
+
+	await db.insert(users).values({ name: 'John' });
+
+	const res = await db.select({ id: users.id, meta: { bio: users.bio, city: users.city } }).from(users);
+
+	expect(res).toEqual([{ id: 1, meta: { bio: null, city: null } }]);
+
+	await db.execute(sql`DROP TABLE nullify1_users`);
+});
+
+test('Cross-table group never nullified', async () => {
+	const cities = pgTable('nullify2_cities', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+	}));
+	const users = pgTable('nullify2_users', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		bio: t.text('bio'),
+		cityId: t.integer('city_id'),
+	}));
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify2_users`);
+	await db.execute(sql`DROP TABLE IF EXISTS nullify2_cities`);
+	await db.execute(sql`CREATE TABLE nullify2_cities (id SERIAL PRIMARY KEY, name TEXT NOT NULL)`);
+	await db.execute(
+		sql`CREATE TABLE nullify2_users (id SERIAL PRIMARY KEY, name TEXT NOT NULL, bio TEXT, city_id INTEGER)`,
+	);
+
+	await db.insert(cities).values([{ name: 'Paris' }]);
+	await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+	const res = await db
+		.select({ id: users.id, g: { user: users.name, cityId: cities.id, cityName: cities.name } })
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(res).toEqual([
+		{ id: 1, g: { user: 'John', cityId: 1, cityName: 'Paris' } },
+		{ id: 2, g: { user: 'Jane', cityId: null, cityName: null } },
+	]);
+
+	const onlyJoinedSideNotNull = await db
+		.select({ id: users.id, g: { bio: users.bio, cityId: cities.id } })
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(onlyJoinedSideNotNull).toEqual([
+		{ id: 1, g: { bio: null, cityId: 1 } },
+		{ id: 2, g: { bio: null, cityId: null } },
+	]);
+
+	await db.execute(sql`DROP TABLE nullify2_users`);
+	await db.execute(sql`DROP TABLE nullify2_cities`);
+});
+
+test('SQL field groups are never nullified', async () => {
+	const cities = pgTable('nullify3_cities', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+	}));
+	const users = pgTable('nullify3_users', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		cityId: t.integer('city_id'),
+	}));
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify3_users`);
+	await db.execute(sql`DROP TABLE IF EXISTS nullify3_cities`);
+	await db.execute(sql`CREATE TABLE nullify3_cities (id SERIAL PRIMARY KEY, name TEXT NOT NULL)`);
+	await db.execute(sql`CREATE TABLE nullify3_users (id SERIAL PRIMARY KEY, name TEXT NOT NULL, city_id INTEGER)`);
+
+	await db.insert(cities).values([{ name: 'Paris' }]);
+	await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+	const res = await db
+		.select({
+			id: users.id,
+			calc: { user: sql<string>`upper(${users.name})`, city: sql<string | null>`upper(${cities.name})` },
+		})
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(res).toEqual([
+		{ id: 1, calc: { user: 'JOHN', city: 'PARIS' } },
+		{ id: 2, calc: { user: 'JANE', city: null } },
+	]);
+
+	await db.execute(sql`DROP TABLE nullify3_users`);
+	await db.execute(sql`DROP TABLE nullify3_cities`);
+});
+
+test('Nullify all-null group from from nullable join', async () => {
+	const cities = pgTable('nullify4_cities', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		state: t.text('state'),
+		zip: t.text('zip'),
+	}));
+	const users = pgTable('nullify4_users', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		cityId: t.integer('city_id'),
+	}));
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify4_users`);
+	await db.execute(sql`DROP TABLE IF EXISTS nullify4_cities`);
+	await db.execute(
+		sql`CREATE TABLE nullify4_cities (id SERIAL PRIMARY KEY, name TEXT NOT NULL, state TEXT, zip TEXT)`,
+	);
+	await db.execute(sql`CREATE TABLE nullify4_users (id SERIAL PRIMARY KEY, name TEXT NOT NULL, city_id INTEGER)`);
+
+	await db.insert(cities).values([
+		{ name: 'Paris', state: 'IDF', zip: '75' },
+		{ name: 'London' },
+	]);
+	await db.insert(users).values([
+		{ name: 'John', cityId: 1 },
+		{ name: 'Jane', cityId: 2 },
+		{ name: 'Jack' },
+	]);
+
+	const res = await db
+		.select({ name: users.name, c: { state: cities.state, zip: cities.zip } })
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(res).toEqual([
+		{ name: 'John', c: { state: 'IDF', zip: '75' } },
+		{ name: 'Jane', c: null },
+		{ name: 'Jack', c: null },
+	]);
+
+	await db.execute(sql`DROP TABLE nullify4_users`);
+	await db.execute(sql`DROP TABLE nullify4_cities`);
+});
+
+test("Don't disregard added SQL field during join nullification", async () => {
+	const cities = pgTable('nullify5_cities', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		state: t.text('state'),
+	}));
+	const users = pgTable('nullify5_users', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		cityId: t.integer('city_id'),
+	}));
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify5_users`);
+	await db.execute(sql`DROP TABLE IF EXISTS nullify5_cities`);
+	await db.execute(sql`CREATE TABLE nullify5_cities (id SERIAL PRIMARY KEY, name TEXT NOT NULL, state TEXT)`);
+	await db.execute(sql`CREATE TABLE nullify5_users (id SERIAL PRIMARY KEY, name TEXT NOT NULL, city_id INTEGER)`);
+
+	await db.insert(cities).values([{ name: 'Paris', state: 'IDF' }, { name: 'London' }]);
+	await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 2 }]);
+
+	const res = await db
+		.select({ name: users.name, c: { state: cities.state, cityUpper: sql<string>`upper(${cities.name})` } })
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(res).toEqual([
+		{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
+		{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
+	]);
+
+	await db.execute(sql`DROP TABLE nullify5_users`);
+	await db.execute(sql`DROP TABLE nullify5_cities`);
+});
+test("No nullification on non-joined table's all-null object - jit", async () => {
+	const users = pgTable('nullify1_users_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		bio: t.text('bio'),
+		city: t.text('city'),
+	}));
+
+	const db = drizzle(process.env['PG_CONNECTION_STRING']!, { jit: true });
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify1_users_jit`);
+	await db.execute(
+		sql`CREATE TABLE nullify1_users_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL, bio TEXT, city TEXT)`,
+	);
+
+	await db.insert(users).values({ name: 'John' });
+
+	const res = await db.select({ id: users.id, meta: { bio: users.bio, city: users.city } }).from(users);
+
+	expect(res).toEqual([{ id: 1, meta: { bio: null, city: null } }]);
+
+	await db.execute(sql`DROP TABLE nullify1_users_jit`);
+});
+
+test('Cross-table group never nullified - jit', async () => {
+	const cities = pgTable('nullify2_cities_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+	}));
+	const users = pgTable('nullify2_users_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		bio: t.text('bio'),
+		cityId: t.integer('city_id'),
+	}));
+
+	const db = drizzle(process.env['PG_CONNECTION_STRING']!, { jit: true });
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify2_users_jit`);
+	await db.execute(sql`DROP TABLE IF EXISTS nullify2_cities_jit`);
+	await db.execute(sql`CREATE TABLE nullify2_cities_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL)`);
+	await db.execute(
+		sql`CREATE TABLE nullify2_users_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL, bio TEXT, city_id INTEGER)`,
+	);
+
+	await db.insert(cities).values([{ name: 'Paris' }]);
+	await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+	const res = await db
+		.select({ id: users.id, g: { user: users.name, cityId: cities.id, cityName: cities.name } })
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(res).toEqual([
+		{ id: 1, g: { user: 'John', cityId: 1, cityName: 'Paris' } },
+		{ id: 2, g: { user: 'Jane', cityId: null, cityName: null } },
+	]);
+
+	const onlyJoinedSideNotNull = await db
+		.select({ id: users.id, g: { bio: users.bio, cityId: cities.id } })
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(onlyJoinedSideNotNull).toEqual([
+		{ id: 1, g: { bio: null, cityId: 1 } },
+		{ id: 2, g: { bio: null, cityId: null } },
+	]);
+
+	await db.execute(sql`DROP TABLE nullify2_users_jit`);
+	await db.execute(sql`DROP TABLE nullify2_cities_jit`);
+});
+
+test('SQL field groups are never nullified - jit', async () => {
+	const cities = pgTable('nullify3_cities_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+	}));
+	const users = pgTable('nullify3_users_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		cityId: t.integer('city_id'),
+	}));
+
+	const db = drizzle(process.env['PG_CONNECTION_STRING']!, { jit: true });
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify3_users_jit`);
+	await db.execute(sql`DROP TABLE IF EXISTS nullify3_cities_jit`);
+	await db.execute(sql`CREATE TABLE nullify3_cities_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL)`);
+	await db.execute(sql`CREATE TABLE nullify3_users_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL, city_id INTEGER)`);
+
+	await db.insert(cities).values([{ name: 'Paris' }]);
+	await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+	const res = await db
+		.select({
+			id: users.id,
+			calc: { user: sql<string>`upper(${users.name})`, city: sql<string | null>`upper(${cities.name})` },
+		})
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(res).toEqual([
+		{ id: 1, calc: { user: 'JOHN', city: 'PARIS' } },
+		{ id: 2, calc: { user: 'JANE', city: null } },
+	]);
+
+	await db.execute(sql`DROP TABLE nullify3_users_jit`);
+	await db.execute(sql`DROP TABLE nullify3_cities_jit`);
+});
+
+test('Nullify all-null group from from nullable join - jit', async () => {
+	const cities = pgTable('nullify4_cities_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		state: t.text('state'),
+		zip: t.text('zip'),
+	}));
+	const users = pgTable('nullify4_users_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		cityId: t.integer('city_id'),
+	}));
+
+	const db = drizzle(process.env['PG_CONNECTION_STRING']!, { jit: true });
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify4_users_jit`);
+	await db.execute(sql`DROP TABLE IF EXISTS nullify4_cities_jit`);
+	await db.execute(
+		sql`CREATE TABLE nullify4_cities_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL, state TEXT, zip TEXT)`,
+	);
+	await db.execute(sql`CREATE TABLE nullify4_users_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL, city_id INTEGER)`);
+
+	await db.insert(cities).values([
+		{ name: 'Paris', state: 'IDF', zip: '75' },
+		{ name: 'London' },
+	]);
+	await db.insert(users).values([
+		{ name: 'John', cityId: 1 },
+		{ name: 'Jane', cityId: 2 },
+		{ name: 'Jack' },
+	]);
+
+	const res = await db
+		.select({ name: users.name, c: { state: cities.state, zip: cities.zip } })
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(res).toEqual([
+		{ name: 'John', c: { state: 'IDF', zip: '75' } },
+		{ name: 'Jane', c: null },
+		{ name: 'Jack', c: null },
+	]);
+
+	await db.execute(sql`DROP TABLE nullify4_users_jit`);
+	await db.execute(sql`DROP TABLE nullify4_cities_jit`);
+});
+
+test("Don't disregard added SQL field during join nullification - jit", async () => {
+	const cities = pgTable('nullify5_cities_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		state: t.text('state'),
+	}));
+	const users = pgTable('nullify5_users_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		cityId: t.integer('city_id'),
+	}));
+
+	const db = drizzle(process.env['PG_CONNECTION_STRING']!, { jit: true });
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify5_users_jit`);
+	await db.execute(sql`DROP TABLE IF EXISTS nullify5_cities_jit`);
+	await db.execute(sql`CREATE TABLE nullify5_cities_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL, state TEXT)`);
+	await db.execute(sql`CREATE TABLE nullify5_users_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL, city_id INTEGER)`);
+
+	await db.insert(cities).values([{ name: 'Paris', state: 'IDF' }, { name: 'London' }]);
+	await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 2 }]);
+
+	const res = await db
+		.select({ name: users.name, c: { state: cities.state, cityUpper: sql<string>`upper(${cities.name})` } })
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(res).toEqual([
+		{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
+		{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
+	]);
+
+	await db.execute(sql`DROP TABLE nullify5_users_jit`);
+	await db.execute(sql`DROP TABLE nullify5_cities_jit`);
+});
+
+describe('transaction config', () => {
+	test('transaction with options (set isolationLevel)', async () => {
+		const users = pgTable('users_tx_cfg_iso_bun', {
+			id: serial('id').primaryKey(),
+			balance: integer('balance').notNull(),
+		});
+		const products = pgTable('products_tx_cfg_iso_bun', {
+			id: serial('id').primaryKey(),
+			price: integer('price').notNull(),
+			stock: integer('stock').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists users_tx_cfg_iso_bun, products_tx_cfg_iso_bun`);
+		await db.execute(
+			sql`create table users_tx_cfg_iso_bun (id serial not null primary key, balance integer not null)`,
+		);
+		await db.execute(
+			sql`create table products_tx_cfg_iso_bun (id serial not null primary key, price integer not null, stock integer not null)`,
+		);
+
+		const [user] = await db.insert(users).values({ balance: 100 }).returning();
+		const [product] = await db.insert(products).values({ price: 10, stock: 10 }).returning();
+
+		await db.transaction(async (tx) => {
+			await tx.update(users).set({ balance: user!.balance - product!.price }).where(eq(users.id, user!.id));
+			await tx.update(products).set({ stock: product!.stock - 1 }).where(eq(products.id, product!.id));
+		}, { isolationLevel: 'serializable' });
+
+		expect(await db.select().from(users)).toEqual([{ id: 1, balance: 90 }]);
+
+		await db.execute(sql`drop table users_tx_cfg_iso_bun, products_tx_cfg_iso_bun`);
+	});
+
+	test('transaction with options (accessMode read only)', async () => {
+		const users = pgTable('users_tx_cfg_ro_bun', {
+			id: serial('id').primaryKey(),
+			balance: integer('balance').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists users_tx_cfg_ro_bun`);
+		await db.execute(sql`create table users_tx_cfg_ro_bun (id serial not null primary key, balance integer not null)`);
+		await db.insert(users).values({ balance: 100 });
+
+		let failure: any;
+		try {
+			await db.transaction(async (tx) => {
+				await tx.insert(users).values({ balance: 200 });
+			}, { accessMode: 'read only' });
+		} catch (e) {
+			failure = e;
+		}
+		expect(String(failure?.cause?.message ?? failure?.message)).toContain('read-only transaction');
+
+		const read = await db.transaction(async (tx) => tx.select().from(users), { accessMode: 'read only' });
+		expect(read).toEqual([{ id: 1, balance: 100 }]);
+
+		await db.execute(sql`drop table users_tx_cfg_ro_bun`);
+	});
+
+	test('transaction with options (deferrable)', async () => {
+		const users = pgTable('users_tx_cfg_deferrable_bun', {
+			id: serial('id').primaryKey(),
+			balance: integer('balance').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists users_tx_cfg_deferrable_bun`);
+		await db.execute(
+			sql`create table users_tx_cfg_deferrable_bun (id serial not null primary key, balance integer not null)`,
+		);
+		await db.insert(users).values({ balance: 100 });
+
+		const read = await db.transaction(async (tx) => tx.select().from(users), {
+			isolationLevel: 'serializable',
+			accessMode: 'read only',
+			deferrable: true,
+		});
+		expect(read).toEqual([{ id: 1, balance: 100 }]);
+
+		const notDeferrable = await db.transaction(async (tx) => tx.select().from(users), {
+			isolationLevel: 'serializable',
+			accessMode: 'read only',
+			deferrable: false,
+		});
+		expect(notDeferrable).toEqual([{ id: 1, balance: 100 }]);
+
+		await db.execute(sql`drop table users_tx_cfg_deferrable_bun`);
+	});
+
+	test('transaction with an empty options object', async () => {
+		const users = pgTable('users_tx_cfg_empty_bun', {
+			id: serial('id').primaryKey(),
+			balance: integer('balance').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists users_tx_cfg_empty_bun`);
+		await db.execute(
+			sql`create table users_tx_cfg_empty_bun (id serial not null primary key, balance integer not null)`,
+		);
+		await db.insert(users).values({ balance: 100 });
+
+		const read = await db.transaction(async (tx) => tx.select().from(users), {});
+		expect(read).toEqual([{ id: 1, balance: 100 }]);
+
+		await db.execute(sql`drop table users_tx_cfg_empty_bun`);
+	});
+});
+
+describe('transaction snapshot', () => {
+	test('isolates the transaction', async () => {
+		const peerClient = new BunSQL(process.env['PG_CONNECTION_STRING']!, { max: 1 });
+		const peer = { query: (sql: string) => peerClient.unsafe(sql) };
+		try {
+			await assertSnapshotIsolatesTransaction(db, peer, expect, 'bunsql');
+		} finally {
+			await peerClient.end();
+		}
+	});
+
+	test('rejects a malformed id', async () => {
+		await assertMalformedSnapshotRejected(db, expect);
+	});
+
+	test('does not let the id inject SQL', async () => {
+		await assertSnapshotIdNotInjectable(db, expect, 'bunsql');
+	});
 });

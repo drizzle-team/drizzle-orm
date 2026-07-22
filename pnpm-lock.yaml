@@ -410,9 +410,6 @@ importers:
       '@planetscale/database':
         specifier: ^1.16.0
         version: 1.19.0
-      '@prisma/client':
-        specifier: 5.14.0
-        version: 5.14.0(prisma@5.14.0)
       '@sinclair/typebox':
         specifier: ^0.34.48
         version: 0.34.48
@@ -482,6 +479,9 @@ importers:
       glob:
         specifier: ^11.0.1
         version: 11.1.0
+      minipg:
+        specifier: file:../vendor/minipg-0.1.0.tgz
+        version: file:vendor/minipg-0.1.0.tgz(typescript@5.9.3)
       mysql2:
         specifier: ^3.14.1
         version: 3.14.1
@@ -681,9 +681,6 @@ importers:
       '@planetscale/database':
         specifier: ^1.16.0
         version: 1.19.0
-      '@prisma/client':
-        specifier: 5.14.0
-        version: 5.14.0(prisma@5.14.0)
       '@sinclair/typebox':
         specifier: ^0.34.48
         version: 0.34.48
@@ -738,9 +735,6 @@ importers:
       drizzle-kit:
         specifier: workspace:../drizzle-kit/dist
         version: link:../drizzle-kit/dist
-      drizzle-prisma-generator:
-        specifier: ^0.1.2
-        version: 0.1.7
       drizzle-seed:
         specifier: workspace:../drizzle-seed/dist
         version: link:../drizzle-seed/dist
@@ -762,6 +756,9 @@ importers:
       json-rules-engine:
         specifier: ^7.3.1
         version: 7.3.1
+      minipg:
+        specifier: file:../vendor/minipg-0.1.0.tgz
+        version: file:vendor/minipg-0.1.0.tgz(typescript@5.9.3)
       mssql:
         specifier: ^11.0.1
         version: 11.0.1
@@ -774,9 +771,6 @@ importers:
       postgres:
         specifier: ^3.3.5
         version: 3.4.7
-      prisma:
-        specifier: 5.14.0
-        version: 5.14.0
       source-map-support:
         specifier: ^0.5.21
         version: 0.5.21
@@ -3104,9 +3098,6 @@ packages:
   '@prisma/debug@5.14.0':
     resolution: {integrity: sha512-iq56qBZuFfX3fCxoxT8gBX33lQzomBU0qIUaEj1RebsKVz1ob/BVH1XSBwwwvRVtZEV1b7Fxx2eVu34Ge/mg3w==}
 
-  '@prisma/debug@5.22.0':
-    resolution: {integrity: sha512-AUt44v3YJeggO2ZU5BkXI7M4hu9BF2zzH2iF2V5pyXT/lRTyWiElZ7It+bRH1EshoMRxHgpYg4VB6rCM+mG5jQ==}
-
   '@prisma/engines-version@5.14.0-25.e9771e62de70f79a5e1c604a2d7c8e2a0a874b48':
     resolution: {integrity: sha512-ip6pNkRo1UxWv+6toxNcYvItNYaqQjXdFNGJ+Nuk2eYtRoEdoF13wxo7/jsClJFFenMPVNVqXQDV0oveXnR1cA==}
 
@@ -3115,9 +3106,6 @@ packages:
 
   '@prisma/fetch-engine@5.14.0':
     resolution: {integrity: sha512-VrheA9y9DMURK5vu8OJoOgQpxOhas3qF0IBHJ8G/0X44k82kc8E0w98HCn2nhnbOOMwbWsJWXfLC2/F8n5u0gQ==}
-
-  '@prisma/generator-helper@5.22.0':
-    resolution: {integrity: sha512-LwqcBQ5/QsuAaLNQZAIVIAJDJBMjHwMwn16e06IYx/3Okj/xEEfw9IvrqB2cJCl3b2mCBlh3eVH0w9WGmi4aHg==}
 
   '@prisma/get-platform@5.14.0':
     resolution: {integrity: sha512-/yAyBvcEjRv41ynZrhdrPtHgk47xLRRq/o5eWGcUpBJ1YrUZTYB8EoPiopnP7iQrMATK8stXQdPOoVlrzuTQZw==}
@@ -5369,10 +5357,6 @@ packages:
       zod:
         optional: true
 
-  drizzle-prisma-generator@0.1.7:
-    resolution: {integrity: sha512-KW+Z6W4hjvsiOCCPEmGyO+Oal7KPv2yQ3uZzHasaVIn+gUWGrkcy8BCDEp1h7uRBRSAd/l17EM4DfljhgYXxBw==}
-    hasBin: true
-
   dts-resolver@2.1.3:
     resolution: {integrity: sha512-bihc7jPC90VrosXNzK0LTE2cuLP6jr0Ro8jk+kMugHReJVLIpHz/xadeq3MhuwyO4TD4OA3L1Q8pBBFRc08Tsw==}
     engines: {node: '>=20.19.0'}
@@ -6314,10 +6298,6 @@ packages:
   invariant@2.2.4:
     resolution: {integrity: sha512-phJfQVBuaJM5raOpJjSfkiD6BpbCE4Ns//LaXl6wGYtUBY83nWS6Rf9tXm2e8VaK60JEjYldbPif/A2B1C2gNA==}
 
-  ip-address@10.1.0:
-    resolution: {integrity: sha512-XXADHxXmvT9+CRxhXg56LJovE+bmWnEWB78LB83VZTprKTmaC5QfruXocxzTZ2Kl0DNwKuBdlIhjL8LeY8Sf8Q==}
-    engines: {node: '>= 12'}
-
   ip-address@10.2.0:
     resolution: {integrity: sha512-/+S6j4E9AHvW9SWMSEY9Xfy66O5PWvVEJ08O0y5JGyEKQpojb0K0GKpz/v5HJ/G0vi3D2sjGK78119oXZeE0qA==}
     engines: {node: '>= 12'}
@@ -7130,6 +7110,13 @@ packages:
   minipass@7.1.2:
     resolution: {integrity: sha512-qOOzS1cBTWYF4BH8fVePDBOO9iptMnGUEZwNc/cMWnTV2nVLZ7VoNWEPHkYczZA0pdoA7dl6e7FL659nX9S2aw==}
     engines: {node: '>=16 || 14 >=14.17'}
+
+  minipg@file:vendor/minipg-0.1.0.tgz:
+    resolution: {integrity: sha512-mfvCQfyVMVbkbL+DbM19NBdBw8oPJvG+fZeochdLheuR9/MKA9Q5ByPsjZ7pKW4+/eO616uCSxhL4CRoAWQm+w==, tarball: file:vendor/minipg-0.1.0.tgz}
+    version: 0.1.0
+    engines: {node: '>=18'}
+    peerDependencies:
+      typescript: ^5
 
   minizlib@2.1.2:
     resolution: {integrity: sha512-bAxsR8BVfj60DWXHE3u30oHzfl4G7khkSuPW+qvpd7jFRHm7dLxOjUk1EHACJ/hxLY8phGJ0YhYHZo7jil7Qdg==}
@@ -8692,6 +8679,7 @@ packages:
   tsconfck@3.1.6:
     resolution: {integrity: sha512-ks6Vjr/jEw0P1gmOVwutM3B7fWxoWBL2KRDb1JfqGVawBmO5UsvmWOQFGHBPl5yxYz4eERr19E6L7NMv+Fej4w==}
     engines: {node: ^18 || >=20}
+    deprecated: unmaintained
     hasBin: true
     peerDependencies:
       typescript: ^5.0.0
@@ -11596,7 +11584,7 @@ snapshots:
     dependencies:
       ws: 8.18.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       zod: 3.25.76
-      zod-to-json-schema: 3.25.0(zod@3.25.76)
+      zod-to-json-schema: 3.25.2(zod@3.25.76)
     optionalDependencies:
       '@modelcontextprotocol/sdk': 1.29.0(zod@3.25.1)
     transitivePeerDependencies:
@@ -11607,7 +11595,7 @@ snapshots:
     dependencies:
       ws: 8.18.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       zod: 3.25.76
-      zod-to-json-schema: 3.25.0(zod@3.25.76)
+      zod-to-json-schema: 3.25.2(zod@3.25.76)
     optionalDependencies:
       '@modelcontextprotocol/sdk': 1.29.0(zod@3.25.76)
     transitivePeerDependencies:
@@ -11619,7 +11607,7 @@ snapshots:
     dependencies:
       ws: 8.18.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       zod: 3.25.76
-      zod-to-json-schema: 3.25.0(zod@3.25.76)
+      zod-to-json-schema: 3.25.2(zod@3.25.76)
     optionalDependencies:
       '@modelcontextprotocol/sdk': 1.29.0(zod@4.3.4)
     transitivePeerDependencies:
@@ -12409,12 +12397,13 @@ snapshots:
   '@prisma/client@5.14.0(prisma@5.14.0)':
     optionalDependencies:
       prisma: 5.14.0
+    optional: true
 
-  '@prisma/debug@5.14.0': {}
+  '@prisma/debug@5.14.0':
+    optional: true
 
-  '@prisma/debug@5.22.0': {}
-
-  '@prisma/engines-version@5.14.0-25.e9771e62de70f79a5e1c604a2d7c8e2a0a874b48': {}
+  '@prisma/engines-version@5.14.0-25.e9771e62de70f79a5e1c604a2d7c8e2a0a874b48':
+    optional: true
 
   '@prisma/engines@5.14.0':
     dependencies:
@@ -12422,20 +12411,19 @@ snapshots:
       '@prisma/engines-version': 5.14.0-25.e9771e62de70f79a5e1c604a2d7c8e2a0a874b48
       '@prisma/fetch-engine': 5.14.0
       '@prisma/get-platform': 5.14.0
+    optional: true
 
   '@prisma/fetch-engine@5.14.0':
     dependencies:
       '@prisma/debug': 5.14.0
       '@prisma/engines-version': 5.14.0-25.e9771e62de70f79a5e1c604a2d7c8e2a0a874b48
       '@prisma/get-platform': 5.14.0
-
-  '@prisma/generator-helper@5.22.0':
-    dependencies:
-      '@prisma/debug': 5.22.0
+    optional: true
 
   '@prisma/get-platform@5.14.0':
     dependencies:
       '@prisma/debug': 5.14.0
+    optional: true
 
   '@protobufjs/aspromise@1.1.2': {}
 
@@ -13380,7 +13368,7 @@ snapshots:
   '@types/pg@8.15.6':
     dependencies:
       '@types/node': 24.10.1
-      pg-protocol: 1.10.3
+      pg-protocol: 1.13.0
       pg-types: 2.2.0
 
   '@types/pg@8.6.6':
@@ -14860,10 +14848,6 @@ snapshots:
       valibot: 1.0.0-beta.7(typescript@5.9.3)
       zod: 4.3.4
 
-  drizzle-prisma-generator@0.1.7:
-    dependencies:
-      '@prisma/generator-helper': 5.22.0
-
   dts-resolver@2.1.3: {}
 
   dunder-proto@1.0.1:
@@ -16129,9 +16113,6 @@ snapshots:
     dependencies:
       loose-envify: 1.4.0
 
-  ip-address@10.1.0:
-    optional: true
-
   ip-address@10.2.0: {}
 
   ipaddr.js@1.9.1: {}
@@ -17157,6 +17138,10 @@ snapshots:
 
   minipass@7.1.2: {}
 
+  minipg@file:vendor/minipg-0.1.0.tgz(typescript@5.9.3):
+    dependencies:
+      typescript: 5.9.3
+
   minizlib@2.1.2:
     dependencies:
       minipass: 3.3.6
@@ -17810,6 +17795,7 @@ snapshots:
   prisma@5.14.0:
     dependencies:
       '@prisma/engines': 5.14.0
+    optional: true
 
   proc-log@4.2.0: {}
 
@@ -18500,7 +18486,7 @@ snapshots:
 
   socks@2.8.7:
     dependencies:
-      ip-address: 10.1.0
+      ip-address: 10.2.0
       smart-buffer: 4.2.0
     optional: true
 

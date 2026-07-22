@@ -28,6 +28,14 @@ const developersRelations = relations(developers, ({ one }) => ({
 }));
 const devs = alias(developers, 'devs');
 
+const products = snakeCase.table('products', {
+	id: serial().primaryKey(),
+	alwaysIdentity: integer().generatedAlwaysAsIdentity(),
+	byDefaultIdentity: integer().generatedByDefaultAsIdentity(),
+	label: text().notNull(),
+	computedLabel: text().generatedAlwaysAs(sql`'x'`),
+});
+
 const db = drizzle({ client: postgres('') });
 
 const usersCache = {
@@ -48,6 +56,36 @@ const cache = {
 const fullName = sql`${users.firstName} || ' ' || ${users.lastName}`.as('name');
 
 describe('postgres to snake case', () => {
+	it('qualifier preservation for sql fields', ({ expect }) => {
+		const a = snakeCase.table('a', { id: integer('id').primaryKey(), cId: integer().notNull() });
+		const b = snakeCase.table('b', { id: integer('id').primaryKey(), cId: integer().notNull(), label: text() });
+		const corr = sql`(select ${b.label} from ${b} where ${b.cId} = ${a.cId})`;
+
+		expect(db.select({ id: a.id, bRaw: corr }).from(a).toSQL().sql).toEqual(
+			'select "id", (select "b"."label" from "b" where "b"."c_id" = "a"."c_id") from "a"',
+		);
+		expect(db.select({ id: a.id, bRaw: corr.as('b_raw') }).from(a).toSQL().sql).toEqual(
+			'select "id", (select "b"."label" from "b" where "b"."c_id" = "a"."c_id") as "b_raw" from "a"',
+		);
+		expect(db.select({ id: a.id }).from(a).where(corr).toSQL().sql).toEqual(
+			'select "id" from "a" where (select "b"."label" from "b" where "b"."c_id" = "a"."c_id")',
+		);
+	});
+
+	it('qualifier preservation for subquery fields', ({ expect }) => {
+		const sq = db.select({ id: users.id, name: fullName }).from(users).as('sq');
+		const query = db
+			.select({ id: sq.id, name: sq.name })
+			.from(users)
+			.leftJoin(sq, eq(users.id, sq.id));
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select "sq"."id", "sq"."name" from "users" left join (select "id", "first_name" || \' \' || "last_name" as "name" from "users") "sq" on "users"."id" = "sq"."id"',
+			params: [],
+		});
+	});
+
 	it('select', ({ expect }) => {
 		const query = db
 			.select({ name: fullName, age: users.age })
@@ -148,6 +186,115 @@ describe('postgres to snake case', () => {
 			sql:
 				'insert into "users" ("id", "first_name", "last_name", "AGE") values (default, $1, $2, $3) on conflict ("first_name") do update set "AGE" = $4 returning "first_name", "AGE"',
 			params: ['John', 'Doe', 30, 31],
+		});
+	});
+
+	it('insert (column selection)', ({ expect }) => {
+		const query = db
+			.insert(users, 'firstName', 'lastName', 'age')
+			.values({ firstName: 'John', lastName: 'Doe', age: 30 })
+			.returning({ firstName: users.firstName, age: users.age });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "users" ("first_name", "last_name", "AGE") values ($1, $2, $3) returning "first_name", "AGE"',
+			params: ['John', 'Doe', 30],
+		});
+	});
+
+	it('insert (column selection, multiple rows)', ({ expect }) => {
+		const query = db
+			.insert(users, 'firstName', 'lastName')
+			.values([{ firstName: 'John', lastName: 'Doe' }, { firstName: 'Jane', lastName: 'Roe' }]);
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "users" ("first_name", "last_name") values ($1, $2), ($3, $4)',
+			params: ['John', 'Doe', 'Jane', 'Roe'],
+		});
+	});
+
+	it('insert (column selection, omitted optional column)', ({ expect }) => {
+		const query = db
+			.insert(users, 'firstName', 'lastName', 'age')
+			.values({ firstName: 'John', lastName: 'Doe' });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "users" ("first_name", "last_name", "AGE") values ($1, $2, default)',
+			params: ['John', 'Doe'],
+		});
+	});
+
+	it('insert (column selection) with select', ({ expect }) => {
+		const query = db
+			.insert(users, 'firstName', 'lastName')
+			.select(db.select({ firstName: users.firstName, lastName: users.lastName }).from(users))
+			.returning({ firstName: users.firstName });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'insert into "users" ("first_name", "last_name") select "first_name", "last_name" from "users" returning "first_name"',
+			params: [],
+		});
+	});
+
+	it('insert (column selection) on conflict do update', ({ expect }) => {
+		const query = db
+			.insert(users, 'firstName', 'lastName', 'age')
+			.values({ firstName: 'John', lastName: 'Doe', age: 30 })
+			.onConflictDoUpdate({ target: users.firstName, set: { age: 31 } })
+			.returning({ firstName: users.firstName, age: users.age });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'insert into "users" ("first_name", "last_name", "AGE") values ($1, $2, $3) on conflict ("first_name") do update set "AGE" = $4 returning "first_name", "AGE"',
+			params: ['John', 'Doe', 30, 31],
+		});
+	});
+
+	it('insert (column selection) emits columns in list order', ({ expect }) => {
+		const query = db
+			.insert(users, 'age', 'lastName', 'firstName')
+			.values({ firstName: 'John', lastName: 'Doe', age: 30 });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "users" ("AGE", "last_name", "first_name") values ($1, $2, $3)',
+			params: [30, 'Doe', 'John'],
+		});
+	});
+
+	it('insert (column selection) always-generated identity with overridingSystemValue', ({ expect }) => {
+		const query = db
+			.insert(products, 'alwaysIdentity', 'label')
+			.overridingSystemValue()
+			.values({ alwaysIdentity: 5, label: 'Widget' })
+			.returning({ alwaysIdentity: products.alwaysIdentity });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'insert into "products" ("always_identity", "label") overriding system value values ($1, $2) returning "always_identity"',
+			params: [5, 'Widget'],
+		});
+	});
+
+	it('insert (column selection) always-generated identity with overridingSystemValue (multiple rows)', ({ expect }) => {
+		const query = db
+			.insert(products, 'alwaysIdentity', 'label')
+			.overridingSystemValue()
+			.values([{ alwaysIdentity: 5, label: 'Widget' }, { alwaysIdentity: 6, label: 'Gadget' }]);
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "products" ("always_identity", "label") overriding system value values ($1, $2), ($3, $4)',
+			params: [5, 'Widget', 6, 'Gadget'],
+		});
+	});
+
+	it('insert (column selection) by-default-generated identity without override', ({ expect }) => {
+		const query = db
+			.insert(products, 'byDefaultIdentity', 'label')
+			.values({ byDefaultIdentity: 7, label: 'Widget' });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "products" ("by_default_identity", "label") values ($1, $2)',
+			params: [7, 'Widget'],
 		});
 	});
 

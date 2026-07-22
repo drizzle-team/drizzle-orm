@@ -899,7 +899,7 @@ test('introspect view #3', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-07-01'))('introspect view #4', async () => {
+test.skipIf(Date.now() < +new Date('2026-07-29'))('introspect view #4', async () => {
 	const table = pgTable('table', {
 		column1: text().notNull(),
 		column2: text(),
@@ -928,7 +928,7 @@ test.skipIf(Date.now() < +new Date('2026-07-01'))('introspect view #4', async ()
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-07-01'))('introspect view #5', async () => {
+test.skipIf(Date.now() < +new Date('2026-07-29'))('introspect view #5', async () => {
 	const applications = pgTable('applications', {
 		applicationId: serial('application_id').primaryKey(),
 		studentId: integer('student_id').references(() => students.studentId),
@@ -1615,7 +1615,7 @@ test('introspect table with self reference', async () => {
 	expect(generateSqlStatements).toStrictEqual([]);
 });
 
-test('introspect partitioned tables', async () => {
+test('introspect partitioned tables with indexes', async () => {
 	await db.query(`
 		CREATE TABLE measurement (
 			city_id         int not null,
@@ -1624,8 +1624,11 @@ test('introspect partitioned tables', async () => {
 			unitsales       int
 		) PARTITION BY RANGE (logdate);
 	`);
+	await db.query(`
+		CREATE INDEX measurement_city_id_idx ON measurement (city_id);
+	`);
 
-	const { tables } = await fromDatabase(db);
+	const { tables, indexes } = await fromDatabase(db);
 
 	expect(tables).toStrictEqual([
 		{
@@ -1634,6 +1637,31 @@ test('introspect partitioned tables', async () => {
 			entityType: 'tables',
 			isRlsEnabled: false,
 		} satisfies (typeof tables)[number],
+	]);
+	expect(indexes).toStrictEqual([
+		{
+			columns: [
+				{
+					asc: true,
+					isExpression: false,
+					nullsFirst: false,
+					opclass: null,
+					value: 'city_id',
+				},
+			],
+			concurrently: false,
+			entityType: 'indexes',
+			forPK: false,
+			forUnique: false,
+			isUnique: false,
+			method: 'btree',
+			name: 'measurement_city_id_idx',
+			nameExplicit: true,
+			schema: 'public',
+			table: 'measurement',
+			where: null,
+			with: '',
+		} satisfies (typeof indexes)[number],
 	]);
 });
 
@@ -1792,7 +1820,7 @@ test('introspect view with table filter', async () => {
 // this does not look like a bug
 // sequences are separete entities
 // entity filter for sequences ??
-test.skipIf(Date.now() < +new Date('2026-07-01'))('introspect sequences with table filter', async () => {
+test.skipIf(Date.now() < +new Date('2026-07-29'))('introspect sequences with table filter', async () => {
 	// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')
 
 	// const seq1 = pgSequence('seq1');

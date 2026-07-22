@@ -404,6 +404,50 @@ test('select distinct', async ({ db }) => {
 	]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/1603
+test('Nested partial select left join: null first column', async ({ db }) => {
+	const orgs = mssqlTable('issue1603_orgs', {
+		id: int('id').primaryKey(),
+		name: varchar('name', { length: 255 }).notNull(),
+	});
+	const branding = mssqlTable('issue1603_branding', {
+		id: int('id').primaryKey(),
+		orgId: int('org_id'),
+		logo: varchar('logo', { length: 255 }),
+		panelBackground: varchar('panel_background', { length: 255 }),
+	});
+
+	await db.execute(sql`drop table if exists ${branding}`);
+	await db.execute(sql`drop table if exists ${orgs}`);
+	await db.execute(sql`create table ${orgs} (id int primary key, name varchar(255) not null)`);
+	await db.execute(
+		sql`create table ${branding} (id int primary key, org_id int, logo varchar(255), panel_background varchar(255))`,
+	);
+
+	await db.insert(orgs).values([{ id: 1, name: 'Acme' }, { id: 2, name: 'NoBranding' }]);
+	await db.insert(branding).values({ id: 1, orgId: 1, logo: null, panelBackground: '#1a8cff' });
+
+	const withBranding = await db.select({
+		name: orgs.name,
+		branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+	}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 1));
+
+	expect(withBranding).toStrictEqual([{
+		name: 'Acme',
+		branding: { logo: null, panelBackground: '#1a8cff' },
+	}]);
+
+	const withoutBranding = await db.select({
+		name: orgs.name,
+		branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+	}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 2));
+
+	expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
+
+	await db.execute(sql`drop table ${branding}`);
+	await db.execute(sql`drop table ${orgs}`);
+});
+
 test('insert returning sql', async ({ db }) => {
 	const result = await db.insert(usersTable).values({ name: 'John' });
 
@@ -3074,6 +3118,49 @@ test('test $onUpdateFn and $onUpdate works updating', async ({ db }) => {
 	}
 });
 
+test('$onUpdateFn called only when needed', async ({ db }) => {
+	let counter = 0;
+	const table = mssqlTable('on_update_call_test', {
+		id: int('id').primaryKey(),
+		name: text('name').notNull(),
+		inc: int('inc').$onUpdateFn(() => counter++),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+	await db.execute(sql`create table ${table} (
+		id int not null primary key,
+		[name] text not null,
+		inc int
+	)`);
+
+	await db.insert(table).values({ id: 1, name: 'First', inc: 0 });
+	expect(counter).toStrictEqual(0);
+	expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'First', inc: 0 }]);
+
+	await db.update(table).set({ name: 'Second', inc: null });
+	expect(counter).toStrictEqual(0);
+	expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'Second', inc: null }]);
+
+	await db.update(table).set({ name: 'Third', inc: 10 });
+	expect(counter).toStrictEqual(0);
+	expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'Third', inc: 10 }]);
+
+	await db.update(table).set({ name: 'Fourth' });
+	expect(counter).toStrictEqual(1);
+	expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'Fourth', inc: 0 }]);
+
+	await db.update(table).set({ name: 'Fifth' });
+	expect(counter).toStrictEqual(2);
+	expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'Fifth', inc: 1 }]);
+
+	await db.insert(table).values({ id: 2, name: 'Second' });
+	expect(counter).toStrictEqual(3);
+	expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([
+		{ id: 1, name: 'Fifth', inc: 1 },
+		{ id: 2, name: 'Second', inc: 2 },
+	]);
+});
+
 test('aggregate function: count', async ({ db }) => {
 	const table = aggregateTable;
 	await setupAggregateFunctionsTest(db);
@@ -5025,7 +5112,7 @@ test('issue 5527. real() returns unprecise float64 values', async ({ db }) => {
 	expect(res).toStrictEqual({ id: 1, age: 0.01 });
 });
 
-test.skipIf(Date.now() < +new Date('2026-07-01'))('Query error wrapping', async ({ db }) => {
+test.skipIf(Date.now() < +new Date('2026-07-29'))('Query error wrapping', async ({ db }) => {
 	await expect(db.insert(users2Table).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]))
 		.rejects.toBeInstanceOf(DrizzleQueryError);
 });

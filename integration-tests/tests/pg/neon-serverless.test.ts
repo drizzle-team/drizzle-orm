@@ -3,12 +3,16 @@ import { migrate } from 'drizzle-orm/neon-serverless/migrator';
 import { getTableConfig, integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { PgAsyncDatabase } from 'drizzle-orm/pg-core/async/db';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import { describe } from 'node:test';
-import { expect } from 'vitest';
+import { describe, expect } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
 import { neonWsTest as test } from './instrumentation';
 import { usersMigratorTable, usersMySchemaTable, usersTable } from './schema';
+import {
+	assertMalformedSnapshotRejected,
+	assertSnapshotIdNotInjectable,
+	assertSnapshotIsolatesTransaction,
+} from './snapshot';
 
 /*
 	it doesn't work as expected, scope: "file" treats all these tests as 1 file
@@ -644,5 +648,19 @@ describe('neon-serverless', () => {
 		expect(res2).toStrictEqual(expected);
 
 		rmSync(migrationDir, { recursive: true });
+	});
+});
+
+describe('transaction snapshot', () => {
+	test('isolates the transaction', async ({ db, peer }) => {
+		await assertSnapshotIsolatesTransaction(db, peer!, expect, 'neonws');
+	});
+
+	test('rejects a malformed id', async ({ db }) => {
+		await assertMalformedSnapshotRejected(db, expect);
+	});
+
+	test('does not let the id inject SQL', async ({ db }) => {
+		await assertSnapshotIdNotInjectable(db, expect, 'neonws');
 	});
 });

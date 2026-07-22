@@ -231,8 +231,8 @@ export function processRelations(tablesConfig: TablesRelationalConfig, tables: S
 				}
 				: undefined;
 			relation.throughTable = reverseRelation.throughTable;
-			relation.isReversed = !where;
-			relation.where = where ?? reverseRelation.where;
+			relation.isFilterReversed = where === EmptyFilter;
+			relation.where = where === EmptyFilter ? reverseRelation.where : where;
 		}
 	}
 
@@ -291,7 +291,7 @@ export abstract class Relation<
 	sourceColumns!: Column<any>[];
 	targetColumns!: Column<any>[];
 	alias: string | undefined;
-	where: AnyTableFilter | undefined;
+	where!: AnyTableFilter | EmptyFilter;
 	sourceTable!: SchemaEntry;
 	targetTable: SchemaEntry;
 	through?: {
@@ -299,7 +299,7 @@ export abstract class Relation<
 		target: RelationsBuilderColumnBase[];
 	};
 	throughTable?: SchemaEntry;
-	isReversed?: boolean;
+	isFilterReversed?: boolean;
 
 	/** @internal */
 	sourceColumnTableNames: string[] = [];
@@ -335,7 +335,18 @@ export class One<
 	) {
 		super(targetTable, targetTableName);
 		this.alias = config?.alias;
-		this.where = config?.where;
+		if (config && 'where' in config) {
+			if (config.where === undefined) {
+				throw new Error(
+					`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
+				);
+			}
+
+			this.where = config.where;
+		} else {
+			this.where = EmptyFilter;
+		}
+
 		if (config?.from) {
 			this.sourceColumns = ((Array.isArray(config.from)
 				? config.from
@@ -383,7 +394,18 @@ export class Many<TTargetTableName extends string> extends Relation<TTargetTable
 	) {
 		super(targetTable, targetTableName);
 		this.alias = config?.alias;
-		this.where = config?.where;
+		if (config && 'where' in config) {
+			if (config.where === undefined) {
+				throw new Error(
+					`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
+				);
+			}
+
+			this.where = config.where;
+		} else {
+			this.where = EmptyFilter;
+		}
+
 		if (config?.from) {
 			this.sourceColumns = ((Array.isArray(config.from)
 				? config.from
@@ -516,13 +538,13 @@ export type DBQueryConfigExtras<TTable extends SchemaEntry> = Record<
 	| ((
 		table: TTable,
 		operators: SQLOperator,
-	) => SQLWrapper)
+	) => SQLWrapper | undefined)
 >;
 
 export type DBQueryConfigOrderByCallback<TTable extends SchemaEntry> = (
 	table: TTable,
 	operators: OrderByOperators,
-) => ValueOrArray<AnyColumn | SQL>;
+) => ValueOrArray<AnyColumn | SQL> | undefined;
 
 export type DBQueryConfigOrderByObject<TColumns extends FieldSelection> = {
 	[K in keyof TColumns]?: 'asc' | 'desc' | undefined;
@@ -556,7 +578,7 @@ export type DBQueryConfig<
 		})
 	& {
 		columns?: DBQueryConfigColumns<GetTableViewFieldSelection<TTableConfig['table']>> | undefined;
-		where?: RelationsFilter<TTableConfig, TSchema> | undefined;
+		where?: RelationsFilter<TTableConfig, TSchema> | EmptyFilter;
 		extras?:
 			| DBQueryConfigExtras<TTableConfig['table']>
 			| undefined;
@@ -952,7 +974,7 @@ export interface RelationalRowsMapper<T = any> {
 
 export type RelationalRowsMapperGenerator<T = any> = (
 	config: RelationalQueryMapperConfig,
-) => RelationalRowsMapper<T>;
+) => RelationalRowsMapper<T> | undefined;
 
 export function makeDefaultRqbMapper<T = any>(
 	{ selection, isFirst, parseJson, parseJsonIfString, rootJsonMappers, arrayModeRoot }: RelationalQueryMapperConfig,
@@ -1336,50 +1358,52 @@ export class RelationsBuilderJunctionColumn<
 }
 
 export interface RelationFieldsFilterInternals<T> {
-	eq?: T | Placeholder | undefined;
-	ne?: T | Placeholder | undefined;
-	gt?: T | Placeholder | undefined;
-	gte?: T | Placeholder | undefined;
-	lt?: T | Placeholder | undefined;
-	lte?: T | Placeholder | undefined;
-	in?: (T | Placeholder)[] | Placeholder | undefined;
-	notIn?: (T | Placeholder)[] | Placeholder | undefined;
-	arrayContains?: (T extends Array<infer E> ? (E | Placeholder)[] : (T | Placeholder)[]) | Placeholder | undefined;
-	arrayContained?: (T extends Array<infer E> ? (E | Placeholder)[] : (T | Placeholder)[]) | Placeholder | undefined;
-	arrayOverlaps?: (T extends Array<infer E> ? (E | Placeholder)[] : (T | Placeholder)[]) | Placeholder | undefined;
-	like?: string | Placeholder | undefined;
-	ilike?: string | Placeholder | undefined;
-	notLike?: string | Placeholder | undefined;
-	notIlike?: string | Placeholder | undefined;
-	isNull?: true | undefined;
-	isNotNull?: true | undefined;
-	NOT?: RelationsFieldFilter<T> | undefined;
-	OR?: RelationsFieldFilter<T>[] | undefined;
-	AND?: RelationsFieldFilter<T>[] | undefined;
+	eq?: T | Placeholder | EmptyFilter;
+	ne?: T | Placeholder | EmptyFilter;
+	gt?: T | Placeholder | EmptyFilter;
+	gte?: T | Placeholder | EmptyFilter;
+	lt?: T | Placeholder | EmptyFilter;
+	lte?: T | Placeholder | EmptyFilter;
+	in?: (T | Placeholder)[] | Placeholder | EmptyFilter;
+	notIn?: (T | Placeholder)[] | Placeholder | EmptyFilter;
+	arrayContains?: (T extends Array<infer E> ? (E | Placeholder)[] : (T | Placeholder)[]) | Placeholder | EmptyFilter;
+	arrayContained?: (T extends Array<infer E> ? (E | Placeholder)[] : (T | Placeholder)[]) | Placeholder | EmptyFilter;
+	arrayOverlaps?: (T extends Array<infer E> ? (E | Placeholder)[] : (T | Placeholder)[]) | Placeholder | EmptyFilter;
+	like?: string | Placeholder | EmptyFilter;
+	ilike?: string | Placeholder | EmptyFilter;
+	notLike?: string | Placeholder | EmptyFilter;
+	notIlike?: string | Placeholder | EmptyFilter;
+	isNull?: true | EmptyFilter;
+	isNotNull?: true | EmptyFilter;
+	NOT?: RelationsFieldFilter<T> | EmptyFilter;
+	OR?: RelationsFieldFilter<T>[] | EmptyFilter;
+	AND?: RelationsFieldFilter<T>[] | EmptyFilter;
 }
+
+export type Primitive = string | number | bigint | boolean | symbol | null | undefined;
 
 export type RelationsFieldFilter<T = unknown> =
 	| RelationFieldsFilterInternals<T>
 	| (
-		unknown extends T ? never : T extends object ? never : T
+		unknown extends T ? never : T extends Primitive ? T : never
 	)
-	// Bleeds into filters - discuss removal
+	// TODO: Bleeds into filters - discuss removal
 	| Placeholder;
 
 export interface RelationsFilterCommons<
 	TTable extends TableRelationalConfig = TableRelationalConfig,
 	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
 > {
-	OR?: RelationsFilter<TTable, TSchema>[] | undefined;
-	NOT?: RelationsFilter<TTable, TSchema> | undefined;
-	AND?: RelationsFilter<TTable, TSchema>[] | undefined;
+	OR?: RelationsFilter<TTable, TSchema>[] | EmptyFilter;
+	NOT?: RelationsFilter<TTable, TSchema> | EmptyFilter;
+	AND?: RelationsFilter<TTable, TSchema>[] | EmptyFilter;
 	RAW?:
 		| SQLWrapper
 		| ((
 			table: TTable['table'],
 			operators: Operators,
-		) => SQL)
-		| undefined;
+		) => SQL | EmptyFilter)
+		| EmptyFilter;
 }
 
 export type RelationsFilterColumns<
@@ -1388,7 +1412,7 @@ export type RelationsFilterColumns<
 	[K in keyof TColumns]?:
 		| (TColumns[K] extends { _: { data: infer Data } } ? RelationsFieldFilter<Data>
 			: RelationsFieldFilter<unknown>)
-		| undefined;
+		| EmptyFilter;
 };
 
 export type RelationsFilterRelations<
@@ -1399,7 +1423,7 @@ export type RelationsFilterRelations<
 	[K in keyof TRelations]?:
 		| boolean
 		| RelationsFilter<FindTargetTableInRelationalConfig<TSchema, TRelations[K]>, TSchema>
-		| undefined;
+		| EmptyFilter;
 };
 
 export type RelationsFilter<
@@ -1416,16 +1440,16 @@ export interface TableFilterCommons<
 	TTable extends SchemaEntry = SchemaEntry,
 	TColumns extends Record<string, unknown> = GetTableViewColumns<TTable>,
 > {
-	OR?: TableFilter<TTable, TColumns>[] | undefined;
-	NOT?: TableFilter<TTable, TColumns> | undefined;
-	AND?: TableFilter<TTable, TColumns>[] | undefined;
+	OR?: TableFilter<TTable, TColumns>[] | EmptyFilter;
+	NOT?: TableFilter<TTable, TColumns> | EmptyFilter;
+	AND?: TableFilter<TTable, TColumns>[] | EmptyFilter;
 	RAW?:
 		| SQLWrapper
 		| ((
 			table: TTable,
 			operators: Operators,
-		) => SQL)
-		| undefined;
+		) => SQL | EmptyFilter)
+		| EmptyFilter;
 }
 
 export type TableFilterColumns<
@@ -1434,7 +1458,7 @@ export type TableFilterColumns<
 	[K in keyof TColumns]?:
 		| (TColumns[K] extends { _: { data: infer Data } } ? RelationsFieldFilter<Data>
 			: RelationsFieldFilter<unknown>)
-		| undefined;
+		| EmptyFilter;
 };
 
 export type TableFilter<
@@ -1458,7 +1482,7 @@ export type AnyTableFilter = TableFilter<
 export interface OneConfig<TTargetTable extends SchemaEntry, TOptional extends boolean> {
 	from?: RelationsBuilderColumnBase | [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]];
 	to?: RelationsBuilderColumnBase | [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]];
-	where?: TableFilter<TTargetTable>;
+	where?: TableFilter<TTargetTable> | EmptyFilter;
 	optional?: TOptional;
 	alias?: string;
 }
@@ -1471,7 +1495,7 @@ export type AnyOneConfig = OneConfig<
 export interface ManyConfig<TTargetTable extends SchemaEntry> {
 	from?: RelationsBuilderColumnBase | [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]];
 	to?: RelationsBuilderColumnBase | [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]];
-	where?: TableFilter<TTargetTable>;
+	where?: TableFilter<TTargetTable> | EmptyFilter;
 	alias?: string;
 }
 
@@ -1487,17 +1511,8 @@ export interface ManyFn<TTargetTable extends SchemaEntry, TTargetTableName exten
 
 export class RelationsHelperStatic<TTables extends Schema> {
 	static readonly [entityKind]: string = 'RelationsHelperStatic';
-	// declare readonly $brand: 'RelationsHelperStatic';
-
-	private readonly _: {
-		readonly tables: TTables;
-	};
 
 	constructor(tables: TTables) {
-		this._ = {
-			tables,
-		};
-
 		const one: Record<string, OneFn<TTables[string], string>> = {};
 		const many: Record<string, ManyFn<TTables[string], string>> = {};
 
@@ -1695,7 +1710,16 @@ export function fieldSelectionToSQL(table: SchemaEntry, target: string) {
 		: sql`${table}.${sql.identifier(target)}`;
 }
 
-function relationsFieldFilterToSQL(column: SQLWrapper, filter: RelationsFieldFilter<unknown>): SQL | undefined {
+function relationsFieldFilterToSQL(
+	column: SQLWrapper,
+	filter: RelationsFieldFilter<unknown> | EmptyFilter | undefined,
+): SQL | undefined {
+	if (filter === EmptyFilter) return undefined;
+	if (filter === undefined) {
+		throw new Error(
+			`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
+		);
+	}
 	if (typeof filter !== 'object' || is(filter, Placeholder)) return eq(column, filter);
 
 	const entries = Object.entries(filter as RelationFieldsFilterInternals<unknown>);
@@ -1703,7 +1727,12 @@ function relationsFieldFilterToSQL(column: SQLWrapper, filter: RelationsFieldFil
 
 	const parts: (SQL)[] = [];
 	for (const [target, value] of entries) {
-		if (value === undefined) continue;
+		if (value === EmptyFilter) continue;
+		if (value === undefined) {
+			throw new Error(
+				`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
+			);
+		}
 
 		switch (target as keyof RelationFieldsFilterInternals<unknown>) {
 			case 'NOT': {
@@ -1716,7 +1745,11 @@ function relationsFieldFilterToSQL(column: SQLWrapper, filter: RelationsFieldFil
 			}
 
 			case 'OR': {
-				if (!(value as RelationsFieldFilter<unknown>[]).length) continue;
+				if (!(value as RelationsFieldFilter<unknown>[]).length) {
+					throw new Error(
+						"Unexpected empty array in filters' 'OR' section. Omit field or use 'EmptyFilter' if you want filter to be skipped.",
+					);
+				}
 
 				parts.push(
 					or(
@@ -1728,7 +1761,11 @@ function relationsFieldFilterToSQL(column: SQLWrapper, filter: RelationsFieldFil
 			}
 
 			case 'AND': {
-				if (!(value as RelationsFieldFilter<unknown>[]).length) continue;
+				if (!(value as RelationsFieldFilter<unknown>[]).length) {
+					throw new Error(
+						"Unexpected empty array in filters' 'AND' section. Omit field or use 'EmptyFilter' if you want filter to be skipped.",
+					);
+				}
 
 				parts.push(
 					and(
@@ -1780,41 +1817,60 @@ function relationsFieldFilterToSQL(column: SQLWrapper, filter: RelationsFieldFil
 
 export function relationsFilterToSQL(
 	table: SchemaEntry,
-	filter: AnyRelationsFilter | AnyTableFilter,
+	filter: AnyRelationsFilter | AnyTableFilter | undefined | EmptyFilter,
 ): SQL | undefined;
 export function relationsFilterToSQL(
 	table: SchemaEntry,
-	filter: AnyRelationsFilter | AnyTableFilter,
+	filter: AnyRelationsFilter | AnyTableFilter | undefined | EmptyFilter,
 	tableRelations: RelationsRecord,
 	tablesRelations: TablesRelationalConfig,
 	depth?: number,
 ): SQL | undefined;
 export function relationsFilterToSQL(
 	table: SchemaEntry,
-	filter: AnyRelationsFilter | AnyTableFilter,
+	filter: AnyRelationsFilter | AnyTableFilter | undefined | EmptyFilter,
 	tableRelations: RelationsRecord = {},
 	tablesRelations: TablesRelationalConfig = {},
 	depth: number = 0,
 ): SQL | undefined {
+	if (filter === EmptyFilter) return undefined;
+	if (filter === undefined) {
+		throw new Error(
+			`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
+		);
+	}
 	const entries = Object.entries(filter);
 	if (!entries.length) return undefined;
 
 	const parts: SQL[] = [];
 	for (const [target, value] of entries) {
-		if (value === undefined) continue;
+		if (value === EmptyFilter) continue;
+		if (value === undefined) {
+			throw new Error(
+				`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
+			);
+		}
 
 		switch (target) {
 			case 'RAW': {
 				const processed = typeof value === 'function'
-					? (value as unknown as (table: FieldSelection, operators: Operators) => SQL)(table as any, operators)
+					? (value as unknown as (table: FieldSelection, operators: Operators) => SQL | EmptyFilter)(
+						table as any,
+						operators,
+					)
 					: (value as SQLWrapper).getSQL();
+				if (processed === EmptyFilter) continue;
 
 				parts.push(processed);
 
 				continue;
 			}
 			case 'OR': {
-				if (!(value as AnyRelationsFilter[] | undefined)?.length) continue;
+				if (!(value as AnyRelationsFilter[]).length) {
+					throw new Error(
+						"Unexpected empty array in filters' 'OR' section. Omit field or use 'EmptyFilter' if you want filter to be skipped.",
+					);
+				}
 
 				parts.push(
 					or(
@@ -1827,7 +1883,11 @@ export function relationsFilterToSQL(
 				continue;
 			}
 			case 'AND': {
-				if (!(value as AnyRelationsFilter[] | undefined)?.length) continue;
+				if (!(value as AnyRelationsFilter[]).length) {
+					throw new Error(
+						"Unexpected empty array in filters' 'AND' section. Omit field or use 'EmptyFilter' if you want filter to be skipped.",
+					);
+				}
 
 				parts.push(
 					and(
@@ -1840,8 +1900,6 @@ export function relationsFilterToSQL(
 				continue;
 			}
 			case 'NOT': {
-				if (value === undefined) continue;
-
 				const built = relationsFilterToSQL(
 					table,
 					value as AnyRelationsFilter,
@@ -1915,6 +1973,7 @@ export function relationsOrderToSQL(
 ): SQL | undefined {
 	if (typeof orders === 'function') {
 		const data = orders(table as any, orderByOperators);
+		if (!data) return undefined;
 
 		return is(data, SQL)
 			? data
@@ -1948,8 +2007,8 @@ export function relationExtrasToSQL(
 	for (
 		const [key, field] of Object.entries(extras)
 	) {
-		if (!field) continue;
 		const extra = typeof field === 'function' ? field(table as any, { sql: operators.sql }) : field;
+		if (!extra) continue;
 
 		const subq = extra.getSQL();
 		const column = codecs ? getColumnFromDecoder(subq) : undefined;
@@ -2014,9 +2073,7 @@ export function relationToSQL(
 
 		return {
 			filter: and(
-				relation.where
-					? relationsFilterToSQL(relation.isReversed ? sourceTable : targetTable, relation.where)
-					: undefined,
+				relationsFilterToSQL(relation.isFilterReversed ? sourceTable : targetTable, relation.where),
 				...outerColumnWhere,
 			),
 			joinCondition: and(...innerColumnWhere),
@@ -2034,9 +2091,7 @@ export function relationToSQL(
 
 	const fullWhere = and(
 		...columnWhere,
-		relation.where
-			? relationsFilterToSQL(relation.isReversed ? sourceTable : targetTable, relation.where)
-			: undefined,
+		relationsFilterToSQL(relation.isFilterReversed ? sourceTable : targetTable, relation.where),
 	)!;
 
 	return { filter: fullWhere };
@@ -2051,3 +2106,6 @@ export function getTableAsAliasSQL(table: SchemaEntry) {
 			: table
 	}`;
 }
+
+export const EmptyFilter = Symbol.for('drizzle:EmptyFilter');
+export type EmptyFilter = typeof EmptyFilter;

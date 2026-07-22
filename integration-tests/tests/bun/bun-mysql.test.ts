@@ -829,6 +829,88 @@ describe('common', () => {
 		}]);
 	});
 
+	test('insert with explicit column list', async () => {
+		const table = mysqlTable('column_selection', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			verified: boolean('verified').notNull().default(false),
+			note: text('note'),
+		});
+
+		await db.execute(sql`drop table if exists ${table}`);
+		await db.execute(
+			sql`create table ${table} (id serial primary key, name text not null, verified boolean not null default false, note text)`,
+		);
+
+		await db.insert(table, 'name').values([{ name: 'John' }, { name: 'Jane' }]);
+		await db.insert(table, 'name', 'note').values({ name: 'Jack' });
+		await db.insert(table, 'note', 'name').values({ name: 'Jill', note: 'hi' });
+
+		const result = await db.select().from(table).orderBy(table.id);
+		expect(result).toStrictEqual([
+			{ id: 1, name: 'John', verified: false, note: null },
+			{ id: 2, name: 'Jane', verified: false, note: null },
+			{ id: 3, name: 'Jack', verified: false, note: null },
+			{ id: 4, name: 'Jill', verified: false, note: 'hi' },
+		]);
+
+		await db.execute(sql`drop table ${table}`);
+	});
+
+	test('insert with explicit column list - select', async () => {
+		const src = mysqlTable('column_selection_select_src', {
+			id: int('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+		const dst = mysqlTable('column_selection_select_dst', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			verified: boolean('verified').notNull().default(false),
+		});
+
+		await db.execute(sql`drop table if exists ${src}`);
+		await db.execute(sql`drop table if exists ${dst}`);
+		await db.execute(sql`create table ${src} (id int primary key, name text not null)`);
+		await db.execute(
+			sql`create table ${dst} (id serial primary key, name text not null, verified boolean not null default false)`,
+		);
+
+		await db.insert(src).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+
+		await db.insert(dst, 'name').select(db.select({ name: src.name }).from(src).orderBy(src.id));
+
+		const result = await db.select().from(dst).orderBy(dst.id);
+		expect(result).toStrictEqual([
+			{ id: 1, name: 'John', verified: false },
+			{ id: 2, name: 'Jane', verified: false },
+		]);
+
+		await db.execute(sql`drop table ${src}`);
+		await db.execute(sql`drop table ${dst}`);
+	});
+
+	test('insert with explicit column list - on duplicate key update', async () => {
+		const table = mysqlTable('column_selection_conflict', {
+			id: int('id').primaryKey(),
+			name: text('name').notNull(),
+			note: text('note'),
+		});
+
+		await db.execute(sql`drop table if exists ${table}`);
+		await db.execute(sql`create table ${table} (id int primary key, name text not null, note text)`);
+
+		await db.insert(table, 'id', 'name').values({ id: 1, name: 'John' });
+		await db
+			.insert(table, 'id', 'name')
+			.values({ id: 1, name: 'Jane' })
+			.onDuplicateKeyUpdate({ set: { name: 'Updated' } });
+
+		const result = await db.select().from(table);
+		expect(result).toStrictEqual([{ id: 1, name: 'Updated', note: null }]);
+
+		await db.execute(sql`drop table ${table}`);
+	});
+
 	test('insert many', async () => {
 		await db.insert(usersTable).values([
 			{ name: 'John' },
@@ -1516,6 +1598,50 @@ describe('common', () => {
 			sql`select id, name from ${usersTable}`,
 		);
 		expect(result).toStrictEqual([{ id: 1, name: 'John' }]);
+	});
+
+	test('db.execute modes', async () => {
+		const users = mysqlTable('users_execute_modes_1', {
+			id: int('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await push({ users });
+
+		await db.insert(users).values([
+			{
+				id: 1,
+				name: 'First',
+			},
+			{
+				id: 2,
+				name: 'Second',
+			},
+		]);
+
+		const rObj = await db.execute<{ id: number; name: string }>(
+			sql`select ${users.id}, ${users.name} from ${users} order by ${users.id}`,
+			'objects',
+		);
+		const rArr = await db.execute<[number, string]>(
+			sql`select ${users.id}, ${users.name} from ${users} order by ${users.id}`,
+			'arrays',
+		);
+
+		Expect<Equal<{ id: number; name: string }[], typeof rObj>>;
+		Expect<Equal<[number, string][], typeof rArr>>;
+
+		expect(rObj).toStrictEqual([
+			{
+				id: 1,
+				name: 'First',
+			},
+			{
+				id: 2,
+				name: 'Second',
+			},
+		]);
+		expect(rArr).toStrictEqual([[1, 'First'], [2, 'Second']]);
 	});
 
 	test('insert via db.execute w/ query builder', async () => {
@@ -3357,6 +3483,49 @@ describe('common', () => {
 		}
 	});
 
+	test('$onUpdateFn called only when needed', async () => {
+		let counter = 0;
+		const table = mysqlTable('on_update_call_test', {
+			id: int('id').primaryKey(),
+			name: text('name').notNull(),
+			inc: int('inc').$onUpdateFn(() => counter++),
+		});
+
+		await db.execute(sql`drop table if exists ${table}`);
+		await db.execute(sql`create table ${table} (
+			id int not null primary key,
+			name text not null,
+			inc int
+		)`);
+
+		await db.insert(table).values({ id: 1, name: 'First', inc: 0 });
+		expect(counter).toStrictEqual(0);
+		expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'First', inc: 0 }]);
+
+		await db.update(table).set({ name: 'Second', inc: null });
+		expect(counter).toStrictEqual(0);
+		expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'Second', inc: null }]);
+
+		await db.update(table).set({ name: 'Third', inc: 10 });
+		expect(counter).toStrictEqual(0);
+		expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'Third', inc: 10 }]);
+
+		await db.update(table).set({ name: 'Fourth' });
+		expect(counter).toStrictEqual(1);
+		expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'Fourth', inc: 0 }]);
+
+		await db.update(table).set({ name: 'Fifth' });
+		expect(counter).toStrictEqual(2);
+		expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'Fifth', inc: 1 }]);
+
+		await db.insert(table).values({ id: 2, name: 'Second' });
+		expect(counter).toStrictEqual(3);
+		expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([
+			{ id: 1, name: 'Fifth', inc: 1 },
+			{ id: 2, name: 'Second', inc: 2 },
+		]);
+	});
+
 	// mySchema tests
 	test('mySchema :: select all fields', async () => {
 		await db.insert(usersMySchemaTable).values({ name: 'John' });
@@ -5037,19 +5206,21 @@ test('insert into ... select with keys in different order', async () => {
 		)
 	`);
 
-	expect(
-		() =>
-			db
-				.insert(users1)
-				.select(
-					db
-						.select({
-							name: users2.name,
-							id: users2.id,
-						})
-						.from(users2),
-				),
-	).toThrowError();
+	await db.insert(users2).values({ id: 1, name: 'First' });
+	await db.insert(users1).select(
+		db
+			.select({
+				name: users2.name,
+				id: users2.id,
+			})
+			.from(users2),
+	);
+	const res = await db.select().from(users1);
+
+	expect(res).toStrictEqual([{
+		id: 1,
+		name: 'First',
+	}]);
 });
 
 test('MySqlTable :: select with `use index` hint', async () => {
@@ -9959,4 +10130,388 @@ describe('common_cache', () => {
 		// @ts-expect-error
 		expect(db.select().from(sq).getUsedTables()).toStrictEqual(['users']);
 	});
+});
+
+test("No nullification on non-joined table's all-null object", async () => {
+	const users = mysqlTable('nullify1_users', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		bio: t.text('bio'),
+		city: t.text('city'),
+	}));
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify1_users`);
+	await db.execute(sql`CREATE TABLE nullify1_users (id SERIAL PRIMARY KEY, name TEXT NOT NULL, bio TEXT, city TEXT)`);
+
+	await db.insert(users).values({ name: 'John' });
+
+	const res = await db.select({ id: users.id, meta: { bio: users.bio, city: users.city } }).from(users);
+
+	expect(res).toEqual([{ id: 1, meta: { bio: null, city: null } }]);
+
+	await db.execute(sql`DROP TABLE nullify1_users`);
+});
+
+test('Cross-table group never nullified', async () => {
+	const cities = mysqlTable('nullify2_cities', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+	}));
+	const users = mysqlTable('nullify2_users', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		bio: t.text('bio'),
+		cityId: t.int('city_id'),
+	}));
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify2_users`);
+	await db.execute(sql`DROP TABLE IF EXISTS nullify2_cities`);
+	await db.execute(sql`CREATE TABLE nullify2_cities (id SERIAL PRIMARY KEY, name TEXT NOT NULL)`);
+	await db.execute(
+		sql`CREATE TABLE nullify2_users (id SERIAL PRIMARY KEY, name TEXT NOT NULL, bio TEXT, city_id INT)`,
+	);
+
+	await db.insert(cities).values([{ name: 'Paris' }]);
+	await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+	const res = await db
+		.select({ id: users.id, g: { user: users.name, cityId: cities.id, cityName: cities.name } })
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(res).toEqual([
+		{ id: 1, g: { user: 'John', cityId: 1, cityName: 'Paris' } },
+		{ id: 2, g: { user: 'Jane', cityId: null, cityName: null } },
+	]);
+
+	const onlyJoinedSideNotNull = await db
+		.select({ id: users.id, g: { bio: users.bio, cityId: cities.id } })
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(onlyJoinedSideNotNull).toEqual([
+		{ id: 1, g: { bio: null, cityId: 1 } },
+		{ id: 2, g: { bio: null, cityId: null } },
+	]);
+
+	await db.execute(sql`DROP TABLE nullify2_users`);
+	await db.execute(sql`DROP TABLE nullify2_cities`);
+});
+
+test('SQL field groups are never nullified', async () => {
+	const cities = mysqlTable('nullify3_cities', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+	}));
+	const users = mysqlTable('nullify3_users', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		cityId: t.int('city_id'),
+	}));
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify3_users`);
+	await db.execute(sql`DROP TABLE IF EXISTS nullify3_cities`);
+	await db.execute(sql`CREATE TABLE nullify3_cities (id SERIAL PRIMARY KEY, name TEXT NOT NULL)`);
+	await db.execute(sql`CREATE TABLE nullify3_users (id SERIAL PRIMARY KEY, name TEXT NOT NULL, city_id INT)`);
+
+	await db.insert(cities).values([{ name: 'Paris' }]);
+	await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+	const res = await db
+		.select({
+			id: users.id,
+			calc: { user: sql<string>`upper(${users.name})`, city: sql<string | null>`upper(${cities.name})` },
+		})
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(res).toEqual([
+		{ id: 1, calc: { user: 'JOHN', city: 'PARIS' } },
+		{ id: 2, calc: { user: 'JANE', city: null } },
+	]);
+
+	await db.execute(sql`DROP TABLE nullify3_users`);
+	await db.execute(sql`DROP TABLE nullify3_cities`);
+});
+
+test('Nullify all-null group from from nullable join', async () => {
+	const cities = mysqlTable('nullify4_cities', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		state: t.text('state'),
+		zip: t.text('zip'),
+	}));
+	const users = mysqlTable('nullify4_users', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		cityId: t.int('city_id'),
+	}));
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify4_users`);
+	await db.execute(sql`DROP TABLE IF EXISTS nullify4_cities`);
+	await db.execute(
+		sql`CREATE TABLE nullify4_cities (id SERIAL PRIMARY KEY, name TEXT NOT NULL, state TEXT, zip TEXT)`,
+	);
+	await db.execute(sql`CREATE TABLE nullify4_users (id SERIAL PRIMARY KEY, name TEXT NOT NULL, city_id INT)`);
+
+	await db.insert(cities).values([
+		{ name: 'Paris', state: 'IDF', zip: '75' },
+		{ name: 'London' },
+	]);
+	await db.insert(users).values([
+		{ name: 'John', cityId: 1 },
+		{ name: 'Jane', cityId: 2 },
+		{ name: 'Jack' },
+	]);
+
+	const res = await db
+		.select({ name: users.name, c: { state: cities.state, zip: cities.zip } })
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(res).toEqual([
+		{ name: 'John', c: { state: 'IDF', zip: '75' } },
+		{ name: 'Jane', c: null },
+		{ name: 'Jack', c: null },
+	]);
+
+	await db.execute(sql`DROP TABLE nullify4_users`);
+	await db.execute(sql`DROP TABLE nullify4_cities`);
+});
+
+test("Don't disregard added SQL field during join nullification", async () => {
+	const cities = mysqlTable('nullify5_cities', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		state: t.text('state'),
+	}));
+	const users = mysqlTable('nullify5_users', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		cityId: t.int('city_id'),
+	}));
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify5_users`);
+	await db.execute(sql`DROP TABLE IF EXISTS nullify5_cities`);
+	await db.execute(sql`CREATE TABLE nullify5_cities (id SERIAL PRIMARY KEY, name TEXT NOT NULL, state TEXT)`);
+	await db.execute(sql`CREATE TABLE nullify5_users (id SERIAL PRIMARY KEY, name TEXT NOT NULL, city_id INT)`);
+
+	await db.insert(cities).values([{ name: 'Paris', state: 'IDF' }, { name: 'London' }]);
+	await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 2 }]);
+
+	const res = await db
+		.select({ name: users.name, c: { state: cities.state, cityUpper: sql<string>`upper(${cities.name})` } })
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(res).toEqual([
+		{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
+		{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
+	]);
+
+	await db.execute(sql`DROP TABLE nullify5_users`);
+	await db.execute(sql`DROP TABLE nullify5_cities`);
+});
+
+test("No nullification on non-joined table's all-null object - jit", async () => {
+	const users = mysqlTable('nullify1_users_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		bio: t.text('bio'),
+		city: t.text('city'),
+	}));
+
+	const db = drizzle({ client, jit: true });
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify1_users_jit`);
+	await db.execute(
+		sql`CREATE TABLE nullify1_users_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL, bio TEXT, city TEXT)`,
+	);
+
+	await db.insert(users).values({ name: 'John' });
+
+	const res = await db.select({ id: users.id, meta: { bio: users.bio, city: users.city } }).from(users);
+
+	expect(res).toEqual([{ id: 1, meta: { bio: null, city: null } }]);
+
+	await db.execute(sql`DROP TABLE nullify1_users_jit`);
+});
+
+test('Cross-table group never nullified - jit', async () => {
+	const cities = mysqlTable('nullify2_cities_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+	}));
+	const users = mysqlTable('nullify2_users_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		bio: t.text('bio'),
+		cityId: t.int('city_id'),
+	}));
+
+	const db = drizzle({ client, jit: true });
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify2_users_jit`);
+	await db.execute(sql`DROP TABLE IF EXISTS nullify2_cities_jit`);
+	await db.execute(sql`CREATE TABLE nullify2_cities_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL)`);
+	await db.execute(
+		sql`CREATE TABLE nullify2_users_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL, bio TEXT, city_id INT)`,
+	);
+
+	await db.insert(cities).values([{ name: 'Paris' }]);
+	await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+	const res = await db
+		.select({ id: users.id, g: { user: users.name, cityId: cities.id, cityName: cities.name } })
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(res).toEqual([
+		{ id: 1, g: { user: 'John', cityId: 1, cityName: 'Paris' } },
+		{ id: 2, g: { user: 'Jane', cityId: null, cityName: null } },
+	]);
+
+	const onlyJoinedSideNotNull = await db
+		.select({ id: users.id, g: { bio: users.bio, cityId: cities.id } })
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(onlyJoinedSideNotNull).toEqual([
+		{ id: 1, g: { bio: null, cityId: 1 } },
+		{ id: 2, g: { bio: null, cityId: null } },
+	]);
+
+	await db.execute(sql`DROP TABLE nullify2_users_jit`);
+	await db.execute(sql`DROP TABLE nullify2_cities_jit`);
+});
+
+test('SQL field groups are never nullified - jit', async () => {
+	const cities = mysqlTable('nullify3_cities_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+	}));
+	const users = mysqlTable('nullify3_users_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		cityId: t.int('city_id'),
+	}));
+
+	const db = drizzle({ client, jit: true });
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify3_users_jit`);
+	await db.execute(sql`DROP TABLE IF EXISTS nullify3_cities_jit`);
+	await db.execute(sql`CREATE TABLE nullify3_cities_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL)`);
+	await db.execute(sql`CREATE TABLE nullify3_users_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL, city_id INT)`);
+
+	await db.insert(cities).values([{ name: 'Paris' }]);
+	await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+	const res = await db
+		.select({
+			id: users.id,
+			calc: { user: sql<string>`upper(${users.name})`, city: sql<string | null>`upper(${cities.name})` },
+		})
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(res).toEqual([
+		{ id: 1, calc: { user: 'JOHN', city: 'PARIS' } },
+		{ id: 2, calc: { user: 'JANE', city: null } },
+	]);
+
+	await db.execute(sql`DROP TABLE nullify3_users_jit`);
+	await db.execute(sql`DROP TABLE nullify3_cities_jit`);
+});
+
+test('Nullify all-null group from from nullable join - jit', async () => {
+	const cities = mysqlTable('nullify4_cities_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		state: t.text('state'),
+		zip: t.text('zip'),
+	}));
+	const users = mysqlTable('nullify4_users_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		cityId: t.int('city_id'),
+	}));
+
+	const db = drizzle({ client, jit: true });
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify4_users_jit`);
+	await db.execute(sql`DROP TABLE IF EXISTS nullify4_cities_jit`);
+	await db.execute(
+		sql`CREATE TABLE nullify4_cities_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL, state TEXT, zip TEXT)`,
+	);
+	await db.execute(sql`CREATE TABLE nullify4_users_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL, city_id INT)`);
+
+	await db.insert(cities).values([
+		{ name: 'Paris', state: 'IDF', zip: '75' },
+		{ name: 'London' },
+	]);
+	await db.insert(users).values([
+		{ name: 'John', cityId: 1 },
+		{ name: 'Jane', cityId: 2 },
+		{ name: 'Jack' },
+	]);
+
+	const res = await db
+		.select({ name: users.name, c: { state: cities.state, zip: cities.zip } })
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(res).toEqual([
+		{ name: 'John', c: { state: 'IDF', zip: '75' } },
+		{ name: 'Jane', c: null },
+		{ name: 'Jack', c: null },
+	]);
+
+	await db.execute(sql`DROP TABLE nullify4_users_jit`);
+	await db.execute(sql`DROP TABLE nullify4_cities_jit`);
+});
+
+test("Don't disregard added SQL field during join nullification - jit", async () => {
+	const cities = mysqlTable('nullify5_cities_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		state: t.text('state'),
+	}));
+	const users = mysqlTable('nullify5_users_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		cityId: t.int('city_id'),
+	}));
+
+	const db = drizzle({ client, jit: true });
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify5_users_jit`);
+	await db.execute(sql`DROP TABLE IF EXISTS nullify5_cities_jit`);
+	await db.execute(sql`CREATE TABLE nullify5_cities_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL, state TEXT)`);
+	await db.execute(sql`CREATE TABLE nullify5_users_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL, city_id INT)`);
+
+	await db.insert(cities).values([{ name: 'Paris', state: 'IDF' }, { name: 'London' }]);
+	await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 2 }]);
+
+	const res = await db
+		.select({ name: users.name, c: { state: cities.state, cityUpper: sql<string>`upper(${cities.name})` } })
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(res).toEqual([
+		{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
+		{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
+	]);
+
+	await db.execute(sql`DROP TABLE nullify5_users_jit`);
+	await db.execute(sql`DROP TABLE nullify5_cities_jit`);
 });

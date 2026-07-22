@@ -118,6 +118,9 @@ export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession
 		);
 		await tx.execute(sql`begin ${tx.getTransactionConfigSQL(config)}`);
 		try {
+			if (typeof config.snapshot === 'string') {
+				await tx.execute(tx.setTransactionSnapshotSQL(config.snapshot));
+			}
 			const result = await transaction(tx);
 			await tx.execute(sql`commit`);
 			return result;

@@ -24,23 +24,35 @@ export class PgAsyncRelationalQuery<TResult> extends PgRelationalQuery<PgAsyncRe
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgAsyncPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const { query, builtQuery } = this._toSQL();
+			const { dialect } = this;
+			const isFirst = this.mode === 'first';
 
-			const mapper = this.dialect.mapperGenerators.relationalRows({
-				isFirst: this.mode === 'first',
-				parseJson: this.parseJson,
-				parseJsonIfString: false,
-				rootJsonMappers: false,
-				selection: query.selection,
-				arrayModeRoot: true,
-			});
+			const { query, builtQuery } = this._toSQL();
+			const shape = dialect.shapeGenerator?.(
+				{ type: 'relational', fields: query.selection },
+				undefined,
+			);
+
+			const mapper = shape
+				? (isFirst ? (rows: any[]) => rows[0] : undefined)
+				: dialect.mapperGenerators.relationalRows({
+					isFirst,
+					parseJson: this.parseJson,
+					parseJsonIfString: false,
+					rootJsonMappers: false,
+					selection: query.selection,
+					arrayModeRoot: true,
+				});
 
 			return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
 				builtQuery,
-				'arrays',
+				shape ? 'objects' : 'arrays',
 				name ?? generateName,
 				mapper,
 				// TODO: implement cache
+				undefined,
+				undefined,
+				shape,
 			);
 		});
 	}

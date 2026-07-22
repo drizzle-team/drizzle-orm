@@ -34,7 +34,8 @@ export type SQLiteAsyncInsertBuilder<
 	TTable extends SQLiteTable,
 	TResultType extends 'sync' | 'async',
 	TRunResult,
-> = SQLiteInsertBuilder<TTable, TRunResult, SQLiteAsyncInsertHKT & { resultType: TResultType }>;
+	TColumnList extends string[] | 'all' = 'all',
+> = SQLiteInsertBuilder<TTable, TRunResult, TColumnList, SQLiteAsyncInsertHKT & { resultType: TResultType }>;
 
 export type SQLiteAsyncInsertExecute<T extends AnySQLiteAsyncInsert> = T['_']['returning'] extends undefined
 	? T['_']['runResult']

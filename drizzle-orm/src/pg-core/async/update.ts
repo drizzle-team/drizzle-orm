@@ -106,17 +106,24 @@ export class PgAsyncUpdateBase<
 		const { returning: fields } = config;
 
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const query = dialect.sqlToQuery(this.getSQL());
-			const mapper = fields
-				? this.dialect.mapperGenerators.rows(fields, joinsNotNullableMap)
+			const shape = fields
+				? config.shape ??= dialect.shapeGenerator?.({ type: 'plain', fields }, joinsNotNullableMap)
 				: undefined;
+			if (shape) this.withoutSelectionCastCodecs();
+
+			const query = dialect.sqlToQuery(this.getSQL());
+			const mapper = shape || !fields
+				? undefined
+				: this.dialect.mapperGenerators.rows(fields, joinsNotNullableMap);
 
 			const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
 				query,
-				fields ? 'arrays' : 'raw',
+				shape ? 'objects' : fields ? 'arrays' : 'raw',
 				name ?? generateName,
 				mapper,
 				{ type: 'update', tables: [...extractUsedTable(this.config.table)] },
+				undefined,
+				shape,
 			);
 
 			return preparedQuery;

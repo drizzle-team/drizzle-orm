@@ -4,6 +4,7 @@ import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { and, eq } from '~/sql/expressions/index.ts';
 import { sql } from '~/sql/sql.ts';
+import type { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
 import { integer, QueryBuilder, sqliteTable, text } from '~/sqlite-core/index.ts';
 import type { SQLiteInsert } from '~/sqlite-core/query-builders/insert.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
@@ -278,4 +279,109 @@ stmt.run({ id: 1, limit: 10, offset: 20 });
 	db.insert(users1).select(db.select().from(users2));
 	// @ts-expect-error tables have different keys
 	db.insert(users1).select(() => db.select().from(users2));
+}
+
+// Insert with explicit column selection
+{
+	// All required columns listed -> ok
+	db.insert(users, 'homeCity', 'class', 'age1', 'enumCol', 'serialNotNull').values([
+		{ homeCity: 1, class: 'A', age1: 1, enumCol: 'a', serialNotNull: 1 },
+	]);
+
+	// Required columns + an extra optional column -> ok
+	db.insert(users, 'homeCity', 'class', 'age1', 'enumCol', 'serialNotNull', 'currentCity').values([
+		{ homeCity: 1, class: 'A', age1: 1, enumCol: 'a', serialNotNull: 1, currentCity: 2 },
+	]);
+
+	// Single-object values -> ok
+	db.insert(users, 'homeCity', 'class', 'age1', 'enumCol', 'serialNotNull').values({
+		homeCity: 1,
+		class: 'A',
+		age1: 1,
+		enumCol: 'a',
+		serialNotNull: 1,
+	});
+
+	// SQL values in listed columns -> ok
+	db.insert(users, 'homeCity', 'class', 'age1', 'enumCol', 'serialNotNull').values({
+		homeCity: sql`1`,
+		class: 'A',
+		age1: sql`2 + 2`,
+		enumCol: 'a',
+		serialNotNull: 1,
+	});
+
+	// The column list is order-independent -> ok
+	db.insert(users, 'serialNotNull', 'enumCol', 'age1', 'class', 'homeCity').values([
+		{ homeCity: 1, class: 'A', age1: 1, enumCol: 'a', serialNotNull: 1 },
+	]);
+
+	// values() rejects a column that was not part of the selection
+	db
+		.insert(users, 'homeCity', 'class', 'age1', 'enumCol', 'serialNotNull')
+		// @ts-expect-error currentCity was not included in the column selection
+		.values([{ homeCity: 1, class: 'A', age1: 1, enumCol: 'a', serialNotNull: 1, currentCity: 2 }]);
+
+	// values() still requires the listed required columns to be provided
+	db
+		.insert(users, 'homeCity', 'class', 'age1', 'enumCol', 'serialNotNull')
+		// @ts-expect-error enumCol and serialNotNull are missing from values
+		.values([{ homeCity: 1, class: 'A', age1: 1 }]);
+
+	// @ts-expect-error missing required column `serialNotNull` from the selection
+	db.insert(users, 'homeCity', 'class', 'age1', 'enumCol');
+
+	// @ts-expect-error unknown column `nope`
+	db.insert(users, 'homeCity', 'class', 'age1', 'enumCol', 'serialNotNull', 'nope');
+
+	// @ts-expect-error duplicate column `homeCity`
+	db.insert(users, 'homeCity', 'class', 'age1', 'enumCol', 'serialNotNull', 'homeCity');
+
+	// Column selection combined with `.select(...)`
+	const qb = new QueryBuilder();
+
+	// Selection matching the column list -> ok
+	db.insert(users, 'homeCity', 'class', 'age1', 'enumCol', 'serialNotNull').select(
+		qb.select({
+			homeCity: users.homeCity,
+			class: users.class,
+			age1: users.age1,
+			enumCol: users.enumCol,
+			serialNotNull: users.serialNotNull,
+		}).from(users),
+	);
+
+	// Selection with a key that is not part of the insert column selection
+	db.insert(users, 'homeCity', 'class', 'age1', 'enumCol', 'serialNotNull').select(
+		// @ts-expect-error currentCity is not included in the insert column selection
+		qb.select({
+			homeCity: users.homeCity,
+			class: users.class,
+			age1: users.age1,
+			enumCol: users.enumCol,
+			serialNotNull: users.serialNotNull,
+			currentCity: users.currentCity,
+		}).from(users),
+	);
+
+	// A duplicate in the column list is reported at the `.insert()` call, before `.select()`
+	db
+		// @ts-expect-error duplicate column `class`
+		.insert(users, 'class', 'class', 'homeCity', 'age1', 'enumCol', 'serialNotNull')
+		.select(
+			qb.select({
+				class: users.class,
+				homeCity: users.homeCity,
+				age1: users.age1,
+				enumCol: users.enumCol,
+				serialNotNull: users.serialNotNull,
+			}).from(users),
+		);
+}
+
+{
+	const unionDb = {} as
+		| SQLiteAsyncDatabase<'async', { a: 1 }>
+		| SQLiteAsyncDatabase<'async', { b: 2 }>;
+	await unionDb.insert(users).values(newUser).run();
 }

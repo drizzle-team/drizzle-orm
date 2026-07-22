@@ -16,6 +16,16 @@
 	"main": "./index.cjs",
 	"module": "./index.js",
 	"types": "./index.d.ts",
+	"exports": {
+		".": {
+			"import": { "types": "./index.d.ts", "default": "./index.js" },
+			"require": { "types": "./index.d.cts", "default": "./index.cjs" }
+		},
+		"./*": {
+			"import": { "types": "./*.d.ts", "default": "./*.js" },
+			"require": { "types": "./*.d.cts", "default": "./*.cjs" }
+		}
+	},
 	"sideEffects": false,
 	"publishConfig": {
 		"provenance": true
@@ -84,6 +94,7 @@
 		"bun-types": "*",
 		"effect": ">=4.0.0-beta.83 || >=4.0.0",
 		"expo-sqlite": ">=14.0.0",
+		"minipg": ">=0.1.0",
 		"mssql": "^11.0.1",
 		"mysql2": ">=2",
 		"pg": ">=8",
@@ -235,6 +246,9 @@
 		},
 		"zod": {
 			"optional": true
+		},
+		"minipg": {
+			"optional": true
 		}
 	},
 	"devDependencies": {
@@ -259,7 +273,6 @@
 		"@opentelemetry/api": "^1.4.1",
 		"@originjs/vite-plugin-commonjs": "^1.0.3",
 		"@planetscale/database": "^1.16.0",
-		"@prisma/client": "5.14.0",
 		"@sinclair/typebox": "^0.34.48",
 		"@sqlitecloud/drivers": "^1.0.653",
 		"@tidbcloud/serverless": "^0.1.1",
@@ -283,6 +296,7 @@
 		"effect": "4.0.0-beta.83",
 		"expo-sqlite": "^14.0.0",
 		"glob": "^11.0.1",
+		"minipg": "file:../vendor/minipg-0.1.0.tgz",
 		"mysql2": "^3.14.1",
 		"pg": "^8.11.0",
 		"postgres": "^3.3.5",

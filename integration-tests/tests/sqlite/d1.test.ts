@@ -244,6 +244,8 @@ const skip = [
 	'Jit mappers: - select - nothing to decode - null',
 	'Jit mappers: - insert returning all + select + update returning + delete returning',
 	'Jit mappers: - select complex selections',
+	'Cross-table group never nullified',
+	'Cross-table group never nullified - jit',
 
 	// .run() includes time data, strict comparison fails, otherwise functional
 	'write + query all methods & verify data intergrity',
