@@ -48,8 +48,15 @@ export function mapResultRow<TResult>(
 						if (!(objectName in nullifyMap)) {
 							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
 						} else if (
-							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
+							typeof nullifyMap[objectName] === 'string'
+							&& (nullifyMap[objectName] !== getTableName(field.table) || value !== null)
 						) {
+							// Cancel the nullify candidacy for this nested object as soon as we see either a field
+							// from a different table (mixed-table nested object, can't collapse it this way), or a
+							// non-null value for a field belonging to the same table we were tracking. Without the
+							// `value !== null` check, a nested object whose first-encountered field happens to be
+							// null but whose later fields are non-null (a real matched joined row, just with a null
+							// value in its first selected column) would incorrectly collapse to `null`.
 							nullifyMap[objectName] = false;
 						}
 					}
