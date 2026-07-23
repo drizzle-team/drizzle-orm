@@ -766,6 +766,7 @@ export const relationsToTypeScript = (
 						onDelete?: string | undefined;
 					}
 				>;
+				uniqueConstraints?: Record<string, string[]>;
 			}
 		>;
 	},
@@ -821,9 +822,15 @@ export const relationsToTypeScript = (
 				tableRelations[keyTo] = [];
 			}
 
+			// Check if the FK column has a unique constraint (one-to-one relationship)
+			const tableUniqueConstraints = table.uniqueConstraints || {};
+			const hasUniqueConstraint = Object.values(tableUniqueConstraints).some(
+				(uniqueCols) => uniqueCols.length === 1 && uniqueCols[0] === fk.columnsFrom[0],
+			);
+
 			tableRelations[keyTo].push({
-				name: plural(tableFrom),
-				type: 'many',
+				name: hasUniqueConstraint ? singular(tableFrom) : plural(tableFrom),
+				type: hasUniqueConstraint ? 'one' : 'many',
 				tableFrom: tableTo,
 				columnFrom: columnTo,
 				tableTo: tableFrom,
