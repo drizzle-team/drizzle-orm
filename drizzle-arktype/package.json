@@ -68,7 +68,7 @@
 		"drizzle-orm": "link:../drizzle-orm/dist",
 		"json-rules-engine": "7.3.1",
 		"rimraf": "^5.0.0",
-		"rollup": "^3.29.5",
+		"rollup": "^3.30.0",
 		"tsx": "^4.19.3",
 		"vite-tsconfig-paths": "^4.3.2",
 		"vitest": "^3.1.3",
