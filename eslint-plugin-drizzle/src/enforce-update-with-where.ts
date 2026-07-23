@@ -1,11 +1,48 @@
-import { ESLintUtils } from '@typescript-eslint/utils';
+import { ESLintUtils, type TSESTree } from '@typescript-eslint/utils';
 import { resolveMemberExpressionPath } from './utils/ast';
 import { isDrizzleObj, type Options } from './utils/options';
 
 const createRule = ESLintUtils.RuleCreator(() => 'https://github.com/drizzle-team/eslint-plugin-drizzle');
 type MessageIds = 'enforceUpdateWithWhere';
 
-let lastNodeName: string = '';
+/**
+ * Walk upward from a MemberExpression through the chained call pattern
+ * (CallExpression → MemberExpression → CallExpression → …) and return
+ * true if any property in the chain is named `where`.
+ */
+function chainContainsWhere(node: TSESTree.MemberExpression): boolean {
+	let current: TSESTree.Node = node;
+
+	// Walk up through the chain: MemberExpression → CallExpression → MemberExpression → …
+	while (current.parent) {
+		const parent = current.parent;
+
+		// A CallExpression wrapping the current node (e.g. `.set(...)`)
+		if (parent.type === 'CallExpression' && parent.callee === current) {
+			current = parent;
+			continue;
+		}
+
+		// A MemberExpression whose object is the current CallExpression (e.g. `.from(...)` after `.set(...)`)
+		if (parent.type === 'MemberExpression' && parent.object === current) {
+			if (parent.property.type === 'Identifier' && parent.property.name === 'where') {
+				return true;
+			}
+			current = parent;
+			continue;
+		}
+
+		// AwaitExpression wraps the whole chain — keep going
+		if (parent.type === 'AwaitExpression') {
+			current = parent;
+			continue;
+		}
+
+		break;
+	}
+
+	return false;
+}
 
 const updateRule = createRule<Options, MessageIds>({
 	defaultOptions: [{ drizzleObjectName: [] }],
@@ -35,13 +72,13 @@ const updateRule = createRule<Options, MessageIds>({
 			MemberExpression: (node) => {
 				if (node.property.type === 'Identifier') {
 					if (
-						lastNodeName !== 'where'
-						&& node.property.name === 'set'
+						node.property.name === 'set'
 						&& node.object.type === 'CallExpression'
 						&& node.object.callee.type === 'MemberExpression'
 						&& node.object.callee.property.type === 'Identifier'
 						&& node.object.callee.property.name === 'update'
 						&& isDrizzleObj(node.object.callee, options)
+						&& !chainContainsWhere(node)
 					) {
 						context.report({
 							node,
@@ -51,7 +88,6 @@ const updateRule = createRule<Options, MessageIds>({
 							},
 						});
 					}
-					lastNodeName = node.property.name;
 				}
 				return;
 			},

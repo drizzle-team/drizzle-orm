@@ -18,6 +18,13 @@ ruleTester.run('enforce update with where (default options)', myRule, {
       .update()
       .set()
       .where()`,
+		// .from() before .where() should not be a false positive
+		`db
+      .update()
+      .set()
+      .from()
+      .where()`,
+		'const a = db.update({}).set({}).from(sql).where(eq(a, b));',
 		`dataSource
       .update()
       .set()
