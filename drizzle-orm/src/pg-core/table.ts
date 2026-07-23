@@ -7,6 +7,7 @@ import type { ExtraConfigColumn, PgColumn, PgColumnBuilder, PgColumnBuilderBase 
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
 import type { PgPolicy } from './policies.ts';
+import type { PgTrigger } from './triggers.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
 import type { UniqueConstraintBuilder } from './unique-constraint.ts';
 
@@ -16,7 +17,8 @@ export type PgTableExtraConfigValue =
 	| ForeignKeyBuilder
 	| PrimaryKeyBuilder
 	| UniqueConstraintBuilder
-	| PgPolicy;
+	| PgPolicy
+	| PgTrigger;
 
 export type PgTableExtraConfig = Record<
 	string,
