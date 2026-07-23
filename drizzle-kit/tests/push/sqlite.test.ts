@@ -16,7 +16,7 @@ import {
 	text,
 	uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
-import { diffTestSchemasPushSqlite, introspectSQLiteToFile } from 'tests/schemaDiffer';
+import { diffTestSchemasPushSqlite } from 'tests/schemaDiffer';
 import { expect, test } from 'vitest';
 
 test('nothing changed in schema', async (t) => {
@@ -1610,4 +1610,327 @@ test('rename table with composite primary key', async () => {
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `products_categories` RENAME TO `products_to_categories`;',
 	]);
+});
+
+test('recreating parent table with cascade FK wipes child rows (regression)', async () => {
+	const client = new Database(':memory:');
+	client.exec('PRAGMA foreign_keys=ON;');
+
+	const schema1 = (() => {
+		const account = sqliteTable('account', {
+			id: integer('account_id').primaryKey(),
+			name: text('name'),
+		});
+
+		const property = sqliteTable('property', {
+			id: integer('property_id').primaryKey(),
+			accountId: integer('account_id').references(() => account.id, {
+				onDelete: 'cascade',
+			}),
+		});
+
+		return { account, property };
+	})();
+
+	const schema2 = (() => {
+		const account = sqliteTable('account', {
+			id: integer('account_id').primaryKey(),
+			// change column type to force table recreation
+			name: integer('name'),
+		});
+
+		const property = sqliteTable('property', {
+			id: integer('property_id').primaryKey(),
+			accountId: integer('account_id').references(() => account.id, {
+				onDelete: 'cascade',
+			}),
+		});
+
+		return { account, property };
+	})();
+
+	const { sqlStatements } = await diffTestSchemasPushSqlite(
+		client,
+		schema1,
+		schema2,
+		[],
+	);
+
+	// seed data referencing the parent row
+	client.prepare('INSERT INTO account (account_id, name) VALUES (?, ?)').run(1, 'Alice');
+	client.prepare('INSERT INTO property (property_id, account_id) VALUES (?, ?)').run(1, 1);
+
+	// Cloudflare D1 keeps foreign_keys enforcement ON and ignores PRAGMA foreign_keys=OFF.
+	// Simulate that by applying the generated migration without the FK toggles.
+	const migrationStatements = sqlStatements.filter(
+		(st) => !st.toLowerCase().startsWith('pragma foreign_keys'),
+	);
+
+	for (const statement of migrationStatements) {
+		client.exec(statement);
+	}
+
+	const remainingChildRows = (client
+		.prepare('SELECT count(*) as cnt FROM property')
+		.get() as { cnt: number }).cnt;
+
+	// Expected: child rows survive a parent table recreation
+	expect(remainingChildRows).toBe(1);
+});
+
+test('recreating parent table cascades through multiple levels (regression)', async () => {
+	const client = new Database(':memory:');
+	client.exec('PRAGMA foreign_keys=ON;');
+
+	const schema1 = (() => {
+		const account = sqliteTable('account', {
+			id: integer('account_id').primaryKey(),
+			name: text('name'),
+		});
+
+		const property = sqliteTable('property', {
+			id: integer('property_id').primaryKey(),
+			accountId: integer('account_id').references(() => account.id, {
+				onDelete: 'cascade',
+			}),
+		});
+
+		const lease = sqliteTable('lease', {
+			id: integer('lease_id').primaryKey(),
+			propertyId: integer('property_id').references(() => property.id, {
+				onDelete: 'cascade',
+			}),
+		});
+
+		return { account, property, lease };
+	})();
+
+	const schema2 = (() => {
+		const account = sqliteTable('account', {
+			id: integer('account_id').primaryKey(),
+			// change column type to force table recreation
+			name: integer('name'),
+		});
+
+		const property = sqliteTable('property', {
+			id: integer('property_id').primaryKey(),
+			accountId: integer('account_id').references(() => account.id, {
+				onDelete: 'cascade',
+			}),
+		});
+
+		const lease = sqliteTable('lease', {
+			id: integer('lease_id').primaryKey(),
+			propertyId: integer('property_id').references(() => property.id, {
+				onDelete: 'cascade',
+			}),
+		});
+
+		return { account, property, lease };
+	})();
+
+	const { sqlStatements } = await diffTestSchemasPushSqlite(
+		client,
+		schema1,
+		schema2,
+		[],
+	);
+
+	// seed data across three levels
+	client.prepare('INSERT INTO account (account_id, name) VALUES (?, ?)').run(1, 'Alice');
+	client.prepare('INSERT INTO property (property_id, account_id) VALUES (?, ?)').run(1, 1);
+	client.prepare('INSERT INTO lease (lease_id, property_id) VALUES (?, ?)').run(1, 1);
+
+	// Apply migration with foreign keys effectively always ON (D1 behaviour)
+	const migrationStatements = sqlStatements.filter(
+		(st) => !st.toLowerCase().startsWith('pragma foreign_keys'),
+	);
+	for (const statement of migrationStatements) {
+		client.exec(statement);
+	}
+
+	const remainingProperties = (client
+		.prepare('SELECT count(*) as cnt FROM property')
+		.get() as { cnt: number }).cnt;
+	const remainingLeases = (client.prepare('SELECT count(*) as cnt FROM lease').get() as {
+		cnt: number;
+	}).cnt;
+
+	// Expected: downstream children survive the parent table recreation
+	expect(remainingProperties).toBe(1);
+	expect(remainingLeases).toBe(1);
+});
+
+test('recreating parent table with multiple entry points and fan-out preserves dependents', async () => {
+	const client = new Database(':memory:');
+	client.exec('PRAGMA foreign_keys=ON;');
+
+	const schema1 = (() => {
+		const account = sqliteTable('account', {
+			id: integer('account_id').primaryKey(),
+			name: text('name'),
+		});
+
+		const organization = sqliteTable('organization', {
+			id: integer('org_id').primaryKey(),
+			name: text('name'),
+		});
+
+		const project = sqliteTable(
+			'project',
+			{
+				id: integer('project_id').primaryKey(),
+				accountId: integer('account_id').references(() => account.id, {
+					onDelete: 'cascade',
+				}),
+				orgId: integer('org_id').references(() => organization.id, {
+					onDelete: 'cascade',
+				}),
+				title: text('title'),
+			},
+			(table) => ({
+				idx: uniqueIndex('project_account_org').on(table.accountId, table.orgId),
+			}),
+		);
+
+		const task = sqliteTable(
+			'task',
+			{
+				id: integer('task_id').primaryKey(),
+				projectId: integer('project_id').references(() => project.id, {
+					onDelete: 'cascade',
+				}),
+				summary: text('summary'),
+			},
+			(table) => ({
+				idx: uniqueIndex('task_proj_summary').on(table.projectId, table.summary),
+			}),
+		);
+
+		const attachment = sqliteTable('attachment', {
+			id: integer('attachment_id').primaryKey(),
+			taskId: integer('task_id').references(() => task.id, { onDelete: 'cascade' }),
+			projectId: integer('project_id').references(() => project.id, { onDelete: 'cascade' }),
+		});
+
+		const tag = sqliteTable('tag', {
+			id: integer('tag_id').primaryKey(),
+			projectId: integer('project_id').references(() => project.id, { onDelete: 'cascade' }),
+			label: text('label'),
+		});
+
+		const comment = sqliteTable('comment', {
+			id: integer('comment_id').primaryKey(),
+			taskId: integer('task_id').references(() => task.id, { onDelete: 'cascade' }),
+			body: text('body'),
+		});
+
+		return { account, organization, project, task, attachment, tag, comment };
+	})();
+
+	const schema2 = (() => {
+		const account = sqliteTable('account', {
+			id: integer('account_id').primaryKey(),
+			// force recreation by changing type
+			name: integer('name'),
+		});
+
+		const organization = sqliteTable('organization', {
+			id: integer('org_id').primaryKey(),
+			name: text('name'),
+		});
+
+		const project = sqliteTable(
+			'project',
+			{
+				id: integer('project_id').primaryKey(),
+				accountId: integer('account_id').references(() => account.id, {
+					onDelete: 'cascade',
+				}),
+				orgId: integer('org_id').references(() => organization.id, {
+					onDelete: 'cascade',
+				}),
+				title: text('title'),
+			},
+			(table) => ({
+				idx: uniqueIndex('project_account_org').on(table.accountId, table.orgId),
+			}),
+		);
+
+		const task = sqliteTable(
+			'task',
+			{
+				id: integer('task_id').primaryKey(),
+				projectId: integer('project_id').references(() => project.id, {
+					onDelete: 'cascade',
+				}),
+				summary: text('summary'),
+			},
+			(table) => ({
+				idx: uniqueIndex('task_proj_summary').on(table.projectId, table.summary),
+			}),
+		);
+
+		const attachment = sqliteTable('attachment', {
+			id: integer('attachment_id').primaryKey(),
+			taskId: integer('task_id').references(() => task.id, { onDelete: 'cascade' }),
+			projectId: integer('project_id').references(() => project.id, { onDelete: 'cascade' }),
+		});
+
+		const tag = sqliteTable('tag', {
+			id: integer('tag_id').primaryKey(),
+			projectId: integer('project_id').references(() => project.id, { onDelete: 'cascade' }),
+			label: text('label'),
+		});
+
+		const comment = sqliteTable('comment', {
+			id: integer('comment_id').primaryKey(),
+			taskId: integer('task_id').references(() => task.id, { onDelete: 'cascade' }),
+			body: text('body'),
+		});
+
+		return { account, organization, project, task, attachment, tag, comment };
+	})();
+
+	const { sqlStatements } = await diffTestSchemasPushSqlite(
+		client,
+		schema1,
+		schema2,
+		[],
+	);
+
+	client.prepare('INSERT INTO account (account_id, name) VALUES (?, ?)').run(1, 'Alice');
+	client.prepare('INSERT INTO organization (org_id, name) VALUES (?, ?)').run(10, 'Org');
+	client
+		.prepare('INSERT INTO project (project_id, account_id, org_id, title) VALUES (?, ?, ?, ?)')
+		.run(100, 1, 10, 'P1');
+	client
+		.prepare('INSERT INTO task (task_id, project_id, summary) VALUES (?, ?, ?)')
+		.run(200, 100, 'Task');
+	client
+		.prepare('INSERT INTO attachment (attachment_id, task_id, project_id) VALUES (?, ?, ?)')
+		.run(300, 200, 100);
+	client.prepare('INSERT INTO tag (tag_id, project_id, label) VALUES (?, ?, ?)').run(400, 100, 'tag');
+	client.prepare('INSERT INTO comment (comment_id, task_id, body) VALUES (?, ?, ?)').run(500, 200, 'c');
+
+	const migrationStatements = sqlStatements.filter(
+		(st) => !st.toLowerCase().startsWith('pragma foreign_keys'),
+	);
+	for (const statement of migrationStatements) {
+		client.exec(statement);
+	}
+
+	const counts = {
+		project: client.prepare('SELECT count(*) as c FROM project').get() as { c: number },
+		task: client.prepare('SELECT count(*) as c FROM task').get() as { c: number },
+		attachment: client.prepare('SELECT count(*) as c FROM attachment').get() as { c: number },
+		tag: client.prepare('SELECT count(*) as c FROM tag').get() as { c: number },
+		comment: client.prepare('SELECT count(*) as c FROM comment').get() as { c: number },
+	};
+
+	expect(counts.project.c).toBe(1);
+	expect(counts.task.c).toBe(1);
+	expect(counts.attachment.c).toBe(1);
+	expect(counts.tag.c).toBe(1);
+	expect(counts.comment.c).toBe(1);
 });
