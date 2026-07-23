@@ -36,7 +36,10 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import fs from 'fs';
-import { introspectPgToFile } from 'tests/schemaDiffer';
+import { relationsToTypeScript } from 'src/cli/commands/introspect';
+import { schemaToTypeScript } from 'src/introspect-pg';
+import { fromDatabase } from 'src/serializer/pgSerializer';
+import { applyPgDiffs, introspectPgToFile } from 'tests/schemaDiffer';
 import { expect, test } from 'vitest';
 
 if (!fs.existsSync('tests/introspect/postgres')) {
@@ -925,4 +928,96 @@ test('multiple policies with roles from schema', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect FK to Supabase auth.users references authUsers from drizzle-orm/supabase', async () => {
+	const client = new PGlite();
+
+	// Supabase-shaped schema: an `auth` schema with `auth.users`, and a public table with a FK
+	// into `auth.users(id)`.
+	const auth = pgSchema('auth');
+	const authUsers = auth.table('users', {
+		id: uuid('id').primaryKey().notNull(),
+	});
+	const profiles = pgTable('profiles', {
+		id: uuid('id').primaryKey().notNull(),
+		userId: uuid('user_id')
+			.notNull()
+			.references(() => authUsers.id),
+	});
+
+	// Seed the auth schema + auth.users so the FK can be created...
+	const { sqlStatements } = await applyPgDiffs({ auth, authUsers, profiles }, undefined);
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+
+	// ...then pull ONLY the `public` schema, mirroring the real Supabase workflow where the
+	// `auth` schema is managed by Supabase and excluded from the schema filter.
+	const introspected = await fromDatabase(
+		{
+			query: async (query: string, values?: any[] | undefined) => {
+				const res = await client.query(query, values);
+				return res.rows as any[];
+			},
+		},
+		undefined,
+		['public'],
+	);
+
+	const { file } = schemaToTypeScript(introspected, 'camel');
+
+	// The FK must reference the shipped `authUsers` table, imported from drizzle-orm/supabase,
+	// instead of the undeclared local `users` reference produced from the un-introspected
+	// `auth` schema.
+	expect(file).toContain('import { authUsers } from "drizzle-orm/supabase"');
+	expect(file).toContain('foreignColumns: [authUsers.id]');
+	expect(file).not.toContain('foreignColumns: [users.id]');
+
+	// relations.ts is written by a separate emitter and must reference the same `authUsers` import,
+	// not a `usersInAuth` name from "./schema" that the fixed schema.ts no longer declares.
+	const { file: relationsFile } = relationsToTypeScript(introspected, 'camel');
+	expect(relationsFile).toContain('import { authUsers } from "drizzle-orm/supabase"');
+	expect(relationsFile).not.toContain('usersInAuth');
+});
+
+test('introspect FK to auth.users from a local table also named "users" is not treated as a self-reference', async () => {
+	const client = new PGlite();
+
+	// Common Supabase pattern: a local `public.users` mirror table whose id FKs into `auth.users`.
+	// The referencing table is itself named `users`, so a name-only self-FK check would wrongly
+	// emit `foreignColumns: [table.id]`; the FK must still resolve to the shipped `authUsers`.
+	const auth = pgSchema('auth');
+	const authUsers = auth.table('users', {
+		id: uuid('id').primaryKey().notNull(),
+	});
+	const publicUsers = pgTable('users', {
+		id: uuid('id')
+			.primaryKey()
+			.notNull()
+			.references(() => authUsers.id),
+	});
+
+	const { sqlStatements } = await applyPgDiffs({ auth, authUsers, publicUsers }, undefined);
+	for (const st of sqlStatements) {
+		await client.query(st);
+	}
+
+	const introspected = await fromDatabase(
+		{
+			query: async (query: string, values?: any[] | undefined) => {
+				const res = await client.query(query, values);
+				return res.rows as any[];
+			},
+		},
+		undefined,
+		['public'],
+	);
+
+	const { file } = schemaToTypeScript(introspected, 'camel');
+
+	expect(file).toContain('import { authUsers } from "drizzle-orm/supabase"');
+	expect(file).toContain('foreignColumns: [authUsers.id]');
+	// Must NOT collapse to a bogus self-reference just because the local table is named `users`.
+	expect(file).not.toContain('foreignColumns: [table.id]');
 });

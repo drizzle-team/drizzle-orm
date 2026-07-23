@@ -753,6 +753,7 @@ export const relationsToTypeScript = (
 			string,
 			{
 				schema?: string;
+				name?: string;
 				foreignKeys: Record<
 					string,
 					{
@@ -772,6 +773,14 @@ export const relationsToTypeScript = (
 	casing: Casing,
 ) => {
 	const imports: string[] = [];
+	const supabaseImports: string[] = [];
+	// Supabase's `auth.users` is managed externally and usually excluded from `pull`; when it wasn't
+	// introspected, a FK into it must reference the shipped `authUsers` from `drizzle-orm/supabase`
+	// rather than a `./schema` import that won't exist. (If the user did introspect `auth`, the normal
+	// local reference is kept.)
+	const supabaseAuthUsers = !Object.values(schema.tables).some(
+		(t) => t.schema === 'auth' && t.name === 'users',
+	);
 	const tableRelations: Record<
 		string,
 		{
@@ -789,14 +798,16 @@ export const relationsToTypeScript = (
 
 	Object.values(schema.tables).forEach((table) => {
 		Object.values(table.foreignKeys).forEach((fk) => {
+			const fkToSupabaseAuthUsers = supabaseAuthUsers && fk.schemaTo === 'auth' && fk.tableTo === 'users';
 			const tableNameFrom = paramNameFor(fk.tableFrom, table.schema);
 			const tableNameTo = paramNameFor(fk.tableTo, fk.schemaTo);
 			const tableFrom = withCasing(tableNameFrom.replace(/:+/g, ''), casing);
-			const tableTo = withCasing(tableNameTo.replace(/:+/g, ''), casing);
+			const tableTo = fkToSupabaseAuthUsers ? 'authUsers' : withCasing(tableNameTo.replace(/:+/g, ''), casing);
 			const columnFrom = withCasing(fk.columnsFrom[0], casing);
 			const columnTo = withCasing(fk.columnsTo[0], casing);
 
-			imports.push(tableTo, tableFrom);
+			imports.push(tableFrom);
+			(fkToSupabaseAuthUsers ? supabaseImports : imports).push(tableTo);
 
 			// const keyFrom = `${schemaFrom}.${tableFrom}`;
 			const keyFrom = tableFrom;
@@ -833,12 +844,17 @@ export const relationsToTypeScript = (
 	});
 
 	const uniqueImports = [...new Set(imports)];
+	const uniqueSupabaseImports = [...new Set(supabaseImports)];
 
 	const importsTs = `import { relations } from "drizzle-orm/relations";\nimport { ${
 		uniqueImports.join(
 			', ',
 		)
-	} } from "./schema";\n\n`;
+	} } from "./schema";\n${
+		uniqueSupabaseImports.length > 0
+			? `import { ${uniqueSupabaseImports.join(', ')} } from "drizzle-orm/supabase";\n`
+			: ''
+	}\n`;
 
 	const relationStatements = Object.entries(tableRelations).map(
 		([table, relations]) => {
