@@ -19,7 +19,7 @@ export type GetZodType<
 	: TColumn['_']['columnType'] extends 'PgGeometry' | 'PgPointTuple' ? z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>
 	: TColumn['_']['columnType'] extends 'PgLine' ? z.ZodTuple<[z.ZodNumber, z.ZodNumber, z.ZodNumber], null>
 	: TColumn['_']['data'] extends Date ? CanCoerce<TCoerce, 'date'> extends true ? z.coerce.ZodCoercedDate : z.ZodDate
-	: TColumn['_']['data'] extends Buffer ? z.ZodType<Buffer>
+	: TColumn['_']['dataType'] extends 'buffer' ? z.ZodType<Buffer>
 	: TColumn['_']['dataType'] extends 'array'
 		? z.ZodArray<GetZodPrimitiveType<Assume<TColumn['_']['data'], any[]>[number], '', TCoerce>>
 	: TColumn['_']['data'] extends Record<string, any>
