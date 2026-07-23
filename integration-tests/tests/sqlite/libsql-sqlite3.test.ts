@@ -85,6 +85,39 @@ test('migrator : migrate with custom table', async () => {
 	await db.run(sql`drop table ${sql.identifier(customTable)}`);
 });
 
+test('migrator: migrations table has correct schema for SQLite', async () => {
+	await db.run(sql`drop table if exists another_users`);
+	await db.run(sql`drop table if exists users12`);
+	await db.run(sql`drop table if exists __drizzle_migrations`);
+
+	await migrate(db, { migrationsFolder: './drizzle2/sqlite' });
+
+	// Verify the __drizzle_migrations table uses proper SQLite syntax
+	// The id column should be "integer PRIMARY KEY" (which auto-increments in SQLite),
+	// not "SERIAL PRIMARY KEY" (which is PostgreSQL syntax)
+	const tableInfo = await db.all<{ cid: number; name: string; type: string; notnull: number; pk: number }>(
+		sql`PRAGMA table_info(__drizzle_migrations)`,
+	);
+
+	const idColumn = tableInfo.find((col: { name: string }) => col.name === 'id');
+	expect(idColumn).toBeDefined();
+	// In SQLite, the type should be "integer" (case-insensitive) for proper auto-increment behavior
+	// "SERIAL" is PostgreSQL syntax and should not be used
+	expect(idColumn!.type.toLowerCase()).toBe('integer');
+	expect(idColumn!.pk).toBe(1);
+
+	// Verify migration hashes are computed (not empty)
+	const migrationRows = await db.all<{ hash: string }>(sql`SELECT hash FROM __drizzle_migrations`);
+	expect(migrationRows.length).toBeGreaterThan(0);
+	for (const row of migrationRows) {
+		expect(row.hash).toHaveLength(64); // SHA-256 hex = 64 chars
+	}
+
+	await db.run(sql`drop table another_users`);
+	await db.run(sql`drop table users12`);
+	await db.run(sql`drop table __drizzle_migrations`);
+});
+
 skipTests([
 	'delete with limit and order by',
 	'update with limit and order by',
