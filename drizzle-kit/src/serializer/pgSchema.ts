@@ -338,6 +338,7 @@ const table = object({
 	policies: record(string(), policy).default({}),
 	checkConstraints: record(string(), checkConstraint).default({}),
 	isRLSEnabled: boolean().default(false),
+	isForceRLSEnabled: boolean().default(false),
 }).strict();
 
 const schemaHash = object({
@@ -463,6 +464,7 @@ const tableSquashed = object({
 	policies: record(string(), string()),
 	checkConstraints: record(string(), string()),
 	isRLSEnabled: boolean().default(false),
+	isForceRLSEnabled: boolean().default(false),
 }).strict();
 
 const tableSquashedV4 = object({
@@ -822,6 +824,7 @@ export const squashPgScheme = (
 					policies: squashedPolicies,
 					checkConstraints: squashedChecksContraints,
 					isRLSEnabled: it[1].isRLSEnabled ?? false,
+					isForceRLSEnabled: it[1].isForceRLSEnabled ?? false,
 				},
 			];
 		}),
