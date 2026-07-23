@@ -157,6 +157,52 @@ test('[Find Many] Get users with posts', () => {
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4169
+// https://github.com/drizzle-team/drizzle-orm/issues/4836
+// A `$count(otherTable, <filter>)` used as an `extras` value must keep the filter's own
+// table qualifiers. Previously every column in the nested filter — including columns of
+// other tables — was rewritten to the root query's alias, producing a reference to a
+// column that doesn't exist (`users.owner_id`) and throwing at execution time.
+test('[Find Many] $count with filter in extras keeps the foreign table qualifier', () => {
+	db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]).run();
+
+	db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1.1' },
+		{ ownerId: 1, content: 'Post1.2' },
+		{ ownerId: 2, content: 'Post2.1' },
+	]).run();
+
+	const query = db.query.usersTable.findMany({
+		columns: { id: true, name: true },
+		extras: {
+			postsCount: db.$count(postsTable, eq(postsTable.ownerId, usersTable.id)).as('posts_count'),
+		},
+	});
+
+	// The nested `$count` filter must reference `posts.owner_id`, not `users.owner_id`.
+	const { sql: generatedSql } = query.toSQL();
+	expect(generatedSql).toContain('"posts"."owner_id"');
+	expect(generatedSql).not.toContain('"users"."owner_id"');
+
+	const usersWithPostsCount = query.sync().sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expectTypeOf(usersWithPostsCount).toEqualTypeOf<{
+		id: number;
+		name: string;
+		postsCount: number;
+	}[]>();
+
+	expect(usersWithPostsCount).toEqual([
+		{ id: 1, name: 'Dan', postsCount: 2 },
+		{ id: 2, name: 'Andrew', postsCount: 1 },
+		{ id: 3, name: 'Alex', postsCount: 0 },
+	]);
+});
+
 test('[Find Many] Get users with posts + limit posts', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },
