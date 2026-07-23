@@ -86,6 +86,11 @@ export class PgBigInt64<T extends ColumnBaseConfig<'bigint', 'PgBigInt64'>> exte
 
 	// eslint-disable-next-line unicorn/prefer-native-coercion-functions
 	override mapFromDriverValue(value: string): bigint {
+		if (typeof value === 'number') {
+			throw new Error(
+				`PgBigInt64:mapFromDriverValue(value: string) received number instead of string, meaning precision was lost.`,
+			);
+		}
 		return BigInt(value);
 	}
 }
