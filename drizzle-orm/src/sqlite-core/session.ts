@@ -118,31 +118,42 @@ export abstract class SQLitePreparedQuery<T extends PreparedQueryConfig> impleme
 		}
 
 		if (this.queryMetadata.type === 'select') {
-			const fromCache = await this.cache.get(
-				this.cacheConfig.tag ?? await hashQuery(queryString, params),
+			const cache = this.cache;
+			const cacheConfig = this.cacheConfig;
+			const isTag = cacheConfig.tag !== undefined;
+			const cacheKey = cacheConfig.tag ?? await hashQuery(queryString, params);
+			const fromCache = await cache.get(
+				cacheKey,
 				this.queryMetadata.tables,
-				this.cacheConfig.tag !== undefined,
-				this.cacheConfig.autoInvalidate,
+				isTag,
+				cacheConfig.autoInvalidate,
 			);
 			if (fromCache === undefined) {
-				let result;
-				try {
-					result = await query();
-				} catch (e) {
-					throw new DrizzleQueryError(queryString, params, e as Error);
+				const inflight = cache.inFlightQueries.get(cacheKey);
+				if (inflight !== undefined) {
+					return inflight as Promise<T>;
 				}
-
-				// put actual key
-				await this.cache.put(
-					this.cacheConfig.tag ?? await hashQuery(queryString, params),
-					result,
-					// make sure we send tables that were used in a query only if user wants to invalidate it on each write
-					this.cacheConfig.autoInvalidate ? this.queryMetadata.tables : [],
-					this.cacheConfig.tag !== undefined,
-					this.cacheConfig.config,
-				);
-				// put flag if we should invalidate or not
-				return result;
+				const tablesForInvalidation = cacheConfig.autoInvalidate ? this.queryMetadata.tables : [];
+				const promise = (async () => {
+					let result: T;
+					try {
+						result = await query();
+					} catch (e) {
+						throw new DrizzleQueryError(queryString, params, e as Error);
+					}
+					await cache.put(
+						cacheKey,
+						result,
+						tablesForInvalidation,
+						isTag,
+						cacheConfig.config,
+					);
+					return result;
+				})().finally(() => {
+					cache.inFlightQueries.delete(cacheKey);
+				});
+				cache.inFlightQueries.set(cacheKey, promise);
+				return promise;
 			}
 
 			return fromCache as unknown as T;
