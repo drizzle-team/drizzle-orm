@@ -25,6 +25,8 @@ export type TableConfig = TableConfigBase<SQLiteColumn<any>>;
 
 /** @internal */
 export const InlineForeignKeys = Symbol.for('drizzle:SQLiteInlineForeignKeys');
+/** @internal */
+export const Strict = Symbol.for('drizzle:SQLiteStrict');
 
 export class SQLiteTable<T extends TableConfig = TableConfig> extends Table<T> {
 	static override readonly [entityKind]: string = 'SQLiteTable';
@@ -32,6 +34,7 @@ export class SQLiteTable<T extends TableConfig = TableConfig> extends Table<T> {
 	/** @internal */
 	static override readonly Symbol = Object.assign({}, Table.Symbol, {
 		InlineForeignKeys: InlineForeignKeys as typeof InlineForeignKeys,
+		Strict: Strict as typeof Strict,
 	});
 
 	/** @internal */
@@ -39,6 +42,9 @@ export class SQLiteTable<T extends TableConfig = TableConfig> extends Table<T> {
 
 	/** @internal */
 	[InlineForeignKeys]: ForeignKey[] = [];
+
+	/** @internal */
+	[Strict]: boolean = false;
 
 	/** @internal */
 	override [Table.Symbol.ExtraConfigBuilder]:
@@ -54,7 +60,8 @@ export type SQLiteTableWithColumns<T extends TableConfig> =
 	& SQLiteTable<T>
 	& {
 		[Key in keyof T['columns']]: T['columns'][Key];
-	};
+	}
+	& { strict: () => Omit<SQLiteTableWithColumns<T>, 'strict'> };
 
 export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 	<
@@ -213,7 +220,17 @@ function sqliteTableBase<
 		) => SQLiteTableExtraConfig;
 	}
 
-	return table;
+	return Object.assign(table, {
+		strict: () => {
+			table[SQLiteTable.Symbol.Strict] = true;
+			return table as SQLiteTableWithColumns<{
+				name: TTableName;
+				schema: TSchema;
+				columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
+				dialect: 'sqlite';
+			}>;
+		},
+	});
 }
 
 export const sqliteTable: SQLiteTableFn = (name, columns, extraConfig) => {

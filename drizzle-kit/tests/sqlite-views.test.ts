@@ -29,6 +29,7 @@ test('create view', async () => {
 		uniqueConstraints: [],
 		referenceData: [],
 		checkConstraints: [],
+		isStrict: false,
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'sqlite_create_view',
