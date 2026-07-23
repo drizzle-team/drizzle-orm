@@ -317,7 +317,7 @@ export const generatePgSnapshot = (
 
 			uniqueConstraintObject[name] = {
 				name: unq.name!,
-				nullsNotDistinct: unq.nullsNotDistinct,
+				nullsNotDistinct: unq.nullsNotDistinct ?? false,
 				columns: columnNames,
 			};
 		});
