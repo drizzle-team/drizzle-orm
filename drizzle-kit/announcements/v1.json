@@ -1,0 +1,16 @@
+{
+	"disabled": false,
+	"entries": [
+		{
+			"id": "rc-nudge-0x",
+			"range": ">=0.31.11 <1.0.0-0",
+			"template": "new-version",
+			"data": {
+				"package": "drizzle-kit",
+				"tag": "rc",
+				"version": "1.0.0-rc.4"
+			},
+			"message": "Upgrade to the 1.0 release candidate line — install drizzle-orm@rc alongside drizzle-kit@rc."
+		}
+	]
+}
