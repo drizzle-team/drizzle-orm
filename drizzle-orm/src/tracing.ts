@@ -4,13 +4,14 @@ import { npmVersion } from '~/version.ts';
 
 let otel: typeof import('@opentelemetry/api') | undefined;
 let rawTracer: Tracer | undefined;
-// try {
-// 	otel = await import('@opentelemetry/api');
-// } catch (err: any) {
-// 	if (err.code !== 'MODULE_NOT_FOUND' && err.code !== 'ERR_MODULE_NOT_FOUND') {
-// 		throw err;
-// 	}
-// }
+
+// Dynamically import OpenTelemetry API to avoid requiring it at build time.
+// This allows the library to be used without OpenTelemetry installed, while still providing tracing capabilities if it is available.
+import('@opentelemetry/api').then(o => otel = o).catch(err => {
+	if (err.code !== 'MODULE_NOT_FOUND' && err.code !== 'ERR_MODULE_NOT_FOUND') {
+		console.error("unable to load '@opentelemetry/api' module, tracing will not be available", err);
+	}
+});
 
 type SpanName =
 	| 'drizzle.operation'
