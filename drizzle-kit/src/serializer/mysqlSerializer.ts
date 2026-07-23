@@ -34,9 +34,13 @@ export const indexName = (tableName: string, columns: string[]) => {
 };
 
 const handleEnumType = (type: string) => {
-	let str = type.split('(')[1];
-	str = str.substring(0, str.length - 1);
-	const values = str.split(',').map((v) => `'${escapeSingleQuotes(v.substring(1, v.length - 1))}'`);
+	// Values are raw strings wrapped in single quotes and joined by commas (see
+	// MySqlEnumColumn.getSQLType), so a single value may itself contain a comma.
+	// Take the content between the first '(' and last ')', strip the outer quotes,
+	// and split on the "','" delimiter between values rather than on every comma.
+	const body = type.substring(type.indexOf('(') + 1, type.lastIndexOf(')'));
+	const inner = body.substring(1, body.length - 1);
+	const values = inner.split("','").map((v) => `'${escapeSingleQuotes(v)}'`);
 	return `enum(${values.join(',')})`;
 };
 
