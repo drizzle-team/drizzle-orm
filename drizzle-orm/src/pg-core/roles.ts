@@ -12,11 +12,8 @@ export class PgRole implements PgRoleConfig {
 	/** @internal */
 	_existing?: boolean;
 
-	/** @internal */
 	readonly createDb: PgRoleConfig['createDb'];
-	/** @internal */
 	readonly createRole: PgRoleConfig['createRole'];
-	/** @internal */
 	readonly inherit: PgRoleConfig['inherit'];
 
 	constructor(
