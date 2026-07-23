@@ -387,6 +387,8 @@ const allOperators = db
 		ne(users.id, 1),
 		or(eq(users.id, 1), ne(users.id, 1)),
 		not(eq(users.id, 1)),
+		not(and(eq(users.id, 1), ne(users.id, 1))),
+		not(or(eq(users.id, 1), ne(users.id, 1))),
 		gt(users.id, 1),
 		gte(users.id, 1),
 		lt(users.id, 1),

@@ -166,16 +166,25 @@ export function or(
 /**
  * Negate the meaning of an expression using the `not` keyword.
  *
+ * A condition that is equal to `undefined` is passed through as `undefined`,
+ * so `not` composes with `and`/`or`, which may return `undefined`.
+ *
  * ## Examples
  *
  * ```ts
  * // Select cars _not_ made by GM or Ford.
  * db.select().from(cars)
  *   .where(not(inArray(cars.make, ['GM', 'Ford'])))
+ *
+ * // Composes with `and`/`or`, which can return `undefined`.
+ * db.select().from(cars)
+ *   .where(not(and(eq(cars.make, 'GM'), eq(cars.year, 1950))))
  * ```
  */
-export function not(condition: SQLWrapper): SQL {
-	return sql`not ${condition}`;
+export function not(condition: SQLWrapper): SQL;
+export function not(condition: SQLWrapper | undefined): SQL | undefined;
+export function not(condition: SQLWrapper | undefined): SQL | undefined {
+	return condition === undefined ? undefined : sql`not ${condition}`;
 }
 
 /**
