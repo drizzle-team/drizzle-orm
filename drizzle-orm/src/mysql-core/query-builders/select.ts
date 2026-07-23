@@ -1028,7 +1028,6 @@ export abstract class MySqlSelectQueryBuilderBase<
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildSelectQuery(this.config);
 	}
