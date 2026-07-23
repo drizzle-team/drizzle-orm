@@ -1,6 +1,6 @@
 import type { Column, SelectedFieldsFlat, Table, View } from 'drizzle-orm';
 import type { PgEnum } from 'drizzle-orm/pg-core';
-import type { z } from 'zod/v4';
+import type { z } from 'zod';
 import type { literalSchema } from './column.ts';
 
 export function isColumnType<T extends Column>(column: Column, columnTypes: string[]): column is T {
