@@ -1,5 +1,5 @@
 import Type from 'typebox';
-import type { TNumberOptions, TSchema, TStringOptions } from 'typebox';
+import type { TNumberOptions, TSchema, TStringOptions, TUnsafe } from 'typebox';
 import {
 	type ColumnDataArrayConstraint,
 	type ColumnDataBigIntConstraint,
@@ -13,35 +13,39 @@ import { getTableName } from '~/table.ts';
 import { CONSTANTS } from '../utils.ts';
 import type { JsonSchema } from './column.types.ts';
 
+// Custom TypeBox types below are defined with `Type.Unsafe` + `Type.Refine` instead of the
+// removed `Type.Base` extension mechanism. `Type.Base` was dropped in typebox@1.3.0, which made
+// `import 'drizzle-orm/typebox'` throw `Class extends value undefined` at module load under any
+// module system (see #5981). `Value.Check` honors `Refine` predicates from typebox@1.2.0 onwards
+// (hence the `>=1.2.0` peer requirement). Each type is kept as a class so the public `new TX()`
+// API is preserved; the constructor returns the refined schema and the merged interface keeps the
+// type assignable to `TSchema`.
+
 // oxlint-disable-next-line drizzle-internal/require-entity-kind
-export class TBuffer extends Type.Base<Buffer> {
-	public override Check(value: unknown): value is Buffer {
-		// oxlint-disable-next-line drizzle-internal/no-instanceof
-		return value instanceof Buffer;
-	}
-
-	public override Errors(value: unknown): object[] {
-		return !this.Check(value) ? [{ message: 'not a Buffer' }] : [];
-	}
-
-	public override Clone(): TBuffer {
-		return new TBuffer();
+export interface TBuffer extends TUnsafe<Buffer> {}
+// oxlint-disable-next-line drizzle-internal/require-entity-kind
+export class TBuffer {
+	constructor() {
+		return Type.Refine(
+			Type.Unsafe<Buffer>({ type: 'buffer' }),
+			// oxlint-disable-next-line drizzle-internal/no-instanceof
+			(value): value is Buffer => value instanceof Buffer,
+			() => 'not a Buffer',
+		);
 	}
 }
 
 // oxlint-disable-next-line drizzle-internal/require-entity-kind
-export class TDate extends Type.Base<Date> {
-	public override Check(value: unknown): value is Date {
-		// oxlint-disable-next-line drizzle-internal/no-instanceof
-		return value instanceof Date;
-	}
-
-	public override Errors(value: unknown): object[] {
-		return !this.Check(value) ? [{ message: 'not a Date' }] : [];
-	}
-
-	public override Clone(): TDate {
-		return new TDate();
+export interface TDate extends TUnsafe<Date> {}
+// oxlint-disable-next-line drizzle-internal/require-entity-kind
+export class TDate {
+	constructor() {
+		return Type.Refine(
+			Type.Unsafe<Date>({ type: 'date' }),
+			// oxlint-disable-next-line drizzle-internal/no-instanceof
+			(value): value is Date => value instanceof Date,
+			() => 'not a Date',
+		);
 	}
 }
 
@@ -220,50 +224,50 @@ function numberColumnToSchema(
 }
 
 // oxlint-disable-next-line drizzle-internal/require-entity-kind
-export class TBigIntString extends Type.Base<string> {
-	override Check(value: unknown): value is string {
-		if (typeof value !== 'string' || !(/^-?\d+$/.test(value))) {
-			return false;
-		}
+export interface TBigIntString extends TUnsafe<string> {}
+// oxlint-disable-next-line drizzle-internal/require-entity-kind
+export class TBigIntString {
+	constructor() {
+		return Type.Refine(
+			Type.Unsafe<string>({ type: 'bigint-string' }),
+			(value): value is string => {
+				if (typeof value !== 'string' || !(/^-?\d+$/.test(value))) {
+					return false;
+				}
 
-		const bigint = BigInt(value);
-		if (bigint < CONSTANTS.INT64_MIN || bigint > CONSTANTS.INT64_MAX) {
-			return false;
-		}
+				const bigint = BigInt(value);
+				if (bigint < CONSTANTS.INT64_MIN || bigint > CONSTANTS.INT64_MAX) {
+					return false;
+				}
 
-		return true;
-	}
-
-	public override Errors(value: unknown): object[] {
-		return !this.Check(value) ? [{ message: 'not a bigint string' }] : [];
-	}
-
-	override Clone() {
-		return new TBigIntString();
+				return true;
+			},
+			() => 'not a bigint string',
+		);
 	}
 }
 
 // oxlint-disable-next-line drizzle-internal/require-entity-kind
-export class TUnsignedBigIntString extends Type.Base<string> {
-	override Check(value: unknown): value is string {
-		if (typeof value !== 'string' || !(/^\d+$/.test(value))) {
-			return false;
-		}
+export interface TUnsignedBigIntString extends TUnsafe<string> {}
+// oxlint-disable-next-line drizzle-internal/require-entity-kind
+export class TUnsignedBigIntString {
+	constructor() {
+		return Type.Refine(
+			Type.Unsafe<string>({ type: 'unsigned-bigint-string' }),
+			(value): value is string => {
+				if (typeof value !== 'string' || !(/^\d+$/.test(value))) {
+					return false;
+				}
 
-		const bigint = BigInt(value);
-		if (bigint < 0 || bigint > CONSTANTS.INT64_MAX) {
-			return false;
-		}
+				const bigint = BigInt(value);
+				if (bigint < 0n || bigint > CONSTANTS.INT64_MAX) {
+					return false;
+				}
 
-		return true;
-	}
-
-	public override Errors(value: unknown): object[] {
-		return !this.Check(value) ? [{ message: 'not an unsigned bigint string' }] : [];
-	}
-
-	override Clone() {
-		return new TUnsignedBigIntString();
+				return true;
+			},
+			() => 'not an unsigned bigint string',
+		);
 	}
 }
 
