@@ -82,6 +82,7 @@ import { Expect } from '~/utils';
 import 'zx/globals';
 import { TestCache, TestGlobalCache } from './cache';
 import { createDockerDB } from './createInstance';
+import { tests as onErrorTests } from './gel-on-error';
 
 $.quiet = true;
 
@@ -91,6 +92,8 @@ let client: Client;
 let db: GelJsDatabase;
 let dbGlobalCached: GelJsDatabase;
 let cachedDb: GelJsDatabase;
+const onErrorFn = vi.fn();
+let onErrorDb: GelJsDatabase;
 const tlsSecurity: string = 'insecure';
 let dsn: string;
 let container: Docker.Container | undefined;
@@ -243,6 +246,7 @@ beforeAll(async () => {
 		logger: ENABLE_LOGGING,
 		cache: new TestGlobalCache(),
 	});
+	onErrorDb = drizzle(client, { logger: ENABLE_LOGGING, onError: onErrorFn });
 
 	dsn = connectionString;
 });
@@ -255,6 +259,10 @@ afterAll(async () => {
 beforeEach((ctx) => {
 	ctx.gel = {
 		db,
+	};
+	ctx.onErrorGel = {
+		db: onErrorDb,
+		onError: onErrorFn,
 	};
 	ctx.cachedGel = {
 		db: cachedDb,
@@ -5361,3 +5369,5 @@ describe('some', async () => {
 		expect(db.select().from(sq).getUsedTables()).toStrictEqual(['users']);
 	});
 });
+
+onErrorTests();

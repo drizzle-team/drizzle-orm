@@ -39,8 +39,9 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
+		onError?: (err: import('~/errors.ts').DrizzleQueryError) => void,
 	) {
-		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
+		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig, onError);
 		this.rawQueryConfig = {
 			name,
 			text: queryString,
@@ -196,6 +197,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 export interface NodePgSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (err: import('~/errors.ts').DrizzleQueryError) => void;
 }
 
 export class NodePgSession<
@@ -206,6 +208,7 @@ export class NodePgSession<
 
 	private logger: Logger;
 	private cache: Cache;
+	private onError?: (err: import('~/errors.ts').DrizzleQueryError) => void;
 
 	constructor(
 		private client: NodePgClient,
@@ -216,6 +219,7 @@ export class NodePgSession<
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.onError = options.onError;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -242,6 +246,7 @@ export class NodePgSession<
 			name,
 			isResponseInArrayMode,
 			customResultMapper,
+			this.onError,
 		);
 	}
 
