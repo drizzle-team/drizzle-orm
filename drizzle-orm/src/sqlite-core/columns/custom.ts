@@ -63,6 +63,7 @@ export class SQLiteCustomColumn<T extends ColumnBaseConfig<'custom', 'SQLiteCust
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
+	private selectFromDb?: (column: SQLiteCustomColumn<T>) => SQL;
 
 	constructor(
 		table: AnySQLiteTable<{ name: T['tableName'] }>,
@@ -72,10 +73,16 @@ export class SQLiteCustomColumn<T extends ColumnBaseConfig<'custom', 'SQLiteCust
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
 		this.mapTo = config.customTypeParams.toDriver;
 		this.mapFrom = config.customTypeParams.fromDriver;
+		this.selectFromDb = config.customTypeParams.selectFromDb;
 	}
 
 	getSQLType(): string {
 		return this.sqlName;
+	}
+
+	/** @internal */
+	getSQLSelect(): SQL | undefined {
+		return this.selectFromDb?.(this);
 	}
 
 	override mapFromDriverValue(value: T['driverParam']): T['data'] {
@@ -195,6 +202,11 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	fromDriver?: (value: T['driverData']) => T['data'];
+
+	/**
+	 * Optional function to customize how a column is selected from the database.
+	 */
+	selectFromDb?: (column: SQLiteCustomColumn<any>) => SQL;
 }
 
 /**
