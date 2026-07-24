@@ -134,10 +134,19 @@ export type SchemaError = {
 	column: string;
 };
 
-export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: SchemaError[] } => {
+export const interimToDDL = (
+	interim: InterimSchema,
+	opts?: { from?: 'database' | 'drizzle' },
+): { ddl: MysqlDDL; errors: SchemaError[] } => {
 	const errors = [] as SchemaError[];
 	const ddl = createDDL();
-	const resrtictedUniqueFor = [
+	// A unique index on a TEXT/BLOB column is valid in MySQL when it has a prefix
+	// length, so an existing database can legitimately contain one. Only guard
+	// against it for schemas authored in drizzle ('drizzle'), where a prefix length
+	// can't be expressed; when introspecting a database ('database') the index is
+	// already valid and must not fail the pull. See #6047.
+	const fromDatabase = opts?.from === 'database';
+	const restrictedUniqueFor = [
 		'blob',
 		'tinyblob',
 		'mediumblob',
@@ -189,7 +198,7 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 	}
 
 	for (const column of interim.columns.filter((it) => it.isUnique)) {
-		if (resrtictedUniqueFor.some((rc) => column.type.startsWith(rc))) {
+		if (!fromDatabase && restrictedUniqueFor.some((rc) => column.type.startsWith(rc))) {
 			errors.push({ type: 'column_unsupported_unique', columns: [column.name], table: column.table });
 		}
 
@@ -222,12 +231,12 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 
 			const column = ddl.columns.one({ table: index.table, name: col.value });
 
-			return resrtictedUniqueFor.some(
+			return restrictedUniqueFor.some(
 				(restrictedType) => column?.type.startsWith(restrictedType),
 			);
 		});
 
-		if (conflictColumns.length > 0) {
+		if (!fromDatabase && conflictColumns.length > 0) {
 			errors.push({
 				type: 'column_unsupported_unique',
 				columns: conflictColumns.map((it) => it.value),

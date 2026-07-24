@@ -60,7 +60,7 @@ export const handle = async (
 	} else {
 		schema = await fromDatabaseForDrizzle(db.db, db.database, filter, () => {}, migrations);
 	}
-	const { ddl, errors } = interimToDDL(schema);
+	const { ddl, errors } = interimToDDL(schema, { from: 'database' });
 
 	if (errors.length > 0) {
 		throw new CommandOutputCliError('pull', 'Failed to map the introspected schema', {
