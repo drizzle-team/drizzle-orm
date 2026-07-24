@@ -63,6 +63,7 @@ export class PgCustomColumn<T extends ColumnBaseConfig<'custom', 'PgCustomColumn
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
+	private selectFn?: (columnName: string, decoder: any) => SQL<T['data']>;
 
 	constructor(
 		table: AnyPgTable<{ name: T['tableName'] }>,
@@ -72,6 +73,7 @@ export class PgCustomColumn<T extends ColumnBaseConfig<'custom', 'PgCustomColumn
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
 		this.mapTo = config.customTypeParams.toDriver;
 		this.mapFrom = config.customTypeParams.fromDriver;
+		this.selectFn = config.customTypeParams.selectFromDb;
 	}
 
 	getSQLType(): string {
@@ -84,6 +86,19 @@ export class PgCustomColumn<T extends ColumnBaseConfig<'custom', 'PgCustomColumn
 
 	override mapToDriverValue(value: T['data']): T['driverParam'] {
 		return typeof this.mapTo === 'function' ? this.mapTo(value) : value as T['data'];
+	}
+
+	/**
+	 * Returns custom SQL expression for selecting this column, if defined.
+	 * Otherwise returns the column itself.
+	 * @param columnName - The column name to use in the SQL expression
+	 * @returns SQL expression or the column itself
+	 */
+	getSelectSQL(columnName?: string): SQL<T['data']> | this {
+		if (this.selectFn) {
+			return this.selectFn(columnName || this.name, this);
+		}
+		return this;
 	}
 }
 
@@ -195,6 +210,22 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	fromDriver?: (value: T['driverData']) => T['data'];
+
+	/**
+	 * Optional function to wrap the column in custom SQL when selecting from database.
+	 * Useful for types like PostGIS geometry that need special handling.
+	 * @example
+	 * For PostGIS geometry, we need to convert from WKT format:
+	 * ```
+	 * selectFromDb(column, decoder) {
+	 *   return sql<Point>`ST_AsText(${sql.identifier(column)})`.mapWith(decoder).as(column);
+	 * }
+	 * ```
+	 * @param columnName - The column name to be selected
+	 * @param decoder - The value decoder for this column
+	 * @returns SQL expression for selecting this column
+	 */
+	selectFromDb?: (columnName: string, decoder: any) => SQL<T['data']>;
 }
 
 /**

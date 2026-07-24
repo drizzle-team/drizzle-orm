@@ -63,6 +63,7 @@ export class MySqlCustomColumn<T extends ColumnBaseConfig<'custom', 'MySqlCustom
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
+	private selectFn?: (columnName: string, decoder: any) => SQL<T['data']>;
 
 	constructor(
 		table: AnyMySqlTable<{ name: T['tableName'] }>,
@@ -72,6 +73,7 @@ export class MySqlCustomColumn<T extends ColumnBaseConfig<'custom', 'MySqlCustom
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
 		this.mapTo = config.customTypeParams.toDriver;
 		this.mapFrom = config.customTypeParams.fromDriver;
+		this.selectFn = config.customTypeParams.selectFromDb;
 	}
 
 	getSQLType(): string {
@@ -84,6 +86,16 @@ export class MySqlCustomColumn<T extends ColumnBaseConfig<'custom', 'MySqlCustom
 
 	override mapToDriverValue(value: T['data']): T['driverParam'] {
 		return typeof this.mapTo === 'function' ? this.mapTo(value) : value as T['data'];
+	}
+
+	/**
+	 * Returns custom SQL expression for selecting this column, if defined.
+	 */
+	getSelectSQL(columnName?: string): SQL<T['data']> | this {
+		if (this.selectFn) {
+			return this.selectFn(columnName || this.name, this);
+		}
+		return this;
 	}
 }
 
@@ -195,6 +207,14 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	fromDriver?: (value: T['driverData']) => T['data'];
+
+	/**
+	 * Optional function to wrap the column in custom SQL when selecting from database.
+	 * @param columnName - The column name to be selected
+	 * @param decoder - The value decoder for this column
+	 * @returns SQL expression for selecting this column
+	 */
+	selectFromDb?: (columnName: string, decoder: any) => SQL<T['data']>;
 }
 
 /**
