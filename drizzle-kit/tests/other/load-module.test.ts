@@ -9,3 +9,11 @@ test('loadModule resolves tsconfig paths', async () => {
 	expect(mod.profile).toBeDefined();
 	expect(mod.user).toBeDefined();
 });
+
+test('loadModule resolves paths declared in an extended tsconfig', async () => {
+	const modulePath = resolve('tests/fixtures/sveltekit-imports/entry.ts');
+	const mod = await loadModule<{ profile?: unknown; user?: unknown }>(modulePath);
+
+	expect(mod.profile).toBeDefined();
+	expect(mod.user).toBeDefined();
+});

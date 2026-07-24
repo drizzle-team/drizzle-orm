@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync } from 'fs';
-import { getTsconfig } from 'get-tsconfig';
+import { createPathsMatcher, getTsconfig } from 'get-tsconfig';
 import { sync as globSync } from 'glob';
 import { dirname, join, resolve } from 'path';
 import { parse, pathToFileURL } from 'url';
@@ -140,6 +140,20 @@ const getAliasesForTsconfig = (baseDir: string): Record<string, string> | undefi
 	const tsconfigBaseUrl = tsconfig.config.compilerOptions?.baseUrl ?? '.';
 	const tsconfigDir = dirname(tsconfig.path);
 
+	// Resolving the targets ourselves assumes they are relative to the tsconfig we
+	// found, which breaks when "paths" come from an extended config living in
+	// another directory. SvelteKit is the common case: its generated
+	// `.svelte-kit/tsconfig.json` declares paths relative to itself, so resolving
+	// them against the extending config points one directory too high. get-tsconfig
+	// tracks the declaring directory, so let it resolve when it can.
+	let pathsMatcher: ReturnType<typeof createPathsMatcher> = null;
+	try {
+		pathsMatcher = createPathsMatcher(tsconfig);
+	} catch {
+		// "paths" that tsc itself rejects, keep resolving them the previous way
+	}
+	const probeSegment = '__drizzle_kit_alias_probe__';
+
 	const aliases = Object.fromEntries(
 		Object.entries(tsconfigPaths).flatMap(([key, values]) => {
 			const targets = (values ?? []).filter((value): value is string => Boolean(value));
@@ -161,13 +175,18 @@ const getAliasesForTsconfig = (baseDir: string): Record<string, string> | undefi
 			}
 
 			const aliasKey = key.endsWith('/*') ? key.slice(0, -1) : key;
-			const resolvedTargets = targets.map((target) => {
-				if (supportsTrailingWildcard) {
-					const targetPrefix = target.slice(0, -1);
-					return resolve(tsconfigDir, tsconfigBaseUrl, targetPrefix);
-				}
-				return resolve(tsconfigDir, tsconfigBaseUrl, target);
-			});
+			const matched = pathsMatcher?.(supportsTrailingWildcard ? `${aliasKey}${probeSegment}` : key) ?? [];
+			const resolvedTargets = matched.length > 0
+				? matched.map((target) =>
+					resolve(supportsTrailingWildcard ? target.slice(0, -probeSegment.length) : target)
+				)
+				: targets.map((target) => {
+					if (supportsTrailingWildcard) {
+						const targetPrefix = target.slice(0, -1);
+						return resolve(tsconfigDir, tsconfigBaseUrl, targetPrefix);
+					}
+					return resolve(tsconfigDir, tsconfigBaseUrl, target);
+				});
 
 			const selectedTarget = resolvedTargets.find((candidate) => existsSync(candidate)) ?? resolvedTargets[0]!;
 			return [[aliasKey, selectedTarget]];

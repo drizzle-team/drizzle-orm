@@ -21,7 +21,8 @@
 		"baseUrl": ".",
 		"paths": {
 			"@/*": ["tests/fixtures/tsconfig-paths/src/*"],
-			"@profile": ["tests/fixtures/tsconfig-paths/src/profile/schema.ts"]
+			"@profile": ["tests/fixtures/tsconfig-paths/src/profile/schema.ts"],
+			"#lib/*": ["tests/fixtures/sveltekit-imports/src/lib/*"]
 		},
 		"outDir": "dist",
 		"noEmit": true,

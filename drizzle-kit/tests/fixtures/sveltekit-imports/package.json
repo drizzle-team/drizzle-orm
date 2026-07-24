@@ -1,0 +1,7 @@
+{
+	"name": "sveltekit-imports-fixture",
+	"private": true,
+	"imports": {
+		"#lib/*": "./src/lib/*"
+	}
+}
