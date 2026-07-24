@@ -19,6 +19,7 @@ export const authUsers = auth.table('users', {
 	phoneConfirmedAt: timestamp('phone_confirmed_at', { withTimezone: true }),
 	lastSignInAt: timestamp('last_sign_in_at', { withTimezone: true }),
 	createdAt: timestamp('created_at', { withTimezone: true }),
+	bannedUntil: timestamp('banned_until', { withTimezone: true }),
 	updatedAt: timestamp('updated_at', { withTimezone: true }),
 });
 
