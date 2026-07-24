@@ -1,0 +1,17 @@
+{
+  "status": "ready",
+  "commit_message": "fix nested partial select returning null on left join when first column is null",
+  "pr_title": "fix nested partial select returning null on left join",
+  "pr_body": "## Summary\n\nFixes nested partial select wrongly collapsing to `null` on a left join when only the first column in the nested object is null.\n\nIn `mapResultRow` (`drizzle-orm/src/utils.ts`), `nullifyMap[objectName]` is seeded from the first column of a nested object and is only updated later when a column comes from a *different* table. That meant: if the first column of a left-joined nested object happened to be null but the remaining columns from the same joined table had non-null values, the object was still nullified — losing real data.\n\nThe check now also clears the nullify marker when a same-table column has a non-null value, so the object is only nullified when *all* of its joined columns are null.\n\n## Changes\n\n- `drizzle-orm/src/utils.ts` — extend `nullifyMap` update to reset to `false` when a non-null value is seen from the same joined table.\n- `drizzle-orm/tests/mapResultRow.test.ts` — regression tests covering: first column null + others non-null (object kept), all columns null (object nullified), first column non-null + others null (object kept).\n\nCloses #1603\n\n## Test plan\n\n- [x] `pnpm test tests/mapResultRow.test.ts` — 3 new tests pass\n- [x] `pnpm test` — 545 tests pass; 2 unrelated sqlite test files fail to load due to better-sqlite3 native binding not compilable in the sandbox (missing Visual Studio), no behaviour regression.",
+  "branch": "fix/issue-1603-drizzle-orm-bug-nested-partial-select",
+  "tests_run": [
+    "pnpm --filter drizzle-orm test tests/mapResultRow.test.ts",
+    "pnpm --filter drizzle-orm test"
+  ],
+  "tests_passed": true,
+  "files_changed": [
+    "drizzle-orm/src/utils.ts",
+    "drizzle-orm/tests/mapResultRow.test.ts"
+  ],
+  "notes": "Root cause: in mapResultRow's nullifyMap heuristic, after the first column of a nested object set the marker to its table name (when null), subsequent same-table columns never reset it even when non-null. The full-suite `pnpm test` had 2 sqlite test files fail to load because better-sqlite3 requires a native rebuild that needs Visual Studio (unavailable in sandbox). All 545 actually-executed tests pass, including the 3 new ones. CI will run the sqlite files cleanly."
+}
