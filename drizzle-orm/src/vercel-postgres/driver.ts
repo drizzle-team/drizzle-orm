@@ -1,6 +1,7 @@
 import { sql } from '@vercel/postgres';
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
@@ -17,6 +18,7 @@ import { type VercelPgClient, type VercelPgQueryResultHKT, VercelPgSession } fro
 export interface VercelPgDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class VercelPgDriver {
@@ -35,6 +37,7 @@ export class VercelPgDriver {
 		return new VercelPgSession(this.client, this.dialect, schema, {
 			logger: this.options.logger,
 			cache: this.options.cache,
+			onError: this.options.onError,
 		});
 	}
 }
@@ -72,7 +75,7 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 		};
 	}
 
-	const driver = new VercelPgDriver(client, dialect, { logger, cache: config.cache });
+	const driver = new VercelPgDriver(client, dialect, { logger, cache: config.cache, onError: config.onError });
 	const session = driver.createSession(schema);
 	const db = new VercelPgDatabase(dialect, session, schema as any) as VercelPgDatabase<TSchema>;
 	(<any> db).$client = client;

@@ -3,6 +3,7 @@ import { neon, types } from '@neondatabase/serverless';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
@@ -15,6 +16,7 @@ import { type NeonHttpClient, type NeonHttpQueryResultHKT, NeonHttpSession } fro
 export interface NeonDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class NeonHttpDriver {
@@ -34,6 +36,7 @@ export class NeonHttpDriver {
 		return new NeonHttpSession(this.client, this.dialect, schema, {
 			logger: this.options.logger,
 			cache: this.options.cache,
+			onError: this.options.onError,
 		});
 	}
 
@@ -151,7 +154,7 @@ function construct<
 		};
 	}
 
-	const driver = new NeonHttpDriver(client, dialect, { logger, cache: config.cache });
+	const driver = new NeonHttpDriver(client, dialect, { logger, cache: config.cache, onError: config.onError });
 	const session = driver.createSession(schema);
 
 	const db = new NeonHttpDatabase(

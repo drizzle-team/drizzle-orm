@@ -1,4 +1,5 @@
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -16,6 +17,7 @@ import { mapResultRow } from '~/utils.ts';
 
 export interface SQLiteDOSessionOptions {
 	logger?: Logger;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -40,6 +42,7 @@ export class SQLiteDOSession<TFullSchema extends Record<string, unknown>, TSchem
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.onError = options.onError;
 	}
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
@@ -49,14 +52,16 @@ export class SQLiteDOSession<TFullSchema extends Record<string, unknown>, TSchem
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): SQLiteDOPreparedQuery<T> {
-		return new SQLiteDOPreparedQuery(
-			this.client,
-			query,
-			this.logger,
-			fields,
-			executeMethod,
-			isResponseInArrayMode,
-			customResultMapper,
+		return this.attachErrorHandler(
+			new SQLiteDOPreparedQuery(
+				this.client,
+				query,
+				this.logger,
+				fields,
+				executeMethod,
+				isResponseInArrayMode,
+				customResultMapper,
+			),
 		);
 	}
 

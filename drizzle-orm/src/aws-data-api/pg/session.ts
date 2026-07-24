@@ -9,6 +9,7 @@ import type { Cache } from '~/cache/core/cache.ts';
 import { NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import {
 	type PgDialect,
@@ -151,6 +152,7 @@ export class AwsDataApiPreparedQuery<
 export interface AwsDataApiSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 	database: string;
 	resourceArn: string;
 	secretArn: string;
@@ -188,6 +190,7 @@ export class AwsDataApiSession<
 			database: options.database,
 		};
 		this.cache = options.cache ?? new NoopCache();
+		this.onError = options.onError;
 	}
 
 	prepareQuery<
@@ -206,19 +209,21 @@ export class AwsDataApiSession<
 		cacheConfig?: WithCacheConfig,
 		transactionId?: string,
 	): AwsDataApiPreparedQuery<T> {
-		return new AwsDataApiPreparedQuery(
-			this.client,
-			query.sql,
-			query.params,
-			query.typings ?? [],
-			this.options,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
-			fields,
-			transactionId ?? this.transactionId,
-			isResponseInArrayMode,
-			customResultMapper,
+		return this.attachErrorHandler(
+			new AwsDataApiPreparedQuery(
+				this.client,
+				query.sql,
+				query.params,
+				query.typings ?? [],
+				this.options,
+				this.cache,
+				queryMetadata,
+				cacheConfig,
+				fields,
+				transactionId ?? this.transactionId,
+				isResponseInArrayMode,
+				customResultMapper,
+			),
 		);
 	}
 

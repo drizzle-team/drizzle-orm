@@ -2,6 +2,7 @@ import type { Cache } from './cache/core/cache.ts';
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { is } from './entity.ts';
+import type { DrizzleQueryError } from './errors.ts';
 import type { Logger } from './logger.ts';
 import type { SelectedFieldsOrdered } from './operations.ts';
 import type { TableLike } from './query-builders/select.types.ts';
@@ -238,6 +239,11 @@ export interface DrizzleConfig<TSchema extends Record<string, unknown> = Record<
 	schema?: TSchema;
 	casing?: Casing;
 	cache?: Cache;
+	/**
+	 * Called with the wrapped {@link DrizzleQueryError} whenever a query fails, before it is thrown.
+	 * Return `void` to let the original error propagate, or throw to replace it.
+	 */
+	onError?: (error: DrizzleQueryError) => void;
 }
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	? Exclude<keyof T, keyof ValidShape> extends never ? TResult
@@ -277,6 +283,7 @@ type ExpectedConfigShape = {
 	};
 	schema?: Record<string, never>;
 	casing?: 'snake_case' | 'camelCase';
+	onError?: (error: DrizzleQueryError) => void;
 };
 
 // If this errors, you must update config shape checker function with new config specs
@@ -308,6 +315,13 @@ export function isConfig(data: any): boolean {
 	if ('casing' in data) {
 		const type = typeof data['casing'];
 		if (type !== 'string' && type !== 'undefined') return false;
+
+		return true;
+	}
+
+	if ('onError' in data) {
+		const type = typeof data['onError'];
+		if (type !== 'function' && type !== 'undefined') return false;
 
 		return true;
 	}

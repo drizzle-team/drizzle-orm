@@ -20,7 +20,7 @@ export function drizzle(config: PrismaSQLiteConfig = {}) {
 	}
 
 	return Prisma.defineExtension((client) => {
-		const session = new PrismaSQLiteSession(client, dialect, { logger });
+		const session = new PrismaSQLiteSession(client, dialect, { logger, onError: config.onError });
 
 		return client.$extends({
 			name: 'drizzle',

@@ -4,6 +4,7 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { Column } from '~/column.ts';
 
 import { entityKind, is } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
@@ -104,6 +105,7 @@ export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig> ext
 export interface TiDBServerlessSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class TiDBServerlessSession<
@@ -127,6 +129,7 @@ export class TiDBServerlessSession<
 		this.client = tx ?? baseClient;
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.onError = options.onError;
 	}
 
 	prepareQuery<T extends MySqlPreparedQueryConfig = MySqlPreparedQueryConfig>(
@@ -141,18 +144,20 @@ export class TiDBServerlessSession<
 		},
 		cacheConfig?: WithCacheConfig,
 	): MySqlPreparedQuery<T> {
-		return new TiDBServerlessPreparedQuery(
-			this.client,
-			query.sql,
-			query.params,
-			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
-			fields,
-			customResultMapper,
-			generatedIds,
-			returningIds,
+		return this.attachErrorHandler(
+			new TiDBServerlessPreparedQuery(
+				this.client,
+				query.sql,
+				query.params,
+				this.logger,
+				this.cache,
+				queryMetadata,
+				cacheConfig,
+				fields,
+				customResultMapper,
+				generatedIds,
+				returningIds,
+			),
 		);
 	}
 

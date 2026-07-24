@@ -52,7 +52,10 @@ export function drizzle<
 		};
 	}
 
-	const session = new SQLiteDOSession(client as DurableObjectStorage, dialect, schema, { logger });
+	const session = new SQLiteDOSession(client as DurableObjectStorage, dialect, schema, {
+		logger,
+		onError: config.onError,
+	});
 	const db = new DrizzleSqliteDODatabase('sync', dialect, session, schema) as DrizzleSqliteDODatabase<TSchema>;
 	(<any> db).$client = client;
 

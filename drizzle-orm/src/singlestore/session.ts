@@ -14,6 +14,7 @@ import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -197,6 +198,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 export interface SingleStoreDriverSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class SingleStoreDriverSession<
@@ -217,6 +219,7 @@ export class SingleStoreDriverSession<
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.onError = options.onError;
 	}
 
 	prepareQuery<T extends SingleStorePreparedQueryConfig>(
@@ -233,18 +236,20 @@ export class SingleStoreDriverSession<
 	): PreparedQueryKind<SingleStoreDriverPreparedQueryHKT, T> {
 		// Add returningId fields
 		// Each driver gets them from response from database
-		return new SingleStoreDriverPreparedQuery(
-			this.client,
-			query.sql,
-			query.params,
-			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
-			fields,
-			customResultMapper,
-			generatedIds,
-			returningIds,
+		return this.attachErrorHandler(
+			new SingleStoreDriverPreparedQuery(
+				this.client,
+				query.sql,
+				query.params,
+				this.logger,
+				this.cache,
+				queryMetadata,
+				cacheConfig,
+				fields,
+				customResultMapper,
+				generatedIds,
+				returningIds,
+			),
 		) as PreparedQueryKind<SingleStoreDriverPreparedQueryHKT, T>;
 	}
 
