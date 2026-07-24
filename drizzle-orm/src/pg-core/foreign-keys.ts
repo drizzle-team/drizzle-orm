@@ -24,6 +24,12 @@ export class ForeignKeyBuilder {
 	/** @internal */
 	_onDelete: UpdateDeleteAction | undefined = 'no action';
 
+	/** @internal */
+	_deferrable: 'deferrable' | 'not deferrable' | undefined;
+
+	/** @internal */
+	_initially: 'deferred' | 'immediate' | undefined;
+
 	constructor(
 		config: () => {
 			name?: string;
@@ -55,6 +61,26 @@ export class ForeignKeyBuilder {
 		return this;
 	}
 
+	deferrable(): this {
+		this._deferrable = 'deferrable';
+		return this;
+	}
+
+	notDeferrable(): this {
+		this._deferrable = 'not deferrable';
+		return this;
+	}
+
+	initiallyDeferred(): this {
+		this._initially = 'deferred';
+		return this;
+	}
+
+	initiallyImmediate(): this {
+		this._initially = 'immediate';
+		return this;
+	}
+
 	/** @internal */
 	build(table: PgTable): ForeignKey {
 		return new ForeignKey(table, this);
@@ -69,11 +95,15 @@ export class ForeignKey {
 	readonly reference: Reference;
 	readonly onUpdate: UpdateDeleteAction | undefined;
 	readonly onDelete: UpdateDeleteAction | undefined;
+	readonly deferrable: 'deferrable' | 'not deferrable' | undefined;
+	readonly initially: 'deferred' | 'immediate' | undefined;
 
 	constructor(readonly table: PgTable, builder: ForeignKeyBuilder) {
 		this.reference = builder.reference;
 		this.onUpdate = builder._onUpdate;
 		this.onDelete = builder._onDelete;
+		this.deferrable = builder._deferrable;
+		this.initially = builder._initially;
 	}
 
 	getName(): string {

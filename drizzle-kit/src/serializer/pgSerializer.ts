@@ -288,6 +288,8 @@ export const generatePgSnapshot = (
 			primaryKeysObject[name] = {
 				name,
 				columns: columnNames,
+				deferrable: pk.deferrable,
+				initially: pk.initially,
 			};
 		});
 
@@ -319,6 +321,8 @@ export const generatePgSnapshot = (
 				name: unq.name!,
 				nullsNotDistinct: unq.nullsNotDistinct,
 				columns: columnNames,
+				deferrable: unq.deferrable,
+				initially: unq.initially,
 			};
 		});
 
@@ -326,6 +330,8 @@ export const generatePgSnapshot = (
 			const tableFrom = tableName;
 			const onDelete = fk.onDelete;
 			const onUpdate = fk.onUpdate;
+			const deferrable = fk.deferrable;
+			const initially = fk.initially;
 			const reference = fk.reference();
 
 			const tableTo = getTableName(reference.foreignTable);
@@ -357,6 +363,8 @@ export const generatePgSnapshot = (
 				columnsTo,
 				onDelete,
 				onUpdate,
+				deferrable,
+				initially,
 			} as ForeignKey;
 		});
 
@@ -1288,7 +1296,9 @@ WHERE
               WHEN 'n' THEN 'SET NULL'
               WHEN 'c' THEN 'CASCADE'
               WHEN 'd' THEN 'SET DEFAULT'
-            END AS delete_rule
+            END AS delete_rule,
+            CASE WHEN con.condeferrable THEN 'deferrable' ELSE NULL END AS deferrable,
+            CASE WHEN con.condeferred THEN 'deferred' ELSE NULL END AS initially
           FROM
             pg_catalog.pg_constraint con
             JOIN pg_catalog.pg_class rel ON rel.oid = con.conrelid
@@ -1318,6 +1328,8 @@ WHERE
 						const foreignKeyName = fk.constraint_name;
 						const onUpdate = fk.update_rule?.toLowerCase();
 						const onDelete = fk.delete_rule?.toLowerCase();
+						const deferrable: string | undefined = fk.deferrable ?? undefined;
+						const initially: string | undefined = fk.initially ?? undefined;
 
 						if (typeof foreignKeysToReturn[foreignKeyName] !== 'undefined') {
 							foreignKeysToReturn[foreignKeyName].columnsFrom.push(columnFrom);
@@ -1332,6 +1344,8 @@ WHERE
 								columnsTo: [columnTo],
 								onDelete,
 								onUpdate,
+								deferrable,
+								initially,
 							};
 						}
 
@@ -1344,6 +1358,25 @@ WHERE
 
 					const uniqueConstrainsRows = tableConstraints.filter((mapRow) => mapRow.constraint_type === 'UNIQUE');
 
+					const deferrableInfo = await db.query(
+						`SELECT con.conname AS constraint_name,
+            CASE WHEN con.condeferrable THEN 'deferrable' ELSE NULL END AS deferrable,
+            CASE WHEN con.condeferred THEN 'deferred' ELSE NULL END AS initially
+          FROM pg_catalog.pg_constraint con
+            JOIN pg_catalog.pg_class rel ON rel.oid = con.conrelid
+            JOIN pg_catalog.pg_namespace nsp ON nsp.oid = con.connamespace
+          WHERE nsp.nspname = '${tableSchema}'
+            AND rel.relname = '${tableName}'
+            AND con.contype IN ('u', 'p');`,
+					);
+					const deferrableMap: Record<string, { deferrable?: string; initially?: string }> = {};
+					for (const row of deferrableInfo) {
+						deferrableMap[row.constraint_name] = {
+							deferrable: row.deferrable ?? undefined,
+							initially: row.initially ?? undefined,
+						};
+					}
+
 					for (const unqs of uniqueConstrainsRows) {
 						// const tableFrom = fk.table_name;
 						const columnName: string = unqs.column_name;
@@ -1352,10 +1385,13 @@ WHERE
 						if (typeof uniqueConstrains[constraintName] !== 'undefined') {
 							uniqueConstrains[constraintName].columns.push(columnName);
 						} else {
+							const defInfo = deferrableMap[constraintName];
 							uniqueConstrains[constraintName] = {
 								columns: [columnName],
 								nullsNotDistinct: false,
 								name: constraintName,
+								deferrable: defInfo?.deferrable,
+								initially: defInfo?.initially,
 							};
 						}
 					}
@@ -1413,9 +1449,13 @@ WHERE
             AND    pg_class.relname = $2;`,
 								[tableSchema, tableName],
 							);
-							primaryKeys[tableCompositePkName[0].primary_key] = {
-								name: tableCompositePkName[0].primary_key,
+							const pkName = tableCompositePkName[0].primary_key;
+							const pkDefInfo = deferrableMap[pkName];
+							primaryKeys[pkName] = {
+								name: pkName,
 								columns: cprimaryKey.map((c: any) => c.column_name),
+								deferrable: pkDefInfo?.deferrable,
+								initially: pkDefInfo?.initially,
 							};
 						}
 
