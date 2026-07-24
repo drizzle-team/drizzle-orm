@@ -862,13 +862,43 @@ export const fromDatabase = async (
 		const tableSchema = idxRow['TABLE_SCHEMA'];
 		const tableName = idxRow['TABLE_NAME'];
 		const constraintName = idxRow['INDEX_NAME'];
-		const columnName: string = idxRow['COLUMN_NAME'];
+		const columnName: string | null = idxRow['COLUMN_NAME'];
+		const expression: string | null = idxRow['EXPRESSION'];
 		const isUnique = idxRow['NON_UNIQUE'] === 0;
 
 		const tableInResult = result[tableName];
 		if (typeof tableInResult === 'undefined') continue;
 
-		// if (tableInResult.columns[columnName].type === "serial") continue;
+		// Handle functional/expression indexes where COLUMN_NAME is null
+		// In MySQL 8+, functional indexes have COLUMN_NAME = null and EXPRESSION contains the actual expression
+		let indexColumnName: string;
+		let isExpression = false;
+		if (columnName === null && expression !== null) {
+			indexColumnName = expression;
+			isExpression = true;
+		} else if (columnName !== null) {
+			indexColumnName = columnName;
+		} else {
+			// Skip if both COLUMN_NAME and EXPRESSION are null (shouldn't happen)
+			continue;
+		}
+
+		// Track expression columns in internals for proper TypeScript generation
+		if (isExpression) {
+			if (typeof internals!.indexes![constraintName] === 'undefined') {
+				internals!.indexes![constraintName] = {
+					columns: {
+						[indexColumnName]: {
+							isExpression: true,
+						},
+					},
+				};
+			} else {
+				internals!.indexes![constraintName]!.columns[indexColumnName] = {
+					isExpression: true,
+				};
+			}
+		}
 
 		indexesCount += 1;
 		if (progressCallback) {
@@ -880,12 +910,12 @@ export const fromDatabase = async (
 				typeof tableInResult.uniqueConstraints[constraintName] !== 'undefined'
 			) {
 				tableInResult.uniqueConstraints[constraintName]!.columns.push(
-					columnName,
+					indexColumnName,
 				);
 			} else {
 				tableInResult.uniqueConstraints[constraintName] = {
 					name: constraintName,
-					columns: [columnName],
+					columns: [indexColumnName],
 				};
 			}
 		} else {
@@ -893,11 +923,11 @@ export const fromDatabase = async (
 			// so for introspect we will just skip it
 			if (typeof tableInResult.foreignKeys[constraintName] === 'undefined') {
 				if (typeof tableInResult.indexes[constraintName] !== 'undefined') {
-					tableInResult.indexes[constraintName]!.columns.push(columnName);
+					tableInResult.indexes[constraintName]!.columns.push(indexColumnName);
 				} else {
 					tableInResult.indexes[constraintName] = {
 						name: constraintName,
-						columns: [columnName],
+						columns: [indexColumnName],
 						isUnique: isUnique,
 					};
 				}

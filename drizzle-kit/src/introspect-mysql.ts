@@ -264,6 +264,7 @@ export const schemaToTypeScript = (
 				table.name,
 				Object.values(table.indexes),
 				withCasing,
+				schema,
 			);
 			statement += createTableFKs(Object.values(filteredFKs), withCasing);
 			statement += createTablePKs(
@@ -273,6 +274,7 @@ export const schemaToTypeScript = (
 			statement += createTableUniques(
 				Object.values(table.uniqueConstraints),
 				withCasing,
+				schema,
 			);
 			statement += createTableChecks(
 				Object.values(table.checkConstraint),
@@ -902,6 +904,7 @@ const createTableIndexes = (
 	tableName: string,
 	idxs: Index[],
 	casing: (value: string) => string,
+	schema?: MySqlSchemaInternal,
 ): string => {
 	let statement = '';
 
@@ -920,7 +923,15 @@ const createTableIndexes = (
 		statement += `"${it.name}")`;
 		statement += `.on(${
 			it.columns
-				.map((it) => `table.${casing(it)}`)
+				.map((col) => {
+					// Check if this column is an expression in the index
+					const isExpression = schema?.internal?.indexes?.[it.name]?.columns?.[col]?.isExpression;
+					if (isExpression) {
+						// For expression columns, wrap in sql\`...\`
+						return `sql\`${col.replace(/`/g, '\\`')}\``;
+					}
+					return `table.${casing(col)}`;
+				})
 				.join(', ')
 		}),`;
 	});
@@ -931,6 +942,7 @@ const createTableIndexes = (
 const createTableUniques = (
 	unqs: UniqueConstraint[],
 	casing: (value: string) => string,
+	schema?: MySqlSchemaInternal,
 ): string => {
 	let statement = '';
 
@@ -942,7 +954,15 @@ const createTableUniques = (
 		statement += `"${it.name}")`;
 		statement += `.on(${
 			it.columns
-				.map((it) => `table.${casing(it)}`)
+				.map((col) => {
+					// Check if this column is an expression in the unique constraint
+					const isExpression = schema?.internal?.indexes?.[it.name]?.columns?.[col]?.isExpression;
+					if (isExpression) {
+						// For expression columns, wrap in sql\`...\`
+						return `sql\`${col.replace(/`/g, '\\`')}\``;
+					}
+					return `table.${casing(col)}`;
+				})
 				.join(', ')
 		}),`;
 	});
