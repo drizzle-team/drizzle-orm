@@ -22,7 +22,6 @@ import { randomString } from '~/utils';
 import { DB, runCommonEffectPgTests } from './effect-common';
 import { relations } from './relations';
 import { usersMigratorTable } from './schema';
-import { assertSnapshotIsolatesTransaction } from './snapshot';
 
 const connectionStr = Redacted.make(
 	process.env['PG_CONNECTION_STRING'] ?? 'postgres://postgres:postgres@localhost:55433/drizzle',
@@ -65,12 +64,42 @@ runCommonEffectPgTests({
 		it.effect('transaction snapshot: isolates the transaction', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
+				const table = sql.identifier('ef_snapshot');
 
 				const peerClient = new PgPeerClient(Redacted.value(connectionStr));
 				yield* Effect.promise(() => peerClient.connect());
-				const peer = { query: async (sql: string) => (await peerClient.query(sql)).rows };
+				const peerQuery = (query: string) => Effect.promise(() => peerClient.query(query).then((r) => r.rows));
 
-				yield* Effect.promise(() => assertSnapshotIsolatesTransaction(db, peer, expect, 'ef')).pipe(
+				const body = Effect.gen(function*() {
+					yield* db.execute(sql`drop table if exists ${table}`);
+					yield* db.execute(sql`create table ${table} (id integer)`);
+					yield* db.execute(sql`insert into ${table} values (1)`);
+
+					yield* peerQuery('begin isolation level repeatable read');
+					const [{ snapshot }] = yield* peerQuery('select pg_export_snapshot() as snapshot');
+
+					yield* db.execute(sql`insert into ${table} values (2)`);
+
+					yield* db.transaction((tx) =>
+						Effect.gen(function*() {
+							const res = yield* tx.execute<{ id: number }>(sql`select id from ${table} order by id`, 'objects');
+							expect(res).toEqual([{ id: 1 }]);
+						}), { isolationLevel: 'repeatable read', snapshot });
+
+					yield* db.transaction((tx) =>
+						Effect.gen(function*() {
+							const res = yield* tx.execute<{ id: number }>(sql`select id from ${table} order by id`, 'objects');
+							expect(res).toEqual([{ id: 1 }, { id: 2 }]);
+						}), { isolationLevel: 'repeatable read' });
+				});
+
+				const cleanup = Effect.gen(function*() {
+					yield* Effect.promise(() => peerClient.query('commit').catch(() => null));
+					yield* db.execute(sql`drop table ${table}`).pipe(Effect.ignore);
+				});
+
+				yield* body.pipe(
+					Effect.ensuring(cleanup),
 					Effect.ensuring(Effect.promise(() => peerClient.end())),
 				);
 			}));

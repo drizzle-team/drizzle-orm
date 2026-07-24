@@ -94,6 +94,108 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		expect(result).toEqual([{ id: 1, balance: 90 }]);
 	});
 
+	test('transaction with options (isolationLevel read committed sees concurrent commits)', async ({ db, push, peer }) => {
+		const users = mysqlTable('users_tx_cfg_iso_rc', {
+			id: serial('id').primaryKey(),
+			balance: int('balance').notNull(),
+		});
+
+		await push({ users });
+		await db.insert(users).values({ balance: 100 });
+
+		await db.transaction(async (tx) => {
+			expect(await tx.select().from(users)).toEqual([{ id: 1, balance: 100 }]);
+
+			await peer!.query('insert into users_tx_cfg_iso_rc (balance) values (200)');
+
+			expect(await tx.select().from(users)).toEqual([{ id: 1, balance: 100 }, { id: 2, balance: 200 }]);
+		}, { isolationLevel: 'read committed' });
+	});
+
+	test('transaction with options (isolationLevel repeatable read hides concurrent commits)', async ({ db, push, peer }) => {
+		const users = mysqlTable('users_tx_cfg_iso_rr', {
+			id: serial('id').primaryKey(),
+			balance: int('balance').notNull(),
+		});
+
+		await push({ users });
+		await db.insert(users).values({ balance: 100 });
+
+		await db.transaction(async (tx) => {
+			expect(await tx.select().from(users)).toEqual([{ id: 1, balance: 100 }]);
+
+			await peer!.query('insert into users_tx_cfg_iso_rr (balance) values (200)');
+
+			expect(await tx.select().from(users)).toEqual([{ id: 1, balance: 100 }]);
+		}, { isolationLevel: 'repeatable read' });
+	});
+
+	test('transaction with options (accessMode read only)', async ({ db, push }) => {
+		const users = mysqlTable('users_tx_cfg_ro', {
+			id: serial('id').primaryKey(),
+			balance: int('balance').notNull(),
+		});
+
+		await push({ users });
+		await db.insert(users).values({ balance: 100 });
+
+		await expect(
+			db.transaction(async (tx) => {
+				await tx.insert(users).values({ balance: 200 });
+			}, { isolationLevel: 'repeatable read', accessMode: 'read only' }),
+		).rejects.toSatisfy((e: any) => /read only transaction/i.test(String(e?.cause?.message ?? e?.message)));
+
+		const read = await db.transaction(async (tx) => tx.select().from(users), {
+			isolationLevel: 'repeatable read',
+			accessMode: 'read only',
+		});
+		expect(read).toEqual([{ id: 1, balance: 100 }]);
+	});
+
+	test('transaction with options (withConsistentSnapshot)', async ({ db, push, peer }) => {
+		const users = mysqlTable('users_tx_cfg_snapshot', {
+			id: serial('id').primaryKey(),
+			balance: int('balance').notNull(),
+		});
+
+		await push({ users });
+		await db.insert(users).values({ balance: 100 });
+
+		await db.transaction(async (tx) => {
+			await peer!.query('insert into users_tx_cfg_snapshot (balance) values (200)');
+
+			expect(await tx.select().from(users)).toEqual([{ id: 1, balance: 100 }]);
+		}, { isolationLevel: 'repeatable read', withConsistentSnapshot: true });
+
+		await db.transaction(async (tx) => {
+			await peer!.query('insert into users_tx_cfg_snapshot (balance) values (300)');
+
+			expect(await tx.select().from(users)).toEqual([
+				{ id: 1, balance: 100 },
+				{ id: 2, balance: 200 },
+				{ id: 3, balance: 300 },
+			]);
+		}, { isolationLevel: 'repeatable read' });
+	});
+
+	test('transaction with options (withConsistentSnapshot combined with accessMode)', async ({ db, push }) => {
+		const users = mysqlTable('users_tx_cfg_combined', {
+			id: serial('id').primaryKey(),
+			balance: int('balance').notNull(),
+		});
+
+		await push({ users });
+		await db.insert(users).values({ balance: 100 });
+
+		const read = await db.transaction(async (tx) => tx.select().from(users), {
+			isolationLevel: 'repeatable read',
+			accessMode: 'read only',
+			withConsistentSnapshot: true,
+		});
+
+		expect(read).toEqual([{ id: 1, balance: 100 }]);
+	});
+
 	test('transaction rollback', async ({ db, push }) => {
 		const users = mysqlTable('users_transactions_rollback_50', {
 			id: serial('id').primaryKey(),

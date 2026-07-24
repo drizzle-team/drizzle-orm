@@ -2639,6 +2639,70 @@ export function tests(test: Test, exclude: string[] = []) {
 			db.run(sql`drop table ${users}`);
 		});
 
+		const assertTransactionMode = async (
+			db: any,
+			behavior: 'deferred' | 'immediate' | 'exclusive',
+		) => {
+			const table = sqliteTable(`tx_mode_${behavior}`, {
+				id: integer('id').primaryKey(),
+				v: integer('v').notNull(),
+			});
+
+			await db.run(sql`drop table if exists ${table}`);
+			await db.run(sql`create table ${table} (id integer primary key, v integer not null)`);
+
+			try {
+				await db.transaction(async (tx: any) => {
+					await tx.insert(table).values({ id: 1, v: 1 });
+				}, { behavior });
+
+				expect(await db.select().from(table)).toEqual([{ id: 1, v: 1 }]);
+			} finally {
+				await db.run(sql`drop table ${table}`);
+			}
+		};
+
+		test.concurrent('transaction mode: deferred', async ({ db }) => {
+			await assertTransactionMode(db, 'deferred');
+		});
+
+		test.concurrent('transaction mode: immediate', async ({ db }) => {
+			await assertTransactionMode(db, 'immediate');
+		});
+
+		test.concurrent('transaction mode: exclusive', async ({ db }) => {
+			await assertTransactionMode(db, 'exclusive');
+		});
+
+		// Requires Turso database
+		test.concurrent('transaction mode: concurrent is rejected', async ({ db }) => {
+			const table = sqliteTable('tx_mode_concurrent', {
+				id: integer('id').primaryKey(),
+				v: integer('v').notNull(),
+			});
+
+			await db.run(sql`drop table if exists ${table}`);
+			await db.run(sql`create table ${table} (id integer primary key, v integer not null)`);
+
+			try {
+				let error: any;
+				try {
+					await db.transaction(async (tx: any) => {
+						await tx.insert(table).values({ id: 1, v: 1 });
+					}, { behavior: 'concurrent' });
+				} catch (e) {
+					error = e;
+				}
+
+				expect(String(error?.cause?.message ?? error?.message)).toContain(
+					'Concurrent transactions are not supported by driver',
+				);
+				expect(await db.select().from(table)).toEqual([]);
+			} finally {
+				await db.run(sql`drop table ${table}`);
+			}
+		});
+
 		test.concurrent('join subquery with join', async ({ db }) => {
 			const internalStaff = sqliteTable('internal_staff', {
 				userId: integer('user_id').notNull(),

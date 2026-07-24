@@ -6746,11 +6746,19 @@ export function tests(test: Test) {
 			const [product] = await db.insert(products).values({ price: 10, stock: 10 }).returning();
 
 			await db.transaction(async (tx) => {
+				const [row] = await tx.execute(sql`show transaction_isolation`, 'objects');
+				expect(row!['transaction_isolation']).toBe('serializable');
+
 				await tx.update(users).set({ balance: user!.balance - product!.price }).where(eq(users.id, user!.id));
 				await tx.update(products).set({ stock: product!.stock - 1 }).where(eq(products.id, product!.id));
 			}, { isolationLevel: 'serializable' });
 
 			expect(await db.select().from(users)).toEqual([{ id: 1, balance: 90 }]);
+
+			await db.transaction(async (tx) => {
+				const [row] = await tx.execute(sql`show transaction_isolation`, 'objects');
+				expect(row!['transaction_isolation']).toBe('repeatable read');
+			}, { isolationLevel: 'repeatable read' });
 		});
 
 		test('transaction with options (accessMode read only)', async ({ db, push }) => {
@@ -6768,8 +6776,17 @@ export function tests(test: Test) {
 				}, { accessMode: 'read only' }),
 			).rejects.toSatisfy((e: any) => /read-only transaction/i.test(String(e?.cause?.message ?? e?.message)));
 
-			const read = await db.transaction(async (tx) => tx.select().from(users), { accessMode: 'read only' });
+			const read = await db.transaction(async (tx) => {
+				const [row] = await tx.execute(sql`show transaction_read_only`, 'objects');
+				expect(row!['transaction_read_only']).toBe('on');
+				return tx.select().from(users);
+			}, { accessMode: 'read only' });
 			expect(read).toEqual([{ id: 1, balance: 100 }]);
+
+			await db.transaction(async (tx) => {
+				const [row] = await tx.execute(sql`show transaction_read_only`, 'objects');
+				expect(row!['transaction_read_only']).toBe('off');
+			}, { accessMode: 'read write' });
 		});
 
 		test('transaction with options (deferrable)', async ({ db, push }) => {
@@ -6781,19 +6798,23 @@ export function tests(test: Test) {
 			await push({ users });
 			await db.insert(users).values({ balance: 100 });
 
-			const read = await db.transaction(async (tx) => tx.select().from(users), {
+			await db.transaction(async (tx) => {
+				const [row] = await tx.execute(sql`show transaction_deferrable`, 'objects');
+				expect(row!['transaction_deferrable']).toBe('on');
+			}, {
 				isolationLevel: 'serializable',
 				accessMode: 'read only',
 				deferrable: true,
 			});
-			expect(read).toEqual([{ id: 1, balance: 100 }]);
 
-			const notDeferrable = await db.transaction(async (tx) => tx.select().from(users), {
+			await db.transaction(async (tx) => {
+				const [row] = await tx.execute(sql`show transaction_deferrable`, 'objects');
+				expect(row!['transaction_deferrable']).toBe('off');
+			}, {
 				isolationLevel: 'serializable',
 				accessMode: 'read only',
 				deferrable: false,
 			});
-			expect(notDeferrable).toEqual([{ id: 1, balance: 100 }]);
 		});
 
 		test('transaction with an empty options object', async ({ db, push }) => {
