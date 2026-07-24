@@ -18,12 +18,24 @@
 	"types": "./index.d.ts",
 	"exports": {
 		".": {
-			"import": { "types": "./index.d.ts", "default": "./index.js" },
-			"require": { "types": "./index.d.cts", "default": "./index.cjs" }
+			"import": {
+				"types": "./index.d.ts",
+				"default": "./index.js"
+			},
+			"require": {
+				"types": "./index.d.cts",
+				"default": "./index.cjs"
+			}
 		},
 		"./*": {
-			"import": { "types": "./*.d.ts", "default": "./*.js" },
-			"require": { "types": "./*.d.cts", "default": "./*.cjs" }
+			"import": {
+				"types": "./*.d.ts",
+				"default": "./*.js"
+			},
+			"require": {
+				"types": "./*.d.cts",
+				"default": "./*.cjs"
+			}
 		}
 	},
 	"sideEffects": false,
@@ -77,11 +89,11 @@
 		"@sinclair/typebox": ">=0.34.8",
 		"@sqlitecloud/drivers": ">=1.0.653",
 		"@tidbcloud/serverless": "*",
-		"@tursodatabase/database": ">=0.6.0-pre.28 || >=0.6.0",
-		"@tursodatabase/database-common": ">=0.6.0-pre.28 || >=0.6.0",
-		"@tursodatabase/database-wasm": ">=0.6.0-pre.28 || >=0.6.0",
-		"@tursodatabase/serverless": ">=1.1.3",
-		"@tursodatabase/sync": ">=0.6.0-pre.28 || >=0.6.0",
+		"@tursodatabase/database": ">=0.7.1",
+		"@tursodatabase/database-common": ">=0.7.1",
+		"@tursodatabase/database-wasm": ">=0.7.1",
+		"@tursodatabase/serverless": ">=1.3.1",
+		"@tursodatabase/sync": ">=0.7.1",
 		"@types/better-sqlite3": "*",
 		"@types/mssql": "^9.1.4",
 		"@types/pg": "*",
@@ -276,11 +288,11 @@
 		"@sinclair/typebox": "^0.34.48",
 		"@sqlitecloud/drivers": "^1.0.653",
 		"@tidbcloud/serverless": "^0.1.1",
-		"@tursodatabase/database": "0.6.0-pre.28",
-		"@tursodatabase/database-common": "0.6.0-pre.28",
-		"@tursodatabase/database-wasm": "0.6.0-pre.28",
-		"@tursodatabase/serverless": "1.1.3",
-		"@tursodatabase/sync": "0.6.0",
+		"@tursodatabase/database": "0.7.1",
+		"@tursodatabase/database-common": "0.7.1",
+		"@tursodatabase/database-wasm": "0.7.1",
+		"@tursodatabase/serverless": "1.3.1",
+		"@tursodatabase/sync": "0.7.1",
 		"@types/better-sqlite3": "^7.6.12",
 		"@types/node": "^25.4.0",
 		"@types/pg": "^8.10.1",

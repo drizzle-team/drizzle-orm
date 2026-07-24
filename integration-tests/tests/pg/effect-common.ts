@@ -4767,11 +4767,20 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 
 				yield* db.transaction((tx) =>
 					Effect.gen(function*() {
+						const [row] = yield* tx.execute(sql`show transaction_isolation`, 'objects');
+						expect(row!['transaction_isolation']).toBe('serializable');
+
 						yield* tx.update(users).set({ balance: user!.balance - product!.price }).where(eq(users.id, user!.id));
 						yield* tx.update(products).set({ stock: product!.stock - 1 }).where(eq(products.id, product!.id));
 					}), { isolationLevel: 'serializable' });
 
 				expect(yield* db.select().from(users)).toEqual([{ id: 1, balance: 90 }]);
+
+				yield* db.transaction((tx) =>
+					Effect.gen(function*() {
+						const [row] = yield* tx.execute(sql`show transaction_isolation`, 'objects');
+						expect(row!['transaction_isolation']).toBe('repeatable read');
+					}), { isolationLevel: 'repeatable read' });
 			}));
 
 		it.effect('transaction with options (accessMode read only)', () =>
@@ -4792,8 +4801,19 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				assert(Result.isFailure(res));
 				expect(failureMessage(res.failure)).toContain('read-only transaction');
 
-				const read = yield* db.transaction((tx) => tx.select().from(users), { accessMode: 'read only' });
+				const read = yield* db.transaction((tx) =>
+					Effect.gen(function*() {
+						const [row] = yield* tx.execute(sql`show transaction_read_only`, 'objects');
+						expect(row!['transaction_read_only']).toBe('on');
+						return yield* tx.select().from(users);
+					}), { accessMode: 'read only' });
 				expect(read).toEqual([{ id: 1, balance: 100 }]);
+
+				yield* db.transaction((tx) =>
+					Effect.gen(function*() {
+						const [row] = yield* tx.execute(sql`show transaction_read_only`, 'objects');
+						expect(row!['transaction_read_only']).toBe('off');
+					}), { accessMode: 'read write' });
 			}));
 
 		it.effect('transaction with options (deferrable)', () =>
@@ -4807,19 +4827,25 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				yield* push(db, { users });
 				yield* db.insert(users).values({ balance: 100 });
 
-				const read = yield* db.transaction((tx) => tx.select().from(users), {
+				yield* db.transaction((tx) =>
+					Effect.gen(function*() {
+						const [row] = yield* tx.execute(sql`show transaction_deferrable`, 'objects');
+						expect(row!['transaction_deferrable']).toBe('on');
+					}), {
 					isolationLevel: 'serializable',
 					accessMode: 'read only',
 					deferrable: true,
 				});
-				expect(read).toEqual([{ id: 1, balance: 100 }]);
 
-				const notDeferrable = yield* db.transaction((tx) => tx.select().from(users), {
+				yield* db.transaction((tx) =>
+					Effect.gen(function*() {
+						const [row] = yield* tx.execute(sql`show transaction_deferrable`, 'objects');
+						expect(row!['transaction_deferrable']).toBe('off');
+					}), {
 					isolationLevel: 'serializable',
 					accessMode: 'read only',
 					deferrable: false,
 				});
-				expect(notDeferrable).toEqual([{ id: 1, balance: 100 }]);
 			}));
 
 		it.effect('transaction with an empty options object', () =>

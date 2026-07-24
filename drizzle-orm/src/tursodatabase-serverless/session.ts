@@ -115,7 +115,7 @@ export class TursoDatabaseServerlessSession<TRelations extends AnyRelations>
 
 	override async transaction<T>(
 		transaction: (db: TursoDatabaseServerlessTransaction<TRelations>) => Promise<T>,
-		_config?: SQLiteTransactionConfig,
+		config?: SQLiteTransactionConfig,
 	): Promise<T> {
 		const session = new TursoDatabaseServerlessSession<TRelations>(
 			this.client,
@@ -130,10 +130,13 @@ export class TursoDatabaseServerlessSession<TRelations extends AnyRelations>
 			this.relations,
 		);
 
-		const clientTx = this.client.transaction(async () => await transaction(tx));
+		let clientTx = this.client.transaction(async () => await transaction(tx));
 
-		const result = await clientTx();
-		return result;
+		if (config?.behavior) {
+			clientTx = clientTx[config.behavior];
+		}
+
+		return clientTx();
 	}
 }
 

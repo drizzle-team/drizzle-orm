@@ -2464,7 +2464,7 @@ describe('common', () => {
 		await db.execute(sql`drop table ${products}`);
 	});
 
-	test.skip(
+	test(
 		'transaction with options (set isolationLevel)',
 		async () => {
 			const users = mysqlTable('users_transactions', {
@@ -2505,6 +2505,91 @@ describe('common', () => {
 			await db.execute(sql`drop table ${products}`);
 		},
 	);
+
+	describe('transaction config', () => {
+		const withPeer = async (fn: (peer: SQL) => Promise<void>) => {
+			const peer = await new SQL({
+				url: process.env['MYSQL_CONNECTION_STRING']!,
+				adapter: 'mysql',
+				bigint: true,
+			}).connect();
+
+			try {
+				await fn(peer);
+			} finally {
+				await peer.end();
+			}
+		};
+
+		const rows = mysqlTable('bun_tx_cfg', {
+			id: serial('id').primaryKey(),
+			v: int('v').notNull(),
+		});
+
+		beforeEach(async () => {
+			await db.execute(sql`drop table if exists ${rows}`);
+			await db.execute(sql`create table bun_tx_cfg (id serial not null primary key, v int not null)`);
+			await db.insert(rows).values({ v: 1 });
+		});
+
+		test('isolationLevel read committed sees concurrent commits', async () => {
+			await withPeer(async (peer) => {
+				await db.transaction(async (tx) => {
+					expect(await tx.select().from(rows)).toStrictEqual([{ id: 1, v: 1 }]);
+
+					await peer.unsafe('insert into bun_tx_cfg (v) values (2)');
+
+					expect(await tx.select().from(rows)).toStrictEqual([{ id: 1, v: 1 }, { id: 2, v: 2 }]);
+				}, { isolationLevel: 'read committed' });
+			});
+		});
+
+		test('isolationLevel repeatable read hides concurrent commits', async () => {
+			await withPeer(async (peer) => {
+				await db.transaction(async (tx) => {
+					expect(await tx.select().from(rows)).toStrictEqual([{ id: 1, v: 1 }]);
+
+					await peer.unsafe('insert into bun_tx_cfg (v) values (2)');
+
+					expect(await tx.select().from(rows)).toStrictEqual([{ id: 1, v: 1 }]);
+				}, { isolationLevel: 'repeatable read' });
+			});
+		});
+
+		test('accessMode read only rejects writes', async () => {
+			let failure: any;
+			try {
+				await db.transaction(async (tx) => {
+					await tx.insert(rows).values({ v: 99 });
+				}, { isolationLevel: 'repeatable read', accessMode: 'read only' });
+			} catch (e) {
+				failure = e;
+			}
+			expect(String(failure?.cause?.message ?? failure?.message)).toContain('READ ONLY transaction');
+
+			expect(await db.select().from(rows)).toStrictEqual([{ id: 1, v: 1 }]);
+		});
+
+		test('withConsistentSnapshot takes the read view at start', async () => {
+			await withPeer(async (peer) => {
+				await db.transaction(async (tx) => {
+					await peer.unsafe('insert into bun_tx_cfg (v) values (2)');
+
+					expect(await tx.select().from(rows)).toStrictEqual([{ id: 1, v: 1 }]);
+				}, { isolationLevel: 'repeatable read', withConsistentSnapshot: true });
+			});
+		});
+
+		test('withConsistentSnapshot combined with accessMode', async () => {
+			const read = await db.transaction(async (tx) => tx.select().from(rows), {
+				isolationLevel: 'repeatable read',
+				accessMode: 'read only',
+				withConsistentSnapshot: true,
+			});
+
+			expect(read).toStrictEqual([{ id: 1, v: 1 }]);
+		});
+	});
 
 	test('transaction rollback', async () => {
 		const users = mysqlTable('users_transactions_rollback', {

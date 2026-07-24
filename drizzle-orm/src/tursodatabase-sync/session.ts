@@ -1,4 +1,4 @@
-import type { Database } from '@tursodatabase/sync';
+import type { Database, Transaction } from '@tursodatabase/sync';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
@@ -33,7 +33,7 @@ export class TursoDatabaseSyncSession<TRelations extends AnyRelations>
 	private cache: Cache;
 
 	constructor(
-		private client: Database,
+		private client: Database | Transaction,
 		dialect: SQLiteDialect,
 		private relations: TRelations,
 		private options: TursoDatabaseSyncSessionOptions,
@@ -116,25 +116,30 @@ export class TursoDatabaseSyncSession<TRelations extends AnyRelations>
 
 	override async transaction<T>(
 		transaction: (db: TursoDatabaseSyncTransaction<TRelations>) => Promise<T>,
-		_config?: SQLiteTransactionConfig,
+		config?: SQLiteTransactionConfig,
 	): Promise<T> {
-		const session = new TursoDatabaseSyncSession<TRelations>(
-			this.client,
-			this.dialect,
-			this.relations,
-			this.options,
-		);
-		const tx = new TursoDatabaseSyncTransaction<TRelations>(
-			'async',
-			this.dialect,
-			session,
-			this.relations,
-		);
+		let clientTx = (this.client as Database).transactionAsync(async (txClient) => {
+			const session = new TursoDatabaseSyncSession<TRelations>(
+				txClient,
+				this.dialect,
+				this.relations,
+				this.options,
+			);
+			const tx = new TursoDatabaseSyncTransaction<TRelations>(
+				'async',
+				this.dialect,
+				session,
+				this.relations,
+			);
 
-		const clientTx = this.client.transaction(async () => await transaction(tx));
+			return await transaction(tx);
+		});
 
-		const result = await clientTx();
-		return result;
+		if (config?.behavior) {
+			clientTx = clientTx[config.behavior];
+		}
+
+		return clientTx();
 	}
 }
 

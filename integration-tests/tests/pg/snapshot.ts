@@ -1,7 +1,8 @@
 import { sql } from 'drizzle-orm';
+import { PgAsyncDatabase } from 'drizzle-orm/pg-core';
+import { SnapshotPeer } from './instrumentation';
 
 type Expect = (actual: any) => { toEqual(expected: any): void; toBe(expected: any): void };
-const rowsOf = (res: any): any[] => res.rows ?? res;
 const causeOf = (e: any): string => String(e?.cause?.message ?? e?.message);
 
 async function rejection(promise: Promise<unknown>): Promise<any> {
@@ -13,15 +14,12 @@ async function rejection(promise: Promise<unknown>): Promise<any> {
 	throw new Error('expected the transaction to reject, but it resolved');
 }
 
-interface Peer {
-	query: (sql: string) => Promise<any[]>;
-}
-
-/**
- * The snapshot is only importable while the exporting transaction is still open, so `peer` has to be a
- * connection other than the one `db` uses. This holds a transaction open on it for the duration.
- */
-export async function assertSnapshotIsolatesTransaction(db: any, peer: Peer, expect: Expect, prefix = 'tx') {
+export async function assertSnapshotIsolatesTransaction(
+	db: PgAsyncDatabase<any, any>,
+	peer: Omit<SnapshotPeer, 'close'>,
+	expect: Expect,
+	prefix = 'tx',
+) {
 	const table = sql.identifier(`${prefix}_snapshot`);
 
 	await db.execute(sql`drop table if exists ${table}`);
@@ -34,29 +32,29 @@ export async function assertSnapshotIsolatesTransaction(db: any, peer: Peer, exp
 
 		await db.execute(sql`insert into ${table} values (2)`);
 
-		await db.transaction(async (tx: any) => {
-			const res = await tx.execute(sql`select id from ${table} order by id`);
-			expect(rowsOf(res)).toEqual([{ id: 1 }]);
+		await db.transaction(async (tx) => {
+			const res = await tx.execute<{ id: number }>(sql`select id from ${table} order by id`, 'objects');
+			expect(res).toEqual([{ id: 1 }]);
 		}, { isolationLevel: 'repeatable read', snapshot });
 
-		await db.transaction(async (tx: any) => {
-			const res = await tx.execute(sql`select id from ${table} order by id`);
-			expect(rowsOf(res)).toEqual([{ id: 1 }, { id: 2 }]);
+		await db.transaction(async (tx) => {
+			const res = await tx.execute<{ id: number }>(sql`select id from ${table} order by id`, 'objects');
+			expect(res).toEqual([{ id: 1 }, { id: 2 }]);
 		}, { isolationLevel: 'repeatable read' });
 	} finally {
-		await peer.query('commit').catch(() => {});
+		await peer.query('commit').catch(() => null);
 		await db.execute(sql`drop table ${table}`);
 	}
 }
 
-export async function assertMalformedSnapshotRejected(db: any, expect: Expect) {
+export async function assertMalformedSnapshotRejected(db: PgAsyncDatabase<any, any>, expect: Expect) {
 	const e = await rejection(
 		db.transaction(async () => {}, { isolationLevel: 'repeatable read', snapshot: 'not-a-snapshot' }),
 	);
 	expect(causeOf(e)).toEqual('invalid snapshot identifier: "not-a-snapshot"');
 }
 
-export async function assertSnapshotIdNotInjectable(db: any, expect: Expect, prefix = 'tx') {
+export async function assertSnapshotIdNotInjectable(db: PgAsyncDatabase<any, any>, expect: Expect, prefix = 'tx') {
 	const table = sql.identifier(`${prefix}_snapshot_injection`);
 
 	await db.execute(sql`drop table if exists ${table}`);
@@ -69,8 +67,8 @@ export async function assertSnapshotIdNotInjectable(db: any, expect: Expect, pre
 		);
 		expect(causeOf(e)).toEqual(`invalid snapshot identifier: "${payload}"`);
 
-		const res = await db.execute(sql`select count(*)::int as c from ${table}`);
-		expect(rowsOf(res)[0].c).toBe(0);
+		const res = await db.execute<{ c: number }>(sql`select count(*)::int as c from ${table}`, 'objects');
+		expect(res[0]?.c).toBe(0);
 	} finally {
 		await db.execute(sql`drop table ${table}`);
 	}

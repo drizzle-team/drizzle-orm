@@ -91,6 +91,8 @@ export class OPSQLiteSession<TRelations extends AnyRelations>
 		transaction: (tx: OPSQLiteTransaction<TRelations>) => T,
 		config: SQLiteTransactionConfig = {},
 	): T {
+		if (config?.behavior === 'concurrent') throw new Error('Concurrent transactions are not supported by driver');
+
 		const tx = new OPSQLiteTransaction('async', this.dialect, this, this.relations);
 		this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
 		try {

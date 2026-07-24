@@ -214,6 +214,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 });
 
 const skip = [
+	'transaction mode: concurrent is rejected',
 	// Uses async versions
 	'sync transaction rollback',
 	'sync nested transaction rollback',
