@@ -103,7 +103,7 @@ const allTypesTable = mysqlTable('all_types', {
 	bigint64: bigint('bigint64', {
 		mode: 'bigint',
 	}),
-	binary: binary('binary'),
+	binary: binary('binary', { mode: 'string' }),
 	boolean: boolean('boolean'),
 	char: char('char'),
 	date: date('date', {
@@ -145,12 +145,21 @@ const allTypesTable = mysqlTable('all_types', {
 	tinyInt: tinyint('tiny_int'),
 	varbin: varbinary('varbin', {
 		length: 16,
+		mode: 'string',
 	}),
 	varchar: varchar('varchar', {
 		length: 255,
 	}),
 	year: year('year'),
 	enum: mysqlEnum('enum', ['enV1', 'enV2']),
+});
+
+const binaryTypesTable = mysqlTable('binary_types', {
+	id: serial('id').primaryKey(),
+	bin: binary('bin', { length: 16 }),
+	binStr: binary('bin_str', { length: 16, mode: 'string' }),
+	varbin: varbinary('varbin', { length: 16 }),
+	varbinStr: varbinary('varbin_str', { length: 16, mode: 'string' }),
 });
 
 const usersTable = mysqlTable('userstest', {
@@ -6395,5 +6404,76 @@ export function tests(driver?: string) {
 		expect(str.sql).toBe(
 			'SELECT * FROM `users` ORDER BY `id`` ASC, CAST((SELECT name FROM users LIMIT 1) AS int)--` ASC',
 		);
+	});
+
+	test('binary/varbinary: default mode returns Buffer', async (ctx) => {
+		const { db } = ctx.mysql;
+
+		await db.execute(sql`drop table if exists \`binary_types\``);
+		await db.execute(sql`
+			create table \`binary_types\` (
+				\`id\` serial primary key,
+				\`bin\` binary(16),
+				\`bin_str\` binary(16),
+				\`varbin\` varbinary(16),
+				\`varbin_str\` varbinary(16)
+			)
+		`);
+
+		const buf = Buffer.from('0123456789abcdef', 'utf8');
+		await db.insert(binaryTypesTable).values({
+			bin: buf,
+			binStr: '1010110101001101',
+			varbin: buf,
+			varbinStr: '1010110101001101',
+		});
+
+		const res = await db.select().from(binaryTypesTable);
+		expect(res).toHaveLength(1);
+
+		expect(Buffer.isBuffer(res[0]!.bin)).toBe(true);
+		expect(Buffer.isBuffer(res[0]!.varbin)).toBe(true);
+
+		// binary(16) is fixed-length and right-padded with 0x00 — compare only the written bytes
+		expect(res[0]!.bin!.subarray(0, buf.length).equals(buf)).toBe(true);
+		expect(res[0]!.varbin!.equals(buf)).toBe(true);
+
+		expect(typeof res[0]!.binStr).toBe('string');
+		expect(typeof res[0]!.varbinStr).toBe('string');
+
+		await db.execute(sql`drop table \`binary_types\``);
+	});
+
+	test('binary/varbinary: round-trip arbitrary bytes in buffer mode', async (ctx) => {
+		const { db } = ctx.mysql;
+
+		await db.execute(sql`drop table if exists \`binary_types\``);
+		await db.execute(sql`
+			create table \`binary_types\` (
+				\`id\` serial primary key,
+				\`bin\` binary(16),
+				\`bin_str\` binary(16),
+				\`varbin\` varbinary(16),
+				\`varbin_str\` varbinary(16)
+			)
+		`);
+
+		const buf = Buffer.from([0x00, 0xff, 0x10, 0xab, 0xcd, 0xef, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a]);
+		await db.insert(binaryTypesTable).values({ bin: buf, varbin: buf });
+
+		const res = await db.select().from(binaryTypesTable);
+
+		expect(res[0]!.bin!.subarray(0, 16).equals(buf)).toBe(true);
+		expect(res[0]!.varbin!.equals(buf)).toBe(true);
+
+		await db.execute(sql`drop table \`binary_types\``);
+	});
+
+	test('binary/varbinary: type inference', () => {
+		type BinarySelect = typeof binaryTypesTable.$inferSelect;
+		type _A = Expect<Equal<BinarySelect['bin'], Buffer | null>>;
+		type _B = Expect<Equal<BinarySelect['varbin'], Buffer | null>>;
+		type _C = Expect<Equal<BinarySelect['binStr'], string | null>>;
+		type _D = Expect<Equal<BinarySelect['varbinStr'], string | null>>;
 	});
 }
