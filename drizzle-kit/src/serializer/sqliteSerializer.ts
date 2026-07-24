@@ -850,7 +850,7 @@ export const fromDatabase = async (
 		const viewName = view['view_name'];
 		const sql = view['sql'];
 
-		const regex = new RegExp(`\\bAS\\b\\s+(SELECT.+)$`, 'i');
+		const regex = new RegExp(`\\bAS\\b\\s+(SELECT.+)$`, 'is');
 		const match = sql.match(regex);
 
 		if (!match) {
