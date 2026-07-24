@@ -1256,11 +1256,15 @@ export const ddlDiff = async (
 	jsonStatements.push(...recreateEnums);
 	jsonStatements.push(...jsonRecreateColumns);
 
+	// #6045: recreate indexes (a DROP INDEX + CREATE INDEX pair) before dropping
+	// columns. Postgres implicitly drops an index when a column it references is
+	// dropped, so running the recreate afterwards makes its DROP INDEX fail with
+	// error 42704 ("index does not exist").
+	jsonStatements.push(...jsonRecreateIndex);
+
 	jsonStatements.push(...jsonDropColumnsStatemets);
 	jsonStatements.push(...jsonAlteredPKs);
 	jsonStatements.push(...jsonAlterColumns);
-
-	jsonStatements.push(...jsonRecreateIndex);
 
 	jsonStatements.push(...jsonRenamedUniqueConstraints);
 	jsonStatements.push(...jsonAddedUniqueConstraints);
