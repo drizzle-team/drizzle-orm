@@ -9,6 +9,12 @@ import type { PgSchemaInternal } from './pgSchema';
 import { SingleStoreSchemaInternal } from './singlestoreSchema';
 import type { SQLiteSchemaInternal } from './sqliteSchema';
 
+const schemaFileExtensions = ['.ts', '.js', '.cjs', '.mjs', '.mts', '.cts'];
+
+const isSchemaFile = (file: string) => {
+	return schemaFileExtensions.some((extension) => file.endsWith(extension));
+};
+
 export const serializeMySql = async (
 	path: string | string[],
 	casing: CasingType | undefined,
@@ -93,19 +99,7 @@ export const prepareFilenames = (path: string | string[]) => {
 
 		return result;
 	}, new Set<string>());
-	const res = [...result];
-
-	// TODO: properly handle and test
-	const errors = res.filter((it) => {
-		return !(
-			it.endsWith('.ts')
-			|| it.endsWith('.js')
-			|| it.endsWith('.cjs')
-			|| it.endsWith('.mjs')
-			|| it.endsWith('.mts')
-			|| it.endsWith('.cts')
-		);
-	});
+	const res = [...result].filter(isSchemaFile);
 
 	// when schema: "./schema" and not "./schema.ts"
 	if (res.length === 0) {
