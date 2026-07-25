@@ -228,7 +228,7 @@ export type SingleStoreSetOperatorExcludedMethods =
 export type SingleStoreSelectWithout<
 	T extends AnySingleStoreSelectQueryBuilder,
 	TDynamic extends boolean,
-	K extends keyof T & string,
+	K extends string,
 	TResetExcluded extends boolean = false,
 > = TDynamic extends true ? T : Omit<
 	SingleStoreSelectKind<

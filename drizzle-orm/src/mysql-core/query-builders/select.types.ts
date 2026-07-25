@@ -243,7 +243,7 @@ export type MySqlSetOperatorExcludedMethods =
 export type MySqlSelectWithout<
 	T extends AnyMySqlSelectQueryBuilder,
 	TDynamic extends boolean,
-	K extends keyof T & string,
+	K extends string,
 	TResetExcluded extends boolean = false,
 > = TDynamic extends true ? T : Omit<
 	MySqlSelectKind<
