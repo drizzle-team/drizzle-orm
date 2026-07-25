@@ -160,7 +160,7 @@ export class MySqlDialect {
 			columnNames.flatMap((colName, i) => {
 				const col = tableColumns[colName]!;
 
-				const onUpdateFnResult = col.onUpdateFn?.();
+				const onUpdateFnResult = set[colName] !== undefined ? undefined : col.onUpdateFn?.();
 				const value = set[colName]
 					?? (is(onUpdateFnResult, SQL)
 						? onUpdateFnResult
