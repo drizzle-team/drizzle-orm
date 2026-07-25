@@ -3371,8 +3371,9 @@ export const preparePgCreateViewJson = (
 	withOption?: any,
 	using?: string,
 	tablespace?: string,
+	dependsOn?: string[],
 ): JsonCreatePgViewStatement => {
-	return {
+	const statement: JsonCreatePgViewStatement = {
 		type: 'create_view',
 		name: name,
 		schema: schema,
@@ -3383,6 +3384,10 @@ export const preparePgCreateViewJson = (
 		using,
 		tablespace,
 	};
+	if (dependsOn && dependsOn.length > 0) {
+		statement.dependsOn = dependsOn;
+	}
+	return statement;
 };
 
 export const prepareMySqlCreateViewJson = (
