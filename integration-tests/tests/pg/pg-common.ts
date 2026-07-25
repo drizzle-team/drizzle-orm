@@ -1741,6 +1741,53 @@ export function tests() {
 			]);
 		});
 
+		test('left join (grouped join null first column)', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const rows = await db
+				.insert(citiesTable)
+				.values([{ name: 'Austin', state: "TX" }, { name: 'London' }])
+				.returning({ id: citiesTable.id });
+
+			expect(rows).toHaveLength(2)
+			const [{id: austinId}, {id: londonId}] = rows as any as [{id: number}, {id: number}];
+
+			await db.insert(users2Table).values([{ name: 'John', cityId: austinId }, { name: 'Jane', cityId: londonId }]);
+
+			const res = await db
+				.select(
+					{
+						id: users2Table.id,
+						user: {
+							name: users2Table.name,
+							nameUpper: sql<string>`upper(${users2Table.name})`,
+						},
+						city: {
+							// Being a nullable column, being first caused the entire object to return null
+							state: citiesTable.state,
+							id: citiesTable.id,
+							name: citiesTable.name,
+							nameUpper: sql<string>`upper(${citiesTable.name})`,
+						},
+					}
+				)
+				.from(users2Table)
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id));
+
+			expect(res).toEqual([
+				{
+					id: 1,
+					user: { name: 'John', nameUpper: 'JOHN' },
+					city: { state: 'TX', id: austinId, name: 'Austin', nameUpper: 'AUSTIN' },
+				},
+				{
+					id: 2,
+					user: { name: 'Jane', nameUpper: 'JANE' },
+					city: { state: null, id: londonId, name: 'London', nameUpper: 'LONDON' },
+				},
+			]);
+		});
+
 		test('select from a many subquery', async (ctx) => {
 			const { db } = ctx.pg;
 
