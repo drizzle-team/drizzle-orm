@@ -492,7 +492,7 @@ const column = (
 			: `${casing(name)}: double(${dbColumnName({ name, casing: rawCasing })})`;
 
 		// let out = `${name.camelCase()}: double("${name}")`;
-		out += defaultValue
+		out += typeof defaultValue !== 'undefined'
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
 			: '';
 		return out;
@@ -515,7 +515,7 @@ const column = (
 		}
 
 		let out = `${casing(name)}: float(${dbColumnName({ name, casing: rawCasing })}${params ? timeConfig(params) : ''})`;
-		out += defaultValue
+		out += typeof defaultValue !== 'undefined'
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
 			: '';
 		return out;
@@ -523,7 +523,7 @@ const column = (
 
 	if (lowered === 'real') {
 		let out = `${casing(name)}: real(${dbColumnName({ name, casing: rawCasing })})`;
-		out += defaultValue
+		out += typeof defaultValue !== 'undefined'
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
 			: '';
 		return out;
