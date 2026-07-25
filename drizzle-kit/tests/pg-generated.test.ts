@@ -527,3 +527,92 @@ test('generated as string: change generated constraint', async () => {
 		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED;',
 	]);
 });
+
+// Virtual mode tests
+test('virtual mode: add column with virtual generated constraint', async () => {
+	const from = {
+		users: pgTable('users', {
+			id: integer('id'),
+			id2: integer('id2'),
+			name: text('name'),
+		}),
+	};
+	const to = {
+		users: pgTable('users', {
+			id: integer('id'),
+			id2: integer('id2'),
+			name: text('name'),
+			generatedName: text('gen_name').generatedAlwaysAs(
+				(): SQL => sql`${to.users.name} || 'hello'`,
+				{ mode: 'virtual' },
+			),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(statements).toStrictEqual([
+		{
+			column: {
+				generated: {
+					as: '"users"."name" || \'hello\'',
+					type: 'virtual',
+				},
+				name: 'gen_name',
+				notNull: false,
+				primaryKey: false,
+				type: 'text',
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'alter_table_add_column',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		`ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS (\"users\".\"name\" || 'hello') VIRTUAL;`,
+	]);
+});
+
+test('virtual mode: add column with stored generated constraint (explicit)', async () => {
+	const from = {
+		users: pgTable('users', {
+			id: integer('id'),
+			id2: integer('id2'),
+			name: text('name'),
+		}),
+	};
+	const to = {
+		users: pgTable('users', {
+			id: integer('id'),
+			id2: integer('id2'),
+			name: text('name'),
+			generatedName: text('gen_name').generatedAlwaysAs(
+				(): SQL => sql`${to.users.name} || 'hello'`,
+				{ mode: 'stored' },
+			),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(statements).toStrictEqual([
+		{
+			column: {
+				generated: {
+					as: '"users"."name" || \'hello\'',
+					type: 'stored',
+				},
+				name: 'gen_name',
+				notNull: false,
+				primaryKey: false,
+				type: 'text',
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'alter_table_add_column',
+		},
+	]);
+	expect(sqlStatements).toStrictEqual([
+		`ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS (\"users\".\"name\" || 'hello') STORED;`,
+	]);
+});
