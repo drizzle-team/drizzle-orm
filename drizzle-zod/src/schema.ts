@@ -8,12 +8,75 @@ import type {
 	CreateInsertSchema,
 	CreateSchemaFactoryOptions,
 	CreateSelectSchema,
+	CreateTableSchemaOptions,
 	CreateUpdateSchema,
+	CreateViewSchemaOptions,
+	SchemaType,
 } from './schema.types.ts';
 import { isPgEnum } from './utils.ts';
 
+const conditionsMap: Record<SchemaType, Conditions> = {
+	select: {
+		never: () => false,
+		optional: () => false,
+		nullable: (column) => !column.notNull,
+	},
+	insert: {
+		never: (column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
+		optional: (column) => !column.notNull || (column.notNull && column.hasDefault),
+		nullable: (column) => !column.notNull,
+	},
+	update: {
+		never: (column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
+		optional: () => true,
+		nullable: (column) => !column.notNull,
+	},
+};
+
 function getColumns(tableLike: Table | View) {
 	return isTable(tableLike) ? getTableColumns(tableLike) : getViewSelectedFields(tableLike);
+}
+
+function filterColumns(
+	columns: Record<string, any>,
+	options?: { pick?: string[]; omit?: string[] },
+): Record<string, any> {
+	if (!options) return columns;
+
+	const hasPick = options.pick && options.pick.length > 0;
+	const hasOmit = options.omit && options.omit.length > 0;
+
+	if (hasPick && hasOmit) {
+		throw new Error('Cannot use both "pick" and "omit" options together. Use one or the other.');
+	}
+
+	if (hasPick) {
+		const picked: Record<string, any> = {};
+		for (const key of options.pick!) {
+			if (key in columns) {
+				picked[key] = columns[key];
+			}
+		}
+		return picked;
+	}
+
+	if (hasOmit) {
+		const result: Record<string, any> = {};
+		const omitSet = new Set(options.omit!);
+		for (const [key, value] of Object.entries(columns)) {
+			if (!omitSet.has(key)) {
+				result[key] = value;
+			}
+		}
+		return result;
+	}
+
+	return columns;
+}
+
+interface SchemaLevelOptions {
+	allOptional?: boolean;
+	allNullable?: boolean;
 }
 
 function handleColumns(
@@ -23,13 +86,14 @@ function handleColumns(
 	factory?: CreateSchemaFactoryOptions<
 		Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
 	>,
+	schemaOptions?: SchemaLevelOptions,
 ): z.ZodType {
 	const columnSchemas: Record<string, z.ZodType> = {};
 
 	for (const [key, selected] of Object.entries(columns)) {
 		if (!is(selected, Column) && !is(selected, SQL) && !is(selected, SQL.Aliased) && typeof selected === 'object') {
 			const columns = isTable(selected) || isView(selected) ? getColumns(selected) : selected;
-			columnSchemas[key] = handleColumns(columns, refinements[key] ?? {}, conditions, factory);
+			columnSchemas[key] = handleColumns(columns, refinements[key] ?? {}, conditions, factory, schemaOptions);
 			continue;
 		}
 
@@ -49,14 +113,14 @@ function handleColumns(
 			columnSchemas[key] = refined;
 		}
 
-		if (column) {
-			if (conditions.nullable(column)) {
-				columnSchemas[key] = columnSchemas[key]!.nullable();
-			}
+		const shouldBeNullable = schemaOptions?.allNullable || (column && conditions.nullable(column));
+		if (shouldBeNullable) {
+			columnSchemas[key] = columnSchemas[key]!.nullable();
+		}
 
-			if (conditions.optional(column)) {
-				columnSchemas[key] = columnSchemas[key]!.optional();
-			}
+		const shouldBeOptional = schemaOptions?.allOptional || (column && conditions.optional(column));
+		if (shouldBeOptional) {
+			columnSchemas[key] = columnSchemas[key]!.optional();
 		}
 	}
 
@@ -148,5 +212,39 @@ export function createSchemaFactory<
 		return handleColumns(columns, refine ?? {}, updateConditions, options) as any;
 	};
 
-	return { createSelectSchema, createInsertSchema, createUpdateSchema };
+	function createSchema<TTable extends Table>(
+		table: TTable,
+		schemaOptions: CreateTableSchemaOptions<TTable, TCoerce>,
+	): z.ZodObject<z.ZodRawShape>;
+	function createSchema<TView extends View>(
+		view: TView,
+		schemaOptions?: CreateViewSchemaOptions<TView, TCoerce>,
+	): z.ZodObject<z.ZodRawShape>;
+	function createSchema<TEnum extends PgEnum<any>>(
+		enum_: TEnum,
+	): z.ZodEnum<{ [K in TEnum['enumValues'][number]]: K }>;
+	function createSchema(
+		entity: Table | View | PgEnum<[string, ...string[]]>,
+		schemaOptions?: CreateTableSchemaOptions<any, TCoerce> | CreateViewSchemaOptions<any, TCoerce>,
+	): z.ZodType {
+		if (isPgEnum(entity)) {
+			return handleEnum(entity, options);
+		}
+
+		const type = schemaOptions?.type ?? 'select';
+		const conditions = conditionsMap[type];
+		let columns = getColumns(entity);
+
+		columns = filterColumns(columns, {
+			pick: (schemaOptions as any)?.pick as string[] | undefined,
+			omit: (schemaOptions as any)?.omit as string[] | undefined,
+		});
+
+		return handleColumns(columns, schemaOptions?.refine ?? {}, conditions, options, {
+			allOptional: schemaOptions?.allOptional,
+			allNullable: schemaOptions?.allNullable,
+		}) as any;
+	}
+
+	return { createSelectSchema, createInsertSchema, createUpdateSchema, createSchema };
 }
