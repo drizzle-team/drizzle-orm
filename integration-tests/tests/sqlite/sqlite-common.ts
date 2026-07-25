@@ -2147,6 +2147,88 @@ export function tests() {
 			expect(res).toEqual([{ id: 1, name: 'John1', verified: true }]);
 		});
 
+		test('insert with onConflict do update with targetWhere', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db
+				.insert(usersTable)
+				.values([{ id: 1, name: 'John', verified: true }])
+				.run();
+
+			await db
+				.insert(usersTable)
+				.values({ id: 1, name: 'John1' })
+				.onConflictDoUpdate({
+					target: usersTable.id,
+					targetWhere: eq(usersTable.verified, true),
+					set: { name: 'John Updated' },
+				})
+				.run();
+
+			const res = await db
+				.select({ id: usersTable.id, name: usersTable.name })
+				.from(usersTable)
+				.where(eq(usersTable.id, 1))
+				.all();
+
+			expect(res).toEqual([{ id: 1, name: 'John Updated' }]);
+		});
+
+		test('insert with onConflict do update with setWhere', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db
+				.insert(usersTable)
+				.values([{ id: 1, name: 'John', verified: false }])
+				.run();
+
+			await db
+				.insert(usersTable)
+				.values({ id: 1, name: 'John1' })
+				.onConflictDoUpdate({
+					target: usersTable.id,
+					set: { name: 'John Updated' },
+					setWhere: eq(usersTable.verified, false),
+				})
+				.run();
+
+			const res = await db
+				.select({ id: usersTable.id, name: usersTable.name })
+				.from(usersTable)
+				.where(eq(usersTable.id, 1))
+				.all();
+
+			expect(res).toEqual([{ id: 1, name: 'John Updated' }]);
+		});
+
+		test('insert with onConflict do update with targetWhere and setWhere', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db
+				.insert(usersTable)
+				.values([{ id: 1, name: 'John', verified: true }])
+				.run();
+
+			await db
+				.insert(usersTable)
+				.values({ id: 1, name: 'John1' })
+				.onConflictDoUpdate({
+					target: usersTable.id,
+					targetWhere: eq(usersTable.verified, true),
+					set: { name: 'John Updated' },
+					setWhere: sql`${usersTable.name} != 'Admin'`,
+				})
+				.run();
+
+			const res = await db
+				.select({ id: usersTable.id, name: usersTable.name })
+				.from(usersTable)
+				.where(eq(usersTable.id, 1))
+				.all();
+
+			expect(res).toEqual([{ id: 1, name: 'John Updated' }]);
+		});
+
 		test('insert with onConflict do update using composite pk', async (ctx) => {
 			const { db } = ctx.sqlite;
 
