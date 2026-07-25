@@ -46,6 +46,17 @@ export type ColumnRuntimeConfig<TData, TRuntimeConfig extends object> = ColumnBu
 	TRuntimeConfig
 >;
 
+export type ColumnSelectMapper = (column: SQL) => SQL;
+
+export type ColumnWithSelectMapper = Column & {
+	selectFromDb?: ColumnSelectMapper;
+};
+
+export function mapColumnSelection(column: Column, columnSql: SQL): SQL {
+	const selectFromDb = (column as ColumnWithSelectMapper).selectFromDb;
+	return typeof selectFromDb === 'function' ? selectFromDb(columnSql) : columnSql;
+}
+
 export interface Column<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
