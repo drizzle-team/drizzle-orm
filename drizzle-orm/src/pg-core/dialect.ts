@@ -160,7 +160,7 @@ export class PgDialect {
 		return sql.join(columnNames.flatMap((colName, i) => {
 			const col = tableColumns[colName]!;
 
-			const onUpdateFnResult = col.onUpdateFn?.();
+			const onUpdateFnResult = set[colName] === undefined ? col.onUpdateFn?.() : undefined;                                
 			const value = set[colName] ?? (is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col));
 			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
 
