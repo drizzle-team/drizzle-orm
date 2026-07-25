@@ -949,9 +949,9 @@ export const fromDatabase = async (
 
 	const checkConstraints = await db.query(
 		`SELECT 
-    tc.table_name, 
-    tc.constraint_name, 
-    cc.check_clause
+    tc.table_name AS TABLE_NAME, 
+    tc.constraint_name AS CONSTRAINT_NAME, 
+    cc.check_clause AS CHECK_CLAUSE
 FROM 
     information_schema.table_constraints tc
 JOIN 
@@ -973,7 +973,7 @@ AND
 		const tableName = checkConstraintRow['TABLE_NAME'];
 
 		const tableInResult = result[tableName];
-		// if (typeof tableInResult === 'undefined') continue;
+		if (typeof tableInResult === 'undefined') continue;
 
 		tableInResult.checkConstraint[constraintName] = {
 			name: constraintName,
