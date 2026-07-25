@@ -1,5 +1,6 @@
-import { PGlite } from '@electric-sql/pglite';
-import { Name, sql } from 'drizzle-orm';
+import { PGlite, types } from '@electric-sql/pglite';
+import { eq, Name, sql } from 'drizzle-orm';
+import { json, jsonb, pgTable, serial } from 'drizzle-orm/pg-core';
 import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
@@ -82,6 +83,104 @@ test('insert via db.execute w/ query builder', async () => {
 		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 	);
 	expect(Array.prototype.slice.call(result.rows)).toEqual([{ id: 1, name: 'John' }]);
+});
+
+test('supports custom json and jsonb serializers', async () => {
+	const client = new PGlite();
+	const stringifyBigInts = (value: unknown) =>
+		JSON.stringify(
+			value,
+			(_key, nestedValue) => typeof nestedValue === 'bigint' ? nestedValue.toString() : nestedValue,
+		);
+	const db = drizzle({
+		client,
+		cache: new TestCache(),
+		queryOptions: {
+			serializers: {
+				[types.JSON]: stringifyBigInts,
+				[types.JSONB]: stringifyBigInts,
+			},
+		},
+	});
+	const jsonTable = pgTable('pglite_jsonb_bigint', {
+		id: serial('id').primaryKey(),
+		metadata: json('metadata').$type<{ xid: bigint }>(),
+		extra: jsonb('extra').$type<{ xid: bigint }>(),
+	});
+
+	try {
+		await db.execute(sql`create table ${jsonTable} (id serial primary key, metadata json, extra jsonb)`);
+
+		await db.insert(jsonTable).values({ metadata: { xid: 0n }, extra: { xid: 0n } });
+
+		const statement = db.insert(jsonTable).values({
+			metadata: sql.placeholder('metadata'),
+			extra: sql.placeholder('extra'),
+		}).prepare('pglite_json_bigint_serializers');
+
+		await statement.execute({ metadata: { xid: 1n }, extra: { xid: 1n } });
+
+		const result = await db.select({
+			metadataXid: sql<string>`${jsonTable.metadata}->>'xid'`,
+			extraXid: sql<string>`${jsonTable.extra}->>'xid'`,
+		}).from(jsonTable).orderBy(jsonTable.id);
+
+		expect(result).toEqual([
+			{ metadataXid: '0', extraXid: '0' },
+			{ metadataXid: '1', extraXid: '1' },
+		]);
+
+		const cachedResult = await db.select({
+			id: jsonTable.id,
+		}).from(jsonTable).where(eq(jsonTable.extra, { xid: 1n })).$withCache();
+
+		expect(cachedResult).toEqual([{ id: 2 }]);
+	} finally {
+		await client.close();
+	}
+});
+
+test('uses default json and jsonb serialization without custom serializers', async () => {
+	const client = new PGlite();
+	const db = drizzle(client);
+	const jsonTable = pgTable('pglite_json_defaults', {
+		id: serial('id').primaryKey(),
+		metadata: json('metadata').$type<{ xid: number }>(),
+		extra: jsonb('extra').$type<{ xid: number }>(),
+	});
+
+	try {
+		await db.execute(sql`create table ${jsonTable} (id serial primary key, metadata json, extra jsonb)`);
+
+		await db.insert(jsonTable).values({ metadata: { xid: 1 }, extra: { xid: 1 } });
+
+		const result = await db.select({
+			metadata: jsonTable.metadata,
+			extra: jsonTable.extra,
+		}).from(jsonTable);
+
+		expect(result).toEqual([{ metadata: { xid: 1 }, extra: { xid: 1 } }]);
+	} finally {
+		await client.close();
+	}
+});
+
+test('supports custom parser overrides', async () => {
+	const db = drizzle({
+		queryOptions: {
+			parsers: {
+				[types.DATE]: (value) => `parsed:${value}`,
+			},
+		},
+	});
+
+	try {
+		const result = await db.execute<{ value: string }>(sql`select date '2024-01-02' as value`);
+
+		expect(Array.prototype.slice.call(result.rows)).toEqual([{ value: 'parsed:2024-01-02' }]);
+	} finally {
+		await db.$client.close();
+	}
 });
 
 skipTests([

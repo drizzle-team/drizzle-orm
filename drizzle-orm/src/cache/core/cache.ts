@@ -66,8 +66,12 @@ export class NoopCache extends Cache {
 
 export type MutationOption = { tags?: string | string[]; tables?: Table<any> | Table<any>[] | string | string[] };
 
+function stringifyParamsForHash(params?: any[]): string | undefined {
+	return JSON.stringify(params, (_, value) => typeof value === 'bigint' ? { __drizzleBigInt: String(value) } : value);
+}
+
 export async function hashQuery(sql: string, params?: any[]) {
-	const dataToHash = `${sql}-${JSON.stringify(params)}`;
+	const dataToHash = `${sql}-${stringifyParamsForHash(params)}`;
 	const encoder = new TextEncoder();
 	const data = encoder.encode(dataToHash);
 	const hashBuffer = await crypto.subtle.digest('SHA-256', data);
