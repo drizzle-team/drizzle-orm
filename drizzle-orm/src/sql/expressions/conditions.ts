@@ -14,6 +14,9 @@ import {
 	View,
 } from '../sql.ts';
 
+type SqlOrUndefined<T extends (SQLWrapper | undefined)[]> =
+  T[number] extends undefined ? undefined : SQL;
+
 export function bindIfParam(value: unknown, column: SQLWrapper): SQLChunk {
 	if (
 		isDriverValueEncoder(column)
@@ -101,27 +104,26 @@ export const ne: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  *   )
  * ```
  */
-export function and(...conditions: (SQLWrapper | undefined)[]): SQL | undefined;
-export function and(
-	...unfilteredConditions: (SQLWrapper | undefined)[]
-): SQL | undefined {
+export function and<T extends (SQLWrapper | undefined)[]>(
+	...unfilteredConditions: T
+): SqlOrUndefined<T> {
 	const conditions = unfilteredConditions.filter(
-		(c): c is Exclude<typeof c, undefined> => c !== undefined,
+		(c) => c !== undefined,
 	);
 
 	if (conditions.length === 0) {
-		return undefined;
+		return undefined as SqlOrUndefined<T>;
 	}
 
 	if (conditions.length === 1) {
-		return new SQL(conditions);
+		return new SQL(conditions) as SqlOrUndefined<T>;
 	}
 
 	return new SQL([
 		new StringChunk('('),
 		sql.join(conditions, new StringChunk(' and ')),
 		new StringChunk(')'),
-	]);
+	]) as SqlOrUndefined<T>;
 }
 
 /**
@@ -140,27 +142,26 @@ export function and(
  *   )
  * ```
  */
-export function or(...conditions: (SQLWrapper | undefined)[]): SQL | undefined;
-export function or(
-	...unfilteredConditions: (SQLWrapper | undefined)[]
-): SQL | undefined {
+export function or<T extends (SQLWrapper | undefined)[]>(
+	...unfilteredConditions: T
+): SqlOrUndefined<T> {
 	const conditions = unfilteredConditions.filter(
 		(c): c is Exclude<typeof c, undefined> => c !== undefined,
 	);
 
 	if (conditions.length === 0) {
-		return undefined;
+		return undefined as SqlOrUndefined<T>;
 	}
 
 	if (conditions.length === 1) {
-		return new SQL(conditions);
+		return new SQL(conditions) as SqlOrUndefined<T>;
 	}
 
 	return new SQL([
 		new StringChunk('('),
 		sql.join(conditions, new StringChunk(' or ')),
 		new StringChunk(')'),
-	]);
+	]) as SqlOrUndefined<T>;
 }
 
 /**
