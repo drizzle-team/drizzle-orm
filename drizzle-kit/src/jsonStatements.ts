@@ -72,6 +72,11 @@ export interface JsonRecreateTableStatement {
 	compositePKs: string[][];
 	uniqueConstraints?: string[];
 	checkConstraints: string[];
+	// Names of the columns to copy from the old table into the recreated one.
+	// When omitted, every column in `columns` is copied. This is used to avoid
+	// selecting newly added columns (which don't exist on the old table yet)
+	// when a table is recreated and columns are added in the same migration.
+	columnsToTransfer?: string[];
 }
 
 export interface JsonRecreateSingleStoreTableStatement {
