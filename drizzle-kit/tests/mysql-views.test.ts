@@ -551,3 +551,36 @@ SQL SECURITY invoker
 VIEW \`new_some_view\` AS (SELECT * FROM \`users\` WHERE \`users\`.\`id\` = 1)
 WITH cascaded CHECK OPTION;`);
 });
+
+test('views with dependencies are created in correct order', async () => {
+	const users = mysqlTable('users', {
+		id: int('id').primaryKey().notNull(),
+		score: int('score'),
+	});
+
+	const userScoresView = mysqlView('user_scores').as((qb) =>
+		qb.select({ id: users.id, score: users.score }).from(users)
+	);
+
+	const topScoresView = mysqlView('top_scores', { id: int('id'), score: int('score') }).as(
+		sql`select \`id\`, \`score\` from \`user_scores\` where \`score\` > 100`,
+	);
+
+	const to = {
+		users,
+		topScoresView,
+		userScoresView,
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasMysql({}, to, []);
+
+	const createViewStatements = statements.filter(
+		(s) => s.type === 'mysql_create_view',
+	);
+	expect(createViewStatements.length).toBe(2);
+
+	const viewNames = createViewStatements.map((s) => s.name);
+	const userScoresIdx = viewNames.indexOf('user_scores');
+	const topScoresIdx = viewNames.indexOf('top_scores');
+	expect(userScoresIdx).toBeLessThan(topScoresIdx);
+});
