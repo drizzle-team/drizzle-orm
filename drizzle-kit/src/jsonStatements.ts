@@ -72,6 +72,7 @@ export interface JsonRecreateTableStatement {
 	compositePKs: string[][];
 	uniqueConstraints?: string[];
 	checkConstraints: string[];
+	columnRenames?: { oldName: string; newName: string }[];
 }
 
 export interface JsonRecreateSingleStoreTableStatement {
