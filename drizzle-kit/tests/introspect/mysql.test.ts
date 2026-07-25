@@ -248,6 +248,43 @@ test('view #2', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+test('gracefully skip view with unreadable columns (dropped definer)', async () => {
+  await client.query(`
+    CREATE TABLE base_table_for_view (
+      id INT, 
+      name VARCHAR(50)
+    );
+  `);
+  
+  await client.query(`CREATE USER 'ghost_user'@'%' IDENTIFIED BY 'temp123';`);
+  
+  await client.query(`
+    CREATE DEFINER='ghost_user'@'%' VIEW broken_view AS SELECT * FROM base_table_for_view;
+  `);
+  
+  await client.query(`DROP USER 'ghost_user'@'%';`);
+
+  const expectedSchema = {
+    base_table_for_view: mysqlTable('base_table_for_view', {
+      id: int('id'),
+      name: varchar('name', { length: 50 })
+    }),
+  };
+
+  const { statements, sqlStatements } = await introspectMySQLToFile(
+    client,
+    expectedSchema,
+    'skip-unreadable-view',
+    'drizzle',
+  );
+
+  expect(statements.length).toBe(0);
+  expect(sqlStatements.length).toBe(0);
+
+  await client.query(`DROP VIEW IF EXISTS broken_view;`);
+  await client.query(`DROP TABLE IF EXISTS base_table_for_view;`);
+});
+
 test('handle float type', async () => {
 	const schema = {
 		table: mysqlTable('table', {
