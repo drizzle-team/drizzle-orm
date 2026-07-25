@@ -92,8 +92,55 @@ const ensureTsxRegistered = () => {
 	tsxRegistered = true;
 };
 
+let cfModulesRegistered = false;
+function ensureCFModulesAvailable() {
+	if (cfModulesRegistered) return;
+
+	const Module = require('module');
+	const fs = require('fs');
+	const os = require('os');
+	const path = require('path');
+
+	const stubDir = path.join(os.tmpdir(), 'drizzle-kit-cf-stubs');
+	if (!fs.existsSync(stubDir)) {
+		fs.mkdirSync(stubDir, { recursive: true });
+	}
+
+	const stubContent = `
+class WorkerEntrypoint { constructor(ctx, env) { this.ctx = ctx; this.env = env; } }
+class DurableObject { constructor(state, env) { this.state = state; this.env = env; } }
+class RpcTarget { constructor(value) { this.value = value; } }
+class RpcStub extends RpcTarget {}
+const env = {};
+const caches = { default: {} };
+const scheduler = {};
+const executionCtx = {};
+module.exports = { WorkerEntrypoint, DurableObject, RpcTarget, RpcStub, env, caches, scheduler, executionCtx };
+`;
+
+	const stubPath = path.join(stubDir, 'cloudflare-workers.cjs');
+	fs.writeFileSync(stubPath, stubContent);
+
+	const originalResolveFilename = Module._resolveFilename;
+
+	const resolveMap: Record<string, string> = {
+		'cloudflare:workers': stubPath,
+		'cloudflare:test': stubPath,
+	};
+
+	Module._resolveFilename = function (request: string, parent: any, ...args: any[]) {
+		if (resolveMap[request]) {
+			return resolveMap[request];
+		}
+		return originalResolveFilename.apply(this, [request, parent, ...args] as any);
+	};
+
+	cfModulesRegistered = true;
+}
+
 export const safeRegister = async <T>(fn: () => Promise<T>) => {
 	return registerMutex.withLock(async () => {
+		ensureCFModulesAvailable();
 		ensureTsxRegistered();
 		await assertES5();
 		return fn();
