@@ -125,6 +125,9 @@ export const libSqlLogSuggestionsAndReturn = async (
 	const columnsToRemove: string[] = [];
 	const tablesToTruncate: string[] = [];
 
+	// Track tables that have been recreated to avoid duplicate index creation
+	const recreatedTables = new Set<string>();
+
 	for (const statement of statements) {
 		if (statement.type === 'drop_table') {
 			const res = await connection.query<{ count: string }>(
@@ -231,6 +234,8 @@ export const libSqlLogSuggestionsAndReturn = async (
 			);
 		} else if (statement.type === 'recreate_table') {
 			const tableName = statement.tableName;
+			// Mark table as recreated to skip duplicate index creation later
+			recreatedTables.add(tableName);
 
 			let dataLoss = false;
 
@@ -336,6 +341,9 @@ export const libSqlLogSuggestionsAndReturn = async (
 			statementsToExecute.push(
 				...(Array.isArray(fromJsonStatement) ? fromJsonStatement : [fromJsonStatement]),
 			);
+		} else if (statement.type === 'create_index' && recreatedTables.has(statement.tableName)) {
+			// Skip create_index for recreated tables - indexes are already created in _moveDataStatements
+			continue;
 		} else {
 			const fromJsonStatement = fromJson([statement], 'turso', 'push', json2);
 			statementsToExecute.push(
