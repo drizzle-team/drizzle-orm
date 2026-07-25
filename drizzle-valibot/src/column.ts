@@ -97,24 +97,44 @@ export function columnToSchema(column: Column): v.GenericSchema {
 		else if (isColumnType<PgArray<any, any>>(column, ['PgArray'])) {
 			schema = v.array(columnToSchema(column.baseColumn));
 			schema = column.size ? v.pipe(schema as v.ArraySchema<any, any>, v.length(column.size)) : schema;
-		} else if (column.dataType === 'array') {
-			schema = v.array(v.any());
-		} else if (column.dataType === 'number') {
-			schema = numberColumnToSchema(column);
-		} else if (column.dataType === 'bigint') {
-			schema = bigintColumnToSchema(column);
-		} else if (column.dataType === 'boolean') {
-			schema = v.boolean();
-		} else if (column.dataType === 'date') {
-			schema = v.date();
-		} else if (column.dataType === 'string') {
-			schema = stringColumnToSchema(column);
-		} else if (column.dataType === 'json') {
-			schema = jsonSchema;
-		} else if (column.dataType === 'custom') {
-			schema = v.any();
-		} else if (column.dataType === 'buffer') {
-			schema = bufferSchema;
+		} else {
+			// Extract the base data type from potentially compound types
+			// (e.g. "string uuid" -> "string", "number int32" -> "number").
+			// drizzle-orm beta uses compound dataType strings while stable uses
+			// simple ones, so we match on the first word to support both.
+			const baseDataType = column.dataType.split(' ')[0];
+
+			if (baseDataType === 'array') {
+				schema = v.array(v.any());
+			} else if (baseDataType === 'number') {
+				schema = numberColumnToSchema(column);
+			} else if (baseDataType === 'bigint') {
+				schema = bigintColumnToSchema(column);
+			} else if (baseDataType === 'boolean') {
+				schema = v.boolean();
+			} else if (baseDataType === 'date') {
+				schema = v.date();
+			} else if (baseDataType === 'string') {
+				schema = stringColumnToSchema(column);
+			} else if (baseDataType === 'json') {
+				schema = jsonSchema;
+			} else if (baseDataType === 'custom') {
+				schema = v.any();
+			} else if (baseDataType === 'buffer') {
+				schema = bufferSchema;
+			} else if (baseDataType === 'object') {
+				// Handle compound "object <constraint>" types from drizzle-orm beta
+				const constraint = column.dataType.split(' ')[1];
+				if (constraint === 'buffer') {
+					schema = bufferSchema;
+				} else if (constraint === 'date') {
+					schema = v.date();
+				} else if (constraint === 'json') {
+					schema = jsonSchema;
+				} else {
+					schema = v.any();
+				}
+			}
 		}
 	}
 
