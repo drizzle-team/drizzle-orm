@@ -5,6 +5,7 @@ import {
 	integer,
 	json,
 	jsonb,
+	numeric,
 	pgEnum,
 	pgMaterializedView,
 	pgSchema,
@@ -555,3 +556,22 @@ test('all data types', (t) => {
 	// @ts-expect-error
 	createSelectSchema(mView, { unknown: type.string });
 }
+
+
+test('numeric column in bigint mode', (t) => {
+	const table = pgTable('test', {
+		value: numeric({ mode: 'bigint', precision: 78, scale: 0 }).notNull(),
+	});
+	const result = createSelectSchema(table);
+	// The expected range is from -999...999 (78 nines) to +999...999 (78 nines)
+	const max = BigInt('9'.repeat(78));
+	const min = -max;
+	const expected = type({
+		value: type.bigint.narrow((v, ctx) => {
+			if (v < min) return ctx.mustBe('greater than or equal to ' + min.toString());
+			if (v > max) return ctx.mustBe('less than or equal to ' + max.toString());
+			return true;
+		}),
+	});
+	expectSchemaShape(t, expected).from(result);
+});
