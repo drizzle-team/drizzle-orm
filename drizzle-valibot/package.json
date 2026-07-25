@@ -66,9 +66,9 @@
 		"json-rules-engine": "^7.3.1",
 		"rimraf": "^5.0.0",
 		"rollup": "^3.29.5",
-		"valibot": "1.0.0-beta.7",
+		"valibot": "1.2.0",
 		"vite-tsconfig-paths": "^4.3.2",
 		"vitest": "^3.1.3",
-		"zx": "^7.2.2"
+		"zx": "^8.8.5"
 	}
 }
