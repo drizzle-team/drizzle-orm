@@ -896,3 +896,113 @@ test('add table with ts enum', async () => {
 		checkConstraints: [],
 	});
 });
+
+test('enum column: reordering values should not produce a diff', async () => {
+	const from = {
+		users: mysqlTable('users', {
+			status: mysqlEnum('status', ['active', 'inactive', 'pending']),
+		}),
+	};
+
+	const to = {
+		users: mysqlTable('users', {
+			status: mysqlEnum('status', ['pending', 'active', 'inactive']),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasMysql(from, to, []);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('enum column: adding a value should produce an alter statement', async () => {
+	const from = {
+		users: mysqlTable('users', {
+			status: mysqlEnum('status', ['active', 'inactive']),
+		}),
+	};
+
+	const to = {
+		users: mysqlTable('users', {
+			status: mysqlEnum('status', ['active', 'inactive', 'pending']),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasMysql(from, to, []);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'alter_table_alter_column_set_type',
+		tableName: 'users',
+		columnName: 'status',
+		newDataType: "enum('active','inactive','pending')",
+		oldDataType: "enum('active','inactive')",
+		schema: '',
+		columnDefault: undefined,
+		columnGenerated: undefined,
+		columnAutoIncrement: false,
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+	});
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		"ALTER TABLE `users` MODIFY COLUMN `status` enum('active','inactive','pending');",
+	);
+});
+
+test('enum column: removing a value should produce an alter statement', async () => {
+	const from = {
+		users: mysqlTable('users', {
+			status: mysqlEnum('status', ['active', 'inactive', 'pending']),
+		}),
+	};
+
+	const to = {
+		users: mysqlTable('users', {
+			status: mysqlEnum('status', ['active', 'inactive']),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasMysql(from, to, []);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'alter_table_alter_column_set_type',
+		tableName: 'users',
+		columnName: 'status',
+		newDataType: "enum('active','inactive')",
+		oldDataType: "enum('active','inactive','pending')",
+		schema: '',
+		columnDefault: undefined,
+		columnGenerated: undefined,
+		columnAutoIncrement: false,
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+	});
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		"ALTER TABLE `users` MODIFY COLUMN `status` enum('active','inactive');",
+	);
+});
+
+test('enum column: identical values should not produce a diff', async () => {
+	const from = {
+		users: mysqlTable('users', {
+			status: mysqlEnum('status', ['active', 'inactive']),
+		}),
+	};
+
+	const to = {
+		users: mysqlTable('users', {
+			status: mysqlEnum('status', ['active', 'inactive']),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasMysql(from, to, []);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
