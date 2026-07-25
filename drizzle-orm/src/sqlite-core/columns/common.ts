@@ -77,19 +77,17 @@ export abstract class SQLiteColumnBuilder<
 	/** @internal */
 	buildForeignKeys(column: SQLiteColumn, table: SQLiteTable): ForeignKey[] {
 		return this.foreignKeyConfigs.map(({ ref, actions }) => {
-			return ((ref, actions) => {
-				const builder = new ForeignKeyBuilder(() => {
-					const foreignColumn = ref();
-					return { columns: [column], foreignColumns: [foreignColumn] };
-				});
-				if (actions.onUpdate) {
-					builder.onUpdate(actions.onUpdate);
-				}
-				if (actions.onDelete) {
-					builder.onDelete(actions.onDelete);
-				}
-				return builder.build(table);
-			})(ref, actions);
+			const builder = new ForeignKeyBuilder(() => {
+				const foreignColumn = ref();
+				return { columns: [column], foreignColumns: [foreignColumn] };
+			});
+			if (actions.onUpdate) {
+				builder.onUpdate(actions.onUpdate);
+			}
+			if (actions.onDelete) {
+				builder.onDelete(actions.onDelete);
+			}
+			return builder.build(table);
 		});
 	}
 
