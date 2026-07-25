@@ -47,6 +47,8 @@ const optionDriver = string()
 
 const optionCasing = string().enum('camelCase', 'snake_case').desc('Casing for serialization');
 
+const optionName = string().desc('Migration file name');
+
 export const generate = command({
 	name: 'generate',
 	options: {
@@ -636,9 +638,10 @@ export const drop = command({
 		config: optionConfig,
 		out: optionOut,
 		driver: optionDriver,
+		name: optionName,
 	},
 	transform: async (opts) => {
-		const from = assertCollisions('check', opts, [], ['driver', 'out']);
+		const from = assertCollisions('check', opts, ['name'], ['driver', 'out']);
 		return prepareDropParams(opts, from);
 	},
 	handler: async (config) => {
