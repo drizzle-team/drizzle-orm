@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import chalk from 'chalk';
-import { sql } from 'drizzle-orm';
+import { sql, isNotNull } from 'drizzle-orm';
 import {
 	blob,
 	check,
@@ -59,7 +59,13 @@ test('nothing changed in schema', async (t) => {
 			id: integer('id').primaryKey(),
 			content: text('content'),
 			authorId: integer('author_id'),
-		}),
+			},
+			(table) => [
+				uniqueIndex('content_unique_author_nonnull_idx')
+					.on(table.content)
+					.where(isNotNull(table.authorId)),
+			],
+		),
 	};
 
 	const {
