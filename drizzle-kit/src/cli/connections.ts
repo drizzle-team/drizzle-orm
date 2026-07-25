@@ -1029,13 +1029,15 @@ export const connectToSQLite = async (
 					errors: { code: number; message: string }[];
 				};
 
+			const baseApiUrl = credentials.baseApiUrl ?? 'https://api.cloudflare.com/client/v4';
+
 			const remoteCallback: Parameters<typeof drizzle>[0] = async (
 				sql,
 				params,
 				method,
 			) => {
 				const res = await fetch(
-					`https://api.cloudflare.com/client/v4/accounts/${credentials.accountId}/d1/database/${credentials.databaseId}/${
+					`${baseApiUrl}/accounts/${credentials.accountId}/d1/database/${credentials.databaseId}/${
 						method === 'values' ? 'raw' : 'query'
 					}`,
 					{
@@ -1071,7 +1073,7 @@ export const connectToSQLite = async (
 			) => {
 				const sql = queries.map((q) => q.sql).join('; ');
 				const res = await fetch(
-					`https://api.cloudflare.com/client/v4/accounts/${credentials.accountId}/d1/database/${credentials.databaseId}/query`,
+					`${baseApiUrl}/accounts/${credentials.accountId}/d1/database/${credentials.databaseId}/query`,
 					{
 						method: 'POST',
 						body: JSON.stringify({ sql }),
