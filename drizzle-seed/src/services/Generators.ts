@@ -1536,18 +1536,29 @@ export class GenerateUUID extends AbstractGenerator<{
 			currStr: string;
 		const strLength = 36;
 
-		// uuid v4
-		const uuidTemplate = '########-####-4###-####-############';
+		// uuid v4 (RFC 4122)
+		// Version nibble (4) is at position 14
+		// Variant bits (10xx) are at position 19, restricting first hex digit to [8, 9, a, b]
+		const variantChars = '89ab';
+		const uuidTemplate = '########-####-4###-V###-############';
 		currStr = '';
 		for (let i = 0; i < strLength; i++) {
-			[idx, this.state.rng] = prand.uniformIntDistribution(
-				0,
-				stringChars.length - 1,
-				this.state.rng,
-			);
-
 			if (uuidTemplate[i] === '#') {
+				[idx, this.state.rng] = prand.uniformIntDistribution(
+					0,
+					stringChars.length - 1,
+					this.state.rng,
+				);
 				currStr += stringChars[idx];
+				continue;
+			}
+			if (uuidTemplate[i] === 'V') {
+				[idx, this.state.rng] = prand.uniformIntDistribution(
+					0,
+					variantChars.length - 1,
+					this.state.rng,
+				);
+				currStr += variantChars[idx];
 				continue;
 			}
 			currStr += uuidTemplate[i];
