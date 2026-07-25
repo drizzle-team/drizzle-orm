@@ -4,6 +4,7 @@ import * as glob from 'glob';
 import Path from 'path';
 import { CasingType } from 'src/cli/validations/common';
 import { error } from '../cli/views';
+import type { FirebirdSchemaInternal } from './firebirdSchema';
 import type { MySqlSchemaInternal } from './mysqlSchema';
 import type { PgSchemaInternal } from './pgSchema';
 import { SingleStoreSchemaInternal } from './singlestoreSchema';
@@ -52,6 +53,18 @@ export const serializeSQLite = async (
 	const { generateSqliteSnapshot } = await import('./sqliteSerializer');
 	const { tables, views } = await prepareFromSqliteImports(filenames);
 	return generateSqliteSnapshot(tables, views, casing);
+};
+
+export const serializeFirebird = async (
+	path: string | string[],
+	casing: CasingType | undefined,
+): Promise<FirebirdSchemaInternal> => {
+	const filenames = prepareFilenames(path);
+
+	const { prepareFromFirebirdImports } = await import('./firebirdImports');
+	const { generateFirebirdSnapshot } = await import('./firebirdSerializer');
+	const { tables, views } = await prepareFromFirebirdImports(filenames);
+	return generateFirebirdSnapshot(tables, views, casing);
 };
 
 export const serializeSingleStore = async (

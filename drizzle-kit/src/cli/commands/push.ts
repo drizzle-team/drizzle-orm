@@ -1,11 +1,13 @@
 import chalk from 'chalk';
 import { randomUUID } from 'crypto';
 import { render } from 'hanji';
+import { Minimatch } from 'minimatch';
 import { serializePg } from 'src/serializer';
 import { fromJson } from '../../sqlgenerator';
 import { Select } from '../selector-ui';
 import { Entities } from '../validations/cli';
 import { CasingType } from '../validations/common';
+import type { FirebirdCredentials } from '../validations/firebird';
 import { LibSQLCredentials } from '../validations/libsql';
 import type { MysqlCredentials } from '../validations/mysql';
 import { withStyle } from '../validations/outputs';
@@ -23,6 +25,35 @@ import {
 	logSuggestionsAndReturn as singleStoreLogSuggestionsAndReturn,
 } from './singlestorePushUtils';
 import { logSuggestionsAndReturn as sqliteSuggestions } from './sqlitePushUtils';
+
+const buildTablesFilter = (tablesFilter: string[]) => {
+	const matchers = tablesFilter.map((it) => {
+		return new Minimatch(it);
+	});
+
+	return (tableName: string) => {
+		if (matchers.length === 0) return true;
+
+		let flags: boolean[] = [];
+
+		for (let matcher of matchers) {
+			if (matcher.negate) {
+				if (!matcher.match(tableName)) {
+					flags.push(false);
+				}
+			}
+
+			if (matcher.match(tableName)) {
+				flags.push(true);
+			}
+		}
+
+		if (flags.length > 0) {
+			return flags.every(Boolean);
+		}
+		return false;
+	};
+};
 
 export const mysqlPush = async (
 	schemaPath: string | string[],
@@ -528,6 +559,123 @@ export const sqlitePush = async (
 			}
 			render(`[${chalk.green('✓')}] Changes applied`);
 		}
+	}
+};
+
+export const firebirdPush = async (
+	schemaPath: string | string[],
+	verbose: boolean,
+	strict: boolean,
+	credentials: FirebirdCredentials,
+	tablesFilter: string[],
+	force: boolean,
+	casing: CasingType | undefined,
+) => {
+	const { connectToFirebird } = await import('../connections');
+	const { fromDatabase: firebirdPushIntrospect } = await import('../../serializer/firebirdSerializer');
+	const { prepareFirebirdPush } = await import('./migrate');
+
+	const { db } = await connectToFirebird(credentials);
+	const filter = buildTablesFilter(tablesFilter);
+	const snapshot = {
+		id: randomUUID(),
+		prevId: '',
+		...(await firebirdPushIntrospect(db, filter)),
+	};
+
+	const statements = await prepareFirebirdPush(schemaPath, snapshot, casing);
+
+	if (statements.sqlStatements.length === 0) {
+		render(`\n[${chalk.blue('i')}] No changes detected`);
+		return;
+	}
+
+	const statementsToExecute = statements.sqlStatements;
+
+	if (verbose && statementsToExecute.length > 0) {
+		console.log();
+		console.log(
+			withStyle.warning('You are about to execute current statements:'),
+		);
+		console.log();
+		console.log(statementsToExecute.map((s) => chalk.blue(s)).join('\n'));
+		console.log();
+	}
+
+	const dataLossStatements = (statements.statements ?? []).filter((statement: any) => {
+		return statement.type === 'drop_table'
+			|| statement.type === 'alter_table_drop_column'
+			|| statement.type === 'recreate_table'
+			|| (
+				statement.type === 'sqlite_alter_table_add_column'
+				&& statement.column?.notNull
+				&& !statement.column?.default
+			);
+	});
+
+	if (!force && strict && dataLossStatements.length === 0) {
+		const { data } = await render(
+			new Select(['No, abort', `Yes, I want to execute all statements`]),
+		);
+		if (data?.index === 0) {
+			render(`[${chalk.red('x')}] All changes were aborted`);
+			process.exit(0);
+		}
+	}
+
+	if (!force && dataLossStatements.length > 0) {
+		const infoToPrint = dataLossStatements.map((statement: any) => {
+			if (statement.type === 'drop_table') {
+				return `· You're about to delete ${chalk.underline(statement.tableName)} table`;
+			}
+			if (statement.type === 'alter_table_drop_column') {
+				return `· You're about to delete ${
+					chalk.underline(
+						statement.columnName,
+					)
+				} column in ${statement.tableName} table`;
+			}
+			if (statement.type === 'sqlite_alter_table_add_column') {
+				return `· You're about to add not-null ${
+					chalk.underline(
+						statement.column.name,
+					)
+				} column without default value to ${statement.tableName} table`;
+			}
+			return `· You're about to recreate ${chalk.underline(statement.tableName)} table`;
+		});
+
+		console.log(withStyle.warning('Found data-loss statements:'));
+		console.log(infoToPrint.join('\n'));
+		console.log();
+		console.log(
+			chalk.red.bold(
+				'THIS ACTION WILL CAUSE DATA LOSS AND CANNOT BE REVERTED\n',
+			),
+		);
+
+		console.log(chalk.white('Do you still want to push changes?'));
+
+		const { data } = await render(
+			new Select([
+				'No, abort',
+				`Yes, I want to execute all statements`,
+			]),
+		);
+		if (data?.index === 0) {
+			render(`[${chalk.red('x')}] All changes were aborted`);
+			process.exit(0);
+		}
+	}
+
+	try {
+		for (const statement of statementsToExecute) {
+			await db.query(statement);
+		}
+		render(`[${chalk.green('✓')}] Changes applied`);
+	} catch (e) {
+		console.error(e);
+		process.exit(1);
 	}
 };
 
