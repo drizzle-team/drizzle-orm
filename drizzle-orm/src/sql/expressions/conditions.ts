@@ -101,6 +101,7 @@ export const ne: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  *   )
  * ```
  */
+export function and(condition: SQLWrapper, ...conditions: (SQLWrapper | undefined)[]): SQL;
 export function and(...conditions: (SQLWrapper | undefined)[]): SQL | undefined;
 export function and(
 	...unfilteredConditions: (SQLWrapper | undefined)[]
@@ -140,6 +141,7 @@ export function and(
  *   )
  * ```
  */
+export function or(condition: SQLWrapper, ...conditions: (SQLWrapper | undefined)[]): SQL;
 export function or(...conditions: (SQLWrapper | undefined)[]): SQL | undefined;
 export function or(
 	...unfilteredConditions: (SQLWrapper | undefined)[]
