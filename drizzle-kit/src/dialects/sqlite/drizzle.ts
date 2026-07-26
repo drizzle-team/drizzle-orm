@@ -67,8 +67,12 @@ export const fromDrizzleSchema = (
 
 			const defalutValue = defaultFromColumn(column);
 
+			// A unique index on the very same column already enforces uniqueness, so
+			// emitting an inline UNIQUE on top of it would duplicate the constraint.
+			// A plain (non-unique) index enforces nothing, so it must NOT suppress it.
 			const hasUniqueIndex = Boolean(it.config.indexes.find((item) => {
 				const i = item.config;
+				if (!i.unique) return false;
 				const column = i.columns.length === 1 ? i.columns[0] : null;
 				return column && !is(column, SQL) && column.name === name;
 			}));

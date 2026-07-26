@@ -2034,3 +2034,75 @@ test('issue No4688. subsequent push with where part of partial index', async () 
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
 });
+
+test('issue 6060. plain index on a unique column must not drop UNIQUE', async () => {
+	const to = {
+		orders: sqliteTable('orders', {
+			sku: text().notNull().unique(),
+		}, (t) => [index('orders_sku_idx').on(t.sku)]),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
+		`CREATE TABLE \`orders\` (\n\t\`sku\` text NOT NULL UNIQUE\n);\n`,
+		'CREATE INDEX `orders_sku_idx` ON `orders` (`sku`);',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	// The constraint has to hold at runtime, not just in the DDL string.
+	await db.run(`insert into orders values ('sku1');`);
+	await expect(db.run(`insert into orders values ('sku1');`)).rejects.toThrowError();
+});
+
+test('issue 6060. unique index on a unique column still suppresses inline UNIQUE', async () => {
+	const to = {
+		orders: sqliteTable('orders', {
+			sku: text().notNull().unique(),
+		}, (t) => [uniqueIndex('orders_sku_idx').on(t.sku)]),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	// The unique index already enforces it — no duplicated inline UNIQUE.
+	const st0 = [
+		`CREATE TABLE \`orders\` (\n\t\`sku\` text NOT NULL\n);\n`,
+		'CREATE UNIQUE INDEX `orders_sku_idx` ON `orders` (`sku`);',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	await db.run(`insert into orders values ('sku1');`);
+	await expect(db.run(`insert into orders values ('sku1');`)).rejects.toThrowError();
+});
+
+test('issue 6060. table recreate keeps UNIQUE on a column that also has a plain index', async () => {
+	// Changing a column type forces the `__new_<table>` recreate path, which is
+	// where the constraint was reported lost.
+	const from = {
+		orders: sqliteTable('orders', {
+			sku: text().notNull().unique(),
+			note: text(),
+		}, (t) => [index('orders_sku_idx').on(t.sku)]),
+	};
+	const to = {
+		orders: sqliteTable('orders', {
+			sku: text().notNull().unique(),
+			note: int(),
+		}, (t) => [index('orders_sku_idx').on(t.sku)]),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	expect(st.join('\n')).toContain('`sku` text NOT NULL UNIQUE');
+	expect(pst.join('\n')).toContain('`sku` text NOT NULL UNIQUE');
+
+	await db.run(`insert into orders values ('sku1', 1);`);
+	await expect(db.run(`insert into orders values ('sku1', 2);`)).rejects.toThrowError();
+});
