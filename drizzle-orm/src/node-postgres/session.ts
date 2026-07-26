@@ -13,6 +13,7 @@ import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
+import { wrapPostgresError } from '~/errors.ts';
 
 const { Pool, types } = pg;
 
@@ -145,9 +146,13 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 						'drizzle.query.text': rawQuery.text,
 						'drizzle.query.params': JSON.stringify(params),
 					});
-					return this.queryWithCache(rawQuery.text, params, async () => {
-						return await client.query(rawQuery, params);
-					});
+					try {
+						return await this.queryWithCache(rawQuery.text, params, async () => {
+							return await client.query(rawQuery, params);
+						});
+					} catch (e) {
+						throw wrapPostgresError(e as Error);
+					}
 				});
 			}
 
@@ -157,9 +162,13 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 					'drizzle.query.text': query.text,
 					'drizzle.query.params': JSON.stringify(params),
 				});
-				return this.queryWithCache(query.text, params, async () => {
-					return await client.query(query, params);
-				});
+				try {
+					return this.queryWithCache(query.text, params, async () => {
+						return await client.query(query, params);
+					});
+				} catch (e) {
+					throw wrapPostgresError(e as Error);
+				}
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
@@ -180,9 +189,13 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 					'drizzle.query.text': this.rawQueryConfig.text,
 					'drizzle.query.params': JSON.stringify(params),
 				});
-				return this.queryWithCache(this.rawQueryConfig.text, params, async () => {
-					return this.client.query(this.rawQueryConfig, params);
-				}).then((result) => result.rows);
+				try {
+					return this.queryWithCache(this.rawQueryConfig.text, params, async () => {
+						return this.client.query(this.rawQueryConfig, params);
+					}).then((result) => result.rows);
+				} catch (e) {
+					throw wrapPostgresError(e as Error);
+				}
 			});
 		});
 	}
