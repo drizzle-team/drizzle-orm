@@ -366,7 +366,7 @@ jobs:
     
       # >= 11.5.1 for trusted publishing
       - name: Update NPM
-        run: npm install -g npm@latest
+        run: npm install -g npm@11 # npm 12.0.0 ships without sigstore in its bundled tree and breaks `npm publish`
 
       # nuke, so npm can use OIDC
       - name: Remove temp npmrc
