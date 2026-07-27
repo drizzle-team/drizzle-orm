@@ -1,4 +1,4 @@
-import type { Connection, Statement } from '@tursodatabase/serverless';
+import type { Connection, Statement, Transaction } from '@tursodatabase/serverless';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
@@ -33,7 +33,7 @@ export class TursoDatabaseServerlessSession<TRelations extends AnyRelations>
 	private cache: Cache;
 
 	constructor(
-		private client: Connection,
+		private client: Connection | Transaction,
 		dialect: SQLiteDialect,
 		private relations: TRelations,
 		private options: TursoDatabaseServerlessSessionOptions,
@@ -117,20 +117,22 @@ export class TursoDatabaseServerlessSession<TRelations extends AnyRelations>
 		transaction: (db: TursoDatabaseServerlessTransaction<TRelations>) => Promise<T>,
 		config?: SQLiteTransactionConfig,
 	): Promise<T> {
-		const session = new TursoDatabaseServerlessSession<TRelations>(
-			this.client,
-			this.dialect,
-			this.relations,
-			this.options,
-		);
-		const tx = new TursoDatabaseServerlessTransaction<TRelations>(
-			'async',
-			this.dialect,
-			session,
-			this.relations,
-		);
+		let clientTx = (this.client as Connection).transactionAsync(async (txClient) => {
+			const session = new TursoDatabaseServerlessSession<TRelations>(
+				txClient,
+				this.dialect,
+				this.relations,
+				this.options,
+			);
+			const tx = new TursoDatabaseServerlessTransaction<TRelations>(
+				'async',
+				this.dialect,
+				session,
+				this.relations,
+			);
 
-		let clientTx = this.client.transaction(async () => await transaction(tx));
+			return await transaction(tx);
+		});
 
 		if (config?.behavior) {
 			clientTx = clientTx[config.behavior];

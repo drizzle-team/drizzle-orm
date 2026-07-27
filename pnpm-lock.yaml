@@ -188,8 +188,8 @@ importers:
         specifier: 0.7.1
         version: 0.7.1
       '@tursodatabase/serverless':
-        specifier: ^1.3.1
-        version: 1.3.1
+        specifier: ^1.4.0
+        version: 1.4.0
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
@@ -429,8 +429,8 @@ importers:
         specifier: 0.7.1
         version: 0.7.1
       '@tursodatabase/serverless':
-        specifier: 1.3.1
-        version: 1.3.1
+        specifier: 1.4.0
+        version: 1.4.0
       '@tursodatabase/sync':
         specifier: 0.7.1
         version: 0.7.1
@@ -700,8 +700,8 @@ importers:
         specifier: 0.7.1
         version: 0.7.1
       '@tursodatabase/serverless':
-        specifier: 1.3.1
-        version: 1.3.1
+        specifier: 1.4.0
+        version: 1.4.0
       '@tursodatabase/sync':
         specifier: 0.7.1
         version: 0.7.1
@@ -3779,8 +3779,8 @@ packages:
   '@tursodatabase/serverless@0.2.4':
     resolution: {integrity: sha512-kqf3FINvTGx8N1iH/4e1Dkbr/om5q9qitshzvljtQXwZFQIsVP/mDE76mGg9U2dg/ElOZKFKtT1VXDgd39Dr1w==}
 
-  '@tursodatabase/serverless@1.3.1':
-    resolution: {integrity: sha512-z9ZG7vogknUKhMa/vHUZOnAdxdnpz/Najd5HfPI9yDgN1tkesTEk7tV9daUwY3cBPq7jzHYhgSe079Flll4Xvg==}
+  '@tursodatabase/serverless@1.4.0':
+    resolution: {integrity: sha512-ZU3T76NG/E0NTKULqJ9TggJfbdPgRaChOS4HDOu3Srds7w7fSPie7jbPHzz+CLGrxs2TtMYtYB1lH5Bh6q1w7A==}
 
   '@tursodatabase/sync-common@0.7.1':
     resolution: {integrity: sha512-gMKwSkYzKePyhFuiSvV+QmLHYWjfKZ7leuMdeU4WJrUQqSGQHcFPvNpywyhggmDRR55cbv3COAj+kcVe450jhw==}
@@ -13110,7 +13110,7 @@ snapshots:
 
   '@tursodatabase/serverless@0.2.4': {}
 
-  '@tursodatabase/serverless@1.3.1': {}
+  '@tursodatabase/serverless@1.4.0': {}
 
   '@tursodatabase/sync-common@0.7.1':
     dependencies:
