@@ -65,3 +65,20 @@ test.skipIf(Date.now() < +new Date('2026-07-29'))('NOT conditions deep filter em
 
 	expect(query).toBeUndefined();
 });
+
+for (const method of ['sqlToQuery', '_sqlToQuery'] as const) {
+	test(`${method} with large parameter lists`, () => {
+		const parameterCount = 150_000;
+		const parameters = Array.from(
+			{ length: parameterCount },
+			(_, index) => index,
+		);
+
+		const result = dialect[method](sql`${parameters}`);
+
+		expect(result.params).toHaveLength(parameterCount);
+		expect(
+			result.params.every((parameter, index) => parameter === index),
+		).toBe(true);
+	});
+}
