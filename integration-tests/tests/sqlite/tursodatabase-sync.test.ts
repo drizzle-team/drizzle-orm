@@ -234,19 +234,19 @@ const assertLockBehavior = async (behavior: 'deferred' | 'immediate' | 'exclusiv
 	}
 };
 
-test('transaction modes - deferred', async () => {
+test('transaction mode: deferred', async () => {
 	await assertLockBehavior('deferred');
 });
 
-test('transaction modes - immediate', async () => {
+test('transaction mode: immediate', async () => {
 	await assertLockBehavior('immediate');
 });
 
-test('transaction modes - exclusive', async () => {
+test('transaction mode: exclusive', async () => {
 	await assertLockBehavior('exclusive');
 });
 
-test('transaction modes - default', async () => {
+test('transaction mode: default', async () => {
 	await assertLockBehavior(undefined);
 });
 

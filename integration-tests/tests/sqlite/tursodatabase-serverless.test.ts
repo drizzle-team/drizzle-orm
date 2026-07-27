@@ -206,10 +206,10 @@ const spyOnTransactionModes = (client: any) => {
 	const accessed: string[] = [];
 	const spied = new Proxy(client, {
 		get(target, prop) {
-			if (prop !== 'transaction') return passthrough(target, prop);
+			if (prop !== 'transactionAsync') return passthrough(target, prop);
 
 			return (...args: any[]) => {
-				const txn = target.transaction(...args);
+				const txn = target.transactionAsync(...args);
 
 				return new Proxy(txn, {
 					get(t, p) {
@@ -246,19 +246,19 @@ const assertModeForwarded = async (client: Database, behavior: 'deferred' | 'imm
 	}
 };
 
-test('transaction modes - deferred', async ({ client }) => {
+test('transaction mode: deferred', async ({ client }) => {
 	await assertModeForwarded(client as Database, 'deferred');
 });
 
-test('transaction modes - immediate', async ({ client }) => {
+test('transaction mode: immediate', async ({ client }) => {
 	await assertModeForwarded(client as Database, 'immediate');
 });
 
-test('transaction modes - exclusive', async ({ client }) => {
+test('transaction mode: exclusive', async ({ client }) => {
 	await assertModeForwarded(client as Database, 'exclusive');
 });
 
-test('transaction modes - default', async ({ client }) => {
+test('transaction mode: default', async ({ client }) => {
 	const { spied, accessed } = spyOnTransactionModes(client);
 	const db = drizzle({ client: spied, relations });
 	const table = sql.identifier('sls_tx_default');
@@ -271,7 +271,7 @@ test('transaction modes - default', async ({ client }) => {
 
 		await db.transaction(async (tx) => {
 			await tx.run(sql`update ${table} set v = v + 1 where id = 1`);
-		});
+		}, undefined);
 
 		expect(accessed).toEqual([]);
 		expect(await db.all(sql`select v from ${table} where id = 1`)).toEqual([{ v: 1 }]);
