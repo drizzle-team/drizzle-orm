@@ -2167,9 +2167,9 @@ export const connectToSQLite = async (
 		const transactionProxy: TransactionProxy = async (queries) => {
 			const results: (any[] | Error)[] = [];
 			try {
-				const tx = client.transaction(async () => {
+				const tx = client.transactionAsync(async (tx) => {
 					for (const query of queries) {
-						const result = await client.all(query.sql);
+						const result = await tx.all(query.sql);
 						results.push(result);
 					}
 				});
@@ -2560,9 +2560,9 @@ export const connectToTursoRemote = async (
 		const transactionProxy: TransactionProxy = async (queries) => {
 			const results: (any[] | Error)[] = [];
 			try {
-				const tx = client.transaction(async () => {
+				const tx = client.transactionAsync(async (tx) => {
 					for (const query of queries) {
-						const result = await client.all(query.sql);
+						const result = await tx.all(query.sql);
 						results.push(result);
 					}
 				});
