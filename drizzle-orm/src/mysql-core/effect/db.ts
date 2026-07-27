@@ -19,12 +19,7 @@ import { RelationalQueryBuilder } from '../query-builders/query.ts';
 import { MySqlSelectBuilder } from '../query-builders/select.ts';
 import type { SelectedFields } from '../query-builders/select.types.ts';
 import { MySqlUpdateBuilder } from '../query-builders/update.ts';
-import type {
-	MySqlPreparedQueryConfig,
-	MySqlQueryResultHKT,
-	MySqlQueryResultKind,
-	MySqlTransactionConfig,
-} from '../session.ts';
+import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT, MySqlQueryResultKind } from '../session.ts';
 import type { WithBuilder } from '../subquery.ts';
 import type { MySqlTable } from '../table.ts';
 import type { MySqlViewBase } from '../view-base.ts';
@@ -541,9 +536,8 @@ export class MySqlEffectDatabase<
 		transaction: (
 			tx: MySqlEffectTransaction<TEffectHKT, TQueryResult, TRelations>,
 		) => Effect.Effect<A, E, R>,
-		config?: MySqlTransactionConfig,
 	): Effect.Effect<A, E | SqlError, R> {
-		return this.session.transaction(transaction, config);
+		return this.session.transaction(transaction);
 	}
 }
 
@@ -568,7 +562,7 @@ export const withReplicas = <
 	const insert: Q['insert'] = ((...args: [any]) => primary.insert(...args)) as Q['insert'];
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
 	const execute: Q['execute'] = ((...args: [any]) => primary.execute(...args)) as Q['execute'];
-	const transaction: Q['transaction'] = (...args: [any, any]) => primary.transaction(...args);
+	const transaction: Q['transaction'] = (...args: [any]) => primary.transaction(...args);
 
 	return {
 		...primary,
