@@ -72,7 +72,7 @@ function mergeQueries(queries: Query[]): Query {
 	const result: Query = { sql: '', params: [] };
 	for (const query of queries) {
 		result.sql += query.sql;
-		result.params.push(...query.params);
+		for (const param of query.params) result.params.push(param);
 	}
 	return result;
 }
@@ -82,7 +82,7 @@ function _mergeQueries(queries: Query[]): Query {
 	const sqls = [] as string[];
 	for (const query of queries) {
 		sqls.push(query.sql);
-		result.params.push(...query.params);
+		for (const param of query.params) result.params.push(param);
 	}
 	result._sql = Object.assign(sqls, { raw: sqls }) as unknown as TemplateStringsArray;
 	return result;
