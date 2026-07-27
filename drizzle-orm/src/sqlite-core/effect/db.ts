@@ -26,7 +26,7 @@ import type { InferInsertModel, RequiredInsertKeys } from '~/table.ts';
 import type { DrizzleTypeError, IsNever, JoinUnion } from '~/utils.ts';
 import { QueryBuilder } from '../query-builders/query-builder.ts';
 import type { SelectedFields } from '../query-builders/select.types.ts';
-import type { PreparedQueryConfig, SQLiteTransactionConfig } from '../session.ts';
+import type { PreparedQueryConfig } from '../session.ts';
 import type { WithBuilder } from '../subquery.ts';
 import type { SQLiteViewBase } from '../view-base.ts';
 import type { SQLiteEffectSession, SQLiteEffectTransaction } from './session.ts';
@@ -652,9 +652,8 @@ export class SQLiteEffectDatabase<
 		transaction: (
 			tx: SQLiteEffectTransaction<TEffectHKT, TRunResult, TRelations>,
 		) => Effect.Effect<A, E, R>,
-		config?: SQLiteTransactionConfig,
 	): Effect.Effect<A, E | SqlError, R> {
-		return this.session.transaction(transaction, config);
+		return this.session.transaction(transaction);
 	}
 }
 
