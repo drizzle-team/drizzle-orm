@@ -2640,7 +2640,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		});
 
 		const assertTransactionMode = async (
-			db: any,
+			db: SQLiteAsyncDatabase<any, any, any>,
 			behavior: 'deferred' | 'immediate' | 'exclusive',
 		) => {
 			const table = sqliteTable(`tx_mode_${behavior}`, {
@@ -2662,14 +2662,17 @@ export function tests(test: Test, exclude: string[] = []) {
 			}
 		};
 
+		// Ensures config's SQL isn't corrupted if present, behaviour isn't actually tested here
 		test.concurrent('transaction mode: deferred', async ({ db }) => {
 			await assertTransactionMode(db, 'deferred');
 		});
 
+		// Ensures config's SQL isn't corrupted if present, behaviour isn't actually tested here
 		test.concurrent('transaction mode: immediate', async ({ db }) => {
 			await assertTransactionMode(db, 'immediate');
 		});
 
+		// Ensures config's SQL isn't corrupted if present, behaviour isn't actually tested here
 		test.concurrent('transaction mode: exclusive', async ({ db }) => {
 			await assertTransactionMode(db, 'exclusive');
 		});

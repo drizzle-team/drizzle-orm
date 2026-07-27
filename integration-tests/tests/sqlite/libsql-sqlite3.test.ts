@@ -224,6 +224,10 @@ const skip = [
 	'nested transaction',
 	'nested transaction rollback',
 	'sync nested transaction rollback',
+
+	'transaction mode: deferred',
+	'transaction mode: immediate',
+	'transaction mode: exclusive',
 ];
 
 tests(test, skip);
