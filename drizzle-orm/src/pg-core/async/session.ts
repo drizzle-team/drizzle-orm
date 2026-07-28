@@ -386,7 +386,9 @@ export async function rollback(
 
 	await db.transaction(async (tx) => {
 		for (const dbMigration of dbMigrations) {
-			const meta = migrations.find((m) => m.hash === dbMigration.hash && (!dbMigration.name || m.name === dbMigration.name));
+			const meta = migrations.find((m) =>
+				m.hash === dbMigration.hash && (!dbMigration.name || m.name === dbMigration.name)
+			);
 			if (!meta) {
 				throw new DrizzleError({
 					message: `Cannot rollback migration with hash ${dbMigration.hash}: migration file not found`,
@@ -394,7 +396,8 @@ export async function rollback(
 			}
 			if (!meta.downSql || meta.downSql.length === 0) {
 				throw new DrizzleError({
-					message: `Cannot rollback migration ${dbMigration.hash}: no down SQL available. Add a down.sql file alongside the migration.`,
+					message:
+						`Cannot rollback migration ${dbMigration.hash}: no down SQL available. Add a down.sql file alongside the migration.`,
 				});
 			}
 			for (const stmt of [...meta.downSql].reverse()) {

@@ -359,9 +359,9 @@ export async function rollback(
 		created_at: string;
 		name: string | null;
 	}>(
-		sql`select id, hash, created_at, name from ${
-			sql.identifier(migrationsTable)
-		} order by id desc limit ${sql.raw(String(steps))}`,
+		sql`select id, hash, created_at, name from ${sql.identifier(migrationsTable)} order by id desc limit ${
+			sql.raw(String(steps))
+		}`,
 	);
 
 	if (dbMigrations.length === 0) {

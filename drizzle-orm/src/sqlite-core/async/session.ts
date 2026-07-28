@@ -585,9 +585,9 @@ export function rollbackSync(
 		created_at: string;
 		name: string | null;
 	}>(
-		sql`SELECT id, hash, created_at, name FROM ${
-			sql.identifier(migrationsTable)
-		} ORDER BY id DESC LIMIT ${sql.raw(String(steps))}`,
+		sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)} ORDER BY id DESC LIMIT ${
+			sql.raw(String(steps))
+		}`,
 	);
 
 	if (dbMigrations.length === 0) {
@@ -626,9 +626,9 @@ export async function rollbackAsync(
 		created_at: string;
 		name: string | null;
 	}>(
-		sql`SELECT id, hash, created_at, name FROM ${
-			sql.identifier(migrationsTable)
-		} ORDER BY id DESC LIMIT ${sql.raw(String(steps))}`,
+		sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)} ORDER BY id DESC LIMIT ${
+			sql.raw(String(steps))
+		}`,
 	);
 
 	if (dbMigrations.length === 0) {

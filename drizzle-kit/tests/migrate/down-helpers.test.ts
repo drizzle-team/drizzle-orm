@@ -1,4 +1,3 @@
-import { describe, expect, test } from 'vitest';
 import {
 	collectIrreversibleDownWarnings,
 	type DownStatement,
@@ -7,6 +6,7 @@ import {
 	withCapture,
 } from 'src/cli/commands/generate-down-helpers';
 import type { Resolver } from 'src/dialects/common';
+import { describe, expect, test } from 'vitest';
 
 type Entity = { name: string; schema?: string; table?: string };
 

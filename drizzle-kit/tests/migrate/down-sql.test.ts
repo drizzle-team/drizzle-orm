@@ -1,13 +1,13 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import {
 	CUSTOM_DOWN_SQL_SCAFFOLD,
 	DOWN_SQL_HEADER,
 	embeddedMigrations,
 	writeResult,
 } from 'src/cli/commands/generate-common';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
 // Minimal snapshot stub accepted by writeResult
 const minimalSnapshot: any = {

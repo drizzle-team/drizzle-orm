@@ -119,9 +119,13 @@ export async function rollback<TRelations extends AnyRelations>(
 	await session.run(sql`BEGIN TRANSACTION`);
 	try {
 		for (const dbMigration of dbMigrations) {
-			const meta = migrations.find((m) => m.hash === dbMigration.hash && (!dbMigration.name || m.name === dbMigration.name));
+			const meta = migrations.find((m) =>
+				m.hash === dbMigration.hash && (!dbMigration.name || m.name === dbMigration.name)
+			);
 			if (!meta) {
-				throw new DrizzleError({ message: `Cannot rollback migration with hash ${dbMigration.hash}: migration file not found` });
+				throw new DrizzleError({
+					message: `Cannot rollback migration with hash ${dbMigration.hash}: migration file not found`,
+				});
 			}
 			if (!meta.downSql || meta.downSql.length === 0) {
 				throw new DrizzleError({ message: `Cannot rollback migration ${dbMigration.hash}: no down SQL available.` });

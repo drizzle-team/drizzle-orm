@@ -100,7 +100,9 @@ export async function rollback<TRelations extends AnyRelations>(
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 
 	const dbMigrations = await db.values<[number, string, string, string | null]>(
-		sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)} ORDER BY id DESC LIMIT ${sql.raw(String(steps))}`,
+		sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)} ORDER BY id DESC LIMIT ${
+			sql.raw(String(steps))
+		}`,
 	);
 
 	if (dbMigrations.length === 0) return;
@@ -109,7 +111,9 @@ export async function rollback<TRelations extends AnyRelations>(
 	for (const dbMigration of dbMigrations) {
 		const meta = migrations.find((m) => m.hash === dbMigration[1] && (!dbMigration[3] || m.name === dbMigration[3]));
 		if (!meta) {
-			throw new DrizzleError({ message: `Cannot rollback migration with hash ${dbMigration[1]}: migration file not found` });
+			throw new DrizzleError({
+				message: `Cannot rollback migration with hash ${dbMigration[1]}: migration file not found`,
+			});
 		}
 		if (!meta.downSql || meta.downSql.length === 0) {
 			throw new DrizzleError({ message: `Cannot rollback migration ${dbMigration[1]}: no down SQL available.` });
