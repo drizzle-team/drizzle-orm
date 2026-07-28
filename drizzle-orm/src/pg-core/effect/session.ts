@@ -5,7 +5,7 @@ import { EffectCache, type EffectCacheShape } from '~/cache/core/cache-effect.ts
 import { NoopCache, strategyFor } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { MigratorInitError } from '~/effect-core/errors.ts';
-import { EffectDrizzleQueryError, EffectTransactionRollbackError } from '~/effect-core/errors.ts';
+import { EffectDrizzleError, EffectDrizzleQueryError, EffectTransactionRollbackError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase, QueryEffectKind } from '~/effect-core/query-effect.ts';
 import { entityKind, is } from '~/entity.ts';
@@ -349,6 +349,59 @@ export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEf
 					sql`insert into ${sql.identifier(migrationsSchema)}.${
 						sql.identifier(migrationsTable)
 					} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
+				);
+			}
+		})
+	);
+});
+
+export const rollback = Effect.fn('rollback')(function*<TEffectHKT extends QueryEffectHKTBase>(
+	migrations: MigrationMeta[],
+	session: PgEffectSession<TEffectHKT>,
+	config: string | MigrationConfig,
+	steps: number = 1,
+) {
+	const migrationsTable = typeof config === 'string'
+		? '__drizzle_migrations'
+		: config.migrationsTable ?? '__drizzle_migrations';
+	const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
+
+	const dbMigrations = yield* session.objects<{ id: number; hash: string; name: string | null }>(
+		sql`select id, hash, name from ${sql.identifier(migrationsSchema)}.${
+			sql.identifier(migrationsTable)
+		} order by id desc limit ${sql.raw(String(steps))}`,
+	);
+
+	if (dbMigrations.length === 0) {
+		return;
+	}
+
+	yield* session.transaction((tx) =>
+		Effect.gen(function*() {
+			for (const dbMigration of dbMigrations) {
+				const meta = migrations.find((m) =>
+					m.hash === dbMigration.hash && (!dbMigration.name || m.name === dbMigration.name)
+				);
+				if (!meta) {
+					return yield* new EffectDrizzleError({
+						message: `Cannot rollback migration with hash ${dbMigration.hash}: migration file not found`,
+						cause: undefined,
+					});
+				}
+				if (!meta.downSql || meta.downSql.length === 0) {
+					return yield* new EffectDrizzleError({
+						message:
+							`Cannot rollback migration ${dbMigration.hash}: no down SQL available. Add a down.sql file alongside the migration.`,
+						cause: undefined,
+					});
+				}
+				for (const stmt of [...meta.downSql].reverse()) {
+					yield* tx.execute(sql.raw(stmt));
+				}
+				yield* tx.execute(
+					sql`delete from ${sql.identifier(migrationsSchema)}.${
+						sql.identifier(migrationsTable)
+					} where id = ${dbMigration.id}`,
 				);
 			}
 		})
