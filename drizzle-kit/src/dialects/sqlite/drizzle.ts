@@ -70,7 +70,7 @@ export const fromDrizzleSchema = (
 			const hasUniqueIndex = Boolean(it.config.indexes.find((item) => {
 				const i = item.config;
 				const column = i.columns.length === 1 ? i.columns[0] : null;
-				return column && !is(column, SQL) && column.name === name;
+				return column && !is(column, SQL) && column.name === name && i.unique;
 			}));
 
 			return {
