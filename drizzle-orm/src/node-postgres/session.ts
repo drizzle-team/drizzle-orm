@@ -120,8 +120,8 @@ export class NodePgSession<
 			undefined,
 			false,
 		);
-		await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
 		try {
+			await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
 			const result = await transaction(tx);
 			await tx.execute(sql`commit`);
 			return result;

@@ -1,4 +1,4 @@
-import { gte, sql } from 'drizzle-orm';
+import { eq, gte, isNotNull, sql } from 'drizzle-orm';
 import { check, integer, pgTable, serial, varchar } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
@@ -249,4 +249,28 @@ test('alter check value', async () => {
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6010
+test('Issue No6010', async () => {
+	const schema1 = {
+		test: pgTable('test', {
+			a: integer(),
+			b: integer(),
+		}, (table) => [check('a_and_b_same_nullability', eq(isNotNull(table.a), isNotNull(table.b)))]),
+	};
+
+	const { sqlStatements: st } = await diff({}, schema1, []);
+
+	const { sqlStatements: pst } = await push({ db, to: schema1 });
+
+	const st0: string[] = [
+		`CREATE TABLE "test" (
+\t"a" integer,
+\t"b" integer,
+\tCONSTRAINT "a_and_b_same_nullability" CHECK (("a" is not null) = ("b" is not null))
+);\n`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
