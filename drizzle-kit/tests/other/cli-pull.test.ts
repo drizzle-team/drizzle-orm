@@ -139,7 +139,7 @@ test('validate config #1', async () => {
 		schema: 'schema.ts',
 		dbCredentials: { url: 'test_url' },
 		introspect: { casing: 'preserve' },
-		strict: true,
+		// strict: true, // removed. strict by def for now
 		schemaFilter: ['public'],
 		breakpoints: false,
 		driver: 'pglite',
@@ -200,7 +200,7 @@ test('validate config #2', async () => {
 		schema: 'schema.ts',
 		dbCredentials: { database: 'db', server: 'host', password: 'SA', port: 123, user: 'SA' },
 		introspect: { casing: 'preserve' },
-		strict: true,
+		// strict: true, // removed. strict by def for now
 		// schemaFilter: ['public'],
 		// extensionsFilters: ["postgis"],
 		breakpoints: false,
@@ -264,7 +264,7 @@ test('validate config #3', async () => {
 		schema: 'schema.ts',
 		dbCredentials: { accountId: '1', databaseId: '2', token: '3' },
 		introspect: { casing: 'preserve' },
-		strict: true,
+		// strict: true, // removed. strict by def for now
 		schemaFilter: ['public'],
 		breakpoints: false,
 		entities: {
