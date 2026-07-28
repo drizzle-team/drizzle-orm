@@ -1009,7 +1009,7 @@ test('column is array enum with custom size type. shuffle enum', async () => {
 });
 
 // +
-test('column is array of enum with multiple dimenions with custom sizes type. shuffle enum', async () => {
+test('column is array of enum with multiple dimensions with custom sizes type. shuffle enum', async () => {
 	const enum1 = pgEnum('enum', ['value1', 'value2', 'value3']);
 
 	const from = {
@@ -1063,7 +1063,7 @@ test('column is array of enum with multiple dimenions with custom sizes type. sh
 });
 
 // +
-test('column is array of enum with multiple dimenions type with custom size with default value. shuffle enum', async () => {
+test('column is array of enum with multiple dimensions type with custom size with default value. shuffle enum', async () => {
 	const enum1 = pgEnum('enum', ['value1', 'value2', 'value3']);
 
 	const from = {
@@ -1401,7 +1401,7 @@ test('column is enum type without default value. add default to column', async (
 });
 
 // +
-test('change data type from standart type to enum', async () => {
+test('change data type from standard type to enum', async () => {
 	const enum1 = pgEnum('enum', ['value1', 'value3']);
 
 	const from = {
@@ -1449,7 +1449,7 @@ test('change data type from standart type to enum', async () => {
 });
 
 // +
-test('change data type from standart type to enum. column has default', async () => {
+test('change data type from standard type to enum. column has default', async () => {
 	const enum1 = pgEnum('enum', ['value1', 'value3']);
 
 	const from = {
@@ -1498,7 +1498,7 @@ test('change data type from standart type to enum. column has default', async ()
 });
 
 // +
-test('change data type from array standart type to array enum. column has default', async () => {
+test('change data type from array standard type to array enum. column has default', async () => {
 	const enum1 = pgEnum('enum', ['value1', 'value3']);
 
 	const from = {
@@ -1549,7 +1549,7 @@ test('change data type from array standart type to array enum. column has defaul
 });
 
 // +
-test('change data type from array standart type to array enum. column without default', async () => {
+test('change data type from array standard type to array enum. column without default', async () => {
 	const enum1 = pgEnum('enum', ['value1', 'value3']);
 
 	const from = {
@@ -1597,7 +1597,7 @@ test('change data type from array standart type to array enum. column without de
 });
 
 // +
-test('change data type from array standart type with custom size to array enum with custom size. column has default', async () => {
+test('change data type from array standard type with custom size to array enum with custom size. column has default', async () => {
 	const enum1 = pgEnum('enum', ['value1', 'value3']);
 
 	const from = {
@@ -1648,7 +1648,7 @@ test('change data type from array standart type with custom size to array enum w
 });
 
 // +
-test('change data type from array standart type with custom size to array enum with custom size. column without default', async () => {
+test('change data type from array standard type with custom size to array enum with custom size. column without default', async () => {
 	const enum1 = pgEnum('enum', ['value1', 'value3']);
 
 	const from = {
@@ -1696,7 +1696,7 @@ test('change data type from array standart type with custom size to array enum w
 });
 
 // +
-test('change data type from enum type to standart type', async () => {
+test('change data type from enum type to standard type', async () => {
 	const enum1 = pgEnum('enum', ['value1', 'value3']);
 
 	const from = {
@@ -1744,7 +1744,7 @@ test('change data type from enum type to standart type', async () => {
 });
 
 // +
-test('change data type from enum type to standart type. column has default', async () => {
+test('change data type from enum type to standard type. column has default', async () => {
 	const enum1 = pgEnum('enum', ['value1', 'value3']);
 
 	const from = {
@@ -1793,7 +1793,7 @@ test('change data type from enum type to standart type. column has default', asy
 });
 
 // +
-test('change data type from array enum type to array standart type', async () => {
+test('change data type from array enum type to array standard type', async () => {
 	const enum1 = pgEnum('enum', ['value1', 'value3']);
 
 	const from = {
@@ -1841,7 +1841,7 @@ test('change data type from array enum type to array standart type', async () =>
 });
 
 // +
-test('change data type from array enum with custom size type to array standart type with custom size', async () => {
+test('change data type from array enum with custom size type to array standard type with custom size', async () => {
 	const enum1 = pgEnum('enum', ['value1', 'value3']);
 
 	const from = {
@@ -1889,7 +1889,7 @@ test('change data type from array enum with custom size type to array standart t
 });
 
 //
-test('change data type from array enum type to array standart type. column has default', async () => {
+test('change data type from array enum type to array standard type. column has default', async () => {
 	const enum1 = pgEnum('enum', ['value1', 'value2']);
 
 	const from = {
@@ -1940,7 +1940,7 @@ test('change data type from array enum type to array standart type. column has d
 });
 
 // +
-test('change data type from array enum type with custom size to array standart type with custom size. column has default', async () => {
+test('change data type from array enum type with custom size to array standard type with custom size. column has default', async () => {
 	const enum1 = pgEnum('enum', ['value1', 'value2']);
 
 	const from = {
@@ -1991,7 +1991,7 @@ test('change data type from array enum type with custom size to array standart t
 });
 
 // +
-test('change data type from standart type to standart type', async () => {
+test('change data type from standard type to standard type', async () => {
 	const from = {
 		table: pgTable('table', {
 			column: varchar('column'),
@@ -2035,7 +2035,7 @@ test('change data type from standart type to standart type', async () => {
 });
 
 // +
-test('change data type from standart type to standart type. column has default', async () => {
+test('change data type from standard type to standard type. column has default', async () => {
 	const from = {
 		table: pgTable('table', {
 			column: varchar('column').default('value3'),
@@ -2082,7 +2082,7 @@ test('change data type from standart type to standart type. column has default',
 });
 
 // +
-test('change data type from standart type to standart type. columns are arrays', async () => {
+test('change data type from standard type to standard type. columns are arrays', async () => {
 	const from = {
 		table: pgTable('table', {
 			column: varchar('column').array(),
@@ -2126,7 +2126,7 @@ test('change data type from standart type to standart type. columns are arrays',
 });
 
 // +
-test('change data type from standart type to standart type. columns are arrays with custom sizes', async () => {
+test('change data type from standard type to standard type. columns are arrays with custom sizes', async () => {
 	const from = {
 		table: pgTable('table', {
 			column: varchar('column').array(2),
@@ -2170,7 +2170,7 @@ test('change data type from standart type to standart type. columns are arrays w
 });
 
 // +
-test('change data type from standart type to standart type. columns are arrays. column has default', async () => {
+test('change data type from standard type to standard type. columns are arrays. column has default', async () => {
 	const from = {
 		table: pgTable('table', {
 			column: varchar('column').array().default(['hello']),
@@ -2217,7 +2217,7 @@ test('change data type from standart type to standart type. columns are arrays. 
 });
 
 // +
-test('change data type from standart type to standart type. columns are arrays with custom sizes.column has default', async () => {
+test('change data type from standard type to standard type. columns are arrays with custom sizes.column has default', async () => {
 	const from = {
 		table: pgTable('table', {
 			column: varchar('column').array(2).default(['hello']),
