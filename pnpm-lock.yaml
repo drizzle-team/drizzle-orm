@@ -185,11 +185,11 @@ importers:
         specifier: ^1.0.653
         version: 1.0.653(@craftzdog/react-native-buffer@6.1.1(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(bufferutil@4.0.8)(react-native-quick-base64@2.2.2(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(react-native-tcp-socket@6.3.0(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)))(react-native-url-polyfill@3.0.0(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)))(utf-8-validate@6.0.3)
       '@tursodatabase/database':
-        specifier: 0.6.0-pre.28
-        version: 0.6.0-pre.28
+        specifier: 0.7.1
+        version: 0.7.1
       '@tursodatabase/serverless':
-        specifier: ^1.1.3
-        version: 1.1.3
+        specifier: ^1.4.0
+        version: 1.4.0
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
@@ -410,9 +410,6 @@ importers:
       '@planetscale/database':
         specifier: ^1.16.0
         version: 1.19.0
-      '@prisma/client':
-        specifier: 5.14.0
-        version: 5.14.0(prisma@5.14.0)
       '@sinclair/typebox':
         specifier: ^0.34.48
         version: 0.34.48
@@ -423,20 +420,20 @@ importers:
         specifier: ^0.1.1
         version: 0.1.1
       '@tursodatabase/database':
-        specifier: 0.6.0-pre.28
-        version: 0.6.0-pre.28
+        specifier: 0.7.1
+        version: 0.7.1
       '@tursodatabase/database-common':
-        specifier: 0.6.0-pre.28
-        version: 0.6.0-pre.28
+        specifier: 0.7.1
+        version: 0.7.1
       '@tursodatabase/database-wasm':
-        specifier: 0.6.0-pre.28
-        version: 0.6.0-pre.28
+        specifier: 0.7.1
+        version: 0.7.1
       '@tursodatabase/serverless':
-        specifier: 1.1.3
-        version: 1.1.3
+        specifier: 1.4.0
+        version: 1.4.0
       '@tursodatabase/sync':
-        specifier: 0.6.0
-        version: 0.6.0
+        specifier: 0.7.1
+        version: 0.7.1
       '@types/better-sqlite3':
         specifier: ^7.6.12
         version: 7.6.13
@@ -482,6 +479,9 @@ importers:
       glob:
         specifier: ^11.0.1
         version: 11.1.0
+      minipg:
+        specifier: file:../vendor/minipg-0.1.0.tgz
+        version: file:vendor/minipg-0.1.0.tgz(typescript@5.9.3)
       mysql2:
         specifier: ^3.14.1
         version: 3.14.1
@@ -681,9 +681,6 @@ importers:
       '@planetscale/database':
         specifier: ^1.16.0
         version: 1.19.0
-      '@prisma/client':
-        specifier: 5.14.0
-        version: 5.14.0(prisma@5.14.0)
       '@sinclair/typebox':
         specifier: ^0.34.48
         version: 0.34.48
@@ -694,17 +691,20 @@ importers:
         specifier: ^0.1.1
         version: 0.1.1
       '@tursodatabase/database':
-        specifier: 0.6.0-pre.28
-        version: 0.6.0-pre.28
+        specifier: 0.7.1
+        version: 0.7.1
+      '@tursodatabase/database-common':
+        specifier: ^0.7.1
+        version: 0.7.1
       '@tursodatabase/database-wasm':
-        specifier: 0.6.0-pre.28
-        version: 0.6.0-pre.28
+        specifier: 0.7.1
+        version: 0.7.1
       '@tursodatabase/serverless':
-        specifier: 1.2.0-pre.1
-        version: 1.2.0-pre.1
+        specifier: 1.4.0
+        version: 1.4.0
       '@tursodatabase/sync':
-        specifier: 0.6.0
-        version: 0.6.0
+        specifier: 0.7.1
+        version: 0.7.1
       '@types/chai':
         specifier: ^5.2.2
         version: 5.2.3
@@ -738,9 +738,6 @@ importers:
       drizzle-kit:
         specifier: workspace:../drizzle-kit/dist
         version: link:../drizzle-kit/dist
-      drizzle-prisma-generator:
-        specifier: ^0.1.2
-        version: 0.1.7
       drizzle-seed:
         specifier: workspace:../drizzle-seed/dist
         version: link:../drizzle-seed/dist
@@ -762,6 +759,9 @@ importers:
       json-rules-engine:
         specifier: ^7.3.1
         version: 7.3.1
+      minipg:
+        specifier: file:../vendor/minipg-0.1.0.tgz
+        version: file:vendor/minipg-0.1.0.tgz(typescript@5.9.3)
       mssql:
         specifier: ^11.0.1
         version: 11.0.1
@@ -774,9 +774,6 @@ importers:
       postgres:
         specifier: ^3.3.5
         version: 3.4.7
-      prisma:
-        specifier: 5.14.0
-        version: 5.14.0
       source-map-support:
         specifier: ^0.5.21
         version: 0.5.21
@@ -885,7 +882,7 @@ importers:
     dependencies:
       drizzle-beta:
         specifier: npm:drizzle-orm@1.0.0-beta.21
-        version: drizzle-orm@1.0.0-beta.21(9ac8cbab502f04e357d42ee4dc553962)
+        version: drizzle-orm@1.0.0-beta.21(de2f0226bfa169ff1e37e7cb486e649a)
       drizzle-seed:
         specifier: workspace:../drizzle-seed/dist
         version: link:../drizzle-seed/dist
@@ -1882,14 +1879,8 @@ packages:
   '@electric-sql/pglite@0.4.6':
     resolution: {integrity: sha512-qmlmfN8UyKCee35qkV0r/MBp+Znl8FjBz7OpoglNvww3GJpw0/DLP0o1ZymvLNmcD5DTLOQdzKPtF8Hd3mdl1w==}
 
-  '@emnapi/core@1.7.1':
-    resolution: {integrity: sha512-o1uhUASyo921r2XtHYOHy7gdkGLge8ghBEQHMWmyJFoXlpU58kIrhhN3w26lpQb6dspetweapMn2CSNwQ8I4wg==}
-
   '@emnapi/core@1.8.1':
     resolution: {integrity: sha512-AvT9QFpxK0Zd8J0jopedNm+w/2fIzvtPKPjqyw9jwvBaReTTqPBk9Hixaz7KbjimP+QNz605/XnjFcDAL2pqBg==}
-
-  '@emnapi/runtime@1.7.1':
-    resolution: {integrity: sha512-PVtJr5CmLwYAU9PZDMITZoR5iAOShYREoR45EyyLrbntV50mdePTgUn4AmOw90Ifcj+x2kRjdzr1HP3RrNiHGA==}
 
   '@emnapi/runtime@1.8.1':
     resolution: {integrity: sha512-mehfKSMWjjNol8659Z8KxEMrdSJDDot5SXMq00dM8BN4o+CLNXQ0xH2V7EchNHV4RmbZLmmPdEaXZc5H2FXmDg==}
@@ -3104,9 +3095,6 @@ packages:
   '@prisma/debug@5.14.0':
     resolution: {integrity: sha512-iq56qBZuFfX3fCxoxT8gBX33lQzomBU0qIUaEj1RebsKVz1ob/BVH1XSBwwwvRVtZEV1b7Fxx2eVu34Ge/mg3w==}
 
-  '@prisma/debug@5.22.0':
-    resolution: {integrity: sha512-AUt44v3YJeggO2ZU5BkXI7M4hu9BF2zzH2iF2V5pyXT/lRTyWiElZ7It+bRH1EshoMRxHgpYg4VB6rCM+mG5jQ==}
-
   '@prisma/engines-version@5.14.0-25.e9771e62de70f79a5e1c604a2d7c8e2a0a874b48':
     resolution: {integrity: sha512-ip6pNkRo1UxWv+6toxNcYvItNYaqQjXdFNGJ+Nuk2eYtRoEdoF13wxo7/jsClJFFenMPVNVqXQDV0oveXnR1cA==}
 
@@ -3115,9 +3103,6 @@ packages:
 
   '@prisma/fetch-engine@5.14.0':
     resolution: {integrity: sha512-VrheA9y9DMURK5vu8OJoOgQpxOhas3qF0IBHJ8G/0X44k82kc8E0w98HCn2nhnbOOMwbWsJWXfLC2/F8n5u0gQ==}
-
-  '@prisma/generator-helper@5.22.0':
-    resolution: {integrity: sha512-LwqcBQ5/QsuAaLNQZAIVIAJDJBMjHwMwn16e06IYx/3Okj/xEEfw9IvrqB2cJCl3b2mCBlh3eVH0w9WGmi4aHg==}
 
   '@prisma/get-platform@5.14.0':
     resolution: {integrity: sha512-/yAyBvcEjRv41ynZrhdrPtHgk47xLRRq/o5eWGcUpBJ1YrUZTYB8EoPiopnP7iQrMATK8stXQdPOoVlrzuTQZw==}
@@ -3759,107 +3744,69 @@ packages:
   '@tsconfig/node16@1.0.4':
     resolution: {integrity: sha512-vxhUy4J8lyeyinH7Azl1pdd43GJhZH/tP2weN8TntQblOY+A0XbT8DJk1/oCPuOOyg/Ja757rG0CgHcWC8OfMA==}
 
-  '@tursodatabase/database-common@0.5.3':
-    resolution: {integrity: sha512-DqcHkvp17zGj2q+94ex+x9UR4iDcdv2mOgAsIJ8wcH23ehCu+UZ/848QUME0gO6pqstEhEX5xt3hCr+efVwOxQ==}
+  '@tursodatabase/database-common@0.7.1':
+    resolution: {integrity: sha512-tyEKiRJDZSqLTbJQYhvY9Q2pGbBMwhKb8YS5T9TNOaDy1HvZMDbiypYqvtBw04f02QladUIsmpVBlsmFDb+RFA==}
 
-  '@tursodatabase/database-common@0.6.0-pre.28':
-    resolution: {integrity: sha512-ZRhAb3S3N/Ecq6ZAkESsxbT31Rgqk+xb92Qk1/oVmFJcDuO8f1D/WUHZ2uIuylhXrPBvAok9LhW20hbT9X4GNA==}
-
-  '@tursodatabase/database-common@0.6.1':
-    resolution: {integrity: sha512-fkmkhgSUDg3MXkcziTG9Ime3AY5+YvvDN7VvUDEMNV7MP+XgwE/i5tU6eQP1EKa/zDkdSYPq8gPcmROmKmKL8Q==}
-
-  '@tursodatabase/database-darwin-arm64@0.5.3':
-    resolution: {integrity: sha512-qMrzByOBn0okPt/wlPAyp095aYf/2CiyZDjr5KvzZ5uFtCIMJGyC88Ay4zQyqzYSW0HFioW5UFSPorFLWMBfJA==}
+  '@tursodatabase/database-darwin-arm64@0.7.1':
+    resolution: {integrity: sha512-lTki3P+yH5GawkBL2zmc0hU7nJQ92WCiKlb3XDfRpkX6UukwmnuAZAYM0oWK5rbOzBd0plZUGdItZGjwM+lPPw==}
     cpu: [arm64]
     os: [darwin]
 
-  '@tursodatabase/database-darwin-arm64@0.6.0-pre.28':
-    resolution: {integrity: sha512-UQ1Obj+BSZqE8zSfCvnNn3VLGu4ECGGIfkbF9v13+h/HeZr8JroTXdk0Y8WAGvb7m/hyvjEk+gU+1L0ydkKxWQ==}
-    cpu: [arm64]
-    os: [darwin]
-
-  '@tursodatabase/database-linux-arm64-gnu@0.5.3':
-    resolution: {integrity: sha512-leZwGy4VDpr523ir7nyHCzFbUaLjVXTE/mcgqZ5ijofLQGyIJG1jae/adVMvzJgIU3OB+cVFKnsfLlEw2P7zeg==}
+  '@tursodatabase/database-linux-arm64-gnu@0.7.1':
+    resolution: {integrity: sha512-28dQmMUm1Nzvc2B6lRz6sbIRt5bJBVrnRdy2LpEUnYbU1aTvgLsUgfl4NQONbaaKTGzeKdxe8wONjfwkPbgsaA==}
     cpu: [arm64]
     os: [linux]
 
-  '@tursodatabase/database-linux-arm64-gnu@0.6.0-pre.28':
-    resolution: {integrity: sha512-a5OkedE0AissAbjocvDCsmcQc4gtnVWpwbcbeJ6EoC3oJApK4AzX6vzCl8W4oA7k4cn/V9U4L1QGjWZlLcjePg==}
-    cpu: [arm64]
-    os: [linux]
-
-  '@tursodatabase/database-linux-x64-gnu@0.5.3':
-    resolution: {integrity: sha512-jWIXtUd2zZL2ahpeo7Mm/NU/y41wkfVrjDmkg6sZD1Dw8Wsul4SGUgouDH435Prwb1ntJAE3QkYd/+lIanVhbQ==}
+  '@tursodatabase/database-linux-x64-gnu@0.7.1':
+    resolution: {integrity: sha512-8gENsVswYpwNeuRv/MQJ+aqqT0cwRaDxoaPCeST4IDfzLihl8C5qOrzqJ315pEOCquMKQNVsH8EGPmdjJd7l4g==}
     cpu: [x64]
     os: [linux]
 
-  '@tursodatabase/database-linux-x64-gnu@0.6.0-pre.28':
-    resolution: {integrity: sha512-raEgDNNUxZn2jKX0jV6XEozyWt+3wnazstPLx+YhCU3vSGEui4xnD/ehulCRPCKbybOAFLpmeLvkolc29KFLww==}
-    cpu: [x64]
-    os: [linux]
+  '@tursodatabase/database-wasm-common@0.7.1':
+    resolution: {integrity: sha512-+T1ftIyh/isPeM5FmNFCaW/7aExS1N/PLl9BdlBtEeCTYJX7LEck9FYN8lh7rr753bYv/QwQ4wzGCAZPSS+y5w==}
 
-  '@tursodatabase/database-wasm-common@0.5.3':
-    resolution: {integrity: sha512-MfUJGRKPx132JaYf/+xqQkMnOzmZMFIxxL+SjloD/PVWBzPq1BKXNmBpW6UL7J+CZVSo7sOICIawyJV8mBG0DQ==}
+  '@tursodatabase/database-wasm@0.7.1':
+    resolution: {integrity: sha512-KyoHKDzOgo+xgvXLQyqxmuCHSY3C4UraycyVNodl+Qa0tl0TcF0/6z0FzkofAKI2Ja0fuJWX+dnDy0kBxdzvbA==}
 
-  '@tursodatabase/database-wasm-common@0.6.0-pre.28':
-    resolution: {integrity: sha512-wfJ1VyOCptIU8buX4ircYgw8uYKEXKeblDs6kTudPo7kV22FILYh4M4cpjISAIo2i22+8PrOAxPV4wIlwLSOAA==}
-
-  '@tursodatabase/database-wasm@0.5.3':
-    resolution: {integrity: sha512-pdMuE4qJ0YYuHLFlw2qibdSM9DYuRI8SaLZR4VxGXkcp2eN+g7ic6AWxoM5kw6dWOZpUT23hFiCRtJIGc93ZDQ==}
-
-  '@tursodatabase/database-wasm@0.6.0-pre.28':
-    resolution: {integrity: sha512-2qZhabW+qxX32AW2+jDh5uDSjueco3KsASRC8kLjseG2l3j2KijuMCIn8nFnyHfWyPPCBvLsSKpKD7Mru4tD0g==}
-
-  '@tursodatabase/database-win32-x64-msvc@0.5.3':
-    resolution: {integrity: sha512-Blyt6fvmmbiPxO/HNRzmDjyvVqmBpD7hTjV77t+QNCMdI6aNqFN9x5MEjNMelxHon0RXXesXK92jMWJyTvqUPQ==}
+  '@tursodatabase/database-win32-x64-msvc@0.7.1':
+    resolution: {integrity: sha512-+O3k4VPTlgOvzcRfogep8Tsf6MjwZ9BAzC7QD2QAIYZUvraqcXvv+dZTgZnkRJ6XI5Fu/3ePr8a6SkqbXjhoMA==}
     cpu: [x64]
     os: [win32]
 
-  '@tursodatabase/database-win32-x64-msvc@0.6.0-pre.28':
-    resolution: {integrity: sha512-BrGP+LtkvDR5hxb8a98ltQ9KZgLSn/njLEvDIL/D7OJY811EVcKVtw6dgVDXoQccv3w/NfEGP8MB4kHC4A3dIA==}
-    cpu: [x64]
-    os: [win32]
-
-  '@tursodatabase/database@0.5.3':
-    resolution: {integrity: sha512-Dd9x+oKKkfNPDbBtoCO4QMzBwkNNpQET4wQPt72Yy4bZ1old2gUNjrUzEi17JSSAVpdtCbSaFmeKpsxb/Ie+fw==}
-
-  '@tursodatabase/database@0.6.0-pre.28':
-    resolution: {integrity: sha512-3uwqFwvEeUboSx7Q1/2ST2wGjXxhTmJh8K0jkCb2Amgvp9BJGTmqnLDWC1u3e6QOOHMijMQdetZRTLL+xf2+9Q==}
+  '@tursodatabase/database@0.7.1':
+    resolution: {integrity: sha512-RPEkpAoxKk0aY8spsUpT0MID7AUq7CHnqHOkA0zTG546XPkP/mkkQr1ZwpUer69z4BItSaDq+OQ3XrxVOFfsHg==}
 
   '@tursodatabase/serverless@0.2.4':
     resolution: {integrity: sha512-kqf3FINvTGx8N1iH/4e1Dkbr/om5q9qitshzvljtQXwZFQIsVP/mDE76mGg9U2dg/ElOZKFKtT1VXDgd39Dr1w==}
 
-  '@tursodatabase/serverless@1.1.3':
-    resolution: {integrity: sha512-gy1BiH5uewAPthrEJJVGMig/U997SI843xQsa8jlbvbzE271VU/Ih5CrYXvmFjrugN1JofAlA0ahdH6oIvQVQw==}
+  '@tursodatabase/serverless@1.4.0':
+    resolution: {integrity: sha512-ZU3T76NG/E0NTKULqJ9TggJfbdPgRaChOS4HDOu3Srds7w7fSPie7jbPHzz+CLGrxs2TtMYtYB1lH5Bh6q1w7A==}
 
-  '@tursodatabase/serverless@1.2.0-pre.1':
-    resolution: {integrity: sha512-InPOYP4uEECaBLG/7+XTxiUhpIW3IOaXQLkN5M+xghTcn8ANms/VZU5FTIVFhd+rrjrEp+Dr8oxBdP3nCRqg2A==}
+  '@tursodatabase/sync-common@0.7.1':
+    resolution: {integrity: sha512-gMKwSkYzKePyhFuiSvV+QmLHYWjfKZ7leuMdeU4WJrUQqSGQHcFPvNpywyhggmDRR55cbv3COAj+kcVe450jhw==}
 
-  '@tursodatabase/sync-common@0.6.1':
-    resolution: {integrity: sha512-QjImpfwGomXRPmr7+KQUxN1RHslOCY77ElHgmAdpDy0IAqp4WDO12waPpzV45hxoVb6tlmuArFEDdBGdiq9npQ==}
-
-  '@tursodatabase/sync-darwin-arm64@0.6.0':
-    resolution: {integrity: sha512-8RzoxroxG5UJaDX+xarCukwTyrw2AygMeEHSR+Xb0I2oKTHMACgnhvmokLGZUP3hOwygp0+QrShZx+qU7K8WBw==}
+  '@tursodatabase/sync-darwin-arm64@0.7.1':
+    resolution: {integrity: sha512-qCZ6+0/kwkhsaqcYRASbp9kyFnTCg/XuQE5oJxTcOvfBFaJkRoHzoXvFh1S50d7xU00bnltC1RVXL0jsC2cXIA==}
     cpu: [arm64]
     os: [darwin]
 
-  '@tursodatabase/sync-linux-arm64-gnu@0.6.0':
-    resolution: {integrity: sha512-7dogVhpxI+KPj8mvxFbUqYuBaV+6emOSj3XIeKwAr+KdQF97li35Qpab6UqeJoS7aHNU64uoAEuK0GXy2i3Ykw==}
+  '@tursodatabase/sync-linux-arm64-gnu@0.7.1':
+    resolution: {integrity: sha512-odXErOytjQcT3+zgL9giiddSuuLu/sW49p5s7H6IrG8uFGAYB5AAVY2UayOLG7YOOMqEgPZrtb0dHzMfVAehrA==}
     cpu: [arm64]
     os: [linux]
 
-  '@tursodatabase/sync-linux-x64-gnu@0.6.0':
-    resolution: {integrity: sha512-KxHRnE+5c1jmxaWRAMV9mA9Y5AYugvZ8bK91BNhmqvKah0lD6vSiQULWkA0gZx+vrGuj4nfYzwZpM4xUbId+xA==}
+  '@tursodatabase/sync-linux-x64-gnu@0.7.1':
+    resolution: {integrity: sha512-RgIGvO5lB9ZdG9fgWulAXU9F2ebGM82u36el7HLCpVoIKUwQ5besyS2ASLOvLePkJKh0KCQQq4T2k+wM1CqGcQ==}
     cpu: [x64]
     os: [linux]
 
-  '@tursodatabase/sync-win32-x64-msvc@0.6.0':
-    resolution: {integrity: sha512-c+LzrfAgycMA+lS2smGn+MGfz4+5Yu8BWTe+KMoZOzTvOGNZHd870h9bSU71y4hdN43BPal6fja5sdl95SdolA==}
+  '@tursodatabase/sync-win32-x64-msvc@0.7.1':
+    resolution: {integrity: sha512-y+CiWTvPCWmjrD95LBSiP1pwiEhYd18msKHQAzeMC7BGb/PNhbDuqtKYJJls4HPZsyn8Vg9lbGS629PIMy3/jg==}
     cpu: [x64]
     os: [win32]
 
-  '@tursodatabase/sync@0.6.0':
-    resolution: {integrity: sha512-Oys6WOS7EgC0YgFW34SOlRvQlGuE5KhqxlY51HVqe/lxnA/EmVoe15mDOxCf4umuDArq9Js+432Ol2sgjh730A==}
+  '@tursodatabase/sync@0.7.1':
+    resolution: {integrity: sha512-kFxuYauxjT3mncp82tUm2T3kGBBMvvYyG4TfXpY4b41dQQY467GbfAq+ZzOIDH+xEdW1o1k+Ua2KaRE4nUziQA==}
 
   '@tybys/wasm-util@0.10.1':
     resolution: {integrity: sha512-9tTaPJLSiejZKx+Bmog4uSubteqTvFrVrURwkmHixBo0G4seD0zUxp98E1DzUBJxLQ3NPwXrGKDiVjwx/DpPsg==}
@@ -5256,6 +5203,7 @@ packages:
 
   drizzle-orm@1.0.0-beta.21:
     resolution: {integrity: sha512-HZcIbVn5J9T/Z91Wj12Pn7Pi8/1aykS/GPJf2lXeZnEuPjxaBfQ+YAt0Sl+XI+9R/D1BpK+2fdIqbpuaTbcvqA==}
+    deprecated: The 1.0.0-beta line is superseded by the 1.0 release candidate. Install drizzle-orm@rc instead.
     peerDependencies:
       '@aws-sdk/client-rds-data': '>=3'
       '@cloudflare/workers-types': '>=4'
@@ -5368,10 +5316,6 @@ packages:
         optional: true
       zod:
         optional: true
-
-  drizzle-prisma-generator@0.1.7:
-    resolution: {integrity: sha512-KW+Z6W4hjvsiOCCPEmGyO+Oal7KPv2yQ3uZzHasaVIn+gUWGrkcy8BCDEp1h7uRBRSAd/l17EM4DfljhgYXxBw==}
-    hasBin: true
 
   dts-resolver@2.1.3:
     resolution: {integrity: sha512-bihc7jPC90VrosXNzK0LTE2cuLP6jr0Ro8jk+kMugHReJVLIpHz/xadeq3MhuwyO4TD4OA3L1Q8pBBFRc08Tsw==}
@@ -6314,10 +6258,6 @@ packages:
   invariant@2.2.4:
     resolution: {integrity: sha512-phJfQVBuaJM5raOpJjSfkiD6BpbCE4Ns//LaXl6wGYtUBY83nWS6Rf9tXm2e8VaK60JEjYldbPif/A2B1C2gNA==}
 
-  ip-address@10.1.0:
-    resolution: {integrity: sha512-XXADHxXmvT9+CRxhXg56LJovE+bmWnEWB78LB83VZTprKTmaC5QfruXocxzTZ2Kl0DNwKuBdlIhjL8LeY8Sf8Q==}
-    engines: {node: '>= 12'}
-
   ip-address@10.2.0:
     resolution: {integrity: sha512-/+S6j4E9AHvW9SWMSEY9Xfy66O5PWvVEJ08O0y5JGyEKQpojb0K0GKpz/v5HJ/G0vi3D2sjGK78119oXZeE0qA==}
     engines: {node: '>= 12'}
@@ -7130,6 +7070,13 @@ packages:
   minipass@7.1.2:
     resolution: {integrity: sha512-qOOzS1cBTWYF4BH8fVePDBOO9iptMnGUEZwNc/cMWnTV2nVLZ7VoNWEPHkYczZA0pdoA7dl6e7FL659nX9S2aw==}
     engines: {node: '>=16 || 14 >=14.17'}
+
+  minipg@file:vendor/minipg-0.1.0.tgz:
+    resolution: {integrity: sha512-mfvCQfyVMVbkbL+DbM19NBdBw8oPJvG+fZeochdLheuR9/MKA9Q5ByPsjZ7pKW4+/eO616uCSxhL4CRoAWQm+w==, tarball: file:vendor/minipg-0.1.0.tgz}
+    version: 0.1.0
+    engines: {node: '>=18'}
+    peerDependencies:
+      typescript: ^5
 
   minizlib@2.1.2:
     resolution: {integrity: sha512-bAxsR8BVfj60DWXHE3u30oHzfl4G7khkSuPW+qvpd7jFRHm7dLxOjUk1EHACJ/hxLY8phGJ0YhYHZo7jil7Qdg==}
@@ -8692,6 +8639,7 @@ packages:
   tsconfck@3.1.6:
     resolution: {integrity: sha512-ks6Vjr/jEw0P1gmOVwutM3B7fWxoWBL2KRDb1JfqGVawBmO5UsvmWOQFGHBPl5yxYz4eERr19E6L7NMv+Fej4w==}
     engines: {node: ^18 || >=20}
+    deprecated: unmaintained
     hasBin: true
     peerDependencies:
       typescript: ^5.0.0
@@ -10896,21 +10844,10 @@ snapshots:
 
   '@electric-sql/pglite@0.4.6': {}
 
-  '@emnapi/core@1.7.1':
-    dependencies:
-      '@emnapi/wasi-threads': 1.1.0
-      tslib: 2.8.1
-    optional: true
-
   '@emnapi/core@1.8.1':
     dependencies:
       '@emnapi/wasi-threads': 1.1.0
       tslib: 2.8.1
-
-  '@emnapi/runtime@1.7.1':
-    dependencies:
-      tslib: 2.8.1
-    optional: true
 
   '@emnapi/runtime@1.8.1':
     dependencies:
@@ -11596,7 +11533,7 @@ snapshots:
     dependencies:
       ws: 8.18.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       zod: 3.25.76
-      zod-to-json-schema: 3.25.0(zod@3.25.76)
+      zod-to-json-schema: 3.25.2(zod@3.25.76)
     optionalDependencies:
       '@modelcontextprotocol/sdk': 1.29.0(zod@3.25.1)
     transitivePeerDependencies:
@@ -11607,7 +11544,7 @@ snapshots:
     dependencies:
       ws: 8.18.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       zod: 3.25.76
-      zod-to-json-schema: 3.25.0(zod@3.25.76)
+      zod-to-json-schema: 3.25.2(zod@3.25.76)
     optionalDependencies:
       '@modelcontextprotocol/sdk': 1.29.0(zod@3.25.76)
     transitivePeerDependencies:
@@ -11619,7 +11556,7 @@ snapshots:
     dependencies:
       ws: 8.18.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       zod: 3.25.76
-      zod-to-json-schema: 3.25.0(zod@3.25.76)
+      zod-to-json-schema: 3.25.2(zod@3.25.76)
     optionalDependencies:
       '@modelcontextprotocol/sdk': 1.29.0(zod@4.3.4)
     transitivePeerDependencies:
@@ -12293,8 +12230,8 @@ snapshots:
 
   '@napi-rs/wasm-runtime@1.1.1':
     dependencies:
-      '@emnapi/core': 1.7.1
-      '@emnapi/runtime': 1.7.1
+      '@emnapi/core': 1.8.1
+      '@emnapi/runtime': 1.8.1
       '@tybys/wasm-util': 0.10.1
     optional: true
 
@@ -12409,12 +12346,13 @@ snapshots:
   '@prisma/client@5.14.0(prisma@5.14.0)':
     optionalDependencies:
       prisma: 5.14.0
+    optional: true
 
-  '@prisma/debug@5.14.0': {}
+  '@prisma/debug@5.14.0':
+    optional: true
 
-  '@prisma/debug@5.22.0': {}
-
-  '@prisma/engines-version@5.14.0-25.e9771e62de70f79a5e1c604a2d7c8e2a0a874b48': {}
+  '@prisma/engines-version@5.14.0-25.e9771e62de70f79a5e1c604a2d7c8e2a0a874b48':
+    optional: true
 
   '@prisma/engines@5.14.0':
     dependencies:
@@ -12422,20 +12360,19 @@ snapshots:
       '@prisma/engines-version': 5.14.0-25.e9771e62de70f79a5e1c604a2d7c8e2a0a874b48
       '@prisma/fetch-engine': 5.14.0
       '@prisma/get-platform': 5.14.0
+    optional: true
 
   '@prisma/fetch-engine@5.14.0':
     dependencies:
       '@prisma/debug': 5.14.0
       '@prisma/engines-version': 5.14.0-25.e9771e62de70f79a5e1c604a2d7c8e2a0a874b48
       '@prisma/get-platform': 5.14.0
-
-  '@prisma/generator-helper@5.22.0':
-    dependencies:
-      '@prisma/debug': 5.22.0
+    optional: true
 
   '@prisma/get-platform@5.14.0':
     dependencies:
       '@prisma/debug': 5.14.0
+    optional: true
 
   '@protobufjs/aspromise@1.1.2': {}
 
@@ -13137,112 +13074,70 @@ snapshots:
 
   '@tsconfig/node16@1.0.4': {}
 
-  '@tursodatabase/database-common@0.5.3':
+  '@tursodatabase/database-common@0.7.1': {}
+
+  '@tursodatabase/database-darwin-arm64@0.7.1':
     optional: true
 
-  '@tursodatabase/database-common@0.6.0-pre.28': {}
-
-  '@tursodatabase/database-common@0.6.1': {}
-
-  '@tursodatabase/database-darwin-arm64@0.5.3':
+  '@tursodatabase/database-linux-arm64-gnu@0.7.1':
     optional: true
 
-  '@tursodatabase/database-darwin-arm64@0.6.0-pre.28':
+  '@tursodatabase/database-linux-x64-gnu@0.7.1':
     optional: true
 
-  '@tursodatabase/database-linux-arm64-gnu@0.5.3':
-    optional: true
-
-  '@tursodatabase/database-linux-arm64-gnu@0.6.0-pre.28':
-    optional: true
-
-  '@tursodatabase/database-linux-x64-gnu@0.5.3':
-    optional: true
-
-  '@tursodatabase/database-linux-x64-gnu@0.6.0-pre.28':
-    optional: true
-
-  '@tursodatabase/database-wasm-common@0.5.3':
-    dependencies:
-      '@emnapi/core': 1.8.1
-      '@emnapi/runtime': 1.8.1
-      '@napi-rs/wasm-runtime': 1.0.7
-    optional: true
-
-  '@tursodatabase/database-wasm-common@0.6.0-pre.28':
+  '@tursodatabase/database-wasm-common@0.7.1':
     dependencies:
       '@emnapi/core': 1.8.1
       '@emnapi/runtime': 1.8.1
       '@napi-rs/wasm-runtime': 1.0.7
 
-  '@tursodatabase/database-wasm@0.5.3':
+  '@tursodatabase/database-wasm@0.7.1':
     dependencies:
-      '@tursodatabase/database-common': 0.5.3
-      '@tursodatabase/database-wasm-common': 0.5.3
+      '@tursodatabase/database-common': 0.7.1
+      '@tursodatabase/database-wasm-common': 0.7.1
+
+  '@tursodatabase/database-win32-x64-msvc@0.7.1':
     optional: true
 
-  '@tursodatabase/database-wasm@0.6.0-pre.28':
+  '@tursodatabase/database@0.7.1':
     dependencies:
-      '@tursodatabase/database-common': 0.6.0-pre.28
-      '@tursodatabase/database-wasm-common': 0.6.0-pre.28
-
-  '@tursodatabase/database-win32-x64-msvc@0.5.3':
-    optional: true
-
-  '@tursodatabase/database-win32-x64-msvc@0.6.0-pre.28':
-    optional: true
-
-  '@tursodatabase/database@0.5.3':
-    dependencies:
-      '@tursodatabase/database-common': 0.5.3
+      '@tursodatabase/database-common': 0.7.1
     optionalDependencies:
-      '@tursodatabase/database-darwin-arm64': 0.5.3
-      '@tursodatabase/database-linux-arm64-gnu': 0.5.3
-      '@tursodatabase/database-linux-x64-gnu': 0.5.3
-      '@tursodatabase/database-win32-x64-msvc': 0.5.3
-    optional: true
-
-  '@tursodatabase/database@0.6.0-pre.28':
-    dependencies:
-      '@tursodatabase/database-common': 0.6.0-pre.28
-    optionalDependencies:
-      '@tursodatabase/database-darwin-arm64': 0.6.0-pre.28
-      '@tursodatabase/database-linux-arm64-gnu': 0.6.0-pre.28
-      '@tursodatabase/database-linux-x64-gnu': 0.6.0-pre.28
-      '@tursodatabase/database-win32-x64-msvc': 0.6.0-pre.28
+      '@tursodatabase/database-darwin-arm64': 0.7.1
+      '@tursodatabase/database-linux-arm64-gnu': 0.7.1
+      '@tursodatabase/database-linux-x64-gnu': 0.7.1
+      '@tursodatabase/database-win32-x64-msvc': 0.7.1
 
   '@tursodatabase/serverless@0.2.4': {}
 
-  '@tursodatabase/serverless@1.1.3': {}
+  '@tursodatabase/serverless@1.4.0': {}
 
-  '@tursodatabase/serverless@1.2.0-pre.1': {}
-
-  '@tursodatabase/sync-common@0.6.1':
+  '@tursodatabase/sync-common@0.7.1':
     dependencies:
-      '@tursodatabase/database-common': 0.6.1
+      '@tursodatabase/database-common': 0.7.1
       '@tursodatabase/serverless': 0.2.4
 
-  '@tursodatabase/sync-darwin-arm64@0.6.0':
+  '@tursodatabase/sync-darwin-arm64@0.7.1':
     optional: true
 
-  '@tursodatabase/sync-linux-arm64-gnu@0.6.0':
+  '@tursodatabase/sync-linux-arm64-gnu@0.7.1':
     optional: true
 
-  '@tursodatabase/sync-linux-x64-gnu@0.6.0':
+  '@tursodatabase/sync-linux-x64-gnu@0.7.1':
     optional: true
 
-  '@tursodatabase/sync-win32-x64-msvc@0.6.0':
+  '@tursodatabase/sync-win32-x64-msvc@0.7.1':
     optional: true
 
-  '@tursodatabase/sync@0.6.0':
+  '@tursodatabase/sync@0.7.1':
     dependencies:
-      '@tursodatabase/database-common': 0.6.1
-      '@tursodatabase/sync-common': 0.6.1
+      '@tursodatabase/database-common': 0.7.1
+      '@tursodatabase/sync-common': 0.7.1
     optionalDependencies:
-      '@tursodatabase/sync-darwin-arm64': 0.6.0
-      '@tursodatabase/sync-linux-arm64-gnu': 0.6.0
-      '@tursodatabase/sync-linux-x64-gnu': 0.6.0
-      '@tursodatabase/sync-win32-x64-msvc': 0.6.0
+      '@tursodatabase/sync-darwin-arm64': 0.7.1
+      '@tursodatabase/sync-linux-arm64-gnu': 0.7.1
+      '@tursodatabase/sync-linux-x64-gnu': 0.7.1
+      '@tursodatabase/sync-win32-x64-msvc': 0.7.1
 
   '@tybys/wasm-util@0.10.1':
     dependencies:
@@ -13380,7 +13275,7 @@ snapshots:
   '@types/pg@8.15.6':
     dependencies:
       '@types/node': 24.10.1
-      pg-protocol: 1.10.3
+      pg-protocol: 1.13.0
       pg-types: 2.2.0
 
   '@types/pg@8.6.6':
@@ -14818,7 +14713,7 @@ snapshots:
       sql.js: 1.13.0
       sqlite3: 5.1.7
 
-  drizzle-orm@1.0.0-beta.21(9ac8cbab502f04e357d42ee4dc553962):
+  drizzle-orm@1.0.0-beta.21(de2f0226bfa169ff1e37e7cb486e649a):
     dependencies:
       '@types/mssql': 9.1.8
       mssql: 12.1.1
@@ -14837,9 +14732,9 @@ snapshots:
       '@sinclair/typebox': 0.34.48
       '@sqlitecloud/drivers': 1.0.653(@craftzdog/react-native-buffer@6.1.1(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(bufferutil@4.0.8)(react-native-quick-base64@2.2.2(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(react-native-tcp-socket@6.3.0(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)))(react-native-url-polyfill@3.0.0(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)))(utf-8-validate@6.0.3)
       '@tidbcloud/serverless': 0.1.1
-      '@tursodatabase/database': 0.5.3
-      '@tursodatabase/database-common': 0.6.1
-      '@tursodatabase/database-wasm': 0.5.3
+      '@tursodatabase/database': 0.7.1
+      '@tursodatabase/database-common': 0.7.1
+      '@tursodatabase/database-wasm': 0.7.1
       '@types/better-sqlite3': 7.6.13
       '@types/pg': 8.15.6
       '@types/sql.js': 1.4.9
@@ -14859,10 +14754,6 @@ snapshots:
       typebox: 1.1.6
       valibot: 1.0.0-beta.7(typescript@5.9.3)
       zod: 4.3.4
-
-  drizzle-prisma-generator@0.1.7:
-    dependencies:
-      '@prisma/generator-helper': 5.22.0
 
   dts-resolver@2.1.3: {}
 
@@ -16129,9 +16020,6 @@ snapshots:
     dependencies:
       loose-envify: 1.4.0
 
-  ip-address@10.1.0:
-    optional: true
-
   ip-address@10.2.0: {}
 
   ipaddr.js@1.9.1: {}
@@ -17157,6 +17045,10 @@ snapshots:
 
   minipass@7.1.2: {}
 
+  minipg@file:vendor/minipg-0.1.0.tgz(typescript@5.9.3):
+    dependencies:
+      typescript: 5.9.3
+
   minizlib@2.1.2:
     dependencies:
       minipass: 3.3.6
@@ -17810,6 +17702,7 @@ snapshots:
   prisma@5.14.0:
     dependencies:
       '@prisma/engines': 5.14.0
+    optional: true
 
   proc-log@4.2.0: {}
 
@@ -18500,7 +18393,7 @@ snapshots:
 
   socks@2.8.7:
     dependencies:
-      ip-address: 10.1.0
+      ip-address: 10.2.0
       smart-buffer: 4.2.0
     optional: true
 

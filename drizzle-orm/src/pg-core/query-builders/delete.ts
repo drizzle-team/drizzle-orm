@@ -42,6 +42,7 @@ export interface PgDeleteConfig {
 	table: PgTable;
 	returningFields?: SelectedFieldsFlat;
 	returning?: SelectedFieldsOrdered;
+	shape?: any;
 	withList?: Subquery[];
 	comment?: SQL;
 	ignoreSelectionCastCodecs?: boolean;

@@ -2,7 +2,13 @@ import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import { PgInsertBuilder, PgSelectBuilder, PgUpdateBuilder, QueryBuilder } from '~/pg-core/query-builders/index.ts';
+import {
+	type NoDuplicateColumns,
+	PgInsertBuilder,
+	PgSelectBuilder,
+	PgUpdateBuilder,
+	QueryBuilder,
+} from '~/pg-core/query-builders/index.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PgTransactionConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -10,6 +16,8 @@ import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
+import type { InferInsertModel, RequiredInsertKeys } from '~/table.ts';
+import type { DrizzleTypeError, IsNever, JoinUnion } from '~/utils.ts';
 import type { PgColumn } from '../columns/index.ts';
 import { RelationalQueryBuilder } from '../query-builders/query.ts';
 import type { SelectedFields } from '../query-builders/select.types.ts';
@@ -352,16 +360,45 @@ export class PgAsyncDatabase<
 		 * // Insert multiple rows
 		 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
 		 *
+		 * // Insert only selected columns
+		 * await db.insert(cars, 'brand', 'productionYear').values([{ brand: 'BMW', productionYear: 1995 }, { brand: 'Porsche', productionYear: 1989 }]);
+		 *
 		 * // Insert with returning clause
 		 * const insertedCar: Car[] = await db.insert(cars)
 		 *   .values({ brand: 'BMW' })
 		 *   .returning();
 		 * ```
 		 */
+
+		function insert<
+			TTable extends PgTable,
+			TColumnList extends (keyof InferInsertModel<TTable, { override: true }>)[] = [],
+			TRequiredKeys extends string = RequiredInsertKeys<TTable>,
+		>(
+			table: TTable,
+			...columns: TColumnList extends [] ? []
+				: IsNever<TRequiredKeys> extends true ? TColumnList & NoDuplicateColumns<TColumnList>
+				: [TRequiredKeys] extends [TColumnList[number]] ? TColumnList & NoDuplicateColumns<TColumnList>
+				: DrizzleTypeError<
+					`Column selection is missing following required columns: ${JoinUnion<
+						`"${Exclude<TRequiredKeys, TColumnList[number]>}"`,
+						', '
+					>}`
+				>[]
+		): PgInsertBuilder<TTable, TQueryResult, TColumnList extends [] ? 'all' : TColumnList, false, PgAsyncInsertHKT>;
 		function insert<TTable extends PgTable>(
 			table: TTable,
-		): PgInsertBuilder<TTable, TQueryResult, false, PgAsyncInsertHKT> {
-			return new PgInsertBuilder(table, self.session, self.dialect, queries, undefined, PgAsyncInsertBase);
+			...columns: string[]
+		): PgInsertBuilder<TTable, TQueryResult, 'all', false, PgAsyncInsertHKT> {
+			return new PgInsertBuilder(
+				table,
+				self.session,
+				self.dialect,
+				queries,
+				undefined,
+				columns.length ? columns : undefined,
+				PgAsyncInsertBase,
+			);
 		}
 
 		/**
@@ -574,14 +611,44 @@ export class PgAsyncDatabase<
 	 * // Insert multiple rows
 	 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
 	 *
+	 * // Insert only selected columns
+	 * await db.insert(cars, 'brand', 'productionYear').values([{ brand: 'BMW', productionYear: 1995 }, { brand: 'Porsche', productionYear: 1989 }]);
+	 *
 	 * // Insert with returning clause
 	 * const insertedCar: Car[] = await db.insert(cars)
 	 *   .values({ brand: 'BMW' })
 	 *   .returning();
 	 * ```
 	 */
-	insert<TTable extends PgTable>(table: TTable): PgInsertBuilder<TTable, TQueryResult, false, PgAsyncInsertHKT> {
-		return new PgInsertBuilder(table, this.session, this.dialect, undefined, undefined, PgAsyncInsertBase);
+	insert<
+		TTable extends PgTable,
+		TColumnList extends (keyof InferInsertModel<TTable, { override: true }>)[] = [],
+		TRequiredKeys extends string = RequiredInsertKeys<TTable>,
+	>(
+		table: TTable,
+		...columns: TColumnList extends [] ? []
+			: IsNever<TRequiredKeys> extends true ? TColumnList & NoDuplicateColumns<TColumnList>
+			: [TRequiredKeys] extends [TColumnList[number]] ? TColumnList & NoDuplicateColumns<TColumnList>
+			: DrizzleTypeError<
+				`Column selection is missing following required columns: ${JoinUnion<
+					`"${Exclude<TRequiredKeys, TColumnList[number]>}"`,
+					', '
+				>}`
+			>[]
+	): PgInsertBuilder<TTable, TQueryResult, TColumnList extends [] ? 'all' : TColumnList, false, PgAsyncInsertHKT>;
+	insert<TTable extends PgTable>(
+		table: TTable,
+		...columns: string[]
+	): PgInsertBuilder<TTable, TQueryResult, 'all', false, PgAsyncInsertHKT> {
+		return new PgInsertBuilder(
+			table,
+			this.session,
+			this.dialect,
+			undefined,
+			undefined,
+			columns.length ? columns : undefined,
+			PgAsyncInsertBase,
+		);
 	}
 
 	/**
@@ -616,14 +683,27 @@ export class PgAsyncDatabase<
 		return new PgAsyncRefreshMaterializedView(view, this.session, this.dialect);
 	}
 
+	execute<TRow extends unknown[] = unknown[]>(
+		query: SQLWrapper | string,
+		mode: 'arrays',
+	): PgAsyncRaw<TRow[]>;
 	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
 		query: SQLWrapper | string,
-	): PgAsyncRaw<PgQueryResultKind<TQueryResult, TRow>> {
+		mode: 'objects',
+	): PgAsyncRaw<TRow[]>;
+	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+		query: SQLWrapper | string,
+		mode?: 'raw' | undefined,
+	): PgAsyncRaw<PgQueryResultKind<TQueryResult, TRow>>;
+	execute(
+		query: SQLWrapper | string,
+		mode?: 'raw' | 'objects' | 'arrays' | undefined,
+	): unknown {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sequel);
 		const prepared = this.session.prepareQuery<
-			PreparedQueryConfig & { execute: PgQueryResultKind<TQueryResult, TRow> }
-		>(builtQuery, 'raw', false);
+			PreparedQueryConfig & { execute: unknown }
+		>(builtQuery, mode ?? 'raw', false);
 		return new PgAsyncRaw(prepared, sequel, builtQuery);
 	}
 
@@ -654,9 +734,9 @@ export const withReplicas = <
 	const $with: Q['$with'] = (arg: any) => getReplica(replicas).$with(arg) as any;
 
 	const update: Q['update'] = (...args: [any]) => primary.update(...args);
-	const insert: Q['insert'] = (...args: [any]) => primary.insert(...args);
+	const insert: Q['insert'] = ((...args: [any]) => primary.insert(...args)) as Q['insert'];
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
-	const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
+	const execute: Q['execute'] = ((...args: [any]) => primary.execute(...args)) as Q['execute'];
 	const transaction: Q['transaction'] = (...args: [any]) => primary.transaction(...args);
 
 	const refreshMaterializedView: Q['refreshMaterializedView'] = (...args: [any]) =>

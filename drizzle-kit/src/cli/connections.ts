@@ -2087,9 +2087,9 @@ export const connectToSQLite = async (
 			return res as T[];
 		};
 		const batch = async (queries: string[]) => {
-			await client.transaction(async () => {
+			await client.transactionAsync(async (tx) => {
 				for (const query of queries) {
-					await client.run(query);
+					await tx.run(query);
 				}
 			})();
 		};
@@ -2107,9 +2107,9 @@ export const connectToSQLite = async (
 		const transactionProxy: TransactionProxy = async (queries) => {
 			const results: (any[] | Error)[] = [];
 			try {
-				const tx = client.transaction(async () => {
+				const tx = client.transactionAsync(async (tx) => {
 					for (const query of queries) {
-						const result = await client.all(query.sql);
+						const result = await tx.all(query.sql);
 						results.push(result);
 					}
 				});
@@ -2167,9 +2167,9 @@ export const connectToSQLite = async (
 		const transactionProxy: TransactionProxy = async (queries) => {
 			const results: (any[] | Error)[] = [];
 			try {
-				const tx = client.transaction(async () => {
+				const tx = client.transactionAsync(async (tx) => {
 					for (const query of queries) {
-						const result = await client.all(query.sql);
+						const result = await tx.all(query.sql);
 						results.push(result);
 					}
 				});
@@ -2560,9 +2560,9 @@ export const connectToTursoRemote = async (
 		const transactionProxy: TransactionProxy = async (queries) => {
 			const results: (any[] | Error)[] = [];
 			try {
-				const tx = client.transaction(async () => {
+				const tx = client.transactionAsync(async (tx) => {
 					for (const query of queries) {
-						const result = await client.all(query.sql);
+						const result = await tx.all(query.sql);
 						results.push(result);
 					}
 				});
@@ -2613,9 +2613,9 @@ export const connectToTursoRemote = async (
 			return res as T[];
 		};
 		const batch = async (queries: string[]) => {
-			await client.transaction(async () => {
+			await client.transactionAsync(async (tx) => {
 				for (const query of queries) {
-					await client.run(query);
+					await tx.run(query);
 				}
 			})();
 		};
@@ -2633,9 +2633,9 @@ export const connectToTursoRemote = async (
 		const transactionProxy: TransactionProxy = async (queries) => {
 			const results: (any[] | Error)[] = [];
 			try {
-				const tx = client.transaction(async () => {
+				const tx = client.transactionAsync(async (tx) => {
 					for (const query of queries) {
-						const result = await client.all(query.sql);
+						const result = await tx.all(query.sql);
 						results.push(result);
 					}
 				});

@@ -380,17 +380,17 @@ runCommonEffectPgTests({
 				yield* db.insert(allTypesTable).values({
 					id: 1,
 					geo: [15.23, 51.13],
-					arrgeo: [[15.23, 51.13]],
+					arrgeo: [[15.23, 51.13], [1.5, 2.5]],
 					geoxy: { x: 15.23, y: 51.13 },
-					arrgeoxy: [{ x: 15.23, y: 51.13 }],
+					arrgeoxy: [{ x: 15.23, y: 51.13 }, { x: 1.5, y: 2.5 }],
 					bit: '101',
-					arrbit: ['101'],
+					arrbit: ['101', '010'],
 					halfvec: [0.2, 3.5, 8.4],
-					arrhalfvec: [[0.2, 3.5, 8.4]],
+					arrhalfvec: [[0.2, 3.5, 8.4], [1, 2, 3]],
 					vector: [1.9345, 2.8238, 12.3465],
-					arrvector: [[1.9345, 2.8238, 12.3465]],
+					arrvector: [[1.9345, 2.8238, 12.3465], [4.5, 5.5, 6.5]],
 					sparsevec: '{1:1,3:2,5:3}/5',
-					arrsparsevec: ['{1:1,3:2,5:3}/5'],
+					arrsparsevec: ['{1:1,3:2,5:3}/5', '{2:9}/5'],
 				});
 
 				const queryRes = yield* db.execute<Record<string, any>>(db.select().from(allTypesTable)).pipe(Effect.map((e) =>
@@ -428,17 +428,17 @@ runCommonEffectPgTests({
 				const expectedRes = {
 					id: 1,
 					geo: [15.23, 51.13],
-					arrgeo: [[15.23, 51.13]],
+					arrgeo: [[15.23, 51.13], [1.5, 2.5]],
 					geoxy: { x: 15.23, y: 51.13 },
-					arrgeoxy: [{ x: 15.23, y: 51.13 }],
+					arrgeoxy: [{ x: 15.23, y: 51.13 }, { x: 1.5, y: 2.5 }],
 					bit: '101',
-					arrbit: ['101'],
+					arrbit: ['101', '010'],
 					halfvec: [0.19995117, 3.5, 8.3984375],
-					arrhalfvec: [[0.19995117, 3.5, 8.3984375]],
+					arrhalfvec: [[0.19995117, 3.5, 8.3984375], [1, 2, 3]],
 					vector: [1.9345, 2.8238, 12.3465],
-					arrvector: [[1.9345, 2.8238, 12.3465]],
+					arrvector: [[1.9345, 2.8238, 12.3465], [4.5, 5.5, 6.5]],
 					sparsevec: '{1:1,3:2,5:3}/5',
-					arrsparsevec: ['{1:1,3:2,5:3}/5'],
+					arrsparsevec: ['{1:1,3:2,5:3}/5', '{2:9}/5'],
 				};
 
 				expect(queryRes).toStrictEqual(expectedRes);

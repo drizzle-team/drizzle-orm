@@ -2461,6 +2461,341 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				expect(jitDialect.mapperGenerators.rows === makeJitQueryMapper).toStrictEqual(true);
 			}));
 
+		it.effect("No nullification on non-joined table's all-null object", () =>
+			Effect.gen(function*() {
+				const users = sqliteTable('nullify1_users', (t) => ({
+					id: t.integer('id').primaryKey(),
+					name: t.text('name').notNull(),
+					bio: t.text('bio'),
+					city: t.text('city'),
+				}));
+
+				const db = yield* DB;
+				yield* push(db, { users });
+
+				yield* db.insert(users).values({ id: 1, name: 'John' });
+
+				const res = yield* db.select({ id: users.id, meta: { bio: users.bio, city: users.city } }).from(users);
+
+				expect(res).toStrictEqual([{ id: 1, meta: { bio: null, city: null } }]);
+			}));
+
+		it.effect('Cross-table group never nullified', () =>
+			Effect.gen(function*() {
+				const cities = sqliteTable('nullify2_cities', (t) => ({
+					id: t.integer('id').primaryKey(),
+					name: t.text('name').notNull(),
+				}));
+				const users = sqliteTable('nullify2_users', (t) => ({
+					id: t.integer('id').primaryKey(),
+					name: t.text('name').notNull(),
+					bio: t.text('bio'),
+					cityId: t.integer('city_id').references(() => cities.id),
+				}));
+
+				const db = yield* DB;
+				yield* push(db, { cities, users });
+
+				yield* db.insert(cities).values([{ id: 1, name: 'Paris' }]);
+				yield* db.insert(users).values([{ id: 1, name: 'John', cityId: 1 }, { id: 2, name: 'Jane' }]);
+
+				const res = yield* db
+					.select({ id: users.id, g: { user: users.name, cityId: cities.id, cityName: cities.name } })
+					.from(users)
+					.leftJoin(cities, eq(users.cityId, cities.id))
+					.orderBy(users.id);
+
+				expect(res).toStrictEqual([
+					{ id: 1, g: { user: 'John', cityId: 1, cityName: 'Paris' } },
+					{ id: 2, g: { user: 'Jane', cityId: null, cityName: null } },
+				]);
+
+				const onlyJoinedSideNotNull = yield* db
+					.select({ id: users.id, g: { bio: users.bio, cityId: cities.id } })
+					.from(users)
+					.leftJoin(cities, eq(users.cityId, cities.id))
+					.orderBy(users.id);
+
+				expect(onlyJoinedSideNotNull).toStrictEqual([
+					{ id: 1, g: { bio: null, cityId: 1 } },
+					{ id: 2, g: { bio: null, cityId: null } },
+				]);
+			}));
+
+		it.effect('SQL field groups are never nullified', () =>
+			Effect.gen(function*() {
+				const cities = sqliteTable('nullify3_cities', (t) => ({
+					id: t.integer('id').primaryKey(),
+					name: t.text('name').notNull(),
+				}));
+				const users = sqliteTable('nullify3_users', (t) => ({
+					id: t.integer('id').primaryKey(),
+					name: t.text('name').notNull(),
+					cityId: t.integer('city_id').references(() => cities.id),
+				}));
+
+				const db = yield* DB;
+				yield* push(db, { cities, users });
+
+				yield* db.insert(cities).values([{ id: 1, name: 'Paris' }]);
+				yield* db.insert(users).values([{ id: 1, name: 'John', cityId: 1 }, { id: 2, name: 'Jane' }]);
+
+				const res = yield* db
+					.select({
+						id: users.id,
+						calc: { user: sql<string>`upper(${users.name})`, city: sql<string | null>`upper(${cities.name})` },
+					})
+					.from(users)
+					.leftJoin(cities, eq(users.cityId, cities.id))
+					.orderBy(users.id);
+
+				expect(res).toStrictEqual([
+					{ id: 1, calc: { user: 'JOHN', city: 'PARIS' } },
+					{ id: 2, calc: { user: 'JANE', city: null } },
+				]);
+			}));
+
+		it.effect('Nullify all-null group from from nullable join', () =>
+			Effect.gen(function*() {
+				const cities = sqliteTable('nullify4_cities', (t) => ({
+					id: t.integer('id').primaryKey(),
+					name: t.text('name').notNull(),
+					state: t.text('state'),
+					zip: t.text('zip'),
+				}));
+				const users = sqliteTable('nullify4_users', (t) => ({
+					id: t.integer('id').primaryKey(),
+					name: t.text('name').notNull(),
+					cityId: t.integer('city_id').references(() => cities.id),
+				}));
+
+				const db = yield* DB;
+				yield* push(db, { cities, users });
+
+				yield* db.insert(cities).values([
+					{ id: 1, name: 'Paris', state: 'IDF', zip: '75' },
+					{ id: 2, name: 'London' },
+				]);
+				yield* db.insert(users).values([
+					{ id: 1, name: 'John', cityId: 1 },
+					{ id: 2, name: 'Jane', cityId: 2 },
+					{ id: 3, name: 'Jack' },
+				]);
+
+				const res = yield* db
+					.select({ name: users.name, c: { state: cities.state, zip: cities.zip } })
+					.from(users)
+					.leftJoin(cities, eq(users.cityId, cities.id))
+					.orderBy(users.id);
+
+				expect(res).toStrictEqual([
+					{ name: 'John', c: { state: 'IDF', zip: '75' } },
+					{ name: 'Jane', c: null },
+					{ name: 'Jack', c: null },
+				]);
+			}));
+
+		it.effect("Don't disregard added SQL field during join nullification", () =>
+			Effect.gen(function*() {
+				const cities = sqliteTable('nullify5_cities', (t) => ({
+					id: t.integer('id').primaryKey(),
+					name: t.text('name').notNull(),
+					state: t.text('state'),
+				}));
+				const users = sqliteTable('nullify5_users', (t) => ({
+					id: t.integer('id').primaryKey(),
+					name: t.text('name').notNull(),
+					cityId: t.integer('city_id').references(() => cities.id),
+				}));
+
+				const db = yield* DB;
+				yield* push(db, { cities, users });
+
+				yield* db.insert(cities).values([{ id: 1, name: 'Paris', state: 'IDF' }, { id: 2, name: 'London' }]);
+				yield* db.insert(users).values([{ id: 1, name: 'John', cityId: 1 }, { id: 2, name: 'Jane', cityId: 2 }]);
+
+				const res = yield* db
+					.select({
+						name: users.name,
+						c: { state: cities.state, cityUpper: sql<string>`upper(${cities.name})` },
+					})
+					.from(users)
+					.leftJoin(cities, eq(users.cityId, cities.id))
+					.orderBy(users.id);
+
+				expect(res).toStrictEqual([
+					{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
+					{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
+				]);
+			}));
+		it.effect("No nullification on non-joined table's all-null object - jit", () =>
+			Effect.gen(function*() {
+				const users = sqliteTable('nullify1_users_jit', (t) => ({
+					id: t.integer('id').primaryKey(),
+					name: t.text('name').notNull(),
+					bio: t.text('bio'),
+					city: t.text('city'),
+				}));
+
+				const db = yield* createDB({}, () => ({}), true);
+				yield* push(db, { users });
+
+				yield* db.insert(users).values({ id: 1, name: 'John' });
+
+				const res = yield* db.select({ id: users.id, meta: { bio: users.bio, city: users.city } }).from(users);
+
+				expect(res).toStrictEqual([{ id: 1, meta: { bio: null, city: null } }]);
+			}));
+
+		it.effect('Cross-table group never nullified - jit', () =>
+			Effect.gen(function*() {
+				const cities = sqliteTable('nullify2_cities_jit', (t) => ({
+					id: t.integer('id').primaryKey(),
+					name: t.text('name').notNull(),
+				}));
+				const users = sqliteTable('nullify2_users_jit', (t) => ({
+					id: t.integer('id').primaryKey(),
+					name: t.text('name').notNull(),
+					bio: t.text('bio'),
+					cityId: t.integer('city_id').references(() => cities.id),
+				}));
+
+				const db = yield* createDB({}, () => ({}), true);
+				yield* push(db, { cities, users });
+
+				yield* db.insert(cities).values([{ id: 1, name: 'Paris' }]);
+				yield* db.insert(users).values([{ id: 1, name: 'John', cityId: 1 }, { id: 2, name: 'Jane' }]);
+
+				const res = yield* db
+					.select({ id: users.id, g: { user: users.name, cityId: cities.id, cityName: cities.name } })
+					.from(users)
+					.leftJoin(cities, eq(users.cityId, cities.id))
+					.orderBy(users.id);
+
+				expect(res).toStrictEqual([
+					{ id: 1, g: { user: 'John', cityId: 1, cityName: 'Paris' } },
+					{ id: 2, g: { user: 'Jane', cityId: null, cityName: null } },
+				]);
+
+				const onlyJoinedSideNotNull = yield* db
+					.select({ id: users.id, g: { bio: users.bio, cityId: cities.id } })
+					.from(users)
+					.leftJoin(cities, eq(users.cityId, cities.id))
+					.orderBy(users.id);
+
+				expect(onlyJoinedSideNotNull).toStrictEqual([
+					{ id: 1, g: { bio: null, cityId: 1 } },
+					{ id: 2, g: { bio: null, cityId: null } },
+				]);
+			}));
+
+		it.effect('SQL field groups are never nullified - jit', () =>
+			Effect.gen(function*() {
+				const cities = sqliteTable('nullify3_cities_jit', (t) => ({
+					id: t.integer('id').primaryKey(),
+					name: t.text('name').notNull(),
+				}));
+				const users = sqliteTable('nullify3_users_jit', (t) => ({
+					id: t.integer('id').primaryKey(),
+					name: t.text('name').notNull(),
+					cityId: t.integer('city_id').references(() => cities.id),
+				}));
+
+				const db = yield* createDB({}, () => ({}), true);
+				yield* push(db, { cities, users });
+
+				yield* db.insert(cities).values([{ id: 1, name: 'Paris' }]);
+				yield* db.insert(users).values([{ id: 1, name: 'John', cityId: 1 }, { id: 2, name: 'Jane' }]);
+
+				const res = yield* db
+					.select({
+						id: users.id,
+						calc: { user: sql<string>`upper(${users.name})`, city: sql<string | null>`upper(${cities.name})` },
+					})
+					.from(users)
+					.leftJoin(cities, eq(users.cityId, cities.id))
+					.orderBy(users.id);
+
+				expect(res).toStrictEqual([
+					{ id: 1, calc: { user: 'JOHN', city: 'PARIS' } },
+					{ id: 2, calc: { user: 'JANE', city: null } },
+				]);
+			}));
+
+		it.effect('Nullify all-null group from from nullable join - jit', () =>
+			Effect.gen(function*() {
+				const cities = sqliteTable('nullify4_cities_jit', (t) => ({
+					id: t.integer('id').primaryKey(),
+					name: t.text('name').notNull(),
+					state: t.text('state'),
+					zip: t.text('zip'),
+				}));
+				const users = sqliteTable('nullify4_users_jit', (t) => ({
+					id: t.integer('id').primaryKey(),
+					name: t.text('name').notNull(),
+					cityId: t.integer('city_id').references(() => cities.id),
+				}));
+
+				const db = yield* createDB({}, () => ({}), true);
+				yield* push(db, { cities, users });
+
+				yield* db.insert(cities).values([
+					{ id: 1, name: 'Paris', state: 'IDF', zip: '75' },
+					{ id: 2, name: 'London' },
+				]);
+				yield* db.insert(users).values([
+					{ id: 1, name: 'John', cityId: 1 },
+					{ id: 2, name: 'Jane', cityId: 2 },
+					{ id: 3, name: 'Jack' },
+				]);
+
+				const res = yield* db
+					.select({ name: users.name, c: { state: cities.state, zip: cities.zip } })
+					.from(users)
+					.leftJoin(cities, eq(users.cityId, cities.id))
+					.orderBy(users.id);
+
+				expect(res).toStrictEqual([
+					{ name: 'John', c: { state: 'IDF', zip: '75' } },
+					{ name: 'Jane', c: null },
+					{ name: 'Jack', c: null },
+				]);
+			}));
+
+		it.effect("Don't disregard added SQL field during join nullification - jit", () =>
+			Effect.gen(function*() {
+				const cities = sqliteTable('nullify5_cities_jit', (t) => ({
+					id: t.integer('id').primaryKey(),
+					name: t.text('name').notNull(),
+					state: t.text('state'),
+				}));
+				const users = sqliteTable('nullify5_users_jit', (t) => ({
+					id: t.integer('id').primaryKey(),
+					name: t.text('name').notNull(),
+					cityId: t.integer('city_id').references(() => cities.id),
+				}));
+
+				const db = yield* createDB({}, () => ({}), true);
+				yield* push(db, { cities, users });
+
+				yield* db.insert(cities).values([{ id: 1, name: 'Paris', state: 'IDF' }, { id: 2, name: 'London' }]);
+				yield* db.insert(users).values([{ id: 1, name: 'John', cityId: 1 }, { id: 2, name: 'Jane', cityId: 2 }]);
+
+				const res = yield* db
+					.select({
+						name: users.name,
+						c: { state: cities.state, cityUpper: sql<string>`upper(${cities.name})` },
+					})
+					.from(users)
+					.leftJoin(cities, eq(users.cityId, cities.id))
+					.orderBy(users.id);
+
+				expect(res).toStrictEqual([
+					{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
+					{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
+				]);
+			}));
+
 		const mappersDate = new Date('2026-04-02T00:00:00.000Z');
 
 		it.effect('Mappers: simple select - no rows', () =>
@@ -3831,6 +4166,78 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 						sqlWrapper: 2,
 					},
 				]);
+			}));
+
+		it.effect('insert with explicit column list', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const table = sqliteTable('column_selection', {
+					id: integer('id').primaryKey({ autoIncrement: true }),
+					name: text('name').notNull(),
+					verified: integer('verified', { mode: 'boolean' }).notNull().default(false),
+					note: text('note'),
+				});
+
+				yield* push(db, { table });
+
+				yield* db.insert(table, 'name').values([{ name: 'John' }, { name: 'Jane' }]);
+				yield* db.insert(table, 'name', 'note').values({ name: 'Jack' });
+				yield* db.insert(table, 'note', 'name').values({ name: 'Jill', note: 'hi' });
+
+				const result = yield* db.select().from(table).orderBy(table.id);
+				expect(result).toEqual([
+					{ id: 1, name: 'John', verified: false, note: null },
+					{ id: 2, name: 'Jane', verified: false, note: null },
+					{ id: 3, name: 'Jack', verified: false, note: null },
+					{ id: 4, name: 'Jill', verified: false, note: 'hi' },
+				]);
+			}));
+
+		it.effect('insert with explicit column list - select', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const src = sqliteTable('column_selection_select_src', {
+					id: integer('id').primaryKey(),
+					name: text('name').notNull(),
+				});
+				const dst = sqliteTable('column_selection_select_dst', {
+					id: integer('id').primaryKey({ autoIncrement: true }),
+					name: text('name').notNull(),
+					verified: integer('verified', { mode: 'boolean' }).notNull().default(false),
+				});
+
+				yield* push(db, { src, dst });
+
+				yield* db.insert(src).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+
+				yield* db.insert(dst, 'name').select(db.select({ name: src.name }).from(src).orderBy(src.id));
+
+				const result = yield* db.select().from(dst).orderBy(dst.id);
+				expect(result).toEqual([
+					{ id: 1, name: 'John', verified: false },
+					{ id: 2, name: 'Jane', verified: false },
+				]);
+			}));
+
+		it.effect('insert with explicit column list - on conflict', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const table = sqliteTable('column_selection_conflict', {
+					id: integer('id').primaryKey(),
+					name: text('name').notNull(),
+					note: text('note'),
+				});
+
+				yield* push(db, { table });
+
+				yield* db.insert(table, 'id', 'name').values({ id: 1, name: 'John' });
+				yield* db
+					.insert(table, 'id', 'name')
+					.values({ id: 1, name: 'Jane' })
+					.onConflictDoUpdate({ target: table.id, set: { name: 'Updated' } });
+
+				const result = yield* db.select().from(table);
+				expect(result).toEqual([{ id: 1, name: 'Updated', note: null }]);
 			}));
 
 		addTests?.(it);

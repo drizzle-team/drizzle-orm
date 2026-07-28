@@ -180,7 +180,7 @@ export class SingleStoreDialect {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true, table })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -206,11 +206,14 @@ export class SingleStoreDialect {
 			columnNames.flatMap((colName, i) => {
 				const col = tableColumns[colName]!;
 
-				const onUpdateFnResult = col.onUpdateFn?.();
-				const value = set[colName]
-					?? (is(onUpdateFnResult, SQL)
-						? onUpdateFnResult
-						: sql.param(onUpdateFnResult, col));
+				let value;
+				if (set[colName] !== undefined) {
+					value = set[colName];
+				} else {
+					const updateRes = col.onUpdateFn?.();
+					value = is(updateRes, SQL) ? updateRes : sql.param(updateRes, col);
+				}
+
 				const res = sql`${sql.identifier(col.name)} = ${value}`;
 
 				if (i < setLength - 1) {
@@ -235,7 +238,7 @@ export class SingleStoreDialect {
 		const setSql = this.buildUpdateSet(table, set);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true, table })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -260,86 +263,127 @@ export class SingleStoreDialect {
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
-		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
+		{ isSingleTable = false, table }: {
+			isSingleTable?: boolean;
+			table?: SingleStoreTable | SQL | Subquery;
+		} = {},
 	): SQL {
-		const columnsLen = fields.length;
+		const { length: columnsLen } = fields;
+		const chunks: SQLChunk[] = [];
+		const tableName = table
+			? is(table, SQL) || is(table, Subquery)
+				? undefined
+				: (table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
+					? table[Table.Symbol.Name]
+					: `${table[Table.Symbol.Schema]}.${table[Table.Symbol.Name]}`)
+			: undefined;
 
-		const chunks = fields.flatMap(({ field }, i) => {
-			const chunk: SQLChunk[] = [];
+		for (let i = 0; i < columnsLen; ++i) {
+			const { field } = fields[i]!;
 
-			if (is(field, SQL.Aliased)) {
-				if (field.isSelectionField) {
-					if (!isSingleTable && field.origin !== undefined) {
-						chunk.push(sql.identifier(field.origin), sql.raw('.'));
-					}
-					chunk.push(sql.identifier(field.fieldAlias));
-				} else {
-					const query = field.sql;
-
-					if (isSingleTable) {
-						const newSql = new SQL(
-							query.queryChunks.map((c) => {
-								if (is(c, Column)) {
-									return sql.identifier(c.name);
-								}
-								return c;
-							}),
-						);
-
-						chunk.push(query.shouldInlineParams ? newSql.inlineParams() : newSql);
-					} else {
-						chunk.push(query);
-					}
-
-					chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
-				}
-			} else if (is(field, SQL)) {
-				const query = field;
-
+			if (is(field, Column)) {
 				if (isSingleTable) {
-					const newSql = new SQL(
-						query.queryChunks.map((c) => {
-							if (is(c, Column)) {
-								return sql.identifier(c.name);
-							}
-							return c;
-						}),
-					);
-
-					chunk.push(query.shouldInlineParams ? newSql.inlineParams() : newSql);
-				} else {
-					chunk.push(query);
-				}
-			} else if (is(field, Column)) {
-				if (isSingleTable) {
-					chunk.push(
+					chunks.push(
 						field.isAlias
 							? sql`${sql.identifier(getOriginalColumnFromAlias(field).name)} as ${field}`
 							: sql.identifier(field.name),
 					);
 				} else {
-					chunk.push(
+					chunks.push(
 						field.isAlias
 							? sql`${getOriginalColumnFromAlias(field)} as ${field}`
 							: field,
 					);
 				}
+			} else if (is(field, SQL.Aliased)) {
+				if (field.isSelectionField) {
+					if (!isSingleTable && field.origin !== undefined) {
+						chunks.push(sql.identifier(field.origin), sql.raw('.'));
+					}
+					chunks.push(sql.identifier(field.fieldAlias));
+				} else {
+					if (isSingleTable) {
+						const { queryChunks } = field.sql;
+						const newChunks: SQLChunk[] = Array.from({ length: queryChunks.length });
+						let abort = false;
+
+						for (let i = 0; i < queryChunks.length; ++i) {
+							const c = queryChunks[i]!;
+							if (is(c, Column)) {
+								const { table } = c;
+								const columnTableName = table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
+									? table[Table.Symbol.Name]
+									: `${table[Table.Symbol.Schema]}.${table[Table.Symbol.Name]}`;
+								if (columnTableName !== tableName) {
+									abort = true;
+									break;
+								}
+
+								newChunks[i] = sql.identifier(c.name);
+							} else {
+								newChunks[i] = c;
+							}
+						}
+
+						if (abort) {
+							chunks.push(field.sql);
+						} else {
+							const newSql = new SQL(newChunks);
+							if (field.sql.shouldInlineParams) newSql.inlineParams();
+							chunks.push(newSql);
+						}
+					} else {
+						chunks.push(field.sql);
+					}
+
+					chunks.push(sql` as ${sql.identifier(field.fieldAlias)}`);
+				}
+			} else if (is(field, SQL)) {
+				if (isSingleTable) {
+					const { queryChunks } = field;
+					const newChunks: SQLChunk[] = Array.from({ length: queryChunks.length });
+					let abort = false;
+
+					for (let i = 0; i < queryChunks.length; ++i) {
+						const c = queryChunks[i]!;
+						if (is(c, Column)) {
+							const { table } = c;
+							const columnTableName = table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
+								? table[Table.Symbol.Name]
+								: `${table[Table.Symbol.Schema]}.${table[Table.Symbol.Name]}`;
+							if (columnTableName !== tableName) {
+								abort = true;
+								break;
+							}
+
+							newChunks[i] = sql.identifier(c.name);
+						} else {
+							newChunks[i] = c;
+						}
+					}
+
+					if (abort) {
+						chunks.push(field);
+					} else {
+						const newSql = new SQL(newChunks);
+						if (field.shouldInlineParams) newSql.inlineParams();
+						chunks.push(newSql);
+					}
+				} else chunks.push(field);
 			} else if (is(field, Subquery)) {
 				if (!field._.isWith) {
-					chunk.push(sql`(${field._.sql}) ${sql.identifier(field._.alias)}`);
+					chunks.push(sql`(${field._.sql}) ${sql.identifier(field._.alias)}`);
 				} else {
-					chunk.push(field);
+					chunks.push(field);
 				}
 			}
 
 			if (i < columnsLen - 1) {
-				chunk.push(sql`, `);
+				chunks.push(sql`, `);
 			}
+		}
 
-			return chunk;
-		});
-
-		return sql.join(chunks);
+		return new SQL(chunks);
 	}
 
 	private buildLimit(limit: number | Placeholder | undefined): SQL | undefined {
@@ -413,7 +457,7 @@ export class SingleStoreDialect {
 
 		const distinctSql = distinct ? sql` distinct` : undefined;
 
-		const selection = this.buildSelection(fieldsList, { isSingleTable });
+		const selection = this.buildSelection(fieldsList, { isSingleTable, table });
 
 		const tableSql = (() => {
 			if (is(table, Table) && table[Table.Symbol.IsAlias]) {
@@ -590,6 +634,7 @@ export class SingleStoreDialect {
 		values,
 		ignore,
 		onConflict,
+		columnList,
 	}: SingleStoreInsertConfig): {
 		sql: SQL;
 		generatedIds: Record<string, unknown>[];
@@ -597,9 +642,11 @@ export class SingleStoreDialect {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, SingleStoreColumn> = table[Table.Symbol.Columns];
-		const colEntries: [string, SingleStoreColumn][] = Object.entries(
-			columns,
-		).filter(([_, col]) => !col.shouldDisableInsert());
+		const colEntries: [string, SingleStoreColumn][] = columnList
+			? columnList.map((name) => [name, columns[name]!] as [string, SingleStoreColumn])
+			: Object.entries(
+				columns,
+			).filter(([_, col]) => !col.shouldDisableInsert());
 
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 		const generatedIdsResponse: Record<string, unknown>[] = [];
@@ -1187,7 +1234,7 @@ export class SingleStoreDialect {
 
 		const columns = this.buildColumns(table, selection, params);
 
-		const where: SQL | undefined = params?.where && relationWhere
+		const where: SQL | undefined = params && 'where' in params && relationWhere
 			? and(
 				relationsFilterToSQL(
 					table,
@@ -1197,7 +1244,7 @@ export class SingleStoreDialect {
 				),
 				relationWhere,
 			)
-			: params?.where
+			: params && 'where' in params
 			? relationsFilterToSQL(
 				table,
 				params.where,

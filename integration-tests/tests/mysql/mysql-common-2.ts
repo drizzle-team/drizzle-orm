@@ -686,4 +686,308 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 		expect(result).toEqual([{ id: 1, name: 'John' }]);
 	});
+
+	test.concurrent("No nullification on non-joined table's all-null object", async ({ db, push }) => {
+		const users = mysqlTable('nullify1_users', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			bio: text('bio'),
+			city: text('city'),
+		});
+
+		await push({ users });
+
+		await db.insert(users).values({ name: 'John' });
+
+		const res = await db.select({ id: users.id, meta: { bio: users.bio, city: users.city } }).from(users);
+
+		expect(res).toEqual([{ id: 1, meta: { bio: null, city: null } }]);
+	});
+
+	test.concurrent('Cross-table group never nullified', async ({ db, push }) => {
+		const cities = mysqlTable('nullify2_cities', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+		const users = mysqlTable('nullify2_users', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			bio: text('bio'),
+			cityId: int('city_id'),
+		});
+
+		await push({ cities, users });
+
+		await db.insert(cities).values([{ name: 'Paris' }]);
+		await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+		const res = await db
+			.select({ id: users.id, g: { user: users.name, cityId: cities.id, cityName: cities.name } })
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(res).toEqual([
+			{ id: 1, g: { user: 'John', cityId: 1, cityName: 'Paris' } },
+			{ id: 2, g: { user: 'Jane', cityId: null, cityName: null } },
+		]);
+
+		const onlyJoinedSideNotNull = await db
+			.select({ id: users.id, g: { bio: users.bio, cityId: cities.id } })
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(onlyJoinedSideNotNull).toEqual([
+			{ id: 1, g: { bio: null, cityId: 1 } },
+			{ id: 2, g: { bio: null, cityId: null } },
+		]);
+	});
+
+	test.concurrent('SQL field groups are never nullified', async ({ db, push }) => {
+		const cities = mysqlTable('nullify3_cities', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+		const users = mysqlTable('nullify3_users', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			cityId: int('city_id'),
+		});
+
+		await push({ cities, users });
+
+		await db.insert(cities).values([{ name: 'Paris' }]);
+		await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+		const res = await db
+			.select({
+				id: users.id,
+				calc: { user: sql<string>`upper(${users.name})`, city: sql<string | null>`upper(${cities.name})` },
+			})
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(res).toEqual([
+			{ id: 1, calc: { user: 'JOHN', city: 'PARIS' } },
+			{ id: 2, calc: { user: 'JANE', city: null } },
+		]);
+	});
+
+	test.concurrent('Nullify all-null group from from nullable join', async ({ db, push }) => {
+		const cities = mysqlTable('nullify4_cities', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			state: text('state'),
+			zip: text('zip'),
+		});
+		const users = mysqlTable('nullify4_users', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			cityId: int('city_id'),
+		});
+
+		await push({ cities, users });
+
+		await db.insert(cities).values([{ name: 'Paris', state: 'IDF', zip: '75' }, { name: 'London' }]);
+		await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 2 }, { name: 'Jack' }]);
+
+		const res = await db
+			.select({ name: users.name, c: { state: cities.state, zip: cities.zip } })
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(res).toEqual([
+			{ name: 'John', c: { state: 'IDF', zip: '75' } },
+			{ name: 'Jane', c: null },
+			{ name: 'Jack', c: null },
+		]);
+	});
+
+	test.concurrent("Don't disregard added SQL field during join nullification", async ({ db, push }) => {
+		const cities = mysqlTable('nullify5_cities', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			state: text('state'),
+		});
+		const users = mysqlTable('nullify5_users', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			cityId: int('city_id'),
+		});
+
+		await push({ cities, users });
+
+		await db.insert(cities).values([{ name: 'Paris', state: 'IDF' }, { name: 'London' }]);
+		await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 2 }]);
+
+		const res = await db
+			.select({ name: users.name, c: { state: cities.state, cityUpper: sql<string>`upper(${cities.name})` } })
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(res).toEqual([
+			{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
+			{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
+		]);
+	});
+
+	test.concurrent("No nullification on non-joined table's all-null object - jit", async ({ createDB, push }) => {
+		const users = mysqlTable('nullify1_users_jit', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			bio: text('bio'),
+			city: text('city'),
+		});
+
+		await push({ users });
+		const db = createDB({ schema: { users }, jit: true });
+
+		await db.insert(users).values({ name: 'John' });
+
+		const res = await db.select({ id: users.id, meta: { bio: users.bio, city: users.city } }).from(users);
+
+		expect(res).toEqual([{ id: 1, meta: { bio: null, city: null } }]);
+	});
+
+	test.concurrent('Cross-table group never nullified - jit', async ({ createDB, push }) => {
+		const cities = mysqlTable('nullify2_cities_jit', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+		const users = mysqlTable('nullify2_users_jit', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			bio: text('bio'),
+			cityId: int('city_id'),
+		});
+
+		await push({ cities, users });
+		const db = createDB({ schema: { cities, users }, jit: true });
+
+		await db.insert(cities).values([{ name: 'Paris' }]);
+		await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+		const res = await db
+			.select({ id: users.id, g: { user: users.name, cityId: cities.id, cityName: cities.name } })
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(res).toEqual([
+			{ id: 1, g: { user: 'John', cityId: 1, cityName: 'Paris' } },
+			{ id: 2, g: { user: 'Jane', cityId: null, cityName: null } },
+		]);
+
+		const onlyJoinedSideNotNull = await db
+			.select({ id: users.id, g: { bio: users.bio, cityId: cities.id } })
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(onlyJoinedSideNotNull).toEqual([
+			{ id: 1, g: { bio: null, cityId: 1 } },
+			{ id: 2, g: { bio: null, cityId: null } },
+		]);
+	});
+
+	test.concurrent('SQL field groups are never nullified - jit', async ({ createDB, push }) => {
+		const cities = mysqlTable('nullify3_cities_jit', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+		const users = mysqlTable('nullify3_users_jit', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			cityId: int('city_id'),
+		});
+
+		await push({ cities, users });
+		const db = createDB({ schema: { cities, users }, jit: true });
+
+		await db.insert(cities).values([{ name: 'Paris' }]);
+		await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+		const res = await db
+			.select({
+				id: users.id,
+				calc: { user: sql<string>`upper(${users.name})`, city: sql<string | null>`upper(${cities.name})` },
+			})
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(res).toEqual([
+			{ id: 1, calc: { user: 'JOHN', city: 'PARIS' } },
+			{ id: 2, calc: { user: 'JANE', city: null } },
+		]);
+	});
+
+	test.concurrent(
+		'Nullify all-null group from from nullable join - jit',
+		async ({ createDB, push }) => {
+			const cities = mysqlTable('nullify4_cities_jit', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				state: text('state'),
+				zip: text('zip'),
+			});
+			const users = mysqlTable('nullify4_users_jit', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: int('city_id'),
+			});
+
+			await push({ cities, users });
+			const db = createDB({ schema: { cities, users }, jit: true });
+
+			await db.insert(cities).values([{ name: 'Paris', state: 'IDF', zip: '75' }, { name: 'London' }]);
+			await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 2 }, { name: 'Jack' }]);
+
+			const res = await db
+				.select({ name: users.name, c: { state: cities.state, zip: cities.zip } })
+				.from(users)
+				.leftJoin(cities, eq(users.cityId, cities.id))
+				.orderBy(users.id);
+
+			expect(res).toEqual([
+				{ name: 'John', c: { state: 'IDF', zip: '75' } },
+				{ name: 'Jane', c: null },
+				{ name: 'Jack', c: null },
+			]);
+		},
+	);
+
+	test.concurrent("Don't disregard added SQL field during join nullification - jit", async ({ createDB, push }) => {
+		const cities = mysqlTable('nullify5_cities_jit', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			state: text('state'),
+		});
+		const users = mysqlTable('nullify5_users_jit', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			cityId: int('city_id'),
+		});
+
+		await push({ cities, users });
+		const db = createDB({ schema: { cities, users }, jit: true });
+
+		await db.insert(cities).values([{ name: 'Paris', state: 'IDF' }, { name: 'London' }]);
+		await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 2 }]);
+
+		const res = await db
+			.select({ name: users.name, c: { state: cities.state, cityUpper: sql<string>`upper(${cities.name})` } })
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(res).toEqual([
+			{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
+			{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
+		]);
+	});
 }

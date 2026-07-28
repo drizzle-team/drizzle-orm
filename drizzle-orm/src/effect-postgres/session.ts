@@ -9,7 +9,7 @@ import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectPreparedQuery, PgEffectSession, PgEffectTransaction } from '~/pg-core/effect/session.ts';
-import type { PgQueryResultHKT, PreparedQueryConfig } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
@@ -78,6 +78,7 @@ export class EffectPgSession<
 		transaction: (
 			tx: EffectPgTransaction<TQueryResult, TRelations>,
 		) => Effect.Effect<A, E, R>,
+		config?: PgTransactionConfig,
 	): Effect.Effect<A, E | SqlError, R> {
 		const { dialect, relations } = this;
 
@@ -87,6 +88,12 @@ export class EffectPgSession<
 				this,
 				relations,
 			);
+
+			if (config) {
+				for (const statement of tx.getTransactionConfigStatements(config)) {
+					yield* this.client.unsafe(statement);
+				}
+			}
 
 			return yield* transaction(tx);
 		}));

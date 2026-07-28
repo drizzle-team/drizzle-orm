@@ -1,24 +1,13 @@
-import {
-	defineRelations,
-	desc,
-	eq,
-	getColumns,
-	hammingDistance,
-	jaccardDistance,
-	l2Distance,
-	not,
-	SQL,
-	sql,
-} from 'drizzle-orm';
-import { bigserial, bit, customType, halfvec, pgTable, sparsevec, text, vector } from 'drizzle-orm/pg-core';
-import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import postgres, { type Sql } from 'postgres';
+import { defineRelations, eq, hammingDistance, jaccardDistance, l2Distance, not, sql } from 'drizzle-orm';
+import { bigserial, bit, customType, halfvec, integer, pgTable, sparsevec, vector } from 'drizzle-orm/pg-core';
+import type { PostgresDatabase } from 'drizzle-orm/postgres';
+import { drizzle } from 'drizzle-orm/postgres';
+import type { Pool } from 'minipg';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 
 const ENABLE_LOGGING = false;
 
-let client: Sql;
-let db: PostgresJsDatabase<typeof relations>;
+let db: PostgresDatabase<typeof relations> & { $client: Pool };
 
 const items = pgTable('items', {
 	id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -37,61 +26,28 @@ const relations = defineRelations({ items }, (r) => ({
 	},
 }));
 
-const _push = async (
-	query: (sql: string, params: any[]) => Promise<any[]>,
-	schema: any,
-	log?: 'statements',
-) => {
-	const { diff } = await import('../../../../drizzle-kit/tests/postgres/mocks' as string);
-
-	const res = await diff({}, schema, []);
-
-	for (const s of res.sqlStatements) {
-		if (log === 'statements') console.log(s);
-		await query(s, []).catch((e) => {
-			console.error(s);
-			console.error(e);
-			throw e;
-		});
-	}
-};
-
-let push: (schema: any, options?: { log: 'statements' }) => Promise<void>;
-
 beforeAll(async () => {
 	const connectionString = process.env['PG_VECTOR_CONNECTION_STRING'];
 	if (!connectionString) throw new Error('PG_VECTOR_CONNECTION_STRING is not set in env variables');
 
-	client = postgres(connectionString, {
-		max: 1,
-		onnotice: () => {
-			// disable notices
-		},
-	});
-	await client`select 1`;
-	db = drizzle({ client, logger: ENABLE_LOGGING, relations });
+	db = drizzle(connectionString, { logger: ENABLE_LOGGING, relations });
 
 	await db.execute(sql`CREATE EXTENSION IF NOT EXISTS vector;`);
-
-	push = async (
-		schema: any,
-		options?: { log: 'statements' },
-	) => await _push(client.unsafe, schema, options?.log);
 });
 
 afterAll(async () => {
-	await client?.end().catch(console.error);
+	await db?.$client.end().catch(console.error);
 });
 
 beforeEach(async () => {
 	await db.execute(sql`drop table if exists items cascade`);
 	await db.execute(sql`
 		CREATE TABLE items (
-		          id bigserial PRIMARY KEY, 
+		          id bigserial PRIMARY KEY,
 		          "vector" vector(3),
 		          "bit" bit(3),
 		          "halfvec" halfvec(3),
-		          "sparsevec" sparsevec(5) 
+		          "sparsevec" sparsevec(5)
 		      );
 	`);
 });
@@ -376,82 +332,103 @@ test('select + insert all vectors', async () => {
 	}]);
 });
 
-// https://github.com/drizzle-team/drizzle-orm/issues/5358
-test('select with getColumns spread containing custom type', async () => {
-	const vector = customType<{
-		data: number[];
-		driverData: string;
-		config: { dimensions: number };
-	}>({
+test('null vectors survive driver-side parsing', async () => {
+	await db.insert(items).values([{}]);
+
+	const response = await db.select().from(items);
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		vector: null,
+		bit: null,
+		halfvec: null,
+		sparsevec: null,
+	}]);
+});
+
+test('vector arrays are parsed item by item', async () => {
+	await db.execute(sql`drop table if exists vector_arrays cascade`);
+	await db.execute(sql`
+		CREATE TABLE vector_arrays (
+			id integer PRIMARY KEY,
+			"vectors" vector(3)[]
+		);
+	`);
+
+	const vectorArrays = pgTable('vector_arrays', {
+		id: integer('id').primaryKey(),
+		vectors: vector('vectors', { dimensions: 3 }).array(),
+	});
+
+	await db.insert(vectorArrays).values({ id: 1, vectors: [[1, 2, 3], [4, 5, 6]] });
+
+	const response = await db.select().from(vectorArrays);
+
+	expect(response).toStrictEqual([{ id: 1, vectors: [[1, 2, 3], [4, 5, 6]] }]);
+
+	await db.execute(sql`drop table vector_arrays cascade`);
+});
+
+test('halfvec and sparsevec arrays are parsed item by item', async () => {
+	await db.execute(sql`drop table if exists vec_arrays cascade`);
+	await db.execute(sql`
+		CREATE TABLE vec_arrays (
+			id integer PRIMARY KEY,
+			"halfvecs" halfvec(3)[],
+			"sparsevecs" sparsevec(5)[]
+		);
+	`);
+
+	const vecArrays = pgTable('vec_arrays', {
+		id: integer('id').primaryKey(),
+		halfvecs: halfvec('halfvecs', { dimensions: 3 }).array(),
+		sparsevecs: sparsevec('sparsevecs', { dimensions: 5 }).array(),
+	});
+
+	await db.insert(vecArrays).values({
+		id: 1,
+		halfvecs: [[1, 2, 3], [4, 5, 6]],
+		sparsevecs: ['{1:1,3:2,5:3}/5', '{2:9}/5'],
+	});
+
+	const response = await db.select().from(vecArrays);
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		halfvecs: [[1, 2, 3], [4, 5, 6]],
+		sparsevecs: ['{1:1,3:2,5:3}/5', '{2:9}/5'],
+	}]);
+
+	await db.execute(sql`drop table vec_arrays cascade`);
+});
+
+test('a custom column over a vector type decodes on top of the parsed vector', async () => {
+	await db.execute(sql`drop table if exists custom_vectors cascade`);
+	await db.execute(sql`
+		CREATE TABLE custom_vectors (
+			id integer PRIMARY KEY,
+			"summed" vector(3)
+		);
+	`);
+
+	const summedVector = customType<{ data: number; driverData: number[]; config: { dimensions: number } }>({
+		dataType: (config) => `vector(${config!.dimensions})`,
 		codec: 'vector',
-		dataType(config) {
-			return `vector(${config?.dimensions ?? 3})`;
-		},
-		toDriver(value: number[]): string {
-			return `[${value.join(',')}]`;
-		},
+		toDriver: () => sql`'[1,2,3]'`,
+		fromDriver: (value) => value.reduce((acc, v) => acc + v, 0),
 	});
 
-	const tsvector = customType<{ data: string }>({
-		codec: 'tsvector',
-		dataType() {
-			return 'tsvector';
-		},
+	const customVectors = pgTable('custom_vectors', {
+		id: integer('id').primaryKey(),
+		summed: summedVector('summed', { dimensions: 3 }),
 	});
 
-	const items = pgTable('items1', {
-		name: text('name').notNull(),
-		embedding: vector('embedding', { dimensions: 3 }),
-		searchVector: tsvector('search_vector').generatedAlwaysAs(
-			(): SQL => sql`to_tsvector('english', coalesce(${items.name}, ''))`,
-		),
-	});
+	await db.insert(customVectors).values({ id: 1, summed: 0 });
 
-	const schema = { items };
-	await db.execute(sql`drop table if exists items1`);
-	await push(schema);
+	const response = await db.select().from(customVectors);
+	expect(response).toStrictEqual([{ id: 1, summed: 6 }]);
 
-	await db
-		.insert(schema.items)
-		.values({ name: 'hello world', embedding: [0.3, 0.2, 0.1] });
-
-	const queryVec = '[0.1, 0.2, 0.3]';
-
-	const distanceExpr = sql<number>`(${schema.items.embedding} <=> ${queryVec}::vector)`.as(
-		'distance',
-	);
-
-	const result1 = await db
-		.select({
-			...getColumns(schema.items),
-			distance: distanceExpr,
-		})
-		.from(schema.items)
-		.orderBy(sql`${schema.items.embedding} <=> ${queryVec}::vector`)
-		.limit(5);
-
-	expect(result1[0]?.distance).toBeCloseTo(0.2857, 4);
-
-	const queryText = 'hello';
-	const rankExpr = sql<
-		number
-	>`ts_rank_cd(${schema.items.searchVector}, websearch_to_tsquery('english', ${queryText}))`.as(
-		'rank',
-	);
-
-	const result2 = await db
-		.select({
-			...getColumns(schema.items),
-			rank: rankExpr,
-		})
-		.from(schema.items)
-		.where(
-			sql`${schema.items.searchVector} @@ websearch_to_tsquery('english', ${queryText})`,
-		)
-		.orderBy(desc(rankExpr))
-		.limit(5);
-
-	expect(result2[0]?.rank).toBeCloseTo(0.1);
+	await db.execute(sql`drop table custom_vectors cascade`);
 });
 
 test('RQBv2', async () => {

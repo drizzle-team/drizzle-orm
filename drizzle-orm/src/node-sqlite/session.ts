@@ -104,6 +104,8 @@ export class NodeSQLiteSession<TRelations extends AnyRelations>
 		transaction: (tx: NodeSQLiteTransaction<TRelations>) => T,
 		config: SQLiteTransactionConfig = {},
 	): T {
+		if (config?.behavior === 'concurrent') throw new Error('Concurrent transactions are not supported by driver');
+
 		const tx = new NodeSQLiteTransaction('sync', this.dialect, this, this.relations);
 		this.run(sql.raw(`begin${config.behavior ? ` ${config.behavior}` : ''}`));
 		try {

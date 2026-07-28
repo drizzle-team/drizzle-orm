@@ -1,13 +1,21 @@
 import { afterAll, expect, it } from 'vitest';
 import 'zx/globals';
 import * as fs from 'fs';
+import { globSync } from 'glob';
 import path from 'path';
 $.verbose = true;
 
 const IMPORTS_FOLDER = 'tests/imports/files';
 
-const folderPath = '../drizzle-orm/dist/package.json';
-const pj = JSON.parse(fs.readFileSync(folderPath, 'utf8'));
+// The published `exports` map collapsed to a `"./*"` wildcard, so the importable public subpaths
+// are no longer enumerable from it — re-derive them from the same source globs the build keys off.
+const exportSubpaths = [
+	...new Set(
+		globSync('../drizzle-orm/src/**/*.ts', { ignore: ['**/*.test.ts'] })
+			.map((f) => f.match(/src\/(.*)\.ts$/)![1]!)
+			.map((e) => (e === 'index' ? '.' : './' + e.replace(/\/index$/, ''))),
+	),
+];
 
 fs.mkdirSync(IMPORTS_FOLDER, { recursive: true });
 
@@ -24,7 +32,7 @@ function chunk<T>(arr: T[], size: number): T[][] {
 }
 
 const promisesCJS: (() => ProcessPromise)[] = [];
-for (const [i, key] of Object.keys(pj['exports']).entries()) {
+for (const [i, key] of exportSubpaths.entries()) {
 	const o1 = path.join('drizzle-orm', key);
 	if (
 		o1.startsWith('drizzle-orm/bun-sqlite') || o1.startsWith('drizzle-orm/pglite')
@@ -32,6 +40,7 @@ for (const [i, key] of Object.keys(pj['exports']).entries()) {
 		|| o1.startsWith('drizzle-orm/bun-sql') || o1.startsWith('drizzle-orm/tursodatabase/wasm')
 		|| o1.startsWith('drizzle-orm/prisma') || o1.startsWith('drizzle-orm/node-sqlite')
 		|| o1.startsWith('drizzle-orm/effect-sqlite-bun')
+		|| o1 === 'drizzle-orm/postgres' || o1.startsWith('drizzle-orm/postgres/')
 	) {
 		continue;
 	}
@@ -60,7 +69,7 @@ for (const c of chunksCJS) {
 }
 
 const promises: (() => ProcessPromise)[] = [];
-for (const [i, key] of Object.keys(pj['exports']).entries()) {
+for (const [i, key] of exportSubpaths.entries()) {
 	const o1 = path.join('drizzle-orm', key);
 	if (
 		o1.startsWith('drizzle-orm/bun-sqlite') || o1.startsWith('drizzle-orm/expo-sqlite')

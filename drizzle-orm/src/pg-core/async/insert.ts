@@ -79,17 +79,23 @@ export class PgAsyncInsertBase<
 		const { returning: fields } = config;
 
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const query = dialect.sqlToQuery(this.getSQL());
-			const mapper = fields
-				? this.dialect.mapperGenerators.rows(fields, undefined)
+			const shape = fields
+				? config.shape ??= dialect.shapeGenerator?.({ type: 'plain', fields }, undefined)
 				: undefined;
+
+			const query = dialect.sqlToQuery(this.getSQL());
+			const mapper = shape || !fields
+				? undefined
+				: this.dialect.mapperGenerators.rows(fields, undefined);
 
 			const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
 				query,
-				fields ? 'arrays' : 'raw',
+				shape ? 'objects' : fields ? 'arrays' : 'raw',
 				name ?? generateName,
 				mapper,
 				{ type: 'insert', tables: [...extractUsedTable(this.config.table)] },
+				undefined,
+				shape,
 			);
 
 			return preparedQuery;

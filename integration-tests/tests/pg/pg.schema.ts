@@ -84,11 +84,11 @@ export const usersView = snakeCase.view('users_view').as((qb) =>
 		...getTableColumns(usersTable),
 		postContent: postsTable.content,
 		createdAt: postsTable.createdAt,
-		counter: sql<string | number>`(select count(*) from ${usersTable} as ${alias(usersTable, 'count_source')} where ${
-			ne(usersTable.id, 2)
-		})`
+		counter: sql<string | bigint | number>`(select count(*) from ${usersTable} as ${
+			alias(usersTable, 'count_source')
+		} where ${ne(usersTable.id, 2)})`
 			.mapWith((data) => {
-				return data === '0' || data === 0 ? null : Number(data);
+				return data === '0' || data === 0 || data === 0n ? null : Number(data);
 			}).as('count'),
 	})
 		.from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.ownerId))
@@ -144,11 +144,11 @@ export const schemaUsersView = rqbSchema.view('users_sch_view').as((qb) =>
 		...getTableColumns(schemaUsers),
 		postContent: schemaPosts.content,
 		createdAt: schemaPosts.createdAt,
-		counter: sql<string | number>`(select count(*) from ${schemaUsers} as ${alias(schemaUsers, 'count_source')} where ${
-			ne(schemaUsers.id, 2)
-		})`
+		counter: sql<string | bigint | number>`(select count(*) from ${schemaUsers} as ${
+			alias(schemaUsers, 'count_source')
+		} where ${ne(schemaUsers.id, 2)})`
 			.mapWith((data) => {
-				return data === '0' || data === 0 ? null : Number(data);
+				return data === '0' || data === 0 || data === 0n ? null : Number(data);
 			}).as('count'),
 	})
 		.from(schemaUsers).leftJoin(schemaPosts, eq(schemaUsers.id, schemaPosts.ownerId))
