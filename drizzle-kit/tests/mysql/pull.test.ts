@@ -1077,3 +1077,18 @@ test('issue #5911', async () => {
 	expect(afterTs?.default).toBe('1.3');
 	expect(afterTs?.notNull).toBe(true);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5571
+test('view #3', async () => {
+	await db.query(`CREATE TABLE base_table (
+    	id INT,
+    	name VARCHAR(50)
+	);`);
+
+	await db.query(`CREATE VIEW broken_view AS SELECT * FROM base_table;`);
+
+	const { statements, sqlStatements } = await diffIntrospect(db, {}, 'view-3');
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});

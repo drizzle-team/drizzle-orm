@@ -577,3 +577,27 @@ test('pull after migrate with custom migrations table #2', async () => {
 		},
 	]);
 });
+
+test('primary key with non default name', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	await db.run(`
+CREATE TABLE table1 (
+	id int,
+	CONSTRAINT primary_key PRIMARY KEY (id)
+);`);
+	await db.run(`
+CREATE TABLE table2 (
+	id int primary key
+);
+`);
+
+	const {
+		sqlStatements,
+		statements,
+	} = await diffAfterPull(sqlite, {}, 'primary-key-without-default-name');
+
+	expect(sqlStatements).toStrictEqual([]);
+	expect(statements).toStrictEqual([]);
+});

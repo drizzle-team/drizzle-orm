@@ -20,7 +20,7 @@ import type {
 	ViewColumn,
 } from './ddl';
 import { tableFromDDL } from './ddl';
-import { defaultNameForIdentitySequence, defaults, typeFor } from './grammar';
+import { defaultNameForIdentitySequence, defaultNameForPK, defaults, typeFor } from './grammar';
 
 // TODO: omit defaults opclass... improvement
 const imports = [
@@ -377,10 +377,15 @@ export const ddlToTypeScript = (
 			return it.columns.length > 1 || isSelf(it);
 		});
 
+		const hasPkCallback = Boolean(
+			table.pk
+				&& (table.pk.columns.length > 1
+					|| (table.pk.columns.length === 1 && table.pk.name !== defaultNameForPK(table.name))),
+		);
 		const hasCallback = table.indexes.length > 0
 			|| filteredFKs.length > 0
 			|| table.policies.length > 0
-			|| (table.pk && table.pk.columns.length > 1)
+			|| hasPkCallback
 			|| table.uniques.length > 0
 			|| table.checks.length > 0;
 
@@ -388,7 +393,9 @@ export const ddlToTypeScript = (
 			statement += ', ';
 			statement += '(table) => [\n';
 			// TODO: or pk has non-default name
-			statement += table.pk && table.pk.columns.length > 1 ? createTablePK(table.pk, casing) : '';
+			statement += hasPkCallback
+				? createTablePK(table.pk!, casing)
+				: '';
 			statement += createTableFKs(filteredFKs, schemas, casing);
 			statement += createTableIndexes(table.name, table.indexes, casing);
 			statement += createTableUniques(table.uniques, casing);
@@ -577,6 +584,7 @@ const createTableColumns = (
 		const comma = (dbName && opts) ? ', ' : '';
 
 		const pk = primaryKey && primaryKey.columns.length === 1 && primaryKey.columns[0] === it.name
+				&& primaryKey.name === defaultNameForPK(it.table)
 			? primaryKey
 			: null;
 
