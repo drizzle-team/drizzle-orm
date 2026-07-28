@@ -3,6 +3,7 @@ dist
 dist.new
 *.tsbuildinfo
 *.tgz
+!/vendor/minipg-0.1.0.tgz
 /*.sql
 .cache
 .turbo

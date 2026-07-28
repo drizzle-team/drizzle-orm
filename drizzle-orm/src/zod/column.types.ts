@@ -45,7 +45,8 @@ type GetBaseZodType<
 		? z.ZodArray<GetZodType<Assume<TColumn['_'], { baseColumn: Column<any> }>['baseColumn'], TCoerce>>
 	: z.ZodArray<z.ZodAny>
 	: TType['type'] extends 'object'
-		? TType['constraint'] extends 'date' ? CanCoerce<TCoerce, 'date'> extends true ? z.coerce.ZodCoercedDate : z.ZodDate
+		? TType['constraint'] extends 'date'
+			? CanCoerce<TCoerce, 'date'> extends true ? z.coerce.ZodCoercedDate<Date> : z.ZodDate
 		: TType['constraint'] extends 'buffer' ? z.ZodType<Buffer>
 		: TType['constraint'] extends 'point' | 'geometry' ? z.ZodObject<{ x: z.ZodNumber; y: z.ZodNumber }, z.core.$strip>
 		: TType['constraint'] extends 'line'
@@ -53,15 +54,15 @@ type GetBaseZodType<
 		: TType['constraint'] extends 'json' ? z.ZodType<Json>
 		: z.ZodObject<{}, z.core.$loose>
 	: TType['type'] extends 'custom' ? z.ZodType
-	: TType['type'] extends 'number' ? TCanCoerce extends true ? z.coerce.ZodCoercedNumber
+	: TType['type'] extends 'number' ? TCanCoerce extends true ? z.coerce.ZodCoercedNumber<number>
 		: (TType['constraint'] extends
 			'int8' | 'int16' | 'int24' | 'int32' | 'int53' | 'uint8' | 'uint16' | 'uint24' | 'uint32' | 'uint53' | 'year'
 			? z.ZodInt
 			: z.ZodNumber)
-	: TType['type'] extends 'bigint' ? TCanCoerce extends true ? z.coerce.ZodCoercedBigInt : z.ZodBigInt
-	: TType['type'] extends 'boolean' ? TCanCoerce extends true ? z.coerce.ZodCoercedBoolean : z.ZodBoolean
+	: TType['type'] extends 'bigint' ? TCanCoerce extends true ? z.coerce.ZodCoercedBigInt<bigint> : z.ZodBigInt
+	: TType['type'] extends 'boolean' ? TCanCoerce extends true ? z.coerce.ZodCoercedBoolean<boolean> : z.ZodBoolean
 	: TType['type'] extends 'string'
-		? TType['constraint'] extends 'uuid' ? z.ZodUUID : TCanCoerce extends true ? z.coerce.ZodCoercedString
+		? TType['constraint'] extends 'uuid' ? z.ZodUUID : TCanCoerce extends true ? z.coerce.ZodCoercedString<string>
 		: TType['constraint'] extends 'enum' ? z.ZodEnum<{ [K in Assume<TColumn['_']['enumValues'], string[]>[number]]: K }>
 		: TType['constraint'] extends 'int64' ? typeof bigintStringModeSchema
 		: TType['constraint'] extends 'uint64' ? typeof unsignedBigintStringModeSchema

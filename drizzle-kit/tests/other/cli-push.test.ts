@@ -1,7 +1,7 @@
 import { test as brotest } from '@drizzle-team/brocli';
 import { unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { afterEach, assert, expect, test, vi } from 'vitest';
+import { afterEach, assert, expect, test } from 'vitest';
 import { HintsHandler } from '../../src/cli/hints';
 import { push } from '../../src/cli/schema';
 import { wrapParam } from '../../src/cli/validations/common';

@@ -1,8 +1,12 @@
-import { sql } from 'drizzle-orm';
+import { Database } from '@tursodatabase/database';
+import { sql, TransactionRollbackError } from 'drizzle-orm';
 import { getTableConfig, int, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import type { TursoDatabaseDatabase } from 'drizzle-orm/tursodatabase';
+import { drizzle } from 'drizzle-orm/tursodatabase/database';
 import { migrate } from 'drizzle-orm/tursodatabase/migrator';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { expect } from 'vitest';
 import { tursoDatabaseTest as test } from './instrumentation';
 import relations from './relations';
@@ -191,7 +195,108 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 	rmSync(migrationDir, { recursive: true });
 });
 
+const assertLockBehavior = async (behavior: 'deferred' | 'immediate' | 'exclusive' | undefined) => {
+	const dir = mkdtempSync(join(tmpdir(), `drzl-turso-${behavior ?? 'default'}-`));
+	const clientA = new Database(join(dir, 'db.sqlite'));
+	const clientB = new Database(join(dir, 'db.sqlite'));
+	const expectBlocked = behavior !== undefined && behavior !== 'deferred';
+
+	try {
+		const db = drizzle({ client: clientA });
+
+		await db.run(sql`create table behavior_lock (id integer primary key, v integer not null)`);
+		await db.run(sql`insert into behavior_lock (id, v) values (1, 0)`);
+
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+
+		const txn = db.transaction(async (tx) => {
+			await gate;
+			await tx.run(sql`update behavior_lock set v = v + 1 where id = 1`);
+		}, behavior ? { behavior } : undefined);
+
+		await new Promise((resolve) => setTimeout(resolve, 50));
+
+		let blocked = false;
+		try {
+			await (await clientB.prepare('update behavior_lock set v = v + 100 where id = 1')).run();
+		} catch (e) {
+			blocked = /locked/i.test((e as Error).message);
+		}
+
+		release();
+		await txn;
+
+		expect(blocked).toBe(expectBlocked);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+};
+
+test('transaction mode: deferred', async () => {
+	await assertLockBehavior('deferred');
+});
+
+test('transaction mode: immediate', async () => {
+	await assertLockBehavior('immediate');
+});
+
+test('transaction mode: exclusive', async () => {
+	await assertLockBehavior('exclusive');
+});
+
+test('transaction mode: default', async () => {
+	await assertLockBehavior(undefined);
+});
+
+test('transaction modes - concurrent', async () => {
+	const dir = mkdtempSync(join(tmpdir(), 'drzl-turso-concurrent-'));
+	const clientA = new Database(join(dir, 'db.sqlite'));
+	const clientB = new Database(join(dir, 'db.sqlite'));
+
+	try {
+		const dbA = drizzle({ client: clientA });
+		const dbB = drizzle({ client: clientB });
+
+		await dbA.run(sql`PRAGMA journal_mode = 'mvcc'`);
+		await dbA.run(sql`create table concurrent_rows (id integer primary key, v integer not null)`);
+		await dbA.run(sql`insert into concurrent_rows (id, v) values (1, 0), (2, 0)`);
+		await dbB.run(sql`PRAGMA journal_mode = 'mvcc'`);
+
+		let releaseA!: () => void;
+		let releaseB!: () => void;
+		const aWrote = new Promise<void>((resolve) => {
+			releaseA = resolve;
+		});
+		const bWrote = new Promise<void>((resolve) => {
+			releaseB = resolve;
+		});
+
+		const txnA = dbA.transaction(async (tx) => {
+			await tx.run(sql`update concurrent_rows set v = v + 1 where id = 1`);
+			releaseA();
+			await bWrote;
+		}, { behavior: 'concurrent' });
+
+		const txnB = dbB.transaction(async (tx) => {
+			await tx.run(sql`update concurrent_rows set v = v + 1 where id = 2`);
+			releaseB();
+			await aWrote;
+		}, { behavior: 'concurrent' });
+
+		await Promise.all([txnA, txnB]);
+
+		const rows = await dbA.all(sql`select id, v from concurrent_rows order by id`);
+		expect(rows).toEqual([{ id: 1, v: 1 }, { id: 2, v: 1 }]);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+});
+
 const skip = [
+	'transaction mode: concurrent is rejected',
 	// Uses async versions
 	'sync transaction rollback',
 	'sync nested transaction rollback',

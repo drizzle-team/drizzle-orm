@@ -1,11 +1,17 @@
-import { Name, sql } from 'drizzle-orm';
+import { PGlite } from '@electric-sql/pglite';
+import { postgis } from '@electric-sql/pglite-postgis';
+import { vector } from '@electric-sql/pglite/vector';
+import { defineRelations, getColumns, Name, sql } from 'drizzle-orm';
 import { getTableConfig, integer, pgTable, serial, text } from 'drizzle-orm/pg-core';
+import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import { describe, expect } from 'vitest';
+import { describe, expect, test as vitestTest } from 'vitest';
 import { tests } from './common';
-import { pgliteTest as test } from './instrumentation';
+import { _push, pgliteTest as test } from './instrumentation';
 import { usersMigratorTable, usersTable } from './schema';
+import { assertMalformedSnapshotRejected, assertSnapshotIdNotInjectable } from './snapshot';
+import { normalizeDataWithDbCodecs } from './utils';
 
 tests(test, []);
 
@@ -218,5 +224,121 @@ describe('pglite', () => {
 		expect(res2).toStrictEqual(expected);
 
 		rmSync(migrationDir, { recursive: true });
+	});
+});
+
+describe('pglite extensions', () => {
+	const allTypesTable = pgTable('extension_types', (t) => ({
+		id: t.integer('id').primaryKey(),
+		geo: t.geometry('geo'),
+		arrgeo: t.geometry('arrgeo').array(),
+		geoxy: t.geometry('geoxy', { mode: 'xy' }),
+		arrgeoxy: t.geometry('arrgeoxy', { mode: 'xy' }).array(),
+		bit: t.bit('bit', { dimensions: 3 }),
+		arrbit: t.bit('arrbit', { dimensions: 3 }).array(),
+		halfvec: t.halfvec('halfvec', { dimensions: 3 }),
+		arrhalfvec: t.halfvec('arrhalfvec', { dimensions: 3 }).array(),
+		vector: t.vector('vector', { dimensions: 3 }),
+		arrvector: t.vector('arrvector', { dimensions: 3 }).array(),
+		sparsevec: t.sparsevec('sparsevec', { dimensions: 5 }),
+		arrsparsevec: t.sparsevec('arrsparsevec', { dimensions: 5 }).array(),
+	}));
+
+	const relations = defineRelations({ allTypesTable }, (r) => ({
+		allTypesTable: {
+			self: r.many.allTypesTable({
+				from: r.allTypesTable.id,
+				to: r.allTypesTable.id,
+			}),
+		},
+	}));
+
+	const createExtDb = async () => {
+		const client = new PGlite({ extensions: { postgis, vector: vector as any } });
+		const db = drizzle({ client, relations });
+		await db.execute(sql`CREATE EXTENSION IF NOT EXISTS postgis;`);
+		await db.execute(sql`CREATE EXTENSION IF NOT EXISTS vector;`);
+		return { client, db };
+	};
+
+	const pushExt = (client: PGlite, schema: any) =>
+		_push(async (s, params) => (await client.query(s, params)).rows as any[], schema);
+
+	vitestTest('extension types ~codecs~', async () => {
+		const { client, db } = await createExtDb();
+		await db.execute(sql`DROP TABLE IF EXISTS ${allTypesTable} CASCADE;`);
+		await pushExt(client, { allTypesTable });
+
+		await db.insert(allTypesTable).values({
+			id: 1,
+			geo: [15.23, 51.13],
+			arrgeo: [[15.23, 51.13], [1.5, 2.5]],
+			geoxy: { x: 15.23, y: 51.13 },
+			arrgeoxy: [{ x: 15.23, y: 51.13 }, { x: 1.5, y: 2.5 }],
+			bit: '101',
+			arrbit: ['101', '010'],
+			halfvec: [0.2, 3.5, 8.4],
+			arrhalfvec: [[0.2, 3.5, 8.4], [1, 2, 3]],
+			vector: [1.9345, 2.8238, 12.3465],
+			arrvector: [[1.9345, 2.8238, 12.3465], [4.5, 5.5, 6.5]],
+			sparsevec: '{1:1,3:2,5:3}/5',
+			arrsparsevec: ['{1:1,3:2,5:3}/5', '{2:9}/5'],
+		});
+
+		const queryRes = normalizeDataWithDbCodecs({
+			db,
+			columns: getColumns(allTypesTable),
+			data: (await db.execute(db.select().from(allTypesTable))).rows as Record<string, unknown>[],
+			mode: 'query',
+		})[0];
+
+		const [{ self: relationRaw, ...rootRaw }] = (await db.execute(
+			db.query.allTypesTable.findFirst({ with: { self: true } }),
+		)).rows as any[];
+
+		const relationRes = normalizeDataWithDbCodecs({
+			db,
+			columns: getColumns(allTypesTable),
+			data: relationRaw,
+			mode: 'json',
+		})[0]!;
+		const rootRes = normalizeDataWithDbCodecs({
+			db,
+			columns: getColumns(allTypesTable),
+			data: [rootRaw],
+			mode: 'query',
+		})[0]!;
+
+		const expectedRes = {
+			id: 1,
+			geo: [15.23, 51.13],
+			arrgeo: [[15.23, 51.13], [1.5, 2.5]],
+			geoxy: { x: 15.23, y: 51.13 },
+			arrgeoxy: [{ x: 15.23, y: 51.13 }, { x: 1.5, y: 2.5 }],
+			bit: '101',
+			arrbit: ['101', '010'],
+			halfvec: [0.19995117, 3.5, 8.3984375],
+			arrhalfvec: [[0.19995117, 3.5, 8.3984375], [1, 2, 3]],
+			vector: [1.9345, 2.8238, 12.3465],
+			arrvector: [[1.9345, 2.8238, 12.3465], [4.5, 5.5, 6.5]],
+			sparsevec: '{1:1,3:2,5:3}/5',
+			arrsparsevec: ['{1:1,3:2,5:3}/5', '{2:9}/5'],
+		};
+
+		expect(queryRes).toStrictEqual(expectedRes);
+		expect(relationRes).toStrictEqual(expectedRes);
+		expect(rootRes).toStrictEqual(expectedRes);
+
+		await client.close();
+	});
+});
+
+describe('transaction snapshot', () => {
+	test('rejects a malformed id', async ({ db }) => {
+		await assertMalformedSnapshotRejected(db, expect);
+	});
+
+	test('does not let the id inject SQL', async ({ db }) => {
+		await assertSnapshotIdNotInjectable(db, expect, 'pglite');
 	});
 });

@@ -100,6 +100,38 @@ test('insert + select', async () => {
 	}]);
 });
 
+test('geometry arrays are parsed item by item', async () => {
+	await db.execute(sql`drop table if exists geo_arrays cascade`);
+	await db.execute(sql`
+		CREATE TABLE geo_arrays (
+			id integer PRIMARY KEY,
+			"geos" geometry(point)[],
+			"pts" point[]
+		);
+	`);
+
+	const geoArrays = pgTable('geo_arrays', {
+		id: integer('id').primaryKey(),
+		geos: geometry('geos', { type: 'point', mode: 'xy' }).array(),
+		pts: point('pts', { mode: 'xy' }).array(),
+	});
+
+	await db.insert(geoArrays).values({
+		id: 1,
+		geos: [{ x: 5, y: 6 }, { x: 7, y: 8 }],
+		pts: [{ x: 5, y: 6 }, { x: 7, y: 8 }],
+	});
+
+	const response = await db.select().from(geoArrays);
+	expect(response).toStrictEqual([{
+		id: 1,
+		geos: [{ x: 5, y: 6 }, { x: 7, y: 8 }],
+		pts: [{ x: 5, y: 6 }, { x: 7, y: 8 }],
+	}]);
+
+	await db.execute(sql`drop table geo_arrays cascade`);
+});
+
 test('RQBv2', async () => {
 	await db.insert(items).values([{
 		point: [1, 2],

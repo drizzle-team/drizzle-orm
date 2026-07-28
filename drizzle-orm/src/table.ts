@@ -203,3 +203,8 @@ export interface InferTableColumnsModels<TColumns extends Columns> {
 	readonly $inferSelect: InferModelFromColumns<TColumns, 'select'>;
 	readonly $inferInsert: InferModelFromColumns<TColumns, 'insert', { override: false }>;
 }
+
+export type RequiredInsertKeys<TTable extends Table, TColumns extends Record<string, Column> = TTable['_']['columns']> =
+	{
+		[K in keyof TColumns & string]: RequiredKeyOnly<K, TColumns[K]>;
+	}[keyof TColumns & string];

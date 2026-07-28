@@ -135,6 +135,88 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		expect(updateResp[0]?.updatedAt.getTime() ?? 0).greaterThan(now);
 	});
 
+	test.concurrent('$onUpdateFn called only when needed', async ({ db, push }) => {
+		let counter = 0;
+		const table = mysqlTable('on_update_call_test', {
+			id: int('id').primaryKey(),
+			name: text('name').notNull(),
+			inc: int('inc').$onUpdateFn(() => counter++),
+		});
+
+		await push({ table });
+
+		await db.insert(table).values({ id: 1, name: 'First', inc: 0 });
+		expect(counter).toStrictEqual(0);
+		expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'First', inc: 0 }]);
+
+		await db.update(table).set({ name: 'Second', inc: null });
+		expect(counter).toStrictEqual(0);
+		expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'Second', inc: null }]);
+
+		await db.update(table).set({ name: 'Third', inc: 10 });
+		expect(counter).toStrictEqual(0);
+		expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'Third', inc: 10 }]);
+
+		await db.update(table).set({ name: 'Fourth' });
+		expect(counter).toStrictEqual(1);
+		expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'Fourth', inc: 0 }]);
+
+		await db.update(table).set({ name: 'Fifth' });
+		expect(counter).toStrictEqual(2);
+		expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'Fifth', inc: 1 }]);
+
+		await db.insert(table).values({ id: 2, name: 'Second' });
+		expect(counter).toStrictEqual(3);
+		expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([
+			{ id: 1, name: 'Fifth', inc: 1 },
+			{ id: 2, name: 'Second', inc: 2 },
+		]);
+	});
+
+	test.concurrent('db.execute modes', async ({ db, push }) => {
+		const users = mysqlTable('users_execute_modes_1', (t) => ({
+			id: t.int().primaryKey(),
+			name: t.text().notNull(),
+		}));
+
+		await push({ users });
+
+		await db.insert(users).values([
+			{
+				id: 1,
+				name: 'First',
+			},
+			{
+				id: 2,
+				name: 'Second',
+			},
+		]);
+
+		const rObj = await db.execute<{ id: number; name: string }>(
+			sql`select ${users.id}, ${users.name} from ${users} order by ${users.id}`,
+			'objects',
+		);
+		const rArr = await db.execute<[number, string]>(
+			sql`select ${users.id}, ${users.name} from ${users} order by ${users.id}`,
+			'arrays',
+		);
+
+		expectTypeOf(rObj).toEqualTypeOf<{ id: number; name: string }[]>();
+		expectTypeOf(rArr).toEqualTypeOf<[number, string][]>();
+
+		expect(rObj).toStrictEqual([
+			{
+				id: 1,
+				name: 'First',
+			},
+			{
+				id: 2,
+				name: 'Second',
+			},
+		]);
+		expect(rArr).toStrictEqual([[1, 'First'], [2, 'Second']]);
+	});
+
 	test.concurrent('all types', async ({ db, push }) => {
 		await push({ allTypesTable });
 

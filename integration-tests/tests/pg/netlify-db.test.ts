@@ -42,6 +42,11 @@ import { randomString } from '~/utils';
 import { tests } from './common';
 import { netlifyDbTest as test } from './instrumentation';
 import { usersMigratorTable, usersTable } from './schema';
+import {
+	assertMalformedSnapshotRejected,
+	assertSnapshotIdNotInjectable,
+	assertSnapshotIsolatesTransaction,
+} from './snapshot';
 
 const skips = [] as string[];
 
@@ -770,5 +775,19 @@ describe('serverless transport selection', () => {
 		expect(names).not.toContain('Inner - rolled back');
 
 		await teardownTestTable(testDb);
+	});
+});
+
+describe('transaction snapshot', () => {
+	test('isolates the transaction', async ({ db, peer }) => {
+		await assertSnapshotIsolatesTransaction(db, peer!, expect, 'netlify');
+	});
+
+	test('rejects a malformed id', async ({ db }) => {
+		await assertMalformedSnapshotRejected(db, expect);
+	});
+
+	test('does not let the id inject SQL', async ({ db }) => {
+		await assertSnapshotIdNotInjectable(db, expect, 'netlify');
 	});
 });

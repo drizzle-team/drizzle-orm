@@ -110,9 +110,8 @@ export class PgEffectSelectBase<
 	_prepare(name?: string, generateName = false): PgEffectSelectPrepare<this, TEffectHKT> {
 		const { session, cacheConfig, usedTables } = this;
 
-		// Build query before accessing `fieldsFlat` - build mutates it
+		const fieldsList = this._resolveSelection();
 		const query = this.dialect.sqlToQuery(this.getSQL());
-		const fieldsList = this.config.fieldsFlat!;
 		const mapper = this.dialect.mapperGenerators.rows(fieldsList, this.joinsNotNullableMap);
 
 		const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(

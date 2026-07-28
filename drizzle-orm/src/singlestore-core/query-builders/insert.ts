@@ -16,7 +16,7 @@ import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
 import type { InferInsertModel, InferModelFromColumns } from '~/table.ts';
 import { Table } from '~/table.ts';
-import { mapUpdateSet, orderSelectedFields } from '~/utils.ts';
+import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
 import type { AnySingleStoreColumn, SingleStoreColumn } from '../columns/common.ts';
 import { extractUsedTable } from '../utils.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
@@ -28,23 +28,39 @@ export interface SingleStoreInsertConfig<TTable extends SingleStoreTable = Singl
 	ignore: boolean;
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
+	columnList?: string[];
 }
 
 export type AnySingleStoreInsertConfig = SingleStoreInsertConfig<SingleStoreTable>;
 
 export type SingleStoreInsertValue<
 	TTable extends SingleStoreTable,
+	TColumnsList extends string[] | 'all' = 'all',
 	TModel extends Record<string, any> = InferInsertModel<TTable>,
 > =
 	& {
-		[Key in keyof TModel]: TModel[Key] | SQL | Placeholder;
+		[K in keyof TModel as TColumnsList extends 'all' ? K : Extract<K, TColumnsList[number]>]:
+			| TModel[K]
+			| SQL
+			| Placeholder;
 	}
 	& {};
+
+export type NoDuplicateColumns<
+	T extends readonly unknown[],
+	TSeen = never,
+> = T extends readonly [infer Head, ...infer Tail] ? [
+		Head extends TSeen ? DrizzleTypeError<`Duplicate columns are not allowed in insert selection: "${Head & string}"`>
+			: Head,
+		...NoDuplicateColumns<Tail, TSeen | Head>,
+	]
+	: T;
 
 export class SingleStoreInsertBuilder<
 	TTable extends SingleStoreTable,
 	TQueryResult extends SingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TColumnList extends string[] | 'all' = 'all',
 > {
 	static readonly [entityKind]: string = 'SingleStoreInsertBuilder';
 
@@ -54,6 +70,7 @@ export class SingleStoreInsertBuilder<
 		private table: TTable,
 		private session: SingleStoreSession,
 		private dialect: SingleStoreDialect,
+		private columnList?: string[],
 	) {}
 
 	ignore(): this {
@@ -61,10 +78,14 @@ export class SingleStoreInsertBuilder<
 		return this;
 	}
 
-	values(value: SingleStoreInsertValue<TTable>): SingleStoreInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
-	values(values: SingleStoreInsertValue<TTable>[]): SingleStoreInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
 	values(
-		values: SingleStoreInsertValue<TTable> | SingleStoreInsertValue<TTable>[],
+		value: SingleStoreInsertValue<TTable, TColumnList>,
+	): SingleStoreInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
+	values(
+		values: SingleStoreInsertValue<TTable, TColumnList>[],
+	): SingleStoreInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
+	values(
+		values: SingleStoreInsertValue<TTable, TColumnList> | SingleStoreInsertValue<TTable, TColumnList>[],
 	): SingleStoreInsertBase<TTable, TQueryResult, TPreparedQueryHKT> {
 		values = Array.isArray(values) ? values : [values];
 		if (values.length === 0) {
@@ -80,7 +101,14 @@ export class SingleStoreInsertBuilder<
 			return result;
 		});
 
-		return new SingleStoreInsertBase(this.table, mappedValues, this.shouldIgnore, this.session, this.dialect);
+		return new SingleStoreInsertBase(
+			this.table,
+			mappedValues,
+			this.shouldIgnore,
+			this.session,
+			this.dialect,
+			this.columnList,
+		);
 	}
 }
 
@@ -215,9 +243,10 @@ export class SingleStoreInsertBase<
 		ignore: boolean,
 		private session: SingleStoreSession,
 		private dialect: SingleStoreDialect,
+		columnList?: string[],
 	) {
 		super();
-		this.config = { table, values, ignore };
+		this.config = { table, values, ignore, columnList };
 	}
 
 	/**

@@ -155,11 +155,14 @@ export class MySqlDialect {
 			columnNames.flatMap((colName, i) => {
 				const col = tableColumns[colName]!;
 
-				const onUpdateFnResult = col.onUpdateFn?.();
-				const value = set[colName]
-					?? (is(onUpdateFnResult, SQL)
-						? onUpdateFnResult
-						: sql.param(onUpdateFnResult, col));
+				let value;
+				if (set[colName] !== undefined) {
+					value = set[colName];
+				} else {
+					const updateRes = col.onUpdateFn?.();
+					value = is(updateRes, SQL) ? updateRes : sql.param(updateRes, col);
+				}
+
 				const res = sql`${sql.identifier(col.name)} = ${value}`;
 
 				if (i < setLength - 1) {
@@ -205,61 +208,27 @@ export class MySqlDialect {
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
-		{ isSingleTable = false, ignoreCastCodecs = false }: { isSingleTable?: boolean; ignoreCastCodecs?: boolean } = {},
+		{ isSingleTable = false, ignoreCastCodecs = false, table }: {
+			isSingleTable?: boolean;
+			ignoreCastCodecs?: boolean;
+			table?: MySqlTable | MySqlViewBase | SQL | Subquery;
+		} = {},
 	): SQL {
-		const columnsLen = fields.length;
+		const { length: columnsLen } = fields;
+		const chunks: SQLChunk[] = [];
+		const tableName = table
+			? is(table, SQL) || is(table, Subquery)
+				? undefined
+				: (table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
+					? table[Table.Symbol.Name]
+					: `${table[Table.Symbol.Schema]}.${table[Table.Symbol.Name]}`)
+			: undefined;
 
-		const chunks = fields.flatMap(({ field, codecOverride, column }, i) => {
-			const chunk: SQLChunk[] = [];
+		for (let i = 0; i < columnsLen; ++i) {
+			const { field, codecOverride, column } = fields[i]!;
 			const override = codecOverride as MySqlType | undefined;
 
-			if (is(field, SQL.Aliased)) {
-				if (field.isSelectionField) {
-					const query = !isSingleTable && field.origin !== undefined
-						? sql`${sql.identifier(field.origin)}.${sql.identifier(field.fieldAlias)}`
-						: sql.identifier(field.fieldAlias);
-					if (column && !ignoreCastCodecs) chunk.push(this.codecs.apply(column, 'cast', query, override));
-					else chunk.push(query);
-				} else {
-					const query = field.sql;
-
-					if (isSingleTable) {
-						const newSql = new SQL(
-							query.queryChunks.map((c) => {
-								if (is(c, MySqlColumn)) {
-									return sql.identifier(c.name);
-								}
-								return c;
-							}),
-						);
-
-						if (query.shouldInlineParams) newSql.inlineParams();
-						chunk.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', newSql, override) : newSql);
-					} else {
-						chunk.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', query, override) : query);
-					}
-
-					chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
-				}
-			} else if (is(field, SQL)) {
-				const query = field;
-
-				if (isSingleTable) {
-					const newSql = new SQL(
-						query.queryChunks.map((c) => {
-							if (is(c, MySqlColumn)) {
-								return sql.identifier(c.name);
-							}
-							return c;
-						}),
-					);
-
-					if (query.shouldInlineParams) newSql.inlineParams();
-					chunk.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', newSql, override) : newSql);
-				} else {
-					chunk.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', query, override) : query);
-				}
-			} else if (is(field, Column)) {
+			if (is(field, Column)) {
 				let name: Name | Column;
 				if (isSingleTable) {
 					name = field.isAlias
@@ -270,24 +239,105 @@ export class MySqlDialect {
 				}
 
 				const casted = ignoreCastCodecs ? name : this.codecs.apply(field, 'cast', name, override);
-				chunk.push(field.isAlias ? sql`${casted} as ${field}` : casted);
+				chunks.push(field.isAlias ? sql`${casted} as ${field}` : casted);
+			} else if (is(field, SQL.Aliased)) {
+				if (field.isSelectionField) {
+					const query = !isSingleTable && field.origin !== undefined
+						? sql`${sql.identifier(field.origin)}.${sql.identifier(field.fieldAlias)}`
+						: sql.identifier(field.fieldAlias);
+					if (column && !ignoreCastCodecs) chunks.push(this.codecs.apply(column, 'cast', query, override));
+					else chunks.push(query);
+				} else {
+					if (isSingleTable) {
+						const { queryChunks } = field.sql;
+						const newChunks: SQLChunk[] = Array.from({ length: queryChunks.length });
+						let abort = false;
+
+						for (let i = 0; i < queryChunks.length; ++i) {
+							const c = queryChunks[i]!;
+							if (is(c, Column)) {
+								const { table } = c;
+								const columnTableName = table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
+									? table[Table.Symbol.Name]
+									: `${table[Table.Symbol.Schema]}.${table[Table.Symbol.Name]}`;
+								if (columnTableName !== tableName) {
+									abort = true;
+									break;
+								}
+
+								newChunks[i] = sql.identifier(c.name);
+							} else {
+								newChunks[i] = c;
+							}
+						}
+
+						if (abort) {
+							chunks.push(
+								column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field.sql, override) : field.sql,
+							);
+						} else {
+							const newSql = new SQL(newChunks);
+
+							if (field.sql.shouldInlineParams) newSql.inlineParams();
+							chunks.push(
+								column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', newSql, override) : newSql,
+							);
+						}
+					} else {
+						chunks.push(
+							column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field.sql, override) : field.sql,
+						);
+					}
+
+					chunks.push(sql` as ${sql.identifier(field.fieldAlias)}`);
+				}
+			} else if (is(field, SQL)) {
+				if (isSingleTable) {
+					const { queryChunks } = field;
+					const newChunks: SQLChunk[] = Array.from({ length: queryChunks.length });
+					let abort = false;
+
+					for (let i = 0; i < queryChunks.length; ++i) {
+						const c = queryChunks[i]!;
+						if (is(c, Column)) {
+							const { table } = c;
+							const columnTableName = table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
+								? table[Table.Symbol.Name]
+								: `${table[Table.Symbol.Schema]}.${table[Table.Symbol.Name]}`;
+							if (columnTableName !== tableName) {
+								abort = true;
+								break;
+							}
+
+							newChunks[i] = sql.identifier(c.name);
+						} else {
+							newChunks[i] = c;
+						}
+					}
+
+					if (abort) {
+						chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
+					} else {
+						const newSql = new SQL(newChunks);
+						if (field.shouldInlineParams) newSql.inlineParams();
+						chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', newSql, override) : newSql);
+					}
+				} else chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
 			} else if (is(field, Subquery)) {
 				if (column && !ignoreCastCodecs && !field._.isWith) {
 					const innerCasted = this.codecs.apply(column, 'cast', sql`(${field._.sql})`, override);
-					chunk.push(sql`${innerCasted} ${sql.identifier(field._.alias)}`);
+					chunks.push(sql`${innerCasted} ${sql.identifier(field._.alias)}`);
 				} else {
-					chunk.push(column ? this.codecs.apply(column, 'cast', field) : field, override);
+					chunks.push(column ? this.codecs.apply(column, 'cast', field) : field, override);
 				}
 			}
 
 			if (i < columnsLen - 1) {
-				chunk.push(sql`, `);
+				chunks.push(sql`, `);
 			}
+		}
 
-			return chunk;
-		});
-
-		return sql.join(chunks);
+		return new SQL(chunks);
 	}
 
 	private buildLimit(limit: number | Placeholder | undefined): SQL | undefined {
@@ -382,6 +432,7 @@ export class MySqlDialect {
 		const selection = this.buildSelection(fieldsList, {
 			isSingleTable,
 			ignoreCastCodecs: ignoreSelectionCastCodecs || setOperators.length > 0,
+			table,
 		});
 
 		const tableSql = (() => {
@@ -637,12 +688,15 @@ export class MySqlDialect {
 		ignore,
 		onConflict,
 		select,
+		columnList,
 		comment,
 	}: MySqlInsertConfig): { sql: SQL; generatedIds: Record<string, unknown>[] } {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, MySqlColumn> = table[Table.Symbol.Columns];
-		const colEntries: [string, MySqlColumn][] = Object.entries(columns);
+		const colEntries: [string, MySqlColumn][] = columnList
+			? columnList.map((name) => [name, columns[name]!])
+			: Object.entries(columns);
 		const colEntriesFiltered: [string, MySqlColumn][] = select && !is(valuesOrSelect, SQL)
 			? Object
 				.keys((valuesOrSelect as TypedQueryBuilder<any>).getSelectedFields())
@@ -874,7 +928,7 @@ export class MySqlDialect {
 
 		const columns = this.buildColumns(table, selection, !!nested, params);
 
-		const where: SQL | undefined = params?.where && relationWhere
+		const where: SQL | undefined = params && 'where' in params && relationWhere
 			? and(
 				relationsFilterToSQL(
 					table,
@@ -884,7 +938,7 @@ export class MySqlDialect {
 				),
 				relationWhere,
 			)
-			: params?.where
+			: params && 'where' in params
 			? relationsFilterToSQL(
 				table,
 				params.where,

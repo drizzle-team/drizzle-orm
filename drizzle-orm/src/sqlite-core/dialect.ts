@@ -115,7 +115,7 @@ export class SQLiteDialect {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true, table })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -141,11 +141,14 @@ export class SQLiteDialect {
 			columnNames.flatMap((colName, i) => {
 				const col = tableColumns[colName]!;
 
-				const onUpdateFnResult = col.onUpdateFn?.();
-				const value = set[colName]
-					?? (is(onUpdateFnResult, SQL)
-						? onUpdateFnResult
-						: sql.param(onUpdateFnResult, col));
+				let value;
+				if (set[colName] !== undefined) {
+					value = set[colName];
+				} else {
+					const updateRes = col.onUpdateFn?.();
+					value = is(updateRes, SQL) ? updateRes : sql.param(updateRes, col);
+				}
+
 				const res = sql`${sql.identifier(col.name)} = ${value}`;
 
 				if (i < setLength - 1) {
@@ -176,7 +179,7 @@ export class SQLiteDialect {
 		const joinsSql = this.buildJoins(joins);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true, table })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -201,67 +204,35 @@ export class SQLiteDialect {
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
-		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
+		{ isSingleTable = false, table }: {
+			isSingleTable?: boolean;
+			table?: SQLiteTable | SQLiteViewBase | SQL | Subquery;
+		} = {},
 	): SQL {
-		const columnsLen = fields.length;
+		const { length: columnsLen } = fields;
+		const chunks: SQLChunk[] = [];
+		const tableName = table
+			? is(table, SQL) || is(table, Subquery)
+				? undefined
+				: (table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
+					? table[Table.Symbol.Name]
+					: `${table[Table.Symbol.Schema]}.${table[Table.Symbol.Name]}`)
+			: undefined;
 
-		const chunks = fields.flatMap(({ field }, i) => {
-			const chunk: SQLChunk[] = [];
+		for (let i = 0; i < columnsLen; ++i) {
+			const { field } = fields[i]!;
 
-			if (is(field, SQL.Aliased)) {
-				if (field.isSelectionField) {
-					if (!isSingleTable && field.origin !== undefined) {
-						chunk.push(sql.identifier(field.origin), sql.raw('.'));
-					}
-					chunk.push(sql.identifier(field.fieldAlias));
-				} else {
-					const query = field.sql;
-
-					if (isSingleTable) {
-						const newSql = new SQL(
-							query.queryChunks.map((c) => {
-								if (is(c, Column)) {
-									return sql.identifier(c.name);
-								}
-								return c;
-							}),
-						);
-
-						chunk.push(query.shouldInlineParams ? newSql.inlineParams() : newSql);
-					} else {
-						chunk.push(query);
-					}
-
-					chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
-				}
-			} else if (is(field, SQL)) {
-				const query = field;
-
-				if (isSingleTable) {
-					const newSql = new SQL(
-						query.queryChunks.map((c) => {
-							if (is(c, Column)) {
-								return sql.identifier(c.name);
-							}
-							return c;
-						}),
-					);
-
-					chunk.push(query.shouldInlineParams ? newSql.inlineParams() : newSql);
-				} else {
-					chunk.push(query);
-				}
-			} else if (is(field, Column)) {
+			if (is(field, Column)) {
 				// TODO: remove after implementing codecs
 				if (field.columnType === 'SQLiteNumericBigInt' || field.columnType === 'SQLiteNumeric') {
 					if (isSingleTable) {
-						chunk.push(
+						chunks.push(
 							field.isAlias
 								? sql`cast(${sql.identifier(getOriginalColumnFromAlias(field).name)} as text) as ${field}`
 								: sql`cast(${sql.identifier(field.name)} as text)`,
 						);
 					} else {
-						chunk.push(
+						chunks.push(
 							field.isAlias
 								? sql`cast(${getOriginalColumnFromAlias(field)} as text) as ${field}`
 								: sql`cast(${field} as text)`,
@@ -269,35 +240,108 @@ export class SQLiteDialect {
 					}
 				} else {
 					if (isSingleTable) {
-						chunk.push(
+						chunks.push(
 							field.isAlias
 								? sql`${sql.identifier(getOriginalColumnFromAlias(field).name)} as ${field}`
 								: sql.identifier(field.name),
 						);
 					} else {
-						chunk.push(
+						chunks.push(
 							field.isAlias
 								? sql`${getOriginalColumnFromAlias(field)} as ${field}`
 								: field,
 						);
 					}
 				}
+			} else if (is(field, SQL.Aliased)) {
+				if (field.isSelectionField) {
+					if (!isSingleTable && field.origin !== undefined) {
+						chunks.push(sql.identifier(field.origin), sql.raw('.'));
+					}
+					chunks.push(sql.identifier(field.fieldAlias));
+				} else {
+					if (isSingleTable) {
+						const { queryChunks } = field.sql;
+						const newChunks: SQLChunk[] = Array.from({ length: queryChunks.length });
+						let abort = false;
+
+						for (let i = 0; i < queryChunks.length; ++i) {
+							const c = queryChunks[i]!;
+							if (is(c, Column)) {
+								const { table } = c;
+								const columnTableName = table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
+									? table[Table.Symbol.Name]
+									: `${table[Table.Symbol.Schema]}.${table[Table.Symbol.Name]}`;
+								if (columnTableName !== tableName) {
+									abort = true;
+									break;
+								}
+
+								newChunks[i] = sql.identifier(c.name);
+							} else {
+								newChunks[i] = c;
+							}
+						}
+
+						if (abort) {
+							chunks.push(field.sql);
+						} else {
+							const newSql = new SQL(newChunks);
+							if (field.sql.shouldInlineParams) newSql.inlineParams();
+							chunks.push(newSql);
+						}
+					} else {
+						chunks.push(field.sql);
+					}
+
+					chunks.push(sql` as ${sql.identifier(field.fieldAlias)}`);
+				}
+			} else if (is(field, SQL)) {
+				if (isSingleTable) {
+					const { queryChunks } = field;
+					const newChunks: SQLChunk[] = Array.from({ length: queryChunks.length });
+					let abort = false;
+
+					for (let i = 0; i < queryChunks.length; ++i) {
+						const c = queryChunks[i]!;
+						if (is(c, Column)) {
+							const { table } = c;
+							const columnTableName = table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
+								? table[Table.Symbol.Name]
+								: `${table[Table.Symbol.Schema]}.${table[Table.Symbol.Name]}`;
+							if (columnTableName !== tableName) {
+								abort = true;
+								break;
+							}
+
+							newChunks[i] = sql.identifier(c.name);
+						} else {
+							newChunks[i] = c;
+						}
+					}
+
+					if (abort) {
+						chunks.push(field);
+					} else {
+						const newSql = new SQL(newChunks);
+						if (field.shouldInlineParams) newSql.inlineParams();
+						chunks.push(newSql);
+					}
+				} else chunks.push(field);
 			} else if (is(field, Subquery)) {
 				if (!field._.isWith) {
-					chunk.push(sql`(${field._.sql}) ${sql.identifier(field._.alias)}`);
+					chunks.push(sql`(${field._.sql}) ${sql.identifier(field._.alias)}`);
 				} else {
-					chunk.push(field);
+					chunks.push(field);
 				}
 			}
 
 			if (i < columnsLen - 1) {
-				chunk.push(sql`, `);
+				chunks.push(sql`, `);
 			}
+		}
 
-			return chunk;
-		});
-
-		return sql.join(chunks);
+		return new SQL(chunks);
 	}
 
 	private buildJoins(
@@ -445,7 +489,7 @@ export class SQLiteDialect {
 
 		const distinctSql = distinct ? sql` distinct` : undefined;
 
-		const selection = this.buildSelection(fieldsList, { isSingleTable });
+		const selection = this.buildSelection(fieldsList, { isSingleTable, table });
 
 		const tableSql = this.buildFromTable(table);
 
@@ -563,12 +607,15 @@ export class SQLiteDialect {
 		returning,
 		withList,
 		select,
+		columnList,
 	}: SQLiteInsertConfig): SQL {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, SQLiteColumn> = table[Table.Symbol.Columns];
 
-		const colEntries: [string, SQLiteColumn][] = Object.entries(columns);
+		const colEntries: [string, SQLiteColumn][] = columnList
+			? columnList.map((name) => [name, columns[name]!])
+			: Object.entries(columns);
 		const colEntriesFiltered: [string, SQLiteColumn][] = select && !is(valuesOrSelect, SQL)
 			? Object
 				.keys((valuesOrSelect as TypedQueryBuilder<any>).getSelectedFields())
@@ -634,7 +681,7 @@ export class SQLiteDialect {
 		const valuesSql = sql.join(valuesSqlList);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true, table })}`
 			: undefined;
 
 		const onConflictSql = onConflict?.length ? sql.join(onConflict) : undefined;
@@ -822,7 +869,7 @@ export class SQLiteDialect {
 
 		const columns = this.buildColumns(table, selection, !!isNested, params);
 
-		const where: SQL | undefined = params?.where && relationWhere
+		const where: SQL | undefined = params && 'where' in params && relationWhere
 			? and(
 				relationsFilterToSQL(
 					table,
@@ -832,7 +879,7 @@ export class SQLiteDialect {
 				),
 				relationWhere,
 			)
-			: params?.where
+			: params && 'where' in params
 			? relationsFilterToSQL(
 				table,
 				params.where,

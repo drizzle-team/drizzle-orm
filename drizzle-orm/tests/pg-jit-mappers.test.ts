@@ -402,7 +402,7 @@ test('Jit mappers: select complex selections', async () => {
 				"isBanned": c3,
 				"extra": c4 === null ? c4 : decoder4.mapFromDriverValue(c4),
 			},
-			"post": c5 === null && c6 === null && c7 === null ? null : {
+			"post": c5 === null && c6 === null && c7 === null && c8 === null ? null : {
 				"id": c5,
 				"authorId": c6 === null ? c6 : codec6(c6, 0),
 				"content": c7,
@@ -426,7 +426,7 @@ test('Jit mappers: select complex selections', async () => {
 			"ticket_jqm1": {
 				"staffId": c0,
 			},
-			"internal_staff": {
+			"internal_staff": c1 === null && c2 === null && c3 === null && c4 === null && c5 === null ? null : {
 				"internal_staff_jqm1": {
 					"userId": c1,
 				},

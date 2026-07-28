@@ -32,6 +32,7 @@ import {
 	type ValueOrArray,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { type PostgresType, unionsTypeTable } from '../codecs.ts';
 import { extractUsedTable } from '../utils.ts';
 import type {
 	AnyPgSelectQueryBuilder,
@@ -50,6 +51,7 @@ import type {
 	PgSetOperatorExcludedMethods,
 	PgSetOperatorWithResult,
 	SelectedFields,
+	SelectedFieldsOrdered,
 	SetOperatorRightSelect,
 	TableLikeHasEmptySelection,
 } from './select.types.ts';
@@ -1047,8 +1049,60 @@ export class PgSelectBase<
 		return this as any;
 	}
 
+	/**
+	 * Resolve the ordered selection into `config`, and return the list the row mapper reads.
+	 *
+	 * Split out of `getSQL` because the driver's shape generator has to see the selection *before* the query is
+	 * built: whether a shape exists decides whether `buildSelection` emits the `cast` codecs.
+	 *
+	 * @internal
+	 */
+	_resolveSelection(): SelectedFieldsOrdered {
+		const { config, dialect } = this;
+		config.fieldsFlat ??= orderSelectedFields<PgColumn>(config.fields, undefined, dialect.codecs);
+
+		const { fieldsFlat, setOperators } = config;
+
+		if (setOperators.length && !config.setFieldsFlat) {
+			const setSelection: SelectedFieldsOrdered = Array.from({ length: fieldsFlat.length });
+
+			for (let i = 0; i < setOperators.length; ++i) {
+				const setOperator = setOperators[i];
+				if (!setOperator) {
+					throw new Error('Cannot pass undefined values to any set operator');
+				}
+
+				const rightSelection = orderSelectedFields(setOperator.rightSelect.getSelectedFields());
+				for (let j = 0; j < fieldsFlat.length; ++j) {
+					setSelection[j] = { ...fieldsFlat[j]! };
+					const l = setSelection[j]!;
+					const lPath = l.path.join('.');
+					const r = rightSelection.find((e) => e.path.join('.') === lPath)!; // Equivalency of selections is a pre-requisite for unions
+
+					const lc = l.codecOverride ?? l.column?.codec;
+					const rc = r.codecOverride ?? r.column?.codec;
+
+					setSelection[j]!.codecOverride = (lc && rc)
+						? (<Record<string, Record<string, PostgresType>>> unionsTypeTable)[lc]?.[rc]
+						: lc;
+				}
+			}
+
+			for (let i = 0; i < setSelection.length; ++i) {
+				const out = setSelection[i]!;
+				out.codec = out.codecOverride
+					? dialect.codecs.get(out.column!, 'normalize', out.codecOverride as PostgresType)
+					: out.codec;
+			}
+
+			config.setFieldsFlat = setSelection;
+		}
+
+		return config.setFieldsFlat ?? fieldsFlat;
+	}
+
 	getSQL(): SQL {
-		this.config.fieldsFlat = orderSelectedFields<PgColumn>(this.config.fields, undefined, this.dialect.codecs);
+		this._resolveSelection();
 		return this.dialect.buildSelectQuery(this.config);
 	}
 

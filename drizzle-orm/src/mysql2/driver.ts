@@ -34,7 +34,13 @@ function construct<
 ): MySql2Database<TRelations> & {
 	$client: AnyMySql2Connection extends TClient ? Pool : TClient;
 } {
-	client.config.supportBigNumbers = true;
+	// Promise-based clients (mysql2/promise) expose `config` on the underlying
+	// `.pool`/`.connection`, while callback clients (mysql2) expose it directly
+	// this is not reflected properly in types
+	const clientConfig = (client as any).config
+		?? (client as any).pool?.config
+		?? (client as any).connection?.config;
+	if (clientConfig) clientConfig.supportBigNumbers = true;
 	const dialect = new MySqlDialect({
 		useJitMappers: jitCompatCheck(config.jit),
 		codecs: mysql2Codecs,
@@ -108,18 +114,18 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	const { connection, client, ...DrizzleMySqlConfig } = params[0] as
+	const { connection, client, ...config } = params[0] as
 		& { connection?: PoolOptions | string; client?: TClient }
 		& DrizzleMySqlConfig<TRelations>;
 
-	if (client) return construct(client, DrizzleMySqlConfig) as any;
+	if (client) return construct(client, config) as any;
 
 	const instance = typeof connection === 'string'
 		? createPool({
 			uri: connection,
 		})
 		: createPool(connection!);
-	const db = construct(instance, DrizzleMySqlConfig);
+	const db = construct(instance, config);
 
 	return db as any;
 }
