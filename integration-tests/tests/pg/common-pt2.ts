@@ -6830,4 +6830,65 @@ export function tests(test: Test) {
 			expect(read).toEqual([{ id: 1, balance: 100 }]);
 		});
 	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/5699
+	test('Issue No 5699', async ({ createDB, push }) => {
+		const firstTable = pgTable('first_table', {
+			id: serial().primaryKey(),
+			name: text().notNull(),
+			createdAt: text().notNull(),
+			updatedAt: text().notNull(),
+			deletedAt: text().notNull(),
+		});
+		const secondTable = pgTable('second_table', {
+			id: serial().primaryKey(),
+			sn: text().notNull(),
+			otherDate: text().notNull(),
+			myKey: text().notNull(),
+			fk_first_table: integer().references(() => firstTable.id),
+		});
+
+		const myView = pgView('my_view').as((qb) =>
+			qb
+				.select({
+					id: firstTable.id,
+					name: firstTable.name,
+					someName: secondTable.sn,
+					myKey: secondTable.myKey,
+					otherDate: secondTable.otherDate,
+					createdAt: firstTable.createdAt,
+					updatedAt: firstTable.updatedAt,
+				})
+				.from(firstTable)
+				.innerJoin(secondTable, ({ id }) => eq(secondTable.fk_first_table, id))
+				.where(isNull(firstTable.deletedAt))
+		);
+
+		await push({ firstTable, secondTable, myView });
+
+		const db = createDB({ firstTable, secondTable, myView }, (r) => ({
+			secondTable: {
+				firstTable: r.one.firstTable({
+					from: r.secondTable.fk_first_table,
+					to: r.firstTable.id,
+				}),
+			},
+		}));
+
+		const res = await db.query.firstTable.findFirst({
+			where: { id: { eq: 1 } },
+		});
+
+		const res2 = await db.query.secondTable.findFirst({
+			where: { id: { eq: 1 } },
+		});
+
+		const res3 = await db.query.myView.findFirst({
+			where: { id: { eq: 1 } },
+		});
+
+		expect(res).toStrictEqual(undefined);
+		expect(res2).toStrictEqual(undefined);
+		expect(res3).toStrictEqual(undefined);
+	});
 }
