@@ -742,3 +742,92 @@ test('Issue #5964. View with comments', async () => {
 		},
 	]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5993
+test('Issue No5993', async () => {
+	await db.query(`CREATE TABLE dbo.duplicate_index_a (
+  id int NOT NULL,
+  value int NULL
+);`);
+	await db.query(
+		`CREATE TABLE dbo.duplicate_index_b (
+  id int NOT NULL,
+  value int NULL
+);`,
+	);
+	await db.query(
+		`CREATE INDEX IX_DUPLICATE_NAME ON dbo.duplicate_index_a(value);`,
+	);
+	await db.query(
+		`CREATE INDEX IX_DUPLICATE_NAME ON dbo.duplicate_index_b(value);`,
+	);
+
+	const { sqlStatements, statements, fromFileDDL, introspectDDL } = await diffIntrospect(
+		db,
+		{},
+		'#5993',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+	expect(statements).toStrictEqual([]);
+	expect(introspectDDL.indexes.list()).toStrictEqual([
+		{
+			columns: [
+				{
+					isExpression: false,
+					value: 'value',
+				},
+			],
+			entityType: 'indexes',
+			isUnique: false,
+			name: 'IX_DUPLICATE_NAME',
+			schema: 'dbo',
+			table: 'duplicate_index_a',
+			where: null,
+		},
+		{
+			columns: [
+				{
+					isExpression: false,
+					value: 'value',
+				},
+			],
+			entityType: 'indexes',
+			isUnique: false,
+			name: 'IX_DUPLICATE_NAME',
+			schema: 'dbo',
+			table: 'duplicate_index_b',
+			where: null,
+		},
+	]);
+	expect(fromFileDDL.indexes.list()).toStrictEqual([
+		{
+			columns: [
+				{
+					isExpression: false,
+					value: 'value',
+				},
+			],
+			entityType: 'indexes',
+			isUnique: false,
+			name: 'IX_DUPLICATE_NAME',
+			schema: 'dbo',
+			table: 'duplicate_index_a',
+			where: null,
+		},
+		{
+			columns: [
+				{
+					isExpression: false,
+					value: 'value',
+				},
+			],
+			entityType: 'indexes',
+			isUnique: false,
+			name: 'IX_DUPLICATE_NAME',
+			schema: 'dbo',
+			table: 'duplicate_index_b',
+			where: null,
+		},
+	]);
+});

@@ -138,12 +138,6 @@ export type CliConfig = TypeOf<typeof configCommonSchema> & {
 	schemaFilter?: string | string[];
 };
 
-export const configPull = configCommonSchema.extend({
-	casing,
-	migrations: configMigrations,
-	...entitiesParams,
-});
-
 export const configCheck = configCommonSchema;
 
 export const configGenerate = configCommonSchema.extend({
