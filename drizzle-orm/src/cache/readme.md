@@ -4,7 +4,7 @@ By default, Drizzle does not perform any implicit actions with your queries and 
 
 However, there are cases when you might want to implement a simple caching logic for specific queries or even for all queries. With Drizzle's cache option, you can define how and when the cache is used, how you store and retrieve data, and what actions to take when write statements are executed on the database. It's basically similar to `beforeQuery` hooks, that will be invoked before actual query will be executed. Additionally, Drizzle provides predefined logic for caching. Let's take a look at it.
 
-To make cache work you would need to define cache callbacks in drizzle instance or use a predefined ones we have in Drizzle, like a `upstashCache()` that was built together with Upstash team
+To make cache work you would need to define cache callbacks in drizzle instance or use a predefined one we have in Drizzle, like `upstashCache()` or `cloudflareKVCache()`
 
 ### Cache overview
 
@@ -13,6 +13,16 @@ To make cache work you would need to define cache callbacks in drizzle instance 
 ```ts
 const db = drizzle(process.env.DB_URL!, { cache: upstashCache() })
 ```
+
+**Using Cloudflare KV cache with drizzle**
+
+```ts
+const db = drizzle(env.DB, {
+  cache: cloudflareKVCache(env.QUERY_CACHE, { config: { ex: 300 } })
+})
+```
+
+Cloudflare KV is eventually consistent and requires expiration targets of at least 60 seconds.
 
 You can also define custom logic for your cache behavior. This is an example of our NodeKV implementation for the Drizzle cache test suites
 
