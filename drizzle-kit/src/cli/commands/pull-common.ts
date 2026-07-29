@@ -173,8 +173,8 @@ export const relationsToTypeScript = (
 				// not matter if it's 1 column, 2 columns or more
 				if (
 					table.uniques.find((constraint) =>
-						constraint.columns.length === columnsFrom.length
-						&& constraint.columns.every((col, i) => col === columnsFrom[i])
+						constraint.columns.length === fk.columns.length // need to check without casing (name should be preserved)
+						&& constraint.columns.every((col, i) => col === fk.columns[i]) // need to check without casing (name should be preserved)
 					)
 				) {
 					// the difference between one and one-one is that one-one won't contain from and to
