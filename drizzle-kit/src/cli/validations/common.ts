@@ -179,7 +179,6 @@ export const pushParams = object({
 	dialect: dialect,
 	schema: union([string(), string().array()]),
 	verbose: boolean().optional(),
-	strict: boolean().optional(),
 	explain: boolean().optional(),
 	hints: string().optional(),
 	hintsFile: string().optional(),

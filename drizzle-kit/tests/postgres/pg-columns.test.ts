@@ -8,7 +8,9 @@ import {
 	customType,
 	date,
 	doublePrecision,
+	foreignKey,
 	geometry,
+	index,
 	inet,
 	integer,
 	interval,
@@ -29,6 +31,7 @@ import {
 	text,
 	time,
 	timestamp,
+	unique,
 	uniqueIndex,
 	uuid,
 	varchar,
@@ -1612,4 +1615,69 @@ test('same column names in two tables. Check for correct not null creation #4. s
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6045
+test('Issue No6045. Drop column with index', async (t) => {
+	const notesTable = pgTable('notes', {
+		id: uuid().primaryKey(),
+	});
+	const tagsTable = pgTable('tags', {
+		id: uuid().primaryKey(),
+		authorId: uuid(),
+		name: varchar(),
+	}, (t) => [unique().on(t.authorId, t.name)]);
+	const notesToTagsTable = pgTable(
+		'notes_to_tags',
+		{
+			noteId: uuid().references(() => notesTable.id, { onDelete: 'cascade', onUpdate: 'cascade' }).notNull(),
+			tagAuthorId: uuid().notNull(),
+			tagName: varchar().notNull(),
+		},
+		(t) => [
+			primaryKey({ name: 'notes_to_tags_id', columns: [t.noteId, t.tagAuthorId, t.tagName] }),
+			index('notes_to_tags_tagId_idx').on(t.tagAuthorId, t.tagName),
+			foreignKey({
+				name: 'notes_to_tags_foreignKey',
+				columns: [t.tagAuthorId, t.tagName],
+				foreignColumns: [tagsTable.authorId, tagsTable.name],
+			}),
+		],
+	);
+	// order matters here
+	const schema1 = { notesTable, notesToTagsTable, tagsTable };
+
+	await push({ db, to: schema1 });
+
+	const notesToTags2 = pgTable(
+		'notes_to_tags',
+		{
+			noteId: uuid().references(() => notesTable.id, { onDelete: 'cascade', onUpdate: 'cascade' }).notNull(),
+			tagId: uuid().references(() => tagsTable.id, { onDelete: 'cascade', onUpdate: 'cascade' }).notNull(),
+		},
+		(t) => [
+			primaryKey({ name: 'notes_to_tags_id', columns: [t.noteId, t.tagId] }),
+			index('notes_to_tags_tagId_idx').on(t.tagId),
+		],
+	);
+	const schema2 = {
+		notesTable,
+		tagsTable,
+		notesToTags2,
+	};
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema2 });
+
+	const st_1 = [
+		'ALTER TABLE "notes_to_tags" DROP CONSTRAINT "notes_to_tags_foreignKey";',
+		'ALTER TABLE "notes_to_tags" ADD COLUMN "tagId" uuid;',
+		'ALTER TABLE "notes_to_tags" DROP COLUMN "tagAuthorId";',
+		'ALTER TABLE "notes_to_tags" DROP COLUMN "tagName";',
+		'ALTER TABLE "notes_to_tags" ADD CONSTRAINT "notes_to_tags_id" PRIMARY KEY("noteId","tagId");',
+		'CREATE INDEX "notes_to_tags_tagId_idx" ON "notes_to_tags" ("tagId");',
+		'ALTER TABLE "notes_to_tags" ADD CONSTRAINT "notes_to_tags_tagId_tags_id_fkey" FOREIGN KEY ("tagId") REFERENCES "tags"("id") ON DELETE CASCADE ON UPDATE CASCADE;',
+	];
+	expect(st1).toStrictEqual(st_1);
+	expect(pst1).toStrictEqual(st_1);
 });
