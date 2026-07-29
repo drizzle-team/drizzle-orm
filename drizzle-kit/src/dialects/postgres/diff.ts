@@ -701,7 +701,17 @@ export const ddlDiff = async (
 
 		if (idx.isUnique || idx.concurrently || idx.method || idx.with || forColumns || forWhere) {
 			const index = ddl2.indexes.one({ schema: idx.schema, table: idx.table, name: idx.name })!;
-			jsonRecreateIndex.push(prepareStatement('recreate_index', { index, diff: idx }));
+
+			// when a column used by the index is being dropped, the index is dropped with it (cascade),
+			// so the recreate must skip the explicit DROP INDEX
+			const prevIndex = ddl1.indexes.one({ schema: idx.schema, table: idx.table, name: idx.name });
+			const shouldDrop = !!prevIndex
+				&& !columnsToDelete.some((col) =>
+					col.schema === idx.schema
+					&& col.table === idx.table
+					&& prevIndex.columns.some((idxCol) => idxCol.value === col.name)
+				);
+			jsonRecreateIndex.push(prepareStatement('recreate_index', { index, diff: idx, shouldDrop }));
 		}
 	}
 

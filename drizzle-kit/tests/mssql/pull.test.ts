@@ -707,3 +707,38 @@ test('pull after migrate with custom migrations table #3', async () => {
 		},
 	]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5964
+test('Issue #5964. View with comments', async () => {
+	await db.query(`CREATE TABLE [dbo].[Customer]
+(
+    CustomerId INT NOT NULL IDENTITY(1, 1),
+      CONSTRAINT [PK_Customer_CustomerId] PRIMARY KEY (CustomerId),
+    Name VARCHAR(50) NOT NULL,
+        CONSTRAINT [CK_Customer_Name_not_blank_string] CHECK (LEN(Name) > 0)
+)`);
+	await db.query(
+		`CREATE VIEW dbo.vCustomer WITH SCHEMABINDING AS /* comment */ SELECT CustomerId, Name FROM dbo.Customer`,
+	);
+
+	const { sqlStatements, statements, fromFileDDL, introspectDDL } = await diffIntrospect(
+		db,
+		{},
+		'#5964',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+	expect(statements).toStrictEqual([]);
+	expect(introspectDDL.views.list()).toStrictEqual([
+		{
+			checkOption: false,
+			definition: `/* comment */ SELECT CustomerId, Name FROM dbo.Customer`,
+			encryption: false,
+			entityType: 'views',
+			name: 'vCustomer',
+			schema: 'dbo',
+			schemaBinding: true,
+			viewMetadata: false,
+		},
+	]);
+});
