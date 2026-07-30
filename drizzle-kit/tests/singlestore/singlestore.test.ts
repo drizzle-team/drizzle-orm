@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+	bigint,
 	index,
 	int,
 	json,
@@ -7,7 +8,9 @@ import {
 	serial,
 	singlestoreSchema,
 	singlestoreTable,
+	singlestoreTableCreator,
 	text,
+	timestamp,
 	uniqueIndex,
 } from 'drizzle-orm/singlestore-core';
 import { expect, test } from 'vitest';

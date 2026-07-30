@@ -329,7 +329,7 @@ export const ddlDiff = async (
 			prepareRecreateColumn(
 				it,
 				ddl2.columns.one({ table: it.table, name: it.name })!,
-				ddl2.fks.one({ table: it.table }),
+				ddl2.fks.one({ table: it.table, columns: [it.name] }),
 			)
 		);
 

@@ -232,8 +232,8 @@ export class NodeCockroachSession<
 			? new NodeCockroachSession(await this.client.connect(), this.dialect, this.schema, this.options)
 			: this;
 		const tx = new NodeCockroachTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
-		await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
 		try {
+			await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
 			const result = await transaction(tx);
 			await tx.execute(sql`commit`);
 			return result;

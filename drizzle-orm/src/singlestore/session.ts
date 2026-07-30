@@ -394,17 +394,17 @@ export class SingleStoreDriverSession<
 			this.schema,
 			0,
 		);
-		if (config) {
-			const setTransactionConfigSql = this.getSetTransactionSQL(config);
-			if (setTransactionConfigSql) {
-				await tx.execute(setTransactionConfigSql);
-			}
-			const startTransactionSql = this.getStartTransactionSQL(config);
-			await (startTransactionSql ? tx.execute(startTransactionSql) : tx.execute(sql`begin`));
-		} else {
-			await tx.execute(sql`begin`);
-		}
 		try {
+			if (config) {
+				const setTransactionConfigSql = this.getSetTransactionSQL(config);
+				if (setTransactionConfigSql) {
+					await tx.execute(setTransactionConfigSql);
+				}
+				const startTransactionSql = this.getStartTransactionSQL(config);
+				await (startTransactionSql ? tx.execute(startTransactionSql) : tx.execute(sql`begin`));
+			} else {
+				await tx.execute(sql`begin`);
+			}
 			const result = await transaction(tx);
 			await tx.execute(sql`commit`);
 			return result;
