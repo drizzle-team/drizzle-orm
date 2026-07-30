@@ -283,9 +283,9 @@ export function makeDefaultQueryMapper<TResult>(
 				const { path } = columns[i]!;
 
 				let node = result;
-				for (let i = 0; i < path.length; ++i) {
-					const pathChunk = path[i]!;
-					if (i < path.length - 1) {
+				for (let p = 0; p < path.length; ++p) {
+					const pathChunk = path[p]!;
+					if (p < path.length - 1) {
 						if (!(pathChunk in node)) {
 							node[pathChunk] = {};
 						}
