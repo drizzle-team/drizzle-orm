@@ -43,13 +43,18 @@ export function mapResultRow<TResult>(
 					const rawValue = row[columnIndex]!;
 					const value = node[pathChunk] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
 
-					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
+					if (joinsNotNullableMap && path.length >= 2) {
 						const objectName = path[0]!;
-						if (!(objectName in nullifyMap)) {
-							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
-						} else if (
-							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
-						) {
+						if (is(field, Column)) {
+							if (!(objectName in nullifyMap)) {
+								nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
+							} else if (
+								typeof nullifyMap[objectName] === 'string'
+								&& (value !== null || nullifyMap[objectName] !== getTableName(field.table))
+							) {
+								nullifyMap[objectName] = false;
+							}
+						} else if (value !== null) {
 							nullifyMap[objectName] = false;
 						}
 					}
