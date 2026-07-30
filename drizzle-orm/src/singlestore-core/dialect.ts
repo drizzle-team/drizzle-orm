@@ -1073,26 +1073,21 @@ export class SingleStoreDialect {
 		};
 	}
 
-	private nestedSelectionerror(): never {
-		throw new DrizzleError({
-			message: `Views with nested selections are not supported by the relational query builder`,
-		});
-	}
-
 	private buildRqbColumn(
 		table: Table | View,
-		column: unknown,
+		field: unknown,
 		key: string,
 		selection: BuildRelationalQueryResult['selection'],
+		tableTsName: string,
 	) {
 		let fieldType: BuildRelationalQueryResult['selection'][number]['fieldType'];
 		let output: SQL;
 
-		if (is(column, Column)) {
+		if (is(field, Column)) {
 			fieldType = 'Column';
-			const name = sql`${table}.${sql.identifier(column.name)}`;
+			const name = sql`${table}.${sql.identifier(field.name)}`;
 
-			switch (column.columnType) {
+			switch (field.columnType) {
 				case 'SingleStoreBinary':
 				case 'SingleStoreVarBinary':
 				case 'SingleStoreTime':
@@ -1116,7 +1111,7 @@ export class SingleStoreDialect {
 				}
 
 				case 'SingleStoreCustomColumn': {
-					output = sql`${(<SingleStoreCustomColumn<any>> column).jsonSelectIdentifier(name, sql)} as ${
+					output = sql`${(<SingleStoreCustomColumn<any>> field).jsonSelectIdentifier(name, sql)} as ${
 						sql.identifier(
 							key,
 						)
@@ -1128,35 +1123,27 @@ export class SingleStoreDialect {
 					output = sql`${name} as ${sql.identifier(key)}`;
 				}
 			}
-		} else if (is(column, SQL)) {
+		} else if (is(field, SQL)) {
 			fieldType = 'SQL';
 			output = sql`${table}.${sql.identifier(key)} as ${sql.identifier(key)}`;
-		} else if (is(column, SQL.Aliased)) {
+		} else if (is(field, SQL.Aliased)) {
 			fieldType = 'SQL.Aliased';
-			output = sql`${table}.${sql.identifier(column.fieldAlias)} as ${sql.identifier(key)}`;
-		} else if (isSQLWrapper(column)) {
+			output = sql`${table}.${sql.identifier(field.fieldAlias)} as ${sql.identifier(key)}`;
+		} else if (isSQLWrapper(field)) {
 			fieldType = 'SQLWrapper';
 			output = sql`${table}.${sql.identifier(key)} as ${sql.identifier(key)}`;
 		} else {
-			return this.nestedSelectionerror();
+			throw new DrizzleError({
+				message: field === undefined
+					? `Unknown column: "${tableTsName}"."${key}"`
+					: `Views with nested selections are not supported by the relational query builder`,
+			});
 		}
 
-		selection.push({ key, field: column, fieldType } as BuildRelationalQueryResult['selection'][number]);
+		selection.push({ key, field, fieldType } as BuildRelationalQueryResult['selection'][number]);
 
 		return output;
 	}
-
-	private unwrapAllColumns = (
-		table: Table | View,
-		selection: BuildRelationalQueryResult['selection'],
-	) => {
-		return sql.join(
-			Object.entries(table[TableColumns]).map(([k, v]) => {
-				return this.buildRqbColumn(table, v, k, selection);
-			}),
-			sql`, `,
-		);
-	};
 
 	private getSelectedTableColumns = (
 		table: Table | View,
@@ -1198,26 +1185,32 @@ export class SingleStoreDialect {
 	private buildColumns = (
 		table: SingleStoreTable | SingleStoreView,
 		selection: BuildRelationalQueryResult['selection'],
-		params?: DBQueryConfig<'many'>,
-	) =>
-		params?.columns
-			? (() => {
-				const columnIdentifiers: SQL[] = [];
+		tableTsName: string,
+		config?: DBQueryConfig<'many'>,
+	) => {
+		if (!config?.columns) {
+			return sql.join(
+				Object.entries(table[TableColumns]).map(([k, v]) => {
+					return this.buildRqbColumn(table, v, k, selection, tableTsName);
+				}),
+				sql`, `,
+			);
+		}
 
-				const selectedColumns = this.getSelectedTableColumns(
-					table,
-					params.columns,
-				);
+		const columnIdentifiers: SQL[] = [];
+		const selectedColumns = this.getSelectedTableColumns(
+			table,
+			config.columns,
+		);
 
-				for (const { column, tsName } of selectedColumns) {
-					columnIdentifiers.push(this.buildRqbColumn(table, column, tsName, selection));
-				}
+		for (const { column, tsName } of selectedColumns) {
+			columnIdentifiers.push(this.buildRqbColumn(table, column, tsName, selection, tableTsName));
+		}
 
-				return columnIdentifiers.length
-					? sql.join(columnIdentifiers, sql`, `)
-					: undefined;
-			})()
-			: this.unwrapAllColumns(table, selection);
+		return columnIdentifiers.length
+			? sql.join(columnIdentifiers, sql`, `)
+			: undefined;
+	};
 
 	buildRelationalQuery({
 		schema,
@@ -1252,7 +1245,7 @@ export class SingleStoreDialect {
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
 
-		const columns = this.buildColumns(table, selection, params);
+		const columns = this.buildColumns(table, selection, tableConfig.name, params);
 
 		const where: SQL | undefined = params && 'where' in params && relationWhere
 			? and(
@@ -1300,7 +1293,8 @@ export class SingleStoreDialect {
 				for (let readIdx = 0, writeIdx = 1; readIdx < withEntries.length; ++readIdx) {
 					const [k, join] = withEntries[readIdx]!;
 
-					const relation = tableConfig.relations[k]!;
+					const relation = tableConfig.relations[k];
+					if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
 					const isSingle = relation.relationType === 'one';
 					selectionArr.push(
 						isSingle

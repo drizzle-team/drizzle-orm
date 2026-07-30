@@ -1,6 +1,6 @@
 import 'dotenv/config';
-import { DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
-import { alias } from 'drizzle-orm/pg-core';
+import { defineRelations, DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
+import { alias, pgTable } from 'drizzle-orm/pg-core';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
@@ -13059,4 +13059,168 @@ test('.toSQL()', () => {
 
 	expect(query).toHaveProperty('sql', expect.any(String));
 	expect(query).toHaveProperty('params', expect.any(Array));
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5367
+test('Correct error message on unknown column', async () => {
+	const query = db.query.usersTable.findFirst({
+		columns: {
+			id: true,
+			// @ts-expect-error
+			unknown: true,
+		},
+	});
+
+	expect(async () => await query).rejects.toThrow(
+		new DrizzleError({ message: `Unknown column: "usersTable"."unknown"` }),
+	);
+});
+
+test('Correct error message on unknown relation', async () => {
+	const query = db.query.usersTable.findFirst({
+		with: {
+			posts: true,
+			// @ts-expect-error
+			unknown: true,
+		},
+	});
+
+	expect(async () => await query).rejects.toThrow(
+		new DrizzleError({ message: `Unknown relation "usersTable" -> "unknown"` }),
+	);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5644
+test('Disallow unknown keys in filters', async () => {
+	const query = db.query.usersTable.findFirst({
+		where: {
+			name: 'NAME',
+			// @ts-expect-error
+			unknown: 'value',
+		},
+	});
+
+	expect(async () => await query).rejects.toThrow(
+		new DrizzleError({ message: `Unknown relational filter field: "unknown"` }),
+	);
+});
+
+// Type test
+(() => {
+	type Brand<T> = T & { readonly __brand: 'PROPERTY|OF|JONATHAN|D|RIZZLE' };
+	const brand = <T>(t: T) => t as Brand<T>;
+
+	const brandtypes = pgTable('users', (t) => ({
+		str: t.text().$type<Brand<string>>(),
+		num: t.integer().$type<Brand<number>>(),
+		big: t.bigint({ mode: 'bigint' }).$type<Brand<bigint>>(),
+		bool: t.boolean().$type<Brand<boolean>>(),
+		sym: t.text().$type<Brand<symbol>>(),
+		date: t.date({ mode: 'date' }).$type<Brand<Date>>(),
+		unknown: t.json().$type<Brand<unknown>>(),
+		json: t.json().$type<Brand<{ k: 'v' }>>(),
+	}));
+
+	const rawtypes = pgTable('users', (t) => ({
+		str: t.text(),
+		num: t.integer(),
+		big: t.bigint({ mode: 'bigint' }),
+		bool: t.boolean(),
+		sym: t.text().$type<symbol>(),
+		date: t.date({ mode: 'date' }),
+		unknown: t.json(),
+		json: t.json().$type<{ k: 'v' }>(),
+	}));
+
+	const db = drizzle({
+		relations: defineRelations({ brandtypes, rawtypes }),
+		connection: process.env['PG_CONNECTION_STRING']!,
+	});
+
+	db.query.brandtypes.findFirst({
+		where: {
+			str: brand('str'),
+			num: brand(2),
+			big: brand(2n),
+			bool: brand(true),
+			sym: brand(Symbol('something')),
+			date: { eq: brand(new Date(0)) },
+			unknown: { eq: brand({ k: 'v' } as unknown) },
+			json: { eq: brand({ k: 'v' }) },
+		},
+	});
+
+	db.query.brandtypes.findFirst({
+		where: {
+			str: brand('str'),
+			num: brand(2),
+			big: brand(2n),
+			bool: brand(true),
+			sym: brand(Symbol('something')),
+			// @ts-expect-error
+			date: brand(new Date(0)),
+			// @ts-expect-error
+			unknown: brand({ k: 'v' } as unknown),
+			// @ts-expect-error
+			json: brand({ k: 'v' }),
+		},
+	});
+
+	db.query.rawtypes.findFirst({
+		where: {
+			str: 'str',
+			num: 2,
+			big: 2n,
+			bool: true,
+			sym: Symbol('something'),
+			date: { eq: (new Date(0)) },
+			unknown: { eq: { k: 'v' } as unknown },
+			json: { eq: { k: 'v' } },
+		},
+	});
+
+	db.query.rawtypes.findFirst({
+		where: {
+			str: 'str',
+			num: 2,
+			big: 2n,
+			bool: true,
+			sym: Symbol('something'),
+			// @ts-expect-error
+			date: new Date(0),
+			// @ts-expect-error
+			unknown: { k: 'v' } as unknown,
+			// @ts-expect-error
+			json: { k: 'v' },
+		},
+	});
+
+	db.query.rawtypes.findFirst({
+		where: {
+			str: brand('str'),
+			num: brand(2),
+			big: brand(2n),
+			bool: brand(true),
+			sym: brand(Symbol('something')),
+			date: { eq: brand(new Date(0)) },
+			unknown: { eq: brand({ k: 'v' } as unknown) },
+			json: { eq: brand({ k: 'v' }) },
+		},
+	});
+
+	db.query.rawtypes.findFirst({
+		where: {
+			str: brand('str'),
+			num: brand(2),
+			big: brand(2n),
+			bool: brand(true),
+			sym: brand(Symbol('something')),
+			// @ts-expect-error
+			date: brand(new Date(0)),
+			// @ts-expect-error
+			unknown: brand({ k: 'v' } as unknown),
+			// @ts-expect-error
+			json: brand({ k: 'v' }),
+		},
+	});
 });
