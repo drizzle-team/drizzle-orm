@@ -707,3 +707,127 @@ test('pull after migrate with custom migrations table #3', async () => {
 		},
 	]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5964
+test('Issue #5964. View with comments', async () => {
+	await db.query(`CREATE TABLE [dbo].[Customer]
+(
+    CustomerId INT NOT NULL IDENTITY(1, 1),
+      CONSTRAINT [PK_Customer_CustomerId] PRIMARY KEY (CustomerId),
+    Name VARCHAR(50) NOT NULL,
+        CONSTRAINT [CK_Customer_Name_not_blank_string] CHECK (LEN(Name) > 0)
+)`);
+	await db.query(
+		`CREATE VIEW dbo.vCustomer WITH SCHEMABINDING AS /* comment */ SELECT CustomerId, Name FROM dbo.Customer`,
+	);
+
+	const { sqlStatements, statements, fromFileDDL, introspectDDL } = await diffIntrospect(
+		db,
+		{},
+		'#5964',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+	expect(statements).toStrictEqual([]);
+	expect(introspectDDL.views.list()).toStrictEqual([
+		{
+			checkOption: false,
+			definition: `/* comment */ SELECT CustomerId, Name FROM dbo.Customer`,
+			encryption: false,
+			entityType: 'views',
+			name: 'vCustomer',
+			schema: 'dbo',
+			schemaBinding: true,
+			viewMetadata: false,
+		},
+	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5993
+test('Issue No5993', async () => {
+	await db.query(`CREATE TABLE dbo.duplicate_index_a (
+  id int NOT NULL,
+  value int NULL
+);`);
+	await db.query(
+		`CREATE TABLE dbo.duplicate_index_b (
+  id int NOT NULL,
+  value int NULL
+);`,
+	);
+	await db.query(
+		`CREATE INDEX IX_DUPLICATE_NAME ON dbo.duplicate_index_a(value);`,
+	);
+	await db.query(
+		`CREATE INDEX IX_DUPLICATE_NAME ON dbo.duplicate_index_b(value);`,
+	);
+
+	const { sqlStatements, statements, fromFileDDL, introspectDDL } = await diffIntrospect(
+		db,
+		{},
+		'#5993',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+	expect(statements).toStrictEqual([]);
+	expect(introspectDDL.indexes.list()).toStrictEqual([
+		{
+			columns: [
+				{
+					isExpression: false,
+					value: 'value',
+				},
+			],
+			entityType: 'indexes',
+			isUnique: false,
+			name: 'IX_DUPLICATE_NAME',
+			schema: 'dbo',
+			table: 'duplicate_index_a',
+			where: null,
+		},
+		{
+			columns: [
+				{
+					isExpression: false,
+					value: 'value',
+				},
+			],
+			entityType: 'indexes',
+			isUnique: false,
+			name: 'IX_DUPLICATE_NAME',
+			schema: 'dbo',
+			table: 'duplicate_index_b',
+			where: null,
+		},
+	]);
+	expect(fromFileDDL.indexes.list()).toStrictEqual([
+		{
+			columns: [
+				{
+					isExpression: false,
+					value: 'value',
+				},
+			],
+			entityType: 'indexes',
+			isUnique: false,
+			name: 'IX_DUPLICATE_NAME',
+			schema: 'dbo',
+			table: 'duplicate_index_a',
+			where: null,
+		},
+		{
+			columns: [
+				{
+					isExpression: false,
+					value: 'value',
+				},
+			],
+			entityType: 'indexes',
+			isUnique: false,
+			name: 'IX_DUPLICATE_NAME',
+			schema: 'dbo',
+			table: 'duplicate_index_b',
+			where: null,
+		},
+	]);
+});

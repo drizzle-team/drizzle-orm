@@ -970,3 +970,25 @@ test('pull after migrate with custom migrations table #3', async ({ db }) => {
 		},
 	]);
 });
+
+test('primary key with non default name', async ({ db }) => {
+	await db.query(`
+CREATE TABLE table1 (
+    id int4,
+	CONSTRAINT "primary_key" PRIMARY KEY (id)
+);`);
+	await db.query(`
+CREATE TABLE table2 (
+    id int4 primary key
+);
+`);
+
+	const {
+		sqlStatements,
+		statements,
+		schema2,
+	} = await diffIntrospect(db, {}, 'primary-key-without-default-name');
+
+	expect(sqlStatements).toStrictEqual([]);
+	expect(statements).toStrictEqual([]);
+});

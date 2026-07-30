@@ -297,9 +297,9 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MssqlDDL; errors: S
 	}
 
 	for (const index of interim.indexes) {
-		const isConflictNamePerSchema = ddl.indexes.one({ schema: index.schema, name: index.name });
+		const res = ddl.indexes.push(index);
 
-		if (isConflictNamePerSchema) {
+		if (res.status === 'CONFLICT') {
 			errors.push({
 				type: 'index_duplicate',
 				schema: index.schema,
@@ -307,6 +307,7 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MssqlDDL; errors: S
 				name: index.name,
 			});
 		}
+
 		ddl.indexes.push(index);
 	}
 
