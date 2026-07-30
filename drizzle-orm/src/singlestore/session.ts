@@ -37,7 +37,7 @@ import {
 } from '~/singlestore-core/session.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { fillPlaceholders, sql } from '~/sql/sql.ts';
-import { type Assume, makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
+import { type Assume, makeDefaultQueryMapper, makeJitQueryMapper, type RowsMapper } from '~/utils.ts';
 
 export type SingleStoreDriverClient = Pool | Connection;
 
@@ -54,7 +54,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 
 	private rawQuery: QueryOptions;
 	private query: QueryOptions;
-	private jitMapper?:
+	private rowMapper?:
 		| RowsMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
 		| RelationalRowsMapper<T['execute']>;
 
@@ -111,7 +111,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 
 		this.logger.logQuery(this.rawQuery.sql, params);
 
-		const { fields, client, rawQuery, query, joinsNotNullableMap, customResultMapper, returningIds, generatedIds } =
+		const { fields, client, rawQuery, query, nullableObjectPaths, customResultMapper, returningIds, generatedIds } =
 			this;
 		if (!fields && !customResultMapper) {
 			const res = await this.queryWithCache(rawQuery.sql, params, async () => {
@@ -156,14 +156,17 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 			return customResultMapper(rows);
 		}
 
-		return this.useJitMappers
-			? (this.jitMapper =
-				this.jitMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
-					?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
+		return (this.rowMapper =
+			this.rowMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
+				?? (this.useJitMappers
+					? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
 						fields!,
-						joinsNotNullableMap,
-					))(rows)
-			: rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
+						nullableObjectPaths,
+					)
+					: makeDefaultQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
+						fields!,
+						nullableObjectPaths,
+					)))(rows);
 	}
 
 	private async executeRqbV2(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
@@ -187,7 +190,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 			connection: CallbackConnection;
 		}).connection;
 
-		const { fields, query, rawQuery, joinsNotNullableMap, client, customResultMapper } = this;
+		const { fields, query, rawQuery, nullableObjectPaths, client, customResultMapper } = this;
 		const hasRowsMapper = Boolean(fields || customResultMapper);
 		const driverQuery = hasRowsMapper ? conn.query(query, params) : conn.query(rawQuery, params);
 
@@ -213,7 +216,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 				} else {
 					if (this.isRqbV2Query) {
 						if (this.useJitMappers) {
-							yield (this.jitMapper = this.jitMapper as RelationalRowsMapper<T['execute']>
+							yield (this.rowMapper = this.rowMapper as RelationalRowsMapper<T['execute']>
 								?? makeJitRqbMapper<T['execute']>(this.rqbConfig!))([row as Record<string, unknown>]);
 						} else {
 							const mapped = (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])([
@@ -227,14 +230,17 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 							const mappedRow = (customResultMapper as (rows: unknown[][]) => T['execute'])([row as unknown[]]);
 							yield (Array.isArray(mappedRow) ? mappedRow[0] : mappedRow);
 						} else {
-							yield this.useJitMappers
-								? (this.jitMapper = this.jitMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number]
-									: T['execute'])[]>
-									?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
+							yield (this.rowMapper = this.rowMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number]
+								: T['execute'])[]>
+								?? (this.useJitMappers
+									? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
 										fields!,
-										joinsNotNullableMap,
-									))([row as unknown[]])[0] as T['execute']
-								: mapResultRow(fields!, row as unknown[], joinsNotNullableMap);
+										nullableObjectPaths,
+									)
+									: makeDefaultQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
+										fields!,
+										nullableObjectPaths,
+									)))([row as unknown[]])[0] as T['execute'];
 						}
 					} else {
 						yield row as T['execute'];

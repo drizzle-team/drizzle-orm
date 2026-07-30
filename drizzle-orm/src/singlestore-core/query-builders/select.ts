@@ -32,6 +32,7 @@ import {
 	getTableLikeName,
 	haveSameKeys,
 	orderSelectedFields,
+	resolveNullableObjectPaths,
 	type ValueOrArray,
 } from '~/utils.ts';
 import { extractUsedTable } from '../utils.ts';
@@ -1006,7 +1007,7 @@ export class SingleStoreSelectBase<
 			type: 'select',
 			tables: [...this.usedTables],
 		}, this.cacheConfig);
-		preparedQuery.joinsNotNullableMap = this.joinsNotNullableMap;
+		preparedQuery.nullableObjectPaths = resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap);
 		return preparedQuery as SingleStoreSelectPrepare<this>;
 	}
 

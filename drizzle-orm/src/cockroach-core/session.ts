@@ -37,7 +37,7 @@ export abstract class CockroachPreparedQuery<T extends PreparedQueryConfig> impl
 	static readonly [entityKind]: string = 'CockroachPreparedQuery';
 
 	/** @internal */
-	joinsNotNullableMap?: Record<string, boolean>;
+	nullableObjectPaths?: string[];
 
 	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
 	/** @internal */

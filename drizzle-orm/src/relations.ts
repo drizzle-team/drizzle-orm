@@ -761,17 +761,39 @@ export type BuildQueryResult<
 	: never;
 
 export interface BuildRelationalQueryResult {
-	selection: {
-		key: string;
-		field: Column<any> | Table | View | SQL | SQL.Aliased | SQLWrapper | AggregatedField;
-		/** For array type relations */
-		isArray?: boolean;
-		selection?: BuildRelationalQueryResult['selection'];
-		isOptional?: boolean;
-		codec?: NormalizeCodec | NormalizeArrayCodec;
-		/** For array type columns */
-		arrayDimensions?: number;
-	}[];
+	selection: (
+		& {
+			key: string;
+			codec?: NormalizeCodec | NormalizeArrayCodec;
+			/** For array type columns */
+			arrayDimensions?: number;
+
+			// Nested selection only fields
+			/** For array type relations */
+			isArray?: boolean;
+			selection?: BuildRelationalQueryResult['selection'];
+			isOptional?: boolean;
+		}
+		& ({
+			field: Column<any>;
+			fieldType: 'Column';
+		} | {
+			field: SQL;
+			fieldType: 'SQL';
+		} | {
+			field: SQL.Aliased;
+			fieldType: 'SQL.Aliased';
+		} | {
+			field: SQLWrapper;
+			fieldType: 'SQLWrapper';
+		} | {
+			field: AggregatedField;
+			fieldType: 'AggregatedField';
+		} | {
+			field: Table | View;
+			fieldType: 'Nested';
+		})
+	)[];
 	sql: SQL;
 }
 
@@ -788,18 +810,23 @@ export function mapRelationalRow(
 ): Record<string, unknown> | Record<string, unknown>[] {
 	const maxIdx = isOne ? 1 : (rows as Record<string, unknown>[]).length;
 	const decoders: (undefined | ((v: any) => any))[] = buildQueryResultSelection.map(
-		({ field, codec, arrayDimensions }) => {
+		({ field, fieldType, codec, arrayDimensions }) => {
 			let decoder;
-			if (is(field, Column)) {
-				decoder = field;
-			} else if (is(field, SQL)) {
-				decoder = field.decoder;
-			} else if (is(field, SQL.Aliased)) {
-				decoder = field.sql.decoder;
-			} else if (is(field, Table) || is(field, View)) {
-				decoder = noopDecoder;
-			} else {
-				decoder = field.getSQL().decoder;
+			switch (fieldType) {
+				case 'Column':
+					decoder = field;
+					break;
+				case 'SQL':
+					decoder = field.decoder;
+					break;
+				case 'SQL.Aliased':
+					decoder = field.sql.decoder;
+					break;
+				case 'Nested':
+					decoder = noopDecoder;
+					break;
+				default:
+					decoder = field.getSQL().decoder;
 			}
 
 			// Support for old custom column JSON field API
@@ -879,18 +906,23 @@ export function mapRelationalRowFromArrays(
 ): Record<string, unknown> | Record<string, unknown>[] {
 	const maxIdx = isOne ? 1 : rows.length;
 	const decoders: (undefined | ((v: any) => any))[] = buildQueryResultSelection.map(
-		({ field, codec, arrayDimensions }) => {
+		({ field, fieldType, codec, arrayDimensions }) => {
 			let decoder;
-			if (is(field, Column)) {
-				decoder = field;
-			} else if (is(field, SQL)) {
-				decoder = field.decoder;
-			} else if (is(field, SQL.Aliased)) {
-				decoder = field.sql.decoder;
-			} else if (is(field, Table) || is(field, View)) {
-				decoder = noopDecoder;
-			} else {
-				decoder = field.getSQL().decoder;
+			switch (fieldType) {
+				case 'Column':
+					decoder = field;
+					break;
+				case 'SQL':
+					decoder = field.decoder;
+					break;
+				case 'SQL.Aliased':
+					decoder = field.sql.decoder;
+					break;
+				case 'Nested':
+					decoder = noopDecoder;
+					break;
+				default:
+					decoder = field.getSQL().decoder;
 			}
 
 			return decoder.mapFromDriverValue.isNoop
@@ -1030,7 +1062,7 @@ function makeJitRqbMapperInner(
 	);
 
 	for (
-		const [idx, { field, key, codec, isArray, selection: innerSelection, arrayDimensions }] of selection
+		const [idx, { field, fieldType, key, codec, isArray, selection: innerSelection, arrayDimensions }] of selection
 			.entries()
 	) {
 		const sel = `${selectionVar}[${idx}]`;
@@ -1104,53 +1136,63 @@ function makeJitRqbMapperInner(
 		let decoderExpr = '';
 		let destructure = '';
 		let bypassCodecs = false;
-		if (is(field, Column)) {
-			if (useJsonMappers && (<any> field).mapFromJsonValue) {
-				bypassCodecs = true;
-				const id = counter.n++;
-				destructure = `field: dec${id}`;
-				decoderExpr = `dec${id}.mapFromJsonValue`;
-			} else if (!field.mapFromDriverValue.isNoop) {
-				const id = counter.n++;
-				destructure = `field: dec${id}`;
-				decoderExpr = `dec${id}.mapFromDriverValue`;
+		switch (fieldType) {
+			case 'Column': {
+				if (useJsonMappers && (<any> field).mapFromJsonValue) {
+					bypassCodecs = true;
+					const id = counter.n++;
+					destructure = `field: dec${id}`;
+					decoderExpr = `dec${id}.mapFromJsonValue`;
+				} else if (!field.mapFromDriverValue.isNoop) {
+					const id = counter.n++;
+					destructure = `field: dec${id}`;
+					decoderExpr = `dec${id}.mapFromDriverValue`;
+				}
+				break;
 			}
-		} else if (is(field, SQL)) {
-			if (useJsonMappers && (<any> field.decoder).mapFromJsonValue) {
-				bypassCodecs = true;
-				const id = counter.n++;
-				destructure = `field: { decoder: dec${id} }`;
-				decoderExpr = `dec${id}.mapFromJsonValue`;
-			} else if (!field.decoder.mapFromDriverValue.isNoop) {
-				const id = counter.n++;
-				destructure = `field: { decoder: dec${id} }`;
-				decoderExpr = `dec${id}.mapFromDriverValue`;
+			case 'SQL': {
+				if (useJsonMappers && (<any> field.decoder).mapFromJsonValue) {
+					bypassCodecs = true;
+					const id = counter.n++;
+					destructure = `field: { decoder: dec${id} }`;
+					decoderExpr = `dec${id}.mapFromJsonValue`;
+				} else if (!field.decoder.mapFromDriverValue.isNoop) {
+					const id = counter.n++;
+					destructure = `field: { decoder: dec${id} }`;
+					decoderExpr = `dec${id}.mapFromDriverValue`;
+				}
+				break;
 			}
-		} else if (is(field, SQL.Aliased)) {
-			if (useJsonMappers && (<any> field.sql.decoder).mapFromJsonValue) {
-				bypassCodecs = true;
-				const id = counter.n++;
-				destructure = `field: { sql: { decoder: dec${id} } }`;
-				decoderExpr = `dec${id}.mapFromJsonValue`;
-			} else if (!field.sql.decoder.mapFromDriverValue.isNoop) {
-				const id = counter.n++;
-				destructure = `field: { sql: { decoder: dec${id} } }`;
-				decoderExpr = `dec${id}.mapFromDriverValue`;
+			case 'SQL.Aliased': {
+				if (useJsonMappers && (<any> field.sql.decoder).mapFromJsonValue) {
+					bypassCodecs = true;
+					const id = counter.n++;
+					destructure = `field: { sql: { decoder: dec${id} } }`;
+					decoderExpr = `dec${id}.mapFromJsonValue`;
+				} else if (!field.sql.decoder.mapFromDriverValue.isNoop) {
+					const id = counter.n++;
+					destructure = `field: { sql: { decoder: dec${id} } }`;
+					decoderExpr = `dec${id}.mapFromDriverValue`;
+				}
+				break;
 			}
-		} else if (is(field, Table) || is(field, View)) {
-			// no decoder
-		} else {
-			const sqlExpr = field.getSQL();
+			case 'Nested': {
+				// no decoder
+				break;
+			}
+			default: {
+				const sqlExpr = field.getSQL();
 
-			if (useJsonMappers && (<any> sqlExpr.decoder).mapFromJsonValue) {
-				bypassCodecs = true;
-				const id = counter.n++;
-				preFn.push(`const dec${id} = ${sel}.field.getSQL().decoder;`);
-				decoderExpr = `dec${id}.mapFromJsonValue`;
-			} else if (!sqlExpr.decoder.mapFromDriverValue.isNoop) {
-				const id = counter.n++;
-				preFn.push(`const dec${id} = ${sel}.field.getSQL().decoder;`);
-				decoderExpr = `dec${id}.mapFromDriverValue`;
+				if (useJsonMappers && (<any> sqlExpr.decoder).mapFromJsonValue) {
+					bypassCodecs = true;
+					const id = counter.n++;
+					preFn.push(`const dec${id} = ${sel}.field.getSQL().decoder;`);
+					decoderExpr = `dec${id}.mapFromJsonValue`;
+				} else if (!sqlExpr.decoder.mapFromDriverValue.isNoop) {
+					const id = counter.n++;
+					preFn.push(`const dec${id} = ${sel}.field.getSQL().decoder;`);
+					decoderExpr = `dec${id}.mapFromDriverValue`;
+				}
 			}
 		}
 
@@ -2025,12 +2067,14 @@ export function relationExtrasToSQL(
 				? {
 					key,
 					field: query,
+					fieldType: 'SQL',
 					codec: codecs!.get(column, inJson ? 'normalizeInJson' : 'normalize'),
 					arrayDimensions: (<any> column).dimensions,
 				}
 				: {
 					key,
 					field: query,
+					fieldType: 'SQL',
 				},
 		);
 	}

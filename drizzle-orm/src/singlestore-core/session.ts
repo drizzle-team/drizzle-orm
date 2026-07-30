@@ -153,7 +153,7 @@ export abstract class SingleStorePreparedQuery<T extends SingleStorePreparedQuer
 	}
 
 	/** @internal */
-	joinsNotNullableMap?: Record<string, boolean>;
+	nullableObjectPaths?: string[];
 
 	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
 

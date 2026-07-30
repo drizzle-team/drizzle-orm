@@ -5201,3 +5201,114 @@ test("Don't disregard added SQL field during join nullification - jit", async ()
 	await db.run(sql`DROP TABLE nullify5_users_jit`);
 	await db.run(sql`DROP TABLE nullify5_cities_jit`);
 });
+
+const dnStaff = sqliteTable('dn_staff', (t) => ({ userId: t.integer('user_id').primaryKey() }));
+const dnPeople = sqliteTable('dn_people', (t) => ({
+	id: t.integer('id').primaryKey(),
+	name: t.text('name').notNull(),
+	nick: t.text('nick'),
+}));
+const dnTicket = sqliteTable('dn_ticket', (t) => ({
+	id: t.integer('id').primaryKey(),
+	staffId: t.integer('staff_id'),
+}));
+const dnVStaff = sqliteTable('dn_vstaff', (t) => ({
+	id: t.integer('id').primaryKey(),
+	deptId: t.integer('dept_id'),
+}));
+const dnDept = sqliteTable('dn_dept', (t) => ({
+	id: t.integer('id').primaryKey(),
+	name: t.text('name').notNull(),
+}));
+const dnEmp = sqliteTable('dn_emp', (t) => ({
+	id: t.integer('id').primaryKey(),
+	staffId: t.integer('staff_id'),
+}));
+const dnStaffView = sqliteView('dn_staff_view').as((qb) =>
+	qb
+		.select({
+			staffId: dnVStaff.id.as('staff_id'),
+			dept: { id: dnDept.id.as('dept_id'), name: dnDept.name.as('dept_name') },
+		})
+		.from(dnVStaff)
+		.leftJoin(dnDept, eq(dnVStaff.deptId, dnDept.id))
+);
+
+async function setupDeepTables(db: SQLiteAsyncDatabase<any, any, any>) {
+	await db.run(sql`DROP VIEW IF EXISTS ${dnStaffView}`);
+	for (const t of [dnStaff, dnPeople, dnTicket, dnVStaff, dnDept, dnEmp]) {
+		await db.run(sql`DROP TABLE IF EXISTS ${t}`);
+	}
+	await db.run(sql`CREATE TABLE ${dnStaff} (user_id INTEGER PRIMARY KEY)`);
+	await db.run(sql`CREATE TABLE ${dnPeople} (id INTEGER PRIMARY KEY, name TEXT NOT NULL, nick TEXT)`);
+	await db.run(sql`CREATE TABLE ${dnTicket} (id INTEGER PRIMARY KEY, staff_id INTEGER)`);
+	await db.run(sql`CREATE TABLE ${dnVStaff} (id INTEGER PRIMARY KEY, dept_id INTEGER)`);
+	await db.run(sql`CREATE TABLE ${dnDept} (id INTEGER PRIMARY KEY, name TEXT NOT NULL)`);
+	await db.run(sql`CREATE TABLE ${dnEmp} (id INTEGER PRIMARY KEY, staff_id INTEGER)`);
+	await db.run(sql`CREATE VIEW ${dnStaffView} AS ${getViewConfig(dnStaffView).query}`);
+}
+
+async function runDeepNullification(db: SQLiteAsyncDatabase<any, any, any>) {
+	await db.insert(dnStaff).values([{ userId: 1 }, { userId: 2 }]);
+	await db.insert(dnPeople).values([{ id: 1, name: 'Ann', nick: null }, { id: 2, name: 'Bob', nick: 'b' }]);
+	await db.insert(dnTicket).values([{ id: 1, staffId: 1 }, { id: 2, staffId: 2 }, { id: 3, staffId: 3 }]);
+	await db.insert(dnVStaff).values([{ id: 1, deptId: 1 }, { id: 2, deptId: 1 }]);
+	await db.insert(dnDept).values([{ id: 1, name: 'Eng' }]);
+	await db.insert(dnEmp).values([{ id: 1, staffId: 1 }, { id: 2, staffId: 2 }, { id: 3, staffId: 3 }]);
+
+	const crew = db.select().from(dnStaff).leftJoin(dnPeople, eq(dnStaff.userId, dnPeople.id)).as('crew');
+
+	const sqJoin = await db
+		.select()
+		.from(dnTicket)
+		.leftJoin(crew, eq(crew.dn_staff.userId, dnTicket.staffId))
+		.orderBy(dnTicket.id);
+	expect(sqJoin).toEqual([
+		{
+			dn_ticket: { id: 1, staffId: 1 },
+			crew: { dn_staff: { userId: 1 }, dn_people: { id: 1, name: 'Ann', nick: null } },
+		},
+		{
+			dn_ticket: { id: 2, staffId: 2 },
+			crew: { dn_staff: { userId: 2 }, dn_people: { id: 2, name: 'Bob', nick: 'b' } },
+		},
+		{ dn_ticket: { id: 3, staffId: 3 }, crew: null },
+	]);
+
+	const viewJoin = await db
+		.select()
+		.from(dnEmp)
+		.leftJoin(dnStaffView, eq(dnStaffView.staffId, dnEmp.staffId))
+		.orderBy(dnEmp.id);
+	expect(viewJoin).toEqual([
+		{ dn_emp: { id: 1, staffId: 1 }, dn_staff_view: { staffId: 1, dept: { id: 1, name: 'Eng' } } },
+		{ dn_emp: { id: 2, staffId: 2 }, dn_staff_view: { staffId: 2, dept: { id: 1, name: 'Eng' } } },
+		{ dn_emp: { id: 3, staffId: 3 }, dn_staff_view: null },
+	]);
+
+	const crewInner = db.select().from(dnStaff).innerJoin(dnPeople, eq(dnStaff.userId, dnPeople.id)).as('crew_inner');
+	const innerFold = await db
+		.select({
+			ticketId: dnTicket.id,
+			person: { id: crewInner.dn_people.id, name: crewInner.dn_people.name, nick: crewInner.dn_people.nick },
+		})
+		.from(dnTicket)
+		.leftJoin(crewInner, eq(crewInner.dn_staff.userId, dnTicket.staffId))
+		.orderBy(dnTicket.id);
+	expect(innerFold).toEqual([
+		{ ticketId: 1, person: { id: 1, name: 'Ann', nick: null } },
+		{ ticketId: 2, person: { id: 2, name: 'Bob', nick: 'b' } },
+		{ ticketId: 3, person: null },
+	]);
+}
+
+test('Mappers: deep nullification', async () => {
+	await setupDeepTables(db);
+	await runDeepNullification(db);
+});
+
+test('Mappers: deep nullification - jit', async () => {
+	const jitDb = drizzle.sqlite({ client, jit: true });
+	await setupDeepTables(jitDb);
+	await runDeepNullification(jitDb);
+});

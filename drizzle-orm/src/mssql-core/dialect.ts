@@ -266,31 +266,75 @@ export class MsSqlDialect {
 			: undefined;
 
 		for (let i = 0; i < columnsLen; ++i) {
-			const { field } = fields[i]!;
+			const { field, fieldType } = fields[i]!;
 
-			if (is(field, Column)) {
-				if (isSingleTable) {
-					chunks.push(
-						field.isAlias
-							? sql`${sql.identifier(getOriginalColumnFromAlias(field).name)} as ${field}`
-							: sql.identifier(field.name),
-					);
-				} else {
-					chunks.push(
-						field.isAlias
-							? sql`${getOriginalColumnFromAlias(field)} as ${field}`
-							: field,
-					);
-				}
-			} else if (is(field, SQL.Aliased)) {
-				if (field.isSelectionField) {
-					if (!isSingleTable && field.origin !== undefined) {
-						chunks.push(sql.identifier(field.origin), sql.raw('.'));
-					}
-					chunks.push(sql.identifier(field.fieldAlias));
-				} else {
+			switch (fieldType) {
+				case 'Column': {
 					if (isSingleTable) {
-						const { queryChunks } = field.sql;
+						chunks.push(
+							field.isAlias
+								? sql`${sql.identifier(getOriginalColumnFromAlias(field).name)} as ${field}`
+								: sql.identifier(field.name),
+						);
+					} else {
+						chunks.push(
+							field.isAlias
+								? sql`${getOriginalColumnFromAlias(field)} as ${field}`
+								: field,
+						);
+					}
+
+					break;
+				}
+				case 'SQL.Aliased': {
+					if (field.isSelectionField) {
+						if (!isSingleTable && field.origin !== undefined) {
+							chunks.push(sql.identifier(field.origin), sql.raw('.'));
+						}
+						chunks.push(sql.identifier(field.fieldAlias));
+					} else {
+						if (isSingleTable && tableName !== undefined) {
+							const { queryChunks } = field.sql;
+							const newChunks: SQLChunk[] = Array.from({ length: queryChunks.length });
+							let abort = false;
+
+							for (let i = 0; i < queryChunks.length; ++i) {
+								const c = queryChunks[i]!;
+								if (is(c, Column)) {
+									const { table } = c;
+									const columnTableName = table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
+										? table[Table.Symbol.Name]
+										: `${table[Table.Symbol.Schema]}.${table[Table.Symbol.Name]}`;
+									if (columnTableName !== tableName) {
+										abort = true;
+										break;
+									}
+
+									newChunks[i] = sql.identifier(c.name);
+								} else {
+									newChunks[i] = c;
+								}
+							}
+
+							if (abort) {
+								chunks.push(field.sql);
+							} else {
+								const newSql = new SQL(newChunks);
+								if (field.sql.shouldInlineParams) newSql.inlineParams();
+								chunks.push(newSql);
+							}
+						} else {
+							chunks.push(field.sql);
+						}
+
+						chunks.push(sql` as ${sql.identifier(field.fieldAlias)}`);
+					}
+
+					break;
+				}
+				case 'SQL': {
+					if (isSingleTable && tableName !== undefined) {
+						const { queryChunks } = field;
 						const newChunks: SQLChunk[] = Array.from({ length: queryChunks.length });
 						let abort = false;
 
@@ -313,55 +357,24 @@ export class MsSqlDialect {
 						}
 
 						if (abort) {
-							chunks.push(field.sql);
+							chunks.push(field);
 						} else {
 							const newSql = new SQL(newChunks);
-							if (field.sql.shouldInlineParams) newSql.inlineParams();
+							if (field.shouldInlineParams) newSql.inlineParams();
 							chunks.push(newSql);
 						}
-					} else {
-						chunks.push(field.sql);
-					}
+					} else chunks.push(field);
 
-					chunks.push(sql` as ${sql.identifier(field.fieldAlias)}`);
+					break;
 				}
-			} else if (is(field, SQL)) {
-				if (isSingleTable) {
-					const { queryChunks } = field;
-					const newChunks: SQLChunk[] = Array.from({ length: queryChunks.length });
-					let abort = false;
-
-					for (let i = 0; i < queryChunks.length; ++i) {
-						const c = queryChunks[i]!;
-						if (is(c, Column)) {
-							const { table } = c;
-							const columnTableName = table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
-								? table[Table.Symbol.Name]
-								: `${table[Table.Symbol.Schema]}.${table[Table.Symbol.Name]}`;
-							if (columnTableName !== tableName) {
-								abort = true;
-								break;
-							}
-
-							newChunks[i] = sql.identifier(c.name);
-						} else {
-							newChunks[i] = c;
-						}
-					}
-
-					if (abort) {
-						chunks.push(field);
+				case 'Subquery': {
+					if (!field._.isWith) {
+						chunks.push(sql`(${field._.sql}) ${sql.identifier(field._.alias)}`);
 					} else {
-						const newSql = new SQL(newChunks);
-						if (field.shouldInlineParams) newSql.inlineParams();
-						chunks.push(newSql);
+						chunks.push(field);
 					}
-				} else chunks.push(field);
-			} else if (is(field, Subquery)) {
-				if (!field._.isWith) {
-					chunks.push(sql`(${field._.sql}) ${sql.identifier(field._.alias)}`);
-				} else {
-					chunks.push(field);
+
+					break;
 				}
 			}
 
@@ -381,24 +394,50 @@ export class MsSqlDialect {
 		const chunks: SQLChunk[] = [];
 
 		for (let i = 0; i < columnsLen; ++i) {
-			const { field } = fields[i]!;
+			const { field, fieldType } = fields[i]!;
 
-			if (is(field, Column)) {
-				chunks.push(
-					sql.join([
-						sql.raw(`${type}.`),
-						field.isAlias
-							? sql`${sql.identifier(getOriginalColumnFromAlias(field).name)} as ${field}`
-							: sql.identifier(field.name),
-					]),
-				);
-			} else if (is(field, SQL.Aliased)) {
-				if (field.isSelectionField) {
+			switch (fieldType) {
+				case 'Column': {
 					chunks.push(
-						sql.join([sql.raw(`${type}.`), sql.identifier(field.fieldAlias)]),
+						sql.join([
+							sql.raw(`${type}.`),
+							field.isAlias
+								? sql`${sql.identifier(getOriginalColumnFromAlias(field).name)} as ${field}`
+								: sql.identifier(field.name),
+						]),
 					);
-				} else {
-					const query = field.sql;
+
+					break;
+				}
+				case 'SQL.Aliased': {
+					if (field.isSelectionField) {
+						chunks.push(
+							sql.join([sql.raw(`${type}.`), sql.identifier(field.fieldAlias)]),
+						);
+					} else {
+						const query = field.sql;
+
+						chunks.push(
+							new SQL(
+								query.queryChunks.map((c) => {
+									if (is(c, MsSqlColumn)) {
+										return sql.join([
+											sql.raw(`${type}.`),
+											sql.identifier(c.name),
+										]);
+									}
+									return c;
+								}),
+							),
+						);
+
+						chunks.push(sql` as ${sql.identifier(field.fieldAlias)}`);
+					}
+
+					break;
+				}
+				case 'SQL': {
+					const query = field;
 
 					chunks.push(
 						new SQL(
@@ -414,24 +453,8 @@ export class MsSqlDialect {
 						),
 					);
 
-					chunks.push(sql` as ${sql.identifier(field.fieldAlias)}`);
+					break;
 				}
-			} else if (is(field, SQL)) {
-				const query = field;
-
-				chunks.push(
-					new SQL(
-						query.queryChunks.map((c) => {
-							if (is(c, MsSqlColumn)) {
-								return sql.join([
-									sql.raw(`${type}.`),
-									sql.identifier(c.name),
-								]);
-							}
-							return c;
-						}),
-					),
-				);
 			}
 
 			if (i < columnsLen - 1) {
@@ -1043,12 +1066,11 @@ export class MsSqlDialect {
 					? result
 					: new Subquery(result, {}, tableAlias),
 				fields: {},
-				fieldsFlat: nestedSelection.map(({ field }) => ({
-					path: [],
-					field: is(field, Column)
-						? aliasedTableColumn(field, tableAlias)
-						: field,
-				})),
+				fieldsFlat: nestedSelection.map(({ field }) => {
+					const mapped = is(field, Column) ? aliasedTableColumn(field, tableAlias) : field;
+					const fieldType = is(mapped, Column) ? 'Column' : is(mapped, SQL.Aliased) ? 'SQL.Aliased' : 'SQL';
+					return { path: [], field: mapped, fieldType } as SelectedFieldsOrdered[number];
+				}),
 				where,
 				top,
 				offset,
@@ -1066,12 +1088,11 @@ export class MsSqlDialect {
 			result = this.buildSelectQuery({
 				table: aliasedTable(table, tableAlias),
 				fields: {},
-				fieldsFlat: selection.map(({ field }) => ({
-					path: [],
-					field: is(field, Column)
-						? aliasedTableColumn(field, tableAlias)
-						: field,
-				})),
+				fieldsFlat: selection.map(({ field }) => {
+					const mapped = is(field, Column) ? aliasedTableColumn(field, tableAlias) : field;
+					const fieldType = is(mapped, Column) ? 'Column' : is(mapped, SQL.Aliased) ? 'SQL.Aliased' : 'SQL';
+					return { path: [], field: mapped, fieldType } as SelectedFieldsOrdered[number];
+				}),
 				where,
 				top,
 				offset,
