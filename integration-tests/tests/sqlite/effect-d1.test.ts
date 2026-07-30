@@ -72,6 +72,8 @@ runCommonEffectSQLiteTests({
 		'Mappers: select complex selections',
 		'Cross-table group never nullified',
 		'Cross-table group never nullified - jit',
+		'Mappers: deep nullification',
+		'Mappers: deep nullification - jit',
 
 		// Cloudflare workers environment doesn't support 'new Function(...)'
 		'Mappers: correct mappers enabled',
