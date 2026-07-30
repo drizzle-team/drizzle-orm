@@ -25,6 +25,8 @@ const driversPackages = [
 	// duckdb drivers
 	'duckdb',
 	'@duckdb/node-api',
+	// aws drivers
+	'@aws-sdk/client-rds-data', // https://github.com/drizzle-team/drizzle-orm/issues/5050
 ];
 
 esbuild.buildSync({
