@@ -32,6 +32,7 @@ import {
 	getTableLikeName,
 	haveSameKeys,
 	orderSelectedFields,
+	resolveNullableObjectPaths,
 	type ValueOrArray,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
@@ -1061,7 +1062,7 @@ export class CockroachSelectBase<
 				fieldsList,
 				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
 			);
-			preparedQuery.joinsNotNullableMap = joinsNotNullableMap;
+			preparedQuery.nullableObjectPaths = resolveNullableObjectPaths(fieldsList, joinsNotNullableMap);
 
 			return preparedQuery;
 		});

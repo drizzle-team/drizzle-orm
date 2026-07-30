@@ -41,12 +41,26 @@ export type SelectedFields<TColumn extends Column, TTable extends Table> = Recor
 	SelectedFieldsFlat<TColumn>[string] | TTable | SelectedFieldsFlat<TColumn>
 >;
 
-export type SelectedFieldsOrdered<TColumn extends Column> = {
-	path: string[];
-	field: TColumn | SQL | SQL.Aliased | Subquery;
-	codec?: NormalizeCodec | NormalizeArrayCodec;
-	arrayDimensions?: number;
-	column?: Column;
-	/** Set operators may mutate type, set appropriate codec for resulting type */
-	codecOverride?: string;
-}[];
+export type SelectedFieldsOrdered<TColumn extends Column> = (
+	& {
+		path: string[];
+		codec?: NormalizeCodec | NormalizeArrayCodec;
+		arrayDimensions?: number;
+		column?: Column;
+		/** Set operators may mutate type, set appropriate codec for resulting type */
+		codecOverride?: string;
+	}
+	& ({
+		field: TColumn;
+		fieldType: 'Column';
+	} | {
+		field: SQL;
+		fieldType: 'SQL';
+	} | {
+		field: SQL.Aliased;
+		fieldType: 'SQL.Aliased';
+	} | {
+		field: Subquery;
+		fieldType: 'Subquery';
+	})
+)[];

@@ -388,7 +388,7 @@ export class MySqlInsertBase<
 		const returning: SelectedFieldsOrdered = [];
 		for (const [key, value] of Object.entries(this.config.table[Table.Symbol.Columns])) {
 			if (value.primary) {
-				returning.push({ field: value, path: [key] });
+				returning.push({ field: value, fieldType: 'Column', path: [key] });
 			}
 		}
 		this.config.returning = returning;

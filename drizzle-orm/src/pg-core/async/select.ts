@@ -8,7 +8,7 @@ import type {
 import { QueryPromise } from '~/query-promise.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { applyMixins, type Assume } from '~/utils.ts';
+import { applyMixins, type Assume, resolveNullableObjectPaths } from '~/utils.ts';
 import { PgSelectBase, type PgSelectBuilder } from '../query-builders/select.ts';
 import type { PgSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
@@ -105,14 +105,15 @@ export class PgAsyncSelectBase<
 
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const fieldsList = this._resolveSelection();
+			const nullableObjectPaths = resolveNullableObjectPaths(fieldsList, joinsNotNullableMap);
 
-			const shape = config.shape ??= dialect.shapeGenerator?.(
+			const shape = dialect.shapeGenerator?.(
 				{ type: 'plain', fields: fieldsList },
-				joinsNotNullableMap,
+				nullableObjectPaths,
 			);
 
 			const query = config.tagged ? dialect._sqlToQuery(this.getSQL()) : dialect.sqlToQuery(this.getSQL());
-			const mapper = shape ? undefined : dialect.mapperGenerators.rows(fieldsList, joinsNotNullableMap);
+			const mapper = shape ? undefined : dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths);
 
 			const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
 				query,

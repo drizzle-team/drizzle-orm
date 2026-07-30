@@ -39,6 +39,7 @@ import {
 	mysqlEnum,
 	mysqlSchema,
 	mysqlTable,
+	mysqlView,
 	primaryKey,
 	real,
 	serial,
@@ -106,6 +107,102 @@ export const push = (db: MySqlEffectDatabase<any, any, any>, schema: Record<stri
 		}
 
 		yield* db.execute('SET FOREIGN_KEY_CHECKS = 1;');
+	});
+
+const dnStaff = mysqlTable('dn_staff', (t) => ({ userId: t.int('user_id').primaryKey() }));
+const dnPeople = mysqlTable('dn_people', (t) => ({
+	id: t.int('id').primaryKey(),
+	name: t.text('name').notNull(),
+	nick: t.text('nick'),
+}));
+const dnTicket = mysqlTable('dn_ticket', (t) => ({
+	id: t.serial('id').primaryKey(),
+	staffId: t.int('staff_id'),
+}));
+const dnVStaff = mysqlTable('dn_vstaff', (t) => ({
+	id: t.int('id').primaryKey(),
+	deptId: t.int('dept_id'),
+}));
+const dnDept = mysqlTable('dn_dept', (t) => ({
+	id: t.int('id').primaryKey(),
+	name: t.text('name').notNull(),
+}));
+const dnEmp = mysqlTable('dn_emp', (t) => ({
+	id: t.serial('id').primaryKey(),
+	staffId: t.int('staff_id'),
+}));
+const dnStaffView = mysqlView('dn_staff_view').as((qb) =>
+	qb
+		.select({
+			staffId: dnVStaff.id.as('staff_id'),
+			dept: { id: dnDept.id.as('dept_id'), name: dnDept.name.as('dept_name') },
+		})
+		.from(dnVStaff)
+		.leftJoin(dnDept, eq(dnVStaff.deptId, dnDept.id))
+);
+
+const dnTables = { dnStaff, dnPeople, dnTicket, dnVStaff, dnDept, dnEmp };
+const dnPushSchema = { ...dnTables, dnStaffView };
+
+const resetDeepNullification = (db: MySqlEffectDatabase<any, any, any>) =>
+	Effect.gen(function*() {
+		yield* db.execute(sql`DROP VIEW IF EXISTS ${dnStaffView}`);
+		for (const t of Object.values(dnTables)) yield* db.execute(sql`DROP TABLE IF EXISTS ${t}`);
+	});
+
+const runDeepNullification = (db: MySqlEffectDatabase<any, any, any>) =>
+	Effect.gen(function*() {
+		yield* db.insert(dnStaff).values([{ userId: 1 }, { userId: 2 }]);
+		yield* db.insert(dnPeople).values([{ id: 1, name: 'Ann', nick: null }, { id: 2, name: 'Bob', nick: 'b' }]);
+		yield* db.insert(dnTicket).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]); // #3 -> outer miss
+		yield* db.insert(dnVStaff).values([{ id: 1, deptId: 1 }, { id: 2, deptId: 1 }]);
+		yield* db.insert(dnDept).values([{ id: 1, name: 'Eng' }]);
+		yield* db.insert(dnEmp).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]); // #3 -> outer view miss
+
+		const crew = db.select().from(dnStaff).leftJoin(dnPeople, eq(dnStaff.userId, dnPeople.id)).as('crew');
+
+		const sqJoin = yield* db
+			.select()
+			.from(dnTicket)
+			.leftJoin(crew, eq(crew.dn_staff.userId, dnTicket.staffId))
+			.orderBy(dnTicket.id);
+		expect(sqJoin).toStrictEqual([
+			{
+				dn_ticket: { id: 1, staffId: 1 },
+				crew: { dn_staff: { userId: 1 }, dn_people: { id: 1, name: 'Ann', nick: null } },
+			},
+			{
+				dn_ticket: { id: 2, staffId: 2 },
+				crew: { dn_staff: { userId: 2 }, dn_people: { id: 2, name: 'Bob', nick: 'b' } },
+			},
+			{ dn_ticket: { id: 3, staffId: 3 }, crew: null },
+		]);
+
+		const viewJoin = yield* db
+			.select()
+			.from(dnEmp)
+			.leftJoin(dnStaffView, eq(dnStaffView.staffId, dnEmp.staffId))
+			.orderBy(dnEmp.id);
+		expect(viewJoin).toStrictEqual([
+			{ dn_emp: { id: 1, staffId: 1 }, dn_staff_view: { staffId: 1, dept: { id: 1, name: 'Eng' } } },
+			{ dn_emp: { id: 2, staffId: 2 }, dn_staff_view: { staffId: 2, dept: { id: 1, name: 'Eng' } } },
+			{ dn_emp: { id: 3, staffId: 3 }, dn_staff_view: null },
+		]);
+
+		const crewInner = db.select().from(dnStaff).innerJoin(dnPeople, eq(dnStaff.userId, dnPeople.id)).as('crew_inner');
+		const innerFold = yield* db
+			.select({
+				ticketId: dnTicket.id,
+				person: { id: crewInner.dn_people.id, name: crewInner.dn_people.name, nick: crewInner.dn_people.nick },
+			})
+			.from(dnTicket)
+			.leftJoin(crewInner, eq(crewInner.dn_staff.userId, dnTicket.staffId))
+			.orderBy(dnTicket.id);
+		expect(innerFold).toStrictEqual([
+			{ ticketId: 1, person: { id: 1, name: 'Ann', nick: null } },
+			{ ticketId: 2, person: { id: 2, name: 'Bob', nick: 'b' } },
+			{ ticketId: 3, person: null },
+		]);
 	});
 
 export interface RunCommonEffectMySqlTestsOptions {
@@ -4954,6 +5051,22 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 					{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
 					{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
 				]);
+			}));
+
+		it.effect('Mappers: deep nullification', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				yield* resetDeepNullification(db);
+				yield* push(db, dnPushSchema);
+				yield* runDeepNullification(db);
+			}));
+
+		it.effect('Mappers: deep nullification - jit', () =>
+			Effect.gen(function*() {
+				const db = yield* createDB({}, () => ({}), true);
+				yield* resetDeepNullification(db);
+				yield* push(db, dnPushSchema);
+				yield* runDeepNullification(db);
 			}));
 
 		const mappersDate = new Date('2026-04-02T00:00:00.000Z');

@@ -25,7 +25,7 @@ import type { PgColumn } from '~/pg-core/columns/common.ts';
 import type { PreparedQuerySelection } from '~/pg-core/dialect.ts';
 import { type DriverValueDecoder, SQL, type SQLWrapper, type View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { getTableName, Table } from '~/table.ts';
+import { Table } from '~/table.ts';
 import { getColumnFromDecoder, getColumns, orderSelectedFields } from '~/utils.ts';
 
 type ShapeType = [element: string, as?: string];
@@ -187,24 +187,6 @@ type ShapeEntry = ShapeValue;
 interface PlainLeaf {
 	path: readonly string[];
 	leaf: WireSpec | TransformMarker;
-	column: Column | undefined;
-}
-
-function groupIsNullable(
-	leaves: PlainLeaf[],
-	joinsNotNullableMap: Record<string, boolean> | undefined,
-): boolean {
-	if (!joinsNotNullableMap) return false;
-
-	let table: string | undefined;
-	for (const { column } of leaves) {
-		if (!column) continue;
-		const name = getTableName(column.table);
-		if (table === undefined) table = name;
-		else if (table !== name) return false;
-	}
-
-	return table !== undefined && !joinsNotNullableMap[table];
 }
 
 function assembleGroupBody(
@@ -234,7 +216,11 @@ function assembleGroupBody(
 	const spec: [string, ShapeEntry][] = [];
 	for (const key of order) {
 		const nested = groups.get(key);
-		spec.push([key, nested ? Collect(assembleGroupBody(nested, depth + 1, false)) : directLeaves.get(key)!]);
+		if (!nested) {
+			spec.push([key, directLeaves.get(key)!]);
+			continue;
+		}
+		spec.push([key, Collect(assembleGroupBody(nested, depth + 1, nullableLeaves))]);
 	}
 	return spec;
 }
@@ -318,11 +304,12 @@ function relationalShape(selection: RelationalSelection): ShapeEntries {
 
 export function buildShape(
 	selection: PreparedQuerySelection,
-	joinsNotNullableMap?: Record<string, boolean>,
+	nullableObjectPaths?: string[],
 ): ShapeSpec {
 	if (selection.type === 'relational') return relationalShape(selection.fields);
 
 	const { fields } = selection;
+	const nullableKeys = new Set(nullableObjectPaths ?? []);
 
 	const order: string[] = [];
 	const rootLeaves = new Map<string, ShapeEntry>();
@@ -344,7 +331,7 @@ export function buildShape(
 			groups.set(key, group = []);
 			order.push(key);
 		}
-		group.push({ path, leaf, column: is(field, Column) ? field : undefined });
+		group.push({ path, leaf });
 	}
 
 	const root: [string, ShapeEntry][] = [];
@@ -355,7 +342,7 @@ export function buildShape(
 			continue;
 		}
 
-		const nullable = groupIsNullable(group, joinsNotNullableMap);
+		const nullable = nullableKeys.has(key);
 		const body = assembleGroupBody(group, 1, nullable);
 		root.push([key, nullable ? CollectNullable(body) : Collect(body)]);
 	}

@@ -10,7 +10,7 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
 import { SQLiteSelectBase, type SQLiteSelectBuilder } from '~/sqlite-core/query-builders/select.ts';
 import type { SelectedFields, SQLiteSelectHKTBase } from '~/sqlite-core/query-builders/select.types.ts';
-import { applyMixins, type Assume } from '~/utils.ts';
+import { applyMixins, type Assume, resolveNullableObjectPaths } from '~/utils.ts';
 import type { SQLiteAsyncPreparedQuery, SQLiteAsyncPreparedQueryConfig, SQLiteAsyncSession } from './session.ts';
 
 export type SQLiteAsyncSelectExecute<T extends AnySQLiteAsyncSelect> = T['_']['result'];
@@ -136,7 +136,10 @@ export class SQLiteAsyncSelectBase<
 		// Build query before accessing `fieldsFlat` - build mutates it
 		const query = this.dialect.sqlToQuery(this.getSQL());
 		const fieldsList = this.config.fieldsFlat!;
-		const mapper = this.dialect.mapperGenerators.rows(fieldsList, this.joinsNotNullableMap);
+		const mapper = this.dialect.mapperGenerators.rows(
+			fieldsList,
+			resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap),
+		);
 
 		const preparedQuery = this.session.prepareQuery(
 			query,

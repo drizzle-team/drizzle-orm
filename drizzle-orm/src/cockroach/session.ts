@@ -14,7 +14,7 @@ import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { type Assume, makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
+import { type Assume, makeDefaultQueryMapper, makeJitQueryMapper, type RowsMapper } from '~/utils.ts';
 
 const { Pool, types } = pg;
 
@@ -25,7 +25,7 @@ export class NodeCockroachPreparedQuery<T extends PreparedQueryConfig> extends C
 
 	private rawQueryConfig: QueryConfig;
 	private queryConfig: QueryArrayConfig;
-	private jitMapper?: RowsMapper<T['execute']>;
+	private rowMapper?: RowsMapper<T['execute']>;
 
 	constructor(
 		private client: NodeCockroachClient,
@@ -133,7 +133,7 @@ export class NodeCockroachPreparedQuery<T extends PreparedQueryConfig> extends C
 
 			this.logger.logQuery(this.rawQueryConfig.text, params);
 
-			const { fields, rawQueryConfig: rawQuery, client, queryConfig: query, joinsNotNullableMap, customResultMapper } =
+			const { fields, rawQueryConfig: rawQuery, client, queryConfig: query, nullableObjectPaths, customResultMapper } =
 				this;
 			if (!fields && !customResultMapper) {
 				return tracer.startActiveSpan('drizzle.driver.execute', async (span) => {
@@ -160,9 +160,9 @@ export class NodeCockroachPreparedQuery<T extends PreparedQueryConfig> extends C
 					return (customResultMapper as (rows: unknown[][]) => unknown)(result.rows);
 				}
 
-				return this.useJitMappers
-					? (this.jitMapper ??= makeJitQueryMapper(fields!, joinsNotNullableMap))(result.rows)
-					: result.rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
+				return (this.rowMapper ??= this.useJitMappers
+					? makeJitQueryMapper(fields!, nullableObjectPaths)
+					: makeDefaultQueryMapper(fields!, nullableObjectPaths))(result.rows);
 			});
 		});
 	}

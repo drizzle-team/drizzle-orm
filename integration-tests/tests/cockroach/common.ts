@@ -330,6 +330,87 @@ export function requireCockroachConnectionString(): string {
 	return url;
 }
 
+const dnStaff = cockroachTable('dn_staff', { userId: int4('user_id').primaryKey() });
+const dnPeople = cockroachTable('dn_people', {
+	id: int4('id').primaryKey(),
+	name: text('name').notNull(),
+	nick: text('nick'),
+});
+const dnTicket = cockroachTable('dn_ticket', { id: int4('id').primaryKey(), staffId: int4('staff_id') });
+const dnVStaff = cockroachTable('dn_vstaff', { id: int4('id').primaryKey(), deptId: int4('dept_id') });
+const dnDept = cockroachTable('dn_dept', { id: int4('id').primaryKey(), name: text('name').notNull() });
+const dnEmp = cockroachTable('dn_emp', { id: int4('id').primaryKey(), staffId: int4('staff_id') });
+const dnStaffView = cockroachView('dn_staff_view').as((qb) =>
+	qb
+		.select({
+			staffId: dnVStaff.id.as('staff_id'),
+			dept: { id: dnDept.id.as('dept_id'), name: dnDept.name.as('dept_name') },
+		})
+		.from(dnVStaff)
+		.leftJoin(dnDept, eq(dnVStaff.deptId, dnDept.id))
+);
+
+async function runDeepNullification(db: CockroachDatabase<any>) {
+	await db.execute(sql`create table ${dnStaff} (user_id int4 primary key)`);
+	await db.execute(sql`create table ${dnPeople} (id int4 primary key, name text not null, nick text)`);
+	await db.execute(sql`create table ${dnTicket} (id int4 primary key, staff_id int4)`);
+	await db.execute(sql`create table ${dnVStaff} (id int4 primary key, dept_id int4)`);
+	await db.execute(sql`create table ${dnDept} (id int4 primary key, name text not null)`);
+	await db.execute(sql`create table ${dnEmp} (id int4 primary key, staff_id int4)`);
+	await db.execute(sql`create view ${dnStaffView} as ${getViewConfig(dnStaffView).query}`);
+
+	await db.insert(dnStaff).values([{ userId: 1 }, { userId: 2 }]);
+	await db.insert(dnPeople).values([{ id: 1, name: 'Ann', nick: null }, { id: 2, name: 'Bob', nick: 'b' }]);
+	await db.insert(dnTicket).values([{ id: 1, staffId: 1 }, { id: 2, staffId: 2 }, { id: 3, staffId: 3 }]);
+	await db.insert(dnVStaff).values([{ id: 1, deptId: 1 }, { id: 2, deptId: 1 }]);
+	await db.insert(dnDept).values([{ id: 1, name: 'Eng' }]);
+	await db.insert(dnEmp).values([{ id: 1, staffId: 1 }, { id: 2, staffId: 2 }, { id: 3, staffId: 3 }]);
+
+	const crew = db.select().from(dnStaff).leftJoin(dnPeople, eq(dnStaff.userId, dnPeople.id)).as('crew');
+	const sqJoin = await db
+		.select()
+		.from(dnTicket)
+		.leftJoin(crew, eq(crew.dn_staff.userId, dnTicket.staffId))
+		.orderBy(dnTicket.id);
+	expect(sqJoin).toStrictEqual([
+		{
+			dn_ticket: { id: 1, staffId: 1 },
+			crew: { dn_staff: { userId: 1 }, dn_people: { id: 1, name: 'Ann', nick: null } },
+		},
+		{
+			dn_ticket: { id: 2, staffId: 2 },
+			crew: { dn_staff: { userId: 2 }, dn_people: { id: 2, name: 'Bob', nick: 'b' } },
+		},
+		{ dn_ticket: { id: 3, staffId: 3 }, crew: null },
+	]);
+
+	const viewJoin = await db
+		.select()
+		.from(dnEmp)
+		.leftJoin(dnStaffView, eq(dnStaffView.staffId, dnEmp.staffId))
+		.orderBy(dnEmp.id);
+	expect(viewJoin).toStrictEqual([
+		{ dn_emp: { id: 1, staffId: 1 }, dn_staff_view: { staffId: 1, dept: { id: 1, name: 'Eng' } } },
+		{ dn_emp: { id: 2, staffId: 2 }, dn_staff_view: { staffId: 2, dept: { id: 1, name: 'Eng' } } },
+		{ dn_emp: { id: 3, staffId: 3 }, dn_staff_view: null },
+	]);
+
+	const crewInner = db.select().from(dnStaff).innerJoin(dnPeople, eq(dnStaff.userId, dnPeople.id)).as('crew_inner');
+	const innerFold = await db
+		.select({
+			ticketId: dnTicket.id,
+			person: { id: crewInner.dn_people.id, name: crewInner.dn_people.name, nick: crewInner.dn_people.nick },
+		})
+		.from(dnTicket)
+		.leftJoin(crewInner, eq(crewInner.dn_staff.userId, dnTicket.staffId))
+		.orderBy(dnTicket.id);
+	expect(innerFold).toStrictEqual([
+		{ ticketId: 1, person: { id: 1, name: 'Ann', nick: null } },
+		{ ticketId: 2, person: { id: 2, name: 'Bob', nick: 'b' } },
+		{ ticketId: 3, person: null },
+	]);
+}
+
 export function tests() {
 	describe('common', () => {
 		beforeEach(async (ctx) => {
@@ -7795,7 +7876,7 @@ export function tests() {
 			});
 		});
 
-		test.skipIf(Date.now() < +new Date('2026-07-29'))('Query error wrapping', async ({ cockroach: { db } }) => {
+		test.skipIf(Date.now() < +new Date('2026-08-05'))('Query error wrapping', async ({ cockroach: { db } }) => {
 			await expect(db.insert(users2Table).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]))
 				.rejects.toBeInstanceOf(DrizzleQueryError);
 		});
@@ -7837,6 +7918,10 @@ export function tests() {
 			}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 2));
 
 			expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
+		});
+
+		test('Mappers: deep nullification', async ({ cockroach: { db } }) => {
+			await runDeepNullification(db);
 		});
 	});
 }

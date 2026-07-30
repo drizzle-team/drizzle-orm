@@ -34,6 +34,7 @@ import {
 	getTableLikeName,
 	mapUpdateSet,
 	orderSelectedFields,
+	resolveNullableObjectPaths,
 	type Simplify,
 	type UpdateSet,
 } from '~/utils.ts';
@@ -598,7 +599,9 @@ export class CockroachUpdateBase<
 			this.config.returning,
 			name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
 		);
-		preparedQuery.joinsNotNullableMap = this.joinsNotNullableMap;
+		preparedQuery.nullableObjectPaths = this.config.returning
+			? resolveNullableObjectPaths(this.config.returning, this.joinsNotNullableMap)
+			: undefined;
 		return preparedQuery;
 	}
 

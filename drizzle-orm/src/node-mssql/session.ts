@@ -18,7 +18,7 @@ import {
 	type QueryResultHKT,
 } from '~/mssql-core/session.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
-import { type Assume, makeJitQueryMapper, mapResultRow, type RowsMapper } from '~/utils.ts';
+import { type Assume, makeDefaultQueryMapper, makeJitQueryMapper, type RowsMapper } from '~/utils.ts';
 import { AutoPool } from './pool.ts';
 
 export type NodeMsSqlClient = Pick<ConnectionPool, 'request'> | AutoPool;
@@ -29,7 +29,7 @@ export class NodeMsSqlPreparedQuery<
 	T extends PreparedQueryConfig,
 > extends PreparedQuery<T> {
 	static override readonly [entityKind]: string = 'NodeMsSqlPreparedQuery';
-	private jitMapper?: RowsMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>;
+	private rowMapper?: RowsMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>;
 
 	private rawQuery: {
 		sql: string;
@@ -63,7 +63,7 @@ export class NodeMsSqlPreparedQuery<
 			fields,
 			client,
 			rawQuery,
-			joinsNotNullableMap,
+			nullableObjectPaths,
 			customResultMapper,
 		} = this;
 		let queryClient = client as ConnectionPool;
@@ -86,16 +86,19 @@ export class NodeMsSqlPreparedQuery<
 			return customResultMapper(rows.recordset);
 		}
 
-		return this.useJitMappers
-			? (this.jitMapper =
-				this.jitMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
-					?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
+		return (this.rowMapper =
+			this.rowMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
+				?? (this.useJitMappers
+					? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
 						fields!,
-						joinsNotNullableMap,
-					))(
-					rows.recordset,
-				)
-			: rows.recordset.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
+						nullableObjectPaths,
+					)
+					: makeDefaultQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
+						fields!,
+						nullableObjectPaths,
+					)))(
+				rows.recordset,
+			);
 	}
 
 	async *iterator(
@@ -108,7 +111,7 @@ export class NodeMsSqlPreparedQuery<
 		const {
 			fields,
 			rawQuery,
-			joinsNotNullableMap,
+			nullableObjectPaths,
 			client,
 			customResultMapper,
 		} = this;
@@ -160,16 +163,19 @@ export class NodeMsSqlPreparedQuery<
 							const mappedRow = customResultMapper([row as unknown[]]);
 							yield Array.isArray(mappedRow) ? mappedRow[0] : mappedRow;
 						} else {
-							yield this.useJitMappers
-								? (this.jitMapper = this.jitMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number]
-									: T['execute'])[]>
-									?? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
+							yield (this.rowMapper = this.rowMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number]
+								: T['execute'])[]>
+								?? (this.useJitMappers
+									? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
 										fields!,
-										joinsNotNullableMap,
-									))([
-										row as unknown[],
-									])[0] as T['execute']
-								: mapResultRow(fields!, row as unknown[], joinsNotNullableMap);
+										nullableObjectPaths,
+									)
+									: makeDefaultQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
+										fields!,
+										nullableObjectPaths,
+									)))([
+									row as unknown[],
+								])[0] as T['execute'];
 						}
 					} else {
 						yield row as T['execute'];

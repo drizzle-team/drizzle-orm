@@ -205,6 +205,100 @@ const aggregateTable = sqliteTable('aggregate_table', {
 	nullOnly: integer('null_only'),
 });
 
+const dnStaff = sqliteTable('dn_staff', (t) => ({ userId: t.integer('user_id').primaryKey() }));
+const dnPeople = sqliteTable('dn_people', (t) => ({
+	id: t.integer('id').primaryKey(),
+	name: t.text('name').notNull(),
+	nick: t.text('nick'),
+}));
+const dnTicket = sqliteTable('dn_ticket', (t) => ({
+	id: t.integer('id').primaryKey(),
+	staffId: t.integer('staff_id'),
+}));
+const dnVStaff = sqliteTable('dn_vstaff', (t) => ({
+	id: t.integer('id').primaryKey(),
+	deptId: t.integer('dept_id'),
+}));
+const dnDept = sqliteTable('dn_dept', (t) => ({
+	id: t.integer('id').primaryKey(),
+	name: t.text('name').notNull(),
+}));
+const dnEmp = sqliteTable('dn_emp', (t) => ({
+	id: t.integer('id').primaryKey(),
+	staffId: t.integer('staff_id'),
+}));
+const dnStaffView = sqliteView('dn_staff_view').as((qb) =>
+	qb
+		.select({
+			staffId: dnVStaff.id.as('staff_id'),
+			dept: { id: dnDept.id.as('dept_id'), name: dnDept.name.as('dept_name') },
+		})
+		.from(dnVStaff)
+		.leftJoin(dnDept, eq(dnVStaff.deptId, dnDept.id))
+);
+
+const dnTables = { dnStaff, dnPeople, dnTicket, dnVStaff, dnDept, dnEmp };
+const dnPushSchema = { ...dnTables, dnStaffView };
+
+async function resetDeepNullification(db: SQLiteAsyncDatabase<'async' | 'sync', any, any>) {
+	await db.run(sql`DROP VIEW IF EXISTS ${dnStaffView}`);
+	for (const t of Object.values(dnTables)) await db.run(sql`DROP TABLE IF EXISTS ${t}`);
+}
+
+async function runDeepNullification(db: SQLiteAsyncDatabase<'async' | 'sync', any, any>) {
+	await db.insert(dnStaff).values([{ userId: 1 }, { userId: 2 }]);
+	await db.insert(dnPeople).values([{ id: 1, name: 'Ann', nick: null }, { id: 2, name: 'Bob', nick: 'b' }]);
+	await db.insert(dnTicket).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]); // #3 -> outer miss
+	await db.insert(dnVStaff).values([{ id: 1, deptId: 1 }, { id: 2, deptId: 1 }]);
+	await db.insert(dnDept).values([{ id: 1, name: 'Eng' }]);
+	await db.insert(dnEmp).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]); // #3 -> outer view miss
+
+	const crew = db.select().from(dnStaff).leftJoin(dnPeople, eq(dnStaff.userId, dnPeople.id)).as('crew');
+
+	const sqJoin = await db
+		.select()
+		.from(dnTicket)
+		.leftJoin(crew, eq(crew.dn_staff.userId, dnTicket.staffId))
+		.orderBy(dnTicket.id);
+	expect(sqJoin).toStrictEqual([
+		{
+			dn_ticket: { id: 1, staffId: 1 },
+			crew: { dn_staff: { userId: 1 }, dn_people: { id: 1, name: 'Ann', nick: null } },
+		},
+		{
+			dn_ticket: { id: 2, staffId: 2 },
+			crew: { dn_staff: { userId: 2 }, dn_people: { id: 2, name: 'Bob', nick: 'b' } },
+		},
+		{ dn_ticket: { id: 3, staffId: 3 }, crew: null },
+	]);
+
+	const viewJoin = await db
+		.select()
+		.from(dnEmp)
+		.leftJoin(dnStaffView, eq(dnStaffView.staffId, dnEmp.staffId))
+		.orderBy(dnEmp.id);
+	expect(viewJoin).toStrictEqual([
+		{ dn_emp: { id: 1, staffId: 1 }, dn_staff_view: { staffId: 1, dept: { id: 1, name: 'Eng' } } },
+		{ dn_emp: { id: 2, staffId: 2 }, dn_staff_view: { staffId: 2, dept: { id: 1, name: 'Eng' } } },
+		{ dn_emp: { id: 3, staffId: 3 }, dn_staff_view: null },
+	]);
+
+	const crewInner = db.select().from(dnStaff).innerJoin(dnPeople, eq(dnStaff.userId, dnPeople.id)).as('crew_inner');
+	const innerFold = await db
+		.select({
+			ticketId: dnTicket.id,
+			person: { id: crewInner.dn_people.id, name: crewInner.dn_people.name, nick: crewInner.dn_people.nick },
+		})
+		.from(dnTicket)
+		.leftJoin(crewInner, eq(crewInner.dn_staff.userId, dnTicket.staffId))
+		.orderBy(dnTicket.id);
+	expect(innerFold).toStrictEqual([
+		{ ticketId: 1, person: { id: 1, name: 'Ann', nick: null } },
+		{ ticketId: 2, person: { id: 2, name: 'Bob', nick: 'b' } },
+		{ ticketId: 3, person: null },
+	]);
+}
+
 export function tests(test: Test, exclude: string[] = []) {
 	test.beforeEach(({ task, skip }) => {
 		if (exclude.includes(task.name)) skip();
@@ -1384,7 +1478,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/2872
 		test
-			.skipIf(Date.now() < +new Date('2026-07-29'))
+			.skipIf(Date.now() < +new Date('2026-08-05'))
 			.concurrent(
 				'prepared statement with placeholder in .inArray',
 				async ({ db, push }) => {
@@ -6371,6 +6465,18 @@ export function tests(test: Test, exclude: string[] = []) {
 		}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 2));
 
 		expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
+	});
+
+	test('Mappers: deep nullification', async ({ db, push }) => {
+		await resetDeepNullification(db);
+		await push(dnPushSchema);
+		await runDeepNullification(db);
+	});
+
+	test('Mappers: deep nullification - jit', async ({ db, createDB, push }) => {
+		await resetDeepNullification(db);
+		await push(dnPushSchema);
+		await runDeepNullification(createDB(dnTables, () => ({}), true));
 	});
 
 	const mappersDate = new Date('2026-04-02T00:00:00.000Z');
