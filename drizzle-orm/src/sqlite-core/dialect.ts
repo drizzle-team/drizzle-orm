@@ -713,27 +713,22 @@ export class SQLiteDialect {
 		});
 	}
 
-	private nestedSelectionerror(): never {
-		throw new DrizzleError({
-			message: `Views with nested selections are not supported by the relational query builder`,
-		});
-	}
-
 	private buildRqbColumn(
 		table: Table | View,
-		column: unknown,
+		field: unknown,
 		key: string,
 		inJson: boolean,
 		selection: BuildRelationalQueryResult['selection'],
+		tableTsName: string,
 	) {
 		let fieldType: BuildRelationalQueryResult['selection'][number]['fieldType'];
 		let output: SQL;
 
-		if (is(column, Column)) {
+		if (is(field, Column)) {
 			fieldType = 'Column';
-			const name = sql`${table}.${sql.identifier(column.name)}`;
+			const name = sql`${table}.${sql.identifier(field.name)}`;
 
-			switch (column.columnType) {
+			switch (field.columnType) {
 				case 'SQLiteBigInt':
 				case 'SQLiteBlobJson':
 				case 'SQLiteBlobBuffer': {
@@ -753,7 +748,7 @@ export class SQLiteDialect {
 				case 'SQLiteCustomColumn': {
 					output = !inJson
 						? sql`${name} as ${sql.identifier(key)}`
-						: sql`${(<SQLiteCustomColumn<any>> column).jsonSelectIdentifier(name, sql)} as ${sql.identifier(key)}`;
+						: sql`${(<SQLiteCustomColumn<any>> field).jsonSelectIdentifier(name, sql)} as ${sql.identifier(key)}`;
 					break;
 				}
 
@@ -761,36 +756,27 @@ export class SQLiteDialect {
 					output = sql`${name} as ${sql.identifier(key)}`;
 				}
 			}
-		} else if (is(column, SQL)) {
+		} else if (is(field, SQL)) {
 			fieldType = 'SQL';
 			output = sql`${table}.${sql.identifier(key)} as ${sql.identifier(key)}`;
-		} else if (is(column, SQL.Aliased)) {
+		} else if (is(field, SQL.Aliased)) {
 			fieldType = 'SQL.Aliased';
-			output = sql`${table}.${sql.identifier(column.fieldAlias)} as ${sql.identifier(key)}`;
-		} else if (isSQLWrapper(column)) {
+			output = sql`${table}.${sql.identifier(field.fieldAlias)} as ${sql.identifier(key)}`;
+		} else if (isSQLWrapper(field)) {
 			fieldType = 'SQLWrapper';
 			output = sql`${table}.${sql.identifier(key)} as ${sql.identifier(key)}`;
 		} else {
-			return this.nestedSelectionerror();
+			throw new DrizzleError({
+				message: field === undefined
+					? `Unknown column: "${tableTsName}"."${key}"`
+					: `Views with nested selections are not supported by the relational query builder`,
+			});
 		}
 
-		selection.push({ key, field: column, fieldType } as BuildRelationalQueryResult['selection'][number]);
+		selection.push({ key, field, fieldType } as BuildRelationalQueryResult['selection'][number]);
 
 		return output;
 	}
-
-	private unwrapAllColumns = (
-		table: Table | View,
-		selection: BuildRelationalQueryResult['selection'],
-		inJson: boolean,
-	) => {
-		return sql.join(
-			Object.entries(table[TableColumns]).map(([k, v]) => {
-				return this.buildRqbColumn(table, v, k, inJson, selection);
-			}),
-			sql`, `,
-		);
-	};
 
 	private getSelectedTableColumns = (
 		table: Table | View,
@@ -833,26 +819,33 @@ export class SQLiteDialect {
 		table: SQLiteTable | SQLiteView,
 		selection: BuildRelationalQueryResult['selection'],
 		inJson: boolean,
-		params?: DBQueryConfig<'many'>,
-	) =>
-		params?.columns
-			? (() => {
-				const columnIdentifiers: SQL[] = [];
+		tableTsName: string,
+		config?: DBQueryConfig<'many'>,
+	) => {
+		if (!config?.columns) {
+			return sql.join(
+				Object.entries(table[TableColumns]).map(([k, v]) => {
+					return this.buildRqbColumn(table, v, k, inJson, selection, tableTsName);
+				}),
+				sql`, `,
+			);
+		}
 
-				const selectedColumns = this.getSelectedTableColumns(
-					table,
-					params?.columns,
-				);
+		const columnIdentifiers: SQL[] = [];
 
-				for (const { column, tsName } of selectedColumns) {
-					columnIdentifiers.push(this.buildRqbColumn(table, column, tsName, inJson, selection));
-				}
+		const selectedColumns = this.getSelectedTableColumns(
+			table,
+			config?.columns,
+		);
 
-				return columnIdentifiers.length
-					? sql.join(columnIdentifiers, sql`, `)
-					: undefined;
-			})()
-			: this.unwrapAllColumns(table, selection, inJson);
+		for (const { column, tsName } of selectedColumns) {
+			columnIdentifiers.push(this.buildRqbColumn(table, column, tsName, inJson, selection, tableTsName));
+		}
+
+		return columnIdentifiers.length
+			? sql.join(columnIdentifiers, sql`, `)
+			: undefined;
+	};
 
 	buildRelationalQuery({
 		schema,
@@ -889,7 +882,7 @@ export class SQLiteDialect {
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
 
-		const columns = this.buildColumns(table, selection, !!isNested, params);
+		const columns = this.buildColumns(table, selection, !!isNested, tableConfig.name, params);
 
 		const where: SQL | undefined = params && 'where' in params && relationWhere
 			? and(
@@ -932,7 +925,8 @@ export class SQLiteDialect {
 				for (let readIdx = 0, writeIdx = 0; readIdx < withEntries.length; ++readIdx) {
 					const [k, join] = withEntries[readIdx]!;
 
-					const relation = tableConfig.relations[k]!;
+					const relation = tableConfig.relations[k];
+					if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
 					const isSingle = relation.relationType === 'one';
 					const targetTable = aliasedTable(
 						relation.targetTable,

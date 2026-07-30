@@ -793,6 +793,7 @@ export class PgDialect {
 		key: string,
 		inJson: boolean,
 		selection: BuildRelationalQueryResult['selection'],
+		tableTsName: string,
 	) {
 		let decoderColumn: Column | undefined;
 		let fieldType: BuildRelationalQueryResult['selection'][number]['fieldType'];
@@ -835,7 +836,9 @@ export class PgDialect {
 			}`;
 		} else {
 			throw new DrizzleError({
-				message: `Views with nested selections are not supported by the relational query builder`,
+				message: field === undefined
+					? `Unknown column: "${tableTsName}"."${key}"`
+					: `Views with nested selections are not supported by the relational query builder`,
 			});
 		}
 
@@ -864,12 +867,13 @@ export class PgDialect {
 		table: Table | View,
 		selection: BuildRelationalQueryResult['selection'],
 		inJson: boolean,
+		tableTsName: string,
 		config?: DBQueryConfigWithComment<'many'>,
 	) => {
 		if (!config?.columns) {
 			return sql.join(
 				Object.entries(table[TableColumns]).map(([k, v]) => {
-					return this.buildRqbColumn(table, v, k, inJson, selection);
+					return this.buildRqbColumn(table, v, k, inJson, selection, tableTsName);
 				}),
 				sql`, `,
 			);
@@ -885,14 +889,14 @@ export class PgDialect {
 			colSelectionMode = colSelectionMode || v;
 
 			if (v) {
-				columnIdentifiers.push(this.buildRqbColumn(table, columnContainer[k]!, k, inJson, selection));
+				columnIdentifiers.push(this.buildRqbColumn(table, columnContainer[k]!, k, inJson, selection, tableTsName));
 			}
 		}
 
 		if (colSelectionMode === false) {
 			for (const [k, v] of Object.entries(columnContainer)) {
 				if (config.columns[k] === false) continue;
-				columnIdentifiers.push(this.buildRqbColumn(table, v, k, inJson, selection));
+				columnIdentifiers.push(this.buildRqbColumn(table, v, k, inJson, selection, tableTsName));
 			}
 		}
 
@@ -955,7 +959,7 @@ export class PgDialect {
 		const order = params?.orderBy
 			? relationsOrderToSQL(table, params.orderBy)
 			: undefined;
-		const columns = this.buildColumns(table, selection, !!nested, params);
+		const columns = this.buildColumns(table, selection, !!nested, tableConfig.name, params);
 		const extras = params?.extras
 			? relationExtrasToSQL(table, params.extras, this.codecs, nested)
 			: undefined;
@@ -982,7 +986,8 @@ export class PgDialect {
 				for (let readIdx = 0, writeIdx = 1; readIdx < withEntries.length; ++readIdx) {
 					const [k, join] = withEntries[readIdx]!;
 
-					const relation = tableConfig.relations[k]!;
+					const relation = tableConfig.relations[k];
+					if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
 					const isSingle = relation.relationType === 'one';
 					const targetTable = aliasedTable(
 						relation.targetTable,
