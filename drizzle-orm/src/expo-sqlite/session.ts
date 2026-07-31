@@ -52,31 +52,66 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 			tables: string[];
 		},
 	): SQLiteAsyncPreparedQuery<T & { run: ExpoSQLiteRunResult }> {
-		let stmt: SQLiteStatement;
-		try {
-			stmt = this.client.prepareSync(query.sql);
-		} catch (e) {
-			throw new DrizzleQueryError(query.sql, query.params, e as Error);
-		}
-
 		const executors: SQLiteQueryExecutors<'sync'> = {
 			all: (params) => {
-				if (mode === 'arrays') return stmt.executeForRawResultSync(params as any[]).getAllSync();
-				return stmt.executeSync(params as any[]).getAllSync();
+				let stmt: SQLiteStatement;
+				try {
+					stmt = this.client.prepareSync(query.sql);
+				} catch (e) {
+					throw new DrizzleQueryError(query.sql, query.params, e as Error);
+				}
+				try {
+					return mode === 'arrays'
+						? stmt.executeForRawResultSync(params as any[]).getAllSync()
+						: stmt.executeSync(params as any[]).getAllSync();
+				} finally {
+					stmt.finalizeSync();
+				}
 			},
 			get: (params) => {
-				if (mode === 'arrays') return stmt.executeForRawResultSync(params as any[]).getFirstSync();
-				return stmt.executeSync(params as any[]).getFirstSync();
+				let stmt: SQLiteStatement;
+				try {
+					stmt = this.client.prepareSync(query.sql);
+				} catch (e) {
+					throw new DrizzleQueryError(query.sql, query.params, e as Error);
+				}
+				try {
+					return mode === 'arrays'
+						? stmt.executeForRawResultSync(params as any[]).getFirstSync()
+						: stmt.executeSync(params as any[]).getFirstSync();
+				} finally {
+					stmt.finalizeSync();
+				}
 			},
 			run: (params) => {
-				const res = stmt.executeSync(params as any[]);
-				return {
-					changes: res.changes,
-					lastInsertRowId: res.lastInsertRowId,
-				};
+				let stmt: SQLiteStatement;
+				try {
+					stmt = this.client.prepareSync(query.sql);
+				} catch (e) {
+					throw new DrizzleQueryError(query.sql, query.params, e as Error);
+				}
+				try {
+					const res = stmt.executeSync(params as any[]);
+					return {
+						changes: res.changes,
+						lastInsertRowId: res.lastInsertRowId,
+					};
+				} finally {
+					stmt.finalizeSync();
+				}
 			},
 			values: (params) => {
-				return stmt.executeForRawResultSync(params as any[]).getAllSync();
+				let stmt: SQLiteStatement;
+				try {
+					stmt = this.client.prepareSync(query.sql);
+				} catch (e) {
+					throw new DrizzleQueryError(query.sql, query.params, e as Error);
+				}
+				try {
+					return stmt.executeForRawResultSync(params as any[]).getAllSync();
+				} finally {
+					stmt.finalizeSync();
+				}
 			},
 		};
 

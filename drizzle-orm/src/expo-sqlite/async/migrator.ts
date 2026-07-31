@@ -2,8 +2,8 @@ import { useEffect, useReducer } from 'react';
 import type { MigrationMeta } from '~/migrator.ts';
 import { formatToMillis } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { migrateSync } from '~/sqlite-core/async/session.ts';
-import type { ExpoSQLiteDatabase } from './driver.ts';
+import { migrateAsync } from '~/sqlite-core/async/session.ts';
+import type { ExpoSQLiteAsyncDatabase } from './driver.ts';
 
 interface MigrationConfig {
 	migrations: Record<string, string>;
@@ -43,11 +43,11 @@ async function readMigrationFiles({ migrations }: MigrationConfig): Promise<Migr
 }
 
 export async function migrate<TRelations extends AnyRelations = EmptyRelations>(
-	db: ExpoSQLiteDatabase<TRelations>,
+	db: ExpoSQLiteAsyncDatabase<TRelations>,
 	config: MigrationConfig,
 ) {
 	const migrations = await readMigrationFiles(config);
-	return migrateSync(migrations, db.session);
+	return migrateAsync(migrations, db);
 }
 
 interface State {
@@ -60,7 +60,7 @@ type Action =
 	| { type: 'migrated'; payload: true }
 	| { type: 'error'; payload: Error };
 
-export const useMigrations = (db: ExpoSQLiteDatabase<any>, migrations: {
+export const useMigrations = (db: ExpoSQLiteAsyncDatabase<any>, migrations: {
 	journal: {
 		entries: { idx: number; when: number; tag: string; breakpoints: boolean }[];
 	};
