@@ -47,7 +47,7 @@ describe('node-postgres transaction pool client release', () => {
 		});
 		const db = drizzle(pool);
 
-		await expect(db.transaction(async () => undefined)).rejects.toThrowError();
+		await expect(db.transaction(async () => undefined)).rejects.toThrowError('Failed query: begin');
 
 		expect(state.connects).toBe(1);
 		expect(state.released).toBe(1);
