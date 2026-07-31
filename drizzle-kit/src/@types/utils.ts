@@ -14,7 +14,7 @@ declare global {
 	}
 }
 
-import camelcase from 'camelcase';
+import { toCamelCase } from 'drizzle-orm/casing';
 
 String.prototype.trimChar = function(char: string) {
 	let start = 0;
@@ -34,7 +34,7 @@ String.prototype.squashSpaces = function() {
 };
 
 String.prototype.camelCase = function() {
-	return camelcase(String(this));
+	return toCamelCase(String(this));
 };
 
 String.prototype.capitalise = function() {
