@@ -180,7 +180,8 @@ export const SQLiteSquasher = {
 
 		let columns: string[];
 		try {
-			columns = JSON.parse(columnsString);
+			const parsed = JSON.parse(columnsString);
+			columns = Array.isArray(parsed) ? parsed : columnsString.split(',');
 		} catch {
 			columns = columnsString.split(',');
 		}
@@ -200,7 +201,8 @@ export const SQLiteSquasher = {
 		const [name, columnsString] = unq.split(';');
 		let columns: string[];
 		try {
-			columns = JSON.parse(columnsString);
+			const parsed = JSON.parse(columnsString);
+			columns = Array.isArray(parsed) ? parsed : columnsString.split(',');
 		} catch {
 			columns = columnsString.split(',');
 		}
