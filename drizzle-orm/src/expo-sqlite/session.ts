@@ -1,6 +1,5 @@
-import type { SQLiteDatabase, SQLiteRunResult, SQLiteStatement } from 'expo-sqlite';
+import type { SQLiteDatabase, SQLiteRunResult } from 'expo-sqlite';
 import { entityKind } from '~/entity.ts';
-import { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
@@ -54,12 +53,7 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 	): SQLiteAsyncPreparedQuery<T & { run: ExpoSQLiteRunResult }> {
 		const executors: SQLiteQueryExecutors<'sync'> = {
 			all: (params) => {
-				let stmt: SQLiteStatement;
-				try {
-					stmt = this.client.prepareSync(query.sql);
-				} catch (e) {
-					throw new DrizzleQueryError(query.sql, query.params, e as Error);
-				}
+				const stmt = this.client.prepareSync(query.sql);
 				try {
 					return mode === 'arrays'
 						? stmt.executeForRawResultSync(params as any[]).getAllSync()
@@ -69,12 +63,7 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 				}
 			},
 			get: (params) => {
-				let stmt: SQLiteStatement;
-				try {
-					stmt = this.client.prepareSync(query.sql);
-				} catch (e) {
-					throw new DrizzleQueryError(query.sql, query.params, e as Error);
-				}
+				const stmt = this.client.prepareSync(query.sql);
 				try {
 					return mode === 'arrays'
 						? stmt.executeForRawResultSync(params as any[]).getFirstSync()
@@ -84,12 +73,7 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 				}
 			},
 			run: (params) => {
-				let stmt: SQLiteStatement;
-				try {
-					stmt = this.client.prepareSync(query.sql);
-				} catch (e) {
-					throw new DrizzleQueryError(query.sql, query.params, e as Error);
-				}
+				const stmt = this.client.prepareSync(query.sql);
 				try {
 					const res = stmt.executeSync(params as any[]);
 					return {
@@ -101,12 +85,7 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 				}
 			},
 			values: (params) => {
-				let stmt: SQLiteStatement;
-				try {
-					stmt = this.client.prepareSync(query.sql);
-				} catch (e) {
-					throw new DrizzleQueryError(query.sql, query.params, e as Error);
-				}
+				const stmt = this.client.prepareSync(query.sql);
 				try {
 					return stmt.executeForRawResultSync(params as any[]).getAllSync();
 				} finally {

@@ -2,7 +2,6 @@ import type { SQLiteDatabase, SQLiteRunResult } from 'expo-sqlite';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
-import { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
@@ -58,47 +57,35 @@ export class ExpoSQLiteAsyncSession<TRelations extends AnyRelations>
 		cacheConfig?: WithCacheConfig,
 	): SQLiteAsyncPreparedQuery<T & { run: ExpoSQLiteAsyncRunResult }> {
 		const executors: SQLiteQueryExecutors<'async'> = {
-			all: async (params) => {
-				return this.client.prepareAsync(query.sql).catch((e) => {
-					throw new DrizzleQueryError(query.sql, query.params, e as Error);
-				}).then((stmt) => {
+			all: (params) =>
+				this.client.prepareAsync(query.sql).then((stmt) => {
 					const q = mode === 'arrays'
 						? stmt.executeForRawResultAsync(params as any[])
 						: stmt.executeAsync(params as any[]);
 
 					return q.then((r) => r.getAllAsync()).finally(() => stmt.finalizeAsync());
-				});
-			},
-			get: async (params) => {
-				return this.client.prepareAsync(query.sql).catch((e) => {
-					throw new DrizzleQueryError(query.sql, query.params, e as Error);
-				}).then((stmt) => {
+				}),
+			get: (params) =>
+				this.client.prepareAsync(query.sql).then((stmt) => {
 					const q = mode === 'arrays'
 						? stmt.executeForRawResultAsync(params as any[])
 						: stmt.executeAsync(params as any[]);
 
 					return q.then((r) => r.getFirstAsync()).finally(() => stmt.finalizeAsync());
-				});
-			},
-			run: async (params) => {
-				return this.client.prepareAsync(query.sql).catch((e) => {
-					throw new DrizzleQueryError(query.sql, query.params, e as Error);
-				}).then((stmt) =>
+				}),
+			run: (params) =>
+				this.client.prepareAsync(query.sql).then((stmt) =>
 					stmt.executeAsync(params as any[]).then(({ changes, lastInsertRowId }) => ({
 						changes,
 						lastInsertRowId,
 					})).finally(() => stmt.finalizeAsync())
-				);
-			},
-			values: async (params) => {
-				return this.client.prepareAsync(query.sql).catch((e) => {
-					throw new DrizzleQueryError(query.sql, query.params, e as Error);
-				}).then((stmt) =>
+				),
+			values: (params) =>
+				this.client.prepareAsync(query.sql).then((stmt) =>
 					stmt.executeForRawResultAsync(params as any[]).then((r) => r.getAllAsync()).finally(() =>
 						stmt.finalizeAsync()
 					)
-				);
-			},
+				),
 		};
 
 		return new SQLiteAsyncPreparedQuery(
