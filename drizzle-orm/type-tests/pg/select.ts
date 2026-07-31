@@ -1,6 +1,6 @@
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
-
+import { getTableColumns } from '~/index.ts';
 import { alias } from '~/pg-core/alias.ts';
 import { boolean, integer, pgMaterializedView, pgTable, pgView, QueryBuilder, text } from '~/pg-core/index.ts';
 import {
@@ -1537,6 +1537,72 @@ await db
 			default: string;
 			unknown: string;
 			any: string;
+		}[]>
+	>;
+}
+
+{
+	const tripTable = pgTable('tripTable', {
+		id: integer(),
+	});
+
+	const riderTable = pgTable('riderTable', {
+		id: integer(),
+	});
+
+	const userTable = pgTable('userTable', {
+		id: integer(),
+	});
+
+	const vehicleTable = pgTable('vehicleTable', {
+		id: integer(),
+	});
+
+	const includeRider = true as boolean;
+	const includeRiderUser = true as boolean;
+	const includeVehicle = true as boolean;
+
+	let qb = db
+		.select({
+			...getTableColumns(tripTable),
+			...(includeRider ? { rider: getTableColumns(riderTable) } : {}),
+			...(includeRiderUser ? { riderUser: getTableColumns(userTable) } : {}),
+			...(includeVehicle ? { vehicle: getTableColumns(vehicleTable) } : {}),
+		})
+		.from(tripTable)
+		.$dynamic();
+
+	if (includeRider) {
+		qb = qb.leftJoin(riderTable, eq(tripTable.id, riderTable.id));
+		if (includeRiderUser) {
+			qb = qb.innerJoin(userTable, eq(riderTable.id, userTable.id));
+		}
+	}
+	if (includeVehicle) {
+		qb = qb.leftJoin(vehicleTable, eq(tripTable.id, vehicleTable.id));
+	}
+
+	Expect<
+		Equal<Awaited<typeof qb>, {
+			vehicle?:
+				| {
+					id: number | null;
+				}
+				| null
+				| undefined;
+			riderUser?:
+				| {
+					id: number | null;
+				}
+				| null
+				| undefined;
+			rider?:
+				| {
+					id: number | null;
+				}
+				| null
+				| undefined;
+			id: number | null;
 		}[]>
 	>;
 }
