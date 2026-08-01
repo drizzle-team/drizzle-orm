@@ -49,6 +49,8 @@ export const fromDatabaseForDrizzle = async (
 	return res;
 };
 
+// * convert `notNull`, `defaultValue`, `pk` etc to number to avoid issues with Turso returning string values for these fields when `intMode` set to `string` or `bigint`
+
 export const fromDatabase = async (
 	db: DB,
 	filter: EntityFilter,
@@ -68,10 +70,10 @@ export const fromDatabase = async (
 		table: string;
 		name: string;
 		columnType: string;
-		notNull: number;
+		notNull: number | string | bigint;
 		defaultValue: string;
-		pk: number;
-		hidden: number;
+		pk: number | string | bigint;
+		hidden: number | string | bigint;
 		sql: string;
 		type: 'table' | 'view';
 	}>(
@@ -147,20 +149,20 @@ export const fromDatabase = async (
 		table: string;
 		name: string;
 		columnType: string;
-		notNull: number;
+		notNull: number | string | bigint;
 		defaultValue: string;
-		pk: number;
-		hidden: number;
+		pk: number | string | bigint;
+		hidden: number | string | bigint;
 	}[] = [];
 	try {
 		dbViewColumns = await db.query<{
 			table: string;
 			name: string;
 			columnType: string;
-			notNull: number;
+			notNull: number | string | bigint;
 			defaultValue: string;
-			pk: number;
-			hidden: number;
+			pk: number | string | bigint;
+			hidden: number | string | bigint;
 			sql: string;
 			type: 'view';
 		}>(
@@ -199,10 +201,10 @@ export const fromDatabase = async (
 					table: string;
 					name: string;
 					columnType: string;
-					notNull: number;
+					notNull: number | string | bigint;
 					defaultValue: string;
-					pk: number;
-					hidden: number;
+					pk: number | string | bigint;
+					hidden: number | string | bigint;
 				}>(
 					`SELECT 
 						'${view.name}' as "table",
@@ -257,10 +259,9 @@ export const fromDatabase = async (
 		sql: string;
 		name: string;
 		column: string;
-		isUnique: number;
+		isUnique: number | string | bigint;
 		origin: string; // u=auto c=manual pk
-		seq: string;
-		cid: number;
+		cid: number | string | bigint;
 	}>(`
 		SELECT 
 			m.tbl_name as "table",
@@ -269,7 +270,6 @@ export const fromDatabase = async (
 			ii.name as "column",
 			il.[unique] as "isUnique",
 			il.origin,
-			il.seq,
 			ii.cid
 		FROM sqlite_master AS m,
 			pragma_index_list(m.name) AS il,
@@ -312,7 +312,7 @@ export const fromDatabase = async (
 	});
 
 	const tableToPk = dbTableColumns.reduce((acc, it) => {
-		const isPrimary = it.pk !== 0;
+		const isPrimary = Number(it.pk) !== 0;
 		if (isPrimary) {
 			if (it.table in acc) {
 				acc[it.table].push(it.name);
@@ -324,7 +324,7 @@ export const fromDatabase = async (
 	}, {} as { [tname: string]: string[] });
 
 	const tableToGenerated = dbTableColumns.reduce((acc, it) => {
-		if (it.hidden !== 2 && it.hidden !== 3) return acc;
+		if (Number(it.hidden) !== 2 && Number(it.hidden) !== 3) return acc;
 		acc[it.table] = extractGeneratedColumns(it.sql);
 		return acc;
 	}, {} as Record<string, Record<string, Generated>>);
@@ -333,7 +333,7 @@ export const fromDatabase = async (
 		(acc, it) => {
 			const whereIdx = it.sql.toLowerCase().indexOf(' where ');
 			const where = whereIdx < 0 ? null : it.sql.slice(whereIdx + 7);
-			const column = { value: it.column, isExpression: it.cid === -2 };
+			const column = { value: it.column, isExpression: Number(it.cid) === -2 };
 			if (it.table in acc) {
 				if (it.name in acc[it.table]) {
 					const idx = acc[it.table][it.name];
@@ -395,9 +395,9 @@ export const fromDatabase = async (
 		progressCallback('tables', tablesCount.size, 'fetching');
 
 		const name = column.name;
-		const notNull = column.notNull === 1; // 'YES', 'NO'
+		const notNull = Number(column.notNull) === 1; // 'YES', 'NO'
 		const type = sqlTypeFrom(column.columnType); // varchar(256)
-		const isPrimary = column.pk !== 0;
+		const isPrimary = Number(column.pk) !== 0;
 
 		const columnDefault: Column['default'] = parseDefault(column.columnType, column.defaultValue);
 		const autoincrement = isPrimary && dbTablesWithSequences.some((it) => it.name === column.table);
@@ -413,7 +413,7 @@ export const fromDatabase = async (
 				const idx = it.index;
 
 				// we can only safely define UNIQUE column when there is automatically(origin=u) created unique index on the column(only 1)
-				return idx.origin === 'u' && idx.isUnique && it.columns.length === 1 && idx.table === column.table
+				return idx.origin === 'u' && Number(idx.isUnique) && it.columns.length === 1 && idx.table === column.table
 					&& idx.column === column.name;
 			}).map((it) => {
 				const parsed = parseSqliteDdl(it.index.sql);
@@ -432,7 +432,7 @@ export const fromDatabase = async (
 				const idx = it.index;
 
 				// we can only safely define PRIMARY KEY column when there is automatically(origin=pk) created unique index on the column(only 1)
-				return idx.origin === 'pk' && idx.isUnique && it.columns.length === 1 && idx.table === column.table
+				return idx.origin === 'pk' && Number(idx.isUnique) && it.columns.length === 1 && idx.table === column.table
 					&& idx.column === column.name;
 			}).map((it) => {
 				const parsed = parseSqliteDdl(it.index.sql);
@@ -471,8 +471,7 @@ export const fromDatabase = async (
 		onUpdate: string;
 		sql: string;
 		onDelete: string;
-		seq: number;
-		id: number;
+		id: number | string | bigint;
 	}>(
 		`SELECT 
 			m.name as "tableFrom",
@@ -481,9 +480,8 @@ export const fromDatabase = async (
 			f."from", 
 			f."to",
 			m."sql" as sql,
-		  f."on_update" as "onUpdate", 
-			f."on_delete" as "onDelete", 
-			f.seq as "seq"
+			f."on_update" as "onUpdate", 
+			f."on_delete" as "onDelete"
 		FROM sqlite_master m, pragma_foreign_key_list(m.name) as f 
 		WHERE m.tbl_name != '_cf_KV';`,
 	).then((fks) => {
@@ -562,7 +560,7 @@ export const fromDatabase = async (
 				entityType: 'indexes',
 				table,
 				name: index.name,
-				isUnique: index.isUnique === 1,
+				isUnique: Number(index.isUnique) === 1,
 				origin,
 				where,
 				columns,
@@ -577,7 +575,7 @@ export const fromDatabase = async (
 			view: it.table,
 			name: it.name,
 			type: sqlTypeFrom(it.columnType),
-			notNull: it.notNull === 1,
+			notNull: Number(it.notNull) === 1,
 		};
 		if (it.table in acc) {
 			acc[it.table].push(column);
@@ -613,7 +611,7 @@ export const fromDatabase = async (
 
 	const uniques: UniqueConstraint[] = [];
 	for (const [table, item] of Object.entries(tableToIndexColumns)) {
-		for (const { columns, index } of Object.values(item).filter((it) => it.index.isUnique)) {
+		for (const { columns, index } of Object.values(item).filter((it) => Number(it.index.isUnique))) {
 			if (columns.length === 1) continue;
 			if (columns.some((it) => it.isExpression)) {
 				throw new Error(`unexpected unique index '${index.name}' with expression value: ${index.sql}`);
