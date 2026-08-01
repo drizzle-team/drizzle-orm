@@ -274,7 +274,21 @@ export type DBQueryConfig<
 					offset?: number | Placeholder | undefined;
 				}
 				: {})
-		: {});
+		: {})
+	& (TRelationType extends 'one' ? 
+            & { 
+                where?:
+                    | SQL
+                    | undefined
+                    | ((
+                        fields: Simplify<
+                            [TTableConfig['columns']] extends [never] ? {}
+                                : TTableConfig['columns']
+                    >,
+                    operators: Operators,
+                    ) => SQL | undefined);
+			} 
+		: {})
 
 export interface TableRelationalConfig {
 	tsName: string;
