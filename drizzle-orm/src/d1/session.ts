@@ -147,10 +147,12 @@ export class D1Transaction<
 }
 
 /**
- * This function was taken from the D1 implementation: https://github.com/cloudflare/workerd/blob/4aae9f4c7ae30a59a88ca868c4aff88bda85c956/src/cloudflare/internal/d1-api.ts#L287
- * It may cause issues with duplicated column names in join queries, which should be fixed on the D1 side.
- * @param results
- * @returns
+ * Converts D1 object-row batch results into ordinal arrays for mapResultRow.
+ *
+ * D1's client `batch()` uses ROWS_AND_COLUMNS upstream then collapses to objects
+ * (`toArrayOfObjects`), so duplicate SQL column names would lose values here.
+ * Sqlite dialect `buildSelection` therefore emits unique `AS` aliases for selected
+ * columns when names would otherwise collide (see #6038).
  */
 function d1ToRawMapping(results: any) {
 	const rows: unknown[][] = [];
