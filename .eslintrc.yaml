@@ -17,7 +17,7 @@ overrides:
       - '**/type-tests/**/*.ts'
     rules:
       import/extensions: 'off'
-      no-instanceof: 'off'
+      no-instanceof/no-instanceof: 'off'
   - files: 'eslint-plugin-drizzle/**/*'
     rules:
       import/extensions: 'off'
