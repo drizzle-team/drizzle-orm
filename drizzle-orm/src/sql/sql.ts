@@ -116,21 +116,27 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 	public shouldInlineParams = false;
 
 	/** @internal */
-	usedTables: string[] = [];
+	private _usedTables: string[] | undefined;
+	/** @internal */
+	get usedTables(): string[] {
+		if (this._usedTables) return this._usedTables;
+		this._usedTables = [];
 
-	constructor(readonly queryChunks: SQLChunk[]) {
-		for (const chunk of queryChunks) {
+		for (const chunk of this.queryChunks) {
 			if (is(chunk, Table)) {
 				const schemaName = chunk[Table.Symbol.Schema];
 
-				this.usedTables.push(
+				this._usedTables.push(
 					schemaName === undefined
 						? chunk[Table.Symbol.Name]
 						: schemaName + '.' + chunk[Table.Symbol.Name],
 				);
 			}
 		}
+		return this._usedTables;
 	}
+
+	constructor(readonly queryChunks: SQLChunk[]) {}
 
 	append(query: SQL): this {
 		this.queryChunks.push(...query.queryChunks);

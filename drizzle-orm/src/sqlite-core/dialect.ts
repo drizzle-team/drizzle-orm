@@ -656,18 +656,18 @@ export class SQLiteDialect {
 						|| (is(colValue, Param) && colValue.value === undefined)
 					) {
 						let defaultValue;
-						if (col.default !== null && col.default !== undefined) {
-							defaultValue = is(col.default, SQL)
-								? col.default
-								: sql.param(col.default, col);
-							// eslint-disable-next-line unicorn/no-negated-condition
-						} else if (col.defaultFn !== undefined) {
+						if (col.defaultFn !== undefined) {
 							const defaultFnResult = col.defaultFn();
 							defaultValue = is(defaultFnResult, SQL)
 								? defaultFnResult
 								: sql.param(defaultFnResult, col);
 							// eslint-disable-next-line unicorn/no-negated-condition
-						} else if (!col.default && col.onUpdateFn !== undefined) {
+						} else if (col.default !== null && col.default !== undefined) {
+							defaultValue = is(col.default, SQL)
+								? col.default
+								: sql.param(col.default, col);
+							// eslint-disable-next-line unicorn/no-negated-condition
+						} else if (col.onUpdateFn !== undefined) {
 							const onUpdateFnResult = col.onUpdateFn();
 							defaultValue = is(onUpdateFnResult, SQL)
 								? onUpdateFnResult
