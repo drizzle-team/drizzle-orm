@@ -8,7 +8,6 @@ import {
 	Column,
 	ForeignKey,
 	Index,
-	MySqlSchema,
 	MySqlSchemaInternal,
 	PrimaryKey,
 	UniqueConstraint,
@@ -44,6 +43,7 @@ const mysqlImportsList = new Set([
 	'varchar',
 	'year',
 	'enum',
+	'point',
 ]);
 
 const objToStatement = (json: any) => {
@@ -119,7 +119,15 @@ const prepareCasing = (casing?: Casing) => (value: string) => {
 	assertUnreachable(casing);
 };
 
-const dbColumnName = ({ name, casing, withMode = false }: { name: string; casing: Casing; withMode?: boolean }) => {
+const dbColumnName = ({
+	name,
+	casing,
+	withMode = false,
+}: {
+	name: string;
+	casing: Casing;
+	withMode?: boolean;
+}) => {
 	if (casing === 'preserve') {
 		return '';
 	}
@@ -130,10 +138,7 @@ const dbColumnName = ({ name, casing, withMode = false }: { name: string; casing
 	assertUnreachable(casing);
 };
 
-export const schemaToTypeScript = (
-	schema: MySqlSchemaInternal,
-	casing: Casing,
-) => {
+export const schemaToTypeScript = (schema: MySqlSchemaInternal, casing: Casing) => {
 	const withCasing = prepareCasing(casing);
 	// collectFKs
 	Object.values(schema.tables).forEach((table) => {
@@ -147,15 +152,9 @@ export const schemaToTypeScript = (
 		(res, it) => {
 			const idxImports = Object.values(it.indexes).map((idx) => idx.isUnique ? 'uniqueIndex' : 'index');
 			const fkImpots = Object.values(it.foreignKeys).map((it) => 'foreignKey');
-			const pkImports = Object.values(it.compositePrimaryKeys).map(
-				(it) => 'primaryKey',
-			);
-			const uniqueImports = Object.values(it.uniqueConstraints).map(
-				(it) => 'unique',
-			);
-			const checkImports = Object.values(it.checkConstraint).map(
-				(it) => 'check',
-			);
+			const pkImports = Object.values(it.compositePrimaryKeys).map((it) => 'primaryKey');
+			const uniqueImports = Object.values(it.uniqueConstraints).map((it) => 'unique');
+			const checkImports = Object.values(it.checkConstraint).map((it) => 'check');
 
 			res.mysql.push(...idxImports);
 			res.mysql.push(...fkImpots);
@@ -260,24 +259,11 @@ export const schemaToTypeScript = (
 		) {
 			statement += ',\n';
 			statement += '(table) => [';
-			statement += createTableIndexes(
-				table.name,
-				Object.values(table.indexes),
-				withCasing,
-			);
+			statement += createTableIndexes(table.name, Object.values(table.indexes), withCasing);
 			statement += createTableFKs(Object.values(filteredFKs), withCasing);
-			statement += createTablePKs(
-				Object.values(table.compositePrimaryKeys),
-				withCasing,
-			);
-			statement += createTableUniques(
-				Object.values(table.uniqueConstraints),
-				withCasing,
-			);
-			statement += createTableChecks(
-				Object.values(table.checkConstraint),
-				withCasing,
-			);
+			statement += createTablePKs(Object.values(table.compositePrimaryKeys), withCasing);
+			statement += createTableUniques(Object.values(table.uniqueConstraints), withCasing);
+			statement += createTableChecks(Object.values(table.checkConstraint), withCasing);
 			statement += '\n]';
 		}
 
@@ -298,14 +284,7 @@ export const schemaToTypeScript = (
 			} import.\n// Please change to any other name, that is not in imports list\n`;
 		}
 		statement += `export const ${withCasing(name)} = ${func}("${name}", {\n`;
-		statement += createTableColumns(
-			Object.values(columns),
-			[],
-			withCasing,
-			casing,
-			name,
-			schema,
-		);
+		statement += createTableColumns(Object.values(columns), [], withCasing, casing, name, schema);
 		statement += '})';
 
 		statement += algorithm ? `.algorithm("${algorithm}")` : '';
@@ -430,9 +409,7 @@ const column = (
 		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
 		let out = `${casing(name)}: smallint(${columnName}${isUnsigned ? '{ unsigned: true }' : ''})`;
 		out += autoincrement ? `.autoincrement()` : '';
-		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
-			: '';
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
@@ -441,9 +418,7 @@ const column = (
 		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
 		let out = `${casing(name)}: mediumint(${columnName}${isUnsigned ? '{ unsigned: true }' : ''})`;
 		out += autoincrement ? `.autoincrement()` : '';
-		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
-			: '';
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
@@ -453,24 +428,18 @@ const column = (
 			isUnsigned ? ', unsigned: true' : ''
 		} })`;
 		out += autoincrement ? `.autoincrement()` : '';
-		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
-			: '';
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
 	if (lowered === 'boolean') {
 		let out = `${casing(name)}: boolean(${dbColumnName({ name, casing: rawCasing })})`;
-		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
-			: '';
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
 	if (lowered.startsWith('double')) {
-		let params:
-			| { precision?: string; scale?: string; unsigned?: boolean }
-			| undefined;
+		let params: { precision?: string; scale?: string; unsigned?: boolean } | undefined;
 
 		if (lowered.length > (lowered.includes('unsigned') ? 15 : 6)) {
 			const [precision, scale] = lowered
@@ -487,21 +456,21 @@ const column = (
 
 		let out = params
 			? `${casing(name)}: double(${
-				dbColumnName({ name, casing: rawCasing, withMode: timeConfigParams !== undefined })
+				dbColumnName({
+					name,
+					casing: rawCasing,
+					withMode: timeConfigParams !== undefined,
+				})
 			}${timeConfig(params)})`
 			: `${casing(name)}: double(${dbColumnName({ name, casing: rawCasing })})`;
 
 		// let out = `${name.camelCase()}: double("${name}")`;
-		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
-			: '';
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
 	if (lowered.startsWith('float')) {
-		let params:
-			| { precision?: string; scale?: string; unsigned?: boolean }
-			| undefined;
+		let params: { precision?: string; scale?: string; unsigned?: boolean } | undefined;
 
 		if (lowered.length > (lowered.includes('unsigned') ? 14 : 5)) {
 			const [precision, scale] = lowered
@@ -515,32 +484,30 @@ const column = (
 		}
 
 		let out = `${casing(name)}: float(${dbColumnName({ name, casing: rawCasing })}${params ? timeConfig(params) : ''})`;
-		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
-			: '';
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
 	if (lowered === 'real') {
 		let out = `${casing(name)}: real(${dbColumnName({ name, casing: rawCasing })})`;
-		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
-			: '';
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
 	if (lowered.startsWith('timestamp')) {
 		const keyLength = 'timestamp'.length + 1;
-		let fsp = lowered.length > keyLength
-			? Number(lowered.substring(keyLength, lowered.length - 1))
-			: null;
+		let fsp = lowered.length > keyLength ? Number(lowered.substring(keyLength, lowered.length - 1)) : null;
 		fsp = fsp ? fsp : null;
 
 		const params = timeConfig({ fsp, mode: "'string'" });
 
 		let out = params
 			? `${casing(name)}: timestamp(${
-				dbColumnName({ name, casing: rawCasing, withMode: params !== undefined })
+				dbColumnName({
+					name,
+					casing: rawCasing,
+					withMode: params !== undefined,
+				})
 			}${params})`
 			: `${casing(name)}: timestamp(${dbColumnName({ name, casing: rawCasing })})`;
 
@@ -561,9 +528,7 @@ const column = (
 
 	if (lowered.startsWith('time')) {
 		const keyLength = 'time'.length + 1;
-		let fsp = lowered.length > keyLength
-			? Number(lowered.substring(keyLength, lowered.length - 1))
-			: null;
+		let fsp = lowered.length > keyLength ? Number(lowered.substring(keyLength, lowered.length - 1)) : null;
 		fsp = fsp ? fsp : null;
 
 		const params = timeConfig({ fsp });
@@ -602,44 +567,34 @@ const column = (
 	// in mysql text can't have default value. Will leave it in case smth ;)
 	if (lowered === 'text') {
 		let out = `${casing(name)}: text(${dbColumnName({ name, casing: rawCasing })})`;
-		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
-			: '';
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
 	// in mysql text can't have default value. Will leave it in case smth ;)
 	if (lowered === 'tinytext') {
 		let out = `${casing(name)}: tinytext(${dbColumnName({ name, casing: rawCasing })})`;
-		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
-			: '';
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
 	// in mysql text can't have default value. Will leave it in case smth ;)
 	if (lowered === 'mediumtext') {
 		let out = `${casing(name)}: mediumtext(${dbColumnName({ name, casing: rawCasing })})`;
-		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
-			: '';
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
 	// in mysql text can't have default value. Will leave it in case smth ;)
 	if (lowered === 'longtext') {
 		let out = `${casing(name)}: longtext(${dbColumnName({ name, casing: rawCasing })})`;
-		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
-			: '';
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
 	if (lowered === 'year') {
 		let out = `${casing(name)}: year(${dbColumnName({ name, casing: rawCasing })})`;
-		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
-			: '';
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
@@ -647,10 +602,14 @@ const column = (
 	if (lowered === 'json') {
 		let out = `${casing(name)}: json(${dbColumnName({ name, casing: rawCasing })})`;
 
-		out += defaultValue
-			? `.default(${mapColumnDefaultForJson(defaultValue)})`
-			: '';
+		out += defaultValue ? `.default(${mapColumnDefaultForJson(defaultValue)})` : '';
 
+		return out;
+	}
+
+	if (lowered.startsWith('point')) {
+		let out = `${casing(name)}: point(${dbColumnName({ name, casing: rawCasing })})`;
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
@@ -685,9 +644,7 @@ const column = (
 			)
 		} })`;
 
-		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
-			: '';
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 		return out;
 	}
 
@@ -722,9 +679,7 @@ const column = (
 	}
 
 	if (lowered.startsWith('decimal')) {
-		let params:
-			| { precision?: string; scale?: string; unsigned?: boolean }
-			| undefined;
+		let params: { precision?: string; scale?: string; unsigned?: boolean } | undefined;
 
 		if (lowered.length > (lowered.includes('unsigned') ? 16 : 7)) {
 			const [precision, scale] = lowered
@@ -741,7 +696,11 @@ const column = (
 
 		let out = params
 			? `${casing(name)}: decimal(${
-				dbColumnName({ name, casing: rawCasing, withMode: timeConfigParams !== undefined })
+				dbColumnName({
+					name,
+					casing: rawCasing,
+					withMode: timeConfigParams !== undefined,
+				})
 			}${timeConfigParams})`
 			: `${casing(name)}: decimal(${dbColumnName({ name, casing: rawCasing })})`;
 
@@ -755,9 +714,7 @@ const column = (
 
 	if (lowered.startsWith('binary')) {
 		const keyLength = 'binary'.length + 1;
-		let length = lowered.length > keyLength
-			? Number(lowered.substring(keyLength, lowered.length - 1))
-			: null;
+		let length = lowered.length > keyLength ? Number(lowered.substring(keyLength, lowered.length - 1)) : null;
 		length = length ? length : null;
 
 		const params = binaryConfig({ length });
@@ -766,9 +723,7 @@ const column = (
 			? `${casing(name)}: binary(${dbColumnName({ name, casing: rawCasing, withMode: params !== undefined })}${params})`
 			: `${casing(name)}: binary(${dbColumnName({ name, casing: rawCasing })})`;
 
-		defaultValue = defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
-			: '';
+		defaultValue = defaultValue ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 
 		out += defaultValue;
 		return out;
@@ -790,22 +745,22 @@ const column = (
 
 	if (lowered.startsWith('varbinary')) {
 		const keyLength = 'varbinary'.length + 1;
-		let length = lowered.length > keyLength
-			? Number(lowered.substring(keyLength, lowered.length - 1))
-			: null;
+		let length = lowered.length > keyLength ? Number(lowered.substring(keyLength, lowered.length - 1)) : null;
 		length = length ? length : null;
 
 		const params = binaryConfig({ length });
 
 		let out = params
 			? `${casing(name)}: varbinary(${
-				dbColumnName({ name, casing: rawCasing, withMode: params !== undefined })
+				dbColumnName({
+					name,
+					casing: rawCasing,
+					withMode: params !== undefined,
+				})
 			}${params})`
 			: `${casing(name)}: varbinary(${dbColumnName({ name, casing: rawCasing })})`;
 
-		defaultValue = defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
-			: '';
+		defaultValue = defaultValue ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 
 		out += defaultValue;
 		return out;
@@ -832,12 +787,15 @@ const createTableColumns = (
 		})
 		.filter((it) => it.columnsFrom.length === 1);
 
-	const fkByColumnName = oneColumnsFKs.reduce((res, it) => {
-		const arr = res[it.columnsFrom[0]] || [];
-		arr.push(it);
-		res[it.columnsFrom[0]] = arr;
-		return res;
-	}, {} as Record<string, ForeignKey[]>);
+	const fkByColumnName = oneColumnsFKs.reduce(
+		(res, it) => {
+			const arr = res[it.columnsFrom[0]] || [];
+			arr.push(it);
+			res[it.columnsFrom[0]] = arr;
+			return res;
+		},
+		{} as Record<string, ForeignKey[]>,
+	);
 
 	columns.forEach((it) => {
 		statement += '\t';
@@ -849,8 +807,7 @@ const createTableColumns = (
 			it.default,
 			it.autoincrement,
 			it.onUpdate,
-			schema.internal?.tables![tableName]?.columns[it.name]
-				?.isDefaultAnExpression ?? false,
+			schema.internal?.tables![tableName]?.columns[it.name]?.isDefaultAnExpression ?? false,
 		);
 		statement += it.primaryKey ? '.primaryKey()' : '';
 		statement += it.notNull ? '.notNull()' : '';
@@ -882,11 +839,7 @@ const createTableColumns = (
 							)
 						}.${casing(it.columnsTo[0])}, ${paramsStr} )`;
 					}
-					return `.references(()${typeSuffix} => ${casing(it.tableTo)}.${
-						casing(
-							it.columnsTo[0],
-						)
-					})`;
+					return `.references(()${typeSuffix} => ${casing(it.tableTo)}.${casing(it.columnsTo[0])})`;
 				})
 				.join('');
 			statement += fksStatement;
@@ -909,20 +862,14 @@ const createTableIndexes = (
 		let idxKey = it.name.startsWith(tableName) && it.name !== tableName
 			? it.name.slice(tableName.length + 1)
 			: it.name;
-		idxKey = idxKey.endsWith('_index')
-			? idxKey.slice(0, -'_index'.length) + '_idx'
-			: idxKey;
+		idxKey = idxKey.endsWith('_index') ? idxKey.slice(0, -'_index'.length) + '_idx' : idxKey;
 
 		idxKey = casing(idxKey);
 
 		statement += `\n\t`;
 		statement += it.isUnique ? 'uniqueIndex(' : 'index(';
 		statement += `"${it.name}")`;
-		statement += `.on(${
-			it.columns
-				.map((it) => `table.${casing(it)}`)
-				.join(', ')
-		}),`;
+		statement += `.on(${it.columns.map((it) => `table.${casing(it)}`).join(', ')}),`;
 	});
 
 	return statement;
@@ -940,11 +887,7 @@ const createTableUniques = (
 		statement += `\n\t`;
 		statement += 'unique(';
 		statement += `"${it.name}")`;
-		statement += `.on(${
-			it.columns
-				.map((it) => `table.${casing(it)}`)
-				.join(', ')
-		}),`;
+		statement += `.on(${it.columns.map((it) => `table.${casing(it)}`).join(', ')}),`;
 	});
 
 	return statement;
@@ -967,10 +910,7 @@ const createTableChecks = (
 	return statement;
 };
 
-const createTablePKs = (
-	pks: PrimaryKey[],
-	casing: (value: string) => string,
-): string => {
+const createTablePKs = (pks: PrimaryKey[], casing: (value: string) => string): string => {
 	let statement = '';
 
 	pks.forEach((it) => {
@@ -991,10 +931,7 @@ const createTablePKs = (
 	return statement;
 };
 
-const createTableFKs = (
-	fks: ForeignKey[],
-	casing: (value: string) => string,
-): string => {
+const createTableFKs = (fks: ForeignKey[], casing: (value: string) => string): string => {
 	let statement = '';
 
 	fks.forEach((it) => {
@@ -1002,11 +939,7 @@ const createTableFKs = (
 		const tableTo = isSelf ? 'table' : `${casing(it.tableTo)}`;
 		statement += `\n\t`;
 		statement += `foreignKey({\n`;
-		statement += `\t\t\tcolumns: [${
-			it.columnsFrom
-				.map((i) => `table.${casing(i)}`)
-				.join(', ')
-		}],\n`;
+		statement += `\t\t\tcolumns: [${it.columnsFrom.map((i) => `table.${casing(i)}`).join(', ')}],\n`;
 		statement += `\t\t\tforeignColumns: [${
 			it.columnsTo
 				.map((i) => `${tableTo}.${casing(i)}`)
@@ -1015,13 +948,9 @@ const createTableFKs = (
 		statement += `\t\t\tname: "${it.name}"\n`;
 		statement += `\t\t})`;
 
-		statement += it.onUpdate && it.onUpdate !== 'no action'
-			? `.onUpdate("${it.onUpdate}")`
-			: '';
+		statement += it.onUpdate && it.onUpdate !== 'no action' ? `.onUpdate("${it.onUpdate}")` : '';
 
-		statement += it.onDelete && it.onDelete !== 'no action'
-			? `.onDelete("${it.onDelete}")`
-			: '';
+		statement += it.onDelete && it.onDelete !== 'no action' ? `.onDelete("${it.onDelete}")` : '';
 
 		statement += `,`;
 	});

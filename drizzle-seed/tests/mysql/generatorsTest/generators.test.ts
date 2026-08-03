@@ -84,6 +84,14 @@ beforeAll(async () => {
 			);
 		`,
 	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE \`point_table\` (
+				\`point\` point
+			);
+		`,
+	);
 });
 
 afterAll(async () => {
@@ -121,6 +129,23 @@ test('year generator test', async () => {
 	}));
 
 	const data = await db.select().from(schema.yearTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+});
+
+test('point generator test', async () => {
+	await seed(db, { pointTable: schema.pointTable }).refine((funcs) => ({
+		pointTable: {
+			count,
+			columns: {
+				point: funcs.point(),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.pointTable);
 	// every value in each row does not equal undefined.
 	const predicate = data.length !== 0
 		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
