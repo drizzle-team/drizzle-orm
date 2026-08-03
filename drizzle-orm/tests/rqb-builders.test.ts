@@ -653,3 +653,43 @@ describe('Reverse-derived relation filter binding (isFilterReversed)', () => {
 		expect(sql).not.toContain('"d1"."name"');
 	});
 });
+
+describe('Relation names shadowing Object.prototype properties', () => {
+	const results = pgTable('results', { id: integer(), constructorId: integer() });
+	const constructors = pgTable('constructors', { id: integer(), name: text() });
+	const protoSchema = { results, constructors };
+
+	test('relation named "constructor" does not falsely collide with columns', () => {
+		expect(() =>
+			defineRelations(protoSchema, (r) => ({
+				results: {
+					constructor: r.one.constructors({ from: r.results.constructorId, to: r.constructors.id }),
+				},
+			}))
+		).not.toThrow();
+	});
+
+	test('filter on a relation named "constructor" builds a relation filter', () => {
+		const db = drizzle.mock({
+			relations: defineRelations(protoSchema, (r) => ({
+				results: {
+					constructor: r.one.constructors({ from: r.results.constructorId, to: r.constructors.id }),
+				},
+			})),
+		});
+
+		const { sql } = db.query.results.findMany({ where: { constructor: { id: 1 } } }).toSQL();
+		expect(sql).toContain('exists (select * from "constructors" as "f0" where');
+		expect(sql).not.toContain('"d0"."constructor"');
+	});
+
+	test('unknown filter field named after an inherited property throws', () => {
+		expect(() =>
+			buildFilter(table, {
+				toString: {
+					eq: 1,
+				},
+			} as any)
+		).toThrowError('Unknown relational filter field: "toString"');
+	});
+});
