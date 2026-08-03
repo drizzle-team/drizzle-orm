@@ -3792,9 +3792,9 @@ export function tests(driver?: string) {
 				.select({ value: avgDistinct(table.b) })
 				.from(table);
 
-			expect(result1[0]?.value).toBe('33.3333');
+			expect(result1[0]?.value).toBe(33.3333);
 			expect(result2[0]?.value).toBe(null);
-			expect(result3[0]?.value).toBe('42.5000');
+			expect(result3[0]?.value).toBe(42.5);
 		});
 
 		test('aggregate function: sum', async (ctx) => {
@@ -3810,9 +3810,9 @@ export function tests(driver?: string) {
 				.select({ value: sumDistinct(table.b) })
 				.from(table);
 
-			expect(result1[0]?.value).toBe('200');
+			expect(result1[0]?.value).toBe(200);
 			expect(result2[0]?.value).toBe(null);
-			expect(result3[0]?.value).toBe('170');
+			expect(result3[0]?.value).toBe(170);
 		});
 
 		test('aggregate function: max', async (ctx) => {
