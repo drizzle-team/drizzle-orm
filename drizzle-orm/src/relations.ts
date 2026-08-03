@@ -101,7 +101,7 @@ export function processRelations(tablesConfig: TablesRelationalConfig, tables: S
 				is(relation, One) ? 'one' : 'many'
 			}.${targetTableName}(...) }`;
 
-			if (relationFieldName in tableConfig.table[TableColumns]) {
+			if (Object.prototype.hasOwnProperty.call(tableConfig.table[TableColumns], relationFieldName)) {
 				throw new Error(
 					`${relationPrintName}: relation name collides with column "${relationFieldName}" of table "${tableConfig.name}"`,
 				);

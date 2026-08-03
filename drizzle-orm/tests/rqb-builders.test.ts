@@ -569,6 +569,26 @@ test('Relation & colum names collision', () => {
 	);
 });
 
+test('Relation names may use inherited object keys', () => {
+	const sourceTable = pgTable('source_table', {
+		id: integer(),
+	});
+	const targetTable = pgTable('target_table', {
+		id: integer(),
+	});
+
+	expect(() =>
+		defineRelations({ sourceTable, targetTable }, (r) => ({
+			sourceTable: {
+				constructor: r.one.targetTable({
+					from: r.sourceTable.id,
+					to: r.targetTable.id,
+				}),
+			},
+		}))
+	).not.toThrow();
+});
+
 const users = pgTable('users', {
 	id: integer(),
 });
