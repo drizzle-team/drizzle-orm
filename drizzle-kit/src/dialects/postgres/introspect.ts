@@ -840,23 +840,35 @@ export const fromDatabase = async (
 	}
 
 	for (const fk of constraintsList.filter((it) => it.type === 'f')) {
-		const table = tablesList.find((it) => Number(it.oid) === Number(fk.tableId))!;
-		const schema = namespaces.find((it) => Number(it.oid) === Number(fk.schemaId))!;
-		const tableTo = tablesList.find((it) => Number(it.oid) === Number(fk.tableToId))!;
+		const table = tablesList.find((it) => Number(it.oid) === Number(fk.tableId));
+		const schema = namespaces.find((it) => Number(it.oid) === Number(fk.schemaId));
+		const tableTo = tablesList.find((it) => Number(it.oid) === Number(fk.tableToId));
 
 		const columns = fk.columnsOrdinals.map((it) => {
 			const column = columnsList.find((column) =>
 				Number(column.tableId) === Number(fk.tableId) && column.ordinality === it
-			)!;
-			return column.name;
+			);
+			return column?.name;
 		});
 
 		const columnsTo = fk.columnsToOrdinals.map((it) => {
 			const column = columnsList.find((column) =>
 				Number(column.tableId) === Number(fk.tableToId) && column.ordinality === it
-			)!;
-			return column.name;
+			);
+			return column?.name;
 		});
+
+		if (
+			!table
+			|| !schema
+			|| !tableTo
+			|| columns.some((column) => column === undefined)
+			|| columnsTo.some((column) => column === undefined)
+		) {
+			continue;
+		}
+		const resolvedColumns = columns.filter((column): column is string => column !== undefined);
+		const resolvedColumnsTo = columnsTo.filter((column): column is string => column !== undefined);
 
 		fks.push({
 			entityType: 'fks',
@@ -864,10 +876,10 @@ export const fromDatabase = async (
 			table: table.name,
 			name: fk.name,
 			nameExplicit: true,
-			columns,
+			columns: resolvedColumns,
 			tableTo: tableTo.name,
 			schemaTo: tableTo.schema,
-			columnsTo,
+			columnsTo: resolvedColumnsTo,
 			onUpdate: parseOnType(fk.onUpdate),
 			onDelete: parseOnType(fk.onDelete),
 		});

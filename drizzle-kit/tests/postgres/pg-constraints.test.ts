@@ -2245,6 +2245,31 @@ test('unique multistep #3', async () => {
 	expect(st1).toStrictEqual(['ALTER TABLE "users" RENAME TO "users2";']);
 });
 
+test('introspection skips foreign keys referencing an invisible schema', async () => {
+	await db.query('CREATE SCHEMA visible');
+	await db.query('CREATE SCHEMA hidden');
+	await db.query('CREATE TABLE hidden.parent (id integer PRIMARY KEY)');
+	await db.query(
+		'CREATE TABLE visible.child (parent_id integer REFERENCES hidden.parent(id))',
+	);
+	await db.query('CREATE ROLE introspector');
+	await db.query('GRANT USAGE ON SCHEMA visible TO introspector');
+	await db.query('SET ROLE introspector');
+
+	try {
+		const interim = await fromDatabase(db);
+		expect(interim.tables).toEqual(
+			expect.arrayContaining([expect.objectContaining({ schema: 'visible', name: 'child' })]),
+		);
+		expect(interim.tables).not.toEqual(
+			expect.arrayContaining([expect.objectContaining({ schema: 'hidden', name: 'parent' })]),
+		);
+		expect(interim.fks).toHaveLength(0);
+	} finally {
+		await db.query('RESET ROLE');
+	}
+});
+
 test('constraints order', async () => {
 	const users = pgTable('users', {
 		col1: text(),
