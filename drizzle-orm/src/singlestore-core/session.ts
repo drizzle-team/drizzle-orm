@@ -255,6 +255,9 @@ export abstract class SingleStoreTransaction<
 		super(dialect, session, schema);
 	}
 
+	/**
+	 * @throws {TransactionRollbackError}
+	 */
 	rollback(): never {
 		throw new TransactionRollbackError();
 	}
