@@ -24,7 +24,7 @@ import {
 	relationToSQL,
 } from '~/relations.ts';
 import { and } from '~/sql/expressions/index.ts';
-import { isSQLWrapper, noopEncoder, Param, SQL, sql, View } from '~/sql/sql.ts';
+import { isSQLWrapper, noopEncoder, Param, SQL, sql, StringChunk, View } from '~/sql/sql.ts';
 import type { DriverValueEncoder, Name, Placeholder, Query, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
@@ -148,26 +148,26 @@ export class MySqlDialect {
 		);
 
 		const setLength = columnNames.length;
-		return sql.join(
-			columnNames.flatMap((colName, i) => {
-				const col = tableColumns[colName]!;
+		const setArr: SQLChunk[] = Array.from({ length: setLength });
 
-				let value;
-				if (set[colName] !== undefined) {
-					value = set[colName];
-				} else {
-					const updateRes = col.onUpdateFn?.();
-					value = is(updateRes, SQL) ? updateRes : sql.param(updateRes, col);
-				}
+		for (let i = 0; i < columnNames.length; ++i) {
+			const colName = columnNames[i]!;
+			const col = tableColumns[colName]!;
 
-				const res = sql`${sql.identifier(col.name)} = ${value}`;
+			let value;
+			if (set[colName] !== undefined) {
+				value = set[colName];
+			} else {
+				const updateRes = col.onUpdateFn?.();
+				value = is(updateRes, SQL) ? updateRes : sql.param(updateRes, col);
+			}
 
-				if (i < setLength - 1) {
-					return [res, sql.raw(', ')];
-				}
-				return [res];
-			}),
-		);
+			setArr[i] = i < setLength - 1
+				? sql`${sql.identifier(col.name)} = ${value}, `
+				: sql`${sql.identifier(col.name)} = ${value}`;
+		}
+
+		return new SQL(setArr);
 	}
 
 	buildUpdateQuery({
@@ -702,7 +702,6 @@ export class MySqlDialect {
 		comment,
 	}: MySqlInsertConfig): { sql: SQL; generatedIds: Record<string, unknown>[] } {
 		// const isSingleValue = values.length === 1;
-		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, MySqlColumn> = table[Table.Symbol.Columns];
 		const colEntries: [string, MySqlColumn][] = columnList
 			? columnList.map((name) => [name, columns[name]!])
@@ -716,28 +715,30 @@ export class MySqlDialect {
 		const insertOrder = colEntriesFiltered.map(([, column]) => sql.identifier(column.name));
 		const generatedIdsResponse: Record<string, unknown>[] = [];
 
+		const valuesSqlList: SQLChunk[] = Array.from({
+			length: select
+				? 1
+				: (colEntriesFiltered.length * 2 + 1) * (valuesOrSelect as Record<string, unknown>[]).length
+					+ (valuesOrSelect as Record<string, unknown>[]).length,
+		});
+
 		if (select) {
-			const select = valuesOrSelect as AnyMySqlSelectQueryBuilder | SQL;
-
-			if (is(select, SQL)) {
-				valuesSqlList.push(select);
-			} else {
-				valuesSqlList.push(select.getSQL());
-			}
+			valuesSqlList[0] = (valuesOrSelect as AnyMySqlSelectQueryBuilder | SQL).getSQL();
 		} else {
-			const values = valuesOrSelect as Record<string, Param | SQL>[];
-			valuesSqlList.push(sql.raw('values '));
+			const values = valuesOrSelect as Record<string, unknown>[];
 
-			for (const [valueIndex, value] of values.entries()) {
+			let writeIdx = 0;
+			valuesSqlList[writeIdx++] = new StringChunk('values ');
+
+			for (let valueIndex = 0; valueIndex < values.length; ++valueIndex) {
+				const value = values[valueIndex]!;
 				const generatedIds: Record<string, unknown> = {};
 
-				const valueList: (SQLChunk | SQL)[] = [];
-				for (const [fieldName, col] of colEntriesFiltered) {
+				valuesSqlList[writeIdx++] = new StringChunk('(');
+				for (let i = 0; i < colEntriesFiltered.length; ++i) {
+					const [fieldName, col] = colEntriesFiltered[i]!;
 					const colValue = value[fieldName];
-					if (
-						colValue === undefined
-						|| (is(colValue, Param) && colValue.value === undefined)
-					) {
+					if (colValue === undefined) {
 						// eslint-disable-next-line unicorn/no-negated-condition
 						if (col.defaultFn !== undefined) {
 							const defaultFnResult = col.defaultFn();
@@ -745,34 +746,42 @@ export class MySqlDialect {
 							const defaultValue = is(defaultFnResult, SQL)
 								? defaultFnResult
 								: sql.param(defaultFnResult, col);
-							valueList.push(defaultValue);
+							valuesSqlList[writeIdx++] = defaultValue;
 							// eslint-disable-next-line unicorn/no-negated-condition
 						} else if (!col.default && col.onUpdateFn !== undefined) {
 							const onUpdateFnResult = col.onUpdateFn();
 							const newValue = is(onUpdateFnResult, SQL)
 								? onUpdateFnResult
 								: sql.param(onUpdateFnResult, col);
-							valueList.push(newValue);
+							valuesSqlList[writeIdx++] = newValue;
 						} else {
-							valueList.push(sql`default`);
+							valuesSqlList[writeIdx++] = new StringChunk(`default`);
 						}
+					} else if (is(colValue, SQL)) {
+						valuesSqlList[writeIdx++] = colValue;
 					} else {
-						if (col.defaultFn && is(colValue, Param)) {
-							generatedIds[fieldName] = colValue.value;
+						if (col.defaultFn) {
+							generatedIds[fieldName] = colValue;
 						}
-						valueList.push(colValue);
+						valuesSqlList[writeIdx++] = new Param(colValue, col);
+					}
+
+					if (i < colEntriesFiltered.length - 1) {
+						valuesSqlList[writeIdx++] = new StringChunk(', ');
 					}
 				}
 
 				generatedIdsResponse.push(generatedIds);
-				valuesSqlList.push(valueList);
+
+				valuesSqlList[writeIdx++] = new StringChunk(')');
+
 				if (valueIndex < values.length - 1) {
-					valuesSqlList.push(sql`, `);
+					valuesSqlList[writeIdx++] = new StringChunk(`, `);
 				}
 			}
 		}
 
-		const valuesSql = sql.join(valuesSqlList);
+		const valuesSql = new SQL(valuesSqlList);
 
 		const ignoreSql = ignore ? sql` ignore` : undefined;
 
@@ -804,6 +813,7 @@ export class MySqlDialect {
 		key: string,
 		inJson: boolean,
 		selection: BuildRelationalQueryResult['selection'],
+		tableTsName: string,
 	) {
 		let decoderColumn: Column | undefined;
 		let fieldType: BuildRelationalQueryResult['selection'][number]['fieldType'];
@@ -846,7 +856,9 @@ export class MySqlDialect {
 			}`;
 		} else {
 			throw new DrizzleError({
-				message: `Views with nested selections are not supported by the relational query builder`,
+				message: field === undefined
+					? `Unknown column: "${tableTsName}"."${key}"`
+					: `Views with nested selections are not supported by the relational query builder`,
 			});
 		}
 
@@ -874,12 +886,13 @@ export class MySqlDialect {
 		table: Table | View,
 		selection: BuildRelationalQueryResult['selection'],
 		inJson: boolean,
+		tableTsName: string,
 		config?: DBQueryConfigWithComment<'many'>,
 	) => {
 		if (!config?.columns) {
 			return sql.join(
 				Object.entries(table[TableColumns]).map(([k, v]) => {
-					return this.buildRqbColumn(table, v, k, inJson, selection);
+					return this.buildRqbColumn(table, v, k, inJson, selection, tableTsName);
 				}),
 				sql`, `,
 			);
@@ -895,14 +908,14 @@ export class MySqlDialect {
 			colSelectionMode = colSelectionMode || v;
 
 			if (v) {
-				columnIdentifiers.push(this.buildRqbColumn(table, columnContainer[k]!, k, inJson, selection));
+				columnIdentifiers.push(this.buildRqbColumn(table, columnContainer[k]!, k, inJson, selection, tableTsName));
 			}
 		}
 
 		if (colSelectionMode === false) {
 			for (const [k, v] of Object.entries(columnContainer)) {
 				if (config.columns[k] === false) continue;
-				columnIdentifiers.push(this.buildRqbColumn(table, v, k, inJson, selection));
+				columnIdentifiers.push(this.buildRqbColumn(table, v, k, inJson, selection, tableTsName));
 			}
 		}
 
@@ -946,7 +959,7 @@ export class MySqlDialect {
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
 
-		const columns = this.buildColumns(table, selection, !!nested, params);
+		const columns = this.buildColumns(table, selection, !!nested, tableConfig.name, params);
 
 		const where: SQL | undefined = params && 'where' in params && relationWhere
 			? and(
@@ -998,7 +1011,8 @@ export class MySqlDialect {
 						sql`${sql.identifier(k)}.${sql.identifier('r')} as ${sql.identifier(k)}`,
 					);
 
-					const relation = tableConfig.relations[k]!;
+					const relation = tableConfig.relations[k];
+					if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
 					const isSingle = relation.relationType === 'one';
 					const targetTable = aliasedTable(
 						relation.targetTable,

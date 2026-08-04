@@ -32,7 +32,7 @@ import {
 	type WithContainer,
 } from '~/relations.ts';
 import { and, isSQLWrapper, type SQLWrapper, View } from '~/sql/index.ts';
-import { type Name, Param, type Query, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
+import { type Name, Param, type Query, SQL, sql, type SQLChunk, StringChunk } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
 import { makeDefaultQueryMapper, makeJitQueryMapper, type RowsMapperGenerator, type UpdateSet } from '~/utils.ts';
@@ -146,26 +146,26 @@ export class PgDialect {
 		);
 
 		const setLength = columnNames.length;
-		return sql.join(
-			columnNames.flatMap((colName, i) => {
-				const col = tableColumns[colName]!;
+		const setArr: SQLChunk[] = Array.from({ length: setLength });
 
-				let value;
-				if (set[colName] !== undefined) {
-					value = set[colName];
-				} else {
-					const updateRes = col.onUpdateFn?.();
-					value = is(updateRes, SQL) ? updateRes : sql.param(updateRes, col);
-				}
+		for (let i = 0; i < columnNames.length; ++i) {
+			const colName = columnNames[i]!;
+			const col = tableColumns[colName]!;
 
-				const res = sql`${sql.identifier(col.name)} = ${value}`;
+			let value;
+			if (set[colName] !== undefined) {
+				value = set[colName];
+			} else {
+				const updateRes = col.onUpdateFn?.();
+				value = is(updateRes, SQL) ? updateRes : sql.param(updateRes, col);
+			}
 
-				if (i < setLength - 1) {
-					return [res, sql.raw(', ')];
-				}
-				return [res];
-			}),
-		);
+			setArr[i] = i < setLength - 1
+				? sql`${sql.identifier(col.name)} = ${value}, `
+				: sql`${sql.identifier(col.name)} = ${value}`;
+		}
+
+		return new SQL(setArr);
 	}
 
 	buildUpdateQuery({
@@ -665,7 +665,6 @@ export class PgDialect {
 		columnList,
 		ignoreSelectionCastCodecs,
 	}: PgInsertConfig): SQL {
-		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
 		const colEntries: [string, PgColumn][] = columnList
 			? columnList.map((name) => [name, columns[name]!])
@@ -681,58 +680,66 @@ export class PgDialect {
 
 		const insertOrder = colFilteredEntries.map(([, column]) => sql.identifier(column.name));
 
-		if (select) {
-			const select = valuesOrSelect as AnyPgSelectQueryBuilder | SQL;
+		const valuesSqlList: SQLChunk[] = Array.from({
+			length: select
+				? 1
+				: (colFilteredEntries.length * 2 + 1) * (valuesOrSelect as Record<string, unknown>[]).length
+					+ (valuesOrSelect as Record<string, unknown>[]).length,
+		});
 
-			if (is(select, SQL)) {
-				valuesSqlList.push(select);
-			} else {
-				valuesSqlList.push(select.getSQL());
-			}
+		if (select) {
+			valuesSqlList[0] = (valuesOrSelect as AnyPgSelectQueryBuilder | SQL).getSQL();
 		} else {
 			const values = valuesOrSelect as Record<string, Param | SQL>[];
-			valuesSqlList.push(sql.raw('values '));
 
-			for (const [valueIndex, value] of values.entries()) {
-				const valueList: (SQLChunk | SQL)[] = [];
-				for (const [fieldName, col] of colFilteredEntries) {
+			let writeIdx = 0;
+			valuesSqlList[writeIdx++] = new StringChunk('values ');
+
+			for (let valueIndex = 0; valueIndex < values.length; ++valueIndex) {
+				const value = values[valueIndex]!;
+
+				valuesSqlList[writeIdx++] = new StringChunk('(');
+				for (let i = 0; i < colFilteredEntries.length; ++i) {
+					const [fieldName, col] = colFilteredEntries[i]!;
 					const colValue = value[fieldName];
-					if (
-						colValue === undefined
-						|| (is(colValue, Param) && colValue.value === undefined)
-					) {
+					if (colValue === undefined) {
 						// eslint-disable-next-line unicorn/no-negated-condition
 						if (col.defaultFn !== undefined) {
 							const defaultFnResult = col.defaultFn();
 							const defaultValue = is(defaultFnResult, SQL)
 								? defaultFnResult
 								: sql.param(defaultFnResult, col);
-							valueList.push(defaultValue);
+							valuesSqlList[writeIdx++] = defaultValue;
 							// eslint-disable-next-line unicorn/no-negated-condition
 						} else if (!col.default && col.onUpdateFn !== undefined) {
 							const onUpdateFnResult = col.onUpdateFn();
 							const newValue = is(onUpdateFnResult, SQL)
 								? onUpdateFnResult
 								: sql.param(onUpdateFnResult, col);
-							valueList.push(newValue);
+							valuesSqlList[writeIdx++] = newValue;
 						} else {
-							valueList.push(sql`default`);
+							valuesSqlList[writeIdx++] = new StringChunk(`default`);
 						}
 					} else {
-						valueList.push(colValue);
+						valuesSqlList[writeIdx++] = is(colValue, SQL) ? colValue : new Param(colValue, col);
+					}
+
+					if (i < colFilteredEntries.length - 1) {
+						valuesSqlList[writeIdx++] = new StringChunk(', ');
 					}
 				}
 
-				valuesSqlList.push(valueList);
+				valuesSqlList[writeIdx++] = new StringChunk(')');
+
 				if (valueIndex < values.length - 1) {
-					valuesSqlList.push(sql`, `);
+					valuesSqlList[writeIdx++] = new StringChunk(`, `);
 				}
 			}
 		}
 
 		const withSql = this.buildWithCTE(withList);
 
-		const valuesSql = sql.join(valuesSqlList);
+		const valuesSql = new SQL(valuesSqlList);
 
 		const returningSql = returning
 			? sql` returning ${
@@ -793,6 +800,7 @@ export class PgDialect {
 		key: string,
 		inJson: boolean,
 		selection: BuildRelationalQueryResult['selection'],
+		tableTsName: string,
 	) {
 		let decoderColumn: Column | undefined;
 		let fieldType: BuildRelationalQueryResult['selection'][number]['fieldType'];
@@ -835,7 +843,9 @@ export class PgDialect {
 			}`;
 		} else {
 			throw new DrizzleError({
-				message: `Views with nested selections are not supported by the relational query builder`,
+				message: field === undefined
+					? `Unknown column: "${tableTsName}"."${key}"`
+					: `Views with nested selections are not supported by the relational query builder`,
 			});
 		}
 
@@ -864,12 +874,13 @@ export class PgDialect {
 		table: Table | View,
 		selection: BuildRelationalQueryResult['selection'],
 		inJson: boolean,
+		tableTsName: string,
 		config?: DBQueryConfigWithComment<'many'>,
 	) => {
 		if (!config?.columns) {
 			return sql.join(
 				Object.entries(table[TableColumns]).map(([k, v]) => {
-					return this.buildRqbColumn(table, v, k, inJson, selection);
+					return this.buildRqbColumn(table, v, k, inJson, selection, tableTsName);
 				}),
 				sql`, `,
 			);
@@ -885,14 +896,14 @@ export class PgDialect {
 			colSelectionMode = colSelectionMode || v;
 
 			if (v) {
-				columnIdentifiers.push(this.buildRqbColumn(table, columnContainer[k]!, k, inJson, selection));
+				columnIdentifiers.push(this.buildRqbColumn(table, columnContainer[k]!, k, inJson, selection, tableTsName));
 			}
 		}
 
 		if (colSelectionMode === false) {
 			for (const [k, v] of Object.entries(columnContainer)) {
 				if (config.columns[k] === false) continue;
-				columnIdentifiers.push(this.buildRqbColumn(table, v, k, inJson, selection));
+				columnIdentifiers.push(this.buildRqbColumn(table, v, k, inJson, selection, tableTsName));
 			}
 		}
 
@@ -955,7 +966,7 @@ export class PgDialect {
 		const order = params?.orderBy
 			? relationsOrderToSQL(table, params.orderBy)
 			: undefined;
-		const columns = this.buildColumns(table, selection, !!nested, params);
+		const columns = this.buildColumns(table, selection, !!nested, tableConfig.name, params);
 		const extras = params?.extras
 			? relationExtrasToSQL(table, params.extras, this.codecs, nested)
 			: undefined;
@@ -982,7 +993,8 @@ export class PgDialect {
 				for (let readIdx = 0, writeIdx = 1; readIdx < withEntries.length; ++readIdx) {
 					const [k, join] = withEntries[readIdx]!;
 
-					const relation = tableConfig.relations[k]!;
+					const relation = tableConfig.relations[k];
+					if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
 					const isSingle = relation.relationType === 'one';
 					const targetTable = aliasedTable(
 						relation.targetTable,

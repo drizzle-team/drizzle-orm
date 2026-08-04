@@ -24,7 +24,7 @@ import {
 } from '~/relations.ts';
 import type { Name, Placeholder, SQLWrapper } from '~/sql/index.ts';
 import { and, isSQLWrapper } from '~/sql/index.ts';
-import { Param, type Query, SQL, sql, type SQLChunk, View } from '~/sql/sql.ts';
+import { Param, type Query, SQL, sql, type SQLChunk, StringChunk, View } from '~/sql/sql.ts';
 import { SQLiteColumn, type SQLiteCustomColumn } from '~/sqlite-core/columns/index.ts';
 import type {
 	AnySQLiteSelectQueryBuilder,
@@ -135,26 +135,26 @@ export class SQLiteDialect {
 		);
 
 		const setLength = columnNames.length;
-		return sql.join(
-			columnNames.flatMap((colName, i) => {
-				const col = tableColumns[colName]!;
+		const setArr: SQLChunk[] = Array.from({ length: setLength });
 
-				let value;
-				if (set[colName] !== undefined) {
-					value = set[colName];
-				} else {
-					const updateRes = col.onUpdateFn?.();
-					value = is(updateRes, SQL) ? updateRes : sql.param(updateRes, col);
-				}
+		for (let i = 0; i < columnNames.length; ++i) {
+			const colName = columnNames[i]!;
+			const col = tableColumns[colName]!;
 
-				const res = sql`${sql.identifier(col.name)} = ${value}`;
+			let value;
+			if (set[colName] !== undefined) {
+				value = set[colName];
+			} else {
+				const updateRes = col.onUpdateFn?.();
+				value = is(updateRes, SQL) ? updateRes : sql.param(updateRes, col);
+			}
 
-				if (i < setLength - 1) {
-					return [res, sql.raw(', ')];
-				}
-				return [res];
-			}),
-		);
+			setArr[i] = i < setLength - 1
+				? sql`${sql.identifier(col.name)} = ${value}, `
+				: sql`${sql.identifier(col.name)} = ${value}`;
+		}
+
+		return new SQL(setArr);
 	}
 
 	buildUpdateQuery({
@@ -621,7 +621,6 @@ export class SQLiteDialect {
 		columnList,
 	}: SQLiteInsertConfig): SQL {
 		// const isSingleValue = values.length === 1;
-		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, SQLiteColumn> = table[Table.Symbol.Columns];
 
 		const colEntries: [string, SQLiteColumn][] = columnList
@@ -635,61 +634,70 @@ export class SQLiteDialect {
 
 		const insertOrder = colEntriesFiltered.map(([, column]) => sql.identifier(column.name));
 
+		const valuesSqlList: SQLChunk[] = Array.from({
+			length: select
+				? 1
+				: (colEntriesFiltered.length * 2 + 1) * (valuesOrSelect as Record<string, unknown>[]).length
+					+ (valuesOrSelect as Record<string, unknown>[]).length,
+		});
+
 		if (select) {
-			const select = valuesOrSelect as AnySQLiteSelectQueryBuilder | SQL;
-
-			if (is(select, SQL)) {
-				valuesSqlList.push(select);
-			} else {
-				valuesSqlList.push(select.getSQL());
-			}
+			valuesSqlList[0] = (valuesOrSelect as AnySQLiteSelectQueryBuilder | SQL).getSQL();
 		} else {
-			const values = valuesOrSelect as Record<string, Param | SQL>[];
-			valuesSqlList.push(sql.raw('values '));
+			const values = valuesOrSelect as Record<string, unknown>[];
 
-			for (const [valueIndex, value] of values.entries()) {
-				const valueList: (SQLChunk | SQL)[] = [];
-				for (const [fieldName, col] of colEntriesFiltered) {
+			let writeIdx = 0;
+			valuesSqlList[writeIdx++] = new StringChunk('values ');
+
+			for (let valueIndex = 0; valueIndex < values.length; ++valueIndex) {
+				const value = values[valueIndex]!;
+
+				valuesSqlList[writeIdx++] = new StringChunk('(');
+				for (let i = 0; i < colEntriesFiltered.length; ++i) {
+					const [fieldName, col] = colEntriesFiltered[i]!;
 					const colValue = value[fieldName];
-					if (
-						colValue === undefined
-						|| (is(colValue, Param) && colValue.value === undefined)
-					) {
+					if (colValue === undefined) {
 						let defaultValue;
-						if (col.default !== null && col.default !== undefined) {
-							defaultValue = is(col.default, SQL)
-								? col.default
-								: sql.param(col.default, col);
-							// eslint-disable-next-line unicorn/no-negated-condition
-						} else if (col.defaultFn !== undefined) {
+						if (col.defaultFn !== undefined) {
 							const defaultFnResult = col.defaultFn();
 							defaultValue = is(defaultFnResult, SQL)
 								? defaultFnResult
 								: sql.param(defaultFnResult, col);
 							// eslint-disable-next-line unicorn/no-negated-condition
-						} else if (!col.default && col.onUpdateFn !== undefined) {
+						} else if (col.default !== null && col.default !== undefined) {
+							defaultValue = is(col.default, SQL)
+								? col.default
+								: sql.param(col.default, col);
+							// eslint-disable-next-line unicorn/no-negated-condition
+						} else if (col.onUpdateFn !== undefined) {
 							const onUpdateFnResult = col.onUpdateFn();
 							defaultValue = is(onUpdateFnResult, SQL)
 								? onUpdateFnResult
 								: sql.param(onUpdateFnResult, col);
 						} else {
-							defaultValue = sql`null`;
+							defaultValue = new StringChunk('null');
 						}
-						valueList.push(defaultValue);
+						valuesSqlList[writeIdx++] = defaultValue;
 					} else {
-						valueList.push(colValue);
+						valuesSqlList[writeIdx++] = is(colValue, SQL) ? colValue : new Param(colValue, col);
+					}
+
+					if (i < colEntriesFiltered.length - 1) {
+						valuesSqlList[writeIdx++] = new StringChunk(', ');
 					}
 				}
-				valuesSqlList.push(valueList);
+
+				valuesSqlList[writeIdx++] = new StringChunk(')');
+
 				if (valueIndex < values.length - 1) {
-					valuesSqlList.push(sql`, `);
+					valuesSqlList[writeIdx++] = new StringChunk(`, `);
 				}
 			}
 		}
 
 		const withSql = this.buildWithCTE(withList);
 
-		const valuesSql = sql.join(valuesSqlList);
+		const valuesSql = new SQL(valuesSqlList);
 
 		const returningSql = returning
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true, table })}`
@@ -713,27 +721,22 @@ export class SQLiteDialect {
 		});
 	}
 
-	private nestedSelectionerror(): never {
-		throw new DrizzleError({
-			message: `Views with nested selections are not supported by the relational query builder`,
-		});
-	}
-
 	private buildRqbColumn(
 		table: Table | View,
-		column: unknown,
+		field: unknown,
 		key: string,
 		inJson: boolean,
 		selection: BuildRelationalQueryResult['selection'],
+		tableTsName: string,
 	) {
 		let fieldType: BuildRelationalQueryResult['selection'][number]['fieldType'];
 		let output: SQL;
 
-		if (is(column, Column)) {
+		if (is(field, Column)) {
 			fieldType = 'Column';
-			const name = sql`${table}.${sql.identifier(column.name)}`;
+			const name = sql`${table}.${sql.identifier(field.name)}`;
 
-			switch (column.columnType) {
+			switch (field.columnType) {
 				case 'SQLiteBigInt':
 				case 'SQLiteBlobJson':
 				case 'SQLiteBlobBuffer': {
@@ -753,7 +756,7 @@ export class SQLiteDialect {
 				case 'SQLiteCustomColumn': {
 					output = !inJson
 						? sql`${name} as ${sql.identifier(key)}`
-						: sql`${(<SQLiteCustomColumn<any>> column).jsonSelectIdentifier(name, sql)} as ${sql.identifier(key)}`;
+						: sql`${(<SQLiteCustomColumn<any>> field).jsonSelectIdentifier(name, sql)} as ${sql.identifier(key)}`;
 					break;
 				}
 
@@ -761,36 +764,27 @@ export class SQLiteDialect {
 					output = sql`${name} as ${sql.identifier(key)}`;
 				}
 			}
-		} else if (is(column, SQL)) {
+		} else if (is(field, SQL)) {
 			fieldType = 'SQL';
 			output = sql`${table}.${sql.identifier(key)} as ${sql.identifier(key)}`;
-		} else if (is(column, SQL.Aliased)) {
+		} else if (is(field, SQL.Aliased)) {
 			fieldType = 'SQL.Aliased';
-			output = sql`${table}.${sql.identifier(column.fieldAlias)} as ${sql.identifier(key)}`;
-		} else if (isSQLWrapper(column)) {
+			output = sql`${table}.${sql.identifier(field.fieldAlias)} as ${sql.identifier(key)}`;
+		} else if (isSQLWrapper(field)) {
 			fieldType = 'SQLWrapper';
 			output = sql`${table}.${sql.identifier(key)} as ${sql.identifier(key)}`;
 		} else {
-			return this.nestedSelectionerror();
+			throw new DrizzleError({
+				message: field === undefined
+					? `Unknown column: "${tableTsName}"."${key}"`
+					: `Views with nested selections are not supported by the relational query builder`,
+			});
 		}
 
-		selection.push({ key, field: column, fieldType } as BuildRelationalQueryResult['selection'][number]);
+		selection.push({ key, field, fieldType } as BuildRelationalQueryResult['selection'][number]);
 
 		return output;
 	}
-
-	private unwrapAllColumns = (
-		table: Table | View,
-		selection: BuildRelationalQueryResult['selection'],
-		inJson: boolean,
-	) => {
-		return sql.join(
-			Object.entries(table[TableColumns]).map(([k, v]) => {
-				return this.buildRqbColumn(table, v, k, inJson, selection);
-			}),
-			sql`, `,
-		);
-	};
 
 	private getSelectedTableColumns = (
 		table: Table | View,
@@ -833,26 +827,33 @@ export class SQLiteDialect {
 		table: SQLiteTable | SQLiteView,
 		selection: BuildRelationalQueryResult['selection'],
 		inJson: boolean,
-		params?: DBQueryConfig<'many'>,
-	) =>
-		params?.columns
-			? (() => {
-				const columnIdentifiers: SQL[] = [];
+		tableTsName: string,
+		config?: DBQueryConfig<'many'>,
+	) => {
+		if (!config?.columns) {
+			return sql.join(
+				Object.entries(table[TableColumns]).map(([k, v]) => {
+					return this.buildRqbColumn(table, v, k, inJson, selection, tableTsName);
+				}),
+				sql`, `,
+			);
+		}
 
-				const selectedColumns = this.getSelectedTableColumns(
-					table,
-					params?.columns,
-				);
+		const columnIdentifiers: SQL[] = [];
 
-				for (const { column, tsName } of selectedColumns) {
-					columnIdentifiers.push(this.buildRqbColumn(table, column, tsName, inJson, selection));
-				}
+		const selectedColumns = this.getSelectedTableColumns(
+			table,
+			config?.columns,
+		);
 
-				return columnIdentifiers.length
-					? sql.join(columnIdentifiers, sql`, `)
-					: undefined;
-			})()
-			: this.unwrapAllColumns(table, selection, inJson);
+		for (const { column, tsName } of selectedColumns) {
+			columnIdentifiers.push(this.buildRqbColumn(table, column, tsName, inJson, selection, tableTsName));
+		}
+
+		return columnIdentifiers.length
+			? sql.join(columnIdentifiers, sql`, `)
+			: undefined;
+	};
 
 	buildRelationalQuery({
 		schema,
@@ -889,7 +890,7 @@ export class SQLiteDialect {
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
 
-		const columns = this.buildColumns(table, selection, !!isNested, params);
+		const columns = this.buildColumns(table, selection, !!isNested, tableConfig.name, params);
 
 		const where: SQL | undefined = params && 'where' in params && relationWhere
 			? and(
@@ -932,7 +933,8 @@ export class SQLiteDialect {
 				for (let readIdx = 0, writeIdx = 0; readIdx < withEntries.length; ++readIdx) {
 					const [k, join] = withEntries[readIdx]!;
 
-					const relation = tableConfig.relations[k]!;
+					const relation = tableConfig.relations[k];
+					if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
 					const isSingle = relation.relationType === 'one';
 					const targetTable = aliasedTable(
 						relation.targetTable,

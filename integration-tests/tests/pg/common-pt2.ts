@@ -6889,4 +6889,37 @@ export function tests(test: Test) {
 		expect(res2).toStrictEqual(undefined);
 		expect(res3).toStrictEqual(undefined);
 	});
+
+	test.concurrent('Default value priority', async ({ db, push }) => {
+		const exTbl = pgTable('no_default_override', (t) => ({
+			id: t.integer().primaryKey(),
+			defSql: t.integer().default(sql`1`),
+			defNum: t.integer().default(1),
+			defFn: t.integer().$defaultFn(() => 1),
+			defUpdFn: t.integer().$onUpdateFn(() => 1),
+			defMix1: t.integer().default(1).$defaultFn(() => 2).$onUpdateFn(() => 3),
+			defMix2: t.integer().$defaultFn(() => 2).$onUpdateFn(() => 3),
+			defMix3: t.integer().default(1).$defaultFn(() => 2),
+			defMix4: t.integer().default(sql`1`).$onUpdateFn(() => 3),
+		}));
+
+		await db.execute(sql`DROP TABLE IF EXISTS ${exTbl};`);
+		await push({ exTbl });
+
+		await db.insert(exTbl).values({ id: 1 });
+
+		const res = await db.select().from(exTbl);
+
+		expect(res).toStrictEqual([{
+			id: 1,
+			defSql: 1,
+			defNum: 1,
+			defFn: 1,
+			defUpdFn: 1,
+			defMix1: 2,
+			defMix2: 2,
+			defMix3: 2,
+			defMix4: 1,
+		}]);
+	});
 }

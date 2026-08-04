@@ -29,7 +29,7 @@ import {
 } from '~/relations.ts';
 import { and, eq } from '~/sql/expressions/index.ts';
 import type { Name, Placeholder, Query, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
-import { isSQLWrapper, Param, SQL, sql, View } from '~/sql/sql.ts';
+import { isSQLWrapper, Param, SQL, sql, StringChunk, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/singlestore.ts';
@@ -200,26 +200,26 @@ export class SingleStoreDialect {
 		);
 
 		const setLength = columnNames.length;
-		return sql.join(
-			columnNames.flatMap((colName, i) => {
-				const col = tableColumns[colName]!;
+		const setArr: SQLChunk[] = Array.from({ length: setLength });
 
-				let value;
-				if (set[colName] !== undefined) {
-					value = set[colName];
-				} else {
-					const updateRes = col.onUpdateFn?.();
-					value = is(updateRes, SQL) ? updateRes : sql.param(updateRes, col);
-				}
+		for (let i = 0; i < columnNames.length; ++i) {
+			const colName = columnNames[i]!;
+			const col = tableColumns[colName]!;
 
-				const res = sql`${sql.identifier(col.name)} = ${value}`;
+			let value;
+			if (set[colName] !== undefined) {
+				value = set[colName];
+			} else {
+				const updateRes = col.onUpdateFn?.();
+				value = is(updateRes, SQL) ? updateRes : sql.param(updateRes, col);
+			}
 
-				if (i < setLength - 1) {
-					return [res, sql.raw(', ')];
-				}
-				return [res];
-			}),
-		);
+			setArr[i] = i < setLength - 1
+				? sql`${sql.identifier(col.name)} = ${value}, `
+				: sql`${sql.identifier(col.name)} = ${value}`;
+		}
+
+		return new SQL(setArr);
 	}
 
 	buildUpdateQuery({
@@ -651,7 +651,6 @@ export class SingleStoreDialect {
 		generatedIds: Record<string, unknown>[];
 	} {
 		// const isSingleValue = values.length === 1;
-		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, SingleStoreColumn> = table[Table.Symbol.Columns];
 		const colEntries: [string, SingleStoreColumn][] = columnList
 			? columnList.map((name) => [name, columns[name]!] as [string, SingleStoreColumn])
@@ -662,16 +661,20 @@ export class SingleStoreDialect {
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 		const generatedIdsResponse: Record<string, unknown>[] = [];
 
-		for (const [valueIndex, value] of values.entries()) {
+		const valuesSqlList: SQLChunk[] = Array.from({
+			length: (colEntries.length * 2 + 1) * values.length + values.length - 1,
+		});
+
+		let writeIdx = 0;
+		for (let valueIndex = 0; valueIndex < values.length; ++valueIndex) {
+			const value = values[valueIndex]!;
 			const generatedIds: Record<string, unknown> = {};
 
-			const valueList: (SQLChunk | SQL)[] = [];
-			for (const [fieldName, col] of colEntries) {
+			valuesSqlList[writeIdx++] = new StringChunk('(');
+			for (let i = 0; i < colEntries.length; ++i) {
+				const [fieldName, col] = colEntries[i]!;
 				const colValue = value[fieldName];
-				if (
-					colValue === undefined
-					|| (is(colValue, Param) && colValue.value === undefined)
-				) {
+				if (colValue === undefined) {
 					// eslint-disable-next-line unicorn/no-negated-condition
 					if (col.defaultFn !== undefined) {
 						const defaultFnResult = col.defaultFn();
@@ -679,33 +682,41 @@ export class SingleStoreDialect {
 						const defaultValue = is(defaultFnResult, SQL)
 							? defaultFnResult
 							: sql.param(defaultFnResult, col);
-						valueList.push(defaultValue);
+						valuesSqlList[writeIdx++] = defaultValue;
 						// eslint-disable-next-line unicorn/no-negated-condition
 					} else if (!col.default && col.onUpdateFn !== undefined) {
 						const onUpdateFnResult = col.onUpdateFn();
 						const newValue = is(onUpdateFnResult, SQL)
 							? onUpdateFnResult
 							: sql.param(onUpdateFnResult, col);
-						valueList.push(newValue);
+						valuesSqlList[writeIdx++] = newValue;
 					} else {
-						valueList.push(sql`default`);
+						valuesSqlList[writeIdx++] = new StringChunk(`default`);
 					}
+				} else if (is(colValue, SQL)) {
+					valuesSqlList[writeIdx++] = colValue;
 				} else {
-					if (col.defaultFn && is(colValue, Param)) {
-						generatedIds[fieldName] = colValue.value;
+					if (col.defaultFn) {
+						generatedIds[fieldName] = colValue;
 					}
-					valueList.push(colValue);
+					valuesSqlList[writeIdx++] = new Param(colValue, col);
+				}
+
+				if (i < colEntries.length - 1) {
+					valuesSqlList[writeIdx++] = new StringChunk(', ');
 				}
 			}
 
 			generatedIdsResponse.push(generatedIds);
-			valuesSqlList.push(valueList);
+
+			valuesSqlList[writeIdx++] = new StringChunk(')');
+
 			if (valueIndex < values.length - 1) {
-				valuesSqlList.push(sql`, `);
+				valuesSqlList[writeIdx++] = new StringChunk(`, `);
 			}
 		}
 
-		const valuesSql = sql.join(valuesSqlList);
+		const valuesSql = new SQL(valuesSqlList);
 
 		const ignoreSql = ignore ? sql` ignore` : undefined;
 
@@ -1073,26 +1084,21 @@ export class SingleStoreDialect {
 		};
 	}
 
-	private nestedSelectionerror(): never {
-		throw new DrizzleError({
-			message: `Views with nested selections are not supported by the relational query builder`,
-		});
-	}
-
 	private buildRqbColumn(
 		table: Table | View,
-		column: unknown,
+		field: unknown,
 		key: string,
 		selection: BuildRelationalQueryResult['selection'],
+		tableTsName: string,
 	) {
 		let fieldType: BuildRelationalQueryResult['selection'][number]['fieldType'];
 		let output: SQL;
 
-		if (is(column, Column)) {
+		if (is(field, Column)) {
 			fieldType = 'Column';
-			const name = sql`${table}.${sql.identifier(column.name)}`;
+			const name = sql`${table}.${sql.identifier(field.name)}`;
 
-			switch (column.columnType) {
+			switch (field.columnType) {
 				case 'SingleStoreBinary':
 				case 'SingleStoreVarBinary':
 				case 'SingleStoreTime':
@@ -1116,7 +1122,7 @@ export class SingleStoreDialect {
 				}
 
 				case 'SingleStoreCustomColumn': {
-					output = sql`${(<SingleStoreCustomColumn<any>> column).jsonSelectIdentifier(name, sql)} as ${
+					output = sql`${(<SingleStoreCustomColumn<any>> field).jsonSelectIdentifier(name, sql)} as ${
 						sql.identifier(
 							key,
 						)
@@ -1128,35 +1134,27 @@ export class SingleStoreDialect {
 					output = sql`${name} as ${sql.identifier(key)}`;
 				}
 			}
-		} else if (is(column, SQL)) {
+		} else if (is(field, SQL)) {
 			fieldType = 'SQL';
 			output = sql`${table}.${sql.identifier(key)} as ${sql.identifier(key)}`;
-		} else if (is(column, SQL.Aliased)) {
+		} else if (is(field, SQL.Aliased)) {
 			fieldType = 'SQL.Aliased';
-			output = sql`${table}.${sql.identifier(column.fieldAlias)} as ${sql.identifier(key)}`;
-		} else if (isSQLWrapper(column)) {
+			output = sql`${table}.${sql.identifier(field.fieldAlias)} as ${sql.identifier(key)}`;
+		} else if (isSQLWrapper(field)) {
 			fieldType = 'SQLWrapper';
 			output = sql`${table}.${sql.identifier(key)} as ${sql.identifier(key)}`;
 		} else {
-			return this.nestedSelectionerror();
+			throw new DrizzleError({
+				message: field === undefined
+					? `Unknown column: "${tableTsName}"."${key}"`
+					: `Views with nested selections are not supported by the relational query builder`,
+			});
 		}
 
-		selection.push({ key, field: column, fieldType } as BuildRelationalQueryResult['selection'][number]);
+		selection.push({ key, field, fieldType } as BuildRelationalQueryResult['selection'][number]);
 
 		return output;
 	}
-
-	private unwrapAllColumns = (
-		table: Table | View,
-		selection: BuildRelationalQueryResult['selection'],
-	) => {
-		return sql.join(
-			Object.entries(table[TableColumns]).map(([k, v]) => {
-				return this.buildRqbColumn(table, v, k, selection);
-			}),
-			sql`, `,
-		);
-	};
 
 	private getSelectedTableColumns = (
 		table: Table | View,
@@ -1198,26 +1196,32 @@ export class SingleStoreDialect {
 	private buildColumns = (
 		table: SingleStoreTable | SingleStoreView,
 		selection: BuildRelationalQueryResult['selection'],
-		params?: DBQueryConfig<'many'>,
-	) =>
-		params?.columns
-			? (() => {
-				const columnIdentifiers: SQL[] = [];
+		tableTsName: string,
+		config?: DBQueryConfig<'many'>,
+	) => {
+		if (!config?.columns) {
+			return sql.join(
+				Object.entries(table[TableColumns]).map(([k, v]) => {
+					return this.buildRqbColumn(table, v, k, selection, tableTsName);
+				}),
+				sql`, `,
+			);
+		}
 
-				const selectedColumns = this.getSelectedTableColumns(
-					table,
-					params.columns,
-				);
+		const columnIdentifiers: SQL[] = [];
+		const selectedColumns = this.getSelectedTableColumns(
+			table,
+			config.columns,
+		);
 
-				for (const { column, tsName } of selectedColumns) {
-					columnIdentifiers.push(this.buildRqbColumn(table, column, tsName, selection));
-				}
+		for (const { column, tsName } of selectedColumns) {
+			columnIdentifiers.push(this.buildRqbColumn(table, column, tsName, selection, tableTsName));
+		}
 
-				return columnIdentifiers.length
-					? sql.join(columnIdentifiers, sql`, `)
-					: undefined;
-			})()
-			: this.unwrapAllColumns(table, selection);
+		return columnIdentifiers.length
+			? sql.join(columnIdentifiers, sql`, `)
+			: undefined;
+	};
 
 	buildRelationalQuery({
 		schema,
@@ -1252,7 +1256,7 @@ export class SingleStoreDialect {
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
 
-		const columns = this.buildColumns(table, selection, params);
+		const columns = this.buildColumns(table, selection, tableConfig.name, params);
 
 		const where: SQL | undefined = params && 'where' in params && relationWhere
 			? and(
@@ -1300,7 +1304,8 @@ export class SingleStoreDialect {
 				for (let readIdx = 0, writeIdx = 1; readIdx < withEntries.length; ++readIdx) {
 					const [k, join] = withEntries[readIdx]!;
 
-					const relation = tableConfig.relations[k]!;
+					const relation = tableConfig.relations[k];
+					if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
 					const isSingle = relation.relationType === 'one';
 					selectionArr.push(
 						isSingle

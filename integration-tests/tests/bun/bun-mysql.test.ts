@@ -10698,3 +10698,48 @@ test('Mappers: deep nullification - jit', async () => {
 	await push(dnSchema);
 	await runDeepNullification(drizzle({ client, jit: true }));
 });
+
+test('Default value priority', async () => {
+	const exTbl = mysqlTable('no_default_override', (t) => ({
+		id: t.int('id').primaryKey(),
+		defSql: t.int('def_sql').default(sql`1`),
+		defNum: t.int('def_num').default(1),
+		defFn: t.int('def_fn').$defaultFn(() => 1),
+		defUpdFn: t.int('def_upd_fn').$onUpdateFn(() => 1),
+		defMix1: t.int('def_mix1').default(1).$defaultFn(() => 2).$onUpdateFn(() => 3),
+		defMix2: t.int('def_mix2').$defaultFn(() => 2).$onUpdateFn(() => 3),
+		defMix3: t.int('def_mix3').default(1).$defaultFn(() => 2),
+		defMix4: t.int('def_mix4').default(sql`1`).$onUpdateFn(() => 3),
+	}));
+
+	await db.execute(sql`DROP TABLE IF EXISTS no_default_override`);
+	await db.execute(sql`CREATE TABLE no_default_override (
+		id int primary key,
+		def_sql int default 1,
+		def_num int default 1,
+		def_fn int,
+		def_upd_fn int,
+		def_mix1 int default 1,
+		def_mix2 int,
+		def_mix3 int default 1,
+		def_mix4 int default 1
+	)`);
+
+	await db.insert(exTbl).values({ id: 1 });
+
+	const res = await db.select().from(exTbl);
+
+	expect(res).toStrictEqual([{
+		id: 1,
+		defSql: 1,
+		defNum: 1,
+		defFn: 1,
+		defUpdFn: 1,
+		defMix1: 2,
+		defMix2: 2,
+		defMix3: 2,
+		defMix4: 1,
+	}]);
+
+	await db.execute(sql`DROP TABLE no_default_override`);
+});

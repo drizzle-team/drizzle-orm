@@ -8574,3 +8574,48 @@ test('Issue #5090', async () => {
 		],
 	);
 });
+
+test('Default value priority', async () => {
+	const exTbl = pgTable('no_default_override', (t) => ({
+		id: t.integer('id').primaryKey(),
+		defSql: t.integer('def_sql').default(sql`1`),
+		defNum: t.integer('def_num').default(1),
+		defFn: t.integer('def_fn').$defaultFn(() => 1),
+		defUpdFn: t.integer('def_upd_fn').$onUpdateFn(() => 1),
+		defMix1: t.integer('def_mix1').default(1).$defaultFn(() => 2).$onUpdateFn(() => 3),
+		defMix2: t.integer('def_mix2').$defaultFn(() => 2).$onUpdateFn(() => 3),
+		defMix3: t.integer('def_mix3').default(1).$defaultFn(() => 2),
+		defMix4: t.integer('def_mix4').default(sql`1`).$onUpdateFn(() => 3),
+	}));
+
+	await db.execute(sql`DROP TABLE IF EXISTS no_default_override`);
+	await db.execute(sql`CREATE TABLE no_default_override (
+		id integer primary key,
+		def_sql integer default 1,
+		def_num integer default 1,
+		def_fn integer,
+		def_upd_fn integer,
+		def_mix1 integer default 1,
+		def_mix2 integer,
+		def_mix3 integer default 1,
+		def_mix4 integer default 1
+	)`);
+
+	await db.insert(exTbl).values({ id: 1 });
+
+	const res = await db.select().from(exTbl);
+
+	expect(res).toStrictEqual([{
+		id: 1,
+		defSql: 1,
+		defNum: 1,
+		defFn: 1,
+		defUpdFn: 1,
+		defMix1: 2,
+		defMix2: 2,
+		defMix3: 2,
+		defMix4: 1,
+	}]);
+
+	await db.execute(sql`DROP TABLE no_default_override`);
+});
