@@ -2327,3 +2327,34 @@ test('create 2 dependent views', async () => {
 	expect(st2).toStrictEqual([]);
 	expect(pst2).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4181
+test('issue No4181', async () => {
+	const test1 = snakeCase.table('test1', {
+		testId: serial().primaryKey(),
+		testName: text().notNull(),
+	});
+
+	const testView1 = pgView('test_view1').as((qb) => {
+		return qb
+			.select({
+				testId: test1.testId,
+				testName: test1.testName,
+			})
+			.from(test1);
+	});
+
+	const schema = { test1, testView1 };
+
+	const { sqlStatements: st1 } = await diff({}, schema, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
+	const expectedSt1 = [
+		`CREATE TABLE "test1" (
+\t"test_id" serial PRIMARY KEY,
+\t"test_name" text NOT NULL
+);\n`,
+		'CREATE VIEW "test_view1" AS (select "test_id", "test_name" from "test1");',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+});

@@ -2692,8 +2692,6 @@ export function tests(test: Test) {
 						eq(sessions.id, sessionId),
 						eq(sessions.userId, userId),
 						not(
-							// @ts-expect-error
-							// TODO @skylotus
 							or(
 								eq(sessions.name, DEFAULT_SESSION_NAME),
 								eq(sessions.name, BASE_SESSION_NAME),

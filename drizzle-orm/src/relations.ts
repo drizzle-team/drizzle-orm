@@ -1767,7 +1767,7 @@ function relationsFieldFilterToSQL(
 	const entries = Object.entries(filter as RelationFieldsFilterInternals<unknown>);
 	if (!entries.length) return undefined;
 
-	const parts: (SQL)[] = [];
+	const parts: (SQL | undefined)[] = [];
 	for (const [target, value] of entries) {
 		if (value === EmptyFilter) continue;
 		if (value === undefined) {
@@ -1884,7 +1884,7 @@ export function relationsFilterToSQL(
 	const entries = Object.entries(filter);
 	if (!entries.length) return undefined;
 
-	const parts: SQL[] = [];
+	const parts: (SQL | undefined)[] = [];
 	for (const [target, value] of entries) {
 		if (value === EmptyFilter) continue;
 		if (value === undefined) {
