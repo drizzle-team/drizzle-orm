@@ -14,16 +14,24 @@ export type WithSubqueryWithSelection<TSelection extends ColumnsSelection, TAlia
 
 export interface WithBuilder {
 	<TAlias extends string>(alias: TAlias): {
-		as: {
-			<TSelection extends ColumnsSelection>(
-				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
-			): WithSubqueryWithSelection<TSelection, TAlias>;
-			(
-				qb: TypedQueryBuilder<undefined> | ((qb: QueryBuilder) => TypedQueryBuilder<undefined>),
-			): WithSubqueryWithoutSelection<TAlias>;
-		};
+		as: WithBuilderAs<TAlias>;
+		materialized: (shouldBeMaterialized: boolean) => { as: WithBuilderAs<TAlias> };
 	};
 	<TAlias extends string, TSelection extends ColumnsSelection>(alias: TAlias, selection: TSelection): {
-		as: (qb: SQL | ((qb: QueryBuilder) => SQL)) => WithSubqueryWithSelection<TSelection, TAlias>;
+		as: WithBuilderAsSelection<TAlias, TSelection>;
+		materialized: (shouldBeMaterialized: boolean) => { as: WithBuilderAsSelection<TAlias, TSelection> };
 	};
 }
+
+interface WithBuilderAs<TAlias extends string> {
+	<TSelection extends ColumnsSelection>(
+		qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
+	): WithSubqueryWithSelection<TSelection, TAlias>;
+	(
+		qb: TypedQueryBuilder<undefined> | ((qb: QueryBuilder) => TypedQueryBuilder<undefined>),
+	): WithSubqueryWithoutSelection<TAlias>;
+}
+
+type WithBuilderAsSelection<TAlias extends string, TSelection extends ColumnsSelection> = (
+	qb: SQL | ((qb: QueryBuilder) => SQL),
+) => WithSubqueryWithSelection<TSelection, TAlias>;
