@@ -190,12 +190,12 @@ export class PgNumericBigInt<T extends ColumnBaseConfig<'bigint', 'PgNumericBigI
 		// is integral, causing `BigInt("123.000")` to throw `SyntaxError` and crash
 		// the request handler on every SELECT returning that column.
 		//
-		// Strip the fractional part only when it consists entirely of zeros — the
+		// Strip the fractional part only when it consists entirely of zeros - the
 		// value is integral and `bigint` semantics are exact. For non-zero
 		// fractional digits (e.g. `"123.45"`), the column was configured with
 		// `mode: 'bigint'` but holds non-integral data, which cannot be represented
 		// as a bigint without silent data loss. Fall through to `BigInt(s)` so the
-		// original `SyntaxError` is raised — the caller sees the mismatch loudly
+		// original `SyntaxError` is raised - the caller sees the mismatch loudly
 		// rather than receiving a silently-truncated value.
 		const s = String(value);
 		const dot = s.indexOf('.');
