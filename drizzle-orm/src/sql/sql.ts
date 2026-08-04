@@ -710,6 +710,9 @@ export type InferSelectViewModel<TView extends View> =
 Column.prototype.getSQL = function() {
 	return new SQL([this]);
 };
+Column.prototype.as = function(alias) {
+	return new SQL.Aliased(new SQL([this]).mapWith(this), alias);
+};
 
 // Defined separately from the Table class to resolve circular dependency
 Table.prototype.getSQL = function() {
