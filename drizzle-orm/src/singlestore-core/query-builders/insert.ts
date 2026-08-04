@@ -1,4 +1,4 @@
-import { entityKind, is } from '~/entity.ts';
+import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
@@ -12,8 +12,8 @@ import type {
 	SingleStoreSession,
 } from '~/singlestore-core/session.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
-import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
-import { Param, SQL, sql } from '~/sql/sql.ts';
+import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { sql } from '~/sql/sql.ts';
 import type { InferInsertModel, InferModelFromColumns } from '~/table.ts';
 import { Table } from '~/table.ts';
 import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
@@ -24,7 +24,7 @@ import type { SingleStoreUpdateSetSource } from './update.ts';
 
 export interface SingleStoreInsertConfig<TTable extends SingleStoreTable = SingleStoreTable> {
 	table: TTable;
-	values: Record<string, Param | SQL>[];
+	values: Record<string, unknown>[];
 	ignore: boolean;
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
@@ -91,19 +91,9 @@ export class SingleStoreInsertBuilder<
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
 		}
-		const mappedValues = values.map((entry) => {
-			const result: Record<string, Param | SQL> = {};
-			const cols = this.table[Table.Symbol.Columns];
-			for (const colKey of Object.keys(entry)) {
-				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue as any, cols[colKey]);
-			}
-			return result;
-		});
-
 		return new SingleStoreInsertBase(
 			this.table,
-			mappedValues,
+			values,
 			this.shouldIgnore,
 			this.session,
 			this.dialect,

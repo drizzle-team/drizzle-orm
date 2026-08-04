@@ -2,7 +2,7 @@ import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
-import { Param, SQL, sql } from '~/sql/sql.ts';
+import { SQL, sql } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { IndexColumn } from '~/sqlite-core/indexes.ts';
 import type { SQLiteSession } from '~/sqlite-core/session.ts';
@@ -17,7 +17,7 @@ import type { SQLiteUpdateSetSource } from './update.ts';
 
 export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 	table: TTable;
-	values: Record<string, Param | SQL>[] | TypedQueryBuilder<SQLiteInsertSelection<TTable>> | SQL;
+	values: Record<string, unknown>[] | TypedQueryBuilder<SQLiteInsertSelection<TTable>> | SQL;
 	withList?: Subquery[];
 	onConflict?: SQL[];
 	returning?: SelectedFieldsOrdered;
@@ -125,17 +125,7 @@ export class SQLiteInsertBuilder<
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
 		}
-		const mappedValues = values.map((entry) => {
-			const result: Record<string, Param | SQL> = {};
-			const cols = this.table[Table.Symbol.Columns];
-			for (const colKey of Object.keys(entry)) {
-				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue as any, cols[colKey]);
-			}
-			return result;
-		});
-
-		// if (mappedValues.length > 1 && mappedValues.some((t) => Object.keys(t).length === 0)) {
+		// if (values.length > 1 && values.some((t) => Object.keys(t).length === 0)) {
 		// 	throw new Error(
 		// 		`One of the values you want to insert is empty. In SQLite you can insert only one empty object per statement. For this case Drizzle with use "INSERT INTO ... DEFAULT VALUES" syntax`,
 		// 	);
@@ -143,7 +133,7 @@ export class SQLiteInsertBuilder<
 
 		return new this.builder(
 			this.table,
-			mappedValues,
+			values,
 			this.session,
 			this.dialect,
 			this.withList,
