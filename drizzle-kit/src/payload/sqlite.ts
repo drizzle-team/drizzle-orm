@@ -1,6 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 import type { Relations } from 'drizzle-orm/_relations';
 import type { AnySQLiteTable } from 'drizzle-orm/sqlite-core';
+import type { Hint } from '../cli/hints';
 import type { SqliteCredentials } from '../cli/validations/sqlite';
 import type { Column, Table } from '../dialects/sqlite/ddl';
 import { createDDL, interimToDDL } from '../dialects/sqlite/ddl';
@@ -33,9 +34,12 @@ export const generateDrizzleJson = async (
 export const generateMigration = async (
 	prev: SqliteSnapshot,
 	cur: SqliteSnapshot,
+	options?: { hints?: Hint[] },
 ) => {
 	const { resolver } = await import('../cli/prompts');
 	const { ddlDiff } = await import('../dialects/sqlite/diff');
+	const { HintsHandler, parseHints } = await import('../cli/hints');
+	const { runWithCliContext } = await import('../cli/context');
 	const from = createDDL();
 	const to = createDDL();
 
@@ -46,13 +50,21 @@ export const generateMigration = async (
 		to.entities.push(it);
 	}
 
-	const { sqlStatements } = await ddlDiff(
-		from,
-		to,
-		resolver<Table>('table'),
-		resolver<Column>('column'),
-		'default',
-	);
+	const hints = new HintsHandler(parseHints(options?.hints ?? []));
+
+	const { sqlStatements } = await runWithCliContext({ output: 'json', interactive: false }, () =>
+		ddlDiff(
+			from,
+			to,
+			resolver<Table>('table', hints),
+			resolver<Column>('column', hints),
+			'default',
+		));
+
+	if (hints.hasMissingHints()) {
+		const { MissingHintsError } = await import('../cli/errors');
+		throw new MissingHintsError(hints.missingHints);
+	}
 
 	return sqlStatements;
 };
@@ -160,3 +172,6 @@ export const startStudioServer = async (
 };
 
 export { updateToV7 as up } from '../cli/commands/up-sqlite';
+
+export type { MissingHintsError } from '../cli/errors';
+export type { Hint, MissingHint } from '../cli/hints';

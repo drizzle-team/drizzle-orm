@@ -1,4 +1,5 @@
 import type { MsSqlDatabase } from 'drizzle-orm/mssql-core';
+import type { Hint } from '../cli/hints';
 import type { EntitiesFilterConfig } from '../cli/validations/common';
 import type { MssqlCredentials } from '../cli/validations/mssql';
 import type {
@@ -59,9 +60,12 @@ export const generateDrizzleJson = async (
 export const generateMigration = async (
 	prev: MssqlSnapshot,
 	cur: MssqlSnapshot,
+	options?: { hints?: Hint[] },
 ) => {
 	const { resolver } = await import('../cli/prompts');
 	const { ddlDiff } = await import('../dialects/mssql/diff');
+	const { HintsHandler, parseHints } = await import('../cli/hints');
+	const { runWithCliContext } = await import('../cli/context');
 	const from = createDDL();
 	const to = createDDL();
 
@@ -72,21 +76,29 @@ export const generateMigration = async (
 		to.entities.push(it);
 	}
 
-	const { sqlStatements } = await ddlDiff(
-		from,
-		to,
-		resolver<Schema>('schema', undefined, 'dbo'),
-		resolver<MssqlEntities['tables']>('table', undefined, 'dbo'),
-		resolver<Column>('column', undefined, 'dbo'),
-		resolver<View>('view', undefined, 'dbo'),
-		resolver<UniqueConstraint>('unique', undefined, 'dbo'),
-		resolver<Index>('index', undefined, 'dbo'),
-		resolver<CheckConstraint>('check', undefined, 'dbo'),
-		resolver<PrimaryKey>('primary_key', undefined, 'dbo'),
-		resolver<ForeignKey>('foreign key', undefined, 'dbo'),
-		resolver<DefaultConstraint>('default', undefined, 'dbo'),
-		'default',
-	);
+	const hints = new HintsHandler(parseHints(options?.hints ?? []));
+
+	const { sqlStatements } = await runWithCliContext({ output: 'json', interactive: false }, () =>
+		ddlDiff(
+			from,
+			to,
+			resolver<Schema>('schema', hints, 'dbo'),
+			resolver<MssqlEntities['tables']>('table', hints, 'dbo'),
+			resolver<Column>('column', hints, 'dbo'),
+			resolver<View>('view', hints, 'dbo'),
+			resolver<UniqueConstraint>('unique', hints, 'dbo'),
+			resolver<Index>('index', hints, 'dbo'),
+			resolver<CheckConstraint>('check', hints, 'dbo'),
+			resolver<PrimaryKey>('primary_key', hints, 'dbo'),
+			resolver<ForeignKey>('foreign key', hints, 'dbo'),
+			resolver<DefaultConstraint>('default', hints, 'dbo'),
+			'default',
+		));
+
+	if (hints.hasMissingHints()) {
+		const { MissingHintsError } = await import('../cli/errors');
+		throw new MissingHintsError(hints.missingHints);
+	}
 
 	return sqlStatements;
 };
@@ -186,3 +198,6 @@ export const startStudioServer = async (
 };
 
 export { upToV2 as up } from '../dialects/mssql/versions';
+
+export type { MissingHintsError } from '../cli/errors';
+export type { Hint, MissingHint } from '../cli/hints';

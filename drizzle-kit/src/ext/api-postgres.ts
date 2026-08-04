@@ -2,6 +2,7 @@ import type { PGlite } from '@electric-sql/pglite';
 import type { Relations } from 'drizzle-orm/_relations';
 import type { AnyPgTable } from 'drizzle-orm/pg-core';
 import type { PgAsyncDatabase } from 'drizzle-orm/pg-core/async';
+import type { Hint } from '../cli/hints';
 import type { EntitiesFilterConfig } from '../cli/validations/common';
 import type { PostgresCredentials } from '../cli/validations/postgres';
 import type {
@@ -71,9 +72,12 @@ export const generateDrizzleJson = async (
 export const generateMigration = async (
 	prev: PostgresSnapshot,
 	cur: PostgresSnapshot,
+	options?: { hints?: Hint[] },
 ) => {
 	const { resolver } = await import('../cli/prompts');
 	const { ddlDiff } = await import('../dialects/postgres/diff');
+	const { HintsHandler, parseHints } = await import('../cli/hints');
+	const { runWithCliContext } = await import('../cli/context');
 	const from = createDDL();
 	const to = createDDL();
 
@@ -84,25 +88,33 @@ export const generateMigration = async (
 		to.entities.push(it);
 	}
 
-	const { sqlStatements } = await ddlDiff(
-		from,
-		to,
-		resolver<Schema>('schema'),
-		resolver<Enum>('enum'),
-		resolver<Sequence>('sequence'),
-		resolver<Policy>('policy'),
-		resolver<Role>('role'),
-		resolver<Privilege>('privilege'),
-		resolver<PostgresEntities['tables']>('table'),
-		resolver<Column>('column'),
-		resolver<View>('view'),
-		resolver<UniqueConstraint>('unique'),
-		resolver<Index>('index'),
-		resolver<CheckConstraint>('check'),
-		resolver<PrimaryKey>('primary_key'),
-		resolver<ForeignKey>('foreign key'),
-		'default',
-	);
+	const hints = new HintsHandler(parseHints(options?.hints ?? []));
+
+	const { sqlStatements } = await runWithCliContext({ output: 'json', interactive: false }, () =>
+		ddlDiff(
+			from,
+			to,
+			resolver<Schema>('schema', hints),
+			resolver<Enum>('enum', hints),
+			resolver<Sequence>('sequence', hints),
+			resolver<Policy>('policy', hints),
+			resolver<Role>('role', hints),
+			resolver<Privilege>('privilege', hints),
+			resolver<PostgresEntities['tables']>('table', hints),
+			resolver<Column>('column', hints),
+			resolver<View>('view', hints),
+			resolver<UniqueConstraint>('unique', hints),
+			resolver<Index>('index', hints),
+			resolver<CheckConstraint>('check', hints),
+			resolver<PrimaryKey>('primary_key', hints),
+			resolver<ForeignKey>('foreign key', hints),
+			'default',
+		));
+
+	if (hints.hasMissingHints()) {
+		const { MissingHintsError } = await import('../cli/errors');
+		throw new MissingHintsError(hints.missingHints);
+	}
 
 	return sqlStatements;
 };
@@ -251,3 +263,6 @@ export const startStudioServer = async (
 };
 
 export const up = upToV8;
+
+export type { MissingHintsError } from '../cli/errors';
+export type { Hint, MissingHint } from '../cli/hints';
