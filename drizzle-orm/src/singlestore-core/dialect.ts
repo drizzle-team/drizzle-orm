@@ -29,7 +29,7 @@ import {
 } from '~/relations.ts';
 import { and, eq } from '~/sql/expressions/index.ts';
 import type { Name, Placeholder, Query, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
-import { isSQLWrapper, Param, SQL, sql, View } from '~/sql/sql.ts';
+import { isSQLWrapper, Param, SQL, sql, StringChunk, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/singlestore.ts';
@@ -651,7 +651,6 @@ export class SingleStoreDialect {
 		generatedIds: Record<string, unknown>[];
 	} {
 		// const isSingleValue = values.length === 1;
-		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, SingleStoreColumn> = table[Table.Symbol.Columns];
 		const colEntries: [string, SingleStoreColumn][] = columnList
 			? columnList.map((name) => [name, columns[name]!] as [string, SingleStoreColumn])
@@ -662,16 +661,20 @@ export class SingleStoreDialect {
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 		const generatedIdsResponse: Record<string, unknown>[] = [];
 
-		for (const [valueIndex, value] of values.entries()) {
+		const valuesSqlList: SQLChunk[] = Array.from({
+			length: (colEntries.length * 2 + 1) * values.length + values.length - 1,
+		});
+
+		let writeIdx = 0;
+		for (let valueIndex = 0; valueIndex < values.length; ++valueIndex) {
+			const value = values[valueIndex]!;
 			const generatedIds: Record<string, unknown> = {};
 
-			const valueList: (SQLChunk | SQL)[] = [];
-			for (const [fieldName, col] of colEntries) {
+			valuesSqlList[writeIdx++] = new StringChunk('(');
+			for (let i = 0; i < colEntries.length; ++i) {
+				const [fieldName, col] = colEntries[i]!;
 				const colValue = value[fieldName];
-				if (
-					colValue === undefined
-					|| (is(colValue, Param) && colValue.value === undefined)
-				) {
+				if (colValue === undefined) {
 					// eslint-disable-next-line unicorn/no-negated-condition
 					if (col.defaultFn !== undefined) {
 						const defaultFnResult = col.defaultFn();
@@ -679,33 +682,41 @@ export class SingleStoreDialect {
 						const defaultValue = is(defaultFnResult, SQL)
 							? defaultFnResult
 							: sql.param(defaultFnResult, col);
-						valueList.push(defaultValue);
+						valuesSqlList[writeIdx++] = defaultValue;
 						// eslint-disable-next-line unicorn/no-negated-condition
 					} else if (!col.default && col.onUpdateFn !== undefined) {
 						const onUpdateFnResult = col.onUpdateFn();
 						const newValue = is(onUpdateFnResult, SQL)
 							? onUpdateFnResult
 							: sql.param(onUpdateFnResult, col);
-						valueList.push(newValue);
+						valuesSqlList[writeIdx++] = newValue;
 					} else {
-						valueList.push(sql`default`);
+						valuesSqlList[writeIdx++] = new StringChunk(`default`);
 					}
+				} else if (is(colValue, SQL)) {
+					valuesSqlList[writeIdx++] = colValue;
 				} else {
-					if (col.defaultFn && is(colValue, Param)) {
-						generatedIds[fieldName] = colValue.value;
+					if (col.defaultFn) {
+						generatedIds[fieldName] = colValue;
 					}
-					valueList.push(colValue);
+					valuesSqlList[writeIdx++] = new Param(colValue, col);
+				}
+
+				if (i < colEntries.length - 1) {
+					valuesSqlList[writeIdx++] = new StringChunk(', ');
 				}
 			}
 
 			generatedIdsResponse.push(generatedIds);
-			valuesSqlList.push(valueList);
+
+			valuesSqlList[writeIdx++] = new StringChunk(')');
+
 			if (valueIndex < values.length - 1) {
-				valuesSqlList.push(sql`, `);
+				valuesSqlList[writeIdx++] = new StringChunk(`, `);
 			}
 		}
 
-		const valuesSql = sql.join(valuesSqlList);
+		const valuesSql = new SQL(valuesSqlList);
 
 		const ignoreSql = ignore ? sql` ignore` : undefined;
 

@@ -174,26 +174,6 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				return { sql: chunk.value.join(''), params: [] };
 			}
 
-			if (is(chunk, Name)) {
-				return { sql: escapeName(chunk.value), params: [] };
-			}
-
-			if (chunk === undefined) {
-				return { sql: '', params: [] };
-			}
-
-			if (Array.isArray(chunk)) {
-				const result: SQLChunk[] = [new StringChunk('(')];
-				for (const [i, p] of chunk.entries()) {
-					result.push(p);
-					if (i < chunk.length - 1) {
-						result.push(new StringChunk(', '));
-					}
-				}
-				result.push(new StringChunk(')'));
-				return this.buildQueryFromSourceParams(result, config);
-			}
-
 			if (is(chunk, SQL)) {
 				return this.buildQueryFromSourceParams(chunk.queryChunks, {
 					...config,
@@ -201,24 +181,12 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				});
 			}
 
-			if (is(chunk, Table)) {
-				const schemaName = chunk[Table.Symbol.Schema];
-				const tableName = chunk[Table.Symbol.Name];
+			if (is(chunk, Name)) {
+				return { sql: escapeName(chunk.value), params: [] };
+			}
 
-				if (invokeSource === 'mssql-view-with-schemabinding') {
-					return {
-						sql: (schemaName === undefined ? escapeName('dbo') : escapeName(schemaName)) + '.'
-							+ escapeName(tableName),
-						params: [],
-					};
-				}
-
-				return {
-					sql: schemaName === undefined || chunk[IsAlias]
-						? escapeName(tableName)
-						: escapeName(schemaName) + '.' + escapeName(tableName),
-					params: [],
-				};
+			if (chunk === undefined) {
+				return { sql: '', params: [] };
 			}
 
 			if (is(chunk, Column)) {
@@ -233,17 +201,6 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 						? escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(columnName)
 						: escapeName(schemaName) + '.' + escapeName(chunk.table[Table.Symbol.Name]) + '.'
 							+ escapeName(columnName),
-					params: [],
-				};
-			}
-
-			if (is(chunk, View)) {
-				const schemaName = chunk[ViewBaseConfig].schema;
-				const viewName = chunk[ViewBaseConfig].name;
-				return {
-					sql: schemaName === undefined || chunk[ViewBaseConfig].isAlias
-						? escapeName(viewName)
-						: escapeName(schemaName) + '.' + escapeName(viewName),
 					params: [],
 				};
 			}
@@ -306,6 +263,37 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk] };
 			}
 
+			if (is(chunk, Table)) {
+				const schemaName = chunk[Table.Symbol.Schema];
+				const tableName = chunk[Table.Symbol.Name];
+
+				if (invokeSource === 'mssql-view-with-schemabinding') {
+					return {
+						sql: (schemaName === undefined ? escapeName('dbo') : escapeName(schemaName)) + '.'
+							+ escapeName(tableName),
+						params: [],
+					};
+				}
+
+				return {
+					sql: schemaName === undefined || chunk[IsAlias]
+						? escapeName(tableName)
+						: escapeName(schemaName) + '.' + escapeName(tableName),
+					params: [],
+				};
+			}
+
+			if (is(chunk, View)) {
+				const schemaName = chunk[ViewBaseConfig].schema;
+				const viewName = chunk[ViewBaseConfig].name;
+				return {
+					sql: schemaName === undefined || chunk[ViewBaseConfig].isAlias
+						? escapeName(viewName)
+						: escapeName(schemaName) + '.' + escapeName(viewName),
+					params: [],
+				};
+			}
+
 			if (is(chunk, SQL.Aliased) && chunk.fieldAlias !== undefined) {
 				return {
 					sql: (chunk.origin !== undefined ? escapeName(chunk.origin) + '.' : '') + escapeName(chunk.fieldAlias),
@@ -341,6 +329,24 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 					chunk.getSQL(),
 					new StringChunk(')'),
 				], config);
+			}
+
+			if (Array.isArray(chunk)) {
+				const result: SQLChunk[] = Array.from({ length: (chunk.length * 2) + 1 });
+				let writeIdx = 0;
+				let readIdx = 0;
+
+				result[writeIdx++] = new StringChunk('(');
+				while (readIdx < chunk.length) {
+					const p = chunk[readIdx++]!;
+					result[writeIdx++] = p;
+					if (readIdx < chunk.length) {
+						result[writeIdx++] = new StringChunk(', ');
+					}
+				}
+				result[writeIdx++] = new StringChunk(')');
+
+				return this.buildQueryFromSourceParams(result, config);
 			}
 
 			if (inlineParams) {

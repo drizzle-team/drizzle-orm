@@ -5,7 +5,7 @@ import type { MySqlSession } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { CommentInput, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
-import { Param, SQL, sql } from '~/sql/sql.ts';
+import { SQL, sql } from '~/sql/sql.ts';
 import type { InferInsertModel, InferModelFromColumns } from '~/table.ts';
 import { Table } from '~/table.ts';
 import { type Assume, type DrizzleTypeError, mapUpdateSet } from '~/utils.ts';
@@ -16,7 +16,7 @@ import type { MySqlUpdateSetSource } from './update.ts';
 
 export interface MySqlInsertConfig<TTable extends MySqlTable = MySqlTable> {
 	table: TTable;
-	values: Record<string, Param | SQL>[] | TypedQueryBuilder<MySqlInsertSelection<TTable>> | SQL;
+	values: Record<string, unknown>[] | TypedQueryBuilder<MySqlInsertSelection<TTable>> | SQL;
 	ignore: boolean;
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
@@ -133,19 +133,9 @@ export class MySqlInsertBuilder<
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
 		}
-		const mappedValues = values.map((entry) => {
-			const result: Record<string, Param | SQL> = {};
-			const cols = this.table[Table.Symbol.Columns];
-			for (const colKey of Object.keys(entry)) {
-				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue as any, cols[colKey]);
-			}
-			return result;
-		});
-
 		return new this.builder(
 			this.table,
-			mappedValues,
+			values,
 			this.shouldIgnore,
 			this.session,
 			this.dialect,

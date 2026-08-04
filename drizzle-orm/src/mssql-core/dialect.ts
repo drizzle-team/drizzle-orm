@@ -10,7 +10,7 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
-import { Param, type Query, SQL, sql, type SQLChunk, View } from '~/sql/sql.ts';
+import { Param, type Query, SQL, sql, type SQLChunk, StringChunk, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/mssql.ts';
@@ -717,7 +717,6 @@ export class MsSqlDialect {
 
 	buildInsertQuery({ table, values, output, columnList }: MsSqlInsertConfig): SQL {
 		// const isSingleValue = values.length === 1;
-		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, MsSqlColumn> = table[Table.Symbol.Columns];
 		const colEntries: [string, MsSqlColumn][] = columnList
 			? columnList.map((name) => [name, columns[name]!] as [string, MsSqlColumn])
@@ -727,40 +726,51 @@ export class MsSqlDialect {
 
 		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
 
-		for (const [valueIndex, value] of values.entries()) {
-			const valueList: (SQLChunk | SQL)[] = [];
-			for (const [fieldName, col] of colEntries) {
+		const valuesSqlList: SQLChunk[] = Array.from({
+			length: (colEntries.length * 2 + 1) * values.length + values.length - 1,
+		});
+
+		let writeIdx = 0;
+		for (let valueIndex = 0; valueIndex < values.length; ++valueIndex) {
+			const value = values[valueIndex]!;
+
+			valuesSqlList[writeIdx++] = new StringChunk('(');
+			for (let i = 0; i < colEntries.length; ++i) {
+				const [fieldName, col] = colEntries[i]!;
 				const colValue = value[fieldName];
-				if (
-					colValue === undefined
-					|| (is(colValue, Param) && colValue.value === undefined)
-				) {
+				if (colValue === undefined) {
 					if (col.defaultFn !== undefined) {
 						const defaultFnResult = col.defaultFn();
 						const defaultValue = is(defaultFnResult, SQL)
 							? defaultFnResult
 							: sql.param(defaultFnResult, col);
-						valueList.push(defaultValue);
+						valuesSqlList[writeIdx++] = defaultValue;
 					} else if (!col.default && col.onUpdateFn !== undefined) {
 						const onUpdateFnResult = col.onUpdateFn();
 						const newValue = is(onUpdateFnResult, SQL)
 							? onUpdateFnResult
 							: sql.param(onUpdateFnResult, col);
-						valueList.push(newValue);
+						valuesSqlList[writeIdx++] = newValue;
 					} else {
-						valueList.push(sql`default`);
+						valuesSqlList[writeIdx++] = new StringChunk(`default`);
 					}
 				} else {
-					valueList.push(colValue);
+					valuesSqlList[writeIdx++] = is(colValue, SQL) ? colValue : new Param(colValue, col);
+				}
+
+				if (i < colEntries.length - 1) {
+					valuesSqlList[writeIdx++] = new StringChunk(', ');
 				}
 			}
-			valuesSqlList.push(valueList);
+
+			valuesSqlList[writeIdx++] = new StringChunk(')');
+
 			if (valueIndex < values.length - 1) {
-				valuesSqlList.push(sql`, `);
+				valuesSqlList[writeIdx++] = new StringChunk(`, `);
 			}
 		}
 
-		const valuesSql = insertOrder.length === 0 ? undefined : sql.join(valuesSqlList);
+		const valuesSql = insertOrder.length === 0 ? undefined : new SQL(valuesSqlList);
 
 		const outputSql = output
 			? sql` output ${this.buildSelectionOutput(output, { type: 'INSERTED' })}`
