@@ -119,11 +119,11 @@ export function columnToSchema(
 		} else if (column.dataType === 'string') {
 			schema = stringColumnToSchema(column, z, coerce);
 		} else if (column.dataType === 'json') {
-			schema = jsonSchema;
+			schema = z.union([z.union([z.string(), z.number(), z.boolean(), z.null()]), z.record(z.string(), z.any()), z.array(z.any())]);
 		} else if (column.dataType === 'custom') {
 			schema = z.any();
 		} else if (column.dataType === 'buffer') {
-			schema = bufferSchema;
+			schema = z.custom<Buffer>((v) => v instanceof Buffer);
 		}
 	}
 
