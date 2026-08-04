@@ -272,6 +272,8 @@ const matViewWithOption = object({
 	autovacuumMultixactFreezeTableAge: number().optional(),
 	logAutovacuumMinDuration: number().optional(),
 	userCatalogTable: boolean().optional(),
+	"timescaledb.continuous": boolean().optional(),
+	"timescaledb.materializedOnly": boolean().optional(),
 }).strict();
 
 export const mergedViewWithOption = viewWithOption.merge(matViewWithOption).strict();
