@@ -203,12 +203,12 @@ function generateIdentityParams(identity: Column['identity']) {
 	return `.generatedByDefaultAsIdentity(${paramsObj})`;
 }
 
-export const paramNameFor = (name: string, schema?: string) => {
-	const schemaSuffix = schema && schema !== 'public' ? `In${schema.capitalise()}` : '';
+export const paramNameFor = (name: string, schema?: string, omitSuffixForSchema = 'public') => {
+	const schemaSuffix = schema && schema !== omitSuffixForSchema ? `In${schema.capitalise()}` : '';
 	return `${name}${schemaSuffix}`;
 };
 
-export const schemaToTypeScript = (schema: GelSchemaInternal, casing: Casing) => {
+export const schemaToTypeScript = (schema: GelSchemaInternal, casing: Casing, omitSuffixForSchema: string) => {
 	// collectFKs
 	Object.values(schema.tables).forEach((table) => {
 		Object.values(table.foreignKeys).forEach((fk) => {
@@ -314,7 +314,7 @@ export const schemaToTypeScript = (schema: GelSchemaInternal, casing: Casing) =>
 	// 	.map((it) => {
 	// 		const enumSchema = schemas[it.schema];
 	// 		// const func = schema || schema === "public" ? "gelTable" : schema;
-	// 		const paramName = paramNameFor(it.name, enumSchema);
+	// 		const paramName = paramNameFor(it.name, enumSchema, omitSuffixForSchema);
 
 	// 		const func = enumSchema ? `${enumSchema}.enum` : 'gelEnum';
 
@@ -329,7 +329,7 @@ export const schemaToTypeScript = (schema: GelSchemaInternal, casing: Casing) =>
 	// const sequencesStatements = Object.values(schema.sequences)
 	// 	.map((it) => {
 	// 		const seqSchema = schemas[it.schema];
-	// 		const paramName = paramNameFor(it.name, seqSchema);
+	// 		const paramName = paramNameFor(it.name, seqSchema, omitSuffixForSchema);
 
 	// 		const func = seqSchema ? `${seqSchema}.sequence` : 'gelSequence';
 
@@ -390,7 +390,7 @@ export const schemaToTypeScript = (schema: GelSchemaInternal, casing: Casing) =>
 
 	const tableStatements = Object.values(schema.tables).map((table) => {
 		const tableSchema = schemas[table.schema];
-		const paramName = paramNameFor(table.name, tableSchema);
+		const paramName = paramNameFor(table.name, tableSchema, omitSuffixForSchema);
 
 		const func = tableSchema ? `${tableSchema}.table` : 'gelTable';
 		let statement = `export const ${withCasing(paramName, casing)} = ${func}("${table.name}", {\n`;
@@ -403,6 +403,7 @@ export const schemaToTypeScript = (schema: GelSchemaInternal, casing: Casing) =>
 			schemas,
 			casing,
 			schema.internal,
+			omitSuffixForSchema,
 		);
 		statement += '}';
 
@@ -423,7 +424,7 @@ export const schemaToTypeScript = (schema: GelSchemaInternal, casing: Casing) =>
 			statement += ', ';
 			statement += '(table) => [';
 			statement += createTableIndexes(table.name, Object.values(table.indexes), casing);
-			statement += createTableFKs(Object.values(table.foreignKeys), schemas, casing);
+			statement += createTableFKs(Object.values(table.foreignKeys), schemas, casing, omitSuffixForSchema);
 			statement += createTablePKs(
 				Object.values(table.compositePrimaryKeys),
 				casing,
@@ -452,7 +453,7 @@ export const schemaToTypeScript = (schema: GelSchemaInternal, casing: Casing) =>
 	// 	.map((it) => {
 	// 		const viewSchema = schemas[it.schema];
 
-	// 		const paramName = paramNameFor(it.name, viewSchema);
+	// 		const paramName = paramNameFor(it.name, viewSchema, omitSuffixForSchema);
 
 	// 		const func = viewSchema
 	// 			? (it.materialized ? `${viewSchema}.materializedView` : `${viewSchema}.view`)
@@ -704,12 +705,13 @@ const column = (
 	casing: Casing,
 	defaultValue?: any,
 	internals?: GelKitInternals,
+	omitSuffixForSchema?: string,
 ) => {
 	const isExpression = internals?.tables[tableName]?.columns[name]?.isDefaultAnExpression ?? false;
 	const lowered = type.toLowerCase().replace('[]', '');
 
 	if (enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`)) {
-		let out = `${withCasing(name, casing)}: ${withCasing(paramNameFor(type.replace('[]', ''), typeSchema), casing)}(${
+		let out = `${withCasing(name, casing)}: ${withCasing(paramNameFor(type.replace('[]', ''), typeSchema, omitSuffixForSchema), casing)}(${
 			dbColumnName({ name, casing })
 		})`;
 		return out;
@@ -839,6 +841,7 @@ const createTableColumns = (
 	schemas: Record<string, string>,
 	casing: Casing,
 	internals: GelKitInternals,
+	omitSuffixForSchema?: string,
 ): string => {
 	let statement = '';
 
@@ -866,6 +869,7 @@ const createTableColumns = (
 			casing,
 			it.default,
 			internals,
+			omitSuffixForSchema,
 		);
 		statement += '\t';
 		statement += columnStatement;
@@ -882,7 +886,7 @@ const createTableColumns = (
 		statement += it.generated ? `.generatedAlwaysAs(sql\`${it.generated.as}\`)` : '';
 
 		// const fks = fkByColumnName[it.name];
-		// Andrii: I switched it off until we will get a custom naem setting in references
+		// Andrii: I switched it off until we will get a custom name setting in references
 		// if (fks) {
 		// 	const fksStatement = fks
 		// 		.map((it) => {
@@ -894,7 +898,7 @@ const createTableColumns = (
 
 		// 			const paramsStr = objToStatement2(params);
 		// 			const tableSchema = schemas[it.schemaTo || ''];
-		// 			const paramName = paramNameFor(it.tableTo, tableSchema);
+		// 			const paramName = paramNameFor(it.tableTo, tableSchema, omitSuffixForSchema);
 		// 			if (paramsStr) {
 		// 				return `.references(()${typeSuffix} => ${
 		// 					withCasing(
@@ -1062,12 +1066,17 @@ const createTableChecks = (
 	return statement;
 };
 
-const createTableFKs = (fks: ForeignKey[], schemas: Record<string, string>, casing: Casing): string => {
+const createTableFKs = (
+	fks: ForeignKey[],
+	schemas: Record<string, string>,
+	casing: Casing,
+	omitSuffixForSchema?: string,
+): string => {
 	let statement = '';
 
 	fks.forEach((it) => {
 		const tableSchema = schemas[it.schemaTo || ''];
-		const paramName = paramNameFor(it.tableTo, tableSchema);
+		const paramName = paramNameFor(it.tableTo, tableSchema, omitSuffixForSchema);
 
 		const isSelf = it.tableTo === it.tableFrom;
 		const tableTo = isSelf ? 'table' : `${withCasing(paramName, casing)}`;

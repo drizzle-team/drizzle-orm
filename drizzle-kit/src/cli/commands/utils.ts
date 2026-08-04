@@ -471,6 +471,7 @@ export const preparePullConfig = async (
 		| {
 			dialect: 'postgresql';
 			credentials: PostgresCredentials;
+			omitSuffixForSchema: string;
 		}
 		| {
 			dialect: 'sqlite';
@@ -487,6 +488,7 @@ export const preparePullConfig = async (
 		| {
 			dialect: 'gel';
 			credentials?: GelCredentials;
+			omitSuffixForSchema: string;
 		}
 	) & {
 		out: string;
