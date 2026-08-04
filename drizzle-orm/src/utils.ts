@@ -510,22 +510,24 @@ export function haveSameKeys(left: Record<string, unknown>, right: Record<string
 
 /** @internal */
 export function mapUpdateSet(table: Table, values: Record<string, unknown>): UpdateSet {
-	const entries: [string, UpdateSet[string]][] = Object.entries(values)
-		.filter(([, value]) => value !== undefined)
-		.map(([key, value]) => {
-			// eslint-disable-next-line unicorn/prefer-ternary
-			if (is(value, SQL) || is(value, Column)) {
-				return [key, value];
-			} else {
-				return [key, new Param(value, table[Table.Symbol.Columns][key])];
-			}
-		});
+	const entries = Object.entries(values).filter(([, value]) => value !== undefined);
 
 	if (entries.length === 0) {
 		throw new Error('No values to set');
 	}
 
-	return Object.fromEntries(entries);
+	const mapped: [string, UpdateSet[string]][] = Array.from({ length: entries.length });
+	for (let i = 0; i < entries.length; ++i) {
+		const [key, value] = entries[i]!;
+		// eslint-disable-next-line unicorn/prefer-ternary
+		if (is(value, SQL) || is(value, Column)) {
+			mapped[i] = [key, value];
+		} else {
+			mapped[i] = [key, new Param(value, table[Table.Symbol.Columns][key])];
+		}
+	}
+
+	return Object.fromEntries(mapped);
 }
 
 export type UpdateSet = Record<string, SQL | Param | AnyColumn | null | undefined>;
