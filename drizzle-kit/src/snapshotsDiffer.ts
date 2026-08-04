@@ -1786,15 +1786,15 @@ export const applyPgSnapshotsDiff = async (
 		return preparePgCreateTableJson(it, curFull);
 	});
 
-	jsonCreatePoliciesStatements.push(...([] as JsonCreatePolicyStatement[]).concat(
-		...(createdTables.map((it) =>
-			prepareCreatePolicyJsons(
+	jsonCreatePoliciesStatements.push(
+		...(createdTables.flatMap((it) => {
+			return prepareCreatePolicyJsons(
 				it.name,
 				it.schema,
 				Object.values(it.policies).map(action === 'push' ? PgSquasher.unsquashPolicyPush : PgSquasher.unsquashPolicy),
-			)
+			)}
 		)),
-	));
+	);
 	const createViews: JsonCreatePgViewStatement[] = [];
 	const dropViews: JsonDropViewStatement[] = [];
 	const renameViews: JsonRenameViewStatement[] = [];
