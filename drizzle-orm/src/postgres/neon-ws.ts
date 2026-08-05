@@ -1,4 +1,4 @@
-import { createPool, type Pool, type PoolConfig } from 'minipg';
+import { createPool, type NeonPoolConfig, type Pool } from 'minipg/neon-ws';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { construct, type PostgresDatabase } from './driver-core.ts';
@@ -21,7 +21,7 @@ export function drizzle<
 			& ({
 				client: TClient;
 			} | {
-				connection: string | PoolConfig;
+				connection: string | NeonPoolConfig;
 			}),
 		]
 ): PostgresDatabase<TRelations> & {
@@ -40,7 +40,7 @@ export function drizzle<
 	}
 
 	const { connection, client, ...config } = params[0] as (
-		& ({ connection?: PoolConfig | string; client?: TClient })
+		& ({ connection?: NeonPoolConfig | string; client?: TClient })
 		& DrizzlePgConfig<TRelations>
 	);
 

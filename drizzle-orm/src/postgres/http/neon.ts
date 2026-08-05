@@ -1,12 +1,15 @@
-import { createPool, type Pool, type PoolConfig } from 'minipg';
+import { createPool, type NeonHttpClient, type NeonHttpConfig } from 'minipg/neon-http';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { construct, type PostgresDatabase } from './driver-core.ts';
-import type { PostgresClient } from './session.ts';
+import { construct, type PostgresHttpDatabase } from './driver-core.ts';
+import type { PostgresHttpBatchRunner } from './session.ts';
+
+const runBatch = (client: NeonHttpClient): PostgresHttpBatchRunner => (queries, options) =>
+	client.transaction(queries, options);
 
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
-	TClient extends PostgresClient = Pool,
+	TClient extends NeonHttpClient = NeonHttpClient,
 >(
 	...params:
 		| [
@@ -21,11 +24,11 @@ export function drizzle<
 			& ({
 				client: TClient;
 			} | {
-				connection: string | PoolConfig;
+				connection: string | NeonHttpConfig;
 			}),
 		]
-): PostgresDatabase<TRelations> & {
-	$client: PostgresClient extends TClient ? Pool : TClient;
+): PostgresHttpDatabase<TRelations> & {
+	$client: TClient;
 } {
 	if (typeof params[0] === 'string') {
 		const instance = createPool({
@@ -35,22 +38,23 @@ export function drizzle<
 
 		return construct(
 			instance,
+			runBatch(instance),
 			params[1] as DrizzlePgConfig<TRelations> | undefined,
 		) as any;
 	}
 
 	const { connection, client, ...config } = params[0] as (
-		& ({ connection?: PoolConfig | string; client?: TClient })
+		& ({ connection?: NeonHttpConfig | string; client?: TClient })
 		& DrizzlePgConfig<TRelations>
 	);
 
-	if (client) return construct(client, config);
+	if (client) return construct(client, runBatch(client), config) as any;
 
 	const instance = typeof connection === 'string'
 		? createPool({ url: connection })
 		: createPool({ ...connection! });
 
-	return construct(instance, config) as any;
+	return construct(instance, runBatch(instance), config) as any;
 }
 
 export namespace drizzle {
@@ -58,9 +62,9 @@ export namespace drizzle {
 		TRelations extends AnyRelations = EmptyRelations,
 	>(
 		config?: DrizzlePgConfig<TRelations>,
-	): PostgresDatabase<TRelations> & {
+	): PostgresHttpDatabase<TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
-		return construct({} as any, config) as any;
+		return construct({} as any, async () => [], config) as any;
 	}
 }
