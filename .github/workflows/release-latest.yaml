@@ -96,6 +96,20 @@ jobs:
           --health-retries 5
         ports:
           - 55433:5432
+      postgres-http-gateway:
+        image: ghcr.io/drizzle-team/postgres-http-gateway:latest
+        env:
+          PGHOST: postgres
+          PGPORT: 5432
+          PGSSLMODE: disable
+          PORT: 8080
+        options: >-
+          --health-cmd "wget -qO- http://127.0.0.1:8080/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 8080:8080
       mysql:
         image: mysql:8
         env:
@@ -175,6 +189,7 @@ jobs:
       - name: Run tests
         env:
           PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
+          PG_HTTP_GATEWAY_URL: http://localhost:8080/query
           PG_VECTOR_CONNECTION_STRING: postgres://postgres:postgres@localhost:54321/drizzle
           PG_POSTGIS_CONNECTION_STRING: postgres://postgres:postgres@localhost:54322/drizzle
           MYSQL_CONNECTION_STRING: mysql://root:root@localhost:33306/drizzle
@@ -224,12 +239,12 @@ jobs:
             ;;
 
             neon-http)
-              pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/neon-http.test.ts tests/pg/neon-http-batch.test.ts
+              pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/neon-http.test.ts tests/pg/neon-http-batch.test.ts tests/pg/postgres-neon-http.test.ts tests/pg/postgres-neon-http-batch.test.ts
             ;;
 
             neon-serverless)
               docker compose -f docker-neon.yml up -d
-              pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/neon-serverless.test.ts
+              pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/neon-serverless.test.ts tests/pg/postgres-neon-ws.test.ts
               docker compose -f docker-neon.yml down
             ;;
 
@@ -279,6 +294,9 @@ jobs:
                 --exclude tests/pg/neon-http.test.ts \
                 --exclude tests/pg/neon-http-batch.test.ts \
                 --exclude tests/pg/neon-serverless.test.ts \
+                --exclude tests/pg/postgres-neon-ws.test.ts \
+                --exclude tests/pg/postgres-neon-http.test.ts \
+                --exclude tests/pg/postgres-neon-http-batch.test.ts \
                 --exclude tests/cockroach \
                 --exclude tests/mssql \
                 --exclude tests/validators

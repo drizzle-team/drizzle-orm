@@ -4,6 +4,14 @@ import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { construct, type PostgresHttpDatabase } from './driver-core.ts';
 import type { PostgresHttpBatchRunner } from './session.ts';
 
+const WIRE_PARITY = { temporal: 'string', int8: 'bigint' } as const;
+
+function pinWireParity<T extends HttpClient>(client: T): T {
+	const cfg = (<any> client).cfg;
+	if (cfg) Object.assign(cfg, WIRE_PARITY);
+	return client;
+}
+
 const runBatch = (client: HttpClient): PostgresHttpBatchRunner => (queries, options) => client.batch(queries, options);
 
 export function drizzle<
@@ -32,7 +40,7 @@ export function drizzle<
 	if (typeof params[0] === 'string') {
 		const instance = createClient({
 			url: params[0],
-			temporal: 'string',
+			...WIRE_PARITY,
 		});
 
 		return construct(
@@ -47,11 +55,11 @@ export function drizzle<
 		& DrizzlePgConfig<TRelations>
 	);
 
-	if (client) return construct(client, runBatch(client), config) as any;
+	if (client) return construct(pinWireParity(client), runBatch(client), config) as any;
 
 	const instance = typeof connection === 'string'
-		? createClient({ url: connection })
-		: createClient({ ...connection! });
+		? createClient({ url: connection, ...WIRE_PARITY })
+		: createClient({ ...WIRE_PARITY, ...connection! });
 
 	return construct(instance, runBatch(instance), config) as any;
 }

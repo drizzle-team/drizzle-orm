@@ -28,6 +28,9 @@ export default defineConfig({
 					'tests/sqlite/tursodatabase-serverless.test.ts',
 					'tests/pg/neon-http.test.ts',
 					'tests/pg/neon-http-batch.test.ts',
+					'tests/pg/postgres-neon-ws.test.ts',
+					'tests/pg/postgres-neon-http.test.ts',
+					'tests/pg/postgres-neon-http-batch.test.ts',
 					'tests/pg/netlify-db.test.ts',
 					'tests/sqlite/sqlite-cloud.test.ts',
 					'tests/utils/is-config.test.ts', // Uses external DBs in some cases

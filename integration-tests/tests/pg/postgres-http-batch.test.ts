@@ -1,9 +1,10 @@
 import { defineRelations, eq, sql } from 'drizzle-orm';
 import { relations as oldRels } from 'drizzle-orm/_relations';
 import { type AnyPgColumn, integer, pgTable, primaryKey, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import { drizzle, type PostgresDatabase, type PostgresQueryResult } from 'drizzle-orm/postgres';
+import { drizzle, type PostgresHttpDatabase, type PostgresHttpQueryResult } from 'drizzle-orm/postgres/http';
+import { Client as ClientNodePostgres } from 'pg';
 import { describe, expect, expectTypeOf, test as base } from 'vitest';
-import { _push, preparePostgres } from './instrumentation';
+import { _push, prepareHttpClient } from './instrumentation';
 
 export const usersTable = pgTable('users', {
 	id: serial('id').primaryKey(),
@@ -116,11 +117,19 @@ export const schema = {
 
 export const relations = defineRelations(schema);
 
-const test = base.extend<{ db: PostgresDatabase<typeof relations> }>({
+const DATABASE = 'db25';
+
+const test = base.extend<{ db: PostgresHttpDatabase<typeof relations> }>({
 	db: [
 		// oxlint-disable-next-line no-empty-pattern
 		async ({}, use) => {
-			const { client, query } = await preparePostgres('db2');
+			const admin = new ClientNodePostgres({ connectionString: process.env['PG_CONNECTION_STRING'] });
+			await admin.connect();
+			await admin.query(`drop database if exists ${DATABASE}`);
+			await admin.query(`create database ${DATABASE};`);
+			await admin.end();
+
+			const { client, query } = await prepareHttpClient(DATABASE);
 			await _push(query, schema);
 
 			const db = drizzle({ client, relations });
@@ -152,7 +161,7 @@ describe('batch', () => {
 				id: number;
 				invitedBy: number | null;
 			}[],
-			PostgresQueryResult<never>,
+			PostgresHttpQueryResult<never>,
 			{
 				id: number;
 				name: string;
@@ -176,7 +185,6 @@ describe('batch', () => {
 		]);
 	});
 
-	// batch api only relational many
 	test('insert + findMany', async ({ db }) => {
 		const batchResponse = await db.batch([
 			db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
@@ -188,7 +196,7 @@ describe('batch', () => {
 			{
 				id: number;
 			}[],
-			PostgresQueryResult<never>,
+			PostgresHttpQueryResult<never>,
 			{
 				id: number;
 				name: string;
@@ -199,9 +207,7 @@ describe('batch', () => {
 
 		expect(batchResponse.length).eq(3);
 
-		expect(batchResponse[0]).toEqual([{
-			id: 1,
-		}]);
+		expect(batchResponse[0]).toEqual([{ id: 1 }]);
 
 		expect(batchResponse[1]).toMatchObject({ rows: [], rowCount: 1 });
 
@@ -211,7 +217,6 @@ describe('batch', () => {
 		]);
 	});
 
-	// batch api relational many + one
 	test('insert + findMany + findFirst', async ({ db }) => {
 		const batchResponse = await db.batch([
 			db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
@@ -224,7 +229,7 @@ describe('batch', () => {
 			{
 				id: number;
 			}[],
-			PostgresQueryResult<never>,
+			PostgresHttpQueryResult<never>,
 			{
 				id: number;
 				name: string;
@@ -241,9 +246,7 @@ describe('batch', () => {
 
 		expect(batchResponse.length).eq(4);
 
-		expect(batchResponse[0]).toEqual([{
-			id: 1,
-		}]);
+		expect(batchResponse[0]).toEqual([{ id: 1 }]);
 
 		expect(batchResponse[1]).toMatchObject({ rows: [], rowCount: 1 });
 
@@ -267,19 +270,16 @@ describe('batch', () => {
 			{
 				id: number;
 			}[],
-			PostgresQueryResult<Record<string, unknown>>,
+			PostgresHttpQueryResult<Record<string, unknown>>,
 		]>();
 
 		expect(batchResponse.length).eq(2);
 
-		expect(batchResponse[0]).toEqual([{
-			id: 1,
-		}]);
+		expect(batchResponse[0]).toEqual([{ id: 1 }]);
 
 		expect(batchResponse[1]).toMatchObject({ rows: [], rowCount: 1 });
 	});
 
-	// batch api combined rqb + raw call
 	test('insert + findManyWith + db.all', async ({ db }) => {
 		const batchResponse = await db.batch([
 			db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
@@ -292,14 +292,14 @@ describe('batch', () => {
 			{
 				id: number;
 			}[],
-			PostgresQueryResult<never>,
+			PostgresHttpQueryResult<never>,
 			{
 				id: number;
 				name: string;
 				verified: number;
 				invitedBy: number | null;
 			}[],
-			PostgresQueryResult<{
+			PostgresHttpQueryResult<{
 				id: number;
 				name: string;
 				verified: number;
@@ -309,9 +309,7 @@ describe('batch', () => {
 
 		expect(batchResponse.length).eq(4);
 
-		expect(batchResponse[0]).toEqual([{
-			id: 1,
-		}]);
+		expect(batchResponse[0]).toEqual([{ id: 1 }]);
 
 		expect(batchResponse[1]).toMatchObject({ rows: [], rowCount: 1 });
 
@@ -328,7 +326,6 @@ describe('batch', () => {
 		});
 	});
 
-	// batch api for insert + update + select
 	test('insert + update + select + select partial', async ({ db }) => {
 		const batchResponse = await db.batch([
 			db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
@@ -342,7 +339,7 @@ describe('batch', () => {
 			{
 				id: number;
 			}[],
-			PostgresQueryResult<never>,
+			PostgresHttpQueryResult<never>,
 			{
 				id: number;
 				name: string;
@@ -363,9 +360,7 @@ describe('batch', () => {
 
 		expect(batchResponse.length).eq(5);
 
-		expect(batchResponse[0]).toEqual([{
-			id: 1,
-		}]);
+		expect(batchResponse[0]).toEqual([{ id: 1 }]);
 
 		expect(batchResponse[1]).toMatchObject({ rows: [], rowCount: 1 });
 
@@ -382,7 +377,6 @@ describe('batch', () => {
 		]);
 	});
 
-	// batch api for insert + delete + select
 	test('insert + delete + select + select partial', async ({ db }) => {
 		const batchResponse = await db.batch([
 			db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
@@ -403,7 +397,7 @@ describe('batch', () => {
 			{
 				id: number;
 			}[],
-			PostgresQueryResult<never>,
+			PostgresHttpQueryResult<never>,
 			{
 				id: number;
 				invitedBy: number | null;
@@ -416,9 +410,7 @@ describe('batch', () => {
 
 		expect(batchResponse.length).eq(4);
 
-		expect(batchResponse[0]).toEqual([{
-			id: 1,
-		}]);
+		expect(batchResponse[0]).toEqual([{ id: 1 }]);
 
 		expect(batchResponse[1]).toMatchObject({ rows: [], rowCount: 1 });
 
@@ -449,13 +441,13 @@ describe('batch', () => {
 		]);
 
 		expectTypeOf(batchResponse).toEqualTypeOf<[
-			PostgresQueryResult<{
+			PostgresHttpQueryResult<{
 				id: number;
 				name: string;
 				verified: number;
 				invited_by: number | null;
 			}>,
-			PostgresQueryResult<{
+			PostgresHttpQueryResult<{
 				id: number;
 				name: string;
 				verified: number;
@@ -491,17 +483,31 @@ describe('batch', () => {
 	});
 
 	test('rollback covers DDL', async ({ db }) => {
-		await db.execute(sql`drop table if exists pg_batch_ddl`);
+		await db.execute(sql`drop table if exists http_batch_ddl`);
 
 		await expect(db.batch([
-			db.execute(sql`create table pg_batch_ddl (id integer primary key)`),
-			db.execute(sql`insert into pg_batch_ddl values (1)`),
-			db.execute(sql`insert into pg_batch_ddl values (1)`),
+			db.execute(sql`create table http_batch_ddl (id integer primary key)`),
+			db.execute(sql`insert into http_batch_ddl values (1)`),
+			db.execute(sql`insert into http_batch_ddl values (1)`),
 		])).rejects.toThrow(/duplicate key|unique/i);
 
 		const present = await db.execute<{ present: boolean }>(
-			sql`select to_regclass('public.pg_batch_ddl') is not null as present`,
+			sql`select to_regclass('public.http_batch_ddl') is not null as present`,
 		);
 		expect(present.rows[0]!.present).toBe(false);
+	});
+
+	test('honours transaction options', async ({ db }) => {
+		await db.insert(usersTable).values({ id: 1, name: 'ReadMe' });
+
+		const res = await db.batch(
+			[db.select({ name: usersTable.name }).from(usersTable)],
+			{ isolation: 'serializable', readOnly: true },
+		);
+		expect(res[0]).toEqual([{ name: 'ReadMe' }]);
+
+		await expect(
+			db.batch([db.insert(usersTable).values({ id: 2, name: 'Nope' })], { readOnly: true }),
+		).rejects.toThrow(/read-only|read only/i);
 	});
 });
