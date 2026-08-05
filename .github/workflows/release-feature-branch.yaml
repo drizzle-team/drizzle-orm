@@ -138,7 +138,7 @@ jobs:
           - shard: int:mysql
             dbs: [mysql]
           - shard: int:postgres
-            dbs: [postgres]
+            dbs: [postgres, postgres-http-gateway]
           - shard: int:sqlite
             dbs: []
           - shard: int:turso-serverless
@@ -198,6 +198,7 @@ jobs:
           for db in ${{ join(matrix.dbs, ' ') }}; do
             case "$db" in
               postgres)            compose_files+=("-f" "compose/postgres.yml") ;;
+              postgres-http-gateway) compose_files+=("-f" "compose/postgres-http-gateway.yml") ;;
               postgres-postgis)    compose_files+=("-f" "compose/postgres-postgis.yml") ;;
               postgres-vector)     compose_files+=("-f" "compose/postgres-vector.yml") ;;
               postgres18)          compose_files+=("-f" "compose/postgres18.yml") ;;
@@ -255,6 +256,7 @@ jobs:
       - name: Run tests
         env:
           PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
+          PG_HTTP_GATEWAY_URL: http://localhost:8080/query
           PG_VECTOR_CONNECTION_STRING: postgres://postgres:postgres@localhost:54321/drizzle
           PG_POSTGIS_CONNECTION_STRING: postgres://postgres:postgres@localhost:54322/drizzle
           PG18_URL: postgres://postgres:postgres@localhost:54325/drizzle
