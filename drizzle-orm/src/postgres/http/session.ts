@@ -107,8 +107,8 @@ export class PostgresHttpSession<
 		queries: T,
 		options?: PostgresHttpBatchOptions,
 	) {
-		const preparedQueries: PostgresHttpPreparedQuery<any>[] = Array.from({ length: queries.length });
-		const builtQueries: PostgresHttpBatchQuery[] = Array.from({ length: queries.length });
+		const preparedQueries: PostgresHttpPreparedQuery<any>[] = new Array(queries.length);
+		const builtQueries: PostgresHttpBatchQuery[] = new Array(queries.length);
 
 		for (let i = 0; i < queries.length; ++i) {
 			const preparedQuery = queries[i]!._prepare() as PostgresHttpPreparedQuery<any>;
@@ -123,7 +123,7 @@ export class PostgresHttpSession<
 		}
 
 		const batchResults = await this.runBatch(builtQueries, options);
-		const response = Array.from({ length: batchResults.length });
+		const response = new Array(batchResults.length);
 		for (let i = 0; i < batchResults.length; ++i) {
 			const { mapper, mode } = preparedQueries[i]!;
 			const result = batchResults[i]!;

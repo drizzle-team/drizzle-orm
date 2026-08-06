@@ -135,7 +135,7 @@ export class SQLiteDialect {
 		);
 
 		const setLength = columnNames.length;
-		const setArr: SQLChunk[] = Array.from({ length: setLength });
+		const setArr: SQLChunk[] = new Array(setLength);
 
 		for (let i = 0; i < columnNames.length; ++i) {
 			const colName = columnNames[i]!;
@@ -264,7 +264,7 @@ export class SQLiteDialect {
 					} else {
 						if (isSingleTable && tableName !== undefined) {
 							const { queryChunks } = field.sql;
-							const newChunks: SQLChunk[] = Array.from({ length: queryChunks.length });
+							const newChunks: SQLChunk[] = new Array(queryChunks.length);
 							let abort = false;
 
 							for (let i = 0; i < queryChunks.length; ++i) {
@@ -304,7 +304,7 @@ export class SQLiteDialect {
 				case 'SQL': {
 					if (isSingleTable && tableName !== undefined) {
 						const { queryChunks } = field;
-						const newChunks: SQLChunk[] = Array.from({ length: queryChunks.length });
+						const newChunks: SQLChunk[] = new Array(queryChunks.length);
 						let abort = false;
 
 						for (let i = 0; i < queryChunks.length; ++i) {
@@ -929,7 +929,7 @@ export class SQLiteDialect {
 				const withEntries = Object.entries(withParam).filter(([_, v]) => v);
 				if (!withEntries.length) break;
 
-				const joinChunks: SQL[] = Array.from({ length: withEntries.length * 2 - 1 });
+				const joinChunks: SQL[] = new Array(withEntries.length * 2 - 1);
 				for (let readIdx = 0, writeIdx = 0; readIdx < withEntries.length; ++readIdx) {
 					const [k, join] = withEntries[readIdx]!;
 

@@ -935,7 +935,7 @@ export function mapRelationalRowFromArrays(
 		},
 	);
 
-	const results: Record<string, unknown>[] = Array.from({ length: maxIdx });
+	const results: Record<string, unknown>[] = new Array(maxIdx);
 
 	for (let i = 0; i < maxIdx; ++i) {
 		const row = (isOne ? rows : rows[i]!) as unknown[];
@@ -1269,7 +1269,7 @@ export function makeJitRqbMapper<T = unknown>(
 			lines.push(`\treturn ${inner.literal};`);
 		} else {
 			lines.push(`\tconst { length } = rows;`);
-			lines.push(`\tconst mapped = Array.from({ length });`);
+			lines.push(`\tconst mapped = new Array(length);`);
 			lines.push(`\tfor (let i = 0; i < length; ++i) {`);
 			lines.push(`\t\tconst row = rows[i];`);
 			for (const s of inner.bodyStmts) lines.push(`\t\t${s}`);

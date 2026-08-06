@@ -1064,7 +1064,7 @@ export class PgSelectBase<
 		const { fieldsFlat, setOperators } = config;
 
 		if (setOperators.length && !config.setFieldsFlat) {
-			const setSelection: SelectedFieldsOrdered = Array.from({ length: fieldsFlat.length });
+			const setSelection: SelectedFieldsOrdered = new Array(fieldsFlat.length);
 
 			for (let i = 0; i < setOperators.length; ++i) {
 				const setOperator = setOperators[i];

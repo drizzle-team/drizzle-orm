@@ -2,7 +2,7 @@ import { refineGenericMySqlCodecs } from '~/mysql-core/codecs.ts';
 import { textDecoder } from '~/utils.ts';
 
 const bitStringFromBytes = (value: Uint8Array): string => {
-	const str: string[] = Array.from({ length: value.length });
+	const str: string[] = new Array(value.length);
 	for (let i = 0; i < value.length; ++i) {
 		str[i] = value[i] === 49 ? '1' : '0';
 	}
