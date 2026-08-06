@@ -3,8 +3,8 @@ import { postgis } from '@electric-sql/pglite-postgis';
 import { vector } from '@electric-sql/pglite/vector';
 import { defineRelations, getColumns, Name, sql } from 'drizzle-orm';
 import { getTableConfig, integer, pgTable, serial, text } from 'drizzle-orm/pg-core';
-import { drizzle } from 'drizzle-orm/pglite';
-import { migrate } from 'drizzle-orm/pglite/migrator';
+import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite';
+import { migrate, rollback } from 'drizzle-orm/pglite/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe, expect, test as vitestTest } from 'vitest';
 import { tests } from './common';
@@ -224,6 +224,124 @@ describe('pglite', () => {
 		expect(res2).toStrictEqual(expected);
 
 		rmSync(migrationDir, { recursive: true });
+	});
+
+	const rollbackMigrationDir = './migrations/pglite-rollback';
+
+	const writeRollbackMigration = (name: string, up: string, down?: string) => {
+		mkdirSync(`${rollbackMigrationDir}/${name}`, { recursive: true });
+		writeFileSync(`${rollbackMigrationDir}/${name}/migration.sql`, up);
+		if (down !== undefined) writeFileSync(`${rollbackMigrationDir}/${name}/down.sql`, down);
+	};
+
+	const prepareRollbackMigrations = async (db: PgliteDatabase<any>) => {
+		await db.execute(sql`drop schema if exists "drizzle" cascade;`);
+		await db.execute(sql`drop table if exists "rollback_posts"`);
+		await db.execute(sql`drop table if exists "rollback_users"`);
+
+		if (existsSync(rollbackMigrationDir)) rmSync(rollbackMigrationDir, { recursive: true });
+		mkdirSync(rollbackMigrationDir, { recursive: true });
+	};
+
+	const appliedMigrations = async (db: PgliteDatabase<any>) => {
+		const res = await db.execute<{ name: string }>(
+			sql`select name from "drizzle"."__drizzle_migrations" order by id`,
+		);
+		return Array.prototype.slice.call(res.rows).map((row: { name: string }) => row.name);
+	};
+
+	const tableExists = async (db: PgliteDatabase<any>, name: string) => {
+		const res = await db.execute<{ exists: boolean }>(
+			sql`select exists (select 1 from pg_tables where tablename = ${name}) as ${sql.identifier('exists')}`,
+		);
+		return Array.prototype.slice.call(res.rows)[0]?.exists;
+	};
+
+	test('rollback: undoes the last migration and re-applies cleanly', async ({ db }) => {
+		await prepareRollbackMigrations(db);
+		writeRollbackMigration(
+			'20240101010101_users',
+			`CREATE TABLE "rollback_users" ("id" serial PRIMARY KEY);`,
+			`DROP TABLE "rollback_users";`,
+		);
+		writeRollbackMigration(
+			'20240202020202_posts',
+			`CREATE TABLE "rollback_posts" ("id" serial PRIMARY KEY);`,
+			`DROP TABLE "rollback_posts";`,
+		);
+
+		await migrate(db, { migrationsFolder: rollbackMigrationDir });
+		await rollback(db, { migrationsFolder: rollbackMigrationDir });
+
+		expect(await appliedMigrations(db)).toStrictEqual(['20240101010101_users']);
+		expect(await tableExists(db, 'rollback_posts')).toBe(false);
+		expect(await tableExists(db, 'rollback_users')).toBe(true);
+
+		await migrate(db, { migrationsFolder: rollbackMigrationDir });
+
+		expect(await appliedMigrations(db)).toStrictEqual(['20240101010101_users', '20240202020202_posts']);
+		expect(await tableExists(db, 'rollback_posts')).toBe(true);
+
+		rmSync(rollbackMigrationDir, { recursive: true });
+	});
+
+	test('rollback: steps undoes several migrations newest first', async ({ db }) => {
+		await prepareRollbackMigrations(db);
+		writeRollbackMigration(
+			'20240101010101_users',
+			`CREATE TABLE "rollback_users" ("id" serial PRIMARY KEY);`,
+			`DROP TABLE "rollback_users";`,
+		);
+		writeRollbackMigration(
+			'20240202020202_posts',
+			`CREATE TABLE "rollback_posts" ("id" serial PRIMARY KEY, "user_id" integer REFERENCES "rollback_users"("id"));`,
+			`DROP TABLE "rollback_posts";`,
+		);
+
+		await migrate(db, { migrationsFolder: rollbackMigrationDir });
+		await rollback(db, { migrationsFolder: rollbackMigrationDir }, 2);
+
+		expect(await appliedMigrations(db)).toStrictEqual([]);
+		expect(await tableExists(db, 'rollback_posts')).toBe(false);
+		expect(await tableExists(db, 'rollback_users')).toBe(false);
+
+		rmSync(rollbackMigrationDir, { recursive: true });
+	});
+
+	test('rollback: rejects a migration without down.sql', async ({ db }) => {
+		await prepareRollbackMigrations(db);
+		writeRollbackMigration('20240101010101_users', `CREATE TABLE "rollback_users" ("id" serial PRIMARY KEY);`);
+
+		await migrate(db, { migrationsFolder: rollbackMigrationDir });
+
+		await expect(rollback(db, { migrationsFolder: rollbackMigrationDir })).rejects.toThrowError(
+			/no down SQL available/,
+		);
+
+		expect(await appliedMigrations(db)).toStrictEqual(['20240101010101_users']);
+		expect(await tableExists(db, 'rollback_users')).toBe(true);
+
+		rmSync(rollbackMigrationDir, { recursive: true });
+	});
+
+	test('rollback: a failing down statement leaves the migration applied', async ({ db }) => {
+		await prepareRollbackMigrations(db);
+		writeRollbackMigration(
+			'20240101010101_users',
+			`CREATE TABLE "rollback_users" ("id" serial PRIMARY KEY);`,
+			// The drop succeeds before the bad statement fails, so without a transaction the table
+			// would be gone while the journal still claimed the migration was applied.
+			`DROP TABLE "rollback_users";\n--> statement-breakpoint\nSELECT * FROM "rollback_missing";`,
+		);
+
+		await migrate(db, { migrationsFolder: rollbackMigrationDir });
+
+		await expect(rollback(db, { migrationsFolder: rollbackMigrationDir })).rejects.toThrowError();
+
+		expect(await appliedMigrations(db)).toStrictEqual(['20240101010101_users']);
+		expect(await tableExists(db, 'rollback_users')).toBe(true);
+
+		rmSync(rollbackMigrationDir, { recursive: true });
 	});
 });
 
