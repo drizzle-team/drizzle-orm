@@ -438,3 +438,27 @@ describe('schema filters', () => {
 		expect(filtered).toStrictEqual(['users_1', 'users_2', 'users_3']);
 	});
 });
+
+describe('neon role filters', () => {
+	test('provider neon excludes Neon system roles (#6105)', () => {
+		const filter = prepareEntityFilter('postgresql', {
+			schemas: undefined,
+			tables: undefined,
+			entities: { roles: { provider: 'neon' } },
+			extensions: undefined,
+		}, []);
+
+		const dbRoles = [
+			'authenticated',
+			'anonymous',
+			'cloud_admin',
+			'neon_service',
+			'neon_superuser',
+			'zenith_admin',
+			'app_role',
+		];
+
+		const filtered = dbRoles.filter((name) => filter({ type: 'role', name }));
+		expect(filtered).toStrictEqual(['app_role']);
+	});
+});

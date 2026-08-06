@@ -167,7 +167,17 @@ const prepareRolesFilter = (entities: EntitiesFilter) => {
 	}
 
 	if (provider === 'neon') {
-		exclude.push('authenticated', 'anonymous');
+		// Neon reserved / system roles. `authenticated`/`anonymous` are Neon
+		// Auth; the rest are Neon-managed internals that push must never DROP
+		// (https://github.com/drizzle-team/drizzle-orm/issues/6105).
+		exclude.push(
+			'authenticated',
+			'anonymous',
+			'cloud_admin',
+			'neon_service',
+			'neon_superuser',
+			'zenith_admin',
+		);
 	}
 
 	const useRoles: boolean = typeof roles === 'boolean' ? roles : include.length > 0 || exclude.length > 0;
