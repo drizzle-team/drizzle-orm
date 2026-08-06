@@ -2,6 +2,7 @@ import { Minimatch } from 'minimatch';
 import type { EntitiesFilter, ExtensionsFilter, SchemasFilter, TablesFilter } from '../cli/validations/common';
 import { assertUnreachable } from '../utils';
 import type { Dialect } from '../utils/schemaValidator';
+import { isSystemRole } from './postgres/grammar';
 
 export type Schema = { type: 'schema'; name: string };
 export type Table = { type: 'table'; schema: string | false; name: string };
@@ -186,6 +187,10 @@ const prepareRolesFilter = (entities: EntitiesFilter) => {
 	if (!include.length && !exclude.length) return () => true;
 
 	const rolesFilter: (it: { type: 'role'; name: string }) => boolean = (it) => {
+		// Always skip PostgreSQL predefined roles (`pg_*`, `postgres`) — Neon
+		// (and others) surface these via pg_roles and push would try to DROP them.
+		if (isSystemRole(it.name)) return false;
+
 		const notExcluded = !exclude.length || !exclude.includes(it.name);
 		const included = !include.length || include.includes(it.name);
 

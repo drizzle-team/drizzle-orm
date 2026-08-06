@@ -461,4 +461,18 @@ describe('neon role filters', () => {
 		const filtered = dbRoles.filter((name) => filter({ type: 'role', name }));
 		expect(filtered).toStrictEqual(['app_role']);
 	});
+
+	test('provider neon also excludes PostgreSQL system roles (#6105 Codex)', () => {
+		const filter = prepareEntityFilter('postgresql', {
+			schemas: undefined,
+			tables: undefined,
+			entities: { roles: { provider: 'neon' } },
+			extensions: undefined,
+		}, []);
+
+		expect(filter({ type: 'role', name: 'pg_database_owner' })).toBe(false);
+		expect(filter({ type: 'role', name: 'pg_read_all_data' })).toBe(false);
+		expect(filter({ type: 'role', name: 'postgres' })).toBe(false);
+		expect(filter({ type: 'role', name: 'app_role' })).toBe(true);
+	});
 });
