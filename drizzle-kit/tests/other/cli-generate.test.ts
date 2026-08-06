@@ -458,6 +458,24 @@ test('validate config #4', async (t) => {
 	expect((res.error as Error).name).toBe('ConfigValidationCliError');
 });
 
+// v0's top-level `casing` param was removed in 1.0.0-rc.1 (schema-level casing replaced it);
+// the passthrough config schema would silently ignore it — it must fail loud instead.
+test('validate config: removed v0 `casing` param', async (t) => {
+	const { path, name } = createConfig(
+		// @ts-expect-error
+		{ dialect: 'postgresql', schema: 'schema.ts', casing: 'snake_case' },
+		prefix,
+	);
+
+	const res = await brotest(generate, `--config=${name}`);
+
+	unlinkSync(path);
+
+	expect(res.type).toBe('error');
+	if (res.type !== 'error') return;
+	expect((res.error as Error).name).toBe('RemovedConfigParamCliError');
+});
+
 test('validate config #5', async (t) => {
 	const { path, name } = createConfig({
 		dialect: 'sqlite',

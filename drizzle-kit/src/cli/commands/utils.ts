@@ -12,6 +12,7 @@ import {
 	MigrationSnapshotNotFoundCliError,
 	MigrationSqlFilesConflictCliError,
 	MissingDialectCliError,
+	RemovedConfigParamCliError,
 	RequiredParamsCliError,
 	UnsupportedCommandCliError,
 } from '../errors';
@@ -22,7 +23,7 @@ import { printConfigConnectionIssues as printCockroachIssues } from '../validati
 import type { EntitiesFilterConfig } from '../validations/common';
 import { pullParams, pushParams } from '../validations/common';
 import type { Casing, CliConfig, Driver } from '../validations/common';
-import { configCommonSchema, configMigrations, wrapParam } from '../validations/common';
+import { casingTypes, configCommonSchema, configMigrations, wrapParam } from '../validations/common';
 import { studioCliParams, studioConfig } from '../validations/common';
 import { duckdbCredentials, printConfigConnectionIssues as printIssuesDuckDb } from '../validations/duckdb';
 import type { LibSQLCredentials } from '../validations/libsql';
@@ -954,6 +955,25 @@ export const drizzleConfigFromFile = async (
 	if (!isExport) humanLog(`Reading config file '${path}'`);
 
 	const content = await loadModule<any>(path, { defaultExport: true });
+
+	// v0's top-level `casing` ("snake_case" | "camelCase") was removed in 1.0.0-rc.1 in favor of
+	// schema-level casing (`snakeCase.table(...)`). `configCommonSchema` is `.passthrough()`, so
+	// without this check the param is silently ignored and generate/push then propose renaming
+	// every snake_case column back to its camelCase property key. Pull's `casing`
+	// ("camel" | "preserve") is a different, still-supported param and passes through untouched.
+	if (content !== null && typeof content === 'object' && casingTypes.includes(content['casing'])) {
+		throw new RemovedConfigParamCliError(
+			'casing',
+			error(
+				`The '${
+					chalk.red('casing')
+				}' config param was removed in 1.0.0-rc.1 — casing is now declared on the schema itself:\n\n`
+					+ `  import { snakeCase } from 'drizzle-orm/pg-core';\n\n`
+					+ `  const users = snakeCase.table('users', { ... });\n\n`
+					+ `See https://github.com/drizzle-team/drizzle-orm/releases/tag/v1.0.0-rc.1 for the new casing API`,
+			),
+		);
+	}
 
 	// --- get response and then check by each dialect independently
 	const res = configCommonSchema.safeParse(content);

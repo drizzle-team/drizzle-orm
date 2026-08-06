@@ -98,6 +98,12 @@ export class ConfigValidationCliError extends DrizzleCliError {
 	}
 }
 
+export class RemovedConfigParamCliError extends DrizzleCliError {
+	constructor(param: string, humanMessage: string) {
+		super('removed_config_param_error', humanMessage, { param });
+	}
+}
+
 export class MissingConfigDialectCliError extends DrizzleCliError {
 	constructor() {
 		super('missing_config_dialect_error', error("Please specify 'dialect' param in config file"), { field: 'dialect' });
