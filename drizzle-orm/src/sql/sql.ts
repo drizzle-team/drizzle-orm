@@ -71,19 +71,198 @@ export function isSQLWrapper(value: unknown): value is SQLWrapper {
 	return value !== null && value !== undefined && typeof (value as any).getSQL === 'function';
 }
 
-function mergeQueries(queries: QueryWithTypings[]): QueryWithTypings {
-	const result: QueryWithTypings = { sql: '', params: [] };
-	for (const query of queries) {
-		result.sql += query.sql;
-		result.params.push(...query.params);
-		if (query.typings?.length) {
-			if (!result.typings) {
-				result.typings = [];
-			}
-			result.typings.push(...query.typings);
-		}
+function addQueryTyping(result: QueryWithTypings, typing: QueryTypingsValue) {
+	if (!result.typings) result.typings = [typing];
+	else result.typings.push(typing);
+}
+
+function mergeQueryWithChunks(
+	chunks: SQLChunk[],
+	config: BuildQueryConfig & Required<Pick<BuildQueryConfig, 'inlineParams' | 'paramStartIndex'>>,
+	result: QueryWithTypings
+): void {
+	for (let i = 0; i < chunks.length; i++) {
+		mergeQueryWithChunk(chunks[i], config, result);
 	}
-	return result;
+}
+
+function mergeQueryWithSQLChunk(
+	chunk: SQL,
+	config: BuildQueryConfig & Required<Pick<BuildQueryConfig, 'inlineParams' | 'paramStartIndex'>>,
+	result: QueryWithTypings
+) {
+	mergeQueryWithChunks(chunk.queryChunks, {
+		...config,
+		inlineParams: config.inlineParams || chunk.shouldInlineParams,
+	}, result);
+}
+
+function mergeQueryWithChunk(
+	chunk: SQLChunk,
+	config: BuildQueryConfig & Required<Pick<BuildQueryConfig, 'inlineParams' | 'paramStartIndex'>>,
+	result: QueryWithTypings
+): void {
+	if (is(chunk, StringChunk)) {
+		result.sql += chunk.value.join('');
+		return;
+	}
+
+	if (is(chunk, Name)) {
+		result.sql += config.escapeName(chunk.value);
+		return;
+	}
+
+	if (chunk === undefined) {
+		return;
+	}
+
+	if (Array.isArray(chunk)) {
+		result.sql += '(';
+		for (let i = 0; i < chunk.length; i++) {
+			mergeQueryWithChunk(chunk[i], config, result);
+			result.sql += i === chunk.length - 1 ? ')' : ', ';
+		}
+		return;
+	}
+
+	if (is(chunk, SQL)) {
+		mergeQueryWithSQLChunk(chunk, config, result);
+		return;
+	}
+
+	if (is(chunk, Table)) {
+		const schemaName = chunk[Table.Symbol.Schema];
+		const tableName = chunk[Table.Symbol.Name];
+
+		result.sql += schemaName === undefined || chunk[IsAlias]
+			? config.escapeName(tableName)
+			: config.escapeName(schemaName) + '.' + config.escapeName(tableName);
+		return;
+	}
+
+	if (is(chunk, Column)) {
+		const columnName = config.casing.getColumnCasing(chunk);
+		if (config.invokeSource === 'indexes') {
+			result.sql += config.escapeName(columnName);
+			return;
+		}
+
+		const schemaName = chunk.table[Table.Symbol.Schema];
+		result.sql += chunk.table[IsAlias] || schemaName === undefined
+			? config.escapeName(chunk.table[Table.Symbol.Name]) + '.' + config.escapeName(columnName)
+			: config.escapeName(schemaName) + '.' + config.escapeName(chunk.table[Table.Symbol.Name]) + '.' + config.escapeName(columnName);
+		return;
+	}
+
+	if (is(chunk, View)) {
+		const { schema: schemaName, name: viewName, isAlias } = chunk[ViewBaseConfig];
+		result.sql += schemaName === undefined || isAlias
+			? config.escapeName(viewName)
+			: config.escapeName(schemaName) + '.' + config.escapeName(viewName);
+		return;
+	}
+
+	if (is(chunk, Param)) {
+		if (is(chunk.value, Placeholder)) {
+			result.sql += config.escapeParam(config.paramStartIndex.value++, chunk);
+			result.params.push(chunk);
+			addQueryTyping(result, 'none');
+			return;
+		}
+
+		const mappedValue = chunk.value === null ? null : chunk.encoder.mapToDriverValue(chunk.value);
+		if (is(mappedValue, SQL)) {
+			mergeQueryWithSQLChunk(mappedValue, config, result);
+			return;
+		}
+
+		if (config.inlineParams) {
+			result.sql += mapInlineParam(mappedValue, config);
+			return;
+		}
+
+		result.sql += config.escapeParam(config.paramStartIndex.value++, mappedValue);
+		result.params.push(mappedValue);
+		addQueryTyping(result, config.prepareTyping ? config.prepareTyping(chunk.encoder) : 'none');
+		return;
+	}
+
+	if (is(chunk, Placeholder)) {
+		result.sql += config.escapeParam(config.paramStartIndex.value++, chunk);
+		result.params.push(chunk);
+		addQueryTyping(result, 'none');
+		return;
+	}
+
+	if (is(chunk, SQL.Aliased) && chunk.fieldAlias !== undefined) {
+		result.sql += config.escapeName(chunk.fieldAlias);
+		return;
+	}
+
+	if (is(chunk, Subquery)) {
+		if (!chunk._.isWith) {
+			result.sql += '(';
+			mergeQueryWithSQLChunk(chunk._.sql, config, result);
+			result.sql += ') ';
+		}
+		result.sql += config.escapeName(chunk._.alias);
+		return;
+	}
+
+	if (isPgEnum(chunk)) {
+		result.sql += chunk.schema
+			? config.escapeName(chunk.schema) + '.' + config.escapeName(chunk.enumName)
+			: config.escapeName(chunk.enumName);
+		return;
+	}
+
+	if (isSQLWrapper(chunk)) {
+		if (chunk.shouldOmitSQLParens?.()) {
+			mergeQueryWithSQLChunk(chunk.getSQL(), config, result);
+			return;
+		}
+
+		result.sql += '(';
+		mergeQueryWithSQLChunk(chunk.getSQL(), config, result);
+		result.sql += ')';
+		return;
+	}
+
+	if (config.inlineParams) {
+		result.sql += mapInlineParam(chunk, config);
+		return;
+	}
+
+	result.sql += config.escapeParam(config.paramStartIndex.value++, chunk);
+	result.params.push(chunk);
+	addQueryTyping(result, 'none');
+}
+
+function mapInlineParam(
+	chunk: unknown,
+	config: BuildQueryConfig,
+): string {
+	if (chunk === null) {
+		return 'null';
+	}
+	if (typeof chunk === 'number') {
+		return '' + chunk;
+	}
+	if (typeof chunk === 'boolean') {
+		return chunk ? 'true' : 'false';
+	}
+	if (typeof chunk === 'string') {
+		return config.escapeString(chunk);
+	}
+	if (typeof chunk === 'object') {
+		const mappedValueAsString = chunk.toString();
+		return config.escapeString(
+			mappedValueAsString === '[object Object]'
+			? JSON.stringify(chunk)
+			: mappedValueAsString
+		);
+	}
+	throw new Error('Unexpected param value: ' + chunk);
 }
 
 export class StringChunk implements SQLWrapper {
@@ -110,7 +289,8 @@ export class SQL<T = unknown> implements SQLWrapper {
 
 	/** @internal */
 	decoder: DriverValueDecoder<T, any> = noopDecoder;
-	private shouldInlineParams = false;
+  	/** @internal */
+	shouldInlineParams = false;
 
 	/** @internal */
 	usedTables: string[] = [];
@@ -146,180 +326,13 @@ export class SQL<T = unknown> implements SQLWrapper {
 	}
 
 	buildQueryFromSourceParams(chunks: SQLChunk[], _config: BuildQueryConfig): Query {
-		const config = Object.assign({}, _config, {
-			inlineParams: _config.inlineParams || this.shouldInlineParams,
-			paramStartIndex: _config.paramStartIndex || { value: 0 },
-		});
+		const config: BuildQueryConfig = Object.assign({}, _config);
+		config.inlineParams ||= this.shouldInlineParams;
+		config.paramStartIndex ||= { value: 0 };
 
-		const {
-			casing,
-			escapeName,
-			escapeParam,
-			prepareTyping,
-			inlineParams,
-			paramStartIndex,
-		} = config;
-
-		return mergeQueries(chunks.map((chunk): QueryWithTypings => {
-			if (is(chunk, StringChunk)) {
-				return { sql: chunk.value.join(''), params: [] };
-			}
-
-			if (is(chunk, Name)) {
-				return { sql: escapeName(chunk.value), params: [] };
-			}
-
-			if (chunk === undefined) {
-				return { sql: '', params: [] };
-			}
-
-			if (Array.isArray(chunk)) {
-				const result: SQLChunk[] = [new StringChunk('(')];
-				for (const [i, p] of chunk.entries()) {
-					result.push(p);
-					if (i < chunk.length - 1) {
-						result.push(new StringChunk(', '));
-					}
-				}
-				result.push(new StringChunk(')'));
-				return this.buildQueryFromSourceParams(result, config);
-			}
-
-			if (is(chunk, SQL)) {
-				return this.buildQueryFromSourceParams(chunk.queryChunks, {
-					...config,
-					inlineParams: inlineParams || chunk.shouldInlineParams,
-				});
-			}
-
-			if (is(chunk, Table)) {
-				const schemaName = chunk[Table.Symbol.Schema];
-				const tableName = chunk[Table.Symbol.Name];
-				return {
-					sql: schemaName === undefined || chunk[IsAlias]
-						? escapeName(tableName)
-						: escapeName(schemaName) + '.' + escapeName(tableName),
-					params: [],
-				};
-			}
-
-			if (is(chunk, Column)) {
-				const columnName = casing.getColumnCasing(chunk);
-				if (_config.invokeSource === 'indexes') {
-					return { sql: escapeName(columnName), params: [] };
-				}
-
-				const schemaName = chunk.table[Table.Symbol.Schema];
-				return {
-					sql: chunk.table[IsAlias] || schemaName === undefined
-						? escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(columnName)
-						: escapeName(schemaName) + '.' + escapeName(chunk.table[Table.Symbol.Name]) + '.'
-							+ escapeName(columnName),
-					params: [],
-				};
-			}
-
-			if (is(chunk, View)) {
-				const schemaName = chunk[ViewBaseConfig].schema;
-				const viewName = chunk[ViewBaseConfig].name;
-				return {
-					sql: schemaName === undefined || chunk[ViewBaseConfig].isAlias
-						? escapeName(viewName)
-						: escapeName(schemaName) + '.' + escapeName(viewName),
-					params: [],
-				};
-			}
-
-			if (is(chunk, Param)) {
-				if (is(chunk.value, Placeholder)) {
-					return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
-				}
-
-				const mappedValue = chunk.value === null ? null : chunk.encoder.mapToDriverValue(chunk.value);
-
-				if (is(mappedValue, SQL)) {
-					return this.buildQueryFromSourceParams([mappedValue], config);
-				}
-
-				if (inlineParams) {
-					return { sql: this.mapInlineParam(mappedValue, config), params: [] };
-				}
-
-				let typings: QueryTypingsValue[] = ['none'];
-				if (prepareTyping) {
-					typings = [prepareTyping(chunk.encoder)];
-				}
-
-				return { sql: escapeParam(paramStartIndex.value++, mappedValue), params: [mappedValue], typings };
-			}
-
-			if (is(chunk, Placeholder)) {
-				return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
-			}
-
-			if (is(chunk, SQL.Aliased) && chunk.fieldAlias !== undefined) {
-				return { sql: escapeName(chunk.fieldAlias), params: [] };
-			}
-
-			if (is(chunk, Subquery)) {
-				if (chunk._.isWith) {
-					return { sql: escapeName(chunk._.alias), params: [] };
-				}
-				return this.buildQueryFromSourceParams([
-					new StringChunk('('),
-					chunk._.sql,
-					new StringChunk(') '),
-					new Name(chunk._.alias),
-				], config);
-			}
-
-			if (isPgEnum(chunk)) {
-				if (chunk.schema) {
-					return { sql: escapeName(chunk.schema) + '.' + escapeName(chunk.enumName), params: [] };
-				}
-				return { sql: escapeName(chunk.enumName), params: [] };
-			}
-
-			if (isSQLWrapper(chunk)) {
-				if (chunk.shouldOmitSQLParens?.()) {
-					return this.buildQueryFromSourceParams([chunk.getSQL()], config);
-				}
-				return this.buildQueryFromSourceParams([
-					new StringChunk('('),
-					chunk.getSQL(),
-					new StringChunk(')'),
-				], config);
-			}
-
-			if (inlineParams) {
-				return { sql: this.mapInlineParam(chunk, config), params: [] };
-			}
-
-			return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
-		}));
-	}
-
-	private mapInlineParam(
-		chunk: unknown,
-		{ escapeString }: BuildQueryConfig,
-	): string {
-		if (chunk === null) {
-			return 'null';
-		}
-		if (typeof chunk === 'number' || typeof chunk === 'boolean') {
-			return chunk.toString();
-		}
-		if (typeof chunk === 'string') {
-			return escapeString(chunk);
-		}
-		if (typeof chunk === 'object') {
-			const mappedValueAsString = chunk.toString();
-			if (mappedValueAsString === '[object Object]') {
-				return escapeString(JSON.stringify(chunk));
-			}
-			return escapeString(mappedValueAsString);
-		}
-		throw new Error('Unexpected param value: ' + chunk);
+		const result: QueryWithTypings = { sql: '', params: [] };
+		mergeQueryWithChunks(chunks, config as BuildQueryConfig & Required<Pick<BuildQueryConfig, "inlineParams" | "paramStartIndex">>, result);
+		return result;
 	}
 
 	getSQL(): SQL {
