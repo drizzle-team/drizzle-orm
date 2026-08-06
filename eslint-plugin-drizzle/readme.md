@@ -34,7 +34,7 @@ rules:
 
 ### All config
 
-This plugin exports an [`all` config](src/configs/all.js) that makes use of all rules (except for deprecated ones).
+This plugin exports an [`all` config](src/configs/all.ts) that makes use of all rules (except for deprecated ones).
 
 ```yml
 root: true
