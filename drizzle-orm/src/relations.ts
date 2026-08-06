@@ -101,7 +101,7 @@ export function processRelations(tablesConfig: TablesRelationalConfig, tables: S
 				is(relation, One) ? 'one' : 'many'
 			}.${targetTableName}(...) }`;
 
-			if (relationFieldName in tableConfig.table[TableColumns]) {
+			if (Object.prototype.hasOwnProperty.call(tableConfig.table[TableColumns], relationFieldName)) {
 				throw new Error(
 					`${relationPrintName}: relation name collides with column "${relationFieldName}" of table "${tableConfig.name}"`,
 				);
@@ -1956,7 +1956,7 @@ export function relationsFilterToSQL(
 				continue;
 			}
 			default: {
-				if (table[TableColumns][target]) {
+				if (Object.prototype.hasOwnProperty.call(table[TableColumns], target) && table[TableColumns][target]) {
 					const column = fieldSelectionToSQL(table, target);
 
 					const colFilter = relationsFieldFilterToSQL(
@@ -1968,7 +1968,9 @@ export function relationsFilterToSQL(
 					continue;
 				}
 
-				const relation = tableRelations[target];
+				const relation = Object.prototype.hasOwnProperty.call(tableRelations, target)
+					? tableRelations[target]
+					: undefined;
 				if (!relation) {
 					// Should never trigger unless the types've been violated
 					throw new DrizzleError({
