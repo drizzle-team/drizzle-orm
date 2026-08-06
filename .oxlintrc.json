@@ -47,6 +47,7 @@
 		"unicorn/filename-case": "off",
 		"unicorn/no-array-reduce": "off",
 		"unicorn/no-nested-ternary": "off",
+		"unicorn/no-new-array": "off",
 		"unicorn/no-useless-undefined": [
 			"error",
 			{

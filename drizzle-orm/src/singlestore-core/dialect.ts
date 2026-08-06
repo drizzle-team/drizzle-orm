@@ -200,7 +200,7 @@ export class SingleStoreDialect {
 		);
 
 		const setLength = columnNames.length;
-		const setArr: SQLChunk[] = Array.from({ length: setLength });
+		const setArr: SQLChunk[] = new Array(setLength);
 
 		for (let i = 0; i < columnNames.length; ++i) {
 			const colName = columnNames[i]!;
@@ -306,7 +306,7 @@ export class SingleStoreDialect {
 					} else {
 						if (isSingleTable && tableName !== undefined) {
 							const { queryChunks } = field.sql;
-							const newChunks: SQLChunk[] = Array.from({ length: queryChunks.length });
+							const newChunks: SQLChunk[] = new Array(queryChunks.length);
 							let abort = false;
 
 							for (let i = 0; i < queryChunks.length; ++i) {
@@ -346,7 +346,7 @@ export class SingleStoreDialect {
 				case 'SQL': {
 					if (isSingleTable && tableName !== undefined) {
 						const { queryChunks } = field;
-						const newChunks: SQLChunk[] = Array.from({ length: queryChunks.length });
+						const newChunks: SQLChunk[] = new Array(queryChunks.length);
 						let abort = false;
 
 						for (let i = 0; i < queryChunks.length; ++i) {
@@ -1298,7 +1298,7 @@ export class SingleStoreDialect {
 				const withEntries = Object.entries(withParam).filter(([_, v]) => v);
 				if (!withEntries.length) break;
 
-				const joinChunks: SQL[] = Array.from({ length: (withEntries.length * 2) });
+				const joinChunks: SQL[] = new Array(withEntries.length * 2);
 				joinChunks[0] = sql` `;
 
 				for (let readIdx = 0, writeIdx = 1; readIdx < withEntries.length; ++readIdx) {

@@ -174,7 +174,7 @@ export class MsSqlDialect {
 		);
 
 		const setLength = columnNames.length;
-		const setArr: SQLChunk[] = Array.from({ length: setLength });
+		const setArr: SQLChunk[] = new Array(setLength);
 
 		for (let i = 0; i < columnNames.length; ++i) {
 			const colName = columnNames[i]!;
@@ -295,7 +295,7 @@ export class MsSqlDialect {
 					} else {
 						if (isSingleTable && tableName !== undefined) {
 							const { queryChunks } = field.sql;
-							const newChunks: SQLChunk[] = Array.from({ length: queryChunks.length });
+							const newChunks: SQLChunk[] = new Array(queryChunks.length);
 							let abort = false;
 
 							for (let i = 0; i < queryChunks.length; ++i) {
@@ -335,7 +335,7 @@ export class MsSqlDialect {
 				case 'SQL': {
 					if (isSingleTable && tableName !== undefined) {
 						const { queryChunks } = field;
-						const newChunks: SQLChunk[] = Array.from({ length: queryChunks.length });
+						const newChunks: SQLChunk[] = new Array(queryChunks.length);
 						let abort = false;
 
 						for (let i = 0; i < queryChunks.length; ++i) {
