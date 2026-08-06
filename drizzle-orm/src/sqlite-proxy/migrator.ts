@@ -119,7 +119,7 @@ export async function rollback<TRelations extends AnyRelations>(
 			throw new DrizzleError({ message: `Cannot rollback migration ${dbMigration[1]}: no down SQL available.` });
 		}
 		queriesToRun.push(
-			...[...meta.downSql].reverse(),
+			...meta.downSql,
 			db.dialect.sqlToQuery(
 				sql`delete from ${sql.identifier(migrationsTable)} where id = ${dbMigration[0]}`.inlineParams(),
 			).sql,

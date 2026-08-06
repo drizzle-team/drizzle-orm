@@ -175,7 +175,7 @@ export class SingleStoreDialect {
 							`Cannot rollback migration ${dbMigration.hash}: no down SQL available. Add a down.sql file alongside the migration.`,
 					});
 				}
-				for (const stmt of [...meta.downSql].reverse()) {
+				for (const stmt of meta.downSql) {
 					await tx.execute(sql.raw(stmt));
 				}
 				await tx.execute(

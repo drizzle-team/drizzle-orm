@@ -130,7 +130,7 @@ export async function rollback<TRelations extends AnyRelations>(
 			if (!meta.downSql || meta.downSql.length === 0) {
 				throw new DrizzleError({ message: `Cannot rollback migration ${dbMigration.hash}: no down SQL available.` });
 			}
-			for (const stmt of [...meta.downSql].reverse()) {
+			for (const stmt of meta.downSql) {
 				await session.run(sql.raw(stmt));
 			}
 			await session.run(sql`DELETE FROM ${sql.identifier(migrationsTable)} WHERE id = ${dbMigration.id}`);

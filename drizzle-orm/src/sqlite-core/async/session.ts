@@ -598,7 +598,7 @@ export function rollbackSync(
 	try {
 		for (const dbMigration of dbMigrations) {
 			const meta = findMigrationForRollback(migrations, dbMigration);
-			for (const stmt of [...meta.downSql!].reverse()) {
+			for (const stmt of meta.downSql!) {
 				session.run(sql.raw(stmt));
 			}
 			session.run(
@@ -638,7 +638,7 @@ export async function rollbackAsync(
 	await session.transaction(async (tx) => {
 		for (const dbMigration of dbMigrations) {
 			const meta = findMigrationForRollback(migrations, dbMigration);
-			for (const stmt of [...meta.downSql!].reverse()) {
+			for (const stmt of meta.downSql!) {
 				await tx.run(sql.raw(stmt));
 			}
 			await tx.run(

@@ -125,7 +125,7 @@ export async function rollback<TRelations extends AnyRelations>(
 			});
 		}
 		queriesToRun.push(
-			...[...meta.downSql].reverse(),
+			...meta.downSql,
 			db.dialect.sqlToQuery(
 				sql`delete from ${sql.identifier(migrationsSchema)}.${
 					sql.identifier(migrationsTable)

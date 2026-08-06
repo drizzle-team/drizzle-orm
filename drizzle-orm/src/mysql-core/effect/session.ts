@@ -337,7 +337,7 @@ export const rollback = Effect.fn('rollback')(function*<TEffectHKT extends Query
 						cause: undefined,
 					});
 				}
-				for (const stmt of [...meta.downSql].reverse()) {
+				for (const stmt of meta.downSql) {
 					yield* tx.execute(sql.raw(stmt));
 				}
 				yield* tx.execute(
