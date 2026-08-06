@@ -88,8 +88,8 @@ export async function migrate<TRelations extends AnyRelations>(
 }
 
 /**
- * NOTE: The Neon HTTP driver does not support transactions. This means that if any part of a rollback fails,
- * no automatic rollback of the rollback will be executed. Partially rolled-back state is possible.
+ * Down statements and their journal deletions are sent as a single batch: the driver has no interactive
+ * transactions, so a batch is the only way to keep a failed rollback from leaving partial state behind.
  */
 export async function rollback<TRelations extends AnyRelations>(
 	db: NeonHttpDatabase<TRelations>,
@@ -110,6 +110,7 @@ export async function rollback<TRelations extends AnyRelations>(
 		return;
 	}
 
+	const statements: BatchItem<'pg'>[] = [];
 	for (const dbMigration of dbMigrations) {
 		const meta = migrations.find((m) =>
 			m.hash === dbMigration.hash && (!dbMigration.name || m.name === dbMigration.name)
@@ -125,13 +126,19 @@ export async function rollback<TRelations extends AnyRelations>(
 					`Cannot rollback migration ${dbMigration.hash}: no down SQL available. Add a down.sql file alongside the migration.`,
 			});
 		}
-		for (const stmt of [...meta.downSql].reverse()) {
-			await db.session.execute(sql.raw(stmt));
+		for (const stmt of meta.downSql) {
+			statements.push(db.execute(sql.raw(stmt)));
 		}
-		await db.session.execute(
-			sql`delete from ${sql.identifier(migrationsSchema)}.${
-				sql.identifier(migrationsTable)
-			} where id = ${dbMigration.id}`,
+		statements.push(
+			db.execute(
+				sql`delete from ${sql.identifier(migrationsSchema)}.${
+					sql.identifier(migrationsTable)
+				} where id = ${dbMigration.id}`,
+			),
 		);
+	}
+
+	if (statements.length) {
+		await db.batch(statements as [BatchItem<'pg'>, ...BatchItem<'pg'>[]]);
 	}
 }
