@@ -32,7 +32,16 @@ import {
 	notLike,
 	or,
 } from './sql/expressions/index.ts';
-import { type CommentInput, noopDecoder, Placeholder, SQL, sql, type SQLWrapper, View } from './sql/sql.ts';
+import {
+	type CommentInput,
+	noopDecoder,
+	Placeholder,
+	SQL,
+	sql,
+	type SQLWrapper,
+	StringChunk,
+	View,
+} from './sql/sql.ts';
 import {
 	type Assume,
 	type DrizzleTypeError,
@@ -2023,7 +2032,7 @@ export function relationsOrderToSQL(
 			? data
 			: Array.isArray(data)
 			? data.length
-				? sql.join(data.map((o) => is(o, SQL) ? o : asc(o)), sql`, `)
+				? sql.join(data.map((o) => is(o, SQL) ? o : asc(o)), new StringChunk(`, `))
 				: undefined
 			: is(data, Column)
 			? asc(data)
@@ -2035,7 +2044,7 @@ export function relationsOrderToSQL(
 
 	return sql.join(
 		entries.map(([target, value]) => (value === 'asc' ? asc : desc)(fieldSelectionToSQL(table, target))),
-		sql`, `,
+		new StringChunk(`, `),
 	);
 }
 
@@ -2082,7 +2091,7 @@ export function relationExtrasToSQL(
 	}
 
 	return {
-		sql: subqueries.length ? sql.join(subqueries, sql`, `) : undefined,
+		sql: subqueries.length ? sql.join(subqueries, new StringChunk(`, `)) : undefined,
 		selection,
 	};
 }
