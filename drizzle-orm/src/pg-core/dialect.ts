@@ -1066,7 +1066,7 @@ export class PgDialect {
 					} from (${innerQuery.sql}) as ${sql.identifier('t')}) as ${sql.identifier(k)} on true`;
 
 					joinChunks[writeIdx++] = joinQuery;
-					if (readIdx < withEntries.length) joinChunks[writeIdx++] = new StringChunk(' ');
+					if (readIdx < withEntries.length - 1) joinChunks[writeIdx++] = new StringChunk(' ');
 				}
 
 				joins = new SQL(joinChunks);
