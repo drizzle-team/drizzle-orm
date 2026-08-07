@@ -153,7 +153,7 @@ export abstract class SingleStorePreparedQuery<T extends SingleStorePreparedQuer
 	}
 
 	/** @internal */
-	joinsNotNullableMap?: Record<string, boolean>;
+	nullableObjectPaths?: string[];
 
 	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
 
@@ -250,7 +250,7 @@ export abstract class SingleStoreSession<
 			parts.push(config.accessMode);
 		}
 
-		return parts.length ? sql`start transaction ${sql.raw(parts.join(' '))}` : undefined;
+		return parts.length ? sql`start transaction ${sql.raw(parts.join(', '))}` : undefined;
 	}
 }
 

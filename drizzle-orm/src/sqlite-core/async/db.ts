@@ -12,6 +12,7 @@ import type { Result, SQLiteAsyncSession, SQLiteAsyncTransaction } from '~/sqlit
 import { SQLiteAsyncUpdateBase, type SQLiteAsyncUpdateBuilder } from '~/sqlite-core/async/update.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import {
+	type NoDuplicateColumns,
 	QueryBuilder,
 	SQLiteInsertBuilder,
 	SQLiteSelectBuilder,
@@ -20,7 +21,8 @@ import {
 import type { SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { WithSubquery } from '~/subquery.ts';
-import type { DrizzleTypeError } from '~/utils.ts';
+import type { InferInsertModel, RequiredInsertKeys } from '~/table.ts';
+import type { DrizzleTypeError, IsNever, JoinUnion } from '~/utils.ts';
 import { RelationalQueryBuilder } from '../query-builders/query.ts';
 import type { SelectedFields } from '../query-builders/select.types.ts';
 import type { WithBuilder } from '../subquery.ts';
@@ -326,16 +328,43 @@ export class SQLiteAsyncDatabase<
 		 * // Insert multiple rows
 		 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
 		 *
+		 * // Insert only selected columns
+		 * await db.insert(cars, 'brand', 'productionYear').values([{ brand: 'BMW', productionYear: 1995 }, { brand: 'Porsche', productionYear: 1989 }]);
+		 *
 		 * // Insert with returning clause
 		 * const insertedCar: Car[] = await db.insert(cars)
 		 *   .values({ brand: 'BMW' })
 		 *   .returning();
 		 * ```
 		 */
+		function insert<
+			TTable extends SQLiteTable,
+			TColumnList extends (keyof InferInsertModel<TTable>)[] = [],
+			TRequiredKeys extends string = RequiredInsertKeys<TTable>,
+		>(
+			into: TTable,
+			...columns: TColumnList extends [] ? []
+				: IsNever<TRequiredKeys> extends true ? TColumnList & NoDuplicateColumns<TColumnList>
+				: [TRequiredKeys] extends [TColumnList[number]] ? TColumnList & NoDuplicateColumns<TColumnList>
+				: DrizzleTypeError<
+					`Column selection is missing following required columns: ${JoinUnion<
+						`"${Exclude<TRequiredKeys, TColumnList[number]>}"`,
+						', '
+					>}`
+				>[]
+		): SQLiteAsyncInsertBuilder<TTable, TResultKind, TRunResult, TColumnList extends [] ? 'all' : TColumnList>;
 		function insert<TTable extends SQLiteTable>(
 			into: TTable,
+			...columns: string[]
 		): SQLiteAsyncInsertBuilder<TTable, TResultKind, TRunResult> {
-			return new SQLiteInsertBuilder(into, self.session, self.dialect, queries, SQLiteAsyncInsertBase);
+			return new SQLiteInsertBuilder(
+				into,
+				self.session,
+				self.dialect,
+				queries,
+				columns.length ? columns : undefined,
+				SQLiteAsyncInsertBase,
+			);
 		}
 
 		/**
@@ -507,14 +536,43 @@ export class SQLiteAsyncDatabase<
 	 * // Insert multiple rows
 	 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
 	 *
+	 * // Insert only selected columns
+	 * await db.insert(cars, 'brand', 'productionYear').values([{ brand: 'BMW', productionYear: 1995 }, { brand: 'Porsche', productionYear: 1989 }]);
+	 *
 	 * // Insert with returning clause
 	 * const insertedCar: Car[] = await db.insert(cars)
 	 *   .values({ brand: 'BMW' })
 	 *   .returning();
 	 * ```
 	 */
-	insert<TTable extends SQLiteTable>(into: TTable): SQLiteAsyncInsertBuilder<TTable, TResultKind, TRunResult> {
-		return new SQLiteInsertBuilder(into, this.session, this.dialect, undefined, SQLiteAsyncInsertBase);
+	insert<
+		TTable extends SQLiteTable,
+		TColumnList extends (keyof InferInsertModel<TTable>)[] = [],
+		TRequiredKeys extends string = RequiredInsertKeys<TTable>,
+	>(
+		into: TTable,
+		...columns: TColumnList extends [] ? []
+			: IsNever<TRequiredKeys> extends true ? TColumnList & NoDuplicateColumns<TColumnList>
+			: [TRequiredKeys] extends [TColumnList[number]] ? TColumnList & NoDuplicateColumns<TColumnList>
+			: DrizzleTypeError<
+				`Column selection is missing following required columns: ${JoinUnion<
+					`"${Exclude<TRequiredKeys, TColumnList[number]>}"`,
+					', '
+				>}`
+			>[]
+	): SQLiteAsyncInsertBuilder<TTable, TResultKind, TRunResult, TColumnList extends [] ? 'all' : TColumnList>;
+	insert<TTable extends SQLiteTable>(
+		into: TTable,
+		...columns: string[]
+	): SQLiteAsyncInsertBuilder<TTable, TResultKind, TRunResult> {
+		return new SQLiteInsertBuilder(
+			into,
+			this.session,
+			this.dialect,
+			undefined,
+			columns.length ? columns : undefined,
+			SQLiteAsyncInsertBase,
+		);
 	}
 
 	/**
@@ -624,7 +682,7 @@ export const withReplicas = <
 	const $with: Q['with'] = (...args: []) => getReplica(replicas).with(...args);
 
 	const update: Q['update'] = (...args: [any]) => primary.update(...args);
-	const insert: Q['insert'] = (...args: [any]) => primary.insert(...args);
+	const insert: Q['insert'] = ((...args: [any]) => primary.insert(...args)) as Q['insert'];
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
 	const run: Q['run'] = (...args: [any]) => primary.run(...args);
 	const all: Q['all'] = (...args: [any]) => primary.all(...args);

@@ -5,6 +5,7 @@ import {
 	CockroachInsertBuilder,
 	CockroachSelectBuilder,
 	CockroachUpdateBuilder,
+	type NoDuplicateColumns,
 	QueryBuilder,
 } from '~/cockroach-core/query-builders/index.ts';
 import type {
@@ -21,7 +22,8 @@ import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
-import type { DrizzleTypeError, NeonAuthToken } from '~/utils.ts';
+import type { InferInsertModel, RequiredInsertKeys } from '~/table.ts';
+import type { DrizzleTypeError, IsNever, JoinUnion, NeonAuthToken } from '~/utils.ts';
 import type { CockroachColumn } from './columns/index.ts';
 import { CockroachCountBuilder } from './query-builders/count.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
@@ -356,14 +358,42 @@ export class CockroachDatabase<
 		 * // Insert multiple rows
 		 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
 		 *
+		 * // Insert only selected columns
+		 * await db.insert(cars, 'brand', 'productionYear').values([{ brand: 'BMW', productionYear: 1995 }, { brand: 'Porsche', productionYear: 1989 }]);
+		 *
 		 * // Insert with returning clause
 		 * const insertedCar: Car[] = await db.insert(cars)
 		 *   .values({ brand: 'BMW' })
 		 *   .returning();
 		 * ```
 		 */
-		function insert<TTable extends CockroachTable>(table: TTable): CockroachInsertBuilder<TTable, TQueryResult> {
-			return new CockroachInsertBuilder(table, self.session, self.dialect, queries);
+		function insert<
+			TTable extends CockroachTable,
+			TColumnList extends (keyof InferInsertModel<TTable>)[] = [],
+			TRequiredKeys extends string = RequiredInsertKeys<TTable>,
+		>(
+			table: TTable,
+			...columns: TColumnList extends [] ? []
+				: IsNever<TRequiredKeys> extends true ? TColumnList & NoDuplicateColumns<TColumnList>
+				: [TRequiredKeys] extends [TColumnList[number]] ? TColumnList & NoDuplicateColumns<TColumnList>
+				: DrizzleTypeError<
+					`Column selection is missing following required columns: ${JoinUnion<
+						`"${Exclude<TRequiredKeys, TColumnList[number]>}"`,
+						', '
+					>}`
+				>[]
+		): CockroachInsertBuilder<TTable, TQueryResult, TColumnList extends [] ? 'all' : TColumnList>;
+		function insert<TTable extends CockroachTable>(
+			table: TTable,
+			...columns: string[]
+		): CockroachInsertBuilder<TTable, TQueryResult> {
+			return new CockroachInsertBuilder(
+				table,
+				self.session,
+				self.dialect,
+				queries,
+				columns.length ? columns : undefined,
+			);
 		}
 
 		/**
@@ -571,14 +601,42 @@ export class CockroachDatabase<
 	 * // Insert multiple rows
 	 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
 	 *
+	 * // Insert only selected columns
+	 * await db.insert(cars, 'brand', 'productionYear').values([{ brand: 'BMW', productionYear: 1995 }, { brand: 'Porsche', productionYear: 1989 }]);
+	 *
 	 * // Insert with returning clause
 	 * const insertedCar: Car[] = await db.insert(cars)
 	 *   .values({ brand: 'BMW' })
 	 *   .returning();
 	 * ```
 	 */
-	insert<TTable extends CockroachTable>(table: TTable): CockroachInsertBuilder<TTable, TQueryResult> {
-		return new CockroachInsertBuilder(table, this.session, this.dialect);
+	insert<
+		TTable extends CockroachTable,
+		TColumnList extends (keyof InferInsertModel<TTable>)[] = [],
+		TRequiredKeys extends string = RequiredInsertKeys<TTable>,
+	>(
+		table: TTable,
+		...columns: TColumnList extends [] ? []
+			: IsNever<TRequiredKeys> extends true ? TColumnList & NoDuplicateColumns<TColumnList>
+			: [TRequiredKeys] extends [TColumnList[number]] ? TColumnList & NoDuplicateColumns<TColumnList>
+			: DrizzleTypeError<
+				`Column selection is missing following required columns: ${JoinUnion<
+					`"${Exclude<TRequiredKeys, TColumnList[number]>}"`,
+					', '
+				>}`
+			>[]
+	): CockroachInsertBuilder<TTable, TQueryResult, TColumnList extends [] ? 'all' : TColumnList>;
+	insert<TTable extends CockroachTable>(
+		table: TTable,
+		...columns: string[]
+	): CockroachInsertBuilder<TTable, TQueryResult> {
+		return new CockroachInsertBuilder(
+			table,
+			this.session,
+			this.dialect,
+			undefined,
+			columns.length ? columns : undefined,
+		);
 	}
 
 	/**
@@ -669,7 +727,7 @@ export const withReplicas = <
 	const $with: Q['$with'] = (arg: any) => getReplica(replicas).$with(arg) as any;
 
 	const update: Q['update'] = (...args: [any]) => primary.update(...args);
-	const insert: Q['insert'] = (...args: [any]) => primary.insert(...args);
+	const insert: Q['insert'] = ((...args: [any]) => primary.insert(...args)) as Q['insert'];
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
 	const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
 	const transaction: Q['transaction'] = (...args: [any]) => primary.transaction(...args);

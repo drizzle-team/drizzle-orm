@@ -10,7 +10,7 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
-import { Param, type Query, SQL, sql, type SQLChunk, View } from '~/sql/sql.ts';
+import { Param, type Query, SQL, sql, type SQLChunk, StringChunk, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/mssql.ts';
@@ -173,27 +173,27 @@ export class MsSqlDialect {
 				|| tableColumns[colName]?.onUpdateFn !== undefined,
 		);
 
-		const setSize = columnNames.length;
-		return sql.join(
-			columnNames.flatMap((colName, i) => {
-				const col = tableColumns[colName]!;
+		const setLength = columnNames.length;
+		const setArr: SQLChunk[] = new Array(setLength);
 
-				let value;
-				if (set[colName] !== undefined) {
-					value = set[colName];
-				} else {
-					const updateRes = col.onUpdateFn?.();
-					value = is(updateRes, SQL) ? updateRes : sql.param(updateRes, col);
-				}
+		for (let i = 0; i < columnNames.length; ++i) {
+			const colName = columnNames[i]!;
+			const col = tableColumns[colName]!;
 
-				const res = sql`${sql.identifier(col.name)} = ${value}`;
+			let value;
+			if (set[colName] !== undefined) {
+				value = set[colName];
+			} else {
+				const updateRes = col.onUpdateFn?.();
+				value = is(updateRes, SQL) ? updateRes : sql.param(updateRes, col);
+			}
 
-				if (i < setSize - 1) {
-					return [res, sql.raw(', ')];
-				}
-				return [res];
-			}),
-		);
+			setArr[i] = i < setLength - 1
+				? sql`${sql.identifier(col.name)} = ${value}, `
+				: sql`${sql.identifier(col.name)} = ${value}`;
+		}
+
+		return new SQL(setArr);
 		// const setEntries = Object.entries(set);
 		//
 		// const setSize = setEntries.length;
@@ -250,49 +250,136 @@ export class MsSqlDialect {
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
-		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
+		{ isSingleTable = false, table }: {
+			isSingleTable?: boolean;
+			table?: MsSqlTable | MsSqlViewBase | SQL | Subquery;
+		} = {},
 	): SQL {
 		const { length: columnsLen } = fields;
 		const chunks: SQLChunk[] = [];
+		const tableName = table
+			? is(table, SQL) || is(table, Subquery)
+				? undefined
+				: (table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
+					? table[Table.Symbol.Name]
+					: `${table[Table.Symbol.Schema]}.${table[Table.Symbol.Name]}`)
+			: undefined;
 
 		for (let i = 0; i < columnsLen; ++i) {
-			const { field } = fields[i]!;
+			const { field, fieldType } = fields[i]!;
 
-			if (is(field, Column)) {
-				if (isSingleTable) {
-					chunks.push(
-						field.isAlias
-							? sql`${sql.identifier(getOriginalColumnFromAlias(field).name)} as ${field}`
-							: sql.identifier(field.name),
-					);
-				} else {
-					chunks.push(
-						field.isAlias
-							? sql`${getOriginalColumnFromAlias(field)} as ${field}`
-							: field,
-					);
-				}
-			} else if (is(field, SQL.Aliased)) {
-				if (field.isSelectionField) {
-					if (!isSingleTable && field.origin !== undefined) {
-						chunks.push(sql.identifier(field.origin), sql.raw('.'));
+			switch (fieldType) {
+				case 'Column': {
+					if (isSingleTable) {
+						chunks.push(
+							field.isAlias
+								? sql`${sql.identifier(getOriginalColumnFromAlias(field).name)} as ${field}`
+								: sql.identifier(field.name),
+						);
+					} else {
+						chunks.push(
+							field.isAlias
+								? sql`${getOriginalColumnFromAlias(field)} as ${field}`
+								: field,
+						);
 					}
-					chunks.push(sql.identifier(field.fieldAlias));
-				} else {
-					chunks.push(field.sql, sql` as ${sql.identifier(field.fieldAlias)}`);
+
+					break;
 				}
-			} else if (is(field, SQL)) {
-				chunks.push(field);
-			} else if (is(field, Subquery)) {
-				if (!field._.isWith) {
-					chunks.push(sql`(${field._.sql}) ${sql.identifier(field._.alias)}`);
-				} else {
-					chunks.push(field);
+				case 'SQL.Aliased': {
+					if (field.isSelectionField) {
+						if (!isSingleTable && field.origin !== undefined) {
+							chunks.push(sql.identifier(field.origin), new StringChunk('.'));
+						}
+						chunks.push(sql.identifier(field.fieldAlias));
+					} else {
+						if (isSingleTable && tableName !== undefined) {
+							const { queryChunks } = field.sql;
+							const newChunks: SQLChunk[] = new Array(queryChunks.length);
+							let abort = false;
+
+							for (let i = 0; i < queryChunks.length; ++i) {
+								const c = queryChunks[i]!;
+								if (is(c, Column)) {
+									const { table } = c;
+									const columnTableName = table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
+										? table[Table.Symbol.Name]
+										: `${table[Table.Symbol.Schema]}.${table[Table.Symbol.Name]}`;
+									if (columnTableName !== tableName) {
+										abort = true;
+										break;
+									}
+
+									newChunks[i] = sql.identifier(c.name);
+								} else {
+									newChunks[i] = c;
+								}
+							}
+
+							if (abort) {
+								chunks.push(field.sql);
+							} else {
+								const newSql = new SQL(newChunks);
+								if (field.sql.shouldInlineParams) newSql.inlineParams();
+								chunks.push(newSql);
+							}
+						} else {
+							chunks.push(field.sql);
+						}
+
+						chunks.push(sql` as ${sql.identifier(field.fieldAlias)}`);
+					}
+
+					break;
+				}
+				case 'SQL': {
+					if (isSingleTable && tableName !== undefined) {
+						const { queryChunks } = field;
+						const newChunks: SQLChunk[] = new Array(queryChunks.length);
+						let abort = false;
+
+						for (let i = 0; i < queryChunks.length; ++i) {
+							const c = queryChunks[i]!;
+							if (is(c, Column)) {
+								const { table } = c;
+								const columnTableName = table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
+									? table[Table.Symbol.Name]
+									: `${table[Table.Symbol.Schema]}.${table[Table.Symbol.Name]}`;
+								if (columnTableName !== tableName) {
+									abort = true;
+									break;
+								}
+
+								newChunks[i] = sql.identifier(c.name);
+							} else {
+								newChunks[i] = c;
+							}
+						}
+
+						if (abort) {
+							chunks.push(field);
+						} else {
+							const newSql = new SQL(newChunks);
+							if (field.shouldInlineParams) newSql.inlineParams();
+							chunks.push(newSql);
+						}
+					} else chunks.push(field);
+
+					break;
+				}
+				case 'Subquery': {
+					if (!field._.isWith) {
+						chunks.push(sql`(${field._.sql}) ${sql.identifier(field._.alias)}`);
+					} else {
+						chunks.push(field);
+					}
+
+					break;
 				}
 			}
 
 			if (i < columnsLen - 1) {
-				chunks.push(sql`, `);
+				chunks.push(new StringChunk(', '));
 			}
 		}
 
@@ -307,31 +394,57 @@ export class MsSqlDialect {
 		const chunks: SQLChunk[] = [];
 
 		for (let i = 0; i < columnsLen; ++i) {
-			const { field } = fields[i]!;
+			const { field, fieldType } = fields[i]!;
 
-			if (is(field, Column)) {
-				chunks.push(
-					sql.join([
-						sql.raw(`${type}.`),
-						field.isAlias
-							? sql`${sql.identifier(getOriginalColumnFromAlias(field).name)} as ${field}`
-							: sql.identifier(field.name),
-					]),
-				);
-			} else if (is(field, SQL.Aliased)) {
-				if (field.isSelectionField) {
+			switch (fieldType) {
+				case 'Column': {
 					chunks.push(
-						sql.join([sql.raw(`${type}.`), sql.identifier(field.fieldAlias)]),
+						sql.join([
+							new StringChunk(`${type}.`),
+							field.isAlias
+								? sql`${sql.identifier(getOriginalColumnFromAlias(field).name)} as ${field}`
+								: sql.identifier(field.name),
+						]),
 					);
-				} else {
-					const query = field.sql;
+
+					break;
+				}
+				case 'SQL.Aliased': {
+					if (field.isSelectionField) {
+						chunks.push(
+							sql.join([new StringChunk(`${type}.`), sql.identifier(field.fieldAlias)]),
+						);
+					} else {
+						const query = field.sql;
+
+						chunks.push(
+							new SQL(
+								query.queryChunks.map((c) => {
+									if (is(c, MsSqlColumn)) {
+										return sql.join([
+											new StringChunk(`${type}.`),
+											sql.identifier(c.name),
+										]);
+									}
+									return c;
+								}),
+							),
+						);
+
+						chunks.push(sql` as ${sql.identifier(field.fieldAlias)}`);
+					}
+
+					break;
+				}
+				case 'SQL': {
+					const query = field;
 
 					chunks.push(
 						new SQL(
 							query.queryChunks.map((c) => {
 								if (is(c, MsSqlColumn)) {
 									return sql.join([
-										sql.raw(`${type}.`),
+										new StringChunk(`${type}.`),
 										sql.identifier(c.name),
 									]);
 								}
@@ -340,28 +453,12 @@ export class MsSqlDialect {
 						),
 					);
 
-					chunks.push(sql` as ${sql.identifier(field.fieldAlias)}`);
+					break;
 				}
-			} else if (is(field, SQL)) {
-				const query = field;
-
-				chunks.push(
-					new SQL(
-						query.queryChunks.map((c) => {
-							if (is(c, MsSqlColumn)) {
-								return sql.join([
-									sql.raw(`${type}.`),
-									sql.identifier(c.name),
-								]);
-							}
-							return c;
-						}),
-					),
-				);
 			}
 
 			if (i < columnsLen - 1) {
-				chunks.push(sql`, `);
+				chunks.push(new StringChunk(', '));
 			}
 		}
 
@@ -423,22 +520,26 @@ export class MsSqlDialect {
 
 		let withSql: SQL | undefined;
 		if (withList?.length) {
-			const withSqlChunks = [sql`with `];
-			for (const [i, w] of withList.entries()) {
-				withSqlChunks.push(sql`${sql.identifier(w._.alias)} as (${w._.sql})`);
-				if (i < withList.length - 1) {
-					withSqlChunks.push(sql`, `);
-				}
+			const withListLen = withList.length;
+			const withSqlChunks: SQLChunk[] = new Array(withListLen + 1);
+			let writeIdx = 0;
+			withSqlChunks[writeIdx++] = new StringChunk('with ');
+
+			for (let i = 0; i < withListLen; ++i) {
+				const w = withList[i]!;
+				withSqlChunks[writeIdx++] = (i < withListLen - 1)
+					? sql`${sql.identifier(w._.alias)} as (${w._.sql}), `
+					: sql`${sql.identifier(w._.alias)} as (${w._.sql}) `;
 			}
-			withSqlChunks.push(sql` `);
-			withSql = sql.join(withSqlChunks);
+
+			withSql = new SQL(withSqlChunks);
 		}
 
 		const distinctSql = distinct ? sql` distinct` : undefined;
 
 		const topSql = top ? sql` top(${top})` : undefined;
 
-		const selection = this.buildSelection(fieldsList, { isSingleTable });
+		const selection = this.buildSelection(fieldsList, { isSingleTable, table });
 
 		const tableSql = (() => {
 			if (
@@ -467,12 +568,12 @@ export class MsSqlDialect {
 			return table;
 		})();
 
-		const joinsArray: SQL[] = [];
+		const joinsArray: SQLChunk[] = [];
 
 		if (joins) {
 			for (const [index, joinMeta] of joins.entries()) {
 				if (index === 0) {
-					joinsArray.push(sql` `);
+					joinsArray.push(new StringChunk(' '));
 				}
 				const table = joinMeta.table;
 				const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
@@ -483,7 +584,7 @@ export class MsSqlDialect {
 					const origTableName = table[MsSqlTable.Symbol.OriginalName];
 					const alias = tableName === origTableName ? undefined : joinMeta.alias;
 					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
+						sql`${new StringChunk(joinMeta.joinType)} join${lateralSql} ${
 							tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
 						}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
 					);
@@ -493,22 +594,22 @@ export class MsSqlDialect {
 					const origViewName = table[ViewBaseConfig].originalName;
 					const alias = viewName === origViewName ? undefined : joinMeta.alias;
 					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
+						sql`${new StringChunk(joinMeta.joinType)} join${lateralSql} ${
 							viewSchema ? sql`${sql.identifier(viewSchema)}.` : undefined
 						}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
 					);
 				} else {
 					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${table} on ${joinMeta.on}`,
+						sql`${new StringChunk(joinMeta.joinType)} join${lateralSql} ${table} on ${joinMeta.on}`,
 					);
 				}
 				if (index < joins.length - 1) {
-					joinsArray.push(sql` `);
+					joinsArray.push(new StringChunk(' '));
 				}
 			}
 		}
 
-		const joinsSql = sql.join(joinsArray);
+		const joinsSql = new SQL(joinsArray);
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
@@ -516,12 +617,12 @@ export class MsSqlDialect {
 
 		let orderBySql;
 		if (orderBy && orderBy.length > 0) {
-			orderBySql = sql` order by ${sql.join(orderBy, sql`, `)}`;
+			orderBySql = sql` order by ${sql.join(orderBy, new StringChunk(', '))}`;
 		}
 
 		let groupBySql;
 		if (groupBy && groupBy.length > 0) {
-			groupBySql = sql` group by ${sql.join(groupBy, sql`, `)}`;
+			groupBySql = sql` group by ${sql.join(groupBy, new StringChunk(', '))}`;
 		}
 
 		const offsetSql = offset === undefined ? undefined : sql` offset ${offset} rows`;
@@ -530,7 +631,7 @@ export class MsSqlDialect {
 
 		let forSQL: SQL | undefined;
 		if (_for && _for.mode === 'json') {
-			forSQL = sql` for json ${sql.raw(_for.type)}${
+			forSQL = sql` for json ${new StringChunk(_for.type)}${
 				_for.options?.root
 					? sql` root(${sql.identifier(_for.options.root)})`
 					: undefined
@@ -606,69 +707,91 @@ export class MsSqlDialect {
 				}
 			}
 
-			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)} `;
+			orderBySql = sql` order by ${sql.join(orderByValues, new StringChunk(', '))} `;
 		}
 
 		const offsetSql = offset === undefined ? undefined : sql` offset ${offset} rows`;
 
 		const fetchSql = fetch === undefined ? undefined : sql` fetch next ${fetch} rows only`;
 
-		const operatorChunk = sql.raw(`${type} ${isAll ? 'all ' : ''}`);
+		const operatorChunk = new StringChunk(`${type} ${isAll ? 'all ' : ''}`);
 
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${offsetSql}${fetchSql}`;
 	}
 
-	buildInsertQuery({ table, values, output }: MsSqlInsertConfig): SQL {
+	buildInsertQuery({ table, values, output, columnList }: MsSqlInsertConfig): SQL {
 		// const isSingleValue = values.length === 1;
-		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, MsSqlColumn> = table[Table.Symbol.Columns];
-		const colEntries: [string, MsSqlColumn][] = Object.entries(columns).filter(
-			([_, col]) => !col.shouldDisableInsert(),
-		);
+		const colEntries: [string, MsSqlColumn][] = columnList
+			? columnList.map((name) => [name, columns[name]!] as [string, MsSqlColumn])
+			: Object.entries(columns).filter(
+				([_, col]) => !col.shouldDisableInsert(),
+			);
 
-		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
+		const insertOrderArr: SQLChunk[] = new Array(colEntries.length * 2 + 1);
+		let orderWriteIdx = 0;
+		insertOrderArr[orderWriteIdx++] = new StringChunk('(');
+		for (let i = 0; i < colEntries.length; ++i) {
+			const [, { name }] = colEntries[i]!;
+			insertOrderArr[orderWriteIdx++] = sql.identifier(name);
 
-		for (const [valueIndex, value] of values.entries()) {
-			const valueList: (SQLChunk | SQL)[] = [];
-			for (const [fieldName, col] of colEntries) {
+			if (i < colEntries.length - 1) insertOrderArr[orderWriteIdx++] = new StringChunk(', ');
+		}
+		insertOrderArr[orderWriteIdx++] = new StringChunk(')');
+		const insertOrder = new SQL(insertOrderArr);
+
+		const valuesSqlList: SQLChunk[] = Array.from({
+			length: (colEntries.length * 2 + 1) * values.length + values.length - 1,
+		});
+
+		let writeIdx = 0;
+		for (let valueIndex = 0; valueIndex < values.length; ++valueIndex) {
+			const value = values[valueIndex]!;
+
+			valuesSqlList[writeIdx++] = new StringChunk('(');
+			for (let i = 0; i < colEntries.length; ++i) {
+				const [fieldName, col] = colEntries[i]!;
 				const colValue = value[fieldName];
-				if (
-					colValue === undefined
-					|| (is(colValue, Param) && colValue.value === undefined)
-				) {
+				if (colValue === undefined) {
 					if (col.defaultFn !== undefined) {
 						const defaultFnResult = col.defaultFn();
 						const defaultValue = is(defaultFnResult, SQL)
 							? defaultFnResult
 							: sql.param(defaultFnResult, col);
-						valueList.push(defaultValue);
+						valuesSqlList[writeIdx++] = defaultValue;
 					} else if (!col.default && col.onUpdateFn !== undefined) {
 						const onUpdateFnResult = col.onUpdateFn();
 						const newValue = is(onUpdateFnResult, SQL)
 							? onUpdateFnResult
 							: sql.param(onUpdateFnResult, col);
-						valueList.push(newValue);
+						valuesSqlList[writeIdx++] = newValue;
 					} else {
-						valueList.push(sql`default`);
+						valuesSqlList[writeIdx++] = new StringChunk(`default`);
 					}
 				} else {
-					valueList.push(colValue);
+					valuesSqlList[writeIdx++] = is(colValue, SQL) ? colValue : new Param(colValue, col);
+				}
+
+				if (i < colEntries.length - 1) {
+					valuesSqlList[writeIdx++] = new StringChunk(', ');
 				}
 			}
-			valuesSqlList.push(valueList);
+
+			valuesSqlList[writeIdx++] = new StringChunk(')');
+
 			if (valueIndex < values.length - 1) {
-				valuesSqlList.push(sql`, `);
+				valuesSqlList[writeIdx++] = new StringChunk(`, `);
 			}
 		}
 
-		const valuesSql = insertOrder.length === 0 ? undefined : sql.join(valuesSqlList);
+		const valuesSql = colEntries.length === 0 ? undefined : new SQL(valuesSqlList);
 
 		const outputSql = output
 			? sql` output ${this.buildSelectionOutput(output, { type: 'INSERTED' })}`
 			: undefined;
 
 		return sql`insert into ${table} ${
-			insertOrder.length === 0 ? sql`default` : insertOrder
+			colEntries.length === 0 ? sql`default` : insertOrder
 		}${outputSql} values ${valuesSql}`;
 	}
 
@@ -934,7 +1057,7 @@ export class MsSqlDialect {
 								: sql`${sel.field.sql} as ${sql.identifier(sel.field.fieldAlias)}`
 							: sel.field;
 					}),
-					sql`, `,
+					new StringChunk(', '),
 				)
 			}`;
 			if (is(nestedQueryRelation, V1.Many)) {
@@ -967,12 +1090,11 @@ export class MsSqlDialect {
 					? result
 					: new Subquery(result, {}, tableAlias),
 				fields: {},
-				fieldsFlat: nestedSelection.map(({ field }) => ({
-					path: [],
-					field: is(field, Column)
-						? aliasedTableColumn(field, tableAlias)
-						: field,
-				})),
+				fieldsFlat: nestedSelection.map(({ field }) => {
+					const mapped = is(field, Column) ? aliasedTableColumn(field, tableAlias) : field;
+					const fieldType = is(mapped, Column) ? 'Column' : is(mapped, SQL.Aliased) ? 'SQL.Aliased' : 'SQL';
+					return { path: [], field: mapped, fieldType } as SelectedFieldsOrdered[number];
+				}),
 				where,
 				top,
 				offset,
@@ -990,12 +1112,11 @@ export class MsSqlDialect {
 			result = this.buildSelectQuery({
 				table: aliasedTable(table, tableAlias),
 				fields: {},
-				fieldsFlat: selection.map(({ field }) => ({
-					path: [],
-					field: is(field, Column)
-						? aliasedTableColumn(field, tableAlias)
-						: field,
-				})),
+				fieldsFlat: selection.map(({ field }) => {
+					const mapped = is(field, Column) ? aliasedTableColumn(field, tableAlias) : field;
+					const fieldType = is(mapped, Column) ? 'Column' : is(mapped, SQL.Aliased) ? 'SQL.Aliased' : 'SQL';
+					return { path: [], field: mapped, fieldType } as SelectedFieldsOrdered[number];
+				}),
 				where,
 				top,
 				offset,

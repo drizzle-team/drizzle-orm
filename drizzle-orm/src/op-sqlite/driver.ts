@@ -1,4 +1,4 @@
-import type { OPSQLiteConnection } from '@op-engineering/op-sqlite';
+import type { DB } from '@op-engineering/op-sqlite';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -14,10 +14,10 @@ export class OPSQLiteDatabase<TRelations extends AnyRelations = EmptyRelations>
 }
 
 export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
-	client: OPSQLiteConnection,
+	client: DB,
 	config: DrizzleConfig<TRelations> = {},
 ): OPSQLiteDatabase<TRelations> & {
-	$client: OPSQLiteConnection;
+	$client: DB;
 } {
 	const dialect = new SQLiteDialect({
 		useJitMappers: jitCompatCheck(config.jit),

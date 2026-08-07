@@ -36,7 +36,8 @@ export type SQLiteEffectInsertBuilder<
 	TTable extends SQLiteTable,
 	TRunResult,
 	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
-> = SQLiteInsertBuilder<TTable, TRunResult, SQLiteEffectInsertHKT<TEffectHKT>>;
+	TColumnList extends string[] | 'all' = 'all',
+> = SQLiteInsertBuilder<TTable, TRunResult, TColumnList, SQLiteEffectInsertHKT<TEffectHKT>>;
 
 export type SQLiteEffectInsertExecute<T extends AnySQLiteEffectInsert> = T['_']['returning'] extends undefined
 	? T['_']['runResult']

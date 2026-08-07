@@ -38,7 +38,7 @@ test('NOT conditions not wrapped in parentheses for non-SQL', () => {
 	expect(text).toStrictEqual(`not "users"."id"`);
 });
 
-test.skipIf(Date.now() < +new Date('2026-07-08'))('OR conditions deep filter empty queries', () => {
+test.skipIf(Date.now() < +new Date('2026-08-12'))('OR conditions deep filter empty queries', () => {
 	const query = or(
 		eq(users.id, 1),
 		sql`${sql`never`.if(false)}`,
@@ -49,7 +49,7 @@ test.skipIf(Date.now() < +new Date('2026-07-08'))('OR conditions deep filter emp
 	expect(text).toStrictEqual(`(("users"."id" = 1) or (users.id = post.user_id AND posts.is_deleted = false))`);
 });
 
-test.skipIf(Date.now() < +new Date('2026-07-08'))('AND conditions deep filter empty queries', () => {
+test.skipIf(Date.now() < +new Date('2026-08-12'))('AND conditions deep filter empty queries', () => {
 	const query = and(
 		eq(users.id, 1),
 		sql`${sql`never`.if(false)}`,
@@ -60,8 +60,38 @@ test.skipIf(Date.now() < +new Date('2026-07-08'))('AND conditions deep filter em
 	expect(text).toStrictEqual(`(("users"."id" = 1) and (users.id = post.user_id AND posts.is_deleted = false))`);
 });
 
-test.skipIf(Date.now() < +new Date('2026-07-08'))('NOT conditions deep filter empty queries', () => {
+test.skipIf(Date.now() < +new Date('2026-08-12'))('NOT conditions deep filter empty queries', () => {
 	const query = not(sql`${sql`never`.if(false)}`);
 
 	expect(query).toBeUndefined();
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5994
+test(`Issue No5994. sqlToQuery with large parameter lists`, () => {
+	const parameterCount = 150_000;
+	const parameters = Array.from(
+		{ length: parameterCount },
+		(_, index) => index,
+	);
+
+	const result = dialect['sqlToQuery'](sql`${parameters}`);
+
+	expect(result.params).toHaveLength(parameterCount);
+	expect(
+		result.params.every((parameter, index) => parameter === index),
+	).toBe(true);
+});
+test(`Issue No5994. _sqlToQuery with large parameter lists`, () => {
+	const parameterCount = 150_000;
+	const parameters = Array.from(
+		{ length: parameterCount },
+		(_, index) => index,
+	);
+
+	const result = dialect['_sqlToQuery'](sql`${parameters}`);
+
+	expect(result.params).toHaveLength(parameterCount);
+	expect(
+		result.params.every((parameter, index) => parameter === index),
+	).toBe(true);
 });

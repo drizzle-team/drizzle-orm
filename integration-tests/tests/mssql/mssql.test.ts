@@ -17,6 +17,7 @@ import {
 	max,
 	min,
 	Name,
+	notInArray,
 	sql,
 	sum,
 	sumDistinct,
@@ -5112,7 +5113,7 @@ test('issue 5527. real() returns unprecise float64 values', async ({ db }) => {
 	expect(res).toStrictEqual({ id: 1, age: 0.01 });
 });
 
-test.skipIf(Date.now() < +new Date('2026-07-08'))('Query error wrapping', async ({ db }) => {
+test.skipIf(Date.now() < +new Date('2026-08-12'))('Query error wrapping', async ({ db }) => {
 	await expect(db.insert(users2Table).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]))
 		.rejects.toBeInstanceOf(DrizzleQueryError);
 });
@@ -5145,4 +5146,88 @@ test('insert into table with generated column', async ({ db }) => {
 	await query;
 	const result = await db.select().from(docs);
 	expect(result).toEqual([{ id: 1, value: 'hello', value_idx: 'HELLO' }]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5632
+test('issue #5632', async ({ db }) => {
+	const docs = mssqlTable('docs', {
+		id: int().identity(),
+		value: nvarchar({ length: 'max' }).notNull(),
+		value_idx: nvarchar({ length: 450 }).generatedAlwaysAs(sql`(CONVERT([nvarchar](450),[value]))`),
+	});
+
+	await db.execute(sql`drop table if exists [docs]`);
+	await db.execute(sql`
+		create table [docs] (
+			[id] int identity,
+			[value] nvarchar(max) not null,
+			[value_idx] as (upper([value]))
+		);
+	`);
+
+	await db.execute(sql`INSERT INTO ${docs}([${sql.raw(docs.value.name)}]) VALUES ('hello'), ('world');`);
+
+	const arr: string[] = [];
+
+	const res1 = await db.select().from(docs).where(inArray(docs.value, arr));
+	const res2 = await db.select().from(docs).where(notInArray(docs.value, arr));
+
+	expect(res1).toStrictEqual([]);
+	expect(res2).toStrictEqual([
+		{
+			id: 1,
+			value: 'hello',
+			value_idx: 'HELLO',
+		},
+		{
+			id: 2,
+			value: 'world',
+			value_idx: 'WORLD',
+		},
+	]);
+});
+
+test('Default value priority', async ({ db }) => {
+	const exTbl = mssqlTable('no_default_override', {
+		id: int('id').primaryKey(),
+		defSql: int('def_sql').default(sql`1`),
+		defNum: int('def_num').default(1),
+		defFn: int('def_fn').$defaultFn(() => 1),
+		defUpdFn: int('def_upd_fn').$onUpdateFn(() => 1),
+		defMix1: int('def_mix1').default(1).$defaultFn(() => 2).$onUpdateFn(() => 3),
+		defMix2: int('def_mix2').$defaultFn(() => 2).$onUpdateFn(() => 3),
+		defMix3: int('def_mix3').default(1).$defaultFn(() => 2),
+		defMix4: int('def_mix4').default(sql`1`).$onUpdateFn(() => 3),
+	});
+
+	await db.execute(sql`drop table if exists ${exTbl}`);
+	await db.execute(sql`
+		create table ${exTbl} (
+			[id] int primary key,
+			[def_sql] int default 1,
+			[def_num] int default 1,
+			[def_fn] int,
+			[def_upd_fn] int,
+			[def_mix1] int default 1,
+			[def_mix2] int,
+			[def_mix3] int default 1,
+			[def_mix4] int default 1
+		);
+	`);
+
+	await db.insert(exTbl).values({ id: 1 });
+
+	const res = await db.select().from(exTbl);
+
+	expect(res).toStrictEqual([{
+		id: 1,
+		defSql: 1,
+		defNum: 1,
+		defFn: 1,
+		defUpdFn: 1,
+		defMix1: 2,
+		defMix2: 2,
+		defMix3: 2,
+		defMix4: 1,
+	}]);
 });

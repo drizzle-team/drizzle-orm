@@ -8,7 +8,7 @@ import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectCountBuilder } from '~/pg-core/effect/count.ts';
 import { PgEffectInsertBase, type PgEffectInsertHKT } from '~/pg-core/effect/insert.ts';
 import { PgEffectSelectBase, type PgEffectSelectBuilder } from '~/pg-core/effect/select.ts';
-import { PgInsertBuilder } from '~/pg-core/query-builders/insert.ts';
+import { type NoDuplicateColumns, PgInsertBuilder } from '~/pg-core/query-builders/insert.ts';
 import { RelationalQueryBuilder } from '~/pg-core/query-builders/query.ts';
 import { PgSelectBuilder } from '~/pg-core/query-builders/select.ts';
 import type { PgTable } from '~/pg-core/table.ts';
@@ -18,11 +18,13 @@ import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
+import type { InferInsertModel, RequiredInsertKeys } from '~/table.ts';
+import type { DrizzleTypeError, IsNever, JoinUnion } from '~/utils.ts';
 import type { PgColumn } from '../columns/common.ts';
 import { QueryBuilder } from '../query-builders/query-builder.ts';
 import type { SelectedFields } from '../query-builders/select.types.ts';
 import { PgUpdateBuilder } from '../query-builders/update.ts';
-import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '../session.ts';
+import type { PgQueryResultHKT, PgQueryResultKind, PgTransactionConfig, PreparedQueryConfig } from '../session.ts';
 import type { WithBuilder } from '../subquery.ts';
 import type { PgMaterializedView } from '../view.ts';
 import { PgEffectDeleteBase } from './delete.ts';
@@ -362,16 +364,50 @@ export class PgEffectDatabase<
 		 * // Insert multiple rows
 		 * yield* db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
 		 *
+		 * // Insert only selected columns
+		 * yield* db.insert(cars, 'brand', 'productionYear').values([{ brand: 'BMW', productionYear: 1995 }, { brand: 'Porsche', productionYear: 1989 }]);
+		 *
 		 * // Insert with returning clause
 		 * const insertedCar: Car[] = yield* db.insert(cars)
 		 *   .values({ brand: 'BMW' })
 		 *   .returning();
 		 * ```
 		 */
+		function insert<
+			TTable extends PgTable,
+			TColumnList extends (keyof InferInsertModel<TTable, { override: true }>)[] = [],
+			TRequiredKeys extends string = RequiredInsertKeys<TTable>,
+		>(
+			table: TTable,
+			...columns: TColumnList extends [] ? []
+				: IsNever<TRequiredKeys> extends true ? TColumnList & NoDuplicateColumns<TColumnList>
+				: [TRequiredKeys] extends [TColumnList[number]] ? TColumnList & NoDuplicateColumns<TColumnList>
+				: DrizzleTypeError<
+					`Column selection is missing following required columns: ${JoinUnion<
+						`"${Exclude<TRequiredKeys, TColumnList[number]>}"`,
+						', '
+					>}`
+				>[]
+		): PgInsertBuilder<
+			TTable,
+			TQueryResult,
+			TColumnList extends [] ? 'all' : TColumnList,
+			false,
+			PgEffectInsertHKT<TEffectHKT>
+		>;
 		function insert<TTable extends PgTable>(
 			table: TTable,
-		): PgInsertBuilder<TTable, TQueryResult, false, PgEffectInsertHKT<TEffectHKT>> {
-			return new PgInsertBuilder(table, self.session, self.dialect, queries, undefined, PgEffectInsertBase);
+			...columns: string[]
+		): PgInsertBuilder<TTable, TQueryResult, 'all', false, PgEffectInsertHKT<TEffectHKT>> {
+			return new PgInsertBuilder(
+				table,
+				self.session,
+				self.dialect,
+				queries,
+				undefined,
+				columns.length ? columns : undefined,
+				PgEffectInsertBase,
+			);
 		}
 
 		/**
@@ -583,16 +619,50 @@ export class PgEffectDatabase<
 	 * // Insert multiple rows
 	 * yield* db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
 	 *
+	 * // Insert only selected columns
+	 * yield* db.insert(cars, 'brand', 'productionYear').values([{ brand: 'BMW', productionYear: 1995 }, { brand: 'Porsche', productionYear: 1989 }]);
+	 *
 	 * // Insert with returning clause
 	 * const insertedCar: Car[] = yield* db.insert(cars)
 	 *   .values({ brand: 'BMW' })
 	 *   .returning();
 	 * ```
 	 */
+	insert<
+		TTable extends PgTable,
+		TColumnList extends (keyof InferInsertModel<TTable, { override: true }>)[] = [],
+		TRequiredKeys extends string = RequiredInsertKeys<TTable>,
+	>(
+		table: TTable,
+		...columns: TColumnList extends [] ? []
+			: IsNever<TRequiredKeys> extends true ? TColumnList & NoDuplicateColumns<TColumnList>
+			: [TRequiredKeys] extends [TColumnList[number]] ? TColumnList & NoDuplicateColumns<TColumnList>
+			: DrizzleTypeError<
+				`Column selection is missing following required columns: ${JoinUnion<
+					`"${Exclude<TRequiredKeys, TColumnList[number]>}"`,
+					', '
+				>}`
+			>[]
+	): PgInsertBuilder<
+		TTable,
+		TQueryResult,
+		TColumnList extends [] ? 'all' : TColumnList,
+		false,
+		PgEffectInsertHKT<TEffectHKT>
+	>;
 	insert<TTable extends PgTable>(
 		table: TTable,
-	): PgInsertBuilder<TTable, TQueryResult, false, PgEffectInsertHKT<TEffectHKT>> {
-		return new PgInsertBuilder(table, this.session, this.dialect, undefined, undefined, PgEffectInsertBase);
+		...columns: string[]
+	): PgInsertBuilder<TTable, TQueryResult, 'all', false, PgEffectInsertHKT<TEffectHKT>> {
+		return new PgInsertBuilder(
+			table,
+			this.session,
+			this.dialect,
+			undefined,
+			undefined,
+			columns.length ? columns : undefined,
+			PgEffectInsertBase,
+		);
 	}
 
 	/**
@@ -631,16 +701,29 @@ export class PgEffectDatabase<
 		return new PgEffectRefreshMaterializedView(view, this.session, this.dialect);
 	}
 
-	execute<TRow extends Record<string, unknown>>(
+	execute<TRow extends unknown[] = unknown[]>(
 		query: SQLWrapper | string,
-	): PgEffectRaw<PgQueryResultKind<TQueryResult, TRow>, TEffectHKT> {
+		mode: 'arrays',
+	): PgEffectRaw<TRow[], TEffectHKT>;
+	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+		query: SQLWrapper | string,
+		mode: 'objects',
+	): PgEffectRaw<TRow[], TEffectHKT>;
+	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+		query: SQLWrapper | string,
+		mode?: 'raw' | undefined,
+	): PgEffectRaw<PgQueryResultKind<TQueryResult, TRow>, TEffectHKT>;
+	execute(
+		query: SQLWrapper | string,
+		mode?: 'raw' | 'objects' | 'arrays' | undefined,
+	): unknown {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sequel);
 		const prepared = this.session.prepareQuery<
-			PreparedQueryConfig & { execute: PgQueryResultKind<TQueryResult, TRow> }
+			PreparedQueryConfig & { execute: unknown }
 		>(
 			builtQuery,
-			'raw',
+			mode ?? 'raw',
 			false,
 		);
 		return new PgEffectRaw(prepared, sequel, builtQuery);
@@ -650,8 +733,9 @@ export class PgEffectDatabase<
 		transaction: (
 			tx: PgEffectTransaction<TEffectHKT, TQueryResult, TRelations>,
 		) => Effect.Effect<A, E, R>,
+		config?: PgTransactionConfig,
 	): Effect.Effect<A, E | SqlError, R> {
-		return this.session.transaction(transaction);
+		return this.session.transaction(transaction, config);
 	}
 }
 
@@ -675,9 +759,9 @@ export const withReplicas = <
 	const $with: Q['$with'] = (arg: any) => getReplica(replicas).$with(arg) as any;
 
 	const update: Q['update'] = (...args: [any]) => primary.update(...args);
-	const insert: Q['insert'] = (...args: [any]) => primary.insert(...args);
+	const insert: Q['insert'] = ((...args: [any]) => primary.insert(...args)) as Q['insert'];
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
-	const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
+	const execute: Q['execute'] = ((...args: [any]) => primary.execute(...args)) as Q['execute'];
 	const transaction: Q['transaction'] = (...args: [any]) => primary.transaction(...args);
 	const refreshMaterializedView: Q['refreshMaterializedView'] = (...args: [any]) =>
 		primary.refreshMaterializedView(...args);

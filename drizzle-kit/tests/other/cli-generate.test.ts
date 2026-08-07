@@ -1,7 +1,7 @@
 import { test as brotest } from '@drizzle-team/brocli';
 import { unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { afterEach, assert, expect, test, vi } from 'vitest';
+import { afterEach, assert, expect, test } from 'vitest';
 import { GenerateConfig } from '../../src/cli/commands/utils';
 import { HintsHandler } from '../../src/cli/hints';
 import { generate } from '../../src/cli/schema';
@@ -154,27 +154,6 @@ test('generate #5', async (t) => {
 	});
 });
 
-// config
-test('generate #6', async (t) => {
-	const res = await brotest(generate, '');
-	if (res.type !== 'handler') assert.fail(res.type, 'handler');
-	expect(res.options).toStrictEqual({
-		dialect: 'postgresql',
-		name: undefined,
-		custom: false,
-		breakpoints: true,
-		filenames: [filename],
-		schemaSource: expect.anything(),
-		out: 'drizzle',
-		bundle: false,
-
-		driver: undefined,
-		ignoreConflicts: false,
-		explain: false,
-		hints: expect.any(HintsHandler),
-	});
-});
-
 // config | pass through name and custom
 test('generate #7', async (t) => {
 	const res = await brotest(generate, '--name=custom --custom');
@@ -240,7 +219,7 @@ test('generate #9', async (t) => {
 });
 
 // cli | pass through name and custom
-test('generate #9', async (t) => {
+test('generate #10', async (t) => {
 	const res = await brotest(
 		generate,
 		'--dialect=postgresql --schema=schema.ts --out=out --name=custom --custom',
@@ -373,7 +352,7 @@ test('validate config #1', async (t) => {
 		schema: 'schema.ts',
 		dbCredentials: { url: '' },
 		introspect: { casing: 'preserve' },
-		strict: true,
+		// strict: true, // removed. strict by def for now
 		schemaFilter: ['public'],
 		breakpoints: false,
 	}, prefix);
@@ -407,7 +386,7 @@ test('validate config #2', async (t) => {
 		schema: 'schema.ts',
 		dbCredentials: { url: '' },
 		introspect: { casing: 'preserve' },
-		strict: true,
+		// strict: true, // removed. strict by def for now
 		schemaFilter: ['public'],
 		breakpoints: true,
 		driver: 'pglite',

@@ -4,13 +4,15 @@ import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
-import type { DrizzleTypeError } from '~/utils.ts';
+import type { InferInsertModel, RequiredInsertKeys } from '~/table.ts';
+import type { DrizzleTypeError, IsNever, JoinUnion } from '~/utils.ts';
 import type { MsSqlDialect } from './dialect.ts';
 import {
 	MsSqlDeleteBase,
 	MsSqlInsertBuilder,
 	MsSqlSelectBuilder,
 	MsSqlUpdateBuilder,
+	type NoDuplicateColumns,
 	QueryBuilder,
 } from './query-builders/index.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
@@ -298,10 +300,38 @@ export class MsSqlDatabase<
 	 *
 	 * // Insert multiple rows
 	 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
+	 *
+	 * // Insert only selected columns
+	 * await db.insert(cars, 'brand', 'productionYear').values([{ brand: 'BMW', productionYear: 1995 }, { brand: 'Porsche', productionYear: 1989 }]);
 	 * ```
 	 */
-	insert<TTable extends MsSqlTable>(table: TTable): MsSqlInsertBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
-		return new MsSqlInsertBuilder(table, this.session, this.dialect);
+	insert<
+		TTable extends MsSqlTable,
+		TColumnList extends (keyof InferInsertModel<TTable>)[] = [],
+		TRequiredKeys extends string = RequiredInsertKeys<TTable>,
+	>(
+		table: TTable,
+		...columns: TColumnList extends [] ? []
+			: IsNever<TRequiredKeys> extends true ? TColumnList & NoDuplicateColumns<TColumnList>
+			: [TRequiredKeys] extends [TColumnList[number]] ? TColumnList & NoDuplicateColumns<TColumnList>
+			: DrizzleTypeError<
+				`Column selection is missing following required columns: ${JoinUnion<
+					`"${Exclude<TRequiredKeys, TColumnList[number]>}"`,
+					', '
+				>}`
+			>[]
+	): MsSqlInsertBuilder<
+		TTable,
+		TQueryResult,
+		TPreparedQueryHKT,
+		undefined,
+		TColumnList extends [] ? 'all' : TColumnList
+	>;
+	insert<TTable extends MsSqlTable>(
+		table: TTable,
+		...columns: string[]
+	): MsSqlInsertBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
+		return new MsSqlInsertBuilder(table, this.session, this.dialect, undefined, columns.length ? columns : undefined);
 	}
 
 	/**
@@ -367,7 +397,7 @@ export const withReplicas = <
 	const $with: Q['with'] = (...args: []) => getReplica(replicas).with(...args);
 
 	const update: Q['update'] = (...args: [any]) => primary.update(...args);
-	const insert: Q['insert'] = (...args: [any]) => primary.insert(...args);
+	const insert: Q['insert'] = ((...args: [any]) => primary.insert(...args)) as Q['insert'];
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
 	const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
 	const transaction: Q['transaction'] = (...args: [any, any]) => primary.transaction(...args);

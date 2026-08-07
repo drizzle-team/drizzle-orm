@@ -6,6 +6,7 @@ import {
 	decimal,
 	getViewConfig,
 	int,
+	type MySqlAsyncDatabase,
 	mysqlTable,
 	mysqlTableCreator,
 	mysqlView,
@@ -17,6 +18,100 @@ import { Expect } from '~/utils';
 import type { Equal } from '~/utils';
 import type { Test } from './instrumentation';
 import { createOrdersTable } from './schema2';
+
+const dnStaff = mysqlTable('dn_staff', { userId: int('user_id').primaryKey() });
+const dnPeople = mysqlTable('dn_people', {
+	id: int('id').primaryKey(),
+	name: text('name').notNull(),
+	nick: text('nick'),
+});
+const dnTicket = mysqlTable('dn_ticket', {
+	id: serial('id').primaryKey(),
+	staffId: int('staff_id'),
+});
+const dnVStaff = mysqlTable('dn_vstaff', {
+	id: int('id').primaryKey(),
+	deptId: int('dept_id'),
+});
+const dnDept = mysqlTable('dn_dept', {
+	id: int('id').primaryKey(),
+	name: text('name').notNull(),
+});
+const dnEmp = mysqlTable('dn_emp', {
+	id: serial('id').primaryKey(),
+	staffId: int('staff_id'),
+});
+const dnStaffView = mysqlView('dn_staff_view').as((qb) =>
+	qb
+		.select({
+			staffId: dnVStaff.id.as('staff_id'),
+			dept: { id: dnDept.id.as('dept_id'), name: dnDept.name.as('dept_name') },
+		})
+		.from(dnVStaff)
+		.leftJoin(dnDept, eq(dnVStaff.deptId, dnDept.id))
+);
+
+const dnTables = { dnStaff, dnPeople, dnTicket, dnVStaff, dnDept, dnEmp };
+const dnPushSchema = { ...dnTables, dnStaffView };
+
+async function resetDeepNullification(db: MySqlAsyncDatabase<any, any>) {
+	await db.execute(sql`DROP VIEW IF EXISTS ${dnStaffView}`);
+	for (const t of Object.values(dnTables)) await db.execute(sql`DROP TABLE IF EXISTS ${t}`);
+}
+
+async function runDeepNullification(db: MySqlAsyncDatabase<any, any>) {
+	await db.insert(dnStaff).values([{ userId: 1 }, { userId: 2 }]);
+	await db.insert(dnPeople).values([{ id: 1, name: 'Ann', nick: null }, { id: 2, name: 'Bob', nick: 'b' }]);
+	await db.insert(dnTicket).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]); // #3 -> outer miss
+	await db.insert(dnVStaff).values([{ id: 1, deptId: 1 }, { id: 2, deptId: 1 }]);
+	await db.insert(dnDept).values([{ id: 1, name: 'Eng' }]);
+	await db.insert(dnEmp).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]); // #3 -> outer view miss
+
+	const crew = db.select().from(dnStaff).leftJoin(dnPeople, eq(dnStaff.userId, dnPeople.id)).as('crew');
+
+	const sqJoin = await db
+		.select()
+		.from(dnTicket)
+		.leftJoin(crew, eq(crew.dn_staff.userId, dnTicket.staffId))
+		.orderBy(dnTicket.id);
+	expect(sqJoin).toEqual([
+		{
+			dn_ticket: { id: 1, staffId: 1 },
+			crew: { dn_staff: { userId: 1 }, dn_people: { id: 1, name: 'Ann', nick: null } },
+		},
+		{
+			dn_ticket: { id: 2, staffId: 2 },
+			crew: { dn_staff: { userId: 2 }, dn_people: { id: 2, name: 'Bob', nick: 'b' } },
+		},
+		{ dn_ticket: { id: 3, staffId: 3 }, crew: null },
+	]);
+
+	const viewJoin = await db
+		.select()
+		.from(dnEmp)
+		.leftJoin(dnStaffView, eq(dnStaffView.staffId, dnEmp.staffId))
+		.orderBy(dnEmp.id);
+	expect(viewJoin).toEqual([
+		{ dn_emp: { id: 1, staffId: 1 }, dn_staff_view: { staffId: 1, dept: { id: 1, name: 'Eng' } } },
+		{ dn_emp: { id: 2, staffId: 2 }, dn_staff_view: { staffId: 2, dept: { id: 1, name: 'Eng' } } },
+		{ dn_emp: { id: 3, staffId: 3 }, dn_staff_view: null },
+	]);
+
+	const crewInner = db.select().from(dnStaff).innerJoin(dnPeople, eq(dnStaff.userId, dnPeople.id)).as('crew_inner');
+	const innerFold = await db
+		.select({
+			ticketId: dnTicket.id,
+			person: { id: crewInner.dn_people.id, name: crewInner.dn_people.name, nick: crewInner.dn_people.nick },
+		})
+		.from(dnTicket)
+		.leftJoin(crewInner, eq(crewInner.dn_staff.userId, dnTicket.staffId))
+		.orderBy(dnTicket.id);
+	expect(innerFold).toEqual([
+		{ ticketId: 1, person: { id: 1, name: 'Ann', nick: null } },
+		{ ticketId: 2, person: { id: 2, name: 'Bob', nick: 'b' } },
+		{ ticketId: 3, person: null },
+	]);
+}
 
 export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	test.beforeEach(async ({ task, skip }) => {
@@ -685,5 +780,321 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		const result = await db.select().from(users);
 
 		expect(result).toEqual([{ id: 1, name: 'John' }]);
+	});
+
+	test.concurrent("No nullification on non-joined table's all-null object", async ({ db, push }) => {
+		const users = mysqlTable('nullify1_users', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			bio: text('bio'),
+			city: text('city'),
+		});
+
+		await push({ users });
+
+		await db.insert(users).values({ name: 'John' });
+
+		const res = await db.select({ id: users.id, meta: { bio: users.bio, city: users.city } }).from(users);
+
+		expect(res).toEqual([{ id: 1, meta: { bio: null, city: null } }]);
+	});
+
+	test.concurrent('Cross-table group never nullified', async ({ db, push }) => {
+		const cities = mysqlTable('nullify2_cities', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+		const users = mysqlTable('nullify2_users', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			bio: text('bio'),
+			cityId: int('city_id'),
+		});
+
+		await push({ cities, users });
+
+		await db.insert(cities).values([{ name: 'Paris' }]);
+		await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+		const res = await db
+			.select({ id: users.id, g: { user: users.name, cityId: cities.id, cityName: cities.name } })
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(res).toEqual([
+			{ id: 1, g: { user: 'John', cityId: 1, cityName: 'Paris' } },
+			{ id: 2, g: { user: 'Jane', cityId: null, cityName: null } },
+		]);
+
+		const onlyJoinedSideNotNull = await db
+			.select({ id: users.id, g: { bio: users.bio, cityId: cities.id } })
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(onlyJoinedSideNotNull).toEqual([
+			{ id: 1, g: { bio: null, cityId: 1 } },
+			{ id: 2, g: { bio: null, cityId: null } },
+		]);
+	});
+
+	test.concurrent('SQL field groups are never nullified', async ({ db, push }) => {
+		const cities = mysqlTable('nullify3_cities', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+		const users = mysqlTable('nullify3_users', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			cityId: int('city_id'),
+		});
+
+		await push({ cities, users });
+
+		await db.insert(cities).values([{ name: 'Paris' }]);
+		await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+		const res = await db
+			.select({
+				id: users.id,
+				calc: { user: sql<string>`upper(${users.name})`, city: sql<string | null>`upper(${cities.name})` },
+			})
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(res).toEqual([
+			{ id: 1, calc: { user: 'JOHN', city: 'PARIS' } },
+			{ id: 2, calc: { user: 'JANE', city: null } },
+		]);
+	});
+
+	test.concurrent('Nullify all-null group from from nullable join', async ({ db, push }) => {
+		const cities = mysqlTable('nullify4_cities', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			state: text('state'),
+			zip: text('zip'),
+		});
+		const users = mysqlTable('nullify4_users', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			cityId: int('city_id'),
+		});
+
+		await push({ cities, users });
+
+		await db.insert(cities).values([{ name: 'Paris', state: 'IDF', zip: '75' }, { name: 'London' }]);
+		await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 2 }, { name: 'Jack' }]);
+
+		const res = await db
+			.select({ name: users.name, c: { state: cities.state, zip: cities.zip } })
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(res).toEqual([
+			{ name: 'John', c: { state: 'IDF', zip: '75' } },
+			{ name: 'Jane', c: null },
+			{ name: 'Jack', c: null },
+		]);
+	});
+
+	test.concurrent("Don't disregard added SQL field during join nullification", async ({ db, push }) => {
+		const cities = mysqlTable('nullify5_cities', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			state: text('state'),
+		});
+		const users = mysqlTable('nullify5_users', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			cityId: int('city_id'),
+		});
+
+		await push({ cities, users });
+
+		await db.insert(cities).values([{ name: 'Paris', state: 'IDF' }, { name: 'London' }]);
+		await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 2 }]);
+
+		const res = await db
+			.select({ name: users.name, c: { state: cities.state, cityUpper: sql<string>`upper(${cities.name})` } })
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(res).toEqual([
+			{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
+			{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
+		]);
+	});
+
+	test.concurrent("No nullification on non-joined table's all-null object - jit", async ({ createDB, push }) => {
+		const users = mysqlTable('nullify1_users_jit', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			bio: text('bio'),
+			city: text('city'),
+		});
+
+		await push({ users });
+		const db = createDB({ schema: { users }, jit: true });
+
+		await db.insert(users).values({ name: 'John' });
+
+		const res = await db.select({ id: users.id, meta: { bio: users.bio, city: users.city } }).from(users);
+
+		expect(res).toEqual([{ id: 1, meta: { bio: null, city: null } }]);
+	});
+
+	test.concurrent('Cross-table group never nullified - jit', async ({ createDB, push }) => {
+		const cities = mysqlTable('nullify2_cities_jit', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+		const users = mysqlTable('nullify2_users_jit', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			bio: text('bio'),
+			cityId: int('city_id'),
+		});
+
+		await push({ cities, users });
+		const db = createDB({ schema: { cities, users }, jit: true });
+
+		await db.insert(cities).values([{ name: 'Paris' }]);
+		await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+		const res = await db
+			.select({ id: users.id, g: { user: users.name, cityId: cities.id, cityName: cities.name } })
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(res).toEqual([
+			{ id: 1, g: { user: 'John', cityId: 1, cityName: 'Paris' } },
+			{ id: 2, g: { user: 'Jane', cityId: null, cityName: null } },
+		]);
+
+		const onlyJoinedSideNotNull = await db
+			.select({ id: users.id, g: { bio: users.bio, cityId: cities.id } })
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(onlyJoinedSideNotNull).toEqual([
+			{ id: 1, g: { bio: null, cityId: 1 } },
+			{ id: 2, g: { bio: null, cityId: null } },
+		]);
+	});
+
+	test.concurrent('SQL field groups are never nullified - jit', async ({ createDB, push }) => {
+		const cities = mysqlTable('nullify3_cities_jit', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+		const users = mysqlTable('nullify3_users_jit', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			cityId: int('city_id'),
+		});
+
+		await push({ cities, users });
+		const db = createDB({ schema: { cities, users }, jit: true });
+
+		await db.insert(cities).values([{ name: 'Paris' }]);
+		await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+		const res = await db
+			.select({
+				id: users.id,
+				calc: { user: sql<string>`upper(${users.name})`, city: sql<string | null>`upper(${cities.name})` },
+			})
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(res).toEqual([
+			{ id: 1, calc: { user: 'JOHN', city: 'PARIS' } },
+			{ id: 2, calc: { user: 'JANE', city: null } },
+		]);
+	});
+
+	test.concurrent(
+		'Nullify all-null group from from nullable join - jit',
+		async ({ createDB, push }) => {
+			const cities = mysqlTable('nullify4_cities_jit', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				state: text('state'),
+				zip: text('zip'),
+			});
+			const users = mysqlTable('nullify4_users_jit', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: int('city_id'),
+			});
+
+			await push({ cities, users });
+			const db = createDB({ schema: { cities, users }, jit: true });
+
+			await db.insert(cities).values([{ name: 'Paris', state: 'IDF', zip: '75' }, { name: 'London' }]);
+			await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 2 }, { name: 'Jack' }]);
+
+			const res = await db
+				.select({ name: users.name, c: { state: cities.state, zip: cities.zip } })
+				.from(users)
+				.leftJoin(cities, eq(users.cityId, cities.id))
+				.orderBy(users.id);
+
+			expect(res).toEqual([
+				{ name: 'John', c: { state: 'IDF', zip: '75' } },
+				{ name: 'Jane', c: null },
+				{ name: 'Jack', c: null },
+			]);
+		},
+	);
+
+	test.concurrent("Don't disregard added SQL field during join nullification - jit", async ({ createDB, push }) => {
+		const cities = mysqlTable('nullify5_cities_jit', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			state: text('state'),
+		});
+		const users = mysqlTable('nullify5_users_jit', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			cityId: int('city_id'),
+		});
+
+		await push({ cities, users });
+		const db = createDB({ schema: { cities, users }, jit: true });
+
+		await db.insert(cities).values([{ name: 'Paris', state: 'IDF' }, { name: 'London' }]);
+		await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 2 }]);
+
+		const res = await db
+			.select({ name: users.name, c: { state: cities.state, cityUpper: sql<string>`upper(${cities.name})` } })
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(res).toEqual([
+			{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
+			{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
+		]);
+	});
+
+	test('Mappers: deep nullification', async ({ db, push }) => {
+		await resetDeepNullification(db);
+		await push(dnPushSchema);
+		await runDeepNullification(db);
+	});
+
+	test('Mappers: deep nullification - jit', async ({ db, createDB, push }) => {
+		await resetDeepNullification(db);
+		await push(dnPushSchema);
+		await runDeepNullification(createDB({ schema: dnTables, jit: true }));
 	});
 }

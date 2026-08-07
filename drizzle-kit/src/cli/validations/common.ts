@@ -138,12 +138,6 @@ export type CliConfig = TypeOf<typeof configCommonSchema> & {
 	schemaFilter?: string | string[];
 };
 
-export const configPull = configCommonSchema.extend({
-	casing,
-	migrations: configMigrations,
-	...entitiesParams,
-});
-
 export const configCheck = configCommonSchema;
 
 export const configGenerate = configCommonSchema.extend({
@@ -179,7 +173,6 @@ export const pushParams = object({
 	dialect: dialect,
 	schema: union([string(), string().array()]),
 	verbose: boolean().optional(),
-	strict: boolean().optional(),
 	explain: boolean().optional(),
 	hints: string().optional(),
 	hintsFile: string().optional(),

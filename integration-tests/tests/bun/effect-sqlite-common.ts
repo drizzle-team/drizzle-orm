@@ -3885,6 +3885,112 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				]);
 			}));
 
+		it.effect('insert with explicit column list', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const table = sqliteTable('column_selection', {
+					id: integer('id').primaryKey({ autoIncrement: true }),
+					name: text('name').notNull(),
+					verified: integer('verified', { mode: 'boolean' }).notNull().default(false),
+					note: text('note'),
+				});
+
+				yield* push(db, { table });
+
+				yield* db.insert(table, 'name').values([{ name: 'John' }, { name: 'Jane' }]);
+				yield* db.insert(table, 'name', 'note').values({ name: 'Jack' });
+				yield* db.insert(table, 'note', 'name').values({ name: 'Jill', note: 'hi' });
+
+				const result = yield* db.select().from(table).orderBy(table.id);
+				expect(result).toEqual([
+					{ id: 1, name: 'John', verified: false, note: null },
+					{ id: 2, name: 'Jane', verified: false, note: null },
+					{ id: 3, name: 'Jack', verified: false, note: null },
+					{ id: 4, name: 'Jill', verified: false, note: 'hi' },
+				]);
+			}));
+
+		it.effect('insert with explicit column list - select', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const src = sqliteTable('column_selection_select_src', {
+					id: integer('id').primaryKey(),
+					name: text('name').notNull(),
+				});
+				const dst = sqliteTable('column_selection_select_dst', {
+					id: integer('id').primaryKey({ autoIncrement: true }),
+					name: text('name').notNull(),
+					verified: integer('verified', { mode: 'boolean' }).notNull().default(false),
+				});
+
+				yield* push(db, { src, dst });
+
+				yield* db.insert(src).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+
+				yield* db.insert(dst, 'name').select(db.select({ name: src.name }).from(src).orderBy(src.id));
+
+				const result = yield* db.select().from(dst).orderBy(dst.id);
+				expect(result).toEqual([
+					{ id: 1, name: 'John', verified: false },
+					{ id: 2, name: 'Jane', verified: false },
+				]);
+			}));
+
+		it.effect('insert with explicit column list - on conflict', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const table = sqliteTable('column_selection_conflict', {
+					id: integer('id').primaryKey(),
+					name: text('name').notNull(),
+					note: text('note'),
+				});
+
+				yield* push(db, { table });
+
+				yield* db.insert(table, 'id', 'name').values({ id: 1, name: 'John' });
+				yield* db
+					.insert(table, 'id', 'name')
+					.values({ id: 1, name: 'Jane' })
+					.onConflictDoUpdate({ target: table.id, set: { name: 'Updated' } });
+
+				const result = yield* db.select().from(table);
+				expect(result).toEqual([{ id: 1, name: 'Updated', note: null }]);
+			}));
+
+		it.effect('Default value priority', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const exTbl = sqliteTable('no_default_override', (t) => ({
+					id: t.integer().primaryKey(),
+					defSql: t.integer().default(sql`1`),
+					defNum: t.integer().default(1),
+					defFn: t.integer().$defaultFn(() => 1),
+					defUpdFn: t.integer().$onUpdateFn(() => 1),
+					defMix1: t.integer().default(1).$defaultFn(() => 2).$onUpdateFn(() => 3),
+					defMix2: t.integer().$defaultFn(() => 2).$onUpdateFn(() => 3),
+					defMix3: t.integer().default(1).$defaultFn(() => 2),
+					defMix4: t.integer().default(sql`1`).$onUpdateFn(() => 3),
+				}));
+
+				yield* push(db, { exTbl });
+
+				yield* db.insert(exTbl).values({ id: 1 });
+
+				const res = yield* db.select().from(exTbl);
+
+				expect(res).toStrictEqual([{
+					id: 1,
+					defSql: 1,
+					defNum: 1,
+					defFn: 1,
+					defUpdFn: 1,
+					defMix1: 2,
+					defMix2: 2,
+					defMix3: 2,
+					defMix4: 1,
+				}]);
+			}));
+
 		addTests?.(it);
 	});
 };

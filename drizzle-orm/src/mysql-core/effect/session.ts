@@ -20,7 +20,6 @@ import {
 	type MySqlPreparedQueryConfig,
 	type MySqlQueryResultHKT,
 	MySqlSession,
-	type MySqlTransactionConfig,
 } from '../session.ts';
 import { MySqlEffectDatabase } from './db.ts';
 
@@ -189,7 +188,6 @@ export abstract class MySqlEffectSession<
 		transaction: (
 			tx: MySqlEffectTransaction<TEffectHKT, TQueryResult, TRelations>,
 		) => Effect.Effect<A, E, R>,
-		config?: MySqlTransactionConfig,
 	): Effect.Effect<A, E | SqlError, R>;
 }
 

@@ -8,7 +8,7 @@ import type {
 import { QueryPromise } from '~/query-promise.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { applyMixins, type Assume } from '~/utils.ts';
+import { applyMixins, type Assume, resolveNullableObjectPaths } from '~/utils.ts';
 import { PgSelectBase, type PgSelectBuilder } from '../query-builders/select.ts';
 import type { PgSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
@@ -101,21 +101,28 @@ export class PgAsyncSelectBase<
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgAsyncSelectPrepare<this> {
-		const { session, dialect, cacheConfig, usedTables } = this;
+		const { session, dialect, cacheConfig, usedTables, config, joinsNotNullableMap } = this;
 
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			// Build query before accessing `fieldsFlat` - build mutates it
-			const query = this.config.tagged ? dialect._sqlToQuery(this.getSQL()) : dialect.sqlToQuery(this.getSQL());
-			const fieldsList = this.config.fieldsFlat!;
-			const mapper = this.dialect.mapperGenerators.rows(fieldsList, this.joinsNotNullableMap);
+			const fieldsList = this._resolveSelection();
+			const nullableObjectPaths = resolveNullableObjectPaths(fieldsList, joinsNotNullableMap);
+
+			const shape = dialect.shapeGenerator?.(
+				{ type: 'plain', fields: fieldsList },
+				nullableObjectPaths,
+			);
+
+			const query = config.tagged ? dialect._sqlToQuery(this.getSQL()) : dialect.sqlToQuery(this.getSQL());
+			const mapper = shape ? undefined : dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths);
 
 			const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
 				query,
-				'arrays',
+				shape ? 'objects' : 'arrays',
 				name ?? generateName,
 				mapper,
 				{ type: 'select', tables: [...usedTables] },
 				cacheConfig,
+				shape,
 			);
 
 			return preparedQuery;

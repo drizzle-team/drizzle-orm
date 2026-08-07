@@ -7,7 +7,7 @@ import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, CommentInput, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
-import { Param, SQL, sql } from '~/sql/sql.ts';
+import { SQL, sql } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { InferInsertModel } from '~/table.ts';
 import { getTableName, Table } from '~/table.ts';
@@ -19,12 +19,14 @@ import type { PgUpdateSetSource } from './update.ts';
 
 export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	table: TTable;
-	values: Record<string, Param | SQL>[] | TypedQueryBuilder<PgInsertSelection<TTable>> | SQL;
+	values: Record<string, unknown>[] | TypedQueryBuilder<PgInsertSelection<TTable>> | SQL;
 	withList?: Subquery[];
 	onConflict?: SQL;
 	returningFields?: SelectedFieldsFlat;
 	returning?: SelectedFieldsOrdered;
+	shape?: any;
 	select?: boolean;
+	columnList?: string[];
 	overridingSystemValue_?: boolean;
 	comment?: SQL;
 	ignoreSelectionCastCodecs?: boolean;
@@ -33,11 +35,12 @@ export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 export type PgInsertValue<
 	TTable extends PgTable<TableConfig>,
 	OverrideT extends boolean = false,
+	TColumnsList extends string[] | 'all' = 'all',
 	TModel extends Record<string, any> = InferInsertModel<TTable, { override: OverrideT }>,
 > =
 	& {
-		[Key in keyof TModel]:
-			| TModel[Key]
+		[K in keyof TModel as TColumnsList extends 'all' ? K : Extract<K, TColumnsList[number]>]:
+			| TModel[K]
 			| SQL
 			| Placeholder;
 	}
@@ -46,10 +49,11 @@ export type PgInsertValue<
 export type PgInsertSelection<
 	TTable extends PgTable<TableConfig>,
 	OverrideT extends boolean = false,
+	TColumnsList extends string[] | 'all' = 'all',
 	TModel extends Record<string, unknown> = InferInsertModel<TTable, { override: OverrideT }>,
 > =
 	& {
-		[K in keyof TModel]:
+		[K in keyof TModel as TColumnsList extends 'all' ? K : Extract<K, TColumnsList[number]>]:
 			| AnyPgColumn
 			| SQL
 			| SQL.Aliased
@@ -57,20 +61,41 @@ export type PgInsertSelection<
 	}
 	& {};
 
+export type NoDuplicateColumns<
+	T extends readonly unknown[],
+	TSeen = never,
+> = T extends readonly [infer Head, ...infer Tail] ? [
+		Head extends TSeen ? DrizzleTypeError<`Duplicate columns are not allowed in insert selection: "${Head & string}"`>
+			: Head,
+		...NoDuplicateColumns<Tail, TSeen | Head>,
+	]
+	: T;
+
+export type ValidateInsertSelectionKey<
+	TTable extends PgTable<TableConfig>,
+	TSelection extends PgInsertSelection<any, any>,
+	OverrideT extends boolean,
+	K extends keyof TSelection,
+> = K extends keyof InferInsertModel<TTable, { override: OverrideT }> ? TSelection[K]
+	: K extends keyof InferInsertModel<TTable, { override: true }> ? DrizzleTypeError<
+			`Column "${
+				& K
+				& string}" in table "${TTable['_'][
+				'name'
+			]}" is a generated column. Use \`.overridingSystemValue()\` to manually insert into this column`
+		>
+	: DrizzleTypeError<`Column "${K & string}" does not exist in table "${TTable['_']['name']}"`>;
+
 export type NoUnknownKeysInInsertSelection<
 	TTable extends PgTable<TableConfig>,
 	TSelection extends PgInsertSelection<any, any>,
 	OverrideT extends boolean = false,
+	TColumnList extends string[] | 'all' = 'all',
 > = {
-	[K in keyof TSelection]: K extends keyof InferInsertModel<TTable, { override: OverrideT }> ? TSelection[K]
-		: K extends keyof InferInsertModel<TTable, { override: true }> ? DrizzleTypeError<
-				`Column "${
-					& K
-					& string}" in table "${TTable['_'][
-					'name'
-				]}" is a generated column. Use \`.overridingSystemValue()\` to manually insert into this column`
-			>
-		: DrizzleTypeError<`Column "${K & string}" does not exist in table "${TTable['_']['name']}"`>;
+	[K in keyof TSelection]: TColumnList extends string[]
+		? K extends TColumnList[number] ? ValidateInsertSelectionKey<TTable, TSelection, OverrideT, K>
+		: DrizzleTypeError<`Column "${K & string}" is not included in the insert column selection`>
+		: ValidateInsertSelectionKey<TTable, TSelection, OverrideT, K>;
 };
 
 export interface PgInsertBuilderConstructor {
@@ -81,6 +106,7 @@ export interface PgInsertBuilderConstructor {
 		dialect: PgDialect,
 		withList?: Subquery[],
 		select?: boolean,
+		columnList?: string[],
 		overridingSystemValue_?: boolean,
 	): AnyPgInsert;
 }
@@ -88,6 +114,7 @@ export interface PgInsertBuilderConstructor {
 export class PgInsertBuilder<
 	TTable extends PgTable,
 	TQueryResult extends PgQueryResultHKT,
+	TColumnList extends string[] | 'all' = 'all',
 	OverrideT extends boolean = false,
 	TBuilderHKT extends PgInsertHKTBase = PgInsertHKT,
 > {
@@ -99,60 +126,72 @@ export class PgInsertBuilder<
 		private dialect: PgDialect,
 		private withList?: Subquery[],
 		private overridingSystemValue_?: boolean,
+		private columnList?: string[],
 		private builder: PgInsertBuilderConstructor = PgInsertBase,
 	) {}
 
-	overridingSystemValue(): Omit<PgInsertBuilder<TTable, TQueryResult, true, TBuilderHKT>, 'overridingSystemValue'> {
+	overridingSystemValue(): Omit<
+		PgInsertBuilder<TTable, TQueryResult, TColumnList, true, TBuilderHKT>,
+		'overridingSystemValue'
+	> {
 		this.overridingSystemValue_ = true;
 		return this as any;
 	}
 
-	values(value: PgInsertValue<TTable, OverrideT>): PgInsertKind<TBuilderHKT, TTable, TQueryResult>;
-	values(values: PgInsertValue<TTable, OverrideT>[]): PgInsertKind<TBuilderHKT, TTable, TQueryResult>;
+	values(value: PgInsertValue<TTable, OverrideT, TColumnList>): PgInsertKind<TBuilderHKT, TTable, TQueryResult>;
+	values(value: PgInsertValue<TTable, OverrideT, TColumnList>[]): PgInsertKind<TBuilderHKT, TTable, TQueryResult>;
 	values(
-		values: PgInsertValue<TTable, OverrideT> | PgInsertValue<TTable, OverrideT>[],
+		values: PgInsertValue<TTable, OverrideT, TColumnList> | PgInsertValue<TTable, OverrideT, TColumnList>[],
 	): PgInsertKind<TBuilderHKT, TTable, TQueryResult> {
-		values = Array.isArray(values) ? values : [values];
+		values = Array.isArray(values) ? values : [values] as any[];
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
 		}
-		const mappedValues = values.map((entry) => {
-			const result: Record<string, Param | SQL> = {};
-			const cols = this.table[Table.Symbol.Columns];
-			for (const colKey of Object.keys(entry)) {
-				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue as any, cols[colKey]);
-			}
-			return result;
-		});
 
 		const builder = new this.builder(
 			this.table,
-			mappedValues,
+			values,
 			this.session,
 			this.dialect,
 			this.withList,
 			false,
+			this.columnList,
 			this.overridingSystemValue_,
 		);
 
 		return builder as any;
 	}
 
-	select<TSelection extends PgInsertSelection<TTable, OverrideT>>(
-		selectQuery: (qb: QueryBuilder) => TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection, OverrideT>>,
+	select<TSelection extends PgInsertSelection<TTable, OverrideT, TColumnList>>(
+		selectQuery: (
+			qb: QueryBuilder,
+		) => TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection, OverrideT, TColumnList>>,
 	): PgInsertKind<TBuilderHKT, TTable, TQueryResult>;
 	select(selectQuery: (qb: QueryBuilder) => SQL): PgInsertKind<TBuilderHKT, TTable, TQueryResult>;
 	select(selectQuery: SQL): PgInsertBase<TBuilderHKT, TTable, TQueryResult>;
-	select<TSelection extends PgInsertSelection<TTable, OverrideT>>(
-		selectQuery: TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection, OverrideT>>,
+	select<TSelection extends PgInsertSelection<TTable, OverrideT, TColumnList>>(
+		selectQuery: TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection, OverrideT, TColumnList>>,
 	): PgInsertKind<TBuilderHKT, TTable, TQueryResult>;
 	select(
 		selectQuery:
 			| SQL
-			| TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, PgInsertSelection<TTable, OverrideT>, OverrideT>>
+			| TypedQueryBuilder<
+				NoUnknownKeysInInsertSelection<
+					TTable,
+					PgInsertSelection<TTable, OverrideT, TColumnList>,
+					OverrideT,
+					TColumnList
+				>
+			>
 			| ((qb: QueryBuilder) =>
-				| TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, PgInsertSelection<TTable, OverrideT>, OverrideT>>
+				| TypedQueryBuilder<
+					NoUnknownKeysInInsertSelection<
+						TTable,
+						PgInsertSelection<TTable, OverrideT, TColumnList>,
+						OverrideT,
+						TColumnList
+					>
+				>
 				| SQL),
 	): PgInsertKind<TBuilderHKT, TTable, TQueryResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
@@ -178,6 +217,7 @@ export class PgInsertBuilder<
 			this.dialect,
 			this.withList,
 			true,
+			this.columnList,
 			this.overridingSystemValue_,
 		) as any;
 
@@ -360,9 +400,10 @@ export class PgInsertBase<
 		protected dialect: PgDialect,
 		withList?: Subquery[],
 		select?: boolean,
+		columnList?: string[],
 		overridingSystemValue_?: boolean,
 	) {
-		this.config = { table, values: values as any, withList, select, overridingSystemValue_ };
+		this.config = { table, values: values as any, withList, select, columnList, overridingSystemValue_ };
 	}
 
 	/**

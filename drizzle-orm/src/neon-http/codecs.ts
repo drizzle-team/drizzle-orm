@@ -1,11 +1,19 @@
-import { parsePgArray } from '~/pg-core/array.ts';
+import { makePgArray, parsePgArray } from '~/pg-core/array.ts';
 import {
 	arrayCompatNormalize,
+	arrayCompatNormalizeInput,
 	castToText,
 	castToTextArr,
+	makeGeometryArray,
+	parseGeometryArrayAndNormalize,
 	parseGeometryTuple,
 	parseGeometryXY,
+	parseLineABC,
+	parseLineTuple,
 	parsePgArrayAndNormalize,
+	parsePgVector,
+	parsePointTuple,
+	parsePointXY,
 	refineGenericPgCodecs,
 	textToDate,
 	textToDateWithTz,
@@ -16,12 +24,33 @@ export const neonHttpCodecs = refineGenericPgCodecs({
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
 	},
+	'bigint:number': {
+		normalize: Number,
+		normalizeArray: arrayCompatNormalize(Number),
+	},
 	bigserial: {
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
 	},
+	'bigserial:number': {
+		normalize: Number,
+		normalizeArray: arrayCompatNormalize(Number),
+	},
 	bit: {
-		normalizeArray: parsePgArray,
+		normalizeArray: (v) => parsePgArray(v),
+	},
+	numeric: {
+		castArray: castToTextArr,
+	},
+	'numeric:number': {
+		castArray: castToTextArr,
+		normalize: Number,
+		normalizeArray: arrayCompatNormalize(Number),
+	},
+	'numeric:bigint': {
+		castArray: castToTextArr,
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
 	},
 	bytea: {
 		normalizeParam: String,
@@ -51,27 +80,42 @@ export const neonHttpCodecs = refineGenericPgCodecs({
 		castArray: castToTextArr,
 	},
 	'geometry(point)': {
-		normalizeArray: parsePgArrayAndNormalize(parseGeometryXY),
+		normalize: parseGeometryXY,
+		normalizeArray: parseGeometryArrayAndNormalize(parseGeometryXY),
+		normalizeParamArray: makeGeometryArray,
 	},
 	'geometry(point):tuple': {
-		normalizeArray: parsePgArrayAndNormalize(parseGeometryTuple),
+		normalize: parseGeometryTuple,
+		normalizeArray: parseGeometryArrayAndNormalize(parseGeometryTuple),
+		normalizeParamArray: makeGeometryArray,
 	},
 	interval: {
 		castArray: castToTextArr,
 	},
+	// driver handles objects, other types need to be stringified
 	json: {
 		normalizeParam: (v) => JSON.stringify(v),
+		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
 	jsonb: {
 		normalizeParam: (v) => JSON.stringify(v),
+		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
+	},
+	enum: {
+		castArray: castToTextArr,
+		normalizeParamArray: (v) => makePgArray(v),
 	},
 	line: {
 		cast: castToText,
 		castArray: castToTextArr,
+		normalize: parseLineABC,
+		normalizeArray: arrayCompatNormalize(parseLineABC),
 	},
 	'line:tuple': {
 		cast: castToText,
 		castArray: castToTextArr,
+		normalize: parseLineTuple,
+		normalizeArray: arrayCompatNormalize(parseLineTuple),
 	},
 	macaddr8: {
 		castArrayInJson: castToTextArr,
@@ -80,12 +124,24 @@ export const neonHttpCodecs = refineGenericPgCodecs({
 	point: {
 		cast: castToText,
 		castArray: castToTextArr,
+		normalize: parsePointXY,
+		normalizeArray: arrayCompatNormalize(parsePointXY),
 	},
 	'point:tuple': {
 		cast: castToText,
 		castArray: castToTextArr,
+		normalize: parsePointTuple,
+		normalizeArray: arrayCompatNormalize(parsePointTuple),
+	},
+	halfvec: {
+		normalize: parsePgVector,
+		normalizeArray: parsePgArrayAndNormalize(parsePgVector),
 	},
 	sparsevec: {
-		normalizeArray: parsePgArray,
+		normalizeArray: (v) => parsePgArray(v),
+	},
+	vector: {
+		normalize: parsePgVector,
+		normalizeArray: parsePgArrayAndNormalize(parsePgVector),
 	},
 });

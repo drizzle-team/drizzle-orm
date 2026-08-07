@@ -14,69 +14,62 @@ import { getTableName, Table } from './table.ts';
 import { ViewBaseConfig } from './view-common.ts';
 
 /** @internal */
-export function mapResultRow<TResult>(
+export function resolveNullableObjectPaths(
 	columns: SelectedFieldsOrdered<AnyColumn>,
-	row: unknown[] | (readonly unknown[]),
 	joinsNotNullableMap: Record<string, boolean> | undefined,
-): TResult {
-	// Key -> nested object key, value -> table name if all fields in the nested object are from the same table, false otherwise
-	const nullifyMap: Record<string, string | false> = {};
-	// Key -> nested object key, value -> whether every field in the nested object is null so far
-	const allNullMap: Record<string, boolean> = {};
+): string[] | undefined {
+	if (!joinsNotNullableMap) return undefined;
 
-	const result = columns.reduce<Record<string, any>>(
-		(result, { path, field, codec, arrayDimensions }, columnIndex) => {
-			let decoder: DriverValueDecoder<unknown, unknown>;
-			if (is(field, Column)) {
-				decoder = field;
-			} else if (is(field, SQL)) {
-				decoder = field.decoder;
-			} else if (is(field, Subquery)) {
-				decoder = field._.sql.decoder;
-			} else {
-				decoder = field.sql.decoder;
-			}
-			let node = result;
-			for (const [pathChunkIndex, pathChunk] of path.entries()) {
-				if (pathChunkIndex < path.length - 1) {
-					if (!(pathChunk in node)) {
-						node[pathChunk] = {};
-					}
-					node = node[pathChunk];
-				} else {
-					const rawValue = row[columnIndex]!;
-					const value = node[pathChunk] = rawValue === null
-						? null
-						: decoder.mapFromDriverValue(codec ? codec(rawValue, arrayDimensions!) : rawValue);
+	// prefix -> table
+	const tableOf = new Map<string, string | false>();
+	const order: string[] = [];
+	const seen = new Set<string>();
 
-					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
-						const objectName = path[0]!;
-						const tableName = getTableName(field.table);
-						if (!(objectName in nullifyMap)) {
-							nullifyMap[objectName] = tableName;
-						} else if (typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== tableName) {
-							nullifyMap[objectName] = false;
-						}
-						// Only nullify the whole object when EVERY field from the joined table is null
-						allNullMap[objectName] = (allNullMap[objectName] ?? true) && value === null;
-					}
-				}
-			}
-			return result;
-		},
-		{},
-	);
-
-	// Nullify all nested objects from nullifyMap that are nullable
-	if (joinsNotNullableMap && Object.keys(nullifyMap).length > 0) {
-		for (const [objectName, tableName] of Object.entries(nullifyMap)) {
-			if (typeof tableName === 'string' && allNullMap[objectName] && !joinsNotNullableMap[tableName]) {
-				result[objectName] = null;
-			}
+	for (const { path, field, fieldType } of columns) {
+		if (path.length < 2) continue;
+		const key = path[0]!;
+		if (!seen.has(key)) {
+			seen.add(key);
+			order.push(key);
 		}
+		if (fieldType !== 'Column') continue;
+		const tableName = getTableName(field.table);
+		const current = tableOf.get(key);
+		if (current === undefined) tableOf.set(key, tableName);
+		else if (current !== false && current !== tableName) tableOf.set(key, false);
 	}
 
-	return result as TResult;
+	const result: string[] = [];
+	for (const key of order) {
+		const table = tableOf.get(key);
+		// sql field only group remains not nullable due to lack of table to be bound to
+		if (typeof table === 'string' && !joinsNotNullableMap[table]) result.push(key);
+	}
+
+	return result;
+}
+
+function nullablePathTargets(
+	columns: SelectedFieldsOrdered<AnyColumn>,
+	nullableObjectPaths: string[],
+): { key: string; leaves: number[] }[] {
+	const targets: {
+		key: string;
+		leaves: number[];
+	}[] = new Array(nullableObjectPaths.length);
+
+	for (let i = 0; i < nullableObjectPaths.length; ++i) {
+		const key = nullableObjectPaths[i]!;
+		const leaves: number[] = [];
+		for (let j = 0; j < columns.length; ++j) {
+			const cp = columns[j]!.path;
+			if (cp.length > 1 && cp[0] === key) leaves.push(j);
+		}
+
+		targets[i] = { key, leaves };
+	}
+
+	return targets;
 }
 
 /** @internal bypass bundle-time filtering */
@@ -85,35 +78,38 @@ export const FnConstructor = Object.getPrototypeOf(() => null).constructor as ty
 /** @internal */
 function makeJitQueryMapperInner(
 	columns: SelectedFieldsOrdered<AnyColumn>,
-	joinsNotNullableMap: Record<string, boolean> = {},
+	nullableObjectPaths?: string[],
 ): string {
 	const preFn = [] as string[];
 	const fn = [] as string[];
 	fn.push(`const [ ${columns.map((_, i) => `c${i}`).join(', ')} ] = rows[i];`);
 
-	const nullifyMap: Record<string, string | false> = {};
-	const objectIds: Record<string, string[]> = {};
-	const decodes = Array.from<string>({ length: columns.length });
+	// top-level key -> the c-ids of every leaf nested under it, so a nullable group can test them all at once.
+	const descendantIds: Record<string, string[]> = {};
+	const nullableKeys = new Set(nullableObjectPaths ?? []);
+	const decodes = new Array<string>(columns.length);
 
 	for (let idx = 0; idx < columns.length; ++idx) {
-		const { field, path, codec, arrayDimensions } = columns[idx]!;
+		const { field, fieldType, path, codec, arrayDimensions } = columns[idx]!;
 		let decoder: DriverValueDecoder<unknown, unknown>;
 		let decoderStr: string;
 		let decoderFieldDestructure: string;
-		let isColumn = false;
-		if (is(field, Column)) {
-			isColumn = true;
-			decoder = field;
-			decoderFieldDestructure = `field: decoder${idx}`;
-		} else if (is(field, SQL)) {
-			decoder = field.decoder;
-			decoderFieldDestructure = `field: { decoder: decoder${idx} }`;
-		} else if (is(field, Subquery)) {
-			decoder = field._.sql.decoder;
-			decoderFieldDestructure = `field: { _: { sql: { decoder: decoder${idx} } } }`;
-		} else {
-			decoder = field.sql.decoder;
-			decoderFieldDestructure = `field: { sql: { decoder: decoder${idx} } }`;
+		switch (fieldType) {
+			case 'Column':
+				decoder = field;
+				decoderFieldDestructure = `field: decoder${idx}`;
+				break;
+			case 'SQL':
+				decoder = field.decoder;
+				decoderFieldDestructure = `field: { decoder: decoder${idx} }`;
+				break;
+			case 'Subquery':
+				decoder = field._.sql.decoder;
+				decoderFieldDestructure = `field: { _: { sql: { decoder: decoder${idx} } } }`;
+				break;
+			default:
+				decoder = field.sql.decoder;
+				decoderFieldDestructure = `field: { sql: { decoder: decoder${idx} } }`;
 		}
 		decoderStr = `decoder${idx}.mapFromDriverValue`;
 		if (decoder.mapFromDriverValue.isNoop) decoderStr = '';
@@ -131,14 +127,7 @@ function makeJitQueryMapperInner(
 			? `${colStr}`
 			: `${colStr} === null ? ${colStr} : ${decodedValue}`;
 
-		if (path.length !== 2 || !isColumn) continue;
-		if (objectIds[path[0]!] === undefined) objectIds[path[0]!] = [`c${idx}`];
-		else objectIds[path[0]!]?.push(`c${idx}`);
-		const [objectName] = path as [string];
-		const tableName = getTableName((<Column> field).table);
-		nullifyMap[objectName] = joinsNotNullableMap[tableName] ? false : typeof nullifyMap[objectName] === 'string'
-			? nullifyMap[objectName] === tableName ? tableName : false
-			: tableName;
+		if (path.length > 1) (descendantIds[path[0]!] ??= []).push(colStr);
 	}
 
 	fn.push(`mapped[i] = {`);
@@ -161,10 +150,11 @@ function makeJitQueryMapperInner(
 		}
 
 		for (let d = commonLen; d < objectPath.length; ++d) {
+			const nullable = d === 0 && nullableKeys.has(path[0]!);
 			fn.push(
 				`${'\t'.repeat(d + 1)}${jsonPath[d]}: ${
-					d === 0 && objectPath.length === 1 && typeof nullifyMap[path[0]!] === 'string'
-						? `${objectIds[path[0]!]?.map((c) => `${c} === null`).join(' && ')} ? null : {`
+					nullable
+						? `${descendantIds[path[0]!]!.map((c) => `${c} === null`).join(' && ')} ? null : {`
 						: '{'
 				}`,
 			);
@@ -186,8 +176,8 @@ function makeJitQueryMapperInner(
 
 export type RowsMapperGenerator = <TResult = any>(
 	columns: SelectedFieldsOrdered<AnyColumn>,
-	joinsNotNullableMap: Record<string, boolean> | undefined,
-) => RowsMapper<TResult>;
+	nullableObjectPaths: string[] | undefined,
+) => RowsMapper<TResult> | undefined;
 export interface RowsMapper<TResult = Record<string, unknown>[]> {
 	(rows: unknown[][]): TResult;
 	/** @internal jit mapper's function body for debugging */
@@ -196,13 +186,13 @@ export interface RowsMapper<TResult = Record<string, unknown>[]> {
 
 export function makeJitQueryMapper<TResult>(
 	columns: SelectedFieldsOrdered<AnyColumn>,
-	joinsNotNullableMap: Record<string, boolean> | undefined,
+	nullableObjectPaths: string[] | undefined,
 ): RowsMapper<TResult> {
 	const internals = `\t"use strict";
 	const { columns } = this;
 	const { length } = rows;
-	const mapped = Array.from({ length });
-	${makeJitQueryMapperInner(columns, joinsNotNullableMap)}
+	const mapped = new Array(length);
+	${makeJitQueryMapperInner(columns, nullableObjectPaths)}
 	return mapped;
 	//# sourceURL=drizzle:jit-query-mapper`;
 
@@ -244,35 +234,25 @@ export function jitCompatCheck(isEnabled?: boolean): boolean {
 
 export function makeDefaultQueryMapper<TResult>(
 	columns: SelectedFieldsOrdered<AnyColumn>,
-	joinsNotNullableMap: Record<string, boolean> | undefined,
+	nullableObjectPaths: string[] | undefined,
 ): RowsMapper<TResult> {
-	const interpretedData = columns.map(({ field, codec, arrayDimensions, path }) => {
-		let processNullifyMap:
-			| ((nullifyMap: Record<string, string | false>, allNullMap: Record<string, boolean>, value: any) => void)
-			| undefined;
-		let decoderSrc: DriverValueDecoder<unknown, unknown>;
-		if (is(field, Column)) {
-			decoderSrc = field;
+	const interpretedData: (((v: any) => any) | undefined)[] = new Array(columns.length);
+	for (let i = 0; i < columns.length; ++i) {
+		const { field, fieldType, codec, arrayDimensions } = columns[i]!;
 
-			if (joinsNotNullableMap && path.length === 2) {
-				const objectName = path[0]!;
-				processNullifyMap = (nullifyMap, allNullMap, value) => {
-					const tableName = getTableName(field.table);
-					if (!(objectName in nullifyMap)) {
-						nullifyMap[objectName] = tableName;
-					} else if (typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== tableName) {
-						nullifyMap[objectName] = false;
-					}
-					// Only nullify the whole object when EVERY field from the joined table is null
-					allNullMap[objectName] = (allNullMap[objectName] ?? true) && value === null;
-				};
-			}
-		} else if (is(field, SQL)) {
-			decoderSrc = field.decoder;
-		} else if (is(field, Subquery)) {
-			decoderSrc = field._.sql.decoder;
-		} else {
-			decoderSrc = field.sql.decoder;
+		let decoderSrc: DriverValueDecoder<unknown, unknown>;
+		switch (fieldType) {
+			case 'Column':
+				decoderSrc = field;
+				break;
+			case 'SQL':
+				decoderSrc = field.decoder;
+				break;
+			case 'Subquery':
+				decoderSrc = field._.sql.decoder;
+				break;
+			default:
+				decoderSrc = field.sql.decoder;
 		}
 
 		let decoder: ((v: any) => any) | undefined;
@@ -284,54 +264,67 @@ export function makeDefaultQueryMapper<TResult>(
 				: (v: any) => decoderSrc.mapFromDriverValue(v);
 		}
 
-		return [decoder, processNullifyMap] as const;
-	});
+		interpretedData[i] = decoder;
+	}
 
-	return ((rows) =>
-		rows.map((row) => {
-			// Key -> nested object key, value -> table name if all fields in the nested object are from the same table, false otherwise
-			const nullifyMap: Record<string, string | false> = {};
-			// Key -> nested object key, value -> whether every field in the nested object is null
-			const allNullMap: Record<string, boolean> = {};
+	const targets = nullableObjectPaths?.length
+		? nullablePathTargets(columns, nullableObjectPaths)
+		: undefined;
 
-			const result = columns.reduce<Record<string, any>>(
-				(result, { path }, columnIndex) => {
-					let node = result;
-					for (const [pathChunkIndex, pathChunk] of path.entries()) {
-						if (pathChunkIndex < path.length - 1) {
-							if (!(pathChunk in node)) {
-								node[pathChunk] = {};
-							}
-							node = node[pathChunk];
-						} else {
-							const [decoder, processNullifyMap] = interpretedData[columnIndex]!;
+	return ((rows) => {
+		const { length: rowLength } = rows;
+		const output: TResult[] = new Array(rowLength);
+		for (let j = 0; j < rowLength; ++j) {
+			const row = rows[j]!;
 
-							const rawValue = row[columnIndex]!;
-							const value = node[pathChunk] = rawValue === null
-								? null
-								: decoder
-								? decoder(rawValue)
-								: rawValue;
+			const result: Record<string, any> = {};
 
-							processNullifyMap?.(nullifyMap, allNullMap, value);
+			for (let i = 0; i < columns.length; ++i) {
+				const { path } = columns[i]!;
+
+				let node = result;
+				for (let p = 0; p < path.length; ++p) {
+					const pathChunk = path[p]!;
+					if (p < path.length - 1) {
+						if (!(pathChunk in node)) {
+							node[pathChunk] = {};
 						}
-					}
-					return result;
-				},
-				{},
-			);
-
-			// Nullify all nested objects from nullifyMap that are nullable
-			if (joinsNotNullableMap && Object.keys(nullifyMap).length > 0) {
-				for (const [objectName, tableName] of Object.entries(nullifyMap)) {
-					if (typeof tableName === 'string' && allNullMap[objectName] && !joinsNotNullableMap[tableName]) {
-						result[objectName] = null;
+						node = node[pathChunk];
+					} else {
+						const decoder = interpretedData[i]!;
+						const rawValue = row[i]!;
+						node[pathChunk] = rawValue === null
+							? null
+							: decoder
+							? decoder(rawValue)
+							: rawValue;
 					}
 				}
 			}
 
-			return result as TResult;
-		})) as RowsMapper<TResult>;
+			// Nullify every top-level nullable group whose leaves are all null on this row.
+			if (targets) {
+				for (let i = 0; i < targets.length; ++i) {
+					const { key, leaves } = targets[i]!;
+
+					let allNull = true;
+					for (let j = 0; j < leaves.length; ++j) {
+						const i = leaves[j]!;
+
+						if (row[i] !== null) {
+							allNull = false;
+							break;
+						}
+					}
+					if (allNull) result[key] = null;
+				}
+			}
+
+			output[j] = result as TResult;
+		}
+
+		return output;
+	}) as RowsMapper<TResult>;
 }
 
 export function make$ReturningResponseMapper(
@@ -372,28 +365,50 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 	fields: Record<string, unknown>,
 	pathPrefix?: string[],
 	codecs?: CodecsCollection,
+): SelectedFieldsOrdered<TColumn>;
+/**
+ * @deprecated `result` argument is used for internal recursion, do not use outside of the function
+ * @internal
+ */
+export function orderSelectedFields<TColumn extends AnyColumn>(
+	fields: Record<string, unknown>,
+	pathPrefix?: string[],
+	codecs?: CodecsCollection,
+	result?: SelectedFieldsOrdered<AnyColumn>,
+): SelectedFieldsOrdered<TColumn>;
+/** @internal */
+export function orderSelectedFields<TColumn extends AnyColumn>(
+	fields: Record<string, unknown>,
+	pathPrefix?: string[],
+	codecs?: CodecsCollection,
+	result: SelectedFieldsOrdered<AnyColumn> = [],
 ): SelectedFieldsOrdered<TColumn> {
-	return Object.entries(fields).reduce<SelectedFieldsOrdered<AnyColumn>>((result, [name, field]) => {
+	const entries = Object.entries(fields);
+
+	for (let i = 0; i < entries.length; ++i) {
+		const [name, field] = entries[i]!;
 		if (typeof name !== 'string') {
-			return result;
+			return result as SelectedFieldsOrdered<TColumn>;
 		}
 
 		const newPath = pathPrefix ? [...pathPrefix, name] : [name];
 		if (is(field, Column)) {
 			result.push({
 				path: newPath,
-				field,
+				field: field,
+				fieldType: 'Column',
 				codec: codecs?.get(field, 'normalize'),
 				arrayDimensions: (<any> field).dimensions,
 				column: field,
 			});
-		} else if (is(field, SQL) || is(field, SQL.Aliased)) {
+		} else if (is(field, SQL)) {
 			const col = getColumnFromDecoder(field);
 			result.push(
 				col
 					? {
 						path: newPath,
 						field,
+						fieldType: 'SQL',
 						codec: codecs?.get(col, 'normalize'),
 						arrayDimensions: (<any> col).dimensions,
 						column: col,
@@ -401,6 +416,25 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 					: {
 						path: newPath,
 						field,
+						fieldType: 'SQL',
+					},
+			);
+		} else if (is(field, SQL.Aliased)) {
+			const col = getColumnFromDecoder(field);
+			result.push(
+				col
+					? {
+						path: newPath,
+						field,
+						fieldType: 'SQL.Aliased',
+						codec: codecs?.get(col, 'normalize'),
+						arrayDimensions: (<any> col).dimensions,
+						column: col,
+					}
+					: {
+						path: newPath,
+						field,
+						fieldType: 'SQL.Aliased',
 					},
 			);
 		} else if (is(field, Subquery)) {
@@ -429,6 +463,7 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 					? {
 						path: newPath,
 						field,
+						fieldType: 'Subquery',
 						codec: codecs?.get(column, 'normalize'),
 						arrayDimensions: (<any> column).dimensions,
 						column,
@@ -436,15 +471,17 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 					: {
 						path: newPath,
 						field,
+						fieldType: 'Subquery',
 					},
 			);
 		} else if (is(field, Table)) {
-			result.push(...orderSelectedFields(field[Table.Symbol.Columns], newPath, codecs));
+			orderSelectedFields(field[Table.Symbol.Columns], newPath, codecs, result);
 		} else {
-			result.push(...orderSelectedFields(field as Record<string, unknown>, newPath, codecs));
+			orderSelectedFields(field as Record<string, unknown>, newPath, codecs, result);
 		}
-		return result;
-	}, []) as SelectedFieldsOrdered<TColumn>;
+	}
+
+	return result as SelectedFieldsOrdered<TColumn>;
 }
 
 export function getColumnFromDecoder(source: SQL | SQL.Aliased | SQLWrapper): Column | undefined {
@@ -473,22 +510,24 @@ export function haveSameKeys(left: Record<string, unknown>, right: Record<string
 
 /** @internal */
 export function mapUpdateSet(table: Table, values: Record<string, unknown>): UpdateSet {
-	const entries: [string, UpdateSet[string]][] = Object.entries(values)
-		.filter(([, value]) => value !== undefined)
-		.map(([key, value]) => {
-			// eslint-disable-next-line unicorn/prefer-ternary
-			if (is(value, SQL) || is(value, Column)) {
-				return [key, value];
-			} else {
-				return [key, new Param(value, table[Table.Symbol.Columns][key])];
-			}
-		});
+	const entries = Object.entries(values).filter(([, value]) => value !== undefined);
 
 	if (entries.length === 0) {
 		throw new Error('No values to set');
 	}
 
-	return Object.fromEntries(entries);
+	const mapped: [string, UpdateSet[string]][] = new Array(entries.length);
+	for (let i = 0; i < entries.length; ++i) {
+		const [key, value] = entries[i]!;
+		// eslint-disable-next-line unicorn/prefer-ternary
+		if (is(value, SQL) || is(value, Column)) {
+			mapped[i] = [key, value];
+		} else {
+			mapped[i] = [key, new Param(value, table[Table.Symbol.Columns][key])];
+		}
+	}
+
+	return Object.fromEntries(mapped);
 }
 
 export type UpdateSet = Record<string, SQL | Param | AnyColumn | null | undefined>;
@@ -564,10 +603,6 @@ export type Writable<T> = {
 
 export type NonArray<T> = T extends any[] ? never : T;
 
-/**
- * @deprecated
- * Use `getColumns` instead
- */
 export function getTableColumns<T extends Table>(table: T): T['_']['columns'] {
 	return table[Table.Symbol.Columns];
 }
@@ -809,3 +844,20 @@ export function base64ToUint8Array(base64: string): Uint8Array {
 export type PartialWithUndefined<T> = {
 	[K in keyof T]?: T[K] | undefined;
 };
+
+export type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends ((k: infer I) => void) ? I
+	: never;
+
+export type LastInUnion<U> = UnionToIntersection<U extends any ? (x: U) => void : never> extends (x: infer M) => void
+	? M
+	: never;
+
+export type UnionToTuple<U, Last = LastInUnion<U>> = [U] extends [never] ? []
+	: [...UnionToTuple<Exclude<U, Last>>, Last];
+
+export type JoinTuple<T extends any[], Separator extends string> = T extends [] ? ''
+	: T extends [string | number | boolean | bigint] ? `${T[0]}`
+	: T extends [string | number | boolean | bigint, ...infer U] ? `${T[0]}${Separator}${JoinTuple<U, Separator>}`
+	: string;
+
+export type JoinUnion<U extends string, Separator extends string> = JoinTuple<UnionToTuple<U>, Separator>;

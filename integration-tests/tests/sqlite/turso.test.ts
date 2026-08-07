@@ -8687,3 +8687,47 @@ test.concurrent('.toSQL()', ({ db }) => {
 	expect(query).toHaveProperty('sql', expect.any(String));
 	expect(query).toHaveProperty('params', expect.any(Array));
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5367
+test('Correct error message on unknown column', async ({ db }) => {
+	const query = db.query.usersTable.findFirst({
+		columns: {
+			id: true,
+			// @ts-expect-error
+			unknown: true,
+		},
+	});
+
+	expect(async () => await query).rejects.toThrow(
+		new DrizzleError({ message: `Unknown column: "usersTable"."unknown"` }),
+	);
+});
+
+test('Correct error message on unknown relation', async ({ db }) => {
+	const query = db.query.usersTable.findFirst({
+		with: {
+			posts: true,
+			// @ts-expect-error
+			unknown: true,
+		},
+	});
+
+	expect(async () => await query).rejects.toThrow(
+		new DrizzleError({ message: `Unknown relation "usersTable" -> "unknown"` }),
+	);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5644
+test('Disallow unknown keys in filters', async ({ db }) => {
+	const query = db.query.usersTable.findFirst({
+		where: {
+			name: 'NAME',
+			// @ts-expect-error
+			unknown: 'value',
+		},
+	});
+
+	expect(async () => await query).rejects.toThrow(
+		new DrizzleError({ message: `Unknown relational filter field: "unknown"` }),
+	);
+});

@@ -3,7 +3,7 @@ import { entityKind, is } from '~/entity.ts';
 import type { SelectResult } from '~/query-builders/select.types.ts';
 import { Subquery } from '~/subquery.ts';
 import { TableName } from '~/table.utils.ts';
-import { tracer } from '~/tracing.ts';
+import { hasTelemetry, tracer } from '~/tracing.ts';
 import type { Assume, Equal } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { AnyColumn } from '../column.ts';
@@ -68,34 +68,10 @@ export function isSQLWrapper(value: unknown): value is SQLWrapper {
 	return value !== null && value !== undefined && typeof (value as any).getSQL === 'function';
 }
 
-function mergeQueries(queries: Query[]): Query {
-	const result: Query = { sql: '', params: [] };
-	for (const query of queries) {
-		result.sql += query.sql;
-		result.params.push(...query.params);
-	}
-	return result;
-}
-
-function _mergeQueries(queries: Query[]): Query {
-	const result: Query = { sql: '', params: [] };
-	const sqls = [] as string[];
-	for (const query of queries) {
-		sqls.push(query.sql);
-		result.params.push(...query.params);
-	}
-	result._sql = Object.assign(sqls, { raw: sqls }) as unknown as TemplateStringsArray;
-	return result;
-}
-
 export class StringChunk implements SQLWrapper {
 	static readonly [entityKind]: string = 'StringChunk';
 
-	readonly value: string[];
-
-	constructor(value: string | string[]) {
-		this.value = Array.isArray(value) ? value : [value];
-	}
+	constructor(readonly value: string) {}
 
 	getSQL(): SQL<unknown> {
 		return new SQL([this]);
@@ -116,21 +92,28 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 	public shouldInlineParams = false;
 
 	/** @internal */
-	usedTables: string[] = [];
+	private _usedTables: string[] | undefined;
+	/** @internal */
+	get usedTables(): string[] {
+		if (this._usedTables) return this._usedTables;
+		this._usedTables = [];
 
-	constructor(readonly queryChunks: SQLChunk[]) {
-		for (const chunk of queryChunks) {
+		for (let i = 0; i < this.queryChunks.length; ++i) {
+			const chunk = this.queryChunks[i]!;
 			if (is(chunk, Table)) {
 				const schemaName = chunk[Table.Symbol.Schema];
 
-				this.usedTables.push(
+				this._usedTables.push(
 					schemaName === undefined
 						? chunk[Table.Symbol.Name]
 						: schemaName + '.' + chunk[Table.Symbol.Name],
 				);
 			}
 		}
+		return this._usedTables;
 	}
+
+	constructor(readonly queryChunks: SQLChunk[]) {}
 
 	append(query: SQL): this {
 		this.queryChunks.push(...query.queryChunks);
@@ -138,6 +121,8 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 	}
 
 	toQuery(config: BuildQueryConfig): Query {
+		if (!hasTelemetry) return this.buildQueryFromSourceParams(this.queryChunks, config);
+
 		return tracer.startActiveSpan('drizzle.buildSQL', (span) => {
 			const query = this.buildQueryFromSourceParams(this.queryChunks, config);
 			span?.setAttributes({
@@ -149,102 +134,120 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 	}
 
 	buildQueryFromSourceParams(chunks: SQLChunk[], _config: BuildQueryConfig): Query {
-		const config = Object.assign({}, _config, {
-			inlineParams: _config.inlineParams || this.shouldInlineParams,
-			paramStartIndex: _config.paramStartIndex || { value: 0 },
-		});
+		const strings: string[] = [];
+		const params: unknown[] = [];
+		const bounds: number[] | undefined = _config.tagged ? [] : undefined;
 
+		this.collectSQL(
+			chunks,
+			_config,
+			_config.paramStartIndex || { value: 0 },
+			_config.inlineParams || this.shouldInlineParams,
+			strings,
+			params,
+			bounds,
+		);
+
+		if (bounds === undefined) {
+			return {
+				sql: strings.join(''),
+				params,
+			} as Query;
+		}
+
+		const segments: string[] = new Array(bounds.length);
+		for (let i = 0; i < bounds.length; ++i) {
+			const end = i + 1 < bounds.length ? bounds[i + 1]! : strings.length;
+			let segment = '';
+			for (let j = bounds[i]!; j < end; ++j) segment += strings[j];
+			segments[i] = segment;
+		}
+
+		return {
+			sql: strings.join(''),
+			params,
+			_sql: Object.assign(segments, { raw: segments }),
+		} as Query;
+	}
+
+	private collectSQL(
+		chunks: SQLChunk[],
+		config: BuildQueryConfig,
+		paramStartIndex: { value: number },
+		inlineParams: boolean,
+		strings: string[],
+		params: unknown[],
+		bounds: number[] | undefined,
+	): void {
 		const {
 			escapeName,
 			escapeParam,
 			codecs,
-			inlineParams,
-			paramStartIndex,
 			invokeSource,
 		} = config;
 
-		const mappedChunks = chunks.map((chunk): Query => {
+		for (let i = 0; i < chunks.length; ++i) {
+			if (bounds !== undefined) bounds.push(strings.length);
+
+			const chunk = chunks[i]!;
+
 			if (is(chunk, StringChunk)) {
-				return { sql: chunk.value.join(''), params: [] };
-			}
-
-			if (is(chunk, Name)) {
-				return { sql: escapeName(chunk.value), params: [] };
-			}
-
-			if (chunk === undefined) {
-				return { sql: '', params: [] };
-			}
-
-			if (Array.isArray(chunk)) {
-				const result: SQLChunk[] = [new StringChunk('(')];
-				for (const [i, p] of chunk.entries()) {
-					result.push(p);
-					if (i < chunk.length - 1) {
-						result.push(new StringChunk(', '));
-					}
-				}
-				result.push(new StringChunk(')'));
-				return this.buildQueryFromSourceParams(result, config);
+				strings.push(chunk.value);
+				continue;
 			}
 
 			if (is(chunk, SQL)) {
-				return this.buildQueryFromSourceParams(chunk.queryChunks, {
-					...config,
-					inlineParams: inlineParams || chunk.shouldInlineParams,
-				});
+				this.collectSQL(
+					chunk.queryChunks,
+					config,
+					paramStartIndex,
+					inlineParams || chunk.shouldInlineParams,
+					strings,
+					params,
+					undefined,
+				);
+				continue;
 			}
 
-			if (is(chunk, Table)) {
-				const schemaName = chunk[Table.Symbol.Schema];
-				const tableName = chunk[Table.Symbol.Name];
+			if (is(chunk, Name)) {
+				strings.push(escapeName(chunk.value));
+				continue;
+			}
 
-				if (invokeSource === 'mssql-view-with-schemabinding') {
-					return {
-						sql: (schemaName === undefined ? escapeName('dbo') : escapeName(schemaName)) + '.'
-							+ escapeName(tableName),
-						params: [],
-					};
-				}
-
-				return {
-					sql: schemaName === undefined || chunk[IsAlias]
-						? escapeName(tableName)
-						: escapeName(schemaName) + '.' + escapeName(tableName),
-					params: [],
-				};
+			if (chunk === undefined) {
+				continue;
 			}
 
 			if (is(chunk, Column)) {
 				const columnName = chunk.name;
-				if (_config.invokeSource === 'indexes') {
-					return { sql: escapeName(columnName), params: [] };
+				if (invokeSource === 'indexes') {
+					strings.push(escapeName(columnName));
+					continue;
 				}
 
 				const schemaName = invokeSource === 'mssql-check' ? undefined : chunk.table[Table.Symbol.Schema];
-				return {
-					sql: chunk.isAlias ? escapeName(chunk.name) : chunk.table[IsAlias] || schemaName === undefined
+				strings.push(
+					chunk.isAlias ? escapeName(chunk.name) : chunk.table[IsAlias] || schemaName === undefined
 						? escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(columnName)
 						: escapeName(schemaName) + '.' + escapeName(chunk.table[Table.Symbol.Name]) + '.'
 							+ escapeName(columnName),
-					params: [],
-				};
-			}
-
-			if (is(chunk, View)) {
-				const schemaName = chunk[ViewBaseConfig].schema;
-				const viewName = chunk[ViewBaseConfig].name;
-				return {
-					sql: schemaName === undefined || chunk[ViewBaseConfig].isAlias
-						? escapeName(viewName)
-						: escapeName(schemaName) + '.' + escapeName(viewName),
-					params: [],
-				};
+				);
+				continue;
 			}
 
 			if (is(chunk, Param)) {
 				if (is(chunk.value, SQL)) {
-					return this.buildQueryFromSourceParams([chunk.value], config);
+					const nested = chunk.value;
+					this.collectSQL(
+						nested.queryChunks,
+						config,
+						paramStartIndex,
+						inlineParams || nested.shouldInlineParams,
+						strings,
+						params,
+						undefined,
+					);
+					continue;
 				}
 
 				const useCodecs = codecs && is(chunk.encoder, Column);
@@ -254,12 +257,13 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 					chunk.codec = useCodecs
 						? (value) => codecs.apply(chunk.encoder as Column, 'normalizeParam', value)
 						: undefined;
-					return {
-						sql: useCodecs
+					strings.push(
+						useCodecs
 							? codecs.apply(chunk.encoder, 'castParam', escaped)
 							: escaped,
-						params: [chunk],
-					};
+					);
+					params.push(chunk);
+					continue;
 				}
 
 				let mappedValue: any;
@@ -271,7 +275,17 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 						: chunk.encoder.mapToDriverValue(chunk.value);
 
 					if (is(mappedValue, SQL)) {
-						return this.buildQueryFromSourceParams([mappedValue], config);
+						const nested: SQL = mappedValue;
+						this.collectSQL(
+							nested.queryChunks,
+							config,
+							paramStartIndex,
+							inlineParams || nested.shouldInlineParams,
+							strings,
+							params,
+							undefined,
+						);
+						continue;
 					}
 
 					if (useCodecs) {
@@ -284,71 +298,145 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				}
 
 				if (inlineParams) {
-					return { sql: this.mapInlineParam(mappedValue, config), params: [] };
+					strings.push(this.mapInlineParam(mappedValue, config));
+					continue;
 				}
 
 				const escaped = escapeParam(paramStartIndex.value++, mappedValue);
-				return {
-					sql: useCodecs
+				strings.push(
+					useCodecs
 						? codecs.apply(chunk.encoder, 'castParam', escaped)
 						: escaped,
-					params: [mappedValue],
-				};
+				);
+				params.push(mappedValue);
+				continue;
 			}
 
 			if (is(chunk, Placeholder)) {
-				return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk] };
+				strings.push(escapeParam(paramStartIndex.value++, chunk));
+				params.push(chunk);
+				continue;
+			}
+
+			if (is(chunk, Table)) {
+				const schemaName = chunk[Table.Symbol.Schema];
+				const tableName = chunk[Table.Symbol.Name];
+
+				if (invokeSource === 'mssql-view-with-schemabinding') {
+					strings.push(
+						(schemaName === undefined ? escapeName('dbo') : escapeName(schemaName)) + '.'
+							+ escapeName(tableName),
+					);
+					continue;
+				}
+
+				strings.push(
+					schemaName === undefined || chunk[IsAlias]
+						? escapeName(tableName)
+						: escapeName(schemaName) + '.' + escapeName(tableName),
+				);
+				continue;
+			}
+
+			if (is(chunk, View)) {
+				const schemaName = chunk[ViewBaseConfig].schema;
+				const viewName = chunk[ViewBaseConfig].name;
+				strings.push(
+					schemaName === undefined || chunk[ViewBaseConfig].isAlias
+						? escapeName(viewName)
+						: escapeName(schemaName) + '.' + escapeName(viewName),
+				);
+				continue;
 			}
 
 			if (is(chunk, SQL.Aliased) && chunk.fieldAlias !== undefined) {
-				return {
-					sql: (chunk.origin !== undefined ? escapeName(chunk.origin) + '.' : '') + escapeName(chunk.fieldAlias),
-					params: [],
-				};
+				strings.push(
+					(chunk.origin !== undefined ? escapeName(chunk.origin) + '.' : '') + escapeName(chunk.fieldAlias),
+				);
+				continue;
 			}
 
 			if (is(chunk, Subquery)) {
 				if (chunk._.isWith) {
-					return { sql: escapeName(chunk._.alias), params: [] };
+					strings.push(escapeName(chunk._.alias));
+					continue;
 				}
-				return this.buildQueryFromSourceParams([
-					new StringChunk('('),
-					chunk._.sql,
-					new StringChunk(') '),
-					new Name(chunk._.alias),
-				], config);
+
+				const nested = chunk._.sql;
+				strings.push('(');
+				this.collectSQL(
+					nested.queryChunks,
+					config,
+					paramStartIndex,
+					inlineParams || nested.shouldInlineParams,
+					strings,
+					params,
+					undefined,
+				);
+				strings.push(') ' + escapeName(chunk._.alias));
+				continue;
 			}
 
 			if (typeof chunk === 'function' && 'enumName' in chunk) {
 				if ('schema' in chunk && chunk.schema) {
-					return { sql: escapeName(chunk.schema as string) + '.' + escapeName(chunk.enumName as string), params: [] };
+					strings.push(escapeName(chunk.schema as string) + '.' + escapeName(chunk.enumName as string));
+					continue;
 				}
-				return { sql: escapeName(chunk.enumName as string), params: [] };
+				strings.push(escapeName(chunk.enumName as string));
+				continue;
 			}
 
 			if (isSQLWrapper(chunk)) {
+				const nested = chunk.getSQL();
+				const nestedInlineParams = inlineParams || nested.shouldInlineParams;
+
 				if (chunk.shouldOmitSQLParens?.()) {
-					return this.buildQueryFromSourceParams([chunk.getSQL()], config);
+					this.collectSQL(
+						nested.queryChunks,
+						config,
+						paramStartIndex,
+						nestedInlineParams,
+						strings,
+						params,
+						undefined,
+					);
+					continue;
 				}
-				return this.buildQueryFromSourceParams([
-					new StringChunk('('),
-					chunk.getSQL(),
-					new StringChunk(')'),
-				], config);
+
+				strings.push('(');
+				this.collectSQL(
+					nested.queryChunks,
+					config,
+					paramStartIndex,
+					nestedInlineParams,
+					strings,
+					params,
+					undefined,
+				);
+				strings.push(')');
+				continue;
+			}
+
+			if (Array.isArray(chunk)) {
+				strings.push('(');
+				const element: SQLChunk[] = [undefined];
+				for (let j = 0; j < chunk.length; ++j) {
+					if (j > 0) strings.push(', ');
+					element[0] = chunk[j];
+					this.collectSQL(element, config, paramStartIndex, inlineParams, strings, params, undefined);
+				}
+				strings.push(')');
+				continue;
 			}
 
 			if (inlineParams) {
-				return { sql: this.mapInlineParam(chunk, config), params: [] };
+				strings.push(this.mapInlineParam(chunk, config));
+				continue;
 			}
 
-			return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk] };
-		});
-
-		if (_config.tagged) {
-			return _mergeQueries(mappedChunks);
+			strings.push(escapeParam(paramStartIndex.value++, chunk));
+			params.push(chunk);
 		}
-
-		return mergeQueries(mappedChunks);
 	}
 
 	private mapInlineParam(
@@ -567,12 +655,18 @@ export function sql<T>(strings: TemplateStringsArray, ...params: any[]): SQL<T>;
 	This type is used to make our lives easier and the type checker happy.
 */
 export function sql(strings: TemplateStringsArray, ...params: SQLChunk[]): SQL {
-	const queryChunks: SQLChunk[] = [];
-	if (params.length > 0 || (strings.length > 0 && strings[0] !== '')) {
-		queryChunks.push(new StringChunk(strings[0]!));
+	const startWithString = params.length > 0 || (strings.length > 0 && strings[0] !== '');
+	const chunkCount = startWithString ? strings.length + params.length : strings.length - 1;
+	const queryChunks: SQLChunk[] = new Array(chunkCount < 0 ? 0 : chunkCount);
+
+	let writeIdx = 0;
+	if (startWithString) {
+		queryChunks[writeIdx++] = new StringChunk(strings[0]!);
 	}
-	for (const [paramIndex, param] of params.entries()) {
-		queryChunks.push(param, new StringChunk(strings[paramIndex + 1]!));
+	for (let paramIdx = 0; paramIdx < params.length; ++paramIdx) {
+		const param = params[paramIdx]!;
+		queryChunks[writeIdx++] = param;
+		queryChunks[writeIdx++] = new StringChunk(strings[paramIdx + 1]!);
 	}
 
 	return new SQL(queryChunks);
@@ -610,13 +704,18 @@ export namespace sql {
 	 * ```
 	 */
 	export function join(chunks: SQLChunk[], separator?: SQLChunk): SQL {
-		const result: SQLChunk[] = [];
-		for (const [i, chunk] of chunks.entries()) {
-			if (i > 0 && separator !== undefined) {
-				result.push(separator);
+		const { length } = chunks;
+		if (separator === undefined || length === 0) return new SQL(chunks.slice());
+
+		const result: SQLChunk[] = new Array(length * 2 - 1);
+		for (let i = 0, writeIdx = 0; i < length; ++i) {
+			result[writeIdx++] = chunks[i];
+
+			if (i < length - 1) {
+				result[writeIdx++] = separator;
 			}
-			result.push(chunk);
 		}
+
 		return new SQL(result);
 	}
 

@@ -617,7 +617,8 @@ export const providerForLibSQLWs = async () => {
 	return providerClosure(clients);
 };
 export const providerForLibSQLSqlite3 = async () => {
-	const clients = [prepareLibSQLSqlite3Client()];
+	// Simple ':memory:' fails on transaction tests
+	const clients = [prepareLibSQLSqlite3Client('file::memory:?cache=shared')];
 
 	return providerClosure(clients);
 };

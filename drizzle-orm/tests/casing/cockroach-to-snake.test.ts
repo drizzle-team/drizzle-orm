@@ -58,7 +58,7 @@ describe('cockroach to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select "sq"."id", "sq"."name" from "users" left join (select "id", "users"."first_name" || \' \' || "users"."last_name" as "name" from "users") "sq" on "users"."id" = "sq"."id"',
+				'select "sq"."id", "sq"."name" from "users" left join (select "id", "first_name" || \' \' || "last_name" as "name" from "users") "sq" on "users"."id" = "sq"."id"',
 			params: [],
 		});
 	});
@@ -96,7 +96,7 @@ describe('cockroach to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'with "cte" as (select "users"."first_name" || \' \' || "users"."last_name" as "name" from "users") select "name" from "cte"',
+				'with "cte" as (select "first_name" || \' \' || "last_name" as "name" from "users") select "name" from "cte"',
 			params: [],
 		});
 	});
@@ -107,7 +107,7 @@ describe('cockroach to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'with "cte" as (select "users"."first_name" || \' \' || "users"."last_name" as "name" from "users") select "name" from "cte"',
+				'with "cte" as (select "first_name" || \' \' || "last_name" as "name" from "users") select "name" from "cte"',
 			params: [],
 		});
 	});
@@ -212,6 +212,76 @@ describe('cockroach to snake case', () => {
 		expect(query.toSQL()).toEqual({
 			sql:
 				'insert into "users" ("id", "first_name", "last_name", "AGE") values (default, $1, $2, $3) on conflict ("first_name") do update set "AGE" = $4 returning "first_name", "AGE"',
+			params: ['John', 'Doe', 30, 31],
+		});
+	});
+
+	it('insert (column selection)', ({ expect }) => {
+		const query = db
+			.insert(users, 'firstName', 'lastName', 'age')
+			.values({ firstName: 'John', lastName: 'Doe', age: 30 })
+			.returning({ firstName: users.firstName, age: users.age });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "users" ("first_name", "last_name", "AGE") values ($1, $2, $3) returning "first_name", "AGE"',
+			params: ['John', 'Doe', 30],
+		});
+	});
+
+	it('insert (column selection, multiple rows)', ({ expect }) => {
+		const query = db
+			.insert(users, 'firstName', 'lastName')
+			.values([{ firstName: 'John', lastName: 'Doe' }, { firstName: 'Jane', lastName: 'Roe' }]);
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "users" ("first_name", "last_name") values ($1, $2), ($3, $4)',
+			params: ['John', 'Doe', 'Jane', 'Roe'],
+		});
+	});
+
+	it('insert (column selection, omitted optional column)', ({ expect }) => {
+		const query = db
+			.insert(users, 'firstName', 'lastName', 'age')
+			.values({ firstName: 'John', lastName: 'Doe' });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "users" ("first_name", "last_name", "AGE") values ($1, $2, default)',
+			params: ['John', 'Doe'],
+		});
+	});
+
+	it('insert (column selection) with select', ({ expect }) => {
+		const query = db
+			.insert(users, 'firstName', 'lastName')
+			.select(db.select({ firstName: users.firstName, lastName: users.lastName }).from(users));
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "users" ("first_name", "last_name") select "first_name", "last_name" from "users"',
+			params: [],
+		});
+	});
+
+	it('insert (column selection) emits columns in list order', ({ expect }) => {
+		const query = db
+			.insert(users, 'age', 'lastName', 'firstName')
+			.values({ firstName: 'John', lastName: 'Doe', age: 30 });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "users" ("AGE", "last_name", "first_name") values ($1, $2, $3)',
+			params: [30, 'Doe', 'John'],
+		});
+	});
+
+	it('insert (column selection) on conflict do update', ({ expect }) => {
+		const query = db
+			.insert(users, 'firstName', 'lastName', 'age')
+			.values({ firstName: 'John', lastName: 'Doe', age: 30 })
+			.onConflictDoUpdate({ target: users.firstName, set: { age: 31 } })
+			.returning({ firstName: users.firstName, age: users.age });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'insert into "users" ("first_name", "last_name", "AGE") values ($1, $2, $3) on conflict ("first_name") do update set "AGE" = $4 returning "first_name", "AGE"',
 			params: ['John', 'Doe', 30, 31],
 		});
 	});

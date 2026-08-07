@@ -27,6 +27,7 @@ import {
 	getTableLikeName,
 	haveSameKeys,
 	orderSelectedFields,
+	resolveNullableObjectPaths,
 	type ValueOrArray,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
@@ -916,7 +917,7 @@ export class MsSqlSelectBase<
 			PreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
 			TPreparedQueryHKT
 		>(query, fieldsList);
-		preparedQuery.joinsNotNullableMap = this.joinsNotNullableMap;
+		preparedQuery.nullableObjectPaths = resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap);
 		return preparedQuery as MsSqlSelectPrepare<this>;
 	}
 

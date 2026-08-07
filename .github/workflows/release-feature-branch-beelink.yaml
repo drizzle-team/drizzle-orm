@@ -113,7 +113,7 @@ jobs:
           - shard: int:mysql
             dbs: [mysql]
           - shard: int:postgres
-            dbs: [postgres]
+            dbs: [postgres, postgres-http-gateway]
           - shard: int:sqlite
             dbs: []
           - shard: int:turso-serverless
@@ -163,6 +163,7 @@ jobs:
           for db in ${{ join(matrix.dbs, ' ') }}; do
             case "$db" in
               postgres)            compose_files+=("-f" "compose/postgres.yml") ;;
+              postgres-http-gateway) compose_files+=("-f" "compose/postgres-http-gateway.yml") ;;
               postgres-postgis)    compose_files+=("-f" "compose/postgres-postgis.yml") ;;
               postgres-vector)     compose_files+=("-f" "compose/postgres-vector.yml") ;;
               mysql)               compose_files+=("-f" "compose/mysql.yml") ;;
@@ -210,6 +211,7 @@ jobs:
       - name: Run tests
         env:
           PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
+          PG_HTTP_GATEWAY_URL: http://localhost:8080/query
           PG_VECTOR_CONNECTION_STRING: postgres://postgres:postgres@localhost:54321/drizzle
           PG_POSTGIS_CONNECTION_STRING: postgres://postgres:postgres@localhost:54322/drizzle
           POSTGIS_URL: postgres://postgres:postgres@localhost:54322/drizzle
@@ -376,7 +378,7 @@ jobs:
     
       # >= 11.5.1 for trusted publishing
       - name: Update NPM
-        run: npm install -g npm@latest
+        run: npm install -g npm@11 # npm 12.0.0 ships without sigstore in its bundled tree and breaks `npm publish`
       
       # Restore packages from local filesystem
       - name: Restore packages locally

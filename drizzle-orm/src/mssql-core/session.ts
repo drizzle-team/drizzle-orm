@@ -43,7 +43,7 @@ export abstract class PreparedQuery<T extends PreparedQueryConfig> {
 	static readonly [entityKind]: string = 'MsSqlPreparedQuery';
 
 	/** @internal */
-	joinsNotNullableMap?: Record<string, boolean>;
+	nullableObjectPaths?: string[];
 
 	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
 

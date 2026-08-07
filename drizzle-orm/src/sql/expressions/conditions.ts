@@ -174,7 +174,8 @@ export function or(
  *   .where(not(inArray(cars.make, ['GM', 'Ford'])))
  * ```
  */
-export function not(condition: SQLWrapper): SQL {
+export function not(condition: SQLWrapper | undefined): SQL | undefined {
+	if (!condition) return undefined;
 	return is(condition, SQL) ? sql`not (${condition})` : sql`not ${condition}`;
 }
 
@@ -284,7 +285,7 @@ export function inArray(
 ): SQL {
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
-			return sql`false`;
+			return sql`1 = 0`;
 		}
 		return sql`${column} in ${values.map((v) => bindIfParam(v, column))}`;
 	}
@@ -325,7 +326,7 @@ export function notInArray(
 ): SQL {
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
-			return sql`true`;
+			return sql`1 = 1`;
 		}
 		return sql`${column} not in ${values.map((v) => bindIfParam(v, column))}`;
 	}
