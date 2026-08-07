@@ -2,7 +2,7 @@ import { defineRelations, sql } from 'drizzle-orm';
 import { boolean, getTableConfig, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { minipgCodecs } from 'drizzle-orm/postgres/codecs';
 import { drizzle as drizzleHttp, type PostgresHttpDatabase } from 'drizzle-orm/postgres/http';
-import { migrate } from 'drizzle-orm/postgres/http/migrator';
+import { migrate, rollback } from 'drizzle-orm/postgres/http/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe, expect } from 'vitest';
 import { randomString } from '~/utils';
@@ -227,6 +227,129 @@ describe('migrator', () => {
 		await db.execute(sql`drop schema "drizzle" cascade`);
 		rmSync(migrationDir, { recursive: true });
 	});
+
+	const rollbackMigrationDir = './migrations/postgres-http-rollback';
+
+	const writeRollbackMigration = (name: string, up: string, down?: string) => {
+		mkdirSync(`${rollbackMigrationDir}/${name}`, { recursive: true });
+		writeFileSync(`${rollbackMigrationDir}/${name}/migration.sql`, up);
+		if (down !== undefined) writeFileSync(`${rollbackMigrationDir}/${name}/down.sql`, down);
+	};
+
+	const prepareRollbackMigrations = async (db: PostgresHttpDatabase<any>) => {
+		await db.execute(sql`drop schema if exists "drizzle" cascade;`);
+		await db.execute(sql`drop table if exists "http_rollback_posts"`);
+		await db.execute(sql`drop table if exists "http_rollback_users"`);
+
+		if (existsSync(rollbackMigrationDir)) rmSync(rollbackMigrationDir, { recursive: true });
+		mkdirSync(rollbackMigrationDir, { recursive: true });
+	};
+
+	const appliedMigrations = async (db: PostgresHttpDatabase<any>) => {
+		const res = await db.execute<{ name: string }>(
+			sql`select name from "drizzle"."__drizzle_migrations" order by id`,
+		);
+		return res.rows.map((row) => row.name);
+	};
+
+	const tableExists = async (db: PostgresHttpDatabase<any>, name: string) => {
+		const res = await db.execute<{ present: boolean }>(
+			sql`select to_regclass(${`public.${name}`}) is not null as present`,
+		);
+		return res.rows[0]!.present;
+	};
+
+	test('rollback : undoes the last migration and re-applies cleanly', async ({ db }) => {
+		const httpDb = db as any as PostgresHttpDatabase<any>;
+		await prepareRollbackMigrations(httpDb);
+		writeRollbackMigration(
+			'20240101010101_users',
+			`CREATE TABLE "http_rollback_users" ("id" serial PRIMARY KEY);`,
+			`DROP TABLE "http_rollback_users";`,
+		);
+		writeRollbackMigration(
+			'20240202020202_posts',
+			`CREATE TABLE "http_rollback_posts" ("id" serial PRIMARY KEY);`,
+			`DROP TABLE "http_rollback_posts";`,
+		);
+
+		await migrate(httpDb, { migrationsFolder: rollbackMigrationDir });
+		await rollback(httpDb, { migrationsFolder: rollbackMigrationDir });
+
+		expect(await appliedMigrations(httpDb)).toStrictEqual(['20240101010101_users']);
+		expect(await tableExists(httpDb, 'http_rollback_posts')).toBe(false);
+		expect(await tableExists(httpDb, 'http_rollback_users')).toBe(true);
+
+		await migrate(httpDb, { migrationsFolder: rollbackMigrationDir });
+
+		expect(await appliedMigrations(httpDb)).toStrictEqual(['20240101010101_users', '20240202020202_posts']);
+		expect(await tableExists(httpDb, 'http_rollback_posts')).toBe(true);
+
+		rmSync(rollbackMigrationDir, { recursive: true });
+	});
+
+	test('rollback : steps undoes several migrations newest first', async ({ db }) => {
+		const httpDb = db as any as PostgresHttpDatabase<any>;
+		await prepareRollbackMigrations(httpDb);
+		writeRollbackMigration(
+			'20240101010101_users',
+			`CREATE TABLE "http_rollback_users" ("id" serial PRIMARY KEY);`,
+			`DROP TABLE "http_rollback_users";`,
+		);
+		writeRollbackMigration(
+			'20240202020202_posts',
+			`CREATE TABLE "http_rollback_posts" ("id" serial PRIMARY KEY, "user_id" integer REFERENCES "http_rollback_users"("id"));`,
+			`DROP TABLE "http_rollback_posts";`,
+		);
+
+		await migrate(httpDb, { migrationsFolder: rollbackMigrationDir });
+		await rollback(httpDb, { migrationsFolder: rollbackMigrationDir }, 2);
+
+		expect(await appliedMigrations(httpDb)).toStrictEqual([]);
+		expect(await tableExists(httpDb, 'http_rollback_posts')).toBe(false);
+		expect(await tableExists(httpDb, 'http_rollback_users')).toBe(false);
+
+		rmSync(rollbackMigrationDir, { recursive: true });
+	});
+
+	test('rollback : rejects a migration without down.sql', async ({ db }) => {
+		const httpDb = db as any as PostgresHttpDatabase<any>;
+		await prepareRollbackMigrations(httpDb);
+		writeRollbackMigration('20240101010101_users', `CREATE TABLE "http_rollback_users" ("id" serial PRIMARY KEY);`);
+
+		await migrate(httpDb, { migrationsFolder: rollbackMigrationDir });
+
+		await expect(rollback(httpDb, { migrationsFolder: rollbackMigrationDir })).rejects.toThrowError(
+			/no down SQL available/,
+		);
+
+		expect(await appliedMigrations(httpDb)).toStrictEqual(['20240101010101_users']);
+		expect(await tableExists(httpDb, 'http_rollback_users')).toBe(true);
+
+		rmSync(rollbackMigrationDir, { recursive: true });
+	});
+
+	test('rollback : a failing down statement leaves the migration applied', async ({ db }) => {
+		const httpDb = db as any as PostgresHttpDatabase<any>;
+		await prepareRollbackMigrations(httpDb);
+		writeRollbackMigration(
+			'20240101010101_users',
+			`CREATE TABLE "http_rollback_users" ("id" serial PRIMARY KEY);`,
+			// The drop precedes the bad statement, so without batching the table would be gone while
+			// the journal still claimed the migration was applied.
+			`DROP TABLE "http_rollback_users";\n--> statement-breakpoint\nSELECT * FROM "http_rollback_missing";`,
+		);
+
+		await migrate(httpDb, { migrationsFolder: rollbackMigrationDir });
+
+		await expect(rollback(httpDb, { migrationsFolder: rollbackMigrationDir })).rejects.toThrowError();
+
+		expect(await appliedMigrations(httpDb)).toStrictEqual(['20240101010101_users']);
+		expect(await tableExists(httpDb, 'http_rollback_users')).toBe(true);
+
+		rmSync(rollbackMigrationDir, { recursive: true });
+	});
+
 	test('migrator : migrate with custom table and custom schema', async ({ db }) => {
 		const customTable = randomString();
 		const customSchema = randomString();
