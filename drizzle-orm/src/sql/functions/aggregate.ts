@@ -2,6 +2,10 @@ import { type AnyColumn, Column } from '~/column.ts';
 import { is } from '~/entity.ts';
 import { type SQL, sql, type SQLWrapper } from '../sql.ts';
 
+type NumericAggregate<T extends SQLWrapper> = T extends AnyColumn
+	? T['_']['dataType'] extends 'custom' ? T['_']['data'] : string
+	: string;
+
 /**
  * Returns the number of values in `expression`.
  *
@@ -48,7 +52,7 @@ export function countDistinct(expression: SQLWrapper): SQL<number> {
  *
  * @see avgDistinct to get the average of all non-null and non-duplicate values in `expression`
  */
-export function avg<T extends SQLWrapper>(expression: T): SQL<(T extends AnyColumn ? T['_']['data'] : string) | null> {
+export function avg<T extends SQLWrapper>(expression: T): SQL<NumericAggregate<T> | null> {
 	return sql`avg(${expression})`.mapWith(aggregateDecoder(expression)) as any;
 }
 
@@ -66,7 +70,7 @@ export function avg<T extends SQLWrapper>(expression: T): SQL<(T extends AnyColu
  */
 export function avgDistinct<T extends SQLWrapper>(
 	expression: T,
-): SQL<(T extends AnyColumn ? T['_']['data'] : string) | null> {
+): SQL<NumericAggregate<T> | null> {
 	return sql`avg(distinct ${expression})`.mapWith(aggregateDecoder(expression)) as any;
 }
 
@@ -82,7 +86,7 @@ export function avgDistinct<T extends SQLWrapper>(
  *
  * @see sumDistinct to get the sum of all non-null and non-duplicate values in `expression`
  */
-export function sum<T extends SQLWrapper>(expression: T): SQL<(T extends AnyColumn ? T['_']['data'] : string) | null> {
+export function sum<T extends SQLWrapper>(expression: T): SQL<NumericAggregate<T> | null> {
 	return sql`sum(${expression})`.mapWith(aggregateDecoder(expression)) as any;
 }
 
@@ -100,7 +104,7 @@ export function sum<T extends SQLWrapper>(expression: T): SQL<(T extends AnyColu
  */
 export function sumDistinct<T extends SQLWrapper>(
 	expression: T,
-): SQL<(T extends AnyColumn ? T['_']['data'] : string) | null> {
+): SQL<NumericAggregate<T> | null> {
 	return sql`sum(distinct ${expression})`.mapWith(aggregateDecoder(expression)) as any;
 }
 
