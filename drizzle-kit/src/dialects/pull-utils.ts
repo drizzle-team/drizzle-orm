@@ -2,7 +2,8 @@ import { Minimatch } from 'minimatch';
 import type { EntitiesFilter, ExtensionsFilter, SchemasFilter, TablesFilter } from '../cli/validations/common';
 import { assertUnreachable } from '../utils';
 import type { Dialect } from '../utils/schemaValidator';
-import { isSystemRole } from './postgres/grammar';
+import { isSystemRole as isCockroachSystemRole } from './cockroach/grammar';
+import { isSystemRole as isPostgresSystemRole } from './postgres/grammar';
 
 export type Schema = { type: 'schema'; name: string };
 export type Table = { type: 'table'; schema: string | false; name: string };
@@ -61,7 +62,7 @@ export const prepareEntityFilter = (
 	}));
 	const tablesFilter = prepareTablesFilter(tablesConfig, existingViews);
 
-	const rolesFilter = prepareRolesFilter(params.entities);
+	const rolesFilter = prepareRolesFilter(dialect, params.entities);
 
 	const filter = (it: KitEntity) => {
 		if (it.type === 'schema') return schemasFilter(it);
@@ -146,7 +147,7 @@ const prepareTablesFilter = (globs: string[], existingViews: { schema: string | 
 	return filter;
 };
 
-const prepareRolesFilter = (entities: EntitiesFilter) => {
+const prepareRolesFilter = (dialect: Dialect, entities: EntitiesFilter) => {
 	if (!entities || !entities.roles) return () => false;
 
 	const roles = entities.roles;
@@ -187,9 +188,11 @@ const prepareRolesFilter = (entities: EntitiesFilter) => {
 	if (!include.length && !exclude.length) return () => true;
 
 	const rolesFilter: (it: { type: 'role'; name: string }) => boolean = (it) => {
-		// Always skip PostgreSQL predefined roles (`pg_*`, `postgres`) — Neon
-		// (and others) surface these via pg_roles and push would try to DROP them.
-		if (isSystemRole(it.name)) return false;
+		// Skip dialect-specific system roles so push never DROP/CREATE them.
+		// PostgreSQL: `pg_*` / `postgres`. CockroachDB: `admin` / `root` / `node`
+		// only — user roles like `pg_app` must pass through (#6106 Codex P2).
+		if (dialect === 'postgresql' && isPostgresSystemRole(it.name)) return false;
+		if (dialect === 'cockroach' && isCockroachSystemRole(it.name)) return false;
 
 		const notExcluded = !exclude.length || !exclude.includes(it.name);
 		const included = !include.length || include.includes(it.name);
