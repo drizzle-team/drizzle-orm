@@ -232,8 +232,15 @@ export class NodeCockroachSession<
 			? new NodeCockroachSession(await this.client.connect(), this.dialect, this.schema, this.options)
 			: this;
 		const tx = new NodeCockroachTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
+
 		try {
 			await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
+		} catch (e) {
+			if (this.client instanceof Pool) (session.client as PoolClient).release(); // oxlint-disable-line drizzle-internal/no-instanceof
+			throw e;
+		}
+
+		try {
 			const result = await transaction(tx);
 			await tx.execute(sql`commit`);
 			return result;
