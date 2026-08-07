@@ -13,14 +13,6 @@ import { getTableName } from '~/table.ts';
 import { CONSTANTS } from '../utils.ts';
 import type { JsonSchema } from './column.types.ts';
 
-// Custom TypeBox types below are defined with `Type.Unsafe` + `Type.Refine` instead of the
-// removed `Type.Base` extension mechanism. `Type.Base` was dropped in typebox@1.3.0, which made
-// `import 'drizzle-orm/typebox'` throw `Class extends value undefined` at module load under any
-// module system (see #5981). `Value.Check` honors `Refine` predicates from typebox@1.2.0 onwards
-// (hence the `>=1.2.0` peer requirement). Each type is kept as a class so the public `new TX()`
-// API is preserved; the constructor returns the refined schema and the merged interface keeps the
-// type assignable to `TSchema`.
-
 // oxlint-disable-next-line drizzle-internal/require-entity-kind
 export interface TBuffer extends TUnsafe<Buffer> {}
 // oxlint-disable-next-line drizzle-internal/require-entity-kind
