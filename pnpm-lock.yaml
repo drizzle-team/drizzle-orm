@@ -300,7 +300,7 @@ importers:
         version: 17.2.1
       orm044:
         specifier: npm:drizzle-orm@0.44.1
-        version: drizzle-orm@0.44.1(b18e83295d74f8e9087d71185d2dcc04)
+        version: drizzle-orm@0.44.1(87521372fb1b6770f0458869b5867b76)
       pg:
         specifier: ^8.11.5
         version: 8.16.3
@@ -397,7 +397,7 @@ importers:
         version: 0.10.0
       '@op-engineering/op-sqlite':
         specifier: ^17.1.3
-        version: 17.1.3(react-native@0.82.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
+        version: 17.1.5(react-native@0.82.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
       '@opentelemetry/api':
         specifier: ^1.4.1
         version: 1.9.0
@@ -507,8 +507,8 @@ importers:
         specifier: ^3.12.7
         version: 3.14.0
       typebox:
-        specifier: ^1.0.80
-        version: 1.1.6
+        specifier: 1.2.0
+        version: 1.2.0
       valibot:
         specifier: 1.0.0-beta.7
         version: 1.0.0-beta.7(typescript@5.9.3)
@@ -784,8 +784,8 @@ importers:
         specifier: ^3.14.24
         version: 3.17.23
       typebox:
-        specifier: ^1.0.80
-        version: 1.1.6
+        specifier: 1.2.0
+        version: 1.2.0
       uuid:
         specifier: ^9.0.0
         version: 9.0.1
@@ -879,7 +879,7 @@ importers:
     dependencies:
       drizzle-beta:
         specifier: npm:drizzle-orm@1.0.0-beta.21
-        version: drizzle-orm@1.0.0-beta.21(f57558896a17b85d7a023bb2b1f7ab73)
+        version: drizzle-orm@1.0.0-beta.21(c1df21fb5a82bc4553cd9aec9419330a)
       drizzle-seed:
         specifier: workspace:../drizzle-seed/dist
         version: link:../drizzle-seed/dist
@@ -1873,8 +1873,14 @@ packages:
   '@electric-sql/pglite@0.4.6':
     resolution: {integrity: sha512-qmlmfN8UyKCee35qkV0r/MBp+Znl8FjBz7OpoglNvww3GJpw0/DLP0o1ZymvLNmcD5DTLOQdzKPtF8Hd3mdl1w==}
 
+  '@emnapi/core@1.7.1':
+    resolution: {integrity: sha512-o1uhUASyo921r2XtHYOHy7gdkGLge8ghBEQHMWmyJFoXlpU58kIrhhN3w26lpQb6dspetweapMn2CSNwQ8I4wg==}
+
   '@emnapi/core@1.8.1':
     resolution: {integrity: sha512-AvT9QFpxK0Zd8J0jopedNm+w/2fIzvtPKPjqyw9jwvBaReTTqPBk9Hixaz7KbjimP+QNz605/XnjFcDAL2pqBg==}
+
+  '@emnapi/runtime@1.7.1':
+    resolution: {integrity: sha512-PVtJr5CmLwYAU9PZDMITZoR5iAOShYREoR45EyyLrbntV50mdePTgUn4AmOw90Ifcj+x2kRjdzr1HP3RrNiHGA==}
 
   '@emnapi/runtime@1.8.1':
     resolution: {integrity: sha512-mehfKSMWjjNol8659Z8KxEMrdSJDDot5SXMq00dM8BN4o+CLNXQ0xH2V7EchNHV4RmbZLmmPdEaXZc5H2FXmDg==}
@@ -2986,8 +2992,8 @@ packages:
     engines: {node: '>=10'}
     deprecated: This functionality has been moved to @npmcli/fs
 
-  '@op-engineering/op-sqlite@17.1.3':
-    resolution: {integrity: sha512-agOXoDc609pYP5lXBXNVpvvw12cQS+EIW7Aa5teXanW1PWgfW2yPy+urJME/xA21QqBg7lDhnX1XxwJSfmwVEQ==}
+  '@op-engineering/op-sqlite@17.1.5':
+    resolution: {integrity: sha512-Al9YjK9EVYr1zLVLffMZkWHNfGScxe1B1NdmeKZ+pdk8bOX8wdE1du73+sk8humoR90OL+xOgMhdOteSQVubEw==}
     peerDependencies:
       '@sqlite.org/sqlite-wasm': '*'
       react: '*'
@@ -3737,6 +3743,9 @@ packages:
   '@tursodatabase/database-common@0.7.1':
     resolution: {integrity: sha512-tyEKiRJDZSqLTbJQYhvY9Q2pGbBMwhKb8YS5T9TNOaDy1HvZMDbiypYqvtBw04f02QladUIsmpVBlsmFDb+RFA==}
 
+  '@tursodatabase/database-common@0.7.2':
+    resolution: {integrity: sha512-c4uWaA5m7nyDemUrjvX6lQQ89cBxv1jCv7nmwq5JoagyXgbMxDeBfLcY7N5kn0oEcnD0Y+cf09S0wKEXKFKbfg==}
+
   '@tursodatabase/database-darwin-arm64@0.7.1':
     resolution: {integrity: sha512-lTki3P+yH5GawkBL2zmc0hU7nJQ92WCiKlb3XDfRpkX6UukwmnuAZAYM0oWK5rbOzBd0plZUGdItZGjwM+lPPw==}
     cpu: [arm64]
@@ -3752,8 +3761,8 @@ packages:
     cpu: [x64]
     os: [linux]
 
-  '@tursodatabase/database-wasm-common@0.7.1':
-    resolution: {integrity: sha512-+T1ftIyh/isPeM5FmNFCaW/7aExS1N/PLl9BdlBtEeCTYJX7LEck9FYN8lh7rr753bYv/QwQ4wzGCAZPSS+y5w==}
+  '@tursodatabase/database-wasm-common@0.7.2':
+    resolution: {integrity: sha512-6i4zEHg3DoqUtI48sunSHKVg+TgkubQwrl3MQWjnVGCbidjCg/ULd+6n9qaebHYbTh/p3Sm9OssctbdW1wEigg==}
 
   '@tursodatabase/database-wasm@0.7.1':
     resolution: {integrity: sha512-KyoHKDzOgo+xgvXLQyqxmuCHSY3C4UraycyVNodl+Qa0tl0TcF0/6z0FzkofAKI2Ja0fuJWX+dnDy0kBxdzvbA==}
@@ -3772,8 +3781,8 @@ packages:
   '@tursodatabase/serverless@1.4.0':
     resolution: {integrity: sha512-ZU3T76NG/E0NTKULqJ9TggJfbdPgRaChOS4HDOu3Srds7w7fSPie7jbPHzz+CLGrxs2TtMYtYB1lH5Bh6q1w7A==}
 
-  '@tursodatabase/sync-common@0.7.1':
-    resolution: {integrity: sha512-gMKwSkYzKePyhFuiSvV+QmLHYWjfKZ7leuMdeU4WJrUQqSGQHcFPvNpywyhggmDRR55cbv3COAj+kcVe450jhw==}
+  '@tursodatabase/sync-common@0.7.2':
+    resolution: {integrity: sha512-cme6b5EeYQ4YbPtILpfJQyIrv39FSEAMhk5614MKBpeb2Auv1K89k22lEKvC8uARuXptFDbs5iFplIoXpcQHTg==}
 
   '@tursodatabase/sync-darwin-arm64@0.7.1':
     resolution: {integrity: sha512-qCZ6+0/kwkhsaqcYRASbp9kyFnTCg/XuQE5oJxTcOvfBFaJkRoHzoXvFh1S50d7xU00bnltC1RVXL0jsC2cXIA==}
@@ -5189,7 +5198,6 @@ packages:
 
   drizzle-orm@1.0.0-beta.21:
     resolution: {integrity: sha512-HZcIbVn5J9T/Z91Wj12Pn7Pi8/1aykS/GPJf2lXeZnEuPjxaBfQ+YAt0Sl+XI+9R/D1BpK+2fdIqbpuaTbcvqA==}
-    deprecated: The 1.0.0-beta line is superseded by the 1.0 release candidate. Install drizzle-orm@rc instead.
     peerDependencies:
       '@aws-sdk/client-rds-data': '>=3'
       '@cloudflare/workers-types': '>=4'
@@ -7516,6 +7524,11 @@ packages:
   pg-connection-string@2.9.1:
     resolution: {integrity: sha512-nkc6NpDcvPVpZXxrreI/FOtX3XemeLl8E0qFr6F2Lrm/I8WOnaWNhIPK2Z7OHpw7gh5XJThi6j6ppgNoaT1w4w==}
 
+  pg-cursor@2.19.0:
+    resolution: {integrity: sha512-J5cF1MUz7LRJ9emOqF/06QjabMHMZy587rSPF0UuA8rCwKeeYl2co8Pp+6k5UU9YrAYHMzWkLxilfZB0hqsWWw==}
+    peerDependencies:
+      pg: ^8
+
   pg-cursor@2.21.0:
     resolution: {integrity: sha512-IYvk/j+Suhtbo/C3uOf4JLsLK/gWxOTUOmYbDsbKnLaVJDq+KwhwK6ngpRfiCk8eDMS3AmGQABZCv0cREEzHQw==}
     peerDependencies:
@@ -7531,6 +7544,11 @@ packages:
 
   pg-pool@3.10.1:
     resolution: {integrity: sha512-Tu8jMlcX+9d8+QVzKIvM/uJtp07PKr82IUOYEphaWcoBhIYkoHpLXN3qO59nAI11ripznDsEzEv8nUxBVWajGg==}
+    peerDependencies:
+      pg: '>=8.0'
+
+  pg-pool@3.13.0:
+    resolution: {integrity: sha512-gB+R+Xud1gLFuRD/QgOIgGOBE2KCQPaPwkzBBGC9oG69pHTkhQeIuejVIk3/cnDyX39av2AxomQiyPT13WKHQA==}
     peerDependencies:
       pg: '>=8.0'
 
@@ -8747,8 +8765,8 @@ packages:
     resolution: {integrity: sha512-OZs6gsjF4vMp32qrCbiVSkrFmXtG/AZhY3t0iAMrMBiAZyV9oALtXO8hsrHbMXF9x6L3grlFuwW2oAz7cav+Gw==}
     engines: {node: '>= 0.6'}
 
-  typebox@1.1.6:
-    resolution: {integrity: sha512-O2iWCF+RboQfDqr6n83eOq0dKCjVchMWklKgdwKFeR01MGTskILHYEFi9n3lQvfuua4CtvG/EJEIg3P8H9eBcw==}
+  typebox@1.2.0:
+    resolution: {integrity: sha512-5zmwtMQArPorr1PVqo5Ye3GRmaiHQ7iicRnlmRXWWDLg5k5fky8OG40B12ckVq5YIxpGM8s1qzcfcA8SKNjPVw==}
 
   typescript@5.6.1-rc:
     resolution: {integrity: sha512-E3b2+1zEFu84jB0YQi9BORDjz9+jGbwwy1Zi3G0LUNw7a7cePUrHMRNy8aPh53nXpkFGVHSxIZo5vKTfYaFiBQ==}
@@ -10757,8 +10775,8 @@ snapshots:
       effect: 4.0.0-beta.105
       pg: 8.22.0
       pg-connection-string: 2.9.1
-      pg-cursor: 2.21.0(pg@8.22.0)
-      pg-pool: 3.14.0(pg@8.22.0)
+      pg-cursor: 2.19.0(pg@8.22.0)
+      pg-pool: 3.13.0(pg@8.22.0)
       pg-types: 4.1.0
     transitivePeerDependencies:
       - pg-native
@@ -10817,10 +10835,21 @@ snapshots:
 
   '@electric-sql/pglite@0.4.6': {}
 
+  '@emnapi/core@1.7.1':
+    dependencies:
+      '@emnapi/wasi-threads': 1.1.0
+      tslib: 2.8.1
+    optional: true
+
   '@emnapi/core@1.8.1':
     dependencies:
       '@emnapi/wasi-threads': 1.1.0
       tslib: 2.8.1
+
+  '@emnapi/runtime@1.7.1':
+    dependencies:
+      tslib: 2.8.1
+    optional: true
 
   '@emnapi/runtime@1.8.1':
     dependencies:
@@ -12193,8 +12222,8 @@ snapshots:
 
   '@napi-rs/wasm-runtime@1.1.1':
     dependencies:
-      '@emnapi/core': 1.8.1
-      '@emnapi/runtime': 1.8.1
+      '@emnapi/core': 1.7.1
+      '@emnapi/runtime': 1.7.1
       '@tybys/wasm-util': 0.10.1
     optional: true
 
@@ -12239,12 +12268,12 @@ snapshots:
       rimraf: 3.0.2
     optional: true
 
-  '@op-engineering/op-sqlite@17.1.3(react-native@0.82.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)':
+  '@op-engineering/op-sqlite@17.1.5(react-native@0.82.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)':
     dependencies:
       react: 18.3.1
       react-native: 0.82.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
 
-  '@op-engineering/op-sqlite@17.1.3(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)':
+  '@op-engineering/op-sqlite@17.1.5(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)':
     dependencies:
       react: 18.3.1
       react-native: 0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
@@ -13039,6 +13068,8 @@ snapshots:
 
   '@tursodatabase/database-common@0.7.1': {}
 
+  '@tursodatabase/database-common@0.7.2': {}
+
   '@tursodatabase/database-darwin-arm64@0.7.1':
     optional: true
 
@@ -13048,7 +13079,7 @@ snapshots:
   '@tursodatabase/database-linux-x64-gnu@0.7.1':
     optional: true
 
-  '@tursodatabase/database-wasm-common@0.7.1':
+  '@tursodatabase/database-wasm-common@0.7.2':
     dependencies:
       '@emnapi/core': 1.8.1
       '@emnapi/runtime': 1.8.1
@@ -13057,7 +13088,7 @@ snapshots:
   '@tursodatabase/database-wasm@0.7.1':
     dependencies:
       '@tursodatabase/database-common': 0.7.1
-      '@tursodatabase/database-wasm-common': 0.7.1
+      '@tursodatabase/database-wasm-common': 0.7.2
 
   '@tursodatabase/database-win32-x64-msvc@0.7.1':
     optional: true
@@ -13075,9 +13106,9 @@ snapshots:
 
   '@tursodatabase/serverless@1.4.0': {}
 
-  '@tursodatabase/sync-common@0.7.1':
+  '@tursodatabase/sync-common@0.7.2':
     dependencies:
-      '@tursodatabase/database-common': 0.7.1
+      '@tursodatabase/database-common': 0.7.2
       '@tursodatabase/serverless': 0.2.4
 
   '@tursodatabase/sync-darwin-arm64@0.7.1':
@@ -13095,7 +13126,7 @@ snapshots:
   '@tursodatabase/sync@0.7.1':
     dependencies:
       '@tursodatabase/database-common': 0.7.1
-      '@tursodatabase/sync-common': 0.7.1
+      '@tursodatabase/sync-common': 0.7.2
     optionalDependencies:
       '@tursodatabase/sync-darwin-arm64': 0.7.1
       '@tursodatabase/sync-linux-arm64-gnu': 0.7.1
@@ -14638,7 +14669,7 @@ snapshots:
       sql.js: 1.13.0
       sqlite3: 5.1.7
 
-  drizzle-orm@0.44.1(b18e83295d74f8e9087d71185d2dcc04):
+  drizzle-orm@0.44.1(87521372fb1b6770f0458869b5867b76):
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.940.0
       '@cloudflare/workers-types': 4.20251126.0
@@ -14646,7 +14677,7 @@ snapshots:
       '@libsql/client': 0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       '@libsql/client-wasm': 0.10.0
       '@neondatabase/serverless': 1.0.2
-      '@op-engineering/op-sqlite': 17.1.3(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
+      '@op-engineering/op-sqlite': 17.1.5(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
       '@opentelemetry/api': 1.9.0
       '@planetscale/database': 1.19.0
       '@prisma/client': 5.14.0(prisma@5.14.0)
@@ -14668,7 +14699,7 @@ snapshots:
       sql.js: 1.13.0
       sqlite3: 5.1.7
 
-  drizzle-orm@1.0.0-beta.21(f57558896a17b85d7a023bb2b1f7ab73):
+  drizzle-orm@1.0.0-beta.21(c1df21fb5a82bc4553cd9aec9419330a):
     dependencies:
       '@types/mssql': 9.1.8
       mssql: 12.1.1
@@ -14681,14 +14712,14 @@ snapshots:
       '@libsql/client': 0.17.4(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       '@libsql/client-wasm': 0.10.0
       '@neondatabase/serverless': 1.0.2
-      '@op-engineering/op-sqlite': 17.1.3(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
+      '@op-engineering/op-sqlite': 17.1.5(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)
       '@opentelemetry/api': 1.9.0
       '@planetscale/database': 1.19.0
       '@sinclair/typebox': 0.34.48
       '@sqlitecloud/drivers': 1.0.653(@craftzdog/react-native-buffer@6.1.1(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(bufferutil@4.0.8)(react-native-quick-base64@2.2.2(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1))(react-native-tcp-socket@6.3.0(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)))(react-native-url-polyfill@3.0.0(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)))(utf-8-validate@6.0.3)
       '@tidbcloud/serverless': 0.1.1
       '@tursodatabase/database': 0.7.1
-      '@tursodatabase/database-common': 0.7.1
+      '@tursodatabase/database-common': 0.7.2
       '@tursodatabase/database-wasm': 0.7.1
       '@types/better-sqlite3': 7.6.13
       '@types/pg': 8.15.6
@@ -14706,7 +14737,7 @@ snapshots:
       postgres: 3.4.7
       sql.js: 1.13.0
       sqlite3: 5.1.7
-      typebox: 1.1.6
+      typebox: 1.2.0
       valibot: 1.0.0-beta.7(typescript@5.9.3)
       zod: 4.3.4
 
@@ -17455,6 +17486,11 @@ snapshots:
 
   pg-connection-string@2.9.1: {}
 
+  pg-cursor@2.19.0(pg@8.22.0):
+    dependencies:
+      pg: 8.22.0
+    optional: true
+
   pg-cursor@2.21.0(pg@8.22.0):
     dependencies:
       pg: 8.22.0
@@ -17466,6 +17502,11 @@ snapshots:
   pg-pool@3.10.1(pg@8.16.3):
     dependencies:
       pg: 8.16.3
+
+  pg-pool@3.13.0(pg@8.22.0):
+    dependencies:
+      pg: 8.22.0
+    optional: true
 
   pg-pool@3.14.0(pg@8.22.0):
     dependencies:
@@ -18870,7 +18911,7 @@ snapshots:
       media-typer: 1.1.0
       mime-types: 3.0.2
 
-  typebox@1.1.6: {}
+  typebox@1.2.0: {}
 
   typescript@5.6.1-rc: {}
 
