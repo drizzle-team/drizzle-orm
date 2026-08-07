@@ -25,6 +25,31 @@ import type { PostgresCredentials } from './validations/postgres';
 import { SingleStoreCredentials } from './validations/singlestore';
 import type { SqliteCredentials } from './validations/sqlite';
 
+const withConnectionErrorContext = async <T>(
+	executor: () => Promise<T>,
+	context: { driver: string; sql?: string; params?: any[]; attempt?: number },
+): Promise<T> => {
+	try {
+		return await executor();
+	} catch (error: any) {
+		if (error && typeof error === 'object') {
+			(error as any).drizzleKitConnectionContext = {
+				...context,
+				isError: true,
+				thrownAt: new Date().toISOString(),
+			};
+			if (error.message) {
+				error.message = `${error.message}\n[drizzle-kit context] ${JSON.stringify(
+					(error as any).drizzleKitConnectionContext,
+					null,
+					2,
+				)}`;
+			}
+		}
+		throw error;
+	}
+};
+
 export const preparePostgresDB = async (
 	credentials: PostgresCredentials | {
 		driver: 'pglite';
@@ -670,16 +695,22 @@ export const connectToSingleStore = async (
 			sql: string,
 			params?: any[],
 		): Promise<T[]> => {
-			const res = await connection.execute(sql, params);
+			const res = await withConnectionErrorContext(
+				() => connection.execute(sql, params),
+				{ driver: 'mysql2', sql, params },
+			);
 			return res[0] as any;
 		};
 
 		const proxy: Proxy = async (params: ProxyParams) => {
-			const result = await connection.query({
-				sql: params.sql,
-				values: params.params,
-				rowsAsArray: params.mode === 'array',
-			});
+			const result = await withConnectionErrorContext(
+				() => connection.query({
+					sql: params.sql,
+					values: params.params,
+					rowsAsArray: params.mode === 'array',
+				}),
+				{ driver: 'mysql2', sql: params.sql, params: params.params },
+			);
 			return result[0] as any[];
 		};
 
@@ -688,7 +719,10 @@ export const connectToSingleStore = async (
 			try {
 				await connection.beginTransaction();
 				for (const query of queries) {
-					const res = await connection.query(query.sql);
+					const res = await withConnectionErrorContext(
+						() => connection.query(query.sql),
+						{ driver: 'mysql2', sql: query.sql },
+					);
 					results.push(res[0]);
 				}
 				await connection.commit();
@@ -776,21 +810,27 @@ export const connectToMySQL = async (
 			sql: string,
 			params?: any[],
 		): Promise<T[]> => {
-			const res = await connection.execute({
-				sql,
-				values: params,
-				typeCast,
-			});
+			const res = await withConnectionErrorContext(
+				() => connection.execute({
+					sql,
+					values: params,
+					typeCast,
+				}),
+				{ driver: 'mysql2', sql, params },
+			);
 			return res[0] as any;
 		};
 
 		const proxy: Proxy = async (params: ProxyParams) => {
-			const result = await connection.query({
-				sql: params.sql,
-				values: params.params,
-				rowsAsArray: params.mode === 'array',
-				typeCast,
-			});
+			const result = await withConnectionErrorContext(
+				() => connection.query({
+					sql: params.sql,
+					values: params.params,
+					rowsAsArray: params.mode === 'array',
+					typeCast,
+				}),
+				{ driver: 'mysql2', sql: params.sql, params: params.params },
+			);
 			return result[0] as any[];
 		};
 
@@ -799,13 +839,16 @@ export const connectToMySQL = async (
 			try {
 				await connection.beginTransaction();
 				for (const query of queries) {
-					const res = await connection.query(query.sql);
+					const res = await withConnectionErrorContext(
+						() => connection.query(query.sql),
+						{ driver: 'mysql2', sql: query.sql },
+					);
 					results.push(res[0]);
 				}
 				await connection.commit();
 			} catch (error) {
 				await connection.rollback();
-				results.push(error as Error);
+				throw error;
 			}
 			return results;
 		};
@@ -835,14 +878,20 @@ export const connectToMySQL = async (
 		};
 
 		const query = async <T>(sql: string, params?: any[]): Promise<T[]> => {
-			const res = await connection.execute(sql, params);
+			const res = await withConnectionErrorContext(
+				() => connection.execute(sql, params),
+				{ driver: '@planetscale/database', sql, params },
+			);
 			return res.rows as T[];
 		};
 		const proxy: Proxy = async (params: ProxyParams) => {
-			const result = await connection.execute(
-				params.sql,
-				params.params,
-				params.mode === 'array' ? { as: 'array' } : undefined,
+			const result = await withConnectionErrorContext(
+				() => connection.execute(
+					params.sql,
+					params.params,
+					params.mode === 'array' ? { as: 'array' } : undefined,
+				),
+				{ driver: '@planetscale/database', sql: params.sql, params: params.params },
 			);
 			return result.rows;
 		};
@@ -852,7 +901,10 @@ export const connectToMySQL = async (
 			try {
 				await connection.transaction(async (tx) => {
 					for (const query of queries) {
-						const res = await tx.execute(query.sql);
+						const res = await withConnectionErrorContext(
+							() => tx.execute(query.sql),
+							{ driver: '@planetscale/database', sql: query.sql },
+						);
 						results.push(res.rows);
 					}
 				});
