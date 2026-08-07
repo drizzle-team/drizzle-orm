@@ -113,7 +113,9 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				const db = yield* DB;
 				const res = yield* db.all<{ '1': 1 }>(sql`SELECT 1 as "1"`);
 
-				expect(res).toStrictEqual([{ '1': 1 }]);
+				// toEqual: raw rows are driver-defined; @effect/sql-sqlite-node >=4.0.0-beta.104
+				// (node:sqlite) returns null-prototype objects, which toStrictEqual rejects
+				expect(res).toEqual([{ '1': 1 }]);
 			}));
 
 		it.effect('execute - get', () =>
@@ -121,7 +123,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				const db = yield* DB;
 				const res = yield* db.get<{ '1': 1 }>(sql`SELECT 1 as "1"`);
 
-				expect(res).toStrictEqual({ '1': 1 });
+				expect(res).toEqual({ '1': 1 });
 			}));
 
 		it.effect('execute - values', () =>

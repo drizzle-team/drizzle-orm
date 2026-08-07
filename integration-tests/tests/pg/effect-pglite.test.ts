@@ -1,7 +1,7 @@
 import { PgliteClient } from '@effect/sql-pglite';
 import { assert, expect } from '@effect/vitest';
+import { vector } from '@electric-sql/pglite-pgvector';
 import { postgis } from '@electric-sql/pglite-postgis';
-import { vector } from '@electric-sql/pglite/vector';
 import {
 	defineRelations,
 	ExtractTablesFromSchema,
