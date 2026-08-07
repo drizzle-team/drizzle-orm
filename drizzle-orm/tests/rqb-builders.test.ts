@@ -35,6 +35,7 @@ import {
 	or,
 	type SQL,
 	sql,
+	StringChunk,
 } from '~/sql';
 import type { AnyTable, Table } from '~/table';
 import type { Simplify, ValueOrArray } from '~/utils';
@@ -505,7 +506,7 @@ describe('Orders', () => {
 
 	test('Callback array', () => {
 		expect(buildOrder(table, ({ date, number, string }, { asc, desc }) => [desc(date), asc(number), string]))
-			.toStrictEqual(sql.join([desc(table.date), asc(table.number), asc(table.string)], sql`, `));
+			.toStrictEqual(sql.join([desc(table.date), asc(table.number), asc(table.string)], new StringChunk(`, `)));
 	});
 
 	test('Object', () => {
@@ -513,7 +514,7 @@ describe('Orders', () => {
 			string: 'desc',
 			number: undefined,
 			date: 'asc',
-		})).toStrictEqual(sql.join([desc(table.string), asc(table.date)], sql`, `));
+		})).toStrictEqual(sql.join([desc(table.string), asc(table.date)], new StringChunk(`, `)));
 	});
 
 	test('Undefined object', () => {

@@ -102,15 +102,19 @@ export class PgDialect {
 	private buildWithCTE(queries: Subquery[] | undefined): SQL | undefined {
 		if (!queries?.length) return undefined;
 
-		const withSqlChunks = [sql`with `];
-		for (const [i, w] of queries.entries()) {
-			withSqlChunks.push(sql`${sql.identifier(w._.alias)} as (${w._.sql})`);
-			if (i < queries.length - 1) {
-				withSqlChunks.push(sql`, `);
-			}
+		const queriesLen = queries.length;
+		const withSqlChunks: SQLChunk[] = new Array(queriesLen + 1);
+		let writeIdx = 0;
+		withSqlChunks[writeIdx++] = new StringChunk('with ');
+
+		for (let i = 0; i < queriesLen; ++i) {
+			const w = queries[i]!;
+			withSqlChunks[writeIdx++] = (i < queriesLen - 1)
+				? sql`${sql.identifier(w._.alias)} as (${w._.sql}), `
+				: sql`${sql.identifier(w._.alias)} as (${w._.sql}) `;
 		}
-		withSqlChunks.push(sql` `);
-		return sql.join(withSqlChunks);
+
+		return new SQL(withSqlChunks);
 	}
 
 	buildDeleteQuery({
@@ -193,7 +197,7 @@ export class PgDialect {
 
 		const setSql = this.buildUpdateSet(table, set);
 
-		const fromSql = from && sql.join([sql.raw(' from '), this.buildFromTable(from)]);
+		const fromSql = from && new SQL([new StringChunk(' from '), this.buildFromTable(from)]);
 
 		const joinsSql = this.buildJoins(joins);
 
@@ -361,7 +365,7 @@ export class PgDialect {
 			}
 
 			if (i < columnsLen - 1) {
-				chunks.push(sql`, `);
+				chunks.push(new StringChunk(', '));
 			}
 		}
 
@@ -373,11 +377,11 @@ export class PgDialect {
 			return undefined;
 		}
 
-		const joinsArray: SQL[] = [];
+		const joinsArray: SQLChunk[] = [];
 
 		for (const [index, joinMeta] of joins.entries()) {
 			if (index === 0) {
-				joinsArray.push(sql` `);
+				joinsArray.push(new StringChunk(' '));
 			}
 			const table = joinMeta.table;
 			const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
@@ -389,7 +393,7 @@ export class PgDialect {
 				const origTableName = table[PgTable.Symbol.OriginalName];
 				const alias = tableName === origTableName ? undefined : joinMeta.alias;
 				joinsArray.push(
-					sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
+					sql`${new StringChunk(joinMeta.joinType)} join${lateralSql} ${
 						tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
 					}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 				);
@@ -399,21 +403,21 @@ export class PgDialect {
 				const origViewName = table[ViewBaseConfig].originalName;
 				const alias = viewName === origViewName ? undefined : joinMeta.alias;
 				joinsArray.push(
-					sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
+					sql`${new StringChunk(joinMeta.joinType)} join${lateralSql} ${
 						viewSchema ? sql`${sql.identifier(viewSchema)}.` : undefined
 					}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 				);
 			} else {
 				joinsArray.push(
-					sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${table}${onSql}`,
+					sql`${new StringChunk(joinMeta.joinType)} join${lateralSql} ${table}${onSql}`,
 				);
 			}
 			if (index < joins.length - 1) {
-				joinsArray.push(sql` `);
+				joinsArray.push(new StringChunk(' '));
 			}
 		}
 
-		return sql.join(joinsArray);
+		return new SQL(joinsArray);
 	}
 
 	private buildFromTable(
@@ -499,7 +503,7 @@ export class PgDialect {
 		if (distinct) {
 			distinctSql = distinct === true
 				? sql` distinct`
-				: sql` distinct on (${sql.join(distinct.on, sql`, `)})`;
+				: sql` distinct on (${sql.join(distinct.on, new StringChunk(', '))})`;
 		}
 
 		const selection = this.buildSelection(fieldsList, {
@@ -518,12 +522,12 @@ export class PgDialect {
 
 		let orderBySql;
 		if (orderBy && orderBy.length > 0) {
-			orderBySql = sql` order by ${sql.join(orderBy, sql`, `)}`;
+			orderBySql = sql` order by ${sql.join(orderBy, new StringChunk(', '))}`;
 		}
 
 		let groupBySql;
 		if (groupBy && groupBy.length > 0) {
-			groupBySql = sql` group by ${sql.join(groupBy, sql`, `)}`;
+			groupBySql = sql` group by ${sql.join(groupBy, new StringChunk(', '))}`;
 		}
 
 		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
@@ -534,7 +538,7 @@ export class PgDialect {
 
 		const lockingClauseSql = sql.empty();
 		if (lockingClause) {
-			const clauseSql = sql` for ${sql.raw(lockingClause.strength)}`;
+			const clauseSql = sql` for ${new StringChunk(lockingClause.strength)}`;
 			if (lockingClause.config.of) {
 				clauseSql.append(
 					sql` of ${
@@ -542,7 +546,7 @@ export class PgDialect {
 							Array.isArray(lockingClause.config.of)
 								? lockingClause.config.of.map((it) => sql.identifier(it[PgTable.Symbol.Name]))
 								: [sql.identifier(lockingClause.config.of[PgTable.Symbol.Name])],
-							sql`, `,
+							new StringChunk(', '),
 						)
 					}`,
 				);
@@ -639,14 +643,14 @@ export class PgDialect {
 				}
 			}
 
-			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)} `;
+			orderBySql = sql` order by ${sql.join(orderByValues, new StringChunk(', '))} `;
 		}
 
 		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
 			? sql` limit ${limit}`
 			: undefined;
 
-		const operatorChunk = sql.raw(`${type} ${isAll ? 'all ' : ''}`);
+		const operatorChunk = new StringChunk(`${type} ${isAll ? 'all ' : ''}`);
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
@@ -678,7 +682,17 @@ export class PgDialect {
 			? colEntries
 			: colEntries.filter(([_, col]) => !col.shouldDisableInsert());
 
-		const insertOrder = colFilteredEntries.map(([, column]) => sql.identifier(column.name));
+		const insertOrderArr: SQLChunk[] = new Array(colFilteredEntries.length * 2 + 1);
+		let writeIdx = 0;
+		insertOrderArr[writeIdx++] = new StringChunk('(');
+		for (let i = 0; i < colFilteredEntries.length; ++i) {
+			const [, { name }] = colFilteredEntries[i]!;
+			insertOrderArr[writeIdx++] = sql.identifier(name);
+
+			if (i < colFilteredEntries.length - 1) insertOrderArr[writeIdx++] = new StringChunk(', ');
+		}
+		insertOrderArr[writeIdx++] = new StringChunk(')');
+		const insertOrder = new SQL(insertOrderArr);
 
 		const valuesSqlList: SQLChunk[] = Array.from({
 			length: select
@@ -882,7 +896,7 @@ export class PgDialect {
 				Object.entries(table[TableColumns]).map(([k, v]) => {
 					return this.buildRqbColumn(table, v, k, inJson, selection, tableTsName);
 				}),
-				sql`, `,
+				new StringChunk(', '),
 			);
 		}
 
@@ -908,7 +922,7 @@ export class PgDialect {
 		}
 
 		return columnIdentifiers.length
-			? sql.join(columnIdentifiers, sql`, `)
+			? sql.join(columnIdentifiers, new StringChunk(', '))
 			: undefined;
 	};
 
@@ -987,8 +1001,8 @@ export class PgDialect {
 				const withEntries = Object.entries(withParam).filter(([_, v]) => v);
 				if (!withEntries.length) break;
 
-				const joinChunks: SQL[] = new Array(withEntries.length * 2);
-				joinChunks[0] = sql` `;
+				const joinChunks: SQLChunk[] = new Array(withEntries.length * 2);
+				joinChunks[0] = new StringChunk(' ');
 
 				for (let readIdx = 0, writeIdx = 1; readIdx < withEntries.length; ++readIdx) {
 					const [k, join] = withEntries[readIdx]!;
@@ -1052,7 +1066,7 @@ export class PgDialect {
 					} from (${innerQuery.sql}) as ${sql.identifier('t')}) as ${sql.identifier(k)} on true`;
 
 					joinChunks[writeIdx++] = joinQuery;
-					if (readIdx < withEntries.length) joinChunks[writeIdx++] = sql` `;
+					if (readIdx < withEntries.length) joinChunks[writeIdx++] = new StringChunk(' ');
 				}
 
 				joins = new SQL(joinChunks);
@@ -1066,7 +1080,7 @@ export class PgDialect {
 				message: `No fields selected for table "${tableConfig.name}"${currentPath ? ` ("${currentPath}")` : ''}`,
 			});
 		}
-		const selectionSet = sql.join(selectionArr, sql`, `);
+		const selectionSet = sql.join(selectionArr, new StringChunk(', '));
 		const comment = config !== true && config?.comment
 			? sql.comment(config.comment)
 			: undefined;

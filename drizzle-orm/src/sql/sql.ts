@@ -655,12 +655,18 @@ export function sql<T>(strings: TemplateStringsArray, ...params: any[]): SQL<T>;
 	This type is used to make our lives easier and the type checker happy.
 */
 export function sql(strings: TemplateStringsArray, ...params: SQLChunk[]): SQL {
-	const queryChunks: SQLChunk[] = [];
-	if (params.length > 0 || (strings.length > 0 && strings[0] !== '')) {
-		queryChunks.push(new StringChunk(strings[0]!));
+	const startWithString = params.length > 0 || (strings.length > 0 && strings[0] !== '');
+	const chunkCount = startWithString ? strings.length + params.length : strings.length - 1;
+	const queryChunks: SQLChunk[] = new Array(chunkCount < 0 ? 0 : chunkCount);
+
+	let writeIdx = 0;
+	if (startWithString) {
+		queryChunks[writeIdx++] = new StringChunk(strings[0]!);
 	}
-	for (const [paramIndex, param] of params.entries()) {
-		queryChunks.push(param, new StringChunk(strings[paramIndex + 1]!));
+	for (let paramIdx = 0; paramIdx < params.length; ++paramIdx) {
+		const param = params[paramIdx]!;
+		queryChunks[writeIdx++] = param;
+		queryChunks[writeIdx++] = new StringChunk(strings[paramIdx + 1]!);
 	}
 
 	return new SQL(queryChunks);
@@ -698,13 +704,18 @@ export namespace sql {
 	 * ```
 	 */
 	export function join(chunks: SQLChunk[], separator?: SQLChunk): SQL {
-		const result: SQLChunk[] = [];
-		for (const [i, chunk] of chunks.entries()) {
-			if (i > 0 && separator !== undefined) {
-				result.push(separator);
+		const { length } = chunks;
+		if (separator === undefined || length === 0) return new SQL(chunks.slice());
+
+		const result: SQLChunk[] = new Array(length * 2 - 1);
+		for (let i = 0, writeIdx = 0; i < length; ++i) {
+			result[writeIdx++] = chunks[i];
+
+			if (i < length - 1) {
+				result[writeIdx++] = separator;
 			}
-			result.push(chunk);
 		}
+
 		return new SQL(result);
 	}
 
