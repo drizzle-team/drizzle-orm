@@ -655,6 +655,79 @@ describe('Reverse-derived relation filter binding (isFilterReversed)', () => {
 	});
 });
 
+describe('Including (junction table columns on through relations)', () => {
+	const contacts = pgTable('contacts', { id: integer(), name: text() });
+	const garages = pgTable('garages', { id: integer(), name: text() });
+	const contactsToGarages = pgTable('contacts_to_garages', {
+		contactId: integer(),
+		garageId: integer(),
+		role: text(),
+	});
+	const schema = { contacts, garages, contactsToGarages };
+
+	test('array form selects junction columns and keys them by column name', () => {
+		const db = drizzle.mock({
+			relations: defineRelations(schema, (r) => ({
+				contacts: {
+					garages: r.many.garages({
+						from: r.contacts.id.through(r.contactsToGarages.contactId),
+						to: r.garages.id.through(r.contactsToGarages.garageId),
+						including: [r.contactsToGarages.role],
+					}),
+				},
+			})),
+		});
+
+		const { sql } = db.query.contacts.findMany({ with: { garages: true } }).toSQL();
+		expect(sql).toContain('"tr0"."role" as "role"');
+	});
+
+	test('record form selects junction columns under a renamed key', () => {
+		const db = drizzle.mock({
+			relations: defineRelations(schema, (r) => ({
+				contacts: {
+					garages: r.many.garages({
+						from: r.contacts.id.through(r.contactsToGarages.contactId),
+						to: r.garages.id.through(r.contactsToGarages.garageId),
+						including: { membershipRole: r.contactsToGarages.role },
+					}),
+				},
+			})),
+		});
+
+		const { sql } = db.query.contacts.findMany({ with: { garages: true } }).toSQL();
+		expect(sql).toContain('"tr0"."role" as "membershipRole"');
+	});
+
+	test('including without through() throws', () => {
+		expect(() =>
+			defineRelations(schema, (r) => ({
+				contacts: {
+					garages: r.many.garages({
+						from: r.contacts.id,
+						to: r.garages.id,
+						including: [r.contactsToGarages.role],
+					}),
+				},
+			}))
+		).toThrowError(`"including" can only be used together with "through()"`);
+	});
+
+	test('including column from a table other than the junction table throws', () => {
+		expect(() =>
+			defineRelations(schema, (r) => ({
+				contacts: {
+					garages: r.many.garages({
+						from: r.contacts.id.through(r.contactsToGarages.contactId),
+						to: r.garages.id.through(r.contactsToGarages.garageId),
+						including: [r.garages.name],
+					}),
+				},
+			}))
+		).toThrowError(`"including" columns must belong to the junction table used in "through()"`);
+	});
+});
+
 describe('Relation names shadowing Object.prototype properties', () => {
 	const results = pgTable('results', { id: integer(), constructorId: integer() });
 	const constructors = pgTable('constructors', { id: integer(), name: text() });

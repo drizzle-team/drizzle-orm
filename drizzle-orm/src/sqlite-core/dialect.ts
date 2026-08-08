@@ -881,6 +881,8 @@ export class SQLiteDialect {
 		errorPath,
 		depth,
 		throughJoin,
+		throughTable,
+		including,
 		jsonb,
 	}: {
 		schema: TablesRelationalConfig;
@@ -893,6 +895,8 @@ export class SQLiteDialect {
 		errorPath?: string;
 		depth?: number;
 		throughJoin?: SQL;
+		throughTable?: SQLiteTable | SQLiteView;
+		including?: { key: string; column: unknown }[];
 		jsonb: SQL;
 	}): BuildRelationalQueryResult {
 		const selection: BuildRelationalQueryResult['selection'] = [];
@@ -932,6 +936,15 @@ export class SQLiteDialect {
 			? relationExtrasToSQL(table, params.extras)
 			: undefined;
 		if (extras) selection.push(...extras.selection);
+
+		const throughColumns = including?.length && throughTable
+			? sql.join(
+				including.map((inc) =>
+					this.buildRqbColumn(throughTable, inc.column, inc.key, !!isNested, selection, tableConfig.name)
+				),
+				new StringChunk(', '),
+			)
+			: undefined;
 
 		let joins: SQL | undefined;
 		switch (params) {
@@ -980,6 +993,8 @@ export class SQLiteDialect {
 						errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 						depth: currentDepth + 1,
 						throughJoin,
+						throughTable: throughTable as SQLiteTable | SQLiteView | undefined,
+						including: relation.including,
 						jsonb,
 					});
 
@@ -1030,7 +1045,7 @@ export class SQLiteDialect {
 			}
 		}
 
-		const selectionArr = [columns, extras?.sql, joins].filter(
+		const selectionArr = [columns, throughColumns, extras?.sql, joins].filter(
 			(e) => e !== undefined,
 		);
 		if (!selectionArr.length) {

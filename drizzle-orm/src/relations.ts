@@ -1,7 +1,7 @@
 import { IsAlias, OriginalName, Table, TableColumns, TableSchema } from '~/table.ts';
 import { aliasedTable } from './alias.ts';
 import type { CodecsCollection, NormalizeArrayCodec, NormalizeCodec } from './codecs.ts';
-import { type AnyColumn, Column } from './column.ts';
+import { type AnyColumn, Column, type GetColumnData } from './column.ts';
 import { entityKind, is } from './entity.ts';
 import { DrizzleError } from './errors.ts';
 import {
@@ -295,6 +295,8 @@ export abstract class Relation<
 	static readonly [entityKind]: string = 'RelationV2';
 	declare readonly $brand: 'RelationV2';
 	declare public readonly relationType: 'many' | 'one';
+	/** @internal type-only, never assigned at runtime */
+	declare readonly $including: Record<string, unknown>;
 
 	fieldName!: string;
 	sourceColumns!: Column<any>[];
@@ -308,6 +310,8 @@ export abstract class Relation<
 		target: RelationsBuilderColumnBase[];
 	};
 	throughTable?: SchemaEntry;
+	/** Extra columns selected off the junction ("through") table, flattened onto each result row. */
+	including?: { key: string; column: FieldValue }[];
 	isFilterReversed?: boolean;
 
 	/** @internal */
@@ -325,12 +329,50 @@ export abstract class Relation<
 
 export type AnyRelation = Relation<string>;
 
+/** @internal */
+export function resolveIncluding(
+	tables: Schema,
+	targetTableName: string,
+	throughTable: SchemaEntry | undefined,
+	including:
+		| RelationsBuilderColumnBase
+		| RelationsBuilderColumnBase[]
+		| Record<string, RelationsBuilderColumnBase>
+		| undefined,
+): { key: string; column: FieldValue }[] | undefined {
+	if (!including) return undefined;
+
+	if (!throughTable) {
+		throw new Error(
+			`relations -> ${targetTableName}: "including" can only be used together with "through()"`,
+		);
+	}
+
+	const entries: [string, RelationsBuilderColumnBase][] = Array.isArray(including)
+		? including.map((c) => [c._.key, c] as [string, RelationsBuilderColumnBase])
+		: '_' in including
+		? [[(including as RelationsBuilderColumnBase)._.key, including as RelationsBuilderColumnBase]]
+		: Object.entries(including as Record<string, RelationsBuilderColumnBase>);
+
+	return entries.map(([key, c]) => {
+		if (tables[c._.tableName] !== throughTable) {
+			throw new Error(
+				`relations -> ${targetTableName}: "including" columns must belong to the junction table used in "through()"`,
+			);
+		}
+		return { key, column: c._.column };
+	});
+}
+
 export class One<
 	TTargetTableName extends string,
 	TOptional extends boolean = boolean,
+	TIncluding extends Record<string, unknown> = Record<string, never>,
 > extends Relation<TTargetTableName> {
 	static override readonly [entityKind]: string = 'OneV2';
 	declare protected $relationBrand: 'OneV2';
+	/** @internal type-only, never assigned at runtime */
+	declare readonly $including: TIncluding;
 
 	public override readonly relationType = 'one' as const;
 
@@ -383,15 +425,21 @@ export class One<
 				target: (Array.isArray(config?.to) ? config.to : config?.to ? [config.to] : []).map((c) => c._.through!),
 			};
 		}
+		this.including = resolveIncluding(tables, targetTableName, this.throughTable, config?.including);
 		this.optional = (config?.optional ?? true) as TOptional;
 	}
 }
 
-export type AnyOne = One<string, boolean>;
+export type AnyOne = One<string, boolean, Record<string, unknown>>;
 
-export class Many<TTargetTableName extends string> extends Relation<TTargetTableName> {
+export class Many<
+	TTargetTableName extends string,
+	TIncluding extends Record<string, unknown> = Record<string, never>,
+> extends Relation<TTargetTableName> {
 	static override readonly [entityKind]: string = 'ManyV2';
 	declare protected $relationBrand: 'ManyV2';
+	/** @internal type-only, never assigned at runtime */
+	declare readonly $including: TIncluding;
 
 	public override readonly relationType = 'many' as const;
 
@@ -441,10 +489,11 @@ export class Many<TTargetTableName extends string> extends Relation<TTargetTable
 				target: (Array.isArray(config?.to) ? config.to : config?.to ? [config.to] : []).map((c) => c._.through!),
 			};
 		}
+		this.including = resolveIncluding(tables, targetTableName, this.throughTable, config?.including);
 	}
 }
 
-export type AnyMany = Many<string>;
+export type AnyMany = Many<string, Record<string, unknown>>;
 
 export abstract class AggregatedField<T = unknown> implements SQLWrapper<T> {
 	static readonly [entityKind]: string = 'AggregatedField';
@@ -665,13 +714,13 @@ export type ReturnTypeOrValue<T> = T extends (...args: any[]) => infer R ? R
 	: T;
 
 export type RelationResultKind<TResult, TInclude, TRelation extends AnyRelation> = TRelation extends AnyOne ? (
-		| TResult
+		| Simplify<TResult & TRelation['$including']>
 		| (Equal<TRelation['optional'], true> extends true ? null
 			: TInclude extends Record<string, unknown> ? TInclude['where'] extends Record<string, any> ? null
 				: never
 			: never)
 	)
-	: TResult[];
+	: Simplify<TResult & TRelation['$including']>[];
 
 export type BuildRelationResult<
 	TConfig extends TablesRelationalConfig,
@@ -1350,17 +1399,18 @@ export interface RelationsBuilderColumnBase<
 
 export class RelationsBuilderColumn<
 	TTableName extends string = string,
+	TColumn extends FieldValue = FieldValue,
 > implements RelationsBuilderColumnBase<TTableName> {
 	static readonly [entityKind]: string = 'RelationsBuilderColumn';
 
 	readonly _: {
 		readonly tableName: TTableName;
-		readonly column: FieldValue;
+		readonly column: TColumn;
 		readonly key: string;
 	};
 
 	constructor(
-		column: FieldValue,
+		column: TColumn,
 		tableName: TTableName,
 		key: string,
 	) {
@@ -1536,6 +1586,8 @@ export interface OneConfig<TTargetTable extends SchemaEntry, TOptional extends b
 	where?: TableFilter<TTargetTable> | EmptyFilter;
 	optional?: TOptional;
 	alias?: string;
+	/** Extra columns to select off the junction table declared via `.through()`, flattened onto each result row. */
+	including?: RelationsBuilderColumnBase | RelationsBuilderColumnBase[] | Record<string, RelationsBuilderColumnBase>;
 }
 
 export type AnyOneConfig = OneConfig<
@@ -1548,16 +1600,37 @@ export interface ManyConfig<TTargetTable extends SchemaEntry> {
 	to?: RelationsBuilderColumnBase | [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]];
 	where?: TableFilter<TTargetTable> | EmptyFilter;
 	alias?: string;
+	/** Extra columns to select off the junction table declared via `.through()`, flattened onto each result row. */
+	including?: RelationsBuilderColumnBase | RelationsBuilderColumnBase[] | Record<string, RelationsBuilderColumnBase>;
 }
 
 export type AnyManyConfig = ManyConfig<SchemaEntry>;
 
+/** Infers the data type produced by selecting a single junction column via `including`. */
+export type InferIncludingColumn<C> = C extends { _: { column: infer TCol } }
+	? TCol extends Column ? GetColumnData<TCol, 'query'> : unknown
+	: never;
+
+/** Infers the `{ key: dataType }` shape contributed by a relation's `including` config. */
+export type InferIncluding<TConfig> = TConfig extends { including: infer TIncluding }
+	? TIncluding extends readonly RelationsBuilderColumnBase[] ? Simplify<
+			{ [C in TIncluding[number] as C['_']['key']]: InferIncludingColumn<C> }
+		>
+	: TIncluding extends Record<string, RelationsBuilderColumnBase>
+		? Simplify<{ [K in keyof TIncluding]: InferIncludingColumn<TIncluding[K]> }>
+	: {}
+	: {};
+
 export interface OneFn<TTargetTable extends SchemaEntry, TTargetTableName extends string> {
-	<TOptional extends boolean = true>(config?: OneConfig<TTargetTable, TOptional>): One<TTargetTableName, TOptional>;
+	<TOptional extends boolean = true, TConfig extends OneConfig<TTargetTable, TOptional> | undefined = undefined>(
+		config?: TConfig,
+	): One<TTargetTableName, TOptional, InferIncluding<TConfig>>;
 }
 
 export interface ManyFn<TTargetTable extends SchemaEntry, TTargetTableName extends string> {
-	(config?: ManyConfig<TTargetTable>): Many<TTargetTableName>;
+	<TConfig extends ManyConfig<TTargetTable> | undefined = undefined>(
+		config?: TConfig,
+	): Many<TTargetTableName, InferIncluding<TConfig>>;
 }
 
 export class RelationsHelperStatic<TTables extends Schema> {
@@ -1603,7 +1676,8 @@ export type RelationsBuilderColumns<TTable extends SchemaEntry, TTableName exten
 	[
 		TColumnName in keyof GetTableViewColumns<TTable>
 	]: RelationsBuilderColumn<
-		TTableName
+		TTableName,
+		GetTableViewColumns<TTable>[TColumnName] & FieldValue
 	>;
 };
 

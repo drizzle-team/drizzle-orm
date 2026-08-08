@@ -6440,6 +6440,77 @@ test('[Find Many .through] Get users with groups', async () => {
 	}]);
 });
 
+test('[Find Many .through] Get users with groups and junction "including" column', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ id: 10, userId: 1, groupId: 1 },
+		{ id: 11, userId: 1, groupId: 2 },
+		{ id: 12, userId: 2, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		with: {
+			groupsWithMembershipId: true,
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: number;
+		invitedBy: number | null;
+		groupsWithMembershipId: {
+			id: number;
+			name: string;
+			description: string | null;
+			membershipId: number;
+		}[];
+	}[]>();
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	for (const e of response) {
+		e.groupsWithMembershipId.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	}
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		name: 'Dan',
+		verified: 0,
+		invitedBy: null,
+		groupsWithMembershipId: [{
+			id: 1,
+			name: 'Group1',
+			description: null,
+			membershipId: 10,
+		}, {
+			id: 2,
+			name: 'Group2',
+			description: null,
+			membershipId: 11,
+		}],
+	}, {
+		id: 2,
+		name: 'Andrew',
+		verified: 0,
+		invitedBy: null,
+		groupsWithMembershipId: [{
+			id: 2,
+			name: 'Group2',
+			description: null,
+			membershipId: 12,
+		}],
+	}]);
+});
+
 test('[Find Many .through] Get groups with users', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },

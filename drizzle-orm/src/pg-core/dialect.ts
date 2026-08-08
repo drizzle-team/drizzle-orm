@@ -936,6 +936,8 @@ export class PgDialect {
 		errorPath,
 		depth,
 		throughJoin,
+		throughTable,
+		including,
 		nested,
 	}: {
 		schema: TablesRelationalConfig;
@@ -947,6 +949,8 @@ export class PgDialect {
 		errorPath?: string;
 		depth?: number;
 		throughJoin?: SQL;
+		throughTable?: PgTable | PgView;
+		including?: { key: string; column: unknown }[];
 		nested?: boolean;
 	}): BuildRelationalQueryResult {
 		const selection: BuildRelationalQueryResult['selection'] = [];
@@ -989,6 +993,13 @@ export class PgDialect {
 		const selectionArr: SQL[] = [];
 		if (columns) selectionArr.push(columns);
 		if (extras?.sql) selectionArr.push(extras.sql);
+		if (including?.length && throughTable) {
+			for (const inc of including) {
+				selectionArr.push(
+					this.buildRqbColumn(throughTable, inc.column, inc.key, !!nested, selection, tableConfig.name),
+				);
+			}
+		}
 
 		let joins: SQL | undefined;
 		switch (params) {
@@ -1044,6 +1055,8 @@ export class PgDialect {
 						errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 						depth: currentDepth + 1,
 						throughJoin,
+						throughTable: throughTable as PgTable | PgView | undefined,
+						including: relation.including,
 						nested: true,
 					});
 
