@@ -426,9 +426,14 @@ export class InMemoryMutex {
 const isBun = typeof (globalThis as any).Bun !== 'undefined';
 const isDeno = typeof (globalThis as any).Deno !== 'undefined';
 
+type LoadModuleOptions = {
+	defaultExport?: boolean;
+	moduleCache?: boolean;
+};
+
 export const loadModule = async <T = unknown>(
 	modulePath: string,
-	{ defaultExport = false }: { defaultExport?: boolean } = {},
+	{ defaultExport = false, moduleCache = false }: LoadModuleOptions = {},
 ): Promise<T> => {
 	if (isBun || isDeno) {
 		const fileUrl = pathToFileURL(modulePath).href;
@@ -464,7 +469,7 @@ export const loadModule = async <T = unknown>(
 		const jiti = createJiti(baseDir, {
 			interopDefault: true,
 			alias: aliases,
-			requireCache: false,
+			moduleCache,
 		});
 		const mod = await jiti.import<any>(absoluteModulePath);
 		return defaultExport ? (mod?.default ?? mod) : mod;
@@ -472,4 +477,34 @@ export const loadModule = async <T = unknown>(
 	const fileUrl = pathToFileURL(absoluteModulePath).href;
 	const mod = await import(fileUrl);
 	return defaultExport ? (mod?.default ?? mod) : mod;
+};
+
+const moduleLoadMutex = new InMemoryMutex();
+
+export const loadModules = async <T = unknown>(modulePaths: string[]): Promise<T[]> => {
+	if (isBun || isDeno) {
+		const modules: T[] = [];
+		for (const modulePath of modulePaths) {
+			modules.push(await loadModule<T>(modulePath));
+		}
+		return modules;
+	}
+
+	return moduleLoadMutex.withLock(async () => {
+		const previousCacheKeys = new Set(Object.keys(require.cache));
+
+		try {
+			const modules: T[] = [];
+			for (const modulePath of modulePaths) {
+				modules.push(await loadModule<T>(modulePath, { moduleCache: true }));
+			}
+			return modules;
+		} finally {
+			for (const cacheKey of Object.keys(require.cache)) {
+				if (!previousCacheKeys.has(cacheKey)) {
+					delete require.cache[cacheKey];
+				}
+			}
+		}
+	});
 };

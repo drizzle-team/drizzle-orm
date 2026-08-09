@@ -36,7 +36,7 @@ import {
 	uniqueKeyName,
 } from 'drizzle-orm/pg-core';
 import { assertUnreachable } from '../../utils';
-import { loadModule } from '../../utils/utils-node';
+import { loadModules } from '../../utils/utils-node';
 import type { EntityFilter } from '../pull-utils';
 import { getOrNull } from '../utils';
 import type {
@@ -856,10 +856,8 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const matViews: PgMaterializedView[] = [];
 	const relations: Relations[] = [];
 
-	for (let i = 0; i < imports.length; i++) {
-		const it = imports[i];
-
-		const i0: Record<string, unknown> = await loadModule(it);
+	const modules = await loadModules<Record<string, unknown>>(imports);
+	for (const i0 of modules) {
 		const prepared = fromExports(i0);
 
 		tables.push(...prepared.tables);
@@ -874,7 +872,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	}
 
 	return {
-		tables,
+		tables: Array.from(new Set(tables)),
 		enums,
 		schemas,
 		sequences,
