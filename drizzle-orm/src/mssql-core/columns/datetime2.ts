@@ -1,3 +1,4 @@
+import type { ColumnBuilderRuntimeConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable, MsSqlTable } from '~/mssql-core/table.ts';
@@ -36,7 +37,7 @@ export class MsSqlDateTime2<T extends ColumnBaseConfig<'object date'>> extends M
 
 	constructor(
 		table: MsSqlTable<any>,
-		config: MsSqlDateTime2Builder['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & MsSqlDatetimeConfig,
 	) {
 		super(table, config);
 		this.precision = config.precision;
@@ -78,7 +79,7 @@ export class MsSqlDateTime2String<T extends ColumnBaseConfig<'string datetime'>>
 
 	constructor(
 		table: MsSqlTable<any>,
-		config: MsSqlDateTime2StringBuilder['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & MsSqlDatetimeConfig,
 	) {
 		super(table, config);
 		this.precision = config.precision;

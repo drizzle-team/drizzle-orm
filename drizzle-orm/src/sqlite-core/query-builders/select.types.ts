@@ -180,7 +180,6 @@ export interface SQLiteSelectQueryBuilderHKT extends SQLiteSelectHKTBase {
 }
 
 export type SQLiteSetOperatorExcludedMethods =
-	| 'config'
 	| 'leftJoin'
 	| 'rightJoin'
 	| 'innerJoin'

@@ -1,3 +1,4 @@
+import type { ColumnBuilderRuntimeConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable, MsSqlTable } from '~/mssql-core/table.ts';
@@ -36,7 +37,7 @@ export class MsSqlDateTimeOffset<T extends ColumnBaseConfig<'object date'>> exte
 
 	constructor(
 		table: MsSqlTable<any>,
-		config: MsSqlDateTimeOffsetBuilder['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & MsSqlDatetimeConfig,
 	) {
 		super(table, config);
 		this.precision = config.precision;
@@ -78,7 +79,7 @@ export class MsSqlDateTimeOffsetString<T extends ColumnBaseConfig<'string dateti
 
 	constructor(
 		table: MsSqlTable<any>,
-		config: MsSqlDateTimeOffsetStringBuilder['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & MsSqlDatetimeConfig,
 	) {
 		super(table, config);
 		this.precision = config.precision;
