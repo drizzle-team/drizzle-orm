@@ -1,3 +1,4 @@
+import type { ColumnBuilderRuntimeConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable, MsSqlTable } from '~/mssql-core/table.ts';
@@ -40,7 +41,7 @@ export class MsSqlText<T extends ColumnBaseConfig<'string' | 'string enum'>>
 
 	constructor(
 		table: MsSqlTable<any>,
-		config: MsSqlTextBuilder<[string, ...string[]]>['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & { enumValues: T['enumValues'] | undefined; nonUnicode: boolean },
 	) {
 		super(table, config);
 	}

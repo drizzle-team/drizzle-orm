@@ -218,7 +218,6 @@ export type SingleStoreSetOperatorExcludedMethods =
 	| 'where'
 	| 'having'
 	| 'groupBy'
-	| 'session'
 	| 'leftJoin'
 	| 'rightJoin'
 	| 'innerJoin'

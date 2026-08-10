@@ -1,7 +1,8 @@
+import type { ColumnBuilderRuntimeConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySQLiteTable, SQLiteTable } from '~/sqlite-core/table.ts';
-import { type Assume, type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 export class SQLiteTextBuilder<
@@ -41,7 +42,7 @@ export class SQLiteText<T extends ColumnBaseConfig<'string' | 'string enum'>>
 
 	constructor(
 		table: AnySQLiteTable<{ name: T['tableName'] }>,
-		config: SQLiteTextBuilder<Assume<T['enumValues'], [string, ...string[]]>>['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & { enumValues: T['enumValues']; length: number | undefined },
 	) {
 		super(table, config);
 	}

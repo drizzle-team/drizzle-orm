@@ -1,4 +1,5 @@
 import type { AnyCockroachTable, CockroachTable } from '~/cockroach-core/table.ts';
+import type { ColumnBuilderRuntimeConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
@@ -38,7 +39,10 @@ export class CockroachTimestamp<T extends ColumnBaseConfig<'object date'>> exten
 	readonly withTimezone: boolean;
 	readonly precision: number | undefined;
 
-	constructor(table: CockroachTable<any>, config: CockroachTimestampBuilder['config']) {
+	constructor(
+		table: CockroachTable<any>,
+		config: ColumnBuilderRuntimeConfig<T['data']> & { withTimezone: boolean; precision: number | undefined },
+	) {
 		super(table, config);
 		this.withTimezone = config.withTimezone;
 		this.precision = config.precision;
@@ -94,7 +98,7 @@ export class CockroachTimestampString<T extends ColumnBaseConfig<'string timesta
 
 	constructor(
 		table: CockroachTable<any>,
-		config: CockroachTimestampStringBuilder['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & { withTimezone: boolean; precision: number | undefined },
 	) {
 		super(table, config);
 		this.withTimezone = config.withTimezone;

@@ -1,6 +1,6 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { ColumnBuilderBaseConfig } from '~/index.ts';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig } from '~/index.ts';
 import type { AnyMsSqlTable, MsSqlTable } from '~/mssql-core/table.ts';
 import type { SQL, SQLGenerator } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
@@ -60,7 +60,10 @@ export class MsSqlCustomColumn<T extends ColumnBaseConfig<'custom'>> extends MsS
 
 	constructor(
 		table: MsSqlTable<any>,
-		config: MsSqlCustomColumnBuilder<T>['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & {
+			fieldConfig: CustomTypeValues['config'];
+			customTypeParams: CustomTypeParams<any>;
+		},
 	) {
 		super(table, config);
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);

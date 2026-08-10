@@ -1,4 +1,5 @@
 import type { AnyCockroachTable, CockroachTable } from '~/cockroach-core/table.ts';
+import type { ColumnBuilderRuntimeConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { NonArray, Writable } from '~/utils.ts';
@@ -52,7 +53,7 @@ export class CockroachEnumObjectColumn<
 
 	constructor(
 		table: CockroachTable<any>,
-		config: CockroachEnumObjectColumnBuilder<T>['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & { enum: CockroachEnumObject<object> },
 	) {
 		super(table, config);
 		this.enum = config.enum;
@@ -113,7 +114,7 @@ export class CockroachEnumColumn<
 
 	constructor(
 		table: CockroachTable<any>,
-		config: CockroachEnumColumnBuilder<T['enumValues']>['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & { enum: CockroachEnum<T['enumValues']> },
 	) {
 		super(table, config);
 		this.enum = config.enum;
