@@ -30,13 +30,15 @@ describe('migrator', () => {
 
 		await migrate(db as any as PostgresDatabase<any>, { migrationsFolder: './drizzle2/pg' });
 
-		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-		const result = await db.select().from(usersMigratorTable);
-		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-		await db.execute(sql`drop table all_columns`);
-		await db.execute(sql`drop table users12`);
-		await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
+		try {
+			await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+			const result = await db.select().from(usersMigratorTable);
+			expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+		} finally {
+			await db.execute(sql`drop table if exists all_columns`);
+			await db.execute(sql`drop table if exists users12`);
+			await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
+		}
 	});
 
 	test('migrator : migrate with custom schema', async ({ db }) => {
@@ -50,15 +52,19 @@ describe('migrator', () => {
 			migrationsSchema: customSchema,
 		});
 
-		const { rowCount } = await db.execute(sql`select * from ${sql.identifier(customSchema)}."__drizzle_migrations";`);
-		expect(rowCount && rowCount > 0).toBeTruthy();
+		try {
+			const { rowCount } = await db.execute(
+				sql`select * from ${sql.identifier(customSchema)}."__drizzle_migrations";`,
+			);
+			expect(rowCount && rowCount > 0).toBeTruthy();
 
-		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-		expect(await db.select().from(usersMigratorTable)).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-		await db.execute(sql`drop table all_columns`);
-		await db.execute(sql`drop table users12`);
-		await db.execute(sql`drop schema ${sql.identifier(customSchema)} cascade`);
+			await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+			expect(await db.select().from(usersMigratorTable)).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+		} finally {
+			await db.execute(sql`drop table if exists all_columns`);
+			await db.execute(sql`drop table if exists users12`);
+			await db.execute(sql`drop schema if exists ${sql.identifier(customSchema)} cascade`);
+		}
 	});
 
 	test('migrator : migrate with custom table', async ({ db }) => {
@@ -72,15 +78,17 @@ describe('migrator', () => {
 			migrationsTable: customTable,
 		});
 
-		const { rowCount } = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
-		expect(rowCount && rowCount > 0).toBeTruthy();
+		try {
+			const { rowCount } = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
+			expect(rowCount && rowCount > 0).toBeTruthy();
 
-		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-		expect(await db.select().from(usersMigratorTable)).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-		await db.execute(sql`drop table all_columns`);
-		await db.execute(sql`drop table users12`);
-		await db.execute(sql`drop table "drizzle".${sql.identifier(customTable)}`);
+			await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+			expect(await db.select().from(usersMigratorTable)).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+		} finally {
+			await db.execute(sql`drop table if exists all_columns`);
+			await db.execute(sql`drop table if exists users12`);
+			await db.execute(sql`drop table if exists "drizzle".${sql.identifier(customTable)}`);
+		}
 	});
 
 	test('migrator : --init', async ({ db }) => {
@@ -183,20 +191,22 @@ describe('migrator', () => {
 			migrationsSchema: customSchema,
 		});
 
-		// test if the custom migrations table was created
-		const { rowCount } = await db.execute(
-			sql`select * from ${sql.identifier(customSchema)}.${sql.identifier(customTable)};`,
-		);
-		expect(rowCount && rowCount > 0).toBeTruthy();
+		try {
+			// test if the custom migrations table was created
+			const { rowCount } = await db.execute(
+				sql`select * from ${sql.identifier(customSchema)}.${sql.identifier(customTable)};`,
+			);
+			expect(rowCount && rowCount > 0).toBeTruthy();
 
-		// test if the migrated table are working as expected
-		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-		const result = await db.select().from(usersMigratorTable);
-		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-		await db.execute(sql`drop table all_columns`);
-		await db.execute(sql`drop table users12`);
-		await db.execute(sql`drop table ${sql.identifier(customSchema)}.${sql.identifier(customTable)}`);
+			// test if the migrated table are working as expected
+			await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+			const result = await db.select().from(usersMigratorTable);
+			expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+		} finally {
+			await db.execute(sql`drop table if exists all_columns`);
+			await db.execute(sql`drop table if exists users12`);
+			await db.execute(sql`drop schema if exists ${sql.identifier(customSchema)} cascade`);
+		}
 	});
 
 	test('migrator : --init - local migrations error', async ({ db }) => {

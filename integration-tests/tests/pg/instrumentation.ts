@@ -210,14 +210,29 @@ export const _push = async (
 	}
 };
 
+/**
+ * Reset potentially broken by previous test runs schemas on hosted dbs
+ */
+const resetSchemas = async (run: (sql: string) => Promise<any[]>) => {
+	const schemas = await run(
+		`select nspname from pg_namespace where nspname not in ('information_schema', 'neon_auth') and nspname !~ '^pg_'`,
+	);
+
+	for (const schema of schemas) {
+		const name = (schema as { nspname: string }).nspname.replaceAll('"', '""');
+		await run(`drop schema if exists "${name}" cascade`);
+	}
+
+	await run('create schema public');
+	await run('create schema "mySchema"');
+};
+
 export const prepareNeonHttpClient = async (db: string) => {
 	const url = new URL(process.env['NEON_CONNECTION_STRING']!);
 	url.pathname = `/${db}`;
 	const client = neon(url.toString());
 
-	await client('drop schema if exists public, "mySchema" cascade;');
-	await client('create schema public');
-	await client('create schema "mySchema";');
+	await resetSchemas(async (sql) => await client(sql) as any[]);
 	await client(`SET TIME ZONE 'UTC';`);
 
 	const query = async (sql: string, params: any[] = []) => {
@@ -271,9 +286,7 @@ export const prepareNeonWsClient = async (db: string) => {
 	url.pathname = `/${db}`;
 	const client = new NeonPool({ connectionString: url.toString(), max: 1 });
 
-	await client.query('drop schema if exists public, "mySchema" cascade;');
-	await client.query('create schema public');
-	await client.query('create schema "mySchema";');
+	await resetSchemas(async (sql) => (await client.query(sql)).rows);
 	await client.query(`SET TIME ZONE 'UTC';`);
 
 	const query = async (sql: string, params: any[] = []) => {
@@ -293,9 +306,7 @@ export const prepareMinipgNeonWsClient = async (db: string) => {
 	url.pathname = `/${db}`;
 	const client = createMinipgNeonWsPool({ url: url.toString(), max: 1, temporal: 'string' });
 
-	await client.query('drop schema if exists public, "mySchema" cascade;');
-	await client.query('create schema public');
-	await client.query('create schema "mySchema";');
+	await resetSchemas(async (sql) => (await client.query(sql)).rows as any[]);
 	await client.query(`SET TIME ZONE 'UTC';`);
 
 	const query = async (sql: string, params: any[] = []) => {
@@ -315,9 +326,7 @@ export const prepareMinipgNeonHttpClient = async (db: string) => {
 	url.pathname = `/${db}`;
 	const client = createMinipgNeonHttpClient({ url: url.toString(), temporal: 'string' });
 
-	await client.query('drop schema if exists public, "mySchema" cascade;', []);
-	await client.query('create schema public', []);
-	await client.query('create schema "mySchema";', []);
+	await resetSchemas(async (sql) => (await client.query(sql, [], { mode: 'object' })).rows as any[]);
 	await client.query(`SET TIME ZONE 'UTC';`, []);
 
 	const query = async (sql: string, params: any[] = []) => {
@@ -456,9 +465,7 @@ export const prepareNetlifyDb = async (db: string) => {
 		}),
 	};
 
-	await client.pool.query('drop schema if exists public, "mySchema" cascade;');
-	await client.pool.query('create schema public');
-	await client.pool.query('create schema "mySchema";');
+	await resetSchemas(async (sql) => (await client.pool.query(sql)).rows);
 	await client.pool.query(`SET TIME ZONE 'UTC';`);
 
 	const query = async (sql: string, params: any[] = []) => {
