@@ -139,6 +139,8 @@ jobs:
             dbs: [mysql]
           - shard: int:postgres
             dbs: [postgres, postgres-http-gateway]
+          - shard: int:neon
+            dbs: []
           - shard: int:sqlite
             dbs: []
           - shard: int:turso-serverless
@@ -296,6 +298,11 @@ jobs:
             int:postgres)
               if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
                 pnpm --stream test:postgres
+              fi
+            ;;
+            int:neon)
+              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
+                pnpm --stream test:neon
               fi
             ;;
             int:mysql)
