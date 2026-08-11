@@ -219,7 +219,7 @@ const resetSchemas = async (run: (sql: string) => Promise<any[]>) => {
 	);
 
 	for (const schema of schemas) {
-		const name = (schema as { nspname: string }).nspname.replaceAll('"', '""');
+		const name = String(Object.values(schema)[0]).replaceAll('"', '""');
 		await run(`drop schema if exists "${name}" cascade`);
 	}
 
@@ -326,7 +326,7 @@ export const prepareMinipgNeonHttpClient = async (db: string) => {
 	url.pathname = `/${db}`;
 	const client = createMinipgNeonHttpClient({ url: url.toString(), temporal: 'string' });
 
-	await resetSchemas(async (sql) => (await client.query(sql, [], { mode: 'object' })).rows as any[]);
+	await resetSchemas(async (sql) => (await client.query(sql, [])).rows as any[]);
 	await client.query(`SET TIME ZONE 'UTC';`, []);
 
 	const query = async (sql: string, params: any[] = []) => {
@@ -647,23 +647,24 @@ export const provideForPostgres = async () => {
 
 export const provideForMinipgNeonWs = async () => {
 	const clients = [
-		await prepareMinipgNeonWsClient('db10'),
-		await prepareMinipgNeonWsClient('db11'),
-		await prepareMinipgNeonWsClient('db12'),
-		await prepareMinipgNeonWsClient('db13'),
-		await prepareMinipgNeonWsClient('db14'),
+		await prepareMinipgNeonWsClient('db5'),
+		await prepareMinipgNeonWsClient('db6'),
+		await prepareMinipgNeonWsClient('db7'),
+		await prepareMinipgNeonWsClient('db8'),
+		await prepareMinipgNeonWsClient('db9'),
 	];
 
 	return providerClosure(clients);
 };
 
+/** Shares db0-db4 with {@link providerForNeonHttp} - see {@link provideForMinipgNeonWs} */
 export const provideForMinipgNeonHttp = async () => {
 	const clients = [
-		await prepareMinipgNeonHttpClient('db15'),
-		await prepareMinipgNeonHttpClient('db16'),
-		await prepareMinipgNeonHttpClient('db17'),
-		await prepareMinipgNeonHttpClient('db18'),
-		await prepareMinipgNeonHttpClient('db19'),
+		await prepareMinipgNeonHttpClient('db0'),
+		await prepareMinipgNeonHttpClient('db1'),
+		await prepareMinipgNeonHttpClient('db2'),
+		await prepareMinipgNeonHttpClient('db3'),
+		await prepareMinipgNeonHttpClient('db4'),
 	];
 
 	return providerClosure(clients);

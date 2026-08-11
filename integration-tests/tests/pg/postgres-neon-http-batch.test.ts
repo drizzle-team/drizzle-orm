@@ -117,7 +117,7 @@ export const schema = {
 
 export const relations = defineRelations(schema);
 
-const DATABASE = 'db19';
+const DATABASE = 'db6';
 
 const test = base.extend<{ db: PostgresHttpDatabase<typeof relations> }>({
 	db: [
