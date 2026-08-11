@@ -353,6 +353,9 @@ importers:
       '@cloudflare/workers-types':
         specifier: ^4.20251004.0
         version: 4.20251126.0
+      '@drizzle-team/minipg':
+        specifier: ^0.3.2
+        version: 0.3.2(typescript@5.9.3)
       '@effect/sql-d1':
         specifier: 4.0.0-beta.105
         version: 4.0.0-beta.105(effect@4.0.0-beta.105)
@@ -476,9 +479,6 @@ importers:
       glob:
         specifier: ^11.0.1
         version: 11.1.0
-      minipg:
-        specifier: file:../vendor/minipg-0.2.0.tgz
-        version: file:vendor/minipg-0.2.0.tgz(typescript@5.9.3)
       mysql2:
         specifier: ^3.14.1
         version: 3.14.1
@@ -633,6 +633,9 @@ importers:
       '@aws-sdk/credential-providers':
         specifier: ^3.549.0
         version: 3.940.0
+      '@drizzle-team/minipg':
+        specifier: ^0.3.2
+        version: 0.3.2(typescript@5.9.3)
       '@effect/sql-d1':
         specifier: 4.0.0-beta.105
         version: 4.0.0-beta.105(effect@4.0.0-beta.105)
@@ -756,9 +759,6 @@ importers:
       json-rules-engine:
         specifier: ^7.3.1
         version: 7.3.1
-      minipg:
-        specifier: file:../vendor/minipg-0.2.0.tgz
-        version: file:vendor/minipg-0.2.0.tgz(typescript@5.9.3)
       mssql:
         specifier: ^11.0.1
         version: 11.0.1
@@ -1740,6 +1740,12 @@ packages:
 
   '@drizzle-team/brocli@0.12.0':
     resolution: {integrity: sha512-mlUE+rZ8CatQekLhnaiN91Iemdd+e2gFKooGlnRB3oPTL3VghLfX24dx7HrzMNeC1JrIB/0kpsfyty3f5HNfxQ==}
+
+  '@drizzle-team/minipg@0.3.2':
+    resolution: {integrity: sha512-BA/8+kxRq5i5hFU63El3oZinOBg0KxTNSIr3HCIqjKMpxDSUqbFocuPZKHdLzR3JdgPuqalu3lo90xFmMJZvWQ==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      typescript: ^5
 
   '@duckdb/node-api@1.5.0-r.1':
     resolution: {integrity: sha512-VjvjqlCyqUJ22bydG/+9Jj5l0CEvx9QUn1SATBkKFY0+x6n4uHzt0kp/FKwXK9LNduXX6KCKtdF+6v5BcHScfA==}
@@ -5198,6 +5204,7 @@ packages:
 
   drizzle-orm@1.0.0-beta.21:
     resolution: {integrity: sha512-HZcIbVn5J9T/Z91Wj12Pn7Pi8/1aykS/GPJf2lXeZnEuPjxaBfQ+YAt0Sl+XI+9R/D1BpK+2fdIqbpuaTbcvqA==}
+    deprecated: The 1.0.0-beta line is superseded by the 1.0 release candidate. Install drizzle-orm@rc instead.
     peerDependencies:
       '@aws-sdk/client-rds-data': '>=3'
       '@cloudflare/workers-types': '>=4'
@@ -7056,13 +7063,6 @@ packages:
     resolution: {integrity: sha512-qOOzS1cBTWYF4BH8fVePDBOO9iptMnGUEZwNc/cMWnTV2nVLZ7VoNWEPHkYczZA0pdoA7dl6e7FL659nX9S2aw==}
     engines: {node: '>=16 || 14 >=14.17'}
 
-  minipg@file:vendor/minipg-0.2.0.tgz:
-    resolution: {integrity: sha512-7fZdJk+s6vsMFHY9OzY/Xb79jZxoUBF1dHUMY5nilMhY/5CmhtWKH/0ZzA2+ZYoQzwsl64S40nm6rqq4DfmdNw==, tarball: file:vendor/minipg-0.2.0.tgz}
-    version: 0.2.0
-    engines: {node: '>=18'}
-    peerDependencies:
-      typescript: ^5
-
   minizlib@2.1.2:
     resolution: {integrity: sha512-bAxsR8BVfj60DWXHE3u30oHzfl4G7khkSuPW+qvpd7jFRHm7dLxOjUk1EHACJ/hxLY8phGJ0YhYHZo7jil7Qdg==}
     engines: {node: '>= 8'}
@@ -7524,11 +7524,6 @@ packages:
   pg-connection-string@2.9.1:
     resolution: {integrity: sha512-nkc6NpDcvPVpZXxrreI/FOtX3XemeLl8E0qFr6F2Lrm/I8WOnaWNhIPK2Z7OHpw7gh5XJThi6j6ppgNoaT1w4w==}
 
-  pg-cursor@2.19.0:
-    resolution: {integrity: sha512-J5cF1MUz7LRJ9emOqF/06QjabMHMZy587rSPF0UuA8rCwKeeYl2co8Pp+6k5UU9YrAYHMzWkLxilfZB0hqsWWw==}
-    peerDependencies:
-      pg: ^8
-
   pg-cursor@2.21.0:
     resolution: {integrity: sha512-IYvk/j+Suhtbo/C3uOf4JLsLK/gWxOTUOmYbDsbKnLaVJDq+KwhwK6ngpRfiCk8eDMS3AmGQABZCv0cREEzHQw==}
     peerDependencies:
@@ -7544,11 +7539,6 @@ packages:
 
   pg-pool@3.10.1:
     resolution: {integrity: sha512-Tu8jMlcX+9d8+QVzKIvM/uJtp07PKr82IUOYEphaWcoBhIYkoHpLXN3qO59nAI11ripznDsEzEv8nUxBVWajGg==}
-    peerDependencies:
-      pg: '>=8.0'
-
-  pg-pool@3.13.0:
-    resolution: {integrity: sha512-gB+R+Xud1gLFuRD/QgOIgGOBE2KCQPaPwkzBBGC9oG69pHTkhQeIuejVIk3/cnDyX39av2AxomQiyPT13WKHQA==}
     peerDependencies:
       pg: '>=8.0'
 
@@ -10703,6 +10693,10 @@ snapshots:
 
   '@drizzle-team/brocli@0.12.0': {}
 
+  '@drizzle-team/minipg@0.3.2(typescript@5.9.3)':
+    dependencies:
+      typescript: 5.9.3
+
   '@duckdb/node-api@1.5.0-r.1':
     dependencies:
       '@duckdb/node-bindings': 1.5.0-r.1
@@ -10775,8 +10769,8 @@ snapshots:
       effect: 4.0.0-beta.105
       pg: 8.22.0
       pg-connection-string: 2.9.1
-      pg-cursor: 2.19.0(pg@8.22.0)
-      pg-pool: 3.13.0(pg@8.22.0)
+      pg-cursor: 2.21.0(pg@8.22.0)
+      pg-pool: 3.14.0(pg@8.22.0)
       pg-types: 4.1.0
     transitivePeerDependencies:
       - pg-native
@@ -17017,10 +17011,6 @@ snapshots:
 
   minipass@7.1.2: {}
 
-  minipg@file:vendor/minipg-0.2.0.tgz(typescript@5.9.3):
-    dependencies:
-      typescript: 5.9.3
-
   minizlib@2.1.2:
     dependencies:
       minipass: 3.3.6
@@ -17486,11 +17476,6 @@ snapshots:
 
   pg-connection-string@2.9.1: {}
 
-  pg-cursor@2.19.0(pg@8.22.0):
-    dependencies:
-      pg: 8.22.0
-    optional: true
-
   pg-cursor@2.21.0(pg@8.22.0):
     dependencies:
       pg: 8.22.0
@@ -17502,11 +17487,6 @@ snapshots:
   pg-pool@3.10.1(pg@8.16.3):
     dependencies:
       pg: 8.16.3
-
-  pg-pool@3.13.0(pg@8.22.0):
-    dependencies:
-      pg: 8.22.0
-    optional: true
 
   pg-pool@3.14.0(pg@8.22.0):
     dependencies:

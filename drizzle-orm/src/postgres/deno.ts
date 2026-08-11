@@ -1,5 +1,5 @@
-import { parseConnectionString } from 'minipg';
-import { createPool, type Pool, type PoolConfig } from 'minipg/deno';
+import { parseConnectionString } from '@drizzle-team/minipg';
+import { createPool, type Pool, type PoolConfig } from '@drizzle-team/minipg/deno';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { construct, type PostgresDatabase } from './driver-core.ts';

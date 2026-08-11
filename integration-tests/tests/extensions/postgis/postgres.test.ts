@@ -1,8 +1,8 @@
+import type { Pool } from '@drizzle-team/minipg';
 import { defineRelations, eq, sql } from 'drizzle-orm';
 import { bigserial, customType, geometry, integer, line, pgTable, point } from 'drizzle-orm/pg-core';
 import type { PostgresDatabase } from 'drizzle-orm/postgres';
 import { drizzle } from 'drizzle-orm/postgres';
-import type { Pool } from 'minipg';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 
 const ENABLE_LOGGING = false;

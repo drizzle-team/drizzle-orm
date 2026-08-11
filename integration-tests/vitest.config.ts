@@ -55,9 +55,6 @@ export default defineConfig({
 			// todo: remove
 			'js-tests/driver-init/module/vercel.test.mjs',
 			'js-tests/driver-init/commonjs/vercel.test.cjs',
-			// Todo: update driver & remove
-			'tests/pg/postgres-neon-http.test.ts',
-			'tests/pg/postgres-http.test.ts',
 			// move back after decide on speed
 			'tests/sqlite/libsql-ws.test.ts',
 			'tests/sqlite/libsql-http.test.ts',

@@ -1,4 +1,4 @@
-import { createPool, type NeonPoolConfig, type Pool } from 'minipg/neon-ws';
+import { createPool, type NeonPoolConfig, type Pool } from '@drizzle-team/minipg/neon-ws';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { construct, type PostgresDatabase } from './driver-core.ts';

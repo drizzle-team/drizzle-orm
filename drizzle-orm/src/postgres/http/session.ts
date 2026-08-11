@@ -1,4 +1,4 @@
-import type { QueryResult, ShapeSpec } from 'minipg';
+import type { QueryResult, ShapeSpec } from '@drizzle-team/minipg';
 import type { BatchItem } from '~/batch.ts';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
