@@ -8,7 +8,6 @@ import type {
 } from '~/cockroach-core/session.ts';
 import type { CockroachMaterializedView } from '~/cockroach-core/view.ts';
 import { entityKind } from '~/entity.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
@@ -83,8 +82,8 @@ export class CockroachRefreshMaterializedView<TQueryResult extends CockroachQuer
 			const query = this.dialect.sqlToQuery(this.getSQL());
 			return this.session.prepareQuery(
 				query,
-				undefined,
-				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+				'raw',
+				name ?? generateName,
 			);
 		});
 	}

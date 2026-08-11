@@ -2,11 +2,12 @@ import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import { type ColumnsSelection, sql, type SQLWrapper } from '~/sql/sql.ts';
+import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { InferInsertModel, RequiredInsertKeys } from '~/table.ts';
 import type { DrizzleTypeError, IsNever, JoinUnion } from '~/utils.ts';
 import type { MsSqlDialect } from './dialect.ts';
+import { MsSqlCountBuilder } from './query-builders/count.ts';
 import {
 	MsSqlDeleteBase,
 	MsSqlInsertBuilder,
@@ -21,12 +22,14 @@ import type {
 	MsSqlSession,
 	MsSqlTransaction,
 	MsSqlTransactionConfig,
+	PreparedQueryConfig,
 	PreparedQueryHKTBase,
 	QueryResultHKT,
 	QueryResultKind,
 } from './session.ts';
 import type { WithSubqueryWithSelection } from './subquery.ts';
 import type { MsSqlTable } from './table.ts';
+import type { MsSqlViewBase } from './view-base.ts';
 
 export class MsSqlDatabase<
 	TQueryResult extends QueryResultHKT,
@@ -123,6 +126,13 @@ export class MsSqlDatabase<
 				) as WithSubqueryWithSelection<TSelection, TAlias>;
 			},
 		};
+	}
+
+	$count(
+		source: MsSqlTable | MsSqlViewBase | SQL | SQLWrapper,
+		filters?: SQL<unknown>,
+	) {
+		return new MsSqlCountBuilder({ source, filters, session: this.session, dialect: this.dialect });
 	}
 
 	/**
@@ -357,10 +367,30 @@ export class MsSqlDatabase<
 		return new MsSqlDeleteBase(table, this.session, this.dialect);
 	}
 
+	execute<TRow extends unknown[] = unknown[]>(
+		query: SQLWrapper | string,
+		mode: 'arrays',
+	): Promise<TRow[]>;
+	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+		query: SQLWrapper | string,
+		mode: 'objects',
+	): Promise<TRow[]>;
 	execute<T extends { [column: string]: any } | { [column: string]: any }[]>(
 		query: SQLWrapper | string,
-	): Promise<QueryResultKind<TQueryResult, T>> {
-		return this.session.execute((typeof query === 'string' ? sql.raw(query) : query).getSQL());
+		mode?: 'raw' | undefined,
+	): Promise<QueryResultKind<TQueryResult, T>>;
+	execute(
+		query: SQLWrapper | string,
+		mode?: 'raw' | 'objects' | 'arrays' | undefined,
+	): unknown {
+		const sequel = (typeof query === 'string' ? sql.raw(query) : query).getSQL();
+		return this.session.prepareQuery<
+			PreparedQueryConfig & { execute: unknown },
+			PreparedQueryHKTBase
+		>(
+			this.dialect.sqlToQuery(sequel),
+			mode ?? 'raw',
+		).execute();
 	}
 
 	transaction<T>(
@@ -399,7 +429,7 @@ export const withReplicas = <
 	const update: Q['update'] = (...args: [any]) => primary.update(...args);
 	const insert: Q['insert'] = ((...args: [any]) => primary.insert(...args)) as Q['insert'];
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
-	const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
+	const execute: Q['execute'] = ((...args: [any]) => primary.execute(...args)) as Q['execute'];
 	const transaction: Q['transaction'] = (...args: [any, any]) => primary.transaction(...args);
 
 	return {

@@ -6,6 +6,7 @@ import {
 	count,
 	countDistinct,
 	desc,
+	DrizzleError,
 	DrizzleQueryError,
 	eq,
 	getColumns,
@@ -14,9 +15,11 @@ import {
 	gte,
 	inArray,
 	isNull,
+	like,
 	max,
 	min,
 	Name,
+	not,
 	notInArray,
 	sql,
 	sum,
@@ -49,7 +52,7 @@ import {
 import { drizzle, type NodeMsSqlDatabase } from 'drizzle-orm/node-mssql';
 import { migrate } from 'drizzle-orm/node-mssql/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import { expect } from 'vitest';
+import { expect, expectTypeOf } from 'vitest';
 import { type Equal, Expect } from '~/utils';
 import { test } from './instrumentation';
 import {
@@ -425,28 +428,30 @@ test('Nested partial select left join: null first column', async ({ db }) => {
 		sql`create table ${branding} (id int primary key, org_id int, logo varchar(255), panel_background varchar(255))`,
 	);
 
-	await db.insert(orgs).values([{ id: 1, name: 'Acme' }, { id: 2, name: 'NoBranding' }]);
-	await db.insert(branding).values({ id: 1, orgId: 1, logo: null, panelBackground: '#1a8cff' });
+	try {
+		await db.insert(orgs).values([{ id: 1, name: 'Acme' }, { id: 2, name: 'NoBranding' }]);
+		await db.insert(branding).values({ id: 1, orgId: 1, logo: null, panelBackground: '#1a8cff' });
 
-	const withBranding = await db.select({
-		name: orgs.name,
-		branding: { logo: branding.logo, panelBackground: branding.panelBackground },
-	}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 1));
+		const withBranding = await db.select({
+			name: orgs.name,
+			branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+		}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 1));
 
-	expect(withBranding).toStrictEqual([{
-		name: 'Acme',
-		branding: { logo: null, panelBackground: '#1a8cff' },
-	}]);
+		expect(withBranding).toStrictEqual([{
+			name: 'Acme',
+			branding: { logo: null, panelBackground: '#1a8cff' },
+		}]);
 
-	const withoutBranding = await db.select({
-		name: orgs.name,
-		branding: { logo: branding.logo, panelBackground: branding.panelBackground },
-	}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 2));
+		const withoutBranding = await db.select({
+			name: orgs.name,
+			branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+		}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 2));
 
-	expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
-
-	await db.execute(sql`drop table ${branding}`);
-	await db.execute(sql`drop table ${orgs}`);
+		expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
+	} finally {
+		await db.execute(sql`drop table if exists ${branding}`);
+		await db.execute(sql`drop table if exists ${orgs}`);
+	}
 });
 
 test('insert returning sql', async ({ db }) => {
@@ -875,35 +880,37 @@ test('partial join with alias', async ({ db }) => {
 		sql`create table ${users} (id int primary key, name text not null)`,
 	);
 
-	const customerAlias = alias(users, 'customer');
+	try {
+		const customerAlias = alias(users, 'customer');
 
-	await db.insert(users).values([
-		{ id: 10, name: 'Ivan' },
-		{ id: 11, name: 'Hans' },
-	]);
-	const result = await db
-		.select({
-			user: {
-				id: users.id,
-				name: users.name,
+		await db.insert(users).values([
+			{ id: 10, name: 'Ivan' },
+			{ id: 11, name: 'Hans' },
+		]);
+		const result = await db
+			.select({
+				user: {
+					id: users.id,
+					name: users.name,
+				},
+				customer: {
+					id: customerAlias.id,
+					name: customerAlias.name,
+				},
+			})
+			.from(users)
+			.leftJoin(customerAlias, eq(customerAlias.id, 11))
+			.where(eq(users.id, 10));
+
+		expect(result).toEqual([
+			{
+				user: { id: 10, name: 'Ivan' },
+				customer: { id: 11, name: 'Hans' },
 			},
-			customer: {
-				id: customerAlias.id,
-				name: customerAlias.name,
-			},
-		})
-		.from(users)
-		.leftJoin(customerAlias, eq(customerAlias.id, 11))
-		.where(eq(users.id, 10));
-
-	expect(result).toEqual([
-		{
-			user: { id: 10, name: 'Ivan' },
-			customer: { id: 11, name: 'Hans' },
-		},
-	]);
-
-	await db.execute(sql`drop table ${users}`);
+		]);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('full join with alias', async ({ db }) => {
@@ -919,32 +926,34 @@ test('full join with alias', async ({ db }) => {
 		sql`create table ${users} (id int primary key, name text not null)`,
 	);
 
-	const customers = alias(users, 'customer');
+	try {
+		const customers = alias(users, 'customer');
 
-	await db.insert(users).values([
-		{ id: 10, name: 'Ivan' },
-		{ id: 11, name: 'Hans' },
-	]);
-	const result = await db
-		.select()
-		.from(users)
-		.leftJoin(customers, eq(customers.id, 11))
-		.where(eq(users.id, 10));
+		await db.insert(users).values([
+			{ id: 10, name: 'Ivan' },
+			{ id: 11, name: 'Hans' },
+		]);
+		const result = await db
+			.select()
+			.from(users)
+			.leftJoin(customers, eq(customers.id, 11))
+			.where(eq(users.id, 10));
 
-	expect(result).toEqual([
-		{
-			users: {
-				id: 10,
-				name: 'Ivan',
+		expect(result).toEqual([
+			{
+				users: {
+					id: 10,
+					name: 'Ivan',
+				},
+				customer: {
+					id: 11,
+					name: 'Hans',
+				},
 			},
-			customer: {
-				id: 11,
-				name: 'Hans',
-			},
-		},
-	]);
-
-	await db.execute(sql`drop table ${users}`);
+		]);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('select from alias', async ({ db }) => {
@@ -960,33 +969,35 @@ test('select from alias', async ({ db }) => {
 		sql`create table ${users} (id int primary key, name text not null)`,
 	);
 
-	const user = alias(users, 'user');
-	const customers = alias(users, 'customer');
+	try {
+		const user = alias(users, 'user');
+		const customers = alias(users, 'customer');
 
-	await db.insert(users).values([
-		{ id: 10, name: 'Ivan' },
-		{ id: 11, name: 'Hans' },
-	]);
-	const result = await db
-		.select()
-		.from(user)
-		.leftJoin(customers, eq(customers.id, 11))
-		.where(eq(user.id, 10));
+		await db.insert(users).values([
+			{ id: 10, name: 'Ivan' },
+			{ id: 11, name: 'Hans' },
+		]);
+		const result = await db
+			.select()
+			.from(user)
+			.leftJoin(customers, eq(customers.id, 11))
+			.where(eq(user.id, 10));
 
-	expect(result).toEqual([
-		{
-			user: {
-				id: 10,
-				name: 'Ivan',
+		expect(result).toEqual([
+			{
+				user: {
+					id: 10,
+					name: 'Ivan',
+				},
+				customer: {
+					id: 11,
+					name: 'Hans',
+				},
 			},
-			customer: {
-				id: 11,
-				name: 'Hans',
-			},
-		},
-	]);
-
-	await db.execute(sql`drop table ${users}`);
+		]);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('insert with spaces', async ({ db }) => {
@@ -1064,23 +1075,26 @@ test('prepared statement with placeholder in .where', async ({ db }) => {
 });
 
 test('migrator', async ({ db }) => {
-	await db.execute(sql`drop table if exists cities_migration`);
-	await db.execute(sql`drop table if exists users_migration`);
-	await db.execute(sql`drop table if exists users12`);
-	await db.execute(sql`drop table if exists [drizzle].[__drizzle_migrations]`);
+	try {
+		await db.execute(sql`drop table if exists cities_migration`);
+		await db.execute(sql`drop table if exists users_migration`);
+		await db.execute(sql`drop table if exists users12`);
+		await db.execute(sql`drop table if exists [drizzle].[__drizzle_migrations]`);
 
-	await migrate(db, { migrationsFolder: './drizzle2/mssql' });
+		await migrate(db, { migrationsFolder: './drizzle2/mssql' });
 
-	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 
-	const result = await db.select().from(usersMigratorTable);
+		const result = await db.select().from(usersMigratorTable);
 
-	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
 
-	await db.execute(sql`drop table if exists cities_migration`);
-	await db.execute(sql`drop table if exists users_migration`);
-	await db.execute(sql`drop table if exists users12`);
-	await db.execute(sql`drop table [drizzle].[__drizzle_migrations]`);
+		await db.execute(sql`drop table if exists cities_migration`);
+		await db.execute(sql`drop table if exists users_migration`);
+		await db.execute(sql`drop table if exists users12`);
+	} finally {
+		await db.execute(sql`drop table if exists [drizzle].[__drizzle_migrations]`);
+	}
 });
 
 test('migrator : --init', async ({ db }) => {
@@ -2040,13 +2054,15 @@ test('prefixed table', async ({ db }) => {
 		sql`create table myprefix_test_prefixed_table_with_unique_name (id int not null primary key, name text not null)`,
 	);
 
-	await db.insert(users).values({ id: 1, name: 'John' });
+	try {
+		await db.insert(users).values({ id: 1, name: 'John' });
 
-	const result = await db.select().from(users);
+		const result = await db.select().from(users);
 
-	expect(result).toEqual([{ id: 1, name: 'John' }]);
-
-	await db.execute(sql`drop table ${users}`);
+		expect(result).toEqual([{ id: 1, name: 'John' }]);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('orderBy with aliased column', ({ db }) => {
@@ -2105,36 +2121,38 @@ test('transaction', async ({ db }) => {
 		sql`create table products_transactions (id int identity not null primary key, price int not null, stock int not null)`,
 	);
 
-	await db.insert(users).values({ balance: 100 });
-	const user = await db
-		.select()
-		.from(users)
-		.where(eq(users.id, 1))
-		.then((rows) => rows[0]!);
-	await db.insert(products).values({ price: 10, stock: 10 });
-	const product = await db
-		.select()
-		.from(products)
-		.where(eq(products.id, 1))
-		.then((rows) => rows[0]!);
+	try {
+		await db.insert(users).values({ balance: 100 });
+		const user = await db
+			.select()
+			.from(users)
+			.where(eq(users.id, 1))
+			.then((rows) => rows[0]!);
+		await db.insert(products).values({ price: 10, stock: 10 });
+		const product = await db
+			.select()
+			.from(products)
+			.where(eq(products.id, 1))
+			.then((rows) => rows[0]!);
 
-	await db.transaction(async (tx) => {
-		await tx
-			.update(users)
-			.set({ balance: user.balance - product.price })
-			.where(eq(users.id, user.id));
-		await tx
-			.update(products)
-			.set({ stock: product.stock - 1 })
-			.where(eq(products.id, product.id));
-	});
+		await db.transaction(async (tx) => {
+			await tx
+				.update(users)
+				.set({ balance: user.balance - product.price })
+				.where(eq(users.id, user.id));
+			await tx
+				.update(products)
+				.set({ stock: product.stock - 1 })
+				.where(eq(products.id, product.id));
+		});
 
-	const result = await db.select().from(users);
+		const result = await db.select().from(users);
 
-	expect(result).toEqual([{ id: 1, balance: 90 }]);
-
-	await db.execute(sql`drop table ${users}`);
-	await db.execute(sql`drop table ${products}`);
+		expect(result).toEqual([{ id: 1, balance: 90 }]);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+		await db.execute(sql`drop table if exists ${products}`);
+	}
 });
 
 test('transaction - set isolation level', async ({ db }) => {
@@ -2158,38 +2176,40 @@ test('transaction - set isolation level', async ({ db }) => {
 		sql`create table products_transactions (id int identity not null primary key, price int not null, stock int not null)`,
 	);
 
-	await db.insert(users).values({ balance: 100 });
-	const user = await db
-		.select()
-		.from(users)
-		.where(eq(users.id, 1))
-		.then((rows) => rows[0]!);
-	await db.insert(products).values({ price: 10, stock: 10 });
-	const product = await db
-		.select()
-		.from(products)
-		.where(eq(products.id, 1))
-		.then((rows) => rows[0]!);
+	try {
+		await db.insert(users).values({ balance: 100 });
+		const user = await db
+			.select()
+			.from(users)
+			.where(eq(users.id, 1))
+			.then((rows) => rows[0]!);
+		await db.insert(products).values({ price: 10, stock: 10 });
+		const product = await db
+			.select()
+			.from(products)
+			.where(eq(products.id, 1))
+			.then((rows) => rows[0]!);
 
-	await db.transaction(async (tx) => {
-		await tx
-			.update(users)
-			.set({ balance: user.balance - product.price })
-			.where(eq(users.id, user.id));
-		await tx
-			.update(products)
-			.set({ stock: product.stock - 1 })
-			.where(eq(products.id, product.id));
-	}, {
-		isolationLevel: 'read committed',
-	});
+		await db.transaction(async (tx) => {
+			await tx
+				.update(users)
+				.set({ balance: user.balance - product.price })
+				.where(eq(users.id, user.id));
+			await tx
+				.update(products)
+				.set({ stock: product.stock - 1 })
+				.where(eq(products.id, product.id));
+		}, {
+			isolationLevel: 'read committed',
+		});
 
-	const result = await db.select().from(users);
+		const result = await db.select().from(users);
 
-	expect(result).toEqual([{ id: 1, balance: 90 }]);
-
-	await db.execute(sql`drop table ${users}`);
-	await db.execute(sql`drop table ${products}`);
+		expect(result).toEqual([{ id: 1, balance: 90 }]);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+		await db.execute(sql`drop table if exists ${products}`);
+	}
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5328
@@ -2212,20 +2232,22 @@ test('transaction rollback', async ({ db }) => {
 		sql`create table users_transactions_rollback (id int identity not null primary key, balance int not null)`,
 	);
 
-	await expect(
-		(async () => {
-			await db.transaction(async (tx) => {
-				await tx.insert(users).values({ balance: 100 });
-				tx.rollback();
-			});
-		})(),
-	).rejects.toThrowError(TransactionRollbackError);
+	try {
+		await expect(
+			(async () => {
+				await db.transaction(async (tx) => {
+					await tx.insert(users).values({ balance: 100 });
+					tx.rollback();
+				});
+			})(),
+		).rejects.toThrowError(TransactionRollbackError);
 
-	const result = await db.select().from(users);
+		const result = await db.select().from(users);
 
-	expect(result).toEqual([]);
-
-	await db.execute(sql`drop table ${users}`);
+		expect(result).toEqual([]);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('nested transaction', async ({ db }) => {
@@ -2240,19 +2262,21 @@ test('nested transaction', async ({ db }) => {
 		sql`create table users_nested_transactions (id int identity not null primary key, balance int not null)`,
 	);
 
-	await db.transaction(async (tx) => {
-		await tx.insert(users).values({ balance: 100 });
+	try {
+		await db.transaction(async (tx) => {
+			await tx.insert(users).values({ balance: 100 });
 
-		await tx.transaction(async (tx) => {
-			await tx.update(users).set({ balance: 200 });
+			await tx.transaction(async (tx) => {
+				await tx.update(users).set({ balance: 200 });
+			});
 		});
-	});
 
-	const result = await db.select().from(users);
+		const result = await db.select().from(users);
 
-	expect(result).toEqual([{ id: 1, balance: 200 }]);
-
-	await db.execute(sql`drop table ${users}`);
+		expect(result).toEqual([{ id: 1, balance: 200 }]);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('nested transaction rollback', async ({ db }) => {
@@ -2267,24 +2291,26 @@ test('nested transaction rollback', async ({ db }) => {
 		sql`create table users_nested_transactions_rollback (id int identity not null primary key, balance int not null)`,
 	);
 
-	await db.transaction(async (tx) => {
-		await tx.insert(users).values({ balance: 100 });
+	try {
+		await db.transaction(async (tx) => {
+			await tx.insert(users).values({ balance: 100 });
 
-		await expect(
-			(async () => {
-				await tx.transaction(async (tx) => {
-					await tx.update(users).set({ balance: 200 });
-					tx.rollback();
-				});
-			})(),
-		).rejects.toThrowError(TransactionRollbackError);
-	});
+			await expect(
+				(async () => {
+					await tx.transaction(async (tx) => {
+						await tx.update(users).set({ balance: 200 });
+						tx.rollback();
+					});
+				})(),
+			).rejects.toThrowError(TransactionRollbackError);
+		});
 
-	const result = await db.select().from(users);
+		const result = await db.select().from(users);
 
-	expect(result).toEqual([{ id: 1, balance: 100 }]);
-
-	await db.execute(sql`drop table ${users}`);
+		expect(result).toEqual([{ id: 1, balance: 100 }]);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('join subquery with join', async ({ db }) => {
@@ -2308,34 +2334,36 @@ test('join subquery with join', async ({ db }) => {
 	await db.execute(sql`create table custom_user (id integer not null)`);
 	await db.execute(sql`create table ticket (staff_id integer not null)`);
 
-	await db.insert(internalStaff).values({ userId: 1 });
-	await db.insert(customUser).values({ id: 1 });
-	await db.insert(ticket).values({ staffId: 1 });
+	try {
+		await db.insert(internalStaff).values({ userId: 1 });
+		await db.insert(customUser).values({ id: 1 });
+		await db.insert(ticket).values({ staffId: 1 });
 
-	const subq = db
-		.select()
-		.from(internalStaff)
-		.leftJoin(customUser, eq(internalStaff.userId, customUser.id))
-		.as('internal_staff');
+		const subq = db
+			.select()
+			.from(internalStaff)
+			.leftJoin(customUser, eq(internalStaff.userId, customUser.id))
+			.as('internal_staff');
 
-	const mainQuery = await db
-		.select()
-		.from(ticket)
-		.leftJoin(subq, eq(subq.internal_staff.userId, ticket.staffId));
+		const mainQuery = await db
+			.select()
+			.from(ticket)
+			.leftJoin(subq, eq(subq.internal_staff.userId, ticket.staffId));
 
-	expect(mainQuery).toEqual([
-		{
-			ticket: { staffId: 1 },
-			internal_staff: {
-				internal_staff: { userId: 1 },
-				custom_user: { id: 1 },
+		expect(mainQuery).toEqual([
+			{
+				ticket: { staffId: 1 },
+				internal_staff: {
+					internal_staff: { userId: 1 },
+					custom_user: { id: 1 },
+				},
 			},
-		},
-	]);
-
-	await db.execute(sql`drop table ${internalStaff}`);
-	await db.execute(sql`drop table ${customUser}`);
-	await db.execute(sql`drop table ${ticket}`);
+		]);
+	} finally {
+		await db.execute(sql`drop table if exists ${internalStaff}`);
+		await db.execute(sql`drop table if exists ${customUser}`);
+		await db.execute(sql`drop table if exists ${ticket}`);
+	}
 });
 
 test('subquery with view', async ({ db }) => {
@@ -2353,27 +2381,31 @@ test('subquery with view', async ({ db }) => {
 	await db.execute(
 		sql`create table ${users} (id int identity not null primary key, name text not null, city_id integer not null)`,
 	);
-	await db.execute(
-		sql`create view ${newYorkers} as select * from ${users} where city_id = 1`,
-	);
 
-	await db.insert(users).values([
-		{ name: 'John', cityId: 1 },
-		{ name: 'Jane', cityId: 2 },
-		{ name: 'Jack', cityId: 1 },
-		{ name: 'Jill', cityId: 2 },
-	]);
+	try {
+		await db.execute(
+			sql`create view ${newYorkers} as select * from ${users} where city_id = 1`,
+		);
 
-	const sq = db.$with('sq').as(db.select().from(newYorkers));
-	const result = await db.with(sq).select().from(sq);
+		await db.insert(users).values([
+			{ name: 'John', cityId: 1 },
+			{ name: 'Jane', cityId: 2 },
+			{ name: 'Jack', cityId: 1 },
+			{ name: 'Jill', cityId: 2 },
+		]);
 
-	expect(result).toEqual([
-		{ id: 1, name: 'John', cityId: 1 },
-		{ id: 3, name: 'Jack', cityId: 1 },
-	]);
+		const sq = db.$with('sq').as(db.select().from(newYorkers));
+		const result = await db.with(sq).select().from(sq);
 
-	await db.execute(sql`drop view ${newYorkers}`);
-	await db.execute(sql`drop table ${users}`);
+		expect(result).toEqual([
+			{ id: 1, name: 'John', cityId: 1 },
+			{ id: 3, name: 'Jack', cityId: 1 },
+		]);
+
+		await db.execute(sql`drop view ${newYorkers}`);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('join view as subquery', async ({ db }) => {
@@ -2391,45 +2423,49 @@ test('join view as subquery', async ({ db }) => {
 	await db.execute(
 		sql`create table ${users} (id int identity not null primary key, name text not null, city_id integer not null)`,
 	);
-	await db.execute(
-		sql`create view ${newYorkers} as select * from ${users} where city_id = 1`,
-	);
 
-	await db.insert(users).values([
-		{ name: 'John', cityId: 1 },
-		{ name: 'Jane', cityId: 2 },
-		{ name: 'Jack', cityId: 1 },
-		{ name: 'Jill', cityId: 2 },
-	]);
+	try {
+		await db.execute(
+			sql`create view ${newYorkers} as select * from ${users} where city_id = 1`,
+		);
 
-	const sq = db.select().from(newYorkers).as('new_yorkers_sq');
+		await db.insert(users).values([
+			{ name: 'John', cityId: 1 },
+			{ name: 'Jane', cityId: 2 },
+			{ name: 'Jack', cityId: 1 },
+			{ name: 'Jill', cityId: 2 },
+		]);
 
-	const result = await db
-		.select()
-		.from(users)
-		.leftJoin(sq, eq(users.id, sq.id));
+		const sq = db.select().from(newYorkers).as('new_yorkers_sq');
 
-	expect(result).toEqual([
-		{
-			users_join_view: { id: 1, name: 'John', cityId: 1 },
-			new_yorkers_sq: { id: 1, name: 'John', cityId: 1 },
-		},
-		{
-			users_join_view: { id: 2, name: 'Jane', cityId: 2 },
-			new_yorkers_sq: null,
-		},
-		{
-			users_join_view: { id: 3, name: 'Jack', cityId: 1 },
-			new_yorkers_sq: { id: 3, name: 'Jack', cityId: 1 },
-		},
-		{
-			users_join_view: { id: 4, name: 'Jill', cityId: 2 },
-			new_yorkers_sq: null,
-		},
-	]);
+		const result = await db
+			.select()
+			.from(users)
+			.leftJoin(sq, eq(users.id, sq.id));
 
-	await db.execute(sql`drop view ${newYorkers}`);
-	await db.execute(sql`drop table ${users}`);
+		expect(result).toEqual([
+			{
+				users_join_view: { id: 1, name: 'John', cityId: 1 },
+				new_yorkers_sq: { id: 1, name: 'John', cityId: 1 },
+			},
+			{
+				users_join_view: { id: 2, name: 'Jane', cityId: 2 },
+				new_yorkers_sq: null,
+			},
+			{
+				users_join_view: { id: 3, name: 'Jack', cityId: 1 },
+				new_yorkers_sq: { id: 3, name: 'Jack', cityId: 1 },
+			},
+			{
+				users_join_view: { id: 4, name: 'Jill', cityId: 2 },
+				new_yorkers_sq: null,
+			},
+		]);
+
+		await db.execute(sql`drop view ${newYorkers}`);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('select iterator', async ({ db }) => {
@@ -2493,13 +2529,15 @@ test('insert undefined', async ({ db }) => {
 		sql`create table ${users} (id int identity not null primary key, name text)`,
 	);
 
-	await expect(
-		(async () => {
-			await db.insert(users).values({ name: undefined });
-		})(),
-	).resolves.not.toThrowError();
-
-	await db.execute(sql`drop table ${users}`);
+	try {
+		await expect(
+			(async () => {
+				await db.insert(users).values({ name: undefined });
+			})(),
+		).resolves.not.toThrowError();
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('update undefined', async ({ db }) => {
@@ -2514,19 +2552,21 @@ test('update undefined', async ({ db }) => {
 		sql`create table ${users} (id int not null primary key, name text)`,
 	);
 
-	await expect(
-		(async () => {
-			await db.update(users).set({ name: undefined });
-		})(),
-	).rejects.toThrowError();
+	try {
+		await expect(
+			(async () => {
+				await db.update(users).set({ name: undefined });
+			})(),
+		).rejects.toThrowError();
 
-	await expect(
-		(async () => {
-			await db.update(users).set({ id: 1, name: undefined });
-		})(),
-	).resolves.not.toThrowError();
-
-	await db.execute(sql`drop table ${users}`);
+		await expect(
+			(async () => {
+				await db.update(users).set({ id: 1, name: undefined });
+			})(),
+		).resolves.not.toThrowError();
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('update with placeholder', async ({ db }) => {
@@ -3626,32 +3666,34 @@ test('mySchema :: full join with alias', async ({ db }) => {
 		sql`create table ${users} (id int primary key, name text not null)`,
 	);
 
-	const customers = alias(users, 'customer');
+	try {
+		const customers = alias(users, 'customer');
 
-	await db.insert(users).values([
-		{ id: 10, name: 'Ivan' },
-		{ id: 11, name: 'Hans' },
-	]);
-	const result = await db
-		.select()
-		.from(users)
-		.leftJoin(customers, eq(customers.id, 11))
-		.where(eq(users.id, 10));
+		await db.insert(users).values([
+			{ id: 10, name: 'Ivan' },
+			{ id: 11, name: 'Hans' },
+		]);
+		const result = await db
+			.select()
+			.from(users)
+			.leftJoin(customers, eq(customers.id, 11))
+			.where(eq(users.id, 10));
 
-	expect(result).toEqual([
-		{
-			users: {
-				id: 10,
-				name: 'Ivan',
+		expect(result).toEqual([
+			{
+				users: {
+					id: 10,
+					name: 'Ivan',
+				},
+				customer: {
+					id: 11,
+					name: 'Hans',
+				},
 			},
-			customer: {
-				id: 11,
-				name: 'Hans',
-			},
-		},
-	]);
-
-	await db.execute(sql`drop table ${users}`);
+		]);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('mySchema :: select from alias', async ({ db }) => {
@@ -3667,33 +3709,35 @@ test('mySchema :: select from alias', async ({ db }) => {
 		sql`create table ${users} (id int primary key, name text not null)`,
 	);
 
-	const user = alias(users, 'user');
-	const customers = alias(users, 'customer');
+	try {
+		const user = alias(users, 'user');
+		const customers = alias(users, 'customer');
 
-	await db.insert(users).values([
-		{ id: 10, name: 'Ivan' },
-		{ id: 11, name: 'Hans' },
-	]);
-	const result = await db
-		.select()
-		.from(user)
-		.leftJoin(customers, eq(customers.id, 11))
-		.where(eq(user.id, 10));
+		await db.insert(users).values([
+			{ id: 10, name: 'Ivan' },
+			{ id: 11, name: 'Hans' },
+		]);
+		const result = await db
+			.select()
+			.from(user)
+			.leftJoin(customers, eq(customers.id, 11))
+			.where(eq(user.id, 10));
 
-	expect(result).toEqual([
-		{
-			user: {
-				id: 10,
-				name: 'Ivan',
+		expect(result).toEqual([
+			{
+				user: {
+					id: 10,
+					name: 'Ivan',
+				},
+				customer: {
+					id: 11,
+					name: 'Hans',
+				},
 			},
-			customer: {
-				id: 11,
-				name: 'Hans',
-			},
-		},
-	]);
-
-	await db.execute(sql`drop table ${users}`);
+		]);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('mySchema :: insert with spaces', async ({ db }) => {
@@ -4435,6 +4479,519 @@ test('full join', async ({ db }) => {
 	]);
 });
 
+test('db.execute modes', async ({ db }) => {
+	const users = mssqlTable('users_execute_modes', {
+		id: int('id').primaryKey(),
+		name: varchar('name', { length: 30 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists [users_execute_modes]`);
+	await db.execute(sql`create table [users_execute_modes] ([id] int primary key, [name] varchar(30) not null)`);
+
+	try {
+		await db.insert(users).values([{ id: 1, name: 'First' }, { id: 2, name: 'Second' }]);
+
+		const rObj = await db.execute<{ id: number; name: string }>(
+			sql`select ${users.id}, ${users.name} from ${users} order by ${users.id}`,
+			'objects',
+		);
+		const rArr = await db.execute<[number, string]>(
+			sql`select ${users.id}, ${users.name} from ${users} order by ${users.id}`,
+			'arrays',
+		);
+
+		expectTypeOf(rObj).toEqualTypeOf<{ id: number; name: string }[]>();
+		expectTypeOf(rArr).toEqualTypeOf<[number, string][]>();
+
+		expect(rObj).toStrictEqual([{ id: 1, name: 'First' }, { id: 2, name: 'Second' }]);
+		expect(rArr).toStrictEqual([[1, 'First'], [2, 'Second']]);
+
+		const rRaw = await db.execute(sql`select ${users.id} from ${users} order by ${users.id}`);
+		expect(rRaw.recordset).toStrictEqual([{ id: 1 }, { id: 2 }]);
+	} finally {
+		await db.execute(sql`drop table if exists [users_execute_modes]`);
+	}
+});
+
+test('Explicit error on multiple default-only values in insert', async ({ db }) => {
+	const autoOnly = mssqlTable('auto_only_multi', {
+		id: int('id').identity().primaryKey(),
+	});
+
+	await db.execute(sql`drop table if exists [auto_only_multi]`);
+	await db.execute(sql`create table [auto_only_multi] ([id] int identity primary key)`);
+
+	try {
+		expect(() => db.insert(autoOnly).values([{}, {}]).toSQL()).toThrowError(DrizzleError);
+		expect(() => db.insert(autoOnly).values([{}, {}]).toSQL()).toThrowError(/no insertable columns/);
+
+		await db.insert(autoOnly).values({});
+		expect(await db.select().from(autoOnly)).toStrictEqual([{ id: 1 }]);
+	} finally {
+		await db.execute(sql`drop table if exists [auto_only_multi]`);
+	}
+});
+
+test('insert default values', async ({ db }) => {
+	const autoOnly = mssqlTable('auto_only', {
+		id: int('id').identity().primaryKey(),
+	});
+
+	await db.execute(sql`drop table if exists [auto_only]`);
+	await db.execute(sql`create table [auto_only] ([id] int identity primary key)`);
+
+	try {
+		expect(db.insert(autoOnly).values({}).toSQL().sql).toStrictEqual(
+			'insert into [auto_only] default values',
+		);
+		expect(db.insert(autoOnly).output().values({}).toSQL().sql).toStrictEqual(
+			'insert into [auto_only] output INSERTED.[id] default values',
+		);
+
+		await db.insert(autoOnly).values({});
+		const returned = await db.insert(autoOnly).output().values({});
+		expect(returned).toStrictEqual([{ id: 2 }]);
+
+		expect(await db.select().from(autoOnly).orderBy(autoOnly.id)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+	} finally {
+		await db.execute(sql`drop table if exists [auto_only]`);
+	}
+});
+
+test('insert into ... select', async ({ db }) => {
+	const users1 = mssqlTable('users1_is', {
+		id: int('id').primaryKey(),
+		name: varchar('name', { length: 30 }).notNull(),
+	});
+	const users2 = mssqlTable('users2_is', {
+		id: int('id').primaryKey(),
+		name: varchar('name', { length: 30 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists [users1_is]`);
+	await db.execute(sql`drop table if exists [users2_is]`);
+	await db.execute(sql`create table [users1_is] ([id] int primary key, [name] varchar(30) not null)`);
+	await db.execute(sql`create table [users2_is] ([id] int primary key, [name] varchar(30) not null)`);
+
+	try {
+		await db.insert(users2).values({ id: 1, name: 'First' });
+
+		const res = await db.insert(users1).output().select(
+			db.select({ name: users2.name, id: users2.id }).from(users2),
+		);
+
+		expect(res).toStrictEqual([{ id: 1, name: 'First' }]);
+		expect(await db.select().from(users1)).toStrictEqual([{ id: 1, name: 'First' }]);
+	} finally {
+		await db.execute(sql`drop table if exists [users1_is]`);
+		await db.execute(sql`drop table if exists [users2_is]`);
+	}
+});
+
+test('insert into ... select callback, raw', async ({ db }) => {
+	const users1 = mssqlTable('users1_iscb', {
+		id: int('id').primaryKey(),
+		name: varchar('name', { length: 30 }).notNull(),
+	});
+	const users2 = mssqlTable('users2_iscb', {
+		id: int('id').primaryKey(),
+		name: varchar('name', { length: 30 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists [users1_iscb]`);
+	await db.execute(sql`drop table if exists [users2_iscb]`);
+	await db.execute(sql`create table [users1_iscb] ([id] int primary key, [name] varchar(30) not null)`);
+	await db.execute(sql`create table [users2_iscb] ([id] int primary key, [name] varchar(30) not null)`);
+
+	try {
+		await db.insert(users2).values([{ id: 1, name: 'First' }, { id: 2, name: 'Second' }]);
+
+		await db.insert(users1).select((qb) =>
+			qb.select({ id: users2.id, name: users2.name }).from(users2).where(eq(users2.id, 1))
+		);
+		expect(await db.select().from(users1)).toStrictEqual([{ id: 1, name: 'First' }]);
+
+		await db.insert(users1).select(sql`select [id], [name] from [users2_iscb] where [id] = 2`);
+		expect(await db.select().from(users1).orderBy(users1.id)).toStrictEqual([
+			{ id: 1, name: 'First' },
+			{ id: 2, name: 'Second' },
+		]);
+	} finally {
+		await db.execute(sql`drop table if exists [users1_iscb]`);
+		await db.execute(sql`drop table if exists [users2_iscb]`);
+	}
+});
+
+test('insert into ... select rejects unknown columns', async ({ db }) => {
+	const users1 = mssqlTable('users1_isu', {
+		id: int('id').primaryKey(),
+		name: varchar('name', { length: 30 }).notNull(),
+	});
+	const users2 = mssqlTable('users2_isu', {
+		id: int('id').primaryKey(),
+		name: varchar('name', { length: 30 }).notNull(),
+	});
+
+	expect(() =>
+		// @ts-expect-error
+		db.insert(users1).select(db.select({ name: users2.name, unknown: users2.id }).from(users2))
+	).toThrowError();
+});
+
+test('$count separate', async ({ db }) => {
+	const countTestTable = mssqlTable('count_test', {
+		id: int('id').primaryKey(),
+		name: varchar('name', { length: 30 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists [count_test]`);
+	await db.execute(sql`create table [count_test] ([id] int primary key, [name] varchar(30) not null)`);
+
+	try {
+		await db.insert(countTestTable).values([
+			{ id: 1, name: 'First' },
+			{ id: 2, name: 'Second' },
+			{ id: 3, name: 'Third' },
+			{ id: 4, name: 'Fourth' },
+		]);
+
+		const count = await db.$count(countTestTable);
+		expect(count).toStrictEqual(4);
+	} finally {
+		await db.execute(sql`drop table if exists [count_test]`);
+	}
+});
+
+test('$count embedded', async ({ db }) => {
+	const countTestTable = mssqlTable('count_test', {
+		id: int('id').primaryKey(),
+		name: varchar('name', { length: 30 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists [count_test]`);
+	await db.execute(sql`create table [count_test] ([id] int primary key, [name] varchar(30) not null)`);
+
+	try {
+		await db.insert(countTestTable).values([
+			{ id: 1, name: 'First' },
+			{ id: 2, name: 'Second' },
+			{ id: 3, name: 'Third' },
+			{ id: 4, name: 'Fourth' },
+		]);
+
+		const count = await db.select({
+			count: db.$count(countTestTable),
+		}).from(countTestTable);
+
+		expect(count).toStrictEqual([
+			{ count: 4 },
+			{ count: 4 },
+			{ count: 4 },
+			{ count: 4 },
+		]);
+	} finally {
+		await db.execute(sql`drop table if exists [count_test]`);
+	}
+});
+
+test('$count separate with filters', async ({ db }) => {
+	const countTestTable = mssqlTable('count_test', {
+		id: int('id').primaryKey(),
+		name: varchar('name', { length: 30 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists [count_test]`);
+	await db.execute(sql`create table [count_test] ([id] int primary key, [name] varchar(30) not null)`);
+
+	try {
+		await db.insert(countTestTable).values([
+			{ id: 1, name: 'First' },
+			{ id: 2, name: 'Second' },
+			{ id: 3, name: 'Third' },
+			{ id: 4, name: 'Fourth' },
+		]);
+
+		const count = await db.$count(countTestTable, gt(countTestTable.id, 2));
+		expect(count).toStrictEqual(2);
+	} finally {
+		await db.execute(sql`drop table if exists [count_test]`);
+	}
+});
+
+test('$count embedded reuse', async ({ db }) => {
+	const countTestTable = mssqlTable('count_test', {
+		id: int('id').primaryKey(),
+		name: varchar('name', { length: 30 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists [count_test]`);
+	await db.execute(sql`create table [count_test] ([id] int primary key, [name] varchar(30) not null)`);
+
+	try {
+		await db.insert(countTestTable).values([
+			{ id: 1, name: 'First' },
+			{ id: 2, name: 'Second' },
+			{ id: 3, name: 'Third' },
+			{ id: 4, name: 'Fourth' },
+		]);
+
+		const count = db
+			.select({
+				count: db.$count(countTestTable),
+			})
+			.from(countTestTable);
+
+		const count1 = await count;
+
+		await db.insert(countTestTable).values({ id: 5, name: 'fifth' });
+
+		const count2 = await count;
+
+		await db.insert(countTestTable).values({ id: 6, name: 'sixth' });
+
+		const count3 = await count;
+
+		expect(count1).toStrictEqual([
+			{ count: 4 },
+			{ count: 4 },
+			{ count: 4 },
+			{ count: 4 },
+		]);
+		expect(count2).toStrictEqual([
+			{ count: 5 },
+			{ count: 5 },
+			{ count: 5 },
+			{ count: 5 },
+			{ count: 5 },
+		]);
+		expect(count3).toStrictEqual([
+			{ count: 6 },
+			{ count: 6 },
+			{ count: 6 },
+			{ count: 6 },
+			{ count: 6 },
+			{ count: 6 },
+		]);
+	} finally {
+		await db.execute(sql`drop table if exists [count_test]`);
+	}
+});
+
+test('$count embedded with filters', async ({ db }) => {
+	const countTestTable = mssqlTable('count_test', {
+		id: int('id').primaryKey(),
+		name: varchar('name', { length: 30 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists [count_test]`);
+	await db.execute(sql`create table [count_test] ([id] int primary key, [name] varchar(30) not null)`);
+
+	try {
+		await db.insert(countTestTable).values([
+			{ id: 1, name: 'First' },
+			{ id: 2, name: 'Second' },
+			{ id: 3, name: 'Third' },
+			{ id: 4, name: 'Fourth' },
+		]);
+
+		const count = await db
+			.select({
+				count: db.$count(countTestTable, gt(countTestTable.id, 1)),
+			})
+			.from(countTestTable);
+
+		expect(count).toStrictEqual([
+			{ count: 3 },
+			{ count: 3 },
+			{ count: 3 },
+			{ count: 3 },
+		]);
+	} finally {
+		await db.execute(sql`drop table if exists [count_test]`);
+	}
+});
+
+test('$count separate reuse', async ({ db }) => {
+	const countTestTable = mssqlTable('count_test', {
+		id: int('id').primaryKey(),
+		name: varchar('name', { length: 30 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists [count_test]`);
+	await db.execute(sql`create table [count_test] ([id] int primary key, [name] varchar(30) not null)`);
+
+	try {
+		await db.insert(countTestTable).values([
+			{ id: 1, name: 'First' },
+			{ id: 2, name: 'Second' },
+			{ id: 3, name: 'Third' },
+			{ id: 4, name: 'Fourth' },
+		]);
+
+		const count = db.$count(countTestTable);
+
+		const count1 = await count;
+		await db.insert(countTestTable).values({ id: 5, name: 'fifth' });
+		const count2 = await count;
+
+		expect(count1).toStrictEqual(4);
+		expect(count2).toStrictEqual(5);
+	} finally {
+		await db.execute(sql`drop table if exists [count_test]`);
+	}
+});
+
+test('cross join', async ({ db }) => {
+	await db.insert(citiesTable).values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+	await db.insert(users2Table).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+
+	const res = await db
+		.select({
+			user: users2Table.name,
+			city: citiesTable.name,
+		})
+		.from(users2Table)
+		.crossJoin(citiesTable)
+		.orderBy(users2Table.name, citiesTable.name);
+
+	expect(res).toStrictEqual([
+		{ city: 'London', user: 'Jane' },
+		{ city: 'Paris', user: 'Jane' },
+		{ city: 'London', user: 'John' },
+		{ city: 'Paris', user: 'John' },
+	]);
+});
+
+test('outer apply', async ({ db }) => {
+	await db.insert(citiesTable).values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+	await db.insert(users2Table).values([{ id: 1, name: 'John', cityId: 1 }, { id: 2, name: 'Jane' }]);
+
+	const sq = db
+		.select({
+			userId: users2Table.id,
+			userName: users2Table.name,
+			cityId: users2Table.cityId,
+		})
+		.from(users2Table)
+		.where(eq(users2Table.cityId, citiesTable.id))
+		.as('sq');
+
+	const res = await db
+		.select({
+			cityId: citiesTable.id,
+			cityName: citiesTable.name,
+			userId: sq.userId,
+			userName: sq.userName,
+		})
+		.from(citiesTable)
+		.outerApply(sq)
+		.orderBy(citiesTable.id);
+
+	expect(res).toStrictEqual([
+		{ cityId: 1, cityName: 'Paris', userId: 1, userName: 'John' },
+		{ cityId: 2, cityName: 'London', userId: null, userName: null },
+	]);
+});
+
+test('cross apply subquery', async ({ db }) => {
+	await db.insert(citiesTable).values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+	await db.insert(users2Table).values([{ id: 1, name: 'John', cityId: 1 }, { id: 2, name: 'Jane' }]);
+
+	const sq = db
+		.select({
+			userId: users2Table.id,
+			userName: users2Table.name,
+			cityId: users2Table.cityId,
+		})
+		.from(users2Table)
+		.where(eq(users2Table.cityId, citiesTable.id))
+		.as('sq');
+
+	const res = await db
+		.select({
+			cityId: citiesTable.id,
+			cityName: citiesTable.name,
+			userId: sq.userId,
+			userName: sq.userName,
+		})
+		.from(citiesTable)
+		.crossApply(sq)
+		.orderBy(citiesTable.id);
+
+	expect(res).toStrictEqual([
+		{ cityId: 1, cityName: 'Paris', userId: 1, userName: 'John' },
+	]);
+});
+
+test('cross apply table', async ({ db }) => {
+	await db.insert(citiesTable).values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+	await db.insert(users2Table).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+
+	const cross = await db
+		.select({ city: citiesTable.name, user: users2Table.name })
+		.from(citiesTable)
+		.crossApply(users2Table)
+		.orderBy(citiesTable.id, users2Table.id);
+
+	expect(cross).toStrictEqual([
+		{ city: 'Paris', user: 'John' },
+		{ city: 'Paris', user: 'Jane' },
+		{ city: 'London', user: 'John' },
+		{ city: 'London', user: 'Jane' },
+	]);
+
+	const outer = await db
+		.select({ city: citiesTable.name, user: users2Table.name })
+		.from(citiesTable)
+		.outerApply(users2Table)
+		.orderBy(citiesTable.id, users2Table.id);
+
+	expect(outer).toStrictEqual(cross);
+});
+
+test('cross apply subquery (cartesian)', async ({ db }) => {
+	await db.insert(citiesTable).values([
+		{ id: 1, name: 'Paris' },
+		{ id: 2, name: 'London' },
+		{ id: 3, name: 'Berlin' },
+	]);
+	await db.insert(users2Table).values([
+		{ id: 1, name: 'John', cityId: 1 },
+		{ id: 2, name: 'Jane' },
+		{ id: 3, name: 'Patrick', cityId: 2 },
+	]);
+
+	const sq = db
+		.select({
+			userId: users2Table.id,
+			userName: users2Table.name,
+			cityId: users2Table.cityId,
+		})
+		.from(users2Table)
+		.where(not(like(citiesTable.name, 'L%')))
+		.as('sq');
+
+	const res = await db
+		.select({
+			cityId: citiesTable.id,
+			cityName: citiesTable.name,
+			userId: sq.userId,
+			userName: sq.userName,
+		})
+		.from(citiesTable)
+		.crossApply(sq)
+		.orderBy(citiesTable.id, sq.userId);
+
+	expect(res).toStrictEqual([
+		{ cityId: 1, cityName: 'Paris', userId: 1, userName: 'John' },
+		{ cityId: 1, cityName: 'Paris', userId: 2, userName: 'Jane' },
+		{ cityId: 1, cityName: 'Paris', userId: 3, userName: 'Patrick' },
+		{ cityId: 3, cityName: 'Berlin', userId: 1, userName: 'John' },
+		{ cityId: 3, cityName: 'Berlin', userId: 2, userName: 'Jane' },
+		{ cityId: 3, cityName: 'Berlin', userId: 3, userName: 'Patrick' },
+	]);
+});
+
 test('select top', async ({ db }) => {
 	await db.insert(citiesTable).values({ id: 1, name: 'city1' });
 	await db.insert(citiesTable).values({ id: 2, name: 'city2' });
@@ -5113,7 +5670,7 @@ test('issue 5527. real() returns unprecise float64 values', async ({ db }) => {
 	expect(res).toStrictEqual({ id: 1, age: 0.01 });
 });
 
-test.skipIf(Date.now() < +new Date('2026-08-12'))('Query error wrapping', async ({ db }) => {
+test('Query error wrapping', async ({ db }) => {
 	await expect(db.insert(users2Table).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]))
 		.rejects.toBeInstanceOf(DrizzleQueryError);
 });

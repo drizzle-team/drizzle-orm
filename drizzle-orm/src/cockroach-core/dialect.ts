@@ -27,19 +27,28 @@ import { type Name, Param, type Query, SQL, sql, type SQLChunk, StringChunk } fr
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/cockroach.ts';
-import type { UpdateSet } from '~/utils.ts';
+import { makeDefaultQueryMapper, makeJitQueryMapper, type RowsMapperGenerator, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { CockroachSession } from './session.ts';
 import { CockroachViewBase } from './view-base.ts';
 import type { CockroachMaterializedView } from './view.ts';
 
-// Will add codecs here, do not remove
-export interface CockroachDialectConfig {}
+export interface CockroachDialectConfig {
+	useJitMappers?: boolean;
+}
 
 export class CockroachDialect {
 	static readonly [entityKind]: string = 'CockroachDialect';
 
-	constructor(_config?: CockroachDialectConfig) {}
+	readonly mapperGenerators: {
+		rows: RowsMapperGenerator;
+	};
+
+	constructor(config?: CockroachDialectConfig) {
+		this.mapperGenerators = {
+			rows: config?.useJitMappers ? makeJitQueryMapper : makeDefaultQueryMapper,
+		};
+	}
 
 	async migrate(
 		migrations: MigrationMeta[],
@@ -78,7 +87,7 @@ export class CockroachDialect {
 			await session.execute(migrationTableCreate);
 		}
 
-		const dbMigrations = await session.all<{
+		const dbMigrations = await session.objects<{
 			id: number;
 			hash: string;
 			created_at: string;
