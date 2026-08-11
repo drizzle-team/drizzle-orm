@@ -94,6 +94,22 @@ export class ClickHouseMap<T extends ColumnBaseConfig<'json', 'ClickHouseMap'>> 
 		return result;
 	}
 
+	/**
+	 * A plain object. ClickHouse's JSON formats represent a `Map(K, V)` as one, and JSON object keys
+	 * are always strings — so a numeric-keyed map's keys go through the key column's own mapping and
+	 * are then stringified, which is exactly what {@link mapFromDriverValue} undoes.
+	 */
+	override mapToRowValue(value: Record<string, unknown> | Map<unknown, unknown>): Record<string, unknown> {
+		const entries = value instanceof Map ? [...value.entries()] : Object.entries(value);
+		const result: Record<string, unknown> = {};
+		for (const [key, entryValue] of entries) {
+			result[String(this.keyColumn.mapToRowValue(key))] = entryValue === null
+				? null
+				: this.valueColumn.mapToRowValue(entryValue);
+		}
+		return result;
+	}
+
 	override mapToDriverValue(value: Record<string, unknown> | Map<unknown, unknown>): SQL {
 		const entries = value instanceof Map ? [...value.entries()] : Object.entries(value);
 		if (entries.length === 0) {

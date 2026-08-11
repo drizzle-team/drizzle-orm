@@ -74,6 +74,10 @@ export class ClickHouseDate<T extends ColumnBaseConfig<'date' | 'string', string
 		const text = typeof value === 'string' ? value : formatClickHouseDate(value);
 		return castFromString(this.chType === 'Date32' ? 'toDate32' : 'toDate', text);
 	}
+
+	override mapToRowValue(value: Date | string): string {
+		return typeof value === 'string' ? value : formatClickHouseDate(value);
+	}
 }
 
 function dateFactory<TColumnType extends string>(columnType: TColumnType, chType: ClickHouseDateTypeName) {

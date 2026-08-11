@@ -5,6 +5,7 @@ import { DrizzleQueryError } from '~/errors.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import type { Assume, Equal } from '~/utils.ts';
 import type { ClickHouseDialect } from './dialect.ts';
+import type { ClickHouseSettings } from './engines.ts';
 import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
 
 export interface ClickHouseQueryResultHKT {
@@ -191,6 +192,25 @@ export abstract class ClickHouseSession<
 	}
 
 	abstract all<T = unknown>(query: SQL): Promise<T[]>;
+
+	/**
+	 * Inserts rows as a *body* rather than as part of the statement.
+	 *
+	 * ClickHouse takes data by two routes. `INSERT … VALUES (…), (…)` puts it in the statement, which
+	 * means the client builds the whole batch as one string and the server re-parses every field as a
+	 * SQL expression. A row format sends `INSERT INTO t FORMAT JSONEachRow` followed by the rows,
+	 * which streams, and is the route ClickHouse's own documentation points at for bulk loads.
+	 *
+	 * `rows` is an async iterable so a caller can hand over a source larger than memory; the driver
+	 * pulls from it as the socket drains. Keys are ClickHouse column names, values have already been
+	 * through {@link ClickHouseColumn.mapToRowValue}, and a row may omit a column — `JSONEachRow`
+	 * matches by name and the server applies that column's `DEFAULT`.
+	 */
+	abstract insertRows(
+		table: string,
+		rows: AsyncIterable<Record<string, unknown>>,
+		options?: { settings?: ClickHouseSettings; metadata?: ClickHouseQueryMetadata },
+	): Promise<{ query_id: string }>;
 
 	async count(sql: SQL): Promise<number> {
 		const rows = await this.all<{ count: string | number }>(sql);

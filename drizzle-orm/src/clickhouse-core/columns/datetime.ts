@@ -110,6 +110,19 @@ export class ClickHouseDateTime<T extends ColumnBaseConfig<'date' | 'string', st
 			? castFromString('toDateTime', text, 'UTC')
 			: castFromString('toDateTime64', text, this.precision, 'UTC');
 	}
+
+	/**
+	 * The textual form without the cast — a row format has no expression to build, and the server
+	 * parses it against the column's own type.
+	 *
+	 * **A column with no declared timezone is parsed in the server's**, so an untyped `DateTime`
+	 * written this way lands wherever the deployment happens to be configured. That is the hazard the
+	 * literal path sidesteps by passing `'UTC'` explicitly, and it cannot be sidestepped here — one
+	 * more reason to declare a timezone on the column.
+	 */
+	override mapToRowValue(value: Date | string): string {
+		return typeof value === 'string' ? value : formatClickHouseDateTime(value, this.precision ?? 0);
+	}
 }
 
 /**

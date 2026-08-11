@@ -97,6 +97,15 @@ export class ClickHouseBigInt<T extends ColumnBaseConfig<'bigint' | 'number' | '
 	override mapToDriverValue(value: bigint | number | string): SQL {
 		return numericLiteral(value);
 	}
+
+	/**
+	 * A decimal *string*. `Int64` and wider do not survive JSON's number type — a `UInt64` past
+	 * `Number.MAX_SAFE_INTEGER` would be silently rounded on the way in — and ClickHouse accepts a
+	 * quoted integer for these columns, which is why its own JSON output quotes them too.
+	 */
+	override mapToRowValue(value: bigint | number | string): string {
+		return String(value);
+	}
 }
 
 function bigIntFactory<TColumnType extends string>(columnType: TColumnType, chType: ClickHouseWideIntTypeName) {

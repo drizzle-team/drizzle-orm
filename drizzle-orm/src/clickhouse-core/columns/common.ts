@@ -250,6 +250,28 @@ export abstract class ClickHouseColumn<
 		const mode = this.config.generated?.mode;
 		return mode === undefined ? undefined : COMPUTED_COLUMN_KEYWORD[mode];
 	}
+
+	/**
+	 * The value as a *row format* carries it — the JSON a `JSONEachRow` body holds — as opposed to
+	 * {@link mapToDriverValue}, which renders a SQL literal for a statement.
+	 *
+	 * ClickHouse takes data by two routes and they are not the same encoding. A statement needs
+	 * `toDateTime64('2026-08-11 12:00:00.000', 3, 'UTC')`, because a bare string compared against a
+	 * `DateTime64` column is a hard error; a JSON body needs the bare `"2026-08-11 12:00:00.000"` and
+	 * lets the column's own type do the parsing, because there is no expression to type-check. The
+	 * two paths exist because inlining a bulk load into one statement makes the client build the
+	 * whole batch as a string and the server re-parse every field as a SQL expression.
+	 *
+	 * **Overriding one without the other is the bug this pair invites** — a column that filters
+	 * correctly and inserts wrong, or vice versa. The default returns the value untouched, which is
+	 * already correct for every type whose JavaScript form is its JSON form (`String`, `Int32`,
+	 * `Float64`, `Bool`, `UUID`, `IPv4`, `JSON`); the types that need more override it next to their
+	 * `mapToDriverValue`, and `clickhouse-core/columns/__tests__` asserts the pair round-trips for
+	 * each of them.
+	 */
+	mapToRowValue(value: unknown): unknown {
+		return value;
+	}
 }
 
 export type AnyClickHouseColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, string>> = {}> =

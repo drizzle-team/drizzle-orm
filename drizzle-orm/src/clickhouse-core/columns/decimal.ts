@@ -109,6 +109,11 @@ export class ClickHouseDecimal<T extends ColumnBaseConfig<'string' | 'number', s
 		return sql`CAST(${String(value)} AS ${sql.raw(this.getBaseSQLType())})`;
 	}
 
+	/** A string, for the same reason the literal path casts from one: a JSON number loses the scale. */
+	override mapToRowValue(value: string | number): string {
+		return String(value);
+	}
+
 	/** The total number of significant digits ClickHouse allows for this column. */
 	get effectivePrecision(): number {
 		return this.chType === 'Decimal' ? this.precision! : IMPLIED_PRECISION[this.chType];

@@ -5,8 +5,8 @@ import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import { and, eq } from '~/sql/expressions/index.ts';
-import type { Name, Placeholder, QueryWithTypings, SQLChunk } from '~/sql/sql.ts';
-import { Param, SQL, sql, View } from '~/sql/sql.ts';
+import type { Name, QueryWithTypings, SQLChunk } from '~/sql/sql.ts';
+import { Param, Placeholder, SQL, sql, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
@@ -15,6 +15,7 @@ import { ClickHouseColumn } from './columns/common.ts';
 import { type ClickHouseSettings, settingsSQL } from './engines.ts';
 import { escapeClickHouseIdentifier, escapeClickHouseString } from './literals.ts';
 import type { ClickHouseDeleteConfig } from './query-builders/delete.ts';
+import { ClickHouseInsertValueError } from './errors.ts';
 import type { ClickHouseInsertConfig } from './query-builders/insert.ts';
 import type {
 	ClickHouseSelectConfig,
@@ -574,6 +575,68 @@ export class ClickHouseDialect {
 		const valuesSql = sql.join(valuesSqlList);
 
 		return sql`insert into ${table} ${insertOrder} values ${valuesSql}${settingsSql}`;
+	}
+
+	/**
+	 * The insert target as ClickHouse should see it — quoted, and schema-qualified when the table
+	 * declares one. The driver's row-format insert takes a table *name*, not an expression, so it
+	 * cannot go through the ordinary table rendering.
+	 */
+	insertTargetName(table: ClickHouseTable): string {
+		return this.sqlToQuery(sql`${table}`).sql;
+	}
+
+	/** The statement that precedes a row-format body: `insert into t format JSONEachRow`. */
+	buildInsertRowsQuery(table: ClickHouseTable, format: string): SQL {
+		return sql`insert into ${table} format ${sql.raw(format)}`;
+	}
+
+	/**
+	 * One row as a row format carries it: ClickHouse column names, values through
+	 * {@link ClickHouseColumn.mapToRowValue}.
+	 *
+	 * A column the row does not mention is **omitted rather than defaulted here**, because
+	 * `JSONEachRow` matches by name and the server applies that column's own `DEFAULT` — which is the
+	 * one the table declares, and therefore the one a `CREATE TABLE` and an `ALTER … ADD COLUMN` agree
+	 * on. A Drizzle-side `$defaultFn` is still evaluated, since nothing server-side knows about it.
+	 *
+	 * Throws on a value there is no way to send: a body has nowhere to put an expression, so
+	 * `sql\`now()\`` and placeholders belong to the statement path. The insert builder routes rows
+	 * carrying either there automatically, so reaching this is either a stream that yields one or a
+	 * caller that forced the format.
+	 */
+	mapRowForInsert(table: ClickHouseTable, entry: Record<string, unknown>): Record<string, unknown> {
+		const columns: Record<string, ClickHouseColumn> = table[Table.Symbol.Columns];
+
+		for (const key of Object.keys(entry)) {
+			if (!(key in columns)) {
+				throw new ClickHouseInsertValueError(
+					`Column "${key}" does not exist on table "${getTableName(table)}". A row format matches by `
+						+ `name, so an unrecognised key would be dropped by the server rather than rejected.`,
+				);
+			}
+		}
+
+		const row: Record<string, unknown> = {};
+		for (const [fieldName, column] of Object.entries(columns)) {
+			if (column.shouldDisableInsert()) continue;
+
+			let value = entry[fieldName];
+			if (value === undefined && column.defaultFn !== undefined) {
+				value = column.defaultFn();
+			}
+			if (value === undefined) continue;
+
+			if (is(value, SQL) || is(value, Param) || is(value, Placeholder)) {
+				throw new ClickHouseInsertValueError(
+					`Column "${fieldName}" of "${getTableName(table)}" was given a SQL expression, which a row `
+						+ `format cannot carry. Insert this row through the statement path instead.`,
+				);
+			}
+
+			row[this.casing.getColumnCasing(column)] = value === null ? null : column.mapToRowValue(value);
+		}
+		return row;
 	}
 
 	/**

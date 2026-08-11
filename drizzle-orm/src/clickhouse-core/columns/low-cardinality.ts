@@ -80,6 +80,10 @@ export class ClickHouseLowCardinality<T extends ColumnBaseConfig<any, 'ClickHous
 	override mapToDriverValue(value: unknown): unknown {
 		return this.baseColumn.mapToDriverValue(value);
 	}
+
+	override mapToRowValue(value: unknown): unknown {
+		return this.baseColumn.mapToRowValue(value);
+	}
 }
 
 /**

@@ -4,6 +4,7 @@ export * from './db.ts';
 export * from './ddl.ts';
 export * from './dialect.ts';
 export * from './engines.ts';
+export * from './errors.ts';
 export * from './indexes.ts';
 export * from './literals.ts';
 export * from './query-builders/index.ts';

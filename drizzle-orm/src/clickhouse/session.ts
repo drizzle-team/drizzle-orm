@@ -1,9 +1,12 @@
 import type { ClickHouseClient, ClickHouseSettings } from '@clickhouse/client';
+import { Readable } from 'node:stream';
 import type { Cache } from '~/cache/core/cache.ts';
 import { NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { ClickHouseDialect } from '~/clickhouse-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/clickhouse-core/query-builders/select.types.ts';
+import { ClickHouseInsertValueError } from '~/clickhouse-core/errors.ts';
+import { CLICKHOUSE_INSERT_FORMAT as INSERT_FORMAT } from '~/clickhouse-core/query-builders/insert.ts';
 import {
 	ClickHousePreparedQuery as PreparedQueryBase,
 	type ClickHousePreparedQueryConfig,
@@ -13,15 +16,22 @@ import {
 	ClickHouseSession,
 	type PreparedQueryKind,
 } from '~/clickhouse-core/session.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
+import { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
-/** The subset of `@clickhouse/client` Drizzle depends on, so that any compatible client works. */
-export type ClickHouseDriverClient = Pick<ClickHouseClient, 'query' | 'command' | 'close'>;
+/**
+ * The subset of `@clickhouse/client` Drizzle depends on, so that any compatible client works.
+ *
+ * `insert` is here because a row-format insert is not a statement the query interface can carry — the
+ * driver has to write the rows to the request body itself. Both the Node and the web builds provide
+ * it with the same signature.
+ */
+export type ClickHouseDriverClient = Pick<ClickHouseClient, 'query' | 'command' | 'close' | 'insert'>;
 
 /**
  * The result of a statement that does not return rows — an insert, a mutation or DDL.
@@ -59,6 +69,21 @@ export interface ClickHouseDriverSessionOptions {
 	cache?: Cache;
 	/** Settings applied to every statement, merged over {@link DRIZZLE_CLICKHOUSE_SETTINGS}. */
 	settings?: ClickHouseSettings;
+}
+
+/**
+ * Adapts an async iterable of rows to what `@clickhouse/client` takes.
+ *
+ * The client accepts a `Readable` and, when it is in **object mode**, JSON-encodes each value as it
+ * flows — so the batch is never a single string in this process and back-pressure from the socket
+ * reaches the source. `Readable.from` defaults to object mode, which is the mode a `JSON*` format
+ * requires; handing it a non-object-mode stream is an error the client raises by name.
+ *
+ * This binding already targets the Node build of the client (`driver.ts` imports `createClient` from
+ * `@clickhouse/client`), so `node:stream` is no new constraint.
+ */
+function toInsertStream(rows: AsyncIterable<Record<string, unknown>>): Readable {
+	return Readable.from(rows);
 }
 
 export class ClickHouseDriverPreparedQuery<T extends ClickHousePreparedQueryConfig> extends PreparedQueryBase<T> {
@@ -186,6 +211,46 @@ export class ClickHouseDriverSession extends ClickHouseSession<
 			queryMetadata,
 			cacheConfig,
 		) as PreparedQueryKind<TPreparedQueryHKT, T>;
+	}
+
+	/**
+	 * Streams rows into a table through the driver's own insert, which writes them to the request
+	 * body rather than into the statement.
+	 *
+	 * The async iterable is handed over as-is, so the driver pulls rows as the socket drains and a
+	 * source larger than memory never materialises. `@clickhouse/client` accepts one directly on Node;
+	 * on the web build, which has no `Readable`, it is collected first — the streaming guarantee is
+	 * the platform's, not Drizzle's.
+	 */
+	async insertRows(
+		table: string,
+		rows: AsyncIterable<Record<string, unknown>>,
+		options: { settings?: ClickHouseSettings; metadata?: ClickHouseQueryMetadata } = {},
+	): Promise<{ query_id: string }> {
+		const settings = { ...this.settings, ...options.settings };
+		this.logger.logQuery(`insert into ${table} format ${INSERT_FORMAT}`, []);
+
+		try {
+			const result = await this.client.insert({
+				table,
+				values: toInsertStream(rows),
+				format: INSERT_FORMAT,
+				clickhouse_settings: settings,
+			});
+
+			// Mirrors what a prepared mutation does through `queryWithCache`: a write invalidates the
+			// tables it touched, and a NoopCache makes it free.
+			if (options.metadata && !is(this.cache, NoopCache)) {
+				await this.cache.onMutate({ tables: options.metadata.tables });
+			}
+
+			return { query_id: result.query_id };
+		} catch (e) {
+			// A row we refused to send is not a query failure — the statement never left. Wrapping it
+			// would report a caller's typo as "ClickHouse rejected this".
+			if (e instanceof ClickHouseInsertValueError) throw e;
+			throw new DrizzleQueryError(`insert into ${table} format ${INSERT_FORMAT}`, [], e as Error);
+		}
 	}
 
 	async all<T = unknown>(query: SQL): Promise<T[]> {

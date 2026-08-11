@@ -3,7 +3,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
-import { numericLiteral } from '../literals.ts';
+import { numberToText, numericLiteral } from '../literals.ts';
 import { ClickHouseColumn, ClickHouseColumnBuilder } from './common.ts';
 
 export type ClickHouseFloatTypeName = 'Float32' | 'Float64';
@@ -63,6 +63,16 @@ export class ClickHouseFloat<T extends ColumnBaseConfig<'number', string>>
 
 	override mapToDriverValue(value: number): SQL {
 		return numericLiteral(value);
+	}
+
+	/**
+	 * Finite values pass through as JSON numbers. `NaN` and the infinities do not exist in JSON —
+	 * `JSON.stringify` turns them into `null`, which is a rejected insert for a non-nullable column
+	 * and a silently wrong value for a nullable one — so they go as the strings ClickHouse spells
+	 * them with, which it accepts for a `Float` column and which `mapFromDriverValue` reads back.
+	 */
+	override mapToRowValue(value: number): number | string {
+		return Number.isFinite(value) ? value : numberToText(value);
 	}
 }
 

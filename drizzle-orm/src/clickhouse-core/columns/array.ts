@@ -79,6 +79,10 @@ export class ClickHouseArray<T extends ColumnBaseConfig<'array', 'ClickHouseArra
 		);
 		return sql`[${sql.join(elements, sql`, `)}]`;
 	}
+
+	override mapToRowValue(value: unknown[]): unknown[] {
+		return value.map((element) => (element === null ? null : this.baseColumn.mapToRowValue(element)));
+	}
 }
 
 /**

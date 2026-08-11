@@ -1,8 +1,8 @@
 import type { AnyClickHouseTable } from '~/clickhouse-core/table.ts';
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
-import { entityKind } from '~/entity.ts';
-import type { SQL } from '~/sql/sql.ts';
+import { entityKind, is } from '~/entity.ts';
+import { SQL } from '~/sql/sql.ts';
 import type { Equal } from '~/utils.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { ClickHouseColumn, ClickHouseColumnBuilder } from './common.ts';
@@ -64,7 +64,8 @@ export class ClickHouseCustomColumn<T extends ColumnBaseConfig<'custom', 'ClickH
 	static override readonly [entityKind]: string = 'ClickHouseCustomColumn';
 
 	private sqlName: string;
-	private mapTo?: (value: T['data']) => T['driverParam'];
+	private mapTo?: (value: T['data']) => T['driverParam'] | SQL;
+	private mapRow?: (value: T['data']) => unknown;
 	private mapFrom?: (value: T['driverParam']) => T['data'];
 
 	constructor(
@@ -74,6 +75,7 @@ export class ClickHouseCustomColumn<T extends ColumnBaseConfig<'custom', 'ClickH
 		super(table as any, config);
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
 		this.mapTo = config.customTypeParams.toDriver;
+		this.mapRow = config.customTypeParams.toRow;
 		this.mapFrom = config.customTypeParams.fromDriver;
 	}
 
@@ -85,8 +87,24 @@ export class ClickHouseCustomColumn<T extends ColumnBaseConfig<'custom', 'ClickH
 		return typeof this.mapFrom === 'function' ? this.mapFrom(value) : (value as T['data']);
 	}
 
-	override mapToDriverValue(value: T['data']): T['driverParam'] {
+	override mapToDriverValue(value: T['data']): T['driverParam'] | SQL {
 		return typeof this.mapTo === 'function' ? this.mapTo(value) : (value as T['driverParam']);
+	}
+
+	/**
+	 * `toRow` when the type declares one, otherwise `toDriver` — unless `toDriver` returned SQL, which
+	 * a row format has nowhere to put, in which case the value passes through untouched.
+	 *
+	 * A custom type whose `toDriver` builds an expression (`toIPv6('…')`, `map(…)`) and whose data is
+	 * not already its own JSON form needs `toRow`; without it the fallback would send the raw value
+	 * and let the server's column type decide, which is right often enough to be worth doing and
+	 * wrong quietly enough to be worth saying out loud.
+	 */
+	override mapToRowValue(value: T['data']): unknown {
+		if (typeof this.mapRow === 'function') return this.mapRow(value);
+		if (typeof this.mapTo !== 'function') return value;
+		const mapped = this.mapTo(value);
+		return is(mapped, SQL) ? value : mapped;
 	}
 }
 
@@ -117,8 +135,17 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 */
 	dataType: (config: T['config'] | (Equal<T['configRequired'], true> extends true ? never : undefined)) => string;
 
-	/** Maps a TypeScript value to what ClickHouse should receive. */
+	/** Maps a TypeScript value to the SQL literal a statement should carry. */
 	toDriver?: (value: T['data']) => T['driverData'] | SQL;
+
+	/**
+	 * Maps a TypeScript value to what a row format (`JSONEachRow`) should carry.
+	 *
+	 * Needed when {@link toDriver} builds an expression rather than returning a plain value — a body
+	 * has nowhere to put `toIPv6('…')`. Without it the value is sent untouched and the column's own
+	 * type does the parsing, which is right for most custom types and quietly wrong for the rest.
+	 */
+	toRow?: (value: T['data']) => unknown;
 
 	/** Maps what ClickHouse returns back to a TypeScript value. */
 	fromDriver?: (value: T['driverData']) => T['data'];

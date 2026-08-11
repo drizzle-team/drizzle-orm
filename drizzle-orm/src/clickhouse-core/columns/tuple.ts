@@ -118,6 +118,24 @@ export class ClickHouseTuple<T extends ColumnBaseConfig<'json', 'ClickHouseTuple
 		});
 		return sql`tuple(${sql.join(args, sql`, `)})`;
 	}
+
+	/**
+	 * An array for a positional tuple, an object for a named one — matching what
+	 * {@link mapFromDriverValue} reads back and what ClickHouse's JSON formats use for each.
+	 */
+	override mapToRowValue(value: unknown[] | Record<string, unknown>): unknown {
+		const values = Array.isArray(value) ? value : this.members.map(([name]) => (value as any)[name!]);
+		const mapped = this.members.map(([, column], index) => {
+			const raw = values[index];
+			return raw === null || raw === undefined ? null : column.mapToRowValue(raw);
+		});
+		if (!this.isNamed) return mapped;
+		const result: Record<string, unknown> = {};
+		this.members.forEach(([name], index) => {
+			result[name!] = mapped[index];
+		});
+		return result;
+	}
 }
 
 /**
