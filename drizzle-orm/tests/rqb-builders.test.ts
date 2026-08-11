@@ -35,6 +35,7 @@ import {
 	or,
 	type SQL,
 	sql,
+	StringChunk,
 } from '~/sql';
 import type { AnyTable, Table } from '~/table';
 import type { Simplify, ValueOrArray } from '~/utils';
@@ -505,7 +506,7 @@ describe('Orders', () => {
 
 	test('Callback array', () => {
 		expect(buildOrder(table, ({ date, number, string }, { asc, desc }) => [desc(date), asc(number), string]))
-			.toStrictEqual(sql.join([desc(table.date), asc(table.number), asc(table.string)], sql`, `));
+			.toStrictEqual(sql.join([desc(table.date), asc(table.number), asc(table.string)], new StringChunk(`, `)));
 	});
 
 	test('Object', () => {
@@ -513,7 +514,7 @@ describe('Orders', () => {
 			string: 'desc',
 			number: undefined,
 			date: 'asc',
-		})).toStrictEqual(sql.join([desc(table.string), asc(table.date)], sql`, `));
+		})).toStrictEqual(sql.join([desc(table.string), asc(table.date)], new StringChunk(`, `)));
 	});
 
 	test('Undefined object', () => {
@@ -651,5 +652,45 @@ describe('Reverse-derived relation filter binding (isFilterReversed)', () => {
 		const { sql } = db.query.users.findMany({ with: { posts: true } }).toSQL();
 		expect(sql).toContain('where (("d0"."id" = "d1"."authorId") and ("d0"."name" = $1))');
 		expect(sql).not.toContain('"d1"."name"');
+	});
+});
+
+describe('Relation names shadowing Object.prototype properties', () => {
+	const results = pgTable('results', { id: integer(), constructorId: integer() });
+	const constructors = pgTable('constructors', { id: integer(), name: text() });
+	const protoSchema = { results, constructors };
+
+	test('relation named "constructor" does not falsely collide with columns', () => {
+		expect(() =>
+			defineRelations(protoSchema, (r) => ({
+				results: {
+					constructor: r.one.constructors({ from: r.results.constructorId, to: r.constructors.id }),
+				},
+			}))
+		).not.toThrow();
+	});
+
+	test('filter on a relation named "constructor" builds a relation filter', () => {
+		const db = drizzle.mock({
+			relations: defineRelations(protoSchema, (r) => ({
+				results: {
+					constructor: r.one.constructors({ from: r.results.constructorId, to: r.constructors.id }),
+				},
+			})),
+		});
+
+		const { sql } = db.query.results.findMany({ where: { constructor: { id: 1 } } }).toSQL();
+		expect(sql).toContain('exists (select * from "constructors" as "f0" where');
+		expect(sql).not.toContain('"d0"."constructor"');
+	});
+
+	test('unknown filter field named after an inherited property throws', () => {
+		expect(() =>
+			buildFilter(table, {
+				toString: {
+					eq: 1,
+				},
+			} as any)
+		).toThrowError('Unknown relational filter field: "toString"');
 	});
 });

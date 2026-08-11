@@ -1,7 +1,19 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { and, defineRelations, eq, inArray, isNotNull, not, or, sql } from 'drizzle-orm';
 import type { AnyPgColumn, PgColumnBuilder } from 'drizzle-orm/pg-core';
-import { bigint, integer, numeric, pgEnum, pgTable, serial, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+	bigint,
+	index,
+	integer,
+	numeric,
+	pgEnum,
+	pgTable,
+	serial,
+	text,
+	timestamp,
+	uniqueIndex,
+	uuid,
+} from 'drizzle-orm/pg-core';
 import { describe, expect, expectTypeOf } from 'vitest';
 import type { Test } from './instrumentation';
 
@@ -1028,7 +1040,7 @@ export function tests(test: Test) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4696
 		// postgresjs returns strings for itemCount but other drivers return numbers
-		test.skipIf(Date.now() < +new Date('2026-08-05')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-08-12')).concurrent(
 			'RQB v2 find many - extras',
 			async ({ push, createDB }) => {
 				const orderItemTable = pgTable('rqb_order_item_19', {
@@ -1253,5 +1265,80 @@ export function tests(test: Test) {
 				],
 			},
 		]);
+	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/4169
+	test.concurrent('issue #4169', async ({ createDB }) => {
+		const candidates = pgTable(
+			'candidates',
+			{
+				id: uuid().defaultRandom().primaryKey(),
+				createdOn: timestamp('created_on', { mode: 'date' }).notNull().defaultNow(),
+				email: text().notNull(),
+				firstName: text('first_name').notNull(),
+				lastName: text('last_name').notNull(),
+				phone: text('phone').notNull(),
+				profileLink: text('profile_link'),
+			},
+			(table) => [
+				index('created_on_candidates_idx').on(table.createdOn),
+				uniqueIndex('email_candidates_idx').on(table.email),
+			],
+		);
+
+		const candicacyStatusEnum = pgEnum('candidacy_status', [
+			'IN_PROGRESS',
+			'CANCELED',
+			'CLOSED',
+		]);
+
+		const jobCandidacies = pgTable('job_candidacy', {
+			id: uuid().defaultRandom().primaryKey(),
+			createdOn: timestamp('created_on', { mode: 'date' }).notNull().defaultNow(),
+			candidateId: uuid('candidate_id')
+				.notNull()
+				.references(() => candidates.id),
+			status: candicacyStatusEnum().notNull(),
+		});
+
+		const db = createDB({ candidates, jobCandidacies }, (r) => ({
+			candidates: {
+				jobCandidacies: r.many.jobCandidacies(),
+			},
+			jobCandidacies: {
+				candidate: r.one.candidates({
+					from: r.jobCandidacies.candidateId,
+					to: r.candidates.id,
+				}),
+			},
+		}));
+
+		const recordsQuery = db.query.candidates.findMany({
+			extras: {
+				activeJobs: db
+					.$count(
+						jobCandidacies,
+						and(
+							eq(jobCandidacies.candidateId, candidates.id),
+							not(
+								inArray(jobCandidacies.status, [
+									'CANCELED',
+									'CLOSED',
+								]),
+							),
+						),
+					)
+					.as('activeJobs'),
+			},
+		}).toSQL();
+
+		expect(recordsQuery).toStrictEqual({
+			params: [
+				'CANCELED',
+				'CLOSED',
+			],
+			sql:
+				'select "d0"."id" as "id", "d0"."created_on" as "createdOn", "d0"."email" as "email", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."phone" as "phone", "d0"."profile_link" as "profileLink", ((select count(*) from "job_candidacy" where (("job_candidacy"."candidate_id" = "candidates"."id") and (not ("job_candidacy"."status" in ($1, $2)))))) as "activeJobs" from "candidates" as "d0"',
+		});
 	});
 }

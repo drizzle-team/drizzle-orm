@@ -214,7 +214,6 @@ export type MsSqlSetOperatorExcludedMethods =
 	| 'where'
 	| 'having'
 	| 'groupBy'
-	| 'session'
 	| 'fetch'
 	| 'offset'
 	| 'leftJoin'

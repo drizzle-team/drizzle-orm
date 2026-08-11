@@ -1104,4 +1104,37 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		expect(tableConf.columns.find((it) => it.name === 'id')!.uniqueName).toBe(undefined);
 		expect(tableConf.columns.find((it) => it.name === 'id1')!.uniqueName).toBe('custom_name');
 	});
+
+	test.concurrent('Default value priority', async ({ db, push }) => {
+		const exTbl = mysqlTable('no_default_override', {
+			id: int('id').primaryKey(),
+			defSql: int('def_sql').default(sql`1`),
+			defNum: int('def_num').default(1),
+			defFn: int('def_fn').$defaultFn(() => 1),
+			defUpdFn: int('def_upd_fn').$onUpdateFn(() => 1),
+			defMix1: int('def_mix1').default(1).$defaultFn(() => 2).$onUpdateFn(() => 3),
+			defMix2: int('def_mix2').$defaultFn(() => 2).$onUpdateFn(() => 3),
+			defMix3: int('def_mix3').default(1).$defaultFn(() => 2),
+			defMix4: int('def_mix4').default(sql`1`).$onUpdateFn(() => 3),
+		});
+
+		await db.execute(sql`DROP TABLE IF EXISTS ${exTbl};`);
+		await push({ exTbl });
+
+		await db.insert(exTbl).values({ id: 1 });
+
+		const res = await db.select().from(exTbl);
+
+		expect(res).toStrictEqual([{
+			id: 1,
+			defSql: 1,
+			defNum: 1,
+			defFn: 1,
+			defUpdFn: 1,
+			defMix1: 2,
+			defMix2: 2,
+			defMix3: 2,
+			defMix4: 1,
+		}]);
+	});
 }

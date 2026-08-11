@@ -994,7 +994,7 @@ export const arrayCompatNormalize = (normalize: NormalizeCodec) => {
 export const arrayCompatNormalizeInput = (normalize: NormalizeCodec, transformToPgArray = false) => {
 	const loop: NormalizeArrayCodec = (value, arrayDimensions): any => {
 		const innerDimensions = arrayDimensions - 1;
-		const out = Array.from({ length: value.length });
+		const out = new Array(value.length);
 		if (arrayDimensions > 1) {
 			for (let i = 0; i < (value as unknown[][]).length; ++i) {
 				out[i] = loop((value as unknown[][])[i]!, innerDimensions);
