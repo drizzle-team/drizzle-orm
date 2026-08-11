@@ -1,4 +1,4 @@
-import { type AuroraClient, type AuroraConfig, createPool } from 'minipg/aurora';
+import { type AuroraClient, type AuroraConfig, createPool } from '@drizzle-team/minipg/aurora';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';

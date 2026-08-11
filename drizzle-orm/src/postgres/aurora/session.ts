@@ -1,5 +1,5 @@
-import type { QueryResult } from 'minipg';
-import type { AuroraClient } from 'minipg/aurora';
+import type { QueryResult } from '@drizzle-team/minipg';
+import type { AuroraClient } from '@drizzle-team/minipg/aurora';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';

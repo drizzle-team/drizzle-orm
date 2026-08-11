@@ -51,6 +51,7 @@
 	"dependencies": {
 		"@aws-sdk/client-rds-data": "^3.549.0",
 		"@aws-sdk/credential-providers": "^3.549.0",
+		"@drizzle-team/minipg": "^0.3.2",
 		"@effect/sql-d1": "4.0.0-beta.105",
 		"@effect/sql-libsql": "4.0.0-beta.105",
 		"@effect/sql-mysql2": "4.0.0-beta.105",
@@ -92,7 +93,6 @@
 		"effect": "4.0.0-beta.105",
 		"get-port": "^7.0.0",
 		"json-rules-engine": "^7.3.1",
-		"minipg": "file:../vendor/minipg-0.2.0.tgz",
 		"mssql": "^11.0.1",
 		"mysql2": "^3.14.1",
 		"pg": "^8.11.0",

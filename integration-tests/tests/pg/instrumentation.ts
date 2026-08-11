@@ -1,5 +1,9 @@
 import { neon, neonConfig, type NeonQueryFunction, Pool as NeonPool } from '@neondatabase/serverless';
 
+import { createPool as createPostgresPool } from '@drizzle-team/minipg';
+import { client as createHttpClient } from '@drizzle-team/minipg/http';
+import { createPool as createMinipgNeonHttpClient } from '@drizzle-team/minipg/neon-http';
+import { createPool as createMinipgNeonWsPool } from '@drizzle-team/minipg/neon-ws';
 import { PGlite } from '@electric-sql/pglite';
 import {
 	type AnyRelationsBuilderConfig,
@@ -39,10 +43,6 @@ import { drizzle as drizzleHttp } from 'drizzle-orm/postgres/http';
 import { drizzle as drizzleMinipgNeonHttp } from 'drizzle-orm/postgres/http/neon';
 import { drizzle as drizzleMinipgNeonWs } from 'drizzle-orm/postgres/neon-ws';
 import Keyv from 'keyv';
-import { createPool as createPostgresPool } from 'minipg';
-import { client as createHttpClient } from 'minipg/http';
-import { createPool as createMinipgNeonHttpClient } from 'minipg/neon-http';
-import { createPool as createMinipgNeonWsPool } from 'minipg/neon-ws';
 import { Client as ClientNodePostgres, types as typesNodePostgres } from 'pg';
 import postgres from 'postgres';
 import { test as base } from 'vitest';
