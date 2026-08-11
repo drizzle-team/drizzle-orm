@@ -16,12 +16,15 @@ import type {
 	BuildRelationalQueryResult,
 	ColumnWithTSName,
 	DBQueryConfig,
+	RelationalRowsMapperGenerator,
 	TableRelationalConfig,
 	TablesRelationalConfig,
 	WithContainer,
 } from '~/relations.ts';
 import {
 	getTableAsAliasSQL,
+	makeDefaultRqbMapper,
+	makeJitRqbMapper,
 	relationExtrasToSQL,
 	relationsFilterToSQL,
 	relationsOrderToSQL,
@@ -33,7 +36,13 @@ import { isSQLWrapper, Param, SQL, sql, StringChunk, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/singlestore.ts';
-import type { UpdateSet } from '~/utils.ts';
+import {
+	make$ReturningResponseMapper,
+	makeDefaultQueryMapper,
+	makeJitQueryMapper,
+	type RowsMapperGenerator,
+	type UpdateSet,
+} from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { SingleStoreColumn } from './columns/common.ts';
 import type { SingleStoreCustomColumn } from './columns/custom.ts';
@@ -49,8 +58,9 @@ import type { SingleStoreSession } from './session.ts';
 import { SingleStoreTable } from './table.ts';
 import type { SingleStoreView } from './view.ts';
 
-// Will add codecs here, do not remove
-export interface SingleStoreDialectConfig {}
+export interface SingleStoreDialectConfig {
+	useJitMappers?: boolean;
+}
 
 interface BuildRelationalQueryResultWithOrder extends BuildRelationalQueryResult {
 	order?: SQL;
@@ -59,7 +69,25 @@ interface BuildRelationalQueryResultWithOrder extends BuildRelationalQueryResult
 export class SingleStoreDialect {
 	static readonly [entityKind]: string = 'SingleStoreDialect';
 
-	constructor(_config?: SingleStoreDialectConfig) {}
+	readonly mapperGenerators: {
+		rows: RowsMapperGenerator;
+		relationalRows: RelationalRowsMapperGenerator;
+		$returning: typeof make$ReturningResponseMapper;
+	};
+
+	constructor(config?: SingleStoreDialectConfig) {
+		this.mapperGenerators = config?.useJitMappers
+			? {
+				rows: makeJitQueryMapper,
+				relationalRows: makeJitRqbMapper,
+				$returning: make$ReturningResponseMapper,
+			}
+			: {
+				rows: makeDefaultQueryMapper,
+				relationalRows: makeDefaultRqbMapper,
+				$returning: make$ReturningResponseMapper,
+			};
+	}
 
 	async migrate(
 		migrations: MigrationMeta[],
@@ -88,7 +116,7 @@ export class SingleStoreDialect {
 			await session.execute(migrationTableCreate);
 		}
 
-		const dbMigrations = await session.all<{
+		const dbMigrations = await session.objects<{
 			id: number;
 			hash: string;
 			created_at: string;

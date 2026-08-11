@@ -181,12 +181,12 @@ export class SingleStoreDeleteBase<
 	}
 
 	prepare(): SingleStoreDeletePrepare<this> {
+		const { returning: fields } = this.config;
+
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
-			this.config.returning,
-			undefined,
-			undefined,
-			undefined,
+			fields ? 'arrays' : 'raw',
+			fields ? this.dialect.mapperGenerators.rows(fields, undefined) : undefined,
 			{
 				type: 'delete',
 				tables: extractUsedTable(this.config.table),

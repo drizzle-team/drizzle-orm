@@ -999,15 +999,15 @@ export class SingleStoreSelectBase<
 		// Build query before accessing `fieldsFlat` - build mutates it
 		const query = this.dialect.sqlToQuery(this.getSQL());
 		const fieldsList = this.config.fieldsFlat!;
-		const preparedQuery = this.session.prepareQuery<
+		const nullableObjectPaths = resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap);
+
+		return this.session.prepareQuery<
 			SingleStorePreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
 			TPreparedQueryHKT
-		>(query, fieldsList, undefined, undefined, undefined, {
+		>(query, 'arrays', this.dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths), {
 			type: 'select',
 			tables: [...this.usedTables],
-		}, this.cacheConfig);
-		preparedQuery.nullableObjectPaths = resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap);
-		return preparedQuery as SingleStoreSelectPrepare<this>;
+		}, this.cacheConfig) as SingleStoreSelectPrepare<this>;
 	}
 
 	$withCache(config?: { config?: CacheConfig; tag?: string; autoInvalidate?: boolean } | false) {

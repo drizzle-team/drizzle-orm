@@ -50,7 +50,6 @@ import type {
 import { SQLiteViewBase } from './view-base.ts';
 import type { SQLiteView } from './view.ts';
 
-// Will add codecs here, do not remove
 export interface SQLiteDialectConfig {
 	useJitMappers?: boolean;
 }

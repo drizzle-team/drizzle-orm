@@ -12,7 +12,6 @@ import { NodeMsSqlSession } from './session.ts';
 
 export interface MsSqlDriverOptions {
 	logger?: Logger;
-	useJitMappers?: boolean;
 }
 
 export class NodeMsSqlDriver {
@@ -30,7 +29,6 @@ export class NodeMsSqlDriver {
 	): NodeMsSqlSession<Record<string, unknown>, V1.TablesRelationalConfig> {
 		return new NodeMsSqlSession(this.client, this.dialect, schema, {
 			logger: this.options.logger,
-			useJitMappers: this.options.useJitMappers,
 		});
 	}
 }
@@ -54,7 +52,9 @@ function construct<
 ): NodeMsSqlDatabase<TSchema> & {
 	$client: Equal<TClient, NodeMsSqlClient> extends true ? AutoPool : TClient;
 } {
-	const dialect = new MsSqlDialect();
+	const dialect = new MsSqlDialect({
+		useJitMappers: jitCompatCheck(config.jit),
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -80,7 +80,6 @@ function construct<
 
 	const driver = new NodeMsSqlDriver(client as NodeMsSqlClient, dialect, {
 		logger,
-		useJitMappers: jitCompatCheck(config.jit),
 	});
 	const session = driver.createSession(schema);
 	const db = new MsSqlDatabase(dialect, session, schema) as NodeMsSqlDatabase<TSchema>;

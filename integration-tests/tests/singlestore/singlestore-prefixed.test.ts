@@ -456,27 +456,29 @@ test('full join with alias', async () => {
 	await db.execute(sql`drop table if exists ${users}`);
 	await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
 
-	const customers = alias(users, 'customer');
+	try {
+		const customers = alias(users, 'customer');
 
-	await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
-	const result = await db
-		.select().from(users)
-		.leftJoin(customers, eq(customers.id, 11))
-		.where(eq(users.id, 10))
-		.orderBy(asc(users.id));
+		await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
+		const result = await db
+			.select().from(users)
+			.leftJoin(customers, eq(customers.id, 11))
+			.where(eq(users.id, 10))
+			.orderBy(asc(users.id));
 
-	expect(result).toEqual([{
-		users: {
-			id: 10,
-			name: 'Ivan',
-		},
-		customer: {
-			id: 11,
-			name: 'Hans',
-		},
-	}]);
-
-	await db.execute(sql`drop table ${users}`);
+		expect(result).toEqual([{
+			users: {
+				id: 10,
+				name: 'Ivan',
+			},
+			customer: {
+				id: 11,
+				name: 'Hans',
+			},
+		}]);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('select from alias', async () => {
@@ -490,29 +492,31 @@ test('select from alias', async () => {
 	await db.execute(sql`drop table if exists ${users}`);
 	await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
 
-	const user = alias(users, 'user');
-	const customers = alias(users, 'customer');
+	try {
+		const user = alias(users, 'user');
+		const customers = alias(users, 'customer');
 
-	await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
-	const result = await db
-		.select()
-		.from(user)
-		.leftJoin(customers, eq(customers.id, 11))
-		.where(eq(user.id, 10))
-		.orderBy(asc(user.id));
+		await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
+		const result = await db
+			.select()
+			.from(user)
+			.leftJoin(customers, eq(customers.id, 11))
+			.where(eq(user.id, 10))
+			.orderBy(asc(user.id));
 
-	expect(result).toEqual([{
-		user: {
-			id: 10,
-			name: 'Ivan',
-		},
-		customer: {
-			id: 11,
-			name: 'Hans',
-		},
-	}]);
-
-	await db.execute(sql`drop table ${users}`);
+		expect(result).toEqual([{
+			user: {
+				id: 10,
+				name: 'Ivan',
+			},
+			customer: {
+				id: 11,
+				name: 'Hans',
+			},
+		}]);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('insert with spaces', async () => {
@@ -580,33 +584,35 @@ test('prepared statement with placeholder in .where', async () => {
 });
 
 test('migrator', async () => {
-	const usersMigratorTable = singlestoreTableRaw('users12', {
-		id: serial('id').primaryKey(),
-		name: text('name').notNull(),
-		email: text('email').notNull(),
-	}, (table) => {
-		return {
-			name: uniqueIndex('').on(table.name).using('btree'),
-		};
-	});
+	try {
+		const usersMigratorTable = singlestoreTableRaw('users12', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			email: text('email').notNull(),
+		}, (table) => {
+			return {
+				name: uniqueIndex('').on(table.name).using('btree'),
+			};
+		});
 
-	await db.execute(sql.raw(`drop table if exists cities_migration`));
-	await db.execute(sql.raw(`drop table if exists users_migration`));
-	await db.execute(sql.raw(`drop table if exists users12`));
-	await db.execute(sql.raw(`drop table if exists __drizzle_migrations`));
+		await db.execute(sql.raw(`drop table if exists cities_migration`));
+		await db.execute(sql.raw(`drop table if exists users_migration`));
+		await db.execute(sql.raw(`drop table if exists users12`));
+		await db.execute(sql.raw(`drop table if exists __drizzle_migrations`));
 
-	await migrate(db, { migrationsFolder: './drizzle2/singlestore' });
+		await migrate(db, { migrationsFolder: './drizzle2/singlestore' });
 
-	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 
-	const result = await db.select().from(usersMigratorTable);
+		const result = await db.select().from(usersMigratorTable);
 
-	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-	await db.execute(sql.raw(`drop table cities_migration`));
-	await db.execute(sql.raw(`drop table users_migration`));
-	await db.execute(sql.raw(`drop table users12`));
-	await db.execute(sql.raw(`drop table __drizzle_migrations`));
+		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+	} finally {
+		await db.execute(sql.raw(`drop table if exists cities_migration`));
+		await db.execute(sql.raw(`drop table if exists users_migration`));
+		await db.execute(sql.raw(`drop table if exists users12`));
+		await db.execute(sql.raw(`drop table if exists __drizzle_migrations`));
+	}
 });
 
 test('insert via db.execute + select via db.execute', async () => {
@@ -651,34 +657,36 @@ test('insert + select all possible dates', async () => {
 		`,
 	);
 
-	const d = new Date('2022-11-11');
+	try {
+		const d = new Date('2022-11-11');
 
-	await db.insert(datesTable).values({
-		date: d,
-		dateAsString: '2022-11-11',
-		time: '12:12:12',
-		datetime: d,
-		year: 22,
-		datetimeAsString: '2022-11-11 12:12:12',
-	});
+		await db.insert(datesTable).values({
+			date: d,
+			dateAsString: '2022-11-11',
+			time: '12:12:12',
+			datetime: d,
+			year: 22,
+			datetimeAsString: '2022-11-11 12:12:12',
+		});
 
-	const res = await db.select().from(datesTable);
+		const res = await db.select().from(datesTable);
 
-	expect(res[0]?.date).toBeInstanceOf(Date);
-	expect(res[0]?.datetime).toBeInstanceOf(Date);
-	expect(typeof res[0]?.dateAsString).toBe('string');
-	expect(typeof res[0]?.datetimeAsString).toBe('string');
+		expect(res[0]?.date).toBeInstanceOf(Date);
+		expect(res[0]?.datetime).toBeInstanceOf(Date);
+		expect(typeof res[0]?.dateAsString).toBe('string');
+		expect(typeof res[0]?.datetimeAsString).toBe('string');
 
-	expect(res).toEqual([{
-		date: toLocalDate(new Date('2022-11-11')),
-		dateAsString: '2022-11-11',
-		time: '12:12:12',
-		datetime: new Date('2022-11-11'),
-		year: 2022,
-		datetimeAsString: '2022-11-11 12:12:12',
-	}]);
-
-	await db.execute(sql`drop table ${datesTable}`);
+		expect(res).toEqual([{
+			date: toLocalDate(new Date('2022-11-11')),
+			dateAsString: '2022-11-11',
+			time: '12:12:12',
+			datetime: new Date('2022-11-11'),
+			year: 2022,
+			datetimeAsString: '2022-11-11 12:12:12',
+		}]);
+	} finally {
+		await db.execute(sql`drop table if exists ${datesTable}`);
+	}
 });
 
 test('SingleStore enum test case #1', async () => {
@@ -1240,13 +1248,15 @@ test('prefixed table', async () => {
 		sql`create table myprefix_test_prefixed_table_with_unique_name (id int not null primary key, name text not null)`,
 	);
 
-	await db.insert(users).values({ id: 1, name: 'John' });
+	try {
+		await db.insert(users).values({ id: 1, name: 'John' });
 
-	const result = await db.select().from(users);
+		const result = await db.select().from(users);
 
-	expect(result).toEqual([{ id: 1, name: 'John' }]);
-
-	await db.execute(sql`drop table ${users}`);
+		expect(result).toEqual([{ id: 1, name: 'John' }]);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('orderBy with aliased column', () => {
@@ -1534,11 +1544,13 @@ test('insert undefined', async () => {
 		sql`create table ${users} (id serial not null primary key, name text)`,
 	);
 
-	await expect((async () => {
-		await db.insert(users).values({ name: undefined });
-	})()).resolves.not.toThrowError();
-
-	await db.execute(sql`drop table ${users}`);
+	try {
+		await expect((async () => {
+			await db.insert(users).values({ name: undefined });
+		})()).resolves.not.toThrowError();
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('update undefined', async () => {
@@ -1553,13 +1565,15 @@ test('update undefined', async () => {
 		sql`create table ${users} (id serial not null primary key, name text)`,
 	);
 
-	await expect((async () => {
-		await db.update(users).set({ name: undefined });
-	})()).rejects.toThrowError();
+	try {
+		await expect((async () => {
+			await db.update(users).set({ name: undefined });
+		})()).rejects.toThrowError();
 
-	await expect((async () => {
-		await db.update(users).set({ id: 1, name: undefined });
-	})()).resolves.not.toThrowError();
-
-	await db.execute(sql`drop table ${users}`);
+		await expect((async () => {
+			await db.update(users).set({ id: 1, name: undefined });
+		})()).resolves.not.toThrowError();
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });

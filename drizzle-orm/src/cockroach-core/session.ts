@@ -1,52 +1,97 @@
 import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
-import { TransactionRollbackError } from '~/errors.ts';
+import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
+import type { Logger } from '~/logger.ts';
 import type { PreparedQuery } from '~/session.ts';
-import { type Query, type SQL, sql } from '~/sql/index.ts';
-import { tracer } from '~/tracing.ts';
-import type { NeonAuthToken } from '~/utils.ts';
+import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/index.ts';
+import { hasTelemetry, tracer } from '~/tracing.ts';
 import { CockroachDatabase } from './db.ts';
 import type { CockroachDialect } from './dialect.ts';
-import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
 
 export interface PreparedQueryConfig {
 	execute: unknown;
-	all: unknown;
-	values: unknown;
 }
 
-export abstract class CockroachPreparedQuery<T extends PreparedQueryConfig> implements PreparedQuery {
-	constructor(protected query: Query) {}
+export abstract class CockroachBasePreparedQuery implements PreparedQuery {
+	static readonly [entityKind]: string = 'CockroachBasePreparedQuery';
 
-	protected authToken?: NeonAuthToken;
+	constructor(
+		protected query: Query,
+	) {}
 
 	getQuery(): Query {
 		return this.query;
 	}
 
-	mapResult(response: unknown, _isFromBatch?: boolean): unknown {
-		return response;
+	abstract execute(placeholderValues?: Record<string, unknown>): unknown;
+}
+
+export class CockroachPreparedQuery<T extends PreparedQueryConfig> extends CockroachBasePreparedQuery {
+	static override readonly [entityKind]: string = 'CockroachPreparedQuery';
+
+	/** @internal */
+	readonly mapper: {
+		(rows: any[]): any;
+		body?: string;
+	} | undefined;
+
+	private fastPath: boolean;
+
+	constructor(
+		protected executor: (params?: unknown[]) => Promise<any>,
+		query: Query,
+		mapper: ((rows: any[]) => any) | undefined,
+		readonly mode: 'arrays' | 'objects' | 'raw',
+		protected logger: Logger,
+	) {
+		super(query);
+		this.mapper = mapper;
+		this.fastPath = !hasTelemetry;
 	}
 
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
+	override async execute(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
+		const { query, logger, executor, mapper, fastPath } = this;
+
+		if (fastPath) {
+			const params = query.params.length === 0
+				? query.params
+				: fillPlaceholders(query.params, placeholderValues);
+			logger.logQuery(query.sql, params);
+			const res = executor(params).catch((e) => {
+				throw new DrizzleQueryError(query.sql, params, e as Error);
+			});
+			if (!mapper) return res;
+
+			return res.then((rows) => mapper(rows));
+		}
+
+		return tracer.startActiveSpan('drizzle.execute', async (span) => {
+			const params = fillPlaceholders(query.params, placeholderValues);
+
+			span?.setAttributes({
+				'drizzle.query.text': query.sql,
+				'drizzle.query.params': JSON.stringify(params),
+			});
+
+			logger.logQuery(query.sql, params);
+
+			const rows = tracer.startActiveSpan('drizzle.driver.execute', async (span) => {
+				span?.setAttributes({
+					'drizzle.query.text': query.sql,
+					'drizzle.query.params': JSON.stringify(params),
+				});
+
+				// return await so tracer captures time accurately
+				return await executor(params).catch((e) => {
+					throw new DrizzleQueryError(query.sql, params, e as Error);
+				});
+			});
+
+			if (!mapper) return rows;
+
+			return rows.then((rows) => tracer.startActiveSpan('drizzle.mapResponse', () => mapper(rows as unknown[])));
+		});
 	}
-
-	static readonly [entityKind]: string = 'CockroachPreparedQuery';
-
-	/** @internal */
-	nullableObjectPaths?: string[];
-
-	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
-	/** @internal */
-	abstract execute(placeholderValues?: Record<string, unknown>, token?: NeonAuthToken): Promise<T['execute']>;
-	/** @internal */
-	abstract execute(placeholderValues?: Record<string, unknown>, token?: NeonAuthToken): Promise<T['execute']>;
-
-	/** @internal */
-	abstract all(placeholderValues?: Record<string, unknown>): Promise<T['all']>;
 }
 
 export interface CockroachTransactionConfig {
@@ -66,37 +111,51 @@ export abstract class CockroachSession<
 
 	abstract prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
+		mode: 'arrays' | 'objects' | 'raw',
+		name: string | boolean,
+		mapper?: (rows: any[]) => any,
 	): CockroachPreparedQuery<T>;
 
-	execute<T>(query: SQL): Promise<T>;
-	/** @internal */
-	execute<T>(query: SQL, token?: NeonAuthToken): Promise<T>;
-	/** @internal */
-	execute<T>(query: SQL, token?: NeonAuthToken): Promise<T> {
+	execute<T>(query: SQL): Promise<T> {
 		return tracer.startActiveSpan('drizzle.operation', () => {
 			const prepared = tracer.startActiveSpan('drizzle.prepareQuery', () => {
 				return this.prepareQuery<PreparedQueryConfig & { execute: T }>(
 					this.dialect.sqlToQuery(query),
-					undefined,
-					undefined,
-					undefined,
+					'raw',
+					false,
 				);
 			});
 
-			return prepared.setToken(token).execute(undefined, token);
+			return prepared.execute();
 		});
 	}
 
-	all<T = unknown>(query: SQL): Promise<T[]> {
-		return this.prepareQuery<PreparedQueryConfig & { all: T[] }>(
-			this.dialect.sqlToQuery(query),
-			undefined,
-			undefined,
-			undefined,
-		).all();
+	arrays<T = unknown>(query: SQL): Promise<T[]> {
+		return tracer.startActiveSpan('drizzle.operation', () => {
+			const prepared = tracer.startActiveSpan('drizzle.prepareQuery', () => {
+				return this.prepareQuery<PreparedQueryConfig & { execute: T[] }>(
+					this.dialect.sqlToQuery(query),
+					'arrays',
+					false,
+				);
+			});
+
+			return prepared.execute();
+		});
+	}
+
+	objects<T = unknown>(query: SQL): Promise<T[]> {
+		return tracer.startActiveSpan('drizzle.operation', () => {
+			const prepared = tracer.startActiveSpan('drizzle.prepareQuery', () => {
+				return this.prepareQuery<PreparedQueryConfig & { execute: T[] }>(
+					this.dialect.sqlToQuery(query),
+					'objects',
+					false,
+				);
+			});
+
+			return prepared.execute();
+		});
 	}
 
 	abstract transaction<T>(
