@@ -17,6 +17,7 @@ import {
 	type TransactionProxy,
 } from '../utils';
 import { assertPackages, checkPackage } from './utils';
+import type { ClickHouseCredentials } from './validations/clickhouse';
 import { GelCredentials } from './validations/gel';
 import { LibSQLCredentials } from './validations/libsql';
 import type { MysqlCredentials } from './validations/mysql';
@@ -713,6 +714,112 @@ export const connectToSingleStore = async (
 		"To connect to SingleStore database - please install 'mysql2' driver",
 	);
 	process.exit(1);
+};
+
+/**
+ * Connects to ClickHouse over HTTP.
+ *
+ * There is no transaction support, so `transactionProxy` runs the statements in sequence and stops at
+ * the first failure — a partially applied batch is possible, which is why `push` warns before
+ * running anything destructive.
+ */
+export const connectToClickHouse = async (
+	it: ClickHouseCredentials,
+): Promise<{
+	db: DB;
+	packageName: '@clickhouse/client';
+	proxy: Proxy;
+	transactionProxy: TransactionProxy;
+	database: string;
+	migrate: (config: MigrationConfig) => Promise<void>;
+}> => {
+	const { url, database } = parseClickHouseCredentials(it);
+
+	if (await checkPackage('@clickhouse/client')) {
+		const { createClient } = await import('@clickhouse/client');
+		const { drizzle } = await import('drizzle-orm/clickhouse');
+		const { migrate } = await import('drizzle-orm/clickhouse/migrator');
+
+		const client = createClient({ url, database });
+		const db = drizzle(client);
+
+		const migrateFn = async (config: MigrationConfig) => {
+			return migrate(db, config);
+		};
+
+		// DDL and mutations return an empty body, so only row-returning statements can be parsed as JSON.
+		const rowReturning = /^\s*(?:\(|select|with|show|describe|desc|explain|exists|values)\b/i;
+		const query: DB['query'] = async <T>(sql: string): Promise<T[]> => {
+			if (!rowReturning.test(sql)) {
+				await client.command({ query: sql });
+				return [];
+			}
+			const resultSet = await client.query({ query: sql, format: 'JSON' });
+			const { data } = await resultSet.json<T>();
+			return data;
+		};
+
+		const proxy: Proxy = async (params: ProxyParams) => {
+			const resultSet = await client.query({
+				query: params.sql,
+				format: params.mode === 'array' ? 'JSONCompact' : 'JSON',
+			});
+			const { data } = await resultSet.json<any>();
+			return data;
+		};
+
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: any[] = [];
+			for (const query of queries) {
+				try {
+					const resultSet = await client.query({ query: query.sql, format: 'JSON' });
+					const { data } = await resultSet.json<any>();
+					results.push(data);
+				} catch (error) {
+					results.push(error as Error);
+					break;
+				}
+			}
+			return results;
+		};
+
+		return {
+			db: { query },
+			packageName: '@clickhouse/client',
+			proxy,
+			transactionProxy,
+			database,
+			migrate: migrateFn,
+		};
+	}
+
+	console.error(
+		"To connect to ClickHouse database - please install '@clickhouse/client' driver",
+	);
+	process.exit(1);
+};
+
+const parseClickHouseCredentials = (credentials: ClickHouseCredentials): { url: string; database: string } => {
+	if ('url' in credentials) {
+		const parsed = new URL(credentials.url);
+		// A database given explicitly wins over one in the URL path.
+		const fromPath = parsed.pathname.replace(/^\//, '');
+		return {
+			url: credentials.url,
+			database: credentials.database ?? (fromPath.length > 0 ? fromPath : 'default'),
+		};
+	}
+
+	const port = credentials.port ?? '8123';
+	const scheme = String(port) === '8443' ? 'https' : 'http';
+	const auth = credentials.user
+		? `${encodeURIComponent(credentials.user)}:${encodeURIComponent(credentials.password ?? '')}@`
+		: '';
+
+	return {
+		url: `${scheme}://${auth}${credentials.host}:${port}`,
+		database: credentials.database ?? 'default',
+	};
 };
 
 const parseMysqlCredentials = (credentials: MysqlCredentials) => {
