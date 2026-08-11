@@ -272,7 +272,15 @@ export class CockroachArray<
 
 	constructor(
 		table: CockroachTable<any>,
-		config: CockroachArrayBuilder<T, TBase>['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & {
+			baseBuilder: TBase extends CockroachArrayColumnBuilderBaseConfig ? CockroachArrayBuilder<
+					TBase,
+					TBase extends { baseBuilder: infer TBaseBuilder extends ColumnBuilderBaseConfig<any> } ? TBaseBuilder
+						: never
+				>
+				: CockroachColumnWithArrayBuilder<TBase, {}>;
+			length: number | undefined;
+		},
 		readonly baseColumn: CockroachColumn,
 		readonly range?: [number | undefined, number | undefined],
 	) {

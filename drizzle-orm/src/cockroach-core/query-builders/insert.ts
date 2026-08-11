@@ -16,7 +16,7 @@ import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
-import { Param, SQL, sql } from '~/sql/sql.ts';
+import { SQL, sql } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { InferInsertModel } from '~/table.ts';
 import { getTableName, Table } from '~/table.ts';
@@ -29,7 +29,7 @@ import type { CockroachUpdateSetSource } from './update.ts';
 
 export interface CockroachInsertConfig<TTable extends CockroachTable = CockroachTable> {
 	table: TTable;
-	values: Record<string, Param | SQL>[] | TypedQueryBuilder<CockroachInsertSelection<TTable>> | SQL;
+	values: Record<string, unknown>[] | TypedQueryBuilder<CockroachInsertSelection<TTable>> | SQL;
 	withList?: Subquery[];
 	onConflict?: SQL;
 	returningFields?: SelectedFieldsFlat;
@@ -130,19 +130,9 @@ export class CockroachInsertBuilder<
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
 		}
-		const mappedValues = values.map((entry) => {
-			const result: Record<string, Param | SQL> = {};
-			const cols = this.table[Table.Symbol.Columns];
-			for (const colKey of Object.keys(entry)) {
-				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue as any, cols[colKey]);
-			}
-			return result;
-		});
-
 		return new CockroachInsertBase(
 			this.table,
-			mappedValues,
+			values,
 			this.session,
 			this.dialect,
 			this.withList,

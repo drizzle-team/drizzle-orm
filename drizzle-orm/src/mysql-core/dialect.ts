@@ -24,7 +24,7 @@ import {
 	relationToSQL,
 } from '~/relations.ts';
 import { and } from '~/sql/expressions/index.ts';
-import { isSQLWrapper, noopEncoder, Param, SQL, sql, View } from '~/sql/sql.ts';
+import { isSQLWrapper, noopEncoder, Param, SQL, sql, StringChunk, View } from '~/sql/sql.ts';
 import type { DriverValueEncoder, Name, Placeholder, Query, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
@@ -106,15 +106,19 @@ export class MySqlDialect {
 	private buildWithCTE(queries: Subquery[] | undefined): SQL | undefined {
 		if (!queries?.length) return undefined;
 
-		const withSqlChunks = [sql`with `];
-		for (const [i, w] of queries.entries()) {
-			withSqlChunks.push(sql`${sql.identifier(w._.alias)} as (${w._.sql})`);
-			if (i < queries.length - 1) {
-				withSqlChunks.push(sql`, `);
-			}
+		const queriesLen = queries.length;
+		const withSqlChunks: SQLChunk[] = new Array(queriesLen + 1);
+		let writeIdx = 0;
+		withSqlChunks[writeIdx++] = new StringChunk('with ');
+
+		for (let i = 0; i < queriesLen; ++i) {
+			const w = queries[i]!;
+			withSqlChunks[writeIdx++] = (i < queriesLen - 1)
+				? sql`${sql.identifier(w._.alias)} as (${w._.sql}), `
+				: sql`${sql.identifier(w._.alias)} as (${w._.sql}) `;
 		}
-		withSqlChunks.push(sql` `);
-		return sql.join(withSqlChunks);
+
+		return new SQL(withSqlChunks);
 	}
 
 	buildDeleteQuery({
@@ -148,26 +152,26 @@ export class MySqlDialect {
 		);
 
 		const setLength = columnNames.length;
-		return sql.join(
-			columnNames.flatMap((colName, i) => {
-				const col = tableColumns[colName]!;
+		const setArr: SQLChunk[] = new Array(setLength);
 
-				let value;
-				if (set[colName] !== undefined) {
-					value = set[colName];
-				} else {
-					const updateRes = col.onUpdateFn?.();
-					value = is(updateRes, SQL) ? updateRes : sql.param(updateRes, col);
-				}
+		for (let i = 0; i < columnNames.length; ++i) {
+			const colName = columnNames[i]!;
+			const col = tableColumns[colName]!;
 
-				const res = sql`${sql.identifier(col.name)} = ${value}`;
+			let value;
+			if (set[colName] !== undefined) {
+				value = set[colName];
+			} else {
+				const updateRes = col.onUpdateFn?.();
+				value = is(updateRes, SQL) ? updateRes : sql.param(updateRes, col);
+			}
 
-				if (i < setLength - 1) {
-					return [res, sql.raw(', ')];
-				}
-				return [res];
-			}),
-		);
+			setArr[i] = i < setLength - 1
+				? sql`${sql.identifier(col.name)} = ${value}, `
+				: sql`${sql.identifier(col.name)} = ${value}`;
+		}
+
+		return new SQL(setArr);
 	}
 
 	buildUpdateQuery({
@@ -251,7 +255,7 @@ export class MySqlDialect {
 					} else {
 						if (isSingleTable && tableName !== undefined) {
 							const { queryChunks } = field.sql;
-							const newChunks: SQLChunk[] = Array.from({ length: queryChunks.length });
+							const newChunks: SQLChunk[] = new Array(queryChunks.length);
 							let abort = false;
 
 							for (let i = 0; i < queryChunks.length; ++i) {
@@ -298,7 +302,7 @@ export class MySqlDialect {
 				case 'SQL': {
 					if (isSingleTable && tableName !== undefined) {
 						const { queryChunks } = field;
-						const newChunks: SQLChunk[] = Array.from({ length: queryChunks.length });
+						const newChunks: SQLChunk[] = new Array(queryChunks.length);
 						let abort = false;
 
 						for (let i = 0; i < queryChunks.length; ++i) {
@@ -343,7 +347,7 @@ export class MySqlDialect {
 			}
 
 			if (i < columnsLen - 1) {
-				chunks.push(sql`, `);
+				chunks.push(new StringChunk(', '));
 			}
 		}
 
@@ -362,7 +366,7 @@ export class MySqlDialect {
 		orderBy: (MySqlColumn | SQL | SQL.Aliased)[] | undefined,
 	): SQL | undefined {
 		return orderBy && orderBy.length > 0
-			? sql` order by ${sql.join(orderBy, sql`, `)}`
+			? sql` order by ${sql.join(orderBy, new StringChunk(', '))}`
 			: undefined;
 	}
 
@@ -374,7 +378,7 @@ export class MySqlDialect {
 		indexFor: 'USE' | 'FORCE' | 'IGNORE';
 	}): SQL | undefined {
 		return indexes && indexes.length > 0
-			? sql` ${sql.raw(indexFor)} INDEX ${indexes.map((it) => sql.identifier(it))}`
+			? sql` ${new StringChunk(indexFor)} INDEX ${indexes.map((it) => sql.identifier(it))}`
 			: undefined;
 	}
 
@@ -465,12 +469,12 @@ export class MySqlDialect {
 			return table;
 		})();
 
-		const joinsArray: SQL[] = [];
+		const joinsArray: SQLChunk[] = [];
 
 		if (joins) {
 			for (const [index, joinMeta] of joins.entries()) {
 				if (index === 0) {
-					joinsArray.push(sql` `);
+					joinsArray.push(new StringChunk(' '));
 				}
 				const table = joinMeta.table;
 				const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
@@ -494,7 +498,7 @@ export class MySqlDialect {
 						indexFor: 'IGNORE',
 					});
 					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
+						sql`${new StringChunk(joinMeta.joinType)} join${lateralSql} ${
 							tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
 						}${sql.identifier(origTableName)}${useIndexSql}${forceIndexSql}${ignoreIndexSql}${
 							alias && sql` ${sql.identifier(alias)}`
@@ -506,22 +510,22 @@ export class MySqlDialect {
 					const origViewName = table[ViewBaseConfig].originalName;
 					const alias = viewName === origViewName ? undefined : joinMeta.alias;
 					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
+						sql`${new StringChunk(joinMeta.joinType)} join${lateralSql} ${
 							viewSchema ? sql`${sql.identifier(viewSchema)}.` : undefined
 						}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 					);
 				} else {
 					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${table}${onSql}`,
+						sql`${new StringChunk(joinMeta.joinType)} join${lateralSql} ${table}${onSql}`,
 					);
 				}
 				if (index < joins.length - 1) {
-					joinsArray.push(sql` `);
+					joinsArray.push(new StringChunk(' '));
 				}
 			}
 		}
 
-		const joinsSql = sql.join(joinsArray);
+		const joinsSql = new SQL(joinsArray);
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
@@ -530,7 +534,7 @@ export class MySqlDialect {
 		const orderBySql = this.buildOrderBy(orderBy);
 
 		const groupBySql = groupBy && groupBy.length > 0
-			? sql` group by ${sql.join(groupBy, sql`, `)}`
+			? sql` group by ${sql.join(groupBy, new StringChunk(', '))}`
 			: undefined;
 
 		const limitSql = this.buildLimit(limit);
@@ -555,7 +559,7 @@ export class MySqlDialect {
 		let lockingClausesSql;
 		if (lockingClause) {
 			const { config, strength } = lockingClause;
-			lockingClausesSql = sql` for ${sql.raw(strength)}`;
+			lockingClausesSql = sql` for ${new StringChunk(strength)}`;
 			if (config.noWait) {
 				lockingClausesSql.append(sql` nowait`);
 			} else if (config.skipLocked) {
@@ -675,14 +679,14 @@ export class MySqlDialect {
 				}
 			}
 
-			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)} `;
+			orderBySql = sql` order by ${sql.join(orderByValues, new StringChunk(', '))} `;
 		}
 
 		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
 			? sql` limit ${limit}`
 			: undefined;
 
-		const operatorChunk = sql.raw(`${type} ${isAll ? 'all ' : ''}`);
+		const operatorChunk = new StringChunk(`${type} ${isAll ? 'all ' : ''}`);
 
 		// Binary protocol bug bypass
 		const offsetSql = offset
@@ -702,7 +706,6 @@ export class MySqlDialect {
 		comment,
 	}: MySqlInsertConfig): { sql: SQL; generatedIds: Record<string, unknown>[] } {
 		// const isSingleValue = values.length === 1;
-		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, MySqlColumn> = table[Table.Symbol.Columns];
 		const colEntries: [string, MySqlColumn][] = columnList
 			? columnList.map((name) => [name, columns[name]!])
@@ -713,31 +716,43 @@ export class MySqlDialect {
 				.map((key) => [key, columns[key]] as [string, MySqlColumn])
 			: colEntries.filter(([_, col]) => !col.shouldDisableInsert());
 
-		const insertOrder = colEntriesFiltered.map(([, column]) => sql.identifier(column.name));
+		const insertOrderArr: SQLChunk[] = new Array(colEntriesFiltered.length * 2 + 1);
+		let writeIdx = 0;
+		insertOrderArr[writeIdx++] = new StringChunk('(');
+		for (let i = 0; i < colEntriesFiltered.length; ++i) {
+			const [, { name }] = colEntriesFiltered[i]!;
+			insertOrderArr[writeIdx++] = sql.identifier(name);
+
+			if (i < colEntriesFiltered.length - 1) insertOrderArr[writeIdx++] = new StringChunk(', ');
+		}
+		insertOrderArr[writeIdx++] = new StringChunk(')');
+		const insertOrder = new SQL(insertOrderArr);
 		const generatedIdsResponse: Record<string, unknown>[] = [];
 
+		const valuesSqlList: SQLChunk[] = Array.from({
+			length: select
+				? 1
+				: (colEntriesFiltered.length * 2 + 1) * (valuesOrSelect as Record<string, unknown>[]).length
+					+ (valuesOrSelect as Record<string, unknown>[]).length,
+		});
+
 		if (select) {
-			const select = valuesOrSelect as AnyMySqlSelectQueryBuilder | SQL;
-
-			if (is(select, SQL)) {
-				valuesSqlList.push(select);
-			} else {
-				valuesSqlList.push(select.getSQL());
-			}
+			valuesSqlList[0] = (valuesOrSelect as AnyMySqlSelectQueryBuilder | SQL).getSQL();
 		} else {
-			const values = valuesOrSelect as Record<string, Param | SQL>[];
-			valuesSqlList.push(sql.raw('values '));
+			const values = valuesOrSelect as Record<string, unknown>[];
 
-			for (const [valueIndex, value] of values.entries()) {
+			let writeIdx = 0;
+			valuesSqlList[writeIdx++] = new StringChunk('values ');
+
+			for (let valueIndex = 0; valueIndex < values.length; ++valueIndex) {
+				const value = values[valueIndex]!;
 				const generatedIds: Record<string, unknown> = {};
 
-				const valueList: (SQLChunk | SQL)[] = [];
-				for (const [fieldName, col] of colEntriesFiltered) {
+				valuesSqlList[writeIdx++] = new StringChunk('(');
+				for (let i = 0; i < colEntriesFiltered.length; ++i) {
+					const [fieldName, col] = colEntriesFiltered[i]!;
 					const colValue = value[fieldName];
-					if (
-						colValue === undefined
-						|| (is(colValue, Param) && colValue.value === undefined)
-					) {
+					if (colValue === undefined) {
 						// eslint-disable-next-line unicorn/no-negated-condition
 						if (col.defaultFn !== undefined) {
 							const defaultFnResult = col.defaultFn();
@@ -745,34 +760,42 @@ export class MySqlDialect {
 							const defaultValue = is(defaultFnResult, SQL)
 								? defaultFnResult
 								: sql.param(defaultFnResult, col);
-							valueList.push(defaultValue);
+							valuesSqlList[writeIdx++] = defaultValue;
 							// eslint-disable-next-line unicorn/no-negated-condition
 						} else if (!col.default && col.onUpdateFn !== undefined) {
 							const onUpdateFnResult = col.onUpdateFn();
 							const newValue = is(onUpdateFnResult, SQL)
 								? onUpdateFnResult
 								: sql.param(onUpdateFnResult, col);
-							valueList.push(newValue);
+							valuesSqlList[writeIdx++] = newValue;
 						} else {
-							valueList.push(sql`default`);
+							valuesSqlList[writeIdx++] = new StringChunk(`default`);
 						}
+					} else if (is(colValue, SQL)) {
+						valuesSqlList[writeIdx++] = colValue;
 					} else {
-						if (col.defaultFn && is(colValue, Param)) {
-							generatedIds[fieldName] = colValue.value;
+						if (col.defaultFn) {
+							generatedIds[fieldName] = colValue;
 						}
-						valueList.push(colValue);
+						valuesSqlList[writeIdx++] = new Param(colValue, col);
+					}
+
+					if (i < colEntriesFiltered.length - 1) {
+						valuesSqlList[writeIdx++] = new StringChunk(', ');
 					}
 				}
 
 				generatedIdsResponse.push(generatedIds);
-				valuesSqlList.push(valueList);
+
+				valuesSqlList[writeIdx++] = new StringChunk(')');
+
 				if (valueIndex < values.length - 1) {
-					valuesSqlList.push(sql`, `);
+					valuesSqlList[writeIdx++] = new StringChunk(`, `);
 				}
 			}
 		}
 
-		const valuesSql = sql.join(valuesSqlList);
+		const valuesSql = new SQL(valuesSqlList);
 
 		const ignoreSql = ignore ? sql` ignore` : undefined;
 
@@ -885,7 +908,7 @@ export class MySqlDialect {
 				Object.entries(table[TableColumns]).map(([k, v]) => {
 					return this.buildRqbColumn(table, v, k, inJson, selection, tableTsName);
 				}),
-				sql`, `,
+				new StringChunk(', '),
 			);
 		}
 
@@ -911,7 +934,7 @@ export class MySqlDialect {
 		}
 
 		return columnIdentifiers.length
-			? sql.join(columnIdentifiers, sql`, `)
+			? sql.join(columnIdentifiers, new StringChunk(', '))
 			: undefined;
 	};
 
@@ -992,8 +1015,8 @@ export class MySqlDialect {
 				const withEntries = Object.entries(withParam).filter(([_, v]) => v);
 				if (!withEntries.length) break;
 
-				const joinChunks: SQL[] = Array.from({ length: (withEntries.length * 2) });
-				joinChunks[0] = sql` `;
+				const joinChunks: SQLChunk[] = new Array(withEntries.length * 2);
+				joinChunks[0] = new StringChunk(' ');
 
 				for (let readIdx = 0, writeIdx = 1; readIdx < withEntries.length; ++readIdx) {
 					const [k, join] = withEntries[readIdx]!;
@@ -1051,9 +1074,9 @@ export class MySqlDialect {
 
 					const jsonColumns = sql.join(
 						innerQuery.selection.map(
-							(s) => sql`${sql.raw(this.escapeString(s.key))}, ${sql.identifier(s.key)}`,
+							(s) => sql`${new StringChunk(this.escapeString(s.key))}, ${sql.identifier(s.key)}`,
 						),
-						sql`, `,
+						new StringChunk(', '),
 					);
 
 					const joinQuery = sql`left join lateral(select ${sql`${
@@ -1067,7 +1090,7 @@ export class MySqlDialect {
 					} on true`;
 
 					joinChunks[writeIdx++] = joinQuery;
-					if (readIdx < withEntries.length) joinChunks[writeIdx++] = sql` `;
+					if (readIdx < withEntries.length - 1) joinChunks[writeIdx++] = new StringChunk(' ');
 				}
 
 				joins = new SQL(joinChunks);
@@ -1085,7 +1108,7 @@ export class MySqlDialect {
 		if (isNestedMany && order) {
 			selectionArr.push(sql`row_number() over (order by ${order})`);
 		}
-		const selectionSet = sql.join(selectionArr, sql`, `);
+		const selectionSet = sql.join(selectionArr, new StringChunk(', '));
 		const comment = config !== true && config?.comment
 			? sql.comment(config.comment)
 			: undefined;

@@ -1231,7 +1231,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/2872
-		test.skipIf(Date.now() < +new Date('2026-08-05')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-08-12')).concurrent(
 			'prepared statement with placeholder in .inArray',
 			async ({ db, push }) => {
 				const usersTable = pgTable('users_392', {
@@ -2468,6 +2468,103 @@ export function tests(test: Test) {
 					},
 				],
 			);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4095
+		test.concurrent('issue No4095', async ({ db }) => {
+			const users = pgTable('users', {
+				id: integer(),
+			});
+
+			const someCTE = db.$with('SOME_CTE').as((cteQb) =>
+				cteQb
+					.select({
+						someColumn: users.id,
+					})
+					.from(users)
+			);
+
+			const sqlOutput = db
+				.with(someCTE)
+				.selectDistinct({
+					someColumn: someCTE.someColumn,
+				})
+				.from(someCTE)
+				.toSQL();
+
+			expect(sqlOutput).toStrictEqual({
+				params: [],
+				sql: 'with "SOME_CTE" as (select "id" from "users") select distinct "id" from "SOME_CTE"',
+			});
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4091
+		test.concurrent('RQB v2 numeric precision preserved in nested relation', async ({ push, createDB }) => {
+			const categories = pgTable('rqb_numeric_categories', {
+				id: uuid('id').defaultRandom().primaryKey(),
+			});
+
+			const products = pgTable('rqb_numeric_products', {
+				id: uuid('id').defaultRandom().primaryKey(),
+				categoryId: uuid('category_id'),
+				priceUahRetail: numeric('price_uah_retail'),
+				priceUahWholesaleBig: numeric('price_uah_wholesale_big'),
+			});
+
+			await push({ categories, products });
+			const db = createDB({ categories, products }, (r) => ({
+				categories: {
+					products: r.many.products({
+						from: r.categories.id,
+						to: r.products.categoryId,
+					}),
+				},
+				products: {
+					category: r.one.categories({
+						from: r.products.categoryId,
+						to: r.categories.id,
+					}),
+				},
+			}));
+
+			const categoryId = '11111111-1111-1111-1111-111111111111';
+			const productId = '22222222-2222-2222-2222-222222222222';
+
+			await db.insert(categories).values({ id: categoryId });
+			await db.insert(products).values({
+				id: productId,
+				categoryId,
+				priceUahRetail: '302312.1010',
+				priceUahWholesaleBig: '1010101010101010101.202020020202020202022020',
+			});
+
+			const result = await db.query.categories.findFirst({
+				where: {
+					id: categoryId,
+				},
+				with: {
+					products: {
+						columns: {
+							id: true,
+							priceUahRetail: true,
+							priceUahWholesaleBig: true,
+						},
+					},
+				},
+			});
+
+			expect(result).toStrictEqual({
+				id: categoryId,
+				products: [{
+					id: productId,
+					priceUahRetail: '302312.1010',
+					priceUahWholesaleBig: '1010101010101010101.202020020202020202022020',
+				}],
+			});
+
+			// numeric values must stay strings, not be coerced to JS numbers (precision loss)
+			expect(typeof result!.products[0]!.priceUahRetail).toBe('string');
+			expect(typeof result!.products[0]!.priceUahWholesaleBig).toBe('string');
 		});
 	});
 }

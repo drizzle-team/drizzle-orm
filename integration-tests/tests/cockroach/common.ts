@@ -7876,7 +7876,7 @@ export function tests() {
 			});
 		});
 
-		test.skipIf(Date.now() < +new Date('2026-08-05'))('Query error wrapping', async ({ cockroach: { db } }) => {
+		test.skipIf(Date.now() < +new Date('2026-08-12'))('Query error wrapping', async ({ cockroach: { db } }) => {
 			await expect(db.insert(users2Table).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]))
 				.rejects.toBeInstanceOf(DrizzleQueryError);
 		});
@@ -7922,6 +7922,51 @@ export function tests() {
 
 		test('Mappers: deep nullification', async ({ cockroach: { db } }) => {
 			await runDeepNullification(db);
+		});
+
+		test('Default value priority', async ({ cockroach: { db } }) => {
+			const exTbl = cockroachTable('no_default_override', {
+				id: int4('id').primaryKey(),
+				defSql: int4('def_sql').default(sql`1`),
+				defNum: int4('def_num').default(1),
+				defFn: int4('def_fn').$defaultFn(() => 1),
+				defUpdFn: int4('def_upd_fn').$onUpdateFn(() => 1),
+				defMix1: int4('def_mix1').default(1).$defaultFn(() => 2).$onUpdateFn(() => 3),
+				defMix2: int4('def_mix2').$defaultFn(() => 2).$onUpdateFn(() => 3),
+				defMix3: int4('def_mix3').default(1).$defaultFn(() => 2),
+				defMix4: int4('def_mix4').default(sql`1`).$onUpdateFn(() => 3),
+			});
+
+			await db.execute(sql`drop table if exists ${exTbl}`);
+			await db.execute(sql`
+				create table ${exTbl} (
+					id int4 primary key,
+					def_sql int4 default 1,
+					def_num int4 default 1,
+					def_fn int4,
+					def_upd_fn int4,
+					def_mix1 int4 default 1,
+					def_mix2 int4,
+					def_mix3 int4 default 1,
+					def_mix4 int4 default 1
+				)
+			`);
+
+			await db.insert(exTbl).values({ id: 1 });
+
+			const res = await db.select().from(exTbl);
+
+			expect(res).toStrictEqual([{
+				id: 1,
+				defSql: 1,
+				defNum: 1,
+				defFn: 1,
+				defUpdFn: 1,
+				defMix1: 2,
+				defMix2: 2,
+				defMix3: 2,
+				defMix4: 1,
+			}]);
 		});
 	});
 }

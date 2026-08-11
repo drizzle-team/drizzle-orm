@@ -1,5 +1,5 @@
 import type { AnyCockroachTable, CockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SQL, SQLGenerator } from '~/sql/sql.ts';
@@ -62,7 +62,10 @@ export class CockroachCustomColumn<T extends ColumnBaseConfig<'custom'>> extends
 
 	constructor(
 		table: CockroachTable<any>,
-		config: CockroachCustomColumnBuilder<T>['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & {
+			fieldConfig: CustomTypeValues['config'];
+			customTypeParams: CustomTypeParams<any>;
+		},
 	) {
 		super(table, config);
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);

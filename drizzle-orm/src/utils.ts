@@ -56,7 +56,7 @@ function nullablePathTargets(
 	const targets: {
 		key: string;
 		leaves: number[];
-	}[] = Array.from({ length: nullableObjectPaths.length });
+	}[] = new Array(nullableObjectPaths.length);
 
 	for (let i = 0; i < nullableObjectPaths.length; ++i) {
 		const key = nullableObjectPaths[i]!;
@@ -87,7 +87,7 @@ function makeJitQueryMapperInner(
 	// top-level key -> the c-ids of every leaf nested under it, so a nullable group can test them all at once.
 	const descendantIds: Record<string, string[]> = {};
 	const nullableKeys = new Set(nullableObjectPaths ?? []);
-	const decodes = Array.from<string>({ length: columns.length });
+	const decodes = new Array<string>(columns.length);
 
 	for (let idx = 0; idx < columns.length; ++idx) {
 		const { field, fieldType, path, codec, arrayDimensions } = columns[idx]!;
@@ -191,7 +191,7 @@ export function makeJitQueryMapper<TResult>(
 	const internals = `\t"use strict";
 	const { columns } = this;
 	const { length } = rows;
-	const mapped = Array.from({ length });
+	const mapped = new Array(length);
 	${makeJitQueryMapperInner(columns, nullableObjectPaths)}
 	return mapped;
 	//# sourceURL=drizzle:jit-query-mapper`;
@@ -236,7 +236,7 @@ export function makeDefaultQueryMapper<TResult>(
 	columns: SelectedFieldsOrdered<AnyColumn>,
 	nullableObjectPaths: string[] | undefined,
 ): RowsMapper<TResult> {
-	const interpretedData: (((v: any) => any) | undefined)[] = Array.from({ length: columns.length });
+	const interpretedData: (((v: any) => any) | undefined)[] = new Array(columns.length);
 	for (let i = 0; i < columns.length; ++i) {
 		const { field, fieldType, codec, arrayDimensions } = columns[i]!;
 
@@ -273,7 +273,7 @@ export function makeDefaultQueryMapper<TResult>(
 
 	return ((rows) => {
 		const { length: rowLength } = rows;
-		const output: TResult[] = Array.from({ length: rowLength });
+		const output: TResult[] = new Array(rowLength);
 		for (let j = 0; j < rowLength; ++j) {
 			const row = rows[j]!;
 
@@ -510,22 +510,24 @@ export function haveSameKeys(left: Record<string, unknown>, right: Record<string
 
 /** @internal */
 export function mapUpdateSet(table: Table, values: Record<string, unknown>): UpdateSet {
-	const entries: [string, UpdateSet[string]][] = Object.entries(values)
-		.filter(([, value]) => value !== undefined)
-		.map(([key, value]) => {
-			// eslint-disable-next-line unicorn/prefer-ternary
-			if (is(value, SQL) || is(value, Column)) {
-				return [key, value];
-			} else {
-				return [key, new Param(value, table[Table.Symbol.Columns][key])];
-			}
-		});
+	const entries = Object.entries(values).filter(([, value]) => value !== undefined);
 
 	if (entries.length === 0) {
 		throw new Error('No values to set');
 	}
 
-	return Object.fromEntries(entries);
+	const mapped: [string, UpdateSet[string]][] = new Array(entries.length);
+	for (let i = 0; i < entries.length; ++i) {
+		const [key, value] = entries[i]!;
+		// eslint-disable-next-line unicorn/prefer-ternary
+		if (is(value, SQL) || is(value, Column)) {
+			mapped[i] = [key, value];
+		} else {
+			mapped[i] = [key, new Param(value, table[Table.Symbol.Columns][key])];
+		}
+	}
+
+	return Object.fromEntries(mapped);
 }
 
 export type UpdateSet = Record<string, SQL | Param | AnyColumn | null | undefined>;

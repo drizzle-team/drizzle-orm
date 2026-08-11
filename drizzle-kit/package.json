@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-kit",
-	"version": "1.0.0-rc.4",
+	"version": "1.0.0-rc.5",
 	"homepage": "https://orm.drizzle.team",
 	"keywords": [
 		"drizzle",
@@ -101,7 +101,6 @@
 		"commander": "^12.1.0",
 		"dockerode": "^4.0.6",
 		"dotenv": "^16.0.3",
-		"drizzle-kit": "^0.31.6",
 		"drizzle-orm": "workspace:./drizzle-orm/dist",
 		"env-paths": "^3.0.0",
 		"get-port": "^6.1.2",

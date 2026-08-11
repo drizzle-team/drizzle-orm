@@ -5312,3 +5312,48 @@ test('Mappers: deep nullification - jit', async () => {
 	await setupDeepTables(jitDb);
 	await runDeepNullification(jitDb);
 });
+
+test('Default value priority', async () => {
+	const exTbl = sqliteTable('no_default_override', (t) => ({
+		id: t.integer('id').primaryKey(),
+		defSql: t.integer('def_sql').default(sql`1`),
+		defNum: t.integer('def_num').default(1),
+		defFn: t.integer('def_fn').$defaultFn(() => 1),
+		defUpdFn: t.integer('def_upd_fn').$onUpdateFn(() => 1),
+		defMix1: t.integer('def_mix1').default(1).$defaultFn(() => 2).$onUpdateFn(() => 3),
+		defMix2: t.integer('def_mix2').$defaultFn(() => 2).$onUpdateFn(() => 3),
+		defMix3: t.integer('def_mix3').default(1).$defaultFn(() => 2),
+		defMix4: t.integer('def_mix4').default(sql`1`).$onUpdateFn(() => 3),
+	}));
+
+	await db.run(sql`DROP TABLE IF EXISTS no_default_override`);
+	await db.run(sql`CREATE TABLE no_default_override (
+		id INTEGER PRIMARY KEY,
+		def_sql INTEGER DEFAULT 1,
+		def_num INTEGER DEFAULT 1,
+		def_fn INTEGER,
+		def_upd_fn INTEGER,
+		def_mix1 INTEGER DEFAULT 1,
+		def_mix2 INTEGER,
+		def_mix3 INTEGER DEFAULT 1,
+		def_mix4 INTEGER DEFAULT 1
+	)`);
+
+	await db.insert(exTbl).values({ id: 1 });
+
+	const res = await db.select().from(exTbl).get();
+
+	expect(res).toStrictEqual({
+		id: 1,
+		defSql: 1,
+		defNum: 1,
+		defFn: 1,
+		defUpdFn: 1,
+		defMix1: 2,
+		defMix2: 2,
+		defMix3: 2,
+		defMix4: 1,
+	});
+
+	await db.run(sql`DROP TABLE no_default_override`);
+});

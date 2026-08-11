@@ -1,4 +1,4 @@
-import { entityKind, is } from '~/entity.ts';
+import { entityKind } from '~/entity.ts';
 import type { MsSqlDialect } from '~/mssql-core/dialect.ts';
 import type {
 	AnyQueryResultHKT,
@@ -12,8 +12,7 @@ import type {
 import type { MsSqlTable } from '~/mssql-core/table.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
-import { Param, SQL } from '~/sql/sql.ts';
+import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { type InferInsertModel, type InferSelectModel, Table } from '~/table.ts';
 import { type DrizzleTypeError, orderSelectedFields } from '~/utils.ts';
 import type { MsSqlColumn } from '../columns/common.ts';
@@ -21,7 +20,7 @@ import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.t
 
 export interface MsSqlInsertConfig<TTable extends MsSqlTable = MsSqlTable> {
 	table: TTable;
-	values: Record<string, Param | SQL>[];
+	values: Record<string, unknown>[];
 	output?: SelectedFieldsOrdered;
 	columnList?: string[];
 }
@@ -95,19 +94,9 @@ export class MsSqlInsertBuilder<
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
 		}
-		const mappedValues = values.map((entry) => {
-			const result: Record<string, Param | SQL> = {};
-			const cols = this.table[Table.Symbol.Columns];
-			for (const colKey of Object.keys(entry)) {
-				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue as any, cols[colKey]);
-			}
-			return result;
-		});
-
 		return new MsSqlInsertBase(
 			this.table,
-			mappedValues,
+			values,
 			this.session,
 			this.dialect,
 			this.config.output,

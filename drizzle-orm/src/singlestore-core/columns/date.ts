@@ -1,3 +1,4 @@
+import type { ColumnBuilderRuntimeConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable, SingleStoreTable } from '~/singlestore-core/table.ts';
@@ -29,7 +30,7 @@ export class SingleStoreDate<T extends ColumnBaseConfig<'object date'>> extends 
 
 	constructor(
 		table: AnySingleStoreTable<{ name: T['tableName'] }>,
-		config: SingleStoreDateBuilder['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']>,
 	) {
 		super(table, config);
 	}
@@ -68,7 +69,7 @@ export class SingleStoreDateString<T extends ColumnBaseConfig<'string date'>> ex
 
 	constructor(
 		table: AnySingleStoreTable<{ name: T['tableName'] }>,
-		config: SingleStoreDateStringBuilder['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']>,
 	) {
 		super(table, config);
 	}

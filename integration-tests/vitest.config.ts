@@ -28,6 +28,9 @@ export default defineConfig({
 					'tests/sqlite/tursodatabase-serverless.test.ts',
 					'tests/pg/neon-http.test.ts',
 					'tests/pg/neon-http-batch.test.ts',
+					'tests/pg/postgres-neon-ws.test.ts',
+					'tests/pg/postgres-neon-http.test.ts',
+					'tests/pg/postgres-neon-http-batch.test.ts',
 					'tests/pg/netlify-db.test.ts',
 					'tests/sqlite/sqlite-cloud.test.ts',
 					'tests/utils/is-config.test.ts', // Uses external DBs in some cases
@@ -52,6 +55,9 @@ export default defineConfig({
 			// todo: remove
 			'js-tests/driver-init/module/vercel.test.mjs',
 			'js-tests/driver-init/commonjs/vercel.test.cjs',
+			// Todo: update driver & remove
+			'tests/pg/postgres-neon-http.test.ts',
+			'tests/pg/postgres-http.test.ts',
 			// move back after decide on speed
 			'tests/sqlite/libsql-ws.test.ts',
 			'tests/sqlite/libsql-http.test.ts',

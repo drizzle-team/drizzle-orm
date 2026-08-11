@@ -7,7 +7,7 @@ import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, CommentInput, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
-import { Param, SQL, sql } from '~/sql/sql.ts';
+import { SQL, sql } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { InferInsertModel } from '~/table.ts';
 import { getTableName, Table } from '~/table.ts';
@@ -19,7 +19,7 @@ import type { PgUpdateSetSource } from './update.ts';
 
 export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	table: TTable;
-	values: Record<string, Param | SQL>[] | TypedQueryBuilder<PgInsertSelection<TTable>> | SQL;
+	values: Record<string, unknown>[] | TypedQueryBuilder<PgInsertSelection<TTable>> | SQL;
 	withList?: Subquery[];
 	onConflict?: SQL;
 	returningFields?: SelectedFieldsFlat;
@@ -148,23 +148,9 @@ export class PgInsertBuilder<
 			throw new Error('values() must be called with at least one value');
 		}
 
-		const mappedValues = Array.from<Record<string, Param | SQL>>({ length: values.length });
-		for (let i = 0; i < values.length; ++i) {
-			const entry = values[i]!;
-
-			const result: Record<string, Param | SQL> = {};
-			const cols = this.table[Table.Symbol.Columns];
-			for (const colKey of Object.keys(entry)) {
-				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue as any, cols[colKey]);
-			}
-
-			mappedValues[i] = result;
-		}
-
 		const builder = new this.builder(
 			this.table,
-			mappedValues,
+			values,
 			this.session,
 			this.dialect,
 			this.withList,
