@@ -1,10 +1,13 @@
 import chalk from 'chalk';
 import { randomUUID } from 'crypto';
 import { render } from 'hanji';
+import { Minimatch } from 'minimatch';
 import { serializePg } from 'src/serializer';
+import { originUUID } from '../../global';
 import { fromJson } from '../../sqlgenerator';
 import { Select } from '../selector-ui';
 import { Entities } from '../validations/cli';
+import type { ClickHouseCredentials } from '../validations/clickhouse';
 import { CasingType } from '../validations/common';
 import { LibSQLCredentials } from '../validations/libsql';
 import type { MysqlCredentials } from '../validations/mysql';
@@ -281,6 +284,110 @@ export const singlestorePush = async (
 				render(`[${chalk.blue('i')}] No changes detected`);
 			}
 		}
+	} catch (e) {
+		console.log(e);
+	}
+};
+
+/**
+ * Applies a schema to a live ClickHouse database.
+ *
+ * ClickHouse has no transactions, so the statements are applied one at a time and a failure part-way
+ * leaves the earlier ones in place. Statements that drop data or rebuild a table are surfaced for
+ * confirmation first.
+ */
+export const clickhousePush = async (
+	schemaPath: string | string[],
+	credentials: ClickHouseCredentials,
+	tablesFilter: string[],
+	strict: boolean,
+	verbose: boolean,
+	force: boolean,
+	casing: CasingType | undefined,
+) => {
+	const { connectToClickHouse } = await import('../connections');
+	const { fromDatabase } = await import('../../serializer/clickhouseSerializer');
+	const { clickhouseSchema } = await import('../../serializer/clickhouseSchema');
+	const { isDestructive } = await import('../../clickhouseStatements');
+
+	const { db, database } = await connectToClickHouse(credentials);
+
+	const matchers = tablesFilter.map((it) => new Minimatch(it));
+	const filter = (tableName: string) => matchers.length === 0 || matchers.every((matcher) => matcher.match(tableName));
+
+	const introspected = await fromDatabase(db, database, filter);
+	const schema = clickhouseSchema.parse({
+		id: originUUID,
+		prevId: '',
+		...introspected,
+	});
+
+	const { prepareClickHousePush } = await import('./migrate');
+	const statements = await prepareClickHousePush(schemaPath, schema, casing);
+
+	try {
+		if (statements.sqlStatements.length === 0) {
+			render(`[${chalk.blue('i')}] No changes detected`);
+			return;
+		}
+
+		if (verbose) {
+			console.log();
+			console.log(withStyle.warning('You are about to execute current statements:'));
+			console.log();
+			console.log(statements.sqlStatements.map((s) => chalk.blue(s)).join('\n'));
+			console.log();
+		}
+
+		const destructive = statements.statements.filter((it) => isDestructive(it));
+
+		if (!force && strict && destructive.length === 0) {
+			const { data } = await render(
+				new Select(['No, abort', `Yes, I want to execute all statements`]),
+			);
+			if (data?.index === 0) {
+				render(`[${chalk.red('x')}] All changes were aborted`);
+				process.exit(0);
+			}
+		}
+
+		if (!force && destructive.length > 0) {
+			console.log(withStyle.warning('Found data-loss statements:'));
+			for (const statement of destructive) {
+				if (statement.type === 'ch_drop_table') {
+					console.log(`· You're about to delete ${chalk.underline(statement.tableName)} table`);
+				} else if (statement.type === 'ch_drop_column') {
+					console.log(
+						`· You're about to delete ${chalk.underline(statement.columnName)} column in ${
+							chalk.underline(statement.tableName)
+						} table`,
+					);
+				} else if (statement.type === 'ch_recreate_table') {
+					console.log(
+						`· ${
+							chalk.underline(statement.table.name)
+						} has to be recreated (${statement.reason}), which drops its data`,
+					);
+				}
+			}
+			console.log();
+			console.log(chalk.red.bold('THIS ACTION WILL CAUSE DATA LOSS AND CANNOT BE REVERTED\n'));
+			console.log(chalk.white('Do you still want to push changes?'));
+
+			const { data } = await render(
+				new Select(['No, abort', `Yes, I want to execute all statements`]),
+			);
+			if (data?.index === 0) {
+				render(`[${chalk.red('x')}] All changes were aborted`);
+				process.exit(0);
+			}
+		}
+
+		for (const statement of statements.sqlStatements) {
+			await db.query(statement);
+		}
+
+		render(`[${chalk.green('✓')}] Changes applied`);
 	} catch (e) {
 		console.log(e);
 	}

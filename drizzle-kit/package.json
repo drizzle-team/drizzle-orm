@@ -51,6 +51,7 @@
 	"devDependencies": {
 		"@arethetypeswrong/cli": "^0.15.3",
 		"@aws-sdk/client-rds-data": "^3.556.0",
+		"@clickhouse/client": "^1.11.0",
 		"@cloudflare/workers-types": "^4.20230518.0",
 		"@electric-sql/pglite": "^0.2.12",
 		"@hono/node-server": "^1.9.0",

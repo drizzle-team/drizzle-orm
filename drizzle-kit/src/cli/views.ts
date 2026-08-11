@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import { Prompt, render, SelectState, TaskView } from 'hanji';
 import type { CommonSchema } from '../schemaValidator';
+import type { ClickHouseSchema } from '../serializer/clickhouseSchema';
 import { objectValues } from '../utils';
 import type { Named, NamedWithSchema } from './commands/migrate';
 
@@ -22,7 +23,7 @@ export const error = (error: string, greyMsg: string = ''): string => {
 	return `${chalk.bgRed.bold(' Error ')} ${error} ${greyMsg ? chalk.grey(greyMsg) : ''}`.trim();
 };
 
-export const schema = (schema: CommonSchema): string => {
+export const schema = (schema: CommonSchema | ClickHouseSchema): string => {
 	type TableEntry = (typeof schema)['tables'][keyof (typeof schema)['tables']];
 	const tables = Object.values(schema.tables) as unknown as TableEntry[];
 
@@ -33,8 +34,8 @@ export const schema = (schema: CommonSchema): string => {
 			const columnsCount = Object.values(t.columns).length;
 			const indexesCount = Object.values(t.indexes).length;
 			let foreignKeys: number = 0;
-			// Singlestore doesn't have foreign keys
-			if (schema.dialect !== 'singlestore') {
+			// Neither SingleStore nor ClickHouse has foreign keys
+			if (schema.dialect !== 'singlestore' && schema.dialect !== 'clickhouse') {
 				// @ts-expect-error
 				foreignKeys = Object.values(t.foreignKeys).length;
 			}
