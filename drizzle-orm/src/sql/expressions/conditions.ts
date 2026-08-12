@@ -100,12 +100,12 @@ const joinConditions = (conditions: SQLWrapper<unknown>[], separatorChunk: SQLCh
 	// ['((']
 	chunks[0] = openParenChunk;
 
-  for (let i = 0; i < lastIdx; i++) {
-    // [..., condition, ') and (']
+	for (let i = 0; i < lastIdx; i++) {
+		// [..., condition, ') and (']
 		chunks[i * 2 + 1] = conditions[i];
 		chunks[i * 2 + 2] = separatorChunk;
-  }
-  // [..., condition, '))']
+	}
+	// [..., condition, '))']
 	chunks[lastIdx * 2 + 1] = conditions[lastIdx];
 	chunks[lastIdx * 2 + 2] = closeParenChunk;
 
