@@ -7,26 +7,34 @@ export interface DrizzleEntity {
 
 export type DrizzleEntityClass<T> =
 	& ((abstract new(...args: any[]) => T) | (new(...args: any[]) => T))
-	& DrizzleEntity;
+  & DrizzleEntity;
 
 export function is<T extends DrizzleEntityClass<any>>(value: any, type: T): value is InstanceType<T> {
-	if (!value || typeof value !== 'object') {
-		return false;
-	}
-
-	if (value instanceof type) { // oxlint-disable-line drizzle-internal/no-instanceof
+  if (value instanceof type) { // oxlint-disable-line drizzle-internal/no-instanceof
 		return true;
 	}
 
-	let cls = Object.getPrototypeOf(value)?.constructor;
-	// Traverse the prototype chain to find the entityKind
-	while (cls) {
-		if (entityKind in cls && cls[entityKind] === type[entityKind]) {
-			return true;
-		}
+  if (value && typeof value === 'object') {
+    // Traverse the prototype chain to find the entityKind
+    for (let cls = Object.getPrototypeOf(value)?.constructor, targetKind = type[entityKind]; cls; cls = Object.getPrototypeOf(cls)) {
+      if (entityKind in cls && cls[entityKind] === targetKind) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
-		cls = Object.getPrototypeOf(cls);
-	}
+// Faster checking for multiple entity kinds
+export function isAnyKindIn(value: any, entityKinds: string[]): boolean {
+  if (value && typeof value === 'object') {
+   	// Traverse the prototype chain to find the entityKind
+    for (let cls = Object.getPrototypeOf(value)?.constructor; cls; cls = Object.getPrototypeOf(cls)) {
+      if (entityKind in cls && entityKinds.includes(cls[entityKind])) {
+        return true;
+      }
+    }
+  }
 
-	return false;
+  return false;
 }
