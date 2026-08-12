@@ -1,5 +1,5 @@
 import { type AnyColumn, Column, type GetColumnData } from '~/column.ts';
-import { is } from '~/entity.ts';
+import { entityKind, is, isAnyKindIn } from '~/entity.ts';
 import { Table } from '~/table.ts';
 import {
 	isDriverValueEncoder,
@@ -14,15 +14,19 @@ import {
 	View,
 } from '../sql.ts';
 
+const notParamKinds = [
+	Param[entityKind],
+	Placeholder[entityKind],
+	Column[entityKind],
+	Table[entityKind],
+	View[entityKind],
+];
 export function bindIfParam(value: unknown, column: SQLWrapper): SQLChunk {
 	if (
-		isDriverValueEncoder(column)
-		&& !isSQLWrapper(value)
-		&& !is(value, Param)
-		&& !is(value, Placeholder)
-		&& !is(value, Column)
-		&& !is(value, Table)
-		&& !is(value, View)
+		isDriverValueEncoder(column) && !isSQLWrapper(value)
+		&& !(value instanceof Param || value instanceof Placeholder || value instanceof Column || value instanceof Table // oxlint-disable-line drizzle-internal/no-instanceof
+			|| value instanceof View) // oxlint-disable-line drizzle-internal/no-instanceof
+		&& !isAnyKindIn(notParamKinds, value)
 	) {
 		return new Param(value, column);
 	}
@@ -85,6 +89,26 @@ export const ne: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
 	return sql`${left} <> ${bindIfParam(right, left)}`;
 };
 
+const openParenChunk = new StringChunk('('),
+	closeParenChunk = new StringChunk(')'),
+	andChunk = new StringChunk(' and '),
+	orChunk = new StringChunk(' or ');
+const joinConditions = (conditions: SQLWrapper<unknown>[], separatorChunk: SQLChunk) => {
+	const chunks: SQLChunk[] = new Array(conditions.length * 2 + 1),
+		lastIdx = conditions.length - 1;
+
+	chunks[0] = openParenChunk;
+
+	for (let i = 0; i < lastIdx; i++) {
+		chunks[i * 2 + 1] = sql`(${conditions[i]})`;
+		chunks[i * 2 + 2] = separatorChunk;
+	}
+	chunks[lastIdx * 2 + 1] = sql`(${conditions[lastIdx]})`;
+
+	chunks[lastIdx * 2 + 2] = closeParenChunk;
+
+	return new SQL(chunks);
+};
 /**
  * Combine a list of conditions with the `and` operator. Conditions
  * that are equal `undefined` are automatically ignored.
@@ -117,11 +141,7 @@ export function and(
 		return new SQL(conditions);
 	}
 
-	return new SQL([
-		new StringChunk('('),
-		sql.join(conditions.map((c) => sql`(${c})`), new StringChunk(' and ')),
-		new StringChunk(')'),
-	]);
+	return joinConditions(conditions, andChunk);
 }
 
 /**
@@ -156,11 +176,7 @@ export function or(
 		return new SQL(conditions);
 	}
 
-	return new SQL([
-		new StringChunk('('),
-		sql.join(conditions.map((c) => sql`(${c})`), new StringChunk(' or ')),
-		new StringChunk(')'),
-	]);
+	return joinConditions(conditions, orChunk);
 }
 
 /**
