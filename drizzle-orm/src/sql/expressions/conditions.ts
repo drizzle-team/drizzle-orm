@@ -89,22 +89,24 @@ export const ne: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
 	return sql`${left} <> ${bindIfParam(right, left)}`;
 };
 
-const openParenChunk = new StringChunk('('),
-	closeParenChunk = new StringChunk(')'),
-	andChunk = new StringChunk(' and '),
-	orChunk = new StringChunk(' or ');
+const openParenChunk = new StringChunk('(('),
+	closeParenChunk = new StringChunk('))'),
+	andChunk = new StringChunk(') and ('),
+	orChunk = new StringChunk(') or (');
 const joinConditions = (conditions: SQLWrapper<unknown>[], separatorChunk: SQLChunk) => {
 	const chunks: SQLChunk[] = new Array(conditions.length * 2 + 1),
 		lastIdx = conditions.length - 1;
 
+	// ['((']
 	chunks[0] = openParenChunk;
 
-	for (let i = 0; i < lastIdx; i++) {
-		chunks[i * 2 + 1] = sql`(${conditions[i]})`;
+  for (let i = 0; i < lastIdx; i++) {
+    // [..., condition, ') and (']
+		chunks[i * 2 + 1] = conditions[i];
 		chunks[i * 2 + 2] = separatorChunk;
-	}
-	chunks[lastIdx * 2 + 1] = sql`(${conditions[lastIdx]})`;
-
+  }
+  // [..., condition, '))']
+	chunks[lastIdx * 2 + 1] = conditions[lastIdx];
 	chunks[lastIdx * 2 + 2] = closeParenChunk;
 
 	return new SQL(chunks);
