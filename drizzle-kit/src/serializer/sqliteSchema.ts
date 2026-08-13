@@ -173,25 +173,40 @@ export type View = TypeOf<typeof view>;
 export const SQLiteSquasher = {
 	squashIdx: (idx: Index) => {
 		index.parse(idx);
-		return `${idx.name};${idx.columns.join(',')};${idx.isUnique};${idx.where ?? ''}`;
+		return `${idx.name};${JSON.stringify(idx.columns)};${idx.isUnique};${idx.where ?? ''}`;
 	},
 	unsquashIdx: (input: string): Index => {
 		const [name, columnsString, isUnique, where] = input.split(';');
 
+		let columns: string[];
+		try {
+			const parsed = JSON.parse(columnsString);
+			columns = Array.isArray(parsed) ? parsed : columnsString.split(',');
+		} catch {
+			columns = columnsString.split(',');
+		}
+
 		const result: Index = index.parse({
 			name,
-			columns: columnsString.split(','),
+			columns,
 			isUnique: isUnique === 'true',
 			where: where ?? undefined,
 		});
 		return result;
 	},
 	squashUnique: (unq: UniqueConstraint) => {
-		return `${unq.name};${unq.columns.join(',')}`;
+		return `${unq.name};${JSON.stringify(unq.columns)}`;
 	},
 	unsquashUnique: (unq: string): UniqueConstraint => {
-		const [name, columns] = unq.split(';');
-		return { name, columns: columns.split(',') };
+		const [name, columnsString] = unq.split(';');
+		let columns: string[];
+		try {
+			const parsed = JSON.parse(columnsString);
+			columns = Array.isArray(parsed) ? parsed : columnsString.split(',');
+		} catch {
+			columns = columnsString.split(',');
+		}
+		return { name, columns };
 	},
 	squashFK: (fk: ForeignKey) => {
 		return `${fk.name};${fk.tableFrom};${fk.columnsFrom.join(',')};${fk.tableTo};${fk.columnsTo.join(',')};${
