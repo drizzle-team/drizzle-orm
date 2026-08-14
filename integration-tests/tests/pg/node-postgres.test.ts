@@ -181,7 +181,9 @@ test('migrator : migration with create index concurrently', async () => {
 	);
 	await expect(
 		db.execute(sql`insert into users_concurrently ("name", "email") values ('Jane', 'john@example.com')`),
-	).rejects.toThrow();
+	).rejects.toMatchObject({
+		cause: expect.objectContaining({ constraint: 'users_concurrently_email_index' }),
+	});
 
 	await db.execute(sql`drop table users_concurrently`);
 	await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);

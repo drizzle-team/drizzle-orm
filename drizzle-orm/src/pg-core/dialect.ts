@@ -106,18 +106,22 @@ export class PgDialect {
 		const pendingMigrations = migrations.filter(
 			(migration) => !lastDbMigration || Number(lastDbMigration.created_at) < migration.folderMillis,
 		);
-		const journalEntry = (migration: MigrationMeta) =>
+		const insertMigrationSql = (migration: MigrationMeta) =>
 			sql`insert into ${sql.identifier(migrationsSchema)}.${
 				sql.identifier(migrationsTable)
 			} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`;
 
-		if (!pendingMigrations.some((migration) => migration.sql.some((stmt) => isConcurrentIndexStatement(stmt)))) {
+		const hasConcurrentIndexStatements = pendingMigrations.some(
+			(migration) => migration.sql.some((stmt) => isConcurrentIndexStatement(stmt)),
+		);
+
+		if (!hasConcurrentIndexStatements) {
 			await session.transaction(async (tx) => {
 				for (const migration of pendingMigrations) {
 					for (const stmt of migration.sql) {
 						await tx.execute(sql.raw(stmt));
 					}
-					await tx.execute(journalEntry(migration));
+					await tx.execute(insertMigrationSql(migration));
 				}
 			});
 			return;
@@ -151,7 +155,7 @@ export class PgDialect {
 					batch.push(sql.raw(stmt));
 				}
 			}
-			batch.push(journalEntry(migration));
+			batch.push(insertMigrationSql(migration));
 			await flushBatch();
 		}
 	}

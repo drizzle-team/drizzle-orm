@@ -58,14 +58,19 @@ function migration(folderMillis: number, ...statements: string[]): MigrationMeta
 	};
 }
 
-async function migrate(
+function migrate(
 	session: MockSession,
 	migrations: MigrationMeta[],
 	config: { migrationsTable?: string; migrationsSchema?: string } = {},
-): Promise<LogEntry[]> {
-	await dialect.migrate(migrations, session as unknown as PgSession, { migrationsFolder: '', ...config });
-	// Drops the migrations schema + table setup and the applied migrations lookup,
-	// which are identical for every run.
+): Promise<void> {
+	return dialect.migrate(migrations, session as unknown as PgSession, { migrationsFolder: '', ...config });
+}
+
+/**
+ * Drops the migrations schema + table setup and the applied migrations lookup,
+ * which are identical for every run.
+ */
+function appliedQueries(session: MockSession): LogEntry[] {
 	return session.log.slice(3);
 }
 
@@ -73,7 +78,7 @@ function query(sql: string): LoggedQuery {
 	return { sql, params: [] };
 }
 
-function journalEntry(
+function migrationRecord(
 	migration: MigrationMeta,
 	schema = 'drizzle',
 	table = '__drizzle_migrations',
@@ -94,16 +99,16 @@ describe('migrations without concurrent index statements', () => {
 		);
 		const migration2 = migration(2, 'CREATE INDEX "users_name_index" ON "users" ("name")');
 
-		const log = await migrate(session, [migration1, migration2]);
+		await migrate(session, [migration1, migration2]);
 
 		expect(session.log[0]).toEqual(query('CREATE SCHEMA IF NOT EXISTS "drizzle"'));
-		expect(log).toEqual([
+		expect(appliedQueries(session)).toEqual([
 			'begin',
 			query('CREATE TABLE "users" ("id" int)'),
 			query('ALTER TABLE "users" ADD COLUMN "name" text'),
-			journalEntry(migration1),
+			migrationRecord(migration1),
 			query('CREATE INDEX "users_name_index" ON "users" ("name")'),
-			journalEntry(migration2),
+			migrationRecord(migration2),
 			'commit',
 		]);
 	});
@@ -114,12 +119,12 @@ describe('migrations without concurrent index statements', () => {
 		const migration1 = migration(1, 'CREATE TABLE "users" ("id" int)');
 		const migration2 = migration(2, 'ALTER TABLE "users" ADD COLUMN "name" text');
 
-		const log = await migrate(session, [migration1, migration2]);
+		await migrate(session, [migration1, migration2]);
 
-		expect(log).toEqual([
+		expect(appliedQueries(session)).toEqual([
 			'begin',
 			query('ALTER TABLE "users" ADD COLUMN "name" text'),
-			journalEntry(migration2),
+			migrationRecord(migration2),
 			'commit',
 		]);
 	});
@@ -132,10 +137,10 @@ describe('migrations without concurrent index statements', () => {
 
 		await expect(migrate(session, [migration1, migration2])).rejects.toThrow('DROP TABLE "missing"');
 
-		expect(session.log.slice(3)).toEqual([
+		expect(appliedQueries(session)).toEqual([
 			'begin',
 			query('CREATE TABLE "users" ("id" int)'),
-			journalEntry(migration1),
+			migrationRecord(migration1),
 			query('DROP TABLE "missing"'),
 			'rollback',
 		]);
@@ -152,16 +157,16 @@ describe('migrations with concurrent index statements', () => {
 			'ALTER TABLE "users" ADD COLUMN "email" text',
 		);
 
-		const log = await migrate(session, [migration1]);
+		await migrate(session, [migration1]);
 
-		expect(log).toEqual([
+		expect(appliedQueries(session)).toEqual([
 			'begin',
 			query('CREATE TABLE "users" ("id" int, "name" text)'),
 			'commit',
 			query('CREATE INDEX CONCURRENTLY "users_name_index" ON "users" ("name")'),
 			'begin',
 			query('ALTER TABLE "users" ADD COLUMN "email" text'),
-			journalEntry(migration1),
+			migrationRecord(migration1),
 			'commit',
 		]);
 	});
@@ -172,20 +177,39 @@ describe('migrations with concurrent index statements', () => {
 		const migration2 = migration(2, 'CREATE INDEX CONCURRENTLY "users_name_index" ON "users" ("name")');
 		const migration3 = migration(3, 'ALTER TABLE "users" ADD COLUMN "email" text');
 
-		const log = await migrate(session, [migration1, migration2, migration3]);
+		await migrate(session, [migration1, migration2, migration3]);
 
-		expect(log).toEqual([
+		expect(appliedQueries(session)).toEqual([
 			'begin',
 			query('CREATE TABLE "users" ("id" int, "name" text)'),
-			journalEntry(migration1),
+			migrationRecord(migration1),
 			'commit',
 			query('CREATE INDEX CONCURRENTLY "users_name_index" ON "users" ("name")'),
 			'begin',
-			journalEntry(migration2),
+			migrationRecord(migration2),
 			'commit',
 			'begin',
 			query('ALTER TABLE "users" ADD COLUMN "email" text'),
-			journalEntry(migration3),
+			migrationRecord(migration3),
+			'commit',
+		]);
+	});
+
+	test('does not open empty transactions between consecutive concurrent statements', async () => {
+		const session = new MockSession();
+		const migration1 = migration(
+			1,
+			'CREATE INDEX CONCURRENTLY "users_name_index" ON "users" ("name")',
+			'CREATE UNIQUE INDEX CONCURRENTLY "users_email_index" ON "users" ("email")',
+		);
+
+		await migrate(session, [migration1]);
+
+		expect(appliedQueries(session)).toEqual([
+			query('CREATE INDEX CONCURRENTLY "users_name_index" ON "users" ("name")'),
+			query('CREATE UNIQUE INDEX CONCURRENTLY "users_email_index" ON "users" ("email")'),
+			'begin',
+			migrationRecord(migration1),
 			'commit',
 		]);
 	});
@@ -194,15 +218,15 @@ describe('migrations with concurrent index statements', () => {
 		const session = new MockSession();
 		const migration1 = migration(1, 'CREATE INDEX CONCURRENTLY "users_name_index" ON "users" ("name")');
 
-		const log = await migrate(session, [migration1], {
+		await migrate(session, [migration1], {
 			migrationsSchema: 'custom_schema',
 			migrationsTable: 'custom_table',
 		});
 
-		expect(log).toEqual([
+		expect(appliedQueries(session)).toEqual([
 			query('CREATE INDEX CONCURRENTLY "users_name_index" ON "users" ("name")'),
 			'begin',
-			journalEntry(migration1, 'custom_schema', 'custom_table'),
+			migrationRecord(migration1, 'custom_schema', 'custom_table'),
 			'commit',
 		]);
 	});
@@ -218,7 +242,7 @@ describe('migrations with concurrent index statements', () => {
 
 		await expect(migrate(session, [migration1])).rejects.toThrow('CREATE INDEX CONCURRENTLY');
 
-		expect(session.log.slice(3)).toEqual([
+		expect(appliedQueries(session)).toEqual([
 			'begin',
 			query('CREATE TABLE "users" ("id" int, "name" text)'),
 			'commit',
@@ -234,10 +258,10 @@ describe('migrations with concurrent index statements', () => {
 
 		await expect(migrate(session, [migration1, migration2])).rejects.toThrow('DROP TABLE "missing"');
 
-		expect(session.log.slice(3)).toEqual([
+		expect(appliedQueries(session)).toEqual([
 			query('CREATE INDEX CONCURRENTLY "users_name_index" ON "users" ("name")'),
 			'begin',
-			journalEntry(migration1),
+			migrationRecord(migration1),
 			'commit',
 			'begin',
 			query('DROP TABLE "missing"'),
@@ -262,12 +286,12 @@ describe('concurrent index statement detection', () => {
 		const session = new MockSession();
 		const migration1 = migration(1, statement);
 
-		const log = await migrate(session, [migration1]);
+		await migrate(session, [migration1]);
 
-		expect(log).toEqual([
+		expect(appliedQueries(session)).toEqual([
 			query(statement),
 			'begin',
-			journalEntry(migration1),
+			migrationRecord(migration1),
 			'commit',
 		]);
 	});
@@ -283,12 +307,12 @@ describe('concurrent index statement detection', () => {
 		const session = new MockSession();
 		const migration1 = migration(1, statement);
 
-		const log = await migrate(session, [migration1]);
+		await migrate(session, [migration1]);
 
-		expect(log).toEqual([
+		expect(appliedQueries(session)).toEqual([
 			'begin',
 			query(statement),
-			journalEntry(migration1),
+			migrationRecord(migration1),
 			'commit',
 		]);
 	});
