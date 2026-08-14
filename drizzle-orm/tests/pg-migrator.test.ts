@@ -275,6 +275,7 @@ describe('concurrent index statement detection', () => {
 		'CREATE INDEX CONCURRENTLY "users_name_index" ON "users" ("name")',
 		'create index concurrently "users_name_index" on "users" ("name")',
 		'CREATE INDEX CONCURRENTLY IF NOT EXISTS "users_name_index" ON "users" ("name")',
+		'CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "users_name_index" ON "users" ("name")',
 		'CREATE INDEX CONCURRENTLY ON "users" ("name")',
 		'CREATE UNIQUE INDEX CONCURRENTLY "users_name_index" ON "users" USING btree ("name");',
 		'\nCREATE INDEX CONCURRENTLY "users_name_index" ON "users" ("name");',
@@ -282,6 +283,7 @@ describe('concurrent index statement detection', () => {
 		'/* adds\nthe index */ CREATE INDEX CONCURRENTLY "users_name_index" ON "users" ("name")',
 		'create\tunique\nindex   concurrently "users_name_index" on "users" ("name")',
 		'DROP INDEX CONCURRENTLY "users_name_index"',
+		'DROP INDEX CONCURRENTLY IF EXISTS "users_name_index"',
 	])('runs outside of the transaction: %s', async (statement) => {
 		const session = new MockSession();
 		const migration1 = migration(1, statement);
