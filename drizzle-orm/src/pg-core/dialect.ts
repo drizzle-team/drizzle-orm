@@ -60,6 +60,17 @@ export interface PgDialectConfig {
 	casing?: Casing;
 }
 
+const leadingSqlTrivia = /^(?:\s+|--[^\n]*\n?|\/\*[\s\S]*?\*\/)+/;
+const concurrentIndexStart = /^(?:create\s+(?:unique\s+)?index|drop\s+index)\s+concurrently\b/i;
+
+/**
+ * `create index concurrently`, `create unique index concurrently` and `drop index concurrently`
+ * cannot be executed inside a transaction block, so the migrator has to run them separately.
+ */
+function isConcurrentIndexStatement(statement: string): boolean {
+	return concurrentIndexStart.test(statement.replace(leadingSqlTrivia, ''));
+}
+
 export class PgDialect {
 	static readonly [entityKind]: string = 'PgDialect';
 
@@ -92,23 +103,57 @@ export class PgDialect {
 		);
 
 		const lastDbMigration = dbMigrations[0];
-		await session.transaction(async (tx) => {
-			for await (const migration of migrations) {
-				if (
-					!lastDbMigration
-					|| Number(lastDbMigration.created_at) < migration.folderMillis
-				) {
+		const pendingMigrations = migrations.filter(
+			(migration) => !lastDbMigration || Number(lastDbMigration.created_at) < migration.folderMillis,
+		);
+		const journalEntry = (migration: MigrationMeta) =>
+			sql`insert into ${sql.identifier(migrationsSchema)}.${
+				sql.identifier(migrationsTable)
+			} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`;
+
+		if (!pendingMigrations.some((migration) => migration.sql.some((stmt) => isConcurrentIndexStatement(stmt)))) {
+			await session.transaction(async (tx) => {
+				for (const migration of pendingMigrations) {
 					for (const stmt of migration.sql) {
 						await tx.execute(sql.raw(stmt));
 					}
-					await tx.execute(
-						sql`insert into ${sql.identifier(migrationsSchema)}.${
-							sql.identifier(migrationsTable)
-						} ("hash", "created_at") values(${migration.hash}, ${migration.folderMillis})`,
-					);
+					await tx.execute(journalEntry(migration));
+				}
+			});
+			return;
+		}
+
+		// Concurrent index statements are not allowed inside a transaction block and wait for all
+		// transactions that could use their target table to finish, so batched statements are
+		// committed before each of them runs. Since full atomicity is impossible here, each
+		// migration is applied and recorded individually: a failure never rolls back a migration
+		// that was already recorded as applied.
+		for (const migration of pendingMigrations) {
+			let batch: SQL[] = [];
+			const flushBatch = async () => {
+				if (batch.length === 0) {
+					return;
+				}
+				const statements = batch;
+				batch = [];
+				await session.transaction(async (tx) => {
+					for (const statement of statements) {
+						await tx.execute(statement);
+					}
+				});
+			};
+
+			for (const stmt of migration.sql) {
+				if (isConcurrentIndexStatement(stmt)) {
+					await flushBatch();
+					await session.execute(sql.raw(stmt));
+				} else {
+					batch.push(sql.raw(stmt));
 				}
 			}
-		});
+			batch.push(journalEntry(migration));
+			await flushBatch();
+		}
 	}
 
 	escapeName(name: string): string {
