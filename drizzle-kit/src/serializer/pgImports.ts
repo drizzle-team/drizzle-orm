@@ -1,18 +1,14 @@
 import { is } from 'drizzle-orm';
+import type { AnyPgTable, PgEnum, PgMaterializedView, PgSequence, PgView } from 'drizzle-orm/pg-core';
 import {
-	AnyPgTable,
 	isPgEnum,
 	isPgMaterializedView,
 	isPgSequence,
 	isPgView,
-	PgEnum,
-	PgMaterializedView,
 	PgPolicy,
 	PgRole,
 	PgSchema,
-	PgSequence,
 	PgTable,
-	PgView,
 } from 'drizzle-orm/pg-core';
 import { Relations } from 'drizzle-orm/relations';
 import { safeRegister } from '../cli/commands/utils';
@@ -81,24 +77,24 @@ export const prepareFromPgImports = async (imports: string[]) => {
 	const matViews: PgMaterializedView[] = [];
 	const relations: Relations[] = [];
 
-	const { unregister } = await safeRegister();
-	for (let i = 0; i < imports.length; i++) {
-		const it = imports[i];
+	await safeRegister(async () => {
+		for (let i = 0; i < imports.length; i++) {
+			const it = imports[i];
 
-		const i0: Record<string, unknown> = require(`${it}`);
-		const prepared = prepareFromExports(i0);
+			const i0: Record<string, unknown> = require(`${it}`);
+			const prepared = prepareFromExports(i0);
 
-		tables.push(...prepared.tables);
-		enums.push(...prepared.enums);
-		schemas.push(...prepared.schemas);
-		sequences.push(...prepared.sequences);
-		views.push(...prepared.views);
-		matViews.push(...prepared.matViews);
-		roles.push(...prepared.roles);
-		policies.push(...prepared.policies);
-		relations.push(...prepared.relations);
-	}
-	unregister();
+			tables.push(...prepared.tables);
+			enums.push(...prepared.enums);
+			schemas.push(...prepared.schemas);
+			sequences.push(...prepared.sequences);
+			views.push(...prepared.views);
+			matViews.push(...prepared.matViews);
+			roles.push(...prepared.roles);
+			policies.push(...prepared.policies);
+			relations.push(...prepared.relations);
+		}
+	});
 
 	return {
 		tables: Array.from(new Set(tables)),

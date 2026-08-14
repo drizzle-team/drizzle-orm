@@ -7,51 +7,33 @@ import { getTablesFilterByExtensions } from '../../extensions/getTablesFilterByE
 import { assertUnreachable } from '../../global';
 import { type Dialect, dialect } from '../../schemaValidator';
 import { prepareFilenames } from '../../serializer';
-import { Entities, pullParams, pushParams } from '../validations/cli';
-import {
-	Casing,
-	CasingType,
-	CliConfig,
-	configCommonSchema,
-	configMigrations,
-	Driver,
-	Prefix,
-	wrapParam,
-} from '../validations/common';
-import { GelCredentials, gelCredentials, printConfigConnectionIssues as printIssuesGel } from '../validations/gel';
-import {
-	LibSQLCredentials,
-	libSQLCredentials,
-	printConfigConnectionIssues as printIssuesLibSQL,
-} from '../validations/libsql';
-import {
-	MysqlCredentials,
-	mysqlCredentials,
-	printConfigConnectionIssues as printIssuesMysql,
-} from '../validations/mysql';
+import type { Entities } from '../validations/cli';
+import { pullParams, pushParams } from '../validations/cli';
+import type { Casing, CasingType, CliConfig, Driver, Prefix } from '../validations/common';
+import { configCommonSchema, configMigrations, wrapParam } from '../validations/common';
+import type { GelCredentials } from '../validations/gel';
+import { gelCredentials, printConfigConnectionIssues as printIssuesGel } from '../validations/gel';
+import type { LibSQLCredentials } from '../validations/libsql';
+import { libSQLCredentials, printConfigConnectionIssues as printIssuesLibSQL } from '../validations/libsql';
+import type { MysqlCredentials } from '../validations/mysql';
+import { mysqlCredentials, printConfigConnectionIssues as printIssuesMysql } from '../validations/mysql';
 import { outputs } from '../validations/outputs';
-import {
-	PostgresCredentials,
-	postgresCredentials,
-	printConfigConnectionIssues as printIssuesPg,
-} from '../validations/postgres';
+import type { PostgresCredentials } from '../validations/postgres';
+import { postgresCredentials, printConfigConnectionIssues as printIssuesPg } from '../validations/postgres';
+import type { SingleStoreCredentials } from '../validations/singlestore';
 import {
 	printConfigConnectionIssues as printIssuesSingleStore,
-	SingleStoreCredentials,
 	singlestoreCredentials,
 } from '../validations/singlestore';
-import {
-	printConfigConnectionIssues as printIssuesSqlite,
-	SqliteCredentials,
-	sqliteCredentials,
-} from '../validations/sqlite';
+import type { SqliteCredentials } from '../validations/sqlite';
+import { printConfigConnectionIssues as printIssuesSqlite, sqliteCredentials } from '../validations/sqlite';
 import { studioCliParams, studioConfig } from '../validations/studio';
 import { error } from '../views';
 
 // NextJs default config is target: es5, which esbuild-register can't consume
-const assertES5 = async (unregister: () => void) => {
+const assertES5 = async () => {
 	try {
-		require('./_es5.ts');
+		await import('./_es5');
 	} catch (e: any) {
 		if ('errors' in e && Array.isArray(e.errors) && e.errors.length > 0) {
 			const es5Error = (e.errors as any[]).filter((it) => it.text?.includes(`("es5") is not supported yet`)).length > 0;
@@ -69,24 +51,53 @@ const assertES5 = async (unregister: () => void) => {
 	}
 };
 
-export const safeRegister = async () => {
-	const { register } = await import('esbuild-register/dist/node');
-	let res: { unregister: () => void };
-	try {
-		res = register({
-			format: 'cjs',
-			loader: 'ts',
+export class InMemoryMutex {
+	private lockPromise: Promise<void> | null = null;
+
+	async withLock<T>(fn: () => Promise<T>): Promise<T> {
+		// Wait for any existing lock
+		while (this.lockPromise) {
+			await this.lockPromise;
+		}
+
+		let resolveLock: (() => void) | undefined;
+		this.lockPromise = new Promise<void>((resolve) => {
+			resolveLock = resolve;
 		});
-	} catch {
-		// tsx fallback
-		res = {
-			unregister: () => {},
-		};
+
+		try {
+			return await fn();
+		} finally {
+			this.lockPromise = null;
+			resolveLock!(); // non-null assertion: TS now knows it's definitely assigned
+		}
+	}
+}
+
+const registerMutex = new InMemoryMutex();
+
+let tsxRegistered = false;
+const ensureTsxRegistered = () => {
+	if (tsxRegistered) return;
+
+	const isBun = typeof (globalThis as any).Bun !== 'undefined';
+	const isDeno = typeof (globalThis as any).Deno !== 'undefined';
+	if (isBun || isDeno) {
+		tsxRegistered = true;
+		return;
 	}
 
-	// has to be outside try catch to be able to run with tsx
-	await assertES5(res.unregister);
-	return res;
+	const tsx = require('tsx/cjs/api');
+	tsx.register();
+	tsxRegistered = true;
+};
+
+export const safeRegister = async <T>(fn: () => Promise<T>) => {
+	return registerMutex.withLock(async () => {
+		ensureTsxRegistered();
+		await assertES5();
+		return fn();
+	});
 };
 
 export const prepareCheckParams = async (
@@ -881,7 +892,7 @@ export const drizzleConfigFromFile = async (
 
 	const defaultTsConfigExists = existsSync(resolve(join(prefix, 'drizzle.config.ts')));
 	const defaultJsConfigExists = existsSync(resolve(join(prefix, 'drizzle.config.js')));
-	const defaultJsonConfigExists = existsSync(
+	existsSync(
 		join(resolve('drizzle.config.json')),
 	);
 
@@ -908,20 +919,20 @@ export const drizzleConfigFromFile = async (
 
 	if (!isExport) console.log(chalk.grey(`Reading config file '${path}'`));
 
-	const { unregister } = await safeRegister();
-	const required = require(`${path}`);
-	const content = required.default ?? required;
-	unregister();
+	return safeRegister(async () => {
+		const required = require(`${path}`);
+		const content = required.default ?? required;
 
-	// --- get response and then check by each dialect independently
-	const res = configCommonSchema.safeParse(content);
-	if (!res.success) {
-		console.log(res.error);
-		if (!('dialect' in content)) {
-			console.log(error("Please specify 'dialect' param in config file"));
+		// --- get response and then check by each dialect independently
+		const res = configCommonSchema.safeParse(content);
+		if (!res.success) {
+			console.log(res.error);
+			if (!('dialect' in content)) {
+				console.log(error("Please specify 'dialect' param in config file"));
+			}
+			process.exit(1);
 		}
-		process.exit(1);
-	}
 
-	return res.data;
+		return res.data;
+	});
 };

@@ -27,6 +27,8 @@ export function mapResultRow<TResult>(
 				decoder = field;
 			} else if (is(field, SQL)) {
 				decoder = field.decoder;
+			} else if (is(field, Subquery)) {
+				decoder = field._.sql.decoder;
 			} else {
 				decoder = field.sql.decoder;
 			}
@@ -81,7 +83,7 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 		}
 
 		const newPath = pathPrefix ? [...pathPrefix, name] : [name];
-		if (is(field, Column) || is(field, SQL) || is(field, SQL.Aliased)) {
+		if (is(field, Column) || is(field, SQL) || is(field, SQL.Aliased) || is(field, Subquery)) {
 			result.push({ path: newPath, field });
 		} else if (is(field, Table)) {
 			result.push(...orderSelectedFields(field[Table.Symbol.Columns], newPath));
@@ -145,6 +147,21 @@ export type Simplify<T> =
 		[K in keyof T]: T[K];
 	}
 	& {};
+
+export type Not<T extends boolean> = T extends true ? false : true;
+
+export type IsNever<T> = [T] extends [never] ? true : false;
+
+export type IsUnion<T, U extends T = T> = (T extends any ? (U extends T ? false : true) : never) extends false ? false
+	: true;
+
+export type SingleKeyObject<T, TError extends string, K = keyof T> = IsNever<K> extends true ? never
+	: IsUnion<K> extends true ? DrizzleTypeError<TError>
+	: T;
+
+export type FromSingleKeyObject<T, Result, TError extends string, K = keyof T> = IsNever<K> extends true ? never
+	: IsUnion<K> extends true ? DrizzleTypeError<TError>
+	: Result;
 
 export type SimplifyMappedType<T> = [T] extends [unknown] ? T : never;
 
