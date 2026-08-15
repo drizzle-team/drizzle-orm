@@ -1345,3 +1345,77 @@ test('changing a column type records a `type_change` confirm_data_loss missing h
 		},
 	]);
 });
+
+/*
+	MySQL names the index it implicitly creates for a foreign key after the
+	constraint, and introspection uses that shared name to tell implicit indexes
+	apart from user ones. Anything that renames the constraint without renaming
+	the index breaks the link — PlanetScale/Vitess appends a random suffix to
+	constraint names when it applies a migration — and the index then reads as a
+	user index the schema does not declare. Dropping it is not possible: MySQL
+	refuses to drop the last index backing a foreign key with errno 1553.
+*/
+test('index backing a foreign key of another name is not dropped', async () => {
+	const parent = mysqlTable('parent', {
+		id: varchar({ length: 100 }).primaryKey(),
+	});
+	const child = (extras: 'with-index' | 'without-index') =>
+		mysqlTable('child', {
+			parentId: varchar({ length: 100 }),
+		}, (t) => [
+			...(extras === 'with-index' ? [index('child_parentId_fkey').on(t.parentId)] : []),
+			foreignKey({
+				name: 'child_parentId_fkey_9ugmls298u0uxtdy24kgydtuq',
+				columns: [t.parentId],
+				foreignColumns: [parent.id],
+			}),
+		]);
+
+	const from = { parent, child: child('with-index') };
+	const to = { parent, child: child('without-index') };
+
+	const { sqlStatements } = await diff(from, to, []);
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('index not backing a foreign key is still dropped', async () => {
+	const from = {
+		child: mysqlTable('child', {
+			parentId: varchar({ length: 100 }),
+			other: varchar({ length: 100 }),
+		}, (t) => [index('child_other_idx').on(t.other)]),
+	};
+	const to = {
+		child: mysqlTable('child', {
+			parentId: varchar({ length: 100 }),
+			other: varchar({ length: 100 }),
+		}),
+	};
+
+	const { sqlStatements } = await diff(from, to, []);
+	expect(sqlStatements).toStrictEqual(['DROP INDEX `child_other_idx` ON `child`;']);
+});
+
+test('index backing a foreign key is dropped when another index covers it', async () => {
+	const parent = mysqlTable('parent', {
+		id: varchar({ length: 100 }).primaryKey(),
+	});
+	const child = (extras: 'both' | 'one') =>
+		mysqlTable('child', {
+			parentId: varchar({ length: 100 }),
+		}, (t) => [
+			...(extras === 'both' ? [index('child_parentId_fkey').on(t.parentId)] : []),
+			index('child_parentId_idx').on(t.parentId),
+			foreignKey({
+				name: 'child_parentId_fkey_9ugmls298u0uxtdy24kgydtuq',
+				columns: [t.parentId],
+				foreignColumns: [parent.id],
+			}),
+		]);
+
+	const from = { parent, child: child('both') };
+	const to = { parent, child: child('one') };
+
+	const { sqlStatements } = await diff(from, to, []);
+	expect(sqlStatements).toStrictEqual(['DROP INDEX `child_parentId_fkey` ON `child`;']);
+});
