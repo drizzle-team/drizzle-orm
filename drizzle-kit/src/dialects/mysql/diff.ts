@@ -4,7 +4,7 @@ import type { Resolver } from '../common';
 import { diff } from '../dialect';
 import { groupDiffs, preserveEntityNames } from '../utils';
 import { fromJson } from './convertor';
-import type { Column, DiffEntities, Index, MysqlDDL, Table, View } from './ddl';
+import type { Column, DiffEntities, ForeignKey, Index, MysqlDDL, Table, View } from './ddl';
 import { fullTableFromDDL } from './ddl';
 import { charSetAndCollationCommutative, commutative, defaultNameForFK } from './grammar';
 import { prepareStatement } from './statements';
@@ -273,9 +273,42 @@ export const ddlDiff = async (
 		.filter((it) => !deletedTables.some((x) => x.name === it.table))
 		.map((it) => prepareStatement('drop_constraint', { constraint: it.name, table: it.table, dropAutoIndex: false }));
 
+	/*
+		MySQL requires every foreign key to be backed by an index whose leftmost
+		columns are the key's columns, and refuses to drop the last index that
+		does so (errno 1553). An index that is still backing a foreign key
+		therefore has to be left alone, however the schema declares it.
+
+		This is reachable whenever a constraint and the index implicitly created
+		for it stop sharing a name. MySQL names that index after the constraint,
+		and `fromDatabaseForDrizzle` uses the shared name to tell implicit
+		indexes apart from user ones — so when something renames the constraint
+		but not the index (PlanetScale/Vitess appends a random suffix to
+		constraint names when applying a migration), the index is reported as a
+		user index that the schema does not declare, and every push plans a drop
+		the database can only reject.
+	*/
+	const backsForeignKey = (index: Index) => {
+		const columnsOf = (idx: Index) => idx.columns.map((it) => (it.isExpression ? null : it.value));
+		const covers = (columns: (string | null)[], fk: ForeignKey) =>
+			fk.columns.length <= columns.length && fk.columns.every((it, i) => columns[i] === it);
+
+		const droppedFks = new Set(
+			fksDiff.filter((it) => it.$diffType === 'drop').map((it) => `${it.table}.${it.name}`),
+		);
+		const fks = ddl1.fks.list({ table: index.table })
+			.filter((fk) => !droppedFks.has(`${fk.table}.${fk.name}`))
+			.filter((fk) => covers(columnsOf(index), fk));
+		if (fks.length === 0) return false;
+
+		const others = ddl1.indexes.list({ table: index.table }).filter((it) => it.name !== index.name);
+		const pk = ddl1.pks.one({ table: index.table });
+		return fks.some((fk) => !others.some((it) => covers(columnsOf(it), fk)) && !(pk && covers(pk.columns, fk)));
+	};
+
 	const dropIndexeStatements = indexesDiff.filter((it) => it.$diffType === 'drop').filter((it) =>
 		!deletedTables.some((x) => x.name === it.table)
-	).map((it) => prepareStatement('drop_index', { index: it }));
+	).filter((it) => !backsForeignKey(it)).map((it) => prepareStatement('drop_index', { index: it }));
 
 	const dropFKStatements = fksDiff.filter((it) => it.$diffType === 'drop')
 		.filter((it) => {
