@@ -144,9 +144,11 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 	bytea: { normalizeParamArray: makePgArray },
 	enum: { normalizeParamArray: makePgArray },
 	json: {
+		normalizeParam: (v) => JSON.stringify(v),
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
 	jsonb: {
+		normalizeParam: (v) => JSON.stringify(v),
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
 	'geometry(point)': {
