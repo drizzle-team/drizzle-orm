@@ -371,9 +371,7 @@ export const migrate = command({
 		await assertOrmCoreVersion();
 		await assertPackages('drizzle-orm');
 		assertV3OutFolder(opts.out);
-		const { dialect, schema, table, out, credentials, ignoreConflicts } = opts;
-
-		await checkHandler(out, dialect, ignoreConflicts);
+		const { dialect, schema, table, out, credentials } = opts;
 
 		if (dialect === 'postgresql') {
 			if ('driver' in credentials) {
