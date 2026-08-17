@@ -59,8 +59,8 @@ export class CockroachCountBuilder extends SQL<number> implements SQLWrapper<num
 	execute(placeholderValues?: Record<string, unknown>): Promise<number> {
 		return this.session.prepareQuery(
 			this.build(),
-			undefined,
-			undefined,
+			'arrays',
+			false,
 			(rows) => {
 				const v = rows[0]?.[0];
 				if (typeof v === 'number') return v;

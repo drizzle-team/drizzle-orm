@@ -24,6 +24,7 @@ import { RelationalQueryBuilder } from './query-builders/query.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import type {
 	PreparedQueryHKTBase,
+	SingleStorePreparedQueryConfig,
 	SingleStoreQueryResultHKT,
 	SingleStoreQueryResultKind,
 	SingleStoreSession,
@@ -509,10 +510,30 @@ export class SingleStoreDatabase<
 		return new SingleStoreDeleteBase(table, this.session, this.dialect);
 	}
 
+	execute<TRow extends unknown[] = unknown[]>(
+		query: SQLWrapper | string,
+		mode: 'arrays',
+	): Promise<TRow[]>;
+	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+		query: SQLWrapper | string,
+		mode: 'objects',
+	): Promise<TRow[]>;
 	execute<T extends { [column: string]: any } = ResultSetHeader>(
 		query: SQLWrapper | string,
-	): Promise<SingleStoreQueryResultKind<TQueryResult, T>> {
-		return this.session.execute(typeof query === 'string' ? sql.raw(query) : query.getSQL());
+		mode?: 'raw' | undefined,
+	): Promise<SingleStoreQueryResultKind<TQueryResult, T>>;
+	execute(
+		query: SQLWrapper | string,
+		mode?: 'raw' | 'objects' | 'arrays' | undefined,
+	): unknown {
+		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
+		return this.session.prepareQuery<
+			SingleStorePreparedQueryConfig & { execute: unknown },
+			PreparedQueryHKTBase
+		>(
+			this.dialect.sqlToQuery(sequel),
+			mode ?? 'raw',
+		).execute();
 	}
 
 	$cache: { invalidate: Cache['onMutate'] };
@@ -545,7 +566,7 @@ export const withReplicas = <
 	const update: Q['update'] = (...args: [any]) => primary.update(...args);
 	const insert: Q['insert'] = ((...args: [any]) => primary.insert(...args)) as Q['insert'];
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
-	const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
+	const execute: Q['execute'] = ((...args: [any]) => primary.execute(...args)) as Q['execute'];
 	const transaction: Q['transaction'] = (...args: [any, any]) => primary.transaction(...args);
 
 	return {

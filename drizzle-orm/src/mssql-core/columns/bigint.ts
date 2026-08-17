@@ -1,7 +1,9 @@
+import type { ColumnBuilderRuntimeConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable, MsSqlTable } from '~/mssql-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
+import type { MsSqlColumnWithIdentityConfig } from './common.ts';
 import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 
 export class MsSqlBigIntBuilder<TMode extends 'number' | 'bigint' | 'string'> extends MsSqlColumnBuilderWithIdentity<{
@@ -43,7 +45,10 @@ export class MsSqlBigInt<T extends ColumnBaseConfig<'bigint int64' | 'number int
 		return `bigint`;
 	}
 
-	constructor(table: MsSqlTable<any>, config: MsSqlBigIntBuilder<'string' | 'number' | 'bigint'>['config']) {
+	constructor(
+		table: MsSqlTable<any>,
+		config: ColumnBuilderRuntimeConfig<T['data']> & MsSqlColumnWithIdentityConfig & MsSqlBigIntConfig,
+	) {
 		super(table, config);
 		this.mode = config.mode;
 	}

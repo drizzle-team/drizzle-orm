@@ -1,4 +1,5 @@
 import type { AnyCockroachTable, CockroachTable } from '~/cockroach-core/table.ts';
+import type { ColumnBuilderRuntimeConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
@@ -32,7 +33,10 @@ export class CockroachRealBuilder extends CockroachColumnWithArrayBuilder<
 export class CockroachReal<T extends ColumnBaseConfig<'number float'>> extends CockroachColumn<T> {
 	static override readonly [entityKind]: string = 'CockroachReal';
 
-	constructor(table: CockroachTable<any>, config: CockroachRealBuilder['config']) {
+	constructor(
+		table: CockroachTable<any>,
+		config: ColumnBuilderRuntimeConfig<T['data']> & { length: number | undefined },
+	) {
 		super(table, config);
 	}
 

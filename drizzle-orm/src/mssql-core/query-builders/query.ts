@@ -90,7 +90,7 @@ export class MsSqlRelationalQuery<
 		const { query, builtQuery } = this._toSQL();
 		return this.session.prepareQuery(
 			builtQuery,
-			undefined,
+			'arrays',
 			(rawRows) => {
 				const rows = rawRows.map((row) => mapRelationalRowFromObj(this.schema, this.tableConfig, row, query.selection));
 				if (this.queryMode === 'first') {

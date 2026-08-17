@@ -36,7 +36,9 @@ export function drizzle<
 	callback: RemoteCallback,
 	config: DrizzleConfig<TSchema, TRelations> = {},
 ): SingleStoreRemoteDatabase<TSchema, TRelations> {
-	const dialect = new SingleStoreDialect();
+	const dialect = new SingleStoreDialect({
+		useJitMappers: jitCompatCheck(config.jit),
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -60,7 +62,7 @@ export function drizzle<
 	const relations = config.relations ?? {} as TRelations;
 	const session = new SingleStoreRemoteSession(callback, dialect, relations, schema, {
 		logger,
-		useJitMappers: jitCompatCheck(config.jit),
+		cache: config.cache,
 	});
 	return new SingleStoreRemoteDatabase(dialect, session, relations, schema as any) as SingleStoreRemoteDatabase<
 		TSchema,

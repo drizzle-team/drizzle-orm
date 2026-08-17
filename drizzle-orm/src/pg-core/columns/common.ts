@@ -267,7 +267,18 @@ export abstract class PgColumnBuilder<
 	/**
 	 * Alias for {@link $defaultFn}.
 	 */
-	$default = this.$defaultFn;
+	$default(
+		fn: () =>
+			| (this['_'] extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
+					this['_'] extends { $type: infer U } ? U : this['_']['data'],
+					this['_']['dimensions']
+				>
+				: this['_'] extends { $type: infer U } ? U
+				: this['_']['data'])
+			| SQL,
+	): SetHasRuntimeDefault<this> {
+		return this.$defaultFn(fn);
+	}
 
 	/**
 	 * Adds a dynamic update value to the column.
@@ -294,7 +305,18 @@ export abstract class PgColumnBuilder<
 	/**
 	 * Alias for {@link $onUpdateFn}.
 	 */
-	$onUpdate = this.$onUpdateFn;
+	$onUpdate(
+		fn: () =>
+			| (this['_'] extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
+					this['_'] extends { $type: infer U } ? U : this['_']['data'],
+					this['_']['dimensions']
+				>
+				: this['_'] extends { $type: infer U } ? U
+				: this['_']['data'])
+			| SQL,
+	): SetHasDefault<this> {
+		return this.$onUpdateFn(fn);
+	}
 
 	/**
 	 * Adds a `primary key` clause to the column definition. This implicitly makes the column `not null`.

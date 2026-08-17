@@ -301,12 +301,10 @@ export class SingleStoreInsertBase<
 		const { sql, generatedIds } = this.dialect.buildInsertQuery(this.config);
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(sql),
-			undefined,
-			undefined,
-			generatedIds,
-			this.config.returning,
+			'raw',
+			this.dialect.mapperGenerators.$returning(this.config.returning, generatedIds),
 			{
-				type: 'delete',
+				type: 'insert',
 				tables: extractUsedTable(this.config.table),
 			},
 		) as SingleStoreInsertPrepare<this, TReturning>;

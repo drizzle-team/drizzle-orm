@@ -6,192 +6,27 @@ import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { MsSqlDialect } from '~/mssql-core/dialect.ts';
-import type { SelectedFieldsOrdered } from '~/mssql-core/query-builders/select.types.ts';
 import {
+	MsSqlPreparedQuery,
 	MsSqlSession,
 	MsSqlTransaction,
 	type MsSqlTransactionConfig,
-	PreparedQuery,
 	type PreparedQueryConfig,
 	type PreparedQueryHKT,
 	type PreparedQueryKind,
 	type QueryResultHKT,
 } from '~/mssql-core/session.ts';
-import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
-import { type Assume, makeDefaultQueryMapper, makeJitQueryMapper, type RowsMapper } from '~/utils.ts';
+import type { Query } from '~/sql/sql.ts';
+import { sql } from '~/sql/sql.ts';
+import type { Assume } from '~/utils.ts';
 import { AutoPool } from './pool.ts';
 
 export type NodeMsSqlClient = Pick<ConnectionPool, 'request'> | AutoPool;
 
 export type MsSqlQueryResult<T extends unknown | unknown[] = any> = IResult<T>;
 
-export class NodeMsSqlPreparedQuery<
-	T extends PreparedQueryConfig,
-> extends PreparedQuery<T> {
-	static override readonly [entityKind]: string = 'NodeMsSqlPreparedQuery';
-	private rowMapper?: RowsMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>;
-
-	private rawQuery: {
-		sql: string;
-		parameters: unknown[];
-	};
-
-	constructor(
-		private client: NodeMsSqlClient,
-		queryString: string,
-		private params: unknown[],
-		private logger: Logger,
-		private fields: SelectedFieldsOrdered | undefined,
-		private useJitMappers: boolean | undefined,
-		private customResultMapper?: (rows: unknown[][]) => T['execute'],
-	) {
-		super();
-		this.rawQuery = {
-			sql: queryString,
-			parameters: params,
-		};
-	}
-
-	async execute(
-		placeholderValues: Record<string, unknown> = {},
-	): Promise<T['execute']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
-
-		this.logger.logQuery(this.rawQuery.sql, params);
-
-		const {
-			fields,
-			client,
-			rawQuery,
-			nullableObjectPaths,
-			customResultMapper,
-		} = this;
-		let queryClient = client as ConnectionPool;
-		if (is(client, AutoPool)) {
-			queryClient = await client.$instance();
-		}
-		const request = queryClient.request() as Request & { arrayRowMode: boolean };
-		for (const [index, param] of params.entries()) {
-			request.input(`par${index}`, param);
-		}
-
-		if (!fields && !customResultMapper) {
-			return request.query(rawQuery.sql) as Promise<T['execute']>;
-		}
-
-		request.arrayRowMode = true;
-		const rows = await request.query<any[]>(rawQuery.sql);
-
-		if (customResultMapper) {
-			return customResultMapper(rows.recordset);
-		}
-
-		return (this.rowMapper =
-			this.rowMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>
-				?? (this.useJitMappers
-					? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
-						fields!,
-						nullableObjectPaths,
-					)
-					: makeDefaultQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
-						fields!,
-						nullableObjectPaths,
-					)))(
-				rows.recordset,
-			);
-	}
-
-	async *iterator(
-		placeholderValues: Record<string, unknown> = {},
-	): AsyncGenerator<
-		T['execute'] extends any[] ? T['execute'][number] : T['execute']
-	> {
-		const params = fillPlaceholders(this.params, placeholderValues);
-
-		const {
-			fields,
-			rawQuery,
-			nullableObjectPaths,
-			client,
-			customResultMapper,
-		} = this;
-		let queryClient = client as ConnectionPool;
-		if (is(client, AutoPool)) {
-			queryClient = await client.$instance();
-		}
-		const request = queryClient.request() as Request & { arrayRowMode: boolean };
-		request.stream = true;
-		const hasRowsMapper = Boolean(fields || customResultMapper);
-
-		if (hasRowsMapper) {
-			request.arrayRowMode = true;
-		}
-
-		for (const [index, param] of params.entries()) {
-			request.input(`par${index}`, param);
-		}
-
-		const stream = request.toReadableStream();
-
-		request.query(rawQuery.sql);
-
-		function dataListener() {
-			stream.pause();
-		}
-
-		stream.on('data', dataListener);
-
-		try {
-			const onEnd = once(stream, 'end');
-			const onError = once(stream, 'error');
-
-			while (true) {
-				stream.resume();
-				const row = await Promise.race([
-					onEnd,
-					onError,
-					new Promise((resolve) => stream.once('data', resolve)),
-				]);
-				if (row === undefined || (Array.isArray(row) && row.length === 0)) {
-					break;
-					// oxlint-disable-next-line drizzle-internal/no-instanceof
-				} else if (row instanceof Error) {
-					throw row;
-				} else {
-					if (hasRowsMapper) {
-						if (customResultMapper) {
-							const mappedRow = customResultMapper([row as unknown[]]);
-							yield Array.isArray(mappedRow) ? mappedRow[0] : mappedRow;
-						} else {
-							yield (this.rowMapper = this.rowMapper as RowsMapper<(T['execute'] extends any[] ? T['execute'][number]
-								: T['execute'])[]>
-								?? (this.useJitMappers
-									? makeJitQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
-										fields!,
-										nullableObjectPaths,
-									)
-									: makeDefaultQueryMapper<(T['execute'] extends any[] ? T['execute'][number] : T['execute'])[]>(
-										fields!,
-										nullableObjectPaths,
-									)))([
-									row as unknown[],
-								])[0] as T['execute'];
-						}
-					} else {
-						yield row as T['execute'];
-					}
-				}
-			}
-		} finally {
-			stream.off('data', dataListener);
-			request.cancel();
-		}
-	}
-}
-
 export interface NodeMsSqlSessionOptions {
 	logger?: Logger;
-	useJitMappers?: boolean;
 }
 
 export class NodeMsSqlSession<
@@ -217,51 +52,81 @@ export class NodeMsSqlSession<
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
-	prepareQuery<T extends PreparedQueryConfig>(
-		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		customResultMapper?: (rows: unknown[][]) => T['execute'],
-	): PreparedQueryKind<NodeMsSqlPreparedQueryHKT, T> {
-		return new NodeMsSqlPreparedQuery(
-			this.client,
-			query.sql,
-			query.params,
-			this.logger,
-			fields,
-			this.options.useJitMappers,
-			customResultMapper,
-		) as PreparedQueryKind<NodeMsSqlPreparedQueryHKT, T>;
-	}
-
-	/**
-	 * @internal
-	 * What is its purpose?
-	 */
-	async query(query: string, params: unknown[]): Promise<MsSqlQueryResult> {
-		this.logger.logQuery(query, params);
-
-		let queryClient = this.client as ConnectionPool;
-		if (is(this.client, AutoPool)) {
-			queryClient = await this.client.$instance();
-		}
-		const request = queryClient.request() as Request & {
-			arrayRowMode: boolean;
-		};
-		request.arrayRowMode = true;
+	private async request(params: unknown[]): Promise<Request & { arrayRowMode: boolean }> {
+		const { client } = this;
+		const queryClient = is(client, AutoPool) ? await client.$instance() : client as ConnectionPool;
+		const request = queryClient.request() as Request & { arrayRowMode: boolean };
 
 		for (const [index, param] of params.entries()) {
 			request.input(`par${index}`, param);
 		}
 
-		return request.query(query);
+		return request;
 	}
 
-	override async all<T = unknown>(query: SQL): Promise<T[]> {
-		const querySql = this.dialect.sqlToQuery(query);
-		this.logger.logQuery(querySql.sql, querySql.params);
-		return await this.query(querySql.sql, querySql.params).then(
-			(result) => result.recordset,
-		);
+	prepareQuery<T extends PreparedQueryConfig>(
+		query: Query,
+		mode: 'arrays' | 'objects' | 'raw',
+		mapper?: (rows: any[]) => any,
+	): PreparedQueryKind<NodeMsSqlPreparedQueryHKT, T> {
+		const self = this;
+
+		const executor = async (params: unknown[] = []) => {
+			const request = await self.request(params);
+			if (mode === 'raw') return request.query(query.sql);
+
+			request.arrayRowMode = mode === 'arrays';
+			return request.query<any[]>(query.sql).then((res) => res.recordset);
+		};
+
+		const iterator = async function*(params: unknown[] = []): AsyncGenerator<any> {
+			const request = await self.request(params);
+			request.stream = true;
+			request.arrayRowMode = mode === 'arrays';
+
+			const stream = request.toReadableStream();
+
+			request.query(query.sql);
+
+			function dataListener() {
+				stream.pause();
+			}
+
+			stream.on('data', dataListener);
+
+			try {
+				const onEnd = once(stream, 'end');
+				const onError = once(stream, 'error');
+
+				while (true) {
+					stream.resume();
+					const row = await Promise.race([
+						onEnd,
+						onError,
+						new Promise((resolve) => stream.once('data', resolve)),
+					]);
+					if (row === undefined || (Array.isArray(row) && row.length === 0)) {
+						break;
+					}
+					if (row instanceof Error) { // oxlint-disable-line drizzle-internal/no-instanceof
+						throw row;
+					}
+					yield row;
+				}
+			} finally {
+				stream.off('data', dataListener);
+				request.cancel();
+			}
+		};
+
+		return new MsSqlPreparedQuery<T>(
+			executor,
+			iterator,
+			query,
+			mapper,
+			mode,
+			this.logger,
+		) as PreparedQueryKind<NodeMsSqlPreparedQueryHKT, T>;
 	}
 
 	override async transaction<T>(
@@ -354,5 +219,5 @@ export interface NodeMsSqlQueryResultHKT extends QueryResultHKT {
 }
 
 export interface NodeMsSqlPreparedQueryHKT extends PreparedQueryHKT {
-	type: NodeMsSqlPreparedQuery<Assume<this['config'], PreparedQueryConfig>>;
+	type: MsSqlPreparedQuery<Assume<this['config'], PreparedQueryConfig>>;
 }

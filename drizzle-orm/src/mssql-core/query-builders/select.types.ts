@@ -129,6 +129,27 @@ export type MsSqlJoinFn<
 	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
 ) => MsSqlJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
+export type MsSqlCrossJoinFn<
+	T extends AnyMsSqlSelectQueryBuilder,
+	TDynamic extends boolean,
+> = <
+	TJoinedTable extends MsSqlTable | Subquery | MsSqlViewBase | SQL,
+	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
+>(
+	table: TJoinedTable,
+) => MsSqlJoin<T, TDynamic, 'cross', TJoinedTable, TJoinedName>;
+
+export type MsSqlApplyFn<
+	T extends AnyMsSqlSelectQueryBuilder,
+	TDynamic extends boolean,
+	TJoinType extends JoinType,
+> = <
+	TJoinedTable extends MsSqlTable | Subquery | MsSqlViewBase | SQL,
+	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
+>(
+	table: TJoinedTable,
+) => MsSqlJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
+
 export type SelectedFieldsFlat = SelectedFieldsFlatBase<MsSqlColumn>;
 
 export type SelectedFieldsFlatUpdate = {
@@ -214,7 +235,6 @@ export type MsSqlSetOperatorExcludedMethods =
 	| 'where'
 	| 'having'
 	| 'groupBy'
-	| 'session'
 	| 'fetch'
 	| 'offset'
 	| 'leftJoin'

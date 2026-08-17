@@ -205,7 +205,6 @@ export class MsSqlDeleteBase<
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildDeleteQuery(this.config);
 	}
@@ -215,9 +214,12 @@ export class MsSqlDeleteBase<
 	}
 
 	prepare(): MsSqlDeletePrepare<this> {
+		const fields = this.config.output;
+
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
-			this.config.output,
+			fields ? 'arrays' : 'raw',
+			fields ? this.dialect.mapperGenerators.rows(fields, undefined) : undefined,
 		) as MsSqlDeletePrepare<this>;
 	}
 

@@ -1,4 +1,5 @@
 import type { AnyCockroachTable, CockroachTable } from '~/cockroach-core/table.ts';
+import type { ColumnBuilderRuntimeConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { CockroachColumn, CockroachColumnBuilder } from './common.ts';
@@ -28,7 +29,7 @@ export class CockroachJsonbBuilder extends CockroachColumnBuilder<{
 export class CockroachJsonb<T extends ColumnBaseConfig<'object json'>> extends CockroachColumn<T> {
 	static override readonly [entityKind]: string = 'CockroachJsonb';
 
-	constructor(table: CockroachTable<any>, config: CockroachJsonbBuilder['config']) {
+	constructor(table: CockroachTable<any>, config: ColumnBuilderRuntimeConfig<T['data']>) {
 		super(table, config);
 	}
 
