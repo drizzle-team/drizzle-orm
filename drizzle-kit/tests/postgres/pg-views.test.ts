@@ -2114,6 +2114,7 @@ test('.as in view select', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4181
+// https://github.com/drizzle-team/drizzle-orm/issues/3332
 // casing bug
 test('create view with snake_case', async () => {
 	const test = snakeCase.table('test', {
