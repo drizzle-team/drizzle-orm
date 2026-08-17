@@ -1,11 +1,29 @@
 import { softAssertUnreachable } from 'src/global';
-import { object, string, TypeOf } from 'zod';
+import { object, string, TypeOf, z } from 'zod';
 import { error } from '../views';
 import { wrapParam } from './common';
 
+const isLocalURL = (url: string) =>
+	url.startsWith('http://localhost')
+	|| url.startsWith('http://127.0.0.1')
+	|| url.startsWith('file:');
+
 export const libSQLCredentials = object({
 	url: string().min(1),
-	authToken: string().min(1).optional(),
+	authToken: string().optional(),
+}).superRefine((data, ctx) => {
+	if (!data.authToken || data.authToken.length === 0) {
+		if (!isLocalURL(data.url)) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.too_small,
+				minimum: 1,
+				type: 'string',
+				inclusive: true,
+				path: ['authToken'],
+				message: 'authToken is required for remote turso databases',
+			});
+		}
+	}
 });
 
 export type LibSQLCredentials = {
