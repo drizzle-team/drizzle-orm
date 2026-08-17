@@ -8,6 +8,62 @@ const namedCheckPattern = /CONSTRAINT\s+["'`[]?(\w+)["'`\]]?\s+CHECK\s*\((.*)\)/
 const unnamedCheckPattern = /CHECK\s+\((.*)\)/gi;
 const viewAsStatementRegex = new RegExp(`\\bAS\\b\\s+(WITH.+|SELECT.+)$`, 'is'); // 'i' for case-insensitive, 's' for dotall mode
 
+/**
+ * Removes SQL comments (line comments and block comments) from a DDL string so
+ * parsers don't pick up commented-out constraints.
+ * String literals (single/double quotes, backticks, `[...]`) are preserved untouched.
+ */
+export const stripSqlComments = (sql: string): string => {
+	let result = '';
+	let i = 0;
+	const len = sql.length;
+
+	while (i < len) {
+		const char = sql[i];
+
+		// string / identifier literals — copy verbatim until the matching close
+		if (char === "'" || char === '"' || char === '`' || char === '[') {
+			const close = char === '[' ? ']' : char;
+			result += char;
+			i++;
+			while (i < len) {
+				result += sql[i];
+				// handle doubled-quote escaping (e.g. '' inside a '...' literal)
+				if (sql[i] === close) {
+					if (close !== ']' && sql[i + 1] === close) {
+						result += sql[i + 1];
+						i += 2;
+						continue;
+					}
+					i++;
+					break;
+				}
+				i++;
+			}
+			continue;
+		}
+
+		// line comment
+		if (char === '-' && sql[i + 1] === '-') {
+			while (i < len && sql[i] !== '\n') i++;
+			continue;
+		}
+
+		// block comment
+		if (char === '/' && sql[i + 1] === '*') {
+			i += 2;
+			while (i < len && !(sql[i] === '*' && sql[i + 1] === '/')) i++;
+			i += 2;
+			continue;
+		}
+
+		result += char;
+		i++;
+	}
+
+	return result;
+};
+
 export const nameForForeignKey = (fk: Pick<ForeignKey, 'table' | 'columns' | 'tableTo' | 'columnsTo'>) => {
 	return `fk_${fk.table}_${fk.columns.join('_')}_${fk.tableTo}_${fk.columnsTo.join('_')}_fk`;
 };
@@ -377,7 +433,8 @@ export const parseDefault = (type: string, it: string): Column['default'] => {
 	return `(${it})`;
 };
 
-export const parseTableSQL = (sql: string) => {
+export const parseTableSQL = (rawSql: string) => {
+	const sql = stripSqlComments(rawSql);
 	const namedChecks = [...sql.matchAll(namedCheckPattern)].map((it) => {
 		const [_, name, value] = it;
 		return { name, value: value.trim() };
@@ -402,7 +459,8 @@ export interface Generated {
 	type: 'stored' | 'virtual';
 }
 
-export function extractGeneratedColumns(input: string): Record<string, Generated> {
+export function extractGeneratedColumns(rawInput: string): Record<string, Generated> {
+	const input = stripSqlComments(rawInput);
 	const columns: Record<string, Generated> = {};
 	const regex = /["'`[]?(\w+)["'`\]]?\s+(\w+)\s+GENERATED\s+ALWAYS\s+AS\s*\(/gi;
 
@@ -450,7 +508,8 @@ interface IParseResult {
  * Parses a SQLite DDL string to find primary key and unique constraints
  * Handles quoted with [], ``, "", or no quotes
  */
-export function parseSqliteDdl(ddl: string): IParseResult {
+export function parseSqliteDdl(rawDdl: string): IParseResult {
+	const ddl = stripSqlComments(rawDdl);
 	const result: IParseResult = {
 		pk: { name: null, columns: [] },
 		uniques: [],

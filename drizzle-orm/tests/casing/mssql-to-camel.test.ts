@@ -41,6 +41,16 @@ const db = drizzle({ client: new mssql.ConnectionPool({ server: '' }), schema })
 const fullName = sql`${users.first_name} || ' ' || ${users.last_name}`.as('name');
 
 describe('mssql to camel case', () => {
+	it('unicode column names', ({ expect }) => {
+		const unicode = camelCase.table('unicode', {
+			칼럼명: text(),
+		});
+
+		expect(db.select().from(unicode).toSQL().sql).toEqual(
+			'select [칼럼명] from [unicode]',
+		);
+	});
+
 	it('qualifier preservation for sql fields', ({ expect }) => {
 		const a = camelCase.table('a', { id: int('id').primaryKey(), cId: int().notNull() });
 		const b = camelCase.table('b', { id: int('id').primaryKey(), cId: int().notNull(), label: text() });

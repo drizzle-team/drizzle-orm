@@ -28,6 +28,16 @@ const ps = planetscale({ client: new Client({}) });
 const fullName = sql`${users.firstName} || ' ' || ${users.lastName}`.as('name');
 
 describe('mysql to snake case', () => {
+	it('unicode column names', ({ expect }) => {
+		const unicode = snakeCase.table('unicode', {
+			칼럼명: text(),
+		});
+
+		expect(db.select().from(unicode).toSQL().sql).toEqual(
+			'select `칼럼명` from `unicode`',
+		);
+	});
+
 	it('qualifier preservation for sql fields', ({ expect }) => {
 		const a = snakeCase.table('a', { id: int('id').primaryKey(), cId: int().notNull() });
 		const b = snakeCase.table('b', { id: int('id').primaryKey(), cId: int().notNull(), label: text() });
