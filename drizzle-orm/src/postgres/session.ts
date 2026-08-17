@@ -1,5 +1,5 @@
-import type { Connection, PoolQuery, QueryResult, ShapeSpec } from 'minipg';
-import { Pool } from 'minipg';
+import type { Connection, PoolQuery, QueryResult, ShapeSpec } from '@drizzle-team/minipg';
+import { Pool } from '@drizzle-team/minipg';
 import type { BatchItem } from '~/batch';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -87,8 +87,8 @@ export class PostgresSession<
 	}
 
 	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(queries: T) {
-		const preparedQueries: PostgresPreparedQuery<any>[] = [];
-		const builtQueries: PoolQuery[] = Array.from({ length: preparedQueries.length });
+		const preparedQueries: PostgresPreparedQuery<any>[] = new Array(queries.length);
+		const builtQueries: PoolQuery[] = new Array(queries.length);
 
 		const q = this.client;
 		if (!(q instanceof Pool)) throw new Error('`batch` method is only supported on connection pools!'); // oxlint-disable-line no-instanceof-builtins drizzle-internal/no-instanceof
@@ -109,7 +109,7 @@ export class PostgresSession<
 		}
 
 		const batchResults = await q.batch(builtQueries);
-		const response = Array.from({ length: batchResults.length });
+		const response = new Array(batchResults.length);
 		for (let i = 0; i < batchResults.length; ++i) {
 			const { mapper, mode } = preparedQueries[i]!;
 			const result = batchResults[i]!;

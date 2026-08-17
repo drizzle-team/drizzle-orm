@@ -23,7 +23,7 @@ import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { InferInsertModel, RequiredInsertKeys } from '~/table.ts';
-import type { DrizzleTypeError, IsNever, JoinUnion, NeonAuthToken } from '~/utils.ts';
+import type { DrizzleTypeError, IsNever, JoinUnion } from '~/utils.ts';
 import type { CockroachColumn } from './columns/index.ts';
 import { CockroachCountBuilder } from './query-builders/count.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
@@ -673,26 +673,32 @@ export class CockroachDatabase<
 		return new CockroachRefreshMaterializedView(view, this.session, this.dialect);
 	}
 
-	protected authToken?: NeonAuthToken;
-
+	execute<TRow extends unknown[] = unknown[]>(
+		query: SQLWrapper | string,
+		mode: 'arrays',
+	): CockroachRaw<TRow[]>;
 	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
 		query: SQLWrapper | string,
-	): CockroachRaw<CockroachQueryResultKind<TQueryResult, TRow>> {
+		mode: 'objects',
+	): CockroachRaw<TRow[]>;
+	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+		query: SQLWrapper | string,
+		mode?: 'raw' | undefined,
+	): CockroachRaw<CockroachQueryResultKind<TQueryResult, TRow>>;
+	execute(
+		query: SQLWrapper | string,
+		mode?: 'raw' | 'objects' | 'arrays' | undefined,
+	): unknown {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sequel);
 		const prepared = this.session.prepareQuery<
-			PreparedQueryConfig & { execute: CockroachQueryResultKind<TQueryResult, TRow> }
+			PreparedQueryConfig & { execute: unknown }
 		>(
 			builtQuery,
-			undefined,
-			undefined,
+			mode ?? 'raw',
+			false,
 		);
-		return new CockroachRaw(
-			() => prepared.execute(undefined, this.authToken),
-			sequel,
-			builtQuery,
-			(result) => prepared.mapResult(result, true),
-		);
+		return new CockroachRaw(prepared, sequel, builtQuery);
 	}
 
 	transaction<T>(
@@ -729,7 +735,7 @@ export const withReplicas = <
 	const update: Q['update'] = (...args: [any]) => primary.update(...args);
 	const insert: Q['insert'] = ((...args: [any]) => primary.insert(...args)) as Q['insert'];
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
-	const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
+	const execute: Q['execute'] = ((...args: [any]) => primary.execute(...args)) as Q['execute'];
 	const transaction: Q['transaction'] = (...args: [any]) => primary.transaction(...args);
 	const refreshMaterializedView: Q['refreshMaterializedView'] = (...args: [any]) =>
 		primary.refreshMaterializedView(...args);

@@ -430,6 +430,17 @@ export class MySqlSelectBase<
 	 *
 	 * @param table the subquery to join.
 	 * @param on the `on` clause.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Select every city and, for each, the users that live in it
+	 * const sq = db.select({ userId: users.id }).from(users).where(eq(users.cityId, cities.id)).as('sq');
+	 *
+	 * const rows: { cities: City; sq: { userId: number } | null }[] = await db.select()
+	 *   .from(cities)
+	 *   .leftJoinLateral(sq, sql`true`)
+	 * ```
 	 */
 	leftJoinLateral = this.createJoin('left', true);
 
@@ -524,6 +535,17 @@ export class MySqlSelectBase<
 	 *
 	 * @param table the subquery to join.
 	 * @param on the `on` clause.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Select only the cities that have users, along with those users
+	 * const sq = db.select({ userId: users.id }).from(users).where(eq(users.cityId, cities.id)).as('sq');
+	 *
+	 * const rows: { cities: City; sq: { userId: number } }[] = await db.select()
+	 *   .from(cities)
+	 *   .innerJoinLateral(sq, sql`true`)
+	 * ```
 	 */
 	innerJoinLateral = this.createJoin('inner', true);
 
@@ -576,6 +598,17 @@ export class MySqlSelectBase<
 	 * See docs: {@link https://orm.drizzle.team/docs/joins#cross-join-lateral}
 	 *
 	 * @param table the query to join.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Pair each city with every row its correlated subquery produces; cities with none are dropped
+	 * const sq = db.select({ userId: users.id }).from(users).where(eq(users.cityId, cities.id)).as('sq');
+	 *
+	 * const rows: { cities: City; sq: { userId: number } }[] = await db.select()
+	 *   .from(cities)
+	 *   .crossJoinLateral(sq)
+	 * ```
 	 */
 	crossJoinLateral = this.createJoin('cross', true);
 

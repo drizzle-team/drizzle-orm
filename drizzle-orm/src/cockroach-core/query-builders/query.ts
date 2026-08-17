@@ -7,7 +7,6 @@ import {
 	type TablesRelationalConfig,
 } from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
@@ -94,12 +93,10 @@ export class CockroachRelationalQuery<TResult> extends QueryPromise<TResult>
 
 			return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
 				builtQuery,
-				undefined,
-				name ?? (generateName ? preparedStatementName(builtQuery.sql, builtQuery.params) : name),
-				(rawRows, mapColumnValue) => {
-					const rows = rawRows.map((row) =>
-						mapRelationalRow(this.schema, this.tableConfig, row, query.selection, mapColumnValue)
-					);
+				'arrays',
+				name ?? generateName,
+				(rawRows) => {
+					const rows = rawRows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, query.selection));
 					if (this.mode === 'first') {
 						return rows[0] as TResult;
 					}
@@ -125,7 +122,6 @@ export class CockroachRelationalQuery<TResult> extends QueryPromise<TResult>
 		});
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this._getQuery().sql as SQL;
 	}

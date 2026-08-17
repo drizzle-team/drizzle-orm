@@ -1,4 +1,5 @@
 import type { AnyCockroachTable, CockroachTable } from '~/cockroach-core/table.ts';
+import type { ColumnBuilderRuntimeConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
@@ -40,7 +41,10 @@ export class CockroachDecimal<T extends ColumnBaseConfig<'string numeric'>> exte
 	readonly precision: number | undefined;
 	readonly scale: number | undefined;
 
-	constructor(table: CockroachTable<any>, config: CockroachDecimalBuilder['config']) {
+	constructor(
+		table: CockroachTable<any>,
+		config: ColumnBuilderRuntimeConfig<T['data']> & { precision: number | undefined; scale: number | undefined },
+	) {
 		super(table, config);
 		this.precision = config.precision;
 		this.scale = config.scale;
@@ -101,7 +105,7 @@ export class CockroachDecimalNumber<T extends ColumnBaseConfig<'number'>> extend
 
 	constructor(
 		table: CockroachTable<any>,
-		config: CockroachDecimalNumberBuilder['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & { precision: number | undefined; scale: number | undefined },
 	) {
 		super(table, config);
 		this.precision = config.precision;
@@ -165,7 +169,7 @@ export class CockroachDecimalBigInt<T extends ColumnBaseConfig<'bigint int64'>> 
 
 	constructor(
 		table: CockroachTable<any>,
-		config: CockroachDecimalBigIntBuilder['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & { precision: number | undefined; scale: number | undefined },
 	) {
 		super(table, config);
 		this.precision = config.precision;

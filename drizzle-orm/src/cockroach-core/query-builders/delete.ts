@@ -10,7 +10,6 @@ import type { CockroachTable } from '~/cockroach-core/table.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
@@ -246,15 +245,18 @@ export class CockroachDeleteBase<
 	/** @internal */
 	_prepare(name?: string, generateName = false): CockroachDeletePrepare<this> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			const { returning: fields } = this.config;
 			const query = this.dialect.sqlToQuery(this.getSQL());
+
 			return this.session.prepareQuery<
 				PreparedQueryConfig & {
 					execute: TReturning extends undefined ? CockroachQueryResultKind<TQueryResult, never> : TReturning[];
 				}
 			>(
 				query,
-				this.config.returning,
-				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+				fields ? 'arrays' : 'raw',
+				name ?? generateName,
+				fields ? this.dialect.mapperGenerators.rows(fields, undefined) : undefined,
 			);
 		});
 	}

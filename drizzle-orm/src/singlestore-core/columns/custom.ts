@@ -1,4 +1,4 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable, SingleStoreTable } from '~/singlestore-core/table.ts';
@@ -60,7 +60,10 @@ export class SingleStoreCustomColumn<T extends ColumnBaseConfig<'custom'>> exten
 
 	constructor(
 		table: AnySingleStoreTable<{ name: T['tableName'] }>,
-		config: SingleStoreCustomColumnBuilder<T>['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & {
+			fieldConfig: CustomTypeValues['config'];
+			customTypeParams: CustomTypeParams<any>;
+		},
 	) {
 		super(table, config);
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);

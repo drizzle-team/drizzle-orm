@@ -32,7 +32,16 @@ import {
 	notLike,
 	or,
 } from './sql/expressions/index.ts';
-import { type CommentInput, noopDecoder, Placeholder, SQL, sql, type SQLWrapper, View } from './sql/sql.ts';
+import {
+	type CommentInput,
+	noopDecoder,
+	Placeholder,
+	SQL,
+	sql,
+	type SQLWrapper,
+	StringChunk,
+	View,
+} from './sql/sql.ts';
 import {
 	type Assume,
 	type DrizzleTypeError,
@@ -101,7 +110,7 @@ export function processRelations(tablesConfig: TablesRelationalConfig, tables: S
 				is(relation, One) ? 'one' : 'many'
 			}.${targetTableName}(...) }`;
 
-			if (relationFieldName in tableConfig.table[TableColumns]) {
+			if (Object.prototype.hasOwnProperty.call(tableConfig.table[TableColumns], relationFieldName)) {
 				throw new Error(
 					`${relationPrintName}: relation name collides with column "${relationFieldName}" of table "${tableConfig.name}"`,
 				);
@@ -935,7 +944,7 @@ export function mapRelationalRowFromArrays(
 		},
 	);
 
-	const results: Record<string, unknown>[] = Array.from({ length: maxIdx });
+	const results: Record<string, unknown>[] = new Array(maxIdx);
 
 	for (let i = 0; i < maxIdx; ++i) {
 		const row = (isOne ? rows : rows[i]!) as unknown[];
@@ -1269,7 +1278,7 @@ export function makeJitRqbMapper<T = unknown>(
 			lines.push(`\treturn ${inner.literal};`);
 		} else {
 			lines.push(`\tconst { length } = rows;`);
-			lines.push(`\tconst mapped = Array.from({ length });`);
+			lines.push(`\tconst mapped = new Array(length);`);
 			lines.push(`\tfor (let i = 0; i < length; ++i) {`);
 			lines.push(`\t\tconst row = rows[i];`);
 			for (const s of inner.bodyStmts) lines.push(`\t\t${s}`);
@@ -1956,7 +1965,7 @@ export function relationsFilterToSQL(
 				continue;
 			}
 			default: {
-				if (table[TableColumns][target]) {
+				if (Object.prototype.hasOwnProperty.call(table[TableColumns], target) && table[TableColumns][target]) {
 					const column = fieldSelectionToSQL(table, target);
 
 					const colFilter = relationsFieldFilterToSQL(
@@ -1968,7 +1977,9 @@ export function relationsFilterToSQL(
 					continue;
 				}
 
-				const relation = tableRelations[target];
+				const relation = Object.prototype.hasOwnProperty.call(tableRelations, target)
+					? tableRelations[target]
+					: undefined;
 				if (!relation) {
 					// Should never trigger unless the types've been violated
 					throw new DrizzleError({
@@ -2021,7 +2032,7 @@ export function relationsOrderToSQL(
 			? data
 			: Array.isArray(data)
 			? data.length
-				? sql.join(data.map((o) => is(o, SQL) ? o : asc(o)), sql`, `)
+				? sql.join(data.map((o) => is(o, SQL) ? o : asc(o)), new StringChunk(`, `))
 				: undefined
 			: is(data, Column)
 			? asc(data)
@@ -2033,7 +2044,7 @@ export function relationsOrderToSQL(
 
 	return sql.join(
 		entries.map(([target, value]) => (value === 'asc' ? asc : desc)(fieldSelectionToSQL(table, target))),
-		sql`, `,
+		new StringChunk(`, `),
 	);
 }
 
@@ -2080,7 +2091,7 @@ export function relationExtrasToSQL(
 	}
 
 	return {
-		sql: subqueries.length ? sql.join(subqueries, sql`, `) : undefined,
+		sql: subqueries.length ? sql.join(subqueries, new StringChunk(`, `)) : undefined,
 		selection,
 	};
 }

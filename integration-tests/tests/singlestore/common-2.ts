@@ -6,6 +6,7 @@ import {
 	avgDistinct,
 	count,
 	countDistinct,
+	DrizzleQueryError,
 	eq,
 	getTableColumns,
 	gt,
@@ -935,13 +936,15 @@ export function tests(test: Test) {
 				sql`create table myprefix_test_prefixed_table_with_unique_name (id int not null primary key, name text not null)`,
 			);
 
-			await db.insert(users).values({ id: 1, name: 'John' });
+			try {
+				await db.insert(users).values({ id: 1, name: 'John' });
 
-			const result = await db.select().from(users);
+				const result = await db.select().from(users);
 
-			expect(result).toEqual([{ id: 1, name: 'John' }]);
-
-			await db.execute(sql`drop table ${users}`);
+				expect(result).toEqual([{ id: 1, name: 'John' }]);
+			} finally {
+				await db.execute(sql`drop table if exists ${users}`);
+			}
 		});
 
 		test.concurrent('orderBy with aliased column', ({ db }) => {
@@ -1004,40 +1007,42 @@ export function tests(test: Test) {
 				sql`create table products_transactions (id serial not null primary key, price int not null, stock int not null)`,
 			);
 
-			const [{ insertId: userId }] = await db
-				.insert(users)
-				.values({ id: 1, balance: 100 });
-			const user = await db
-				.select()
-				.from(users)
-				.where(eq(users.id, userId))
-				.then((rows) => rows[0]!);
-			const [{ insertId: productId }] = await db
-				.insert(products)
-				.values({ id: 1, price: 10, stock: 10 });
-			const product = await db
-				.select()
-				.from(products)
-				.where(eq(products.id, productId))
-				.then((rows) => rows[0]!);
+			try {
+				const [{ insertId: userId }] = await db
+					.insert(users)
+					.values({ id: 1, balance: 100 });
+				const user = await db
+					.select()
+					.from(users)
+					.where(eq(users.id, userId))
+					.then((rows) => rows[0]!);
+				const [{ insertId: productId }] = await db
+					.insert(products)
+					.values({ id: 1, price: 10, stock: 10 });
+				const product = await db
+					.select()
+					.from(products)
+					.where(eq(products.id, productId))
+					.then((rows) => rows[0]!);
 
-			await db.transaction(async (tx) => {
-				await tx
-					.update(users)
-					.set({ balance: user.balance - product.price })
-					.where(eq(users.id, user.id));
-				await tx
-					.update(products)
-					.set({ stock: product.stock - 1 })
-					.where(eq(products.id, product.id));
-			});
+				await db.transaction(async (tx) => {
+					await tx
+						.update(users)
+						.set({ balance: user.balance - product.price })
+						.where(eq(users.id, user.id));
+					await tx
+						.update(products)
+						.set({ stock: product.stock - 1 })
+						.where(eq(products.id, product.id));
+				});
 
-			const result = await db.select().from(users);
+				const result = await db.select().from(users);
 
-			expect(result).toEqual([{ id: 1, balance: 90 }]);
-
-			await db.execute(sql`drop table ${users}`);
-			await db.execute(sql`drop table ${products}`);
+				expect(result).toEqual([{ id: 1, balance: 90 }]);
+			} finally {
+				await db.execute(sql`drop table if exists ${users}`);
+				await db.execute(sql`drop table if exists ${products}`);
+			}
 		});
 
 		test.concurrent('transaction rollback', async ({ db }) => {
@@ -1052,20 +1057,22 @@ export function tests(test: Test) {
 				sql`create table users_transactions_rollback (id serial not null primary key, balance int not null)`,
 			);
 
-			await expect(
-				(async () => {
-					await db.transaction(async (tx) => {
-						await tx.insert(users).values({ balance: 100 });
-						tx.rollback();
-					});
-				})(),
-			).rejects.toThrowError(TransactionRollbackError);
+			try {
+				await expect(
+					(async () => {
+						await db.transaction(async (tx) => {
+							await tx.insert(users).values({ balance: 100 });
+							tx.rollback();
+						});
+					})(),
+				).rejects.toThrowError(TransactionRollbackError);
 
-			const result = await db.select().from(users);
+				const result = await db.select().from(users);
 
-			expect(result).toEqual([]);
-
-			await db.execute(sql`drop table ${users}`);
+				expect(result).toEqual([]);
+			} finally {
+				await db.execute(sql`drop table if exists ${users}`);
+			}
 		});
 
 		test.concurrent('join subquery with join', async ({ db }) => {
@@ -1091,34 +1098,36 @@ export function tests(test: Test) {
 			await db.execute(sql`create table custom_user (id integer not null)`);
 			await db.execute(sql`create table ticket (staff_id integer not null)`);
 
-			await db.insert(internalStaff).values({ userId: 1 });
-			await db.insert(customUser).values({ id: 1 });
-			await db.insert(ticket).values({ staffId: 1 });
+			try {
+				await db.insert(internalStaff).values({ userId: 1 });
+				await db.insert(customUser).values({ id: 1 });
+				await db.insert(ticket).values({ staffId: 1 });
 
-			const subq = db
-				.select()
-				.from(internalStaff)
-				.leftJoin(customUser, eq(internalStaff.userId, customUser.id))
-				.as('internal_staff');
+				const subq = db
+					.select()
+					.from(internalStaff)
+					.leftJoin(customUser, eq(internalStaff.userId, customUser.id))
+					.as('internal_staff');
 
-			const mainQuery = await db
-				.select()
-				.from(ticket)
-				.leftJoin(subq, eq(subq.internal_staff.userId, ticket.staffId));
+				const mainQuery = await db
+					.select()
+					.from(ticket)
+					.leftJoin(subq, eq(subq.internal_staff.userId, ticket.staffId));
 
-			expect(mainQuery).toEqual([
-				{
-					ticket: { staffId: 1 },
-					internal_staff: {
-						internal_staff: { userId: 1 },
-						custom_user: { id: 1 },
+				expect(mainQuery).toEqual([
+					{
+						ticket: { staffId: 1 },
+						internal_staff: {
+							internal_staff: { userId: 1 },
+							custom_user: { id: 1 },
+						},
 					},
-				},
-			]);
-
-			await db.execute(sql`drop table ${internalStaff}`);
-			await db.execute(sql`drop table ${customUser}`);
-			await db.execute(sql`drop table ${ticket}`);
+				]);
+			} finally {
+				await db.execute(sql`drop table if exists ${internalStaff}`);
+				await db.execute(sql`drop table if exists ${customUser}`);
+				await db.execute(sql`drop table if exists ${ticket}`);
+			}
 		});
 
 		// TODO: Unskip when views are supported
@@ -1272,13 +1281,15 @@ export function tests(test: Test) {
 				sql`create table ${users} (id serial not null primary key, name text)`,
 			);
 
-			await expect(
-				(async () => {
-					await db.insert(users).values({ name: undefined });
-				})(),
-			).resolves.not.toThrowError();
-
-			await db.execute(sql`drop table ${users}`);
+			try {
+				await expect(
+					(async () => {
+						await db.insert(users).values({ name: undefined });
+					})(),
+				).resolves.not.toThrowError();
+			} finally {
+				await db.execute(sql`drop table if exists ${users}`);
+			}
 		});
 
 		test.concurrent('update undefined', async ({ db }) => {
@@ -1293,19 +1304,21 @@ export function tests(test: Test) {
 				sql`create table ${users} (id serial not null primary key, name text)`,
 			);
 
-			await expect(
-				(async () => {
-					await db.update(users).set({ name: undefined });
-				})(),
-			).rejects.toThrowError();
+			try {
+				await expect(
+					(async () => {
+						await db.update(users).set({ name: undefined });
+					})(),
+				).rejects.toThrowError();
 
-			await expect(
-				(async () => {
-					await db.update(users).set({ id: 1, name: undefined });
-				})(),
-			).resolves.not.toThrowError();
-
-			await db.execute(sql`drop table ${users}`);
+				await expect(
+					(async () => {
+						await db.update(users).set({ id: 1, name: undefined });
+					})(),
+				).resolves.not.toThrowError();
+			} finally {
+				await db.execute(sql`drop table if exists ${users}`);
+			}
 		});
 
 		test.concurrent('update with placeholder', async ({ db }) => {
@@ -2776,6 +2789,40 @@ export function tests(test: Test) {
 
 			expect(result1).toEqual([{ userId: 1, data: { name: 'John' } }]);
 			expect(result2).toEqual([{ userId: 2, data: { name: 'Jane' } }]);
+		});
+
+		test.concurrent('db.execute modes', async ({ db, push }) => {
+			const users = singlestoreTable('users_execute_modes', {
+				id: int('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ users });
+
+			await db.insert(users).values([{ id: 1, name: 'First' }, { id: 2, name: 'Second' }]);
+
+			const rObj = await db.execute<{ id: number; name: string }>(
+				sql`select ${users.id}, ${users.name} from ${users} order by ${users.id}`,
+				'objects',
+			);
+			const rArr = await db.execute<[number, string]>(
+				sql`select ${users.id}, ${users.name} from ${users} order by ${users.id}`,
+				'arrays',
+			);
+
+			expect(rObj).toStrictEqual([{ id: 1, name: 'First' }, { id: 2, name: 'Second' }]);
+			expect(rArr).toStrictEqual([[1, 'First'], [2, 'Second']]);
+		});
+
+		test.concurrent('Query error wrapping', async ({ db, push }) => {
+			const table = singlestoreTable('users_error_wrap', {
+				id: int('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await push({ table });
+			await expect(db.insert(table).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]))
+				.rejects.toBeInstanceOf(DrizzleQueryError);
 		});
 
 		test.concurrent('sql.Aliased in cte', async ({ db, push }) => {

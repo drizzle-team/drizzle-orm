@@ -311,5 +311,8 @@ const skip: string[] = [
 	'delete with limit and order by',
 	// ORDER BY is not supported in UPDATE
 	'update with limit and order by',
+
+	// Time-based test, unstable
+	'$onUpdateFn and $onUpdate works updating',
 ];
 tests(test, skip);

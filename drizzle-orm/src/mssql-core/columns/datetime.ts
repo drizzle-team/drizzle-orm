@@ -1,3 +1,4 @@
+import type { ColumnBuilderRuntimeConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable, MsSqlTable } from '~/mssql-core/table.ts';
@@ -32,7 +33,7 @@ export class MsSqlDateTime<T extends ColumnBaseConfig<'object date'>> extends Ms
 
 	constructor(
 		table: MsSqlTable<any>,
-		config: MsSqlDateTimeBuilder['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & MsSqlDatetimeConfig,
 	) {
 		super(table, config);
 	}
@@ -69,7 +70,7 @@ export class MsSqlDateTimeString<T extends ColumnBaseConfig<'string datetime'>> 
 
 	constructor(
 		table: MsSqlTable<any>,
-		config: MsSqlDateTimeStringBuilder['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & MsSqlDatetimeConfig,
 	) {
 		super(table, config);
 	}

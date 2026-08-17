@@ -88,8 +88,8 @@ export class SingleStoreRelationalQuery<
 		const { query, builtQuery } = this._toSQL();
 		return this.session.prepareQuery(
 			builtQuery,
-			undefined,
-			(rawRows) => {
+			'arrays',
+			(rawRows: unknown[][]) => {
 				const rows = rawRows.map((row) => V1.mapRelationalRow(this.schema, this.tableConfig, row, query.selection));
 				if (this.queryMode === 'first') {
 					return rows[0] as TResult;

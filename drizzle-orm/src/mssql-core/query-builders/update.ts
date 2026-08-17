@@ -304,10 +304,12 @@ export class MsSqlUpdateBase<
 
 	prepare(): MsSqlUpdatePrepare<this> {
 		const output = [...(this.config.output?.inserted ?? []), ...(this.config.output?.deleted ?? [])];
+		const fields = output.length ? output : undefined;
 
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
-			output.length ? output : undefined,
+			fields ? 'arrays' : 'raw',
+			fields ? this.dialect.mapperGenerators.rows(fields, undefined) : undefined,
 		) as MsSqlUpdatePrepare<this>;
 	}
 

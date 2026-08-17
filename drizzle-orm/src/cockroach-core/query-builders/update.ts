@@ -20,7 +20,6 @@ import type {
 	SelectMode,
 	SelectResult,
 } from '~/query-builders/select.types.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
@@ -591,18 +590,18 @@ export class CockroachUpdateBase<
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): CockroachUpdatePrepare<this> {
+		const { returning: fields } = this.config;
 		const query = this.dialect.sqlToQuery(this.getSQL());
-		const preparedQuery = this.session.prepareQuery<
+		const nullableObjectPaths = fields ? resolveNullableObjectPaths(fields, this.joinsNotNullableMap) : undefined;
+
+		return this.session.prepareQuery<
 			PreparedQueryConfig & { execute: TReturning[] }
 		>(
 			query,
-			this.config.returning,
-			name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+			fields ? 'arrays' : 'raw',
+			name ?? generateName,
+			fields ? this.dialect.mapperGenerators.rows(fields, nullableObjectPaths) : undefined,
 		);
-		preparedQuery.nullableObjectPaths = this.config.returning
-			? resolveNullableObjectPaths(this.config.returning, this.joinsNotNullableMap)
-			: undefined;
-		return preparedQuery;
 	}
 
 	prepare(name?: string): CockroachUpdatePrepare<this> {

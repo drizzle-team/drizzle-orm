@@ -216,7 +216,6 @@ export type MySqlSetOperatorExcludedMethods =
 	| 'where'
 	| 'having'
 	| 'groupBy'
-	| 'session'
 	| 'leftJoin'
 	| 'rightJoin'
 	| 'innerJoin'
