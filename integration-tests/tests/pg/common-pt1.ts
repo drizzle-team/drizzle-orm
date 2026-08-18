@@ -2638,11 +2638,11 @@ export function tests(test: Test) {
 				lastName: 'last_name',
 			}]);
 
-			expect(query.toSQL()).toStrictEqual([{
+			expect(query.toSQL()).toStrictEqual({
 				sql:
 					'select "id", "email", "first_name", "last_name", "code" from "person_with_code" where "person_with_code"."code" = $1',
 				params: ['code value'],
-			}]);
+			});
 		});
 	});
 }
