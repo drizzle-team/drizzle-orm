@@ -2,6 +2,7 @@ import { is } from '~/entity.ts';
 import { SQL } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
+import { throwUnknownExtraConfigValue } from '~/table.utils.ts';
 import type { Index } from './indexes.ts';
 import { IndexBuilder } from './indexes.ts';
 import type { PrimaryKey } from './primary-keys.ts';
@@ -45,6 +46,8 @@ export function getTableConfig(table: SingleStoreTable) {
 				uniqueConstraints.push(builder.build(table));
 			} else if (is(builder, PrimaryKeyBuilder)) {
 				primaryKeys.push(builder.build(table));
+			} else {
+				throwUnknownExtraConfigValue(name, builder);
 			}
 		}
 	}
