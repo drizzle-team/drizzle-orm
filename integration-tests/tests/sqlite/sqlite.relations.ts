@@ -49,6 +49,12 @@ export default defineRelations(schema, (r) => ({
 			to: r.groupsTable.id.through(r.usersToGroupsTable.groupId),
 			alias: 'users-groups-direct',
 		}),
+		groupsWithMembershipId: r.many.groupsTable({
+			from: r.usersTable.id.through(r.usersToGroupsTable.userId),
+			to: r.groupsTable.id.through(r.usersToGroupsTable.groupId),
+			including: { membershipId: r.usersToGroupsTable.id },
+			alias: 'users-groups-membership',
+		}),
 		groupsFiltered: r.many.groupsTable({
 			alias: 'users-groups-direct-filtered',
 		}),

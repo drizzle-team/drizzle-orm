@@ -1276,6 +1276,8 @@ export class SingleStoreDialect {
 		depth,
 		isNestedMany,
 		throughJoin,
+		throughTable,
+		including,
 	}: {
 		schema: TablesRelationalConfig;
 		table: SingleStoreTable | SingleStoreView;
@@ -1287,6 +1289,8 @@ export class SingleStoreDialect {
 		depth?: number;
 		isNestedMany?: boolean;
 		throughJoin?: SQL;
+		throughTable?: SingleStoreTable | SingleStoreView;
+		including?: { key: string; column: unknown }[];
 	}): BuildRelationalQueryResultWithOrder {
 		const selection: BuildRelationalQueryResult['selection'] = [];
 		const isSingle = mode === 'first';
@@ -1328,6 +1332,11 @@ export class SingleStoreDialect {
 
 		const selectionArr: SQL[] = columns ? [columns] : [];
 		if (extras?.sql) selectionArr.push(extras.sql);
+		if (including?.length && throughTable) {
+			for (const inc of including) {
+				selectionArr.push(this.buildRqbColumn(throughTable, inc.column, inc.key, selection, tableConfig.name));
+			}
+		}
 
 		let joins: SQL | undefined;
 		switch (params) {
@@ -1387,6 +1396,8 @@ export class SingleStoreDialect {
 						depth: currentDepth + 1,
 						isNestedMany: !isSingle,
 						throughJoin,
+						throughTable: throughTable as SingleStoreTable | SingleStoreView | undefined,
+						including: relation.including,
 					});
 
 					selection.push({

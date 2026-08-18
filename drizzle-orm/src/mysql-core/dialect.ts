@@ -949,6 +949,8 @@ export class MySqlDialect {
 		depth,
 		isNestedMany,
 		throughJoin,
+		throughTable,
+		including,
 		nested,
 	}: {
 		schema: TablesRelationalConfig;
@@ -961,6 +963,8 @@ export class MySqlDialect {
 		depth?: number;
 		isNestedMany?: boolean;
 		throughJoin?: SQL;
+		throughTable?: MySqlTable | MySqlView;
+		including?: { key: string; column: unknown }[];
 		nested?: boolean;
 	}): BuildRelationalQueryResult {
 		const selection: BuildRelationalQueryResult['selection'] = [];
@@ -1003,6 +1007,13 @@ export class MySqlDialect {
 
 		const selectionArr: SQL[] = columns ? [columns] : [];
 		if (extras?.sql) selectionArr.push(extras.sql);
+		if (including?.length && throughTable) {
+			for (const inc of including) {
+				selectionArr.push(
+					this.buildRqbColumn(throughTable, inc.column, inc.key, !!nested, selection, tableConfig.name),
+				);
+			}
+		}
 
 		let joins: SQL | undefined;
 		switch (params) {
@@ -1057,6 +1068,8 @@ export class MySqlDialect {
 						depth: currentDepth + 1,
 						isNestedMany: !isSingle,
 						throughJoin,
+						throughTable: throughTable as MySqlTable | MySqlView | undefined,
+						including: relation.including,
 						nested: true,
 					});
 
