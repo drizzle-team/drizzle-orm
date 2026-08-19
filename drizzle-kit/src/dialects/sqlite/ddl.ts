@@ -316,9 +316,9 @@ export function sqliteToRelationsPull(schema: SQLiteDDL): SchemaForPull {
 				...Object.values(rawTable.uniques).map((unq) => ({
 					columns: unq.columns,
 				})),
-				...Object.values(rawTable.indexes).map((idx) => ({
+				...Object.values(rawTable.indexes).filter((idx) => idx.isUnique && !idx.where).map((idx) => ({
 					columns: idx.columns.map((idxc) => {
-						if (!idxc.isExpression && idx.isUnique) {
+						if (!idxc.isExpression) {
 							return idxc.value;
 						}
 					}).filter((item) => item !== undefined),

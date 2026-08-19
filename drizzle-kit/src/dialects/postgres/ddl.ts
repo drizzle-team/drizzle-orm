@@ -246,9 +246,11 @@ export function postgresToRelationsPull(schema: PostgresDDL): SchemaForPull {
 				...Object.values(rawTable.uniques).map((unq) => ({
 					columns: unq.columns,
 				})),
-				...Object.values(rawTable.indexes).map((idx) => ({
+				// Partial unique indexes (WHERE ...) are unique only for a subset of
+				// rows, so they must not promote the parent side of an FK to 1-1.
+				...Object.values(rawTable.indexes).filter((idx) => idx.isUnique && !idx.where).map((idx) => ({
 					columns: idx.columns.map((idxc) => {
-						if (!idxc.isExpression && idx.isUnique) {
+						if (!idxc.isExpression) {
 							return idxc.value;
 						}
 					}).filter((item) => item !== undefined),
