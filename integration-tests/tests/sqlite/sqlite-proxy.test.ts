@@ -20,6 +20,8 @@ const skip = [
 	// Uses async versions
 	'sync transaction rollback',
 	'sync nested transaction rollback',
+	// Has no object mode querying; codecs are user-provided
+	'all types ~codecs~',
 ];
 cacheTests(test, skip);
 tests(test, skip);

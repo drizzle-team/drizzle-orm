@@ -1,4 +1,5 @@
 import { entityKind, is } from '~/entity.ts';
+import { type MsSqlType, resolveUnionType } from '~/mssql-core/codecs.ts';
 import type { MsSqlColumn } from '~/mssql-core/columns/index.ts';
 import type { MsSqlDialect } from '~/mssql-core/dialect.ts';
 import type { MsSqlSession, PreparedQueryConfig, PreparedQueryHKTBase } from '~/mssql-core/session.ts';
@@ -50,6 +51,7 @@ import type {
 	MsSqlSetOperatorExcludedMethods,
 	MsSqlSetOperatorWithResult,
 	SelectedFields,
+	SelectedFieldsOrdered,
 	SetOperatorRightSelect,
 } from './select.types.ts';
 
@@ -240,6 +242,9 @@ export abstract class MsSqlSelectQueryBuilderBase<
 			if (typeof tableName === 'string' && this.config.joins?.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
 			}
+
+			this.config.fieldsFlat = undefined;
+			this.config.mapper = undefined;
 
 			if (!this.isPartialSelect) {
 				// If this is the first join and this is not a partial select and we're not selecting from raw SQL, "move" the fields from the main table to the nested object
@@ -897,8 +902,46 @@ export abstract class MsSqlSelectQueryBuilderBase<
 	}
 
 	getSQL(): SQL {
-		this.config.fieldsFlat = orderSelectedFields<MsSqlColumn>(this.config.fields);
+		this.config.fieldsFlat ??= this._resolveSelection();
 		return this.dialect.buildSelectQuery(this.config);
+	}
+
+	/** @internal */
+	_resolveSelection(): SelectedFieldsOrdered {
+		const { config, dialect } = this;
+		const fieldsFlat = orderSelectedFields<MsSqlColumn>(config.fields, undefined, dialect.codecs);
+
+		const { setOperators } = config;
+		if (!setOperators.length) return fieldsFlat;
+
+		const setSelection: SelectedFieldsOrdered = fieldsFlat.map((f) => ({ ...f }));
+
+		for (const setOperator of setOperators) {
+			if (!setOperator) {
+				throw new Error('Cannot pass undefined values to any set operator');
+			}
+
+			const rightSelection = orderSelectedFields(setOperator.rightSelect.getSelectedFields());
+			for (let j = 0; j < setSelection.length; ++j) {
+				const l = setSelection[j]!;
+				const lPath = l.path.join('.');
+				// Equivalency of selections is a pre-requisite for set operations
+				const r = rightSelection.find((e) => e.path.join('.') === lPath)!;
+
+				const lc = (l.codecOverride ?? l.column?.codec) as MsSqlType | undefined;
+				const rc = (r.codecOverride ?? r.column?.codec) as MsSqlType | undefined;
+
+				l.codecOverride = lc && rc ? resolveUnionType(lc, rc) : lc;
+			}
+		}
+
+		for (const out of setSelection) {
+			out.codec = out.codecOverride
+				? dialect.codecs.get(out.column!, 'normalize', out.codecOverride as MsSqlType)
+				: out.codec;
+		}
+
+		return setSelection;
 	}
 
 	toSQL(): Query {
@@ -909,7 +952,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 		alias: TAlias,
 	): SubqueryWithSelection<this['_']['selectedFields'], TAlias> {
 		return new Proxy(
-			new Subquery(this.getSQL(), this.config.fields, alias),
+			new Subquery(this.withoutSelectionCastCodecs().getSQL(), this.config.fields, alias),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
 	}
@@ -924,6 +967,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 
 	/** @internal */
 	override withoutSelectionCastCodecs(): this {
+		this.config.ignoreSelectionCastCodecs = true;
 		return this;
 	}
 
@@ -1000,7 +1044,11 @@ export class MsSqlSelectBase<
 		return this.session.prepareQuery<
 			PreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
 			TPreparedQueryHKT
-		>(query, 'arrays', this.dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths)) as MsSqlSelectPrepare<
+		>(
+			query,
+			'arrays',
+			this.config.mapper ??= this.dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths),
+		) as MsSqlSelectPrepare<
 			this
 		>;
 	}

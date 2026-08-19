@@ -9,7 +9,6 @@ import type {
 	UpdateDeleteAction,
 } from 'drizzle-orm/cockroach-core';
 import {
-	CockroachArray,
 	CockroachDialect,
 	CockroachEnumColumn,
 	CockroachGeometry,
@@ -97,9 +96,9 @@ export const policyFrom = (policy: CockroachPolicy, dialect: CockroachDialect) =
 };
 
 export const unwrapColumn = (column: AnyCockroachColumn) => {
-	const { baseColumn, dimensions } = is(column, CockroachArray)
+	const { baseColumn, dimensions } = isLegacyArray(column)
 		? unwrapArray(column)
-		: { baseColumn: column, dimensions: 0 };
+		: { baseColumn: column, dimensions: column.dimensions ?? 0 /* Legacy column guard */ };
 
 	const isEnum = is(baseColumn, CockroachEnumColumn);
 	const typeSchema = isEnum ? baseColumn.enum.schema || 'public' : null;
@@ -122,12 +121,15 @@ export const unwrapColumn = (column: AnyCockroachColumn) => {
 	};
 };
 
+type LegacyArrayColumn = AnyCockroachColumn & { readonly baseColumn: AnyCockroachColumn };
+const isLegacyArray = (column: AnyCockroachColumn): column is LegacyArrayColumn => 'baseColumn' in column;
+
 export const unwrapArray = (
-	column: CockroachArray<any, any>,
+	column: LegacyArrayColumn,
 	dimensions: number = 1,
 ): { baseColumn: AnyCockroachColumn; dimensions: number } => {
 	const baseColumn = column.baseColumn;
-	if (is(baseColumn, CockroachArray)) return unwrapArray(baseColumn, dimensions + 1);
+	if (isLegacyArray(baseColumn)) return unwrapArray(baseColumn, dimensions + 1);
 
 	return { baseColumn, dimensions };
 };

@@ -25,7 +25,6 @@ export class CockroachRaw<TResult> extends QueryPromise<TResult>
 		super();
 	}
 
-	/** @internal */
 	getSQL() {
 		return this.sql;
 	}
@@ -38,6 +37,7 @@ export class CockroachRaw<TResult> extends QueryPromise<TResult>
 		return this.prepared.execute(placeholderValues) as Promise<TResult>;
 	}
 
+	/** @internal */
 	_prepare(): CockroachBasePreparedQuery {
 		return this.prepared;
 	}

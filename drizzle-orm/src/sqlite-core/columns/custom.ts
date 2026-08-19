@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig } from '~/colu
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SQL, SQLGenerator } from '~/sql/sql.ts';
+import { resolveSQLiteTypeAlias, type SQLiteColumnType, type SQLiteType } from '~/sqlite-core/codecs.ts';
 import type { AnySQLiteTable, SQLiteTable } from '~/sqlite-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
@@ -50,11 +51,12 @@ export class SQLiteCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom
 export class SQLiteCustomColumn<T extends ColumnBaseConfig<'custom'>> extends SQLiteColumn<T> {
 	static override readonly [entityKind]: string = 'SQLiteCustomColumn';
 
+	/** @internal */
+	override readonly codec?: SQLiteType | undefined;
+
 	private sqlName: string;
-	private mapTo?: (value: T['data']) => T['driverParam'];
-	private mapFrom?: (value: T['driverParam']) => T['data'];
-	private mapJson?: (value: unknown) => T['data'];
-	private forJsonSelect?: (name: SQL, sql: SQLGenerator) => SQL;
+	readonly mapFromJsonValue?: (value: unknown) => T['data'];
+	readonly jsonSelectIdentifier?: (identifier: SQL, sql: SQLGenerator) => SQL;
 
 	constructor(
 		table: AnySQLiteTable<{ name: T['tableName'] }>,
@@ -65,49 +67,22 @@ export class SQLiteCustomColumn<T extends ColumnBaseConfig<'custom'>> extends SQ
 	) {
 		super(table, config);
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
-		this.mapTo = config.customTypeParams.toDriver;
-		this.mapFrom = config.customTypeParams.fromDriver;
-		this.mapJson = config.customTypeParams.fromJson;
-		this.forJsonSelect = config.customTypeParams.forJsonSelect;
+		this.mapToDriverValue = config.customTypeParams.toDriver ?? this.mapToDriverValue;
+		this.mapFromDriverValue = config.customTypeParams.fromDriver ?? this.mapFromDriverValue;
+		this.mapFromJsonValue = config.customTypeParams.fromJson;
+		this.jsonSelectIdentifier = config.customTypeParams.forJsonSelect;
+		const cfgCodec =
+			typeof config.customTypeParams.codec === 'string' || typeof config.customTypeParams.codec === 'undefined'
+				? config.customTypeParams.codec
+				: config.customTypeParams.codec(config.fieldConfig);
+		this.codec = typeof cfgCodec === 'string'
+			? resolveSQLiteTypeAlias(cfgCodec) as SQLiteType // If it isn't `SQLiteType`, codec search will simply resolve to no codec, which is supported behaviour
+			: undefined;
 	}
 
 	getSQLType(): string {
 		return this.sqlName;
 	}
-
-	override mapFromDriverValue = (value: T['driverParam']): T['data'] => {
-		return typeof this.mapFrom === 'function' ? this.mapFrom(value) : value as T['data'];
-	};
-
-	mapFromJsonValue(value: unknown): T['data'] {
-		return typeof this.mapJson === 'function' ? this.mapJson(value) : this.mapFromDriverValue(value) as T['data'];
-	}
-
-	jsonSelectIdentifier(identifier: SQL, sql: SQLGenerator): SQL {
-		if (typeof this.forJsonSelect === 'function') return this.forJsonSelect(identifier, sql);
-
-		const rawType = this.getSQLType().toLowerCase();
-		const parenPos = rawType.indexOf('(');
-		const type = (parenPos + 1) ? rawType.slice(0, parenPos) : rawType;
-
-		switch (type) {
-			case 'numeric':
-			case 'decimal':
-			case 'bigint': {
-				return sql`cast(${identifier} as text)`;
-			}
-			case 'blob': {
-				return sql`hex(${identifier})`;
-			}
-			default: {
-				return identifier;
-			}
-		}
-	}
-
-	override mapToDriverValue = (value: T['data']): T['driverParam'] => {
-		return typeof this.mapTo === 'function' ? this.mapTo(value) : value as T['data'];
-	};
 }
 
 export interface CustomTypeValues {
@@ -247,6 +222,8 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	fromDriver?: (value: 'driverOutput' extends keyof T ? T['driverOutput'] : T['driverData']) => T['data'];
 
 	/**
+	 * Bypasses JSON codecs if used
+	 *
 	 * Optional mapping function, that is used for transforming data returned by transofmed to JSON in database data to desired format
 	 *
 	 * Used by [relational queries](https://orm.drizzle.team/docs/rqb-v2)
@@ -277,13 +254,15 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	fromJson?: (value: T['jsonData']) => T['data'];
 
 	/**
+	 * Bypasses JSON codecs if used
+	 *
 	 * Optional selection modifier function, that is used for modifying selection of column inside [JSON functions](https://orm.drizzle.team/docs/json-functions)
 	 *
 	 * Additional mapping that could be required for such scenarios can be handled using {@link fromJson} function
 	 *
 	 * Used by [relational queries](https://orm.drizzle.team/docs/rqb-v2)
 	 *
-	 * Following types are being casted to text by default: `numeric`, `decimal`, `bigint`, `blob` (via `hex()` function)
+	 * Following types are being casted to text by default: `numeric`, `numeric:number`, `numeric:bigint`, `blob:json`, `blob:bigint`; `blob` is converted via `hex()`
 	 * @example
 	 * For example, when using numeric field for bigint storage we need to cast field to text to preserve data integrity
 	 * ```
@@ -331,6 +310,16 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	forJsonSelect?: (identifier: SQL, sql: SQLGenerator) => SQL;
+
+	/**
+	 * Select which column type codec will be used for this column
+	 */
+	codec?:
+		| SQLiteColumnType
+		| undefined
+		| ((
+			config: T['config'] | (Equal<T['configRequired'], true> extends true ? never : undefined),
+		) => SQLiteColumnType | undefined);
 }
 
 /**

@@ -291,6 +291,7 @@ const customBigInt = customType<{
 	driverOutput: string;
 	jsonData: string;
 }>({
+	codec: 'bigint',
 	dataType: () => 'bigint',
 	fromDriver: BigInt,
 });

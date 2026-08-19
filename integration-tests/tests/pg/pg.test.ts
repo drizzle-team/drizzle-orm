@@ -21,6 +21,7 @@ import {
 	usersTable,
 	usersToGroupsTable,
 } from './pg.schema';
+import type { AllTypes } from './pg.schema';
 
 const { Client } = pg;
 
@@ -13068,7 +13069,9 @@ test('alltypes', async () => {
 	expect(nestedRelationRes).toStrictEqual(rawRes);
 	expect(relationRootRes).toStrictEqual(rawRes);
 
-	const expectedRes = [
+	expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
+
+	const expectedRes: AllTypes[] = [
 		{
 			serial: 1,
 			bigserial53: 9007199254740991,

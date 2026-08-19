@@ -1,7 +1,7 @@
 import { describe, it } from 'vitest';
-import { relations } from '~/_relations';
 import { drizzle } from '~/cockroach';
 import { alias, boolean, camelCase, int4, text, union } from '~/cockroach-core';
+import { defineRelations } from '~/relations';
 import { asc, eq, sql } from '~/sql';
 
 const testSchema = camelCase.schema('test');
@@ -12,23 +12,17 @@ const users = camelCase.table('users', {
 	// Test that custom aliases remain
 	age: int4('AGE'),
 });
-const usersRelations = relations(users, ({ one }) => ({
-	developers: one(developers),
-}));
 const developers = testSchema.table('developers', {
 	user_id: int4().primaryKey().generatedByDefaultAsIdentity().references(() => users.id),
 	uses_drizzle_orm: boolean().notNull(),
 });
-const developersRelations = relations(developers, ({ one }) => ({
-	user: one(users, {
-		fields: [developers.user_id],
-		references: [users.id],
-	}),
-}));
 const devs = alias(developers, 'devs');
-const schema = { users, usersRelations, developers, developersRelations };
+const relations = defineRelations({ users, developers }, (r) => ({
+	users: { developers: r.one.developers({ from: r.users.id, to: r.developers.user_id }) },
+	developers: { user: r.one.users({ from: r.developers.user_id, to: r.users.id }) },
+}));
 
-const db = drizzle.mock({ schema });
+const db = drizzle.mock({ relations });
 
 const fullName = sql`${users.first_name} || ' ' || ${users.last_name}`.as('name');
 
@@ -117,7 +111,8 @@ describe('cockroach to camel case', () => {
 			.union(db.select({ first_name: users.first_name }).from(users));
 
 		expect(query.toSQL()).toEqual({
-			sql: '(select "firstName" from "users") union (select "firstName" from "users")',
+			sql:
+				'select "firstName" from ((select "firstName" from "users") union (select "firstName" from "users")) "drizzle_union"',
 			params: [],
 		});
 	});
@@ -129,21 +124,22 @@ describe('cockroach to camel case', () => {
 		);
 
 		expect(query.toSQL()).toEqual({
-			sql: '(select "firstName" from "users") union (select "firstName" from "users")',
+			sql:
+				'select "firstName" from ((select "firstName" from "users") union (select "firstName" from "users")) "drizzle_union"',
 			params: [],
 		});
 	});
 
 	it('query (find first)', ({ expect }) => {
-		const query = db._query.users.findFirst({
+		const query = db.query.users.findFirst({
 			columns: {
 				id: true,
 				age: true,
 			},
 			extras: {
-				fullName,
+				fullName: ({ first_name, last_name }) => sql`${first_name} || ' ' || ${last_name}`.as('name'),
 			},
-			where: eq(users.id, 1),
+			where: { id: 1 },
 			with: {
 				developers: {
 					columns: {
@@ -155,21 +151,21 @@ describe('cockroach to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select "users"."id", "users"."AGE", "users"."firstName" || \' \' || "users"."lastName" as "name", "users_developers"."data" as "developers" from "users" "users" left join lateral (select json_build_array("users_developers"."usesDrizzleOrm") as "data" from (select * from "test"."developers" "users_developers" where "users_developers"."userId" = "users"."id" limit $1) "users_developers") "users_developers" on true where "users"."id" = $2 limit $3',
+				'select "d0"."id" as "id", "d0"."AGE" as "age", ("d0"."firstName" || \' \' || "d0"."lastName") as "fullName", "developers"."r" as "developers" from "users" as "d0" left join lateral(select row_to_json("t".*) "r" from (select "d1"."usesDrizzleOrm" as "uses_drizzle_orm" from "test"."developers" as "d1" where "d0"."id" = "d1"."userId" limit $1) as "t") as "developers" on true where "d0"."id" = $2 limit $3',
 			params: [1, 1, 1],
 		});
 	});
 
 	it('query (find many)', ({ expect }) => {
-		const query = db._query.users.findMany({
+		const query = db.query.users.findMany({
 			columns: {
 				id: true,
 				age: true,
 			},
 			extras: {
-				fullName,
+				fullName: ({ first_name, last_name }) => sql`${first_name} || ' ' || ${last_name}`.as('name'),
 			},
-			where: eq(users.id, 1),
+			where: { id: 1 },
 			with: {
 				developers: {
 					columns: {
@@ -181,7 +177,7 @@ describe('cockroach to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select "users"."id", "users"."AGE", "users"."firstName" || \' \' || "users"."lastName" as "name", "users_developers"."data" as "developers" from "users" "users" left join lateral (select json_build_array("users_developers"."usesDrizzleOrm") as "data" from (select * from "test"."developers" "users_developers" where "users_developers"."userId" = "users"."id" limit $1) "users_developers") "users_developers" on true where "users"."id" = $2',
+				'select "d0"."id" as "id", "d0"."AGE" as "age", ("d0"."firstName" || \' \' || "d0"."lastName") as "fullName", "developers"."r" as "developers" from "users" as "d0" left join lateral(select row_to_json("t".*) "r" from (select "d1"."usesDrizzleOrm" as "uses_drizzle_orm" from "test"."developers" as "d1" where "d0"."id" = "d1"."userId" limit $1) as "t") as "developers" on true where "d0"."id" = $2',
 			params: [1, 1],
 		});
 	});

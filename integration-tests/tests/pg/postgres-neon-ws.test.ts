@@ -7,8 +7,14 @@ import { drizzle as drizzleNeonWs } from 'drizzle-orm/postgres/neon-ws';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe, expect } from 'vitest';
 import { randomString } from '~/utils';
-import { allTypesData, allTypesEnum, allTypesRelations, allTypesTable } from './all-types';
-import { assertAllTypesUnions } from './all-types-unions';
+import {
+	allTypesData,
+	allTypesEnum,
+	allTypesRelations,
+	allTypesTable,
+	assertAllTypesBounds,
+	assertAllTypesUnions,
+} from './all-types';
 import { tests } from './common';
 import { postgresNeonWsTest as test } from './instrumentation';
 import { usersMigratorTable } from './schema';
@@ -587,6 +593,7 @@ describe('driver-specific', () => {
 		expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
 
 		await assertAllTypesUnions(db);
+		await assertAllTypesBounds(db);
 	});
 
 	// Validates functionality of base codecs provided to be overriden
@@ -606,6 +613,7 @@ describe('driver-specific', () => {
 		expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
 
 		await assertAllTypesUnions(db);
+		await assertAllTypesBounds(db);
 	});
 });
 

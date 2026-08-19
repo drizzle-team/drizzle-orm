@@ -254,6 +254,41 @@ export const allTypesTable = snakeCase.table('all_types', {
 	enum: mysqlEnum(['enV1', 'enV2']),
 });
 
+export type AllTypes = {
+	serial: number;
+	blob: Buffer | null;
+	blobStr: string | null;
+	bigint53: number | null;
+	bigint64: bigint | null;
+	bigintString: string | null;
+	binary: string | null;
+	boolean: boolean | null;
+	char: string | null;
+	date: Date | null;
+	dateStr: string | null;
+	datetime: Date | null;
+	datetimeStr: string | null;
+	decimal: string | null;
+	decimalNum: number | null;
+	decimalBig: bigint | null;
+	double: number | null;
+	float: number | null;
+	int: number | null;
+	json: unknown;
+	medInt: number | null;
+	smallInt: number | null;
+	real: number | null;
+	text: string | null;
+	time: string | null;
+	timestamp: Date | null;
+	timestampStr: string | null;
+	tinyInt: number | null;
+	varbin: string | null;
+	varchar: string | null;
+	year: number | null;
+	enum: 'enV1' | 'enV2' | null;
+};
+
 export const students = snakeCase.table('students', {
 	studentId: serial('student_id').primaryKey().notNull(),
 	name: text().notNull(),
@@ -277,6 +312,7 @@ const customBigInt = customType<{
 	driverOutput: string;
 	jsonData: string;
 }>({
+	codec: 'bigint',
 	dataType: () => 'bigint',
 	fromDriver: BigInt,
 });

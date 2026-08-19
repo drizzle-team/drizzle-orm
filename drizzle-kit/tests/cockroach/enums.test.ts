@@ -1082,7 +1082,7 @@ test.concurrent('column is array enum with custom size type with default value. 
 	const from = {
 		enum1,
 		table: cockroachTable('table', {
-			column: enum1('test_column').array(3).default(['value2']),
+			column: enum1('test_column').array().default(['value2']),
 		}),
 	};
 
@@ -1090,7 +1090,7 @@ test.concurrent('column is array enum with custom size type with default value. 
 	const to = {
 		enum2,
 		table: cockroachTable('table', {
-			column: enum2('test_column').array(3).default(['value2']),
+			column: enum2('test_column').array().default(['value2']),
 		}),
 	};
 
@@ -1120,7 +1120,7 @@ test.concurrent('column is array enum with custom size type. shuffle enum', asyn
 	const from = {
 		enum1,
 		table: cockroachTable('table', {
-			column: enum1('test_column').array(3),
+			column: enum1('test_column').array(),
 		}),
 	};
 
@@ -1128,7 +1128,7 @@ test.concurrent('column is array enum with custom size type. shuffle enum', asyn
 	const to = {
 		enum2,
 		table: cockroachTable('table', {
-			column: enum2('test_column').array(3),
+			column: enum2('test_column').array(),
 		}),
 	};
 
@@ -1239,7 +1239,7 @@ test.concurrent('column is array enum type with custom size with default value. 
 		schema,
 		enum1,
 		table: schema.table('table', {
-			column: enum1('test_column').array(3).default(['value2']),
+			column: enum1('test_column').array().default(['value2']),
 		}),
 	};
 
@@ -1248,7 +1248,7 @@ test.concurrent('column is array enum type with custom size with default value. 
 		schema,
 		enum2,
 		table: schema.table('table', {
-			column: enum2('test_column').array(3).default(['value2']),
+			column: enum2('test_column').array().default(['value2']),
 		}),
 	};
 
@@ -1278,7 +1278,7 @@ test.concurrent('column is array enum type with custom size. custom schema. shuf
 		schema,
 		enum1,
 		table: schema.table('table', {
-			column: enum1('test_column').array(3),
+			column: enum1('test_column').array(),
 		}),
 	};
 
@@ -1287,7 +1287,7 @@ test.concurrent('column is array enum type with custom size. custom schema. shuf
 		schema,
 		enum2,
 		table: schema.table('table', {
-			column: enum2('test_column').array(3),
+			column: enum2('test_column').array(),
 		}),
 	};
 
@@ -1477,14 +1477,14 @@ test.concurrent('change data type from array standart type with custom size to a
 	const from = {
 		enum1,
 		table: cockroachTable('table', {
-			column: varchar('test_column').array(3).default(['value2']),
+			column: varchar('test_column').array().default(['value2']),
 		}),
 	};
 
 	const to = {
 		enum1,
 		table: cockroachTable('table', {
-			column: enum1('test_column').array(3).default(['value3']),
+			column: enum1('test_column').array().default(['value3']),
 		}),
 	};
 
@@ -1508,14 +1508,14 @@ test.concurrent('change data type from array standart type with custom size to a
 	const from = {
 		enum1,
 		table: cockroachTable('table', {
-			column: varchar('test_column').array(2),
+			column: varchar('test_column').array(),
 		}),
 	};
 
 	const to = {
 		enum1,
 		table: cockroachTable('table', {
-			column: enum1('test_column').array(2),
+			column: enum1('test_column').array(),
 		}),
 	};
 
@@ -1670,14 +1670,14 @@ test.concurrent('change data type from array enum with custom size type to array
 	const from = {
 		enum1,
 		table: cockroachTable('table', {
-			column: enum1('test_column').array(2),
+			column: enum1('test_column').array(),
 		}),
 	};
 
 	const to = {
 		enum1,
 		table: cockroachTable('table', {
-			column: varchar('test_column').array(2),
+			column: varchar('test_column').array(),
 		}),
 	};
 
@@ -1737,14 +1737,14 @@ test.concurrent('change data type from array enum type with custom size to array
 	const from = {
 		enum1,
 		table: cockroachTable('table', {
-			column: enum1('test_column').array(3).default(['value2']),
+			column: enum1('test_column').array().default(['value2']),
 		}),
 	};
 
 	const to = {
 		enum1,
 		table: cockroachTable('table', {
-			column: varchar('test_column').array(3).default(['value2']),
+			column: varchar('test_column').array().default(['value2']),
 		}),
 	};
 
@@ -1854,13 +1854,13 @@ test.concurrent('change data type from standart type to standart type. columns a
 test.concurrent('change data type from standart type to standart type. columns are arrays with custom sizes', async ({ db }) => {
 	const from = {
 		table: cockroachTable('table', {
-			test_column: varchar('test_column').array(2),
+			test_column: varchar('test_column').array(),
 		}),
 	};
 
 	const to = {
 		table: cockroachTable('table', {
-			test_column: text('test_column').array(2),
+			test_column: text('test_column').array(),
 		}),
 	};
 
@@ -1912,13 +1912,13 @@ test.concurrent('change data type from standart type to standart type. columns a
 test.concurrent('change data type from standart type to standart type. columns are arrays with custom sizes.column has default', async ({ db }) => {
 	const from = {
 		table: cockroachTable('table', {
-			column: varchar('test_column').array(2).default(['hello']),
+			column: varchar('test_column').array().default(['hello']),
 		}),
 	};
 
 	const to = {
 		table: cockroachTable('table', {
-			column: text('test_column').array(2).default(['hello']),
+			column: text('test_column').array().default(['hello']),
 		}),
 	};
 

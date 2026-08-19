@@ -38,6 +38,9 @@ export class SingleStoreChar<
 > extends SingleStoreColumn<T, { enum?: T['enumValues']; length: number; setLength: boolean }> {
 	static override readonly [entityKind]: string = 'SingleStoreChar';
 
+	/** @internal */
+	override readonly codec = 'char';
+
 	override readonly enumValues = this.config.enum;
 
 	getSQLType(): string {

@@ -19,6 +19,7 @@ import { EffectCache, type EffectCacheShape } from 'drizzle-orm/cache/core/cache
 import { EffectLogger, type EffectLoggerShape, QueryEffectHKTBase } from 'drizzle-orm/effect-core';
 import {
 	alias,
+	bigint,
 	boolean,
 	customType,
 	except,
@@ -54,8 +55,14 @@ import * as Ref from 'effect/Ref';
 import * as Result from 'effect/Result';
 import { SqlClient } from 'effect/unstable/sql/SqlClient';
 import { SqlError } from 'effect/unstable/sql/SqlError';
-import { type AllTypes, allTypesData, allTypesRelations, makeAllTypes } from './all-types';
-import { assertAllTypesUnions } from './all-types-unions';
+import {
+	type AllTypes,
+	allTypesData,
+	allTypesRelations,
+	assertAllTypesBounds,
+	assertAllTypesUnions,
+	makeAllTypes,
+} from './all-types';
 import { relations } from './relations';
 import { rqbPost, rqbUser } from './schema';
 import { normalizeDataWithDbCodecs } from './utils';
@@ -2547,6 +2554,9 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 					const context = yield* Effect.context<never>();
 					yield* Effect.promise(() =>
 						assertAllTypesUnions(relDb as any, allTypesTable, (query) => Effect.runPromiseWith(context)(query))
+					);
+					yield* Effect.promise(() =>
+						assertAllTypesBounds(relDb as any, (query) => Effect.runPromiseWith(context)(query))
 					);
 				}),
 		);

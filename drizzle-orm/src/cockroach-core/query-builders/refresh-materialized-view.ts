@@ -63,7 +63,6 @@ export class CockroachRefreshMaterializedView<TQueryResult extends CockroachQuer
 		return this;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildRefreshMaterializedViewQuery(this.config);
 	}

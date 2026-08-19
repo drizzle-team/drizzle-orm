@@ -10,7 +10,7 @@ const cockroachUsers = cockroachTable('users', {
 });
 
 {
-	const db0 = drizzle('', { schema: { users: cockroachUsers } });
+	const db0 = drizzle('');
 
 	await seed(db0, { users: cockroachUsers });
 	await seed(db0, { users: cockroachUsers }).refine((funcs) => ({

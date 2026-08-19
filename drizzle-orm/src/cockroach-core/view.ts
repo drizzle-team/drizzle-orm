@@ -1,12 +1,11 @@
 import type { Casing } from '~/casing.ts';
-import type { BuildColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
-import type { CockroachColumn } from './columns/common.ts';
+import type { AnyCockroachColumnBuilder, CockroachBuildColumns, CockroachColumn } from './columns/common.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
 import { cockroachTableWithSchema } from './table.ts';
 import { CockroachViewBase } from './view-base.ts';
@@ -47,7 +46,7 @@ export class ViewBuilder<TName extends string = string> extends DefaultViewBuild
 					name: this.name,
 					schema: this.schema,
 					selectedFields: aliasedSelection,
-					query: qb.getSQL().inlineParams(),
+					query: qb.withoutSelectionCastCodecs().getSQL().inlineParams(),
 				},
 			}),
 			selectionProxy as any,
@@ -57,7 +56,7 @@ export class ViewBuilder<TName extends string = string> extends DefaultViewBuild
 
 export class ManualViewBuilder<
 	TName extends string = string,
-	TColumns extends Record<string, ColumnBuilderBase> = Record<string, ColumnBuilderBase>,
+	TColumns extends Record<string, AnyCockroachColumnBuilder> = Record<string, AnyCockroachColumnBuilder>,
 > extends DefaultViewBuilderCore<{ name: TName; columns: TColumns }> {
 	static override readonly [entityKind]: string = 'CockroachManualViewBuilder';
 
@@ -73,7 +72,7 @@ export class ManualViewBuilder<
 		this.columns = getTableColumns(cockroachTableWithSchema(name, columns, undefined, schema, casing));
 	}
 
-	existing(): CockroachViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'cockroach'>> {
+	existing(): CockroachViewWithSelection<TName, true, CockroachBuildColumns<TName, TColumns>> {
 		return new Proxy(
 			new CockroachView({
 				config: {
@@ -89,10 +88,10 @@ export class ManualViewBuilder<
 				sqlAliasedBehavior: 'alias',
 				replaceOriginalName: true,
 			}),
-		) as CockroachViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'cockroach'>>;
+		) as CockroachViewWithSelection<TName, true, CockroachBuildColumns<TName, TColumns>>;
 	}
 
-	as(query: SQL): CockroachViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'cockroach'>> {
+	as(query: SQL): CockroachViewWithSelection<TName, false, CockroachBuildColumns<TName, TColumns>> {
 		return new Proxy(
 			new CockroachView({
 				config: {
@@ -108,7 +107,7 @@ export class ManualViewBuilder<
 				sqlAliasedBehavior: 'alias',
 				replaceOriginalName: true,
 			}),
-		) as CockroachViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'cockroach'>>;
+		) as CockroachViewWithSelection<TName, false, CockroachBuildColumns<TName, TColumns>>;
 	}
 }
 
@@ -166,7 +165,7 @@ export class MaterializedViewBuilder<TName extends string = string>
 					name: this.name,
 					schema: this.schema,
 					selectedFields: aliasedSelection,
-					query: qb.getSQL().inlineParams(),
+					query: qb.withoutSelectionCastCodecs().getSQL().inlineParams(),
 				},
 			}),
 			selectionProxy as any,
@@ -180,7 +179,7 @@ export class MaterializedViewBuilder<TName extends string = string>
 
 export class ManualMaterializedViewBuilder<
 	TName extends string = string,
-	TColumns extends Record<string, ColumnBuilderBase> = Record<string, ColumnBuilderBase>,
+	TColumns extends Record<string, AnyCockroachColumnBuilder> = Record<string, AnyCockroachColumnBuilder>,
 > extends MaterializedViewBuilderCore<{ name: TName; columns: TColumns }> {
 	static override readonly [entityKind]: string = 'CockroachManualMaterializedViewBuilder';
 
@@ -196,7 +195,7 @@ export class ManualMaterializedViewBuilder<
 		this.columns = getTableColumns(cockroachTableWithSchema(name, columns, undefined, schema, casing));
 	}
 
-	existing(): CockroachMaterializedViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'cockroach'>> {
+	existing(): CockroachMaterializedViewWithSelection<TName, true, CockroachBuildColumns<TName, TColumns>> {
 		return new Proxy(
 			new CockroachMaterializedView({
 				cockroachConfig: {
@@ -215,10 +214,10 @@ export class ManualMaterializedViewBuilder<
 				sqlAliasedBehavior: 'alias',
 				replaceOriginalName: true,
 			}),
-		) as CockroachMaterializedViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'cockroach'>>;
+		) as CockroachMaterializedViewWithSelection<TName, true, CockroachBuildColumns<TName, TColumns>>;
 	}
 
-	as(query: SQL): CockroachMaterializedViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'cockroach'>> {
+	as(query: SQL): CockroachMaterializedViewWithSelection<TName, false, CockroachBuildColumns<TName, TColumns>> {
 		return new Proxy(
 			new CockroachMaterializedView({
 				cockroachConfig: {
@@ -237,7 +236,7 @@ export class ManualMaterializedViewBuilder<
 				sqlAliasedBehavior: 'alias',
 				replaceOriginalName: true,
 			}),
-		) as CockroachMaterializedViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'cockroach'>>;
+		) as CockroachMaterializedViewWithSelection<TName, false, CockroachBuildColumns<TName, TColumns>>;
 	}
 }
 
@@ -306,7 +305,7 @@ export type CockroachMaterializedViewWithSelection<
 /** @internal */
 export function cockroachViewWithSchema(
 	name: string,
-	selection: Record<string, ColumnBuilderBase> | undefined,
+	selection: Record<string, AnyCockroachColumnBuilder> | undefined,
 	schema: string | undefined,
 	casing: Casing | undefined,
 ): ViewBuilder | ManualViewBuilder {
@@ -319,7 +318,7 @@ export function cockroachViewWithSchema(
 /** @internal */
 export function cockroachMaterializedViewWithSchema(
 	name: string,
-	selection: Record<string, ColumnBuilderBase> | undefined,
+	selection: Record<string, AnyCockroachColumnBuilder> | undefined,
 	schema: string | undefined,
 	casing: Casing | undefined,
 ): MaterializedViewBuilder | ManualMaterializedViewBuilder {
@@ -331,7 +330,7 @@ export function cockroachMaterializedViewWithSchema(
 
 export interface CockroachViewFn {
 	<TName extends string>(name: TName): ViewBuilder<TName>;
-	<TName extends string, TColumns extends Record<string, ColumnBuilderBase>>(
+	<TName extends string, TColumns extends Record<string, AnyCockroachColumnBuilder>>(
 		name: TName,
 		columns: TColumns,
 	): ManualViewBuilder<TName, TColumns>;
@@ -339,7 +338,7 @@ export interface CockroachViewFn {
 
 export interface CockroachMaterializedViewFn {
 	<TName extends string>(name: TName): MaterializedViewBuilder<TName>;
-	<TName extends string, TColumns extends Record<string, ColumnBuilderBase>>(
+	<TName extends string, TColumns extends Record<string, AnyCockroachColumnBuilder>>(
 		name: TName,
 		columns: TColumns,
 	): ManualMaterializedViewBuilder<TName, TColumns>;

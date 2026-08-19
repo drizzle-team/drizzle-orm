@@ -618,7 +618,8 @@ export function tests(test: Test) {
 				.toSQL();
 
 			expect(query).toEqual({
-				sql: `select \`id\`, \`name\` from \`userstest\` group by \`userstest\`.\`id\`, \`userstest\`.\`name\``,
+				sql:
+					`select cast(\`id\` as char), \`name\` from \`userstest\` group by \`userstest\`.\`id\`, \`userstest\`.\`name\``,
 				params: [],
 			});
 		});

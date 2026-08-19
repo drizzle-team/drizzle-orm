@@ -63,6 +63,16 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import Keyv from 'keyv';
 import type { Equal } from '~/utils';
 import { Expect } from '~/utils';
+import type { AllTypes } from '../sqlite/all-types';
+import {
+	allTypesData,
+	allTypesInput,
+	assertAllTypesBounds,
+	assertAllTypesUnions,
+	createAllTypes,
+	dropAllTypes,
+	makeAllTypes,
+} from '../sqlite/all-types';
 
 export const rqbUser = sqliteTable('user_rqb_test', {
 	id: integer().primaryKey().notNull(),
@@ -3884,128 +3894,19 @@ describe('common', () => {
 	});
 
 	test('all types', async () => {
-		await db.run(sql`
-			CREATE TABLE \`all_types\`(
-				\`int\` integer,
-				\`bool\` integer,
-				\`time\` integer,
-				\`time_ms\` integer,
-				\`bigint\` blob,
-				\`buffer\` blob,
-				\`json\` blob,
-				\`numeric\` numeric,
-				\`numeric_num\` numeric,
-				\`numeric_big\` numeric,
-				\`real\` real,
-				\`text\` text,
-				\`json_text\` text
-				);
-		`);
+		const allTypesTable = makeAllTypes('all_types');
+		await db.run(sql.raw(dropAllTypes('all_types')));
+		await db.run(sql.raw(createAllTypes('all_types')));
 
-		await db.insert(allTypesTable).values({
-			int: 1,
-			bool: true,
-			bigint: 5044565289845416380n,
-			buffer: Buffer.from([
-				0x44,
-				0x65,
-				0x73,
-				0x70,
-				0x61,
-				0x69,
-				0x72,
-				0x20,
-				0x6F,
-				0x20,
-				0x64,
-				0x65,
-				0x73,
-				0x70,
-				0x61,
-				0x69,
-				0x72,
-				0x2E,
-				0x2E,
-				0x2E,
-			]),
-			json: {
-				str: 'strval',
-				arr: ['str', 10],
-			},
-			jsonText: {
-				str: 'strvalb',
-				arr: ['strb', 11],
-			},
-			numeric: '475452353476',
-			numericNum: 9007199254740991,
-			numericBig: 5044565289845416380n,
-			real: 1.048596,
-			text: 'TEXT STRING',
-			time: new Date(1741743161623),
-			timeMs: new Date(1741743161623),
-		});
+		await db.insert(allTypesTable).values(allTypesInput);
 
 		const rawRes = await db.select().from(allTypesTable);
 
-		expect(typeof rawRes[0]?.numericBig).toStrictEqual('bigint');
+		expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
+		expect(rawRes).toStrictEqual([allTypesData]);
 
-		type ExpectedType = {
-			int: number | null;
-			bool: boolean | null;
-			time: Date | null;
-			timeMs: Date | null;
-			bigint: bigint | null;
-			buffer: Buffer | null;
-			json: unknown;
-			numeric: string | null;
-			numericNum: number | null;
-			numericBig: bigint | null;
-			real: number | null;
-			text: string | null;
-			jsonText: unknown;
-		}[];
-
-		const expectedRes: ExpectedType = [
-			{
-				int: 1,
-				bool: true,
-				time: new Date('2025-03-12T01:32:41.000Z'),
-				timeMs: new Date('2025-03-12T01:32:41.623Z'),
-				bigint: 5044565289845416380n,
-				buffer: Buffer.from([
-					0x44,
-					0x65,
-					0x73,
-					0x70,
-					0x61,
-					0x69,
-					0x72,
-					0x20,
-					0x6F,
-					0x20,
-					0x64,
-					0x65,
-					0x73,
-					0x70,
-					0x61,
-					0x69,
-					0x72,
-					0x2E,
-					0x2E,
-					0x2E,
-				]),
-				json: { str: 'strval', arr: ['str', 10] },
-				numeric: '475452353476',
-				numericNum: 9007199254740991,
-				numericBig: 5044565289845416380n,
-				real: 1.048596,
-				text: 'TEXT STRING',
-				jsonText: { str: 'strvalb', arr: ['strb', 11] },
-			},
-		];
-
-		expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
-		expect(rawRes).toStrictEqual(expectedRes);
+		await assertAllTypesUnions(db as any, allTypesTable);
+		await assertAllTypesBounds(db as any);
 	});
 });
 

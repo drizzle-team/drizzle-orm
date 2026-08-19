@@ -41,6 +41,9 @@ export class MsSqlBigInt<T extends ColumnBaseConfig<'bigint int64' | 'number int
 
 	readonly mode: 'number' | 'bigint' | 'string' = this.config.mode;
 
+	/** @internal */
+	override readonly codec: 'bigint' | 'bigint:number' | 'bigint:string';
+
 	getSQLType(): string {
 		return `bigint`;
 	}
@@ -51,6 +54,7 @@ export class MsSqlBigInt<T extends ColumnBaseConfig<'bigint int64' | 'number int
 	) {
 		super(table, config);
 		this.mode = config.mode;
+		this.codec = config.mode === 'string' ? 'bigint:string' : config.mode === 'number' ? 'bigint:number' : 'bigint';
 	}
 
 	override mapFromDriverValue = (value: string): T['data'] => {

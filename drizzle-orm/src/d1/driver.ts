@@ -8,6 +8,7 @@ import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
 import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
 import type { IfNotImported } from '~/utils.ts';
+import { d1Codecs } from './codecs.ts';
 import { type D1RunResult, SQLiteD1Session } from './session.ts';
 
 export type AnyD1Database = IfNotImported<
@@ -42,7 +43,9 @@ export function drizzle<
 ): DrizzleD1Database<TRelations> & {
 	$client: TClient;
 } {
-	const dialect = new SQLiteDialect();
+	const dialect = new SQLiteDialect({
+		codecs: config.codecs ?? d1Codecs,
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

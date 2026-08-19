@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import { defineRelations } from 'drizzle-orm';
 import { bit, datetime2, int, mssqlTable, text, varchar, withReplicas } from 'drizzle-orm/mssql-core';
 import { drizzle } from 'drizzle-orm/node-mssql';
 import { describe, expect, it, vi } from 'vitest';
@@ -14,6 +15,8 @@ const usersTable = mssqlTable('users', {
 const users = mssqlTable('users', {
 	id: int('id' as string).primaryKey(),
 });
+
+const usersRelations = defineRelations({ usersTable });
 
 describe('[select] read replicas postgres', () => {
 	it('primary select', () => {
@@ -560,18 +563,18 @@ describe('[transaction] replicas postgres', () => {
 
 describe('[findFirst] read replicas postgres', () => {
 	it('primary findFirst', () => {
-		const primaryDb = drizzle.mock({ schema: { usersTable } });
-		const read1 = drizzle.mock({ schema: { usersTable } });
-		const read2 = drizzle.mock({ schema: { usersTable } });
+		const primaryDb = drizzle.mock({ relations: usersRelations });
+		const read1 = drizzle.mock({ relations: usersRelations });
+		const read2 = drizzle.mock({ relations: usersRelations });
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
-		const spyPrimary = vi.spyOn(primaryDb['_query']['usersTable'], 'findFirst');
-		const spyRead1 = vi.spyOn(read1['_query']['usersTable'], 'findFirst');
-		const spyRead2 = vi.spyOn(read2['_query']['usersTable'], 'findFirst');
+		const spyPrimary = vi.spyOn(primaryDb['query']['usersTable'], 'findFirst');
+		const spyRead1 = vi.spyOn(read1['query']['usersTable'], 'findFirst');
+		const spyRead2 = vi.spyOn(read2['query']['usersTable'], 'findFirst');
 		const obj = {} as any;
 
-		db.$primary._query.usersTable.findFirst(obj);
+		db.$primary.query.usersTable.findFirst(obj);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledTimes(0);
@@ -580,9 +583,9 @@ describe('[findFirst] read replicas postgres', () => {
 	});
 
 	it('random replica findFirst', () => {
-		const primaryDb = drizzle.mock({ schema: { usersTable } });
-		const read1 = drizzle.mock({ schema: { usersTable } });
-		const read2 = drizzle.mock({ schema: { usersTable } });
+		const primaryDb = drizzle.mock({ relations: usersRelations });
+		const read1 = drizzle.mock({ relations: usersRelations });
+		const read2 = drizzle.mock({ relations: usersRelations });
 
 		const randomMockReplica = vi.fn().mockReturnValueOnce(read1).mockReturnValueOnce(read2);
 
@@ -590,83 +593,83 @@ describe('[findFirst] read replicas postgres', () => {
 			return randomMockReplica();
 		});
 
-		const spyPrimary = vi.spyOn(primaryDb['_query']['usersTable'], 'findFirst');
-		const spyRead1 = vi.spyOn(read1['_query']['usersTable'], 'findFirst');
-		const spyRead2 = vi.spyOn(read2['_query']['usersTable'], 'findFirst');
+		const spyPrimary = vi.spyOn(primaryDb['query']['usersTable'], 'findFirst');
+		const spyRead1 = vi.spyOn(read1['query']['usersTable'], 'findFirst');
+		const spyRead2 = vi.spyOn(read2['query']['usersTable'], 'findFirst');
 		const par1 = {} as any;
 
-		db._query.usersTable.findFirst(par1);
+		db.query.usersTable.findFirst(par1);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledWith(par1);
 
-		const query = db._query.usersTable.findFirst();
+		const query = db.query.usersTable.findFirst();
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(1);
 		expect(query.toSQL().sql).toEqual(
-			'select top(@par0) [id], [name], [verified], [jsonb], [created_at] from [users] [usersTable]',
+			'select top(@par0) [d0].[id] as [id], [d0].[name] as [name], [d0].[verified] as [verified], [d0].[jsonb] as [jsonb], [d0].[created_at] as [createdAt] from [users] as [d0]',
 		);
 	});
 
 	it('single read replica findFirst', () => {
-		const primaryDb = drizzle.mock({ schema: { usersTable } });
-		const read1 = drizzle.mock({ schema: { usersTable } });
+		const primaryDb = drizzle.mock({ relations: usersRelations });
+		const read1 = drizzle.mock({ relations: usersRelations });
 
 		const db = withReplicas(primaryDb, [read1]);
 
-		const spyPrimary = vi.spyOn(primaryDb['_query']['usersTable'], 'findFirst');
-		const spyRead1 = vi.spyOn(read1['_query']['usersTable'], 'findFirst');
+		const spyPrimary = vi.spyOn(primaryDb['query']['usersTable'], 'findFirst');
+		const spyRead1 = vi.spyOn(read1['query']['usersTable'], 'findFirst');
 
-		db._query.usersTable.findFirst();
+		db.query.usersTable.findFirst();
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 
-		db._query.usersTable.findFirst();
+		db.query.usersTable.findFirst();
 		expect(spyRead1).toHaveBeenCalledTimes(2);
 	});
 
 	it('single read replica findFirst + primary findFirst', () => {
-		const primaryDb = drizzle.mock({ schema: { usersTable } });
-		const read1 = drizzle.mock({ schema: { usersTable } });
+		const primaryDb = drizzle.mock({ relations: usersRelations });
+		const read1 = drizzle.mock({ relations: usersRelations });
 
 		const db = withReplicas(primaryDb, [read1]);
 
-		const spyPrimary = vi.spyOn(primaryDb['_query']['usersTable'], 'findFirst');
-		const spyRead1 = vi.spyOn(read1['_query']['usersTable'], 'findFirst');
+		const spyPrimary = vi.spyOn(primaryDb['query']['usersTable'], 'findFirst');
+		const spyRead1 = vi.spyOn(read1['query']['usersTable'], 'findFirst');
 
-		db._query.usersTable.findFirst();
+		db.query.usersTable.findFirst();
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 
-		db.$primary._query.usersTable.findFirst();
+		db.$primary.query.usersTable.findFirst();
 		expect(spyPrimary).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 	});
 
 	it('always first read findFirst', () => {
-		const primaryDb = drizzle.mock({ schema: { usersTable } });
-		const read1 = drizzle.mock({ schema: { usersTable } });
-		const read2 = drizzle.mock({ schema: { usersTable } });
+		const primaryDb = drizzle.mock({ relations: usersRelations });
+		const read1 = drizzle.mock({ relations: usersRelations });
+		const read2 = drizzle.mock({ relations: usersRelations });
 
 		const db = withReplicas(primaryDb, [read1, read2], (replicas) => {
 			return replicas[0]!;
 		});
 
-		const spyPrimary = vi.spyOn(primaryDb['_query']['usersTable'], 'findFirst');
-		const spyRead1 = vi.spyOn(read1['_query']['usersTable'], 'findFirst');
-		const spyRead2 = vi.spyOn(read2['_query']['usersTable'], 'findFirst');
+		const spyPrimary = vi.spyOn(primaryDb['query']['usersTable'], 'findFirst');
+		const spyRead1 = vi.spyOn(read1['query']['usersTable'], 'findFirst');
+		const spyRead2 = vi.spyOn(read2['query']['usersTable'], 'findFirst');
 
-		db._query.usersTable.findFirst();
+		db.query.usersTable.findFirst();
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 
-		db._query.usersTable.findFirst();
+		db.query.usersTable.findFirst();
 		expect(spyRead1).toHaveBeenCalledTimes(2);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 	});
@@ -674,32 +677,32 @@ describe('[findFirst] read replicas postgres', () => {
 
 describe('[findMany] read replicas postgres', () => {
 	it('primary findMany', () => {
-		const primaryDb = drizzle.mock({ schema: { usersTable } });
-		const read1 = drizzle.mock({ schema: { usersTable } });
-		const read2 = drizzle.mock({ schema: { usersTable } });
+		const primaryDb = drizzle.mock({ relations: usersRelations });
+		const read1 = drizzle.mock({ relations: usersRelations });
+		const read2 = drizzle.mock({ relations: usersRelations });
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
-		const spyPrimary = vi.spyOn(primaryDb['_query']['usersTable'], 'findMany');
-		const spyRead1 = vi.spyOn(read1['_query']['usersTable'], 'findMany');
-		const spyRead2 = vi.spyOn(read2['_query']['usersTable'], 'findMany');
+		const spyPrimary = vi.spyOn(primaryDb['query']['usersTable'], 'findMany');
+		const spyRead1 = vi.spyOn(read1['query']['usersTable'], 'findMany');
+		const spyRead2 = vi.spyOn(read2['query']['usersTable'], 'findMany');
 		const obj = {} as any;
 
-		const query = db.$primary._query.usersTable.findMany(obj);
+		const query = db.$primary.query.usersTable.findMany(obj);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledTimes(0);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 		expect(spyPrimary).toHaveBeenCalledWith(obj);
 		expect(query.toSQL().sql).toEqual(
-			'select [id], [name], [verified], [jsonb], [created_at] from [users] [usersTable]',
+			'select [d0].[id] as [id], [d0].[name] as [name], [d0].[verified] as [verified], [d0].[jsonb] as [jsonb], [d0].[created_at] as [createdAt] from [users] as [d0]',
 		);
 	});
 
 	it('random replica findMany', () => {
-		const primaryDb = drizzle.mock({ schema: { usersTable } });
-		const read1 = drizzle.mock({ schema: { usersTable } });
-		const read2 = drizzle.mock({ schema: { usersTable } });
+		const primaryDb = drizzle.mock({ relations: usersRelations });
+		const read1 = drizzle.mock({ relations: usersRelations });
+		const read2 = drizzle.mock({ relations: usersRelations });
 
 		const randomMockReplica = vi.fn().mockReturnValueOnce(read1).mockReturnValueOnce(read2);
 
@@ -707,121 +710,121 @@ describe('[findMany] read replicas postgres', () => {
 			return randomMockReplica();
 		});
 
-		const spyPrimary = vi.spyOn(primaryDb['_query']['usersTable'], 'findMany');
-		const spyRead1 = vi.spyOn(read1['_query']['usersTable'], 'findMany');
-		const spyRead2 = vi.spyOn(read2['_query']['usersTable'], 'findMany');
+		const spyPrimary = vi.spyOn(primaryDb['query']['usersTable'], 'findMany');
+		const spyRead1 = vi.spyOn(read1['query']['usersTable'], 'findMany');
+		const spyRead2 = vi.spyOn(read2['query']['usersTable'], 'findMany');
 		const obj1 = {} as any;
 		const obj2 = {} as any;
 
-		const query1 = db._query.usersTable.findMany(obj1);
+		const query1 = db.query.usersTable.findMany(obj1);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 		expect(query1.toSQL().sql).toEqual(
-			'select [id], [name], [verified], [jsonb], [created_at] from [users] [usersTable]',
+			'select [d0].[id] as [id], [d0].[name] as [name], [d0].[verified] as [verified], [d0].[jsonb] as [jsonb], [d0].[created_at] as [createdAt] from [users] as [d0]',
 		);
 		expect(spyRead1).toHaveBeenCalledWith(obj1);
 
-		const query2 = db._query.usersTable.findMany(obj2);
+		const query2 = db.query.usersTable.findMany(obj2);
 
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(1);
 		expect(query2.toSQL().sql).toEqual(
-			'select [id], [name], [verified], [jsonb], [created_at] from [users] [usersTable]',
+			'select [d0].[id] as [id], [d0].[name] as [name], [d0].[verified] as [verified], [d0].[jsonb] as [jsonb], [d0].[created_at] as [createdAt] from [users] as [d0]',
 		);
 		expect(spyRead2).toHaveBeenCalledWith(obj2);
 	});
 
 	it('single read replica findMany', () => {
-		const primaryDb = drizzle.mock({ schema: { usersTable } });
-		const read1 = drizzle.mock({ schema: { usersTable } });
+		const primaryDb = drizzle.mock({ relations: usersRelations });
+		const read1 = drizzle.mock({ relations: usersRelations });
 
 		const db = withReplicas(primaryDb, [read1]);
 
-		const spyPrimary = vi.spyOn(primaryDb['_query']['usersTable'], 'findMany');
-		const spyRead1 = vi.spyOn(read1['_query']['usersTable'], 'findMany');
+		const spyPrimary = vi.spyOn(primaryDb['query']['usersTable'], 'findMany');
+		const spyRead1 = vi.spyOn(read1['query']['usersTable'], 'findMany');
 		const obj1 = {} as any;
 		const obj2 = {} as any;
 
-		const query1 = db._query.usersTable.findMany(obj1);
+		const query1 = db.query.usersTable.findMany(obj1);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledWith(obj1);
 		expect(query1.toSQL().sql).toEqual(
-			'select [id], [name], [verified], [jsonb], [created_at] from [users] [usersTable]',
+			'select [d0].[id] as [id], [d0].[name] as [name], [d0].[verified] as [verified], [d0].[jsonb] as [jsonb], [d0].[created_at] as [createdAt] from [users] as [d0]',
 		);
 
-		const query2 = db._query.usersTable.findMany(obj2);
+		const query2 = db.query.usersTable.findMany(obj2);
 		expect(spyRead1).toHaveBeenCalledTimes(2);
 		expect(spyRead1).toHaveBeenNthCalledWith(2, obj2);
 		expect(query2.toSQL().sql).toEqual(
-			'select [id], [name], [verified], [jsonb], [created_at] from [users] [usersTable]',
+			'select [d0].[id] as [id], [d0].[name] as [name], [d0].[verified] as [verified], [d0].[jsonb] as [jsonb], [d0].[created_at] as [createdAt] from [users] as [d0]',
 		);
 	});
 
 	it('single read replica findMany + primary findMany', () => {
-		const primaryDb = drizzle.mock({ schema: { usersTable } });
-		const read1 = drizzle.mock({ schema: { usersTable } });
+		const primaryDb = drizzle.mock({ relations: usersRelations });
+		const read1 = drizzle.mock({ relations: usersRelations });
 
 		const db = withReplicas(primaryDb, [read1]);
 
-		const spyPrimary = vi.spyOn(primaryDb['_query']['usersTable'], 'findMany');
-		const spyRead1 = vi.spyOn(read1['_query']['usersTable'], 'findMany');
+		const spyPrimary = vi.spyOn(primaryDb['query']['usersTable'], 'findMany');
+		const spyRead1 = vi.spyOn(read1['query']['usersTable'], 'findMany');
 		const obj1 = {} as any;
 		const obj2 = {} as any;
 
-		const query1 = db._query.usersTable.findMany(obj1);
+		const query1 = db.query.usersTable.findMany(obj1);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledWith(obj1);
 		expect(query1.toSQL().sql).toEqual(
-			'select [id], [name], [verified], [jsonb], [created_at] from [users] [usersTable]',
+			'select [d0].[id] as [id], [d0].[name] as [name], [d0].[verified] as [verified], [d0].[jsonb] as [jsonb], [d0].[created_at] as [createdAt] from [users] as [d0]',
 		);
 
-		const query2 = db.$primary._query.usersTable.findMany(obj2);
+		const query2 = db.$primary.query.usersTable.findMany(obj2);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyPrimary).toHaveBeenNthCalledWith(1, obj2);
 		expect(query2.toSQL().sql).toEqual(
-			'select [id], [name], [verified], [jsonb], [created_at] from [users] [usersTable]',
+			'select [d0].[id] as [id], [d0].[name] as [name], [d0].[verified] as [verified], [d0].[jsonb] as [jsonb], [d0].[created_at] as [createdAt] from [users] as [d0]',
 		);
 	});
 
 	it('always first read findMany', () => {
-		const primaryDb = drizzle.mock({ schema: { usersTable } });
-		const read1 = drizzle.mock({ schema: { usersTable } });
-		const read2 = drizzle.mock({ schema: { usersTable } });
+		const primaryDb = drizzle.mock({ relations: usersRelations });
+		const read1 = drizzle.mock({ relations: usersRelations });
+		const read2 = drizzle.mock({ relations: usersRelations });
 
 		const db = withReplicas(primaryDb, [read1, read2], (replicas) => {
 			return replicas[0]!;
 		});
 
-		const spyPrimary = vi.spyOn(primaryDb['_query']['usersTable'], 'findMany');
-		const spyRead1 = vi.spyOn(read1['_query']['usersTable'], 'findMany');
-		const spyRead2 = vi.spyOn(read2['_query']['usersTable'], 'findMany');
+		const spyPrimary = vi.spyOn(primaryDb['query']['usersTable'], 'findMany');
+		const spyRead1 = vi.spyOn(read1['query']['usersTable'], 'findMany');
+		const spyRead2 = vi.spyOn(read2['query']['usersTable'], 'findMany');
 		const obj1 = {} as any;
 		const obj2 = {} as any;
 
-		const query1 = db._query.usersTable.findMany(obj1);
+		const query1 = db.query.usersTable.findMany(obj1);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledWith(obj1);
 		expect(query1.toSQL().sql).toEqual(
-			'select [id], [name], [verified], [jsonb], [created_at] from [users] [usersTable]',
+			'select [d0].[id] as [id], [d0].[name] as [name], [d0].[verified] as [verified], [d0].[jsonb] as [jsonb], [d0].[created_at] as [createdAt] from [users] as [d0]',
 		);
 
-		const query2 = db._query.usersTable.findMany(obj2);
+		const query2 = db.query.usersTable.findMany(obj2);
 		expect(spyRead1).toHaveBeenCalledTimes(2);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenNthCalledWith(2, obj2);
 		expect(query2.toSQL().sql).toEqual(
-			'select [id], [name], [verified], [jsonb], [created_at] from [users] [usersTable]',
+			'select [d0].[id] as [id], [d0].[name] as [name], [d0].[verified] as [verified], [d0].[jsonb] as [jsonb], [d0].[created_at] as [createdAt] from [users] as [d0]',
 		);
 	});
 });
