@@ -56,6 +56,16 @@ const cache = {
 const fullName = sql`${users.firstName} || ' ' || ${users.lastName}`.as('name');
 
 describe('postgres to snake case', () => {
+	it('unicode column names', ({ expect }) => {
+		const unicode = snakeCase.table('unicode', {
+			칼럼명: text(),
+		});
+
+		expect(db.select().from(unicode).toSQL().sql).toEqual(
+			'select "칼럼명" from "unicode"',
+		);
+	});
+
 	it('qualifier preservation for sql fields', ({ expect }) => {
 		const a = snakeCase.table('a', { id: integer('id').primaryKey(), cId: integer().notNull() });
 		const b = snakeCase.table('b', { id: integer('id').primaryKey(), cId: integer().notNull(), label: text() });
