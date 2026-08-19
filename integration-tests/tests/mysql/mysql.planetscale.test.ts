@@ -10209,7 +10209,7 @@ test('alltypes', async () => {
 			decimalNum: 9007199254740991,
 			decimalBig: 5044565289845416380n,
 			double: 15.35325689124218,
-			float: 1.0486,
+			float: 1.048596,
 			int: 621,
 			json: { arr: ['str', 10], str: 'strval' },
 			medInt: 560,

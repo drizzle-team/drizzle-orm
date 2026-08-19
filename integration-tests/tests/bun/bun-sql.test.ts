@@ -7323,6 +7323,8 @@ test('all types ~codecs~', async () => {
 	]));
 
 	await assertAllTypesBounds(db);
+
+	await db.$client.close();
 });
 
 test('Query error wrapping', async () => {
@@ -7564,6 +7566,8 @@ test('Column as decoder applies codecs', async () => {
 			},
 		},
 	);
+
+	await db.$client.close();
 });
 
 test('Column as decoder applies codecs - Jit mappers', async () => {
@@ -7799,6 +7803,8 @@ test('Column as decoder applies codecs - Jit mappers', async () => {
 			},
 		},
 	);
+
+	await db.$client.close();
 });
 
 test("No nullification on non-joined table's all-null object", async () => {
@@ -8008,6 +8014,8 @@ test("No nullification on non-joined table's all-null object - jit", async () =>
 	expect(res).toEqual([{ id: 1, meta: { bio: null, city: null } }]);
 
 	await db.execute(sql`DROP TABLE nullify1_users_jit`);
+
+	await db.$client.close();
 });
 
 test('Cross-table group never nullified - jit', async () => {
@@ -8058,6 +8066,8 @@ test('Cross-table group never nullified - jit', async () => {
 
 	await db.execute(sql`DROP TABLE nullify2_users_jit`);
 	await db.execute(sql`DROP TABLE nullify2_cities_jit`);
+
+	await db.$client.close();
 });
 
 test('SQL field groups are never nullified - jit', async () => {
@@ -8097,6 +8107,8 @@ test('SQL field groups are never nullified - jit', async () => {
 
 	await db.execute(sql`DROP TABLE nullify3_users_jit`);
 	await db.execute(sql`DROP TABLE nullify3_cities_jit`);
+
+	await db.$client.close();
 });
 
 test('Nullify all-null group from from nullable join - jit', async () => {
@@ -8145,6 +8157,8 @@ test('Nullify all-null group from from nullable join - jit', async () => {
 
 	await db.execute(sql`DROP TABLE nullify4_users_jit`);
 	await db.execute(sql`DROP TABLE nullify4_cities_jit`);
+
+	await db.$client.close();
 });
 
 test("Don't disregard added SQL field during join nullification - jit", async () => {
@@ -8182,6 +8196,8 @@ test("Don't disregard added SQL field during join nullification - jit", async ()
 
 	await db.execute(sql`DROP TABLE nullify5_users_jit`);
 	await db.execute(sql`DROP TABLE nullify5_cities_jit`);
+
+	await db.$client.close();
 });
 
 const dnStaff = pgTable('dn_staff', (t) => ({ userId: t.integer('user_id').primaryKey() }));
@@ -8547,6 +8563,8 @@ test('Issue #5062', async () => {
 			workno: '1',
 		},
 	]);
+
+	await db.$client.close();
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5090
@@ -8576,6 +8594,8 @@ test('Issue #5090', async () => {
 			},
 		],
 	);
+
+	await db.$client.close();
 });
 
 test('Default value priority', async () => {
