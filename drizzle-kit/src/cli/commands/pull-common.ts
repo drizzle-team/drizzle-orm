@@ -171,10 +171,15 @@ export const relationsToTypeScript = (
 				// if this table has a unique on a column, that is used for 1-m, then we can assume that it's 1-1 relation
 				// we will check that all of the fk columns are unique, so we can assume it's 1-1
 				// not matter if it's 1 column, 2 columns or more
+				// Unique column names are stored as in the database; FK names here may
+				// already be cased, so match either form.
 				if (
 					table.uniques.find((constraint) =>
-						constraint.columns.length === columnsFrom.length
-						&& constraint.columns.every((col, i) => col === columnsFrom[i])
+						constraint.columns.length === fk.columns.length
+						&& (
+							constraint.columns.every((col, i) => col === fk.columns[i])
+							|| constraint.columns.every((col, i) => col === columnsFrom[i])
+						)
 					)
 				) {
 					// the difference between one and one-one is that one-one won't contain from and to
