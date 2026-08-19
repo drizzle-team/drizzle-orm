@@ -727,7 +727,7 @@ export function isConfig(data: any): boolean {
 	}
 
 	if ('codecs' in data) {
-		const type = typeof data['connection'];
+		const type = typeof data['codecs'];
 		if (type !== 'object' && type !== 'undefined') return false;
 
 		return true;

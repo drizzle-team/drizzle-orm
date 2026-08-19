@@ -7794,8 +7794,6 @@ export function tests(test: Test, exclude: string[] = []) {
 			cus: codecBypass('cus').notNull(),
 		});
 
-		await push({ users });
-
 		const db = createDB({ users }, (r) => ({
 			users: {
 				self: r.one.users({
@@ -7804,6 +7802,9 @@ export function tests(test: Test, exclude: string[] = []) {
 				}),
 			},
 		}));
+
+		await db.run(sql.raw('drop table if exists users_823'));
+		await push({ users });
 
 		const createdAt = new Date('2025-03-12T01:32:41.000Z');
 		const big = 5044565289845416380n;
@@ -7875,8 +7876,6 @@ export function tests(test: Test, exclude: string[] = []) {
 			cus: codecBypass('cus').notNull(),
 		});
 
-		await push({ users });
-
 		const db = createDB({ users }, (r) => ({
 			users: {
 				self: r.one.users({
@@ -7885,6 +7884,9 @@ export function tests(test: Test, exclude: string[] = []) {
 				}),
 			},
 		}), true);
+
+		await db.run(sql.raw('drop table if exists users_824'));
+		await push({ users });
 
 		const createdAt = new Date('2025-03-12T01:32:41.000Z');
 		const big = 5044565289845416380n;
