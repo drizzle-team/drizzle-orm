@@ -335,11 +335,15 @@ export class MySqlDialect {
 					break;
 				}
 				case 'Subquery': {
-					if (column && !ignoreCastCodecs && !field._.isWith) {
-						const innerCasted = this.codecs.apply(column, 'cast', sql`(${field._.sql})`, override);
-						chunks.push(sql`${innerCasted} ${sql.identifier(field._.alias)}`);
+					if (!field._.isWith) {
+						const inner = sql`(${field._.sql})`;
+						chunks.push(
+							sql`${column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', inner, override) : inner} ${
+								sql.identifier(field._.alias)
+							}`,
+						);
 					} else {
-						chunks.push(column ? this.codecs.apply(column, 'cast', field) : field, override);
+						chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
 					}
 
 					break;
@@ -658,28 +662,26 @@ export class MySqlDialect {
 			const orderByValues: (SQL<unknown> | Name)[] = [];
 
 			// The next bit is necessary because the sql operator replaces ${table.column} with `table`.`column`
-			// which is invalid MySql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
-			for (const orderByUnit of orderBy) {
-				if (is(orderByUnit, MySqlColumn)) {
-					orderByValues.push(
-						sql.identifier(orderByUnit.name),
-					);
-				} else if (is(orderByUnit, SQL)) {
-					for (let i = 0; i < orderByUnit.queryChunks.length; i++) {
-						const chunk = orderByUnit.queryChunks[i];
+			// which is invalid Sql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
+			for (const singleOrderBy of orderBy) {
+				if (is(singleOrderBy, MySqlColumn)) {
+					orderByValues.push(sql.identifier(singleOrderBy.name));
+				} else if (is(singleOrderBy, SQL)) {
+					for (let i = 0; i < singleOrderBy.queryChunks.length; i++) {
+						const chunk = singleOrderBy.queryChunks[i];
 
 						if (is(chunk, MySqlColumn)) {
-							orderByUnit.queryChunks[i] = sql.identifier(chunk.name);
+							singleOrderBy.queryChunks[i] = sql.identifier(chunk.name);
 						}
 					}
 
-					orderByValues.push(sql`${orderByUnit}`);
+					orderByValues.push(sql`${singleOrderBy}`);
 				} else {
-					orderByValues.push(sql`${orderByUnit}`);
+					orderByValues.push(sql`${singleOrderBy}`);
 				}
 			}
 
-			orderBySql = sql` order by ${sql.join(orderByValues, new StringChunk(', '))} `;
+			orderBySql = sql` order by ${sql.join(orderByValues, new StringChunk(', '))}`;
 		}
 
 		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
@@ -882,7 +884,7 @@ export class MySqlDialect {
 					key,
 					field,
 					fieldType,
-					codec: decoderColumn && (!inJson || !(<MySqlCustomColumn<any>> decoderColumn).mapFromJsonValue)
+					codec: !inJson || !(<MySqlCustomColumn<any>> decoderColumn).mapFromJsonValue
 						? this.codecs.get(decoderColumn, inJson ? 'normalizeInJson' : 'normalize')
 						: undefined,
 				}

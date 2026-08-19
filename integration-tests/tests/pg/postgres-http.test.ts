@@ -6,8 +6,14 @@ import { migrate } from 'drizzle-orm/postgres/http/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe, expect } from 'vitest';
 import { randomString } from '~/utils';
-import { allTypesData, allTypesEnum, allTypesRelations, allTypesTable } from './all-types';
-import { assertAllTypesUnions } from './all-types-unions';
+import {
+	allTypesData,
+	allTypesEnum,
+	allTypesRelations,
+	allTypesTable,
+	assertAllTypesBounds,
+	assertAllTypesUnions,
+} from './all-types';
 import { tests } from './common';
 import { postgresHttpTest as test } from './instrumentation';
 import { usersMigratorTable } from './schema';
@@ -599,6 +605,7 @@ describe('driver-specific', () => {
 		expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
 
 		await assertAllTypesUnions(db);
+		await assertAllTypesBounds(db);
 	});
 
 	test('all types ~codecs~ override', async ({ createDB, push }) => {
@@ -616,5 +623,6 @@ describe('driver-specific', () => {
 		expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
 
 		await assertAllTypesUnions(db);
+		await assertAllTypesBounds(db);
 	});
 });

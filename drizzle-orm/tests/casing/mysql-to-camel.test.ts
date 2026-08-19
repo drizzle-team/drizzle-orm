@@ -50,7 +50,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select `sq`.`id`, `sq`.`name` from `users` left join (select `id`, `firstName` || ' ' || `lastName` as `name` from `users`) `sq` on `users`.`id` = `sq`.`id`",
+				"select cast(`sq`.`id` as char), `sq`.`name` from `users` left join (select `id`, `firstName` || ' ' || `lastName` as `name` from `users`) `sq` on `users`.`id` = `sq`.`id`",
 			params: [],
 		});
 	});
@@ -249,7 +249,7 @@ describe('mysql to snake case', () => {
 			.orderBy(asc(users.id.as('userId')));
 
 		expect(query.toSQL()).toEqual({
-			sql: 'select `AGE` as `ageOfUser`, `id` as `userId` from `users` order by `userId` asc',
+			sql: 'select `AGE` as `ageOfUser`, cast(`id` as char) as `userId` from `users` order by `userId` asc',
 			params: [],
 		});
 	});
@@ -263,7 +263,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select `users`.`firstName` || ' ' || `users`.`lastName` as `name`, `users`.`AGE` as `ageOfUser`, `users`.`id` as `userId` from `users` left join `test`.`developers` on `userId` = `test`.`developers`.`userId` order by `users`.`firstName` asc",
+				"select `users`.`firstName` || ' ' || `users`.`lastName` as `name`, `users`.`AGE` as `ageOfUser`, cast(`users`.`id` as char) as `userId` from `users` left join `test`.`developers` on `userId` = `test`.`developers`.`userId` order by `users`.`firstName` asc",
 			params: [],
 		});
 	});

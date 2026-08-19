@@ -1,8 +1,11 @@
 import { is } from '~/entity.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { Table } from '~/table.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { Check } from './checks.ts';
 import { CheckBuilder } from './checks.ts';
+import type { MsSqlCodecs } from './codecs.ts';
 import type { ForeignKey } from './foreign-keys.ts';
 import { ForeignKeyBuilder } from './foreign-keys.ts';
 import type { Index } from './indexes.ts';
@@ -66,3 +69,7 @@ export function getViewConfig<
 		...view[MsSqlViewConfig],
 	};
 }
+
+export type DrizzleMsSqlConfig<TRelations extends AnyRelations> =
+	& DrizzleConfig<TRelations>
+	& { codecs?: MsSqlCodecs | undefined };

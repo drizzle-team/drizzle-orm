@@ -1,5 +1,5 @@
 import { SQL as BunSQL } from 'bun';
-import { afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeAll, beforeEach, describe, expect, expectTypeOf, test } from 'bun:test';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import {
 	and,
@@ -101,6 +101,7 @@ import { allTypesData, makeAllTypes } from '~/pg/all-types';
 import { clear, init, rqbPost, rqbUser } from '~/pg/schema';
 import { normalizeDataWithDbCodecs } from '~/pg/utils';
 import { Expect } from '~/utils';
+import { assertAllTypesBounds } from '../pg/all-types';
 import { relations } from '../pg/relations';
 import {
 	assertMalformedSnapshotRejected,
@@ -7320,6 +7321,8 @@ test('all types ~codecs~', async () => {
 			'pointtuple ∪ pointtuple': [24.5, 49.6],
 		},
 	]));
+
+	await assertAllTypesBounds(db);
 });
 
 test('Query error wrapping', async () => {

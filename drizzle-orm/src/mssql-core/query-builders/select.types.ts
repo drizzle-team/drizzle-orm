@@ -53,6 +53,8 @@ export interface MsSqlSelectConfig {
 	withList?: Subquery[];
 	fields: Record<string, unknown>;
 	fieldsFlat?: SelectedFieldsOrdered;
+	mapper?: (raw: any) => any;
+	ignoreSelectionCastCodecs?: boolean;
 	where?: SQL;
 	having?: SQL;
 	table: MsSqlTable | Subquery | MsSqlViewBase | SQL;

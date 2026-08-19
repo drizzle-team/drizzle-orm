@@ -353,11 +353,15 @@ export class PgDialect {
 					break;
 				}
 				case 'Subquery': {
-					if (column && !ignoreCastCodecs && !field._.isWith) {
-						const innerCasted = this.codecs.apply(column, 'cast', sql`(${field._.sql})`, override);
-						chunks.push(sql`${innerCasted} ${sql.identifier(field._.alias)}`);
+					if (!field._.isWith) {
+						const inner = sql`(${field._.sql})`;
+						chunks.push(
+							sql`${column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', inner, override) : inner} ${
+								sql.identifier(field._.alias)
+							}`,
+						);
 					} else {
-						chunks.push(column ? this.codecs.apply(column, 'cast', field) : field, override);
+						chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
 					}
 
 					break;
@@ -643,7 +647,7 @@ export class PgDialect {
 				}
 			}
 
-			orderBySql = sql` order by ${sql.join(orderByValues, new StringChunk(', '))} `;
+			orderBySql = sql` order by ${sql.join(orderByValues, new StringChunk(', '))}`;
 		}
 
 		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
@@ -831,7 +835,7 @@ export class PgDialect {
 
 			output = sql`${casted} as ${sql.identifier(key)}`;
 		} else if (is(field, SQL)) {
-			decoderColumn = (is(field.decoder, Column)) ? field.decoder : undefined;
+			decoderColumn = is(field.decoder, Column) ? field.decoder : undefined;
 			fieldType = 'SQL';
 
 			const q = sql`${table}.${sql.identifier(key)}`;
@@ -869,7 +873,7 @@ export class PgDialect {
 					key,
 					field,
 					fieldType,
-					codec: decoderColumn && (!inJson || !(<PgCustomColumn<any>> decoderColumn).mapFromJsonValue)
+					codec: !inJson || !(<PgCustomColumn<any>> decoderColumn).mapFromJsonValue
 						? this.codecs.get(decoderColumn, inJson ? 'normalizeInJson' : 'normalize')
 						: undefined,
 					arrayDimensions: (<PgColumn> decoderColumn).dimensions,

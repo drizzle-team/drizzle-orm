@@ -13,6 +13,7 @@ import {
 	eq,
 	Equal,
 	exists,
+	getColumns,
 	getTableColumns,
 	gt,
 	gte,
@@ -22,6 +23,10 @@ import {
 	isNull,
 	like,
 	lt,
+	makeDefaultQueryMapper,
+	makeDefaultRqbMapper,
+	makeJitQueryMapper,
+	makeJitRqbMapper,
 	max,
 	min,
 	not,
@@ -34,7 +39,12 @@ import {
 	sumDistinct,
 	TransactionRollbackError,
 } from 'drizzle-orm';
-import type { CockroachColumn, CockroachDatabase, CockroachQueryResultHKT } from 'drizzle-orm/cockroach-core';
+import type {
+	CockroachColumn,
+	CockroachDatabase,
+	CockroachQueryResultHKT,
+	CockroachSession,
+} from 'drizzle-orm/cockroach-core';
 import {
 	alias,
 	bigint,
@@ -51,6 +61,7 @@ import {
 	cockroachTable,
 	cockroachTableCreator,
 	cockroachView,
+	customType,
 	date,
 	doublePrecision,
 	except,
@@ -83,8 +94,22 @@ import {
 	varchar,
 } from 'drizzle-orm/cockroach-core';
 import { v4 as uuidV4 } from 'uuid';
-import { afterAll, afterEach, beforeEach, describe, expect, expectTypeOf, test } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, expectTypeOf } from 'vitest';
 import { Expect } from '~/utils';
+import {
+	type AllTypes,
+	allTypesData,
+	allTypesEnum,
+	allTypesRelations,
+	allTypesTable,
+	assertAllTypesBounds,
+	assertAllTypesUnions,
+	makeAllTypes,
+} from './all-types';
+import { requireCockroachConnectionString, test as base } from './instrumentation';
+import { normalizeDataWithDbCodecs } from './utils';
+
+export { requireCockroachConnectionString };
 
 declare module 'vitest' {
 	interface TestContext {
@@ -94,112 +119,16 @@ declare module 'vitest' {
 	}
 }
 
-const en = cockroachEnum('en', ['enVal1', 'enVal2']);
+let getSharedDb: () => CockroachDatabase<any>;
 
-const allTypesTable = cockroachTable('all_types', {
-	int4: int4('int4'),
-	bigint53: bigint('bigint53', {
-		mode: 'number',
-	}),
-	bigint64: bigint('bigint64', {
-		mode: 'bigint',
-	}),
-	bool: bool('bool'),
-	boolean: bool('boolean'),
-	char: char('char'),
-	string: string('string'),
-	date: date('date', {
-		mode: 'date',
-	}),
-	dateStr: date('date_str', {
-		mode: 'string',
-	}),
-	double: doublePrecision('double'),
-	enum: en('enum'),
-	inet: inet('inet'),
-	interval: interval('interval'),
-	jsonb: jsonb('jsonb'),
-	numeric: numeric('numeric'),
-	numericNum: numeric('numeric_num', {
-		mode: 'number',
-	}),
-	numericBig: numeric('numeric_big', {
-		mode: 'bigint',
-	}),
-	real: real('real'),
-	float: float('float'),
-	smallint: smallint('smallint'),
-	text: text('text'),
-	time: time('time'),
-	timestamp: timestamp('timestamp', {
-		mode: 'date',
-	}),
-	timestampTz: timestamp('timestamp_tz', {
-		mode: 'date',
-		withTimezone: true,
-	}),
-	timestampStr: timestamp('timestamp_str', {
-		mode: 'string',
-	}),
-	timestampTzStr: timestamp('timestamp_tz_str', {
-		mode: 'string',
-		withTimezone: true,
-	}),
-	uuid: uuid('uuid'),
-	varchar: varchar('varchar'),
-	arrint: int4('arrint').array(),
-	arrbigint53: bigint('arrbigint53', {
-		mode: 'number',
-	}).array(),
-	arrbigint64: bigint('arrbigint64', {
-		mode: 'bigint',
-	}).array(),
-	arrbool: bool('arrbool').array(),
-	arrboolean: boolean('arrboolean').array(),
-	arrchar: char('arrchar').array(),
-	arrstring: string('arrstring').array(),
-	arrdate: date('arrdate', {
-		mode: 'date',
-	}).array(),
-	arrdateStr: date('arrdate_str', {
-		mode: 'string',
-	}).array(),
-	arrdouble: doublePrecision('arrdouble').array(),
-	arrfloat: float('arrfloat').array(),
-	arrenum: en('arrenum').array(),
-	arrinet: inet('arrinet').array(),
-	arrinterval: interval('arrinterval').array(),
-	arrnumeric: numeric('arrnumeric').array(),
-	arrnumericNum: numeric('arrnumeric_num', {
-		mode: 'number',
-	}).array(),
-	arrnumericBig: numeric('arrnumeric_big', {
-		mode: 'bigint',
-	}).array(),
-	arrreal: real('arrreal').array(),
-	arrsmallint: smallint('arrsmallint').array(),
-	arrtext: text('arrtext').array(),
-	arrtime: time('arrtime').array(),
-	arrtimestamp: timestamp('arrtimestamp', {
-		mode: 'date',
-	}).array(),
-	arrtimestampTz: timestamp('arrtimestamp_tz', {
-		mode: 'date',
-		withTimezone: true,
-	}).array(),
-	arrtimestampStr: timestamp('arrtimestamp_str', {
-		mode: 'string',
-	}).array(),
-	arrtimestampTzStr: timestamp('arrtimestamp_tz_str', {
-		mode: 'string',
-		withTimezone: true,
-	}).array(),
-	arruuid: uuid('arruuid').array(),
-	arrvarchar: varchar('arrvarchar').array(),
-	bit: bit('bit'),
-	varbit: varbit('varbit'),
-	arrbit: bit('arrbit').array(),
-	arrvarbit: varbit('arrvarbit').array(),
+const test = base.extend<{ cockroach: { db: CockroachDatabase<any> } }>({
+	cockroach: [
+		// oxlint-disable-next-line no-empty-pattern
+		async ({}, use) => {
+			await use({ db: getSharedDb() });
+		},
+		{ scope: 'test' },
+	],
 });
 
 export const usersTable = cockroachTable('users', {
@@ -320,16 +249,6 @@ const jsonTestTable = cockroachTable('jsontest', {
 	jsonb: jsonb('jsonb').$type<{ string: string; number: number }>(),
 });
 
-export function requireCockroachConnectionString(): string {
-	const url = process.env['COCKROACH_CONNECTION_STRING'];
-	if (!url) {
-		throw new Error(
-			'COCKROACH_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up cockroach` and export the connection string before running tests.',
-		);
-	}
-	return url;
-}
-
 const dnStaff = cockroachTable('dn_staff', { userId: int4('user_id').primaryKey() });
 const dnPeople = cockroachTable('dn_people', {
 	id: int4('id').primaryKey(),
@@ -411,10 +330,11 @@ async function runDeepNullification(db: CockroachDatabase<any>) {
 	]);
 }
 
-export function tests() {
+export function tests(getDb: () => CockroachDatabase<any>) {
+	getSharedDb = getDb;
+
 	describe('common', () => {
-		beforeEach(async (ctx) => {
-			const { db } = ctx.cockroach;
+		beforeEach(async ({ cockroach: { db } }) => {
 			await db.execute(sql`drop database defaultdb;`);
 			await db.execute(sql`create database defaultdb;`);
 			await db.execute(sql`create schema if not exists custom_migrations`);
@@ -538,8 +458,7 @@ export function tests() {
 			);
 		});
 
-		afterEach(async (ctx) => {
-			const { db } = ctx.cockroach;
+		afterEach(async ({ cockroach: { db } }) => {
 			await db.execute(sql`drop schema if exists custom_migrations cascade`);
 		});
 
@@ -705,9 +624,7 @@ export function tests() {
 			expect(tableConfig.primaryKeys[0]!.getName()).toBe('custom_pk');
 		});
 
-		test('select all fields', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select all fields', async ({ cockroach: { db } }) => {
 			const now = Date.now();
 
 			await db.insert(usersTable).values({ name: 'John' });
@@ -726,9 +643,7 @@ export function tests() {
 			]);
 		});
 
-		test('select sql', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select sql', async ({ cockroach: { db } }) => {
 			await db.insert(usersTable).values({ name: 'John' });
 			const users = await db
 				.select({
@@ -739,9 +654,7 @@ export function tests() {
 			expect(users).toEqual([{ name: 'JOHN' }]);
 		});
 
-		test('select typed sql', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select typed sql', async ({ cockroach: { db } }) => {
 			await db.insert(usersTable).values({ name: 'John' });
 
 			const users = await db
@@ -753,9 +666,7 @@ export function tests() {
 			expect(users).toEqual([{ name: 'JOHN' }]);
 		});
 
-		test('select with empty array in inArray', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select with empty array in inArray', async ({ cockroach: { db } }) => {
 			await db
 				.insert(usersTable)
 				.values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
@@ -769,9 +680,7 @@ export function tests() {
 			expect(result).toEqual([]);
 		});
 
-		test('select with empty array in notInArray', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select with empty array in notInArray', async ({ cockroach: { db } }) => {
 			await db
 				.insert(usersTable)
 				.values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
@@ -790,9 +699,7 @@ export function tests() {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4878
-		test.concurrent('.where with isNull in it', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test.concurrent('.where with isNull in it', async ({ cockroach: { db } }) => {
 			const table = cockroachTable('table_where_is_null', {
 				col1: boolean(),
 				col2: text(),
@@ -822,9 +729,7 @@ export function tests() {
 			]);
 		});
 
-		test('$default function', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('$default function', async ({ cockroach: { db } }) => {
 			const insertedOrder = await db
 				.insert(orders)
 				.values({ id: 1, region: 'Ukraine', amount: 1, quantity: 1 })
@@ -852,9 +757,7 @@ export function tests() {
 			]);
 		});
 
-		test('select distinct', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select distinct', async ({ cockroach: { db } }) => {
 			const usersDistinctTable = cockroachTable('users_distinct', {
 				id: int4('id').notNull(),
 				name: text('name').notNull(),
@@ -916,9 +819,7 @@ export function tests() {
 			]);
 		});
 
-		test('insert returning sql', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('insert returning sql', async ({ cockroach: { db } }) => {
 			const users = await db
 				.insert(usersTable)
 				.values({ name: 'John' })
@@ -929,9 +830,7 @@ export function tests() {
 			expect(users).toEqual([{ name: 'JOHN' }]);
 		});
 
-		test('delete returning sql', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('delete returning sql', async ({ cockroach: { db } }) => {
 			await db.insert(usersTable).values({ name: 'John' });
 			const users = await db
 				.delete(usersTable)
@@ -943,9 +842,7 @@ export function tests() {
 			expect(users).toEqual([{ name: 'JOHN' }]);
 		});
 
-		test('update returning sql', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('update returning sql', async ({ cockroach: { db } }) => {
 			await db.insert(usersTable).values({ name: 'John' });
 			const users = await db
 				.update(usersTable)
@@ -958,9 +855,7 @@ export function tests() {
 			expect(users).toEqual([{ name: 'JANE' }]);
 		});
 
-		test('update with returning all fields', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('update with returning all fields', async ({ cockroach: { db } }) => {
 			const now = Date.now();
 
 			await db.insert(usersTable).values({ name: 'John' });
@@ -983,9 +878,7 @@ export function tests() {
 			]);
 		});
 
-		test('update with returning partial', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('update with returning partial', async ({ cockroach: { db } }) => {
 			await db.insert(usersTable).values({ name: 'John' });
 			const users = await db
 				.update(usersTable)
@@ -999,9 +892,7 @@ export function tests() {
 			expect(users).toEqual([{ id: 1, name: 'Jane' }]);
 		});
 
-		test('delete with returning all fields', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('delete with returning all fields', async ({ cockroach: { db } }) => {
 			const now = Date.now();
 
 			await db.insert(usersTable).values({ name: 'John' });
@@ -1023,9 +914,7 @@ export function tests() {
 			]);
 		});
 
-		test('delete with returning partial', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('delete with returning partial', async ({ cockroach: { db } }) => {
 			await db.insert(usersTable).values({ name: 'John' });
 			const users = await db
 				.delete(usersTable)
@@ -1038,9 +927,7 @@ export function tests() {
 			expect(users).toEqual([{ id: 1, name: 'John' }]);
 		});
 
-		test('insert + select', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('insert + select', async ({ cockroach: { db } }) => {
 			await db.insert(usersTable).values({ name: 'John' });
 			const result = await db.select().from(usersTable);
 			expect(result).toEqual([
@@ -1073,9 +960,7 @@ export function tests() {
 			]);
 		});
 
-		test('json insert', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('json insert', async ({ cockroach: { db } }) => {
 			await db
 				.insert(usersTable)
 				.values({ name: 'John', jsonb: ['foo', 'bar'] });
@@ -1090,9 +975,7 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'John', jsonb: ['foo', 'bar'] }]);
 		});
 
-		test('char insert', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('char insert', async ({ cockroach: { db } }) => {
 			await db.insert(citiesTable).values({ name: 'Austin', state: 'TX' });
 			const result = await db
 				.select({
@@ -1105,9 +988,7 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'Austin', state: 'TX' }]);
 		});
 
-		test('char update', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('char update', async ({ cockroach: { db } }) => {
 			await db.insert(citiesTable).values({ name: 'Austin', state: 'TX' });
 			await db
 				.update(citiesTable)
@@ -1124,9 +1005,7 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'Atlanta', state: 'GA' }]);
 		});
 
-		test('char delete', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('char delete', async ({ cockroach: { db } }) => {
 			await db.insert(citiesTable).values({ name: 'Austin', state: 'TX' });
 			await db.delete(citiesTable).where(eq(citiesTable.state, 'TX'));
 			const result = await db
@@ -1140,9 +1019,7 @@ export function tests() {
 			expect(result).toEqual([]);
 		});
 
-		test('insert with overridden default values', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('insert with overridden default values', async ({ cockroach: { db } }) => {
 			await db.insert(usersTable).values({ name: 'John', verified: true });
 			const result = await db.select().from(usersTable);
 
@@ -1157,9 +1034,7 @@ export function tests() {
 			]);
 		});
 
-		test('insert with explicit column list', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('insert with explicit column list', async ({ cockroach: { db } }) => {
 			const table = cockroachTable('column_selection', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 				name: text('name').notNull(),
@@ -1189,9 +1064,7 @@ export function tests() {
 			}
 		});
 
-		test('insert with explicit column list - select', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('insert with explicit column list - select', async ({ cockroach: { db } }) => {
 			const src = cockroachTable('column_selection_select_src', {
 				id: int4('id').primaryKey(),
 				name: text('name').notNull(),
@@ -1225,9 +1098,7 @@ export function tests() {
 			}
 		});
 
-		test('insert with explicit column list - on conflict', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('insert with explicit column list - on conflict', async ({ cockroach: { db } }) => {
 			const table = cockroachTable('column_selection_conflict', {
 				id: int4('id').primaryKey(),
 				name: text('name').notNull(),
@@ -1251,9 +1122,7 @@ export function tests() {
 			}
 		});
 
-		test('insert many', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('insert many', async ({ cockroach: { db } }) => {
 			await db
 				.insert(usersTable)
 				.values([
@@ -1279,9 +1148,7 @@ export function tests() {
 			]);
 		});
 
-		test('insert many with returning', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('insert many with returning', async ({ cockroach: { db } }) => {
 			const result = await db
 				.insert(usersTable)
 				.values([
@@ -1305,9 +1172,7 @@ export function tests() {
 			]);
 		});
 
-		test('select with group by as field', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select with group by as field', async ({ cockroach: { db } }) => {
 			await db
 				.insert(usersTable)
 				.values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
@@ -1320,9 +1185,7 @@ export function tests() {
 			expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }]);
 		});
 
-		test('select with exists', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select with exists', async ({ cockroach: { db } }) => {
 			await db
 				.insert(usersTable)
 				.values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
@@ -1345,9 +1208,7 @@ export function tests() {
 			expect(result).toEqual([{ name: 'John' }]);
 		});
 
-		test('select with group by as sql', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select with group by as sql', async ({ cockroach: { db } }) => {
 			await db
 				.insert(usersTable)
 				.values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
@@ -1360,9 +1221,7 @@ export function tests() {
 			expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }]);
 		});
 
-		test('select with group by as sql + column', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select with group by as sql + column', async ({ cockroach: { db } }) => {
 			await db
 				.insert(usersTable)
 				.values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
@@ -1379,9 +1238,7 @@ export function tests() {
 			]);
 		});
 
-		test('select with group by as column + sql', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select with group by as column + sql', async ({ cockroach: { db } }) => {
 			await db
 				.insert(usersTable)
 				.values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
@@ -1398,9 +1255,7 @@ export function tests() {
 			]);
 		});
 
-		test('select with group by complex query', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select with group by complex query', async ({ cockroach: { db } }) => {
 			await db
 				.insert(usersTable)
 				.values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
@@ -1415,9 +1270,7 @@ export function tests() {
 			expect(result).toEqual([{ name: 'Jane' }]);
 		});
 
-		test('build query', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('build query', async ({ cockroach: { db } }) => {
 			const query = db
 				.select({ id: usersTable.id, name: usersTable.name })
 				.from(usersTable)
@@ -1430,9 +1283,7 @@ export function tests() {
 			});
 		});
 
-		test('insert sql', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('insert sql', async ({ cockroach: { db } }) => {
 			await db.insert(usersTable).values({ name: sql`${'John'}` });
 			const result = await db
 				.select({ id: usersTable.id, name: usersTable.name })
@@ -1440,8 +1291,7 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
 		});
 
-		test('partial join with alias', async (ctx) => {
-			const { db } = ctx.cockroach;
+		test('partial join with alias', async ({ cockroach: { db } }) => {
 			const customerAlias = alias(usersTable, 'customer');
 
 			await db.insert(usersTable).values([
@@ -1471,9 +1321,7 @@ export function tests() {
 			]);
 		});
 
-		test('full join with alias', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('full join with alias', async ({ cockroach: { db } }) => {
 			const cockroachTable = cockroachTableCreator(
 				(name) => `prefixed_${name}`,
 			);
@@ -1518,9 +1366,7 @@ export function tests() {
 			}
 		});
 
-		test('select from alias', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select from alias', async ({ cockroach: { db } }) => {
 			const cockroachTable = cockroachTableCreator(
 				(name) => `prefixed_${name}`,
 			);
@@ -1566,9 +1412,7 @@ export function tests() {
 			}
 		});
 
-		test('insert with spaces', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('insert with spaces', async ({ cockroach: { db } }) => {
 			await db.insert(usersTable).values({ name: sql`'Jo   h     n'` });
 			const result = await db
 				.select({ id: usersTable.id, name: usersTable.name })
@@ -1577,9 +1421,7 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'Jo   h     n' }]);
 		});
 
-		test('prepared statement', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('prepared statement', async ({ cockroach: { db } }) => {
 			await db.insert(usersTable).values({ name: 'John' });
 			const statement = db
 				.select({
@@ -1593,9 +1435,7 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
 		});
 
-		test('nameless prepared statement', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('nameless prepared statement', async ({ cockroach: { db } }) => {
 			await db.insert(usersTable).values({ name: 'John' });
 			const statement = db
 				.select({
@@ -1611,9 +1451,7 @@ export function tests() {
 			expect(result2).toEqual([{ id: 1, name: 'John' }]);
 		});
 
-		test('insert: placeholders on columns with encoder', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('insert: placeholders on columns with encoder', async ({ cockroach: { db } }) => {
 			const statement = db
 				.insert(usersTable)
 				.values({
@@ -1634,9 +1472,7 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, jsonb: ['foo', 'bar'] }]);
 		});
 
-		test('prepared statement reuse', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('prepared statement reuse', async ({ cockroach: { db } }) => {
 			const stmt = db
 				.insert(usersTable)
 				.values({
@@ -1671,9 +1507,7 @@ export function tests() {
 			]);
 		});
 
-		test('prepared statement with placeholder in .where', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('prepared statement with placeholder in .where', async ({ cockroach: { db } }) => {
 			await db.insert(usersTable).values({ name: 'John' });
 			const stmt = db
 				.select({
@@ -1688,9 +1522,7 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
 		});
 
-		test('prepared statement with placeholder in .limit', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('prepared statement with placeholder in .limit', async ({ cockroach: { db } }) => {
 			await db.insert(usersTable).values({ name: 'John' });
 			const stmt = db
 				.select({
@@ -1708,9 +1540,7 @@ export function tests() {
 			expect(result).toHaveLength(1);
 		});
 
-		test('prepared statement with placeholder in .offset', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('prepared statement with placeholder in .offset', async ({ cockroach: { db } }) => {
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]);
 			const stmt = db
 				.select({
@@ -1726,9 +1556,7 @@ export function tests() {
 			expect(result).toEqual([{ id: 2, name: 'John1' }]);
 		});
 
-		test('prepared statement built using $dynamic', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('prepared statement built using $dynamic', async ({ cockroach: { db } }) => {
 			function withLimitOffset(qb: any) {
 				return qb
 					.limit(sql.placeholder('limit'))
@@ -1751,9 +1579,7 @@ export function tests() {
 			expect(result).toHaveLength(1);
 		});
 
-		test('Query check: Insert all defaults in 1 row', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('Query check: Insert all defaults in 1 row', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('users', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 				name: text('name').default('Dan'),
@@ -1768,9 +1594,7 @@ export function tests() {
 			});
 		});
 
-		test('Query check: Insert all defaults in multiple rows', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('Query check: Insert all defaults in multiple rows', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('users', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 				name: text('name').default('Dan'),
@@ -1786,9 +1610,7 @@ export function tests() {
 			});
 		});
 
-		test('Insert all defaults in 1 row', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('Insert all defaults in 1 row', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('empty_insert_single', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 				name: text('name').default('Dan'),
@@ -1808,9 +1630,7 @@ export function tests() {
 			expect(res).toEqual([{ id: 1, name: 'Dan', state: null }]);
 		});
 
-		test('Insert all defaults in multiple rows', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('Insert all defaults in multiple rows', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('empty_insert_multiple', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 				name: text('name').default('Dan'),
@@ -1833,9 +1653,7 @@ export function tests() {
 			]);
 		});
 
-		test('build query insert with onConflict do update', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('build query insert with onConflict do update', async ({ cockroach: { db } }) => {
 			const query = db
 				.insert(usersTable)
 				.values({ name: 'John', jsonb: ['foo', 'bar'] })
@@ -1849,9 +1667,7 @@ export function tests() {
 			});
 		});
 
-		test('build query insert with onConflict do update / multiple columns', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('build query insert with onConflict do update / multiple columns', async ({ cockroach: { db } }) => {
 			const query = db
 				.insert(usersTable)
 				.values({ name: 'John', jsonb: ['foo', 'bar'] })
@@ -1868,9 +1684,7 @@ export function tests() {
 			});
 		});
 
-		test('build query insert with onConflict do nothing', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('build query insert with onConflict do nothing', async ({ cockroach: { db } }) => {
 			const query = db
 				.insert(usersTable)
 				.values({ name: 'John', jsonb: ['foo', 'bar'] })
@@ -1884,9 +1698,7 @@ export function tests() {
 			});
 		});
 
-		test('build query insert with onConflict do nothing + target', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('build query insert with onConflict do nothing + target', async ({ cockroach: { db } }) => {
 			const query = db
 				.insert(usersTable)
 				.values({ name: 'John', jsonb: ['foo', 'bar'] })
@@ -1900,9 +1712,7 @@ export function tests() {
 			});
 		});
 
-		test('insert with onConflict do update', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('insert with onConflict do update', async ({ cockroach: { db } }) => {
 			await db.insert(usersTable).values({ name: 'John' });
 
 			await db
@@ -1918,9 +1728,7 @@ export function tests() {
 			expect(res).toEqual([{ id: 1, name: 'John1' }]);
 		});
 
-		test('insert with onConflict do nothing', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('insert with onConflict do nothing', async ({ cockroach: { db } }) => {
 			await db.insert(usersTable).values({ name: 'John' });
 
 			await db
@@ -1936,9 +1744,7 @@ export function tests() {
 			expect(res).toEqual([{ id: 1, name: 'John' }]);
 		});
 
-		test('insert with onConflict do nothing + target', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('insert with onConflict do nothing + target', async ({ cockroach: { db } }) => {
 			await db.insert(usersTable).values({ name: 'John' });
 
 			await db
@@ -1954,9 +1760,7 @@ export function tests() {
 			expect(res).toEqual([{ id: 1, name: 'John' }]);
 		});
 
-		test('left join (flat object fields)', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('left join (flat object fields)', async ({ cockroach: { db } }) => {
 			const { id: cityId } = await db
 				.insert(citiesTable)
 				.values([{ name: 'Paris' }, { name: 'London' }])
@@ -1983,9 +1787,7 @@ export function tests() {
 			]);
 		});
 
-		test('left join (grouped fields)', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('left join (grouped fields)', async ({ cockroach: { db } }) => {
 			const { id: cityId } = await db
 				.insert(citiesTable)
 				.values([{ name: 'Paris' }, { name: 'London' }])
@@ -2026,9 +1828,7 @@ export function tests() {
 			]);
 		});
 
-		test('left join (all fields)', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('left join (all fields)', async ({ cockroach: { db } }) => {
 			const { id: cityId } = await db
 				.insert(citiesTable)
 				.values([{ name: 'Paris' }, { name: 'London' }])
@@ -2068,9 +1868,7 @@ export function tests() {
 			]);
 		});
 
-		test('join subquery', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('join subquery', async ({ cockroach: { db } }) => {
 			await db
 				.insert(courseCategoriesTable)
 				.values([
@@ -2114,9 +1912,7 @@ export function tests() {
 			]);
 		});
 
-		test('with ... select', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('with ... select', async ({ cockroach: { db } }) => {
 			await db.insert(orders).values([
 				{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
 				{ region: 'Europe', product: 'A', amount: 20, quantity: 2 },
@@ -2248,9 +2044,7 @@ export function tests() {
 			]);
 		});
 
-		test('with ... update', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('with ... update', async ({ cockroach: { db } }) => {
 			const products = cockroachTable('products', {
 				id: int4('id').primaryKey().generatedAlwaysAsIdentity(),
 				price: numeric('price').notNull(),
@@ -2298,9 +2092,7 @@ export function tests() {
 			expect(result).toEqual([{ id: 1 }, { id: 4 }, { id: 5 }]);
 		});
 
-		test('with ... insert', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('with ... insert', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('users', {
 				username: text('username').notNull(),
 				admin: bool('admin').notNull(),
@@ -2332,9 +2124,7 @@ export function tests() {
 			expect(result).toEqual([{ admin: true }]);
 		});
 
-		test('with ... delete', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('with ... delete', async ({ cockroach: { db } }) => {
 			await db.insert(orders).values([
 				{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
 				{ region: 'Europe', product: 'A', amount: 20, quantity: 2 },
@@ -2365,9 +2155,7 @@ export function tests() {
 			expect(result).toEqual([{ id: 6 }, { id: 7 }, { id: 8 }]);
 		});
 
-		test('select from subquery sql', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select from subquery sql', async ({ cockroach: { db } }) => {
 			await db.insert(users2Table).values([{ name: 'John' }, { name: 'Jane' }]);
 
 			const sq = db
@@ -2385,15 +2173,11 @@ export function tests() {
 			]);
 		});
 
-		test('select a field without joining its table', (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select a field without joining its table', ({ cockroach: { db } }) => {
 			expect(() => db.select({ name: users2Table.name }).from(usersTable).prepare('query')).toThrowError();
 		});
 
-		test('select all fields from subquery without alias', (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select all fields from subquery without alias', ({ cockroach: { db } }) => {
 			const sq = db
 				.$with('sq')
 				.as(
@@ -2405,9 +2189,7 @@ export function tests() {
 			expect(() => db.select().from(sq).prepare('query')).toThrowError();
 		});
 
-		test('sql.Aliased in cte', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('sql.Aliased in cte', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('users_109_sqla', {
 				id: int4('id').primaryKey(),
 				name: text('name').notNull(),
@@ -2461,9 +2243,7 @@ export function tests() {
 			expect(result2).toEqual([{ count: 2 }]);
 		});
 
-		test('select count()', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select count()', async ({ cockroach: { db } }) => {
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
 
 			const res = await db.select({ count: sql`count(*)` }).from(usersTable);
@@ -2471,9 +2251,7 @@ export function tests() {
 			expect(res).toEqual([{ count: '2' }]);
 		});
 
-		test('select count w/ custom mapper', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select count w/ custom mapper', async ({ cockroach: { db } }) => {
 			function count(value: CockroachColumn | SQLWrapper): SQL<number>;
 			function count(
 				value: CockroachColumn | SQLWrapper,
@@ -2497,9 +2275,7 @@ export function tests() {
 			expect(res).toEqual([{ count: 2 }]);
 		});
 
-		test('network types', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('network types', async ({ cockroach: { db } }) => {
 			const value: typeof network.$inferSelect = {
 				inet: '127.0.0.1',
 			};
@@ -2511,9 +2287,7 @@ export function tests() {
 			expect(res).toEqual([value]);
 		});
 
-		test('array types', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('array types', async ({ cockroach: { db } }) => {
 			const values: (typeof salEmp.$inferSelect)[] = [
 				{
 					name: 'John',
@@ -2532,9 +2306,7 @@ export function tests() {
 			expect(res).toEqual(values);
 		});
 
-		test('select for ...', (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select for ...', ({ cockroach: { db } }) => {
 			{
 				const query = db.select().from(users2Table).for('update').toSQL();
 
@@ -2584,9 +2356,7 @@ export function tests() {
 			}
 		});
 
-		test('having', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('having', async ({ cockroach: { db } }) => {
 			await db
 				.insert(citiesTable)
 				.values([{ name: 'London' }, { name: 'Paris' }, { name: 'New York' }]);
@@ -2629,9 +2399,7 @@ export function tests() {
 			]);
 		});
 
-		test('view', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('view', async ({ cockroach: { db } }) => {
 			const newYorkers1 = cockroachView('new_yorkers').as((qb) =>
 				qb.select().from(users2Table).where(eq(users2Table.cityId, 1))
 			);
@@ -2699,9 +2467,7 @@ export function tests() {
 		});
 
 		// NEXT
-		test('materialized view', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('materialized view', async ({ cockroach: { db } }) => {
 			const newYorkers1 = cockroachMaterializedView('new_yorkers').as((qb) =>
 				qb.select().from(users2Table).where(eq(users2Table.cityId, 1))
 			);
@@ -2775,9 +2541,7 @@ export function tests() {
 			await db.execute(sql`drop materialized view ${newYorkers1}`);
 		});
 
-		test('select from existing view', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select from existing view', async ({ cockroach: { db } }) => {
 			const schema = cockroachSchema('test_schema');
 
 			const newYorkers = schema
@@ -2804,9 +2568,7 @@ export function tests() {
 			expect(result).toEqual([{ id: 100 }]);
 		});
 
-		test('select from raw sql', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select from raw sql', async ({ cockroach: { db } }) => {
 			const result = await db
 				.select({
 					id: sql<string>`id`,
@@ -2818,9 +2580,7 @@ export function tests() {
 			expect(result).toEqual([{ id: '1', name: 'John' }]);
 		});
 
-		test('select from raw sql with joins', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select from raw sql with joins', async ({ cockroach: { db } }) => {
 			const result = await db
 				.select({
 					id: sql<string>`users.id`,
@@ -2848,9 +2608,7 @@ export function tests() {
 			]);
 		});
 
-		test('join on aliased sql from select', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('join on aliased sql from select', async ({ cockroach: { db } }) => {
 			const result = await db
 				.select({
 					userId: sql<string>`users.id`.as('userId'),
@@ -2888,9 +2646,7 @@ export function tests() {
 			]);
 		});
 
-		test('join on aliased sql from with clause', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('join on aliased sql from with clause', async ({ cockroach: { db } }) => {
 			const users = db.$with('users').as(
 				db
 					.select({
@@ -2948,9 +2704,7 @@ export function tests() {
 			]);
 		});
 
-		test('prefixed table', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('prefixed table', async ({ cockroach: { db } }) => {
 			const cockroachTable = cockroachTableCreator(
 				(name) => `myprefix_${name}`,
 			);
@@ -2977,9 +2731,7 @@ export function tests() {
 			}
 		});
 
-		test('select from enum as ts enum', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select from enum as ts enum', async ({ cockroach: { db } }) => {
 			enum Muscle {
 				abdominals = 'abdominals',
 				hamstrings = 'hamstrings',
@@ -3170,9 +2922,7 @@ export function tests() {
 			await db.execute(sql`drop type ${sql.identifier(categoryEnum.enumName)}`);
 		});
 
-		test('select from enum', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select from enum', async ({ cockroach: { db } }) => {
 			const muscleEnum = cockroachEnum('muscle', [
 				'abdominals',
 				'hamstrings',
@@ -3348,9 +3098,7 @@ export function tests() {
 			await db.execute(sql`drop type ${sql.identifier(categoryEnum.enumName)}`);
 		});
 
-		test('all date and time columns', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('all date and time columns', async ({ cockroach: { db } }) => {
 			const table = cockroachTable('all_columns', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 				dateString: date('date_string', { mode: 'string' }).notNull(),
@@ -3459,9 +3207,7 @@ export function tests() {
 			await db.execute(sql`drop table if exists ${table}`);
 		});
 
-		test('all date and time columns with timezone second case mode date', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('all date and time columns with timezone second case mode date', async ({ cockroach: { db } }) => {
 			const table = cockroachTable('all_columns', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 				timestamp: timestamp('timestamp_string', {
@@ -3497,9 +3243,7 @@ export function tests() {
 			await db.execute(sql`drop table if exists ${table}`);
 		});
 
-		test('all date and time columns with timezone third case mode date', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('all date and time columns with timezone third case mode date', async ({ cockroach: { db } }) => {
 			const table = cockroachTable('all_columns', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 				timestamp: timestamp('timestamp_string', {
@@ -3536,9 +3280,7 @@ export function tests() {
 			await db.execute(sql`drop table if exists ${table}`);
 		});
 
-		test('orderBy with aliased column', (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('orderBy with aliased column', ({ cockroach: { db } }) => {
 			const query = db
 				.select({
 					test: sql`something`.as('test'),
@@ -3552,9 +3294,7 @@ export function tests() {
 			);
 		});
 
-		test('select from sql', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select from sql', async ({ cockroach: { db } }) => {
 			const metricEntry = cockroachTable('metric_entry', {
 				id: cockroachUuid('id').notNull(),
 				createdAt: timestamp('created_at').notNull(),
@@ -3607,9 +3347,7 @@ export function tests() {
 			).resolves.not.toThrowError();
 		});
 
-		test('timestamp timezone', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('timestamp timezone', async ({ cockroach: { db } }) => {
 			const usersTableWithAndWithoutTimezone = cockroachTable(
 				'users_test_with_and_without_timezone',
 				{
@@ -3668,9 +3406,7 @@ export function tests() {
 			).toBeLessThan(2000);
 		});
 
-		test('transaction', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('transaction', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('users_transactions', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 				balance: int4('balance').notNull(),
@@ -3723,9 +3459,7 @@ export function tests() {
 			}
 		});
 
-		test('transaction rollback', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('transaction rollback', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('users_transactions_rollback', {
 				id: int4('id').primaryKey().generatedAlwaysAsIdentity(),
 				balance: int4('balance').notNull(),
@@ -3755,9 +3489,7 @@ export function tests() {
 			}
 		});
 
-		test('nested transaction', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('nested transaction', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('users_nested_transactions', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 				balance: int4('balance').notNull(),
@@ -3786,9 +3518,7 @@ export function tests() {
 			}
 		});
 
-		test('nested transaction rollback', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('nested transaction rollback', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('users_nested_transactions_rollback', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 				balance: int4('balance').notNull(),
@@ -3822,9 +3552,7 @@ export function tests() {
 			}
 		});
 
-		test('join subquery with join', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('join subquery with join', async ({ cockroach: { db } }) => {
 			const internalStaff = cockroachTable('internal_staff', {
 				userId: int4('user_id').notNull(),
 			});
@@ -3879,9 +3607,7 @@ export function tests() {
 			}
 		});
 
-		test('subquery with view', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('subquery with view', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('users_subquery_view', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 				name: text('name').notNull(),
@@ -3923,9 +3649,7 @@ export function tests() {
 			}
 		});
 
-		test('join view as subquery', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('join view as subquery', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('users_join_view', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 				name: text('name').notNull(),
@@ -3985,9 +3709,7 @@ export function tests() {
 			}
 		});
 
-		test('table selection with single table', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('table selection with single table', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('users', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 				name: text('name').notNull(),
@@ -4011,9 +3733,7 @@ export function tests() {
 			}
 		});
 
-		test('set null to jsonb field', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('set null to jsonb field', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('users', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 				jsonb: jsonb('jsonb'),
@@ -4034,9 +3754,7 @@ export function tests() {
 			}
 		});
 
-		test('insert undefined', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('insert undefined', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('users', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 				name: text('name'),
@@ -4059,9 +3777,7 @@ export function tests() {
 			}
 		});
 
-		test('update undefined', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('update undefined', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('users', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 				name: text('name'),
@@ -4089,9 +3805,7 @@ export function tests() {
 			}
 		});
 
-		test('array operators', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('array operators', async ({ cockroach: { db } }) => {
 			const posts = cockroachTable('posts', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 				tags: text('tags').array(),
@@ -4158,9 +3872,7 @@ export function tests() {
 			expect(withSubQuery).toEqual([{ id: 1 }, { id: 3 }, { id: 5 }]);
 		});
 
-		test('set operations (union) from query builder with subquery', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('set operations (union) from query builder with subquery', async ({ cockroach: { db } }) => {
 			await setupSetOperationTest(db);
 
 			const sq = db
@@ -4202,9 +3914,7 @@ export function tests() {
 			).rejects.toThrowError();
 		});
 
-		test('set operations (union) as function', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('set operations (union) as function', async ({ cockroach: { db } }) => {
 			await setupSetOperationTest(db);
 
 			const result = await union(
@@ -4249,9 +3959,7 @@ export function tests() {
 			).rejects.toThrowError();
 		});
 
-		test('set operations (union all) from query builder', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('set operations (union all) from query builder', async ({ cockroach: { db } }) => {
 			await setupSetOperationTest(db);
 
 			const result = await db
@@ -4291,9 +3999,7 @@ export function tests() {
 			).rejects.toThrowError();
 		});
 
-		test('set operations (union all) as function', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('set operations (union all) as function', async ({ cockroach: { db } }) => {
 			await setupSetOperationTest(db);
 
 			const result = await unionAll(
@@ -4339,9 +4045,7 @@ export function tests() {
 			).rejects.toThrowError();
 		});
 
-		test('set operations (intersect) from query builder', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('set operations (intersect) from query builder', async ({ cockroach: { db } }) => {
 			await setupSetOperationTest(db);
 
 			const result = await db
@@ -4382,9 +4086,7 @@ export function tests() {
 			).rejects.toThrowError();
 		});
 
-		test('set operations (intersect) as function', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('set operations (intersect) as function', async ({ cockroach: { db } }) => {
 			await setupSetOperationTest(db);
 
 			const result = await intersect(
@@ -4426,9 +4128,7 @@ export function tests() {
 			).rejects.toThrowError();
 		});
 
-		test('set operations (intersect all) from query builder', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('set operations (intersect all) from query builder', async ({ cockroach: { db } }) => {
 			await setupSetOperationTest(db);
 
 			const result = await db
@@ -4466,9 +4166,7 @@ export function tests() {
 			).rejects.toThrowError();
 		});
 
-		test('set operations (intersect all) as function', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('set operations (intersect all) as function', async ({ cockroach: { db } }) => {
 			await setupSetOperationTest(db);
 
 			const result = await intersectAll(
@@ -4510,9 +4208,7 @@ export function tests() {
 			).rejects.toThrowError();
 		});
 
-		test('set operations (except) from query builder', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('set operations (except) from query builder', async ({ cockroach: { db } }) => {
 			await setupSetOperationTest(db);
 
 			const result = await db
@@ -4538,9 +4234,7 @@ export function tests() {
 			).rejects.toThrowError();
 		});
 
-		test('set operations (except) as function', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('set operations (except) as function', async ({ cockroach: { db } }) => {
 			await setupSetOperationTest(db);
 
 			const result = await except(
@@ -4583,9 +4277,7 @@ export function tests() {
 			).rejects.toThrowError();
 		});
 
-		test('set operations (except all) from query builder', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('set operations (except all) from query builder', async ({ cockroach: { db } }) => {
 			await setupSetOperationTest(db);
 
 			const result = await db
@@ -4621,9 +4313,7 @@ export function tests() {
 			).rejects.toThrowError();
 		});
 
-		test('set operations (except all) as function', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('set operations (except all) as function', async ({ cockroach: { db } }) => {
 			await setupSetOperationTest(db);
 
 			const result = await exceptAll(
@@ -4671,9 +4361,7 @@ export function tests() {
 			).rejects.toThrowError();
 		});
 
-		test('set operations (mixed) from query builder with subquery', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('set operations (mixed) from query builder with subquery', async ({ cockroach: { db } }) => {
 			await setupSetOperationTest(db);
 			const sq = db
 				.select()
@@ -4712,9 +4400,7 @@ export function tests() {
 			).rejects.toThrowError();
 		});
 
-		test('set operations (mixed all) as function', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('set operations (mixed all) as function', async ({ cockroach: { db } }) => {
 			await setupSetOperationTest(db);
 
 			const result = await union(
@@ -4769,8 +4455,7 @@ export function tests() {
 			).rejects.toThrowError();
 		});
 
-		test('aggregate function: count', async (ctx) => {
-			const { db } = ctx.cockroach;
+		test('aggregate function: count', async ({ cockroach: { db } }) => {
 			const table = aggregateTable;
 			await setupAggregateFunctionsTest(db);
 
@@ -4785,8 +4470,7 @@ export function tests() {
 			expect(result3[0]?.value).toBe(6);
 		});
 
-		test('aggregate function: avg', async (ctx) => {
-			const { db } = ctx.cockroach;
+		test('aggregate function: avg', async ({ cockroach: { db } }) => {
 			const table = aggregateTable;
 			await setupAggregateFunctionsTest(db);
 
@@ -4803,8 +4487,7 @@ export function tests() {
 			expect(result3[0]?.value).toBe('42.500000000000000000');
 		});
 
-		test('aggregate function: sum', async (ctx) => {
-			const { db } = ctx.cockroach;
+		test('aggregate function: sum', async ({ cockroach: { db } }) => {
 			const table = aggregateTable;
 			await setupAggregateFunctionsTest(db);
 
@@ -4821,8 +4504,7 @@ export function tests() {
 			expect(result3[0]?.value).toBe('170');
 		});
 
-		test('aggregate function: max', async (ctx) => {
-			const { db } = ctx.cockroach;
+		test('aggregate function: max', async ({ cockroach: { db } }) => {
 			const table = aggregateTable;
 			await setupAggregateFunctionsTest(db);
 
@@ -4835,8 +4517,7 @@ export function tests() {
 			expect(result2[0]?.value).toBeNull();
 		});
 
-		test('aggregate function: min', async (ctx) => {
-			const { db } = ctx.cockroach;
+		test('aggregate function: min', async ({ cockroach: { db } }) => {
 			const table = aggregateTable;
 			await setupAggregateFunctionsTest(db);
 
@@ -4849,9 +4530,7 @@ export function tests() {
 			expect(result2[0]?.value).toBeNull();
 		});
 
-		test('array mapping and parsing', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('array mapping and parsing', async ({ cockroach: { db } }) => {
 			const arrays = cockroachTable('arrays_tests', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 				tags: text('tags').array(),
@@ -4887,9 +4566,7 @@ export function tests() {
 			}
 		});
 
-		test('test $onUpdateFn and $onUpdate works as $default', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('test $onUpdateFn and $onUpdate works as $default', async ({ cockroach: { db } }) => {
 			await db.execute(sql`drop table if exists ${usersOnUpdate}`);
 
 			await db.execute(
@@ -4940,9 +4617,7 @@ export function tests() {
 			}
 		});
 
-		test('test $onUpdateFn and $onUpdate works updating', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('test $onUpdateFn and $onUpdate works updating', async ({ cockroach: { db } }) => {
 			await db.execute(sql`drop table if exists ${usersOnUpdate}`);
 
 			await db.execute(
@@ -5008,9 +4683,7 @@ export function tests() {
 			}
 		});
 
-		test('test if method with sql operators', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('test if method with sql operators', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('users', {
 				id: int4('id').primaryKey(),
 				name: text('name').notNull(),
@@ -5275,9 +4948,7 @@ export function tests() {
 		});
 
 		// MySchema tests
-		test('mySchema :: select all fields', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('mySchema :: select all fields', async ({ cockroach: { db } }) => {
 			const now = Date.now();
 
 			await db.insert(usersMySchemaTable).values({ name: 'John' });
@@ -5296,9 +4967,7 @@ export function tests() {
 			]);
 		});
 
-		test('mySchema :: select sql', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('mySchema :: select sql', async ({ cockroach: { db } }) => {
 			await db.insert(usersMySchemaTable).values({ name: 'John' });
 			const users = await db
 				.select({
@@ -5309,9 +4978,7 @@ export function tests() {
 			expect(users).toEqual([{ name: 'JOHN' }]);
 		});
 
-		test('mySchema :: select typed sql', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('mySchema :: select typed sql', async ({ cockroach: { db } }) => {
 			await db.insert(usersMySchemaTable).values({ name: 'John' });
 			const users = await db
 				.select({
@@ -5322,9 +4989,7 @@ export function tests() {
 			expect(users).toEqual([{ name: 'JOHN' }]);
 		});
 
-		test('mySchema :: select distinct', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('mySchema :: select distinct', async ({ cockroach: { db } }) => {
 			const usersDistinctTable = cockroachTable('users_distinct', {
 				id: int4('id').notNull(),
 				name: text('name').notNull(),
@@ -5373,9 +5038,7 @@ export function tests() {
 			expect(users3[1]?.name).toBe('John');
 		});
 
-		test('mySchema :: insert returning sql', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('mySchema :: insert returning sql', async ({ cockroach: { db } }) => {
 			const users = await db
 				.insert(usersMySchemaTable)
 				.values({ name: 'John' })
@@ -5386,9 +5049,7 @@ export function tests() {
 			expect(users).toEqual([{ name: 'JOHN' }]);
 		});
 
-		test('mySchema :: delete returning sql', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('mySchema :: delete returning sql', async ({ cockroach: { db } }) => {
 			await db.insert(usersMySchemaTable).values({ name: 'John' });
 			const users = await db
 				.delete(usersMySchemaTable)
@@ -5400,9 +5061,7 @@ export function tests() {
 			expect(users).toEqual([{ name: 'JOHN' }]);
 		});
 
-		test('mySchema :: update with returning partial', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('mySchema :: update with returning partial', async ({ cockroach: { db } }) => {
 			await db.insert(usersMySchemaTable).values({ name: 'John' });
 			const users = await db
 				.update(usersMySchemaTable)
@@ -5416,9 +5075,7 @@ export function tests() {
 			expect(users).toEqual([{ id: 1, name: 'Jane' }]);
 		});
 
-		test('mySchema :: delete with returning all fields', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('mySchema :: delete with returning all fields', async ({ cockroach: { db } }) => {
 			const now = Date.now();
 
 			await db.insert(usersMySchemaTable).values({ name: 'John' });
@@ -5440,9 +5097,7 @@ export function tests() {
 			]);
 		});
 
-		test('mySchema :: insert + select', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('mySchema :: insert + select', async ({ cockroach: { db } }) => {
 			await db.insert(usersMySchemaTable).values({ name: 'John' });
 			const result = await db.select().from(usersMySchemaTable);
 			expect(result).toEqual([
@@ -5475,9 +5130,7 @@ export function tests() {
 			]);
 		});
 
-		test('mySchema :: insert with overridden default values', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('mySchema :: insert with overridden default values', async ({ cockroach: { db } }) => {
 			await db
 				.insert(usersMySchemaTable)
 				.values({ name: 'John', verified: true });
@@ -5494,9 +5147,7 @@ export function tests() {
 			]);
 		});
 
-		test('mySchema :: insert many', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('mySchema :: insert many', async ({ cockroach: { db } }) => {
 			await db
 				.insert(usersMySchemaTable)
 				.values([
@@ -5522,9 +5173,7 @@ export function tests() {
 			]);
 		});
 
-		test('mySchema :: select with group by as field', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('mySchema :: select with group by as field', async ({ cockroach: { db } }) => {
 			await db
 				.insert(usersMySchemaTable)
 				.values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
@@ -5537,9 +5186,7 @@ export function tests() {
 			expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }]);
 		});
 
-		test('mySchema :: select with group by as column + sql', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('mySchema :: select with group by as column + sql', async ({ cockroach: { db } }) => {
 			await db
 				.insert(usersMySchemaTable)
 				.values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
@@ -5556,9 +5203,7 @@ export function tests() {
 			]);
 		});
 
-		test('mySchema :: build query', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('mySchema :: build query', async ({ cockroach: { db } }) => {
 			const query = db
 				.select({ id: usersMySchemaTable.id, name: usersMySchemaTable.name })
 				.from(usersMySchemaTable)
@@ -5571,8 +5216,7 @@ export function tests() {
 			});
 		});
 
-		test('mySchema :: partial join with alias', async (ctx) => {
-			const { db } = ctx.cockroach;
+		test('mySchema :: partial join with alias', async ({ cockroach: { db } }) => {
 			const customerAlias = alias(usersMySchemaTable, 'customer');
 
 			await db.insert(usersMySchemaTable).values([
@@ -5602,9 +5246,7 @@ export function tests() {
 			]);
 		});
 
-		test('mySchema :: insert with spaces', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('mySchema :: insert with spaces', async ({ cockroach: { db } }) => {
 			await db.insert(usersMySchemaTable).values({ name: sql`'Jo   h     n'` });
 			const result = await db
 				.select({ id: usersMySchemaTable.id, name: usersMySchemaTable.name })
@@ -5613,9 +5255,7 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'Jo   h     n' }]);
 		});
 
-		test('mySchema :: prepared statement with placeholder in .limit', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('mySchema :: prepared statement with placeholder in .limit', async ({ cockroach: { db } }) => {
 			await db.insert(usersMySchemaTable).values({ name: 'John' });
 			const stmt = db
 				.select({
@@ -5633,9 +5273,7 @@ export function tests() {
 			expect(result).toHaveLength(1);
 		});
 
-		test('mySchema :: build query insert with onConflict do update / multiple columns', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('mySchema :: build query insert with onConflict do update / multiple columns', async ({ cockroach: { db } }) => {
 			const query = db
 				.insert(usersMySchemaTable)
 				.values({ name: 'John', jsonb: ['foo', 'bar'] })
@@ -5652,9 +5290,7 @@ export function tests() {
 			});
 		});
 
-		test('mySchema :: build query insert with onConflict do nothing + target', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('mySchema :: build query insert with onConflict do nothing + target', async ({ cockroach: { db } }) => {
 			const query = db
 				.insert(usersMySchemaTable)
 				.values({ name: 'John', jsonb: ['foo', 'bar'] })
@@ -5668,9 +5304,7 @@ export function tests() {
 			});
 		});
 
-		test('mySchema :: select from tables with same name from different schema using alias', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('mySchema :: select from tables with same name from different schema using alias', async ({ cockroach: { db } }) => {
 			await db.insert(usersMySchemaTable).values({ id: 10, name: 'Ivan' });
 			await db.insert(usersTable).values({ id: 11, name: 'Hans' });
 
@@ -5702,9 +5336,7 @@ export function tests() {
 			]);
 		});
 
-		test('mySchema :: view', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('mySchema :: view', async ({ cockroach: { db } }) => {
 			const newYorkers1 = mySchema
 				.view('new_yorkers')
 				.as((qb) =>
@@ -5780,9 +5412,7 @@ export function tests() {
 			await db.execute(sql`drop view ${newYorkers1}`);
 		});
 
-		test('mySchema :: materialized view', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('mySchema :: materialized view', async ({ cockroach: { db } }) => {
 			const newYorkers1 = mySchema
 				.materializedView('new_yorkers')
 				.as((qb) =>
@@ -5865,27 +5495,21 @@ export function tests() {
 			await db.execute(sql`drop materialized view ${newYorkers1}`);
 		});
 
-		test('limit 0', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('limit 0', async ({ cockroach: { db } }) => {
 			await db.insert(usersTable).values({ name: 'John' });
 			const users = await db.select().from(usersTable).limit(0);
 
 			expect(users).toEqual([]);
 		});
 
-		test('limit -1', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('limit -1', async ({ cockroach: { db } }) => {
 			await db.insert(usersTable).values({ name: 'John' });
 			const users = await db.select().from(usersTable).limit(-1);
 
 			expect(users.length).toBeGreaterThan(0);
 		});
 
-		test('Object keys as column names', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('Object keys as column names', async ({ cockroach: { db } }) => {
 			// Tests the following:
 			// Column with required config
 			// Column with optional config without providing a value
@@ -5932,9 +5556,7 @@ export function tests() {
 			}
 		});
 
-		test('proper json and jsonb handling', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('proper json and jsonb handling', async ({ cockroach: { db } }) => {
 			const jsonTable = cockroachTable('json_table', {
 				jsonb: jsonb('jsonb').$type<{ name: string; age: number }>(),
 			});
@@ -5966,9 +5588,7 @@ export function tests() {
 			]);
 		});
 
-		test('set json/jsonb fields with objects and retrieve with the ->> operator', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('set json/jsonb fields with objects and retrieve with the ->> operator', async ({ cockroach: { db } }) => {
 			const obj = { string: 'test', number: 123 };
 			const { string: testString, number: testNumber } = obj;
 
@@ -5991,9 +5611,7 @@ export function tests() {
 			]);
 		});
 
-		test('set json/jsonb fields with strings and retrieve with the ->> operator', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('set json/jsonb fields with strings and retrieve with the ->> operator', async ({ cockroach: { db } }) => {
 			const obj = { string: 'test', number: 123 };
 			const { string: testString, number: testNumber } = obj;
 
@@ -6016,9 +5634,7 @@ export function tests() {
 			]);
 		});
 
-		test('set json/jsonb fields with objects and retrieve with the -> operator', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('set json/jsonb fields with objects and retrieve with the -> operator', async ({ cockroach: { db } }) => {
 			const obj = { string: 'test', number: 123 };
 			const { string: testString, number: testNumber } = obj;
 
@@ -6041,9 +5657,7 @@ export function tests() {
 			]);
 		});
 
-		test('set json/jsonb fields with strings and retrieve with the -> operator', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('set json/jsonb fields with strings and retrieve with the -> operator', async ({ cockroach: { db } }) => {
 			const obj = { string: 'test', number: 123 };
 			const { string: testString, number: testNumber } = obj;
 
@@ -6066,9 +5680,7 @@ export function tests() {
 			]);
 		});
 
-		test('update ... from', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('update ... from', async ({ cockroach: { db } }) => {
 			await db
 				.insert(cities2Table)
 				.values([{ name: 'New York City' }, { name: 'Seattle' }]);
@@ -6101,9 +5713,7 @@ export function tests() {
 			]);
 		});
 
-		test('update ... from with alias', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('update ... from with alias', async ({ cockroach: { db } }) => {
 			await db
 				.insert(cities2Table)
 				.values([{ name: 'New York City' }, { name: 'Seattle' }]);
@@ -6136,9 +5746,7 @@ export function tests() {
 			]);
 		});
 
-		test('update ... from with join', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('update ... from with join', async ({ cockroach: { db } }) => {
 			const states = cockroachTable('states', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 				name: text('name').notNull(),
@@ -6246,9 +5854,7 @@ export function tests() {
 			]);
 		});
 
-		test('insert into ... select', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('insert into ... select', async ({ cockroach: { db } }) => {
 			const notifications = cockroachTable('notifications', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 				sentAt: timestamp('sent_at').notNull().defaultNow(),
@@ -6333,9 +5939,7 @@ export function tests() {
 			]);
 		});
 
-		test('insert into ... select with keys in different order', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('insert into ... select with keys in different order', async ({ cockroach: { db } }) => {
 			const users1 = cockroachTable('users1', {
 				id: int4('id').primaryKey(),
 				name: text('name').notNull(),
@@ -6376,9 +5980,7 @@ export function tests() {
 			}]);
 		});
 
-		test('insert into ... select with generated column', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('insert into ... select with generated column', async ({ cockroach: { db } }) => {
 			const users1 = cockroachTable('users1_iswgc', {
 				id: int4('id').generatedAlwaysAsIdentity().primaryKey(),
 				name: text('name').notNull(),
@@ -6503,9 +6105,7 @@ export function tests() {
 			expect(config2.enableRLS).toBeFalsy();
 		});
 
-		test('$count separate', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('$count separate', async ({ cockroach: { db } }) => {
 			const countTestTable = cockroachTable('count_test', {
 				id: int4('id').notNull(),
 				name: text('name').notNull(),
@@ -6528,9 +6128,7 @@ export function tests() {
 			expect(count).toStrictEqual(4);
 		});
 
-		test('$count embedded', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('$count embedded', async ({ cockroach: { db } }) => {
 			const countTestTable = cockroachTable('count_test', {
 				id: int4('id').notNull(),
 				name: text('name').notNull(),
@@ -6562,9 +6160,7 @@ export function tests() {
 			]);
 		});
 
-		test('$count separate reuse', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('$count separate reuse', async ({ cockroach: { db } }) => {
 			const countTestTable = cockroachTable('count_test', {
 				id: int4('id').notNull(),
 				name: text('name').notNull(),
@@ -6599,9 +6195,7 @@ export function tests() {
 			expect(count3).toStrictEqual(6);
 		});
 
-		test('$count embedded reuse', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('$count embedded reuse', async ({ cockroach: { db } }) => {
 			const countTestTable = cockroachTable('count_test', {
 				id: int4('id').notNull(),
 				name: text('name').notNull(),
@@ -6658,9 +6252,7 @@ export function tests() {
 			]);
 		});
 
-		test('$count separate with filters', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('$count separate with filters', async ({ cockroach: { db } }) => {
 			const countTestTable = cockroachTable('count_test', {
 				id: int4('id').notNull(),
 				name: text('name').notNull(),
@@ -6683,9 +6275,7 @@ export function tests() {
 			expect(count).toStrictEqual(3);
 		});
 
-		test('$count embedded with filters', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('$count embedded with filters', async ({ cockroach: { db } }) => {
 			const countTestTable = cockroachTable('count_test', {
 				id: int4('id').notNull(),
 				name: text('name').notNull(),
@@ -6717,9 +6307,7 @@ export function tests() {
 			]);
 		});
 
-		test('insert multiple rows into table with generated identity column', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('insert multiple rows into table with generated identity column', async ({ cockroach: { db } }) => {
 			const identityColumnsTable = cockroachTable('identity_columns_table', {
 				id: int4('id').generatedAlwaysAsIdentity(),
 				id1: int4('id1').generatedByDefaultAsIdentity(),
@@ -6765,9 +6353,7 @@ export function tests() {
 			]);
 		});
 
-		test('insert as cte', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('insert as cte', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('users', {
 				id: int4('id').primaryKey().generatedAlwaysAsIdentity(),
 				name: text('name').notNull(),
@@ -6801,9 +6387,7 @@ export function tests() {
 			expect(result4).toEqual([{ name: 'Jane' }]);
 		});
 
-		test('update as cte', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('update as cte', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('users', {
 				id: int4('id').primaryKey().generatedAlwaysAsIdentity(),
 				name: text('name').notNull(),
@@ -6852,9 +6436,7 @@ export function tests() {
 			expect(result4).toEqual([{ age: 20 }]);
 		});
 
-		test('delete as cte', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('delete as cte', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('users', {
 				id: int4('id').primaryKey().generatedAlwaysAsIdentity(),
 				name: text('name').notNull(),
@@ -6892,9 +6474,7 @@ export function tests() {
 			expect(result4).toEqual([{ name: 'Jane' }]);
 		});
 
-		test('sql operator as cte', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('sql operator as cte', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('users', {
 				id: int4('id').primaryKey().generatedAlwaysAsIdentity(),
 				name: text('name').notNull(),
@@ -6930,9 +6510,7 @@ export function tests() {
 			expect(result2).toEqual([{ userId: 2, data: { name: 'Jane' } }]);
 		});
 
-		test('cross join', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('cross join', async ({ cockroach: { db } }) => {
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
 
 			await db
@@ -6956,9 +6534,7 @@ export function tests() {
 			]);
 		});
 
-		test('left join (lateral)', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('left join (lateral)', async ({ cockroach: { db } }) => {
 			await db.insert(citiesTable).values([
 				{ id: 1, name: 'Paris' },
 				{ id: 2, name: 'London' },
@@ -6994,9 +6570,7 @@ export function tests() {
 			]);
 		});
 
-		test('inner join (lateral)', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('inner join (lateral)', async ({ cockroach: { db } }) => {
 			await db.insert(citiesTable).values([
 				{ id: 1, name: 'Paris' },
 				{ id: 2, name: 'London' },
@@ -7031,9 +6605,7 @@ export function tests() {
 			]);
 		});
 
-		test('cross join (lateral)', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('cross join (lateral)', async ({ cockroach: { db } }) => {
 			await db.insert(citiesTable).values([
 				{ id: 1, name: 'Paris' },
 				{ id: 2, name: 'London' },
@@ -7110,9 +6682,7 @@ export function tests() {
 			]);
 		});
 
-		test('column.as', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('column.as', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('users_column_as', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 				name: text('name').notNull(),
@@ -7314,9 +6884,7 @@ export function tests() {
 			);
 		});
 
-		test('select from a many subquery', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select from a many subquery', async ({ cockroach: { db } }) => {
 			await db
 				.insert(citiesTable)
 				.values([{ name: 'Paris' }, { name: 'London' }]);
@@ -7357,9 +6925,7 @@ export function tests() {
 			]);
 		});
 
-		test('select from a one subquery', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('select from a one subquery', async ({ cockroach: { db } }) => {
 			await db
 				.insert(citiesTable)
 				.values([{ name: 'Paris' }, { name: 'London' }]);
@@ -7404,9 +6970,7 @@ export function tests() {
 			]);
 		});
 
-		test('test $onUpdateFn and $onUpdate works with sql value', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('test $onUpdateFn and $onUpdate works with sql value', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('users_on_update', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 				name: text('name').notNull(),
@@ -7447,9 +7011,7 @@ export function tests() {
 			expect(updateResp[0]?.updatedAt.getTime() ?? 0).greaterThan(now);
 		});
 
-		test('$onUpdateFn called only when needed', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('$onUpdateFn called only when needed', async ({ cockroach: { db } }) => {
 			let counter = 0;
 			const table = cockroachTable('on_update_call_test', {
 				id: int4('id').primaryKey(),
@@ -7489,9 +7051,7 @@ export function tests() {
 			expect(res).toStrictEqual([{ id: 2, name: 'Second', inc: 2 }]);
 		});
 
-		test('placeholder + sql dates', async (ctx) => {
-			const { db } = ctx.cockroach;
-
+		test('placeholder + sql dates', async ({ cockroach: { db } }) => {
 			const dateTable = cockroachTable('dates_placeholder_test', (t) => ({
 				id: t.int4('id').primaryKey().notNull(),
 				date: t.date('date', { mode: 'date' }).notNull(),
@@ -7607,276 +7167,335 @@ export function tests() {
 			expect(updated).toStrictEqual(initial);
 		});
 
-		test('all types', async (ctx) => {
-			const { db } = ctx.cockroach;
+		test('all types', async ({ db, push }) => {
+			const { en, allTypesTable } = makeAllTypes('all_types_pg', 'en_pg');
+			await push({ en, allTypesTable });
 
-			await db.execute(
-				sql`CREATE TYPE "public"."en" AS ENUM('enVal1', 'enVal2');`,
-			);
-			await db.execute(sql`
-				CREATE TABLE "all_types" (
-					"int4" int4 NOT NULL,
-					"bigint53" bigint NOT NULL,
-					"bigint64" bigint,
-					"bool" bool,
-					"boolean" bool,
-					"char" char,
-					"date" date,
-					"date_str" date,
-					"string" string,
-					"double" double precision,
-					"float" float,
-					"enum" "en",
-					"inet" "inet",
-					"interval" interval,
-					"jsonb" jsonb,
-					"numeric" numeric,
-					"numeric_num" numeric,
-					"numeric_big" numeric,
-					"real" real,
-					"smallint" smallint,
-					"text" text,
-					"time" time,
-					"timestamp" timestamp,
-					"timestamp_tz" timestamp with time zone,
-					"timestamp_str" timestamp,
-					"timestamp_tz_str" timestamp with time zone,
-					"uuid" uuid,
-					"varchar" varchar,
-					"arrint" int4[],
-					"arrbigint53" bigint[],
-					"arrbigint64" bigint[],
-					"arrbool" bool[],
-					"arrchar" char[],
-					"arrdate" date[],
-					"arrdate_str" date[],
-					"arrdouble" double precision[],
-					"arrenum" "en"[],
-					"arrinet" "inet"[],
-					"arrinterval" interval[],
-					"arrnumeric" numeric[],
-					"arrnumeric_num" numeric[],
-					"arrnumeric_big" numeric[],
-					"arrreal" real[],
-					"arrsmallint" smallint[],
-					"arrtext" text[],
-					"arrtime" time[],
-					"arrtimestamp" timestamp[],
-					"arrtimestamp_tz" timestamp with time zone[],
-					"arrtimestamp_str" timestamp[],
-					"arrtimestamp_tz_str" timestamp with time zone[],
-					"arruuid" uuid[],
-					"arrstring" string[],
-					"arrfloat" float[],
-					"arrvarchar" varchar[],
-					"bit" bit,
-					"varbit" varbit,
-					"arrbit" bit[],
-					"arrvarbit" varbit[],
-					"arrboolean" bool[]
-				);
-			`);
-
-			await db.insert(allTypesTable).values({
-				int4: 1,
-				bigint53: 9007199254740991,
-				bigint64: 5044565289845416380n,
-				bool: true,
-				char: 'c',
-				date: new Date(1741743161623),
-				dateStr: new Date(1741743161623).toISOString(),
-				double: 15.35325689124218,
-				enum: 'enVal1',
-				inet: '192.168.0.1/24',
-				interval: '-2 months',
-				jsonb: {
-					str: 'strvalb',
-					arr: ['strb', 11],
-				},
-				numeric: '475452353476',
-				numericNum: 9007199254740991,
-				numericBig: 5044565289845416380n,
-				real: 1.048596,
-				smallint: 15,
-				text: 'TEXT STRING',
-				time: '13:59:28',
-				timestamp: new Date(1741743161623),
-				timestampTz: new Date(1741743161623),
-				timestampStr: new Date(1741743161623).toISOString(),
-				timestampTzStr: new Date(1741743161623).toISOString(),
-				uuid: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
-				varchar: 'C4-',
-				arrbigint53: [9007199254740991, 9007199254740991],
-				arrbigint64: [5044565289845416380n, 5044565289845416380n],
-				arrbool: [true, true],
-				arrchar: ['c', 'c'],
-				arrinet: ['192.168.0.1/24', '192.168.0.1/24'],
-				arrdate: [new Date(1741743161623), new Date(1741743161623)],
-				arrdateStr: [new Date(1741743161623).toISOString(), new Date(1741743161623).toISOString()],
-				arrdouble: [15.35325689124218, 15.35325689124218],
-				arrenum: ['enVal1', 'enVal1'],
-				arrint: [621, 621],
-				arrinterval: ['-2 months', '-2 months'],
-				arrnumeric: ['475452353476', '475452353476'],
-				arrnumericNum: [9007199254740991, 9007199254740991],
-				arrnumericBig: [5044565289845416380n, 5044565289845416380n],
-				arrreal: [1.048596, 1.048596],
-				arrsmallint: [10, 10],
-				arrtext: ['TEXT STRING', 'TEXT STRING'],
-				arrtime: ['13:59:28', '13:59:28'],
-				arrtimestamp: [new Date(1741743161623), new Date(1741743161623)],
-				arrtimestampTz: [new Date(1741743161623), new Date(1741743161623)],
-				arrtimestampStr: [new Date(1741743161623).toISOString(), new Date(1741743161623).toISOString()],
-				arrtimestampTzStr: [new Date(1741743161623).toISOString(), new Date(1741743161623).toISOString()],
-				arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c', 'b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
-				arrvarchar: ['C4-', 'C4-'],
-				string: 'TEXT STRING',
-				arrfloat: [1.12, 1.13],
-				arrstring: ['TEXT STRING', 'TEXT STRING1'],
-				float: 1.12,
-				arrbit: ['1', '1'],
-				arrvarbit: ['1', '1'],
-				arrboolean: [true, false],
-				boolean: true,
-				varbit: '1',
-				bit: '1',
-			});
+			await db.insert(allTypesTable).values(allTypesData);
 
 			const rawRes = await db.select().from(allTypesTable);
 
-			type ExpectedType = {
-				int4: number | null;
-				bigint53: number | null;
-				bigint64: bigint | null;
-				bool: boolean | null;
-				char: string | null;
-				date: Date | null;
-				dateStr: string | null;
-				double: number | null;
-				enum: 'enVal1' | 'enVal2' | null;
-				inet: string | null;
-				interval: string | null;
-				jsonb: unknown;
-				numeric: string | null;
-				numericNum: number | null;
-				numericBig: bigint | null;
-				real: number | null;
-				smallint: number | null;
-				text: string | null;
-				time: string | null;
-				timestamp: Date | null;
-				timestampTz: Date | null;
-				timestampStr: string | null;
-				timestampTzStr: string | null;
-				uuid: string | null;
-				varchar: string | null;
-				arrint: number[] | null;
-				arrbigint53: number[] | null;
-				arrbigint64: bigint[] | null;
-				arrbool: boolean[] | null;
-				arrchar: string[] | null;
-				arrdate: Date[] | null;
-				arrdateStr: string[] | null;
-				arrdouble: number[] | null;
-				arrenum: ('enVal1' | 'enVal2')[] | null;
-				arrinet: string[] | null;
-				arrinterval: string[] | null;
-				arrnumeric: string[] | null;
-				arrnumericNum: number[] | null;
-				arrnumericBig: bigint[] | null;
-				arrreal: number[] | null;
-				arrsmallint: number[] | null;
-				arrtext: string[] | null;
-				arrtime: string[] | null;
-				arrtimestamp: Date[] | null;
-				arrtimestampTz: Date[] | null;
-				arrtimestampStr: string[] | null;
-				arrtimestampTzStr: string[] | null;
-				arruuid: string[] | null;
-				arrvarchar: string[] | null;
-				string: string | null;
-				arrfloat: number[] | null;
-				arrstring: string[] | null;
-				float: number | null;
-				arrbit: string[] | null;
-				arrvarbit: string[] | null;
-				arrboolean: boolean[] | null;
-				boolean: boolean | null;
-				varbit: string | null;
-				bit: string | null;
-			}[];
+			expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
+			expect(rawRes).toStrictEqual([allTypesData]);
 
-			const expectedRes: ExpectedType = [
-				{
-					int4: 1,
-					bigint53: 9007199254740991,
-					bigint64: 5044565289845416380n,
-					bool: true,
-					char: 'c',
-					date: new Date('2025-03-12T00:00:00.000Z'),
-					dateStr: '2025-03-12',
-					double: 15.35325689124218,
-					enum: 'enVal1',
-					inet: '192.168.0.1/24',
-					interval: '-2 mons',
-					jsonb: { arr: ['strb', 11], str: 'strvalb' },
-					numeric: '475452353476',
-					numericNum: 9007199254740991,
-					numericBig: 5044565289845416380n,
-					real: 1.048596,
-					smallint: 15,
-					text: 'TEXT STRING',
-					time: '13:59:28',
-					timestamp: new Date('2025-03-12T01:32:41.623Z'),
-					timestampTz: new Date('2025-03-12T01:32:41.623Z'),
-					timestampStr: '2025-03-12 01:32:41.623',
-					timestampTzStr: '2025-03-12 01:32:41.623+00',
-					uuid: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
-					varchar: 'C4-',
-					arrint: [621, 621],
-					arrbigint53: [9007199254740991, 9007199254740991],
-					arrbigint64: [5044565289845416380n, 5044565289845416380n],
-					arrbool: [true, true],
-					arrchar: ['c', 'c'],
-					arrdate: [new Date('2025-03-12T00:00:00.000Z'), new Date('2025-03-12T00:00:00.000Z')],
-					arrdateStr: ['2025-03-12', '2025-03-12'],
-					arrdouble: [15.35325689124218, 15.35325689124218],
-					arrenum: ['enVal1', 'enVal1'],
-					arrinet: ['192.168.0.1/24', '192.168.0.1/24'],
-					arrinterval: ['-2 mons', '-2 mons'],
-					arrnumeric: ['475452353476', '475452353476'],
-					arrnumericNum: [9007199254740991, 9007199254740991],
-					arrnumericBig: [5044565289845416380n, 5044565289845416380n],
-					arrreal: [1.048596, 1.048596],
-					arrsmallint: [10, 10],
-					arrtext: ['TEXT STRING', 'TEXT STRING'],
-					arrtime: ['13:59:28', '13:59:28'],
-					arrtimestamp: [new Date('2025-03-12T01:32:41.623Z'), new Date('2025-03-12T01:32:41.623Z')],
-					arrtimestampTz: [new Date('2025-03-12T01:32:41.623Z'), new Date('2025-03-12T01:32:41.623Z')],
-					arrtimestampStr: ['2025-03-12 01:32:41.623', '2025-03-12 01:32:41.623'],
-					arrtimestampTzStr: ['2025-03-12 01:32:41.623+00', '2025-03-12 01:32:41.623+00'],
-					arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c', 'b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
-					arrvarchar: ['C4-', 'C4-'],
-					arrfloat: [1.12, 1.13],
-					arrstring: ['TEXT STRING', 'TEXT STRING1'],
-					float: 1.12,
-					string: 'TEXT STRING',
-					arrbit: ['1', '1'],
-					arrboolean: [true, false],
-					arrvarbit: ['1', '1'],
-					bit: '1',
-					boolean: true,
-					varbit: '1',
-				},
-			];
-
-			expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
-			expect(rawRes).toStrictEqual(expectedRes);
+			await assertAllTypesUnions(db, allTypesTable);
+			await assertAllTypesBounds(db);
 		});
 
-		test('generated always columns', async (ctx) => {
-			const { db } = ctx.cockroach;
+		test('Column as decoder applies codecs', async ({ createDB, push }) => {
+			let customCast = false;
+			let customMap = false;
 
+			const codecBypass = customType<{
+				data: Date;
+				driverData: string;
+				jsonData: string;
+			}>({
+				codec: 'timestamptz',
+				dataType: () => 'timestamptz(3)',
+				forJsonSelect: (identifier, sql, arrayDimensions) => {
+					customCast = true;
+					return sql`${identifier}::text${arrayDimensions ? sql.raw('[]'.repeat(arrayDimensions)) : undefined}`;
+				},
+				fromJson: (v) => {
+					customMap = true;
+					return new Date(v);
+				},
+				toDriver: (v) => v.toISOString(),
+			});
+
+			const users = cockroachTable('users_823', (t) => ({
+				id: t.int4().primaryKey(),
+				name: t.text().notNull(),
+				createdAt: t.timestamp('createdAt', { withTimezone: true }).notNull(),
+				createdAtStr: t.timestamp('createdAtStr', { mode: 'string', withTimezone: true }).notNull(),
+				arrCreatedAt: t.timestamp('arrCreatedAt', { withTimezone: true }).notNull().array(),
+				arrCreatedAtStr: t.timestamp('arrCreatedAtStr', { mode: 'string', withTimezone: true }).notNull().array(),
+				cus: codecBypass('cus').notNull(),
+				arrCus: codecBypass('arrCus').notNull().array(),
+			}));
+
+			const usersView = cockroachView('users_823_v').as((qb) =>
+				qb.select({
+					...getColumns(users),
+					max: max(users.createdAt).as('max'),
+					maxStr: max(users.createdAtStr).as('maxStr'),
+				}).from(users).groupBy(users.id)
+			);
+
+			await push({ users, usersView });
+
+			const db = createDB({ users, usersView }, (r) => ({
+				users: {
+					self: r.one.users({
+						from: r.users.id,
+						to: r.users.id,
+					}),
+				},
+				usersView: {
+					self: r.one.usersView({
+						from: r.usersView.id,
+						to: r.usersView.id,
+					}),
+				},
+			}));
+
+			const exDateStr = '1970-01-16 16:45:46.351+00';
+			const exDate = new Date(exDateStr);
+
+			await db.insert(users).values({
+				id: 1,
+				name: 'First',
+				createdAt: exDate,
+				createdAtStr: exDateStr,
+				arrCreatedAt: [exDate],
+				arrCreatedAtStr: [exDateStr],
+				cus: exDate,
+				arrCus: [exDate],
+			});
+
+			const res = await db.select({
+				...getColumns(users),
+				max: max(users.createdAt).as('max'),
+				maxStr: max(users.createdAtStr).as('maxStr'),
+			}).from(users).groupBy(users.id);
+
+			const viewRes = await db.select().from(usersView);
+
+			// no `arrMax`/`arrMaxStr` in the extras either: cockroach has no aggregate over array types
+			const nested = await db.query.users.findFirst({
+				with: {
+					self: {
+						extras: {
+							max: () => sql`select max(${users.createdAt}) from ${users}`.mapWith(users.createdAt),
+							maxStr: () => sql`select max(${users.createdAtStr}) from ${users}`.mapWith(users.createdAtStr),
+						},
+					},
+				},
+				extras: {
+					max: () => sql`select max(${users.createdAt}) from ${users}`.mapWith(users.createdAt),
+					maxStr: () => sql`select max(${users.createdAtStr}) from ${users}`.mapWith(users.createdAtStr),
+				},
+			});
+
+			const viewNested = await db.query.usersView.findFirst({
+				with: {
+					self: true,
+				},
+			});
+
+			const cols = {
+				id: 1,
+				name: 'First',
+				createdAt: exDate,
+				createdAtStr: exDateStr,
+				arrCreatedAt: [exDate],
+				arrCreatedAtStr: [exDateStr],
+				cus: exDate,
+				arrCus: [exDate],
+			};
+			// no `arrMax`/`arrMaxStr`: cockroach has no aggregate over array types
+			// ("unknown signature: max(timestamptz[])"), unlike postgres
+			const aggregates = { max: exDate, maxStr: exDateStr };
+
+			expect(res).toStrictEqual([{ ...cols, ...aggregates }]);
+			expect(viewRes).toStrictEqual([{ ...cols, ...aggregates }]);
+
+			// the custom type's own hooks are what ran for the json-shaped read
+			expect(customCast).toBeTruthy();
+			expect(customMap).toBeTruthy();
+
+			expect(nested).toStrictEqual({ ...cols, ...aggregates, self: { ...cols, ...aggregates } });
+			expect(viewNested).toStrictEqual({
+				...cols,
+				...aggregates,
+				self: { ...cols, ...aggregates },
+			});
+		});
+
+		test('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }) => {
+			let customCast = false;
+			let customMap = false;
+
+			const codecBypass = customType<{
+				data: Date;
+				driverData: string;
+				jsonData: string;
+			}>({
+				codec: 'timestamptz',
+				dataType: () => 'timestamptz(3)',
+				forJsonSelect: (identifier, sql, arrayDimensions) => {
+					customCast = true;
+					return sql`${identifier}::text${arrayDimensions ? sql.raw('[]'.repeat(arrayDimensions)) : undefined}`;
+				},
+				fromJson: (v) => {
+					customMap = true;
+					return new Date(v);
+				},
+				toDriver: (v) => v.toISOString(),
+			});
+
+			const users = cockroachTable('users_823_jit', (t) => ({
+				id: t.int4().primaryKey(),
+				name: t.text().notNull(),
+				createdAt: t.timestamp('createdAt', { withTimezone: true }).notNull(),
+				createdAtStr: t.timestamp('createdAtStr', { mode: 'string', withTimezone: true }).notNull(),
+				arrCreatedAt: t.timestamp('arrCreatedAt', { withTimezone: true }).notNull().array(),
+				arrCreatedAtStr: t.timestamp('arrCreatedAtStr', { mode: 'string', withTimezone: true }).notNull().array(),
+				cus: codecBypass('cus').notNull(),
+				arrCus: codecBypass('arrCus').notNull().array(),
+			}));
+
+			const usersView = cockroachView('users_823_jit_v').as((qb) =>
+				qb.select({
+					...getColumns(users),
+					max: max(users.createdAt).as('max'),
+					maxStr: max(users.createdAtStr).as('maxStr'),
+				}).from(users).groupBy(users.id)
+			);
+
+			await push({ users, usersView });
+
+			const db = createDB(
+				{ users, usersView },
+				(r) => ({
+					users: {
+						self: r.one.users({
+							from: r.users.id,
+							to: r.users.id,
+						}),
+					},
+					usersView: {
+						self: r.one.usersView({
+							from: r.usersView.id,
+							to: r.usersView.id,
+						}),
+					},
+				}),
+				true,
+			);
+
+			const exDateStr = '1970-01-16 16:45:46.351+00';
+			const exDate = new Date(exDateStr);
+
+			await db.insert(users).values({
+				id: 1,
+				name: 'First',
+				createdAt: exDate,
+				createdAtStr: exDateStr,
+				arrCreatedAt: [exDate],
+				arrCreatedAtStr: [exDateStr],
+				cus: exDate,
+				arrCus: [exDate],
+			});
+
+			const res = await db.select({
+				...getColumns(users),
+				max: max(users.createdAt).as('max'),
+				maxStr: max(users.createdAtStr).as('maxStr'),
+			}).from(users).groupBy(users.id);
+
+			const viewRes = await db.select().from(usersView);
+
+			// Cockroach has no aggregate over array types
+			const nested = await db.query.users.findFirst({
+				with: {
+					self: {
+						extras: {
+							max: () => sql`select max(${users.createdAt}) from ${users}`.mapWith(users.createdAt),
+							maxStr: () => sql`select max(${users.createdAtStr}) from ${users}`.mapWith(users.createdAtStr),
+						},
+					},
+				},
+				extras: {
+					max: () => sql`select max(${users.createdAt}) from ${users}`.mapWith(users.createdAt),
+					maxStr: () => sql`select max(${users.createdAtStr}) from ${users}`.mapWith(users.createdAtStr),
+				},
+			});
+
+			const viewNested = await db.query.usersView.findFirst({
+				with: {
+					self: true,
+				},
+			});
+
+			const cols = {
+				id: 1,
+				name: 'First',
+				createdAt: exDate,
+				createdAtStr: exDateStr,
+				arrCreatedAt: [exDate],
+				arrCreatedAtStr: [exDateStr],
+				cus: exDate,
+				arrCus: [exDate],
+			};
+			const aggregates = { max: exDate, maxStr: exDateStr };
+
+			expect(res).toStrictEqual([{ ...cols, ...aggregates }]);
+			expect(viewRes).toStrictEqual([{ ...cols, ...aggregates }]);
+
+			expect(customCast).toBeTruthy();
+			expect(customMap).toBeTruthy();
+
+			expect(nested).toStrictEqual({ ...cols, ...aggregates, self: { ...cols, ...aggregates } });
+			expect(viewNested).toStrictEqual({
+				...cols,
+				...aggregates,
+				self: { ...cols, ...aggregates },
+			});
+		});
+
+		test('all types ~codecs~', async ({ createDB, push }) => {
+			const db = createDB({ allTypesTable }, allTypesRelations);
+			await push({ en: allTypesEnum, allTypesTable });
+
+			await db.insert(allTypesTable).values(allTypesData);
+
+			const session = (<any> db).session as CockroachSession;
+
+			const queryRes = await session.objects<AllTypes>(db.select().from(allTypesTable).getSQL()).then((e) =>
+				normalizeDataWithDbCodecs({
+					db,
+					columns: getColumns(allTypesTable),
+					data: e,
+					mode: 'query',
+				})[0]
+			);
+
+			const { relationRes, rootRes } = await session.objects<AllTypes & { self: AllTypes[] }>(
+				db.query.allTypesTable.findFirst({
+					with: {
+						self: true,
+					},
+				}).getSQL(),
+			).then((e) => {
+				const { self: relationRaw, ...rootRaw } = e[0]!;
+
+				return {
+					relationRes: normalizeDataWithDbCodecs({
+						db,
+						columns: getColumns(allTypesTable),
+						data: relationRaw,
+						mode: 'json',
+					})[0]!,
+					rootRes: normalizeDataWithDbCodecs({
+						db,
+						columns: getColumns(allTypesTable),
+						data: [rootRaw],
+						mode: 'query',
+					})[0]!,
+				};
+			});
+
+			expect(queryRes).toStrictEqual(allTypesData);
+			expect(relationRes).toStrictEqual(allTypesData);
+			expect(rootRes).toStrictEqual(allTypesData);
+
+			await assertAllTypesUnions(db);
+			await assertAllTypesBounds(db);
+		});
+
+		test('generated always columns', async ({ cockroach: { db } }) => {
 			await db.execute(sql`
 				CREATE TABLE "gen_columns" (
 					id int4,
@@ -7903,8 +7522,7 @@ export function tests() {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4612
-		test('select with inline params in sql', async (ctx) => {
-			const { db } = ctx.cockroach;
+		test('select with inline params in sql', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('users_115', {
 				id: int4('id').primaryKey(),
 				name: text('name').notNull(),
@@ -7995,8 +7613,1925 @@ export function tests() {
 			expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
 		});
 
-		test('Mappers: deep nullification', async ({ cockroach: { db } }) => {
+		test('Mappers: correct mappers enabled', async ({ db, createDB }) => {
+			const dialect: CockroachDialect = (<any> db).dialect;
+			const jitDialect: CockroachDialect = (<any> createDB({}, () => ({}), true)).dialect;
+
+			expect(dialect.mapperGenerators.relationalRows === makeDefaultRqbMapper).toStrictEqual(true);
+			expect(dialect.mapperGenerators.rows === makeDefaultQueryMapper).toStrictEqual(true);
+			expect(jitDialect.mapperGenerators.relationalRows === makeJitRqbMapper).toStrictEqual(true);
+			expect(jitDialect.mapperGenerators.rows === makeJitQueryMapper).toStrictEqual(true);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/1603
+		test('Nested partial select left join: null first column - jit', async ({ createDB, push }) => {
+			const orgs = cockroachTable('issue1603_orgs_jit', (t) => ({
+				id: t.int4('id').primaryKey(),
+				name: t.text('name').notNull(),
+			}));
+			const branding = cockroachTable('issue1603_branding_jit', (t) => ({
+				id: t.int4('id').primaryKey(),
+				orgId: t.int4('org_id').references(() => orgs.id),
+				logo: t.text('logo'),
+				panelBackground: t.text('panel_background'),
+			}));
+
+			await push({ orgs, branding });
+			const db = createDB({ orgs, branding }, () => ({}), true);
+
+			await db.insert(orgs).values([{ id: 1, name: 'Acme' }, { id: 2, name: 'NoBranding' }]);
+			await db.insert(branding).values({ id: 1, orgId: 1, logo: null, panelBackground: '#1a8cff' });
+
+			const withBranding = await db.select({
+				name: orgs.name,
+				branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+			}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 1));
+
+			expect(withBranding).toStrictEqual([{
+				name: 'Acme',
+				branding: { logo: null, panelBackground: '#1a8cff' },
+			}]);
+
+			const withoutBranding = await db.select({
+				name: orgs.name,
+				branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+			}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 2));
+
+			expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
+		});
+
+		const mappersDate = new Date('2026-04-02T00:00:00.000Z');
+
+		test('Mappers: simple select - no rows', async ({ db, push }) => {
+			const users = cockroachTable('mappers_users_1', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+				isBanned: t.bool('is_banned'),
+			}));
+
+			await push({ users });
+
+			const result = await db.select().from(users);
+
+			expect(result).toStrictEqual([]);
+		});
+
+		test('Mappers: select - nothing to decode - text', async ({ db, push }) => {
+			const users = cockroachTable('mappers_users_2', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+				isBanned: t.bool('is_banned'),
+			}));
+
+			await push({ users });
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}]).returning();
+
+			const selected = await db.select({ name: users.name }).from(users);
+
+			expect(selected).toStrictEqual([{ name: 'First' }]);
+		});
+
+		test('Mappers: select - nothing to decode - null', async ({ db, push }) => {
+			const users = cockroachTable('mappers_users_3', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+				isBanned: t.bool('is_banned'),
+			}));
+
+			await push({ users });
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}]).returning();
+
+			const selected = await db.select({ isBanned: users.isBanned }).from(users);
+
+			expect(selected).toStrictEqual([{ isBanned: null }]);
+		});
+
+		test(
+			'Mappers: insert returning all + select + update returning + delete returning',
+			async ({ db, push }) => {
+				const users = cockroachTable('mappers_users_4', (t) => ({
+					id: t.bigint('id', { mode: 'number' }).primaryKey(),
+					name: t.text('name').notNull(),
+					createdAt: t.timestamp('created_at', {
+						withTimezone: true,
+						mode: 'date',
+					}).notNull(),
+					isBanned: t.bool('is_banned'),
+				}));
+
+				await push({ users });
+
+				const inserted = await db.insert(users).values([{
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+				}, {
+					id: 2,
+					name: 'Second',
+					createdAt: mappersDate,
+					isBanned: true,
+				}, {
+					id: 3,
+					name: 'Third',
+					createdAt: mappersDate,
+				}]).returning();
+
+				const selected = await db.select().from(users).orderBy(users.id);
+
+				const updated = await db.update(users).set({
+					isBanned: false,
+				}).where(eq(users.id, 2)).returning();
+
+				const deleted = await db.delete(users).returning();
+
+				expect(inserted).toStrictEqual([{
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+					isBanned: null,
+				}, {
+					id: 2,
+					name: 'Second',
+					createdAt: mappersDate,
+					isBanned: true,
+				}, {
+					id: 3,
+					name: 'Third',
+					createdAt: mappersDate,
+					isBanned: null,
+				}]);
+				expect(selected).toStrictEqual([{
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+					isBanned: null,
+				}, {
+					id: 2,
+					name: 'Second',
+					createdAt: mappersDate,
+					isBanned: true,
+				}, {
+					id: 3,
+					name: 'Third',
+					createdAt: mappersDate,
+					isBanned: null,
+				}]);
+				expect(updated).toStrictEqual([{
+					id: 2,
+					name: 'Second',
+					createdAt: mappersDate,
+					isBanned: false,
+				}]);
+				expect(deleted).toStrictEqual(expect.arrayContaining([{
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+					isBanned: null,
+				}, {
+					id: 2,
+					name: 'Second',
+					createdAt: mappersDate,
+					isBanned: false,
+				}, {
+					id: 3,
+					name: 'Third',
+					createdAt: mappersDate,
+					isBanned: null,
+				}]));
+			},
+		);
+
+		test('Mappers: select complex selections', async ({ db, push }) => {
+			const users = cockroachTable('mappers_users_5', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+				isBanned: t.bool('is_banned'),
+			}));
+
+			const posts = cockroachTable('mappers_posts_1', (t) => ({
+				id: t.int4('id').primaryKey(),
+				authorId: t.bigint('author_id', { mode: 'number' }).references(() => users.id),
+				content: t.text('content'),
+			}));
+
+			const internalStaff = cockroachTable('internal_staff_qm1', {
+				userId: int4('user_id').notNull().primaryKey(),
+			});
+
+			const ticket = cockroachTable('ticket_qm1', {
+				staffId: int4('staff_id').notNull(),
+			});
+
+			const notes = cockroachTable('mappers_notes_1', (t) => ({
+				id: t.int4('id').primaryKey(),
+				ownerId: t.bigint('owner_id', { mode: 'number' }).references(() => users.id),
+				body: t.text('body'),
+			}));
+
+			await push({ users, posts, internalStaff, ticket, notes });
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+			}]).returning();
+			await db.insert(posts).values({
+				id: 1,
+				authorId: 1,
+				content: 'p1',
+			});
+			await db.insert(internalStaff).values([{
+				userId: 1,
+			}, {
+				userId: 2,
+			}]);
+			await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }]);
+			await db.insert(notes).values([{ id: 1, ownerId: 1, body: null }, { id: 2, ownerId: 2, body: 'n2' }]);
+
+			const selected1 = await db.select({ user: users, post: posts }).from(users).leftJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			).orderBy(users.id);
+			const selected2 = await db.select({ user: users, post: posts }).from(users).innerJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			).orderBy(users.id);
+			const selected3 = await db.select({
+				userId: users.id,
+				postId: posts.id,
+				name: users.name,
+				isBanned: users.isBanned,
+				content: posts.content,
+				createdAt: users.createdAt,
+			}).from(users).leftJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			).orderBy(users.id);
+			const selected4 = await db.select({
+				userId: users.id,
+				postId: posts.id,
+				name: users.name,
+				isBanned: users.isBanned,
+				content: posts.content,
+				createdAt: users.createdAt,
+			}).from(users).innerJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			).orderBy(users.id);
+			const selected5 = await db.select({
+				user: {
+					...getTableColumns(users),
+					extra: sql`1`.mapWith(Number).as('extra_1'),
+				},
+				post: {
+					...getTableColumns(posts),
+					extra: sql`1`.mapWith(Number).as('extra_1'),
+				},
+			}).from(users).leftJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			).orderBy(users.id);
+			const subq = db
+				.select()
+				.from(internalStaff)
+				.leftJoin(users, eq(internalStaff.userId, users.id))
+				.as('internal_staff');
+			const selected6 = await db
+				.select()
+				.from(ticket)
+				.leftJoin(subq, eq(subq.internal_staff_qm1.userId, ticket.staffId))
+				.orderBy(ticket.staffId);
+			const selected7 = await db.select({
+				user: { id: users.id },
+				note: { ownerId: notes.ownerId, body: notes.body },
+			}).from(users).leftJoin(notes, eq(users.id, notes.ownerId)).orderBy(users.id);
+			const selected8 = await db.select({
+				user: { id: users.id },
+				post: { ...getTableColumns(posts), nothing: sql`null`.as('nothing_1') },
+			}).from(users).leftJoin(posts, eq(users.id, posts.authorId)).orderBy(users.id);
+
+			expect(selected1).toStrictEqual([{
+				user: {
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+					isBanned: null,
+				},
+				post: {
+					id: 1,
+					authorId: 1,
+					content: 'p1',
+				},
+			}, {
+				user: {
+					id: 2,
+					name: 'Second',
+					createdAt: mappersDate,
+					isBanned: true,
+				},
+				post: null,
+			}, {
+				user: {
+					id: 3,
+					name: 'Third',
+					createdAt: mappersDate,
+					isBanned: null,
+				},
+				post: null,
+			}]);
+			expect(selected2).toStrictEqual([{
+				user: {
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+					isBanned: null,
+				},
+				post: {
+					id: 1,
+					authorId: 1,
+					content: 'p1',
+				},
+			}]);
+			expect(selected3).toStrictEqual([
+				{
+					content: 'p1',
+					createdAt: mappersDate,
+					isBanned: null,
+					name: 'First',
+					postId: 1,
+					userId: 1,
+				},
+				{
+					content: null,
+					createdAt: mappersDate,
+					isBanned: true,
+					name: 'Second',
+					postId: null,
+					userId: 2,
+				},
+				{
+					content: null,
+					createdAt: mappersDate,
+					isBanned: null,
+					name: 'Third',
+					postId: null,
+					userId: 3,
+				},
+			]);
+			expect(selected4).toStrictEqual([
+				{
+					content: 'p1',
+					createdAt: mappersDate,
+					isBanned: null,
+					name: 'First',
+					postId: 1,
+					userId: 1,
+				},
+			]);
+			expect(selected5).toStrictEqual([
+				{
+					post: {
+						authorId: 1,
+						content: 'p1',
+						extra: 1,
+						id: 1,
+					},
+					user: {
+						createdAt: mappersDate,
+						extra: 1,
+						id: 1,
+						isBanned: null,
+						name: 'First',
+					},
+				},
+				{
+					post: {
+						authorId: null,
+						content: null,
+						extra: 1,
+						id: null,
+					},
+					user: {
+						createdAt: mappersDate,
+						extra: 1,
+						id: 2,
+						isBanned: true,
+						name: 'Second',
+					},
+				},
+				{
+					post: {
+						authorId: null,
+						content: null,
+						extra: 1,
+						id: null,
+					},
+					user: {
+						createdAt: mappersDate,
+						extra: 1,
+						id: 3,
+						isBanned: null,
+						name: 'Third',
+					},
+				},
+			]);
+			expect(selected6).toStrictEqual(
+				[
+					{
+						internal_staff: {
+							internal_staff_qm1: {
+								userId: 1,
+							},
+							mappers_users_5: {
+								createdAt: mappersDate,
+								id: 1,
+								isBanned: null,
+								name: 'First',
+							},
+						},
+						ticket_qm1: {
+							staffId: 1,
+						},
+					},
+					{
+						internal_staff: {
+							internal_staff_qm1: {
+								userId: 2,
+							},
+							mappers_users_5: {
+								createdAt: mappersDate,
+								id: 2,
+								isBanned: true,
+								name: 'Second',
+							},
+						},
+						ticket_qm1: {
+							staffId: 2,
+						},
+					},
+				],
+			);
+			expect(selected7).toStrictEqual([
+				{ user: { id: 1 }, note: { ownerId: 1, body: null } },
+				{ user: { id: 2 }, note: { ownerId: 2, body: 'n2' } },
+				{ user: { id: 3 }, note: null },
+			]);
+			expect(selected8).toStrictEqual([
+				{ user: { id: 1 }, post: { id: 1, authorId: 1, content: 'p1', nothing: null } },
+				{ user: { id: 2 }, post: null },
+				{ user: { id: 3 }, post: null },
+			]);
+		});
+
+		test('Mappers: relational', async ({ createDB, push }) => {
+			const users = cockroachTable('mappers_users_6', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+				isBanned: t.bool('is_banned'),
+			}));
+
+			const posts = cockroachTable('mappers_posts_2', (t) => ({
+				id: t.int4('id').primaryKey(),
+				authorId: t.bigint('author_id', { mode: 'number' }).references(() => users.id),
+				content: t.text('content'),
+			}));
+
+			await push({ users, posts });
+			const db = createDB(
+				{ users, posts },
+				(r) => ({
+					users: {
+						post: r.one.posts({
+							from: r.users.id,
+							to: r.posts.authorId,
+						}),
+						posts: r.one.posts({
+							from: r.users.id,
+							to: r.posts.authorId,
+						}),
+					},
+					posts: {
+						author: r.one.users({
+							from: r.posts.authorId,
+							to: r.users.id,
+						}),
+						authors: r.many.users({
+							from: r.posts.authorId,
+							to: r.users.id,
+						}),
+					},
+				}),
+				false,
+			);
+
+			const empty1 = await db.query.users.findFirst();
+			const empty2 = await db.query.users.findMany();
+
+			expect(empty1).toStrictEqual(undefined);
+			expect(empty2).toStrictEqual([]);
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+			}]).returning();
+			await db.insert(posts).values({
+				id: 1,
+				authorId: 1,
+				content: 'p1',
+			});
+
+			const simple1 = await db.query.users.findFirst({ orderBy: { id: 'asc' } });
+			const simple2 = await db.query.users.findMany({ orderBy: { id: 'asc' } });
+
+			expect(simple1).toStrictEqual(
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+				},
+			);
+			expect(simple2).toStrictEqual([
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+				},
+				{
+					createdAt: mappersDate,
+					id: 2,
+					isBanned: true,
+					name: 'Second',
+				},
+				{
+					createdAt: mappersDate,
+					id: 3,
+					isBanned: null,
+					name: 'Third',
+				},
+			]);
+
+			const extra1 = await db.query.users.findFirst({
+				orderBy: { id: 'asc' },
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				},
+			});
+			const extra2 = await db.query.users.findMany({
+				orderBy: { id: 'asc' },
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				},
+			});
+
+			expect(extra1).toStrictEqual(
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+					sql: 1,
+					sqlWrapper: 2,
+				},
+			);
+			expect(extra2).toStrictEqual([
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				{
+					createdAt: mappersDate,
+					id: 2,
+					isBanned: true,
+					name: 'Second',
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				{
+					createdAt: mappersDate,
+					id: 3,
+					isBanned: null,
+					name: 'Third',
+					sql: 1,
+					sqlWrapper: 2,
+				},
+			]);
+
+			const nested1 = await db.query.users.findFirst({
+				orderBy: { id: 'asc' },
+				with: {
+					post: {
+						with: {
+							author: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+								where: {
+									RAW: sql`false`,
+								},
+							},
+							authors: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+								where: {
+									RAW: sql`false`,
+								},
+							},
+						},
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+						},
+					},
+					posts: {
+						with: {
+							author: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+							},
+							authors: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+							},
+						},
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+						},
+					},
+				},
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				},
+			});
+			const nested2 = await db.query.users.findMany({
+				orderBy: { id: 'asc' },
+				with: {
+					post: {
+						with: {
+							author: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+								where: {
+									RAW: sql`false`,
+								},
+							},
+							authors: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+								where: {
+									RAW: sql`false`,
+								},
+							},
+						},
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+						},
+					},
+					posts: {
+						with: {
+							author: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+							},
+							authors: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+							},
+						},
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+						},
+					},
+				},
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				},
+			});
+
+			expect(nested1).toStrictEqual(
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+					post: {
+						author: null,
+						authorId: 1,
+						authors: [],
+						content: 'p1',
+						id: 1,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					posts: {
+						author: {
+							createdAt: mappersDate,
+							id: 1,
+							isBanned: null,
+							name: 'First',
+							sql: 1,
+							sqlWrapper: 2,
+						},
+						authorId: 1,
+						authors: [
+							{
+								createdAt: mappersDate,
+								id: 1,
+								isBanned: null,
+								name: 'First',
+								sql: 1,
+								sqlWrapper: 2,
+							},
+						],
+						content: 'p1',
+						id: 1,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					sql: 1,
+					sqlWrapper: 2,
+				},
+			);
+			expect(nested2).toStrictEqual([
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+					post: {
+						author: null,
+						authorId: 1,
+						authors: [],
+						content: 'p1',
+						id: 1,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					posts: {
+						author: {
+							createdAt: mappersDate,
+							id: 1,
+							isBanned: null,
+							name: 'First',
+							sql: 1,
+							sqlWrapper: 2,
+						},
+						authorId: 1,
+						authors: [
+							{
+								createdAt: mappersDate,
+								id: 1,
+								isBanned: null,
+								name: 'First',
+								sql: 1,
+								sqlWrapper: 2,
+							},
+						],
+						content: 'p1',
+						id: 1,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				{
+					createdAt: mappersDate,
+					id: 2,
+					isBanned: true,
+					name: 'Second',
+					post: null,
+					posts: null,
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				{
+					createdAt: mappersDate,
+					id: 3,
+					isBanned: null,
+					name: 'Third',
+					post: null,
+					posts: null,
+					sql: 1,
+					sqlWrapper: 2,
+				},
+			]);
+		});
+
+		test('Jit mappers: simple select - no rows', async ({ createDB, push }) => {
+			const users = cockroachTable('jit_mappers_users_1', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+				isBanned: t.bool('is_banned'),
+			}));
+
+			await push({ users });
+			const db = createDB({ users }, () => ({}), true);
+
+			const result = await db.select().from(users);
+
+			expect(result).toStrictEqual([]);
+		});
+
+		test('Jit mappers: select - nothing to decode - text', async ({ createDB, push }) => {
+			const users = cockroachTable('jit_mappers_users_2', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+				isBanned: t.bool('is_banned'),
+			}));
+
+			await push({ users });
+			const db = createDB({ users }, () => ({}), true);
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}]).returning();
+
+			const selected = await db.select({ name: users.name }).from(users);
+
+			expect(selected).toStrictEqual([{ name: 'First' }]);
+		});
+
+		test('Jit mappers: select - nothing to decode - null', async ({ createDB, push }) => {
+			const users = cockroachTable('jit_mappers_users_3', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+				isBanned: t.bool('is_banned'),
+			}));
+
+			await push({ users });
+			const db = createDB({ users }, () => ({}), true);
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}]).returning();
+
+			const selected = await db.select({ isBanned: users.isBanned }).from(users);
+
+			expect(selected).toStrictEqual([{ isBanned: null }]);
+		});
+
+		test(
+			'Jit mappers: insert returning all + select + update returning + delete returning',
+			async ({ createDB, push }) => {
+				const users = cockroachTable('jit_mappers_users_4', (t) => ({
+					id: t.bigint('id', { mode: 'number' }).primaryKey(),
+					name: t.text('name').notNull(),
+					createdAt: t.timestamp('created_at', {
+						withTimezone: true,
+						mode: 'date',
+					}).notNull(),
+					isBanned: t.bool('is_banned'),
+				}));
+
+				await push({ users });
+				const db = createDB({ users }, () => ({}), true);
+
+				const inserted = await db.insert(users).values([{
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+				}, {
+					id: 2,
+					name: 'Second',
+					createdAt: mappersDate,
+					isBanned: true,
+				}, {
+					id: 3,
+					name: 'Third',
+					createdAt: mappersDate,
+				}]).returning();
+
+				const selected = await db.select().from(users).orderBy(users.id);
+
+				const updated = await db.update(users).set({
+					isBanned: false,
+				}).where(eq(users.id, 2)).returning();
+
+				const deleted = await db.delete(users).returning();
+
+				expect(inserted).toStrictEqual([{
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+					isBanned: null,
+				}, {
+					id: 2,
+					name: 'Second',
+					createdAt: mappersDate,
+					isBanned: true,
+				}, {
+					id: 3,
+					name: 'Third',
+					createdAt: mappersDate,
+					isBanned: null,
+				}]);
+				expect(selected).toStrictEqual([{
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+					isBanned: null,
+				}, {
+					id: 2,
+					name: 'Second',
+					createdAt: mappersDate,
+					isBanned: true,
+				}, {
+					id: 3,
+					name: 'Third',
+					createdAt: mappersDate,
+					isBanned: null,
+				}]);
+				expect(updated).toStrictEqual([{
+					id: 2,
+					name: 'Second',
+					createdAt: mappersDate,
+					isBanned: false,
+				}]);
+				expect(deleted).toStrictEqual(expect.arrayContaining([{
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+					isBanned: null,
+				}, {
+					id: 2,
+					name: 'Second',
+					createdAt: mappersDate,
+					isBanned: false,
+				}, {
+					id: 3,
+					name: 'Third',
+					createdAt: mappersDate,
+					isBanned: null,
+				}]));
+			},
+		);
+
+		test('Jit mappers: select complex selections', async ({ createDB, push }) => {
+			const users = cockroachTable('jit_mappers_users_5', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+				isBanned: t.bool('is_banned'),
+			}));
+
+			const posts = cockroachTable('jit_mappers_posts_1', (t) => ({
+				id: t.int4('id').primaryKey(),
+				authorId: t.bigint('author_id', { mode: 'number' }).references(() => users.id),
+				content: t.text('content'),
+			}));
+
+			const internalStaff = cockroachTable('internal_staff_qm2', {
+				userId: int4('user_id').notNull().primaryKey(),
+			});
+
+			const ticket = cockroachTable('ticket_qm2', {
+				staffId: int4('staff_id').notNull(),
+			});
+
+			const notes = cockroachTable('jit_mappers_notes_1', (t) => ({
+				id: t.int4('id').primaryKey(),
+				ownerId: t.bigint('owner_id', { mode: 'number' }).references(() => users.id),
+				body: t.text('body'),
+			}));
+
+			await push({ users, posts, internalStaff, ticket, notes });
+			const db = createDB({ users, posts, internalStaff, ticket, notes }, () => ({}), true);
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+			}]).returning();
+			await db.insert(posts).values({
+				id: 1,
+				authorId: 1,
+				content: 'p1',
+			});
+			await db.insert(internalStaff).values([{
+				userId: 1,
+			}, {
+				userId: 2,
+			}]);
+			await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }]);
+			await db.insert(notes).values([{ id: 1, ownerId: 1, body: null }, { id: 2, ownerId: 2, body: 'n2' }]);
+
+			const selected1 = await db.select({ user: users, post: posts }).from(users).leftJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			).orderBy(users.id);
+			const selected2 = await db.select({ user: users, post: posts }).from(users).innerJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			).orderBy(users.id);
+			const selected3 = await db.select({
+				userId: users.id,
+				postId: posts.id,
+				name: users.name,
+				isBanned: users.isBanned,
+				content: posts.content,
+				createdAt: users.createdAt,
+			}).from(users).leftJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			).orderBy(users.id);
+			const selected4 = await db.select({
+				userId: users.id,
+				postId: posts.id,
+				name: users.name,
+				isBanned: users.isBanned,
+				content: posts.content,
+				createdAt: users.createdAt,
+			}).from(users).innerJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			).orderBy(users.id);
+			const selected5 = await db.select({
+				user: {
+					...getTableColumns(users),
+					extra: sql`1`.mapWith(Number).as('extra_1'),
+				},
+				post: {
+					...getTableColumns(posts),
+					extra: sql`1`.mapWith(Number).as('extra_1'),
+				},
+			}).from(users).leftJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			).orderBy(users.id);
+			const subq = db
+				.select()
+				.from(internalStaff)
+				.leftJoin(users, eq(internalStaff.userId, users.id))
+				.as('internal_staff');
+			const selected6 = await db
+				.select()
+				.from(ticket)
+				.leftJoin(subq, eq(subq.internal_staff_qm2.userId, ticket.staffId))
+				.orderBy(ticket.staffId);
+			const selected7 = await db.select({
+				user: { id: users.id },
+				note: { ownerId: notes.ownerId, body: notes.body },
+			}).from(users).leftJoin(notes, eq(users.id, notes.ownerId)).orderBy(users.id);
+			const selected8 = await db.select({
+				user: { id: users.id },
+				post: { ...getTableColumns(posts), nothing: sql`null`.as('nothing_1') },
+			}).from(users).leftJoin(posts, eq(users.id, posts.authorId)).orderBy(users.id);
+
+			expect(selected1).toStrictEqual([{
+				user: {
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+					isBanned: null,
+				},
+				post: {
+					id: 1,
+					authorId: 1,
+					content: 'p1',
+				},
+			}, {
+				user: {
+					id: 2,
+					name: 'Second',
+					createdAt: mappersDate,
+					isBanned: true,
+				},
+				post: null,
+			}, {
+				user: {
+					id: 3,
+					name: 'Third',
+					createdAt: mappersDate,
+					isBanned: null,
+				},
+				post: null,
+			}]);
+			expect(selected2).toStrictEqual([{
+				user: {
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+					isBanned: null,
+				},
+				post: {
+					id: 1,
+					authorId: 1,
+					content: 'p1',
+				},
+			}]);
+			expect(selected3).toStrictEqual([
+				{
+					content: 'p1',
+					createdAt: mappersDate,
+					isBanned: null,
+					name: 'First',
+					postId: 1,
+					userId: 1,
+				},
+				{
+					content: null,
+					createdAt: mappersDate,
+					isBanned: true,
+					name: 'Second',
+					postId: null,
+					userId: 2,
+				},
+				{
+					content: null,
+					createdAt: mappersDate,
+					isBanned: null,
+					name: 'Third',
+					postId: null,
+					userId: 3,
+				},
+			]);
+			expect(selected4).toStrictEqual([
+				{
+					content: 'p1',
+					createdAt: mappersDate,
+					isBanned: null,
+					name: 'First',
+					postId: 1,
+					userId: 1,
+				},
+			]);
+			expect(selected5).toStrictEqual([
+				{
+					post: {
+						authorId: 1,
+						content: 'p1',
+						extra: 1,
+						id: 1,
+					},
+					user: {
+						createdAt: mappersDate,
+						extra: 1,
+						id: 1,
+						isBanned: null,
+						name: 'First',
+					},
+				},
+				{
+					post: {
+						authorId: null,
+						content: null,
+						extra: 1,
+						id: null,
+					},
+					user: {
+						createdAt: mappersDate,
+						extra: 1,
+						id: 2,
+						isBanned: true,
+						name: 'Second',
+					},
+				},
+				{
+					post: {
+						authorId: null,
+						content: null,
+						extra: 1,
+						id: null,
+					},
+					user: {
+						createdAt: mappersDate,
+						extra: 1,
+						id: 3,
+						isBanned: null,
+						name: 'Third',
+					},
+				},
+			]);
+			expect(selected6).toStrictEqual(
+				[
+					{
+						internal_staff: {
+							internal_staff_qm2: {
+								userId: 1,
+							},
+							jit_mappers_users_5: {
+								createdAt: mappersDate,
+								id: 1,
+								isBanned: null,
+								name: 'First',
+							},
+						},
+						ticket_qm2: {
+							staffId: 1,
+						},
+					},
+					{
+						internal_staff: {
+							internal_staff_qm2: {
+								userId: 2,
+							},
+							jit_mappers_users_5: {
+								createdAt: mappersDate,
+								id: 2,
+								isBanned: true,
+								name: 'Second',
+							},
+						},
+						ticket_qm2: {
+							staffId: 2,
+						},
+					},
+				],
+			);
+			expect(selected7).toStrictEqual([
+				{ user: { id: 1 }, note: { ownerId: 1, body: null } },
+				{ user: { id: 2 }, note: { ownerId: 2, body: 'n2' } },
+				{ user: { id: 3 }, note: null },
+			]);
+			expect(selected8).toStrictEqual([
+				{ user: { id: 1 }, post: { id: 1, authorId: 1, content: 'p1', nothing: null } },
+				{ user: { id: 2 }, post: null },
+				{ user: { id: 3 }, post: null },
+			]);
+		});
+
+		test('Jit mappers: relational', async ({ createDB, push }) => {
+			const users = cockroachTable('jit_mappers_users_6', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+				isBanned: t.bool('is_banned'),
+			}));
+
+			const posts = cockroachTable('jit_mappers_posts_2', (t) => ({
+				id: t.int4('id').primaryKey(),
+				authorId: t.bigint('author_id', { mode: 'number' }).references(() => users.id),
+				content: t.text('content'),
+			}));
+
+			await push({ users, posts });
+			const db = createDB(
+				{ users, posts },
+				(r) => ({
+					users: {
+						post: r.one.posts({
+							from: r.users.id,
+							to: r.posts.authorId,
+						}),
+						posts: r.one.posts({
+							from: r.users.id,
+							to: r.posts.authorId,
+						}),
+					},
+					posts: {
+						author: r.one.users({
+							from: r.posts.authorId,
+							to: r.users.id,
+						}),
+						authors: r.many.users({
+							from: r.posts.authorId,
+							to: r.users.id,
+						}),
+					},
+				}),
+				true,
+			);
+
+			const empty1 = await db.query.users.findFirst();
+			const empty2 = await db.query.users.findMany();
+
+			expect(empty1).toStrictEqual(undefined);
+			expect(empty2).toStrictEqual([]);
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+			}]).returning();
+			await db.insert(posts).values({
+				id: 1,
+				authorId: 1,
+				content: 'p1',
+			});
+
+			const simple1 = await db.query.users.findFirst({ orderBy: { id: 'asc' } });
+			const simple2 = await db.query.users.findMany({ orderBy: { id: 'asc' } });
+
+			expect(simple1).toStrictEqual(
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+				},
+			);
+			expect(simple2).toStrictEqual([
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+				},
+				{
+					createdAt: mappersDate,
+					id: 2,
+					isBanned: true,
+					name: 'Second',
+				},
+				{
+					createdAt: mappersDate,
+					id: 3,
+					isBanned: null,
+					name: 'Third',
+				},
+			]);
+
+			const extra1 = await db.query.users.findFirst({
+				orderBy: { id: 'asc' },
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				},
+			});
+			const extra2 = await db.query.users.findMany({
+				orderBy: { id: 'asc' },
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				},
+			});
+
+			expect(extra1).toStrictEqual(
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+					sql: 1,
+					sqlWrapper: 2,
+				},
+			);
+			expect(extra2).toStrictEqual([
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				{
+					createdAt: mappersDate,
+					id: 2,
+					isBanned: true,
+					name: 'Second',
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				{
+					createdAt: mappersDate,
+					id: 3,
+					isBanned: null,
+					name: 'Third',
+					sql: 1,
+					sqlWrapper: 2,
+				},
+			]);
+
+			const nested1 = await db.query.users.findFirst({
+				orderBy: { id: 'asc' },
+				with: {
+					post: {
+						with: {
+							author: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+								where: {
+									RAW: sql`false`,
+								},
+							},
+							authors: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+								where: {
+									RAW: sql`false`,
+								},
+							},
+						},
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+						},
+					},
+					posts: {
+						with: {
+							author: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+							},
+							authors: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+							},
+						},
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+						},
+					},
+				},
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				},
+			});
+			const nested2 = await db.query.users.findMany({
+				orderBy: { id: 'asc' },
+				with: {
+					post: {
+						with: {
+							author: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+								where: {
+									RAW: sql`false`,
+								},
+							},
+							authors: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+								where: {
+									RAW: sql`false`,
+								},
+							},
+						},
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+						},
+					},
+					posts: {
+						with: {
+							author: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+							},
+							authors: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+							},
+						},
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+						},
+					},
+				},
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				},
+			});
+
+			expect(nested1).toStrictEqual(
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+					post: {
+						author: null,
+						authorId: 1,
+						authors: [],
+						content: 'p1',
+						id: 1,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					posts: {
+						author: {
+							createdAt: mappersDate,
+							id: 1,
+							isBanned: null,
+							name: 'First',
+							sql: 1,
+							sqlWrapper: 2,
+						},
+						authorId: 1,
+						authors: [
+							{
+								createdAt: mappersDate,
+								id: 1,
+								isBanned: null,
+								name: 'First',
+								sql: 1,
+								sqlWrapper: 2,
+							},
+						],
+						content: 'p1',
+						id: 1,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					sql: 1,
+					sqlWrapper: 2,
+				},
+			);
+			expect(nested2).toStrictEqual([
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+					post: {
+						author: null,
+						authorId: 1,
+						authors: [],
+						content: 'p1',
+						id: 1,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					posts: {
+						author: {
+							createdAt: mappersDate,
+							id: 1,
+							isBanned: null,
+							name: 'First',
+							sql: 1,
+							sqlWrapper: 2,
+						},
+						authorId: 1,
+						authors: [
+							{
+								createdAt: mappersDate,
+								id: 1,
+								isBanned: null,
+								name: 'First',
+								sql: 1,
+								sqlWrapper: 2,
+							},
+						],
+						content: 'p1',
+						id: 1,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				{
+					createdAt: mappersDate,
+					id: 2,
+					isBanned: true,
+					name: 'Second',
+					post: null,
+					posts: null,
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				{
+					createdAt: mappersDate,
+					id: 3,
+					isBanned: null,
+					name: 'Third',
+					post: null,
+					posts: null,
+					sql: 1,
+					sqlWrapper: 2,
+				},
+			]);
+		});
+
+		test('Mappers: deep nullification', async ({ db, push }) => {
+			const users = cockroachTable('mappers_users_dn', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+				isBanned: t.bool('is_banned'),
+			}));
+
+			const internalStaff = cockroachTable('internal_staff_qm_dn', {
+				userId: int4('user_id').notNull().primaryKey(),
+			});
+
+			const ticket = cockroachTable('ticket_qm_dn', {
+				staffId: int4('staff_id').notNull(),
+			});
+
+			await push({ users, internalStaff, ticket });
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+			}]).returning();
+			await db.insert(internalStaff).values([{
+				userId: 1,
+			}, {
+				userId: 2,
+			}]);
+			await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]);
+
+			const subq = db
+				.select()
+				.from(internalStaff)
+				.leftJoin(users, eq(internalStaff.userId, users.id))
+				.as('internal_staff');
+			const selected = await db
+				.select()
+				.from(ticket)
+				.leftJoin(subq, eq(subq.internal_staff_qm_dn.userId, ticket.staffId))
+				.orderBy(ticket.staffId);
+
+			expect(selected).toStrictEqual(
+				[
+					{
+						internal_staff: {
+							internal_staff_qm_dn: {
+								userId: 1,
+							},
+							mappers_users_dn: {
+								createdAt: mappersDate,
+								id: 1,
+								isBanned: null,
+								name: 'First',
+							},
+						},
+						ticket_qm_dn: {
+							staffId: 1,
+						},
+					},
+					{
+						internal_staff: {
+							internal_staff_qm_dn: {
+								userId: 2,
+							},
+							mappers_users_dn: {
+								createdAt: mappersDate,
+								id: 2,
+								isBanned: true,
+								name: 'Second',
+							},
+						},
+						ticket_qm_dn: {
+							staffId: 2,
+						},
+					},
+					{
+						internal_staff: null,
+						ticket_qm_dn: {
+							staffId: 3,
+						},
+					},
+				],
+			);
+		});
+
+		test('Jit mappers: deep nullification', async ({ createDB, push }) => {
+			const users = cockroachTable('mappers_users_jdn', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+				isBanned: t.bool('is_banned'),
+			}));
+
+			const internalStaff = cockroachTable('internal_staff_qm_jdn', {
+				userId: int4('user_id').notNull().primaryKey(),
+			});
+
+			const ticket = cockroachTable('ticket_qm_jdn', {
+				staffId: int4('staff_id').notNull(),
+			});
+
+			await push({ users, internalStaff, ticket });
+			const db = createDB({ users, internalStaff, ticket }, () => ({}), true);
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+			}]).returning();
+			await db.insert(internalStaff).values([{
+				userId: 1,
+			}, {
+				userId: 2,
+			}]);
+			await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]);
+
+			const subq = db
+				.select()
+				.from(internalStaff)
+				.leftJoin(users, eq(internalStaff.userId, users.id))
+				.as('internal_staff');
+			const selected = await db
+				.select()
+				.from(ticket)
+				.leftJoin(subq, eq(subq.internal_staff_qm_jdn.userId, ticket.staffId))
+				.orderBy(ticket.staffId);
+
+			expect(selected).toStrictEqual(
+				[
+					{
+						internal_staff: {
+							internal_staff_qm_jdn: {
+								userId: 1,
+							},
+							mappers_users_jdn: {
+								createdAt: mappersDate,
+								id: 1,
+								isBanned: null,
+								name: 'First',
+							},
+						},
+						ticket_qm_jdn: {
+							staffId: 1,
+						},
+					},
+					{
+						internal_staff: {
+							internal_staff_qm_jdn: {
+								userId: 2,
+							},
+							mappers_users_jdn: {
+								createdAt: mappersDate,
+								id: 2,
+								isBanned: true,
+								name: 'Second',
+							},
+						},
+						ticket_qm_jdn: {
+							staffId: 2,
+						},
+					},
+					{
+						internal_staff: null,
+						ticket_qm_jdn: {
+							staffId: 3,
+						},
+					},
+				],
+			);
+		});
+
+		test('Mappers: deep nullification through views and inner folds', async ({ cockroach: { db } }) => {
 			await runDeepNullification(db);
+		});
+
+		test('Jit mappers: deep nullification through views and inner folds', async ({ createDB }) => {
+			await runDeepNullification(createDB({}, () => ({}), true));
 		});
 
 		test('Default value priority', async ({ cockroach: { db } }) => {

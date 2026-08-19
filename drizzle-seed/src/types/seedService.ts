@@ -14,9 +14,9 @@ export type DbType =
 	| PgAsyncDatabase<any, any>
 	| MySqlAsyncDatabase<any, any>
 	| SQLiteAsyncDatabase<any, any, any>
-	| MsSqlDatabase<any, any, any, any>
-	| CockroachDatabase<any, any, any>
-	| SingleStoreDatabase<any, any, any, any>;
+	| MsSqlDatabase<any, any, any>
+	| CockroachDatabase<any, any>
+	| SingleStoreDatabase<any, any, any>;
 
 export type TableType = PgTable | MySqlTable | SQLiteTable | MsSqlTable | CockroachTable | SingleStoreTable;
 

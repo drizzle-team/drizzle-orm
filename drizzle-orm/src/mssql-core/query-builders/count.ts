@@ -15,7 +15,7 @@ export class MsSqlCountBuilder extends SQL<number> implements SQLWrapper<number>
 	static override readonly [entityKind]: string = 'MsSqlCountBuilder';
 
 	protected dialect: MsSqlDialect;
-	protected session: MsSqlSession<any, any, any, any>;
+	protected session: MsSqlSession<any, any, any>;
 
 	private static buildCount(
 		source: MsSqlTable | MsSqlViewBase | SQL | SQLWrapper,
@@ -33,7 +33,7 @@ export class MsSqlCountBuilder extends SQL<number> implements SQLWrapper<number>
 			source: MsSqlTable | MsSqlViewBase | SQL | SQLWrapper;
 			filters?: SQL<unknown>;
 			dialect: MsSqlDialect;
-			session: MsSqlSession<any, any, any, any>;
+			session: MsSqlSession<any, any, any>;
 		},
 	) {
 		super(MsSqlCountBuilder.buildCount(countConfig.source, countConfig.filters, true).queryChunks);

@@ -1,6 +1,5 @@
 import type { Client, CustomTypesConfig, PoolClient, QueryResult, QueryResultRow } from 'pg';
 import pg from 'pg';
-import type * as V1 from '~/_relations.ts';
 import type { CockroachDialect } from '~/cockroach-core/dialect.ts';
 import { CockroachTransaction } from '~/cockroach-core/index.ts';
 import type {
@@ -12,6 +11,7 @@ import { CockroachPreparedQuery, CockroachSession } from '~/cockroach-core/sessi
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
 
@@ -45,9 +45,8 @@ export interface NodeCockroachSessionOptions {
 }
 
 export class NodeCockroachSession<
-	TFullSchema extends Record<string, unknown>,
-	TSchema extends V1.TablesRelationalConfig,
-> extends CockroachSession<NodeCockroachQueryResultHKT, TFullSchema, TSchema> {
+	TRelations extends AnyRelations,
+> extends CockroachSession<NodeCockroachQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'NodeCockroachSession';
 
 	private logger: Logger;
@@ -55,7 +54,7 @@ export class NodeCockroachSession<
 	constructor(
 		private client: NodeCockroachClient,
 		dialect: CockroachDialect,
-		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
+		private relations: TRelations,
 		private options: NodeCockroachSessionOptions = {},
 	) {
 		super(dialect);
@@ -93,13 +92,13 @@ export class NodeCockroachSession<
 	}
 
 	override async transaction<T>(
-		transaction: (tx: NodeCockroachTransaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: NodeCockroachTransaction<TRelations>) => Promise<T>,
 		config?: CockroachTransactionConfig | undefined,
 	): Promise<T> {
 		const session = this.client instanceof Pool // oxlint-disable-line drizzle-internal/no-instanceof
-			? new NodeCockroachSession(await this.client.connect(), this.dialect, this.schema, this.options)
+			? new NodeCockroachSession(await this.client.connect(), this.dialect, this.relations, this.options)
 			: this;
-		const tx = new NodeCockroachTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
+		const tx = new NodeCockroachTransaction<TRelations>(this.dialect, session, this.relations);
 
 		try {
 			await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
@@ -124,19 +123,18 @@ export class NodeCockroachSession<
 }
 
 export class NodeCockroachTransaction<
-	TFullSchema extends Record<string, unknown>,
-	TSchema extends V1.TablesRelationalConfig,
-> extends CockroachTransaction<NodeCockroachQueryResultHKT, TFullSchema, TSchema> {
+	TRelations extends AnyRelations,
+> extends CockroachTransaction<NodeCockroachQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'NodeCockroachTransaction';
 
 	override async transaction<T>(
-		transaction: (tx: NodeCockroachTransaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: NodeCockroachTransaction<TRelations>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new NodeCockroachTransaction<TFullSchema, TSchema>(
+		const tx = new NodeCockroachTransaction<TRelations>(
 			this.dialect,
 			this.session,
-			this.schema,
+			this._.relations,
 			this.nestedIndex + 1,
 		);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));

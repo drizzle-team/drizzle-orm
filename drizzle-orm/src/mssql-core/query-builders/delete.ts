@@ -79,6 +79,7 @@ export interface MsSqlDeleteConfig {
 	where?: SQL | undefined;
 	table: MsSqlTable;
 	output?: SelectedFieldsOrdered;
+	ignoreSelectionCastCodecs?: boolean;
 }
 
 export type MsSqlDeletePrepare<T extends AnyMsSqlDeleteBase> = PreparedQueryKind<
@@ -201,7 +202,7 @@ export class MsSqlDeleteBase<
 	output(
 		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
 	): MsSqlDeleteWithout<AnyMsSqlDeleteBase, TDynamic, 'output'> {
-		this.config.output = orderSelectedFields<MsSqlColumn>(fields);
+		this.config.output = orderSelectedFields<MsSqlColumn>(fields, undefined, this.dialect.codecs);
 		return this as any;
 	}
 
@@ -237,6 +238,12 @@ export class MsSqlDeleteBase<
 	};
 
 	iterator = this.createIterator();
+
+	/** @internal */
+	withoutSelectionCastCodecs() {
+		this.config.ignoreSelectionCastCodecs = true;
+		return this;
+	}
 
 	$dynamic(): MsSqlDeleteDynamic<this> {
 		return this as any;

@@ -57,6 +57,7 @@ export interface MySqlSelectConfig {
 	withList?: Subquery[];
 	fields: Record<string, unknown>;
 	fieldsFlat?: SelectedFieldsOrdered;
+	mapper?: (raw: any) => any;
 	where?: SQL;
 	having?: SQL;
 	table: MySqlTable | Subquery | MySqlViewBase | SQL;

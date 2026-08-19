@@ -25,6 +25,9 @@ export class MsSqlRealBuilder extends MsSqlColumnBuilderWithIdentity<{
 export class MsSqlReal<T extends ColumnBaseConfig<'number float'>> extends MsSqlColumnWithIdentity<T> {
 	static override readonly [entityKind]: string = 'MsSqlReal';
 
+	/** @internal */
+	override readonly codec = 'real';
+
 	getSQLType(): string {
 		return 'real';
 	}

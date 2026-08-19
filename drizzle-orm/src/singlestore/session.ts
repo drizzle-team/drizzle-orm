@@ -10,7 +10,6 @@ import type {
 	TypeCast,
 } from 'mysql2/promise';
 import { once } from 'node:events';
-import type * as V1 from '~/_relations.ts';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
@@ -54,15 +53,11 @@ const typeCast: TypeCast = function(field, next) {
 };
 
 export class SingleStoreDriverSession<
-	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
 > extends SingleStoreSession<
-	SingleStoreQueryResultHKT,
+	SingleStoreDriverQueryResultHKT,
 	SingleStoreDriverPreparedQueryHKT,
-	TFullSchema,
-	TRelations,
-	TSchema
+	TRelations
 > {
 	static override readonly [entityKind]: string = 'SingleStoreDriverSession';
 
@@ -73,7 +68,6 @@ export class SingleStoreDriverSession<
 		private client: SingleStoreDriverClient,
 		dialect: SingleStoreDialect,
 		private relations: TRelations,
-		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: SingleStoreDriverSessionOptions,
 	) {
 		super(dialect);
@@ -163,7 +157,7 @@ export class SingleStoreDriverSession<
 	}
 
 	override async transaction<T>(
-		transaction: (tx: SingleStoreDriverTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (tx: SingleStoreDriverTransaction<TRelations>) => Promise<T>,
 		config?: SingleStoreTransactionConfig,
 	): Promise<T> {
 		const session = isPool(this.client)
@@ -171,15 +165,13 @@ export class SingleStoreDriverSession<
 				await this.client.getConnection(),
 				this.dialect,
 				this.relations,
-				this.schema,
 				this.options,
 			)
 			: this;
-		const tx = new SingleStoreDriverTransaction<TFullSchema, TRelations, TSchema>(
+		const tx = new SingleStoreDriverTransaction<TRelations>(
 			this.dialect,
-			session as SingleStoreSession<any, any, any, any, any>,
+			session as SingleStoreSession<any, any, any>,
 			this.relations,
-			this.schema,
 			0,
 		);
 		try {
@@ -208,27 +200,22 @@ export class SingleStoreDriverSession<
 }
 
 export class SingleStoreDriverTransaction<
-	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
 > extends SingleStoreTransaction<
 	SingleStoreDriverQueryResultHKT,
 	SingleStoreDriverPreparedQueryHKT,
-	TFullSchema,
-	TRelations,
-	TSchema
+	TRelations
 > {
 	static override readonly [entityKind]: string = 'SingleStoreDriverTransaction';
 
 	override async transaction<T>(
-		transaction: (tx: SingleStoreDriverTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		transaction: (tx: SingleStoreDriverTransaction<TRelations>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new SingleStoreDriverTransaction<TFullSchema, TRelations, TSchema>(
+		const tx = new SingleStoreDriverTransaction<TRelations>(
 			this.dialect,
 			this.session,
 			this.relations,
-			this.schema,
 			this.nestedIndex + 1,
 		);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));

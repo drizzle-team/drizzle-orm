@@ -100,7 +100,7 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 	});
 	type InsertOneEffect = AsEffect<typeof insertOne>;
 
-	Expect<Equal<InsertOneEffect, Effect.Effect<readonly never[], EffectDrizzleQueryError, never>>>;
+	Expect<Equal<InsertOneEffect, Effect.Effect<unknown, EffectDrizzleQueryError, never>>>;
 }
 
 {
@@ -140,7 +140,7 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 	const updateAll = db.update(users).set({ text: 'updated' });
 	type UpdateAllEffect = AsEffect<typeof updateAll>;
 
-	Expect<Equal<UpdateAllEffect, Effect.Effect<readonly never[], EffectDrizzleQueryError, never>>>;
+	Expect<Equal<UpdateAllEffect, Effect.Effect<unknown, EffectDrizzleQueryError, never>>>;
 }
 
 {
@@ -162,7 +162,7 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 	const deleteAll = db.delete(users);
 	type DeleteAllEffect = AsEffect<typeof deleteAll>;
 
-	Expect<Equal<DeleteAllEffect, Effect.Effect<readonly never[], EffectDrizzleQueryError, never>>>;
+	Expect<Equal<DeleteAllEffect, Effect.Effect<unknown, EffectDrizzleQueryError, never>>>;
 }
 
 {

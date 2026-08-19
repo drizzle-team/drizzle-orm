@@ -28,6 +28,7 @@ export class PgRaw<TResult> implements SQLWrapper, PreparedQuery {
 		return this.query;
 	}
 
+	/** @internal */
 	_prepare() {
 		return this.prepared;
 	}

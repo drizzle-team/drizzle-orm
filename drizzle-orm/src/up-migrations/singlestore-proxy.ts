@@ -1,4 +1,5 @@
 import type { MigrationMeta } from '~/migrator.ts';
+import type { AnyRelations } from '~/relations.ts';
 import type { SingleStoreRemoteDatabase } from '~/singlestore-proxy/index.ts';
 import type { ProxyMigrator } from '~/singlestore-proxy/migrator.ts';
 import { sql } from '~/sql/sql.ts';
@@ -12,7 +13,7 @@ const upgradeFunctions: Record<
 	number,
 	(
 		migrationsTable: string,
-		db: SingleStoreRemoteDatabase<Record<string, unknown>>,
+		db: SingleStoreRemoteDatabase<AnyRelations>,
 		callback: ProxyMigrator,
 		localMigrations: MigrationMeta[],
 	) => Promise<void>
@@ -123,7 +124,7 @@ const upgradeFunctions: Record<
  */
 export async function upgradeIfNeeded(
 	migrationsTable: string,
-	db: SingleStoreRemoteDatabase<Record<string, unknown>>,
+	db: SingleStoreRemoteDatabase<AnyRelations>,
 	callback: ProxyMigrator,
 	localMigrations: MigrationMeta[],
 ): Promise<UpgradeResult> {

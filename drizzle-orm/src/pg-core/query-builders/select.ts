@@ -309,6 +309,11 @@ export class PgSelectBase<
 				throw new Error(`Alias "${tableName}" is already used in this query`);
 			}
 
+			this.config.fieldsFlat = undefined;
+			this.config.setFieldsFlat = undefined;
+			this.config.shape = undefined;
+			this.config.mapper = undefined;
+
 			if (!this.isPartialSelect) {
 				// If this is the first join and this is not a partial select and we're not selecting from raw SQL, "move" the fields from the main table to the nested object
 				if (Object.keys(this.joinsNotNullableMap).length === 1 && typeof baseTableName === 'string') {
