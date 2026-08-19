@@ -3140,3 +3140,143 @@ CREATE TABLE table2 (
 	expect(pushSqlStatements).toStrictEqual([]);
 	expect(generateSqlStatements).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3736
+test('issue No3736', async () => {
+	await db.query(`CREATE TABLE "keyfigures" (
+	"id" integer NOT NULL,
+	"comp_uuid" uuid NOT NULL,
+	"year" varchar(255) NOT NULL
+);`);
+
+	await db.query(`CREATE INDEX "keyfigures__comp_uuid_idx" ON "keyfigures" USING btree ("comp_uuid" uuid_ops);`);
+	await db.query(
+		`CREATE INDEX "keyfigures__comp_uuid_year_idx" ON "keyfigures" USING btree ("comp_uuid" uuid_ops,"year" text_ops);`,
+	);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'issue 3736');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.indexes.list().map((it) => it.columns)).toStrictEqual([
+		[
+			{
+				asc: true,
+				isExpression: false,
+				nullsFirst: false,
+				opclass: null,
+				value: 'comp_uuid',
+			},
+		],
+		[
+			{
+				asc: true,
+				isExpression: false,
+				nullsFirst: false,
+				opclass: null, // default op class
+				value: 'comp_uuid',
+			},
+			{
+				asc: true,
+				isExpression: false,
+				nullsFirst: false,
+				opclass: null, // default op class
+				value: 'year',
+			},
+		],
+	]);
+	expect(schema2.indexes.map((it) => it.columns)).toStrictEqual([
+		[
+			{
+				asc: true,
+				isExpression: false,
+				nullsFirst: false,
+				opclass: null,
+				value: 'comp_uuid',
+			},
+		],
+		[
+			{
+				asc: true,
+				isExpression: false,
+				nullsFirst: false,
+				opclass: null,
+				value: 'comp_uuid',
+			},
+			{
+				asc: true,
+				isExpression: false,
+				nullsFirst: false,
+				opclass: null,
+				value: 'year',
+			},
+		],
+	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3250
+test('issue No3250', async () => {
+	await db.query(`CREATE TABLE users (
+    "id" SERIAL PRIMARY KEY,
+    "username" TEXT NOT NULL,
+    account_type varchar(64) DEFAULT NULL::character varying NULL
+);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'issue 3250');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.list({ name: 'account_type' })).toStrictEqual([
+		{
+			default: 'NULL',
+			dimensions: 0,
+			entityType: 'columns',
+			generated: null,
+			identity: null,
+			name: 'account_type',
+			notNull: false,
+			schema: 'public',
+			table: 'users',
+			type: 'varchar(64)',
+			typeSchema: null,
+		},
+	]);
+	expect(schema2.columns.find((it) => it.name === 'account_type')).toStrictEqual(
+		{
+			default: 'NULL',
+			dimensions: 0,
+			entityType: 'columns',
+			generated: null,
+			identity: null,
+			name: 'account_type',
+			notNull: false,
+			pk: false,
+			pkName: null,
+			schema: 'public',
+			table: 'users',
+			type: 'varchar(64)',
+			typeSchema: null,
+			unique: false,
+			uniqueName: null,
+			uniqueNullsNotDistinct: false,
+		},
+	);
+});

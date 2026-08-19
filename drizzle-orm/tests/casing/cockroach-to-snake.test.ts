@@ -27,6 +27,16 @@ const db = drizzle.mock({ relations });
 const fullName = sql`${users.firstName} || ' ' || ${users.lastName}`.as('name');
 
 describe('cockroach to snake case', () => {
+	it('unicode column names', ({ expect }) => {
+		const unicode = snakeCase.table('unicode', {
+			칼럼명: text(),
+		});
+
+		expect(db.select().from(unicode).toSQL().sql).toEqual(
+			'select "칼럼명" from "unicode"',
+		);
+	});
+
 	it('qualifier preservation for sql fields', ({ expect }) => {
 		const a = snakeCase.table('a', { id: int4('id').primaryKey(), cId: int4().notNull() });
 		const b = snakeCase.table('b', { id: int4('id').primaryKey(), cId: int4().notNull(), label: text() });
