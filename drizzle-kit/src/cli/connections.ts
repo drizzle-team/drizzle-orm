@@ -15,6 +15,7 @@ import type { BenchmarkProxy, QueriesTimings, TransactionProxy } from '../utils'
 import { assertUnreachable } from '../utils';
 import type { LibSQLDB } from '../utils';
 import type { DB, Proxy, SQLiteDB } from '../utils';
+import { prepareAwsDataApiSql } from '../utils/aws-data-api-placeholders';
 import { normaliseSQLiteUrl } from '../utils/utils-node';
 import { JSONB } from '../utils/when-json-met-bigint';
 import type { ProxyParams } from './commands/studio';
@@ -99,7 +100,7 @@ export const preparePostgresDB = async (
 						execute: any[];
 					}
 				>(
-					{ sql, params: params ?? [] },
+					{ sql: prepareAwsDataApiSql(sql, params?.length ?? 0), params: params ?? [] },
 					'objects',
 					false,
 					undefined,
@@ -120,7 +121,7 @@ export const preparePostgresDB = async (
 					}
 				>(
 					{
-						sql: params.sql,
+						sql: prepareAwsDataApiSql(params.sql, params.params?.length ?? 0),
 						params: params.params ?? [],
 					},
 					params.mode === 'array' ? 'arrays' : 'objects',
