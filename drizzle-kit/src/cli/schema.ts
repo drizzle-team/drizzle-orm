@@ -11,6 +11,7 @@ import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migr
 import { assertUnreachable } from '../utils';
 import { assertV3OutFolder } from '../utils/utils-node';
 import { checkHandler } from './commands/check';
+import { type SquashConfig, squashHandler } from './commands/squash';
 import type { Setup } from './commands/studio';
 import { upCockroachHandler } from './commands/up-cockroach';
 import { upMssqlHandler } from './commands/up-mssql';
@@ -35,6 +36,7 @@ import type {
 	GenerateOptionsInput,
 	PullOptionsInput,
 	PushOptionsInput,
+	SquashOptionsInput,
 	UpOptionsInput,
 } from './contract';
 import {
@@ -636,6 +638,51 @@ export const up = command({
 	transform: prepareUp,
 	handler: async (cfg) => {
 		const env = await runUp(cfg);
+		if (outputFormat() === 'json') process.stdout.write(JSON.stringify(env) + '\n');
+		process.exit(statusToExitCode(env.status));
+	},
+});
+
+export const squashOptions = {
+	config: optionConfig,
+	dialect: optionDialect,
+	out: optionOut,
+	start: number('start')
+		.int()
+		.min(0)
+		.required()
+		.desc('Index of the first migration to squash (0-based, in folder order)'),
+	end: number('end')
+		.int()
+		.min(0)
+		.required()
+		.desc('Index of the last migration to squash (inclusive)'),
+	output: optionOutput,
+} as const satisfies Record<string, GenericBuilderInternals>;
+
+export const prepareSquash = async (opts: SquashOptionsInput): Promise<SquashConfig> => {
+	const output = opts.output ?? outputFormat();
+	const interactive = output === 'text' && !!process.stdin.isTTY;
+	setCliContext({ output, interactive });
+	const from = assertCollisions('squash', opts, ['start', 'end', 'output'], ['dialect', 'out']);
+	const { out, dialect } = await prepareCheckParams(opts, from);
+	return { out, dialect, start: opts.start!, end: opts.end! };
+};
+
+export const runSquash = async (config: SquashConfig) => {
+	await assertOrmCoreVersion();
+	await assertPackages('drizzle-orm');
+
+	return squashHandler(config);
+};
+
+export const squash = command({
+	name: 'squash',
+	desc: 'Combine a range of consecutive migrations into a single migration',
+	options: squashOptions,
+	transform: prepareSquash,
+	handler: async (cfg) => {
+		const env = await runSquash(cfg);
 		if (outputFormat() === 'json') process.stdout.write(JSON.stringify(env) + '\n');
 		process.exit(statusToExitCode(env.status));
 	},
