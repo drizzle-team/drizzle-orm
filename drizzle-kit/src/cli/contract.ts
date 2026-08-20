@@ -1,7 +1,15 @@
 import type { GenericBuilderInternals, Simplify } from '@drizzle-team/brocli';
 import type { Dialect } from '../utils/schemaValidator';
 import type { Hint } from './hints';
-import type { checkOptions, exportOptions, generateOptions, pullOptions, pushOptions, upOptions } from './schema';
+import type {
+	checkOptions,
+	exportOptions,
+	generateOptions,
+	pullOptions,
+	pushOptions,
+	squashOptions,
+	upOptions,
+} from './schema';
 
 type BrocliInputOf<TOptions extends Record<string, GenericBuilderInternals>> = Simplify<
 	{
@@ -35,6 +43,8 @@ export type ExportOptionsInput = BrocliInputOf<typeof exportOptions> & { dialect
 export type ExportOptions = Omit<ExportOptionsInput, 'output'>;
 
 export type UpOptionsInput = BrocliInputOf<typeof upOptions> & { dialect?: Dialect };
+
+export type SquashOptionsInput = BrocliInputOf<typeof squashOptions> & { dialect?: Dialect };
 
 export type UpOptions = Omit<UpOptionsInput, 'output'>;
 

@@ -216,6 +216,12 @@ export class InvalidHintsCliError extends DrizzleCliError {
 	}
 }
 
+export class SquashCliError extends DrizzleCliError {
+	constructor(humanMessage: string, meta?: DrizzleCliErrorMeta) {
+		super('squash_error', humanMessage, meta);
+	}
+}
+
 export class MigrationsOutdatedCliError extends DrizzleCliError {
 	constructor(out: string) {
 		super(
