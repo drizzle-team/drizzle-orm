@@ -1,7 +1,10 @@
 import { is } from '~/entity.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { SQL } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
+import type { DrizzleConfig } from '~/utils.ts';
+import type { SingleStoreCodecs } from './codecs.ts';
 import type { Index } from './indexes.ts';
 import { IndexBuilder } from './indexes.ts';
 import type { PrimaryKey } from './primary-keys.ts';
@@ -69,3 +72,7 @@ export function getTableConfig(table: SingleStoreTable) {
 		...view[SingleStoreViewConfig],
 	};
 } */
+
+export type DrizzleSingleStoreConfig<TRelations extends AnyRelations> =
+	& DrizzleConfig<TRelations>
+	& { codecs?: SingleStoreCodecs | undefined };

@@ -101,11 +101,14 @@ export type HasIdentity<T, TType extends 'always' | 'byDefault'> = SetIdentity<T
 
 type GetBaseData<T> = T extends { $type: infer U } ? U : T extends { data: infer D } ? D : unknown;
 
+type ResolveData<T extends PgColumnBuilderConfig> = T['dimensions'] extends 1 | 2 | 3 | 4 | 5
+	? WrapArray<GetBaseData<T>, T['dimensions']>
+	: GetBaseData<T>;
+
 export type ResolvePgColumnConfig<
 	out T extends PgColumnBuilderConfig,
 	out TTableName extends string,
-	out TData = T['dimensions'] extends 1 | 2 | 3 | 4 | 5 ? WrapArray<GetBaseData<T>, T['dimensions']>
-		: GetBaseData<T>,
+	out TData = ResolveData<T>,
 > = {
 	name: string;
 	tableName: TTableName;
@@ -228,16 +231,7 @@ export abstract class PgColumnBuilder<
 	 *
 	 * If you need to set a dynamic default value, use {@link $defaultFn} instead.
 	 */
-	default(
-		value:
-			| (this['_'] extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
-					this['_'] extends { $type: infer U } ? U : this['_']['data'],
-					this['_']['dimensions']
-				>
-				: this['_'] extends { $type: infer U } ? U
-				: this['_']['data'])
-			| SQL,
-	): SetHasDefault<this> {
+	default(value: ResolveData<this['_']> | SQL): SetHasDefault<this> {
 		this.config.default = value;
 		this.config.hasDefault = true;
 		return this as SetHasDefault<this>;
@@ -249,16 +243,7 @@ export abstract class PgColumnBuilder<
 	 *
 	 * **Note:** This value does not affect the `drizzle-kit` behavior, it is only used at runtime in `drizzle-orm`.
 	 */
-	$defaultFn(
-		fn: () =>
-			| (this['_'] extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
-					this['_'] extends { $type: infer U } ? U : this['_']['data'],
-					this['_']['dimensions']
-				>
-				: this['_'] extends { $type: infer U } ? U
-				: this['_']['data'])
-			| SQL,
-	): SetHasRuntimeDefault<this> {
+	$defaultFn(fn: () => ResolveData<this['_']> | SQL): SetHasRuntimeDefault<this> {
 		this.config.defaultFn = fn;
 		this.config.hasDefault = true;
 		return this as SetHasRuntimeDefault<this>;
@@ -267,16 +252,7 @@ export abstract class PgColumnBuilder<
 	/**
 	 * Alias for {@link $defaultFn}.
 	 */
-	$default(
-		fn: () =>
-			| (this['_'] extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
-					this['_'] extends { $type: infer U } ? U : this['_']['data'],
-					this['_']['dimensions']
-				>
-				: this['_'] extends { $type: infer U } ? U
-				: this['_']['data'])
-			| SQL,
-	): SetHasRuntimeDefault<this> {
+	$default(fn: () => ResolveData<this['_']> | SQL): SetHasRuntimeDefault<this> {
 		return this.$defaultFn(fn);
 	}
 
@@ -287,16 +263,7 @@ export abstract class PgColumnBuilder<
 	 *
 	 * **Note:** This value does not affect the `drizzle-kit` behavior, it is only used at runtime in `drizzle-orm`.
 	 */
-	$onUpdateFn(
-		fn: () =>
-			| (this['_'] extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
-					this['_'] extends { $type: infer U } ? U : this['_']['data'],
-					this['_']['dimensions']
-				>
-				: this['_'] extends { $type: infer U } ? U
-				: this['_']['data'])
-			| SQL,
-	): SetHasDefault<this> {
+	$onUpdateFn(fn: () => ResolveData<this['_']> | SQL): SetHasDefault<this> {
 		this.config.onUpdateFn = fn;
 		this.config.hasDefault = true;
 		return this as SetHasDefault<this>;
@@ -305,23 +272,12 @@ export abstract class PgColumnBuilder<
 	/**
 	 * Alias for {@link $onUpdateFn}.
 	 */
-	$onUpdate(
-		fn: () =>
-			| (this['_'] extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
-					this['_'] extends { $type: infer U } ? U : this['_']['data'],
-					this['_']['dimensions']
-				>
-				: this['_'] extends { $type: infer U } ? U
-				: this['_']['data'])
-			| SQL,
-	): SetHasDefault<this> {
+	$onUpdate(fn: () => ResolveData<this['_']> | SQL): SetHasDefault<this> {
 		return this.$onUpdateFn(fn);
 	}
 
 	/**
 	 * Adds a `primary key` clause to the column definition. This implicitly makes the column `not null`.
-	 *
-	 * In SQLite, `integer primary key` implicitly makes the column auto-incrementing.
 	 */
 	primaryKey(): SetIsPrimaryKey<this> {
 		this.config.primaryKey = true;
@@ -358,7 +314,7 @@ export abstract class PgColumnBuilder<
 	): SetDimensions<this, ArrayDimensionStringToNumber<TDim>> {
 		// Calculate dimensions as number from string notation
 		const dim = dimensions ?? '[]';
-		(this.config as any).dimensions = (dim.length / 2) as PgArrayDimension;
+		this.config.dimensions = (dim.length / 2) as PgArrayDimension;
 		return this as SetDimensions<this, ArrayDimensionStringToNumber<TDim>>;
 	}
 
@@ -380,11 +336,7 @@ export abstract class PgColumnBuilder<
 		return this;
 	}
 
-	generatedAlwaysAs(
-		as:
-			| SQL
-			| (() => SQL),
-	): SetHasGenerated<this> {
+	generatedAlwaysAs(as: SQL | (() => SQL)): SetHasGenerated<this> {
 		this.config.generated = {
 			as,
 			type: 'always',
@@ -423,7 +375,7 @@ export abstract class PgColumnBuilder<
 	buildExtraConfigColumn<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): ExtraConfigColumn {
-		return new ExtraConfigColumn(table, { ...this.config, dimensions: (this.config as any).dimensions ?? 0 });
+		return new ExtraConfigColumn(table, { ...this.config, dimensions: this.config.dimensions ?? 0 });
 	}
 }
 
@@ -571,7 +523,7 @@ export class ExtraConfigColumn<
 > extends PgColumn<ColumnType, T, IndexedExtraConfigType> {
 	static override readonly [entityKind]: string = 'ExtraConfigColumn';
 
-	/** @itnernal */
+	/** @internal */
 	override readonly codec = undefined;
 
 	override getSQLType(): string {

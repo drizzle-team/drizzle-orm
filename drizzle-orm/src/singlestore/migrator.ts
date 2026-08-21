@@ -3,8 +3,8 @@ import { readMigrationFiles } from '~/migrator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { SingleStoreDriverDatabase } from './driver.ts';
 
-export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: SingleStoreDriverDatabase<TSchema, TRelations>,
+export async function migrate<TRelations extends AnyRelations>(
+	db: SingleStoreDriverDatabase<TRelations>,
 	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);

@@ -1,6 +1,5 @@
 import mssql from 'mssql';
 import { describe, it } from 'vitest';
-import { relations } from '~/_relations';
 import { alias, bit, camelCase, int, text, union } from '~/mssql-core';
 import { drizzle } from '~/node-mssql';
 import { asc, eq, sql } from '~/sql';
@@ -18,29 +17,30 @@ const users = camelCase.table('users', {
 	// Test that custom aliases remain
 	age: int('AGE'),
 });
-const usersRelations = relations(users, ({ one }) => ({
-	developers: one(developers),
-}));
+
 const developers = testSchema.table('developers', {
 	// TODO: Investigate reasons for existence of next commented line
 	// user_id: int().primaryKey().primaryKey().references('name1', () => users.id),
 	user_id: int().primaryKey().primaryKey().references(() => users.id),
 	uses_drizzle_orm: bit().notNull(),
 });
-const developersRelations = relations(developers, ({ one }) => ({
-	user: one(users, {
-		fields: [developers.user_id],
-		references: [users.id],
-	}),
-}));
-const devs = alias(developers, 'devs');
-const schema = { users, usersRelations, developers, developersRelations };
 
-const db = drizzle({ client: new mssql.ConnectionPool({ server: '' }), schema });
+const devs = alias(developers, 'devs');
+const db = drizzle({ client: new mssql.ConnectionPool({ server: '' }) });
 
 const fullName = sql`${users.first_name} || ' ' || ${users.last_name}`.as('name');
 
 describe('mssql to camel case', () => {
+	it('unicode column names', ({ expect }) => {
+		const unicode = camelCase.table('unicode', {
+			칼럼명: text(),
+		});
+
+		expect(db.select().from(unicode).toSQL().sql).toEqual(
+			'select [칼럼명] from [unicode]',
+		);
+	});
+
 	it('qualifier preservation for sql fields', ({ expect }) => {
 		const a = camelCase.table('a', { id: int('id').primaryKey(), cId: int().notNull() });
 		const b = camelCase.table('b', { id: int('id').primaryKey(), cId: int().notNull(), label: text() });
@@ -140,7 +140,8 @@ describe('mssql to camel case', () => {
 			.union(db.select({ firstName: users.first_name }).from(users));
 
 		expect(query.toSQL()).toEqual({
-			sql: '(select [firstName] from [users]) union (select [firstName] from [users])',
+			sql:
+				'select [firstName] from ((select [firstName] from [users]) union (select [firstName] from [users])) [drizzle_union]',
 			params: [],
 		});
 	});
@@ -152,7 +153,8 @@ describe('mssql to camel case', () => {
 		);
 
 		expect(query.toSQL()).toEqual({
-			sql: '(select [firstName] from [users]) union (select [firstName] from [users])',
+			sql:
+				'select [firstName] from ((select [firstName] from [users]) union (select [firstName] from [users])) [drizzle_union]',
 			params: [],
 		});
 	});

@@ -1,9 +1,22 @@
 import { Database } from 'bun:sqlite';
-import { beforeAll, beforeEach, expect, test } from 'bun:test';
-import { defineRelations, sql } from 'drizzle-orm';
+import { beforeAll, beforeEach, expect, expectTypeOf, test } from 'bun:test';
+import { defineRelations, getColumns, getTableColumns, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { blob, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import type { AllTypes } from '../sqlite/all-types';
+import {
+	allTypesData,
+	allTypesInput,
+	allTypesRelations,
+	allTypesTable as allTypesCodecsTable,
+	assertAllTypesBounds,
+	assertAllTypesUnions,
+	createAllTypes,
+	dropAllTypes,
+	makeAllTypes,
+} from '../sqlite/all-types';
+import { normalizeDataWithDbCodecs } from '../sqlite/utils';
 
 const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey(),
@@ -46,13 +59,14 @@ export const relations = defineRelations({
 	},
 }));
 
+let client: Database;
 let db: SQLiteBunDatabase<typeof relations>;
 
 beforeAll(async () => {
 	try {
 		const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
 
-		const client = new Database(dbPath);
+		client = new Database(dbPath);
 		db = drizzle({ client, relations });
 	} catch (e) {
 		console.error(e);
@@ -869,4 +883,67 @@ test('db.all', async () => {
 	const result = db.all<{ id: number; name: string }>(sql`SELECT id, name FROM ${usersTable};`);
 
 	expect(result).toStrictEqual([{ id: 1, name: 'First' }]);
+});
+
+test('all types', async () => {
+	const allTypesTable = makeAllTypes('all_types');
+
+	await db.run(sql.raw(dropAllTypes('all_types')));
+	await db.run(sql.raw(createAllTypes('all_types')));
+
+	try {
+		await db.insert(allTypesTable).values(allTypesInput);
+
+		const rawRes = await db.select().from(allTypesTable);
+
+		expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
+		expect(rawRes).toStrictEqual([allTypesData]);
+
+		await assertAllTypesUnions(db as any, allTypesTable);
+		await assertAllTypesBounds(db as any);
+	} finally {
+		await db.run(sql.raw(dropAllTypes('all_types')));
+	}
+});
+
+test('all types ~codecs~', async () => {
+	const allTypesTable = allTypesCodecsTable;
+	const cdcsDb = drizzle({ client, relations: defineRelations({ allTypesTable }, allTypesRelations) });
+
+	await cdcsDb.run(sql.raw(dropAllTypes('all_types_cdcs')));
+	await cdcsDb.run(sql.raw(createAllTypes('all_types_cdcs')));
+
+	try {
+		await cdcsDb.insert(allTypesTable).values(allTypesInput);
+
+		const columns = getColumns(allTypesTable);
+
+		const queryRaw = await cdcsDb.all<Record<string, unknown>>(
+			cdcsDb.select(
+				Object.fromEntries(Object.entries(getTableColumns(allTypesTable)).map(([k, v]) => [k, v.as(v.name)])),
+			).from(allTypesTable).getSQL(),
+		);
+		const queryRes = normalizeDataWithDbCodecs({ db: cdcsDb as any, columns, data: queryRaw, mode: 'query' })[0];
+
+		const rqbRaw = await cdcsDb.all<Record<string, unknown> & { self: string }>(
+			cdcsDb.query.allTypesTable.findFirst({
+				with: {
+					self: true,
+				},
+			}).getSQL(),
+		);
+		const { self: relationRaw, ...rootRaw } = rqbRaw[0]!;
+
+		const relationRes = normalizeDataWithDbCodecs({ db: cdcsDb as any, columns, data: relationRaw, mode: 'json' })[0]!;
+		const rootRes = normalizeDataWithDbCodecs({ db: cdcsDb as any, columns, data: [rootRaw], mode: 'query' })[0]!;
+
+		expect(queryRes).toStrictEqual(allTypesData);
+		expect(relationRes).toStrictEqual(allTypesData);
+		expect(rootRes).toStrictEqual(allTypesData);
+
+		await assertAllTypesUnions(cdcsDb as any);
+		await assertAllTypesBounds(cdcsDb as any);
+	} finally {
+		await cdcsDb.run(sql.raw(dropAllTypes('all_types_cdcs')));
+	}
 });

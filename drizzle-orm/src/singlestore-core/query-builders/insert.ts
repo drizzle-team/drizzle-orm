@@ -284,11 +284,14 @@ export class SingleStoreInsertBase<
 				returning.push({ field: value, fieldType: 'Column', path: [key] });
 			}
 		}
-		this.config.returning = orderSelectedFields<SingleStoreColumn>(this.config.table[Table.Symbol.Columns]);
+		this.config.returning = orderSelectedFields<SingleStoreColumn>(
+			this.config.table[Table.Symbol.Columns],
+			undefined,
+			this.dialect.codecs,
+		);
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildInsertQuery(this.config).sql;
 	}

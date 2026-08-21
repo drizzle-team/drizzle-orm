@@ -1,10 +1,11 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { and, asc, eq, exists, getViewSelectedFields, gt, inArray, lt, notInArray, sql } from 'drizzle-orm';
+import { and, asc, eq, exists, getColumns, getViewSelectedFields, gt, inArray, lt, notInArray, sql } from 'drizzle-orm';
 import {
 	alias,
 	boolean,
 	char,
 	cidr,
+	foreignKey,
 	inet,
 	integer,
 	jsonb,
@@ -16,6 +17,7 @@ import {
 	pgTableCreator,
 	pgView,
 	serial,
+	snakeCase,
 	text,
 	timestamp,
 	uuid,
@@ -1231,7 +1233,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/2872
-		test.skipIf(Date.now() < +new Date('2026-08-19')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-08-26')).concurrent(
 			'prepared statement with placeholder in .inArray',
 			async ({ db, push }) => {
 				const usersTable = pgTable('users_392', {
@@ -2565,6 +2567,82 @@ export function tests(test: Test) {
 			// numeric values must stay strings, not be coerced to JS numbers (precision loss)
 			expect(typeof result!.products[0]!.priceUahRetail).toBe('string');
 			expect(typeof result!.products[0]!.priceUahWholesaleBig).toBe('string');
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/3856
+		test.concurrent('Issue No3856', async ({ push, db }) => {
+			const code = snakeCase.table(
+				'code',
+				{
+					id: uuid().defaultRandom().primaryKey(),
+					personId: uuid().notNull(),
+					code: text().notNull(),
+				},
+				(table) => [
+					foreignKey({
+						columns: [table.personId],
+						foreignColumns: [person.id],
+						name: 'person_code_fk',
+					}),
+				],
+			);
+
+			const person = snakeCase.table('person', {
+				id: uuid().defaultRandom().primaryKey(),
+				email: text().notNull(),
+				firstName: text().notNull(),
+				lastName: text().notNull(),
+			});
+
+			const personWithCode = pgView('person_with_code').as((queryBuilder) => {
+				const personColumns = getColumns(person);
+
+				return queryBuilder
+					.select({
+						...personColumns,
+						code: code.code,
+					})
+					.from(person)
+					.innerJoin(code, eq(code.personId, person.id));
+			});
+
+			await push({ person, code, personWithCode });
+			const personSeed = {
+				id: '11111111-1111-1111-1111-111111111111',
+				email: 'test@gmail.com',
+				firstName: 'first_name',
+				lastName: 'last_name',
+			};
+
+			const codeSeed = {
+				id: '21111111-1111-1111-1111-111111111111',
+				personId: '11111111-1111-1111-1111-111111111111',
+				code: 'code value',
+			};
+
+			await db.insert(person).values(personSeed);
+			await db.insert(code).values(codeSeed);
+
+			const query = db
+				.select()
+				.from(personWithCode)
+				.where(eq(personWithCode.code, 'code value'));
+
+			const res = await query;
+
+			expect(res).toStrictEqual([{
+				code: 'code value',
+				email: 'test@gmail.com',
+				firstName: 'first_name',
+				id: '11111111-1111-1111-1111-111111111111',
+				lastName: 'last_name',
+			}]);
+
+			expect(query.toSQL()).toStrictEqual({
+				sql:
+					'select "id", "email", "first_name", "last_name", "code" from "person_with_code" where "person_with_code"."code" = $1',
+				params: ['code value'],
+			});
 		});
 	});
 }

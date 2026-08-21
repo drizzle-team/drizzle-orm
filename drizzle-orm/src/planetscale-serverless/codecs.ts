@@ -1,4 +1,4 @@
-import { floatFromDouble, refineGenericMySqlCodecs } from '~/mysql-core/codecs.ts';
+import { castToText, floatFromDouble, refineGenericMySqlCodecs } from '~/mysql-core/codecs.ts';
 import { sql } from '~/sql/sql.ts';
 import { textDecoder } from '~/utils.ts';
 
@@ -12,13 +12,19 @@ const bitStringFromBytes = (value: Uint8Array): string => {
 
 export const planetscaleServerlessCodecs = refineGenericMySqlCodecs({
 	serial: {
+		cast: castToText,
 		normalize: Number,
 	},
 	bigint: {
+		cast: castToText,
 		normalize: BigInt,
 	},
 	'bigint:number': {
+		cast: castToText,
 		normalize: Number,
+	},
+	'bigint:string': {
+		cast: castToText,
 	},
 	boolean: {
 		normalize: (value: number) => value === 1,

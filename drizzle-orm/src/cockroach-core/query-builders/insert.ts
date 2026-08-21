@@ -27,6 +27,7 @@ import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.t
 import type { CockroachUpdateSetSource } from './update.ts';
 
 export interface CockroachInsertConfig<TTable extends CockroachTable = CockroachTable> {
+	ignoreSelectionCastCodecs?: boolean;
 	table: TTable;
 	values: Record<string, unknown>[] | TypedQueryBuilder<CockroachInsertSelection<TTable>> | SQL;
 	withList?: Subquery[];
@@ -163,6 +164,7 @@ export class CockroachInsertBuilder<
 				| SQL),
 	): CockroachInsertBase<TTable, TQueryResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
+		if ('withoutSelectionCastCodecs' in select) select.withoutSelectionCastCodecs();
 
 		if (!is(select, SQL)) {
 			const insertCols = Object.keys(this.table[Table.Symbol.Columns]);
@@ -357,7 +359,11 @@ export class CockroachInsertBase<
 		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
 	): CockroachInsertWithout<AnyCockroachInsert, TDynamic, 'returning'> {
 		this.config.returningFields = fields;
-		this.config.returning = orderSelectedFields<CockroachColumn>(fields);
+		this.config.returning = orderSelectedFields<CockroachColumn>(
+			fields,
+			undefined,
+			this.dialect.codecs,
+		);
 		return this as any;
 	}
 
@@ -451,7 +457,6 @@ export class CockroachInsertBase<
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildInsertQuery(this.config);
 	}
@@ -507,6 +512,7 @@ export class CockroachInsertBase<
 
 	/** @internal */
 	withoutSelectionCastCodecs(): this {
+		this.config.ignoreSelectionCastCodecs = true;
 		return this;
 	}
 

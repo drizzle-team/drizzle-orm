@@ -34,7 +34,7 @@ export class QueryBuilder {
 
 			return new Proxy(
 				new WithSubquery(
-					qb.getSQL(),
+					('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL(),
 					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
 					alias,
 					true,

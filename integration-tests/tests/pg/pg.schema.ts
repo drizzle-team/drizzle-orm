@@ -301,6 +301,83 @@ export const allTypesTable = snakeCase.table('all_types', {
 	arrvarchar: varchar().array(),
 });
 
+export type AllTypes = {
+	serial: number;
+	bigserial53: number;
+	bigserial64: bigint;
+	int: number | null;
+	bigint53: number | null;
+	bigint64: bigint | null;
+	bigintString: string | null;
+	bool: boolean | null;
+	bytea: Buffer | null;
+	char: string | null;
+	cidr: string | null;
+	date: Date | null;
+	dateStr: string | null;
+	double: number | null;
+	enum: 'enVal1' | 'enVal2' | null;
+	inet: string | null;
+	interval: string | null;
+	json: unknown;
+	jsonb: unknown;
+	line: { a: number; b: number; c: number } | null;
+	lineTuple: [number, number, number] | null;
+	macaddr: string | null;
+	macaddr8: string | null;
+	numeric: string | null;
+	numericNum: number | null;
+	numericBig: bigint | null;
+	point: { x: number; y: number } | null;
+	pointTuple: [number, number] | null;
+	real: number | null;
+	smallint: number | null;
+	smallserial: number;
+	text: string | null;
+	time: string | null;
+	timestamp: Date | null;
+	timestampTz: Date | null;
+	timestampStr: string | null;
+	timestampTzStr: string | null;
+	uuid: string | null;
+	varchar: string | null;
+	arrint: number[] | null;
+	arrbigint53: number[] | null;
+	arrbigint64: bigint[] | null;
+	arrbigintString: string[] | null;
+	arrbool: boolean[] | null;
+	arrbytea: Buffer[] | null;
+	arrchar: string[] | null;
+	arrcidr: string[] | null;
+	arrdate: Date[] | null;
+	arrdateStr: string[] | null;
+	arrdouble: number[] | null;
+	arrenum: ('enVal1' | 'enVal2')[] | null;
+	arrinet: string[] | null;
+	arrinterval: string[] | null;
+	arrjson: unknown[] | null;
+	arrjsonb: unknown[] | null;
+	arrline: { a: number; b: number; c: number }[] | null;
+	arrlineTuple: [number, number, number][] | null;
+	arrmacaddr: string[] | null;
+	arrmacaddr8: string[] | null;
+	arrnumeric: string[] | null;
+	arrnumericNum: number[] | null;
+	arrnumericBig: bigint[] | null;
+	arrpoint: { x: number; y: number }[] | null;
+	arrpointTuple: [number, number][] | null;
+	arrreal: number[] | null;
+	arrsmallint: number[] | null;
+	arrtext: string[] | null;
+	arrtime: string[] | null;
+	arrtimestamp: Date[] | null;
+	arrtimestampTz: Date[] | null;
+	arrtimestampStr: string[] | null;
+	arrtimestampTzStr: string[] | null;
+	arruuid: string[] | null;
+	arrvarchar: string[] | null;
+};
+
 export const students = snakeCase.table('students', {
 	studentId: serial('student_id').primaryKey().notNull(),
 	name: text().notNull(),

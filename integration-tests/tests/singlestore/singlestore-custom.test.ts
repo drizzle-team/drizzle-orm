@@ -24,7 +24,7 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { toLocalDate } from '~/utils';
 import relations from './relations';
 
-type TestSingleStoreDB = SingleStoreDriverDatabase<any, typeof relations>;
+type TestSingleStoreDB = SingleStoreDriverDatabase<typeof relations>;
 declare module 'vitest' {
 	interface TestContext {
 		singlestore: {
@@ -33,7 +33,7 @@ declare module 'vitest' {
 	}
 }
 
-let db: SingleStoreDriverDatabase<never, typeof relations>;
+let db: SingleStoreDriverDatabase<typeof relations>;
 let client: mysql2.Connection;
 
 beforeAll(async () => {

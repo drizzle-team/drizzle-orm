@@ -33,6 +33,9 @@ export class MsSqlDateTime2Builder extends MsSqlDateColumnBaseBuilder<{
 export class MsSqlDateTime2<T extends ColumnBaseConfig<'object date'>> extends MsSqlColumn<T> {
 	static override readonly [entityKind]: string = 'MsSqlDateTime2';
 
+	/** @internal */
+	override readonly codec = 'datetime2';
+
 	readonly precision: number | undefined;
 
 	constructor(
@@ -74,6 +77,9 @@ export class MsSqlDateTime2StringBuilder extends MsSqlDateColumnBaseBuilder<{
 
 export class MsSqlDateTime2String<T extends ColumnBaseConfig<'string datetime'>> extends MsSqlColumn<T> {
 	static override readonly [entityKind]: string = 'MsSqlDateTime2String';
+
+	/** @internal */
+	override readonly codec = 'datetime2:string';
 
 	readonly precision: number | undefined;
 

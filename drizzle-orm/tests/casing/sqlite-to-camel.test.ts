@@ -24,6 +24,16 @@ const db = drizzle({ client: new Database(':memory:') });
 const fullName = sql`${users.first_name} || ' ' || ${users.last_name}`.as('name');
 
 describe('sqlite to camel case', () => {
+	it('unicode column names', ({ expect }) => {
+		const unicode = camelCase.table('unicode', {
+			칼럼명: text(),
+		});
+
+		expect(db.select().from(unicode).toSQL().sql).toEqual(
+			'select "칼럼명" from "unicode"',
+		);
+	});
+
 	it('qualifier preservation for sql fields', ({ expect }) => {
 		const a = camelCase.table('a', { id: integer('id').primaryKey(), cId: integer().notNull() });
 		const b = camelCase.table('b', { id: integer('id').primaryKey(), cId: integer().notNull(), label: text() });
@@ -107,7 +117,8 @@ describe('sqlite to camel case', () => {
 			.union(db.select({ first_name: users.first_name }).from(users));
 
 		expect(query.toSQL()).toEqual({
-			sql: 'select "firstName" from "users" union select "firstName" from "users"',
+			sql:
+				'select "firstName" from (select "firstName" from "users" union select "firstName" from "users") "drizzle_union"',
 			params: [],
 		});
 	});
@@ -119,7 +130,8 @@ describe('sqlite to camel case', () => {
 		);
 
 		expect(query.toSQL()).toEqual({
-			sql: 'select "firstName" from "users" union select "firstName" from "users"',
+			sql:
+				'select "firstName" from (select "firstName" from "users" union select "firstName" from "users") "drizzle_union"',
 			params: [],
 		});
 	});
