@@ -32,6 +32,7 @@ export function mapResultRow<TResult>(
 			} else {
 				decoder = field.sql.decoder;
 			}
+
 			let node = result;
 			for (const [pathChunkIndex, pathChunk] of path.entries()) {
 				if (pathChunkIndex < path.length - 1) {
@@ -41,20 +42,26 @@ export function mapResultRow<TResult>(
 					node = node[pathChunk];
 				} else {
 					const rawValue = row[columnIndex]!;
-					const value = node[pathChunk] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
+					const value = node[pathChunk] = rawValue === null
+						? null
+						: decoder.mapFromDriverValue(rawValue);
 
 					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
 						const objectName = path[0]!;
+						const tableName = getTableName(field.table);
+
 						if (!(objectName in nullifyMap)) {
-							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
+							nullifyMap[objectName] = value === null ? tableName : false;
 						} else if (
-							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
+							typeof nullifyMap[objectName] === 'string'
+							&& (nullifyMap[objectName] !== tableName || value !== null)
 						) {
 							nullifyMap[objectName] = false;
 						}
 					}
 				}
 			}
+
 			return result;
 		},
 		{},

@@ -429,6 +429,42 @@ test('partial join with alias', async (ctx) => {
 	}]);
 });
 
+test('partial join does not nullify nested object when first field is null', async (ctx) => {
+	const { db } = ctx.pg;
+	const customerAlias = alias(usersTable, 'customer');
+
+	await db.insert(usersTable).values([
+		{ id: 10, name: 'Ivan' },
+		{ id: 11, name: 'Hans', jsonb: null },
+	]);
+
+	const result = await db
+		.select({
+			user: {
+				id: usersTable.id,
+				name: usersTable.name,
+			},
+			customer: {
+				jsonb: customerAlias.jsonb,
+				name: customerAlias.name,
+			},
+		})
+		.from(usersTable)
+		.leftJoin(customerAlias, eq(customerAlias.id, 11))
+		.where(eq(usersTable.id, 10));
+
+	expect(result).toEqual([{
+		user: { id: 10, name: 'Ivan' },
+		customer: {
+			jsonb: null,
+			name: 'Hans',
+		},
+	}]);
+});
+
+
+
+
 test('full join with alias', async (ctx) => {
 	const { db } = ctx.pg;
 
