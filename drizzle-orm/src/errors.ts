@@ -11,6 +11,8 @@ export class DrizzleError extends Error {
 }
 
 export class DrizzleQueryError extends Error {
+	static readonly [entityKind]: string = 'DrizzleQueryError';
+
 	constructor(
 		public query: string,
 		public params: any[],
@@ -28,6 +30,8 @@ export type ConstraintType = 'unique' | 'not_null' | 'foreign_key' | 'check';
 
 /** Driver-independent constraint failure. `cause` is the original driver error. */
 export class DrizzleConstraintError extends DrizzleQueryError {
+	static override readonly [entityKind]: string = 'DrizzleConstraintError';
+
 	constructor(
 		query: string,
 		params: any[],
@@ -44,6 +48,8 @@ export class DrizzleConstraintError extends DrizzleQueryError {
 }
 
 export class UniqueConstraintViolationError extends DrizzleConstraintError {
+	static override readonly [entityKind]: string = 'UniqueConstraintViolationError';
+
 	constructor(
 		query: string,
 		params: any[],
@@ -59,6 +65,8 @@ export class UniqueConstraintViolationError extends DrizzleConstraintError {
 }
 
 export class NotNullViolationError extends DrizzleConstraintError {
+	static override readonly [entityKind]: string = 'NotNullViolationError';
+
 	constructor(
 		query: string,
 		params: any[],
@@ -74,6 +82,8 @@ export class NotNullViolationError extends DrizzleConstraintError {
 }
 
 export class ForeignKeyViolationError extends DrizzleConstraintError {
+	static override readonly [entityKind]: string = 'ForeignKeyViolationError';
+
 	constructor(
 		query: string,
 		params: any[],
@@ -89,6 +99,8 @@ export class ForeignKeyViolationError extends DrizzleConstraintError {
 }
 
 export class CheckConstraintViolationError extends DrizzleConstraintError {
+	static override readonly [entityKind]: string = 'CheckConstraintViolationError';
+
 	constructor(
 		query: string,
 		params: any[],
@@ -107,12 +119,17 @@ export class CheckConstraintViolationError extends DrizzleConstraintError {
  * Map a raw driver error onto a typed constraint error when the SQLSTATE / errno /
  * SQLite code is one we know. Unknown errors still become `DrizzleQueryError`.
  *
- * Postgres (pg, postgres.js, neon, gel) uses SQLSTATE `code`.
+ * Postgres-family drivers use SQLSTATE `code`.
  * MySQL / SingleStore uses numeric `errno`.
  * SQLite uses `SQLITE_CONSTRAINT_*` or a message from libsql.
+ *
+ * @internal
  */
-export function wrapQueryError(query: string, params: any[], error: Error): DrizzleQueryError {
-	const driverError = error as Record<string, any>;
+export function wrapQueryError(query: string, params: any[], error: unknown): DrizzleQueryError {
+	const driverError = typeof error === 'object' && error !== null
+		? error as Record<string, unknown>
+		: {};
+	const cause = error as Error;
 
 	const pgCode = driverError['code'] as string | undefined;
 	if (typeof pgCode === 'string') {
@@ -122,13 +139,13 @@ export function wrapQueryError(query: string, params: any[], error: Error): Driz
 
 		switch (pgCode) {
 			case '23505':
-				return new UniqueConstraintViolationError(query, params, error, constraint, table, column);
+				return new UniqueConstraintViolationError(query, params, cause, constraint, table, column);
 			case '23502':
-				return new NotNullViolationError(query, params, error, constraint, table, column);
+				return new NotNullViolationError(query, params, cause, constraint, table, column);
 			case '23503':
-				return new ForeignKeyViolationError(query, params, error, constraint, table, column);
+				return new ForeignKeyViolationError(query, params, cause, constraint, table, column);
 			case '23514':
-				return new CheckConstraintViolationError(query, params, error, constraint, table, column);
+				return new CheckConstraintViolationError(query, params, cause, constraint, table, column);
 		}
 	}
 
@@ -142,14 +159,16 @@ export function wrapQueryError(query: string, params: any[], error: Error): Driz
 
 		switch (mysqlErrno) {
 			case 1062:
-				return new UniqueConstraintViolationError(query, params, error, mysqlConstraint, mysqlTable, mysqlColumn);
+				return new UniqueConstraintViolationError(query, params, cause, mysqlConstraint, mysqlTable, mysqlColumn);
 			case 1048:
-				return new NotNullViolationError(query, params, error, undefined, mysqlTable, mysqlColumn);
+				return new NotNullViolationError(query, params, cause, undefined, mysqlTable, mysqlColumn);
+			case 1451:
 			case 1452:
 			case 1216:
-				return new ForeignKeyViolationError(query, params, error, mysqlConstraint, mysqlTable, mysqlColumn);
+			case 1217:
+				return new ForeignKeyViolationError(query, params, cause, mysqlConstraint, mysqlTable, mysqlColumn);
 			case 3819:
-				return new CheckConstraintViolationError(query, params, error, mysqlConstraint, mysqlTable, mysqlColumn);
+				return new CheckConstraintViolationError(query, params, cause, mysqlConstraint, mysqlTable, mysqlColumn);
 		}
 	}
 
@@ -161,19 +180,19 @@ export function wrapQueryError(query: string, params: any[], error: Error): Driz
 		const sqliteColumn = extractSqliteColumn(message);
 
 		if (sqliteCode === 'SQLITE_CONSTRAINT_UNIQUE' || sqliteCode === 'SQLITE_CONSTRAINT_PRIMARYKEY') {
-			return new UniqueConstraintViolationError(query, params, error, undefined, sqliteTable, sqliteColumn);
+			return new UniqueConstraintViolationError(query, params, cause, undefined, sqliteTable, sqliteColumn);
 		}
 		if (sqliteCode === 'SQLITE_CONSTRAINT_NOTNULL') {
-			return new NotNullViolationError(query, params, error, undefined, sqliteTable, sqliteColumn);
+			return new NotNullViolationError(query, params, cause, undefined, sqliteTable, sqliteColumn);
 		}
 		if (sqliteCode === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
-			return new ForeignKeyViolationError(query, params, error, undefined, sqliteTable, sqliteColumn);
+			return new ForeignKeyViolationError(query, params, cause, undefined, sqliteTable, sqliteColumn);
 		}
 		if (sqliteCode === 'SQLITE_CONSTRAINT_CHECK') {
 			return new CheckConstraintViolationError(
 				query,
 				params,
-				error,
+				cause,
 				extractSqliteCheckName(message),
 				sqliteTable,
 				sqliteColumn,
@@ -185,7 +204,7 @@ export function wrapQueryError(query: string, params: any[], error: Error): Driz
 		return new UniqueConstraintViolationError(
 			query,
 			params,
-			error,
+			cause,
 			undefined,
 			extractSqliteTable(message),
 			extractSqliteColumn(message),
@@ -195,27 +214,27 @@ export function wrapQueryError(query: string, params: any[], error: Error): Driz
 		return new NotNullViolationError(
 			query,
 			params,
-			error,
+			cause,
 			undefined,
 			extractSqliteTable(message),
 			extractSqliteColumn(message),
 		);
 	}
 	if (message.includes('FOREIGN KEY constraint failed')) {
-		return new ForeignKeyViolationError(query, params, error, undefined, undefined, undefined);
+		return new ForeignKeyViolationError(query, params, cause, undefined, undefined, undefined);
 	}
 	if (message.includes('CHECK constraint failed')) {
 		return new CheckConstraintViolationError(
 			query,
 			params,
-			error,
+			cause,
 			extractSqliteCheckName(message),
 			undefined,
 			undefined,
 		);
 	}
 
-	return new DrizzleQueryError(query, params, error);
+	return new DrizzleQueryError(query, params, cause);
 }
 
 function extractMysqlConstraint(message: string | undefined, errno: number): string | undefined {
@@ -224,7 +243,7 @@ function extractMysqlConstraint(message: string | undefined, errno: number): str
 		const match = message.match(/for key '([^']+)'/);
 		return match?.[1];
 	}
-	if (errno === 1452 || errno === 1216) {
+	if (errno === 1451 || errno === 1452 || errno === 1216 || errno === 1217) {
 		const match = message.match(/CONSTRAINT `([^`]+)`/);
 		return match?.[1];
 	}
@@ -252,7 +271,7 @@ function extractMysqlColumn(message: string | undefined, errno: number): string 
 		const match = message.match(/Column '([^']+)'/);
 		return match?.[1];
 	}
-	if (errno === 1452 || errno === 1216) {
+	if (errno === 1451 || errno === 1452 || errno === 1216 || errno === 1217) {
 		const match = message.match(/FOREIGN KEY \(`([^`]+)`\)/);
 		return match?.[1];
 	}
@@ -265,7 +284,7 @@ function extractSqliteTable(message: string): string | undefined {
 }
 
 function extractSqliteColumn(message: string): string | undefined {
-	const match = message.match(/constraint failed: [^.]+\.(\S+)/);
+	const match = message.match(/constraint failed: [^.]+\.([^,\s]+)/);
 	return match?.[1];
 }
 

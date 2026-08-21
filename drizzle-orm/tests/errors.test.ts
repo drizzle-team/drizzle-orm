@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { is } from '~/entity.ts';
 import {
 	CheckConstraintViolationError,
 	DrizzleConstraintError,
@@ -131,6 +132,26 @@ describe('wrapQueryError', () => {
 			expect(wrapped.cause).toBe(mysqlError);
 		});
 
+		test('wraps ER_ROW_IS_REFERENCED_2 (1451) on delete', () => {
+			const mysqlError = Object.assign(
+				new Error(
+					'Cannot delete or update a parent row: a foreign key constraint fails (`db`.`posts`, CONSTRAINT `posts_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`))',
+				),
+				{
+					errno: 1451,
+					sqlMessage:
+						'Cannot delete or update a parent row: a foreign key constraint fails (`db`.`posts`, CONSTRAINT `posts_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`))',
+				},
+			);
+
+			const wrapped = wrapQueryError(query, params, mysqlError) as ForeignKeyViolationError;
+
+			expect(wrapped).toBeInstanceOf(ForeignKeyViolationError);
+			expect(wrapped.constraintName).toBe('posts_user_id_fk');
+			expect(wrapped.table).toBe('posts');
+			expect(wrapped.column).toBe('user_id');
+		});
+
 		test('wraps ER_CHECK_CONSTRAINT_VIOLATED (3819)', () => {
 			const mysqlError = Object.assign(new Error("Check constraint 'users_age_check' is violated."), {
 				errno: 3819,
@@ -224,6 +245,14 @@ describe('wrapQueryError', () => {
 
 			expect(wrapped).toBeInstanceOf(UniqueConstraintViolationError);
 		});
+
+		test('returns a clean first column for a composite SQLite constraint', () => {
+			const sqliteError = new Error('UNIQUE constraint failed: users.email, users.tenant_id');
+
+			const wrapped = wrapQueryError(query, params, sqliteError) as UniqueConstraintViolationError;
+
+			expect(wrapped.column).toBe('email');
+		});
 	});
 
 	describe('unknown errors', () => {
@@ -247,6 +276,15 @@ describe('wrapQueryError', () => {
 			expect(wrapped).toBeInstanceOf(DrizzleQueryError);
 			expect(wrapped).not.toBeInstanceOf(DrizzleConstraintError);
 		});
+
+		test('preserves a non-Error thrown value without masking it', () => {
+			const thrown = 'connection refused';
+
+			const wrapped = wrapQueryError(query, params, thrown);
+
+			expect(wrapped).toBeInstanceOf(DrizzleQueryError);
+			expect(wrapped.cause).toBe(thrown);
+		});
 	});
 
 	describe('instanceof chain', () => {
@@ -263,6 +301,9 @@ describe('wrapQueryError', () => {
 			expect(wrapped).toBeInstanceOf(DrizzleConstraintError);
 			expect(wrapped).toBeInstanceOf(DrizzleQueryError);
 			expect(wrapped).toBeInstanceOf(Error);
+			expect(is(wrapped, UniqueConstraintViolationError)).toBe(true);
+			expect(is(wrapped, DrizzleConstraintError)).toBe(true);
+			expect(is(wrapped, DrizzleQueryError)).toBe(true);
 		});
 
 		test('query and params are accessible on constraint errors', () => {
