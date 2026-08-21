@@ -1,4 +1,3 @@
-import type * as V1 from '~/_relations.ts';
 import { type Cache, NoopCache, strategyFor } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
@@ -246,9 +245,7 @@ export interface SingleStoreTransactionConfig {
 export abstract class SingleStoreSession<
 	TQueryResult extends SingleStoreQueryResultHKT = SingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TSchema extends V1.TablesRelationalConfig = Record<string, never>,
 > {
 	static readonly [entityKind]: string = 'SingleStoreSession';
 
@@ -299,7 +296,7 @@ export abstract class SingleStoreSession<
 
 	abstract transaction<T>(
 		transaction: (
-			tx: SingleStoreTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TRelations, TSchema>,
+			tx: SingleStoreTransaction<TQueryResult, TPreparedQueryHKT, TRelations>,
 		) => Promise<T>,
 		config?: SingleStoreTransactionConfig,
 	): Promise<T>;
@@ -332,20 +329,17 @@ export abstract class SingleStoreSession<
 export abstract class SingleStoreTransaction<
 	TQueryResult extends SingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TSchema extends V1.TablesRelationalConfig = Record<string, never>,
-> extends SingleStoreDatabase<TQueryResult, TPreparedQueryHKT, TFullSchema, TRelations, TSchema> {
+> extends SingleStoreDatabase<TQueryResult, TPreparedQueryHKT, TRelations> {
 	static override readonly [entityKind]: string = 'SingleStoreTransaction';
 
 	constructor(
 		dialect: SingleStoreDialect,
 		session: SingleStoreSession,
 		protected relations: TRelations,
-		protected schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		protected readonly nestedIndex: number,
 	) {
-		super(dialect, session, relations, schema);
+		super(dialect, session, relations);
 	}
 
 	rollback(): never {
@@ -355,7 +349,7 @@ export abstract class SingleStoreTransaction<
 	/** Nested transactions (aka savepoints) only work with InnoDB engine. */
 	abstract override transaction<T>(
 		transaction: (
-			tx: SingleStoreTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TRelations, TSchema>,
+			tx: SingleStoreTransaction<TQueryResult, TPreparedQueryHKT, TRelations>,
 		) => Promise<T>,
 	): Promise<T>;
 }

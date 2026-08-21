@@ -2,7 +2,7 @@ import 'dotenv/config';
 import Database from 'better-sqlite3';
 import { defineRelations, DrizzleError, eq, sql, TransactionRollbackError } from 'drizzle-orm';
 import { type BetterSQLite3Database, drizzle } from 'drizzle-orm/better-sqlite3';
-import { alias } from 'drizzle-orm/sqlite-core';
+import { alias, blob, integer, numeric, sqliteTable } from 'drizzle-orm/sqlite-core';
 import { beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 import relations from './sqlite.relations';
 import {
@@ -17,6 +17,7 @@ import {
 	usersTable,
 	usersToGroupsTable,
 } from './sqlite.schema';
+import type { AllTypes } from './sqlite.schema';
 
 const ENABLE_LOGGING = false;
 
@@ -11402,6 +11403,43 @@ test('[Find Many .through] Through with uneven relation column count - reverse',
 	]);
 });
 
+/*
+	The BIGINT family either side of `Number.MAX_SAFE_INTEGER`. The `alltypes` table carries one value
+	per mode, so a mode is never checked on the side it was not written for - the gap that let mysql's
+	`serial` ship with no normalizer, since its only test value was `1`.
+*/
+test('bigint bounds', async () => {
+	db.run(sql`drop table if exists \`bigint_bounds\``);
+	db.run(sql`CREATE TABLE \`bigint_bounds\`(\`id\` integer primary key, \`big\` blob, \`num\` numeric)`);
+
+	const bigintBounds = sqliteTable('bigint_bounds', {
+		id: integer('id').primaryKey(),
+		big: blob('big', { mode: 'bigint' }),
+		num: numeric('num', { mode: 'bigint' }),
+	});
+
+	const rows = [
+		// Well inside Number range: both modes must still produce a bigint rather than whatever the
+		// driver returns for a value that fits in a double.
+		{ id: 1, big: 1n, num: 1n },
+		// MAX_SAFE_INTEGER, then just past it: 9007199254740993 has no float64 representation, so
+		// these fail loudly if a value ever round-trips through a Number.
+		{ id: 2, big: 9007199254740991n, num: 9007199254740991n },
+		{ id: 3, big: 9007199254740993n, num: 9007199254740993n },
+		// Far past it, and the negative side of both bounds.
+		{ id: 4, big: 5044565289845416380n, num: 5044565289845416380n },
+		{ id: 5, big: -9007199254740993n, num: -9007199254740993n },
+	];
+
+	await db.insert(bigintBounds).values(rows);
+
+	const res = await db.select().from(bigintBounds).orderBy(bigintBounds.id);
+	expectTypeOf(res).toEqualTypeOf<{ id: number; big: bigint | null; num: bigint | null }[]>();
+	expect(res).toStrictEqual(rows);
+
+	db.run(sql`drop table if exists \`bigint_bounds\``);
+});
+
 test('alltypes', async () => {
 	db.run(sql`
 		CREATE TABLE \`all_types\`(
@@ -11483,7 +11521,9 @@ test('alltypes', async () => {
 	expect(nestedRelationRes).toStrictEqual(rawRes);
 	expect(relationRootRes).toStrictEqual(rawRes);
 
-	const expectedRes = [
+	expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
+
+	const expectedRes: AllTypes[] = [
 		{
 			int: 1,
 			bool: true,

@@ -38,6 +38,9 @@ export class SingleStoreDateTimeBuilder extends SingleStoreColumnBuilder<{
 export class SingleStoreDateTime<T extends ColumnBaseConfig<'object date'>> extends SingleStoreColumn<T> {
 	static override readonly [entityKind]: string = 'SingleStoreDateTime';
 
+	/** @internal */
+	override readonly codec = 'datetime';
+
 	constructor(
 		table: AnySingleStoreTable<{ name: T['tableName'] }>,
 		config: ColumnBuilderRuntimeConfig<T['data']> & SingleStoreDatetimeConfig,
@@ -52,10 +55,6 @@ export class SingleStoreDateTime<T extends ColumnBaseConfig<'object date'>> exte
 	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
 		return value.toISOString().replace('T', ' ').replace('Z', '');
-	};
-
-	override mapFromDriverValue = (value: string): Date => {
-		return new Date(value.replace(' ', 'T') + 'Z');
 	};
 }
 
@@ -88,6 +87,9 @@ export class SingleStoreDateTimeStringBuilder extends SingleStoreColumnBuilder<{
 
 export class SingleStoreDateTimeString<T extends ColumnBaseConfig<'string datetime'>> extends SingleStoreColumn<T> {
 	static override readonly [entityKind]: string = 'SingleStoreDateTimeString';
+
+	/** @internal */
+	override readonly codec = 'datetime:string';
 
 	constructor(
 		table: AnySingleStoreTable<{ name: T['tableName'] }>,

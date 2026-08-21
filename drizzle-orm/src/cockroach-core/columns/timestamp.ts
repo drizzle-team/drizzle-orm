@@ -1,9 +1,7 @@
 import type { AnyCockroachTable, CockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBuilderRuntimeConfig } from '~/column-builder.ts';
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
-import { CockroachColumn } from './common.ts';
+import { CockroachColumn, type CockroachColumnBaseConfig, type CockroachColumnBuilderRuntimeConfig } from './common.ts';
 import { CockroachDateColumnBaseBuilder } from './date.common.ts';
 
 export class CockroachTimestampBuilder extends CockroachDateColumnBaseBuilder<
@@ -33,29 +31,31 @@ export class CockroachTimestampBuilder extends CockroachDateColumnBaseBuilder<
 	}
 }
 
-export class CockroachTimestamp<T extends ColumnBaseConfig<'object date'>> extends CockroachColumn<T> {
+export class CockroachTimestamp<T extends CockroachColumnBaseConfig<'object date'>>
+	extends CockroachColumn<'object date', T>
+{
 	static override readonly [entityKind]: string = 'CockroachTimestamp';
+
+	/** @internal */
+	override readonly codec: 'timestamp' | 'timestamptz';
 
 	readonly withTimezone: boolean;
 	readonly precision: number | undefined;
 
 	constructor(
 		table: CockroachTable<any>,
-		config: ColumnBuilderRuntimeConfig<T['data']> & { withTimezone: boolean; precision: number | undefined },
+		config: CockroachColumnBuilderRuntimeConfig<T['data']> & { withTimezone: boolean; precision: number | undefined },
 	) {
 		super(table, config);
 		this.withTimezone = config.withTimezone;
 		this.precision = config.precision;
+		this.codec = config.withTimezone ? 'timestamptz' : 'timestamp';
 	}
 
 	getSQLType(): string {
 		const precision = this.precision === undefined ? '' : `(${this.precision})`;
 		return `timestamp${this.withTimezone ? 'tz' : ''}${precision}`;
 	}
-
-	override mapFromDriverValue = (value: string): Date | null => {
-		return new Date(this.withTimezone ? value : value + '+0000');
-	};
 
 	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
@@ -90,19 +90,25 @@ export class CockroachTimestampStringBuilder extends CockroachDateColumnBaseBuil
 	}
 }
 
-export class CockroachTimestampString<T extends ColumnBaseConfig<'string timestamp'>> extends CockroachColumn<T> {
+export class CockroachTimestampString<T extends CockroachColumnBaseConfig<'string timestamp'>>
+	extends CockroachColumn<'string timestamp', T>
+{
 	static override readonly [entityKind]: string = 'CockroachTimestampString';
+
+	/** @internal */
+	override readonly codec: 'timestamp:string' | 'timestamptz:string';
 
 	readonly withTimezone: boolean;
 	readonly precision: number | undefined;
 
 	constructor(
 		table: CockroachTable<any>,
-		config: ColumnBuilderRuntimeConfig<T['data']> & { withTimezone: boolean; precision: number | undefined },
+		config: CockroachColumnBuilderRuntimeConfig<T['data']> & { withTimezone: boolean; precision: number | undefined },
 	) {
 		super(table, config);
 		this.withTimezone = config.withTimezone;
 		this.precision = config.precision;
+		this.codec = config.withTimezone ? 'timestamptz:string' : 'timestamp:string';
 	}
 
 	getSQLType(): string {

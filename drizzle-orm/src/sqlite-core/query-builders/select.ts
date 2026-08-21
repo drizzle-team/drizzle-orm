@@ -227,6 +227,9 @@ export class SQLiteSelectBase<
 				throw new Error(`Alias "${tableName}" is already used in this query`);
 			}
 
+			this.config.fieldsFlat = undefined;
+			this.config.mapper = undefined;
+
 			if (!this.isPartialSelect) {
 				// If this is the first join and this is not a partial select and we're not selecting from raw SQL, "move" the fields from the main table to the nested object
 				if (Object.keys(this.joinsNotNullableMap).length === 1 && typeof baseTableName === 'string') {
@@ -828,7 +831,7 @@ export class SQLiteSelectBase<
 	}
 
 	getSQL(): SQL {
-		this.config.fieldsFlat = orderSelectedFields<SQLiteColumn>(this.config.fields);
+		this.config.fieldsFlat ??= orderSelectedFields<SQLiteColumn>(this.config.fields, undefined, this.dialect.codecs);
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
@@ -844,7 +847,9 @@ export class SQLiteSelectBase<
 		if (this.config.joins) { for (const it of this.config.joins) usedTables.push(...extractUsedTable(it.table)); }
 
 		return new Proxy(
-			new Subquery(this.getSQL(), this.config.fields, alias, false, [...new Set(usedTables)]),
+			new Subquery(this.withoutSelectionCastCodecs().getSQL(), this.config.fields, alias, false, [
+				...new Set(usedTables),
+			]),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
 	}
@@ -859,6 +864,7 @@ export class SQLiteSelectBase<
 
 	/** @internal */
 	override withoutSelectionCastCodecs(): this {
+		this.config.ignoreSelectionCastCodecs = true;
 		return this;
 	}
 

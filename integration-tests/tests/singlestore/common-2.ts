@@ -8,12 +8,17 @@ import {
 	countDistinct,
 	DrizzleQueryError,
 	eq,
+	getColumns,
 	getTableColumns,
 	gt,
 	gte,
 	inArray,
 	isNull,
 	lt,
+	makeDefaultQueryMapper,
+	makeDefaultRqbMapper,
+	makeJitQueryMapper,
+	makeJitRqbMapper,
 	max,
 	min,
 	sql,
@@ -28,6 +33,7 @@ import {
 	binary,
 	boolean,
 	char,
+	customType,
 	date,
 	datetime,
 	decimal,
@@ -46,6 +52,7 @@ import {
 	SingleStoreDialect,
 	singlestoreEnum,
 	singlestoreSchema,
+	SingleStoreSession,
 	singlestoreTable,
 	singlestoreTableCreator,
 	/* singlestoreView, */
@@ -65,95 +72,20 @@ import { dotProduct, euclideanDistance } from 'drizzle-orm/singlestore-core/expr
 import { describe, expect, expectTypeOf } from 'vitest';
 import { Expect } from '../utils';
 import type { Equal } from '../utils';
+import {
+	type AllTypes,
+	allTypesData,
+	allTypesRelations,
+	allTypesTable,
+	assertAllTypesBounds,
+	assertAllTypesUnions,
+	makeAllTypes,
+} from './all-types';
 import type { Test } from './instrumentation';
 import type relations from './relations';
+import { normalizeDataWithDbCodecs } from './utils';
 
-type TestSingleStoreDB = SingleStoreDatabase<any, any, any, typeof relations>;
-
-const allTypesTable = singlestoreTable('all_types', {
-	serial: serial('scol'),
-	bigint53: bigint('bigint53', {
-		mode: 'number',
-	}),
-	bigint64: bigint('bigint64', {
-		mode: 'bigint',
-	}),
-	bigintString: bigint('bigint_string', {
-		mode: 'string',
-	}),
-	binary: binary('binary'),
-	boolean: boolean('boolean'),
-	char: char('char'),
-	date: date('date', {
-		mode: 'date',
-	}),
-	dateStr: date('date_str', {
-		mode: 'string',
-	}),
-	datetime: datetime('datetime', {
-		mode: 'date',
-	}),
-	datetimeStr: datetime('datetime_str', {
-		mode: 'string',
-	}),
-	decimal: decimal('decimal'),
-	decimalNum: decimal('decimal_num', {
-		scale: 30,
-		mode: 'number',
-	}),
-	decimalBig: decimal('decimal_big', {
-		scale: 30,
-		mode: 'bigint',
-	}),
-	double: double('double'),
-	float: float('float'),
-	int: int('int'),
-	json: json('json'),
-	medInt: mediumint('med_int'),
-	smallInt: smallint('small_int'),
-	real: real('real'),
-	text: text('text'),
-	time: time('time'),
-	timestamp: timestamp('timestamp', {
-		mode: 'date',
-	}),
-	timestampStr: timestamp('timestamp_str', {
-		mode: 'string',
-	}),
-	tinyInt: tinyint('tiny_int'),
-	varbin: varbinary('varbin', {
-		length: 16,
-	}),
-	varchar: varchar('varchar', {
-		length: 255,
-	}),
-	year: year('year'),
-	enum: singlestoreEnum('enum', ['enV1', 'enV2']),
-	vectorI8: vector('vec_i8', {
-		dimensions: 5,
-		elementType: 'I8',
-	}),
-	vectorI16: vector('vec_i16', {
-		dimensions: 5,
-		elementType: 'I16',
-	}),
-	vectorI32: vector('vec_i32', {
-		dimensions: 5,
-		elementType: 'I32',
-	}),
-	vectorI64: vector('vec_i64', {
-		dimensions: 5,
-		elementType: 'I64',
-	}),
-	vectorF32: vector('vec_f32', {
-		dimensions: 5,
-		elementType: 'F32',
-	}),
-	vectorF64: vector('vec_f64', {
-		dimensions: 5,
-		elementType: 'F64',
-	}),
-});
+type TestSingleStoreDB = SingleStoreDatabase<any, any, typeof relations>;
 
 const usersTable = singlestoreTable('userstest', {
 	id: serial('id').primaryKey(),
@@ -2468,7 +2400,7 @@ export function tests(test: Test) {
 
 			expect(query).toEqual({
 				sql:
-					`select \`id\`, \`name\` from \`mySchema\`.\`userstest\` group by \`mySchema\`.\`userstest\`.\`id\`, \`mySchema\`.\`userstest\`.\`name\``,
+					`select cast(\`id\` as char), \`name\` from \`mySchema\`.\`userstest\` group by \`mySchema\`.\`userstest\`.\`id\`, \`mySchema\`.\`userstest\`.\`name\``,
 				params: [],
 			});
 		});
@@ -3367,217 +3299,232 @@ export function tests(test: Test) {
 			expect(updated).toStrictEqual(initial);
 		});
 
-		test.concurrent('all types', async ({ db }) => {
-			await db.execute(sql`drop table if exists ${allTypesTable};`);
-			await db.execute(sql`
-                CREATE TABLE \`all_types\` (
-                        \`scol\` serial,
-                        \`bigint53\` bigint,
-                        \`bigint64\` bigint,
-                        \`bigint_string\` bigint,
-                        \`binary\` binary,
-                        \`boolean\` boolean,
-                        \`char\` char,
-                        \`date\` date,
-                        \`date_str\` date,
-                        \`datetime\` datetime,
-                        \`datetime_str\` datetime,
-                        \`decimal\` decimal,
-                        \`decimal_num\` decimal(30),
-                        \`decimal_big\` decimal(30),
-                        \`double\` double,
-                        \`float\` float,
-                        \`int\` int,
-                        \`json\` json,
-                        \`med_int\` mediumint,
-                        \`small_int\` smallint,
-                        \`real\` real,
-                        \`text\` text,
-                        \`time\` time,
-                        \`timestamp\` timestamp,
-                        \`timestamp_str\` timestamp,
-                        \`tiny_int\` tinyint,
-                        \`varbin\` varbinary(16),
-                        \`varchar\` varchar(255),
-                        \`year\` year,
-                        \`enum\` enum('enV1','enV2'),
-                        \`vec_i8\` vector(5, I8),
-                        \`vec_i16\` vector(5, I16),
-                        \`vec_i32\` vector(5, I32),
-                        \`vec_i64\` vector(5, I64),
-                        \`vec_f32\` vector(5, F32),
-                        \`vec_f64\` vector(5, F64),
-                        shard key(\`scol\`)
-                    );
-            `);
+		test.concurrent('all types', async ({ db, push }) => {
+			const allTypesTable = makeAllTypes('all_types');
+			await push({ allTypesTable });
 
-			await db.insert(allTypesTable).values({
-				serial: 1,
-				bigint53: 9007199254740991,
-				bigint64: 5044565289845416380n,
-				bigintString: '5044565289845416380',
-				binary: '1',
-				boolean: true,
-				char: 'c',
-				date: new Date(1741743161623),
-				dateStr: new Date(1741743161623)
-					.toISOString()
-					.slice(0, 19)
-					.replace('T', ' '),
-				datetime: new Date(1741743161623),
-				datetimeStr: new Date(1741743161623)
-					.toISOString()
-					.slice(0, 19)
-					.replace('T', ' '),
-				decimal: '47521',
-				decimalNum: 9007199254740991,
-				decimalBig: 5044565289845416380n,
-				double: 15.35325689124218,
-				enum: 'enV1',
-				float: 1.048596,
-				real: 1.048596,
-				text: 'C4-',
-				int: 621,
-				json: {
-					str: 'strval',
-					arr: ['str', 10],
-				},
-				medInt: 560,
-				smallInt: 14,
-				time: '04:13:22',
-				timestamp: new Date(1741743161623),
-				timestampStr: new Date(1741743161623)
-					.toISOString()
-					.slice(0, 19)
-					.replace('T', ' '),
-				tinyInt: 7,
-				varbin: '1010110101001101',
-				varchar: 'VCHAR',
-				year: 2025,
-				vectorF32: [0.735482, -0.291647, 1.183529, -2.406378, 0.014263],
-				vectorF64: [
-					0.3918573842719283,
-					-1.682530118745203,
-					2.014963587205109,
-					-0.005832741903218165,
-					0.7841029456712038,
-				],
-				vectorI8: [-2, 8, 127, 85, -128],
-				vectorI16: [-2, 8, 127, 85, -128],
-				vectorI32: [15342, -27894, 6271, -10385, 31056],
-				vectorI64: [
-					4829301283746501823n,
-					-7203847501293847201n,
-					1623847561928374650n,
-					-5938475628374651983n,
-					803745610293847561n,
-				],
-			});
+			await db.insert(allTypesTable).values(allTypesData);
 
 			const rawRes = await db.select().from(allTypesTable);
 
-			type ExpectedType = {
-				serial: number;
-				bigint53: number | null;
-				bigint64: bigint | null;
-				bigintString: string | null;
-				binary: string | null;
-				boolean: boolean | null;
-				char: string | null;
-				date: Date | null;
-				dateStr: string | null;
-				datetime: Date | null;
-				datetimeStr: string | null;
-				decimal: string | null;
-				decimalNum: number | null;
-				decimalBig: bigint | null;
-				double: number | null;
-				float: number | null;
-				int: number | null;
-				json: unknown;
-				medInt: number | null;
-				smallInt: number | null;
-				real: number | null;
-				text: string | null;
-				time: string | null;
-				timestamp: Date | null;
-				timestampStr: string | null;
-				tinyInt: number | null;
-				varbin: string | null;
-				varchar: string | null;
-				year: number | null;
-				enum: 'enV1' | 'enV2' | null;
-				vectorI8: number[] | null;
-				vectorI16: number[] | null;
-				vectorI32: number[] | null;
-				vectorI64: bigint[] | null;
-				vectorF32: number[] | null;
-				vectorF64: number[] | null;
-			}[];
+			expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
+			expect(rawRes).toStrictEqual([allTypesData]);
 
-			const expectedRes: ExpectedType = [
-				{
-					serial: 1,
-					bigint53: 9007199254740991,
-					bigint64: 5044565289845416380n,
-					bigintString: '5044565289845416380',
-					binary: '1',
-					boolean: true,
-					char: 'c',
-					date: new Date('2025-03-12T00:00:00.000Z'),
-					dateStr: '2025-03-12',
-					datetime: new Date('2025-03-12T01:32:41.000Z'),
-					datetimeStr: '2025-03-12 01:32:41',
-					decimal: '47521',
-					decimalNum: 9007199254740991,
-					decimalBig: 5044565289845416380n,
-					double: 15.35325689124218,
-					float: 1.0486,
-					int: 621,
-					json: { arr: ['str', 10], str: 'strval' },
-					medInt: 560,
-					smallInt: 14,
-					real: 1.048596,
-					text: 'C4-',
-					time: '04:13:22',
-					timestamp: new Date('2025-03-12T01:32:41.000Z'),
-					timestampStr: '2025-03-12 01:32:41',
-					tinyInt: 7,
-					varbin: '1010110101001101',
-					varchar: 'VCHAR',
-					year: 2025,
-					enum: 'enV1',
-					vectorF32: [
-						...new Float32Array([
-							0.735482,
-							-0.291647,
-							1.183529,
-							-2.406378,
-							0.014263,
-						]),
-					],
-					vectorF64: [
-						0.3918573842719283,
-						-1.682530118745203,
-						2.014963587205109,
-						-0.005832741903218165,
-						0.7841029456712038,
-					],
-					vectorI8: [-2, 8, 127, 85, -128],
-					vectorI16: [-2, 8, 127, 85, -128],
-					vectorI32: [15342, -27894, 6271, -10385, 31056],
-					vectorI64: [
-						4829301283746501823n,
-						-7203847501293847201n,
-						1623847561928374650n,
-						-5938475628374651983n,
-						803745610293847561n,
-					],
+			await assertAllTypesUnions(db, allTypesTable);
+			await assertAllTypesBounds(db);
+		});
+
+		test.concurrent('all types ~codecs~', async ({ createDB, push }) => {
+			const db = createDB({ allTypesTable }, allTypesRelations);
+			await push({ allTypesTable });
+
+			await db.insert(allTypesTable).values(allTypesData);
+
+			const session = (<any> db).session as SingleStoreSession;
+			const queryRes = await session.objects<AllTypes>(
+				db.select(
+					Object.fromEntries(Object.entries(getTableColumns(allTypesTable)).map(([k, v]) => [k, v.as(v.name)])),
+				).from(allTypesTable).getSQL(),
+			).then((e) =>
+				normalizeDataWithDbCodecs({
+					db,
+					columns: getColumns(allTypesTable),
+					data: e,
+					mode: 'query',
+				})[0]
+			);
+
+			const { relationRes, rootRes } = await session.objects<AllTypes & { self: string }>(
+				db.query.allTypesTable.findFirst({
+					with: {
+						self: true,
+					},
+				}).getSQL(),
+			).then((e) => {
+				const { self: relationRaw, ...rootRaw } = e[0]!;
+
+				return {
+					relationRes: normalizeDataWithDbCodecs({
+						db,
+						columns: getColumns(allTypesTable),
+						data: relationRaw,
+						mode: 'json',
+					})[0]!,
+					rootRes: normalizeDataWithDbCodecs({
+						db,
+						columns: getColumns(allTypesTable),
+						data: [rootRaw],
+						mode: 'query',
+					})[0]!,
+				};
+			});
+
+			expect(queryRes).toStrictEqual(allTypesData);
+			expect(relationRes).toStrictEqual(allTypesData);
+			expect(rootRes).toStrictEqual(allTypesData);
+
+			await assertAllTypesUnions(db);
+			await assertAllTypesBounds(db);
+		});
+
+		test.concurrent('Column as decoder applies codecs', async ({ createDB, push }) => {
+			let customCast = false;
+			let customMap = false;
+
+			const codecBypass = customType<{
+				data: Date;
+				driverData: string;
+				jsonData: string;
+			}>({
+				codec: 'datetime',
+				dataType: () => 'datetime',
+				forJsonSelect: (identifier, sql) => {
+					customCast = true;
+					return sql`cast(${identifier} as char)`;
 				},
-			];
+				fromJson: (v) => {
+					customMap = true;
+					return new Date(v.replace(' ', 'T') + 'Z');
+				},
+				toDriver: (v) => v.toISOString().replace('T', ' ').replace('Z', ''),
+			});
 
-			expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
-			expect(rawRes).toStrictEqual(expectedRes);
+			const users = singlestoreTable('users_823', {
+				id: int('id').primaryKey(),
+				name: text('name').notNull(),
+				createdAt: datetime('createdAt', { mode: 'date' }).notNull(),
+				createdAtStr: datetime('createdAtStr', { mode: 'string' }).notNull(),
+				cus: codecBypass('cus').notNull(),
+			});
+
+			await push({ users });
+
+			const db = createDB({ users }, (r) => ({
+				users: {
+					self: r.one.users({
+						from: r.users.id,
+						to: r.users.id,
+					}),
+				},
+			}));
+
+			const exDateStr = '1970-01-16 16:45:46';
+			const exDate = new Date(exDateStr.replace(' ', 'T') + 'Z');
+
+			await db.insert(users).values({
+				id: 1,
+				name: 'First',
+				createdAt: exDate,
+				createdAtStr: exDateStr,
+				cus: exDate,
+			});
+
+			const res = await db.select({
+				...getColumns(users),
+				max: max(users.createdAt).as('max'),
+				maxStr: max(users.createdAtStr).as('maxStr'),
+			}).from(users).groupBy(users.id);
+
+			const nested = await db.query.users.findFirst({
+				with: {
+					self: true,
+				},
+			});
+
+			const cols = {
+				id: 1,
+				name: 'First',
+				createdAt: exDate,
+				createdAtStr: exDateStr,
+				cus: exDate,
+			};
+
+			expect(res).toStrictEqual([{ ...cols, max: exDate, maxStr: exDateStr }]);
+
+			expect(customCast).toBeTruthy();
+			expect(customMap).toBeTruthy();
+
+			expect(nested).toStrictEqual({ ...cols, self: cols });
+		});
+
+		test.concurrent('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }) => {
+			let customCast = false;
+			let customMap = false;
+
+			const codecBypass = customType<{
+				data: Date;
+				driverData: string;
+				jsonData: string;
+			}>({
+				codec: 'datetime',
+				dataType: () => 'datetime',
+				forJsonSelect: (identifier, sql) => {
+					customCast = true;
+					return sql`cast(${identifier} as char)`;
+				},
+				fromJson: (v) => {
+					customMap = true;
+					return new Date(v.replace(' ', 'T') + 'Z');
+				},
+				toDriver: (v) => v.toISOString().replace('T', ' ').replace('Z', ''),
+			});
+
+			const users = singlestoreTable('users_824', {
+				id: int('id').primaryKey(),
+				name: text('name').notNull(),
+				createdAt: datetime('createdAt', { mode: 'date' }).notNull(),
+				createdAtStr: datetime('createdAtStr', { mode: 'string' }).notNull(),
+				cus: codecBypass('cus').notNull(),
+			});
+
+			await push({ users });
+
+			const db = createDB({ users }, (r) => ({
+				users: {
+					self: r.one.users({
+						from: r.users.id,
+						to: r.users.id,
+					}),
+				},
+			}), true);
+
+			const exDateStr = '1970-01-16 16:45:46';
+			const exDate = new Date(exDateStr.replace(' ', 'T') + 'Z');
+
+			await db.insert(users).values({
+				id: 1,
+				name: 'First',
+				createdAt: exDate,
+				createdAtStr: exDateStr,
+				cus: exDate,
+			});
+
+			const res = await db.select({
+				...getColumns(users),
+				max: max(users.createdAt).as('max'),
+				maxStr: max(users.createdAtStr).as('maxStr'),
+			}).from(users).groupBy(users.id);
+
+			const nested = await db.query.users.findFirst({
+				with: {
+					self: true,
+				},
+			});
+
+			const cols = {
+				id: 1,
+				name: 'First',
+				createdAt: exDate,
+				createdAtStr: exDateStr,
+				cus: exDate,
+			};
+
+			expect(res).toStrictEqual([{ ...cols, max: exDate, maxStr: exDateStr }]);
+
+			expect(customCast).toBeTruthy();
+			expect(customMap).toBeTruthy();
+
+			expect(nested).toStrictEqual({ ...cols, self: cols });
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4878
@@ -3685,6 +3632,1320 @@ export function tests(test: Test) {
 				defMix3: 2,
 				defMix4: 1,
 			}]);
+		});
+
+		test.concurrent('Mappers: correct mappers enabled', async ({ db, createDB }) => {
+			const dialect: SingleStoreDialect = (<any> db).dialect;
+			const jitDialect: SingleStoreDialect = (<any> createDB({}, () => ({}), true)).dialect;
+
+			expect(dialect.mapperGenerators.relationalRows === makeDefaultRqbMapper).toStrictEqual(true);
+			expect(dialect.mapperGenerators.rows === makeDefaultQueryMapper).toStrictEqual(true);
+			expect(jitDialect.mapperGenerators.relationalRows === makeJitRqbMapper).toStrictEqual(true);
+			expect(jitDialect.mapperGenerators.rows === makeJitQueryMapper).toStrictEqual(true);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/1603
+		test.concurrent('Nested partial select left join: null first column', async ({ db, push }) => {
+			const orgs = singlestoreTable('issue1603_orgs', (t) => ({
+				id: t.int('id').primaryKey(),
+				name: t.text('name').notNull(),
+			}));
+			const branding = singlestoreTable('issue1603_branding', (t) => ({
+				id: t.int('id').primaryKey(),
+				orgId: t.int('org_id'),
+				logo: t.text('logo'),
+				panelBackground: t.text('panel_background'),
+			}));
+
+			await push({ orgs, branding });
+
+			await db.insert(orgs).values([{ id: 1, name: 'Acme' }, { id: 2, name: 'NoBranding' }]);
+			await db.insert(branding).values({ id: 1, orgId: 1, logo: null, panelBackground: '#1a8cff' });
+
+			const withBranding = await db.select({
+				name: orgs.name,
+				branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+			}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 1));
+
+			expect(withBranding).toStrictEqual([{
+				name: 'Acme',
+				branding: { logo: null, panelBackground: '#1a8cff' },
+			}]);
+
+			const withoutBranding = await db.select({
+				name: orgs.name,
+				branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+			}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 2));
+
+			expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
+		});
+
+		test.concurrent('Nested partial select left join: null first column - jit', async ({ createDB, push }) => {
+			const orgs = singlestoreTable('issue1603_orgs_jit', (t) => ({
+				id: t.int('id').primaryKey(),
+				name: t.text('name').notNull(),
+			}));
+			const branding = singlestoreTable('issue1603_branding_jit', (t) => ({
+				id: t.int('id').primaryKey(),
+				orgId: t.int('org_id'),
+				logo: t.text('logo'),
+				panelBackground: t.text('panel_background'),
+			}));
+
+			await push({ orgs, branding });
+			const db = createDB({ orgs, branding }, () => ({}), true);
+
+			await db.insert(orgs).values([{ id: 1, name: 'Acme' }, { id: 2, name: 'NoBranding' }]);
+			await db.insert(branding).values({ id: 1, orgId: 1, logo: null, panelBackground: '#1a8cff' });
+
+			const withBranding = await db.select({
+				name: orgs.name,
+				branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+			}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 1));
+
+			expect(withBranding).toStrictEqual([{
+				name: 'Acme',
+				branding: { logo: null, panelBackground: '#1a8cff' },
+			}]);
+
+			const withoutBranding = await db.select({
+				name: orgs.name,
+				branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+			}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 2));
+
+			expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
+		});
+
+		const mappersDate = new Date('2026-04-02T00:00:00.000Z');
+
+		test.concurrent('Mappers: simple select - no rows', async ({ db, push }) => {
+			const users = singlestoreTable('mappers_users_1', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			await push({ users });
+
+			const result = await db.select().from(users);
+
+			expect(result).toStrictEqual([]);
+		});
+
+		test.concurrent('Mappers: select - nothing to decode - text', async ({ db, push }) => {
+			const users = singlestoreTable('mappers_users_2', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			await push({ users });
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}]);
+
+			const selected = await db.select({ name: users.name }).from(users);
+
+			expect(selected).toStrictEqual([{ name: 'First' }]);
+		});
+
+		test.concurrent('Mappers: select - nothing to decode - null', async ({ db, push }) => {
+			const users = singlestoreTable('mappers_users_3', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			await push({ users });
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}]);
+
+			const selected = await db.select({ isBanned: users.isBanned }).from(users);
+
+			expect(selected).toStrictEqual([{ isBanned: null }]);
+		});
+
+		test.concurrent('Mappers: insert $returningId + select', async ({ db, push }) => {
+			const users = singlestoreTable('mappers_users_4', (t) => ({
+				id: t.serial('id').primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			await push({ users });
+
+			const insertedIds = await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+			}]).$returningId();
+
+			expectTypeOf(insertedIds).toEqualTypeOf<{ id: number }[]>();
+			expect(insertedIds).toStrictEqual([{ id: 3 }, { id: 4 }, { id: 5 }]);
+
+			const selected = await db.select().from(users).orderBy(users.id);
+
+			await db.update(users).set({
+				isBanned: false,
+			}).where(eq(users.id, 2));
+
+			expect(selected).toStrictEqual([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+				isBanned: null,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+				isBanned: null,
+			}]);
+		});
+
+		test.concurrent('Mappers: select complex selections', async ({ db, push }) => {
+			const users = singlestoreTable('mappers_users_5', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			const posts = singlestoreTable('mappers_posts_1', (t) => ({
+				id: t.int('id').primaryKey(),
+				authorId: t.bigint('author_id', { mode: 'number' }),
+				content: t.text('content'),
+			}));
+
+			await push({ users, posts });
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+			}]);
+
+			await db.insert(posts).values({
+				id: 1,
+				authorId: 1,
+				content: 'p1',
+			});
+
+			const selected1 = await db.select({ user: users, post: posts }).from(users).leftJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			).orderBy(users.id);
+			const selected2 = await db.select({ user: users, post: posts }).from(users).innerJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			).orderBy(users.id);
+			const selected3 = await db.select({
+				userId: users.id,
+				postId: posts.id,
+				name: users.name,
+				isBanned: users.isBanned,
+				content: posts.content,
+				createdAt: users.createdAt,
+			}).from(users).leftJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			).orderBy(users.id);
+			const selected4 = await db.select({
+				userId: users.id,
+				postId: posts.id,
+				name: users.name,
+				isBanned: users.isBanned,
+				content: posts.content,
+				createdAt: users.createdAt,
+			}).from(users).innerJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			).orderBy(users.id);
+
+			expect(selected1).toStrictEqual([{
+				user: {
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+					isBanned: null,
+				},
+				post: {
+					id: 1,
+					authorId: 1,
+					content: 'p1',
+				},
+			}, {
+				user: {
+					id: 2,
+					name: 'Second',
+					createdAt: mappersDate,
+					isBanned: true,
+				},
+				post: null,
+			}, {
+				user: {
+					id: 3,
+					name: 'Third',
+					createdAt: mappersDate,
+					isBanned: null,
+				},
+				post: null,
+			}]);
+			expect(selected2).toStrictEqual([{
+				user: {
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+					isBanned: null,
+				},
+				post: {
+					id: 1,
+					authorId: 1,
+					content: 'p1',
+				},
+			}]);
+			expect(selected3).toStrictEqual([
+				{
+					content: 'p1',
+					createdAt: mappersDate,
+					isBanned: null,
+					name: 'First',
+					postId: 1,
+					userId: 1,
+				},
+				{
+					content: null,
+					createdAt: mappersDate,
+					isBanned: true,
+					name: 'Second',
+					postId: null,
+					userId: 2,
+				},
+				{
+					content: null,
+					createdAt: mappersDate,
+					isBanned: null,
+					name: 'Third',
+					postId: null,
+					userId: 3,
+				},
+			]);
+			expect(selected4).toStrictEqual([
+				{
+					content: 'p1',
+					createdAt: mappersDate,
+					isBanned: null,
+					name: 'First',
+					postId: 1,
+					userId: 1,
+				},
+			]);
+		});
+
+		test.concurrent('Mappers: relational', async ({ createDB, push }) => {
+			const users = singlestoreTable('mappers_users_6', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			const posts = singlestoreTable('mappers_posts_2', (t) => ({
+				id: t.int('id').primaryKey(),
+				authorId: t.bigint('author_id', { mode: 'number' }),
+				content: t.text('content'),
+			}));
+
+			await push({ users, posts });
+			const db = createDB({ users, posts }, (r) => ({
+				users: {
+					post: r.one.posts({
+						from: r.users.id,
+						to: r.posts.authorId,
+					}),
+					posts: r.one.posts({
+						from: r.users.id,
+						to: r.posts.authorId,
+					}),
+				},
+				posts: {
+					author: r.one.users({
+						from: r.posts.authorId,
+						to: r.users.id,
+					}),
+					authors: r.many.users({
+						from: r.posts.authorId,
+						to: r.users.id,
+					}),
+				},
+			}), false);
+
+			const empty1 = await db.query.users.findFirst();
+			const empty2 = await db.query.users.findMany();
+
+			expect(empty1).toStrictEqual(undefined);
+			expect(empty2).toStrictEqual([]);
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+			}]);
+			await db.insert(posts).values({
+				id: 1,
+				authorId: 1,
+				content: 'p1',
+			});
+
+			const simple1 = await db.query.users.findFirst({ orderBy: { id: 'asc' } });
+			const simple2 = await db.query.users.findMany({ orderBy: { id: 'asc' } });
+
+			expect(simple1).toStrictEqual(
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+				},
+			);
+			expect(simple2).toStrictEqual([
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+				},
+				{
+					createdAt: mappersDate,
+					id: 2,
+					isBanned: true,
+					name: 'Second',
+				},
+				{
+					createdAt: mappersDate,
+					id: 3,
+					isBanned: null,
+					name: 'Third',
+				},
+			]);
+
+			const extra1 = await db.query.users.findFirst({
+				orderBy: { id: 'asc' },
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				},
+			});
+			const extra2 = await db.query.users.findMany({
+				orderBy: { id: 'asc' },
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				},
+			});
+
+			expect(extra1).toStrictEqual(
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+					sql: 1,
+					sqlWrapper: 2,
+				},
+			);
+			expect(extra2).toStrictEqual([
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				{
+					createdAt: mappersDate,
+					id: 2,
+					isBanned: true,
+					name: 'Second',
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				{
+					createdAt: mappersDate,
+					id: 3,
+					isBanned: null,
+					name: 'Third',
+					sql: 1,
+					sqlWrapper: 2,
+				},
+			]);
+
+			const nested1 = await db.query.users.findFirst({
+				orderBy: { id: 'asc' },
+				with: {
+					post: {
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+						},
+					},
+					posts: {
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+						},
+					},
+				},
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				},
+			});
+			const nested2 = await db.query.users.findMany({
+				orderBy: { id: 'asc' },
+				with: {
+					post: {
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+						},
+					},
+					posts: {
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+						},
+					},
+				},
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				},
+			});
+
+			expect(nested1).toStrictEqual(
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+					post: {
+						authorId: 1,
+						content: 'p1',
+						id: 1,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					posts: {
+						authorId: 1,
+						content: 'p1',
+						id: 1,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					sql: 1,
+					sqlWrapper: 2,
+				},
+			);
+			expect(nested2).toStrictEqual([
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+					post: {
+						authorId: 1,
+						content: 'p1',
+						id: 1,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					posts: {
+						authorId: 1,
+						content: 'p1',
+						id: 1,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				{
+					createdAt: mappersDate,
+					id: 2,
+					isBanned: true,
+					name: 'Second',
+					post: null,
+					posts: null,
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				{
+					createdAt: mappersDate,
+					id: 3,
+					isBanned: null,
+					name: 'Third',
+					post: null,
+					posts: null,
+					sql: 1,
+					sqlWrapper: 2,
+				},
+			]);
+		});
+
+		test.concurrent('Jit mappers: simple select - no rows', async ({ createDB, push }) => {
+			const users = singlestoreTable('jit_mappers_users_1', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			await push({ users });
+			const db = createDB({ users }, () => ({}), true);
+
+			const result = await db.select().from(users);
+
+			expect(result).toStrictEqual([]);
+		});
+
+		test.concurrent('Jit mappers: select - nothing to decode - text', async ({ createDB, push }) => {
+			const users = singlestoreTable('jit_mappers_users_2', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			await push({ users });
+			const db = createDB({ users }, () => ({}), true);
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}]);
+
+			const selected = await db.select({ name: users.name }).from(users);
+
+			expect(selected).toStrictEqual([{ name: 'First' }]);
+		});
+
+		test.concurrent('Jit mappers: select - nothing to decode - null', async ({ createDB, push }) => {
+			const users = singlestoreTable('jit_mappers_users_3', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			await push({ users });
+			const db = createDB({ users }, () => ({}), true);
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}]);
+
+			const selected = await db.select({ isBanned: users.isBanned }).from(users);
+
+			expect(selected).toStrictEqual([{ isBanned: null }]);
+		});
+
+		test.concurrent('Jit mappers: insert $returningId + select', async ({ createDB, push }) => {
+			const users = singlestoreTable('jit_mappers_users_4', (t) => ({
+				id: t.serial('id').primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			await push({ users });
+			const db = createDB({ users }, () => ({}), true);
+
+			const insertedIds = await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+			}]).$returningId();
+
+			expectTypeOf(insertedIds).toEqualTypeOf<{ id: number }[]>();
+			expect(insertedIds).toStrictEqual([{ id: 3 }, { id: 4 }, { id: 5 }]);
+
+			const selected = await db.select().from(users).orderBy(users.id);
+
+			await db.update(users).set({
+				isBanned: false,
+			}).where(eq(users.id, 2));
+
+			expect(selected).toStrictEqual([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+				isBanned: null,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+				isBanned: null,
+			}]);
+		});
+
+		test.concurrent('Jit mappers: select complex selections', async ({ createDB, push }) => {
+			const users = singlestoreTable('jit_mappers_users_5', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			const posts = singlestoreTable('jit_mappers_posts_1', (t) => ({
+				id: t.int('id').primaryKey(),
+				authorId: t.bigint('author_id', { mode: 'number' }),
+				content: t.text('content'),
+			}));
+
+			await push({ users, posts });
+			const db = createDB({ users, posts }, () => ({}), true);
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+			}]);
+
+			await db.insert(posts).values({
+				id: 1,
+				authorId: 1,
+				content: 'p1',
+			});
+
+			const selected1 = await db.select({ user: users, post: posts }).from(users).leftJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			).orderBy(users.id);
+			const selected2 = await db.select({ user: users, post: posts }).from(users).innerJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			).orderBy(users.id);
+			const selected3 = await db.select({
+				userId: users.id,
+				postId: posts.id,
+				name: users.name,
+				isBanned: users.isBanned,
+				content: posts.content,
+				createdAt: users.createdAt,
+			}).from(users).leftJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			).orderBy(users.id);
+			const selected4 = await db.select({
+				userId: users.id,
+				postId: posts.id,
+				name: users.name,
+				isBanned: users.isBanned,
+				content: posts.content,
+				createdAt: users.createdAt,
+			}).from(users).innerJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			).orderBy(users.id);
+
+			expect(selected1).toStrictEqual([{
+				user: {
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+					isBanned: null,
+				},
+				post: {
+					id: 1,
+					authorId: 1,
+					content: 'p1',
+				},
+			}, {
+				user: {
+					id: 2,
+					name: 'Second',
+					createdAt: mappersDate,
+					isBanned: true,
+				},
+				post: null,
+			}, {
+				user: {
+					id: 3,
+					name: 'Third',
+					createdAt: mappersDate,
+					isBanned: null,
+				},
+				post: null,
+			}]);
+			expect(selected2).toStrictEqual([{
+				user: {
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+					isBanned: null,
+				},
+				post: {
+					id: 1,
+					authorId: 1,
+					content: 'p1',
+				},
+			}]);
+			expect(selected3).toStrictEqual([
+				{
+					content: 'p1',
+					createdAt: mappersDate,
+					isBanned: null,
+					name: 'First',
+					postId: 1,
+					userId: 1,
+				},
+				{
+					content: null,
+					createdAt: mappersDate,
+					isBanned: true,
+					name: 'Second',
+					postId: null,
+					userId: 2,
+				},
+				{
+					content: null,
+					createdAt: mappersDate,
+					isBanned: null,
+					name: 'Third',
+					postId: null,
+					userId: 3,
+				},
+			]);
+			expect(selected4).toStrictEqual([
+				{
+					content: 'p1',
+					createdAt: mappersDate,
+					isBanned: null,
+					name: 'First',
+					postId: 1,
+					userId: 1,
+				},
+			]);
+		});
+
+		test.concurrent('Jit mappers: relational', async ({ createDB, push }) => {
+			const users = singlestoreTable('jit_mappers_users_6', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			const posts = singlestoreTable('jit_mappers_posts_2', (t) => ({
+				id: t.int('id').primaryKey(),
+				authorId: t.bigint('author_id', { mode: 'number' }),
+				content: t.text('content'),
+			}));
+
+			await push({ users, posts });
+			const db = createDB({ users, posts }, (r) => ({
+				users: {
+					post: r.one.posts({
+						from: r.users.id,
+						to: r.posts.authorId,
+					}),
+					posts: r.one.posts({
+						from: r.users.id,
+						to: r.posts.authorId,
+					}),
+				},
+				posts: {
+					author: r.one.users({
+						from: r.posts.authorId,
+						to: r.users.id,
+					}),
+					authors: r.many.users({
+						from: r.posts.authorId,
+						to: r.users.id,
+					}),
+				},
+			}), true);
+
+			const empty1 = await db.query.users.findFirst();
+			const empty2 = await db.query.users.findMany();
+
+			expect(empty1).toStrictEqual(undefined);
+			expect(empty2).toStrictEqual([]);
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+			}]);
+			await db.insert(posts).values({
+				id: 1,
+				authorId: 1,
+				content: 'p1',
+			});
+
+			const simple1 = await db.query.users.findFirst({ orderBy: { id: 'asc' } });
+			const simple2 = await db.query.users.findMany({ orderBy: { id: 'asc' } });
+
+			expect(simple1).toStrictEqual(
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+				},
+			);
+			expect(simple2).toStrictEqual([
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+				},
+				{
+					createdAt: mappersDate,
+					id: 2,
+					isBanned: true,
+					name: 'Second',
+				},
+				{
+					createdAt: mappersDate,
+					id: 3,
+					isBanned: null,
+					name: 'Third',
+				},
+			]);
+
+			const extra1 = await db.query.users.findFirst({
+				orderBy: { id: 'asc' },
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				},
+			});
+			const extra2 = await db.query.users.findMany({
+				orderBy: { id: 'asc' },
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				},
+			});
+
+			expect(extra1).toStrictEqual(
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+					sql: 1,
+					sqlWrapper: 2,
+				},
+			);
+			expect(extra2).toStrictEqual([
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				{
+					createdAt: mappersDate,
+					id: 2,
+					isBanned: true,
+					name: 'Second',
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				{
+					createdAt: mappersDate,
+					id: 3,
+					isBanned: null,
+					name: 'Third',
+					sql: 1,
+					sqlWrapper: 2,
+				},
+			]);
+
+			const nested1 = await db.query.users.findFirst({
+				orderBy: { id: 'asc' },
+				with: {
+					post: {
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+						},
+					},
+					posts: {
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+						},
+					},
+				},
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				},
+			});
+			const nested2 = await db.query.users.findMany({
+				orderBy: { id: 'asc' },
+				with: {
+					post: {
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+						},
+					},
+					posts: {
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+						},
+					},
+				},
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				},
+			});
+
+			expect(nested1).toStrictEqual(
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+					post: {
+						authorId: 1,
+						content: 'p1',
+						id: 1,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					posts: {
+						authorId: 1,
+						content: 'p1',
+						id: 1,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					sql: 1,
+					sqlWrapper: 2,
+				},
+			);
+			expect(nested2).toStrictEqual([
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+					post: {
+						authorId: 1,
+						content: 'p1',
+						id: 1,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					posts: {
+						authorId: 1,
+						content: 'p1',
+						id: 1,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				{
+					createdAt: mappersDate,
+					id: 2,
+					isBanned: true,
+					name: 'Second',
+					post: null,
+					posts: null,
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				{
+					createdAt: mappersDate,
+					id: 3,
+					isBanned: null,
+					name: 'Third',
+					post: null,
+					posts: null,
+					sql: 1,
+					sqlWrapper: 2,
+				},
+			]);
+		});
+
+		test.concurrent('Mappers: deep nullification', async ({ db, push }) => {
+			const users = singlestoreTable('mappers_users_dn', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			const internalStaff = singlestoreTable('internal_staff_qm_dn', {
+				userId: int('user_id').notNull().primaryKey(),
+			});
+
+			const ticket = singlestoreTable('ticket_qm_dn', {
+				staffId: int('staff_id').notNull(),
+			});
+
+			await push({ users, internalStaff, ticket });
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+			}]);
+			await db.insert(internalStaff).values([{
+				userId: 1,
+			}, {
+				userId: 2,
+			}]);
+			await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]);
+
+			const subq = db
+				.select()
+				.from(internalStaff)
+				.leftJoin(users, eq(internalStaff.userId, users.id))
+				.as('internal_staff');
+			const selected = await db
+				.select()
+				.from(ticket)
+				.leftJoin(subq, eq(subq.internal_staff_qm_dn.userId, ticket.staffId))
+				.orderBy(ticket.staffId);
+
+			expect(selected).toStrictEqual(
+				[
+					{
+						internal_staff: {
+							internal_staff_qm_dn: {
+								userId: 1,
+							},
+							mappers_users_dn: {
+								createdAt: mappersDate,
+								id: 1,
+								isBanned: null,
+								name: 'First',
+							},
+						},
+						ticket_qm_dn: {
+							staffId: 1,
+						},
+					},
+					{
+						internal_staff: {
+							internal_staff_qm_dn: {
+								userId: 2,
+							},
+							mappers_users_dn: {
+								createdAt: mappersDate,
+								id: 2,
+								isBanned: true,
+								name: 'Second',
+							},
+						},
+						ticket_qm_dn: {
+							staffId: 2,
+						},
+					},
+					{
+						internal_staff: null,
+						ticket_qm_dn: {
+							staffId: 3,
+						},
+					},
+				],
+			);
+		});
+
+		test.concurrent('Jit mappers: deep nullification', async ({ createDB, push }) => {
+			const users = singlestoreTable('mappers_users_jdn', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			const internalStaff = singlestoreTable('internal_staff_qm_jdn', {
+				userId: int('user_id').notNull().primaryKey(),
+			});
+
+			const ticket = singlestoreTable('ticket_qm_jdn', {
+				staffId: int('staff_id').notNull(),
+			});
+
+			await push({ users, internalStaff, ticket });
+			const db = createDB({ users, internalStaff, ticket }, () => ({}), true);
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+			}]);
+			await db.insert(internalStaff).values([{
+				userId: 1,
+			}, {
+				userId: 2,
+			}]);
+			await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]);
+
+			const subq = db
+				.select()
+				.from(internalStaff)
+				.leftJoin(users, eq(internalStaff.userId, users.id))
+				.as('internal_staff');
+			const selected = await db
+				.select()
+				.from(ticket)
+				.leftJoin(subq, eq(subq.internal_staff_qm_jdn.userId, ticket.staffId))
+				.orderBy(ticket.staffId);
+
+			expect(selected).toStrictEqual(
+				[
+					{
+						internal_staff: {
+							internal_staff_qm_jdn: {
+								userId: 1,
+							},
+							mappers_users_jdn: {
+								createdAt: mappersDate,
+								id: 1,
+								isBanned: null,
+								name: 'First',
+							},
+						},
+						ticket_qm_jdn: {
+							staffId: 1,
+						},
+					},
+					{
+						internal_staff: {
+							internal_staff_qm_jdn: {
+								userId: 2,
+							},
+							mappers_users_jdn: {
+								createdAt: mappersDate,
+								id: 2,
+								isBanned: true,
+								name: 'Second',
+							},
+						},
+						ticket_qm_jdn: {
+							staffId: 2,
+						},
+					},
+					{
+						internal_staff: null,
+						ticket_qm_jdn: {
+							staffId: 3,
+						},
+					},
+				],
+			);
 		});
 	});
 }

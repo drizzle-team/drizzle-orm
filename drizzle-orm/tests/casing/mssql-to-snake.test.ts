@@ -1,6 +1,5 @@
 import mssql from 'mssql';
 import { describe, it } from 'vitest';
-import { relations } from '~/_relations';
 import { alias, bit, int, snakeCase, text, union } from '~/mssql-core';
 import { drizzle } from '~/node-mssql';
 import { asc, eq, sql } from '~/sql';
@@ -18,29 +17,30 @@ const users = snakeCase.table('users', {
 	// Test that custom aliases remain
 	age: int('AGE'),
 });
-const usersRelations = relations(users, ({ one }) => ({
-	developers: one(developers),
-}));
+
 const developers = testSchema.table('developers', {
 	// TODO: Investigate reasons for existence of next commented line
 	// userId: int().primaryKey().references('name1', () => users.id),
 	userId: int().primaryKey().references(() => users.id),
 	usesDrizzleORM: bit().notNull(),
 });
-const developersRelations = relations(developers, ({ one }) => ({
-	user: one(users, {
-		fields: [developers.userId],
-		references: [users.id],
-	}),
-}));
-const devs = alias(developers, 'devs');
-const schema = { users, usersRelations, developers, developersRelations };
 
-const db = drizzle({ client: new mssql.ConnectionPool({ server: '' }), schema });
+const devs = alias(developers, 'devs');
+const db = drizzle({ client: new mssql.ConnectionPool({ server: '' }) });
 
 const fullName = sql`${users.firstName} || ' ' || ${users.lastName}`.as('name');
 
 describe('mssql to snake case', () => {
+	it('unicode column names', ({ expect }) => {
+		const unicode = snakeCase.table('unicode', {
+			칼럼명: text(),
+		});
+
+		expect(db.select().from(unicode).toSQL().sql).toEqual(
+			'select [칼럼명] from [unicode]',
+		);
+	});
+
 	it('qualifier preservation for sql fields', ({ expect }) => {
 		const a = snakeCase.table('a', { id: int('id').primaryKey(), cId: int().notNull() });
 		const b = snakeCase.table('b', { id: int('id').primaryKey(), cId: int().notNull(), label: text() });
@@ -125,7 +125,8 @@ describe('mssql to snake case', () => {
 			.union(db.select({ firstName: users.firstName }).from(users));
 
 		expect(query.toSQL()).toEqual({
-			sql: '(select [first_name] from [users]) union (select [first_name] from [users])',
+			sql:
+				'select [first_name] from ((select [first_name] from [users]) union (select [first_name] from [users])) [drizzle_union]',
 			params: [],
 		});
 	});
@@ -137,7 +138,8 @@ describe('mssql to snake case', () => {
 		);
 
 		expect(query.toSQL()).toEqual({
-			sql: '(select [first_name] from [users]) union (select [first_name] from [users])',
+			sql:
+				'select [first_name] from ((select [first_name] from [users]) union (select [first_name] from [users])) [drizzle_union]',
 			params: [],
 		});
 	});

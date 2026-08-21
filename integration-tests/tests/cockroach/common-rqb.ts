@@ -1,0 +1,1343 @@
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { and, defineRelations, eq, inArray, isNotNull, not, or, sql } from 'drizzle-orm';
+import type { AnyCockroachColumn, CockroachColumnBuilder } from 'drizzle-orm/cockroach-core';
+import {
+	bigint,
+	cockroachEnum,
+	cockroachTable,
+	index,
+	int4,
+	numeric,
+	text,
+	timestamp,
+	uniqueIndex,
+	uuid,
+} from 'drizzle-orm/cockroach-core';
+import { describe, expect, expectTypeOf } from 'vitest';
+import { test } from './instrumentation';
+
+export function tests() {
+	describe('common', () => {
+		test.concurrent('RQB v2 simple find first - no rows', async ({ push, createDB }) => {
+			const users = cockroachTable('rqb_users_1', {
+				id: int4().primaryKey().generatedByDefaultAsIdentity(),
+				name: text().notNull(),
+				createdAt: timestamp('created_at', {
+					mode: 'date',
+					precision: 3,
+				}).notNull(),
+			});
+
+			await push({ users });
+			const db = createDB({ users });
+
+			const result = await db.query.users.findFirst();
+
+			expect(result).toStrictEqual(undefined);
+		});
+
+		test.concurrent('RQB v2 simple find first - multiple rows', async ({ push, createDB }) => {
+			const users = cockroachTable('rqb_users_2', {
+				id: int4().primaryKey().generatedByDefaultAsIdentity(),
+				name: text().notNull(),
+				createdAt: timestamp('created_at', {
+					mode: 'date',
+					precision: 3,
+				}).notNull(),
+			});
+
+			await push({ users });
+			const db = createDB({ users });
+
+			const date = new Date(120000);
+
+			await db.insert(users).values([{
+				id: 1,
+				createdAt: date,
+				name: 'First',
+			}, {
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			}]);
+
+			const result = await db.query.users.findFirst({
+				orderBy: {
+					id: 'desc',
+				},
+			});
+
+			expect(result).toStrictEqual({
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			});
+		});
+
+		test.concurrent('RQB v2 simple find first - with relation', async ({ push, createDB }) => {
+			const users = cockroachTable('rqb_users_3', {
+				id: int4().primaryKey().generatedByDefaultAsIdentity(),
+				name: text().notNull(),
+				createdAt: timestamp('created_at', {
+					mode: 'date',
+					precision: 3,
+				}).notNull(),
+			});
+
+			const posts = cockroachTable('rqb_posts_3', {
+				id: int4().primaryKey().generatedByDefaultAsIdentity(),
+				userId: int4('user_id').notNull(),
+				content: text(),
+				createdAt: timestamp('created_at', {
+					mode: 'date',
+					precision: 3,
+				}).notNull(),
+			});
+
+			await push({ users, posts });
+			const db = createDB({ users, posts }, (r) => ({
+				users: {
+					posts: r.many.posts({
+						from: r.users.id,
+						to: r.posts.userId,
+					}),
+				},
+				posts: {
+					author: r.one.users({
+						from: r.posts.userId,
+						to: r.users.id,
+					}),
+				},
+			}));
+
+			const date = new Date(120000);
+
+			await db.insert(users).values([{
+				id: 1,
+				createdAt: date,
+				name: 'First',
+			}, {
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			}]);
+
+			await db.insert(posts).values([{
+				id: 1,
+				userId: 1,
+				createdAt: date,
+				content: null,
+			}, {
+				id: 2,
+				userId: 1,
+				createdAt: date,
+				content: 'Has message this time',
+			}]);
+
+			const result = await db.query.users.findFirst({
+				with: {
+					posts: {
+						orderBy: {
+							id: 'asc',
+						},
+					},
+				},
+				orderBy: {
+					id: 'asc',
+				},
+			});
+
+			expect(result).toStrictEqual({
+				id: 1,
+				createdAt: date,
+				name: 'First',
+				posts: [{
+					id: 1,
+					userId: 1,
+					createdAt: date,
+					content: null,
+				}, {
+					id: 2,
+					userId: 1,
+					createdAt: date,
+					content: 'Has message this time',
+				}],
+			});
+		});
+
+		test.concurrent('RQB v2 simple find first - placeholders', async ({ push, createDB }) => {
+			const users = cockroachTable('rqb_users_4', {
+				id: int4().primaryKey().generatedByDefaultAsIdentity(),
+				name: text().notNull(),
+				createdAt: timestamp('created_at', {
+					mode: 'date',
+					precision: 3,
+				}).notNull(),
+			});
+
+			await push({ users });
+			const db = createDB({ users });
+
+			const date = new Date(120000);
+
+			await db.insert(users).values([{
+				id: 1,
+				createdAt: date,
+				name: 'First',
+			}, {
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			}]);
+
+			const query = db.query.users.findFirst({
+				where: {
+					id: {
+						eq: sql.placeholder('filter'),
+					},
+				},
+				orderBy: {
+					id: 'asc',
+				},
+			}).prepare('rqb_v2_find_first_placeholders');
+
+			const result = await query.execute({
+				filter: 2,
+			});
+
+			expect(result).toStrictEqual({
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			});
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/5172
+		test.concurrent('RQB v2 simple find first - result type', async ({ push, createDB }) => {
+			const user = cockroachTable('users', {
+				id: text('id').primaryKey(),
+				email: text('email').notNull().unique(),
+				password: text('password').notNull(),
+			});
+
+			const userSession = cockroachTable('user_sessions', {
+				id: text('id').primaryKey(),
+				userId: text('user_id')
+					.notNull()
+					.references(() => user.id),
+				expiresAt: timestamp('expires_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+			});
+
+			const schema = { user, userSession };
+			const db = createDB(schema, (r) => ({
+				user: {
+					sessions: r.many.userSession(),
+				},
+				userSession: {
+					user: r.one.user({
+						from: r.userSession.userId,
+						to: r.user.id,
+						optional: false,
+					}),
+				},
+			}));
+
+			const query = db.query.userSession.findFirst({
+				where: { id: '' },
+				with: { user: true },
+			});
+
+			expectTypeOf(query).resolves.toEqualTypeOf<
+				{
+					id: string;
+					userId: string;
+					expiresAt: Date;
+					user: {
+						id: string;
+						email: string;
+						password: string;
+					};
+				} | undefined
+			>();
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/5172
+		test.concurrent('RQB v2 simple find first - result type', async ({ push, createDB }) => {
+			const user = cockroachTable('users', {
+				id: text('id').primaryKey(),
+				email: text('email').notNull().unique(),
+				password: text('password').notNull(),
+			});
+
+			const userSession = cockroachTable('user_sessions', {
+				id: text('id').primaryKey(),
+				userId: text('user_id')
+					.notNull()
+					.references(() => user.id),
+				expiresAt: timestamp('expires_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+			});
+
+			const schema = { user, userSession };
+			const db = createDB(schema, (r) => ({
+				user: {
+					sessions: r.many.userSession(),
+				},
+				userSession: {
+					user: r.one.user({
+						from: r.userSession.userId,
+						to: r.user.id,
+						optional: false,
+					}),
+				},
+			}));
+
+			const query = db.query.userSession.findFirst({
+				where: { id: '' },
+				with: { user: true },
+			});
+
+			expectTypeOf(query).resolves.toEqualTypeOf<
+				{
+					id: string;
+					userId: string;
+					expiresAt: Date;
+					user: {
+						id: string;
+						email: string;
+						password: string;
+					};
+				} | undefined
+			>();
+		});
+
+		test.concurrent('RQB v2 simple find many - no rows', async ({ push, createDB }) => {
+			const users = cockroachTable('rqb_users_5', {
+				id: int4().primaryKey().generatedByDefaultAsIdentity(),
+				name: text().notNull(),
+				createdAt: timestamp('created_at', {
+					mode: 'date',
+					precision: 3,
+				}).notNull(),
+			});
+
+			await push({ users });
+			const db = createDB({ users });
+
+			const result = await db.query.users.findMany();
+
+			expect(result).toStrictEqual([]);
+		});
+
+		test.concurrent('RQB v2 simple find many - multiple rows', async ({ push, createDB }) => {
+			const users = cockroachTable('rqb_users_6', {
+				id: int4().primaryKey().generatedByDefaultAsIdentity(),
+				name: text().notNull(),
+				createdAt: timestamp('created_at', {
+					mode: 'date',
+					precision: 3,
+				}).notNull(),
+			});
+
+			await push({ users });
+			const db = createDB({ users });
+
+			const date = new Date(120000);
+
+			await db.insert(users).values([{
+				id: 1,
+				createdAt: date,
+				name: 'First',
+			}, {
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			}]);
+
+			const result = await db.query.users.findMany({
+				orderBy: {
+					id: 'desc',
+				},
+			});
+
+			expect(result).toStrictEqual([{
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			}, {
+				id: 1,
+				createdAt: date,
+				name: 'First',
+			}]);
+		});
+
+		test.concurrent('RQB v2 simple find many - with relation', async ({ push, createDB }) => {
+			const users = cockroachTable('rqb_users_7', {
+				id: int4().primaryKey().generatedByDefaultAsIdentity(),
+				name: text().notNull(),
+				createdAt: timestamp('created_at', {
+					mode: 'date',
+					precision: 3,
+				}).notNull(),
+			});
+
+			const posts = cockroachTable('rqb_posts_7', {
+				id: int4().primaryKey().generatedByDefaultAsIdentity(),
+				userId: int4('user_id').notNull(),
+				content: text(),
+				createdAt: timestamp('created_at', {
+					mode: 'date',
+					precision: 3,
+				}).notNull(),
+			});
+
+			await push({ users, posts });
+			const db = createDB({ users, posts }, (r) => ({
+				posts: {
+					author: r.one.users({
+						from: r.posts.userId,
+						to: r.users.id,
+					}),
+				},
+			}));
+
+			const date = new Date(120000);
+
+			await db.insert(users).values([{
+				id: 1,
+				createdAt: date,
+				name: 'First',
+			}, {
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			}]);
+
+			await db.insert(posts).values([{
+				id: 1,
+				userId: 1,
+				createdAt: date,
+				content: null,
+			}, {
+				id: 2,
+				userId: 1,
+				createdAt: date,
+				content: 'Has message this time',
+			}]);
+
+			const result = await db.query.posts.findMany({
+				with: {
+					author: true,
+				},
+				orderBy: {
+					id: 'asc',
+				},
+			});
+
+			expect(result).toStrictEqual([{
+				id: 1,
+				userId: 1,
+				createdAt: date,
+				content: null,
+				author: {
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				},
+			}, {
+				id: 2,
+				userId: 1,
+				createdAt: date,
+				content: 'Has message this time',
+				author: {
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				},
+			}]);
+		});
+
+		test.concurrent('RQB v2 simple find many - placeholders', async ({ push, createDB }) => {
+			const users = cockroachTable('rqb_users_8', {
+				id: int4().primaryKey().generatedByDefaultAsIdentity(),
+				name: text().notNull(),
+				createdAt: timestamp('created_at', {
+					mode: 'date',
+					precision: 3,
+				}).notNull(),
+			});
+
+			await push({ users });
+			const db = createDB({ users });
+
+			const date = new Date(120000);
+
+			await db.insert(users).values([{
+				id: 1,
+				createdAt: date,
+				name: 'First',
+			}, {
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			}]);
+
+			const query = db.query.users.findMany({
+				where: {
+					id: {
+						eq: sql.placeholder('filter'),
+					},
+				},
+				orderBy: {
+					id: 'asc',
+				},
+			}).prepare('rqb_v2_find_many_placeholders');
+
+			const result = await query.execute({
+				filter: 2,
+			});
+
+			expect(result).toStrictEqual([{
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			}]);
+		});
+
+		test.concurrent('RQB v2 transaction find first - no rows', async ({ push, createDB }) => {
+			const users = cockroachTable('rqb_users_9', {
+				id: int4().primaryKey().generatedByDefaultAsIdentity(),
+				name: text().notNull(),
+				createdAt: timestamp('created_at', {
+					mode: 'date',
+					precision: 3,
+				}).notNull(),
+			});
+
+			await push({ users });
+			const db = createDB({ users });
+
+			await db.transaction(async (db) => {
+				const result = await db.query.users.findFirst();
+
+				expect(result).toStrictEqual(undefined);
+			});
+		});
+
+		test.concurrent('RQB v2 transaction find first - multiple rows', async ({ push, createDB }) => {
+			const users = cockroachTable('rqb_users_10', {
+				id: int4().primaryKey().generatedByDefaultAsIdentity(),
+				name: text().notNull(),
+				createdAt: timestamp('created_at', {
+					mode: 'date',
+					precision: 3,
+				}).notNull(),
+			});
+
+			await push({ users });
+			const db = createDB({ users });
+
+			const date = new Date(120000);
+
+			await db.insert(users).values([{
+				id: 1,
+				createdAt: date,
+				name: 'First',
+			}, {
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			}]);
+
+			await db.transaction(async (db) => {
+				const result = await db.query.users.findFirst({
+					orderBy: {
+						id: 'desc',
+					},
+				});
+
+				expect(result).toStrictEqual({
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				});
+			});
+		});
+
+		test.concurrent('RQB v2 transaction find first - with relation', async ({ push, createDB }) => {
+			const users = cockroachTable('rqb_users_11', {
+				id: int4().primaryKey().generatedByDefaultAsIdentity(),
+				name: text().notNull(),
+				createdAt: timestamp('created_at', {
+					mode: 'date',
+					precision: 3,
+				}).notNull(),
+			});
+
+			const posts = cockroachTable('rqb_posts_11', {
+				id: int4().primaryKey().generatedByDefaultAsIdentity(),
+				userId: int4('user_id').notNull(),
+				content: text(),
+				createdAt: timestamp('created_at', {
+					mode: 'date',
+					precision: 3,
+				}).notNull(),
+			});
+
+			await push({ users, posts });
+			const db = createDB({ users, posts }, (r) => ({
+				users: {
+					posts: r.many.posts({
+						from: r.users.id,
+						to: r.posts.userId,
+					}),
+				},
+			}));
+
+			const date = new Date(120000);
+
+			await db.insert(users).values([{
+				id: 1,
+				createdAt: date,
+				name: 'First',
+			}, {
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			}]);
+
+			await db.insert(posts).values([{
+				id: 1,
+				userId: 1,
+				createdAt: date,
+				content: null,
+			}, {
+				id: 2,
+				userId: 1,
+				createdAt: date,
+				content: 'Has message this time',
+			}]);
+
+			await db.transaction(async (db) => {
+				const result = await db.query.users.findFirst({
+					with: {
+						posts: {
+							orderBy: {
+								id: 'asc',
+							},
+						},
+					},
+					orderBy: {
+						id: 'asc',
+					},
+				});
+
+				expect(result).toStrictEqual({
+					id: 1,
+					createdAt: date,
+					name: 'First',
+					posts: [{
+						id: 1,
+						userId: 1,
+						createdAt: date,
+						content: null,
+					}, {
+						id: 2,
+						userId: 1,
+						createdAt: date,
+						content: 'Has message this time',
+					}],
+				});
+			});
+		});
+
+		test.concurrent('RQB v2 transaction find first - placeholders', async ({ push, createDB }) => {
+			const users = cockroachTable('rqb_users_12', {
+				id: int4().primaryKey().generatedByDefaultAsIdentity(),
+				name: text().notNull(),
+				createdAt: timestamp('created_at', {
+					mode: 'date',
+					precision: 3,
+				}).notNull(),
+			});
+
+			await push({ users });
+			const db = createDB({ users });
+
+			const date = new Date(120000);
+
+			await db.insert(users).values([{
+				id: 1,
+				createdAt: date,
+				name: 'First',
+			}, {
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			}]);
+
+			await db.transaction(async (db) => {
+				const query = db.query.users.findFirst({
+					where: {
+						id: {
+							eq: sql.placeholder('filter'),
+						},
+					},
+					orderBy: {
+						id: 'asc',
+					},
+				}).prepare('rqb_v2_find_first_tx_placeholders');
+
+				const result = await query.execute({
+					filter: 2,
+				});
+
+				expect(result).toStrictEqual({
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				});
+			});
+		});
+
+		test.concurrent('RQB v2 transaction find many - no rows', async ({ push, createDB }) => {
+			const users = cockroachTable('rqb_users_13', {
+				id: int4().primaryKey().generatedByDefaultAsIdentity(),
+				name: text().notNull(),
+				createdAt: timestamp('created_at', {
+					mode: 'date',
+					precision: 3,
+				}).notNull(),
+			});
+
+			await push({ users });
+			const db = createDB({ users });
+
+			await db.transaction(async (db) => {
+				const result = await db.query.users.findMany();
+
+				expect(result).toStrictEqual([]);
+			});
+		});
+
+		test.concurrent('RQB v2 transaction find many - multiple rows', async ({ push, createDB }) => {
+			const users = cockroachTable('rqb_users_14', {
+				id: int4().primaryKey().generatedByDefaultAsIdentity(),
+				name: text().notNull(),
+				createdAt: timestamp('created_at', {
+					mode: 'date',
+					precision: 3,
+				}).notNull(),
+			});
+
+			await push({ users });
+			const db = createDB({ users });
+
+			const date = new Date(120000);
+
+			await db.insert(users).values([{
+				id: 1,
+				createdAt: date,
+				name: 'First',
+			}, {
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			}]);
+
+			await db.transaction(async (db) => {
+				const result = await db.query.users.findMany({
+					orderBy: {
+						id: 'desc',
+					},
+				});
+
+				expect(result).toStrictEqual([{
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}, {
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}]);
+			});
+		});
+
+		test.concurrent('RQB v2 transaction find many - with relation', async ({ push, createDB }) => {
+			const users = cockroachTable('rqb_users_15', {
+				id: int4().primaryKey().generatedByDefaultAsIdentity(),
+				name: text().notNull(),
+				createdAt: timestamp('created_at', {
+					mode: 'date',
+					precision: 3,
+				}).notNull(),
+			});
+
+			const posts = cockroachTable('rqb_posts_15', {
+				id: int4().primaryKey().generatedByDefaultAsIdentity(),
+				userId: int4('user_id').notNull(),
+				content: text(),
+				createdAt: timestamp('created_at', {
+					mode: 'date',
+					precision: 3,
+				}).notNull(),
+			});
+
+			await push({ users, posts });
+			const db = createDB({ users, posts }, (r) => ({
+				posts: {
+					author: r.one.users({
+						from: r.posts.userId,
+						to: r.users.id,
+					}),
+				},
+			}));
+
+			const date = new Date(120000);
+
+			await db.insert(users).values([{
+				id: 1,
+				createdAt: date,
+				name: 'First',
+			}, {
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			}]);
+
+			await db.insert(posts).values([{
+				id: 1,
+				userId: 1,
+				createdAt: date,
+				content: null,
+			}, {
+				id: 2,
+				userId: 1,
+				createdAt: date,
+				content: 'Has message this time',
+			}]);
+
+			await db.transaction(async (db) => {
+				const result = await db.query.posts.findMany({
+					with: {
+						author: true,
+					},
+					orderBy: {
+						id: 'asc',
+					},
+				});
+
+				expect(result).toStrictEqual([{
+					id: 1,
+					userId: 1,
+					createdAt: date,
+					content: null,
+					author: {
+						id: 1,
+						createdAt: date,
+						name: 'First',
+					},
+				}, {
+					id: 2,
+					userId: 1,
+					createdAt: date,
+					content: 'Has message this time',
+					author: {
+						id: 1,
+						createdAt: date,
+						name: 'First',
+					},
+				}]);
+			});
+		});
+
+		test.concurrent('RQB v2 transaction find many - placeholders', async ({ push, createDB }) => {
+			const users = cockroachTable('rqb_users_16', {
+				id: int4().primaryKey().generatedByDefaultAsIdentity(),
+				name: text().notNull(),
+				createdAt: timestamp('created_at', {
+					mode: 'date',
+					precision: 3,
+				}).notNull(),
+			});
+
+			await push({ users });
+			const db = createDB({ users });
+
+			const date = new Date(120000);
+
+			await db.insert(users).values([{
+				id: 1,
+				createdAt: date,
+				name: 'First',
+			}, {
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			}]);
+
+			await db.transaction(async (db) => {
+				const query = db.query.users.findMany({
+					where: {
+						id: {
+							eq: sql.placeholder('filter'),
+						},
+					},
+					orderBy: {
+						id: 'asc',
+					},
+				}).prepare('rqb_v2_find_many_placeholders_10');
+
+				const result = await query.execute({
+					filter: 2,
+				});
+
+				expect(result).toStrictEqual([{
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+			});
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4358
+		test.concurrent('RQB v2 find many - table creation func', async ({ push, createDB }) => {
+			const createUserTable = <T extends Record<string, CockroachColumnBuilder<any>>>(
+				{ customColumns, tableName }: { customColumns: T; tableName: string },
+			) =>
+				cockroachTable(tableName, {
+					id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
+					name: text('name').notNull(),
+					email: text('email').notNull().unique(),
+					createdAt: timestamp('created_at').defaultNow().notNull(),
+					...customColumns,
+				});
+			const users = createUserTable(
+				{
+					tableName: 'rqb_users_17',
+					customColumns: {
+						test: text('test').notNull(),
+					},
+				},
+			);
+
+			const orders = cockroachTable('rqb_orders_17', {
+				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
+				userId: int4('user_id').references(() => users.id).notNull(),
+				amount: int4('amount').notNull(),
+				status: text('status').notNull(),
+				createdAt: timestamp('created_at').defaultNow().notNull(),
+			});
+
+			await push({ users, orders });
+			const db = createDB({ users, orders }, (r) => ({
+				orders: {
+					user: r.one.users({
+						from: [r.orders.userId],
+						to: [r.users.id],
+					}),
+				},
+			}));
+
+			await db.insert(users).values([{ id: 1, email: 'a', name: 'b', test: 'c' }, {
+				id: 2,
+				email: 'aa',
+				name: 'bb',
+				test: 'cc',
+			}]);
+			await db.insert(orders).values([{ userId: 1, amount: 11, status: 'delivered' }, {
+				userId: 2,
+				amount: 22,
+				status: 'delivered',
+			}]);
+
+			const ordersWithUser = await db.query.orders.findMany({
+				with: {
+					user: {
+						columns: {
+							id: true,
+							// This fails type checking. `id` column works, but not `test`
+							test: true,
+						},
+					},
+				},
+			});
+
+			for (const order of ordersWithUser) {
+				expect(order.user!.id).toBeDefined();
+				expect(order.user!.test).toBeDefined();
+			}
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4169
+		test.concurrent(
+			'RQB v2 find many - $count',
+			async ({ push, createDB }) => {
+				const users = cockroachTable('rqb_users_18', {
+					id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
+				});
+
+				const statusEnum = cockroachEnum('status', [
+					'IN_PROGRESS',
+					'CANCELED',
+					'CLOSED',
+				]);
+
+				const orders = cockroachTable('rqb_orders_18', {
+					id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
+					userId: int4('user_id').references(() => users.id).notNull(),
+					status: statusEnum('status'),
+				});
+
+				await push({ users, orders, statusEnum });
+				const db = createDB({ users, orders }, (r) => ({
+					orders: {
+						user: r.one.users({
+							from: [r.orders.userId],
+							to: [r.users.id],
+						}),
+					},
+				}));
+
+				await db.insert(users).values([{ id: 1 }, { id: 2 }]);
+				await db.insert(orders).values([{ userId: 1, status: 'CANCELED' }, { userId: 2, status: 'IN_PROGRESS' }]);
+
+				const recordsQuery = db.query.users.findMany({
+					extras: {
+						activeOrders: (users) =>
+							db
+								.$count(
+									orders,
+									and(
+										eq(orders.userId, users.id),
+										not(
+											inArray(orders.status, ['CANCELED', 'CLOSED']),
+										),
+									),
+								)
+								.as('activeOrders'),
+						allOrders: db.$count(orders),
+					},
+				});
+
+				const expectedResult = [{ id: 1, activeOrders: 0, allOrders: 2 }, { id: 2, activeOrders: 1, allOrders: 2 }];
+				const result = await recordsQuery;
+				expect(result).toStrictEqual(expectedResult);
+				expect(recordsQuery.toSQL()).toStrictEqual({
+					sql:
+						'select "d0"."id" as "id", ((select count(*) from "rqb_orders_18" where (("rqb_orders_18"."user_id" = "d0"."id") and (not ("rqb_orders_18"."status" in ($1, $2)))))) as "activeOrders", ((select count(*) from "rqb_orders_18")) as "allOrders" from "rqb_users_18" as "d0"',
+					params: ['CANCELED', 'CLOSED'],
+				});
+			},
+		);
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4696
+		// postgresjs returns strings for itemCount but other drivers return numbers
+		test.skipIf(Date.now() < +new Date('2026-08-26')).concurrent(
+			'RQB v2 find many - extras',
+			async ({ push, createDB }) => {
+				const orderItemTable = cockroachTable('rqb_order_item_19', {
+					id: int4('id').primaryKey(),
+					orderId: int4().references(() => orderTable.id),
+				});
+
+				const orderTable = cockroachTable('rqb_order_19', {
+					id: int4('id').primaryKey(),
+				});
+
+				await push({ orderItemTable, orderTable });
+				const db = createDB({ orderItemTable, orderTable });
+
+				await db.insert(orderTable).values([{ id: 1 }, { id: 2 }]);
+				await db.insert(orderItemTable).values([{ id: 1, orderId: 1 }, { id: 2, orderId: 1 }]);
+
+				const query = db.query.orderTable.findMany({
+					extras: {
+						itemCount: (t) =>
+							sql`(select count(*) from ${orderItemTable} where ${orderItemTable.orderId} = ${t.id})`.as('itemCount'),
+					},
+				});
+
+				expect(query.toSQL()).toStrictEqual({
+					sql:
+						`select "d0"."id" as "id", ((select count(*) from "rqb_order_item_19" where "rqb_order_item_19"."orderId" = "d0"."id")) as "itemCount" from "rqb_order_19" as "d0"`,
+					params: [],
+				});
+
+				const expectedResult = [{ id: 1, itemCount: 2 }, { id: 2, itemCount: 0 }];
+				const result = await query;
+				expect(result).toStrictEqual(expectedResult);
+			},
+		);
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4494
+		test.concurrent('RQB v2 find first 100 columns in table', async ({ push, createDB }) => {
+			const columns: Record<string, CockroachColumnBuilder<any>> = {};
+			const columnCount = 101;
+			for (let i = 0; i < columnCount; i++) {
+				columns[`col${i}`] = numeric({ precision: 20, scale: 2 });
+			}
+
+			const prices = cockroachTable('prices', {
+				id: int4().primaryKey(),
+				...columns,
+			});
+
+			const entity = cockroachTable('entity', {
+				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
+				priceId: int4('price_id').references(() => prices.id),
+			});
+
+			await push({ prices, entity });
+			const db = createDB({ prices, entity }, (r) => ({
+				entity: {
+					price: r.one.prices({
+						from: [r.entity.priceId],
+						to: [r.prices.id],
+					}),
+				},
+			}));
+
+			await db.execute('insert into prices(id, col0, col1, col2) values (1, 23,24,25);');
+			await db.insert(entity).values([{ id: 1, priceId: 1 }]);
+			const query = db.query.entity.findFirst({
+				with: {
+					price: {},
+				},
+			});
+			await query;
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/5350
+		test.concurrent('RQB v2 defineRelations error', () => {
+			const users = cockroachTable('users', { id: int4().primaryKey() });
+			const posts = cockroachTable('posts', { id: int4().primaryKey(), userId: int4() });
+			const blogs = cockroachTable('blogs', { id: int4().primaryKey() });
+
+			const throwFunc1 = () => {
+				defineRelations({ users, posts, blogs }, (r) => ({
+					users: {
+						posts: r.many.posts({
+							from: r.users.id,
+							to: r.blogs.id,
+						}),
+					},
+				}));
+			};
+			expect(throwFunc1).toThrowError(
+				/.+all "to" columns must belong to table "posts", found column of table "blogs"$/,
+			);
+
+			const throwFunc2 = () => {
+				defineRelations({ users, posts, blogs }, (r) => ({
+					users: {
+						posts: r.many.posts({
+							from: r.blogs.id,
+							to: r.posts.userId,
+						}),
+					},
+				}));
+			};
+			expect(throwFunc2).toThrowError(
+				/.+all "from" columns must belong to table "users", found column of table "blogs"$/,
+			);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4509
+		test.concurrent.concurrent('Issue #4509', async ({ push, createDB }) => {
+			const tasks = cockroachTable(
+				'tasks',
+				{
+					id: int4().notNull().primaryKey(),
+					parentId: int4().references((): AnyCockroachColumn => tasks.id, {
+						onDelete: 'cascade',
+					}),
+					title: text().notNull(),
+				},
+			);
+
+			await push({ tasks });
+			const db = createDB({ tasks }, (r) => ({
+				tasks: {
+					parent: r.one.tasks({
+						from: r.tasks.parentId,
+						to: r.tasks.id,
+					}),
+					subtasks: r.many.tasks(),
+				},
+			}));
+
+			await db.insert(tasks).values([{ title: '1', id: 1, parentId: null }, { title: '2', id: 2, parentId: 1 }, {
+				title: '3',
+				id: 3,
+				parentId: null,
+			}]);
+
+			const result = await db.query.tasks
+				.findMany({
+					where: { parentId: { isNull: true } },
+					with: { subtasks: true },
+				});
+			expect(result).toStrictEqual([
+				{
+					id: 1,
+					parentId: null,
+					subtasks: [
+						{
+							id: 2,
+							parentId: 1,
+							title: '2',
+						},
+					],
+					title: '1',
+				},
+				{
+					id: 3,
+					parentId: null,
+					subtasks: [],
+					title: '3',
+				},
+			]);
+		});
+	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/5760
+	test.concurrent('issue 5760. bigint precision', async ({ createDB, push }) => {
+		const users = cockroachTable('users', {
+			id: bigint({ mode: 'bigint' }).primaryKey(),
+		});
+
+		const posts = cockroachTable('posts', {
+			id: bigint({ mode: 'bigint' }).primaryKey(),
+			title: text().notNull(),
+			author: bigint({ mode: 'bigint' })
+				.notNull()
+				.references(() => users.id, { onDelete: 'cascade' }),
+		});
+
+		const schema = { users, posts };
+		const db = createDB(schema, (r) => ({
+			users: {
+				posts: r.many.posts(),
+			},
+			posts: {
+				authorRel: r.one.users({
+					from: r.posts.author,
+					to: r.users.id,
+				}),
+			},
+		}));
+
+		await db.execute(sql`DROP TABLE IF EXISTS ${posts};`);
+		await db.execute(sql`DROP TABLE IF EXISTS ${users};`);
+
+		await push(schema);
+
+		await db.insert(users).values({ id: 1000000000000000001n });
+		await db.insert(posts).values([{ id: 1000000000000000002n, title: 'foo', author: 1000000000000000001n }, {
+			id: 1000000000000000003n,
+			title: 'bar',
+			author: 1000000000000000001n,
+		}]);
+
+		const res = await db.query.users.findMany({ with: { posts: true } });
+		expect(res).toStrictEqual([
+			{
+				id: 1000000000000000001n,
+				posts: [
+					{
+						author: 1000000000000000001n,
+						id: 1000000000000000002n,
+						title: 'foo',
+					},
+					{
+						author: 1000000000000000001n,
+						id: 1000000000000000003n,
+						title: 'bar',
+					},
+				],
+			},
+		]);
+	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/4169
+	test.concurrent('issue #4169', async ({ createDB }) => {
+		const candidates = cockroachTable(
+			'candidates',
+			{
+				id: uuid().defaultRandom().primaryKey(),
+				createdOn: timestamp('created_on', { mode: 'date' }).notNull().defaultNow(),
+				email: text().notNull(),
+				firstName: text('first_name').notNull(),
+				lastName: text('last_name').notNull(),
+				phone: text('phone').notNull(),
+				profileLink: text('profile_link'),
+			},
+			(table) => [
+				index('created_on_candidates_idx').on(table.createdOn),
+				uniqueIndex('email_candidates_idx').on(table.email),
+			],
+		);
+
+		const candicacyStatusEnum = cockroachEnum('candidacy_status', [
+			'IN_PROGRESS',
+			'CANCELED',
+			'CLOSED',
+		]);
+
+		const jobCandidacies = cockroachTable('job_candidacy', {
+			id: uuid().defaultRandom().primaryKey(),
+			createdOn: timestamp('created_on', { mode: 'date' }).notNull().defaultNow(),
+			candidateId: uuid('candidate_id')
+				.notNull()
+				.references(() => candidates.id),
+			status: candicacyStatusEnum().notNull(),
+		});
+
+		const db = createDB({ candidates, jobCandidacies }, (r) => ({
+			candidates: {
+				jobCandidacies: r.many.jobCandidacies(),
+			},
+			jobCandidacies: {
+				candidate: r.one.candidates({
+					from: r.jobCandidacies.candidateId,
+					to: r.candidates.id,
+				}),
+			},
+		}));
+
+		const recordsQuery = db.query.candidates.findMany({
+			extras: {
+				activeJobs: db
+					.$count(
+						jobCandidacies,
+						and(
+							eq(jobCandidacies.candidateId, candidates.id),
+							not(
+								inArray(jobCandidacies.status, [
+									'CANCELED',
+									'CLOSED',
+								]),
+							),
+						),
+					)
+					.as('activeJobs'),
+			},
+		}).toSQL();
+
+		expect(recordsQuery).toStrictEqual({
+			params: [
+				'CANCELED',
+				'CLOSED',
+			],
+			sql:
+				'select "d0"."id" as "id", "d0"."created_on" as "createdOn", "d0"."email" as "email", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."phone" as "phone", "d0"."profile_link" as "profileLink", ((select count(*) from "job_candidacy" where (("job_candidacy"."candidate_id" = "candidates"."id") and (not ("job_candidacy"."status" in ($1, $2)))))) as "activeJobs" from "candidates" as "d0"',
+		});
+	});
+}

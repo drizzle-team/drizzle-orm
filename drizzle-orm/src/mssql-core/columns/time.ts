@@ -36,6 +36,9 @@ export class MsSqlTimeStringBuilder extends MsSqlColumnBuilder<
 export class MsSqlTimeString<T extends ColumnBaseConfig<'string time'>> extends MsSqlColumn<T, TimeConfig> {
 	static override readonly [entityKind]: string = 'MsSqlTime';
 
+	/** @internal */
+	override readonly codec = 'time:string';
+
 	readonly fsp: number | undefined = this.config.precision;
 
 	getSQLType(): string {
@@ -78,6 +81,9 @@ export class MsSqlTime<
 	T extends ColumnBaseConfig<'object date'>,
 > extends MsSqlColumn<T, TimeConfig> {
 	static override readonly [entityKind]: string = 'MsSqlTime';
+
+	/** @internal */
+	override readonly codec = 'time';
 
 	readonly fsp: number | undefined = this.config.precision;
 

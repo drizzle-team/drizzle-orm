@@ -41,6 +41,9 @@ export class MsSqlVarChar<T extends ColumnBaseConfig<'string' | 'string enum'>> 
 > {
 	static override readonly [entityKind]: string = 'MsSqlVarChar';
 
+	/** @internal */
+	override readonly codec = 'varchar';
+
 	override readonly enumValues = this.config.enum;
 
 	readonly nonUnicode: boolean = this.config.nonUnicode;
@@ -84,6 +87,9 @@ export class MsSqlVarCharJson<T extends ColumnBaseConfig<'object json'>>
 	extends MsSqlColumn<T, { length: number; nonUnicode: boolean; rawLength: number | 'max' | undefined }>
 {
 	static override readonly [entityKind]: string = 'MsSqlVarCharJson';
+
+	/** @internal */
+	override readonly codec = 'varchar:json';
 
 	getSQLType(): string {
 		return this.config.rawLength === undefined
