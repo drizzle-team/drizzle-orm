@@ -72,6 +72,23 @@ test('add table #2', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+test('text primary key is not null', async () => {
+	const to = {
+		users: sqliteTable('users', {
+			id: text('id').primaryKey(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		'CREATE TABLE `users` (\n\t`id` text PRIMARY KEY NOT NULL\n);\n',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
 test('add table #3', async () => {
 	const to = {
 		users: sqliteTable('users', {
@@ -1085,7 +1102,7 @@ test('recreate table and add unique column', async (t) => {
 		'ALTER TABLE `users` ADD `referral_code` text;',
 		'PRAGMA foreign_keys=OFF;',
 		`CREATE TABLE \`__new_users\` (
-\t\`id\` text PRIMARY KEY,
+\t\`id\` text PRIMARY KEY NOT NULL,
 \t\`email\` text NOT NULL,
 \t\`referral_code\` text UNIQUE
 );\n`,

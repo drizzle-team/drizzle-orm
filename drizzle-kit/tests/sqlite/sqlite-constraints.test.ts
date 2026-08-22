@@ -641,7 +641,7 @@ test('pk #1. add pk. inline param without name', async () => {
 	const st0 = [
 		'PRAGMA foreign_keys=OFF;',
 		`CREATE TABLE \`__new_users\` (
-	\`name\` text PRIMARY KEY
+	\`name\` text PRIMARY KEY NOT NULL
 );\n`,
 		'INSERT INTO `__new_users`(`name`) SELECT `name` FROM `users`;',
 		'DROP TABLE `users`;',
@@ -1074,7 +1074,7 @@ test('pk multistep #1', async () => {
 	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
 	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
 
-	const e1 = ['CREATE TABLE `users` (\n\t`name` text PRIMARY KEY\n);\n'];
+	const e1 = ['CREATE TABLE `users` (\n\t`name` text PRIMARY KEY NOT NULL\n);\n'];
 	expect(st1).toStrictEqual(e1);
 	expect(pst1).toStrictEqual(e1);
 
@@ -1149,7 +1149,7 @@ test('pk multistep #2', async () => {
 
 	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
 	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
-	const e1 = ['CREATE TABLE `users` (\n\t`name` text PRIMARY KEY\n);\n'];
+	const e1 = ['CREATE TABLE `users` (\n\t`name` text PRIMARY KEY NOT NULL\n);\n'];
 	expect(st1).toStrictEqual(e1);
 	expect(pst1).toStrictEqual(e1);
 
@@ -1220,10 +1220,10 @@ test('pk multistep #3', async () => {
 	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
 
 	expect(st1).toStrictEqual([
-		'CREATE TABLE `users` (\n\t`name` text PRIMARY KEY\n);\n',
+		'CREATE TABLE `users` (\n\t`name` text PRIMARY KEY NOT NULL\n);\n',
 	]);
 	expect(pst1).toStrictEqual([
-		'CREATE TABLE `users` (\n\t`name` text PRIMARY KEY\n);\n',
+		'CREATE TABLE `users` (\n\t`name` text PRIMARY KEY NOT NULL\n);\n',
 	]);
 
 	const sch2 = {

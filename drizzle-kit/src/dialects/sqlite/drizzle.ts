@@ -79,7 +79,7 @@ export const fromDrizzleSchema = (
 				name,
 				type: column.getSQLType(),
 				default: defalutValue,
-				notNull: column.notNull && !primaryKey,
+				notNull: column.notNull && !(primaryKey && is(column, SQLiteBaseInteger)),
 				pk: primaryKey,
 				pkName: null,
 				autoincrement: is(column, SQLiteBaseInteger)
