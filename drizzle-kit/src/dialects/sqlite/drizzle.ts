@@ -73,13 +73,17 @@ export const fromDrizzleSchema = (
 				return column && !is(column, SQL) && column.name === name;
 			}));
 
+			// SQLite only enforces NOT NULL on `INTEGER PRIMARY KEY` columns (rowid alias);
+			// for every other PK shape (TEXT/BLOB/REAL, INT, composite) NULLs are allowed,
+			// so the NOT NULL flag must be preserved here and left to the DDL convertor
+			// to omit it for the single-column integer PK case (see convertor.ts).
 			return {
 				entityType: 'columns',
 				table: it.config.name,
 				name,
 				type: column.getSQLType(),
 				default: defalutValue,
-				notNull: column.notNull && !primaryKey,
+				notNull: column.notNull,
 				pk: primaryKey,
 				pkName: null,
 				autoincrement: is(column, SQLiteBaseInteger)
