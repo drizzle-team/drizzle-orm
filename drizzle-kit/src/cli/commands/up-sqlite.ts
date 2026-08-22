@@ -68,11 +68,14 @@ export const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 		for (const column of Object.values(table.columns)) {
 			let def: string | null = typeof column.default === 'undefined' ? null : String(column.default);
 
+			// Preserve NOT NULL as-is: SQLite allows NULLs in non-INTEGER PRIMARY KEY
+			// columns, so the flag is load-bearing there. The DDL convertor decides
+			// whether to omit it for single-column integer PKs (see convertor.ts).
 			ddl.columns.push({
 				table: table.name,
 				name: column.name,
 				type: column.type,
-				notNull: column.notNull && !column.primaryKey,
+				notNull: column.notNull,
 				default: def,
 				autoincrement: column.autoincrement,
 				generated: column.generated ?? null,
