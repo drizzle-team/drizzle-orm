@@ -115,8 +115,13 @@ export class UnsupportedSnapshotVersionCliError extends DrizzleCliError {
 }
 
 export class MigrationSnapshotNotFoundCliError extends DrizzleCliError {
+
 	constructor(snapshotPath?: string) {
-		super('migration_snapshot_not_found_error', 'No snapshot was found', snapshotPath ? { snapshotPath } : undefined);
+		super(
+			'migration_snapshot_not_found_error',
+			snapshotPath ? `No snapshot was found for '${snapshotPath}'` : 'No snapshot was found',
+			snapshotPath ? { snapshotPath } : undefined,
+		);
 	}
 }
 
