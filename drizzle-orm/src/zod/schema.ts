@@ -120,7 +120,7 @@ export const createUpdateSchema: CreateUpdateSchema<undefined> = (
 };
 
 export function createSchemaFactory<
-	TCoerce extends CoerceOptions,
+	TCoerce extends CoerceOptions = undefined,
 >(options?: CreateSchemaFactoryOptions<TCoerce>) {
 	const createSelectSchema: CreateSelectSchema<TCoerce> = (
 		entity: Table | View | PgEnum<[string, ...string[]]>,

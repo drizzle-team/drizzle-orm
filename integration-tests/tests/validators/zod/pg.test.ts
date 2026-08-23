@@ -576,6 +576,27 @@ test('type coercion - mixed', (t) => {
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
+test('refine table - select from factory without coercion', (t) => {
+	const table = pgTable('test', {
+		c1: integer(),
+		c2: integer().notNull(),
+		c3: integer().notNull(),
+	});
+
+	const { createSelectSchema } = createSchemaFactory({ zodInstance: z });
+	const result = createSelectSchema(table, {
+		c2: (schema) => schema.lte(1000),
+		c3: z.string().transform(Number),
+	});
+	const expected = z.object({
+		c1: integerNullableSchema,
+		c2: extendedSchema,
+		c3: customSchema,
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
 /* Infinitely recursive type */ {
 	const TopLevelCondition: z.ZodType<TopLevelCondition> = z.custom<TopLevelCondition>().superRefine(() => {});
 
