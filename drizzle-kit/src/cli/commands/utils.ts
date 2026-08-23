@@ -972,23 +972,18 @@ export const migrateToFoldersV3 = (out: string) => {
 	if (existsSync(metaPath) && existsSync(journalPath)) {
 		const journal: Journal = JSON.parse(readFileSync(journalPath).toString());
 		const sqlFiles = readdirSync(out);
-		for (const entry of journal.entries) {
-			const folderName = prepareSnapshotFolderName(entry.when);
-			// Reading Snapshots files
-			const [snapshotPrefix, ...rest] = entry.tag.split('_');
-			const migrationName = rest.join('_');
-			const oldSnapshotPath = join(metaPath, `${snapshotPrefix}_snapshot.json`);
 
+		// Validate every entry up-front. Converting is destructive (originals are
+		// deleted as each entry moves), so discovering a broken entry mid-loop
+		// used to leave the migrations folder half-converted and non-resumable.
+		for (const entry of journal.entries) {
+			const [snapshotPrefix] = entry.tag.split('_');
+			const oldSnapshotPath = join(metaPath, `${snapshotPrefix}_snapshot.json`);
 			if (!existsSync(oldSnapshotPath)) {
 				// If for some reason this happens we need to throw an error
 				// This can't happen unless there were wrong drizzle-kit migrations usage
 				throw new MigrationSnapshotNotFoundCliError(oldSnapshotPath);
 			}
-
-			const oldSnapshot = readFileSync(oldSnapshotPath);
-
-			// Reading SQL files
-			let oldSqlPath = join(out, `${entry.tag}.sql`);
 			const sqlFileFromJournal = join(out, `${entry.tag}.sql`);
 			if (!existsSync(sqlFileFromJournal)) {
 				// We will try to find it by prefix, but this is a sign that something went wrong
@@ -998,6 +993,23 @@ export const migrateToFoldersV3 = (out: string) => {
 				if (sqlFileName?.length > 1) {
 					throw new MigrationSqlFilesConflictCliError(snapshotPrefix);
 				}
+			}
+		}
+
+		for (const entry of journal.entries) {
+			const folderName = prepareSnapshotFolderName(entry.when);
+			// Reading Snapshots files
+			const [snapshotPrefix, ...rest] = entry.tag.split('_');
+			const migrationName = rest.join('_');
+			const oldSnapshotPath = join(metaPath, `${snapshotPrefix}_snapshot.json`);
+			const oldSnapshot = readFileSync(oldSnapshotPath);
+
+			// Reading SQL files
+			let oldSqlPath = join(out, `${entry.tag}.sql`);
+			const sqlFileFromJournal = join(out, `${entry.tag}.sql`);
+			if (!existsSync(sqlFileFromJournal)) {
+				const sqlFileName = sqlFiles.find((file) => file.startsWith(snapshotPrefix));
+				if (!sqlFileName) continue;
 			}
 			const oldSql = readFileSync(oldSqlPath);
 
