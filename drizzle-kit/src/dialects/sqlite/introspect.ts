@@ -617,7 +617,11 @@ export const fromDatabase = async (
 		for (const { columns, index } of Object.values(item).filter((it) => it.index.isUnique)) {
 			if (columns.length === 1) continue;
 			if (columns.some((it) => it.isExpression)) {
-				throw new Error(`unexpected unique index '${index.name}' with expression value: ${index.sql}`);
+				// A unique index mixing expression keys with plain columns can't be
+				// represented as a unique constraint, which references plain columns
+				// only. It is still introspected as an index above, so skip
+				// constraint promotion instead of failing the whole introspection.
+				continue;
 			}
 
 			const origin = index.origin === 'u' || index.origin === 'pk' ? 'auto' : index.origin === 'c' ? 'manual' : null;
