@@ -371,6 +371,12 @@ export const normaliseSQLiteUrl = (
 	type: 'libsql' | 'better-sqlite' | '@tursodatabase/database' | 'bun',
 ) => {
 	if (type === 'libsql') {
+		// `turso://` is Turso's remote scheme; the libsql-family clients speak
+		// HTTPS to the same host. Older bundled driver copies only normalize
+		// `libsql://`, so translate here to stay driver-version agnostic.
+		if (it.startsWith('turso://')) {
+			return `https://${it.slice('turso://'.length)}`;
+		}
 		if (it.startsWith('file:')) {
 			return it;
 		}
