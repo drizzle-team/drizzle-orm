@@ -294,6 +294,10 @@ let dbGlobalCached: BunMySqlDatabase & { $client: SQL };
 let cachedDb: BunMySqlDatabase & { $client: SQL };
 let client: SQL;
 
+const CONNECT_RETRY_INTERVAL = 250;
+const CONNECT_RETRIES = 240;
+const CONNECT_TIMEOUT = CONNECT_RETRIES * CONNECT_RETRY_INTERVAL;
+
 beforeAll(async () => {
 	const connectionString = process.env['MYSQL_CONNECTION_STRING'];
 	if (!connectionString) {
@@ -309,10 +313,10 @@ beforeAll(async () => {
 		}).connect();
 		return client;
 	}, {
-		retries: 20,
+		retries: CONNECT_RETRIES,
 		factor: 1,
-		minTimeout: 250,
-		maxTimeout: 250,
+		minTimeout: CONNECT_RETRY_INTERVAL,
+		maxTimeout: CONNECT_RETRY_INTERVAL,
 		randomize: false,
 		onRetry() {
 			client?.end();
@@ -321,7 +325,7 @@ beforeAll(async () => {
 	db = drizzle({ client, logger: ENABLE_LOGGING, relations });
 	cachedDb = drizzle({ client, logger: ENABLE_LOGGING, cache: new TestCache() });
 	dbGlobalCached = drizzle({ client, logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
-});
+}, CONNECT_TIMEOUT + 10_000);
 
 afterAll(async () => {
 	await client?.end();
