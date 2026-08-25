@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 import 'dotenv/config';
 import { D1Database, D1DatabaseAPI } from '@miniflare/d1';
-import { createSQLiteDB } from '@miniflare/shared';
+import Client from 'better-sqlite3';
 import { defineRelations, eq, sql } from 'drizzle-orm';
 import { relations } from 'drizzle-orm/_relations';
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
@@ -139,7 +139,7 @@ const relationsV2 = defineRelations(schema);
 let db: DrizzleD1Database<typeof relationsV2>;
 
 beforeAll(async () => {
-	const sqliteDb = await createSQLiteDB(':memory:');
+	const sqliteDb = new Client(':memory:');
 	const d1db = new D1Database(new D1DatabaseAPI(sqliteDb));
 	db = drizzle(d1db, { logger: ENABLE_LOGGING, relations: relationsV2 });
 });

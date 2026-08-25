@@ -1,6 +1,6 @@
 import { D1Client } from '@effect/sql-d1';
 import { D1Database, D1DatabaseAPI } from '@miniflare/d1';
-import { createSQLiteDB } from '@miniflare/shared';
+import Client from 'better-sqlite3';
 import {
 	defineRelations,
 	eq,
@@ -18,7 +18,7 @@ import { DB, push, runCommonEffectSQLiteTests } from './effect-common';
 import relations from './relations';
 
 const D1ClientLive = D1Client.layer({
-	db: new D1Database(new D1DatabaseAPI(await createSQLiteDB(':memory:'))) as any, // Old d1 version, has no `withSession`
+	db: new D1Database(new D1DatabaseAPI(new Client(':memory:'))) as any, // Old d1 version, has no `withSession`
 });
 
 const dbEffect = SQLiteDrizzle.make({ relations }).pipe(Effect.provide(SQLiteDrizzle.DefaultServices));

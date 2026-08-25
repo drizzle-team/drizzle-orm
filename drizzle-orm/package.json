@@ -304,7 +304,7 @@
 		"@xata.io/client": "^0.29.3",
 		"arktype": "^2.1.10",
 		"better-sqlite3": "^13.0.3",
-		"bun-types": "^1.2.23",
+		"bun-types": "^1.4.0",
 		"cpy": "^10.1.0",
 		"effect": "4.0.0-beta.105",
 		"expo-sqlite": "^14.0.0",

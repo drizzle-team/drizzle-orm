@@ -21,7 +21,7 @@
 		"fmt": "pnpm format"
 	},
 	"devDependencies": {
-		"bun-types": "^1.2.0",
+		"bun-types": "^1.4.0",
 		"concurrently": "^8.2.1",
 		"dprint": "^0.50.2",
 		"drizzle-kit": "workspace:./drizzle-kit/dist",
