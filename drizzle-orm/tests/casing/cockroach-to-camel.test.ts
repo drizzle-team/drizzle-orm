@@ -1,6 +1,6 @@
 import { describe, it } from 'vitest';
-import { drizzle } from '~/cockroach';
-import { alias, boolean, camelCase, int4, text, union } from '~/cockroach-core';
+import { drizzle, nodeCockroachCodecs } from '~/cockroach';
+import { alias, boolean, camelCase, castToText, int4, text, union } from '~/cockroach-core';
 import { defineRelations } from '~/relations';
 import { asc, eq, sql } from '~/sql';
 
@@ -379,6 +379,76 @@ describe('cockroach to camel case', () => {
 		expect(query.toSQL()).toEqual({
 			sql: 'delete from "users" where "users"."id" = $1 returning "firstName", "AGE" as "usersAge"',
 			params: [1],
+		});
+	});
+
+	describe('selection casts', () => {
+		const castCodecs = { ...nodeCockroachCodecs, int4: { ...nodeCockroachCodecs.int4, cast: castToText } };
+		const castDb = drizzle.mock({ codecs: castCodecs });
+		const casts = camelCase.table('casts', { cast_value: int4() });
+		const castTargets = camelCase.table('cast_targets', { target_id: text() });
+		const castSubquery = () => castDb.select({ cast_value: casts.cast_value }).from(casts).as('sq');
+
+		it(`Cast respects alias config`, ({ expect }) => {
+			expect(castDb.select({ c: casts.cast_value }).from(casts).toSQL().sql).toEqual(
+				'select "castValue"::text from "casts"',
+			);
+			expect(castDb.select({ c: casts.cast_value.as('alias') }).from(casts).toSQL().sql).toEqual(
+				'select "castValue"::text as "alias" from "casts"',
+			);
+		});
+
+		it(`Cast applied to selected subquery depending on it's selection`, ({ expect }) => {
+			expect(castDb.select({ x: castSubquery() }).from(castTargets).toSQL().sql).toEqual(
+				'select (select "castValue" from "casts")::text "sq" from "cast_targets"',
+			);
+		});
+
+		it('Nested queries ignore casts', ({ expect }) => {
+			const outer = castDb.select({ x: castSubquery() }).from(castTargets).as('outer');
+
+			expect(castDb.select().from(outer).toSQL().sql).toEqual(
+				'select (select "castValue" from "casts")::text "sq" from (select (select "castValue" from "casts") "sq" from "cast_targets") "outer"',
+			);
+		});
+
+		it(`Column as decoder applies cast`, ({ expect }) => {
+			expect(
+				castDb.select({
+					x: sql`${casts.cast_value}`.mapWith(casts.cast_value),
+					y: sql`${casts.cast_value}`.mapWith(casts.cast_value).as('y'),
+				}).from(casts).toSQL().sql,
+			)
+				.toEqual('select "castValue"::text, "castValue"::text as "y" from "casts"');
+		});
+
+		it(`Cast doesn't bleed params into selection`, ({ expect }) => {
+			// Regression test for pre-existing issue
+			const query = castDb.select({ x: castSubquery() }).from(castTargets).toSQL();
+
+			expect(query.params).toEqual([]);
+			expect(query.sql).not.toMatch(/\$\d|\?|@par/);
+		});
+
+		it(`No double spaces in union's 'order by' `, ({ expect }) => {
+			const branch = () => castDb.select({ x: casts.cast_value }).from(casts);
+			const query = branch()
+				.unionAll(branch())
+				.orderBy(sql`1`)
+				.limit(3);
+
+			expect(query.toSQL().sql).toEqual(
+				'select "castValue"::text from ((select "castValue" from "casts") union all (select "castValue" from "casts")) "drizzle_union" order by 1 limit $1',
+			);
+			expect(query.toSQL().sql).not.toContain('order by 1  ');
+		});
+
+		it(`$with field is cast by field's alias`, ({ expect }) => {
+			const w = castDb.$with('w').as(castDb.select({ cast_value: casts.cast_value }).from(casts));
+
+			expect(castDb.with(w).select({ x: w }).from(w).toSQL().sql).toEqual(
+				'with "w" as (select "castValue" from "casts") select "w"::text from "w"',
+			);
 		});
 	});
 });

@@ -1,43 +1,37 @@
-import mssql from 'mssql';
 import { describe, it } from 'vitest';
-import { alias, bit, castToText, int, snakeCase, text, union } from '~/mssql-core';
-import { drizzle, nodeMssqlCodecs } from '~/node-mssql';
+import { drizzle, singleStoreCodecs } from '~/singlestore';
+import { alias, boolean, castToText, int, serial, snakeCase, text, union } from '~/singlestore-core';
 import { asc, eq, sql } from '~/sql';
 
 const testSchema = snakeCase.schema('test');
 const users = snakeCase.table('users', {
-	// TODO: Investigate reasons for existence of next commented line
-	// id: int().primaryKey().identity(1, 1),
-	id: int().primaryKey().identity({
-		seed: 1,
-		increment: 1,
-	}),
+	id: serial().primaryKey(),
 	firstName: text().notNull(),
 	lastName: text().notNull(),
 	// Test that custom aliases remain
 	age: int('AGE'),
 });
 
+// singlestore has no foreign keys, so `developers` points at `users` by convention only
 const developers = testSchema.table('developers', {
-	// TODO: Investigate reasons for existence of next commented line
-	// userId: int().primaryKey().references('name1', () => users.id),
-	userId: int().primaryKey().references(() => users.id),
-	usesDrizzleORM: bit().notNull(),
+	userId: serial().primaryKey(),
+	usesDrizzleORM: boolean().notNull(),
 });
 
 const devs = alias(developers, 'devs');
-const db = drizzle({ client: new mssql.ConnectionPool({ server: '' }) });
+
+const db = drizzle.mock();
 
 const fullName = sql`${users.firstName} || ' ' || ${users.lastName}`.as('name');
 
-describe('mssql to snake case', () => {
+describe('singlestore to snake case', () => {
 	it('unicode column names', ({ expect }) => {
 		const unicode = snakeCase.table('unicode', {
 			칼럼명: text(),
 		});
 
 		expect(db.select().from(unicode).toSQL().sql).toEqual(
-			'select [칼럼명] from [unicode]',
+			'select `칼럼명` from `unicode`',
 		);
 	});
 
@@ -47,13 +41,13 @@ describe('mssql to snake case', () => {
 		const corr = sql`(select ${b.label} from ${b} where ${b.cId} = ${a.cId})`;
 
 		expect(db.select({ id: a.id, bRaw: corr }).from(a).toSQL().sql).toEqual(
-			'select [id], (select [b].[label] from [b] where [b].[c_id] = [a].[c_id]) from [a]',
+			'select `id`, (select `b`.`label` from `b` where `b`.`c_id` = `a`.`c_id`) from `a`',
 		);
 		expect(db.select({ id: a.id, bRaw: corr.as('b_raw') }).from(a).toSQL().sql).toEqual(
-			'select [id], (select [b].[label] from [b] where [b].[c_id] = [a].[c_id]) as [b_raw] from [a]',
+			'select `id`, (select `b`.`label` from `b` where `b`.`c_id` = `a`.`c_id`) as `b_raw` from `a`',
 		);
 		expect(db.select({ id: a.id }).from(a).where(corr).toSQL().sql).toEqual(
-			'select [id] from [a] where (select [b].[label] from [b] where [b].[c_id] = [a].[c_id])',
+			'select `id` from `a` where (select `b`.`label` from `b` where `b`.`c_id` = `a`.`c_id`)',
 		);
 	});
 
@@ -66,7 +60,7 @@ describe('mssql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select [sq].[id], [sq].[name] from [users] left join (select [id], [first_name] || ' ' || [last_name] as [name] from [users]) [sq] on [users].[id] = [sq].[id]",
+				"select cast(`sq`.`id` as char), `sq`.`name` from `users` left join (select `id`, `first_name` || ' ' || `last_name` as `name` from `users`) `sq` on `users`.`id` = `sq`.`id`",
 			params: [],
 		});
 	});
@@ -80,7 +74,7 @@ describe('mssql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select [users].[first_name] || ' ' || [users].[last_name] as [name], [users].[AGE] from [users] left join [test].[developers] on [users].[id] = [test].[developers].[user_id] order by [users].[first_name] asc",
+				"select `users`.`first_name` || ' ' || `users`.`last_name` as `name`, `users`.`AGE` from `users` left join `test`.`developers` on `users`.`id` = `test`.`developers`.`user_id` order by `users`.`first_name` asc",
 			params: [],
 		});
 	});
@@ -93,7 +87,7 @@ describe('mssql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select [users].[first_name] from [users] left join [test].[developers] [devs] on [users].[id] = [devs].[user_id]',
+				'select `users`.`first_name` from `users` left join `test`.`developers` `devs` on `users`.`id` = `devs`.`user_id`',
 			params: [],
 		});
 	});
@@ -103,7 +97,7 @@ describe('mssql to snake case', () => {
 		const query = db.with(cte).select().from(cte);
 
 		expect(query.toSQL()).toEqual({
-			sql: "with [cte] as (select [first_name] || ' ' || [last_name] as [name] from [users]) select [name] from [cte]",
+			sql: "with `cte` as (select `first_name` || ' ' || `last_name` as `name` from `users`) select `name` from `cte`",
 			params: [],
 		});
 	});
@@ -113,7 +107,7 @@ describe('mssql to snake case', () => {
 		const query = db.with(cte).select().from(cte);
 
 		expect(query.toSQL()).toEqual({
-			sql: "with [cte] as (select [first_name] || ' ' || [last_name] as [name] from [users]) select [name] from [cte]",
+			sql: "with `cte` as (select `first_name` || ' ' || `last_name` as `name` from `users`) select `name` from `cte`",
 			params: [],
 		});
 	});
@@ -126,7 +120,7 @@ describe('mssql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select [first_name] from ((select [first_name] from [users]) union (select [first_name] from [users])) [drizzle_union]',
+				'select `first_name` from ((select `first_name` from `users`) union (select `first_name` from `users`)) `drizzle_union`',
 			params: [],
 		});
 	});
@@ -139,7 +133,7 @@ describe('mssql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select [first_name] from ((select [first_name] from [users]) union (select [first_name] from [users])) [drizzle_union]',
+				'select `first_name` from ((select `first_name` from `users`) union (select `first_name` from `users`)) `drizzle_union`',
 			params: [],
 		});
 	});
@@ -150,8 +144,21 @@ describe('mssql to snake case', () => {
 			.values({ firstName: 'John', lastName: 'Doe', age: 30 });
 
 		expect(query.toSQL()).toEqual({
-			sql: 'insert into [users] ([first_name], [last_name], [AGE]) values (@par0, @par1, @par2)',
+			sql: 'insert into `users` (`id`, `first_name`, `last_name`, `AGE`) values (default, ?, ?, ?)',
 			params: ['John', 'Doe', 30],
+		});
+	});
+
+	it('insert (on duplicate key update)', ({ expect }) => {
+		const query = db
+			.insert(users)
+			.values({ firstName: 'John', lastName: 'Doe', age: 30 })
+			.onDuplicateKeyUpdate({ set: { age: 31 } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'insert into `users` (`id`, `first_name`, `last_name`, `AGE`) values (default, ?, ?, ?) on duplicate key update `AGE` = ?',
+			params: ['John', 'Doe', 30, 31],
 		});
 	});
 
@@ -161,7 +168,7 @@ describe('mssql to snake case', () => {
 			.values({ firstName: 'John', lastName: 'Doe', age: 30 });
 
 		expect(query.toSQL()).toEqual({
-			sql: 'insert into [users] ([first_name], [last_name], [AGE]) values (@par0, @par1, @par2)',
+			sql: 'insert into `users` (`first_name`, `last_name`, `AGE`) values (?, ?, ?)',
 			params: ['John', 'Doe', 30],
 		});
 	});
@@ -172,7 +179,7 @@ describe('mssql to snake case', () => {
 			.values([{ firstName: 'John', lastName: 'Doe' }, { firstName: 'Jane', lastName: 'Roe' }]);
 
 		expect(query.toSQL()).toEqual({
-			sql: 'insert into [users] ([first_name], [last_name]) values (@par0, @par1), (@par2, @par3)',
+			sql: 'insert into `users` (`first_name`, `last_name`) values (?, ?), (?, ?)',
 			params: ['John', 'Doe', 'Jane', 'Roe'],
 		});
 	});
@@ -183,7 +190,7 @@ describe('mssql to snake case', () => {
 			.values({ firstName: 'John', lastName: 'Doe' });
 
 		expect(query.toSQL()).toEqual({
-			sql: 'insert into [users] ([first_name], [last_name], [AGE]) values (@par0, @par1, default)',
+			sql: 'insert into `users` (`first_name`, `last_name`, `AGE`) values (?, ?, default)',
 			params: ['John', 'Doe'],
 		});
 	});
@@ -194,8 +201,20 @@ describe('mssql to snake case', () => {
 			.values({ firstName: 'John', lastName: 'Doe', age: 30 });
 
 		expect(query.toSQL()).toEqual({
-			sql: 'insert into [users] ([AGE], [last_name], [first_name]) values (@par0, @par1, @par2)',
+			sql: 'insert into `users` (`AGE`, `last_name`, `first_name`) values (?, ?, ?)',
 			params: [30, 'Doe', 'John'],
+		});
+	});
+
+	it('insert (column selection) on duplicate key update', ({ expect }) => {
+		const query = db
+			.insert(users, 'firstName', 'lastName', 'age')
+			.values({ firstName: 'John', lastName: 'Doe', age: 30 })
+			.onDuplicateKeyUpdate({ set: { age: 31 } });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into `users` (`first_name`, `last_name`, `AGE`) values (?, ?, ?) on duplicate key update `AGE` = ?',
+			params: ['John', 'Doe', 30, 31],
 		});
 	});
 
@@ -206,7 +225,7 @@ describe('mssql to snake case', () => {
 			.where(eq(users.id, 1));
 
 		expect(query.toSQL()).toEqual({
-			sql: 'update [users] set [first_name] = @par0, [last_name] = @par1, [AGE] = @par2 where [users].[id] = @par3',
+			sql: 'update `users` set `first_name` = ?, `last_name` = ?, `AGE` = ? where `users`.`id` = ?',
 			params: ['John', 'Doe', 30, 1],
 		});
 	});
@@ -217,7 +236,7 @@ describe('mssql to snake case', () => {
 			.where(eq(users.id, 1));
 
 		expect(query.toSQL()).toEqual({
-			sql: 'delete from [users] where [users].[id] = @par0',
+			sql: 'delete from `users` where `users`.`id` = ?',
 			params: [1],
 		});
 	});
@@ -229,7 +248,7 @@ describe('mssql to snake case', () => {
 			.orderBy(asc(users.id.as('userId')));
 
 		expect(query.toSQL()).toEqual({
-			sql: 'select [AGE] as [ageOfUser], [id] as [userId] from [users] order by [userId] asc',
+			sql: 'select `AGE` as `ageOfUser`, cast(`id` as char) as `userId` from `users` order by `userId` asc',
 			params: [],
 		});
 	});
@@ -243,72 +262,30 @@ describe('mssql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select [users].[first_name] || ' ' || [users].[last_name] as [name], [users].[AGE] as [ageOfUser], [users].[id] as [userId] from [users] left join [test].[developers] on [userId] = [test].[developers].[user_id] order by [users].[first_name] asc",
+				"select `users`.`first_name` || ' ' || `users`.`last_name` as `name`, `users`.`AGE` as `ageOfUser`, cast(`users`.`id` as char) as `userId` from `users` left join `test`.`developers` on `userId` = `test`.`developers`.`user_id` order by `users`.`first_name` asc",
 			params: [],
 		});
 	});
 
-	it('insert output as', ({ expect }) => {
-		const query = db
-			.insert(users)
-			.output({ firstName: users.firstName, age: users.age.as('userAge') })
-			.values({ firstName: 'John', lastName: 'Doe', age: 30 });
-
-		expect(query.toSQL()).toEqual({
-			sql:
-				'insert into [users] ([first_name], [last_name], [AGE]) output INSERTED.[first_name], INSERTED.[AGE] as [userAge] values (@par0, @par1, @par2)',
-			params: ['John', 'Doe', 30],
-		});
-	});
-
-	it('update output as', ({ expect }) => {
-		const query = db
-			.update(users)
-			.set({ firstName: 'John', lastName: 'Doe', age: 30 })
-			.output({
-				inserted: { firstName: users.firstName.as('usersNameIn'), age: users.age.as('ageIn') },
-				deleted: { firstName: users.firstName.as('usersNameOut'), age: users.age.as('ageOut') },
-			})
-			.where(eq(users.id, 1));
-
-		expect(query.toSQL()).toEqual({
-			sql:
-				'update [users] set [first_name] = @par0, [last_name] = @par1, [AGE] = @par2 output INSERTED.[first_name] as [usersNameIn], INSERTED.[AGE] as [ageIn], DELETED.[first_name] as [usersNameOut], DELETED.[AGE] as [ageOut] where [users].[id] = @par3',
-			params: ['John', 'Doe', 30, 1],
-		});
-	});
-
-	it('delete output as', ({ expect }) => {
-		const query = db
-			.delete(users)
-			.output({ firstName: users.firstName, age: users.age.as('usersAge') })
-			.where(eq(users.id, 1));
-
-		expect(query.toSQL()).toEqual({
-			sql: 'delete from [users] output DELETED.[first_name], DELETED.[AGE] as [usersAge] where [users].[id] = @par0',
-			params: [1],
-		});
-	});
-
 	describe('selection casts', () => {
-		const castCodecs = { ...nodeMssqlCodecs, int: { ...nodeMssqlCodecs.int, cast: castToText } };
-		const castDb = drizzle({ client: new mssql.ConnectionPool({ server: '' }), codecs: castCodecs });
+		const castCodecs = { ...singleStoreCodecs, int: { ...singleStoreCodecs.int, cast: castToText } };
+		const castDb = drizzle.mock({ codecs: castCodecs });
 		const casts = snakeCase.table('casts', { castValue: int() });
 		const castTargets = snakeCase.table('cast_targets', { targetId: text() });
 		const castSubquery = () => castDb.select({ castValue: casts.castValue }).from(casts).as('sq');
 
 		it(`Cast respects alias config`, ({ expect }) => {
 			expect(castDb.select({ c: casts.castValue }).from(casts).toSQL().sql).toEqual(
-				'select cast([cast_value] as varchar(max)) from [casts]',
+				'select cast(`cast_value` as char) from `casts`',
 			);
 			expect(castDb.select({ c: casts.castValue.as('alias') }).from(casts).toSQL().sql).toEqual(
-				'select cast([cast_value] as varchar(max)) as [alias] from [casts]',
+				'select cast(`cast_value` as char) as `alias` from `casts`',
 			);
 		});
 
 		it(`Cast applied to selected subquery depending on it's selection`, ({ expect }) => {
 			expect(castDb.select({ x: castSubquery() }).from(castTargets).toSQL().sql).toEqual(
-				'select cast((select [cast_value] from [casts]) as varchar(max)) [sq] from [cast_targets]',
+				'select cast((select `cast_value` from `casts`) as char) `sq` from `cast_targets`',
 			);
 		});
 
@@ -316,7 +293,7 @@ describe('mssql to snake case', () => {
 			const outer = castDb.select({ x: castSubquery() }).from(castTargets).as('outer');
 
 			expect(castDb.select().from(outer).toSQL().sql).toEqual(
-				'select cast((select [cast_value] from [casts]) as varchar(max)) [sq] from (select (select [cast_value] from [casts]) [sq] from [cast_targets]) [outer]',
+				'select cast((select `cast_value` from `casts`) as char) `sq` from (select (select `cast_value` from `casts`) `sq` from `cast_targets`) `outer`',
 			);
 		});
 
@@ -327,7 +304,7 @@ describe('mssql to snake case', () => {
 					y: sql`${casts.castValue}`.mapWith(casts.castValue).as('y'),
 				}).from(casts).toSQL().sql,
 			)
-				.toEqual('select cast([cast_value] as varchar(max)), cast([cast_value] as varchar(max)) as [y] from [casts]');
+				.toEqual('select cast(`cast_value` as char), cast(`cast_value` as char) as `y` from `casts`');
 		});
 
 		it(`Cast doesn't bleed params into selection`, ({ expect }) => {
@@ -342,10 +319,11 @@ describe('mssql to snake case', () => {
 			const branch = () => castDb.select({ x: casts.castValue }).from(casts);
 			const query = branch()
 				.unionAll(branch())
-				.orderBy(sql`1`);
+				.orderBy(sql`1`)
+				.limit(3);
 
 			expect(query.toSQL().sql).toEqual(
-				'select cast([cast_value] as varchar(max)) from ((select [cast_value] from [casts]) union all (select [cast_value] from [casts])) [drizzle_union] order by 1',
+				'select cast(`cast_value` as char) from ((select `cast_value` from `casts`) union all (select `cast_value` from `casts`) order by 1 limit ?) `drizzle_union`',
 			);
 			expect(query.toSQL().sql).not.toContain('order by 1  ');
 		});
