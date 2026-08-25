@@ -309,6 +309,8 @@ beforeAll(async () => {
 		client = await new SQL({
 			url: connectionString,
 			adapter: 'mysql',
+			// mysql8 defaults to caching_sha2_password; bun >=1.4 refuses the RSA key exchange without this
+			allowPublicKeyRetrieval: true,
 			bigint: true,
 		}).connect();
 		return client;
@@ -1564,6 +1566,7 @@ describe('common', () => {
 		const client1 = await new SQL({
 			url: process.env['MYSQL_CONNECTION_STRING'],
 			adapter: 'mysql',
+			allowPublicKeyRetrieval: true,
 			bigint: true,
 			database: 'drizzle1',
 		}).connect();
@@ -1571,6 +1574,7 @@ describe('common', () => {
 		const client2 = await new SQL({
 			url: process.env['MYSQL_CONNECTION_STRING'],
 			adapter: 'mysql',
+			allowPublicKeyRetrieval: true,
 			bigint: true,
 			database: 'drizzle2',
 		}).connect();
@@ -2516,6 +2520,7 @@ describe('common', () => {
 			const peer = await new SQL({
 				url: process.env['MYSQL_CONNECTION_STRING']!,
 				adapter: 'mysql',
+				allowPublicKeyRetrieval: true,
 				bigint: true,
 			}).connect();
 
