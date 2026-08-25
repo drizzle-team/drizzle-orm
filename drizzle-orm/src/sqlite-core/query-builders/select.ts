@@ -54,6 +54,11 @@ import type {
 	SQLiteSetOperatorWithResult,
 } from './select.types.ts';
 
+/** `.if(false)` leaves `undefined` holes; skip them so we don't emit `ORDER BY , col`. */
+function withoutUndefined<T>(items: readonly T[]): Exclude<T, undefined>[] {
+	return items.filter((item): item is Exclude<T, undefined> => item !== undefined);
+}
+
 export class SQLiteSelectBuilder<
 	TSelection extends SelectedFields | undefined,
 	TResultType extends 'sync' | 'async',
@@ -215,6 +220,9 @@ export abstract class SQLiteSelectQueryBuilderBase<
 		) => {
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
+			const fieldsSnapshot = this.config.fields;
+			const nullableSnapshot = this.joinsNotNullableMap;
+			const usedSnapshot = [...this.usedTables];
 
 			// store all tables used in a query
 			for (const item of extractUsedTable(table)) this.usedTables.add(item);
@@ -247,6 +255,15 @@ export abstract class SQLiteSelectQueryBuilderBase<
 						new SelectionProxyHandler({ sqlAliasedBehavior: 'sql', sqlBehavior: 'sql' }),
 					) as TSelection,
 				);
+			}
+
+			// `.if(false)` → undefined. JOIN without ON is a cartesian product in SQLite.
+			if (joinType !== 'cross' && on === undefined) {
+				this.config.fields = fieldsSnapshot;
+				this.joinsNotNullableMap = nullableSnapshot;
+				this.usedTables.clear();
+				for (const used of usedSnapshot) this.usedTables.add(used);
+				return this as any;
 			}
 
 			if (!this.config.joins) {
@@ -697,9 +714,9 @@ export abstract class SQLiteSelectQueryBuilderBase<
 					new SelectionProxyHandler({ sqlAliasedBehavior: 'alias', sqlBehavior: 'sql' }),
 				) as TSelection,
 			);
-			this.config.groupBy = Array.isArray(groupBy) ? groupBy : [groupBy];
+			this.config.groupBy = Array.isArray(groupBy) ? withoutUndefined(groupBy) : withoutUndefined([groupBy]);
 		} else {
-			this.config.groupBy = columns as (SQLiteColumn | SQL | SQL.Aliased)[];
+			this.config.groupBy = withoutUndefined(columns as (SQLiteColumn | SQL | SQL.Aliased | undefined)[]);
 		}
 		return this as any;
 	}
@@ -745,7 +762,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 				) as TSelection,
 			);
 
-			const orderByArray = Array.isArray(orderBy) ? orderBy : [orderBy];
+			const orderByArray = withoutUndefined(Array.isArray(orderBy) ? orderBy : [orderBy]);
 
 			if (this.config.setOperators.length > 0) {
 				this.config.setOperators.at(-1)!.orderBy = orderByArray;
@@ -753,7 +770,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 				this.config.orderBy = orderByArray;
 			}
 		} else {
-			const orderByArray = columns as (SQLiteColumn | SQL | SQL.Aliased)[];
+			const orderByArray = withoutUndefined(columns as (SQLiteColumn | SQL | SQL.Aliased | undefined)[]);
 
 			if (this.config.setOperators.length > 0) {
 				this.config.setOperators.at(-1)!.orderBy = orderByArray;
