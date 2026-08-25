@@ -1,10 +1,10 @@
 import { Client } from '@planetscale/database';
 import { connect } from '@tidbcloud/serverless';
 import { describe, it } from 'vitest';
-import { alias, boolean, int, serial, snakeCase, text, union } from '~/mysql-core';
+import { alias, boolean, castToText, int, serial, snakeCase, text, union } from '~/mysql-core';
 import { drizzle as planetscale } from '~/planetscale-serverless';
 import { asc, eq, sql } from '~/sql';
-import { drizzle as mysql } from '~/tidb-serverless';
+import { drizzle as mysql, tidbCodecs } from '~/tidb-serverless';
 
 const testSchema = snakeCase.schema('test');
 const users = snakeCase.table('users', {
@@ -278,6 +278,68 @@ describe('mysql to snake case', () => {
 			sql:
 				"select `users`.`first_name` || ' ' || `users`.`last_name` as `name`, `users`.`AGE` as `ageOfUser`, cast(`users`.`id` as char) as `userId` from `users` left join `test`.`developers` on `userId` = `test`.`developers`.`user_id` order by `users`.`first_name` asc",
 			params: [],
+		});
+	});
+
+	describe('selection casts', () => {
+		const castCodecs = { ...tidbCodecs, int: { ...tidbCodecs.int, cast: castToText } };
+		const castDb = mysql({ client: connect({}), codecs: castCodecs });
+		const casts = snakeCase.table('casts', { castValue: int() });
+		const castTargets = snakeCase.table('cast_targets', { targetId: text() });
+		const castSubquery = () => castDb.select({ castValue: casts.castValue }).from(casts).as('sq');
+
+		it(`Cast respects alias config`, ({ expect }) => {
+			expect(castDb.select({ c: casts.castValue }).from(casts).toSQL().sql).toEqual(
+				'select cast(`cast_value` as char) from `casts`',
+			);
+			expect(castDb.select({ c: casts.castValue.as('alias') }).from(casts).toSQL().sql).toEqual(
+				'select cast(`cast_value` as char) as `alias` from `casts`',
+			);
+		});
+
+		it(`Cast applied to selected subquery depending on it's selection`, ({ expect }) => {
+			expect(castDb.select({ x: castSubquery() }).from(castTargets).toSQL().sql).toEqual(
+				'select cast((select `cast_value` from `casts`) as char) `sq` from `cast_targets`',
+			);
+		});
+
+		it('Nested queries ignore casts', ({ expect }) => {
+			const outer = castDb.select({ x: castSubquery() }).from(castTargets).as('outer');
+
+			expect(castDb.select().from(outer).toSQL().sql).toEqual(
+				'select cast((select `cast_value` from `casts`) as char) `sq` from (select (select `cast_value` from `casts`) `sq` from `cast_targets`) `outer`',
+			);
+		});
+
+		it(`Column as decoder applies cast`, ({ expect }) => {
+			expect(
+				castDb.select({
+					x: sql`${casts.castValue}`.mapWith(casts.castValue),
+					y: sql`${casts.castValue}`.mapWith(casts.castValue).as('y'),
+				}).from(casts).toSQL().sql,
+			)
+				.toEqual('select cast(`cast_value` as char), cast(`cast_value` as char) as `y` from `casts`');
+		});
+
+		it(`Cast doesn't bleed params into selection`, ({ expect }) => {
+			// Regression test for pre-existing issue
+			const query = castDb.select({ x: castSubquery() }).from(castTargets).toSQL();
+
+			expect(query.params).toEqual([]);
+			expect(query.sql).not.toMatch(/\$\d|\?|@par/);
+		});
+
+		it(`No double spaces in union's 'order by' `, ({ expect }) => {
+			const branch = () => castDb.select({ x: casts.castValue }).from(casts);
+			const query = branch()
+				.unionAll(branch())
+				.orderBy(sql`1`)
+				.limit(3);
+
+			expect(query.toSQL().sql).toEqual(
+				'select cast(`cast_value` as char) from ((select `cast_value` from `casts`) union all (select `cast_value` from `casts`) order by 1 limit ?) `drizzle_union`',
+			);
+			expect(query.toSQL().sql).not.toContain('order by 1  ');
 		});
 	});
 });
