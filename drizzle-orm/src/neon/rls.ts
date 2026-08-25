@@ -83,7 +83,7 @@ export const crudPolicy = (options: {
 			to: options.role,
 			using: modify,
 		}),
-	].filter(Boolean);
+	].filter((p) => p !== undefined);
 };
 
 // These are default roles that Neon will set up.

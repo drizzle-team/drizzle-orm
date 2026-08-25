@@ -94,7 +94,7 @@ export function cockroachTableWithSchema<
 	extraConfig:
 		| ((
 			self: CockroachBuildExtraConfigColumns<TColumnsMap>,
-		) => CockroachTableExtraConfig | CockroachTableExtraConfigValue[])
+		) => CockroachTableExtraConfig | (CockroachTableExtraConfigValue | CockroachTableExtraConfigValue[])[])
 		| undefined,
 	schema: TSchemaName,
 	casing: Casing | undefined,
@@ -165,7 +165,7 @@ export interface CockroachTableFnInternal<TSchema extends string | undefined = u
 		columns: TColumnsMap,
 		extraConfig?: (
 			self: CockroachBuildExtraConfigColumns<TColumnsMap>,
-		) => CockroachTableExtraConfigValue[],
+		) => (CockroachTableExtraConfigValue | CockroachTableExtraConfigValue[])[],
 	): CockroachTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
@@ -181,7 +181,7 @@ export interface CockroachTableFnInternal<TSchema extends string | undefined = u
 		columns: (columnTypes: CockroachColumnsBuilders) => TColumnsMap,
 		extraConfig?: (
 			self: CockroachBuildExtraConfigColumns<TColumnsMap>,
-		) => CockroachTableExtraConfigValue[],
+		) => (CockroachTableExtraConfigValue | CockroachTableExtraConfigValue[])[],
 	): CockroachTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;

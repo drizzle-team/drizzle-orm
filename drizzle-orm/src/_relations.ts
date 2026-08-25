@@ -469,7 +469,8 @@ export function extractTablesRelationalConfig<
 
 			const extraConfig = value[Table.Symbol.ExtraConfigBuilder]?.((value as Table)[Table.Symbol.ExtraConfigColumns]);
 			if (extraConfig) {
-				for (const configEntry of Object.values(extraConfig)) {
+				const extraValues = Array.isArray(extraConfig) ? extraConfig.flat(1) as any[] : Object.values(extraConfig);
+				for (const configEntry of extraValues) {
 					if (is(configEntry, PrimaryKeyBuilder)) {
 						tablesConfig[key]!.primaryKey.push(...configEntry.columns);
 					}

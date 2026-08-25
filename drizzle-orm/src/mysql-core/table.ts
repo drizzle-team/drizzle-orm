@@ -71,7 +71,7 @@ export function mysqlTableWithSchema<
 	extraConfig:
 		| ((
 			self: BuildColumns<TTableName, TColumnsMap, 'mysql'>,
-		) => MySqlTableExtraConfig | MySqlTableExtraConfigValue[])
+		) => MySqlTableExtraConfig | (MySqlTableExtraConfigValue | MySqlTableExtraConfigValue[])[])
 		| undefined,
 	schema: TSchemaName,
 	casing: Casing | undefined,
@@ -129,7 +129,7 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 		columns: TColumnsMap,
 		extraConfig?: (
 			self: BuildColumns<TTableName, TColumnsMap, 'mysql'>,
-		) => MySqlTableExtraConfigValue[],
+		) => (MySqlTableExtraConfigValue | MySqlTableExtraConfigValue[])[],
 	): MySqlTableWithColumns<{
 		name: TTableName;
 		schema: TSchemaName;
@@ -143,7 +143,9 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 	>(
 		name: TTableName,
 		columns: (columnTypes: MySqlColumnBuilders) => TColumnsMap,
-		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfigValue[],
+		extraConfig?: (
+			self: BuildColumns<TTableName, TColumnsMap, 'mysql'>,
+		) => (MySqlTableExtraConfigValue | MySqlTableExtraConfigValue[])[],
 	): MySqlTableWithColumns<{
 		name: TTableName;
 		schema: TSchemaName;

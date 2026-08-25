@@ -59,7 +59,7 @@ export function singlestoreTableWithSchema<
 	extraConfig:
 		| ((
 			self: BuildColumns<TTableName, TColumnsMap, 'singlestore'>,
-		) => SingleStoreTableExtraConfig | SingleStoreTableExtraConfigValue[])
+		) => SingleStoreTableExtraConfig | (SingleStoreTableExtraConfigValue | SingleStoreTableExtraConfigValue[])[])
 		| undefined,
 	schema: TSchemaName,
 	casing: Casing | undefined,
@@ -116,7 +116,7 @@ export interface SingleStoreTableFn<TSchemaName extends string | undefined = und
 		columns: TColumnsMap,
 		extraConfig?: (
 			self: BuildColumns<TTableName, TColumnsMap, 'singlestore'>,
-		) => SingleStoreTableExtraConfigValue[],
+		) => (SingleStoreTableExtraConfigValue | SingleStoreTableExtraConfigValue[])[],
 	): SingleStoreTableWithColumns<{
 		name: TTableName;
 		schema: TSchemaName;
@@ -130,7 +130,9 @@ export interface SingleStoreTableFn<TSchemaName extends string | undefined = und
 	>(
 		name: TTableName,
 		columns: (columnTypes: SingleStoreColumnBuilders) => TColumnsMap,
-		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'singlestore'>) => SingleStoreTableExtraConfigValue[],
+		extraConfig?: (
+			self: BuildColumns<TTableName, TColumnsMap, 'singlestore'>,
+		) => (SingleStoreTableExtraConfigValue | SingleStoreTableExtraConfigValue[])[],
 	): SingleStoreTableWithColumns<{
 		name: TTableName;
 		schema: TSchemaName;
