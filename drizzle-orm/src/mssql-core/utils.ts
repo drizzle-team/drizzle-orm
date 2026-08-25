@@ -1,6 +1,7 @@
 import { is } from '~/entity.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { Table } from '~/table.ts';
+import { throwUnknownExtraConfigValue } from '~/table.utils.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { Check } from './checks.ts';
@@ -43,6 +44,8 @@ export function getTableConfig(table: MsSqlTable) {
 				primaryKeys.push(builder.build(table));
 			} else if (is(builder, ForeignKeyBuilder)) {
 				foreignKeys.push(builder.build(table));
+			} else {
+				throwUnknownExtraConfigValue(name, builder);
 			}
 		}
 	}
