@@ -20,7 +20,7 @@ export type MySqlTableExtraConfigValue =
 	| CheckBuilder
 	| ForeignKeyBuilder
 	| PrimaryKeyBuilder
-	| UniqueConstraintBuilder;
+	| UniqueConstraintBuilder<string | undefined>;
 
 export type MySqlTableExtraConfig = Record<
 	string,

@@ -14,7 +14,7 @@
 		"test:mysql": "vitest run --reporter=verbose --silent=false run tests/mysql/default tests/mysql/mysql.test.ts",
 		"test:sqlite": "vitest run --reporter=verbose --silent=false run tests/sqlite --exclude tests/sqlite/tursodatabase-serverless.test.ts",
 		"test:planetscale": "vitest run --reporter=verbose --silent=false run tests/mysql/planetscale.test.ts tests/mysql/mysql.planetscale.test.ts",
-		"test:other": "vitest run tests/utils tests/extensions",
+		"test:other": "vitest run tests/utils tests/extensions tests/table-extra-config",
 		"test:seeder": "vitest run tests/seeder",
 		"test:imports": "vitest run tests/imports"
 	},

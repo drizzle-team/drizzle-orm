@@ -2,6 +2,7 @@ import { CockroachTable } from '~/cockroach-core/table.ts';
 import { is } from '~/entity.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { Table } from '~/table.ts';
+import { throwUnknownExtraConfigValue } from '~/table.utils.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { type Check, CheckBuilder } from './checks.ts';
@@ -45,6 +46,8 @@ export function getTableConfig<TTable extends CockroachTable>(table: TTable) {
 				foreignKeys.push(builder.build(table));
 			} else if (is(builder, CockroachPolicy)) {
 				policies.push(builder);
+			} else {
+				throwUnknownExtraConfigValue(name, builder);
 			}
 		}
 	}
