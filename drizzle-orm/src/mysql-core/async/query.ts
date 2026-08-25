@@ -19,7 +19,7 @@ export class MySqlAsyncRelationalQuery<TResult> extends MySqlRelationalQuery<MyS
 
 	prepare() {
 		const { query, builtQuery } = this._toSQL();
-		const mapper = this.dialect.mapperGenerators.relationalRows({
+		const mapper = this.mapper ??= this.dialect.mapperGenerators.relationalRows({
 			isFirst: this.mode === 'first',
 			parseJson: false,
 			parseJsonIfString: false,

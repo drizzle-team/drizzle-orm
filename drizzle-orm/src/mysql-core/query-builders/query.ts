@@ -3,6 +3,7 @@ import type {
 	BuildQueryResult,
 	BuildRelationalQueryResult,
 	DBQueryConfigWithComment,
+	RelationalRowsMapper,
 	TableRelationalConfig,
 	TablesRelationalConfig,
 } from '~/relations.ts';
@@ -90,6 +91,9 @@ export type MySqlRelationalQueryKind<
 
 export class MySqlRelationalQuery<THKT extends MySqlRelationalQueryHKTBase, TResult> implements SQLWrapper {
 	static readonly [entityKind]: string = 'MySqlRelationalQueryV2';
+
+	/** @internal */
+	protected mapper?: RelationalRowsMapper;
 
 	declare readonly _: {
 		readonly hkt: THKT;

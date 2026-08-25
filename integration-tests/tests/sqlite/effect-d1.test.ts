@@ -38,8 +38,6 @@ const createDB = <
 >(
 	schema: TSchema,
 	relations: (helpers: RelationsBuilder<TTables>) => TConfig,
-	// CF Workers don't support `new Function(...)`
-	_useJitMappers?: boolean,
 ) =>
 	SQLiteDrizzle.make({ relations: defineRelations(schema, relations) }).pipe(
 		Effect.provide(SQLiteDrizzle.DefaultServices),
@@ -72,6 +70,10 @@ runCommonEffectSQLiteTests({
 		'full join with alias',
 		'select from alias',
 		'Mappers: select complex selections',
+		'Cross-table group never nullified',
+		'Cross-table group never nullified - jit',
+		'Mappers: deep nullification',
+		'Mappers: deep nullification - jit',
 
 		// Cloudflare workers environment doesn't support 'new Function(...)'
 		'Mappers: correct mappers enabled',

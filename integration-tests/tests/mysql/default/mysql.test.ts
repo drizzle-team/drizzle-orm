@@ -3,7 +3,8 @@ import { getTableConfig, int, mysqlTable, text } from 'drizzle-orm/mysql-core';
 import { drizzle } from 'drizzle-orm/mysql2';
 import { migrate } from 'drizzle-orm/mysql2/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import { createConnection } from 'mysql2/promise';
+import { createPool as createCallbackPool } from 'mysql2';
+import { createConnection, createPool } from 'mysql2/promise';
 import { describe, expect } from 'vitest';
 import { mysqlTest as test } from '../instrumentation';
 import { tests } from '../mysql-common';
@@ -58,7 +59,7 @@ describe('migrator', () => {
 
 		expect(migratorRes).toStrictEqual(undefined);
 		expect(meta.length).toStrictEqual(1);
-		expect(!!res[0]?.[0]?.tableExists).toStrictEqual(false);
+		expect(!!Number(res[0]?.[0]?.tableExists)).toStrictEqual(false);
 	});
 
 	test('migrator : --init - local migrations error', async ({ db }) => {
@@ -91,7 +92,7 @@ describe('migrator', () => {
 
 		expect(migratorRes).toStrictEqual({ exitCode: 'localMigrations' });
 		expect(meta.length).toStrictEqual(0);
-		expect(!!res[0]?.[0]?.tableExists).toStrictEqual(false);
+		expect(!!Number(res[0]?.[0]?.tableExists)).toStrictEqual(false);
 	});
 
 	test('migrator : --init - db migrations error', async ({ db }) => {
@@ -129,7 +130,7 @@ describe('migrator', () => {
 
 		expect(migratorRes).toStrictEqual({ exitCode: 'databaseMigrations' });
 		expect(meta.length).toStrictEqual(1);
-		expect(!!res[0]?.[0]?.tableExists).toStrictEqual(true);
+		expect(!!Number(res[0]?.[0]?.tableExists)).toStrictEqual(true);
 	});
 
 	test('migrator: local migration is unapplied. Migrations timestamp is less than last db migration', async ({ db }) => {
@@ -246,5 +247,77 @@ describe('migrator', () => {
 
 		expect(result1).toEqual([{ id: 1, name: 'John', email: 'email' }]);
 		expect(result2).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+	});
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5972
+describe('driver init', () => {
+	const resolveConfig = (client: any) => {
+		const cfg = client.config ?? client.pool?.config ?? client.connection?.config;
+		return cfg?.connectionConfig ?? cfg;
+	};
+
+	test('client: promise pool', async () => {
+		const client = createPool({ uri: process.env['MYSQL_CONNECTION_STRING'] });
+		try {
+			const db = drizzle({ client });
+			// Don't force in constructor
+			expect(resolveConfig(db.$client)?.supportBigNumbers).toBeFalsy();
+			expect(resolveConfig(db.$client)?.bigNumberStrings).toBeFalsy();
+			expect((await db.execute(sql`select 1 as ${sql.identifier('v')}`))[0]).toEqual([{ v: 1 }]);
+		} finally {
+			await client.end();
+		}
+	});
+
+	test('client: promise pool `.pool` (issue workaround)', async () => {
+		const pool = createPool({ uri: process.env['MYSQL_CONNECTION_STRING'] });
+		try {
+			const db = drizzle({ client: pool.pool as any });
+			// Don't force in constructor
+			expect(resolveConfig(db.$client)?.supportBigNumbers).toBeFalsy();
+			expect(resolveConfig(db.$client)?.bigNumberStrings).toBeFalsy();
+			expect((await db.execute(sql`select 1 as ${sql.identifier('v')}`))[0]).toEqual([{ v: 1 }]);
+		} finally {
+			await pool.end();
+		}
+	});
+
+	test('client: callback pool', async () => {
+		const client = createCallbackPool({ uri: process.env['MYSQL_CONNECTION_STRING'] });
+		try {
+			const db = drizzle({ client: client as any });
+			// Don't force in constructor
+			expect(resolveConfig(db.$client)?.supportBigNumbers).toBeFalsy();
+			expect(resolveConfig(db.$client)?.bigNumberStrings).toBeFalsy();
+			expect((await db.execute(sql`select 1 as ${sql.identifier('v')}`))[0]).toEqual([{ v: 1 }]);
+		} finally {
+			await new Promise<void>((resolve) => client.end(() => resolve()));
+		}
+	});
+
+	test('client: promise connection', async () => {
+		const client = await createConnection({ uri: process.env['MYSQL_CONNECTION_STRING'] });
+		try {
+			const db = drizzle({ client });
+			// Don't force in constructor
+			expect(resolveConfig(db.$client)?.supportBigNumbers).toBeFalsy();
+			expect(resolveConfig(db.$client)?.bigNumberStrings).toBeFalsy();
+			expect((await db.execute(sql`select 1 as ${sql.identifier('v')}`))[0]).toEqual([{ v: 1 }]);
+		} finally {
+			await client.end();
+		}
+	});
+
+	test('connection string', async () => {
+		const db = drizzle(process.env['MYSQL_CONNECTION_STRING']!);
+		try {
+			// Don't force in constructor
+			expect(resolveConfig(db.$client)?.supportBigNumbers).toBeFalsy();
+			expect(resolveConfig(db.$client)?.bigNumberStrings).toBeFalsy();
+			expect((await db.execute(sql`select 1 as ${sql.identifier('v')}`))[0]).toEqual([{ v: 1 }]);
+		} finally {
+			await db.$client.end();
+		}
 	});
 });

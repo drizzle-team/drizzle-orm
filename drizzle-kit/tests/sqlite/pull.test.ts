@@ -577,3 +577,71 @@ test('pull after migrate with custom migrations table #2', async () => {
 		},
 	]);
 });
+
+test('primary key with non default name', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	await db.run(`
+CREATE TABLE table1 (
+	id int,
+	CONSTRAINT primary_key PRIMARY KEY (id)
+);`);
+	await db.run(`
+CREATE TABLE table2 (
+	id int primary key
+);
+`);
+
+	const {
+		sqlStatements,
+		statements,
+	} = await diffAfterPull(sqlite, {}, 'primary-key-without-default-name');
+
+	expect(sqlStatements).toStrictEqual([]);
+	expect(statements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3407
+test('Issue No3407', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	// commented-out constraints must NOT be introspected, regardless of comment style
+	await db.run(`CREATE TABLE IF NOT EXISTS users
+                (
+                    id       TEXT PRIMARY KEY,
+                    -- CHECK (userType IN ('anonymous', 'emailPassword'))
+                    -- UNIQUE (userType)
+                    /* CHECK (length(userType) > 0) */
+                    /* multi
+                       line CONSTRAINT users_uq UNIQUE (id, userType)
+                       FOREIGN KEY (userType) REFERENCES demo(id) */
+                    userType TEXT NOT NULL -- CONSTRAINT users_ck CHECK (userType <> '')
+                );
+`);
+
+	await db.run(`CREATE TABLE IF NOT EXISTS demo
+                (
+                    id                 TEXT PRIMARY KEY
+                    -- , name TEXT UNIQUE
+                    /* , FOREIGN KEY (id) REFERENCES users(id) */
+                );
+                `);
+
+	const {
+		sqlStatements,
+		statements,
+		ddlAfterPull,
+		resultDdl,
+	} = await diffAfterPull(sqlite, {}, 'Issue #4307');
+
+	expect(sqlStatements).toStrictEqual([]);
+	expect(statements).toStrictEqual([]);
+	expect(ddlAfterPull.checks.list()).toStrictEqual([]);
+	expect(ddlAfterPull.uniques.list()).toStrictEqual([]);
+	expect(ddlAfterPull.fks.list()).toStrictEqual([]);
+	expect(resultDdl.checks.list()).toStrictEqual([]);
+	expect(resultDdl.uniques.list()).toStrictEqual([]);
+	expect(resultDdl.fks.list()).toStrictEqual([]);
+});

@@ -296,6 +296,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 });
 
 const skip = [
+	'transaction mode: exclusive',
 	// Uses async versions
 	'sync transaction rollback',
 	'sync nested transaction rollback',

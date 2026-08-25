@@ -110,7 +110,7 @@ test('validate config #1', async (t) => {
 		schema: 'schema.ts',
 		dbCredentials: { url: 'test_url' },
 		introspect: { casing: 'preserve' },
-		strict: true,
+		// strict: true, // removed. strict by def for now
 		schemaFilter: ['public'],
 		breakpoints: false,
 		driver: 'pglite',
@@ -196,7 +196,6 @@ test('validate config #5', async (t) => {
 	);
 
 	let error: any = res.type === 'error' ? res.error : undefined;
-	expect(error).toBeDefined();
 	expect(error).toBeInstanceOf(Error);
 	expect(error.message).toBe('process.exit unexpectedly called with "1"');
 
@@ -227,7 +226,6 @@ test('validate config #6', async (t) => {
 	);
 
 	let error: any = res.type === 'error' ? res.error : undefined;
-	expect(error).toBeDefined();
 	expect(error).toBeInstanceOf(Error);
 	expect(error.message).toBe('process.exit unexpectedly called with "1"');
 

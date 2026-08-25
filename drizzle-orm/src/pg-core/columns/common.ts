@@ -101,11 +101,14 @@ export type HasIdentity<T, TType extends 'always' | 'byDefault'> = SetIdentity<T
 
 type GetBaseData<T> = T extends { $type: infer U } ? U : T extends { data: infer D } ? D : unknown;
 
+type ResolveData<T extends PgColumnBuilderConfig> = T['dimensions'] extends 1 | 2 | 3 | 4 | 5
+	? WrapArray<GetBaseData<T>, T['dimensions']>
+	: GetBaseData<T>;
+
 export type ResolvePgColumnConfig<
 	out T extends PgColumnBuilderConfig,
 	out TTableName extends string,
-	out TData = T['dimensions'] extends 1 | 2 | 3 | 4 | 5 ? WrapArray<GetBaseData<T>, T['dimensions']>
-		: GetBaseData<T>,
+	out TData = ResolveData<T>,
 > = {
 	name: string;
 	tableName: TTableName;
@@ -228,16 +231,7 @@ export abstract class PgColumnBuilder<
 	 *
 	 * If you need to set a dynamic default value, use {@link $defaultFn} instead.
 	 */
-	default(
-		value:
-			| (this['_'] extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
-					this['_'] extends { $type: infer U } ? U : this['_']['data'],
-					this['_']['dimensions']
-				>
-				: this['_'] extends { $type: infer U } ? U
-				: this['_']['data'])
-			| SQL,
-	): SetHasDefault<this> {
+	default(value: ResolveData<this['_']> | SQL): SetHasDefault<this> {
 		this.config.default = value;
 		this.config.hasDefault = true;
 		return this as SetHasDefault<this>;
@@ -249,16 +243,7 @@ export abstract class PgColumnBuilder<
 	 *
 	 * **Note:** This value does not affect the `drizzle-kit` behavior, it is only used at runtime in `drizzle-orm`.
 	 */
-	$defaultFn(
-		fn: () =>
-			| (this['_'] extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
-					this['_'] extends { $type: infer U } ? U : this['_']['data'],
-					this['_']['dimensions']
-				>
-				: this['_'] extends { $type: infer U } ? U
-				: this['_']['data'])
-			| SQL,
-	): SetHasRuntimeDefault<this> {
+	$defaultFn(fn: () => ResolveData<this['_']> | SQL): SetHasRuntimeDefault<this> {
 		this.config.defaultFn = fn;
 		this.config.hasDefault = true;
 		return this as SetHasRuntimeDefault<this>;
@@ -267,7 +252,9 @@ export abstract class PgColumnBuilder<
 	/**
 	 * Alias for {@link $defaultFn}.
 	 */
-	$default = this.$defaultFn;
+	$default(fn: () => ResolveData<this['_']> | SQL): SetHasRuntimeDefault<this> {
+		return this.$defaultFn(fn);
+	}
 
 	/**
 	 * Adds a dynamic update value to the column.
@@ -276,16 +263,7 @@ export abstract class PgColumnBuilder<
 	 *
 	 * **Note:** This value does not affect the `drizzle-kit` behavior, it is only used at runtime in `drizzle-orm`.
 	 */
-	$onUpdateFn(
-		fn: () =>
-			| (this['_'] extends { dimensions: 1 | 2 | 3 | 4 | 5 } ? WrapArray<
-					this['_'] extends { $type: infer U } ? U : this['_']['data'],
-					this['_']['dimensions']
-				>
-				: this['_'] extends { $type: infer U } ? U
-				: this['_']['data'])
-			| SQL,
-	): SetHasDefault<this> {
+	$onUpdateFn(fn: () => ResolveData<this['_']> | SQL): SetHasDefault<this> {
 		this.config.onUpdateFn = fn;
 		this.config.hasDefault = true;
 		return this as SetHasDefault<this>;
@@ -294,12 +272,12 @@ export abstract class PgColumnBuilder<
 	/**
 	 * Alias for {@link $onUpdateFn}.
 	 */
-	$onUpdate = this.$onUpdateFn;
+	$onUpdate(fn: () => ResolveData<this['_']> | SQL): SetHasDefault<this> {
+		return this.$onUpdateFn(fn);
+	}
 
 	/**
 	 * Adds a `primary key` clause to the column definition. This implicitly makes the column `not null`.
-	 *
-	 * In SQLite, `integer primary key` implicitly makes the column auto-incrementing.
 	 */
 	primaryKey(): SetIsPrimaryKey<this> {
 		this.config.primaryKey = true;
@@ -336,7 +314,7 @@ export abstract class PgColumnBuilder<
 	): SetDimensions<this, ArrayDimensionStringToNumber<TDim>> {
 		// Calculate dimensions as number from string notation
 		const dim = dimensions ?? '[]';
-		(this.config as any).dimensions = (dim.length / 2) as PgArrayDimension;
+		this.config.dimensions = (dim.length / 2) as PgArrayDimension;
 		return this as SetDimensions<this, ArrayDimensionStringToNumber<TDim>>;
 	}
 
@@ -358,11 +336,7 @@ export abstract class PgColumnBuilder<
 		return this;
 	}
 
-	generatedAlwaysAs(
-		as:
-			| SQL
-			| (() => SQL),
-	): SetHasGenerated<this> {
+	generatedAlwaysAs(as: SQL | (() => SQL)): SetHasGenerated<this> {
 		this.config.generated = {
 			as,
 			type: 'always',
@@ -401,7 +375,7 @@ export abstract class PgColumnBuilder<
 	buildExtraConfigColumn<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): ExtraConfigColumn {
-		return new ExtraConfigColumn(table, { ...this.config, dimensions: (this.config as any).dimensions ?? 0 });
+		return new ExtraConfigColumn(table, { ...this.config, dimensions: this.config.dimensions ?? 0 });
 	}
 }
 
@@ -453,6 +427,46 @@ export abstract class PgColumn<
 		return this;
 	}
 
+	/**
+	 * Transforms this built column back into a fresh {@link PgColumnBuilder} in the exact same state:
+	 * a bare `toBuilder()` yields a builder whose built column is config-identical to this one.
+	 *
+	 * Useful for deriving a table from an existing one — pass the returned builder to `pgTable()` or
+	 * `pgSchema().table()` — while adjusting individual clauses through {@link overrides}.
+	 */
+	toBuilder(overrides?: PgColumnToBuilderOverrides<T['data']>): PgColumnBuilder {
+		const config = { ...this.config };
+
+		if (overrides) {
+			const { name, unique, ...rest } = overrides;
+			Object.assign(config, rest);
+
+			if (name !== undefined) {
+				config.name = name;
+				config.keyAsName = false;
+			}
+
+			if (unique !== undefined) {
+				config.isUnique = unique !== false;
+				const uniqueConfig = typeof unique === 'object' ? unique : undefined;
+				config.uniqueName = uniqueConfig?.name;
+				config.uniqueType = uniqueConfig?.nulls;
+			}
+
+			// `generatedAlwaysAs` deliberately leaves `hasDefault` false on pg (generated columns are
+			// excluded from inserts via shouldDisableInsert instead), so it is not a source here.
+			config.hasDefault = config.default !== undefined
+				|| config.defaultFn !== undefined
+				|| config.onUpdateFn !== undefined
+				|| config.generatedIdentity !== undefined;
+		}
+
+		return new PgClonedColumnBuilder(
+			config,
+			Object.getPrototypeOf(this).constructor as PgColumnConstructor,
+		);
+	}
+
 	/** @internal */
 	override shouldDisableInsert(): boolean {
 		return (this.config.generatedIdentity !== undefined && this.config.generatedIdentity.type !== 'byDefault')
@@ -468,6 +482,40 @@ export abstract class PgColumn<
 	}
 }
 
+export interface PgColumnToBuilderOverrides<TData = unknown> {
+	name?: string;
+	notNull?: boolean;
+	primaryKey?: boolean;
+	default?: TData | SQL | undefined;
+	defaultFn?: (() => TData | SQL) | undefined;
+	onUpdateFn?: (() => TData | SQL) | undefined;
+	unique?: boolean | { name?: string; nulls?: 'distinct' | 'not distinct' };
+	generated?: GeneratedColumnConfig<TData> | undefined;
+	generatedIdentity?: GeneratedIdentityConfig | undefined;
+}
+
+type PgColumnConstructor = new(table: PgTable, config: any) => PgColumn;
+
+// Builder produced by {@link PgColumn.toBuilder}: rebuilds the source column's concrete class
+// against a copy of its runtime config, so `pgTable()`'s build step (`build().postBuild()`)
+// reconstructs a codec-faithful clone the same way it builds any other column.
+export class PgClonedColumnBuilder extends PgColumnBuilder {
+	static override readonly [entityKind]: string = 'PgClonedColumnBuilder';
+
+	private readonly ColumnClass: PgColumnConstructor;
+
+	constructor(config: PgColumnBuilderRuntimeConfig<unknown>, ColumnClass: PgColumnConstructor) {
+		super(config.name, config.dataType as ColumnType, config.columnType);
+		this.config = config as any;
+		this.ColumnClass = ColumnClass;
+	}
+
+	/** @internal */
+	override build(table: PgTable): PgColumn {
+		return new this.ColumnClass(table, this.config);
+	}
+}
+
 export type IndexedExtraConfigType = { order?: 'asc' | 'desc'; nulls?: 'first' | 'last'; opClass?: string };
 
 export class ExtraConfigColumn<
@@ -475,7 +523,7 @@ export class ExtraConfigColumn<
 > extends PgColumn<ColumnType, T, IndexedExtraConfigType> {
 	static override readonly [entityKind]: string = 'ExtraConfigColumn';
 
-	/** @itnernal */
+	/** @internal */
 	override readonly codec = undefined;
 
 	override getSQLType(): string {

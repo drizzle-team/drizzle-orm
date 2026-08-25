@@ -77,7 +77,7 @@ export const allArrayDataTypes = cockroachTable('all_array_data_types', {
 	moodEnumArray: moodEnum('mood_enum_array').array(),
 	uuidArray: uuid('uuid_array').array(),
 	inetArray: inet('inet_array').array(),
-	geometryArray: geometry('geometry_array', { type: 'point', mode: 'tuple', srid: 0 }).array(1),
+	geometryArray: geometry('geometry_array', { type: 'point', mode: 'tuple', srid: 0 }).array(),
 });
 
 export const intervals = cockroachTable('intervals', {

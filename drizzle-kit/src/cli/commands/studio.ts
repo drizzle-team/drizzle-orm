@@ -761,6 +761,7 @@ const jsonStringify = (data: any) => {
 				&& 'data' in value
 				&& value.type === 'Buffer')
 			|| value instanceof ArrayBuffer
+			|| value instanceof Uint8Array
 			|| value instanceof Buffer
 		) {
 			return Buffer.from(value).toString('base64');

@@ -63,9 +63,12 @@ type SelectPartialResult<TFields, TNullability extends Record<string, JoinNullab
 					'You can only select one column in the subquery'
 				>
 			: TField extends Record<string, any>
-				? TField[keyof TField] extends AnyColumn<{ tableName: infer TTableName extends string }> | SQL | SQL.Aliased
-					? Not<IsUnion<TTableName>> extends true
-						? ApplyNullability<SelectResultFields<TField>, TNullability[TTableName]>
+				? TField[keyof TField] extends SQL | SQL.Aliased ? SelectPartialResult<TField, TNullability>
+				: TField[keyof TField] extends AnyColumn<{ tableName: infer TTableName extends string }> | SQL | SQL.Aliased
+					? Not<IsUnion<TTableName>> extends true ? ApplyNullability<
+							SelectResultFields<TField>,
+							TTableName extends keyof TNullability ? TNullability[TTableName] : 'nullable'
+						>
 					: SelectPartialResult<TField, TNullability>
 				: never
 			: never

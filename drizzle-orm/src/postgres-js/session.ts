@@ -61,7 +61,7 @@ export class PostgresJsSession<TSQL extends Sql, TRelations extends AnyRelations
 			}
 			return this.client.unsafe(query.sql, params ?? [] as any[], {
 				prepare: name !== false,
-			}).values();
+			}).values().then((rows) => Object.values(rows));
 		};
 
 		return new PgAsyncPreparedQuery<T>(

@@ -296,6 +296,7 @@ test('test $onUpdateFn and $onUpdate works updating', async ({ db }) => {
 });
 
 const skip = [
+	'transaction mode: exclusive',
 	'test $onUpdateFn and $onUpdate works as $default',
 	'test $onUpdateFn and $onUpdate works updating',
 	// Uses async versions

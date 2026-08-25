@@ -32,6 +32,9 @@ export class SingleStoreTime<
 > extends SingleStoreColumn<T> {
 	static override readonly [entityKind]: string = 'SingleStoreTime';
 
+	/** @internal */
+	override readonly codec = 'time';
+
 	getSQLType(): string {
 		return `time`;
 	}

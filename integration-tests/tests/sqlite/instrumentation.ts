@@ -40,6 +40,7 @@ import {
 	Table,
 } from 'drizzle-orm';
 import { drizzle as drizzleBetterSqlite3 } from 'drizzle-orm/better-sqlite3';
+import { betterSQLite3Codecs } from 'drizzle-orm/better-sqlite3/codecs';
 import { Cache, type MutationOption } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import { drizzle as drizzleD1 } from 'drizzle-orm/d1';
@@ -558,6 +559,9 @@ const providerClosure = async <T>(items: T[]) => {
 	};
 };
 
+// No token needed for a local url; simple ':memory:' fails on transaction tests
+const LOCAL_LIBSQL_URL = 'file::memory:?cache=shared';
+
 export const providerForSQLiteCloud = async () => {
 	const url = process.env['SQLITE_MANY_CLOUD_CONNECTION_STRING'];
 	if (url === undefined) throw new Error('SQLITE_MANY_CLOUD_CONNECTION_STRING is not set.');
@@ -597,9 +601,8 @@ export const providerForTursoDatabaseServerless = async () => {
 };
 
 export const providerForLibSQL = async () => {
-	const url = process.env['LIBSQL_URL'];
+	const url = process.env['LIBSQL_URL'] ?? LOCAL_LIBSQL_URL;
 	const authToken = process.env['LIBSQL_AUTH_TOKEN'];
-	if (url === undefined) throw new Error('LIBSQL_URL is not set.');
 	const uris = url.split(';').filter((val) => val !== '');
 	const clients = await Promise.all(uris.map(async (urlI) => await prepareLibSQLClient(urlI, authToken)));
 
@@ -617,17 +620,14 @@ export const providerForLibSQLWs = async () => {
 	return providerClosure(clients);
 };
 export const providerForLibSQLSqlite3 = async () => {
-	const clients = [prepareLibSQLSqlite3Client()];
+	const clients = [prepareLibSQLSqlite3Client(LOCAL_LIBSQL_URL)];
 
 	return providerClosure(clients);
 };
 
 export const providerForLibSQLNode = async () => {
-	const url = process.env['LIBSQL_URL'];
+	const url = process.env['LIBSQL_URL'] ?? LOCAL_LIBSQL_URL;
 	const authToken = process.env['LIBSQL_AUTH_TOKEN'];
-	if (url === undefined) {
-		throw new Error('LIBSQL_URL is not set.');
-	}
 	const uris = url.split(';').filter((val) => val !== '');
 	const clients = await Promise.all(uris.map(async (urlI) => await prepareLibSQLNodeClient(urlI, authToken)));
 
@@ -826,7 +826,7 @@ const testFor = (
 							throw e;
 						}
 					};
-					await use(drizzleProxy(proxyHandler, { relations }));
+					await use(drizzleProxy(proxyHandler, { relations, codecs: betterSQLite3Codecs }));
 					return;
 				}
 
@@ -917,7 +917,7 @@ const testFor = (
 								throw e;
 							}
 						};
-						return drizzleProxy(proxyHandler, { relations, jit });
+						return drizzleProxy(proxyHandler, { relations, jit, codecs: betterSQLite3Codecs });
 					}
 					throw new Error();
 				};
@@ -944,8 +944,16 @@ const testFor = (
 							throw e;
 						}
 					};
-					const db1 = drizzleProxy(proxyHandler, { relations, cache: new TestCache('all') });
-					const db2 = drizzleProxy(proxyHandler, { relations, cache: new TestCache('explicit') });
+					const db1 = drizzleProxy(proxyHandler, {
+						relations,
+						cache: new TestCache('all'),
+						codecs: betterSQLite3Codecs,
+					});
+					const db2 = drizzleProxy(proxyHandler, {
+						relations,
+						cache: new TestCache('explicit'),
+						codecs: betterSQLite3Codecs,
+					});
 					await use({ all: db1, explicit: db2 });
 					return;
 				}

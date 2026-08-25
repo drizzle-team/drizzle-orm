@@ -105,5 +105,5 @@ export function getMaterializedViewConfig<
 }
 
 export type DrizzlePgConfig<TRelations extends AnyRelations> =
-	& Omit<DrizzleConfig<Record<string, never>, TRelations>, 'schema'>
+	& DrizzleConfig<TRelations>
 	& { codecs?: PgCodecs | undefined };

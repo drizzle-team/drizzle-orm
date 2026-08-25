@@ -1,7 +1,7 @@
 import { describe, it } from 'vitest';
-import { relations } from '~/_relations';
 import { drizzle } from '~/cockroach';
 import { alias, boolean, int4, snakeCase, text, union } from '~/cockroach-core';
+import { defineRelations } from '~/relations';
 import { asc, eq, sql } from '~/sql';
 
 const testSchema = snakeCase.schema('test');
@@ -12,27 +12,61 @@ const users = snakeCase.table('users', {
 	// Test that custom aliases remain
 	age: int4('AGE'),
 });
-const usersRelations = relations(users, ({ one }) => ({
-	developers: one(developers),
-}));
 const developers = testSchema.table('developers', {
 	userId: int4().primaryKey().generatedByDefaultAsIdentity().references(() => users.id),
 	usesDrizzleORM: boolean().notNull(),
 });
-const developersRelations = relations(developers, ({ one }) => ({
-	user: one(users, {
-		fields: [developers.userId],
-		references: [users.id],
-	}),
-}));
 const devs = alias(developers, 'devs');
-const schema = { users, usersRelations, developers, developersRelations };
+const relations = defineRelations({ users, developers }, (r) => ({
+	users: { developers: r.one.developers({ from: r.users.id, to: r.developers.userId }) },
+	developers: { user: r.one.users({ from: r.developers.userId, to: r.users.id }) },
+}));
 
-const db = drizzle.mock({ schema });
+const db = drizzle.mock({ relations });
 
 const fullName = sql`${users.firstName} || ' ' || ${users.lastName}`.as('name');
 
 describe('cockroach to snake case', () => {
+	it('unicode column names', ({ expect }) => {
+		const unicode = snakeCase.table('unicode', {
+			칼럼명: text(),
+		});
+
+		expect(db.select().from(unicode).toSQL().sql).toEqual(
+			'select "칼럼명" from "unicode"',
+		);
+	});
+
+	it('qualifier preservation for sql fields', ({ expect }) => {
+		const a = snakeCase.table('a', { id: int4('id').primaryKey(), cId: int4().notNull() });
+		const b = snakeCase.table('b', { id: int4('id').primaryKey(), cId: int4().notNull(), label: text() });
+		const corr = sql`(select ${b.label} from ${b} where ${b.cId} = ${a.cId})`;
+
+		expect(db.select({ id: a.id, bRaw: corr }).from(a).toSQL().sql).toEqual(
+			'select "id", (select "b"."label" from "b" where "b"."c_id" = "a"."c_id") from "a"',
+		);
+		expect(db.select({ id: a.id, bRaw: corr.as('b_raw') }).from(a).toSQL().sql).toEqual(
+			'select "id", (select "b"."label" from "b" where "b"."c_id" = "a"."c_id") as "b_raw" from "a"',
+		);
+		expect(db.select({ id: a.id }).from(a).where(corr).toSQL().sql).toEqual(
+			'select "id" from "a" where (select "b"."label" from "b" where "b"."c_id" = "a"."c_id")',
+		);
+	});
+
+	it('qualifier preservation for subquery fields', ({ expect }) => {
+		const sq = db.select({ id: users.id, name: fullName }).from(users).as('sq');
+		const query = db
+			.select({ id: sq.id, name: sq.name })
+			.from(users)
+			.leftJoin(sq, eq(users.id, sq.id));
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select "sq"."id", "sq"."name" from "users" left join (select "id", "first_name" || \' \' || "last_name" as "name" from "users") "sq" on "users"."id" = "sq"."id"',
+			params: [],
+		});
+	});
+
 	it('select', ({ expect }) => {
 		const query = db
 			.select({ name: fullName, age: users.age })
@@ -89,7 +123,8 @@ describe('cockroach to snake case', () => {
 			.union(db.select({ firstName: users.firstName }).from(users));
 
 		expect(query.toSQL()).toEqual({
-			sql: '(select "first_name" from "users") union (select "first_name" from "users")',
+			sql:
+				'select "first_name" from ((select "first_name" from "users") union (select "first_name" from "users")) "drizzle_union"',
 			params: [],
 		});
 	});
@@ -101,21 +136,22 @@ describe('cockroach to snake case', () => {
 		);
 
 		expect(query.toSQL()).toEqual({
-			sql: '(select "first_name" from "users") union (select "first_name" from "users")',
+			sql:
+				'select "first_name" from ((select "first_name" from "users") union (select "first_name" from "users")) "drizzle_union"',
 			params: [],
 		});
 	});
 
 	it('query (find first)', ({ expect }) => {
-		const query = db._query.users.findFirst({
+		const query = db.query.users.findFirst({
 			columns: {
 				id: true,
 				age: true,
 			},
 			extras: {
-				fullName,
+				fullName: ({ firstName, lastName }) => sql`${firstName} || ' ' || ${lastName}`.as('name'),
 			},
-			where: eq(users.id, 1),
+			where: { id: 1 },
 			with: {
 				developers: {
 					columns: {
@@ -127,21 +163,21 @@ describe('cockroach to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select "users"."id", "users"."AGE", "users"."first_name" || \' \' || "users"."last_name" as "name", "users_developers"."data" as "developers" from "users" "users" left join lateral (select json_build_array("users_developers"."uses_drizzle_orm") as "data" from (select * from "test"."developers" "users_developers" where "users_developers"."user_id" = "users"."id" limit $1) "users_developers") "users_developers" on true where "users"."id" = $2 limit $3',
+				'select "d0"."id" as "id", "d0"."AGE" as "age", ("d0"."first_name" || \' \' || "d0"."last_name") as "fullName", "developers"."r" as "developers" from "users" as "d0" left join lateral(select row_to_json("t".*) "r" from (select "d1"."uses_drizzle_orm" as "usesDrizzleORM" from "test"."developers" as "d1" where "d0"."id" = "d1"."user_id" limit $1) as "t") as "developers" on true where "d0"."id" = $2 limit $3',
 			params: [1, 1, 1],
 		});
 	});
 
 	it('query (find many)', ({ expect }) => {
-		const query = db._query.users.findMany({
+		const query = db.query.users.findMany({
 			columns: {
 				id: true,
 				age: true,
 			},
 			extras: {
-				fullName,
+				fullName: ({ firstName, lastName }) => sql`${firstName} || ' ' || ${lastName}`.as('name'),
 			},
-			where: eq(users.id, 1),
+			where: { id: 1 },
 			with: {
 				developers: {
 					columns: {
@@ -153,7 +189,7 @@ describe('cockroach to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select "users"."id", "users"."AGE", "users"."first_name" || \' \' || "users"."last_name" as "name", "users_developers"."data" as "developers" from "users" "users" left join lateral (select json_build_array("users_developers"."uses_drizzle_orm") as "data" from (select * from "test"."developers" "users_developers" where "users_developers"."user_id" = "users"."id" limit $1) "users_developers") "users_developers" on true where "users"."id" = $2',
+				'select "d0"."id" as "id", "d0"."AGE" as "age", ("d0"."first_name" || \' \' || "d0"."last_name") as "fullName", "developers"."r" as "developers" from "users" as "d0" left join lateral(select row_to_json("t".*) "r" from (select "d1"."uses_drizzle_orm" as "usesDrizzleORM" from "test"."developers" as "d1" where "d0"."id" = "d1"."user_id" limit $1) as "t") as "developers" on true where "d0"."id" = $2',
 			params: [1, 1],
 		});
 	});
@@ -182,6 +218,76 @@ describe('cockroach to snake case', () => {
 		expect(query.toSQL()).toEqual({
 			sql:
 				'insert into "users" ("id", "first_name", "last_name", "AGE") values (default, $1, $2, $3) on conflict ("first_name") do update set "AGE" = $4 returning "first_name", "AGE"',
+			params: ['John', 'Doe', 30, 31],
+		});
+	});
+
+	it('insert (column selection)', ({ expect }) => {
+		const query = db
+			.insert(users, 'firstName', 'lastName', 'age')
+			.values({ firstName: 'John', lastName: 'Doe', age: 30 })
+			.returning({ firstName: users.firstName, age: users.age });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "users" ("first_name", "last_name", "AGE") values ($1, $2, $3) returning "first_name", "AGE"',
+			params: ['John', 'Doe', 30],
+		});
+	});
+
+	it('insert (column selection, multiple rows)', ({ expect }) => {
+		const query = db
+			.insert(users, 'firstName', 'lastName')
+			.values([{ firstName: 'John', lastName: 'Doe' }, { firstName: 'Jane', lastName: 'Roe' }]);
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "users" ("first_name", "last_name") values ($1, $2), ($3, $4)',
+			params: ['John', 'Doe', 'Jane', 'Roe'],
+		});
+	});
+
+	it('insert (column selection, omitted optional column)', ({ expect }) => {
+		const query = db
+			.insert(users, 'firstName', 'lastName', 'age')
+			.values({ firstName: 'John', lastName: 'Doe' });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "users" ("first_name", "last_name", "AGE") values ($1, $2, default)',
+			params: ['John', 'Doe'],
+		});
+	});
+
+	it('insert (column selection) with select', ({ expect }) => {
+		const query = db
+			.insert(users, 'firstName', 'lastName')
+			.select(db.select({ firstName: users.firstName, lastName: users.lastName }).from(users));
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "users" ("first_name", "last_name") select "first_name", "last_name" from "users"',
+			params: [],
+		});
+	});
+
+	it('insert (column selection) emits columns in list order', ({ expect }) => {
+		const query = db
+			.insert(users, 'age', 'lastName', 'firstName')
+			.values({ firstName: 'John', lastName: 'Doe', age: 30 });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "users" ("AGE", "last_name", "first_name") values ($1, $2, $3)',
+			params: [30, 'Doe', 'John'],
+		});
+	});
+
+	it('insert (column selection) on conflict do update', ({ expect }) => {
+		const query = db
+			.insert(users, 'firstName', 'lastName', 'age')
+			.values({ firstName: 'John', lastName: 'Doe', age: 30 })
+			.onConflictDoUpdate({ target: users.firstName, set: { age: 31 } })
+			.returning({ firstName: users.firstName, age: users.age });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'insert into "users" ("first_name", "last_name", "AGE") values ($1, $2, $3) on conflict ("first_name") do update set "AGE" = $4 returning "first_name", "AGE"',
 			params: ['John', 'Doe', 30, 31],
 		});
 	});

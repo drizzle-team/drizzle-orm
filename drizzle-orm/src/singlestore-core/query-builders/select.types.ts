@@ -53,6 +53,8 @@ export interface SingleStoreSelectConfig {
 	withList?: Subquery[];
 	fields: Record<string, unknown>;
 	fieldsFlat?: SelectedFieldsOrdered;
+	mapper?: (raw: any) => any;
+	ignoreSelectionCastCodecs?: boolean;
 	where?: SQL;
 	having?: SQL;
 	table: SingleStoreTable | Subquery | SQL; // | SingleStoreViewBase
@@ -218,7 +220,6 @@ export type SingleStoreSetOperatorExcludedMethods =
 	| 'where'
 	| 'having'
 	| 'groupBy'
-	| 'session'
 	| 'leftJoin'
 	| 'rightJoin'
 	| 'innerJoin'

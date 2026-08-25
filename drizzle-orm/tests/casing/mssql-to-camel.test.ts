@@ -1,6 +1,5 @@
 import mssql from 'mssql';
 import { describe, it } from 'vitest';
-import { relations } from '~/_relations';
 import { alias, bit, camelCase, int, text, union } from '~/mssql-core';
 import { drizzle } from '~/node-mssql';
 import { asc, eq, sql } from '~/sql';
@@ -18,29 +17,60 @@ const users = camelCase.table('users', {
 	// Test that custom aliases remain
 	age: int('AGE'),
 });
-const usersRelations = relations(users, ({ one }) => ({
-	developers: one(developers),
-}));
+
 const developers = testSchema.table('developers', {
 	// TODO: Investigate reasons for existence of next commented line
 	// user_id: int().primaryKey().primaryKey().references('name1', () => users.id),
 	user_id: int().primaryKey().primaryKey().references(() => users.id),
 	uses_drizzle_orm: bit().notNull(),
 });
-const developersRelations = relations(developers, ({ one }) => ({
-	user: one(users, {
-		fields: [developers.user_id],
-		references: [users.id],
-	}),
-}));
-const devs = alias(developers, 'devs');
-const schema = { users, usersRelations, developers, developersRelations };
 
-const db = drizzle({ client: new mssql.ConnectionPool({ server: '' }), schema });
+const devs = alias(developers, 'devs');
+const db = drizzle({ client: new mssql.ConnectionPool({ server: '' }) });
 
 const fullName = sql`${users.first_name} || ' ' || ${users.last_name}`.as('name');
 
 describe('mssql to camel case', () => {
+	it('unicode column names', ({ expect }) => {
+		const unicode = camelCase.table('unicode', {
+			칼럼명: text(),
+		});
+
+		expect(db.select().from(unicode).toSQL().sql).toEqual(
+			'select [칼럼명] from [unicode]',
+		);
+	});
+
+	it('qualifier preservation for sql fields', ({ expect }) => {
+		const a = camelCase.table('a', { id: int('id').primaryKey(), cId: int().notNull() });
+		const b = camelCase.table('b', { id: int('id').primaryKey(), cId: int().notNull(), label: text() });
+		const corr = sql`(select ${b.label} from ${b} where ${b.cId} = ${a.cId})`;
+
+		expect(db.select({ id: a.id, bRaw: corr }).from(a).toSQL().sql).toEqual(
+			'select [id], (select [b].[label] from [b] where [b].[cId] = [a].[cId]) from [a]',
+		);
+		expect(db.select({ id: a.id, bRaw: corr.as('b_raw') }).from(a).toSQL().sql).toEqual(
+			'select [id], (select [b].[label] from [b] where [b].[cId] = [a].[cId]) as [b_raw] from [a]',
+		);
+		expect(db.select({ id: a.id }).from(a).where(corr).toSQL().sql).toEqual(
+			'select [id] from [a] where (select [b].[label] from [b] where [b].[cId] = [a].[cId])',
+		);
+	});
+
+	it('qualifier preservation for subquery fields', ({ expect }) => {
+		const sq = db.select({ id: users.id, name: fullName }).from(users).as('sq');
+		const query = db
+			.select({ id: sq.id, name: sq.name })
+			.from(users)
+			.leftJoin(sq, eq(users.id, sq.id));
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"select [sq].[id], [sq].[name] from [users] left join (select [id], [firstName] || ' ' || [lastName] as [name] from [users]) [sq] on [users].[id] = [sq].[id]",
+			params: [],
+		});
+	});
+
 	it('select', ({ expect }) => {
 		const query = db
 			.select({ name: fullName, age: users.age })
@@ -110,7 +140,8 @@ describe('mssql to camel case', () => {
 			.union(db.select({ firstName: users.first_name }).from(users));
 
 		expect(query.toSQL()).toEqual({
-			sql: '(select [firstName] from [users]) union (select [firstName] from [users])',
+			sql:
+				'select [firstName] from ((select [firstName] from [users]) union (select [firstName] from [users])) [drizzle_union]',
 			params: [],
 		});
 	});
@@ -122,7 +153,8 @@ describe('mssql to camel case', () => {
 		);
 
 		expect(query.toSQL()).toEqual({
-			sql: '(select [firstName] from [users]) union (select [firstName] from [users])',
+			sql:
+				'select [firstName] from ((select [firstName] from [users]) union (select [firstName] from [users])) [drizzle_union]',
 			params: [],
 		});
 	});
@@ -135,6 +167,50 @@ describe('mssql to camel case', () => {
 		expect(query.toSQL()).toEqual({
 			sql: 'insert into [users] ([firstName], [lastName], [AGE]) values (@par0, @par1, @par2)',
 			params: ['John', 'Doe', 30],
+		});
+	});
+
+	it('insert (column selection)', ({ expect }) => {
+		const query = db
+			.insert(users, 'first_name', 'last_name', 'age')
+			.values({ first_name: 'John', last_name: 'Doe', age: 30 });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into [users] ([firstName], [lastName], [AGE]) values (@par0, @par1, @par2)',
+			params: ['John', 'Doe', 30],
+		});
+	});
+
+	it('insert (column selection, multiple rows)', ({ expect }) => {
+		const query = db
+			.insert(users, 'first_name', 'last_name')
+			.values([{ first_name: 'John', last_name: 'Doe' }, { first_name: 'Jane', last_name: 'Roe' }]);
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into [users] ([firstName], [lastName]) values (@par0, @par1), (@par2, @par3)',
+			params: ['John', 'Doe', 'Jane', 'Roe'],
+		});
+	});
+
+	it('insert (column selection, omitted optional column)', ({ expect }) => {
+		const query = db
+			.insert(users, 'first_name', 'last_name', 'age')
+			.values({ first_name: 'John', last_name: 'Doe' });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into [users] ([firstName], [lastName], [AGE]) values (@par0, @par1, default)',
+			params: ['John', 'Doe'],
+		});
+	});
+
+	it('insert (column selection) emits columns in list order', ({ expect }) => {
+		const query = db
+			.insert(users, 'age', 'last_name', 'first_name')
+			.values({ first_name: 'John', last_name: 'Doe', age: 30 });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into [users] ([AGE], [lastName], [firstName]) values (@par0, @par1, @par2)',
+			params: [30, 'Doe', 'John'],
 		});
 	});
 

@@ -102,5 +102,5 @@ export function toArray<T>(value: T | T[]): T[] {
 }
 
 export type DrizzleMySqlConfig<TRelations extends AnyRelations> =
-	& Omit<DrizzleConfig<Record<string, never>, TRelations>, 'schema'>
+	& DrizzleConfig<TRelations>
 	& { codecs?: MySqlCodecs | undefined };

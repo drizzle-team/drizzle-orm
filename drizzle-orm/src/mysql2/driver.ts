@@ -34,10 +34,9 @@ function construct<
 ): MySql2Database<TRelations> & {
 	$client: AnyMySql2Connection extends TClient ? Pool : TClient;
 } {
-	client.config.supportBigNumbers = true;
 	const dialect = new MySqlDialect({
 		useJitMappers: jitCompatCheck(config.jit),
-		codecs: mysql2Codecs,
+		codecs: config.codecs ?? mysql2Codecs,
 	});
 	let logger;
 	if (config.logger === true) {
@@ -108,18 +107,18 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	const { connection, client, ...DrizzleMySqlConfig } = params[0] as
+	const { connection, client, ...config } = params[0] as
 		& { connection?: PoolOptions | string; client?: TClient }
 		& DrizzleMySqlConfig<TRelations>;
 
-	if (client) return construct(client, DrizzleMySqlConfig) as any;
+	if (client) return construct(client, config) as any;
 
 	const instance = typeof connection === 'string'
 		? createPool({
 			uri: connection,
 		})
 		: createPool(connection!);
-	const db = construct(instance, DrizzleMySqlConfig);
+	const db = construct(instance, config);
 
 	return db as any;
 }

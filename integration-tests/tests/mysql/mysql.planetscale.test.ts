@@ -15,6 +15,7 @@ import {
 	usersTable,
 	usersToGroupsTable,
 } from './mysql.schema';
+import type { AllTypes } from './mysql.schema';
 
 const ENABLE_LOGGING = false;
 
@@ -10187,7 +10188,9 @@ test('alltypes', async () => {
 	expect(nestedRelationRes).toStrictEqual(rawRes);
 	expect(relationRootRes).toStrictEqual(rawRes);
 
-	const expectedRes = [
+	expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
+
+	const expectedRes: AllTypes[] = [
 		{
 			serial: 1,
 			blob: Buffer.from('BYTES'),
@@ -10206,7 +10209,7 @@ test('alltypes', async () => {
 			decimalNum: 9007199254740991,
 			decimalBig: 5044565289845416380n,
 			double: 15.35325689124218,
-			float: 1.0486,
+			float: 1.048596,
 			int: 621,
 			json: { arr: ['str', 10], str: 'strval' },
 			medInt: 560,

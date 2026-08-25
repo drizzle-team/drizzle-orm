@@ -32,6 +32,7 @@ import {
 	type ValueOrArray,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { type PostgresType, unionsTypeTable } from '../codecs.ts';
 import { extractUsedTable } from '../utils.ts';
 import type {
 	AnyPgSelectQueryBuilder,
@@ -50,6 +51,7 @@ import type {
 	PgSetOperatorExcludedMethods,
 	PgSetOperatorWithResult,
 	SelectedFields,
+	SelectedFieldsOrdered,
 	SetOperatorRightSelect,
 	TableLikeHasEmptySelection,
 } from './select.types.ts';
@@ -307,6 +309,11 @@ export class PgSelectBase<
 				throw new Error(`Alias "${tableName}" is already used in this query`);
 			}
 
+			this.config.fieldsFlat = undefined;
+			this.config.setFieldsFlat = undefined;
+			this.config.shape = undefined;
+			this.config.mapper = undefined;
+
 			if (!this.isPartialSelect) {
 				// If this is the first join and this is not a partial select and we're not selecting from raw SQL, "move" the fields from the main table to the nested object
 				if (Object.keys(this.joinsNotNullableMap).length === 1 && typeof baseTableName === 'string') {
@@ -411,6 +418,17 @@ export class PgSelectBase<
 	 *
 	 * @param table the subquery to join.
 	 * @param on the `on` clause.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Select every city and, for each, the users that live in it
+	 * const sq = db.select({ userId: users.id }).from(users).where(eq(users.cityId, cities.id)).as('sq');
+	 *
+	 * const rows: { cities: City; sq: { userId: number } | null }[] = await db.select()
+	 *   .from(cities)
+	 *   .leftJoinLateral(sq, sql`true`)
+	 * ```
 	 */
 	leftJoinLateral = this.createJoin('left', true);
 
@@ -483,6 +501,17 @@ export class PgSelectBase<
 	 *
 	 * @param table the subquery to join.
 	 * @param on the `on` clause.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Select only the cities that have users, along with those users
+	 * const sq = db.select({ userId: users.id }).from(users).where(eq(users.cityId, cities.id)).as('sq');
+	 *
+	 * const rows: { cities: City; sq: { userId: number } }[] = await db.select()
+	 *   .from(cities)
+	 *   .innerJoinLateral(sq, sql`true`)
+	 * ```
 	 */
 	innerJoinLateral = this.createJoin('inner', true);
 
@@ -553,6 +582,17 @@ export class PgSelectBase<
 	 * See docs: {@link https://orm.drizzle.team/docs/joins#cross-join-lateral}
 	 *
 	 * @param table the query to join.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Pair each city with every row its correlated subquery produces; cities with none are dropped
+	 * const sq = db.select({ userId: users.id }).from(users).where(eq(users.cityId, cities.id)).as('sq');
+	 *
+	 * const rows: { cities: City; sq: { userId: number } }[] = await db.select()
+	 *   .from(cities)
+	 *   .crossJoinLateral(sq)
+	 * ```
 	 */
 	crossJoinLateral = this.createJoin('cross', true);
 
@@ -1047,8 +1087,60 @@ export class PgSelectBase<
 		return this as any;
 	}
 
+	/**
+	 * Resolve the ordered selection into `config`, and return the list the row mapper reads.
+	 *
+	 * Split out of `getSQL` because the driver's shape generator has to see the selection *before* the query is
+	 * built: whether a shape exists decides whether `buildSelection` emits the `cast` codecs.
+	 *
+	 * @internal
+	 */
+	_resolveSelection(): SelectedFieldsOrdered {
+		const { config, dialect } = this;
+		config.fieldsFlat ??= orderSelectedFields<PgColumn>(config.fields, undefined, dialect.codecs);
+
+		const { fieldsFlat, setOperators } = config;
+
+		if (setOperators.length && !config.setFieldsFlat) {
+			const setSelection: SelectedFieldsOrdered = new Array(fieldsFlat.length);
+
+			for (let i = 0; i < setOperators.length; ++i) {
+				const setOperator = setOperators[i];
+				if (!setOperator) {
+					throw new Error('Cannot pass undefined values to any set operator');
+				}
+
+				const rightSelection = orderSelectedFields(setOperator.rightSelect.getSelectedFields());
+				for (let j = 0; j < fieldsFlat.length; ++j) {
+					setSelection[j] = { ...fieldsFlat[j]! };
+					const l = setSelection[j]!;
+					const lPath = l.path.join('.');
+					const r = rightSelection.find((e) => e.path.join('.') === lPath)!; // Equivalency of selections is a pre-requisite for unions
+
+					const lc = l.codecOverride ?? l.column?.codec;
+					const rc = r.codecOverride ?? r.column?.codec;
+
+					setSelection[j]!.codecOverride = (lc && rc)
+						? (<Record<string, Record<string, PostgresType>>> unionsTypeTable)[lc]?.[rc]
+						: lc;
+				}
+			}
+
+			for (let i = 0; i < setSelection.length; ++i) {
+				const out = setSelection[i]!;
+				out.codec = out.codecOverride
+					? dialect.codecs.get(out.column!, 'normalize', out.codecOverride as PostgresType)
+					: out.codec;
+			}
+
+			config.setFieldsFlat = setSelection;
+		}
+
+		return config.setFieldsFlat ?? fieldsFlat;
+	}
+
 	getSQL(): SQL {
-		this.config.fieldsFlat = orderSelectedFields<PgColumn>(this.config.fields, undefined, this.dialect.codecs);
+		this._resolveSelection();
 		return this.dialect.buildSelectQuery(this.config);
 	}
 

@@ -25,6 +25,46 @@ const db = mysql({ client: connect({}) });
 const fullName = sql`${users.first_name} || ' ' || ${users.last_name}`.as('name');
 
 describe('mysql to snake case', () => {
+	it('unicode column names', ({ expect }) => {
+		const unicode = camelCase.table('unicode', {
+			칼럼명: text(),
+		});
+
+		expect(db.select().from(unicode).toSQL().sql).toEqual(
+			'select `칼럼명` from `unicode`',
+		);
+	});
+
+	it('qualifier preservation for sql fields', ({ expect }) => {
+		const a = camelCase.table('a', { id: int('id').primaryKey(), cId: int().notNull() });
+		const b = camelCase.table('b', { id: int('id').primaryKey(), cId: int().notNull(), label: text() });
+		const corr = sql`(select ${b.label} from ${b} where ${b.cId} = ${a.cId})`;
+
+		expect(db.select({ id: a.id, bRaw: corr }).from(a).toSQL().sql).toEqual(
+			'select `id`, (select `b`.`label` from `b` where `b`.`cId` = `a`.`cId`) from `a`',
+		);
+		expect(db.select({ id: a.id, bRaw: corr.as('b_raw') }).from(a).toSQL().sql).toEqual(
+			'select `id`, (select `b`.`label` from `b` where `b`.`cId` = `a`.`cId`) as `b_raw` from `a`',
+		);
+		expect(db.select({ id: a.id }).from(a).where(corr).toSQL().sql).toEqual(
+			'select `id` from `a` where (select `b`.`label` from `b` where `b`.`cId` = `a`.`cId`)',
+		);
+	});
+
+	it('qualifier preservation for subquery fields', ({ expect }) => {
+		const sq = db.select({ id: users.id, name: fullName }).from(users).as('sq');
+		const query = db
+			.select({ id: sq.id, name: sq.name })
+			.from(users)
+			.leftJoin(sq, eq(users.id, sq.id));
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"select cast(`sq`.`id` as char), `sq`.`name` from `users` left join (select `id`, `firstName` || ' ' || `lastName` as `name` from `users`) `sq` on `users`.`id` = `sq`.`id`",
+			params: [],
+		});
+	});
+
 	it('select', ({ expect }) => {
 		const query = db
 			.select({ name: fullName, age: users.age })
@@ -122,6 +162,73 @@ describe('mysql to snake case', () => {
 		});
 	});
 
+	it('insert (column selection)', ({ expect }) => {
+		const query = db
+			.insert(users, 'first_name', 'last_name', 'age')
+			.values({ first_name: 'John', last_name: 'Doe', age: 30 });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into `users` (`firstName`, `lastName`, `AGE`) values (?, ?, ?)',
+			params: ['John', 'Doe', 30],
+		});
+	});
+
+	it('insert (column selection, multiple rows)', ({ expect }) => {
+		const query = db
+			.insert(users, 'first_name', 'last_name')
+			.values([{ first_name: 'John', last_name: 'Doe' }, { first_name: 'Jane', last_name: 'Roe' }]);
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into `users` (`firstName`, `lastName`) values (?, ?), (?, ?)',
+			params: ['John', 'Doe', 'Jane', 'Roe'],
+		});
+	});
+
+	it('insert (column selection, omitted optional column)', ({ expect }) => {
+		const query = db
+			.insert(users, 'first_name', 'last_name', 'age')
+			.values({ first_name: 'John', last_name: 'Doe' });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into `users` (`firstName`, `lastName`, `AGE`) values (?, ?, default)',
+			params: ['John', 'Doe'],
+		});
+	});
+
+	it('insert (column selection) with select', ({ expect }) => {
+		const query = db
+			.insert(users, 'first_name', 'last_name')
+			.select(db.select({ first_name: users.first_name, last_name: users.last_name }).from(users));
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into `users` (`firstName`, `lastName`) select `firstName`, `lastName` from `users`',
+			params: [],
+		});
+	});
+
+	it('insert (column selection) emits columns in list order', ({ expect }) => {
+		const query = db
+			.insert(users, 'age', 'last_name', 'first_name')
+			.values({ first_name: 'John', last_name: 'Doe', age: 30 });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into `users` (`AGE`, `lastName`, `firstName`) values (?, ?, ?)',
+			params: [30, 'Doe', 'John'],
+		});
+	});
+
+	it('insert (column selection) on duplicate key update', ({ expect }) => {
+		const query = db
+			.insert(users, 'first_name', 'last_name', 'age')
+			.values({ first_name: 'John', last_name: 'Doe', age: 30 })
+			.onDuplicateKeyUpdate({ set: { age: 31 } });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into `users` (`firstName`, `lastName`, `AGE`) values (?, ?, ?) on duplicate key update `AGE` = ?',
+			params: ['John', 'Doe', 30, 31],
+		});
+	});
+
 	it('update', ({ expect }) => {
 		const query = db
 			.update(users)
@@ -152,7 +259,7 @@ describe('mysql to snake case', () => {
 			.orderBy(asc(users.id.as('userId')));
 
 		expect(query.toSQL()).toEqual({
-			sql: 'select `AGE` as `ageOfUser`, `id` as `userId` from `users` order by `userId` asc',
+			sql: 'select `AGE` as `ageOfUser`, cast(`id` as char) as `userId` from `users` order by `userId` asc',
 			params: [],
 		});
 	});
@@ -166,7 +273,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select `users`.`firstName` || ' ' || `users`.`lastName` as `name`, `users`.`AGE` as `ageOfUser`, `users`.`id` as `userId` from `users` left join `test`.`developers` on `userId` = `test`.`developers`.`userId` order by `users`.`firstName` asc",
+				"select `users`.`firstName` || ' ' || `users`.`lastName` as `name`, `users`.`AGE` as `ageOfUser`, cast(`users`.`id` as char) as `userId` from `users` left join `test`.`developers` on `userId` = `test`.`developers`.`userId` order by `users`.`firstName` asc",
 			params: [],
 		});
 	});

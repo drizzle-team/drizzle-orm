@@ -1,9 +1,8 @@
 import type { AnyCockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
+import { CockroachColumn, type CockroachColumnBaseConfig, CockroachColumnBuilder } from './common.ts';
 
-export class CockroachFloatBuilder extends CockroachColumnWithArrayBuilder<
+export class CockroachFloatBuilder extends CockroachColumnBuilder<
 	{
 		dataType: 'number double';
 		data: number;
@@ -27,19 +26,17 @@ export class CockroachFloatBuilder extends CockroachColumnWithArrayBuilder<
 	}
 }
 
-export class CockroachFloat<T extends ColumnBaseConfig<'number double'>> extends CockroachColumn<T> {
+export class CockroachFloat<T extends CockroachColumnBaseConfig<'number double'>>
+	extends CockroachColumn<'number double', T>
+{
 	static override readonly [entityKind]: string = 'CockroachFloat';
+
+	/** @internal */
+	override readonly codec = 'float';
 
 	getSQLType(): string {
 		return 'float';
 	}
-
-	override mapFromDriverValue = (value: string | number): number => {
-		if (typeof value === 'string') {
-			return Number.parseFloat(value);
-		}
-		return value;
-	};
 }
 export function float(name?: string) {
 	return new CockroachFloatBuilder(name ?? '');

@@ -54,6 +54,9 @@ export interface CockroachSelectConfig {
 	// Either fields or fieldsFlat must be defined
 	fields: Record<string, unknown>;
 	fieldsFlat?: SelectedFieldsOrdered;
+	setFieldsFlat?: SelectedFieldsOrdered;
+	mapper?: (raw: any) => any;
+	ignoreSelectionCastCodecs?: boolean;
 	where?: SQL;
 	having?: SQL;
 	table: CockroachTable | Subquery | CockroachViewBase | SQL;

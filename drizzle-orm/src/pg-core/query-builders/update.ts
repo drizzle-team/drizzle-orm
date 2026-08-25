@@ -54,6 +54,7 @@ export interface PgUpdateConfig {
 	joins: PgSelectJoinConfig[];
 	returningFields?: SelectedFields;
 	returning?: SelectedFieldsOrdered;
+	shape?: any;
 	withList?: Subquery[];
 	comment?: SQL;
 	ignoreSelectionCastCodecs?: boolean;
@@ -504,6 +505,8 @@ export class PgUpdateBase<
 				throw new Error(`Alias "${tableName}" is already used in this query`);
 			}
 
+			this.config.shape = undefined;
+
 			if (typeof on === 'function') {
 				const from = this.config.from && !is(this.config.from, SQL)
 					? this.getTableLikeFields(this.config.from)
@@ -656,6 +659,7 @@ export class PgUpdateBase<
 			undefined,
 			this.dialect.codecs,
 		);
+		this.config.shape = undefined;
 		return this as any;
 	}
 

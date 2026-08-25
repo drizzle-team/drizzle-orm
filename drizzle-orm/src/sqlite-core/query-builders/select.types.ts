@@ -52,6 +52,7 @@ export interface SQLiteSelectConfig {
 	withList?: Subquery[];
 	fields: Record<string, unknown>;
 	fieldsFlat?: SelectedFieldsOrdered;
+	mapper?: (raw: any) => any;
 	where?: SQL;
 	having?: SQL;
 	table: SQLiteTable | Subquery | SQLiteViewBase | SQL;
@@ -69,6 +70,7 @@ export interface SQLiteSelectConfig {
 		limit?: number | Placeholder;
 		offset?: number | Placeholder;
 	}[];
+	ignoreSelectionCastCodecs?: boolean;
 }
 
 export type SQLiteSelectJoin<
@@ -180,7 +182,6 @@ export interface SQLiteSelectQueryBuilderHKT extends SQLiteSelectHKTBase {
 }
 
 export type SQLiteSetOperatorExcludedMethods =
-	| 'config'
 	| 'leftJoin'
 	| 'rightJoin'
 	| 'innerJoin'

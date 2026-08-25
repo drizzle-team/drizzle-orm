@@ -29,7 +29,6 @@ export class SingleStoreVectorBuilder extends SingleStoreColumnBuilder<{
 		);
 	}
 
-	/** @internal */
 	override generatedAlwaysAs(
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		as: SQL | (() => SQL) | this['_']['data'],
@@ -47,49 +46,20 @@ export class SingleStoreVector<T extends ColumnBaseConfig<'array vector'>>
 
 	readonly elementType: Exclude<ElementType, 'I64'> | undefined = this.config.elementType;
 
+	/** @internal */
+	override readonly codec = `vector_${(this.elementType ?? 'F32').toLowerCase()}` as
+		| 'vector_i8'
+		| 'vector_i16'
+		| 'vector_i32'
+		| 'vector_f32'
+		| 'vector_f64';
+
 	getSQLType(): string {
 		return `vector(${this.config.length}, ${this.elementType || 'F32'})`;
 	}
 
 	override mapToDriverValue = (value: Array<number>): string => {
 		return `[${value.map((e) => e.toString()).join(',')}]`;
-	};
-
-	override mapFromDriverValue = (value: string | Buffer | Array<number>): Array<number> => {
-		if (typeof value === 'string') {
-			if (value.startsWith('[')) return value.slice(1, -1).split(',').map(Number);
-
-			value = Buffer.from(value, 'hex');
-		}
-
-		if (Buffer.isBuffer(value)) {
-			const type = this.elementType || 'F32';
-			const bytearr = new Uint8Array(value);
-			switch (type) {
-				case 'I8': {
-					// eslint-disable-next-line unicorn/prefer-spread
-					return Array.from(new Int8Array(bytearr.buffer, 0, bytearr.length / 1));
-				}
-				case 'I16': {
-					// eslint-disable-next-line unicorn/prefer-spread
-					return Array.from(new Int16Array(bytearr.buffer, 0, bytearr.length / 2));
-				}
-				case 'I32': {
-					// eslint-disable-next-line unicorn/prefer-spread
-					return Array.from(new Int32Array(bytearr.buffer, 0, bytearr.length / 4));
-				}
-				case 'F32': {
-					// eslint-disable-next-line unicorn/prefer-spread
-					return Array.from(new Float32Array(bytearr.buffer, 0, bytearr.length / 4));
-				}
-				case 'F64': {
-					// eslint-disable-next-line unicorn/prefer-spread
-					return Array.from(new Float64Array(bytearr.buffer, 0, bytearr.length / 8));
-				}
-			}
-		}
-
-		return value;
 	};
 }
 
@@ -115,7 +85,6 @@ export class SingleStoreBigIntVectorBuilder extends SingleStoreColumnBuilder<{
 		);
 	}
 
-	/** @internal */
 	override generatedAlwaysAs(
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		as: SQL | (() => SQL) | this['_']['data'],
@@ -131,6 +100,9 @@ export class SingleStoreBigIntVector<T extends ColumnBaseConfig<'array int64vect
 {
 	static override readonly [entityKind]: string = 'SingleStoreBigIntVector';
 
+	/** @internal */
+	override readonly codec = 'vector_i64';
+
 	readonly elementType = 'I64';
 
 	getSQLType(): string {
@@ -139,22 +111,6 @@ export class SingleStoreBigIntVector<T extends ColumnBaseConfig<'array int64vect
 
 	override mapToDriverValue = (value: Array<bigint>): string => {
 		return `[${value.map((e) => e.toString()).join(',')}]`;
-	};
-
-	override mapFromDriverValue = (value: string | Buffer | Array<bigint>): Array<bigint> => {
-		if (typeof value === 'string') {
-			if (value.startsWith('[')) return value.slice(1, -1).split(',').map(BigInt);
-
-			value = Buffer.from(value, 'hex');
-		}
-
-		if (Buffer.isBuffer(value)) {
-			const bytearr = new Uint8Array(value);
-			// eslint-disable-next-line unicorn/prefer-spread
-			return Array.from(new BigInt64Array(bytearr.buffer, 0, bytearr.length / 8));
-		}
-
-		return value;
 	};
 }
 
