@@ -94,7 +94,7 @@ test('binary and varbinary preserve non-UTF-8 bytes', async () => {
 	const value = Buffer.from([0x00, 0xff, 0x80, 0x31]);
 
 	await db.execute(sql`drop table if exists ${table}`);
-	await db.execute(sql`create table ${table} (binary binary(4) not null, varbinary varbinary(4) not null)`);
+	await db.execute(sql`create table ${table} (\`binary\` binary(4) not null, \`varbinary\` varbinary(4) not null)`);
 	await db.insert(table).values({ binary: value, varbinary: value });
 
 	const [row] = await db.select().from(table);
