@@ -70,7 +70,7 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 		columns: TColumnsMap,
 		extraConfig?: (
 			self: BuildColumns<TTableName, TColumnsMap, 'sqlite'>,
-		) => SQLiteTableExtraConfigValue[],
+		) => (SQLiteTableExtraConfigValue | SQLiteTableExtraConfigValue[])[],
 	): SQLiteTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
@@ -84,7 +84,9 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 	>(
 		name: TTableName,
 		columns: (columnTypes: SQLiteColumnBuilders) => TColumnsMap,
-		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'sqlite'>) => SQLiteTableExtraConfigValue[],
+		extraConfig?: (
+			self: BuildColumns<TTableName, TColumnsMap, 'sqlite'>,
+		) => (SQLiteTableExtraConfigValue | SQLiteTableExtraConfigValue[])[],
 	): SQLiteTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
@@ -175,7 +177,7 @@ export function sqliteTableBase<
 	extraConfig:
 		| ((
 			self: BuildColumns<TTableName, TColumnsMap, 'sqlite'>,
-		) => SQLiteTableExtraConfig | SQLiteTableExtraConfigValue[])
+		) => SQLiteTableExtraConfig | (SQLiteTableExtraConfigValue | SQLiteTableExtraConfigValue[])[])
 		| undefined,
 	schema: TSchema | undefined,
 	casing: Casing | undefined,
