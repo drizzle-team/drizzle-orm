@@ -1,28 +1,38 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type {
+	ColumnBuilderBaseConfig,
+	ColumnBuilderRuntimeConfig,
+	HasDefault,
+	MakeColumnConfig,
+} from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import type { SQL } from '~/sql/sql.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlVarBinaryBuilderInitial<TName extends string> = MySqlVarBinaryBuilder<{
 	name: TName;
-	dataType: 'string';
+	dataType: 'buffer';
 	columnType: 'MySqlVarBinary';
-	data: string;
-	driverParam: string;
+	data: Buffer;
+	driverParam: Buffer;
 	enumValues: undefined;
 }>;
 
-export class MySqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlVarBinary'>>
+export class MySqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'MySqlVarBinary'>>
 	extends MySqlColumnBuilder<T, MySqlVarbinaryOptions>
 {
 	static override readonly [entityKind]: string = 'MySqlVarBinaryBuilder';
 
 	/** @internal */
 	constructor(name: T['name'], config: MySqlVarbinaryOptions) {
-		super(name, 'string', 'MySqlVarBinary');
+		super(name, 'buffer', 'MySqlVarBinary');
 		this.config.length = config?.length;
+	}
+
+	override default(value: Buffer | string | SQL): HasDefault<this> {
+		return super.default(value as Buffer | SQL);
 	}
 
 	/** @internal */
@@ -37,22 +47,15 @@ export class MySqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', '
 }
 
 export class MySqlVarBinary<
-	T extends ColumnBaseConfig<'string', 'MySqlVarBinary'>,
+	T extends ColumnBaseConfig<'buffer', 'MySqlVarBinary'>,
 > extends MySqlColumn<T, MySqlVarbinaryOptions> {
 	static override readonly [entityKind]: string = 'MySqlVarBinary';
 
 	length: number | undefined = this.config.length;
 
-	override mapFromDriverValue(value: string | Buffer | Uint8Array): string {
-		if (typeof value === 'string') return value;
-		if (Buffer.isBuffer(value)) return value.toString();
-
-		const str: string[] = [];
-		for (const v of value) {
-			str.push(v === 49 ? '1' : '0');
-		}
-
-		return str.join('');
+	override mapFromDriverValue(value: string | Buffer | Uint8Array): Buffer {
+		if (Buffer.isBuffer(value)) return value;
+		return Buffer.from(value);
 	}
 
 	getSQLType(): string {
