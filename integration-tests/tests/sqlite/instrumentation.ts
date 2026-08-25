@@ -21,7 +21,6 @@ import {
 	type InStatement as WsInStatement,
 } from '@libsql/client/ws';
 import { D1Database, D1DatabaseAPI } from '@miniflare/d1';
-import { createSQLiteDB } from '@miniflare/shared';
 import { Database as SqliteCloudDatabase, SQLiteCloudRowset } from '@sqlitecloud/drivers';
 import { Database as TursoDatabase } from '@tursodatabase/database';
 import { connect } from '@tursodatabase/serverless';
@@ -469,7 +468,7 @@ export const prepareLibSQLHttpClient = async (url: string, authToken?: string) =
 };
 
 export const prepareD1Client = async () => {
-	const sqliteDb = await createSQLiteDB(':memory:');
+	const sqliteDb = new Client(':memory:');
 	const client = new D1Database(new D1DatabaseAPI(sqliteDb));
 
 	const all = async (sql: string, params: any[] = []) => {
