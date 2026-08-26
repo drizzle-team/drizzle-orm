@@ -31,6 +31,7 @@ export interface SQLiteUpdateConfig {
 	joins: SQLiteSelectJoinConfig[];
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
+	ignoreSelectionCastCodecs?: boolean;
 }
 
 export type SQLiteUpdateSetSource<
@@ -443,7 +444,7 @@ export class SQLiteUpdateBase<
 	returning(
 		fields: SelectedFields = this.config.table[SQLiteTable.Symbol.Columns],
 	): SQLiteUpdateWithout<AnySQLiteUpdate, TDynamic, 'returning'> {
-		this.config.returning = orderSelectedFields<SQLiteColumn>(fields);
+		this.config.returning = orderSelectedFields<SQLiteColumn>(fields, undefined, this.dialect.codecs);
 		return this as any;
 	}
 
@@ -453,6 +454,12 @@ export class SQLiteUpdateBase<
 
 	toSQL(): Query {
 		return this.dialect.sqlToQuery(this.getSQL());
+	}
+
+	/** @internal */
+	withoutSelectionCastCodecs() {
+		this.config.ignoreSelectionCastCodecs = true;
+		return this;
 	}
 
 	$dynamic(): SQLiteUpdateDynamic<this> {

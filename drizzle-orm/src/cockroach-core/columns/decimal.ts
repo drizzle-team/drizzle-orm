@@ -1,11 +1,14 @@
 import type { AnyCockroachTable, CockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBuilderRuntimeConfig } from '~/column-builder.ts';
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
-import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
+import {
+	CockroachColumn,
+	type CockroachColumnBaseConfig,
+	CockroachColumnBuilder,
+	type CockroachColumnBuilderRuntimeConfig,
+} from './common.ts';
 
-export class CockroachDecimalBuilder extends CockroachColumnWithArrayBuilder<
+export class CockroachDecimalBuilder extends CockroachColumnBuilder<
 	{
 		dataType: 'string numeric';
 		data: string;
@@ -35,26 +38,28 @@ export class CockroachDecimalBuilder extends CockroachColumnWithArrayBuilder<
 	}
 }
 
-export class CockroachDecimal<T extends ColumnBaseConfig<'string numeric'>> extends CockroachColumn<T> {
+export class CockroachDecimal<T extends CockroachColumnBaseConfig<'string numeric'>>
+	extends CockroachColumn<'string numeric', T>
+{
 	static override readonly [entityKind]: string = 'CockroachDecimal';
+
+	/** @internal */
+	override readonly codec = 'decimal';
 
 	readonly precision: number | undefined;
 	readonly scale: number | undefined;
 
 	constructor(
 		table: CockroachTable<any>,
-		config: ColumnBuilderRuntimeConfig<T['data']> & { precision: number | undefined; scale: number | undefined },
+		config: CockroachColumnBuilderRuntimeConfig<T['data']> & {
+			precision: number | undefined;
+			scale: number | undefined;
+		},
 	) {
 		super(table, config);
 		this.precision = config.precision;
 		this.scale = config.scale;
 	}
-
-	override mapFromDriverValue = (value: unknown): string => {
-		if (typeof value === 'string') return value;
-
-		return String(value);
-	};
 
 	getSQLType(): string {
 		if (this.precision !== undefined && this.scale !== undefined) {
@@ -67,7 +72,7 @@ export class CockroachDecimal<T extends ColumnBaseConfig<'string numeric'>> exte
 	}
 }
 
-export class CockroachDecimalNumberBuilder extends CockroachColumnWithArrayBuilder<
+export class CockroachDecimalNumberBuilder extends CockroachColumnBuilder<
 	{
 		dataType: 'number';
 		data: number;
@@ -97,26 +102,28 @@ export class CockroachDecimalNumberBuilder extends CockroachColumnWithArrayBuild
 	}
 }
 
-export class CockroachDecimalNumber<T extends ColumnBaseConfig<'number'>> extends CockroachColumn<T> {
+export class CockroachDecimalNumber<T extends CockroachColumnBaseConfig<'number'>>
+	extends CockroachColumn<'number', T>
+{
 	static override readonly [entityKind]: string = 'CockroachDecimalNumber';
+
+	/** @internal */
+	override readonly codec = 'decimal:number';
 
 	readonly precision: number | undefined;
 	readonly scale: number | undefined;
 
 	constructor(
 		table: CockroachTable<any>,
-		config: ColumnBuilderRuntimeConfig<T['data']> & { precision: number | undefined; scale: number | undefined },
+		config: CockroachColumnBuilderRuntimeConfig<T['data']> & {
+			precision: number | undefined;
+			scale: number | undefined;
+		},
 	) {
 		super(table, config);
 		this.precision = config.precision;
 		this.scale = config.scale;
 	}
-
-	override mapFromDriverValue = (value: unknown): number => {
-		if (typeof value === 'number') return value;
-
-		return Number(value);
-	};
 
 	override mapToDriverValue = String;
 
@@ -131,7 +138,7 @@ export class CockroachDecimalNumber<T extends ColumnBaseConfig<'number'>> extend
 	}
 }
 
-export class CockroachDecimalBigIntBuilder extends CockroachColumnWithArrayBuilder<
+export class CockroachDecimalBigIntBuilder extends CockroachColumnBuilder<
 	{
 		dataType: 'bigint int64';
 		data: bigint;
@@ -161,22 +168,28 @@ export class CockroachDecimalBigIntBuilder extends CockroachColumnWithArrayBuild
 	}
 }
 
-export class CockroachDecimalBigInt<T extends ColumnBaseConfig<'bigint int64'>> extends CockroachColumn<T> {
+export class CockroachDecimalBigInt<T extends CockroachColumnBaseConfig<'bigint int64'>>
+	extends CockroachColumn<'bigint int64', T>
+{
 	static override readonly [entityKind]: string = 'CockroachDecimalBigInt';
+
+	/** @internal */
+	override readonly codec = 'decimal:bigint';
 
 	readonly precision: number | undefined;
 	readonly scale: number | undefined;
 
 	constructor(
 		table: CockroachTable<any>,
-		config: ColumnBuilderRuntimeConfig<T['data']> & { precision: number | undefined; scale: number | undefined },
+		config: CockroachColumnBuilderRuntimeConfig<T['data']> & {
+			precision: number | undefined;
+			scale: number | undefined;
+		},
 	) {
 		super(table, config);
 		this.precision = config.precision;
 		this.scale = config.scale;
 	}
-
-	override mapFromDriverValue = BigInt;
 
 	override mapToDriverValue = String;
 

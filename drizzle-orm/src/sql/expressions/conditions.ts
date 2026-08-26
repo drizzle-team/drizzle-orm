@@ -1,5 +1,5 @@
 import { type AnyColumn, Column, type GetColumnData } from '~/column.ts';
-import { is } from '~/entity.ts';
+import { entityKind, is, isAnyKindIn } from '~/entity.ts';
 import { Table } from '~/table.ts';
 import {
 	isDriverValueEncoder,
@@ -14,20 +14,31 @@ import {
 	View,
 } from '../sql.ts';
 
+const notParamKinds = [
+	Param[entityKind],
+	Placeholder[entityKind],
+	Column[entityKind],
+	Table[entityKind],
+	View[entityKind],
+];
 export function bindIfParam(value: unknown, column: SQLWrapper): SQLChunk {
 	if (
-		isDriverValueEncoder(column)
-		&& !isSQLWrapper(value)
-		&& !is(value, Param)
-		&& !is(value, Placeholder)
-		&& !is(value, Column)
-		&& !is(value, Table)
-		&& !is(value, View)
+		isDriverValueEncoder(column) && !isSQLWrapper(value)
+		&& !(value instanceof Param || value instanceof Placeholder || value instanceof Column || value instanceof Table // oxlint-disable-line drizzle-internal/no-instanceof
+			|| value instanceof View) // oxlint-disable-line drizzle-internal/no-instanceof
+		&& !isAnyKindIn(notParamKinds, value)
 	) {
 		return new Param(value, column);
 	}
 	return value as SQLChunk;
 }
+
+const checkColumnWithValue = (column: SQLWrapper, op: StringChunk, value: unknown) =>
+	new SQL([
+		column,
+		op,
+		bindIfParam(value, column),
+	]);
 
 export interface BinaryOperator {
 	<TColumn extends Column>(
@@ -41,6 +52,7 @@ export interface BinaryOperator {
 	): SQL;
 }
 
+const equalOp = new StringChunk(' = ');
 /**
  * Test that two values are equal.
  *
@@ -59,10 +71,9 @@ export interface BinaryOperator {
  *
  * @see isNull for a way to test equality to NULL.
  */
-export const eq: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
-	return sql`${left} = ${bindIfParam(right, left)}`;
-};
+export const eq: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => checkColumnWithValue(left, equalOp, right);
 
+const notEqualOp = new StringChunk(' <> ');
 /**
  * Test that two values are not equal.
  *
@@ -81,10 +92,31 @@ export const eq: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  *
  * @see isNotNull for a way to test whether a value is not null.
  */
-export const ne: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
-	return sql`${left} <> ${bindIfParam(right, left)}`;
-};
+export const ne: BinaryOperator = (left: SQLWrapper, right: unknown): SQL =>
+	checkColumnWithValue(left, notEqualOp, right);
 
+const doubleOpenParenChunk = new StringChunk('(('),
+	doubleCloseParenChunk = new StringChunk('))'),
+	andWithParenChunk = new StringChunk(') and ('),
+	orWithParenChunk = new StringChunk(') or ('),
+	joinConditions = (conditions: SQLWrapper<unknown>[], separatorWithParenChunk: SQLChunk) => {
+		const chunks: SQLChunk[] = new Array(conditions.length * 2 + 1),
+			lastIdx = conditions.length - 1;
+
+		// ['((']
+		chunks[0] = doubleOpenParenChunk;
+
+		for (let i = 0; i < lastIdx; i++) {
+			// [..., condition, ') and (']
+			chunks[i * 2 + 1] = conditions[i];
+			chunks[i * 2 + 2] = separatorWithParenChunk;
+		}
+		// [..., condition, '))']
+		chunks[lastIdx * 2 + 1] = conditions[lastIdx];
+		chunks[lastIdx * 2 + 2] = doubleCloseParenChunk;
+
+		return new SQL(chunks);
+	};
 /**
  * Combine a list of conditions with the `and` operator. Conditions
  * that are equal `undefined` are automatically ignored.
@@ -117,11 +149,7 @@ export function and(
 		return new SQL(conditions);
 	}
 
-	return new SQL([
-		new StringChunk('('),
-		sql.join(conditions.map((c) => sql`(${c})`), new StringChunk(' and ')),
-		new StringChunk(')'),
-	]);
+	return joinConditions(conditions, andWithParenChunk);
 }
 
 /**
@@ -156,11 +184,7 @@ export function or(
 		return new SQL(conditions);
 	}
 
-	return new SQL([
-		new StringChunk('('),
-		sql.join(conditions.map((c) => sql`(${c})`), new StringChunk(' or ')),
-		new StringChunk(')'),
-	]);
+	return joinConditions(conditions, orWithParenChunk);
 }
 
 /**
@@ -179,6 +203,7 @@ export function not(condition: SQLWrapper | undefined): SQL | undefined {
 	return is(condition, SQL) ? sql`not (${condition})` : sql`not ${condition}`;
 }
 
+const greaterThanOp = new StringChunk(' > ');
 /**
  * Test that the first expression passed is greater than
  * the second expression.
@@ -193,10 +218,10 @@ export function not(condition: SQLWrapper | undefined): SQL | undefined {
  *
  * @see gte for greater-than-or-equal
  */
-export const gt: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
-	return sql`${left} > ${bindIfParam(right, left)}`;
-};
+export const gt: BinaryOperator = (left: SQLWrapper, right: unknown): SQL =>
+	checkColumnWithValue(left, greaterThanOp, right);
 
+const greaterThanOrEqualOp = new StringChunk(' >= ');
 /**
  * Test that the first expression passed is greater than
  * or equal to the second expression. Use `gt` to
@@ -213,10 +238,10 @@ export const gt: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  *
  * @see gt for a strictly greater-than condition
  */
-export const gte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
-	return sql`${left} >= ${bindIfParam(right, left)}`;
-};
+export const gte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL =>
+	checkColumnWithValue(left, greaterThanOrEqualOp, right);
 
+const lessThanOp = new StringChunk(' < ');
 /**
  * Test that the first expression passed is less than
  * the second expression.
@@ -231,10 +256,10 @@ export const gte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  *
  * @see lte for less-than-or-equal
  */
-export const lt: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
-	return sql`${left} < ${bindIfParam(right, left)}`;
-};
+export const lt: BinaryOperator = (left: SQLWrapper, right: unknown): SQL =>
+	checkColumnWithValue(left, lessThanOp, right);
 
+const lessThanOrEqualOp = new StringChunk(' <= ');
 /**
  * Test that the first expression passed is less than
  * or equal to the second expression.
@@ -249,10 +274,10 @@ export const lt: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  *
  * @see lt for a strictly less-than condition
  */
-export const lte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
-	return sql`${left} <= ${bindIfParam(right, left)}`;
-};
+export const lte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL =>
+	checkColumnWithValue(left, lessThanOrEqualOp, right);
 
+const inOp = new StringChunk(' in ');
 /**
  * Test whether the first parameter, a column or expression,
  * has a value from a list passed as the second argument.
@@ -285,14 +310,22 @@ export function inArray(
 ): SQL {
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
-			return sql`1 = 0`;
+			return new SQL([
+				new StringChunk('1 = 0'),
+			]);
 		}
-		return sql`${column} in ${values.map((v) => bindIfParam(v, column))}`;
+
+		return new SQL([
+			column,
+			inOp,
+			values.map((v) => bindIfParam(v, column)),
+		]);
 	}
 
-	return sql`${column} in ${bindIfParam(values, column)}`;
+	return checkColumnWithValue(column, inOp, values);
 }
 
+const notInOp = new StringChunk(' not in ');
 /**
  * Test whether the first parameter, a column or expression,
  * has a value that is not present in a list passed as the
@@ -326,12 +359,19 @@ export function notInArray(
 ): SQL {
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
-			return sql`1 = 1`;
+			return new SQL([
+				new StringChunk('1 = 1'),
+			]);
 		}
-		return sql`${column} not in ${values.map((v) => bindIfParam(v, column))}`;
+
+		return new SQL([
+			column,
+			notInOp,
+			values.map((v) => bindIfParam(v, column)),
+		]);
 	}
 
-	return sql`${column} not in ${bindIfParam(values, column)}`;
+	return checkColumnWithValue(column, notInOp, values);
 }
 
 /**

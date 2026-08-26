@@ -12885,7 +12885,9 @@ test('alltypes', async () => {
 	expect(nestedRelationRes).toStrictEqual(rawRes);
 	expect(relationRootRes).toStrictEqual(rawRes);
 
-	const expectedRes = [
+	expectTypeOf(rawRes).toEqualTypeOf<schema.AllTypes[]>();
+
+	const expectedRes: schema.AllTypes[] = [
 		{
 			serial: 1,
 			bigserial53: 9007199254740991,

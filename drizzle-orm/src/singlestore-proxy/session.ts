@@ -1,5 +1,4 @@
 import type { FieldPacket, ResultSetHeader } from 'mysql2/promise';
-import type * as V1 from '~/_relations.ts';
 import type { Cache } from '~/cache/core/index.ts';
 import { NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -29,16 +28,10 @@ export interface SingleStoreRemoteSessionOptions {
 	cache?: Cache;
 }
 
-export class SingleStoreRemoteSession<
-	TFullSchema extends Record<string, unknown>,
-	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends SingleStoreSession<
+export class SingleStoreRemoteSession<TRelations extends AnyRelations> extends SingleStoreSession<
 	SingleStoreRemoteQueryResultHKT,
 	SingleStoreRemotePreparedQueryHKT,
-	TFullSchema,
-	TRelations,
-	TSchema
+	TRelations
 > {
 	static override readonly [entityKind]: string = 'SingleStoreRemoteSession';
 
@@ -49,7 +42,6 @@ export class SingleStoreRemoteSession<
 		private client: RemoteCallback,
 		dialect: SingleStoreDialect,
 		private relations: TRelations,
-		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: SingleStoreRemoteSessionOptions,
 	) {
 		super(dialect);
@@ -95,28 +87,20 @@ export class SingleStoreRemoteSession<
 	}
 
 	override async transaction<T>(
-		_transaction: (tx: SingleStoreProxyTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		_transaction: (tx: SingleStoreProxyTransaction<TRelations>) => Promise<T>,
 		_config?: SingleStoreTransactionConfig,
 	): Promise<T> {
 		throw new Error('Transactions are not supported by the SingleStore Proxy driver');
 	}
 }
 
-export class SingleStoreProxyTransaction<
-	TFullSchema extends Record<string, unknown>,
-	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends SingleStoreTransaction<
-	SingleStoreRemoteQueryResultHKT,
-	SingleStoreRemotePreparedQueryHKT,
-	TFullSchema,
-	TRelations,
-	TSchema
-> {
+export class SingleStoreProxyTransaction<TRelations extends AnyRelations>
+	extends SingleStoreTransaction<SingleStoreRemoteQueryResultHKT, SingleStoreRemotePreparedQueryHKT, TRelations>
+{
 	static override readonly [entityKind]: string = 'SingleStoreProxyTransaction';
 
 	override async transaction<T>(
-		_transaction: (tx: SingleStoreProxyTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		_transaction: (tx: SingleStoreProxyTransaction<TRelations>) => Promise<T>,
 	): Promise<T> {
 		throw new Error('Transactions are not supported by the SingleStore Proxy driver');
 	}

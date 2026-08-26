@@ -923,9 +923,9 @@ test.concurrent('no diffs for all database types', async ({ dbc: db }) => {
 			column2: bool('column2'),
 			column3: boolean('column3').default(true).notNull(),
 			column4: boolean('column4'),
-			column5: bool('column5').default(true).notNull().array(),
+			column5: bool('column5').notNull().array(),
 			column6: bool('column6').array(),
-			column7: boolean('column7').default(true).notNull().array(),
+			column7: boolean('column7').notNull().array(),
 			column8: boolean('column8').array(),
 		}),
 
@@ -982,7 +982,7 @@ test.concurrent('no diffs for all database types', async ({ dbc: db }) => {
 		allBits: customSchema.table('all_bits', {
 			column1: bit('column1').default('1').notNull(),
 			column2: bit('column2', { length: 10 }),
-			column3: bit('column3').default('1').notNull().array(),
+			column3: bit('column3').notNull().array(),
 			column4: bit('column4', { length: 10 }).array(),
 			column5: varbit('column5').notNull(),
 			column6: varbit('column6', { length: 10 }),

@@ -85,7 +85,9 @@ export function pgTableWithSchema<
 	name: TTableName,
 	columns: TColumnsMap | ((columnTypes: PgColumnsBuilders) => TColumnsMap),
 	extraConfig:
-		| ((self: PgBuildExtraConfigColumns<TColumnsMap>) => PgTableExtraConfig | PgTableExtraConfigValue[])
+		| ((
+			self: PgBuildExtraConfigColumns<TColumnsMap>,
+		) => PgTableExtraConfig | (PgTableExtraConfigValue | PgTableExtraConfigValue[])[])
 		| undefined,
 	schema: TSchemaName,
 	casing: Casing | undefined,
@@ -155,7 +157,7 @@ export interface PgTableFnInternal<TSchema extends string | undefined = undefine
 		columns: TColumnsMap,
 		extraConfig?: (
 			self: PgBuildExtraConfigColumns<TColumnsMap>,
-		) => PgTableExtraConfigValue[],
+		) => (PgTableExtraConfigValue | PgTableExtraConfigValue[])[],
 	): PgTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
@@ -169,7 +171,9 @@ export interface PgTableFnInternal<TSchema extends string | undefined = undefine
 	>(
 		name: TTableName,
 		columns: (columnTypes: PgColumnsBuilders) => TColumnsMap,
-		extraConfig?: (self: PgBuildExtraConfigColumns<TColumnsMap>) => PgTableExtraConfigValue[],
+		extraConfig?: (
+			self: PgBuildExtraConfigColumns<TColumnsMap>,
+		) => (PgTableExtraConfigValue | PgTableExtraConfigValue[])[],
 	): PgTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;

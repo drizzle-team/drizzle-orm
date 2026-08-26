@@ -1,8 +1,7 @@
 import mssql from 'mssql';
 import { describe, it } from 'vitest';
-import { relations } from '~/_relations';
-import { alias, bit, int, snakeCase, text, union } from '~/mssql-core';
-import { drizzle } from '~/node-mssql';
+import { alias, bit, castToText, int, snakeCase, text, union } from '~/mssql-core';
+import { drizzle, nodeMssqlCodecs } from '~/node-mssql';
 import { asc, eq, sql } from '~/sql';
 
 const testSchema = snakeCase.schema('test');
@@ -18,25 +17,16 @@ const users = snakeCase.table('users', {
 	// Test that custom aliases remain
 	age: int('AGE'),
 });
-const usersRelations = relations(users, ({ one }) => ({
-	developers: one(developers),
-}));
+
 const developers = testSchema.table('developers', {
 	// TODO: Investigate reasons for existence of next commented line
 	// userId: int().primaryKey().references('name1', () => users.id),
 	userId: int().primaryKey().references(() => users.id),
 	usesDrizzleORM: bit().notNull(),
 });
-const developersRelations = relations(developers, ({ one }) => ({
-	user: one(users, {
-		fields: [developers.userId],
-		references: [users.id],
-	}),
-}));
-const devs = alias(developers, 'devs');
-const schema = { users, usersRelations, developers, developersRelations };
 
-const db = drizzle({ client: new mssql.ConnectionPool({ server: '' }), schema });
+const devs = alias(developers, 'devs');
+const db = drizzle({ client: new mssql.ConnectionPool({ server: '' }) });
 
 const fullName = sql`${users.firstName} || ' ' || ${users.lastName}`.as('name');
 
@@ -135,7 +125,8 @@ describe('mssql to snake case', () => {
 			.union(db.select({ firstName: users.firstName }).from(users));
 
 		expect(query.toSQL()).toEqual({
-			sql: '(select [first_name] from [users]) union (select [first_name] from [users])',
+			sql:
+				'select [first_name] from ((select [first_name] from [users]) union (select [first_name] from [users])) [drizzle_union]',
 			params: [],
 		});
 	});
@@ -147,7 +138,8 @@ describe('mssql to snake case', () => {
 		);
 
 		expect(query.toSQL()).toEqual({
-			sql: '(select [first_name] from [users]) union (select [first_name] from [users])',
+			sql:
+				'select [first_name] from ((select [first_name] from [users]) union (select [first_name] from [users])) [drizzle_union]',
 			params: [],
 		});
 	});
@@ -295,6 +287,67 @@ describe('mssql to snake case', () => {
 		expect(query.toSQL()).toEqual({
 			sql: 'delete from [users] output DELETED.[first_name], DELETED.[AGE] as [usersAge] where [users].[id] = @par0',
 			params: [1],
+		});
+	});
+
+	describe('selection casts', () => {
+		const castCodecs = { ...nodeMssqlCodecs, int: { ...nodeMssqlCodecs.int, cast: castToText } };
+		const castDb = drizzle({ client: new mssql.ConnectionPool({ server: '' }), codecs: castCodecs });
+		const casts = snakeCase.table('casts', { castValue: int() });
+		const castTargets = snakeCase.table('cast_targets', { targetId: text() });
+		const castSubquery = () => castDb.select({ castValue: casts.castValue }).from(casts).as('sq');
+
+		it(`Cast respects alias config`, ({ expect }) => {
+			expect(castDb.select({ c: casts.castValue }).from(casts).toSQL().sql).toEqual(
+				'select cast([cast_value] as varchar(max)) from [casts]',
+			);
+			expect(castDb.select({ c: casts.castValue.as('alias') }).from(casts).toSQL().sql).toEqual(
+				'select cast([cast_value] as varchar(max)) as [alias] from [casts]',
+			);
+		});
+
+		it(`Cast applied to selected subquery depending on it's selection`, ({ expect }) => {
+			expect(castDb.select({ x: castSubquery() }).from(castTargets).toSQL().sql).toEqual(
+				'select cast((select [cast_value] from [casts]) as varchar(max)) [sq] from [cast_targets]',
+			);
+		});
+
+		it('Nested queries ignore casts', ({ expect }) => {
+			const outer = castDb.select({ x: castSubquery() }).from(castTargets).as('outer');
+
+			expect(castDb.select().from(outer).toSQL().sql).toEqual(
+				'select cast((select [cast_value] from [casts]) as varchar(max)) [sq] from (select (select [cast_value] from [casts]) [sq] from [cast_targets]) [outer]',
+			);
+		});
+
+		it(`Column as decoder applies cast`, ({ expect }) => {
+			expect(
+				castDb.select({
+					x: sql`${casts.castValue}`.mapWith(casts.castValue),
+					y: sql`${casts.castValue}`.mapWith(casts.castValue).as('y'),
+				}).from(casts).toSQL().sql,
+			)
+				.toEqual('select cast([cast_value] as varchar(max)), cast([cast_value] as varchar(max)) as [y] from [casts]');
+		});
+
+		it(`Cast doesn't bleed params into selection`, ({ expect }) => {
+			// Regression test for pre-existing issue
+			const query = castDb.select({ x: castSubquery() }).from(castTargets).toSQL();
+
+			expect(query.params).toEqual([]);
+			expect(query.sql).not.toMatch(/\$\d|\?|@par/);
+		});
+
+		it(`No double spaces in union's 'order by' `, ({ expect }) => {
+			const branch = () => castDb.select({ x: casts.castValue }).from(casts);
+			const query = branch()
+				.unionAll(branch())
+				.orderBy(sql`1`);
+
+			expect(query.toSQL().sql).toEqual(
+				'select cast([cast_value] as varchar(max)) from ((select [cast_value] from [casts]) union all (select [cast_value] from [casts])) [drizzle_union] order by 1',
+			);
+			expect(query.toSQL().sql).not.toContain('order by 1  ');
 		});
 	});
 });

@@ -1,7 +1,7 @@
-import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/index.ts';
 import { hasTelemetry, tracer } from '~/tracing.ts';
@@ -102,8 +102,7 @@ export interface CockroachTransactionConfig {
 
 export abstract class CockroachSession<
 	TQueryResult extends CockroachQueryResultHKT = CockroachQueryResultHKT,
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TSchema extends V1.TablesRelationalConfig = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
 > {
 	static readonly [entityKind]: string = 'CockroachSession';
 
@@ -159,29 +158,24 @@ export abstract class CockroachSession<
 	}
 
 	abstract transaction<T>(
-		transaction: (tx: CockroachTransaction<TQueryResult, TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: CockroachTransaction<TQueryResult, TRelations>) => Promise<T>,
 		config?: CockroachTransactionConfig,
 	): Promise<T>;
 }
 
 export abstract class CockroachTransaction<
 	TQueryResult extends CockroachQueryResultHKT,
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TSchema extends V1.TablesRelationalConfig = Record<string, never>,
-> extends CockroachDatabase<TQueryResult, TFullSchema, TSchema> {
+	TRelations extends AnyRelations = EmptyRelations,
+> extends CockroachDatabase<TQueryResult, TRelations> {
 	static override readonly [entityKind]: string = 'CockroachTransaction';
 
 	constructor(
 		dialect: CockroachDialect,
-		session: CockroachSession<any, any, any>,
-		protected schema: {
-			fullSchema: Record<string, unknown>;
-			schema: TSchema;
-			tableNamesMap: Record<string, string>;
-		} | undefined,
+		session: CockroachSession<any, any>,
+		relations: TRelations,
 		protected readonly nestedIndex = 0,
 	) {
-		super(dialect, session, schema);
+		super(dialect, session, relations);
 	}
 
 	rollback(): never {
@@ -208,7 +202,7 @@ export abstract class CockroachTransaction<
 	}
 
 	abstract override transaction<T>(
-		transaction: (tx: CockroachTransaction<TQueryResult, TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: CockroachTransaction<TQueryResult, TRelations>) => Promise<T>,
 	): Promise<T>;
 }
 

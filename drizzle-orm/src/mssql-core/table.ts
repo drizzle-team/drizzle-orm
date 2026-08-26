@@ -71,7 +71,7 @@ export function mssqlTableWithSchema<
 	extraConfig:
 		| ((
 			self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'mssql'>,
-		) => MsSqlTableExtraConfig | MsSqlTableExtraConfigValue[])
+		) => MsSqlTableExtraConfig | (MsSqlTableExtraConfigValue | MsSqlTableExtraConfigValue[])[])
 		| undefined,
 	schema: TSchemaName,
 	casing: Casing | undefined,
@@ -127,7 +127,9 @@ export interface MsSqlTableFn<TSchema extends string | undefined = undefined> {
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
-		extraConfig?: (self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'mssql'>) => MsSqlTableExtraConfigValue[],
+		extraConfig?: (
+			self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'mssql'>,
+		) => (MsSqlTableExtraConfigValue | MsSqlTableExtraConfigValue[])[],
 	): MsSqlTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
@@ -141,7 +143,9 @@ export interface MsSqlTableFn<TSchema extends string | undefined = undefined> {
 	>(
 		name: TTableName,
 		columns: (columnTypes: MsSqlColumnBuilders) => TColumnsMap,
-		extraConfig?: (self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'mssql'>) => MsSqlTableExtraConfigValue[],
+		extraConfig?: (
+			self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'mssql'>,
+		) => (MsSqlTableExtraConfigValue | MsSqlTableExtraConfigValue[])[],
 	): MsSqlTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;

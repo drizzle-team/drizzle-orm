@@ -82,6 +82,7 @@ export class PgAsyncInsertBase<
 			const shape = fields
 				? config.shape ??= dialect.shapeGenerator?.({ type: 'plain', fields }, undefined)
 				: undefined;
+			if (shape) this.withoutSelectionCastCodecs();
 
 			const query = dialect.sqlToQuery(this.getSQL());
 			const mapper = shape || !fields

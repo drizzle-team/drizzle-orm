@@ -73,7 +73,7 @@ export const fromDatabase = async (
 		pk: number;
 		hidden: number;
 		sql: string;
-		type: 'table' | 'view';
+		type: 'table' | 'virtual';
 	}>(
 		`SELECT 
 			m.name as "table", 
@@ -84,11 +84,12 @@ export const fromDatabase = async (
 			p.pk as pk,
 			p.hidden as hidden,
 			m.sql,
-			m.type as type
+			l.type as type
 		FROM sqlite_master AS m 
+			JOIN pragma_table_list(m.name) AS l
 			JOIN pragma_table_xinfo(m.name) AS p
 		WHERE 
-			m.type = 'table'
+			(l.type = 'table' OR l.type = 'virtual')
 			and m.tbl_name NOT LIKE '\\_cf\\_%' ESCAPE '\\'
 			and m.tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
 			and m.tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
@@ -362,7 +363,7 @@ export const fromDatabase = async (
 	}, {} as Record<string, string>) || {};
 
 	const tables: SqliteEntities['tables'][] = [
-		...new Set(dbTableColumns.filter((it) => it.type === 'table').map((it) => it.table)),
+		...new Set(dbTableColumns.map((it) => it.table)),
 	].map((it) => ({
 		entityType: 'tables',
 		name: it,
@@ -385,7 +386,7 @@ export const fromDatabase = async (
 	}
 
 	const columns: InterimColumn[] = [];
-	for (const column of dbTableColumns.filter((it) => it.type === 'table')) {
+	for (const column of dbTableColumns) {
 		columnsCount += 1;
 
 		progressCallback('columns', columnsCount, 'fetching');

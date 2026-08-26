@@ -128,9 +128,8 @@ jobs:
             dbs: []
           - shard: int:cockroach
             dbs: [cockroach]
-          #  TODO:
-          # - shard: int:bun
-          #   dbs: [postgres, mysql]
+          - shard: int:bun
+            dbs: [postgres, postgres-vector, postgres-postgis, mysql]
           - shard: int:mssql
             dbs: [mssql]
           - shard: orm
@@ -270,7 +269,11 @@ jobs:
             int:cockroach) pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
             int:mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
             int:sqlite) pnpm --stream test:sqlite ;;
-            int:turso-serverless) pnpm --stream vitest --reporter=verbose --silent=false --test-timeout=200000 --hook-timeout=200000 run tests/sqlite/tursodatabase-serverless.test.ts ;;
+            int:turso-serverless) 
+              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
+                pnpm --stream vitest --reporter=verbose --silent=false --test-timeout=200000 --hook-timeout=200000 run tests/sqlite/tursodatabase-serverless.test.ts 
+              fi
+            ;;
             kit:other) cd ../drizzle-kit && pnpm --stream run test:other ;;
             kit:postgres) cd ../drizzle-kit && pnpm --stream run test:postgres ;;
             kit:cockroach)

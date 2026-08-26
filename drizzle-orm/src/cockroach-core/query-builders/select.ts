@@ -1,3 +1,4 @@
+import { type CockroachType, resolveUnionType } from '~/cockroach-core/codecs.ts';
 import type { CockroachColumn } from '~/cockroach-core/columns/index.ts';
 import type { CockroachDialect } from '~/cockroach-core/dialect.ts';
 import type { CockroachSession, PreparedQueryConfig } from '~/cockroach-core/session.ts';
@@ -53,6 +54,7 @@ import type {
 	LockConfig,
 	LockStrength,
 	SelectedFields,
+	SelectedFieldsOrdered,
 	SetOperatorRightSelect,
 	TableLikeHasEmptySelection,
 } from './select.types.ts';
@@ -225,6 +227,10 @@ export abstract class CockroachSelectQueryBuilderBase<
 			if (typeof tableName === 'string' && this.config.joins?.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
 			}
+
+			this.config.fieldsFlat = undefined;
+			this.config.setFieldsFlat = undefined;
+			this.config.mapper = undefined;
 
 			if (!this.isPartialSelect) {
 				// If this is the first join and this is not a partial select and we're not selecting from raw SQL, "move" the fields from the main table to the nested object
@@ -991,9 +997,55 @@ export abstract class CockroachSelectQueryBuilderBase<
 		return this as any;
 	}
 
-	/** @internal */
+	_resolveSelection(): SelectedFieldsOrdered {
+		const { config, dialect } = this;
+		config.fieldsFlat ??= orderSelectedFields<CockroachColumn>(
+			config.fields,
+			undefined,
+			dialect.codecs,
+		);
+
+		const { fieldsFlat, setOperators } = config;
+
+		if (setOperators.length && !config.setFieldsFlat) {
+			const setSelection: SelectedFieldsOrdered = new Array(fieldsFlat.length);
+
+			for (let i = 0; i < setOperators.length; ++i) {
+				const setOperator = setOperators[i];
+				if (!setOperator) {
+					throw new Error('Cannot pass undefined values to any set operator');
+				}
+
+				const rightSelection = orderSelectedFields(setOperator.rightSelect.getSelectedFields());
+				for (let j = 0; j < fieldsFlat.length; ++j) {
+					setSelection[j] = { ...fieldsFlat[j]! };
+					const l = setSelection[j]!;
+					const lPath = l.path.join('.');
+					// Equivalency of selections is a pre-requisite for unions
+					const r = rightSelection.find((e) => e.path.join('.') === lPath)!;
+
+					const lc = (l.codecOverride ?? l.column?.codec) as CockroachType | undefined;
+					const rc = (r.codecOverride ?? r.column?.codec) as CockroachType | undefined;
+
+					l.codecOverride = lc && rc ? resolveUnionType(lc, rc) : lc;
+				}
+			}
+
+			for (let i = 0; i < setSelection.length; ++i) {
+				const out = setSelection[i]!;
+				out.codec = out.codecOverride
+					? dialect.codecs.get(out.column!, 'normalize', out.codecOverride as CockroachType)
+					: out.codec;
+			}
+
+			config.setFieldsFlat = setSelection;
+		}
+
+		return config.setFieldsFlat ?? fieldsFlat;
+	}
+
 	getSQL(): SQL {
-		this.config.fieldsFlat = orderSelectedFields<CockroachColumn>(this.config.fields);
+		this._resolveSelection();
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
@@ -1005,7 +1057,7 @@ export abstract class CockroachSelectQueryBuilderBase<
 		alias: TAlias,
 	): SubqueryWithSelection<this['_']['selectedFields'], TAlias> {
 		return new Proxy(
-			new Subquery(this.getSQL(), this.config.fields, alias),
+			new Subquery(this.withoutSelectionCastCodecs().getSQL(), this.config.fields, alias),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
 	}
@@ -1020,6 +1072,7 @@ export abstract class CockroachSelectQueryBuilderBase<
 
 	/** @internal */
 	override withoutSelectionCastCodecs(): this {
+		this.config.ignoreSelectionCastCodecs = true;
 		return this;
 	}
 
@@ -1095,7 +1148,7 @@ export class CockroachSelectBase<
 				query,
 				'arrays',
 				name ?? generateName,
-				dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths),
+				this.config.mapper ??= dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths),
 			);
 		});
 	}

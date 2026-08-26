@@ -1,8 +1,11 @@
 import type { AnyCockroachTable, CockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBuilderRuntimeConfig } from '~/column-builder.ts';
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import { CockroachColumn, CockroachColumnBuilder } from './common.ts';
+import {
+	CockroachColumn,
+	type CockroachColumnBaseConfig,
+	CockroachColumnBuilder,
+	type CockroachColumnBuilderRuntimeConfig,
+} from './common.ts';
 
 export class CockroachJsonbBuilder extends CockroachColumnBuilder<{
 	dataType: 'object json';
@@ -13,6 +16,13 @@ export class CockroachJsonbBuilder extends CockroachColumnBuilder<{
 
 	constructor(name: string) {
 		super(name, 'object json', 'CockroachJsonb');
+	}
+
+	/**
+	 * @throws always - CockroachDB has no array type for `jsonb`
+	 */
+	override array(): never {
+		throw new Error('CockroachDB does not support arrays of jsonb columns');
 	}
 
 	/** @internal */
@@ -26,10 +36,15 @@ export class CockroachJsonbBuilder extends CockroachColumnBuilder<{
 	}
 }
 
-export class CockroachJsonb<T extends ColumnBaseConfig<'object json'>> extends CockroachColumn<T> {
+export class CockroachJsonb<T extends CockroachColumnBaseConfig<'object json'>>
+	extends CockroachColumn<'object json', T>
+{
 	static override readonly [entityKind]: string = 'CockroachJsonb';
 
-	constructor(table: CockroachTable<any>, config: ColumnBuilderRuntimeConfig<T['data']>) {
+	/** @internal */
+	override readonly codec = 'jsonb';
+
+	constructor(table: CockroachTable<any>, config: CockroachColumnBuilderRuntimeConfig<T['data']>) {
 		super(table, config);
 	}
 
@@ -39,17 +54,6 @@ export class CockroachJsonb<T extends ColumnBaseConfig<'object json'>> extends C
 
 	override mapToDriverValue = (value: T['data']): string => {
 		return JSON.stringify(value);
-	};
-
-	override mapFromDriverValue = (value: T['data'] | string): T['data'] => {
-		if (typeof value === 'string') {
-			try {
-				return JSON.parse(value);
-			} catch {
-				return value as T['data'];
-			}
-		}
-		return value;
 	};
 }
 
