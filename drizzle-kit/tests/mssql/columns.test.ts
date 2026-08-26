@@ -2627,3 +2627,36 @@ test('same column names in two tables. Check for correct not null creation #4. s
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3826
+test('Issue No3826. Renaming column and altering contraint on it', async () => {
+	const schemaFrom = {
+		users: mssqlTable('users', {
+			id: text('id').primaryKey().notNull(),
+			phone_number: varchar('old_name', { length: 100 }).notNull(),
+			customer_id: text('customer_id').unique(),
+			avatar: text('avatar'),
+		}),
+	};
+
+	const schemaTo = {
+		users: mssqlTable('users', {
+			id: text('id').primaryKey().notNull(),
+			phone_number: varchar('new_name', { length: 100 }), // renamed + dropped not null
+			customer_id: text('customer_id').unique(),
+			avatar: text('avatar'),
+		}),
+	};
+
+	const renames = ['dbo.users.old_name->dbo.users.new_name'];
+	const { sqlStatements: st1 } = await diff(schemaFrom, schemaTo, renames);
+	await push({ db, to: schemaFrom });
+	const { sqlStatements: pst1 } = await push({ db, to: schemaTo, renames });
+
+	const st0 = [
+		`EXEC sp_rename 'users.old_name', [new_name], 'COLUMN';`,
+		`ALTER TABLE [users] ALTER COLUMN [new_name] varchar(100);`,
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
+});
