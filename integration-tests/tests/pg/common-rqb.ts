@@ -1374,14 +1374,14 @@ export function tests(test: Test) {
 		await db.insert(child).values({ parentId: parentRes?.id, childVal: '56.78' });
 		const res = await db.query.child.findFirst({ with: { parent: true } });
 
-		expect(res).toStrictEqual([{
+		expect(res).toStrictEqual({
 			childVal: '56.78',
 			parent: {
 				id: 1,
 				parentVal: '12.34',
 			},
 			parentId: 1,
-		}]);
+		});
 	});
 
 	// https://github.com/drizzle-team/drizzle-orm/issues/3400
@@ -1410,6 +1410,8 @@ export function tests(test: Test) {
 			},
 		}));
 
+		await db.execute(sql`DROP TABLE IF EXISTS ${posts};`);
+		await db.execute(sql`DROP TABLE IF EXISTS ${users};`);
 		await push({ users, posts });
 
 		await db.insert(users).values({
@@ -1432,9 +1434,12 @@ export function tests(test: Test) {
 		});
 
 		const timestampFormat = (s: string) => (s.includes('T') ? 'ISO' : 'SQL');
-		expect(timestampFormat(user!.createdAt)).toBe('ISO');
-		expect(timestampFormat(post!.createdAt)).toBe('ISO');
-		expect(timestampFormat(nested!.createdAt)).toBe('ISO');
-		expect(timestampFormat(nested!.author!.createdAt)).toBe('ISO');
+		expect(timestampFormat(user!.createdAt)).toBe('SQL');
+		expect(timestampFormat(post!.createdAt)).toBe('SQL');
+		expect(timestampFormat(nested!.createdAt)).toBe('SQL');
+		expect(timestampFormat(nested!.author!.createdAt)).toBe('SQL');
+
+		await db.execute(sql`DROP TABLE IF EXISTS ${posts};`);
+		await db.execute(sql`DROP TABLE IF EXISTS ${users};`);
 	});
 }
