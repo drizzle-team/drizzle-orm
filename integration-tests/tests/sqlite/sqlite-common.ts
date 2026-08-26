@@ -5,6 +5,7 @@ import {
 	avgDistinct,
 	count,
 	countDistinct,
+	desc,
 	DrizzleQueryError,
 	eq,
 	exists,
@@ -8229,6 +8230,38 @@ export function tests(test: Test, exclude: string[] = []) {
 			defMix2: 2,
 			defMix3: 2,
 			defMix4: 1,
+		});
+	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/2992
+	test.concurrent('Issue No2992', async ({ createDB }) => {
+		const log = sqliteTable('log', {
+			id: text('id').primaryKey(),
+			message: text('message'),
+			createdAt: integer('created_at')
+				.default(sql`(cast(unixepoch('subsec') * 1000 as integer))`)
+				.notNull(),
+		});
+
+		const db = createDB({ log });
+
+		const query1 = db
+			.select({ id: log.id })
+			.from(log)
+			.orderBy(desc(log.createdAt))
+			.limit(-1)
+			.offset(50);
+
+		const query2 = db.query.log.findMany({ limit: -1, offset: 50 });
+
+		expect(query1.toSQL()).toStrictEqual({
+			params: [-1, 50],
+			sql: 'select "id" from "log" order by "log"."created_at" desc limit ? offset ?',
+		});
+		expect(query2.toSQL()).toStrictEqual({
+			params: [-1, 50],
+			sql:
+				'select "d0"."id" as "id", "d0"."message" as "message", "d0"."created_at" as "createdAt" from "log" as "d0" limit ? offset ?',
 		});
 	});
 }

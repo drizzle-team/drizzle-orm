@@ -645,3 +645,33 @@ test('Issue No3407', async () => {
 	expect(resultDdl.uniques.list()).toStrictEqual([]);
 	expect(resultDdl.fks.list()).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3231
+test('Issue No3231', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	await db.run(`CREATE TABLE users(id integer primary key);`);
+	await db.run(`CREATE TABLE posts(user_id integer references users);`); // valid syntax
+
+	const {
+		sqlStatements,
+		statements,
+		ddlAfterPull,
+		resultDdl,
+	} = await diffAfterPull(sqlite, {}, 'Issue #3231');
+
+	expect(sqlStatements).toStrictEqual([]);
+	expect(statements).toStrictEqual([]);
+});
+test('Issue No3231 #2', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	await db.run(`CREATE TABLE users(id integer);`);
+	await db.run(`CREATE TABLE posts(user_id integer references users);`); // valid syntax
+
+	await expect(diffAfterPull(sqlite, {}, 'Issue #3231-2')).rejects.to.toThrowError(
+		'Table users has no primary key, so the foreign key from posts.user_id to users cannot be resolved',
+	);
+});

@@ -404,7 +404,7 @@ export class SQLiteDialect {
 
 	private buildLimit(limit: number | Placeholder | undefined): SQL | undefined {
 		return typeof limit === 'object'
-				|| (typeof limit === 'number' && limit >= 0)
+				|| (typeof limit === 'number')
 			? sql` limit ${limit}`
 			: undefined;
 	}

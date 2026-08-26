@@ -1724,3 +1724,39 @@ test('Issue No3325. columns with same names', async () => {
 		},
 	]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3826
+test('Issue No3826. Renaming column and altering contraint on it', async () => {
+	const schemaFrom = {
+		users: pgTable('users', (t) => ({
+			id: t.text().primaryKey().notNull(),
+			phone_number: t.varchar('old_name', { length: 100 }).notNull(),
+			customer_id: t.text().unique(),
+			avatar: t.text(),
+		})),
+	};
+
+	const schemaTo = {
+		users: pgTable('users', (t) => ({
+			id: t.text().primaryKey().notNull(),
+			phone_number: t.varchar('new_name', { length: 100 }), // renamed + dropped not null
+			customer_id: t.text().unique(),
+			avatar: t.text(),
+		})),
+	};
+
+	const { sqlStatements: st1 } = await diff(schemaFrom, schemaTo, [`public.users.old_name->public.users.new_name`]);
+	await push({ db, to: schemaFrom });
+	const { sqlStatements: pst1 } = await push({
+		db,
+		to: schemaTo,
+		renames: [`public.users.old_name->public.users.new_name`],
+	});
+
+	const st0 = [
+		`ALTER TABLE "users" RENAME COLUMN "old_name" TO "new_name";`,
+		'ALTER TABLE "users" ALTER COLUMN "new_name" DROP NOT NULL;',
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
+});

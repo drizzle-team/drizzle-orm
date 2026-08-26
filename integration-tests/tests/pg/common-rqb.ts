@@ -3,6 +3,7 @@ import { and, defineRelations, eq, inArray, isNotNull, not, or, sql } from 'driz
 import type { AnyPgColumn, PgColumnBuilder } from 'drizzle-orm/pg-core';
 import {
 	bigint,
+	decimal,
 	index,
 	integer,
 	numeric,
@@ -13,6 +14,7 @@ import {
 	timestamp,
 	uniqueIndex,
 	uuid,
+	varchar,
 } from 'drizzle-orm/pg-core';
 import { describe, expect, expectTypeOf } from 'vitest';
 import type { Test } from './instrumentation';
@@ -977,6 +979,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4169
+		// https://github.com/drizzle-team/drizzle-orm/issues/3493
 		test.concurrent(
 			'RQB v2 find many - $count',
 			async ({ push, createDB }) => {
@@ -1340,5 +1343,98 @@ export function tests(test: Test) {
 			sql:
 				'select "d0"."id" as "id", "d0"."created_on" as "createdOn", "d0"."email" as "email", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."phone" as "phone", "d0"."profile_link" as "profileLink", ((select count(*) from "job_candidacy" where (("job_candidacy"."candidate_id" = "candidates"."id") and (not ("job_candidacy"."status" in ($1, $2)))))) as "activeJobs" from "candidates" as "d0"',
 		});
+	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/3943
+	test.concurrent('issue No3943', async ({ createDB, push }) => {
+		const parent = pgTable('parent', {
+			id: serial().primaryKey(),
+			parentVal: decimal(),
+		});
+		const child = pgTable('child', {
+			parentId: serial().references(() => parent.id),
+			childVal: decimal(),
+		});
+
+		const db = createDB({ parent, child }, (r) => ({
+			child: {
+				parent: r.one.parent({
+					from: r.child.parentId,
+					to: r.parent.id,
+				}),
+			},
+			parent: {
+				child: r.many.child(),
+			},
+		}));
+
+		await push({ parent, child });
+
+		const [parentRes] = await db.insert(parent).values({ parentVal: '12.34' }).returning();
+		await db.insert(child).values({ parentId: parentRes?.id, childVal: '56.78' });
+		const res = await db.query.child.findFirst({ with: { parent: true } });
+
+		expect(res).toStrictEqual([{
+			childVal: '56.78',
+			parent: {
+				id: 1,
+				parentVal: '12.34',
+			},
+			parentId: 1,
+		}]);
+	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/3400
+	test.concurrent('issue 3400', async ({ createDB, push }) => {
+		const users = pgTable('users', {
+			id: varchar('id', { length: 191 }).notNull().primaryKey(),
+			createdAt: timestamp('created_at', { precision: 3, mode: 'string' })
+				.default(sql`CURRENT_TIMESTAMP(3)`)
+				.notNull(),
+		});
+
+		const posts = pgTable('posts', {
+			id: varchar('id', { length: 191 }).notNull().primaryKey(),
+			createdAt: timestamp('created_at', { precision: 3, mode: 'string' })
+				.default(sql`CURRENT_TIMESTAMP(3)`)
+				.notNull(),
+			authorId: varchar('author_id', { length: 191 }).notNull(),
+		});
+
+		const db = createDB({ users, posts }, (r) => ({
+			posts: {
+				author: r.one.users({
+					from: [r.posts.authorId],
+					to: [r.users.id],
+				}),
+			},
+		}));
+
+		await push({ users, posts });
+
+		await db.insert(users).values({
+			id: 'user_123',
+		});
+
+		await db.insert(posts).values([
+			{
+				id: 'post_123',
+				authorId: 'user_123',
+			},
+		]);
+
+		const user = await db.query.users.findFirst({});
+		const post = await db.query.posts.findFirst({});
+		const nested = await db.query.posts.findFirst({
+			with: {
+				author: true,
+			},
+		});
+
+		const timestampFormat = (s: string) => (s.includes('T') ? 'ISO' : 'SQL');
+		expect(timestampFormat(user!.createdAt)).toBe('ISO');
+		expect(timestampFormat(post!.createdAt)).toBe('ISO');
+		expect(timestampFormat(nested!.createdAt)).toBe('ISO');
+		expect(timestampFormat(nested!.author!.createdAt)).toBe('ISO');
 	});
 }
