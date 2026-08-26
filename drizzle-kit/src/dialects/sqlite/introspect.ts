@@ -470,7 +470,6 @@ export const fromDatabase = async (
 		from: string;
 		to: string;
 		onUpdate: string;
-		sql: string;
 		onDelete: string;
 		seq: number;
 		id: number;
@@ -483,12 +482,11 @@ export const fromDatabase = async (
 		)
 		SELECT
 		  m.name                    AS "tableFrom",
-		  f.id                      AS "fkIndex",
-		  f.seq                     AS "seq",
+		  f.id                      AS "id",
 		  f."table"                 AS "tableTo",
 		  f."from"                  AS "from",
+		  f.seq                     AS "seq",
 		  COALESCE(f."to", p.col)   AS "to",
-		  f."to" IS NULL            AS "wasImplicit",
 		  f.on_update               AS "onUpdate",
 		  f.on_delete               AS "onDelete"
 		FROM sqlite_master m

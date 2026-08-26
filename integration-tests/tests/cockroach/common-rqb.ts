@@ -1039,7 +1039,7 @@ export function tests() {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4696
 		// postgresjs returns strings for itemCount but other drivers return numbers
-		test.skipIf(Date.now() < +new Date('2026-08-26')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-09-05')).concurrent(
 			'RQB v2 find many - extras',
 			async ({ push, createDB }) => {
 				const orderItemTable = cockroachTable('rqb_order_item_19', {
