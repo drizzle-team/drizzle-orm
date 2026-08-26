@@ -8,7 +8,7 @@ function parsePgArrayValue(arrayString: string, startFrom: number, inQuotes: boo
 		}
 
 		if (char === '"') {
-			return [arrayString.slice(startFrom, i).replace(/\\/g, ''), i + 1];
+			return [arrayString.slice(startFrom, i).replace(/\\(.)/g, '$1'), i + 1];
 		}
 
 		if (inQuotes) {
@@ -16,11 +16,11 @@ function parsePgArrayValue(arrayString: string, startFrom: number, inQuotes: boo
 		}
 
 		if (char === ',' || char === '}') {
-			return [arrayString.slice(startFrom, i).replace(/\\/g, ''), i];
+			return [arrayString.slice(startFrom, i).replace(/\\(.)/g, '$1'), i];
 		}
 	}
 
-	return [arrayString.slice(startFrom).replace(/\\/g, ''), arrayString.length];
+	return [arrayString.slice(startFrom).replace(/\\(.)/g, '$1'), arrayString.length];
 }
 
 export function parsePgNestedArray(arrayString: string, startFrom = 0): [any[], number] {
