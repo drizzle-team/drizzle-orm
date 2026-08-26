@@ -34,6 +34,9 @@ export class MsSqlVarBinary<
 > extends MsSqlColumn<T, MsSqlVarbinaryOptions & { rawLength: MsSqlVarbinaryOptions['length'] | undefined }> {
 	static override readonly [entityKind]: string = 'MsSqlVarBinary';
 
+	/** @internal */
+	override readonly codec = 'varbinary';
+
 	getSQLType(): string {
 		return this.config.rawLength === undefined ? `varbinary` : `varbinary(${this.config.rawLength})`;
 	}

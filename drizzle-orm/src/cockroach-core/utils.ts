@@ -1,18 +1,20 @@
 import { CockroachTable } from '~/cockroach-core/table.ts';
 import { is } from '~/entity.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { Table } from '~/table.ts';
+import { throwUnknownExtraConfigValue } from '~/table.utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
-import { type Check, CheckBuilder } from '../checks.ts';
-import type { AnyCockroachColumn } from '../columns/index.ts';
-import { type ForeignKey, ForeignKeyBuilder } from '../foreign-keys.ts';
-import type { Index } from '../indexes.ts';
-import { IndexBuilder } from '../indexes.ts';
-import { CockroachPolicy } from '../policies.ts';
-import { type PrimaryKey, PrimaryKeyBuilder } from '../primary-keys.ts';
-import { type UniqueConstraint, UniqueConstraintBuilder } from '../unique-constraint.ts';
-import { type CockroachMaterializedView, CockroachMaterializedViewConfig, type CockroachView } from '../view.ts';
-
-export * from './array.ts';
+import { type Check, CheckBuilder } from './checks.ts';
+import type { CockroachCodecs } from './codecs.ts';
+import type { AnyCockroachColumn } from './columns/index.ts';
+import { type ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
+import type { Index } from './indexes.ts';
+import { IndexBuilder } from './indexes.ts';
+import { CockroachPolicy } from './policies.ts';
+import { type PrimaryKey, PrimaryKeyBuilder } from './primary-keys.ts';
+import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
+import { type CockroachMaterializedView, CockroachMaterializedViewConfig, type CockroachView } from './view.ts';
 
 export function getTableConfig<TTable extends CockroachTable>(table: TTable) {
 	const columns = Object.values(table[Table.Symbol.Columns]);
@@ -44,6 +46,8 @@ export function getTableConfig<TTable extends CockroachTable>(table: TTable) {
 				foreignKeys.push(builder.build(table));
 			} else if (is(builder, CockroachPolicy)) {
 				policies.push(builder);
+			} else {
+				throwUnknownExtraConfigValue(name, builder);
 			}
 		}
 	}
@@ -86,3 +90,7 @@ export type ColumnsWithTable<
 	TForeignTableName extends string,
 	TColumns extends AnyCockroachColumn<{ tableName: TTableName }>[],
 > = { [Key in keyof TColumns]: AnyCockroachColumn<{ tableName: TForeignTableName }> };
+
+export type DrizzleCockroachConfig<TRelations extends AnyRelations> =
+	& DrizzleConfig<TRelations>
+	& { codecs?: CockroachCodecs | undefined };

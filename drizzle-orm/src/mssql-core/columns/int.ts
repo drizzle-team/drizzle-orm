@@ -25,6 +25,9 @@ export class MsSqlIntBuilder extends MsSqlColumnBuilderWithIdentity<{
 export class MsSqlInt<T extends ColumnBaseConfig<'number int32'>> extends MsSqlColumnWithIdentity<T> {
 	static override readonly [entityKind]: string = 'MsSqlInt';
 
+	/** @internal */
+	override readonly codec = 'int';
+
 	getSQLType(): string {
 		return `int`;
 	}

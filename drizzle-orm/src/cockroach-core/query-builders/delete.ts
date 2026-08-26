@@ -51,6 +51,7 @@ export interface CockroachDeleteConfig {
 	returningFields?: SelectedFieldsFlat;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
+	ignoreSelectionCastCodecs?: boolean;
 }
 
 export type CockroachDeleteReturningAll<
@@ -229,11 +230,14 @@ export class CockroachDeleteBase<
 		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
 	): CockroachDeleteReturning<this, TDynamic, any> | CockroachDeleteReturningAll<this, TDynamic> {
 		this.config.returningFields = fields;
-		this.config.returning = orderSelectedFields<CockroachColumn>(fields);
+		this.config.returning = orderSelectedFields<CockroachColumn>(
+			fields,
+			undefined,
+			this.dialect.codecs,
+		);
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildDeleteQuery(this.config);
 	}
@@ -289,6 +293,7 @@ export class CockroachDeleteBase<
 
 	/** @internal */
 	withoutSelectionCastCodecs(): this {
+		this.config.ignoreSelectionCastCodecs = true;
 		return this;
 	}
 

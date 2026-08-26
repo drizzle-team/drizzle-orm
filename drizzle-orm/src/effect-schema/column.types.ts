@@ -3,7 +3,6 @@ import type { $Array, Literals, NullOr, optional, Struct, Top as SchemaTop, Tupl
 import type { LiteralValue } from 'effect/SchemaAST';
 import type { ColumnTypeData, ExtractColumnTypeData } from '~/column-builder.ts';
 import type { Column } from '~/column.ts';
-import type { Assume } from '~/utils.ts';
 import type { bigintStringModeSchema, bufferSchema, jsonSchema, unsignedBigintStringModeSchema } from './column.ts';
 
 type GetArrayDepth<T, Depth extends number = 0> = Depth extends 5 ? 5
@@ -39,10 +38,6 @@ type GetBaseEffectSchemaType<
 	: TType['constraint'] extends 'line' ? Tuple<readonly [typeof s.Number, typeof s.Number, typeof s.Number]>
 	: TType['constraint'] extends 'vector' | 'halfvector' ? $Array<typeof s.Number>
 	: TType['constraint'] extends 'int64vector' ? $Array<typeof s.BigInt>
-	: TType['constraint'] extends 'basecolumn'
-		? TColumn['_'] extends { baseColumn: infer TBaseColumn extends Column<any> }
-			? $Array<Assume<GetEffectSchemaType<TBaseColumn>, SchemaTop>>
-		: never
 	: $Array<typeof s.Any>
 	: TType['type'] extends 'object' ? TType['constraint'] extends 'date' ? typeof s.Date
 		: TType['constraint'] extends 'buffer' ? typeof bufferSchema

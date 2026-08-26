@@ -33,6 +33,9 @@ export class MsSqlDateTimeOffsetBuilder extends MsSqlDateColumnBaseBuilder<{
 export class MsSqlDateTimeOffset<T extends ColumnBaseConfig<'object date'>> extends MsSqlColumn<T> {
 	static override readonly [entityKind]: string = 'MsSqlDateTimeOffset';
 
+	/** @internal */
+	override readonly codec = 'datetimeoffset';
+
 	readonly precision: number | undefined;
 
 	constructor(
@@ -74,6 +77,9 @@ export class MsSqlDateTimeOffsetStringBuilder extends MsSqlDateColumnBaseBuilder
 
 export class MsSqlDateTimeOffsetString<T extends ColumnBaseConfig<'string datetime'>> extends MsSqlColumn<T> {
 	static override readonly [entityKind]: string = 'MsSqlDateTimeOffsetString';
+
+	/** @internal */
+	override readonly codec = 'datetimeoffset:string';
 
 	readonly precision: number | undefined;
 

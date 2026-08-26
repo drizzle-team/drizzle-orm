@@ -107,13 +107,16 @@ export class PgAsyncSelectBase<
 			const fieldsList = this._resolveSelection();
 			const nullableObjectPaths = resolveNullableObjectPaths(fieldsList, joinsNotNullableMap);
 
-			const shape = dialect.shapeGenerator?.(
+			const shape = config.shape ??= dialect.shapeGenerator?.(
 				{ type: 'plain', fields: fieldsList },
 				nullableObjectPaths,
 			);
+			if (shape) this.withoutSelectionCastCodecs();
 
 			const query = config.tagged ? dialect._sqlToQuery(this.getSQL()) : dialect.sqlToQuery(this.getSQL());
-			const mapper = shape ? undefined : dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths);
+			const mapper = shape
+				? undefined
+				: (config.mapper ??= dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths));
 
 			const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
 				query,

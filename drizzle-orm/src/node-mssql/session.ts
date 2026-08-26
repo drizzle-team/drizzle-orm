@@ -1,7 +1,6 @@
 import type { ConnectionPool, IResult, Request } from 'mssql';
 import mssql from 'mssql';
 import { once } from 'node:events';
-import type * as V1 from '~/_relations.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -16,6 +15,7 @@ import {
 	type PreparedQueryKind,
 	type QueryResultHKT,
 } from '~/mssql-core/session.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import { sql } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
@@ -30,13 +30,11 @@ export interface NodeMsSqlSessionOptions {
 }
 
 export class NodeMsSqlSession<
-	TFullSchema extends Record<string, unknown>,
-	TSchema extends V1.TablesRelationalConfig,
+	TRelations extends AnyRelations = EmptyRelations,
 > extends MsSqlSession<
 	NodeMsSqlQueryResultHKT,
 	NodeMsSqlPreparedQueryHKT,
-	TFullSchema,
-	TSchema
+	TRelations
 > {
 	static override readonly [entityKind]: string = 'NodeMsSqlSession';
 
@@ -45,7 +43,7 @@ export class NodeMsSqlSession<
 	constructor(
 		private client: NodeMsSqlClient,
 		dialect: MsSqlDialect,
-		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
+		private relations: TRelations,
 		private options: NodeMsSqlSessionOptions,
 	) {
 		super(dialect);
@@ -58,7 +56,9 @@ export class NodeMsSqlSession<
 		const request = queryClient.request() as Request & { arrayRowMode: boolean };
 
 		for (const [index, param] of params.entries()) {
-			request.input(`par${index}`, param);
+			// Avoid precision loss
+			if (param instanceof Date) request.input(`par${index}`, mssql.DateTime2(7), param); // oxlint-disable-line drizzle-internal/no-instanceof
+			else request.input(`par${index}`, param);
 		}
 
 		return request;
@@ -130,7 +130,7 @@ export class NodeMsSqlSession<
 	}
 
 	override async transaction<T>(
-		transaction: (tx: NodeMsSqlTransaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: NodeMsSqlTransaction<TRelations>) => Promise<T>,
 		config?: MsSqlTransactionConfig,
 	): Promise<T> {
 		let queryClient = this.client as ConnectionPool;
@@ -143,13 +143,13 @@ export class NodeMsSqlSession<
 		const session = new NodeMsSqlSession(
 			mssqlTransaction,
 			this.dialect,
-			this.schema,
+			this.relations,
 			this.options,
 		);
 		const tx = new NodeMsSqlTransaction(
 			this.dialect,
-			session as MsSqlSession<any, any, any, any>,
-			this.schema,
+			session as MsSqlSession<any, any, any>,
+			this.relations,
 			0,
 		);
 
@@ -171,24 +171,22 @@ export class NodeMsSqlSession<
 }
 
 export class NodeMsSqlTransaction<
-	TFullSchema extends Record<string, unknown>,
-	TSchema extends V1.TablesRelationalConfig,
+	TRelations extends AnyRelations = EmptyRelations,
 > extends MsSqlTransaction<
 	NodeMsSqlQueryResultHKT,
 	NodeMsSqlPreparedQueryHKT,
-	TFullSchema,
-	TSchema
+	TRelations
 > {
 	static override readonly [entityKind]: string = 'NodeMsSqlTransaction';
 
 	override async transaction<T>(
-		transaction: (tx: NodeMsSqlTransaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: NodeMsSqlTransaction<TRelations>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new NodeMsSqlTransaction(
 			this.dialect,
 			this.session,
-			this.schema,
+			this.relations,
 			this.nestedIndex + 1,
 		);
 

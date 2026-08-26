@@ -28,12 +28,12 @@ export class PgAsyncRelationalQuery<TResult> extends PgRelationalQuery<PgAsyncRe
 			const isFirst = this.mode === 'first';
 
 			const { query, builtQuery } = this._toSQL();
-			const shape = dialect.shapeGenerator?.(
+			const shape = this.shape ??= dialect.shapeGenerator?.(
 				{ type: 'relational', fields: query.selection },
 				undefined,
 			);
 
-			const mapper = shape
+			const mapper = this.mapper ??= shape
 				? (isFirst ? (rows: any[]) => rows[0] : undefined)
 				: dialect.mapperGenerators.relationalRows({
 					isFirst,

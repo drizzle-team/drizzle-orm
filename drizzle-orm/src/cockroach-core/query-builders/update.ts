@@ -48,6 +48,7 @@ import type {
 } from './select.types.ts';
 
 export interface CockroachUpdateConfig {
+	ignoreSelectionCastCodecs?: boolean;
 	where?: SQL | undefined;
 	set: UpdateSet;
 	table: CockroachTable;
@@ -575,11 +576,14 @@ export class CockroachUpdateBase<
 		}
 
 		this.config.returningFields = fields;
-		this.config.returning = orderSelectedFields<CockroachColumn>(fields);
+		this.config.returning = orderSelectedFields<CockroachColumn>(
+			fields,
+			undefined,
+			this.dialect.codecs,
+		);
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildUpdateQuery(this.config);
 	}
@@ -630,6 +634,7 @@ export class CockroachUpdateBase<
 
 	/** @internal */
 	withoutSelectionCastCodecs(): this {
+		this.config.ignoreSelectionCastCodecs = true;
 		return this;
 	}
 

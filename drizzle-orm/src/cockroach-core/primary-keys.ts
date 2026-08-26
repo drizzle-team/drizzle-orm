@@ -13,6 +13,10 @@ export function primaryKey<
 export class PrimaryKeyBuilder {
 	static readonly [entityKind]: string = 'CockroachPrimaryKeyBuilder';
 
+	declare _: {
+		brand: 'CockroachPrimaryKeyBuilder';
+	};
+
 	/** @internal */
 	columns: CockroachColumn[];
 

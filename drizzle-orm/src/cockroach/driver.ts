@@ -1,11 +1,13 @@
 import pg, { type Pool, type PoolConfig } from 'pg';
-import * as V1 from '~/_relations.ts';
 import { CockroachDatabase } from '~/cockroach-core/db.ts';
 import { CockroachDialect } from '~/cockroach-core/dialect.ts';
+import type { DrizzleCockroachConfig } from '~/cockroach-core/utils.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import { jitCompatCheck } from '~/utils.ts';
+import { nodeCockroachCodecs } from './codecs.ts';
 import type { NodeCockroachClient, NodeCockroachQueryResultHKT } from './session.ts';
 import { NodeCockroachSession } from './session.ts';
 
@@ -24,31 +26,32 @@ export class NodeCockroachDriver {
 	}
 
 	createSession(
-		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
-	): NodeCockroachSession<Record<string, unknown>, V1.TablesRelationalConfig> {
-		return new NodeCockroachSession(this.client, this.dialect, schema, {
+		relations: AnyRelations,
+	): NodeCockroachSession<AnyRelations> {
+		return new NodeCockroachSession(this.client, this.dialect, relations, {
 			logger: this.options.logger,
 		});
 	}
 }
 
 export class NodeCockroachDatabase<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-> extends CockroachDatabase<NodeCockroachQueryResultHKT, TSchema> {
+	TRelations extends AnyRelations = EmptyRelations,
+> extends CockroachDatabase<NodeCockroachQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'NodeCockroachDatabase';
 }
 
 function construct<
-	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends NodeCockroachClient = NodeCockroachClient,
 >(
 	client: TClient,
-	config: DrizzleConfig<TSchema> = {},
-): NodeCockroachDatabase<TSchema> & {
+	config: DrizzleCockroachConfig<TRelations> = {},
+): NodeCockroachDatabase<TRelations> & {
 	$client: TClient;
 } {
 	const dialect = new CockroachDialect({
 		useJitMappers: jitCompatCheck(config.jit),
+		codecs: config.codecs ?? nodeCockroachCodecs,
 	});
 	let logger;
 	if (config.logger === true) {
@@ -57,31 +60,20 @@ function construct<
 		logger = config.logger;
 	}
 
-	let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;
-	if (config.schema) {
-		const tablesConfig = V1.extractTablesRelationalConfig(
-			config.schema,
-			V1.createTableRelationsHelpers,
-		);
-		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
-			tableNamesMap: tablesConfig.tableNamesMap,
-		};
-	}
+	const relations = config.relations ?? {};
 
 	const driver = new NodeCockroachDriver(client, dialect, {
 		logger,
 	});
-	const session = driver.createSession(schema);
-	const db = new NodeCockroachDatabase(dialect, session, schema as any) as NodeCockroachDatabase<TSchema>;
+	const session = driver.createSession(relations);
+	const db = new NodeCockroachDatabase(dialect, session, relations) as NodeCockroachDatabase<TRelations>;
 	(<any> db).$client = client;
 
 	return db as any;
 }
 
 export function drizzle<
-	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends NodeCockroachClient = Pool,
 >(
 	...params:
@@ -90,11 +82,11 @@ export function drizzle<
 		]
 		| [
 			string,
-			DrizzleConfig<TSchema>,
+			DrizzleCockroachConfig<TRelations>,
 		]
 		| [
 			(
-				& DrizzleConfig<TSchema>
+				& DrizzleCockroachConfig<TRelations>
 				& ({
 					connection: string | PoolConfig;
 				} | {
@@ -102,7 +94,7 @@ export function drizzle<
 				})
 			),
 		]
-): NodeCockroachDatabase<TSchema> & {
+): NodeCockroachDatabase<TRelations> & {
 	$client: TClient;
 } {
 	if (typeof params[0] === 'string') {
@@ -110,15 +102,15 @@ export function drizzle<
 			connectionString: params[0],
 		});
 
-		return construct(instance, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+		return construct(instance, params[1] as DrizzleCockroachConfig<TRelations> | undefined) as any;
 	}
 
-	const { connection, client, ...drizzleConfig } = params[0] as (
+	const { connection, client, ...drizzleCockroaDrizzleCockroachConfig } = params[0] as (
 		& ({ connection?: PoolConfig | string; client?: TClient })
-		& DrizzleConfig<TSchema>
+		& DrizzleCockroachConfig<TRelations>
 	);
 
-	if (client) return construct(client, drizzleConfig);
+	if (client) return construct(client, drizzleCockroaDrizzleCockroachConfig);
 
 	const instance = typeof connection === 'string'
 		? new pg.Pool({
@@ -126,13 +118,13 @@ export function drizzle<
 		})
 		: new pg.Pool(connection!);
 
-	return construct(instance, drizzleConfig) as any;
+	return construct(instance, drizzleCockroaDrizzleCockroachConfig) as any;
 }
 
 export namespace drizzle {
-	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
-		config?: DrizzleConfig<TSchema>,
-	): NodeCockroachDatabase<TSchema> & {
+	export function mock<TRelations extends AnyRelations = EmptyRelations>(
+		config?: DrizzleCockroachConfig<TRelations>,
+	): NodeCockroachDatabase<TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;

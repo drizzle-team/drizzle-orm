@@ -1,4 +1,5 @@
 import { aliasedTable, getOriginalColumnFromAlias } from '~/alias.ts';
+import { CodecsCollection } from '~/codecs.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
@@ -24,6 +25,7 @@ import {
 import type { Name, Placeholder, SQLWrapper } from '~/sql/index.ts';
 import { and, isSQLWrapper } from '~/sql/index.ts';
 import { Param, type Query, SQL, sql, type SQLChunk, StringChunk, View } from '~/sql/sql.ts';
+import { resolveSQLiteTypeAlias, resolveUnionType, type SQLiteCodecs, type SQLiteType } from '~/sqlite-core/codecs.ts';
 import { SQLiteColumn, type SQLiteCustomColumn } from '~/sqlite-core/columns/index.ts';
 import type {
 	AnySQLiteSelectQueryBuilder,
@@ -51,18 +53,21 @@ import { SQLiteViewBase } from './view-base.ts';
 import type { SQLiteView } from './view.ts';
 
 export interface SQLiteDialectConfig {
+	codecs?: SQLiteCodecs;
 	useJitMappers?: boolean;
 }
 
 export class SQLiteDialect {
 	static readonly [entityKind]: string = 'SQLiteDialect';
 
+	readonly codecs: CodecsCollection<SQLiteType>;
 	readonly mapperGenerators: {
 		rows: RowsMapperGenerator;
 		relationalRows: RelationalRowsMapperGenerator;
 	};
 
 	constructor(config?: SQLiteDialectConfig) {
+		this.codecs = new CodecsCollection<SQLiteType>(resolveSQLiteTypeAlias, config?.codecs);
 		this.mapperGenerators = config?.useJitMappers
 			? {
 				rows: makeJitQueryMapper,
@@ -111,11 +116,14 @@ export class SQLiteDialect {
 		withList,
 		limit,
 		orderBy,
+		ignoreSelectionCastCodecs,
 	}: SQLiteDeleteConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true, table })}`
+			? sql` returning ${
+				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: ignoreSelectionCastCodecs, table })
+			}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -169,6 +177,7 @@ export class SQLiteDialect {
 		from,
 		limit,
 		orderBy,
+		ignoreSelectionCastCodecs,
 	}: SQLiteUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
@@ -179,7 +188,9 @@ export class SQLiteDialect {
 		const joinsSql = this.buildJoins(joins);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true, table })}`
+			? sql` returning ${
+				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: ignoreSelectionCastCodecs, table })
+			}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -204,8 +215,9 @@ export class SQLiteDialect {
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
-		{ isSingleTable = false, table }: {
+		{ isSingleTable = false, ignoreCastCodecs = false, table }: {
 			isSingleTable?: boolean;
+			ignoreCastCodecs?: boolean;
 			table?: SQLiteTable | SQLiteViewBase | SQL | Subquery;
 		} = {},
 	): SQL {
@@ -220,49 +232,32 @@ export class SQLiteDialect {
 			: undefined;
 
 		for (let i = 0; i < columnsLen; ++i) {
-			const { field, fieldType } = fields[i]!;
+			const { field, codecOverride, column, fieldType } = fields[i]!;
+			const override = codecOverride as SQLiteType | undefined;
 
 			switch (fieldType) {
 				case 'Column': {
-					// TODO: remove after implementing codecs
-					if (field.columnType === 'SQLiteNumericBigInt' || field.columnType === 'SQLiteNumeric') {
-						if (isSingleTable) {
-							chunks.push(
-								field.isAlias
-									? sql`cast(${sql.identifier(getOriginalColumnFromAlias(field).name)} as text) as ${field}`
-									: sql`cast(${sql.identifier(field.name)} as text)`,
-							);
-						} else {
-							chunks.push(
-								field.isAlias
-									? sql`cast(${getOriginalColumnFromAlias(field)} as text) as ${field}`
-									: sql`cast(${field} as text)`,
-							);
-						}
+					let name: Name | Column;
+					if (isSingleTable) {
+						name = field.isAlias
+							? sql.identifier(getOriginalColumnFromAlias(field).name)
+							: sql.identifier(field.name);
 					} else {
-						if (isSingleTable) {
-							chunks.push(
-								field.isAlias
-									? sql`${sql.identifier(getOriginalColumnFromAlias(field).name)} as ${field}`
-									: sql.identifier(field.name),
-							);
-						} else {
-							chunks.push(
-								field.isAlias
-									? sql`${getOriginalColumnFromAlias(field)} as ${field}`
-									: field,
-							);
-						}
+						name = field.isAlias ? getOriginalColumnFromAlias(field) : field;
 					}
+
+					const casted = ignoreCastCodecs ? name : this.codecs.apply(field, 'cast', name, override);
+					chunks.push(field.isAlias ? sql`${casted} as ${field}` : casted);
 
 					break;
 				}
 				case 'SQL.Aliased': {
 					if (field.isSelectionField) {
-						if (!isSingleTable && field.origin !== undefined) {
-							chunks.push(sql.identifier(field.origin), new StringChunk('.'));
-						}
-						chunks.push(sql.identifier(field.fieldAlias));
+						const query = !isSingleTable && field.origin !== undefined
+							? sql`${sql.identifier(field.origin)}.${sql.identifier(field.fieldAlias)}`
+							: sql.identifier(field.fieldAlias);
+						if (column && !ignoreCastCodecs) chunks.push(this.codecs.apply(column, 'cast', query, override));
+						else chunks.push(query);
 					} else {
 						if (isSingleTable && tableName !== undefined) {
 							const { queryChunks } = field.sql;
@@ -288,14 +283,21 @@ export class SQLiteDialect {
 							}
 
 							if (abort) {
-								chunks.push(field.sql);
+								chunks.push(
+									column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field.sql, override) : field.sql,
+								);
 							} else {
 								const newSql = new SQL(newChunks);
+
 								if (field.sql.shouldInlineParams) newSql.inlineParams();
-								chunks.push(newSql);
+								chunks.push(
+									column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', newSql, override) : newSql,
+								);
 							}
 						} else {
-							chunks.push(field.sql);
+							chunks.push(
+								column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field.sql, override) : field.sql,
+							);
 						}
 
 						chunks.push(sql` as ${sql.identifier(field.fieldAlias)}`);
@@ -328,21 +330,26 @@ export class SQLiteDialect {
 						}
 
 						if (abort) {
-							chunks.push(field);
+							chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
 						} else {
 							const newSql = new SQL(newChunks);
 							if (field.shouldInlineParams) newSql.inlineParams();
-							chunks.push(newSql);
+							chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', newSql, override) : newSql);
 						}
-					} else chunks.push(field);
+					} else chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
 
 					break;
 				}
 				case 'Subquery': {
 					if (!field._.isWith) {
-						chunks.push(sql`(${field._.sql}) ${sql.identifier(field._.alias)}`);
+						const inner = sql`(${field._.sql})`;
+						chunks.push(
+							sql`${column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', inner, override) : inner} ${
+								sql.identifier(field._.alias)
+							}`,
+						);
 					} else {
-						chunks.push(field);
+						chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
 					}
 
 					break;
@@ -465,8 +472,9 @@ export class SQLiteDialect {
 		offset,
 		distinct,
 		setOperators,
+		ignoreSelectionCastCodecs,
 	}: SQLiteSelectConfig): SQL {
-		const fieldsList = fieldsFlat ?? orderSelectedFields<SQLiteColumn>(fields);
+		const fieldsList = fieldsFlat ?? orderSelectedFields<SQLiteColumn>(fields, undefined, this.codecs);
 		for (const f of fieldsList) {
 			if (
 				is(f.field, Column)
@@ -504,7 +512,11 @@ export class SQLiteDialect {
 
 		const distinctSql = distinct ? sql` distinct` : undefined;
 
-		const selection = this.buildSelection(fieldsList, { isSingleTable, table });
+		const selection = this.buildSelection(fieldsList, {
+			isSingleTable,
+			table,
+			ignoreCastCodecs: ignoreSelectionCastCodecs || setOperators.length > 0,
+		});
 
 		const tableSql = this.buildFromTable(table);
 
@@ -539,7 +551,7 @@ export class SQLiteDialect {
 			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}`;
 
 		if (setOperators.length > 0) {
-			return this.buildSetOperations(finalQuery, setOperators);
+			return this.buildSetOperations(finalQuery, fieldsList, ignoreSelectionCastCodecs, setOperators);
 		}
 
 		return finalQuery;
@@ -547,23 +559,61 @@ export class SQLiteDialect {
 
 	buildSetOperations(
 		leftSelect: SQL,
+		outputSelection: SelectedFieldsOrdered,
+		ignoreSelectionCastCodecs: boolean | undefined,
 		setOperators: SQLiteSelectConfig['setOperators'],
 	): SQL {
-		const [setOperator, ...rest] = setOperators;
+		for (let i = 0; i < setOperators.length; ++i) {
+			const setOperator = setOperators[i]!;
 
-		if (!setOperator) {
-			throw new Error('Cannot pass undefined values to any set operator');
+			leftSelect = this.buildSetOperationQuery({ leftSelect, setOperator });
+
+			const rightSelection = orderSelectedFields(setOperator.rightSelect.getSelectedFields());
+			for (let j = 0; j < outputSelection.length; ++j) {
+				const l = outputSelection[j]!;
+				const lPath = l.path.join('.');
+				const r = rightSelection.find((e) => e.path.join('.') === lPath)!; // Equivalency of selections is a pre-requisite for unions
+
+				const lc = (l.codecOverride ?? l.column?.codec) as SQLiteType | undefined;
+				const rc = (r.codecOverride ?? r.column?.codec) as SQLiteType | undefined;
+
+				l.codecOverride = lc && rc ? resolveUnionType(lc, rc) : lc;
+			}
 		}
 
-		if (rest.length === 0) {
-			return this.buildSetOperationQuery({ leftSelect, setOperator });
+		for (let i = 0; i < outputSelection.length; ++i) {
+			const out = outputSelection[i]!;
+			out.codec = out.codecOverride
+				? this.codecs.get(out.column!, 'normalize', out.codecOverride as SQLiteType)
+				: out.codec;
 		}
 
-		// Some recursive magic here
-		return this.buildSetOperations(
-			this.buildSetOperationQuery({ leftSelect, setOperator }),
-			rest,
-		);
+		return ignoreSelectionCastCodecs ? leftSelect : sql`select ${
+			this.buildSelection(
+				outputSelection.map((field) => {
+					if (field.fieldType === 'SQL.Aliased') {
+						const ref = field.field.clone();
+						ref.isSelectionField = true;
+						return { ...field, field: ref, fieldType: 'SQL.Aliased' };
+					}
+					if (field.fieldType === 'Column' && field.field.isAlias) {
+						const ref = new SQL.Aliased(sql`${sql.identifier(field.field.name)}`, field.field.name);
+						ref.isSelectionField = true;
+						return { ...field, field: ref, fieldType: 'SQL.Aliased' };
+					}
+					if (field.fieldType === 'Subquery') {
+						const ref = new SQL.Aliased(sql`${field.field.getSQL()}`, field.field._.alias);
+						ref.isSelectionField = true;
+						return { ...field, field: ref, fieldType: 'SQL.Aliased' };
+					}
+					return field;
+				}),
+				{
+					isSingleTable: true,
+					ignoreCastCodecs: ignoreSelectionCastCodecs,
+				},
+			)
+		} from (${leftSelect}) ${sql.identifier('drizzle_union')}`;
 	}
 
 	buildSetOperationQuery({
@@ -575,7 +625,7 @@ export class SQLiteDialect {
 	}): SQL {
 		// SQLite doesn't support parenthesis in set operations
 		const leftChunk = sql`${leftSelect.getSQL()} `;
-		const rightChunk = sql`${rightSelect.getSQL()}`;
+		const rightChunk = sql`${rightSelect.withoutSelectionCastCodecs().getSQL()}`;
 
 		let orderBySql;
 		if (orderBy && orderBy.length > 0) {
@@ -623,6 +673,7 @@ export class SQLiteDialect {
 		withList,
 		select,
 		columnList,
+		ignoreSelectionCastCodecs,
 	}: SQLiteInsertConfig): SQL {
 		// const isSingleValue = values.length === 1;
 		const columns: Record<string, SQLiteColumn> = table[Table.Symbol.Columns];
@@ -714,7 +765,9 @@ export class SQLiteDialect {
 		const valuesSql = new SQL(valuesSqlList);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true, table })}`
+			? sql` returning ${
+				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: ignoreSelectionCastCodecs, table })
+			}`
 			: undefined;
 
 		const onConflictSql = onConflict?.length ? sql.join(onConflict) : undefined;
@@ -731,6 +784,7 @@ export class SQLiteDialect {
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
+			codecs: this.codecs,
 			invokeSource,
 		});
 	}
@@ -743,50 +797,45 @@ export class SQLiteDialect {
 		selection: BuildRelationalQueryResult['selection'],
 		tableTsName: string,
 	) {
+		let decoderColumn: Column | undefined;
 		let fieldType: BuildRelationalQueryResult['selection'][number]['fieldType'];
 		let output: SQL;
 
 		if (is(field, Column)) {
+			decoderColumn = field;
 			fieldType = 'Column';
+
 			const name = sql`${table}.${sql.identifier(field.name)}`;
+			const casted = inJson && (<SQLiteCustomColumn<any>> field).jsonSelectIdentifier
+				? (<SQLiteCustomColumn<any>> field).jsonSelectIdentifier!(name, sql)
+				: this.codecs.apply(field, inJson ? 'castInJson' : 'cast', name);
 
-			switch (field.columnType) {
-				case 'SQLiteBigInt':
-				case 'SQLiteBlobJson':
-				case 'SQLiteBlobBuffer': {
-					output = !inJson ? sql`${name} as ${sql.identifier(key)}` : sql`hex(${name}) as ${sql.identifier(key)}`;
-					break;
-				}
-
-				case 'SQLiteNumeric':
-				case 'SQLiteNumericNumber':
-				case 'SQLiteNumericBigInt': {
-					// Special case - needs casting in root of query as well for drivers chop it down to number by default
-					// TODO: handle with codecs
-					output = sql`cast(${name} as text) as ${sql.identifier(key)}`;
-					break;
-				}
-
-				case 'SQLiteCustomColumn': {
-					output = !inJson
-						? sql`${name} as ${sql.identifier(key)}`
-						: sql`${(<SQLiteCustomColumn<any>> field).jsonSelectIdentifier(name, sql)} as ${sql.identifier(key)}`;
-					break;
-				}
-
-				default: {
-					output = sql`${name} as ${sql.identifier(key)}`;
-				}
-			}
+			output = sql`${casted} as ${sql.identifier(key)}`;
 		} else if (is(field, SQL)) {
+			decoderColumn = is(field.decoder, Column) ? field.decoder : undefined;
 			fieldType = 'SQL';
-			output = sql`${table}.${sql.identifier(key)} as ${sql.identifier(key)}`;
+
+			const q = sql`${table}.${sql.identifier(key)}`;
+			output = sql`${decoderColumn ? this.codecs.apply(decoderColumn, inJson ? 'castInJson' : 'cast', q) : q} as ${
+				sql.identifier(key)
+			}`;
 		} else if (is(field, SQL.Aliased)) {
+			decoderColumn = is(field.sql.decoder, Column) ? field.sql.decoder : undefined;
 			fieldType = 'SQL.Aliased';
-			output = sql`${table}.${sql.identifier(field.fieldAlias)} as ${sql.identifier(key)}`;
+
+			const q = sql`${table}.${sql.identifier(field.fieldAlias)}`;
+			output = sql`${decoderColumn ? this.codecs.apply(decoderColumn, inJson ? 'castInJson' : 'cast', q) : q} as ${
+				sql.identifier(key)
+			}`;
 		} else if (isSQLWrapper(field)) {
+			const query = (field as SQLWrapper).getSQL();
+			decoderColumn = is(query.decoder, Column) ? query.decoder : undefined;
 			fieldType = 'SQLWrapper';
-			output = sql`${table}.${sql.identifier(key)} as ${sql.identifier(key)}`;
+
+			const q = sql`${table}.${sql.identifier(key)}`;
+			output = sql`${decoderColumn ? this.codecs.apply(decoderColumn, inJson ? 'castInJson' : 'cast', q) : q} as ${
+				sql.identifier(key)
+			}`;
 		} else {
 			throw new DrizzleError({
 				message: field === undefined
@@ -795,7 +844,22 @@ export class SQLiteDialect {
 			});
 		}
 
-		selection.push({ key, field, fieldType } as BuildRelationalQueryResult['selection'][number]);
+		selection.push(
+			(decoderColumn
+				? {
+					key,
+					field,
+					fieldType,
+					codec: !inJson || !(<SQLiteCustomColumn<any>> decoderColumn).mapFromJsonValue
+						? this.codecs.get(decoderColumn, inJson ? 'normalizeInJson' : 'normalize')
+						: undefined,
+				}
+				: {
+					key,
+					field,
+					fieldType,
+				}) as BuildRelationalQueryResult['selection'][number],
+		);
 
 		return output;
 	}
@@ -928,7 +992,7 @@ export class SQLiteDialect {
 			? relationsOrderToSQL(table, params.orderBy)
 			: undefined;
 		const extras = params?.extras
-			? relationExtrasToSQL(table, params.extras)
+			? relationExtrasToSQL(table, params.extras, this.codecs, !!isNested)
 			: undefined;
 		if (extras) selection.push(...extras.selection);
 
@@ -1013,11 +1077,11 @@ export class SQLiteDialect {
 								't',
 							)
 						}) as ${sql.identifier(k)}`
-						: sql`coalesce((select ${json}_group_array(json_object(${jsonColumns})) as ${
+						: sql`(select ${json}_group_array(json_object(${jsonColumns})) as ${
 							sql.identifier(
 								'r',
 							)
-						} from (${innerQuery.sql}) as ${sql.identifier('t')}), ${jsonb}_array()) as ${sql.identifier(k)}`;
+						} from (${innerQuery.sql}) as ${sql.identifier('t')}) as ${sql.identifier(k)}`;
 
 					joinChunks[writeIdx++] = joinQuery;
 					if (readIdx < withEntries.length - 1) joinChunks[writeIdx++] = new StringChunk(', ');

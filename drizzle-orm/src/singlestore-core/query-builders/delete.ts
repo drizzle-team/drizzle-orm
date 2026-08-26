@@ -49,6 +49,7 @@ export interface SingleStoreDeleteConfig {
 	table: SingleStoreTable;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
+	ignoreSelectionCastCodecs?: boolean;
 }
 
 export type SingleStoreDeletePrepare<T extends AnySingleStoreDeleteBase> = PreparedQueryKind<
@@ -206,6 +207,12 @@ export class SingleStoreDeleteBase<
 	};
 
 	iterator = this.createIterator();
+
+	/** @internal */
+	withoutSelectionCastCodecs() {
+		this.config.ignoreSelectionCastCodecs = true;
+		return this;
+	}
 
 	$dynamic(): SingleStoreDeleteDynamic<this> {
 		return this as any;

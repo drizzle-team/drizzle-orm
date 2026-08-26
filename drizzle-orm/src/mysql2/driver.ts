@@ -34,16 +34,9 @@ function construct<
 ): MySql2Database<TRelations> & {
 	$client: AnyMySql2Connection extends TClient ? Pool : TClient;
 } {
-	// Promise-based clients (mysql2/promise) expose `config` on the underlying
-	// `.pool`/`.connection`, while callback clients (mysql2) expose it directly
-	// this is not reflected properly in types
-	const clientConfig = (client as any).config
-		?? (client as any).pool?.config
-		?? (client as any).connection?.config;
-	if (clientConfig) clientConfig.supportBigNumbers = true;
 	const dialect = new MySqlDialect({
 		useJitMappers: jitCompatCheck(config.jit),
-		codecs: mysql2Codecs,
+		codecs: config.codecs ?? mysql2Codecs,
 	});
 	let logger;
 	if (config.logger === true) {

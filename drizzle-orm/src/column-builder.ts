@@ -22,7 +22,6 @@ export type ColumnDataArrayConstraint =
 	| 'vector'
 	| 'int64vector'
 	| 'halfvector'
-	| 'basecolumn'
 	| 'point'
 	| 'geometry'
 	| 'line';
@@ -409,7 +408,7 @@ export type BuildColumn<
 		: TDialect extends 'mssql' ? MsSqlColumn<TBuiltConfig, {}>
 		: TDialect extends 'sqlite' ? SQLiteColumn<TBuiltConfig, {}>
 		: TDialect extends 'singlestore' ? SingleStoreColumn<TBuiltConfig, {}>
-		: TDialect extends 'cockroach' ? CockroachColumn<TBuiltConfig, {}>
+		// : TDialect extends 'cockroach' ? CockroachColumn<TBuiltConfig, {}>
 		: TDialect extends 'common' ? Column<TBuiltConfig, {}>
 		: never;
 
@@ -464,5 +463,8 @@ export type ChangeColumnTableName<
 		: TDialect extends 'singlestore' ? SingleStoreColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'mssql' ? MsSqlColumn<MakeColumnConfig<TColumn['_'], TAlias>>
-		: TDialect extends 'cockroach' ? CockroachColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+		: TDialect extends 'cockroach' ? CockroachColumn<
+				TColumn['_']['dataType'],
+				Omit<TColumn['_'], 'tableName'> & { tableName: TAlias; insertType: unknown }
+			>
 		: never;
