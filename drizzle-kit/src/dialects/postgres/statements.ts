@@ -365,6 +365,7 @@ export interface JsonCreateView {
 export interface JsonDropView {
 	type: 'drop_view';
 	view: View;
+	cause: View | null;
 }
 
 export interface JsonRenameView {
