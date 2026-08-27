@@ -67,6 +67,16 @@ export const printConfigConnectionIssues = (
 		);
 	}
 
+	if (options.driver === 'pglite') {
+		throw new ConfigConnectionCliError(
+			'pglite',
+			['url', 'client'],
+			error(
+				`Please provide either "url" or "client" for PGlite driver`,
+			),
+		);
+	}
+
 	if ('url' in options) {
 		let text = `Please provide required params for Postgres driver:\n`;
 		throw new ConfigConnectionCliError(
