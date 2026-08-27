@@ -1,5 +1,4 @@
 /// <reference types="@cloudflare/workers-types" />
-import type { PGlite } from '@electric-sql/pglite';
 import type { SQLiteCloudRowset } from '@sqlitecloud/drivers';
 import { DrizzleQueryError, is } from 'drizzle-orm';
 import type { AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
@@ -41,10 +40,7 @@ const normalisePGliteUrl = (it: string) => {
 };
 
 export const preparePostgresDB = async (
-	credentials: PostgresCredentials | {
-		driver: 'pglite';
-		client: PGlite;
-	},
+	credentials: PostgresCredentials,
 ): Promise<
 	DB & {
 		packageName:
