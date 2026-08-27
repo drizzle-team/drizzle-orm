@@ -1,5 +1,4 @@
 /// <reference types="@cloudflare/workers-types" />
-import type { PGlite } from '@electric-sql/pglite';
 import type { SQLiteCloudRowset } from '@sqlitecloud/drivers';
 import { DrizzleQueryError, is } from 'drizzle-orm';
 import type { AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
@@ -41,10 +40,7 @@ const normalisePGliteUrl = (it: string) => {
 };
 
 export const preparePostgresDB = async (
-	credentials: PostgresCredentials | {
-		driver: 'pglite';
-		client: PGlite;
-	},
+	credentials: PostgresCredentials,
 ): Promise<
 	DB & {
 		packageName:
@@ -151,6 +147,13 @@ export const preparePostgresDB = async (
 
 		if (driver === 'pglite') {
 			assertPackages('@electric-sql/pglite');
+			if (!('client' in credentials)) {
+				humanLog(
+					withStyle.info(
+						`Drizzle Kit creates a PGlite instance from "url", so no extensions are loaded. If your database uses extensions, provide your own PGlite instance via the 'client' param in the drizzle config.`,
+					),
+				);
+			}
 			const { PGlite, types } = await import('@electric-sql/pglite');
 			const { drizzle } = await import('drizzle-orm/pglite');
 			const { migrate } = await import('drizzle-orm/pglite/migrator');
