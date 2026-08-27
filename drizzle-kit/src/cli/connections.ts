@@ -147,6 +147,13 @@ export const preparePostgresDB = async (
 
 		if (driver === 'pglite') {
 			assertPackages('@electric-sql/pglite');
+			if (!('client' in credentials)) {
+				humanLog(
+					withStyle.info(
+						`Drizzle Kit creates a PGlite instance from "url", so no extensions are loaded. If your database uses extensions, provide your own PGlite instance via the 'client' param in the drizzle config.`,
+					),
+				);
+			}
 			const { PGlite, types } = await import('@electric-sql/pglite');
 			const { drizzle } = await import('drizzle-orm/pglite');
 			const { migrate } = await import('drizzle-orm/pglite/migrator');
