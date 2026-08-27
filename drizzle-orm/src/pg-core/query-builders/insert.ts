@@ -14,7 +14,13 @@ import { getTableName, Table } from '~/table.ts';
 import { type Assume, type DrizzleTypeError, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
 import type { AnyPgColumn, PgColumn } from '../columns/common.ts';
 import { QueryBuilder } from './query-builder.ts';
-import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
+import {
+	buildPgReturningOldNewSelection,
+	isPgReturningOldNewConfig,
+	type PgReturningOldNewConfig,
+	type PgReturningOldNewResult,
+} from './returning.ts';
+import type { SelectedFields, SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { PgUpdateSetSource } from './update.ts';
 
 export interface PgInsertConfig<TTable extends PgTable = PgTable> {
@@ -22,8 +28,9 @@ export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	values: Record<string, unknown>[] | TypedQueryBuilder<PgInsertSelection<TTable>> | SQL;
 	withList?: Subquery[];
 	onConflict?: SQL;
-	returningFields?: SelectedFieldsFlat;
+	returningFields?: SelectedFieldsFlat | SelectedFields;
 	returning?: SelectedFieldsOrdered;
+	returningOldNew?: PgReturningOldNewConfig;
 	shape?: any;
 	select?: boolean;
 	columnList?: string[];
@@ -314,6 +321,25 @@ export type PgInsertReturningAll<T extends AnyPgInsert, TDynamic extends boolean
 	>
 	: never;
 
+export type PgInsertReturningOldNew<
+	T extends AnyPgInsert,
+	TDynamic extends boolean,
+	TConfig extends PgReturningOldNewConfig,
+> = T extends any ? PgInsertWithout<
+		PgInsertKind<
+			T['_']['hkt'],
+			T['_']['table'],
+			T['_']['queryResult'],
+			undefined,
+			PgReturningOldNewResult<T['_']['table'], TConfig, true, false>,
+			TDynamic,
+			T['_']['excludedMethods']
+		>,
+		TDynamic,
+		'returning'
+	>
+	: never;
+
 export interface PgInsertOnConflictDoUpdateConfig<T extends AnyPgInsert> {
 	target: IndexColumn | IndexColumn[];
 	/** @deprecated use either `targetWhere` or `setWhere` */
@@ -410,6 +436,7 @@ export class PgInsertBase<
 	 * Adds a `returning` clause to the query.
 	 *
 	 * Calling this method will return the specified fields of the inserted rows. If no fields are specified, all fields will be returned.
+	 * On PostgreSQL 18 and later, pass `{ old: true, new: true }` to return both whole-row versions.
 	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/insert#insert-returning}
 	 *
@@ -424,21 +451,39 @@ export class PgInsertBase<
 	 * const insertedCarId: { id: number }[] = await db.insert(cars)
 	 *   .values({ brand: 'BMW' })
 	 *   .returning({ id: cars.id });
+	 *
+	 * // PostgreSQL 18+: return the old and new row versions
+	 * const changes = await db.insert(cars)
+	 *   .values({ id: 1, brand: 'BMW' })
+	 *   .returning({ old: true, new: true });
 	 * ```
 	 */
 	returning(): PgInsertReturningAll<this, TDynamic>;
+	returning<TConfig extends PgReturningOldNewConfig>(
+		fields: TConfig,
+	): PgInsertReturningOldNew<this, TDynamic, TConfig>;
 	returning<TSelectedFields extends SelectedFieldsFlat>(
 		fields: TSelectedFields,
 	): PgInsertReturning<this, TDynamic, TSelectedFields>;
 	returning(
-		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
+		fields: SelectedFieldsFlat | PgReturningOldNewConfig = this.config.table[Table.Symbol.Columns],
 	): PgInsertReturningAll<this, TDynamic> | PgInsertReturning<this, TDynamic, SelectedFieldsFlat> {
+		if (isPgReturningOldNewConfig(fields)) {
+			const selection = buildPgReturningOldNewSelection(this.config.table, fields, this.dialect.codecs);
+			this.config.returningFields = selection.returningFields;
+			this.config.returning = selection.returning;
+			this.config.returningOldNew = fields;
+			this.config.shape = undefined;
+			return this as any;
+		}
+
 		this.config.returningFields = fields;
 		this.config.returning = orderSelectedFields<PgColumn>(
 			this.config.returningFields,
 			undefined,
 			this.dialect.codecs,
 		);
+		this.config.returningOldNew = undefined;
 		this.config.shape = undefined;
 		return this as any;
 	}

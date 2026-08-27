@@ -101,11 +101,17 @@ import { db } from './db.ts';
 	const sq3 = db.$with('inserted_products').as(
 		db.insert(products).values({ productName: sql`` }).returning({ productName: products.productName }),
 	);
+	const oldNewSq = db.$with('inserted_products').as(
+		db.insert(products).values({ productName: sql`` }).returning({ old: true, new: true }),
+	);
 
 	// @ts-expect-error
 	db.with(sq1).select().from(sq1);
 	// @ts-expect-error
 	db.with(sq1).select().from(providers).leftJoin(sq1, sql``);
+	// OLD/NEW row nullability requires the mutation result mapper and is not composable as a CTE.
+	// @ts-expect-error
+	db.with(oldNewSq).select().from(oldNewSq);
 
 	const q3 = await db.with(sq2).select().from(sq2);
 	Expect<

@@ -39,6 +39,12 @@ import {
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgColumn } from '../columns/common.ts';
 import type { PgViewBase } from '../view-base.ts';
+import {
+	buildPgReturningOldNewSelection,
+	isPgReturningOldNewConfig,
+	type PgReturningOldNewConfig,
+	type PgReturningOldNewResult,
+} from './returning.ts';
 import type {
 	PgSelectJoinConfig,
 	SelectedFields,
@@ -54,6 +60,7 @@ export interface PgUpdateConfig {
 	joins: PgSelectJoinConfig[];
 	returningFields?: SelectedFields;
 	returning?: SelectedFieldsOrdered;
+	returningOldNew?: PgReturningOldNewConfig;
 	shape?: any;
 	withList?: Subquery[];
 	comment?: SQL;
@@ -298,6 +305,28 @@ export type PgUpdateReturning<
 				'partial',
 				T['_']['nullabilityMap']
 			>,
+			T['_']['nullabilityMap'],
+			T['_']['joins'],
+			TDynamic,
+			T['_']['excludedMethods']
+		>,
+		TDynamic,
+		'returning'
+	>
+	: never;
+
+export type PgUpdateReturningOldNew<
+	T extends AnyPgUpdate,
+	TDynamic extends boolean,
+	TConfig extends PgReturningOldNewConfig,
+> = T extends any ? PgUpdateWithout<
+		PgUpdateKind<
+			T['_']['hkt'],
+			T['_']['table'],
+			T['_']['queryResult'],
+			T['_']['from'],
+			undefined,
+			PgReturningOldNewResult<T['_']['table'], TConfig, false, false>,
 			T['_']['nullabilityMap'],
 			T['_']['joins'],
 			TDynamic,
@@ -606,6 +635,7 @@ export class PgUpdateBase<
 	 * Adds a `returning` clause to the query.
 	 *
 	 * Calling this method will return the specified fields of the updated rows. If no fields are specified, all fields will be returned.
+	 * On PostgreSQL 18 and later, pass `{ old: true, new: true }` to return both whole-row versions.
 	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/update#update-with-returning}
 	 *
@@ -622,15 +652,32 @@ export class PgUpdateBase<
 	 *   .set({ color: 'red' })
 	 *   .where(eq(cars.color, 'green'))
 	 *   .returning({ id: cars.id, brand: cars.brand });
+	 *
+	 * // PostgreSQL 18+: return the old and new row versions
+	 * const changes = await db.update(cars)
+	 *   .set({ color: 'red' })
+	 *   .returning({ old: true, new: true });
 	 * ```
 	 */
 	returning(): PgUpdateReturningAll<this, TDynamic>;
+	returning<TConfig extends PgReturningOldNewConfig>(
+		fields: TConfig,
+	): PgUpdateReturningOldNew<this, TDynamic, TConfig>;
 	returning<TSelectedFields extends SelectedFields>(
 		fields: TSelectedFields,
 	): PgUpdateReturning<this, TDynamic, TSelectedFields>;
 	returning(
-		fields?: SelectedFields,
+		fields?: SelectedFields | PgReturningOldNewConfig,
 	): PgUpdateReturningAll<this, TDynamic> | PgUpdateReturning<this, TDynamic, SelectedFields> {
+		if (isPgReturningOldNewConfig(fields)) {
+			const selection = buildPgReturningOldNewSelection(this.config.table, fields, this.dialect.codecs);
+			this.config.returningFields = selection.returningFields;
+			this.config.returning = selection.returning;
+			this.config.returningOldNew = fields;
+			this.config.shape = undefined;
+			return this as any;
+		}
+
 		if (!fields) {
 			fields = Object.assign({}, this.config.table[Table.Symbol.Columns]);
 
@@ -659,6 +706,7 @@ export class PgUpdateBase<
 			undefined,
 			this.dialect.codecs,
 		);
+		this.config.returningOldNew = undefined;
 		this.config.shape = undefined;
 		return this as any;
 	}

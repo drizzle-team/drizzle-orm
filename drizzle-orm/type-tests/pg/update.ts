@@ -50,6 +50,17 @@ const updateReturningStmt = db.update(users)
 const updateReturningPrepared = await updateReturningStmt.execute();
 Expect<Equal<{ text: string | null }[], typeof updateReturningPrepared>>;
 
+const updateReturningOldNew = await db.update(users).set({ text: 'Jane' }).returning({ old: true, new: true });
+Expect<
+	Equal<
+		{ old: typeof users.$inferSelect; new: typeof users.$inferSelect }[],
+		typeof updateReturningOldNew
+	>
+>;
+
+const updateReturningNew = await db.update(users).set({ text: 'Jane' }).returning({ new: true });
+Expect<Equal<{ new: typeof users.$inferSelect }[], typeof updateReturningNew>>;
+
 {
 	function dynamic<T extends PgUpdate>(qb: T) {
 		return qb.where(sql``).returning();
