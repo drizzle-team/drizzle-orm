@@ -652,7 +652,12 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 		process.exit(1);
 	}
 
-	if (!('dbCredentials' in config)) {
+	if (config.driver === 'pglite') {
+		if (!('dbCredentials' in config) && !('client' in config)) {
+			humanLog(outputs.studio.noClientAndCredentials());
+			process.exit(1);
+		}
+	} else if (!('dbCredentials' in config)) {
 		humanLog(outputs.studio.noCredentials());
 		process.exit(1);
 	}
