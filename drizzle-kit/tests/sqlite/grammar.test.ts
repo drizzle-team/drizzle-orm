@@ -1,4 +1,4 @@
-import { parseSqliteDdl, parseTableSQL, parseViewSQL, stripSqlComments } from 'src/dialects/sqlite/grammar';
+import { parseDefault, parseSqliteDdl, parseTableSQL, parseViewSQL, sqlTypeFrom, stripSqlComments, typeFor } from 'src/dialects/sqlite/grammar';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { prepareTestDatabase, TestDatabase } from './mocks';
 
@@ -260,5 +260,55 @@ describe('parse ddl', (t) => {
 				columns: [`column`],
 			},
 		});
+	});
+});
+
+describe('sqlite boolean column scaffolding and defaults (issue #6182)', () => {
+	test('sqlTypeFrom maps BOOLEAN and bool to boolean', () => {
+		expect(sqlTypeFrom('BOOLEAN')).toBe('boolean');
+		expect(sqlTypeFrom('boolean')).toBe('boolean');
+		expect(sqlTypeFrom('BOOL')).toBe('boolean');
+		expect(sqlTypeFrom('bool')).toBe('boolean');
+	});
+
+	test('typeFor boolean returns integer import with boolean mode options', () => {
+		const grammarType = typeFor('boolean');
+		expect(grammarType.drizzleImport()).toBe('integer');
+
+		expect(grammarType.toTs('true', 'boolean')).toStrictEqual({
+			def: 'true',
+			options: { mode: 'boolean' },
+		});
+		expect(grammarType.toTs('false', 'boolean')).toStrictEqual({
+			def: 'false',
+			options: { mode: 'boolean' },
+		});
+		expect(grammarType.toTs('TRUE', 'boolean')).toStrictEqual({
+			def: 'true',
+			options: { mode: 'boolean' },
+		});
+		expect(grammarType.toTs('FALSE', 'boolean')).toStrictEqual({
+			def: 'false',
+			options: { mode: 'boolean' },
+		});
+		expect(grammarType.toTs('1', 'boolean')).toStrictEqual({
+			def: 'true',
+			options: { mode: 'boolean' },
+		});
+		expect(grammarType.toTs('0', 'boolean')).toStrictEqual({
+			def: 'false',
+			options: { mode: 'boolean' },
+		});
+		expect(grammarType.toTs(null, 'boolean')).toStrictEqual({
+			def: '',
+			options: { mode: 'boolean' },
+		});
+	});
+
+	test('parseDefault normalizes boolean literals from introspection', () => {
+		expect(parseDefault('BOOLEAN', 'true')).toBe('true');
+		expect(parseDefault('BOOLEAN', 'TRUE')).toBe('true');
+		expect(parseDefault('BOOLEAN', 'false')).toBe('false');
+		expect(parseDefault('BOOLEAN', 'FALSE')).toBe('false');
 	});
 });

@@ -97,6 +97,8 @@ const intAffinities = [
 	'unsigned big int',
 	'int2',
 	'int8',
+	'boolean',
+	'bool',
 ];
 
 export const Int: SqlType<'timestamp' | 'timestamp_ms'> = {
@@ -122,16 +124,35 @@ export const Int: SqlType<'timestamp' | 'timestamp_ms'> = {
 	},
 	defaultFromIntrospect: (value) => {
 		const it = trimChar(value, "'");
+		const lower = it.toLowerCase();
+		if (lower === 'true' || lower === 'false') return lower;
 		const check = Number(it);
 		if (Number.isNaN(check)) return value; // unknown
 		if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return it;
 		return it; // bigint
 	},
-	toTs: (value) => {
+	toTs: (value, type) => {
+		const isBool = type?.toLowerCase() === 'boolean' || type?.toLowerCase() === 'bool';
+		if (isBool) {
+			let def = '';
+			if (value !== undefined && value !== null && value !== '') {
+				const lower = String(value).toLowerCase().trim();
+				if (lower === 'true' || lower === '1') {
+					def = 'true';
+				} else if (lower === 'false' || lower === '0') {
+					def = 'false';
+				} else {
+					def = `sql\`${value}\``;
+				}
+			}
+			return { def, options: { mode: 'boolean' } };
+		}
+
 		if (!value) return '';
 
-		if (value === 'true' || value === 'false') {
-			return { def: value, options: { mode: 'boolean' } };
+		const lower = String(value).toLowerCase().trim();
+		if (lower === 'true' || lower === 'false') {
+			return { def: lower, options: { mode: 'boolean' } };
 		}
 
 		const check = Number(value);
@@ -169,7 +190,6 @@ export const Real: SqlType = {
 const numericAffinities = [
 	'numeric',
 	'decimal',
-	'boolean',
 	'date',
 	'datetime',
 ];
@@ -399,9 +419,15 @@ export function sqlTypeFrom(sqlType: string): string {
 		return 'real';
 	}
 
+	if (
+		['boolean', 'bool'].some((it) => lowered.startsWith(it))
+	) {
+		return 'boolean';
+	}
+
 	// https://www.sqlite.org/datatype3.html -> 3.1.1. Affinity Name Examples
 	if (
-		['numeric', 'decimal', 'boolean', 'date', 'datetime'].some((it) => lowered.startsWith(it))
+		['numeric', 'decimal', 'date', 'datetime'].some((it) => lowered.startsWith(it))
 	) {
 		return 'numeric';
 	}
