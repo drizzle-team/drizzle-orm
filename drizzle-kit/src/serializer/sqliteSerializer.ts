@@ -453,6 +453,8 @@ function mapSqlToSqliteType(sqlType: string): string {
 		['real', 'double', 'double precision', 'float'].some((it) => lowered.startsWith(it))
 	) {
 		return 'real';
+	} else if (lowered.startsWith('boolean')) {
+		return 'boolean';
 	} else {
 		return 'numeric';
 	}

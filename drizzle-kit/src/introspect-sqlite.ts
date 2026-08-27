@@ -104,7 +104,9 @@ export const schemaToTypeScript = (
 
 			const columnImports = Object.values(it.columns)
 				.map((col) => {
-					return col.type;
+					// boolean columns are generated as integer(..., { mode: 'boolean' }) -
+					// sqlite-core has no separate boolean() builder to import.
+					return col.type === 'boolean' ? 'integer' : col.type;
 				})
 				.filter((type) => {
 					return sqliteImportsList.has(type);
@@ -277,6 +279,29 @@ const mapColumnDefault = (defaultValue: any) => {
 	return defaultValue;
 };
 
+// SQLite has no boolean storage class: a `BOOLEAN DEFAULT true/TRUE` column
+// stores that default as the keyword text "true"/"TRUE" (SQLite wraps the
+// all-caps form in parens - "(FALSE)" comes back from PRAGMA table_info for
+// `DEFAULT FALSE`, but "true" comes back bare for `DEFAULT true`). Either
+// way, mapColumnDefault (built for numeric/text defaults) passes it through
+// unchanged, or - for the parenthesized form - treats it as a raw SQL
+// expression. Spliced as-is into `.default(...)`, a bare "true" is a stray
+// boolean literal typed against a builder that expects `string |
+// SQL<unknown>`, and "TRUE"/"FALSE" is emitted as-is - an undeclared
+// identifier, since JS/TS boolean literals are lowercase.
+const mapColumnDefaultForBoolean = (defaultValue: any) => {
+	if (typeof defaultValue === 'string') {
+		const unwrapped = defaultValue.startsWith('(') && defaultValue.endsWith(')')
+			? defaultValue.slice(1, -1)
+			: defaultValue;
+		const lowered = unwrapped.toLowerCase();
+		if (lowered === 'true' || lowered === 'false') {
+			return lowered;
+		}
+	}
+	return mapColumnDefault(defaultValue);
+};
+
 const column = (
 	type: string,
 	name: string,
@@ -327,6 +352,14 @@ const column = (
 	if (lowered === 'numeric') {
 		let out = `${withCasing(name, casing)}: numeric(${dbColumnName({ name, casing })})`;
 		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
+		return out;
+	}
+
+	if (lowered === 'boolean') {
+		let out = `${withCasing(name, casing)}: integer(${
+			dbColumnName({ name, casing, withMode: true })
+		}{ mode: 'boolean' })`;
+		out += defaultValue !== undefined ? `.default(${mapColumnDefaultForBoolean(defaultValue)})` : '';
 		return out;
 	}
 
