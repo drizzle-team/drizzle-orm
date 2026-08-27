@@ -43,6 +43,7 @@ import {
 	buildPgReturningOldNewSelection,
 	isPgReturningOldNewConfig,
 	type PgReturningOldNewConfig,
+	type PgReturningOldNewConfigParam,
 	type PgReturningOldNewResult,
 } from './returning.ts';
 import type {
@@ -661,7 +662,7 @@ export class PgUpdateBase<
 	 */
 	returning(): PgUpdateReturningAll<this, TDynamic>;
 	returning<TConfig extends PgReturningOldNewConfig>(
-		fields: TConfig,
+		fields: PgReturningOldNewConfigParam<TConfig>,
 	): PgUpdateReturningOldNew<this, TDynamic, TConfig>;
 	returning<TSelectedFields extends SelectedFields>(
 		fields: TSelectedFields,

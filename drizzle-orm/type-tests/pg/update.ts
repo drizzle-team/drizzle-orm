@@ -61,6 +61,11 @@ Expect<
 const updateReturningNew = await db.update(users).set({ text: 'Jane' }).returning({ new: true });
 Expect<Equal<{ new: typeof users.$inferSelect }[], typeof updateReturningNew>>;
 
+db.update(users)
+	.set({ text: 'Jane' })
+	// @ts-expect-error OLD/NEW rows cannot be combined with a regular returning projection
+	.returning({ old: true, id: users.id });
+
 {
 	function dynamic<T extends PgUpdate>(qb: T) {
 		return qb.where(sql``).returning();

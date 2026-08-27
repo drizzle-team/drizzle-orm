@@ -14,6 +14,7 @@ import {
 	buildPgReturningOldNewSelection,
 	isPgReturningOldNewConfig,
 	type PgReturningOldNewConfig,
+	type PgReturningOldNewConfigParam,
 	type PgReturningOldNewResult,
 } from './returning.ts';
 import type { SelectedFields, SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
@@ -282,7 +283,7 @@ export class PgDeleteBase<
 	 */
 	returning(): PgDeleteReturningAll<this, TDynamic>;
 	returning<TConfig extends PgReturningOldNewConfig>(
-		fields: TConfig,
+		fields: PgReturningOldNewConfigParam<TConfig>,
 	): PgDeleteReturningOldNew<this, TDynamic, TConfig>;
 	returning<TSelectedFields extends SelectedFieldsFlat>(
 		fields: TSelectedFields,

@@ -21,6 +21,10 @@ export type PgReturningOldNewConfig = RequireAtLeastOne<{
 	new: true;
 }>;
 
+/** @internal */
+export type PgReturningOldNewConfigParam<TConfig extends PgReturningOldNewConfig> =
+	Exclude<keyof TConfig, keyof PgReturningOldNewConfig> extends never ? TConfig : never;
+
 type PgReturningRow<TRow, TNullable extends boolean> = TNullable extends true ? TRow | null : TRow;
 
 export type PgReturningOldNewResult<

@@ -25,7 +25,7 @@ let db: NodePgDatabase;
 let postgresDb: PostgresDatabase & { $client: Pool };
 
 beforeAll(async () => {
-	const connectionString = process.env['PG18_CONNECTION_STRING']
+	const connectionString = process.env['PG18_URL']
 		?? 'postgres://postgres:postgres@localhost:54325/drizzle';
 	const sleep = 250;
 	let timeLeft = 5000;
