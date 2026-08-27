@@ -1115,7 +1115,7 @@ export const ddlDiff = async (
 
 	const createViews = createdViews.map((it) => prepareStatement('create_view', { view: it }));
 
-	const jsonDropViews = deletedViews.map((it) => prepareStatement('drop_view', { view: it }));
+	const jsonDropViews = deletedViews.map((it) => prepareStatement('drop_view', { view: it, cause: null }));
 
 	const jsonRenameViews = renamedViews.map((it) => prepareStatement('rename_view', it));
 
@@ -1173,7 +1173,7 @@ export const ddlDiff = async (
 				`);
 		}
 
-		jsonDropViews.push(prepareStatement('drop_view', { view: from }));
+		jsonDropViews.push(prepareStatement('drop_view', { view: entry.diff.$left, cause: from }));
 		createViews.push(prepareStatement('create_view', { view: it }));
 	});
 

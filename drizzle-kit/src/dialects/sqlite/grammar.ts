@@ -80,7 +80,7 @@ export interface SqlType<MODE = unknown> {
 	is(type: string): boolean;
 	drizzleImport(): Import;
 	defaultFromDrizzle(value: unknown, mode?: MODE): Column['default'];
-	defaultFromIntrospect(value: string): Column['default'];
+	defaultFromIntrospect(value: string, type?: string): Column['default'];
 	toTs(
 		value: Column['default'],
 		type: string,
@@ -190,7 +190,22 @@ export const Numeric: SqlType = {
 		if (typeof value === 'number') return `${value.toString()}`;
 		throw new Error(`unexpected: ${value} ${typeof value}`);
 	},
-	defaultFromIntrospect: function(value: string): Column['default'] {
+	defaultFromIntrospect: function(value: string, type: string): Column['default'] {
+		const lowered = type.toLowerCase();
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/6182
+		// when user creates
+		// column BOOLEAN default false -> sqlite accepts it
+		// BOOLEAN is changed to numeric on introspect and false,true are stored in db as 0,1
+		// need to convert them
+		if (lowered.startsWith('boolean') || lowered.startsWith('numeric')) {
+			return value.toLowerCase() === 'true'
+				? '1'
+				: value.toLowerCase() === 'false'
+				? '0'
+				: value;
+		}
+
 		return value;
 	},
 	toTs: function(value: Column['default']) {
@@ -341,7 +356,6 @@ export const typeFor = (sqlType: string): SqlType => {
 	if (Numeric.is(sqlType)) return Numeric;
 	if (Text.is(sqlType)) return Text;
 	if (Blob.is(sqlType)) return Blob;
-	if (Numeric.is(sqlType)) return Numeric;
 
 	// If no specific type matches, default to Custom
 	return Custom;
@@ -413,7 +427,7 @@ export const parseDefault = (type: string, it: string): Column['default'] => {
 	if (it === null) return null;
 	const grammarType = typeFor(type);
 
-	if (grammarType) return grammarType.defaultFromIntrospect(it);
+	if (grammarType) return grammarType.defaultFromIntrospect(it, type);
 
 	const trimmed = trimChar(it, "'");
 

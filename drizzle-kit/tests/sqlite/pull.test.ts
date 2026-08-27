@@ -675,3 +675,131 @@ test('Issue No3231 #2', async () => {
 		'Table users has no primary key, so the foreign key from posts.user_id to users cannot be resolved',
 	);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6182
+test('Issue No6182', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	await db.run(`CREATE TABLE IF NOT EXISTS session_prompt (
+		error BOOLEAN NOT NULL DEFAULT false,
+		success BOOLEAN NOT NULL DEFAULT true,
+		wrong_data BOOLEAN NOT NULL DEFAULT FALSE,
+		wrong_data2 BOOLEAN NOT NULL DEFAULT 'FALSE',
+		wrong_data3 BOOLEAN NOT NULL DEFAULT 'faLse'
+	);
+`);
+
+	const { ddlAfterPull, initDDL, resultDdl, sqlStatements, statements } = await diffAfterPull(
+		sqlite,
+		{},
+		'Issue #6182',
+	);
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.list()).toStrictEqual([
+		{
+			autoincrement: false,
+			default: '0',
+			entityType: 'columns',
+			generated: null,
+			name: 'error',
+			notNull: true,
+			table: 'session_prompt',
+			type: 'numeric',
+		},
+		{
+			autoincrement: false,
+			default: '1',
+			entityType: 'columns',
+			generated: null,
+			name: 'success',
+			notNull: true,
+			table: 'session_prompt',
+			type: 'numeric',
+		},
+		{
+			autoincrement: false,
+			default: '0',
+			entityType: 'columns',
+			generated: null,
+			name: 'wrong_data',
+			notNull: true,
+			table: 'session_prompt',
+			type: 'numeric',
+		},
+		{
+			autoincrement: false,
+			default: "'FALSE'",
+			entityType: 'columns',
+			generated: null,
+			name: 'wrong_data2',
+			notNull: true,
+			table: 'session_prompt',
+			type: 'numeric',
+		},
+		{
+			autoincrement: false,
+			default: "'faLse'",
+			entityType: 'columns',
+			generated: null,
+			name: 'wrong_data3',
+			notNull: true,
+			table: 'session_prompt',
+			type: 'numeric',
+		},
+	]);
+	expect(resultDdl.columns.list()).toStrictEqual([
+		{
+			autoincrement: false,
+			default: '0',
+			entityType: 'columns',
+			generated: null,
+			name: 'error',
+			notNull: true,
+			table: 'session_prompt',
+			type: 'numeric',
+		},
+		{
+			autoincrement: false,
+			default: '1',
+			entityType: 'columns',
+			generated: null,
+			name: 'success',
+			notNull: true,
+			table: 'session_prompt',
+			type: 'numeric',
+		},
+		{
+			autoincrement: false,
+			default: '0',
+			entityType: 'columns',
+			generated: null,
+			name: 'wrong_data',
+			notNull: true,
+			table: 'session_prompt',
+			type: 'numeric',
+		},
+		{
+			autoincrement: false,
+			default: "'FALSE'",
+			entityType: 'columns',
+			generated: null,
+			name: 'wrong_data2',
+			notNull: true,
+			table: 'session_prompt',
+			type: 'numeric',
+		},
+		{
+			autoincrement: false,
+			default: "'faLse'",
+			entityType: 'columns',
+			generated: null,
+			name: 'wrong_data3',
+			notNull: true,
+			table: 'session_prompt',
+			type: 'numeric',
+		},
+	]);
+});
