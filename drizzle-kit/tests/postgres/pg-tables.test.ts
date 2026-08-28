@@ -2,6 +2,7 @@ import type { PGlite } from '@electric-sql/pglite';
 import { aliasedTable, SQL, sql } from 'drizzle-orm';
 import {
 	camelCase,
+	date,
 	foreignKey,
 	geometry,
 	index,
@@ -1567,4 +1568,29 @@ test('rename table with identity column', async () => {
 
 	expect(st).toStrictEqual(expectedSt);
 	expect(pst).toStrictEqual(expectedSt);
+});
+
+test('push does not drop leaf partitions it does not know about', async () => {
+	await client.exec(`CREATE TABLE logs (id integer NOT NULL, created_at date NOT NULL)
+		PARTITION BY RANGE (created_at);`);
+	await client.exec(`CREATE TABLE logs_2026_01 PARTITION OF logs
+		FOR VALUES FROM ('2026-01-01') TO ('2026-02-01');`);
+	await client.exec(`CREATE TABLE logs_2026_02 PARTITION OF logs
+		FOR VALUES FROM ('2026-02-01') TO ('2026-03-01');`);
+
+	const to = {
+		logs: pgTable('logs', {
+			id: integer().notNull(),
+			createdAt: date('created_at').notNull(),
+		}),
+	};
+
+	// the partitions were created by a retention job, not by drizzle; push must leave them alone
+	const { sqlStatements } = await push({ db, to, ignoreSubsequent: true });
+	expect(sqlStatements).toStrictEqual([]);
+
+	const survived = await client.query<{ count: string }>(
+		`SELECT count(*)::text FROM pg_class WHERE relname IN ('logs_2026_01', 'logs_2026_02')`,
+	);
+	expect(survived.rows[0]!.count).toBe('2');
 });

@@ -1624,9 +1624,14 @@ test('introspect partitioned tables', async () => {
 			unitsales       int
 		) PARTITION BY RANGE (logdate);
 	`);
+	await db.query(`
+		CREATE TABLE measurement_y2026m01 PARTITION OF measurement
+			FOR VALUES FROM ('2026-01-01') TO ('2026-02-01');
+	`);
 
 	const { tables } = await fromDatabase(db);
 
+	// the leaf partition is storage of its parent, not a table of its own
 	expect(tables).toStrictEqual([
 		{
 			name: 'measurement',

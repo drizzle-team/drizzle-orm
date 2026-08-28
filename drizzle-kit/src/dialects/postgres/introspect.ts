@@ -171,6 +171,7 @@ export const fromDatabase = async (
 		name: string;
 		/* r - table, p - partitioned table, v - view, m - materialized view */
 		kind: 'r' | 'p' | 'v' | 'm';
+		isPartition: boolean;
 		accessMethod: number | string;
 		options: string[] | null;
 		rlsEnabled: boolean;
@@ -186,6 +187,7 @@ export const fromDatabase = async (
 				nspname as "schema",
 				relname AS "name",
 				relkind::text AS "kind",
+				relispartition AS "isPartition",
 				relam as "accessMethod",
 				reloptions::text[] as "options",
 				reltablespace as "tablespaceid",
@@ -218,7 +220,12 @@ export const fromDatabase = async (
 
 	const filteredTables = tablesList.filter((it) => {
 		it.schema = trimChar(it.schema, '"'); // when camel case name e.x. mySchema -> it gets wrapped to "mySchema"
-		return it.kind === 'r' || it.kind === 'p';
+		if (it.kind !== 'r' && it.kind !== 'p') return false;
+
+		// A leaf partition is storage of its parent, not a schema object of its own. Introspecting it
+		// as an ordinary table makes pull duplicate the parent's columns and indexes, and makes push
+		// propose DROP TABLE for every partition the schema file does not know about.
+		return !it.isPartition;
 	});
 
 	const filteredTableIds = filteredTables.map((it) => it.oid);
