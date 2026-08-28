@@ -163,6 +163,7 @@ export const fromDatabase = async (
 		name: string;
 		/* r - table, p - partitioned table, v - view, m - materialized view */
 		kind: 'r' | 'p' | 'v' | 'm';
+		isPartition: boolean;
 		accessMethod: string;
 		options: string[] | null;
 		rlsEnabled: boolean;
@@ -177,6 +178,7 @@ export const fromDatabase = async (
                     nspname as "schema",
                     relname AS "name",
                     relkind::text AS "kind",
+                    relispartition AS "isPartition",
                     relam as "accessMethod",
                     reloptions::text[] as "options",
                     reltablespace as "tablespaceid",
@@ -208,6 +210,8 @@ export const fromDatabase = async (
 		if (!((it.kind === 'r' || it.kind === 'p') && filter({ type: 'table', schema: it.schema, name: it.name }))) {
 			return false;
 		}
+		// leaf partitions are storage of their parent, not schema objects of their own
+		if (it.isPartition) return false;
 		it.schema = trimChar(it.schema, '"'); // when camel case name e.x. mySchema -> it gets wrapped to "mySchema"
 		return true;
 	});
