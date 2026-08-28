@@ -1,3 +1,4 @@
+import type { PGlite } from '@electric-sql/pglite';
 import type { ConnectionOptions } from 'tls';
 import type { Driver } from './cli/validations/common';
 import type { Dialect } from './utils/schemaValidator';
@@ -177,6 +178,11 @@ export type Config =
 			dbCredentials: {
 				url: string;
 			};
+		}
+		| {
+			dialect: Verify<Dialect, 'postgresql'>;
+			driver: Verify<Driver, 'pglite'>;
+			client: PGlite;
 		}
 		| {
 			dialect: Verify<Dialect, 'mysql'>;
