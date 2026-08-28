@@ -3,9 +3,9 @@ import { Relations } from 'drizzle-orm/_relations';
 import type { MsSqlDatabase, MsSqlInt, MsSqlSchema } from 'drizzle-orm/mssql-core';
 import { getTableConfig, MsSqlTable } from 'drizzle-orm/mssql-core';
 import { getSchemaInfo } from '../common.ts';
-import { SeedService } from '../SeedService.ts';
+import { seedDialect } from '../seedPlan.ts';
 import type { RefinementsType } from '../types/seedService.ts';
-import type { Column } from '../types/tables.ts';
+import type { Column, SeedRelations } from '../types/tables.ts';
 
 type TableRelatedFkConstraintsT = {
 	[fkName: string]: {
@@ -165,44 +165,21 @@ export const seedMsSql = async (
 			| Relations
 			| any;
 	},
-	options: { count?: number; seed?: number; version?: number } = {},
+	options: { count?: number; seed?: number; version?: number; relations?: SeedRelations; dryRun?: boolean } = {},
 	refinements?: RefinementsType,
 ) => {
 	const { mssqlSchema, mssqlTables } = filterMsSqlTables(schema);
-	const { tables, relations } = getSchemaInfo(mssqlSchema, mssqlTables, mapMsSqlColumns);
+	const { tables, relations } = getSchemaInfo(mssqlSchema, mssqlTables, mapMsSqlColumns, options.relations);
 
-	const seedService = new SeedService();
-
-	const generatedTablesGenerators = seedService.generatePossibleGenerators(
-		'mssql',
+	return await seedDialect({
+		connectionType: 'mssql',
+		db,
+		drizzleTables: mssqlTables,
 		tables,
 		relations,
-		refinements,
 		options,
-	);
-
-	const preserveCyclicTablesData = relations.some((rel) => rel.isCyclic === true);
-
-	const tablesValues = await seedService.generateTablesValues(
-		relations,
-		generatedTablesGenerators,
-		db,
-		mssqlTables,
-		{ ...options, preserveCyclicTablesData },
-	);
-
-	const { filteredTablesGenerators, tablesUniqueNotNullColumn } = seedService.filterCyclicTables(
-		generatedTablesGenerators,
-	);
-	const updateDataInDb = filteredTablesGenerators.length === 0 ? false : true;
-
-	await seedService.generateTablesValues(
-		relations,
-		filteredTablesGenerators,
-		db,
-		mssqlTables,
-		{ ...options, tablesValues, updateDataInDb, tablesUniqueNotNullColumn },
-	);
+		refinements,
+	});
 };
 
 const getTypeParams = (sqlType: string) => {
