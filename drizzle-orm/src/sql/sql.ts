@@ -543,6 +543,7 @@ export type GetDecoderResult<T> = T extends { _: { data: infer TData } } ? TData
 export class Name implements SQLWrapper {
 	static readonly [entityKind]: string = 'Name';
 
+	/** @internal */
 	protected brand!: 'Name';
 
 	constructor(readonly value: string) {}
@@ -614,6 +615,7 @@ export const noopMapper: DriverValueMapper<any, any> = {
 export class Param<TDataType = any, TDriverParamType = TDataType> implements SQLWrapper {
 	static readonly [entityKind]: string = 'Param';
 
+	/** @internal */
 	protected brand!: 'BoundParamValue';
 
 	/**
