@@ -166,27 +166,20 @@ const PORTABILITY_MATRIX: PortabilityProbe[] = [
 	{ name: 'PgDialect', subpath: 'pg-core', portable: false, blockedBy: DIALECT_BLOCKER },
 	{ name: 'MySqlDialect', subpath: 'mysql-core', portable: false, blockedBy: DIALECT_BLOCKER },
 	{ name: 'SQLiteDialect', subpath: 'sqlite-core', portable: false, blockedBy: DIALECT_BLOCKER },
-	// Only pg-core exposes `toBuilder()` in a public return type, which is why the
-	// identical `foreignKeyConfigs` field on the other dialects' builders is unreachable
-	// and their table/column types above are portable.
-	{
-		name: 'PgTable',
-		subpath: 'pg-core',
-		portable: false,
-		blockedBy: 'PgColumnBuilder#foreignKeyConfigs (private), via PgColumn#toBuilder',
-	},
-	{
-		name: 'PgColumn',
-		subpath: 'pg-core',
-		portable: false,
-		blockedBy: 'PgColumnBuilder#foreignKeyConfigs (private), via PgColumn#toBuilder',
-	},
+	{ name: 'PgTable', subpath: 'pg-core', portable: true },
+	{ name: 'PgColumn', subpath: 'pg-core', portable: true },
+	// The database object is reached through the session, and every prepared-query,
+	// transaction and relational-query-builder class along that path contributes its own
+	// nominal member: PgAsyncPreparedQuery#executor, then PgBasePreparedQuery#query, then
+	// PgAsyncTransaction#nestedIndex, then RelationalQueryBuilder#schema, and onward
+	// through ~70 more across pg-core/query-builders. Unlike the entries above it does
+	// not fall to a contained change, so it is left recorded rather than half-fixed.
 	{
 		name: 'NodePgDatabase',
 		subpath: 'node-postgres/driver',
 		typeArgs: '<Record<string, never>>',
 		portable: false,
-		blockedBy: 'PgAsyncPreparedQuery#executor (protected)',
+		blockedBy: 'a multi-layer chain rooted at PgAsyncPreparedQuery#executor (protected)',
 	},
 ];
 
