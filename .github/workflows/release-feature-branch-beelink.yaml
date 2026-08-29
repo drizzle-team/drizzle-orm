@@ -128,6 +128,8 @@ jobs:
             dbs: []
           - shard: int:cockroach
             dbs: [cockroach]
+          - shard: int:cockroach-rqb
+            dbs: [cockroach]
           - shard: int:bun
             dbs: [postgres, postgres-vector, postgres-postgis, mysql]
           - shard: int:mssql
@@ -266,7 +268,8 @@ jobs:
                 pnpm --stream test:planetscale
               fi
             ;;
-            int:cockroach) pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
+            int:cockroach) pnpm --stream test:cockroach ;;
+            int:cockroach-rqb) pnpm --stream test:cockroach-rqb ;;
             int:mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
             int:sqlite) pnpm --stream test:sqlite ;;
             int:turso-serverless) 

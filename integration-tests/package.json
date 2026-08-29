@@ -13,6 +13,8 @@
 		"test:neon": "vitest --reporter=verbose --silent=false run --passWithNoTests tests/pg/neon-http.test.ts tests/pg/neon-http-batch.test.ts tests/pg/neon-serverless.test.ts tests/pg/netlify-db.test.ts && vitest --reporter=verbose --silent=false run --passWithNoTests tests/pg/postgres-neon-ws.test.ts tests/pg/postgres-neon-http.test.ts tests/pg/postgres-neon-http-batch.test.ts",
 		"test:mysql": "vitest run --reporter=verbose --silent=false run tests/mysql/default tests/mysql/mysql.test.ts",
 		"test:sqlite": "vitest run --reporter=verbose --silent=false run tests/sqlite --exclude tests/sqlite/tursodatabase-serverless.test.ts",
+		"test:cockroach": "vitest --reporter=verbose --silent=false run tests/cockroach --exclude tests/cockroach/cockroach.rqb.test.ts",
+		"test:cockroach-rqb": "vitest --reporter=verbose --silent=false run tests/cockroach/cockroach.rqb.test.ts",
 		"test:planetscale": "vitest run --reporter=verbose --silent=false run tests/mysql/planetscale.test.ts tests/mysql/mysql.planetscale.test.ts",
 		"test:other": "vitest run tests/utils tests/extensions tests/table-extra-config",
 		"test:seeder": "vitest run tests/seeder",

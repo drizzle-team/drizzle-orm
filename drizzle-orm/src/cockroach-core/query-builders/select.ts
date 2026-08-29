@@ -27,7 +27,6 @@ import { Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import {
 	applyMixins,
-	type DrizzleTypeError,
 	getTableColumns,
 	getTableLikeName,
 	haveSameKeys,
@@ -38,6 +37,7 @@ import {
 import { ViewBaseConfig } from '~/view-common.ts';
 import type {
 	AnyCockroachSelect,
+	CheckTableLikeSelection,
 	CockroachCreateSetOperatorFn,
 	CockroachSelectConfig,
 	CockroachSelectCrossJoinFn,
@@ -56,7 +56,6 @@ import type {
 	SelectedFields,
 	SelectedFieldsOrdered,
 	SetOperatorRightSelect,
-	TableLikeHasEmptySelection,
 } from './select.types.ts';
 
 export class CockroachSelectBuilder<
@@ -100,10 +99,7 @@ export class CockroachSelectBuilder<
 	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-FROM | Postgres from documentation}
 	 */
 	from<TFrom extends CockroachTable | Subquery | CockroachViewBase | SQL>(
-		source: TableLikeHasEmptySelection<TFrom> extends true ? DrizzleTypeError<
-				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
-			>
-			: TFrom,
+		source: CheckTableLikeSelection<TFrom>,
 	): CreateCockroachSelectFromBuilderMode<
 		TBuilderMode,
 		GetSelectTableName<TFrom>,
