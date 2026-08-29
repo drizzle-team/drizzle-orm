@@ -274,6 +274,7 @@ export class CockroachMaterializedView<
 > extends CockroachViewBase<TName, TExisting, TSelectedFields> {
 	static override readonly [entityKind]: string = 'CockroachMaterializedView';
 
+	/** @internal */
 	readonly [CockroachMaterializedViewConfig]: {
 		readonly withNoData?: boolean;
 	} | undefined;

@@ -156,8 +156,10 @@ export class MySqlView<
 > extends MySqlViewBase<TName, TExisting, TSelectedFields> {
 	static override readonly [entityKind]: string = 'MySqlView';
 
+	/** @internal */
 	declare protected $MySqlViewBrand: 'MySqlView';
 
+	/** @internal */
 	[MySqlViewConfig]: ViewBuilderConfig | undefined;
 
 	constructor({ mysqlConfig, config }: {

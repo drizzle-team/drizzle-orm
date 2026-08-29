@@ -159,6 +159,9 @@ const PORTABILITY_MATRIX: PortabilityProbe[] = [
 	{ name: 'MySqlColumn', subpath: 'mysql-core', portable: true },
 	{ name: 'SQLiteTable', subpath: 'sqlite-core', portable: true },
 	{ name: 'SQLiteColumn', subpath: 'sqlite-core', portable: true },
+	{ name: 'PgView', subpath: 'pg-core', portable: true },
+	{ name: 'MySqlView', subpath: 'mysql-core', portable: true },
+	{ name: 'SQLiteView', subpath: 'sqlite-core', portable: true },
 
 	{ name: 'Param', subpath: 'sql/sql', portable: true },
 	{ name: 'Name', subpath: 'sql/sql', portable: true },

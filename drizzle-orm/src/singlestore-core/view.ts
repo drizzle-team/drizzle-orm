@@ -159,8 +159,10 @@ export class SingleStoreView<
 > extends SingleStoreViewBase<TName, TExisting, TSelectedFields> {
 	static override readonly [entityKind]: string = 'SingleStoreView';
 
+	/** @internal */
 	declare protected $SingleStoreViewBrand: 'SingleStoreView';
 
+	/** @internal */
 	[SingleStoreViewConfig]: ViewBuilderConfig | undefined;
 
 	constructor({ singlestoreConfig, config }: {

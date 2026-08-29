@@ -149,8 +149,10 @@ export class MsSqlView<
 > extends MsSqlViewBase<TName, TExisting, TSelectedFields> {
 	static override readonly [entityKind]: string = 'MsSqlView';
 
+	/** @internal */
 	declare protected $MsSqlViewBrand: 'MsSqlView';
 
+	/** @internal */
 	[MsSqlViewConfig]: ViewBuilderConfig | undefined;
 
 	constructor({ mssqlConfig, config }: {
