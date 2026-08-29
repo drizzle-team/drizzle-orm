@@ -27,13 +27,34 @@ export class RelationalQueryBuilder<
 > {
 	static readonly [entityKind]: string = 'SingleStoreRelationalQueryBuilderV2';
 
+	/** @internal */
+	private schema: TSchema;
+
+	/** @internal */
+	private table: SingleStoreTable | SingleStoreView;
+
+	/** @internal */
+	private tableConfig: TableRelationalConfig;
+
+	/** @internal */
+	private dialect: SingleStoreDialect;
+
+	/** @internal */
+	private session: SingleStoreSession;
+
 	constructor(
-		private schema: TSchema,
-		private table: SingleStoreTable | SingleStoreView,
-		private tableConfig: TableRelationalConfig,
-		private dialect: SingleStoreDialect,
-		private session: SingleStoreSession,
-	) {}
+		schema: TSchema,
+		table: SingleStoreTable | SingleStoreView,
+		tableConfig: TableRelationalConfig,
+		dialect: SingleStoreDialect,
+		session: SingleStoreSession,
+	) {
+		this.schema = schema;
+		this.table = table;
+		this.tableConfig = tableConfig;
+		this.dialect = dialect;
+		this.session = session;
+	}
 
 	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
@@ -73,18 +94,47 @@ export class SingleStoreRelationalQuery<
 	/** @internal */
 	protected mapper?: RelationalRowsMapper;
 
+	/** @internal */
 	declare protected $brand: 'SingleStoreRelationalQuery';
 
+	/** @internal */
+	private schema: TablesRelationalConfig;
+
+	/** @internal */
+	private table: SingleStoreTable | SingleStoreView;
+
+	/** @internal */
+	private tableConfig: TableRelationalConfig;
+
+	/** @internal */
+	private dialect: SingleStoreDialect;
+
+	/** @internal */
+	private session: SingleStoreSession;
+
+	/** @internal */
+	private config: DBQueryConfig<'many' | 'one'> | true;
+
+	/** @internal */
+	private mode: 'many' | 'first';
+
 	constructor(
-		private schema: TablesRelationalConfig,
-		private table: SingleStoreTable | SingleStoreView,
-		private tableConfig: TableRelationalConfig,
-		private dialect: SingleStoreDialect,
-		private session: SingleStoreSession,
-		private config: DBQueryConfig<'many' | 'one'> | true,
-		private mode: 'many' | 'first',
+		schema: TablesRelationalConfig,
+		table: SingleStoreTable | SingleStoreView,
+		tableConfig: TableRelationalConfig,
+		dialect: SingleStoreDialect,
+		session: SingleStoreSession,
+		config: DBQueryConfig<'many' | 'one'> | true,
+		mode: 'many' | 'first',
 	) {
 		super();
+		this.schema = schema;
+		this.table = table;
+		this.tableConfig = tableConfig;
+		this.dialect = dialect;
+		this.session = session;
+		this.config = config;
+		this.mode = mode;
 	}
 
 	prepare() {
@@ -102,6 +152,7 @@ export class SingleStoreRelationalQuery<
 		) as PreparedQueryKind<TPreparedQueryHKT, SingleStorePreparedQueryConfig & { execute: TResult }, true>;
 	}
 
+	/** @internal */
 	private _getQuery() {
 		return this.dialect.buildRelationalQuery({
 			schema: this.schema,
@@ -112,6 +163,7 @@ export class SingleStoreRelationalQuery<
 		});
 	}
 
+	/** @internal */
 	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
 		const query = this._getQuery();
 

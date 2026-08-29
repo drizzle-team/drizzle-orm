@@ -11,9 +11,14 @@ export interface PreparedQueryConfig {
 export abstract class PgBasePreparedQuery implements PreparedQuery {
 	static readonly [entityKind]: string = 'PgBasePreparedQuery';
 
+	/** @internal */
+	protected query: Query;
+
 	constructor(
-		protected query: Query,
-	) {}
+		query: Query,
+	) {
+		this.query = query;
+	}
 
 	getQuery(): Query {
 		return this.query;
@@ -41,7 +46,12 @@ export type PgTransactionConfig =
 export abstract class PgSession {
 	static readonly [entityKind]: string = 'PgSession';
 
-	constructor(protected dialect: PgDialect) {}
+	/** @internal */
+	protected dialect: PgDialect;
+
+	constructor(dialect: PgDialect) {
+		this.dialect = dialect;
+	}
 
 	abstract prepareQuery(
 		query: Query,

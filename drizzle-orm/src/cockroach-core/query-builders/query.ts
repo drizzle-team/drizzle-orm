@@ -22,13 +22,34 @@ export class RelationalQueryBuilder<
 > {
 	static readonly [entityKind]: string = 'CockroachRelationalQueryBuilderV2';
 
+	/** @internal */
+	private schema: TSchema;
+
+	/** @internal */
+	private table: CockroachTable;
+
+	/** @internal */
+	private tableConfig: TableRelationalConfig;
+
+	/** @internal */
+	private dialect: CockroachDialect;
+
+	/** @internal */
+	private session: CockroachSession;
+
 	constructor(
-		private schema: TSchema,
-		private table: CockroachTable,
-		private tableConfig: TableRelationalConfig,
-		private dialect: CockroachDialect,
-		private session: CockroachSession,
-	) {}
+		schema: TSchema,
+		table: CockroachTable,
+		tableConfig: TableRelationalConfig,
+		dialect: CockroachDialect,
+		session: CockroachSession,
+	) {
+		this.schema = schema;
+		this.table = table;
+		this.tableConfig = tableConfig;
+		this.dialect = dialect;
+		this.session = session;
+	}
 
 	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
@@ -72,18 +93,47 @@ export class CockroachRelationalQuery<TResult> extends QueryPromise<TResult>
 		readonly result: TResult;
 	};
 
+	/** @internal */
+	protected schema: TablesRelationalConfig;
+
+	/** @internal */
+	protected table: CockroachTable;
+
+	/** @internal */
+	protected tableConfig: TableRelationalConfig;
+
+	/** @internal */
+	protected dialect: CockroachDialect;
+
+	/** @internal */
+	protected session: CockroachSession;
+
+	/** @internal */
+	protected config: DBQueryConfig<'many' | 'one'> | true;
+
+	/** @internal */
+	protected mode: 'many' | 'first';
+
 	constructor(
-		protected schema: TablesRelationalConfig,
-		protected table: CockroachTable,
-		protected tableConfig: TableRelationalConfig,
-		protected dialect: CockroachDialect,
-		protected session: CockroachSession,
-		protected config: DBQueryConfig<'many' | 'one'> | true,
-		protected mode: 'many' | 'first',
+		schema: TablesRelationalConfig,
+		table: CockroachTable,
+		tableConfig: TableRelationalConfig,
+		dialect: CockroachDialect,
+		session: CockroachSession,
+		config: DBQueryConfig<'many' | 'one'> | true,
+		mode: 'many' | 'first',
 	) {
 		super();
+		this.schema = schema;
+		this.table = table;
+		this.tableConfig = tableConfig;
+		this.dialect = dialect;
+		this.session = session;
+		this.config = config;
+		this.mode = mode;
 	}
 
+	/** @internal */
 	protected _getQuery() {
 		return this.dialect.buildRelationalQuery({
 			schema: this.schema,
@@ -98,6 +148,7 @@ export class CockroachRelationalQuery<TResult> extends QueryPromise<TResult>
 		return this._getQuery().sql;
 	}
 
+	/** @internal */
 	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
 		const query = this._getQuery();
 

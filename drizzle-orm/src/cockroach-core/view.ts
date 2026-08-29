@@ -18,10 +18,19 @@ export class DefaultViewBuilderCore<TConfig extends { name: string; columns?: un
 		readonly columns: TConfig['columns'];
 	};
 
+	/** @internal */
+	protected name: TConfig['name'];
+
+	/** @internal */
+	protected schema: string | undefined;
+
 	constructor(
-		protected name: TConfig['name'],
-		protected schema: string | undefined,
-	) {}
+		name: TConfig['name'],
+		schema: string | undefined,
+	) {
+		this.name = name;
+		this.schema = schema;
+	}
 }
 
 export class ViewBuilder<TName extends string = string> extends DefaultViewBuilderCore<{ name: TName }> {
@@ -60,6 +69,7 @@ export class ManualViewBuilder<
 > extends DefaultViewBuilderCore<{ name: TName; columns: TColumns }> {
 	static override readonly [entityKind]: string = 'CockroachManualViewBuilder';
 
+	/** @internal */
 	private columns: Record<string, CockroachColumn>;
 
 	constructor(
@@ -119,11 +129,21 @@ export class MaterializedViewBuilderCore<TConfig extends { name: string; columns
 		readonly columns: TConfig['columns'];
 	};
 
-	constructor(
-		protected name: TConfig['name'],
-		protected schema: string | undefined,
-	) {}
+	/** @internal */
+	protected name: TConfig['name'];
 
+	/** @internal */
+	protected schema: string | undefined;
+
+	constructor(
+		name: TConfig['name'],
+		schema: string | undefined,
+	) {
+		this.name = name;
+		this.schema = schema;
+	}
+
+	/** @internal */
 	protected config: {
 		withNoData?: boolean;
 	} = {};
@@ -183,6 +203,7 @@ export class ManualMaterializedViewBuilder<
 > extends MaterializedViewBuilderCore<{ name: TName; columns: TColumns }> {
 	static override readonly [entityKind]: string = 'CockroachManualMaterializedViewBuilder';
 
+	/** @internal */
 	private columns: Record<string, CockroachColumn>;
 
 	constructor(

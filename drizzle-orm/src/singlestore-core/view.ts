@@ -27,11 +27,21 @@ export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }
 		readonly columns: TConfig['columns'];
 	};
 
-	constructor(
-		protected name: TConfig['name'],
-		protected schema: string | undefined,
-	) {}
+	/** @internal */
+	protected name: TConfig['name'];
 
+	/** @internal */
+	protected schema: string | undefined;
+
+	constructor(
+		name: TConfig['name'],
+		schema: string | undefined,
+	) {
+		this.name = name;
+		this.schema = schema;
+	}
+
+	/** @internal */
 	protected config: ViewBuilderConfig = {};
 
 	algorithm(
@@ -100,6 +110,7 @@ export class ManualViewBuilder<
 > extends ViewBuilderCore<{ name: TName; columns: TColumns }> {
 	static override readonly [entityKind]: string = 'SingleStoreManualViewBuilder';
 
+	/** @internal */
 	private columns: Record<string, SingleStoreColumn>;
 
 	constructor(

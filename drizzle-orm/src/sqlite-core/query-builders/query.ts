@@ -56,16 +56,49 @@ export class RelationalQueryBuilder<
 > {
 	static readonly [entityKind]: string = 'SQLiteRelationalQueryBuilderV2';
 
+	/** @internal */
+	private mode: TMode;
+
+	/** @internal */
+	private schema: TSchema;
+
+	/** @internal */
+	private table: SQLiteTable;
+
+	/** @internal */
+	private tableConfig: TableRelationalConfig;
+
+	/** @internal */
+	private dialect: SQLiteDialect;
+
+	/** @internal */
+	private session: SQLiteSession<any, any>;
+
+	/** @internal */
+	private forbidJsonb: boolean | undefined;
+
+	/** @internal */
+	private builder: SQLiteRelationalQueryConstructor;
+
 	constructor(
-		private mode: TMode,
-		private schema: TSchema,
-		private table: SQLiteTable,
-		private tableConfig: TableRelationalConfig,
-		private dialect: SQLiteDialect,
-		private session: SQLiteSession<any, any>,
-		private forbidJsonb: boolean | undefined,
-		private builder: SQLiteRelationalQueryConstructor = SQLiteRelationalQuery,
-	) {}
+		mode: TMode,
+		schema: TSchema,
+		table: SQLiteTable,
+		tableConfig: TableRelationalConfig,
+		dialect: SQLiteDialect,
+		session: SQLiteSession<any, any>,
+		forbidJsonb: boolean | undefined,
+		builder: SQLiteRelationalQueryConstructor = SQLiteRelationalQuery,
+	) {
+		this.mode = mode;
+		this.schema = schema;
+		this.table = table;
+		this.tableConfig = tableConfig;
+		this.dialect = dialect;
+		this.session = session;
+		this.forbidJsonb = forbidJsonb;
+		this.builder = builder;
+	}
 
 	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
@@ -119,17 +152,41 @@ export class SQLiteRelationalQuery<THKT extends SQLiteRelationalQueryHKTBase, TR
 	/** @internal */
 	resultKind: unknown;
 
+	/** @internal */
+	protected schema: TablesRelationalConfig;
+
+	/** @internal */
+	protected tableConfig: TableRelationalConfig;
+
+	/** @internal */
+	protected dialect: SQLiteDialect;
+
+	/** @internal */
+	protected session: SQLiteSession<any, any>;
+
+	/** @internal */
+	protected config: DBQueryConfig<'many' | 'one'> | true;
+
+	/** @internal */
+	protected forbidJsonb?: boolean;
+
 	constructor(
 		resultKind: unknown,
-		protected schema: TablesRelationalConfig,
+		schema: TablesRelationalConfig,
 		table: SQLiteTable,
-		protected tableConfig: TableRelationalConfig,
-		protected dialect: SQLiteDialect,
-		protected session: SQLiteSession<any, any>,
-		protected config: DBQueryConfig<'many' | 'one'> | true,
+		tableConfig: TableRelationalConfig,
+		dialect: SQLiteDialect,
+		session: SQLiteSession<any, any>,
+		config: DBQueryConfig<'many' | 'one'> | true,
 		mode: 'many' | 'first',
-		protected forbidJsonb?: boolean,
+		forbidJsonb?: boolean,
 	) {
+		this.schema = schema;
+		this.tableConfig = tableConfig;
+		this.dialect = dialect;
+		this.session = session;
+		this.config = config;
+		this.forbidJsonb = forbidJsonb;
 		this.resultKind = resultKind;
 		this.mode = mode;
 		this.table = table;
@@ -139,6 +196,7 @@ export class SQLiteRelationalQuery<THKT extends SQLiteRelationalQueryHKTBase, TR
 		return this._getQuery().sql;
 	}
 
+	/** @internal */
 	protected _getQuery() {
 		const jsonb = this.forbidJsonb ? sql`json` : sql`jsonb`;
 
@@ -152,6 +210,7 @@ export class SQLiteRelationalQuery<THKT extends SQLiteRelationalQueryHKTBase, TR
 		});
 	}
 
+	/** @internal */
 	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
 		const query = this._getQuery();
 

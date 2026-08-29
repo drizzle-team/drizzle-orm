@@ -26,25 +26,49 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 		body?: string;
 	} | undefined;
 
+	/** @internal */
 	private fastPath: boolean;
 
+	/** @internal */
+	protected executor: (params?: unknown[]) => Promise<any>;
+
+	/** @internal */
+	protected logger: Logger;
+
+	/** @internal */
+	protected cache: Cache | undefined;
+
+	/** @internal */
+	protected queryMetadata: {
+		type: 'select' | 'update' | 'delete' | 'insert';
+		tables: string[];
+	} | undefined;
+
+	/** @internal */
+	protected cacheConfig: WithCacheConfig | undefined;
+
 	constructor(
-		protected executor: (params?: unknown[]) => Promise<any>,
+		executor: (params?: unknown[]) => Promise<any>,
 		query: Query,
 		mapper: ((rows: any[]) => any) | undefined,
 		readonly mode: 'arrays' | 'objects' | 'raw',
-		protected logger: Logger,
+		logger: Logger,
 		// cache instance
-		protected cache: Cache | undefined,
+		cache: Cache | undefined,
 		// per query related metadata
-		protected queryMetadata: {
+		queryMetadata: {
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
 		} | undefined,
 		// config that was passed through $withCache
-		protected cacheConfig: WithCacheConfig | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 	) {
 		super(query);
+		this.executor = executor;
+		this.logger = logger;
+		this.cache = cache;
+		this.queryMetadata = queryMetadata;
+		this.cacheConfig = cacheConfig;
 		this.mapper = mapper;
 		if (cache && cache.strategy() === 'all' && cacheConfig === undefined) {
 			this.cacheConfig = { enabled: true, autoInvalidate: true };
@@ -237,14 +261,18 @@ export abstract class PgAsyncTransaction<
 > extends PgAsyncDatabase<TQueryResult, TRelations> {
 	static override readonly [entityKind]: string = 'PgAsyncTransaction';
 
+	/** @internal */
+	protected readonly nestedIndex: number;
+
 	constructor(
 		dialect: PgDialect,
 		session: PgAsyncSession<any, any>,
 		relations: TRelations,
-		protected readonly nestedIndex = 0,
+		nestedIndex = 0,
 		parseRqbJson: boolean | undefined,
 	) {
 		super(dialect, session, relations, parseRqbJson);
+		this.nestedIndex = nestedIndex;
 	}
 
 	rollback(): never {

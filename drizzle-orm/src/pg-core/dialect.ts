@@ -99,6 +99,7 @@ export class PgDialect {
 		return `'${str.replace(/'/g, "''")}'`;
 	}
 
+	/** @internal */
 	private buildWithCTE(queries: Subquery[] | undefined): SQL | undefined {
 		if (!queries?.length) return undefined;
 
@@ -224,6 +225,7 @@ export class PgDialect {
 	 * `insert ... returning <selection>`
 	 *
 	 * If `isSingleTable` is true, then columns won't be prefixed with table name
+	 * @internal
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
@@ -376,6 +378,7 @@ export class PgDialect {
 		return new SQL(chunks);
 	}
 
+	/** @internal */
 	private buildJoins(joins: PgSelectJoinConfig[] | undefined): SQL | undefined {
 		if (!joins || joins.length === 0) {
 			return undefined;
@@ -424,6 +427,7 @@ export class PgDialect {
 		return new SQL(joinsArray);
 	}
 
+	/** @internal */
 	private buildFromTable(
 		table: SQL | Subquery | PgViewBase | PgTable | undefined,
 	): SQL | Subquery | PgViewBase | PgTable | undefined {
@@ -812,6 +816,7 @@ export class PgDialect {
 		});
 	}
 
+	/** @internal */
 	private buildRqbColumn(
 		table: Table | View,
 		field: unknown,
@@ -888,6 +893,7 @@ export class PgDialect {
 		return output;
 	}
 
+	/** @internal */
 	private buildColumns = (
 		table: Table | View,
 		selection: BuildRelationalQueryResult['selection'],

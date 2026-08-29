@@ -26,11 +26,21 @@ export class DefaultViewBuilderCore<TConfig extends { name: string; columns?: un
 		readonly columns: TConfig['columns'];
 	};
 
-	constructor(
-		protected name: TConfig['name'],
-		protected schema: string | undefined,
-	) {}
+	/** @internal */
+	protected name: TConfig['name'];
 
+	/** @internal */
+	protected schema: string | undefined;
+
+	constructor(
+		name: TConfig['name'],
+		schema: string | undefined,
+	) {
+		this.name = name;
+		this.schema = schema;
+	}
+
+	/** @internal */
 	protected config: {
 		with?: ViewWithConfig;
 	} = {};
@@ -78,6 +88,7 @@ export class ManualViewBuilder<
 > extends DefaultViewBuilderCore<{ name: TName; columns: TColumns }> {
 	static override readonly [entityKind]: string = 'PgManualViewBuilder';
 
+	/** @internal */
 	private columns: Record<string, PgColumn>;
 
 	constructor(
@@ -160,11 +171,21 @@ export class MaterializedViewBuilderCore<TConfig extends { name: string; columns
 		readonly columns: TConfig['columns'];
 	};
 
-	constructor(
-		protected name: TConfig['name'],
-		protected schema: string | undefined,
-	) {}
+	/** @internal */
+	protected name: TConfig['name'];
 
+	/** @internal */
+	protected schema: string | undefined;
+
+	constructor(
+		name: TConfig['name'],
+		schema: string | undefined,
+	) {
+		this.name = name;
+		this.schema = schema;
+	}
+
+	/** @internal */
 	protected config: {
 		with?: PgMaterializedViewWithConfig;
 		using?: string;
@@ -237,6 +258,7 @@ export class ManualMaterializedViewBuilder<
 > extends MaterializedViewBuilderCore<{ name: TName; columns: TColumns }> {
 	static override readonly [entityKind]: string = 'PgManualMaterializedViewBuilder';
 
+	/** @internal */
 	private columns: Record<string, PgColumn>;
 
 	constructor(

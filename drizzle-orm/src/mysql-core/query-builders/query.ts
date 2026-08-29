@@ -35,14 +35,39 @@ export class RelationalQueryBuilder<
 > {
 	static readonly [entityKind]: string = 'MySqlRelationalQueryBuilderV2';
 
+	/** @internal */
+	private schema: TSchema;
+
+	/** @internal */
+	private table: MySqlTable | MySqlView;
+
+	/** @internal */
+	private tableConfig: TableRelationalConfig;
+
+	/** @internal */
+	private dialect: MySqlDialect;
+
+	/** @internal */
+	private session: MySqlSession;
+
+	/** @internal */
+	private builder: MySqlRelationalQueryConstructor;
+
 	constructor(
-		private schema: TSchema,
-		private table: MySqlTable | MySqlView,
-		private tableConfig: TableRelationalConfig,
-		private dialect: MySqlDialect,
-		private session: MySqlSession,
-		private builder: MySqlRelationalQueryConstructor = MySqlRelationalQuery,
-	) {}
+		schema: TSchema,
+		table: MySqlTable | MySqlView,
+		tableConfig: TableRelationalConfig,
+		dialect: MySqlDialect,
+		session: MySqlSession,
+		builder: MySqlRelationalQueryConstructor = MySqlRelationalQuery,
+	) {
+		this.schema = schema;
+		this.table = table;
+		this.tableConfig = tableConfig;
+		this.dialect = dialect;
+		this.session = session;
+		this.builder = builder;
+	}
 
 	findMany<TConfig extends DBQueryConfigWithComment<'many', TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfigWithComment<'many', TSchema, TFields>>,
@@ -100,18 +125,49 @@ export class MySqlRelationalQuery<THKT extends MySqlRelationalQueryHKTBase, TRes
 		readonly result: TResult;
 	};
 
+	/** @internal */
 	declare protected $brand: 'MySqlRelationalQuery';
 
-	constructor(
-		protected schema: TablesRelationalConfig,
-		protected table: MySqlTable | MySqlView,
-		protected tableConfig: TableRelationalConfig,
-		protected dialect: MySqlDialect,
-		protected session: MySqlSession,
-		protected config: DBQueryConfigWithComment<'many' | 'one'> | true,
-		protected mode: 'many' | 'first',
-	) {}
+	/** @internal */
+	protected schema: TablesRelationalConfig;
 
+	/** @internal */
+	protected table: MySqlTable | MySqlView;
+
+	/** @internal */
+	protected tableConfig: TableRelationalConfig;
+
+	/** @internal */
+	protected dialect: MySqlDialect;
+
+	/** @internal */
+	protected session: MySqlSession;
+
+	/** @internal */
+	protected config: DBQueryConfigWithComment<'many' | 'one'> | true;
+
+	/** @internal */
+	protected mode: 'many' | 'first';
+
+	constructor(
+		schema: TablesRelationalConfig,
+		table: MySqlTable | MySqlView,
+		tableConfig: TableRelationalConfig,
+		dialect: MySqlDialect,
+		session: MySqlSession,
+		config: DBQueryConfigWithComment<'many' | 'one'> | true,
+		mode: 'many' | 'first',
+	) {
+		this.schema = schema;
+		this.table = table;
+		this.tableConfig = tableConfig;
+		this.dialect = dialect;
+		this.session = session;
+		this.config = config;
+		this.mode = mode;
+	}
+
+	/** @internal */
 	protected _getQuery() {
 		return this.dialect.buildRelationalQuery({
 			schema: this.schema,
@@ -122,6 +178,7 @@ export class MySqlRelationalQuery<THKT extends MySqlRelationalQueryHKTBase, TRes
 		});
 	}
 
+	/** @internal */
 	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
 		const query = this._getQuery();
 

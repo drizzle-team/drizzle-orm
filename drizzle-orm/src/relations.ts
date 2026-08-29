@@ -330,6 +330,7 @@ export class One<
 	TOptional extends boolean = boolean,
 > extends Relation<TTargetTableName> {
 	static override readonly [entityKind]: string = 'OneV2';
+	/** @internal */
 	declare protected $relationBrand: 'OneV2';
 
 	public override readonly relationType = 'one' as const;
@@ -391,6 +392,7 @@ export type AnyOne = One<string, boolean>;
 
 export class Many<TTargetTableName extends string> extends Relation<TTargetTableName> {
 	static override readonly [entityKind]: string = 'ManyV2';
+	/** @internal */
 	declare protected $relationBrand: 'ManyV2';
 
 	public override readonly relationType = 'many' as const;
@@ -455,6 +457,7 @@ export abstract class AggregatedField<T = unknown> implements SQLWrapper<T> {
 		readonly data: T;
 	};
 
+	/** @internal */
 	protected table: SchemaEntry | undefined;
 
 	onTable(table: SchemaEntry) {
@@ -469,8 +472,10 @@ export abstract class AggregatedField<T = unknown> implements SQLWrapper<T> {
 export class Count extends AggregatedField<number> {
 	static override readonly [entityKind]: string = 'AggregatedFieldCount';
 
+	/** @internal */
 	declare protected $aggregatedFieldBrand: 'Count';
 
+	/** @internal */
 	private query: SQL<number> | undefined;
 
 	getSQL(): SQL<number> {
@@ -1320,6 +1325,7 @@ export function makeJitRqbMapper<T = unknown>(
 export class RelationsBuilderTable<TTableName extends string = string> {
 	static readonly [entityKind]: string = 'RelationsBuilderTable';
 
+	/** @internal */
 	protected readonly _: {
 		readonly name: TTableName;
 		readonly table: SchemaEntry;

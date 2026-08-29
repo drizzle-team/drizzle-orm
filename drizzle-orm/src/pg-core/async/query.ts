@@ -19,6 +19,7 @@ export class PgAsyncRelationalQuery<TResult> extends PgRelationalQuery<PgAsyncRe
 {
 	static override readonly [entityKind]: string = 'PgAsyncRelationalQueryV2';
 
+	/** @internal */
 	declare protected session: PgAsyncSession;
 
 	/** @internal */

@@ -23,13 +23,34 @@ export class RelationalQueryBuilder<
 > {
 	static readonly [entityKind]: string = 'MsSqlRelationalQueryBuilderV2';
 
+	/** @internal */
+	private schema: TSchema;
+
+	/** @internal */
+	private table: MsSqlTable;
+
+	/** @internal */
+	private tableConfig: TableRelationalConfig;
+
+	/** @internal */
+	private dialect: MsSqlDialect;
+
+	/** @internal */
+	private session: MsSqlSession;
+
 	constructor(
-		private schema: TSchema,
-		private table: MsSqlTable,
-		private tableConfig: TableRelationalConfig,
-		private dialect: MsSqlDialect,
-		private session: MsSqlSession,
-	) {}
+		schema: TSchema,
+		table: MsSqlTable,
+		tableConfig: TableRelationalConfig,
+		dialect: MsSqlDialect,
+		session: MsSqlSession,
+	) {
+		this.schema = schema;
+		this.table = table;
+		this.tableConfig = tableConfig;
+		this.dialect = dialect;
+		this.session = session;
+	}
 
 	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
@@ -73,20 +94,50 @@ export class MsSqlRelationalQuery<TPreparedQueryHKT extends PreparedQueryHKTBase
 		readonly result: TResult;
 	};
 
+	/** @internal */
 	declare protected $brand: 'MsSqlRelationalQuery';
 
+	/** @internal */
+	protected schema: TablesRelationalConfig;
+
+	/** @internal */
+	protected table: MsSqlTable;
+
+	/** @internal */
+	protected tableConfig: TableRelationalConfig;
+
+	/** @internal */
+	protected dialect: MsSqlDialect;
+
+	/** @internal */
+	protected session: MsSqlSession;
+
+	/** @internal */
+	protected config: DBQueryConfig<'many' | 'one'> | true;
+
+	/** @internal */
+	protected mode: 'many' | 'first';
+
 	constructor(
-		protected schema: TablesRelationalConfig,
-		protected table: MsSqlTable,
-		protected tableConfig: TableRelationalConfig,
-		protected dialect: MsSqlDialect,
-		protected session: MsSqlSession,
-		protected config: DBQueryConfig<'many' | 'one'> | true,
-		protected mode: 'many' | 'first',
+		schema: TablesRelationalConfig,
+		table: MsSqlTable,
+		tableConfig: TableRelationalConfig,
+		dialect: MsSqlDialect,
+		session: MsSqlSession,
+		config: DBQueryConfig<'many' | 'one'> | true,
+		mode: 'many' | 'first',
 	) {
 		super();
+		this.schema = schema;
+		this.table = table;
+		this.tableConfig = tableConfig;
+		this.dialect = dialect;
+		this.session = session;
+		this.config = config;
+		this.mode = mode;
 	}
 
+	/** @internal */
 	protected _getQuery() {
 		return this.dialect.buildRelationalQuery({
 			schema: this.schema,
@@ -101,6 +152,7 @@ export class MsSqlRelationalQuery<TPreparedQueryHKT extends PreparedQueryHKTBase
 		return this._getQuery().sql;
 	}
 
+	/** @internal */
 	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
 		const query = this._getQuery();
 

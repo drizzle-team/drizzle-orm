@@ -139,13 +139,12 @@ interface PortabilityProbe {
 	blockedBy?: string;
 }
 
-// The dialects are blocked by something categorically different from a nominal member:
-// `BuildRelationalQueryResult['selection']`, an anonymous recursive intersection-of-union
-// reached via `mapperGenerators.relationalRows`. Having no named symbol, it misses the
-// compiler's relation cache, so each cross-instance comparison re-expands until the
-// recursion limiter gives up and reports a mismatch. Fixing it means naming that type,
-// not marking a member `@internal`.
-const DIALECT_BLOCKER = "BuildRelationalQueryResult['selection'] (anonymous recursive type)";
+// With every nominal member stripped, the dialects come to rest on `EmptyFilter`, which
+// is `Symbol.for('drizzle:EmptyFilter')`. `Symbol.for` returns the same symbol in every
+// copy on disk, so the value is portable at runtime -- but the inferred `unique symbol`
+// type is nominal per declaration site, so the types disagree with the runtime. Fixing
+// it is an API decision, not a marker, and is left to its own change.
+const DIALECT_BLOCKER = 'EmptyFilter (unique symbol)';
 
 const PORTABILITY_MATRIX: PortabilityProbe[] = [
 	{ name: 'SQL', subpath: 'sql/sql', portable: true },
@@ -171,18 +170,18 @@ const PORTABILITY_MATRIX: PortabilityProbe[] = [
 	{ name: 'SQLiteDialect', subpath: 'sqlite-core', portable: false, blockedBy: DIALECT_BLOCKER },
 	{ name: 'PgTable', subpath: 'pg-core', portable: true },
 	{ name: 'PgColumn', subpath: 'pg-core', portable: true },
-	// The database object is reached through the session, and every prepared-query,
-	// transaction and relational-query-builder class along that path contributes its own
-	// nominal member: PgAsyncPreparedQuery#executor, then PgBasePreparedQuery#query, then
-	// PgAsyncTransaction#nestedIndex, then RelationalQueryBuilder#schema, and onward
-	// through ~70 more across pg-core/query-builders. Unlike the entries above it does
-	// not fall to a contained change, so it is left recorded rather than half-fixed.
+	// The database object outlasts every marker. With the nominal members gone it fails on
+	// `BuildQueryResult<..., TConfig, ...>` -- a mapped type deferred on an unresolved type
+	// parameter from `findMany<TConfig>`. The compiler cannot relate `keyof X` from one
+	// declaration site to `keyof X` from the other while X stays deferred, so it widens to
+	// `string | number | symbol` and fails. That is a TypeScript comparison limit rather
+	// than anything drizzle emits, and no marker or contained type change reaches it.
 	{
 		name: 'NodePgDatabase',
 		subpath: 'node-postgres/driver',
 		typeArgs: '<Record<string, never>>',
 		portable: false,
-		blockedBy: 'a multi-layer chain rooted at PgAsyncPreparedQuery#executor (protected)',
+		blockedBy: 'BuildQueryResult (mapped type deferred on an unresolved type parameter)',
 	},
 ];
 

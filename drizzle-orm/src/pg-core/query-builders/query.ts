@@ -35,15 +35,44 @@ export class RelationalQueryBuilder<
 > {
 	static readonly [entityKind]: string = 'PgRelationalQueryBuilderV2';
 
+	/** @internal */
+	private schema: TSchema;
+
+	/** @internal */
+	private table: PgTable;
+
+	/** @internal */
+	private tableConfig: TableRelationalConfig;
+
+	/** @internal */
+	private dialect: PgDialect;
+
+	/** @internal */
+	private session: PgSession;
+
+	/** @internal */
+	private parseJson: boolean;
+
+	/** @internal */
+	private builder: PgRelationalQueryConstructor;
+
 	constructor(
-		private schema: TSchema,
-		private table: PgTable,
-		private tableConfig: TableRelationalConfig,
-		private dialect: PgDialect,
-		private session: PgSession,
-		private parseJson: boolean,
-		private builder: PgRelationalQueryConstructor = PgRelationalQuery,
-	) {}
+		schema: TSchema,
+		table: PgTable,
+		tableConfig: TableRelationalConfig,
+		dialect: PgDialect,
+		session: PgSession,
+		parseJson: boolean,
+		builder: PgRelationalQueryConstructor = PgRelationalQuery,
+	) {
+		this.schema = schema;
+		this.table = table;
+		this.tableConfig = tableConfig;
+		this.dialect = dialect;
+		this.session = session;
+		this.parseJson = parseJson;
+		this.builder = builder;
+	}
 
 	findMany<TConfig extends DBQueryConfigWithComment<'many', TSchema, TFields>>(
 		config?: KnownKeysOnly<TConfig, DBQueryConfigWithComment<'many', TSchema, TFields>>,
@@ -107,17 +136,51 @@ export class PgRelationalQuery<THKT extends PgRelationalQueryHKTBase, TResult> i
 		readonly result: TResult;
 	};
 
-	constructor(
-		protected schema: TablesRelationalConfig,
-		protected table: PgTable,
-		protected tableConfig: TableRelationalConfig,
-		protected dialect: PgDialect,
-		protected session: PgSession,
-		protected config: DBQueryConfigWithComment<'many' | 'one'> | true,
-		protected mode: 'many' | 'first',
-		protected parseJson: boolean,
-	) {}
+	/** @internal */
+	protected schema: TablesRelationalConfig;
 
+	/** @internal */
+	protected table: PgTable;
+
+	/** @internal */
+	protected tableConfig: TableRelationalConfig;
+
+	/** @internal */
+	protected dialect: PgDialect;
+
+	/** @internal */
+	protected session: PgSession;
+
+	/** @internal */
+	protected config: DBQueryConfigWithComment<'many' | 'one'> | true;
+
+	/** @internal */
+	protected mode: 'many' | 'first';
+
+	/** @internal */
+	protected parseJson: boolean;
+
+	constructor(
+		schema: TablesRelationalConfig,
+		table: PgTable,
+		tableConfig: TableRelationalConfig,
+		dialect: PgDialect,
+		session: PgSession,
+		config: DBQueryConfigWithComment<'many' | 'one'> | true,
+		mode: 'many' | 'first',
+		parseJson: boolean,
+	) {
+		this.schema = schema;
+		this.table = table;
+		this.tableConfig = tableConfig;
+		this.dialect = dialect;
+		this.session = session;
+		this.config = config;
+		this.mode = mode;
+		this.parseJson = parseJson;
+	}
+
+	/** @internal */
 	protected _getQuery() {
 		return this.dialect.buildRelationalQuery({
 			schema: this.schema,
@@ -132,6 +195,7 @@ export class PgRelationalQuery<THKT extends PgRelationalQueryHKTBase, TResult> i
 		return this._getQuery().sql;
 	}
 
+	/** @internal */
 	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
 		const query = this._getQuery();
 
