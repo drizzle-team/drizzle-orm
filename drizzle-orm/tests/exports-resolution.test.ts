@@ -115,40 +115,132 @@ describe.skipIf(!ARTIFACTS_PRESENT)('no public subpath is dropped', () => {
 	}, 120_000);
 });
 
+// Two physically distinct installs of the package produce two declaration sites for
+// every class. TypeScript compares classes carrying `private`/`protected` members
+// nominally, so any such member surviving into the emitted `.d.ts` makes that type
+// non-portable: a value from copy A is not assignable to the same type from copy B.
+// This is the failure a consumer hits whenever a transitive dep, a pnpm peer split
+// or a linked tarball puts two copies of drizzle-orm on disk.
+//
+// The matrix below is the current, measured state of the public surface. `portable:
+// false` entries are known leaks, not aspirations -- each is annotated with the member
+// responsible. Fixing one is expected to flip its flag here; that is the point of
+// asserting both directions.
+interface PortabilityProbe {
+	/** Exported type name. */
+	name: string;
+	/** Package subpath it is exported from. */
+	subpath: string;
+	/** Type arguments, when the type has no usable defaults. */
+	typeArgs?: string;
+	/** Whether a value of this type survives crossing between two installs. */
+	portable: boolean;
+	/** For known leaks: the member whose nominality blocks assignment. */
+	blockedBy?: string;
+}
+
+const PORTABILITY_MATRIX: PortabilityProbe[] = [
+	{ name: 'SQL', subpath: 'sql/sql', portable: true },
+	{ name: 'Column', subpath: 'column', portable: true },
+	{ name: 'Table', subpath: 'table', portable: true },
+	{ name: 'Subquery', subpath: 'subquery', portable: true },
+	{ name: 'View', subpath: 'sql/sql', portable: true },
+	{ name: 'Placeholder', subpath: 'sql/sql', portable: true },
+	{ name: 'QueryPromise', subpath: 'query-promise', typeArgs: '<number>', portable: true },
+	{ name: 'MySqlTable', subpath: 'mysql-core', portable: true },
+	{ name: 'MySqlColumn', subpath: 'mysql-core', portable: true },
+	{ name: 'SQLiteTable', subpath: 'sqlite-core', portable: true },
+	{ name: 'SQLiteColumn', subpath: 'sqlite-core', portable: true },
+
+	{ name: 'Param', subpath: 'sql/sql', portable: false, blockedBy: 'Param#brand (protected)' },
+	{ name: 'Name', subpath: 'sql/sql', portable: false, blockedBy: 'Name#brand (protected)' },
+	{
+		name: 'CodecsCollection',
+		subpath: 'codecs',
+		portable: false,
+		blockedBy: 'CodecsCollection#resolveTypes (protected)',
+	},
+	// The three dialects all embed a CodecsCollection, so they inherit its leak.
+	{ name: 'PgDialect', subpath: 'pg-core', portable: false, blockedBy: 'CodecsCollection#resolveTypes (protected)' },
+	{
+		name: 'MySqlDialect',
+		subpath: 'mysql-core',
+		portable: false,
+		blockedBy: 'CodecsCollection#resolveTypes (protected)',
+	},
+	{
+		name: 'SQLiteDialect',
+		subpath: 'sqlite-core',
+		portable: false,
+		blockedBy: 'CodecsCollection#resolveTypes (protected)',
+	},
+	// Only pg-core exposes `toBuilder()` in a public return type, which is why the
+	// identical `foreignKeyConfigs` field on the other dialects' builders is unreachable
+	// and their table/column types above are portable.
+	{
+		name: 'PgTable',
+		subpath: 'pg-core',
+		portable: false,
+		blockedBy: 'PgColumnBuilder#foreignKeyConfigs (private), via PgColumn#toBuilder',
+	},
+	{
+		name: 'PgColumn',
+		subpath: 'pg-core',
+		portable: false,
+		blockedBy: 'PgColumnBuilder#foreignKeyConfigs (private), via PgColumn#toBuilder',
+	},
+	{
+		name: 'NodePgDatabase',
+		subpath: 'node-postgres/driver',
+		typeArgs: '<Record<string, never>>',
+		portable: false,
+		blockedBy: 'PgAsyncPreparedQuery#executor (protected)',
+	},
+];
+
+// Unpacks the built tarball's declarations twice, under two different package names,
+// so the compiler sees two independent installs of the same types.
+function materializeTwoInstalls(outDir: string): void {
+	const sourcePrefix = `/node_modules/${pkg.packageName}/`;
+	for (const packageName of ['drizzle-a', 'drizzle-b']) {
+		for (const file of pkg.listFiles(sourcePrefix)) {
+			if (file !== `${sourcePrefix}package.json` && !file.endsWith('.d.ts')) continue;
+
+			const destination = join(outDir, 'node_modules', packageName, file.slice(sourcePrefix.length));
+			mkdirSync(dirname(destination), { recursive: true });
+			const contents = pkg.readFile(file);
+			writeFileSync(
+				destination,
+				file === `${sourcePrefix}package.json`
+					? JSON.stringify({ ...JSON.parse(contents), name: packageName })
+					: contents,
+			);
+		}
+	}
+}
+
 describe.skipIf(!ARTIFACTS_PRESENT)('types are portable across package instances', () => {
-	test('SQL types from separate installations are assignable', () => {
+	test('the published surface matches the recorded portability matrix', () => {
 		const outDir = mkdtempSync(join(tmpdir(), 'drizzle-duplicate-types-'));
 		try {
-			const sourcePrefix = `/node_modules/${pkg.packageName}/`;
-			for (const packageName of ['drizzle-a', 'drizzle-b']) {
-				for (const file of pkg.listFiles(sourcePrefix)) {
-					if (file !== `${sourcePrefix}package.json` && !file.endsWith('.d.ts')) continue;
+			materializeTwoInstalls(outDir);
 
-					const destination = join(outDir, 'node_modules', packageName, file.slice(sourcePrefix.length));
-					mkdirSync(dirname(destination), { recursive: true });
-					const contents = pkg.readFile(file);
-					writeFileSync(
-						destination,
-						file === `${sourcePrefix}package.json`
-							? JSON.stringify({ ...JSON.parse(contents), name: packageName })
-							: contents,
-					);
-				}
+			// One program covering every probe: each assignment gets its own line so a
+			// diagnostic's line number identifies which type failed.
+			const lines: string[] = [];
+			const lineToName = new Map<number, string>();
+			for (const { name, subpath } of PORTABILITY_MATRIX) {
+				lines.push(`import type { ${name} as ${name}_A } from 'drizzle-a/${subpath}';`);
+				lines.push(`import type { ${name} as ${name}_B } from 'drizzle-b/${subpath}';`);
+			}
+			for (const { name, typeArgs = '' } of PORTABILITY_MATRIX) {
+				lines.push(`declare const v_${name}: ${name}_B${typeArgs};`);
+				lineToName.set(lines.length + 1, name);
+				lines.push(`export const c_${name}: ${name}_A${typeArgs} = v_${name};`);
 			}
 
 			const entrypoint = join(outDir, 'index.mts');
-			writeFileSync(
-				entrypoint,
-				[
-					"import type { SQL as SQLA } from 'drizzle-a/sql/sql';",
-					"import type { SQL as SQLB } from 'drizzle-b/sql/sql';",
-					'declare const sqlA: SQLA;',
-					'declare const sqlB: SQLB;',
-					'const acceptsA: SQLA = sqlB;',
-					'const acceptsB: SQLB = sqlA;',
-					'void [acceptsA, acceptsB];',
-				].join('\n'),
-			);
+			writeFileSync(entrypoint, lines.join('\n') + '\n');
 
 			const program = ts.createProgram({
 				rootNames: [entrypoint],
@@ -161,15 +253,39 @@ describe.skipIf(!ARTIFACTS_PRESENT)('types are portable across package instances
 					target: ts.ScriptTarget.ESNext,
 				},
 			});
-			const diagnostics = ts.getPreEmitDiagnostics(program);
-			expect(
-				diagnostics,
-				ts.formatDiagnosticsWithColorAndContext(diagnostics, {
-					getCanonicalFileName: (fileName) => fileName,
-					getCurrentDirectory: () => outDir,
-					getNewLine: () => '\n',
-				}),
-			).toEqual([]);
+
+			const failed = new Map<string, string>();
+			const unattributed: string[] = [];
+			for (const diagnostic of ts.getPreEmitDiagnostics(program)) {
+				const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ');
+				if (!diagnostic.file || diagnostic.start === undefined) {
+					unattributed.push(message);
+					continue;
+				}
+				const line = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start).line + 1;
+				const name = lineToName.get(line);
+				// A diagnostic on a non-assignment line means the probe itself is malformed
+				// (bad subpath, wrong type arity) rather than a portability result.
+				if (name === undefined) {
+					unattributed.push(`line ${line}: ${message}`);
+					continue;
+				}
+				if (!failed.has(name)) failed.set(name, message);
+			}
+
+			expect(unattributed, `malformed probes:\n${unattributed.join('\n')}`).toEqual([]);
+
+			const actual = PORTABILITY_MATRIX.filter((p) => !failed.has(p.name)).map((p) => p.name).sort();
+			const expected = PORTABILITY_MATRIX.filter((p) => p.portable).map((p) => p.name).sort();
+
+			const regressed = expected.filter((n) => !actual.includes(n));
+			const fixed = actual.filter((n) => !expected.includes(n));
+			const hint = [
+				...regressed.map((n) => `REGRESSED ${n} is no longer portable: ${failed.get(n)}`),
+				...fixed.map((n) => `FIXED ${n} is now portable -- set portable: true in PORTABILITY_MATRIX`),
+			].join('\n');
+
+			expect(actual, hint).toEqual(expected);
 		} finally {
 			rmSync(outDir, { recursive: true, force: true });
 		}
