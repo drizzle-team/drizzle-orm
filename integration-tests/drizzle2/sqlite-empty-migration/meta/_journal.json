@@ -1,0 +1,20 @@
+{
+  "version": "5",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1680202256473,
+      "tag": "0000_create_probe",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1680202256474,
+      "tag": "0001_custom_placeholder",
+      "breakpoints": true
+    }
+  ]
+}
