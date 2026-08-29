@@ -139,6 +139,14 @@ interface PortabilityProbe {
 	blockedBy?: string;
 }
 
+// The dialects are blocked by something categorically different from a nominal member:
+// `BuildRelationalQueryResult['selection']`, an anonymous recursive intersection-of-union
+// reached via `mapperGenerators.relationalRows`. Having no named symbol, it misses the
+// compiler's relation cache, so each cross-instance comparison re-expands until the
+// recursion limiter gives up and reports a mismatch. Fixing it means naming that type,
+// not marking a member `@internal`.
+const DIALECT_BLOCKER = "BuildRelationalQueryResult['selection'] (anonymous recursive type)";
+
 const PORTABILITY_MATRIX: PortabilityProbe[] = [
 	{ name: 'SQL', subpath: 'sql/sql', portable: true },
 	{ name: 'Column', subpath: 'column', portable: true },
@@ -152,28 +160,12 @@ const PORTABILITY_MATRIX: PortabilityProbe[] = [
 	{ name: 'SQLiteTable', subpath: 'sqlite-core', portable: true },
 	{ name: 'SQLiteColumn', subpath: 'sqlite-core', portable: true },
 
-	{ name: 'Param', subpath: 'sql/sql', portable: false, blockedBy: 'Param#brand (protected)' },
-	{ name: 'Name', subpath: 'sql/sql', portable: false, blockedBy: 'Name#brand (protected)' },
-	{
-		name: 'CodecsCollection',
-		subpath: 'codecs',
-		portable: false,
-		blockedBy: 'CodecsCollection#resolveTypes (protected)',
-	},
-	// The three dialects all embed a CodecsCollection, so they inherit its leak.
-	{ name: 'PgDialect', subpath: 'pg-core', portable: false, blockedBy: 'CodecsCollection#resolveTypes (protected)' },
-	{
-		name: 'MySqlDialect',
-		subpath: 'mysql-core',
-		portable: false,
-		blockedBy: 'CodecsCollection#resolveTypes (protected)',
-	},
-	{
-		name: 'SQLiteDialect',
-		subpath: 'sqlite-core',
-		portable: false,
-		blockedBy: 'CodecsCollection#resolveTypes (protected)',
-	},
+	{ name: 'Param', subpath: 'sql/sql', portable: true },
+	{ name: 'Name', subpath: 'sql/sql', portable: true },
+	{ name: 'CodecsCollection', subpath: 'codecs', portable: true },
+	{ name: 'PgDialect', subpath: 'pg-core', portable: false, blockedBy: DIALECT_BLOCKER },
+	{ name: 'MySqlDialect', subpath: 'mysql-core', portable: false, blockedBy: DIALECT_BLOCKER },
+	{ name: 'SQLiteDialect', subpath: 'sqlite-core', portable: false, blockedBy: DIALECT_BLOCKER },
 	// Only pg-core exposes `toBuilder()` in a public return type, which is why the
 	// identical `foreignKeyConfigs` field on the other dialects' builders is unreachable
 	// and their table/column types above are portable.
