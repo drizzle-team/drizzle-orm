@@ -139,13 +139,7 @@ interface PortabilityProbe {
 	blockedBy?: string;
 }
 
-// The dialects are blocked by something categorically different from a nominal member:
-// `BuildRelationalQueryResult['selection']`, an anonymous recursive intersection-of-union
-// reached via `mapperGenerators.relationalRows`. Having no named symbol, it misses the
-// compiler's relation cache, so each cross-instance comparison re-expands until the
-// recursion limiter gives up and reports a mismatch. Fixing it means naming that type,
-// not marking a member `@internal`.
-const DIALECT_BLOCKER = "BuildRelationalQueryResult['selection'] (anonymous recursive type)";
+const EMPTY_FILTER = 'EmptyFilter (unique symbol)';
 
 const PORTABILITY_MATRIX: PortabilityProbe[] = [
 	{ name: 'SQL', subpath: 'sql/sql', portable: true },
@@ -162,21 +156,61 @@ const PORTABILITY_MATRIX: PortabilityProbe[] = [
 	{ name: 'PgView', subpath: 'pg-core', portable: true },
 	{ name: 'MySqlView', subpath: 'mysql-core', portable: true },
 	{ name: 'SQLiteView', subpath: 'sqlite-core', portable: true },
+	{ name: 'CockroachView', subpath: 'cockroach-core', portable: true },
+	{ name: 'MsSqlView', subpath: 'mssql-core', portable: true },
+	{ name: 'SingleStoreView', subpath: 'singlestore-core/view', portable: true },
 
 	{ name: 'Param', subpath: 'sql/sql', portable: true },
 	{ name: 'Name', subpath: 'sql/sql', portable: true },
 	{ name: 'CodecsCollection', subpath: 'codecs', portable: true },
-	{ name: 'PgDialect', subpath: 'pg-core', portable: false, blockedBy: DIALECT_BLOCKER },
-	{ name: 'MySqlDialect', subpath: 'mysql-core', portable: false, blockedBy: DIALECT_BLOCKER },
-	{ name: 'SQLiteDialect', subpath: 'sqlite-core', portable: false, blockedBy: DIALECT_BLOCKER },
+	// Their nominal members are stripped; what remains is `EmptyFilter`, whose
+	// `unique symbol` type is nominal per declaration site. That is an API decision
+	// rather than a marker, so it is made separately.
+	{ name: 'PgDialect', subpath: 'pg-core', portable: false, blockedBy: EMPTY_FILTER },
+	{ name: 'MySqlDialect', subpath: 'mysql-core', portable: false, blockedBy: EMPTY_FILTER },
+	{ name: 'SQLiteDialect', subpath: 'sqlite-core', portable: false, blockedBy: EMPTY_FILTER },
+	// These three reach their session class, and so inherit a chain of nominal members
+	// -- Session#dialect, then the prepared-query and transaction classes behind it --
+	// on top of EmptyFilter. The chain does not fall to a contained change, so unlike
+	// their pg/mysql/sqlite counterparts they stay recorded rather than fixed here.
+	{
+		name: 'CockroachDialect',
+		subpath: 'cockroach-core',
+		portable: false,
+		blockedBy: 'CockroachSession#dialect (protected), and a chain behind it',
+	},
+	{
+		name: 'MsSqlDialect',
+		subpath: 'mssql-core',
+		portable: false,
+		blockedBy: 'MsSqlSession#dialect (protected), and a chain behind it',
+	},
+	{
+		name: 'SingleStoreDialect',
+		subpath: 'singlestore-core',
+		portable: false,
+		blockedBy: 'SingleStoreSession#dialect (protected), and a chain behind it',
+	},
 	{ name: 'PgTable', subpath: 'pg-core', portable: true },
 	{ name: 'PgColumn', subpath: 'pg-core', portable: true },
+	// Query builders are non-portable for the same reason, and stop at the same kind of
+	// wall: stripping PgSelectBase's nominal members only reveals `CheckTableLikeSelection`,
+	// a conditional deferred on an unresolved type parameter, behind them. Recorded so
+	// `function withPagination(qb: PgSelect)` is known not to survive the boundary.
+	{
+		name: 'PgSelect',
+		subpath: 'pg-core',
+		portable: false,
+		blockedBy: 'PgSelectBase#config (protected), and a deferred conditional behind it',
+	},
 	// The database object is reached through the session, and every prepared-query,
-	// transaction and relational-query-builder class along that path contributes its own
-	// nominal member: PgAsyncPreparedQuery#executor, then PgBasePreparedQuery#query, then
-	// PgAsyncTransaction#nestedIndex, then RelationalQueryBuilder#schema, and onward
-	// through ~70 more across pg-core/query-builders. Unlike the entries above it does
-	// not fall to a contained change, so it is left recorded rather than half-fixed.
+	// transaction and relational-query-builder class on that path contributes its own
+	// nominal member. Peeling them is not worth attempting: past the last of them the
+	// type comes to rest on `BuildQueryResult<..., TConfig, ...>`, a mapped type deferred
+	// on the unresolved parameter of `findMany<TConfig>`. The compiler cannot relate
+	// `keyof X` from one declaration site to `keyof X` from the other while X stays
+	// deferred, so it widens to `string | number | symbol` and fails -- a comparison
+	// limit in TypeScript rather than anything drizzle emits. Recorded, not chased.
 	{
 		name: 'NodePgDatabase',
 		subpath: 'node-postgres/driver',
