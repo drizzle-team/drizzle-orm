@@ -175,8 +175,10 @@ export abstract class PgColumnBuilder<
 
 	declare readonly _: T;
 
+	/** @internal */
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
+	/** @internal */
 	protected config: PgColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
 
 	constructor(name: string, dataType: ColumnType, columnType: string) {
@@ -502,6 +504,7 @@ type PgColumnConstructor = new(table: PgTable, config: any) => PgColumn;
 export class PgClonedColumnBuilder extends PgColumnBuilder {
 	static override readonly [entityKind]: string = 'PgClonedColumnBuilder';
 
+	/** @internal */
 	private readonly ColumnClass: PgColumnConstructor;
 
 	constructor(config: PgColumnBuilderRuntimeConfig<unknown>, ColumnClass: PgColumnConstructor) {
