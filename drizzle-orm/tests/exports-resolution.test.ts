@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 import { beforeAll, describe, expect, test } from 'vitest';
 import { checkPackage } from '../../attw-fork/src/checkPackage.ts';
 import { getExitCode } from '../../attw-fork/src/cli/getExitCode.ts';
@@ -112,6 +113,67 @@ describe.skipIf(!ARTIFACTS_PRESENT)('no public subpath is dropped', () => {
 			.map((p) => p.entrypoint);
 		expect(unresolved, `unresolved: ${unresolved.slice(0, 20).join(', ')}`).toEqual([]);
 	}, 120_000);
+});
+
+describe.skipIf(!ARTIFACTS_PRESENT)('types are portable across package instances', () => {
+	test('SQL types from separate installations are assignable', () => {
+		const outDir = mkdtempSync(join(tmpdir(), 'drizzle-duplicate-types-'));
+		try {
+			const sourcePrefix = `/node_modules/${pkg.packageName}/`;
+			for (const packageName of ['drizzle-a', 'drizzle-b']) {
+				for (const file of pkg.listFiles(sourcePrefix)) {
+					if (file !== `${sourcePrefix}package.json` && !file.endsWith('.d.ts')) continue;
+
+					const destination = join(outDir, 'node_modules', packageName, file.slice(sourcePrefix.length));
+					mkdirSync(dirname(destination), { recursive: true });
+					const contents = pkg.readFile(file);
+					writeFileSync(
+						destination,
+						file === `${sourcePrefix}package.json`
+							? JSON.stringify({ ...JSON.parse(contents), name: packageName })
+							: contents,
+					);
+				}
+			}
+
+			const entrypoint = join(outDir, 'index.mts');
+			writeFileSync(
+				entrypoint,
+				[
+					"import type { SQL as SQLA } from 'drizzle-a/sql/sql';",
+					"import type { SQL as SQLB } from 'drizzle-b/sql/sql';",
+					'declare const sqlA: SQLA;',
+					'declare const sqlB: SQLB;',
+					'const acceptsA: SQLA = sqlB;',
+					'const acceptsB: SQLB = sqlA;',
+					'void [acceptsA, acceptsB];',
+				].join('\n'),
+			);
+
+			const program = ts.createProgram({
+				rootNames: [entrypoint],
+				options: {
+					module: ts.ModuleKind.NodeNext,
+					moduleResolution: ts.ModuleResolutionKind.NodeNext,
+					noEmit: true,
+					skipLibCheck: true,
+					strict: true,
+					target: ts.ScriptTarget.ESNext,
+				},
+			});
+			const diagnostics = ts.getPreEmitDiagnostics(program);
+			expect(
+				diagnostics,
+				ts.formatDiagnosticsWithColorAndContext(diagnostics, {
+					getCanonicalFileName: (fileName) => fileName,
+					getCurrentDirectory: () => outDir,
+					getNewLine: () => '\n',
+				}),
+			).toEqual([]);
+		} finally {
+			rmSync(outDir, { recursive: true, force: true });
+		}
+	});
 });
 
 describe('directory-index shim emitter refuses to shadow a source artifact', () => {
