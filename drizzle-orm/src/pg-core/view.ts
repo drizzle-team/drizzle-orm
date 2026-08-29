@@ -307,6 +307,7 @@ export class PgView<
 > extends PgViewBase<TName, TExisting, TSelectedFields> {
 	static override readonly [entityKind]: string = 'PgView';
 
+	/** @internal */
 	[PgViewConfig]: {
 		with?: ViewWithConfig;
 	} | undefined;
@@ -344,6 +345,7 @@ export class PgMaterializedView<
 > extends PgViewBase<TName, TExisting, TSelectedFields> {
 	static override readonly [entityKind]: string = 'PgMaterializedView';
 
+	/** @internal */
 	readonly [PgMaterializedViewConfig]: {
 		readonly with?: PgMaterializedViewWithConfig;
 		readonly using?: string;
