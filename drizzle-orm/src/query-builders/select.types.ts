@@ -4,7 +4,7 @@ import type { SelectedFields } from '~/operations.ts';
 import type { ColumnsSelection, SQL, View } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table } from '~/table.ts';
-import type { Assume, DrizzleTypeError, Equal, FromSingleKeyObject, IsAny, IsUnion, Not, Simplify } from '~/utils.ts';
+import type { Assume, DrizzleTypeError, Equal, FromSingleKeyObject, IsNever, IsUnion, Not, Simplify } from '~/utils.ts';
 
 export type JoinType = 'inner' | 'left' | 'right' | 'full' | 'cross';
 
@@ -93,7 +93,7 @@ export type AddAliasToSelection<
 	TAlias extends string,
 	TDialect extends Dialect,
 > = Simplify<
-	IsAny<TSelection> extends true ? any
+	IsNever<TSelection> extends true ? any
 		: {
 			[Key in keyof TSelection]: TSelection[Key] extends Column
 				? ChangeColumnTableName<TSelection[Key], TAlias, TDialect>

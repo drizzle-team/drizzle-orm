@@ -13,6 +13,7 @@ import type {
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
+import { resolveUnionType, type SingleStoreType } from '~/singlestore-core/codecs.ts';
 import type { SingleStoreColumn } from '~/singlestore-core/columns/index.ts';
 import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
 import type {
@@ -43,6 +44,7 @@ import type {
 	LockConfig,
 	LockStrength,
 	SelectedFields,
+	SelectedFieldsOrdered,
 	SetOperatorRightSelect,
 	SingleStoreCreateSetOperatorFn,
 	SingleStoreCrossJoinFn,
@@ -228,6 +230,9 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 			if (typeof tableName === 'string' && this.config.joins?.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
 			}
+
+			this.config.fieldsFlat = undefined;
+			this.config.mapper = undefined;
 
 			if (!this.isPartialSelect) {
 				// If this is the first join and this is not a partial select and we're not selecting from raw SQL, "move" the fields from the main table to the nested object
@@ -901,8 +906,45 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 	}
 
 	getSQL(): SQL {
-		this.config.fieldsFlat = orderSelectedFields<SingleStoreColumn>(this.config.fields);
+		this.config.fieldsFlat ??= this._resolveSelection();
 		return this.dialect.buildSelectQuery(this.config);
+	}
+
+	/** @internal */
+	_resolveSelection(): SelectedFieldsOrdered {
+		const { config, dialect } = this;
+		const fieldsFlat = orderSelectedFields<SingleStoreColumn>(config.fields, undefined, dialect.codecs);
+
+		const { setOperators } = config;
+		if (!setOperators.length) return fieldsFlat;
+
+		const setSelection: SelectedFieldsOrdered = fieldsFlat.map((f) => ({ ...f }));
+
+		for (const setOperator of setOperators) {
+			if (!setOperator) {
+				throw new Error('Cannot pass undefined values to any set operator');
+			}
+
+			const rightSelection = orderSelectedFields(setOperator.rightSelect.getSelectedFields());
+			for (const l of setSelection) {
+				const lPath = l.path.join('.');
+				// Equivalency of selections is a pre-requisite for set operations
+				const r = rightSelection.find((e) => e.path.join('.') === lPath)!;
+
+				const lc = (l.codecOverride ?? l.column?.codec) as SingleStoreType | undefined;
+				const rc = (r.codecOverride ?? r.column?.codec) as SingleStoreType | undefined;
+
+				l.codecOverride = lc && rc ? resolveUnionType(lc, rc) : lc;
+			}
+		}
+
+		for (const out of setSelection) {
+			out.codec = out.codecOverride
+				? dialect.codecs.get(out.column!, 'normalize', out.codecOverride as SingleStoreType)
+				: out.codec;
+		}
+
+		return setSelection;
 	}
 
 	toSQL(): Query {
@@ -917,7 +959,9 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 		if (this.config.joins) { for (const it of this.config.joins) usedTables.push(...extractUsedTable(it.table)); }
 
 		return new Proxy(
-			new Subquery(this.getSQL(), this.config.fields, alias, false, [...new Set(usedTables)]),
+			new Subquery(this.withoutSelectionCastCodecs().getSQL(), this.config.fields, alias, false, [
+				...new Set(usedTables),
+			]),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
 	}
@@ -932,6 +976,7 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 
 	/** @internal */
 	override withoutSelectionCastCodecs(): this {
+		this.config.ignoreSelectionCastCodecs = true;
 		return this;
 	}
 
@@ -999,15 +1044,15 @@ export class SingleStoreSelectBase<
 		// Build query before accessing `fieldsFlat` - build mutates it
 		const query = this.dialect.sqlToQuery(this.getSQL());
 		const fieldsList = this.config.fieldsFlat!;
-		const preparedQuery = this.session.prepareQuery<
+		const nullableObjectPaths = resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap);
+
+		return this.session.prepareQuery<
 			SingleStorePreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
 			TPreparedQueryHKT
-		>(query, fieldsList, undefined, undefined, undefined, {
+		>(query, 'arrays', this.config.mapper ??= this.dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths), {
 			type: 'select',
 			tables: [...this.usedTables],
-		}, this.cacheConfig);
-		preparedQuery.nullableObjectPaths = resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap);
-		return preparedQuery as SingleStoreSelectPrepare<this>;
+		}, this.cacheConfig) as SingleStoreSelectPrepare<this>;
 	}
 
 	$withCache(config?: { config?: CacheConfig; tag?: string; autoInvalidate?: boolean } | false) {

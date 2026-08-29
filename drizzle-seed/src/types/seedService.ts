@@ -10,13 +10,47 @@ import type { Prettify } from './tables.ts';
 
 export type GeneratedValueType = number | bigint | string | Buffer | boolean | undefined | null;
 
+export type GeneratedRow = { [columnName: string]: GeneratedValueType };
+
+export type GeneratedTablesValues = {
+	[tableName: string]: GeneratedRow[];
+};
+
+/**
+ * One write a seed is made of. Generating these is the same work whatever is done with them afterwards, so the seeding
+ * pipeline produces them once and the caller decides whether to run them, keep their rows or render them as sql.
+ */
+export type SeedOperation =
+	| {
+		type: 'insert';
+		tableName: string;
+		rows: GeneratedRow[];
+		/** identity columns are being written explicitly, so the database has to be told to allow it */
+		override: boolean;
+	}
+	| {
+		type: 'update';
+		tableName: string;
+		values: GeneratedRow;
+		whereColumn: string;
+		whereValue: GeneratedValueType;
+	}
+	| {
+		type: 'sequence';
+		tableName: string;
+		columnName: string;
+		value: number | bigint;
+	};
+
+export type ConnectionType = 'postgresql' | 'mysql' | 'sqlite' | 'mssql' | 'cockroach' | 'singlestore';
+
 export type DbType =
 	| PgAsyncDatabase<any, any>
 	| MySqlAsyncDatabase<any, any>
 	| SQLiteAsyncDatabase<any, any, any>
-	| MsSqlDatabase<any, any, any, any>
-	| CockroachDatabase<any, any, any>
-	| SingleStoreDatabase<any, any, any, any>;
+	| MsSqlDatabase<any, any, any>
+	| CockroachDatabase<any, any>
+	| SingleStoreDatabase<any, any, any>;
 
 export type TableType = PgTable | MySqlTable | SQLiteTable | MsSqlTable | CockroachTable | SingleStoreTable;
 

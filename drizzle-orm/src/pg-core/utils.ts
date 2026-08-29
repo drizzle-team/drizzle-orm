@@ -4,6 +4,7 @@ import type { AnyRelations } from '~/relations.ts';
 import { SQL } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table, TableSchema } from '~/table.ts';
+import { throwUnknownExtraConfigValue } from '~/table.utils.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { type Check, CheckBuilder } from './checks.ts';
@@ -48,6 +49,8 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 				foreignKeys.push(builder.build(table));
 			} else if (is(builder, PgPolicy)) {
 				policies.push(builder);
+			} else {
+				throwUnknownExtraConfigValue(name, builder);
 			}
 		}
 	}
@@ -102,5 +105,5 @@ export function getMaterializedViewConfig<
 }
 
 export type DrizzlePgConfig<TRelations extends AnyRelations> =
-	& Omit<DrizzleConfig<Record<string, never>, TRelations>, 'schema'>
+	& DrizzleConfig<TRelations>
 	& { codecs?: PgCodecs | undefined };

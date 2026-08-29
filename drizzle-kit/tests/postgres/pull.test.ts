@@ -899,7 +899,7 @@ test('introspect view #3', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-08-12'))('introspect view #4', async () => {
+test.skipIf(Date.now() < +new Date('2026-09-05'))('introspect view #4', async () => {
 	const table = pgTable('table', {
 		column1: text().notNull(),
 		column2: text(),
@@ -928,7 +928,7 @@ test.skipIf(Date.now() < +new Date('2026-08-12'))('introspect view #4', async ()
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-08-12'))('introspect view #5', async () => {
+test.skipIf(Date.now() < +new Date('2026-09-05'))('introspect view #5', async () => {
 	const applications = pgTable('applications', {
 		applicationId: serial('application_id').primaryKey(),
 		studentId: integer('student_id').references(() => students.studentId),
@@ -1820,7 +1820,7 @@ test('introspect view with table filter', async () => {
 // this does not look like a bug
 // sequences are separete entities
 // entity filter for sequences ??
-test.skipIf(Date.now() < +new Date('2026-08-12'))('introspect sequences with table filter', async () => {
+test.skipIf(Date.now() < +new Date('2026-09-05'))('introspect sequences with table filter', async () => {
 	// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')
 
 	// const seq1 = pgSequence('seq1');
@@ -3134,6 +3134,195 @@ CREATE TABLE table2 (
 		generateStatements,
 		generateSqlStatements,
 	} = await diffIntrospect(db, {}, 'primary-key-without-default-name');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3736
+test('issue No3736', async () => {
+	await db.query(`CREATE TABLE "keyfigures" (
+	"id" integer NOT NULL,
+	"comp_uuid" uuid NOT NULL,
+	"year" varchar(255) NOT NULL
+);`);
+
+	await db.query(`CREATE INDEX "keyfigures__comp_uuid_idx" ON "keyfigures" USING btree ("comp_uuid" uuid_ops);`);
+	await db.query(
+		`CREATE INDEX "keyfigures__comp_uuid_year_idx" ON "keyfigures" USING btree ("comp_uuid" uuid_ops,"year" text_ops);`,
+	);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'issue 3736');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.indexes.list().map((it) => it.columns)).toStrictEqual([
+		[
+			{
+				asc: true,
+				isExpression: false,
+				nullsFirst: false,
+				opclass: null,
+				value: 'comp_uuid',
+			},
+		],
+		[
+			{
+				asc: true,
+				isExpression: false,
+				nullsFirst: false,
+				opclass: null, // default op class
+				value: 'comp_uuid',
+			},
+			{
+				asc: true,
+				isExpression: false,
+				nullsFirst: false,
+				opclass: null, // default op class
+				value: 'year',
+			},
+		],
+	]);
+	expect(schema2.indexes.map((it) => it.columns)).toStrictEqual([
+		[
+			{
+				asc: true,
+				isExpression: false,
+				nullsFirst: false,
+				opclass: null,
+				value: 'comp_uuid',
+			},
+		],
+		[
+			{
+				asc: true,
+				isExpression: false,
+				nullsFirst: false,
+				opclass: null,
+				value: 'comp_uuid',
+			},
+			{
+				asc: true,
+				isExpression: false,
+				nullsFirst: false,
+				opclass: null,
+				value: 'year',
+			},
+		],
+	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3250
+test('issue No3250', async () => {
+	await db.query(`CREATE TABLE users (
+    "id" SERIAL PRIMARY KEY,
+    "username" TEXT NOT NULL,
+    account_type varchar(64) DEFAULT NULL::character varying NULL
+);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'issue 3250');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.list({ name: 'account_type' })).toStrictEqual([
+		{
+			default: 'NULL',
+			dimensions: 0,
+			entityType: 'columns',
+			generated: null,
+			identity: null,
+			name: 'account_type',
+			notNull: false,
+			schema: 'public',
+			table: 'users',
+			type: 'varchar(64)',
+			typeSchema: null,
+		},
+	]);
+	expect(schema2.columns.find((it) => it.name === 'account_type')).toStrictEqual(
+		{
+			default: 'NULL',
+			dimensions: 0,
+			entityType: 'columns',
+			generated: null,
+			identity: null,
+			name: 'account_type',
+			notNull: false,
+			pk: false,
+			pkName: null,
+			schema: 'public',
+			table: 'users',
+			type: 'varchar(64)',
+			typeSchema: null,
+			unique: false,
+			uniqueName: null,
+			uniqueNullsNotDistinct: false,
+		},
+	);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3820
+test('issue No3820', async () => {
+	await db.query(`CREATE TABLE "Guru" (
+	"id" int8 primary key generated by default as identity
+);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, {}, 'issue-3820');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2993
+test('issue No2993', async () => {
+	await db.query(`create schema drizzle_test;`);
+	await db.query(`create table drizzle_test.child (
+    id uuid primary key,
+    other_id uuid not null
+);`);
+	await db.query(`create table drizzle_test.parent (
+    id uuid primary key,
+    other_id uuid not null,
+    child_id uuid unique references drizzle_test.child (id) on delete restrict,
+    unique (other_id, child_id)
+);`);
+	await db.query(`alter table drizzle_test.child add constraint test_key
+foreign key (other_id, id)
+references drizzle_test.parent (other_id, child_id);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, {}, 'issue-2993');
 
 	expect(pushStatements).toStrictEqual([]);
 	expect(generateStatements).toStrictEqual([]);

@@ -1,7 +1,7 @@
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import type { MsSqlDatabase } from '~/mssql-core/db.ts';
-import { int, mssqlTable, text } from '~/mssql-core/index.ts';
+import { int, type MsSqlInsert, mssqlTable, QueryBuilder, text } from '~/mssql-core/index.ts';
 import type { PreparedQueryHKTBase, QueryResultHKT } from '~/mssql-core/session.ts';
 import type { MsSqlQueryResult } from '~/node-mssql';
 import { sql } from '~/sql/sql.ts';
@@ -184,4 +184,77 @@ Expect<Equal<{ cityHome: number }[], typeof insertOutputPartialSqlPrepared>>;
 		| MsSqlDatabase<HKT1, PreparedQueryHKTBase>
 		| MsSqlDatabase<HKT2, PreparedQueryHKTBase>;
 	await unionDb.insert(users).values({ homeCity: 1, class: 'A', age1: 1, enumCol: 'a' });
+}
+
+{
+	const users1 = mssqlTable('users1', {
+		id: int('id').identity().primaryKey(),
+		name: text('name').notNull(),
+		admin: int('admin').notNull().default(0),
+	});
+
+	const users2 = mssqlTable('users2', {
+		id: int('id').identity().primaryKey(),
+		firstName: text('first_name').notNull(),
+		lastName: text('last_name').notNull(),
+		admin: int('admin').notNull().default(0),
+	});
+
+	const qb = new QueryBuilder();
+
+	db.insert(users1).select(sql`select * from users1`);
+	db.insert(users1).select(() => sql`select * from users1`);
+
+	db
+		.insert(users1)
+		.select(
+			qb.select({
+				name: users2.firstName,
+				admin: users2.admin,
+			}).from(users2),
+		);
+
+	db
+		.insert(users1)
+		.select(
+			qb.select({
+				name: users2.firstName,
+				admin: users2.admin,
+			}).from(users2).where(sql``),
+		);
+
+	db
+		.insert(users1)
+		.select(
+			qb.select({
+				name: sql`${users2.firstName} + ' ' + ${users2.lastName}`.as('name'),
+				admin: users2.admin,
+			}).from(users2),
+		);
+
+	db.insert(users1).select(db.select({ name: users1.name, admin: users1.admin }).from(users1));
+	db.insert(users1).select(() => db.select({ name: users1.name, admin: users1.admin }).from(users1));
+	db.insert(users1).select((qb) => qb.select({ name: users1.name, admin: users1.admin }).from(users1));
+
+	db
+		.insert(users1)
+		.select(
+			// @ts-expect-error `unknown` is not a column of users1
+			qb.select({ unknown: users1.admin }).from(users1),
+		);
+}
+
+{
+	function dynamic<T extends MsSqlInsert>(qb: T) {
+		return qb;
+	}
+
+	const qbBase = db.insert(users).output().values({ homeCity: 1, class: 'A', age1: 1, enumCol: 'a' }).$dynamic();
+	const qb = dynamic(qbBase);
+	const result = await qb;
+	Expect<Equal<typeof users.$inferSelect[], typeof result>>;
+
+	const noOutput = db.insert(users).values({ homeCity: 1, class: 'A', age1: 1, enumCol: 'a' }).$dynamic();
+	const noOutputResult = await dynamic(noOutput);
+	Expect<Equal<MsSqlQueryResult<any>, typeof noOutputResult>>;
 }

@@ -9,7 +9,7 @@ const singlestoreUsers = singlestoreTable('users', {
 });
 
 {
-	const db0 = drizzle('', { schema: { users: singlestoreUsers } });
+	const db0 = drizzle('');
 
 	await seed(db0, { users: singlestoreUsers });
 	await seed(db0, { users: singlestoreUsers }).refine((funcs) => ({

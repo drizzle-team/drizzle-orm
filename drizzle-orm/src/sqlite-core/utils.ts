@@ -3,10 +3,12 @@ import type { AnyRelations } from '~/relations.ts';
 import { SQL } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
+import { throwUnknownExtraConfigValue } from '~/table.utils.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { Check } from './checks.ts';
 import { CheckBuilder } from './checks.ts';
+import type { SQLiteCodecs } from './codecs.ts';
 import type { ForeignKey } from './foreign-keys.ts';
 import { ForeignKeyBuilder } from './foreign-keys.ts';
 import type { Index } from './indexes.ts';
@@ -43,6 +45,8 @@ export function getTableConfig<TTable extends SQLiteTable>(table: TTable) {
 				primaryKeys.push(builder.build(table));
 			} else if (is(builder, ForeignKeyBuilder)) {
 				foreignKeys.push(builder.build(table));
+			} else {
+				throwUnknownExtraConfigValue(name, builder);
 			}
 		}
 	}
@@ -83,7 +87,6 @@ export function getViewConfig<
 	};
 }
 
-export type DrizzleSQLiteConfig<TRelations extends AnyRelations> = Omit<
-	DrizzleConfig<Record<string, never>, TRelations>,
-	'schema'
->;
+export type DrizzleSQLiteConfig<TRelations extends AnyRelations> =
+	& DrizzleConfig<TRelations>
+	& { codecs?: SQLiteCodecs | undefined };

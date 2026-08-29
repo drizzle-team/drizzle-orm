@@ -73,7 +73,7 @@ export const fromDatabase = async (
 		pk: number;
 		hidden: number;
 		sql: string;
-		type: 'table' | 'view';
+		type: 'table' | 'virtual';
 	}>(
 		`SELECT 
 			m.name as "table", 
@@ -84,11 +84,12 @@ export const fromDatabase = async (
 			p.pk as pk,
 			p.hidden as hidden,
 			m.sql,
-			m.type as type
+			l.type as type
 		FROM sqlite_master AS m 
+			JOIN pragma_table_list(m.name) AS l
 			JOIN pragma_table_xinfo(m.name) AS p
 		WHERE 
-			m.type = 'table'
+			(l.type = 'table' OR l.type = 'virtual')
 			and m.tbl_name NOT LIKE '\\_cf\\_%' ESCAPE '\\'
 			and m.tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
 			and m.tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
@@ -362,7 +363,7 @@ export const fromDatabase = async (
 	}, {} as Record<string, string>) || {};
 
 	const tables: SqliteEntities['tables'][] = [
-		...new Set(dbTableColumns.filter((it) => it.type === 'table').map((it) => it.table)),
+		...new Set(dbTableColumns.map((it) => it.table)),
 	].map((it) => ({
 		entityType: 'tables',
 		name: it,
@@ -385,7 +386,7 @@ export const fromDatabase = async (
 	}
 
 	const columns: InterimColumn[] = [];
-	for (const column of dbTableColumns.filter((it) => it.type === 'table')) {
+	for (const column of dbTableColumns) {
 		columnsCount += 1;
 
 		progressCallback('columns', columnsCount, 'fetching');
@@ -469,23 +470,33 @@ export const fromDatabase = async (
 		from: string;
 		to: string;
 		onUpdate: string;
-		sql: string;
 		onDelete: string;
 		seq: number;
 		id: number;
 	}>(
-		`SELECT 
-			m.name as "tableFrom",
-			f.id as "id", 
-			f."table" as "tableTo", 
-			f."from", 
-			f."to",
-			m."sql" as sql,
-		  f."on_update" as "onUpdate", 
-			f."on_delete" as "onDelete", 
-			f.seq as "seq"
-		FROM sqlite_master m, pragma_foreign_key_list(m.name) as f 
-		WHERE m.tbl_name != '_cf_KV';`,
+		`WITH pks AS (
+		  SELECT m.name AS tbl, ti.name AS col, ti.pk AS pk
+		  FROM sqlite_master m
+		  JOIN pragma_table_info(m.name) ti
+		  WHERE m.type = 'table' AND ti.pk > 0
+		)
+		SELECT
+		  m.name                    AS "tableFrom",
+		  f.id                      AS "id",
+		  f."table"                 AS "tableTo",
+		  f."from"                  AS "from",
+		  f.seq                     AS "seq",
+		  COALESCE(f."to", p.col)   AS "to",
+		  f.on_update               AS "onUpdate",
+		  f.on_delete               AS "onDelete"
+		FROM sqlite_master m
+		JOIN pragma_foreign_key_list(m.name) f
+		LEFT JOIN pks p
+		       ON p.tbl = f."table"
+		      AND p.pk  = f.seq + 1        -- pk is 1-based, seq is 0-based
+		WHERE m.type = 'table'
+		  AND m.name NOT LIKE 'sqlite_%'
+		ORDER BY m.name, f.id, f.seq;`,
 	).then((fks) => {
 		queryCallback('fks', fks, null);
 		return fks.filter((it) => filter({ type: 'table', schema: false, name: it.tableFrom }));
@@ -496,6 +507,13 @@ export const fromDatabase = async (
 	type DBFK = typeof dbFKs[number];
 
 	const fksToColumns = dbFKs.reduce((acc, it) => {
+		if (!it.to) {
+			throw Error(
+				`Table ${chalk.underline(it.tableTo)} has no primary key, so the foreign key from ${
+					chalk.underline(`${it.tableFrom}.${it.from}`)
+				} to ${chalk.underline(it.tableTo)} cannot be resolved`,
+			);
+		}
 		const key = `${it.tableFrom}:${it.id}`;
 		if (key in acc) {
 			acc[key].columnsFrom.push(it.from);

@@ -1,12 +1,15 @@
 import type { AnyCockroachTable, CockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBuilderRuntimeConfig } from '~/column-builder.ts';
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
-import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
+import {
+	CockroachColumn,
+	type CockroachColumnBaseConfig,
+	CockroachColumnBuilder,
+	type CockroachColumnBuilderRuntimeConfig,
+} from './common.ts';
 import type { Precision } from './timestamp.ts';
 
-export class CockroachTimeBuilder extends CockroachColumnWithArrayBuilder<
+export class CockroachTimeBuilder extends CockroachColumnBuilder<
 	{
 		dataType: 'string time';
 		data: string;
@@ -37,15 +40,20 @@ export class CockroachTimeBuilder extends CockroachColumnWithArrayBuilder<
 	}
 }
 
-export class CockroachTime<T extends ColumnBaseConfig<'string time'>> extends CockroachColumn<T> {
+export class CockroachTime<T extends CockroachColumnBaseConfig<'string time'>>
+	extends CockroachColumn<'string time', T>
+{
 	static override readonly [entityKind]: string = 'CockroachTime';
+
+	/** @internal */
+	override readonly codec = 'time';
 
 	readonly withTimezone: boolean;
 	readonly precision: number | undefined;
 
 	constructor(
 		table: CockroachTable<any>,
-		config: ColumnBuilderRuntimeConfig<T['data']> & { withTimezone: boolean; precision: number | undefined },
+		config: CockroachColumnBuilderRuntimeConfig<T['data']> & { withTimezone: boolean; precision: number | undefined },
 	) {
 		super(table, config);
 		this.withTimezone = config.withTimezone;

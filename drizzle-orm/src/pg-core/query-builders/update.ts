@@ -28,7 +28,6 @@ import { Subquery } from '~/subquery.ts';
 import { getTableName, type InferInsertModel, Table } from '~/table.ts';
 import {
 	type Assume,
-	type DrizzleTypeError,
 	type Equal,
 	getTableLikeName,
 	mapUpdateSet,
@@ -40,10 +39,10 @@ import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgColumn } from '../columns/common.ts';
 import type { PgViewBase } from '../view-base.ts';
 import type {
+	CheckTableLikeSelection,
 	PgSelectJoinConfig,
 	SelectedFields,
 	SelectedFieldsOrdered,
-	TableLikeHasEmptySelection,
 } from './select.types.ts';
 
 export interface PgUpdateConfig {
@@ -175,10 +174,7 @@ export type PgUpdateJoinFn<
 > = <
 	TJoinedTable extends PgTable | Subquery | PgViewBase | SQL,
 >(
-	table: TableLikeHasEmptySelection<TJoinedTable> extends true ? DrizzleTypeError<
-			"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
-		>
-		: TJoinedTable,
+	table: CheckTableLikeSelection<TJoinedTable>,
 	on:
 		| (
 			(
@@ -469,10 +465,7 @@ export class PgUpdateBase<
 	}
 
 	from<TFrom extends PgTable | Subquery | PgViewBase | SQL>(
-		source: TableLikeHasEmptySelection<TFrom> extends true ? DrizzleTypeError<
-				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
-			>
-			: TFrom,
+		source: CheckTableLikeSelection<TFrom>,
 	): PgUpdateWithJoins<this, TDynamic, TFrom> {
 		const src = source as TFrom;
 		const tableName = getTableLikeName(src);
@@ -504,6 +497,8 @@ export class PgUpdateBase<
 			if (typeof tableName === 'string' && this.config.joins.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
 			}
+
+			this.config.shape = undefined;
 
 			if (typeof on === 'function') {
 				const from = this.config.from && !is(this.config.from, SQL)
@@ -657,6 +652,7 @@ export class PgUpdateBase<
 			undefined,
 			this.dialect.codecs,
 		);
+		this.config.shape = undefined;
 		return this as any;
 	}
 

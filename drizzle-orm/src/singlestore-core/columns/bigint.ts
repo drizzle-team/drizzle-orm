@@ -32,16 +32,12 @@ export class SingleStoreBigInt53<T extends ColumnBaseConfig<'number int53' | 'nu
 {
 	static override readonly [entityKind]: string = 'SingleStoreBigInt53';
 
+	/** @internal */
+	override readonly codec = 'bigint:number';
+
 	getSQLType(): string {
 		return `bigint${this.config.unsigned ? ' unsigned' : ''}`;
 	}
-
-	override mapFromDriverValue = (value: number | string): number => {
-		if (typeof value === 'number') {
-			return value;
-		}
-		return Number(value);
-	};
 }
 
 export class SingleStoreBigInt64Builder<TUnsigned extends boolean | undefined>
@@ -72,14 +68,12 @@ export class SingleStoreBigInt64<T extends ColumnBaseConfig<'bigint int64' | 'bi
 {
 	static override readonly [entityKind]: string = 'SingleStoreBigInt64';
 
+	/** @internal */
+	override readonly codec = 'bigint';
+
 	getSQLType(): string {
 		return `bigint${this.config.unsigned ? ' unsigned' : ''}`;
 	}
-
-	// eslint-disable-next-line unicorn/prefer-native-coercion-functions
-	override mapFromDriverValue = (value: string): bigint => {
-		return BigInt(value);
-	};
 }
 
 export class SingleStoreBigIntStringBuilder<TUnsigned extends boolean | undefined>
@@ -109,6 +103,9 @@ export class SingleStoreBigIntString<T extends ColumnBaseConfig<'string int64' |
 	extends SingleStoreColumnWithAutoIncrement<T, { unsigned: boolean }>
 {
 	static override readonly [entityKind]: string = 'SingleStoreBigIntString';
+
+	/** @internal */
+	override readonly codec = 'bigint:string';
 
 	getSQLType(): string {
 		return `bigint${this.config.unsigned ? ' unsigned' : ''}`;

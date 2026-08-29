@@ -1149,7 +1149,7 @@ export const ddlDiff = async (
 
 	const viewsAlters = filteredViewAlters.map((it) => ({ diff: it, view: it.$right }));
 
-	const jsonAlterViews = viewsAlters.filter((it) => !it.diff.definition).map((it) => {
+	const jsonAlterViews = viewsAlters.filter((it) => !it.diff.definition && !it.diff.materialized).map((it) => {
 		return prepareStatement('alter_view', {
 			diff: it.diff,
 			view: it.view,
@@ -1157,7 +1157,7 @@ export const ddlDiff = async (
 	});
 
 	// recreate views
-	viewsAlters.filter((it) => it.diff.definition).forEach((entry) => {
+	viewsAlters.filter((it) => it.diff.definition || it.diff.materialized).forEach((entry) => {
 		const it = entry.view;
 		const schemaRename = renamedSchemas.find((r) => r.to.name === it.schema);
 		const schema = schemaRename ? schemaRename.from.name : it.schema;
@@ -1173,7 +1173,7 @@ export const ddlDiff = async (
 				`);
 		}
 
-		jsonDropViews.push(prepareStatement('drop_view', { view: it, cause: from }));
+		jsonDropViews.push(prepareStatement('drop_view', { view: entry.diff.$left, cause: from }));
 		createViews.push(prepareStatement('create_view', { view: it }));
 	});
 
@@ -1284,7 +1284,22 @@ export const ddlDiff = async (
 
 	jsonStatements.push(...jsonAlterCheckConstraints);
 
-	jsonStatements.push(...createViews);
+	const sortedCreateViews = createViews.sort((a, b) => {
+		// this sort fixes this issue: https://github.com/drizzle-team/drizzle-orm/issues/4520 and https://github.com/drizzle-team/drizzle-orm/issues/6176
+		// When using `prepareFromSchemaFiles` to read schema files, views were returned in an unpredictable order
+		// (not in order that is was declared in schema.ts).
+		// This caused dependent views to appear before their dependencies,
+		// which breaks migration
+
+		// If a's fields include b, a depends on b -> b comes first
+		if (a.view.definition?.includes(b.view.name)) return 1;
+
+		// If b's fields include a, b depends on a -> a comes first
+		if (b.view.definition?.includes(a.view.name)) return -1;
+
+		return 0;
+	});
+	jsonStatements.push(...sortedCreateViews);
 
 	jsonStatements.push(...jsonRenamePoliciesStatements);
 	jsonStatements.push(...jsonCreatePoliciesStatements);

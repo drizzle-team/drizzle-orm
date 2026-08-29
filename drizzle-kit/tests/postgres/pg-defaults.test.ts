@@ -125,6 +125,7 @@ test('smallint arrays', async () => {
 	expect.soft(res7).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3609
 test('bigint', async () => {
 	// 2^53
 	const res1 = await diffDefault(_, bigint({ mode: 'number' }).default(9007199254740991), '9007199254740991');

@@ -601,3 +601,205 @@ CREATE TABLE table2 (
 	expect(sqlStatements).toStrictEqual([]);
 	expect(statements).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3407
+test('Issue No3407', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	// commented-out constraints must NOT be introspected, regardless of comment style
+	await db.run(`CREATE TABLE IF NOT EXISTS users
+                (
+                    id       TEXT PRIMARY KEY,
+                    -- CHECK (userType IN ('anonymous', 'emailPassword'))
+                    -- UNIQUE (userType)
+                    /* CHECK (length(userType) > 0) */
+                    /* multi
+                       line CONSTRAINT users_uq UNIQUE (id, userType)
+                       FOREIGN KEY (userType) REFERENCES demo(id) */
+                    userType TEXT NOT NULL -- CONSTRAINT users_ck CHECK (userType <> '')
+                );
+`);
+
+	await db.run(`CREATE TABLE IF NOT EXISTS demo
+                (
+                    id                 TEXT PRIMARY KEY
+                    -- , name TEXT UNIQUE
+                    /* , FOREIGN KEY (id) REFERENCES users(id) */
+                );
+                `);
+
+	const {
+		sqlStatements,
+		statements,
+		ddlAfterPull,
+		resultDdl,
+	} = await diffAfterPull(sqlite, {}, 'Issue #4307');
+
+	expect(sqlStatements).toStrictEqual([]);
+	expect(statements).toStrictEqual([]);
+	expect(ddlAfterPull.checks.list()).toStrictEqual([]);
+	expect(ddlAfterPull.uniques.list()).toStrictEqual([]);
+	expect(ddlAfterPull.fks.list()).toStrictEqual([]);
+	expect(resultDdl.checks.list()).toStrictEqual([]);
+	expect(resultDdl.uniques.list()).toStrictEqual([]);
+	expect(resultDdl.fks.list()).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3231
+test('Issue No3231', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	await db.run(`CREATE TABLE users(id integer primary key);`);
+	await db.run(`CREATE TABLE posts(user_id integer references users);`); // valid syntax
+
+	const {
+		sqlStatements,
+		statements,
+		ddlAfterPull,
+		resultDdl,
+	} = await diffAfterPull(sqlite, {}, 'Issue #3231');
+
+	expect(sqlStatements).toStrictEqual([]);
+	expect(statements).toStrictEqual([]);
+});
+test('Issue No3231 #2', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	await db.run(`CREATE TABLE users(id integer);`);
+	await db.run(`CREATE TABLE posts(user_id integer references users);`); // valid syntax
+
+	await expect(diffAfterPull(sqlite, {}, 'Issue #3231-2')).rejects.to.toThrowError(
+		'Table users has no primary key, so the foreign key from posts.user_id to users cannot be resolved',
+	);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6182
+test('Issue No6182', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	await db.run(`CREATE TABLE IF NOT EXISTS session_prompt (
+		error BOOLEAN NOT NULL DEFAULT false,
+		success BOOLEAN NOT NULL DEFAULT true,
+		wrong_data BOOLEAN NOT NULL DEFAULT FALSE,
+		wrong_data2 BOOLEAN NOT NULL DEFAULT 'FALSE',
+		wrong_data3 BOOLEAN NOT NULL DEFAULT 'faLse'
+	);
+`);
+
+	const { ddlAfterPull, initDDL, resultDdl, sqlStatements, statements } = await diffAfterPull(
+		sqlite,
+		{},
+		'Issue #6182',
+	);
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.list()).toStrictEqual([
+		{
+			autoincrement: false,
+			default: '0',
+			entityType: 'columns',
+			generated: null,
+			name: 'error',
+			notNull: true,
+			table: 'session_prompt',
+			type: 'numeric',
+		},
+		{
+			autoincrement: false,
+			default: '1',
+			entityType: 'columns',
+			generated: null,
+			name: 'success',
+			notNull: true,
+			table: 'session_prompt',
+			type: 'numeric',
+		},
+		{
+			autoincrement: false,
+			default: '0',
+			entityType: 'columns',
+			generated: null,
+			name: 'wrong_data',
+			notNull: true,
+			table: 'session_prompt',
+			type: 'numeric',
+		},
+		{
+			autoincrement: false,
+			default: "'FALSE'",
+			entityType: 'columns',
+			generated: null,
+			name: 'wrong_data2',
+			notNull: true,
+			table: 'session_prompt',
+			type: 'numeric',
+		},
+		{
+			autoincrement: false,
+			default: "'faLse'",
+			entityType: 'columns',
+			generated: null,
+			name: 'wrong_data3',
+			notNull: true,
+			table: 'session_prompt',
+			type: 'numeric',
+		},
+	]);
+	expect(resultDdl.columns.list()).toStrictEqual([
+		{
+			autoincrement: false,
+			default: '0',
+			entityType: 'columns',
+			generated: null,
+			name: 'error',
+			notNull: true,
+			table: 'session_prompt',
+			type: 'numeric',
+		},
+		{
+			autoincrement: false,
+			default: '1',
+			entityType: 'columns',
+			generated: null,
+			name: 'success',
+			notNull: true,
+			table: 'session_prompt',
+			type: 'numeric',
+		},
+		{
+			autoincrement: false,
+			default: '0',
+			entityType: 'columns',
+			generated: null,
+			name: 'wrong_data',
+			notNull: true,
+			table: 'session_prompt',
+			type: 'numeric',
+		},
+		{
+			autoincrement: false,
+			default: "'FALSE'",
+			entityType: 'columns',
+			generated: null,
+			name: 'wrong_data2',
+			notNull: true,
+			table: 'session_prompt',
+			type: 'numeric',
+		},
+		{
+			autoincrement: false,
+			default: "'faLse'",
+			entityType: 'columns',
+			generated: null,
+			name: 'wrong_data3',
+			notNull: true,
+			table: 'session_prompt',
+			type: 'numeric',
+		},
+	]);
+});

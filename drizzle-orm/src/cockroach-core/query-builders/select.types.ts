@@ -54,6 +54,9 @@ export interface CockroachSelectConfig {
 	// Either fields or fieldsFlat must be defined
 	fields: Record<string, unknown>;
 	fieldsFlat?: SelectedFieldsOrdered;
+	setFieldsFlat?: SelectedFieldsOrdered;
+	mapper?: (raw: any) => any;
+	ignoreSelectionCastCodecs?: boolean;
 	where?: SQL;
 	having?: SQL;
 	table: CockroachTable | Subquery | CockroachViewBase | SQL;
@@ -82,6 +85,16 @@ export interface CockroachSelectConfig {
 export type TableLikeHasEmptySelection<T extends CockroachTable | Subquery | CockroachViewBase | SQL> = T extends
 	Subquery ? Equal<T['_']['selectedFields'], {}> extends true ? true : false
 	: false;
+
+export type CheckTableLikeSelection<T extends CockroachTable | Subquery | CockroachViewBase | SQL> =
+	TableLikeHasEmptySelection<T> extends true ?
+			| DrizzleTypeError<
+				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
+			>
+			| CockroachTable
+			| CockroachViewBase
+			| SQL
+		: T;
 
 export type CockroachSelectJoin<
 	T extends AnyCockroachSelectQueryBuilder,
@@ -121,10 +134,7 @@ export type CockroachSelectJoinFn<
 	TJoinedTable extends (TIsLateral extends true ? Subquery | SQL : CockroachTable | Subquery | CockroachViewBase | SQL),
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 >(
-	table: TableLikeHasEmptySelection<TJoinedTable> extends true ? DrizzleTypeError<
-			"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
-		>
-		: TJoinedTable,
+	table: CheckTableLikeSelection<TJoinedTable>,
 	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
 ) => CockroachSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
@@ -136,10 +146,7 @@ export type CockroachSelectCrossJoinFn<
 	TJoinedTable extends (TIsLateral extends true ? Subquery | SQL : CockroachTable | Subquery | CockroachViewBase | SQL),
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 >(
-	table: TableLikeHasEmptySelection<TJoinedTable> extends true ? DrizzleTypeError<
-			"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
-		>
-		: TJoinedTable,
+	table: CheckTableLikeSelection<TJoinedTable>,
 ) => CockroachSelectJoin<T, TDynamic, 'cross', TJoinedTable, TJoinedName>;
 
 export type SelectedFieldsFlat = SelectedFieldsFlatBase<CockroachColumn>;

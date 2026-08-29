@@ -1,8 +1,7 @@
 import mssql from 'mssql';
 import { describe, it } from 'vitest';
-import { relations } from '~/_relations';
-import { alias, bit, camelCase, int, text, union } from '~/mssql-core';
-import { drizzle } from '~/node-mssql';
+import { alias, bit, camelCase, castToText, int, text, union } from '~/mssql-core';
+import { drizzle, nodeMssqlCodecs } from '~/node-mssql';
 import { asc, eq, sql } from '~/sql';
 
 const testSchema = camelCase.schema('test');
@@ -18,29 +17,30 @@ const users = camelCase.table('users', {
 	// Test that custom aliases remain
 	age: int('AGE'),
 });
-const usersRelations = relations(users, ({ one }) => ({
-	developers: one(developers),
-}));
+
 const developers = testSchema.table('developers', {
 	// TODO: Investigate reasons for existence of next commented line
 	// user_id: int().primaryKey().primaryKey().references('name1', () => users.id),
 	user_id: int().primaryKey().primaryKey().references(() => users.id),
 	uses_drizzle_orm: bit().notNull(),
 });
-const developersRelations = relations(developers, ({ one }) => ({
-	user: one(users, {
-		fields: [developers.user_id],
-		references: [users.id],
-	}),
-}));
-const devs = alias(developers, 'devs');
-const schema = { users, usersRelations, developers, developersRelations };
 
-const db = drizzle({ client: new mssql.ConnectionPool({ server: '' }), schema });
+const devs = alias(developers, 'devs');
+const db = drizzle({ client: new mssql.ConnectionPool({ server: '' }) });
 
 const fullName = sql`${users.first_name} || ' ' || ${users.last_name}`.as('name');
 
 describe('mssql to camel case', () => {
+	it('unicode column names', ({ expect }) => {
+		const unicode = camelCase.table('unicode', {
+			칼럼명: text(),
+		});
+
+		expect(db.select().from(unicode).toSQL().sql).toEqual(
+			'select [칼럼명] from [unicode]',
+		);
+	});
+
 	it('qualifier preservation for sql fields', ({ expect }) => {
 		const a = camelCase.table('a', { id: int('id').primaryKey(), cId: int().notNull() });
 		const b = camelCase.table('b', { id: int('id').primaryKey(), cId: int().notNull(), label: text() });
@@ -140,7 +140,8 @@ describe('mssql to camel case', () => {
 			.union(db.select({ firstName: users.first_name }).from(users));
 
 		expect(query.toSQL()).toEqual({
-			sql: '(select [firstName] from [users]) union (select [firstName] from [users])',
+			sql:
+				'select [firstName] from ((select [firstName] from [users]) union (select [firstName] from [users])) [drizzle_union]',
 			params: [],
 		});
 	});
@@ -152,7 +153,8 @@ describe('mssql to camel case', () => {
 		);
 
 		expect(query.toSQL()).toEqual({
-			sql: '(select [firstName] from [users]) union (select [firstName] from [users])',
+			sql:
+				'select [firstName] from ((select [firstName] from [users]) union (select [firstName] from [users])) [drizzle_union]',
 			params: [],
 		});
 	});
@@ -300,6 +302,67 @@ describe('mssql to camel case', () => {
 		expect(query.toSQL()).toEqual({
 			sql: 'delete from [users] output DELETED.[firstName], DELETED.[AGE] as [usersAge] where [users].[id] = @par0',
 			params: [1],
+		});
+	});
+
+	describe('selection casts', () => {
+		const castCodecs = { ...nodeMssqlCodecs, int: { ...nodeMssqlCodecs.int, cast: castToText } };
+		const castDb = drizzle({ client: new mssql.ConnectionPool({ server: '' }), codecs: castCodecs });
+		const casts = camelCase.table('casts', { cast_value: int() });
+		const castTargets = camelCase.table('cast_targets', { target_id: text() });
+		const castSubquery = () => castDb.select({ cast_value: casts.cast_value }).from(casts).as('sq');
+
+		it(`Cast respects alias config`, ({ expect }) => {
+			expect(castDb.select({ c: casts.cast_value }).from(casts).toSQL().sql).toEqual(
+				'select cast([castValue] as varchar(max)) from [casts]',
+			);
+			expect(castDb.select({ c: casts.cast_value.as('alias') }).from(casts).toSQL().sql).toEqual(
+				'select cast([castValue] as varchar(max)) as [alias] from [casts]',
+			);
+		});
+
+		it(`Cast applied to selected subquery depending on it's selection`, ({ expect }) => {
+			expect(castDb.select({ x: castSubquery() }).from(castTargets).toSQL().sql).toEqual(
+				'select cast((select [castValue] from [casts]) as varchar(max)) [sq] from [cast_targets]',
+			);
+		});
+
+		it('Nested queries ignore casts', ({ expect }) => {
+			const outer = castDb.select({ x: castSubquery() }).from(castTargets).as('outer');
+
+			expect(castDb.select().from(outer).toSQL().sql).toEqual(
+				'select cast((select [castValue] from [casts]) as varchar(max)) [sq] from (select (select [castValue] from [casts]) [sq] from [cast_targets]) [outer]',
+			);
+		});
+
+		it(`Column as decoder applies cast`, ({ expect }) => {
+			expect(
+				castDb.select({
+					x: sql`${casts.cast_value}`.mapWith(casts.cast_value),
+					y: sql`${casts.cast_value}`.mapWith(casts.cast_value).as('y'),
+				}).from(casts).toSQL().sql,
+			)
+				.toEqual('select cast([castValue] as varchar(max)), cast([castValue] as varchar(max)) as [y] from [casts]');
+		});
+
+		it(`Cast doesn't bleed params into selection`, ({ expect }) => {
+			// Regression test for pre-existing issue
+			const query = castDb.select({ x: castSubquery() }).from(castTargets).toSQL();
+
+			expect(query.params).toEqual([]);
+			expect(query.sql).not.toMatch(/\$\d|\?|@par/);
+		});
+
+		it(`No double spaces in union's 'order by' `, ({ expect }) => {
+			const branch = () => castDb.select({ x: casts.cast_value }).from(casts);
+			const query = branch()
+				.unionAll(branch())
+				.orderBy(sql`1`);
+
+			expect(query.toSQL().sql).toEqual(
+				'select cast([castValue] as varchar(max)) from ((select [castValue] from [casts]) union all (select [castValue] from [casts])) [drizzle_union] order by 1',
+			);
+			expect(query.toSQL().sql).not.toContain('order by 1  ');
 		});
 	});
 });

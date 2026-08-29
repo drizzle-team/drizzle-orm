@@ -2114,6 +2114,7 @@ test('.as in view select', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4181
+// https://github.com/drizzle-team/drizzle-orm/issues/3332
 // casing bug
 test('create view with snake_case', async () => {
 	const test = snakeCase.table('test', {
@@ -2355,6 +2356,34 @@ test('issue No4181', async () => {
 );\n`,
 		'CREATE VIEW "test_view1" AS (select "test_id", "test_name" from "test1");',
 	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6176
+test('Issue No6176', async () => {
+	const users = pgTable('users', {
+		id: integer(),
+	});
+
+	const mat1 = pgView('mat_user').as((db) => db.select().from(users));
+
+	const schema1 = { users, mat1 };
+
+	const mat2 = pgMaterializedView('mat_user').as((db) => db.select().from(users));
+	const view = pgView('user_view').as((qb) => qb.select().from(mat2));
+
+	const schema2 = { users, mat2, view };
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, []);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst1 } = await push({ db, to: schema2 });
+	const expectedSt1 = [
+		`DROP VIEW "mat_user";`,
+		'CREATE MATERIALIZED VIEW "mat_user" AS (select "id" from "users");',
+		'CREATE VIEW "user_view" AS (select "id" from "mat_user");',
+	];
+
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
 });

@@ -1,7 +1,7 @@
 import { describe, it } from 'vitest';
-import { relations } from '~/_relations';
-import { drizzle } from '~/cockroach';
-import { alias, boolean, camelCase, int4, text, union } from '~/cockroach-core';
+import { drizzle, nodeCockroachCodecs } from '~/cockroach';
+import { alias, boolean, camelCase, castToText, int4, text, union } from '~/cockroach-core';
+import { defineRelations } from '~/relations';
 import { asc, eq, sql } from '~/sql';
 
 const testSchema = camelCase.schema('test');
@@ -12,27 +12,31 @@ const users = camelCase.table('users', {
 	// Test that custom aliases remain
 	age: int4('AGE'),
 });
-const usersRelations = relations(users, ({ one }) => ({
-	developers: one(developers),
-}));
 const developers = testSchema.table('developers', {
 	user_id: int4().primaryKey().generatedByDefaultAsIdentity().references(() => users.id),
 	uses_drizzle_orm: boolean().notNull(),
 });
-const developersRelations = relations(developers, ({ one }) => ({
-	user: one(users, {
-		fields: [developers.user_id],
-		references: [users.id],
-	}),
-}));
 const devs = alias(developers, 'devs');
-const schema = { users, usersRelations, developers, developersRelations };
+const relations = defineRelations({ users, developers }, (r) => ({
+	users: { developers: r.one.developers({ from: r.users.id, to: r.developers.user_id }) },
+	developers: { user: r.one.users({ from: r.developers.user_id, to: r.users.id }) },
+}));
 
-const db = drizzle.mock({ schema });
+const db = drizzle.mock({ relations });
 
 const fullName = sql`${users.first_name} || ' ' || ${users.last_name}`.as('name');
 
 describe('cockroach to camel case', () => {
+	it('unicode column names', ({ expect }) => {
+		const unicode = camelCase.table('unicode', {
+			칼럼명: text(),
+		});
+
+		expect(db.select().from(unicode).toSQL().sql).toEqual(
+			'select "칼럼명" from "unicode"',
+		);
+	});
+
 	it('qualifier preservation for sql fields', ({ expect }) => {
 		const a = camelCase.table('a', { id: int4('id').primaryKey(), cId: int4().notNull() });
 		const b = camelCase.table('b', { id: int4('id').primaryKey(), cId: int4().notNull(), label: text() });
@@ -117,7 +121,8 @@ describe('cockroach to camel case', () => {
 			.union(db.select({ first_name: users.first_name }).from(users));
 
 		expect(query.toSQL()).toEqual({
-			sql: '(select "firstName" from "users") union (select "firstName" from "users")',
+			sql:
+				'select "firstName" from ((select "firstName" from "users") union (select "firstName" from "users")) "drizzle_union"',
 			params: [],
 		});
 	});
@@ -129,21 +134,22 @@ describe('cockroach to camel case', () => {
 		);
 
 		expect(query.toSQL()).toEqual({
-			sql: '(select "firstName" from "users") union (select "firstName" from "users")',
+			sql:
+				'select "firstName" from ((select "firstName" from "users") union (select "firstName" from "users")) "drizzle_union"',
 			params: [],
 		});
 	});
 
 	it('query (find first)', ({ expect }) => {
-		const query = db._query.users.findFirst({
+		const query = db.query.users.findFirst({
 			columns: {
 				id: true,
 				age: true,
 			},
 			extras: {
-				fullName,
+				fullName: ({ first_name, last_name }) => sql`${first_name} || ' ' || ${last_name}`.as('name'),
 			},
-			where: eq(users.id, 1),
+			where: { id: 1 },
 			with: {
 				developers: {
 					columns: {
@@ -155,21 +161,21 @@ describe('cockroach to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select "users"."id", "users"."AGE", "users"."firstName" || \' \' || "users"."lastName" as "name", "users_developers"."data" as "developers" from "users" "users" left join lateral (select json_build_array("users_developers"."usesDrizzleOrm") as "data" from (select * from "test"."developers" "users_developers" where "users_developers"."userId" = "users"."id" limit $1) "users_developers") "users_developers" on true where "users"."id" = $2 limit $3',
+				'select "d0"."id" as "id", "d0"."AGE" as "age", ("d0"."firstName" || \' \' || "d0"."lastName") as "fullName", "developers"."r" as "developers" from "users" as "d0" left join lateral(select row_to_json("t".*) "r" from (select "d1"."usesDrizzleOrm" as "uses_drizzle_orm" from "test"."developers" as "d1" where "d0"."id" = "d1"."userId" limit $1) as "t") as "developers" on true where "d0"."id" = $2 limit $3',
 			params: [1, 1, 1],
 		});
 	});
 
 	it('query (find many)', ({ expect }) => {
-		const query = db._query.users.findMany({
+		const query = db.query.users.findMany({
 			columns: {
 				id: true,
 				age: true,
 			},
 			extras: {
-				fullName,
+				fullName: ({ first_name, last_name }) => sql`${first_name} || ' ' || ${last_name}`.as('name'),
 			},
-			where: eq(users.id, 1),
+			where: { id: 1 },
 			with: {
 				developers: {
 					columns: {
@@ -181,7 +187,7 @@ describe('cockroach to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select "users"."id", "users"."AGE", "users"."firstName" || \' \' || "users"."lastName" as "name", "users_developers"."data" as "developers" from "users" "users" left join lateral (select json_build_array("users_developers"."usesDrizzleOrm") as "data" from (select * from "test"."developers" "users_developers" where "users_developers"."userId" = "users"."id" limit $1) "users_developers") "users_developers" on true where "users"."id" = $2',
+				'select "d0"."id" as "id", "d0"."AGE" as "age", ("d0"."firstName" || \' \' || "d0"."lastName") as "fullName", "developers"."r" as "developers" from "users" as "d0" left join lateral(select row_to_json("t".*) "r" from (select "d1"."usesDrizzleOrm" as "uses_drizzle_orm" from "test"."developers" as "d1" where "d0"."id" = "d1"."userId" limit $1) as "t") as "developers" on true where "d0"."id" = $2',
 			params: [1, 1],
 		});
 	});
@@ -373,6 +379,76 @@ describe('cockroach to camel case', () => {
 		expect(query.toSQL()).toEqual({
 			sql: 'delete from "users" where "users"."id" = $1 returning "firstName", "AGE" as "usersAge"',
 			params: [1],
+		});
+	});
+
+	describe('selection casts', () => {
+		const castCodecs = { ...nodeCockroachCodecs, int4: { ...nodeCockroachCodecs.int4, cast: castToText } };
+		const castDb = drizzle.mock({ codecs: castCodecs });
+		const casts = camelCase.table('casts', { cast_value: int4() });
+		const castTargets = camelCase.table('cast_targets', { target_id: text() });
+		const castSubquery = () => castDb.select({ cast_value: casts.cast_value }).from(casts).as('sq');
+
+		it(`Cast respects alias config`, ({ expect }) => {
+			expect(castDb.select({ c: casts.cast_value }).from(casts).toSQL().sql).toEqual(
+				'select "castValue"::text from "casts"',
+			);
+			expect(castDb.select({ c: casts.cast_value.as('alias') }).from(casts).toSQL().sql).toEqual(
+				'select "castValue"::text as "alias" from "casts"',
+			);
+		});
+
+		it(`Cast applied to selected subquery depending on it's selection`, ({ expect }) => {
+			expect(castDb.select({ x: castSubquery() }).from(castTargets).toSQL().sql).toEqual(
+				'select (select "castValue" from "casts")::text "sq" from "cast_targets"',
+			);
+		});
+
+		it('Nested queries ignore casts', ({ expect }) => {
+			const outer = castDb.select({ x: castSubquery() }).from(castTargets).as('outer');
+
+			expect(castDb.select().from(outer).toSQL().sql).toEqual(
+				'select (select "castValue" from "casts")::text "sq" from (select (select "castValue" from "casts") "sq" from "cast_targets") "outer"',
+			);
+		});
+
+		it(`Column as decoder applies cast`, ({ expect }) => {
+			expect(
+				castDb.select({
+					x: sql`${casts.cast_value}`.mapWith(casts.cast_value),
+					y: sql`${casts.cast_value}`.mapWith(casts.cast_value).as('y'),
+				}).from(casts).toSQL().sql,
+			)
+				.toEqual('select "castValue"::text, "castValue"::text as "y" from "casts"');
+		});
+
+		it(`Cast doesn't bleed params into selection`, ({ expect }) => {
+			// Regression test for pre-existing issue
+			const query = castDb.select({ x: castSubquery() }).from(castTargets).toSQL();
+
+			expect(query.params).toEqual([]);
+			expect(query.sql).not.toMatch(/\$\d|\?|@par/);
+		});
+
+		it(`No double spaces in union's 'order by' `, ({ expect }) => {
+			const branch = () => castDb.select({ x: casts.cast_value }).from(casts);
+			const query = branch()
+				.unionAll(branch())
+				.orderBy(sql`1`)
+				.limit(3);
+
+			expect(query.toSQL().sql).toEqual(
+				'select "castValue"::text from ((select "castValue" from "casts") union all (select "castValue" from "casts")) "drizzle_union" order by 1 limit $1',
+			);
+			expect(query.toSQL().sql).not.toContain('order by 1  ');
+		});
+
+		it(`$with field is cast by field's alias`, ({ expect }) => {
+			const w = castDb.$with('w').as(castDb.select({ cast_value: casts.cast_value }).from(casts));
+
+			expect(castDb.with(w).select({ x: w }).from(w).toSQL().sql).toEqual(
+				'with "w" as (select "castValue" from "casts") select "w"::text from "w"',
+			);
 		});
 	});
 });

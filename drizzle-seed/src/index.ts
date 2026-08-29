@@ -1,4 +1,5 @@
 /* eslint-disable drizzle-internal/require-entity-kind */
+import type { InferInsertModel, Table as DrizzleTable } from 'drizzle-orm';
 import { is } from 'drizzle-orm';
 import type { Relations } from 'drizzle-orm/_relations';
 
@@ -31,12 +32,15 @@ import type { AbstractGenerator } from './generators/Generators.ts';
 import { filterMsSqlTables, resetMsSql, seedMsSql } from './mssql-core/index.ts';
 import { filterMysqlTables, resetMySql, seedMySql } from './mysql-core/index.ts';
 import { filterPgSchema, resetPostgres, seedPostgres } from './pg-core/index.ts';
+import { getRelationsFromDb } from './relationsV2.ts';
+import type { SeedPlan } from './seedPlan.ts';
+import { renderSeedPlan } from './seedPlan.ts';
 import { SeedService } from './SeedService.ts';
 import { filterSingleStoreTables, resetSingleStore, seedSingleStore } from './singlestore-core/index.ts';
 import { filterSqliteTables, resetSqlite, seedSqlite } from './sqlite-core/index.ts';
 import type { DrizzleStudioObjectType, DrizzleStudioRelationType } from './types/drizzleStudio.ts';
-import type { DbType, RefinementsType } from './types/seedService.ts';
-import type { Relation, Table } from './types/tables.ts';
+import type { DbType, RefinementsType, SeedOperation } from './types/seedService.ts';
+import type { Relation, SeedRelations, Table } from './types/tables.ts';
 
 type SchemaValuesType =
 	| PgTable
@@ -94,6 +98,104 @@ export type InferCallbackType<
 	: DB extends SingleStoreDatabase<any, any> ? RefineTypes<SCHEMA, SingleStoreTable, SingleStoreColumn>
 	: {};
 
+export type SeedOptions<VERSION extends string | undefined = undefined> = {
+	count?: number;
+	seed?: number;
+	version?: VERSION;
+	/**
+	 * relations built with `defineRelations`. Only needed when the database object was not created with them
+	 * (`drizzle({ client, relations })`), since in that case they are picked up automatically.
+	 */
+	relations?: SeedRelations;
+};
+
+type SchemaTables<SCHEMA> = {
+	[tableName in keyof SCHEMA as SCHEMA[tableName] extends DrizzleTable ? tableName : never]: SCHEMA[tableName];
+};
+
+/**
+ * rows that would be written by a seed, keyed by the name each table has in the schema object given to `seed`.
+ */
+export type DryRunResult<SCHEMA, TABLES = SchemaTables<SCHEMA>> = {
+	[tableName in keyof TABLES]: TABLES[tableName] extends DrizzleTable ? InferInsertModel<TABLES[tableName]>[] : never;
+};
+
+/**
+ * One write of a seed. A table caught in a reference cycle is written in two goes - its rows first, then the columns
+ * that could not be filled until the table they point at existed - which is why a stream also carries updates.
+ */
+export type DryRunChunk<SCHEMA, TABLES = SchemaTables<SCHEMA>> = {
+	[tableName in keyof TABLES]: TABLES[tableName] extends DrizzleTable ?
+			| { type: 'insert'; tableName: tableName; rows: InferInsertModel<TABLES[tableName]>[] }
+			| {
+				type: 'update';
+				tableName: tableName;
+				values: Partial<InferInsertModel<TABLES[tableName]>>;
+				whereColumn: string;
+				whereValue: unknown;
+			}
+		: never;
+}[keyof TABLES];
+
+export type DryRunOutput = 'rows' | 'sql';
+
+/**
+ * The result of a dry run, which can either be awaited for everything at once or iterated to take it a write at a
+ * time - the latter never holding more than one batch in memory, so it scales to seeds far larger than memory.
+ *
+ * Iterating and awaiting each run the generation again, so both always see freshly generated values.
+ */
+class SeedDryRun<TResult, TChunk> implements Promise<TResult>, AsyncIterable<TChunk> {
+	static readonly entityKind: string = 'SeedDryRun';
+
+	[Symbol.toStringTag] = 'SeedDryRun';
+
+	constructor(
+		private buildPlan: () => Promise<SeedPlan>,
+		private chunksOf: (plan: SeedPlan) => Iterable<TChunk>,
+		private collect: (chunks: TChunk[], plan: SeedPlan) => TResult,
+	) {}
+
+	private async collectAll(): Promise<TResult> {
+		const plan = await this.buildPlan();
+
+		const chunks: TChunk[] = [];
+		for (const chunk of this.chunksOf(plan)) chunks.push(chunk);
+
+		return this.collect(chunks, plan);
+	}
+
+	then<TResult1 = TResult, TResult2 = never>(
+		onfulfilled?: ((value: TResult) => TResult1 | PromiseLike<TResult1>) | null | undefined,
+		onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null | undefined,
+	): Promise<TResult1 | TResult2> {
+		return this.collectAll().then(onfulfilled, onrejected);
+	}
+
+	catch<TCatch = never>(
+		onrejected?: ((reason: any) => TCatch | PromiseLike<TCatch>) | null | undefined,
+	): Promise<TResult | TCatch> {
+		return this.then(undefined, onrejected);
+	}
+
+	finally(onfinally?: (() => void) | null | undefined): Promise<TResult> {
+		return this.then(
+			(value) => {
+				onfinally?.();
+				return value;
+			},
+			(reason) => {
+				onfinally?.();
+				throw reason;
+			},
+		);
+	}
+
+	async *[Symbol.asyncIterator](): AsyncIterator<TChunk> {
+		yield* this.chunksOf(await this.buildPlan());
+	}
+}
+
 class SeedPromise<
 	DB extends DbType,
 	SCHEMA extends {
@@ -108,8 +210,16 @@ class SeedPromise<
 	constructor(
 		private db: DB,
 		private schema: SCHEMA,
-		private options?: { count?: number; seed?: number; version?: VERSION },
+		private options?: SeedOptions<VERSION>,
+		// kept as a factory rather than a value so that the generators it builds are fresh on every run - they carry
+		// state - and so that an error thrown by the user's callback rejects the promise instead of being raised while
+		// the chain is still being assembled
+		private buildRefinements?: () => RefinementsType,
 	) {}
+
+	private async run(): Promise<void> {
+		await seedFunc(this.db, this.schema, this.options, this.buildRefinements?.());
+	}
 
 	then<TResult1 = void, TResult2 = never>(
 		onfulfilled?:
@@ -121,7 +231,7 @@ class SeedPromise<
 			| null
 			| undefined,
 	): Promise<TResult1 | TResult2> {
-		return seedFunc(this.db, this.schema, this.options).then(
+		return this.run().then(
 			onfulfilled,
 			onrejected,
 		);
@@ -149,16 +259,79 @@ class SeedPromise<
 		);
 	}
 
-	async refine(
+	refine(
 		callback: (
 			funcs: FunctionsVersioning<VERSION>,
 		) => InferCallbackType<DB, SCHEMA>,
-	): Promise<void> {
-		const refinements = this.options?.version === undefined || this.options.version === '2'
-			? callback(generatorsFuncsV2 as FunctionsVersioning<VERSION>) as RefinementsType
-			: callback(generatorsFuncs as FunctionsVersioning<VERSION>) as RefinementsType;
+	): SeedPromise<DB, SCHEMA, VERSION> {
+		return new SeedPromise(
+			this.db,
+			this.schema,
+			this.options,
+			() =>
+				this.options?.version === undefined || this.options.version === '2'
+					? callback(generatorsFuncsV2 as FunctionsVersioning<VERSION>) as RefinementsType
+					: callback(generatorsFuncs as FunctionsVersioning<VERSION>) as RefinementsType,
+		);
+	}
 
-		await seedFunc(this.db, this.schema, this.options, refinements);
+	/**
+	 * generates exactly the data a seed would write and hands it back instead of writing it to the database.
+	 *
+	 * No query is issued: the database is only used to tell which dialect the values have to be generated for. The
+	 * result can be awaited for everything at once, or iterated to take it one write at a time, which never holds more
+	 * than a single batch in memory.
+	 *
+	 * @param options - `output: 'sql'` returns the statements a seed would run, with their values written into them,
+	 * instead of the rows themselves.
+	 *
+	 * @example
+	 * ```ts
+	 * const data = await seed(db, schema, { count: 5 }).dryRun();
+	 * // { users: [{ id: 1, name: 'Kathryn' }, ...], posts: [...] }
+	 *
+	 * const statements = await seed(db, schema, { count: 5 }).dryRun({ output: 'sql' });
+	 * // ['insert into "users" ("id", "name") values (1, 'Kathryn'), ...', ...]
+	 * fs.writeFileSync('seed.sql', statements.join(';\n') + ';');
+	 *
+	 * // a seed too big to hold in memory can be taken a batch at a time
+	 * for await (const write of seed(db, schema, { count: 1_000_000 }).dryRun()) {
+	 *   if (write.type === 'insert') await myWriter.write(write.tableName, write.rows);
+	 * }
+	 * ```
+	 */
+	dryRun(): SeedDryRun<DryRunResult<SCHEMA>, DryRunChunk<SCHEMA>>;
+	dryRun(options: { output: 'sql' }): SeedDryRun<string[], string>;
+	dryRun(options?: { output?: DryRunOutput }): SeedDryRun<any, any> {
+		// every run rebuilds the plan: generators carry state, and a plan is a one shot sequence of writes
+		const buildPlan = async () => {
+			const plan = await seedFunc(this.db, this.schema, this.options, this.buildRefinements?.(), true);
+			if (plan === undefined) throw new Error('Failed to generate a seed plan for this database.');
+
+			return plan;
+		};
+
+		if (options?.output === 'sql') {
+			return new SeedDryRun<string[], string>(
+				buildPlan,
+				(plan) => renderSeedPlan(plan),
+				(statements) => statements,
+			);
+		}
+
+		return new SeedDryRun<DryRunResult<SCHEMA>, DryRunChunk<SCHEMA>>(
+			buildPlan,
+			function*(plan) {
+				// sequence synchronisation says nothing about the rows themselves
+				for (const operation of plan.operations) {
+					if (operation.type !== 'sequence') yield operation as DryRunChunk<SCHEMA>;
+				}
+			},
+			(chunks, plan) =>
+				Object.fromEntries(
+					new SeedService().collectSeedRows(chunks as unknown as SeedOperation[], Object.keys(plan.tables)),
+				) as DryRunResult<SCHEMA>,
+		);
 	}
 }
 
@@ -216,6 +389,7 @@ export async function seedForDrizzleStudio(
 					name: tableName,
 					columns,
 					primaryKeys: drizzleStudioColumns.filter((col) => col.primaryKey === true).map((col) => col.name),
+					compositePrimaryKeys: [],
 					uniqueConstraints: [], // TODO change later
 				},
 			);
@@ -237,21 +411,21 @@ export async function seedForDrizzleStudio(
 
 		const seedService = new SeedService();
 
-		const generatedTablesGenerators = seedService.generatePossibleGenerators(
-			sqlDialect,
+		const plan = seedService.planSeed({
+			connectionType: sqlDialect,
 			tables,
-			isCyclicRelations,
+			relations: isCyclicRelations,
 			refinements,
 			options,
-		);
+			maxParametersNumber: seedService.getMaxParametersNumber(sqlDialect),
+		});
 
-		const generatedTables = await seedService.generateTablesValues(
-			isCyclicRelations,
-			generatedTablesGenerators,
-			undefined,
-			undefined,
-			{ ...options, preserveData: true, insertDataInDb: false },
-		) as {
+		const generatedTables = [...seedService.collectSeedRows(plan, tables.map((table) => table.name))].map((
+			[tableName, rows],
+		) => ({
+			tableName,
+			rows,
+		})) as {
 			tableName: string;
 			rows: {
 				[columnName: string]: string | number | boolean | undefined;
@@ -326,7 +500,7 @@ export function seed<
 		[key: string]: SchemaValuesType;
 	},
 	VERSION extends '4' | '3' | '2' | '1' | undefined,
->(db: DB, schema: SCHEMA, options?: { count?: number; seed?: number; version?: VERSION }) {
+>(db: DB, schema: SCHEMA, options?: SeedOptions<VERSION>) {
 	return new SeedPromise<typeof db, typeof schema, VERSION>(db, schema, options);
 }
 
@@ -335,33 +509,37 @@ const seedFunc = async (
 	schema: {
 		[key: string]: SchemaValuesType;
 	},
-	options: { count?: number; seed?: number; version?: string } = {},
+	options: SeedOptions<string | undefined> = {},
 	refinements?: RefinementsType,
+	dryRun: boolean = false,
 ) => {
 	let version: number | undefined;
 	if (options?.version !== undefined) {
 		version = Number(options?.version);
 	}
 
+	// a database created with `drizzle({ client, relations })` already carries its relational config, so relations only
+	// have to be passed explicitly when they were not handed to `drizzle` or when a different set of them is wanted.
+	const relations = options.relations ?? getRelationsFromDb(db);
+	const seedOptions = { ...options, version, relations, dryRun };
+
 	if (is(db, PgAsyncDatabase<any, any>)) {
-		await seedPostgres(db, schema, { ...options, version }, refinements);
+		return await seedPostgres(db, schema, seedOptions, refinements);
 	} else if (is(db, MySqlAsyncDatabase<any, any>)) {
-		await seedMySql(db, schema, { ...options, version }, refinements);
+		return await seedMySql(db, schema, seedOptions, refinements);
 	} else if (is(db, SQLiteAsyncDatabase<any, any>)) {
-		await seedSqlite(db, schema, { ...options, version }, refinements);
+		return await seedSqlite(db, schema, seedOptions, refinements);
 	} else if (is(db, MsSqlDatabase<any, any>)) {
-		await seedMsSql(db, schema, { ...options, version }, refinements);
+		return await seedMsSql(db, schema, seedOptions, refinements);
 	} else if (is(db, CockroachDatabase<any, any>)) {
-		await seedCockroach(db, schema, { ...options, version }, refinements);
+		return await seedCockroach(db, schema, seedOptions, refinements);
 	} else if (is(db, SingleStoreDatabase<any, any>)) {
-		await seedSingleStore(db, schema, { ...options, version }, refinements);
+		return await seedSingleStore(db, schema, seedOptions, refinements);
 	} else {
 		throw new Error(
 			'The drizzle-seed package currently supports only PostgreSQL, MySQL, SQLite, Ms Sql, CockroachDB and SingleStore databases. Please ensure your database is one of these supported types',
 		);
 	}
-
-	return;
 };
 
 /**

@@ -2010,8 +2010,8 @@ export function relationsFilterToSQL(
 				const subquery = throughTable
 					? sql`(select * from ${getTableAsAliasSQL(targetTable)} inner join ${
 						getTableAsAliasSQL(throughTable)
-					} on ${joinCondition}${sql` where ${filter}`.if(filter)} limit 1)`
-					: sql`(select * from ${getTableAsAliasSQL(targetTable)}${sql` where ${filter}`.if(filter)} limit 1)`;
+					} on ${joinCondition}${sql` where ${filter}`.if(filter)})`
+					: sql`(select * from ${getTableAsAliasSQL(targetTable)}${sql` where ${filter}`.if(filter)})`;
 				if (filter) parts.push((value ? exists : notExists)(subquery));
 			}
 		}

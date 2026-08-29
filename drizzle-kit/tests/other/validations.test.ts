@@ -303,6 +303,55 @@ test('PGlite #3', () => {
 	}).toThrowError();
 });
 
+test('PGlite #4', () => {
+	const client = { waitReady: Promise.resolve(), query: () => {} };
+	expect(
+		postgresCredentials.parse({
+			dialect: 'postgres',
+			driver: 'pglite',
+			client,
+		}),
+	).toStrictEqual({
+		driver: 'pglite',
+		client,
+	});
+});
+
+test('PGlite #5', () => {
+	expect(() => {
+		postgresCredentials.parse({
+			dialect: 'postgres',
+			driver: 'pglite',
+			client: './my.db',
+		});
+	}).toThrowError();
+});
+
+test('PGlite #6', () => {
+	expect(() => {
+		postgresCredentials.parse({
+			dialect: 'postgres',
+			driver: 'pglite',
+			client: undefined,
+		});
+	}).toThrowError();
+});
+
+test('PGlite #7', () => {
+	const client = { waitReady: Promise.resolve(), query: () => {} };
+	expect(
+		postgresCredentials.parse({
+			dialect: 'postgres',
+			driver: 'pglite',
+			url: './my.db',
+			client,
+		}),
+	).toStrictEqual({
+		driver: 'pglite',
+		url: './my.db',
+	});
+});
+
 test('postgres #1', () => {
 	expect(
 		postgresCredentials.parse({

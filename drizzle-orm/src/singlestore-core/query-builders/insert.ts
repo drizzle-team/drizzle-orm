@@ -284,11 +284,14 @@ export class SingleStoreInsertBase<
 				returning.push({ field: value, fieldType: 'Column', path: [key] });
 			}
 		}
-		this.config.returning = orderSelectedFields<SingleStoreColumn>(this.config.table[Table.Symbol.Columns]);
+		this.config.returning = orderSelectedFields<SingleStoreColumn>(
+			this.config.table[Table.Symbol.Columns],
+			undefined,
+			this.dialect.codecs,
+		);
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildInsertQuery(this.config).sql;
 	}
@@ -301,12 +304,10 @@ export class SingleStoreInsertBase<
 		const { sql, generatedIds } = this.dialect.buildInsertQuery(this.config);
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(sql),
-			undefined,
-			undefined,
-			generatedIds,
-			this.config.returning,
+			'raw',
+			this.dialect.mapperGenerators.$returning(this.config.returning, generatedIds),
 			{
-				type: 'delete',
+				type: 'insert',
 				tables: extractUsedTable(this.config.table),
 			},
 		) as SingleStoreInsertPrepare<this, TReturning>;

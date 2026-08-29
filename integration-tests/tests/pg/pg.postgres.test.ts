@@ -1,8 +1,8 @@
 import 'dotenv/config';
+import type { Pool } from '@drizzle-team/minipg';
 import { defineRelations, DrizzleError, eq, sql, TransactionRollbackError } from 'drizzle-orm';
 import { alias, pgTable } from 'drizzle-orm/pg-core';
 import { drizzle, type PostgresDatabase } from 'drizzle-orm/postgres';
-import type { Pool } from 'minipg';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 import relations from './pg.relations';
 import {
@@ -21,6 +21,7 @@ import {
 	usersTable,
 	usersToGroupsTable,
 } from './pg.schema';
+import type { AllTypes } from './pg.schema';
 
 const ENABLE_LOGGING = false;
 
@@ -13065,7 +13066,9 @@ test('alltypes', async () => {
 	expect(nestedRelationRes).toStrictEqual(rawRes);
 	expect(relationRootRes).toStrictEqual(rawRes);
 
-	const expectedRes = [
+	expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
+
+	const expectedRes: AllTypes[] = [
 		{
 			serial: 1,
 			bigserial53: 9007199254740991,

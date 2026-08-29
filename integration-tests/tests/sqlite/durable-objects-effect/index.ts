@@ -14,6 +14,7 @@ import {
 	defineRelations,
 	eq,
 	exists,
+	getColumns,
 	getTableColumns,
 	gt,
 	gte,
@@ -52,6 +53,19 @@ import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
 import * as ManagedRuntime from 'effect/ManagedRuntime';
 import { SqlClient } from 'effect/unstable/sql/SqlClient';
+import {
+	allTypesData,
+	allTypesInput,
+	allTypesTable,
+	allTypesUnionCases,
+	boundsData,
+	boundsTable,
+	createAllTypes,
+	createBounds,
+	dropAllTypes,
+	dropBounds,
+} from '../all-types.data';
+import { normalizeDataWithDbCodecs } from '../utils';
 import migrations from './drizzle/migrations';
 
 export const usersTable = sqliteTable('users', {
@@ -151,7 +165,13 @@ export const rqbPost = sqliteTable('post_rqb_test', {
 	}).notNull(),
 });
 
-export const relations = defineRelations({ rqbUser, rqbPost }, (r) => ({
+export const relations = defineRelations({ rqbUser, rqbPost, allTypesTable }, (r) => ({
+	allTypesTable: {
+		self: r.many.allTypesTable({
+			from: r.allTypesTable.id,
+			to: r.allTypesTable.id,
+		}),
+	},
 	rqbUser: {
 		posts: r.many.rqbPost(),
 	},
@@ -3159,6 +3179,71 @@ export class MyDurableObject extends DurableObject {
 		}));
 	}
 
+	allTypes(): Promise<void> {
+		const { db } = this;
+		return this.exec(Effect.gen(function*() {
+			yield* db.run(sql.raw(dropAllTypes('all_types_cdcs')));
+			yield* db.run(sql.raw(createAllTypes('all_types_cdcs')));
+
+			try {
+				yield* db.insert(allTypesTable).values(allTypesInput);
+
+				const rawRes = yield* db.select().from(allTypesTable);
+				expect(rawRes).deep.equal([allTypesData]);
+
+				for (const { query, expected } of allTypesUnionCases(db as any, allTypesTable)) {
+					expect(yield* query).to.have.deep.members(expected);
+				}
+			} finally {
+				yield* db.run(sql.raw(dropAllTypes('all_types_cdcs')));
+			}
+
+			yield* db.run(sql.raw(dropBounds()));
+			yield* db.run(sql.raw(createBounds()));
+
+			try {
+				yield* db.insert(boundsTable).values(boundsData);
+				expect(yield* db.select().from(boundsTable).orderBy(boundsTable.id)).deep.equal(boundsData);
+			} finally {
+				yield* db.run(sql.raw(dropBounds()));
+			}
+		}));
+	}
+
+	allTypesCodecs(): Promise<void> {
+		const { db } = this;
+		return this.exec(Effect.gen(function*() {
+			yield* db.run(sql.raw(dropAllTypes('all_types_cdcs')));
+			yield* db.run(sql.raw(createAllTypes('all_types_cdcs')));
+
+			try {
+				yield* db.insert(allTypesTable).values(allTypesInput);
+
+				const columns = getColumns(allTypesTable);
+
+				const queryRaw = yield* db.all<Record<string, unknown>>(
+					db.select(
+						Object.fromEntries(Object.entries(getTableColumns(allTypesTable)).map(([k, v]) => [k, v.as(v.name)])),
+					).from(allTypesTable).getSQL(),
+				);
+				expect(normalizeDataWithDbCodecs({ db: db as any, columns, data: queryRaw, mode: 'query' })[0])
+					.deep.equal(allTypesData);
+
+				const rqbRaw = yield* db.all<Record<string, unknown> & { self: string }>(
+					db.query.allTypesTable.findFirst({ with: { self: true } }).getSQL(),
+				);
+				const { self: relationRaw, ...rootRaw } = rqbRaw[0]!;
+
+				expect(normalizeDataWithDbCodecs({ db: db as any, columns, data: relationRaw, mode: 'json' })[0])
+					.deep.equal(allTypesData);
+				expect(normalizeDataWithDbCodecs({ db: db as any, columns, data: [rootRaw], mode: 'query' })[0])
+					.deep.equal(allTypesData);
+			} finally {
+				yield* db.run(sql.raw(dropAllTypes('all_types_cdcs')));
+			}
+		}));
+	}
+
 	testRqbV2SimpleFindFirstNoRows(): Promise<void> {
 		const { db } = this;
 		return this.exec(Effect.gen(function*() {
@@ -3821,6 +3906,8 @@ const TESTS = [
 	'$countEmbeddedWithFilters',
 	'updateWithLimitAndOrderBy',
 	'deleteWithLimitAndOrderBy',
+	'allTypes',
+	'allTypesCodecs',
 	'testRqbV2SimpleFindFirstNoRows',
 	'testRqbV2SimpleFindFirstMultipleRows',
 	'testRqbV2SimpleFindFirstWithRelation',
