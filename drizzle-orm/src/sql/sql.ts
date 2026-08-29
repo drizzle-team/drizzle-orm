@@ -33,6 +33,7 @@ export interface BuildQueryConfig {
 	escapeName(name: string): string;
 	escapeParam(num: number, value: unknown): string;
 	escapeString(str: string): string;
+	/** @internal */
 	codecs?: CodecsCollection;
 	paramStartIndex?: { value: number };
 	inlineParams?: boolean;
@@ -170,6 +171,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 		} as Query;
 	}
 
+	/** @internal */
 	private collectSQL(
 		chunks: SQLChunk[],
 		config: BuildQueryConfig,
@@ -439,6 +441,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 		}
 	}
 
+	/** @internal */
 	private mapInlineParam(
 		chunk: unknown,
 		{ escapeString }: BuildQueryConfig,
@@ -520,7 +523,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 	}
 }
 
-export type GetDecoderResult<T> = T extends Column ? T['_']['data'] : T extends
+export type GetDecoderResult<T> = T extends { _: { data: infer TData } } ? TData : T extends
 	| DriverValueDecoder<infer TData, any>
 	| DriverValueDecoder<infer TData, any>['mapFromDriverValue'] ? TData
 : never;
