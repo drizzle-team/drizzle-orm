@@ -91,6 +91,7 @@ import { SingleStoreSquasher } from './serializer/singlestoreSchema';
 import { SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema';
 
 import { escapeSingleQuotes } from './utils';
+import { quoteSQLiteIdentifier } from './utils/cascade';
 
 const parseType = (schemaPrefix: string, type: string) => {
 	const pgNativeTypes = [
@@ -3769,7 +3770,7 @@ class SQLiteRecreateTableConvertor extends Convertor {
 	}
 
 	convert(statement: JsonRecreateTableStatement): string | string[] {
-		const { tableName, columns, compositePKs, referenceData, checkConstraints } = statement;
+		const { tableName, columns, compositePKs, referenceData, checkConstraints, cascadeDependents = [] } = statement;
 
 		const columnNames = columns.map((it) => `"${it.name}"`).join(', ');
 		const newTableName = `__new_${tableName}`;
@@ -3777,6 +3778,15 @@ class SQLiteRecreateTableConvertor extends Convertor {
 		const sqlStatements: string[] = [];
 
 		sqlStatements.push(`PRAGMA foreign_keys=OFF;`);
+
+		for (const dep of cascadeDependents) {
+			const dependentColumns = dep.columns.map(quoteSQLiteIdentifier).join(', ');
+			sqlStatements.push(
+				`CREATE TABLE ${quoteSQLiteIdentifier(dep.backupTableName)} AS SELECT ${dependentColumns} FROM ${
+					quoteSQLiteIdentifier(dep.tableName)
+				};`,
+			);
+		}
 
 		// map all possible variants
 		const mappedCheckConstraints: string[] = checkConstraints.map((it) =>
@@ -3821,6 +3831,16 @@ class SQLiteRecreateTableConvertor extends Convertor {
 			}),
 		);
 
+		for (const dep of cascadeDependents) {
+			const dependentColumns = dep.columns.map(quoteSQLiteIdentifier).join(', ');
+			sqlStatements.push(
+				`INSERT OR REPLACE INTO ${
+					quoteSQLiteIdentifier(dep.tableName)
+				} (${dependentColumns}) SELECT ${dependentColumns} FROM ${quoteSQLiteIdentifier(dep.backupTableName)};`,
+			);
+			sqlStatements.push(`DROP TABLE ${quoteSQLiteIdentifier(dep.backupTableName)};`);
+		}
+
 		sqlStatements.push(`PRAGMA foreign_keys=ON;`);
 
 		return sqlStatements;
@@ -3836,12 +3856,21 @@ class LibSQLRecreateTableConvertor extends Convertor {
 	}
 
 	convert(statement: JsonRecreateTableStatement): string[] {
-		const { tableName, columns, compositePKs, referenceData, checkConstraints } = statement;
+		const { tableName, columns, compositePKs, referenceData, checkConstraints, cascadeDependents = [] } = statement;
 
 		const columnNames = columns.map((it) => `"${it.name}"`).join(', ');
 		const newTableName = `__new_${tableName}`;
 
 		const sqlStatements: string[] = [];
+
+		for (const dep of cascadeDependents) {
+			const dependentColumns = dep.columns.map(quoteSQLiteIdentifier).join(', ');
+			sqlStatements.push(
+				`CREATE TABLE ${quoteSQLiteIdentifier(dep.backupTableName)} AS SELECT ${dependentColumns} FROM ${
+					quoteSQLiteIdentifier(dep.tableName)
+				};`,
+			);
+		}
 
 		const mappedCheckConstraints: string[] = checkConstraints.map((it) =>
 			it.replaceAll(`"${tableName}".`, `"${newTableName}".`).replaceAll(`\`${tableName}\`.`, `\`${newTableName}\`.`)
@@ -3886,6 +3915,16 @@ class LibSQLRecreateTableConvertor extends Convertor {
 				type: 'rename_table',
 			}),
 		);
+
+		for (const dep of cascadeDependents) {
+			const dependentColumns = dep.columns.map(quoteSQLiteIdentifier).join(', ');
+			sqlStatements.push(
+				`INSERT OR REPLACE INTO ${
+					quoteSQLiteIdentifier(dep.tableName)
+				} (${dependentColumns}) SELECT ${dependentColumns} FROM ${quoteSQLiteIdentifier(dep.backupTableName)};`,
+			);
+			sqlStatements.push(`DROP TABLE ${quoteSQLiteIdentifier(dep.backupTableName)};`);
+		}
 
 		sqlStatements.push(`PRAGMA foreign_keys=ON;`);
 

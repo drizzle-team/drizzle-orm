@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 
-import { JsonStatement } from 'src/jsonStatements';
+import { JsonRecreateTableCascadeDependent, JsonStatement } from 'src/jsonStatements';
 import { findAddedAndRemoved, SQLiteDB } from 'src/utils';
 import { SQLiteSchemaInternal, SQLiteSchemaSquashed, SQLiteSquasher } from '../../serializer/sqliteSchema';
 import {
@@ -11,6 +11,7 @@ import {
 	SQLiteDropTableConvertor,
 	SqliteRenameTableConvertor,
 } from '../../sqlgenerator';
+import { collectCascadeDependents, quoteSQLiteIdentifier } from '../../utils/cascade';
 
 export const getOldTableName = (
 	tableName: string,
@@ -29,10 +30,20 @@ export const _moveDataStatements = (
 	tableName: string,
 	json: SQLiteSchemaSquashed,
 	dataLoss: boolean = false,
+	cascadeDependents: JsonRecreateTableCascadeDependent[] = [],
 ) => {
 	const statements: string[] = [];
 
 	const newTableName = `__new_${tableName}`;
+
+	for (const dep of cascadeDependents) {
+		const dependentColumns = dep.columns.map(quoteSQLiteIdentifier).join(', ');
+		statements.push(
+			`CREATE TABLE ${quoteSQLiteIdentifier(dep.backupTableName)} AS SELECT ${dependentColumns} FROM ${
+				quoteSQLiteIdentifier(dep.tableName)
+			};`,
+		);
+	}
 
 	// create table statement from a new json2 with proper name
 	const tableColumns = Object.values(json.tables[tableName].columns);
@@ -107,6 +118,17 @@ export const _moveDataStatements = (
 			}),
 		);
 	}
+
+	for (const dep of cascadeDependents) {
+		const dependentColumns = dep.columns.map(quoteSQLiteIdentifier).join(', ');
+		statements.push(
+			`INSERT OR REPLACE INTO ${
+				quoteSQLiteIdentifier(dep.tableName)
+			} (${dependentColumns}) SELECT ${dependentColumns} FROM ${quoteSQLiteIdentifier(dep.backupTableName)};`,
+		);
+		statements.push(`DROP TABLE ${quoteSQLiteIdentifier(dep.backupTableName)};`);
+	}
+
 	return statements;
 };
 
@@ -302,14 +324,17 @@ export const libSqlLogSuggestionsAndReturn = async (
 				tablesReferencingCurrent.push(...tablesRefs);
 			}
 
-			if (!tablesReferencingCurrent.length) {
-				statementsToExecute.push(..._moveDataStatements(tableName, json2, dataLoss));
+			const cascadeDependents = collectCascadeDependents(tableName, json1, json2, 'push');
+
+			if (tablesReferencingCurrent.length === 0) {
+				statementsToExecute.push(
+					..._moveDataStatements(tableName, json2, dataLoss, cascadeDependents),
+				);
 				continue;
 			}
 
-			// recreate table
 			statementsToExecute.push(
-				..._moveDataStatements(tableName, json2, dataLoss),
+				..._moveDataStatements(tableName, json2, dataLoss, cascadeDependents),
 			);
 		} else if (
 			statement.type === 'alter_table_alter_column_set_generated'

@@ -9,17 +9,29 @@ import {
 	SqliteRenameTableConvertor,
 } from '../../sqlgenerator';
 
-import type { JsonStatement } from '../../jsonStatements';
+import type { JsonRecreateTableCascadeDependent, JsonStatement } from '../../jsonStatements';
 import { findAddedAndRemoved, type SQLiteDB } from '../../utils';
+import { collectCascadeDependents, quoteSQLiteIdentifier } from '../../utils/cascade';
 
 export const _moveDataStatements = (
 	tableName: string,
 	json: SQLiteSchemaSquashed,
 	dataLoss: boolean = false,
+	cascadeDependents: JsonRecreateTableCascadeDependent[] = [],
 ) => {
 	const statements: string[] = [];
 
 	const newTableName = `__new_${tableName}`;
+
+	// backup dependent tables to prevent ON DELETE CASCADE data loss when dropping parent
+	for (const dep of cascadeDependents) {
+		const dependentColumns = dep.columns.map(quoteSQLiteIdentifier).join(', ');
+		statements.push(
+			`CREATE TABLE ${quoteSQLiteIdentifier(dep.backupTableName)} AS SELECT ${dependentColumns} FROM ${
+				quoteSQLiteIdentifier(dep.tableName)
+			};`,
+		);
+	}
 
 	// create table statement from a new json2 with proper name
 	const tableColumns = Object.values(json.tables[tableName].columns);
@@ -93,6 +105,17 @@ export const _moveDataStatements = (
 				data: idx,
 			}),
 		);
+	}
+
+	// restore dependents data after parent recreation (works when PRAGMA foreign_keys cannot be disabled, e.g. D1)
+	for (const dep of cascadeDependents) {
+		const dependentColumns = dep.columns.map(quoteSQLiteIdentifier).join(', ');
+		statements.push(
+			`INSERT OR REPLACE INTO ${
+				quoteSQLiteIdentifier(dep.tableName)
+			} (${dependentColumns}) SELECT ${dependentColumns} FROM ${quoteSQLiteIdentifier(dep.backupTableName)};`,
+		);
+		statements.push(`DROP TABLE ${quoteSQLiteIdentifier(dep.backupTableName)};`);
 	}
 
 	return statements;
@@ -286,8 +309,12 @@ export const logSuggestionsAndReturn = async (
 				tablesReferencingCurrent.push(...tablesRefs);
 			}
 
+			const cascadeDependents = collectCascadeDependents(tableName, json1, json2, 'push');
+
 			if (!tablesReferencingCurrent.length) {
-				statementsToExecute.push(..._moveDataStatements(tableName, json2, dataLoss));
+				statementsToExecute.push(
+					..._moveDataStatements(tableName, json2, dataLoss, cascadeDependents),
+				);
 				continue;
 			}
 
@@ -295,13 +322,13 @@ export const logSuggestionsAndReturn = async (
 				foreign_keys: number;
 			}>(`PRAGMA foreign_keys;`);
 
-			if (pragmaState) {
-				statementsToExecute.push(`PRAGMA foreign_keys=OFF;`);
-			}
-			statementsToExecute.push(..._moveDataStatements(tableName, json2, dataLoss));
-			if (pragmaState) {
-				statementsToExecute.push(`PRAGMA foreign_keys=ON;`);
-			}
+			// In environments like Cloudflare D1, PRAGMA foreign_keys cannot be disabled, so we
+			// both toggle when possible and also use backups to prevent cascade data loss.
+			if (pragmaState) statementsToExecute.push(`PRAGMA foreign_keys=OFF;`);
+			statementsToExecute.push(
+				..._moveDataStatements(tableName, json2, dataLoss, cascadeDependents),
+			);
+			if (pragmaState) statementsToExecute.push(`PRAGMA foreign_keys=ON;`);
 		} else {
 			const fromJsonStatement = fromJson([statement], 'sqlite', 'push');
 			statementsToExecute.push(

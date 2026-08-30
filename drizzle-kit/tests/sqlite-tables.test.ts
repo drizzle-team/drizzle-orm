@@ -1,9 +1,11 @@
+import Database from 'better-sqlite3';
 import { sql } from 'drizzle-orm';
 import {
 	AnySQLiteColumn,
 	foreignKey,
 	index,
 	int,
+	integer,
 	primaryKey,
 	sqliteTable,
 	text,
@@ -547,6 +549,109 @@ test('optional db aliases (snake case)', async () => {
 `;
 
 	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6]);
+});
+
+test('generated table rebuilds preserve cascade dependents', async () => {
+	const client = new Database(':memory:');
+	client.pragma('foreign_keys = ON');
+
+	const createSchema = (
+		accountColumn: 'text' | 'integer',
+		withNote: boolean,
+		onDelete: 'cascade' | 'no action',
+	) => {
+		const account = sqliteTable('account', {
+			id: integer('id').primaryKey(),
+			name: accountColumn === 'text' ? text('name') : integer('name'),
+		});
+		const property = sqliteTable('property', {
+			id: integer('id').primaryKey(),
+			accountId: integer('account_id').references(() => account.id, { onDelete }),
+			payload: text('payload'),
+			...(withNote ? { note: text('note').notNull().default('active') } : {}),
+		});
+		return { account, property };
+	};
+
+	const schema1 = createSchema('text', false, 'cascade');
+	const schema2 = createSchema('integer', true, 'cascade');
+
+	const initial = await diffTestSchemasSqlite({}, schema1, []);
+	client.exec(initial.sqlStatements.join('\n'));
+	client.prepare('INSERT INTO account (id, name) VALUES (?, ?)').run(1, 'Alice');
+	client.prepare('INSERT INTO property (id, account_id, payload) VALUES (?, ?, ?)').run(1, 1, 'payload');
+
+	const { statements, sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, []);
+	const recreate = statements.find(
+		(statement) => statement.type === 'recreate_table' && statement.tableName === 'account',
+	);
+
+	expect(recreate?.cascadeDependents?.map(({ tableName, columns }) => ({ tableName, columns }))).toEqual([
+		{ tableName: 'property', columns: ['id', 'account_id', 'payload'] },
+	]);
+
+	client.transaction(() => {
+		for (const statement of sqlStatements) {
+			client.exec(statement);
+		}
+	})();
+
+	expect(client.prepare('SELECT id, name FROM account').all()).toStrictEqual([
+		{ id: 1, name: 'Alice' },
+	]);
+	expect(client.prepare('SELECT id, account_id, payload, note FROM property').all()).toStrictEqual([
+		{ id: 1, account_id: 1, payload: 'payload', note: 'active' },
+	]);
+	expect(client.prepare('PRAGMA foreign_key_check').all()).toStrictEqual([]);
+});
+
+test('generated parent rebuilds do not back up a newly added dependent table', async () => {
+	const client = new Database(':memory:');
+	client.pragma('foreign_keys = ON');
+
+	const schema1 = {
+		account: sqliteTable('account', {
+			id: integer('id').primaryKey(),
+			name: text('name'),
+		}),
+	};
+	const schema2 = {
+		account: sqliteTable('account', {
+			id: integer('id').primaryKey(),
+			name: integer('name'),
+		}),
+		property: sqliteTable('property', {
+			id: integer('id').primaryKey(),
+			accountId: integer('account_id').references(() => schema2.account.id, {
+				onDelete: 'cascade',
+			}),
+		}),
+	};
+
+	const initial = await diffTestSchemasSqlite({}, schema1, []);
+	client.exec(initial.sqlStatements.join('\n'));
+	client.prepare('INSERT INTO account (id, name) VALUES (?, ?)').run(1, 'Alice');
+
+	const { statements, sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, []);
+	const recreate = statements.find(
+		(statement) => statement.type === 'recreate_table' && statement.tableName === 'account',
+	);
+
+	expect(recreate?.cascadeDependents ?? []).toStrictEqual([]);
+
+	client.transaction(() => {
+		for (const statement of sqlStatements) {
+			client.exec(statement);
+		}
+	})();
+
+	expect(client.prepare('SELECT id, name FROM account').all()).toStrictEqual([
+		{ id: 1, name: 'Alice' },
+	]);
+	expect(client.prepare('SELECT count(*) AS count FROM property').get()).toStrictEqual({
+		count: 0,
+	});
+	expect(client.prepare('PRAGMA foreign_key_check').all()).toStrictEqual([]);
 });
 
 test('optional db aliases (camel case)', async () => {
