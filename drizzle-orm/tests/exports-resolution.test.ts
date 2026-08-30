@@ -139,8 +139,6 @@ interface PortabilityProbe {
 	blockedBy?: string;
 }
 
-const EMPTY_FILTER = 'EmptyFilter (unique symbol)';
-
 const PORTABILITY_MATRIX: PortabilityProbe[] = [
 	{ name: 'SQL', subpath: 'sql/sql', portable: true },
 	{ name: 'Column', subpath: 'column', portable: true },
@@ -163,12 +161,9 @@ const PORTABILITY_MATRIX: PortabilityProbe[] = [
 	{ name: 'Param', subpath: 'sql/sql', portable: true },
 	{ name: 'Name', subpath: 'sql/sql', portable: true },
 	{ name: 'CodecsCollection', subpath: 'codecs', portable: true },
-	// Their nominal members are stripped; what remains is `EmptyFilter`, whose
-	// `unique symbol` type is nominal per declaration site. That is an API decision
-	// rather than a marker, so it is made separately.
-	{ name: 'PgDialect', subpath: 'pg-core', portable: false, blockedBy: EMPTY_FILTER },
-	{ name: 'MySqlDialect', subpath: 'mysql-core', portable: false, blockedBy: EMPTY_FILTER },
-	{ name: 'SQLiteDialect', subpath: 'sqlite-core', portable: false, blockedBy: EMPTY_FILTER },
+	{ name: 'PgDialect', subpath: 'pg-core', portable: true },
+	{ name: 'MySqlDialect', subpath: 'mysql-core', portable: true },
+	{ name: 'SQLiteDialect', subpath: 'sqlite-core', portable: true },
 	// These three reach their session class, and so inherit a chain of nominal members
 	// -- Session#dialect, then the prepared-query and transaction classes behind it --
 	// on top of EmptyFilter. The chain does not fall to a contained change, so unlike

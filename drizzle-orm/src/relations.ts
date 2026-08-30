@@ -2168,5 +2168,14 @@ export function getTableAsAliasSQL(table: SchemaEntry) {
 	}`;
 }
 
-export const EmptyFilter = Symbol.for('drizzle:EmptyFilter');
+// A string literal rather than `Symbol.for`. Both are unit types, so both narrow under
+// `===`, which the filter builder relies on. The difference is that a `unique symbol` is
+// nominal per declaration site: with two copies of the package on disk, copy A's
+// EmptyFilter and copy B's are unrelated types, and every public type mentioning it
+// stops being assignable across the boundary. A literal type is structural and compares
+// equal across installs.
+//
+// The runtime sentinel keeps the same identity semantics: `Symbol.for` already returned
+// the same symbol in every copy, and the literal is likewise shared by value.
+export const EmptyFilter = 'drizzle:EmptyFilter';
 export type EmptyFilter = typeof EmptyFilter;
