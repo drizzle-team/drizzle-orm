@@ -235,6 +235,37 @@ export interface InterimSchema {
 	viewColumns: ViewColumn[];
 }
 
+export type PostgresViewDependency = {
+	view: {
+		schema: string;
+		name: string;
+	};
+	relation: {
+		schema: string;
+		name: string;
+	};
+	columns: string[];
+};
+
+// Keep dependencies outside DDL entities so metadata never produces SQL on its own.
+const viewDependencies = new WeakMap<object, PostgresViewDependency[]>();
+
+export const setViewDependencies = (
+	target: object,
+	dependencies: PostgresViewDependency[],
+) => {
+	viewDependencies.set(target, dependencies);
+};
+
+export const getViewDependencies = (target: object) => {
+	return viewDependencies.get(target) ?? [];
+};
+
+export const copyViewDependencies = (from: object, to: object) => {
+	const dependencies = viewDependencies.get(from);
+	if (dependencies) viewDependencies.set(to, dependencies);
+};
+
 export function postgresToRelationsPull(schema: PostgresDDL): SchemaForPull {
 	return Object.values(schema.tables.list()).map((table) => {
 		const rawTable = tableFromDDL(table, schema);
@@ -604,6 +635,8 @@ export const interimToDDL = (
 			throw new Error(`Invalid entity: ${JSON.stringify(it)}`);
 		}
 	}
+
+	copyViewDependencies(schema, ddl);
 
 	return { ddl, errors };
 };

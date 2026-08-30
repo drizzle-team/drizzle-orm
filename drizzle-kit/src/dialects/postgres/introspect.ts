@@ -13,6 +13,7 @@ import type {
 	InterimSchema,
 	Policy,
 	PostgresEntities,
+	PostgresViewDependency,
 	PrimaryKey,
 	Privilege,
 	Role,
@@ -22,6 +23,7 @@ import type {
 	View,
 	ViewColumn,
 } from './ddl';
+import { setViewDependencies } from './ddl';
 import {
 	defaultForColumn,
 	isSerialExpression,
@@ -1188,7 +1190,88 @@ export const fromDatabase = async (
 		resultViews.some((v) => v.schema === x.schema && v.name === x.view)
 	);
 
-	return {
+	type ViewDependencyRow = {
+		viewSchema: string;
+		viewName: string;
+		relationSchema: string;
+		relationName: string;
+		columnOrdinality: number | string;
+		columnName: string | null;
+	};
+
+	const resultViewKeys = new Set(resultViews.map((it) => `${it.schema}\0${it.name}`));
+	const resultViewIds = viewsList
+		.filter((it) => resultViewKeys.has(`${it.schema}\0${it.name}`))
+		.map((it) => it.oid);
+	const viewDependencyRows = resultViewIds.length > 0
+		? await db.query<ViewDependencyRow>(`
+			SELECT
+				view_namespace.nspname AS "viewSchema",
+				view_class.relname AS "viewName",
+				relation_namespace.nspname AS "relationSchema",
+				relation_class.relname AS "relationName",
+				dependency.refobjsubid AS "columnOrdinality",
+				attribute.attname AS "columnName"
+			FROM pg_catalog.pg_rewrite AS rewrite
+			JOIN pg_catalog.pg_class AS view_class
+				ON view_class.oid OPERATOR(pg_catalog.=) rewrite.ev_class
+			JOIN pg_catalog.pg_namespace AS view_namespace
+				ON view_namespace.oid OPERATOR(pg_catalog.=) view_class.relnamespace
+			JOIN pg_catalog.pg_depend AS dependency
+				ON dependency.classid OPERATOR(pg_catalog.=) 'pg_catalog.pg_rewrite'::pg_catalog.regclass
+				AND dependency.objid OPERATOR(pg_catalog.=) rewrite.oid
+				AND dependency.refclassid OPERATOR(pg_catalog.=) 'pg_catalog.pg_class'::pg_catalog.regclass
+				AND dependency.deptype OPERATOR(pg_catalog.=) 'n'
+			JOIN pg_catalog.pg_class AS relation_class
+				ON relation_class.oid OPERATOR(pg_catalog.=) dependency.refobjid
+			JOIN pg_catalog.pg_namespace AS relation_namespace
+				ON relation_namespace.oid OPERATOR(pg_catalog.=) relation_class.relnamespace
+			LEFT JOIN pg_catalog.pg_attribute AS attribute
+				ON attribute.attrelid OPERATOR(pg_catalog.=) dependency.refobjid
+				AND attribute.attnum OPERATOR(pg_catalog.=) dependency.refobjsubid
+			WHERE rewrite.rulename OPERATOR(pg_catalog.=) '_RETURN'
+				AND view_class.relkind IN ('v', 'm')
+				AND rewrite.ev_class IN (${resultViewIds.join(',')})
+			ORDER BY
+				pg_catalog.lower(view_namespace.nspname),
+				pg_catalog.lower(view_class.relname),
+				pg_catalog.lower(relation_namespace.nspname),
+				pg_catalog.lower(relation_class.relname),
+				dependency.refobjsubid;
+		`).then((rows) => {
+			queryCallback('viewDependencies', rows, null);
+			return rows;
+		}).catch((error) => {
+			queryCallback('viewDependencies', [], error);
+			throw error;
+		})
+		: [];
+
+	const dependenciesByRelation = new Map<string, PostgresViewDependency>();
+	for (const row of viewDependencyRows) {
+		if (!resultViewKeys.has(`${row.viewSchema}\0${row.viewName}`)) continue;
+
+		const key = `${row.viewSchema}\0${row.viewName}\0${row.relationSchema}\0${row.relationName}`;
+		let dependency = dependenciesByRelation.get(key);
+		if (!dependency) {
+			dependency = {
+				view: { schema: row.viewSchema, name: row.viewName },
+				relation: { schema: row.relationSchema, name: row.relationName },
+				columns: [],
+			};
+			dependenciesByRelation.set(key, dependency);
+		}
+
+		if (
+			Number(row.columnOrdinality) !== 0
+			&& row.columnName !== null
+			&& !dependency.columns.includes(row.columnName)
+		) {
+			dependency.columns.push(row.columnName);
+		}
+	}
+
+	const result = {
 		schemas: resultSchemas,
 		tables: resultTables,
 		enums: resultEnums,
@@ -1205,6 +1288,8 @@ export const fromDatabase = async (
 		views: resultViews,
 		viewColumns: resultViewColumns,
 	} satisfies InterimSchema;
+	setViewDependencies(result, [...dependenciesByRelation.values()]);
+	return result;
 };
 
 export const fromDatabaseForDrizzle = async (

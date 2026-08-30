@@ -7,6 +7,7 @@ import type { ColumnsSelection, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { PgColumn } from '../columns/index.ts';
 import type { WithBuilder } from '../subquery.ts';
+import { setPgViewDependencyConfig } from '../view-dependencies.ts';
 import { PgSelectBuilder } from './select.ts';
 import type { SelectedFields } from './select.types.ts';
 
@@ -35,12 +36,15 @@ export class QueryBuilder {
 
 			const sql = ('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL();
 			return new Proxy(
-				new WithSubquery(
-					sql,
-					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
-					alias,
-					true,
-					sql.usedTables ?? [],
+				setPgViewDependencyConfig(
+					new WithSubquery(
+						sql,
+						selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
+						alias,
+						true,
+						sql.usedTables ?? [],
+					),
+					qb,
 				),
 				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 			) as any;

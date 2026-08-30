@@ -26,6 +26,7 @@ import type { SelectedFields } from '../query-builders/select.types.ts';
 import { PgUpdateBuilder } from '../query-builders/update.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PgTransactionConfig, PreparedQueryConfig } from '../session.ts';
 import type { WithBuilder } from '../subquery.ts';
+import { setPgViewDependencyConfig } from '../view-dependencies.ts';
 import type { PgMaterializedView } from '../view.ts';
 import { PgEffectDeleteBase } from './delete.ts';
 import { PgEffectRelationalQuery, type PgEffectRelationalQueryHKT } from './query.ts';
@@ -135,12 +136,15 @@ export class PgEffectDatabase<
 
 			const sql = ('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL();
 			return new Proxy(
-				new WithSubquery(
-					sql,
-					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
-					alias,
-					true,
-					sql.usedTables ?? [],
+				setPgViewDependencyConfig(
+					new WithSubquery(
+						sql,
+						selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
+						alias,
+						true,
+						sql.usedTables ?? [],
+					),
+					qb,
 				),
 				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 			);

@@ -1,5 +1,6 @@
 import { and, eq, gt, or, sql } from 'drizzle-orm';
 import {
+	alias,
 	camelCase,
 	integer,
 	pgMaterializedView,
@@ -9,6 +10,7 @@ import {
 	serial,
 	snakeCase,
 	text,
+	timestamp,
 } from 'drizzle-orm/pg-core';
 import { generate } from 'src/cli/schema';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
@@ -2237,6 +2239,273 @@ test('rename column referenced in view', async () => {
 		'ALTER TABLE "users" RENAME COLUMN "name" TO "name2";',
 		'ALTER TABLE "users" RENAME COLUMN "id" TO "id2";',
 		'CREATE VIEW "users_view" AS (select "id2", "name2" from "users");',
+	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6194
+test('alter column type referenced by a view', async () => {
+	const accessLogs = pgTable('access_logs', {
+		id: integer('id').primaryKey(),
+		accessedAt: timestamp('accessed_at', { mode: 'string' }).notNull(),
+	});
+	const evenAccessLogs = pgView('even_access_logs').as((qb) =>
+		qb.select().from(accessLogs).where(sql`${accessLogs.id} % 2 = 0`)
+	);
+	const from = { accessLogs, evenAccessLogs };
+
+	const accessLogsWithTimezone = pgTable('access_logs', {
+		id: integer('id').primaryKey(),
+		accessedAt: timestamp('accessed_at', {
+			mode: 'string',
+			withTimezone: true,
+		}).notNull(),
+	});
+	const evenAccessLogsWithTimezone = pgView('even_access_logs').as((qb) =>
+		qb.select().from(accessLogsWithTimezone).where(sql`${accessLogsWithTimezone.id} % 2 = 0`)
+	);
+	const to = { accessLogsWithTimezone, evenAccessLogsWithTimezone };
+
+	const { sqlStatements: generated } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pushed } = await push({ db, to });
+
+	const expected = [
+		'DROP VIEW "even_access_logs";',
+		'ALTER TABLE "access_logs" ALTER COLUMN "accessed_at" SET DATA TYPE timestamp with time zone USING "accessed_at"::timestamp with time zone;',
+		'CREATE VIEW "even_access_logs" AS (select "id", "accessed_at" from "access_logs" where "access_logs"."id" % 2 = 0);',
+	];
+	expect(generated).toStrictEqual(expected);
+	expect(pushed).toStrictEqual(expected);
+});
+
+test('does not recreate a view when an unrelated column changes type', async () => {
+	const accessLogs = pgTable('access_logs', {
+		id: integer('id').primaryKey(),
+		accessedAt: timestamp('accessed_at', { mode: 'string' }).notNull(),
+	});
+	const accessLogIds = pgView('access_log_ids').as((qb) => qb.select({ id: accessLogs.id }).from(accessLogs));
+	const from = { accessLogs, accessLogIds };
+
+	const accessLogsWithTimezone = pgTable('access_logs', {
+		id: integer('id').primaryKey(),
+		accessedAt: timestamp('accessed_at', {
+			mode: 'string',
+			withTimezone: true,
+		}).notNull(),
+	});
+	const accessLogIdsWithTimezone = pgView('access_log_ids').as((qb) =>
+		qb.select({ id: accessLogsWithTimezone.id }).from(accessLogsWithTimezone)
+	);
+	const to = { accessLogsWithTimezone, accessLogIdsWithTimezone };
+
+	const { sqlStatements: generated } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pushed } = await push({ db, to });
+
+	const expected = [
+		'ALTER TABLE "access_logs" ALTER COLUMN "accessed_at" SET DATA TYPE timestamp with time zone USING "accessed_at"::timestamp with time zone;',
+	];
+	expect(generated).toStrictEqual(expected);
+	expect(pushed).toStrictEqual(expected);
+});
+
+test('does not recreate a relation-only dependent view when a column changes type', async () => {
+	const accessLogs = pgTable('access_logs', {
+		accessedAt: timestamp('accessed_at', { mode: 'string' }).notNull(),
+	});
+	const accessLogCount = pgView('access_log_count').as((qb) =>
+		qb.select({ count: sql<number>`count(*)::integer` }).from(accessLogs)
+	);
+	const from = { accessLogs, accessLogCount };
+
+	const accessLogsWithTimezone = pgTable('access_logs', {
+		accessedAt: timestamp('accessed_at', {
+			mode: 'string',
+			withTimezone: true,
+		}).notNull(),
+	});
+	const accessLogCountWithTimezone = pgView('access_log_count').as((qb) =>
+		qb.select({ count: sql<number>`count(*)::integer` }).from(accessLogsWithTimezone)
+	);
+	const to = { accessLogsWithTimezone, accessLogCountWithTimezone };
+
+	const { sqlStatements: generated } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pushed } = await push({ db, to });
+
+	const expected = [
+		'ALTER TABLE "access_logs" ALTER COLUMN "accessed_at" SET DATA TYPE timestamp with time zone USING "accessed_at"::timestamp with time zone;',
+	];
+	expect(generated).toStrictEqual(expected);
+	expect(pushed).toStrictEqual(expected);
+});
+
+test('recreates relation-only dependents of an affected view', async () => {
+	const accessLogs = pgTable('access_logs', {
+		accessedAt: timestamp('accessed_at', { mode: 'string' }).notNull(),
+	});
+	const base = pgView('access_logs_base').as((qb) => qb.select({ accessedAt: accessLogs.accessedAt }).from(accessLogs));
+	const top = pgView('access_logs_top').as((qb) => {
+		const nested = qb
+			.select({ count: sql<number>`count(*)::integer`.as('count') })
+			.from(alias(base, 'base'))
+			.as('nested');
+		const counts = qb.$with('counts').as(qb.select().from(nested));
+		return qb.with(counts).select().from(counts);
+	});
+	const from = { top, accessLogs, base };
+
+	const accessLogsWithTimezone = pgTable('access_logs', {
+		accessedAt: timestamp('accessed_at', {
+			mode: 'string',
+			withTimezone: true,
+		}).notNull(),
+	});
+	const baseWithTimezone = pgView('access_logs_base').as((qb) =>
+		qb.select({ accessedAt: accessLogsWithTimezone.accessedAt }).from(accessLogsWithTimezone)
+	);
+	const topWithTimezone = pgView('access_logs_top').as((qb) => {
+		const nested = qb
+			.select({ count: sql<number>`count(*)::integer`.as('count') })
+			.from(alias(baseWithTimezone, 'base'))
+			.as('nested');
+		const counts = qb.$with('counts').as(qb.select().from(nested));
+		return qb.with(counts).select().from(counts);
+	});
+	const to = { topWithTimezone, accessLogsWithTimezone, baseWithTimezone };
+
+	const { sqlStatements: generated } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pushed } = await push({ db, to });
+
+	const expected = [
+		'DROP VIEW "access_logs_top";',
+		'DROP VIEW "access_logs_base";',
+		'ALTER TABLE "access_logs" ALTER COLUMN "accessed_at" SET DATA TYPE timestamp with time zone USING "accessed_at"::timestamp with time zone;',
+		'CREATE VIEW "access_logs_base" AS (select "accessed_at" from "access_logs");',
+		'CREATE VIEW "access_logs_top" AS (with "counts" as (select "count" from (select count(*)::integer as "count" from "access_logs_base" "base") "nested") select "count" from "counts");',
+	];
+	expect(generated).toStrictEqual(expected);
+	expect(pushed).toStrictEqual(expected);
+});
+
+test('recreates a view when the changed column is referenced in a captured predicate', async () => {
+	const accessLogs = pgTable('access_logs', {
+		id: integer('id').primaryKey(),
+		accessedAt: timestamp('accessed_at', { mode: 'string' }).notNull(),
+	});
+	const filteredAccessLogIds = pgView('filtered_access_log_ids').as((qb) => {
+		const query = qb
+			.select({ id: accessLogs.id })
+			.from(accessLogs)
+			.where(sql`${accessLogs.accessedAt} is not null`)
+			.$dynamic();
+		const nested = query.as('nested');
+		query.where(sql`${accessLogs.id} > 0`);
+		return qb.select().from(nested);
+	});
+	const from = { accessLogs, filteredAccessLogIds };
+
+	const accessLogsWithTimezone = pgTable('access_logs', {
+		id: integer('id').primaryKey(),
+		accessedAt: timestamp('accessed_at', {
+			mode: 'string',
+			withTimezone: true,
+		}).notNull(),
+	});
+	const filteredAccessLogIdsWithTimezone = pgView('filtered_access_log_ids').as((qb) => {
+		const query = qb
+			.select({ id: accessLogsWithTimezone.id })
+			.from(accessLogsWithTimezone)
+			.where(sql`${accessLogsWithTimezone.accessedAt} is not null`)
+			.$dynamic();
+		const nested = query.as('nested');
+		query.where(sql`${accessLogsWithTimezone.id} > 0`);
+		return qb.select().from(nested);
+	});
+	const to = { accessLogsWithTimezone, filteredAccessLogIdsWithTimezone };
+
+	const { sqlStatements: generated } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pushed } = await push({ db, to });
+
+	const expected = [
+		'DROP VIEW "filtered_access_log_ids";',
+		'ALTER TABLE "access_logs" ALTER COLUMN "accessed_at" SET DATA TYPE timestamp with time zone USING "accessed_at"::timestamp with time zone;',
+		'CREATE VIEW "filtered_access_log_ids" AS (select "id" from (select "id" from "access_logs" where "access_logs"."accessed_at" is not null) "nested");',
+	];
+	expect(generated).toStrictEqual(expected);
+	expect(pushed).toStrictEqual(expected);
+});
+
+test('recreates a dependent view after its schema is renamed', async () => {
+	const oldSchema = pgSchema('old');
+	const accessLogs = oldSchema.table('access_logs', {
+		accessedAt: timestamp('accessed_at', { mode: 'string' }).notNull(),
+	});
+	const accessLogsView = oldSchema.view('access_logs_view').as((qb) => qb.select().from(accessLogs));
+	const from = { oldSchema, accessLogs, accessLogsView };
+
+	const newSchema = pgSchema('new');
+	const accessLogsWithTimezone = newSchema.table('access_logs', {
+		accessedAt: timestamp('accessed_at', {
+			mode: 'string',
+			withTimezone: true,
+		}).notNull(),
+	});
+	const accessLogsViewWithTimezone = newSchema.view('access_logs_view').as((qb) =>
+		qb.select().from(accessLogsWithTimezone)
+	);
+	const to = { newSchema, accessLogsWithTimezone, accessLogsViewWithTimezone };
+	const renames = ['old->new'];
+
+	const { sqlStatements: generated } = await diff(from, to, renames);
+	await push({ db, to: from });
+	const { sqlStatements: pushed } = await push({ db, to, renames });
+
+	const expected = [
+		'ALTER SCHEMA "old" RENAME TO "new";\n',
+		'DROP VIEW "new"."access_logs_view";',
+		'ALTER TABLE "new"."access_logs" ALTER COLUMN "accessed_at" SET DATA TYPE timestamp with time zone USING "accessed_at"::timestamp with time zone;',
+		'CREATE VIEW "new"."access_logs_view" AS (select "accessed_at" from "new"."access_logs");',
+	];
+	expect(generated).toStrictEqual(expected);
+	expect(pushed).toStrictEqual(expected);
+});
+
+test('drops views in source dependency order when the target dependency is removed', async () => {
+	const accessLogs = pgTable('access_logs', {
+		accessedAt: timestamp('accessed_at', { mode: 'string' }).notNull(),
+	});
+	const base = pgView('access_logs_base').as((qb) => qb.select({ accessedAt: accessLogs.accessedAt }).from(accessLogs));
+	const top = pgView('access_logs_top').as((qb) => qb.select().from(base));
+
+	await push({ db, to: { accessLogs, base, top } });
+
+	const accessLogsWithTimezone = pgTable('access_logs', {
+		accessedAt: timestamp('accessed_at', {
+			mode: 'string',
+			withTimezone: true,
+		}).notNull(),
+	});
+	const baseWithTimezone = pgView('access_logs_base').as((qb) =>
+		qb.select({ accessedAt: accessLogsWithTimezone.accessedAt }).from(accessLogsWithTimezone)
+	);
+	const topWithTimezone = pgView('access_logs_top').as((qb) =>
+		qb.select({ accessedAt: accessLogsWithTimezone.accessedAt }).from(accessLogsWithTimezone)
+	);
+
+	const { sqlStatements } = await push({
+		db,
+		to: { accessLogsWithTimezone, baseWithTimezone, topWithTimezone },
+	});
+
+	expect(sqlStatements).toStrictEqual([
+		'DROP VIEW "access_logs_top";',
+		'DROP VIEW "access_logs_base";',
+		'ALTER TABLE "access_logs" ALTER COLUMN "accessed_at" SET DATA TYPE timestamp with time zone USING "accessed_at"::timestamp with time zone;',
+		'CREATE VIEW "access_logs_base" AS (select "accessed_at" from "access_logs");',
+		'CREATE VIEW "access_logs_top" AS (select "accessed_at" from "access_logs");',
 	]);
 });
 

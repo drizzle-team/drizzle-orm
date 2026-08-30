@@ -11,6 +11,7 @@ import { QueryBuilder } from './query-builders/query-builder.ts';
 import { pgTableWithSchema } from './table.ts';
 import { PgViewBase } from './view-base.ts';
 import { PgMaterializedViewConfig, PgViewConfig } from './view-common.ts';
+import { collectPgViewDependencies, setPgViewDependencies } from './view-dependencies.ts';
 
 export type ViewWithConfig = RequireAtLeastOne<{
 	checkOption: 'local' | 'cascaded';
@@ -50,23 +51,28 @@ export class ViewBuilder<TName extends string = string> extends DefaultViewBuild
 		if (typeof qb === 'function') {
 			qb = qb(new QueryBuilder());
 		}
+		const selectedFields = qb.getSelectedFields();
+		const query = qb.withoutSelectionCastCodecs().getSQL().inlineParams();
 		const selectionProxy = new SelectionProxyHandler<TSelectedFields>({
 			alias: this.name,
 			sqlBehavior: 'error',
 			sqlAliasedBehavior: 'alias',
 			replaceOriginalName: true,
 		});
-		const aliasedSelection = new Proxy(qb.getSelectedFields(), selectionProxy);
+		const aliasedSelection = new Proxy(selectedFields, selectionProxy);
 		return new Proxy(
-			new PgView({
-				pgConfig: this.config,
-				config: {
-					name: this.name,
-					schema: this.schema,
-					selectedFields: aliasedSelection,
-					query: qb.withoutSelectionCastCodecs().getSQL().inlineParams(),
-				},
-			}),
+			setPgViewDependencies(
+				new PgView({
+					pgConfig: this.config,
+					config: {
+						name: this.name,
+						schema: this.schema,
+						selectedFields: aliasedSelection,
+						query,
+					},
+				}),
+				collectPgViewDependencies(qb),
+			),
 			selectionProxy as any,
 		) as PgViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName, 'pg'>>;
 	}
