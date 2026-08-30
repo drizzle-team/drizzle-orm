@@ -398,8 +398,9 @@ export const push = command({
 			}
 		} catch (e) {
 			console.error(e);
+			process.exitCode = 1;
 		}
-		process.exit(0);
+		process.exit(process.exitCode ?? 0);
 	},
 });
 
