@@ -28,7 +28,6 @@ import { Subquery } from '~/subquery.ts';
 import { getTableName, type InferInsertModel, Table } from '~/table.ts';
 import {
 	type Assume,
-	type DrizzleTypeError,
 	type Equal,
 	getTableLikeName,
 	mapUpdateSet,
@@ -41,10 +40,10 @@ import { ViewBaseConfig } from '~/view-common.ts';
 import type { CockroachColumn } from '../columns/common.ts';
 import type { CockroachViewBase } from '../view-base.ts';
 import type {
+	CheckTableLikeSelection,
 	CockroachSelectJoinConfig,
 	SelectedFields,
 	SelectedFieldsOrdered,
-	TableLikeHasEmptySelection,
 } from './select.types.ts';
 
 export interface CockroachUpdateConfig {
@@ -150,10 +149,7 @@ export type CockroachUpdateJoinFn<
 > = <
 	TJoinedTable extends CockroachTable | Subquery | CockroachViewBase | SQL,
 >(
-	table: TableLikeHasEmptySelection<TJoinedTable> extends true ? DrizzleTypeError<
-			"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
-		>
-		: TJoinedTable,
+	table: CheckTableLikeSelection<TJoinedTable>,
 	on:
 		| (
 			(
@@ -393,10 +389,7 @@ export class CockroachUpdateBase<
 	}
 
 	from<TFrom extends CockroachTable | Subquery | CockroachViewBase | SQL>(
-		source: TableLikeHasEmptySelection<TFrom> extends true ? DrizzleTypeError<
-				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
-			>
-			: TFrom,
+		source: CheckTableLikeSelection<TFrom>,
 	): CockroachUpdateWithJoins<this, TDynamic, TFrom> {
 		const src = source as TFrom;
 		const tableName = getTableLikeName(src);

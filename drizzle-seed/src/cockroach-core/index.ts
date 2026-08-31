@@ -3,9 +3,9 @@ import { Relations } from 'drizzle-orm/_relations';
 import type { CockroachColumn, CockroachDatabase, CockroachSchema } from 'drizzle-orm/cockroach-core';
 import { CockroachTable, getTableConfig } from 'drizzle-orm/cockroach-core';
 import { getSchemaInfo } from '../common.ts';
-import { SeedService } from '../SeedService.ts';
+import { seedDialect } from '../seedPlan.ts';
 import type { RefinementsType } from '../types/seedService.ts';
-import type { Column } from '../types/tables.ts';
+import type { Column, SeedRelations } from '../types/tables.ts';
 
 // Cockroach-----------------------------------------------------------------------------------------------------------
 export const resetCockroach = async (
@@ -51,44 +51,21 @@ export const seedCockroach = async (
 			| Relations
 			| any;
 	},
-	options: { count?: number; seed?: number; version?: number } = {},
+	options: { count?: number; seed?: number; version?: number; relations?: SeedRelations; dryRun?: boolean } = {},
 	refinements?: RefinementsType,
 ) => {
-	const seedService = new SeedService();
-
 	const { cockroachSchema, cockroachTables } = filterCockroachSchema(schema);
-	const { tables, relations } = getSchemaInfo(cockroachSchema, cockroachTables, mapCockroachColumns);
+	const { tables, relations } = getSchemaInfo(cockroachSchema, cockroachTables, mapCockroachColumns, options.relations);
 
-	const generatedTablesGenerators = seedService.generatePossibleGenerators(
-		'cockroach',
+	return await seedDialect({
+		connectionType: 'cockroach',
+		db,
+		drizzleTables: cockroachTables,
 		tables,
 		relations,
-		refinements,
 		options,
-	);
-
-	const preserveCyclicTablesData = relations.some((rel) => rel.isCyclic === true);
-
-	const tablesValues = await seedService.generateTablesValues(
-		relations,
-		generatedTablesGenerators,
-		db,
-		cockroachTables,
-		{ ...options, preserveCyclicTablesData },
-	);
-
-	const { filteredTablesGenerators, tablesUniqueNotNullColumn } = seedService.filterCyclicTables(
-		generatedTablesGenerators,
-	);
-	const updateDataInDb = filteredTablesGenerators.length === 0 ? false : true;
-
-	await seedService.generateTablesValues(
-		relations,
-		filteredTablesGenerators,
-		db,
-		cockroachTables,
-		{ ...options, tablesValues, updateDataInDb, tablesUniqueNotNullColumn },
-	);
+		refinements,
+	});
 };
 const getTypeParams = (sqlType: string) => {
 	// get type params

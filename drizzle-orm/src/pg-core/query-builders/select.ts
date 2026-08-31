@@ -24,7 +24,6 @@ import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import {
 	type Assume,
-	type DrizzleTypeError,
 	getTableColumns,
 	getTableLikeName,
 	haveSameKeys,
@@ -36,6 +35,7 @@ import { type PostgresType, unionsTypeTable } from '../codecs.ts';
 import { extractUsedTable } from '../utils.ts';
 import type {
 	AnyPgSelectQueryBuilder,
+	CheckTableLikeSelection,
 	GetPgSetOperators,
 	LockConfig,
 	LockStrength,
@@ -53,7 +53,6 @@ import type {
 	SelectedFields,
 	SelectedFieldsOrdered,
 	SetOperatorRightSelect,
-	TableLikeHasEmptySelection,
 } from './select.types.ts';
 
 export interface PgSelectBuilderConstructor {
@@ -120,10 +119,7 @@ export class PgSelectBuilder<
 			nullabilityMap: GetSelectTableName<TFrom> extends string ? Record<GetSelectTableName<TFrom>, 'not-null'> : {};
 		},
 	>(
-		source: TableLikeHasEmptySelection<TFrom> extends true ? DrizzleTypeError<
-				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
-			>
-			: TFrom,
+		source: CheckTableLikeSelection<TFrom>,
 	): PgSelectKind<
 		THKT,
 		TConfig['tableName'],
