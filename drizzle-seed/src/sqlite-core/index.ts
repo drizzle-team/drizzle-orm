@@ -3,9 +3,9 @@ import { Relations } from 'drizzle-orm/_relations';
 import type { SQLiteAsyncDatabase } from 'drizzle-orm/sqlite-core';
 import { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { getSchemaInfo } from '../common.ts';
-import { SeedService } from '../SeedService.ts';
+import { seedDialect } from '../seedPlan.ts';
 import type { RefinementsType } from '../types/seedService.ts';
-import type { Column } from '../types/tables.ts';
+import type { Column, SeedRelations } from '../types/tables.ts';
 
 // Sqlite------------------------------------------------------------------------------------------------------------------------
 export const resetSqlite = async (
@@ -57,44 +57,21 @@ export const seedSqlite = async (
 			| Relations
 			| any;
 	},
-	options: { count?: number; seed?: number; version?: number } = {},
+	options: { count?: number; seed?: number; version?: number; relations?: SeedRelations; dryRun?: boolean } = {},
 	refinements?: RefinementsType,
 ) => {
 	const { sqliteSchema, sqliteTables } = filterSqliteTables(schema);
-	const { tables, relations } = getSchemaInfo(sqliteSchema, sqliteTables, mapSqliteColumns);
+	const { tables, relations } = getSchemaInfo(sqliteSchema, sqliteTables, mapSqliteColumns, options.relations);
 
-	const seedService = new SeedService();
-
-	const generatedTablesGenerators = seedService.generatePossibleGenerators(
-		'sqlite',
+	return await seedDialect({
+		connectionType: 'sqlite',
+		db,
+		drizzleTables: sqliteTables,
 		tables,
 		relations,
-		refinements,
 		options,
-	);
-
-	const preserveCyclicTablesData = relations.some((rel) => rel.isCyclic === true);
-
-	const tablesValues = await seedService.generateTablesValues(
-		relations,
-		generatedTablesGenerators,
-		db,
-		sqliteTables,
-		{ ...options, preserveCyclicTablesData },
-	);
-
-	const { filteredTablesGenerators, tablesUniqueNotNullColumn } = seedService.filterCyclicTables(
-		generatedTablesGenerators,
-	);
-	const updateDataInDb = filteredTablesGenerators.length === 0 ? false : true;
-
-	await seedService.generateTablesValues(
-		relations,
-		filteredTablesGenerators,
-		db,
-		sqliteTables,
-		{ ...options, tablesValues, updateDataInDb, tablesUniqueNotNullColumn },
-	);
+		refinements,
+	});
 };
 
 const getTypeParams = (sqlType: string) => {
