@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import { drizzle } from '~/node-postgres';
 import { PgDialect, pgTable, serial, text } from '~/pg-core';
 import { and, eq, not, or, sql } from '~/sql';
 
@@ -94,4 +95,26 @@ test(`Issue No5994. _sqlToQuery with large parameter lists`, () => {
 	expect(
 		result.params.every((parameter, index) => parameter === index),
 	).toBe(true);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2174
+test('Subquery.getSQL()', () => {
+	const db = drizzle.mock();
+
+	const withSq = db.$with('inner').as(db.select().from(users));
+	expect(dialect.sqlToQuery(sql.empty().append(withSq.getSQL())).sql).toStrictEqual(`"inner"`);
+
+	const sq = db.select().from(users).as('sq');
+	expect(dialect.sqlToQuery(sq.getSQL()).sql).toStrictEqual(
+		`(select "id", "name" from "users") "sq"`,
+	);
+});
+
+test('Subquery.getSQL() shadowed by selection field named `getSQL`', () => {
+	const db = drizzle.mock();
+	const weird = pgTable('weird', { getSQL: text('get_sql').notNull() });
+
+	const sq = db.select().from(weird).as('sq');
+
+	expect(dialect.sqlToQuery(sql`${sq.getSQL}`).sql).toStrictEqual(`"sq"."get_sql"`);
 });
