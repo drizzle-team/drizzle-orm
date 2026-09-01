@@ -11,7 +11,15 @@ import { getTableConfig as getMySqlTableConfig, MySqlTable } from 'drizzle-orm/m
 import { getTableConfig as getPgTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { getTableConfig as getSingleStoreTableConfig } from 'drizzle-orm/singlestore-core';
 import { getTableConfig as getSQLiteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
-import type { Column, DrizzleTable, RelationWithReferences, Table, TableConfigT } from './types/tables.ts';
+import { transformFromDrizzleRelationsV2 } from './relationsV2.ts';
+import type {
+	Column,
+	DrizzleTable,
+	RelationWithReferences,
+	SeedRelations,
+	Table,
+	TableConfigT,
+} from './types/tables.ts';
 import { isRelationCyclic } from './utils.ts';
 
 const getTableConfig = (
@@ -103,47 +111,51 @@ export const getSchemaInfo = (
 		tableConfig: AnyColumn[],
 		dbToTsColumnNamesMap: { [key: string]: string },
 	) => Column[],
+	relationsV2?: SeedRelations,
 ) => {
 	let tableConfig: ReturnType<typeof getTableConfig>;
 	let dbToTsColumnNamesMap: { [key: string]: string };
-	const dbToTsTableNamesMap: { [key: string]: string } = Object.fromEntries(
-		Object.entries(drizzleTables).map(([key, value]) => [getTableName(value), key]),
+	const tsTableNames = new Map<DrizzleTable, string>(
+		Object.entries(drizzleTables).map(([key, value]) => [value, key]),
 	);
+	const tsTableNamesByDbName = new Map<string, string | undefined>();
+	for (const [key, value] of Object.entries(drizzleTables)) {
+		const dbName = getTableName(value);
+		tsTableNamesByDbName.set(dbName, tsTableNamesByDbName.has(dbName) ? undefined : key);
+	}
+
+	const tsTableNameOf = (table: DrizzleTable | undefined) =>
+		table === undefined ? undefined : tsTableNames.get(table) ?? tsTableNamesByDbName.get(getTableName(table));
 
 	const tables: Table[] = [];
 	const relations: RelationWithReferences[] = [];
-	const dbToTsColumnNamesMapGlobal: {
-		[tableName: string]: { [dbColumnName: string]: string };
-	} = {};
+	const dbToTsColumnNamesMapGlobal = new Map<DrizzleTable, { [dbColumnName: string]: string }>();
 	const tableRelations: { [tableName: string]: RelationWithReferences[] } = {};
 
 	const getDbToTsColumnNamesMap = (table: DrizzleTable) => {
-		let dbToTsColumnNamesMap: { [dbColName: string]: string } = {};
+		const cached = dbToTsColumnNamesMapGlobal.get(table);
+		if (cached !== undefined) return cached;
 
-		const tableName = getTableName(table);
-		if (Object.hasOwn(dbToTsColumnNamesMapGlobal, tableName)) {
-			dbToTsColumnNamesMap = dbToTsColumnNamesMapGlobal[tableName]!;
-			return dbToTsColumnNamesMap;
-		}
+		const dbToTsColumnNamesMap: { [dbColName: string]: string } = {};
 
 		const tableConfig = getTableConfig(table);
 		for (const [tsCol, col] of Object.entries(getColumnTable(tableConfig.columns[0]!))) {
 			if (is(col, DrizzleColumn)) dbToTsColumnNamesMap[col.name] = tsCol;
 		}
-		dbToTsColumnNamesMapGlobal[tableName] = dbToTsColumnNamesMap;
+		dbToTsColumnNamesMapGlobal.set(table, dbToTsColumnNamesMap);
 
 		return dbToTsColumnNamesMap;
 	};
 
 	for (const table of Object.values(drizzleTables)) {
 		tableConfig = getTableConfig(table);
+		const tsTableName = tsTableNameOf(table) as string;
 
 		dbToTsColumnNamesMap = getDbToTsColumnNamesMap(table);
 
-		// might be empty list
 		const newRelations = tableConfig.foreignKeys === undefined ? [] : tableConfig.foreignKeys.map((fk) => {
-			const table = dbToTsTableNamesMap[tableConfig.name] as string;
-			const refTable = dbToTsTableNamesMap[getTableName(fk.reference().foreignTable)] as string;
+			const table = tsTableName;
+			const refTable = tsTableNameOf(fk.reference().foreignTable as DrizzleTable) as string;
 
 			const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(
 				fk.reference().foreignTable,
@@ -171,10 +183,10 @@ export const getSchemaInfo = (
 			...newRelations,
 		);
 
-		if (tableRelations[dbToTsTableNamesMap[tableConfig.name] as string] === undefined) {
-			tableRelations[dbToTsTableNamesMap[tableConfig.name] as string] = [];
+		if (tableRelations[tsTableName] === undefined) {
+			tableRelations[tsTableName] = [];
 		}
-		tableRelations[dbToTsTableNamesMap[tableConfig.name] as string]!.push(...newRelations);
+		tableRelations[tsTableName]!.push(...newRelations);
 
 		const stringsSet: string[] = [];
 		const uniqueConstraints: string[][] = [];
@@ -189,11 +201,14 @@ export const getSchemaInfo = (
 		}
 
 		const mappedTable: Table = {
-			name: dbToTsTableNamesMap[tableConfig.name] as string,
+			name: tsTableName,
 			uniqueConstraints,
 			primaryKeys: tableConfig.columns
 				.filter((column) => column.primary)
 				.map((column) => dbToTsColumnNamesMap[column.name] as string),
+			compositePrimaryKeys: (tableConfig.primaryKeys ?? []).map((primaryKey) =>
+				primaryKey.columns.map((column) => dbToTsColumnNamesMap[column.name] as string)
+			),
 			columns: mapColumns(tableConfig.columns, dbToTsColumnNamesMap),
 		};
 		tables.push(mappedTable);
@@ -208,16 +223,31 @@ export const getSchemaInfo = (
 		...transformedDrizzleRelations,
 	);
 
+	if (relationsV2 !== undefined) {
+		relations.push(
+			...transformFromDrizzleRelationsV2({
+				relationsConfig: relationsV2,
+				drizzleTables,
+				tables,
+				getDbToTsColumnNamesMap,
+				tableRelations,
+				knownRelations: relations,
+			}),
+		);
+	}
+
 	const isCyclicRelations = relations.map(
 		(relI) => {
-			// if (relations.some((relj) => relI.table === relj.refTable && relI.refTable === relj.table)) {
-			const tableRel = tableRelations[relI.table]!.find((relJ) => relJ.refTable === relI.refTable)!;
-			if (isRelationCyclic(relI)) {
-				tableRel['isCyclic'] = true;
-				return { ...relI, isCyclic: true };
-			}
-			tableRel['isCyclic'] = false;
-			return { ...relI, isCyclic: false };
+			const sameLink = (relJ: RelationWithReferences) =>
+				relJ.refTable === relI.refTable
+				&& relJ.columns.length === relI.columns.length
+				&& relJ.columns.every((column, idx) => column === relI.columns[idx]);
+			const tableRel = tableRelations[relI.table]?.find(sameLink)
+				?? tableRelations[relI.table]?.find((relJ) => relJ.refTable === relI.refTable);
+
+			const isCyclic = isRelationCyclic(relI);
+			if (tableRel !== undefined) tableRel['isCyclic'] = isCyclic;
+			return { ...relI, isCyclic };
 		},
 	);
 
