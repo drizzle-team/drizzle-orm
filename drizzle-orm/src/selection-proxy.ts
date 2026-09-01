@@ -44,7 +44,7 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 		this.config = { ...config };
 	}
 
-	get(subquery: T, prop: string | symbol): any {
+	get(subquery: T, prop: string | symbol, receiver: any): any {
 		if (prop === '_') {
 			return {
 				...subquery['_' as keyof typeof subquery],
@@ -75,6 +75,14 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 			? subquery[ViewBaseConfig].selectedFields
 			: subquery;
 		const value: unknown = columns[prop as keyof typeof columns];
+
+		// value === undefined check must stay for actual selection fields named `getSQL`
+		if (value === undefined && prop === 'getSQL') {
+			const target = subquery[prop as keyof T];
+			if (typeof target !== 'function') return target;
+
+			return target.bind(receiver ?? subquery);
+		}
 
 		if (is(value, SQL.Aliased)) {
 			// Never return the underlying SQL expression for a field previously selected in a subquery
