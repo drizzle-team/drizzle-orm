@@ -4,8 +4,55 @@ import { escapeForTsLiteral } from '../utils';
 import type { Column, DiffEntities, ForeignKey } from './ddl';
 import type { Import } from './typescript';
 
-const namedCheckPattern = /CONSTRAINT\s+["'`[]?(\w+)["'`\]]?\s+CHECK\s*\((.*)\)/gi;
-const unnamedCheckPattern = /CHECK\s+\((.*)\)/gi;
+function extractCheckConstraints(sql: string) {
+	const checks: { name: string | null; value: string }[] = [];
+	const checkStartRegex = /(?:CONSTRAINT\s+["'`\[]?(\w+)["'`\]]?\s+)?CHECK\s*\(/gi;
+	
+	let match;
+	while ((match = checkStartRegex.exec(sql)) !== null) {
+		const name = match[1] || null;
+		const startIdx = match.index + match[0].length;
+		
+		let depth = 1;
+		let inString = false;
+		let stringChar = '';
+		let endIdx = -1;
+		
+		for (let i = startIdx; i < sql.length; i++) {
+			const char = sql[i];
+			if (inString) {
+				if (char === stringChar) {
+					if (i + 1 < sql.length && sql[i+1] === stringChar) {
+						i++;
+					} else {
+						inString = false;
+					}
+				}
+			} else {
+				if (char === "'" || char === '"' || char === '`' || char === '[') {
+					inString = true;
+					stringChar = char === '[' ? ']' : char;
+				} else if (char === '(') {
+					depth++;
+				} else if (char === ')') {
+					depth--;
+					if (depth === 0) {
+						endIdx = i;
+						break;
+					}
+				}
+			}
+		}
+		
+		if (endIdx !== -1) {
+			const value = sql.substring(startIdx, endIdx).trim();
+			checks.push({ name, value });
+			checkStartRegex.lastIndex = endIdx + 1;
+		}
+	}
+	
+	return checks;
+}
 const viewAsStatementRegex = new RegExp(`\\bAS\\b\\s+(WITH.+|SELECT.+)$`, 'is'); // 'i' for case-insensitive, 's' for dotall mode
 
 /**
@@ -449,17 +496,10 @@ export const parseDefault = (type: string, it: string): Column['default'] => {
 
 export const parseTableSQL = (rawSql: string) => {
 	const sql = stripSqlComments(rawSql);
-	const namedChecks = [...sql.matchAll(namedCheckPattern)].map((it) => {
-		const [_, name, value] = it;
-		return { name, value: value.trim() };
-	});
-	const unnamedChecks = [...sql.matchAll(unnamedCheckPattern)].map((it) => {
-		const [_, value] = it;
-		return { name: null, value: value.trim() };
-	}).filter((it) => !namedChecks.some((x) => x.value === it.value));
+	const checks = extractCheckConstraints(sql);
 
 	return {
-		checks: [...namedChecks, ...unnamedChecks],
+		checks,
 	};
 };
 
