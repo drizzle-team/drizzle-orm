@@ -9,6 +9,7 @@ import {
 	serial,
 	snakeCase,
 	text,
+	timestamp,
 } from 'drizzle-orm/pg-core';
 import { generate } from 'src/cli/schema';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
@@ -2378,6 +2379,44 @@ test('Issue No6176', async () => {
 	const { sqlStatements: st1 } = await diff(schema1, schema2, []);
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst1 } = await push({ db, to: schema2 });
+	const expectedSt1 = [
+		`DROP VIEW "mat_user";`,
+		'CREATE MATERIALIZED VIEW "mat_user" AS (select "id" from "users");',
+		'CREATE VIEW "user_view" AS (select "id" from "mat_user");',
+	];
+
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6194
+test.skipIf(Date.now() < +new Date('2026-09-05'))('Issue No6194', async () => {
+	const accessLogsTableFrom = pgTable('access_logs', {
+		id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+		accessedAt: timestamp('accessed_at', { mode: 'string' }).notNull().defaultNow(),
+	});
+
+	const schemaFrom = {
+		accessLogsTable: accessLogsTableFrom,
+		evenAccessLogsView: pgView('even_access_logs').as((qb) =>
+			qb.select().from(accessLogsTableFrom).where(sql`${accessLogsTableFrom.id} % 2 = 0`)
+		),
+	};
+
+	const accessLogsTableTo = pgTable('access_logs', {
+		id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+		accessedAt: timestamp('accessed_at', { mode: 'string', withTimezone: true }).notNull().defaultNow(),
+	});
+	const schemaTo = {
+		accessLogsTableTo,
+		evenAccessLogsView: pgView('even_access_logs').as((qb) =>
+			qb.select().from(accessLogsTableTo).where(sql`${accessLogsTableTo.id} % 2 = 0`)
+		),
+	};
+
+	const { sqlStatements: st1 } = await diff(schemaFrom, schemaTo, []);
+	await push({ db, to: schemaFrom });
+	const { sqlStatements: pst1 } = await push({ db, to: schemaTo });
 	const expectedSt1 = [
 		`DROP VIEW "mat_user";`,
 		'CREATE MATERIALIZED VIEW "mat_user" AS (select "id" from "users");',
