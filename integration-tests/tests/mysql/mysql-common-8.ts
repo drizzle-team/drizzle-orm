@@ -1783,6 +1783,9 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				max: max(users.createdAt).as('max'),
 				maxStr: max(users.createdAtStr).as('max_str'),
 				sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+				sqAliased: qb.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+				sqTag: qb.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+					.as('sq_tag'),
 			}).from(users).groupBy(users.id)
 		);
 
@@ -1822,6 +1825,9 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			max: max(users.createdAt).as('max'),
 			maxStr: max(users.createdAtStr).as('max_str'),
 			sq: db.select({ createdAt: users.createdAt }).from(users).as('sq'),
+			sqAliased: db.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+			sqTag: db.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+				.as('sq_tag'),
 		}).from(users).groupBy(users.id);
 
 		const viewRes = await db.select().from(usersView);
@@ -1842,15 +1848,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		});
 
 		const viewNested = await db.query.usersView.findFirst({
-			columns: {
-				sq: false, // TODO: re-enable when supported in RQBv2
-			},
 			with: {
-				self: {
-					columns: {
-						sq: false, // TODO: re-enable when supported in RQBv2
-					},
-				},
+				self: true,
 			},
 		});
 
@@ -1863,6 +1862,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				max: exDate,
 				maxStr: exDateStr,
 				sq: exDate,
+				sqAliased: exDate,
+				sqTag: 'tag-1',
 				cus: exDate,
 			},
 		]);
@@ -1875,6 +1876,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				max: exDate,
 				maxStr: exDateStr,
 				sq: exDate,
+				sqAliased: exDate,
+				sqTag: 'tag-1',
 				cus: exDate,
 			},
 		]);
@@ -1902,6 +1905,14 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				},
 			},
 		);
+
+		type ViewRow = typeof usersView.$inferSelect;
+		type ViewNestedRow = {
+			[K in keyof (ViewRow & { self: ViewRow | null })]: (ViewRow & { self: ViewRow | null })[K];
+		};
+
+		expectTypeOf(viewNested).toEqualTypeOf<ViewNestedRow | undefined>();
+
 		expect(viewNested).toStrictEqual(
 			{
 				id: 1,
@@ -1911,6 +1922,9 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				max: exDate,
 				maxStr: exDateStr,
 				cus: exDate,
+				sq: exDate,
+				sqAliased: exDate,
+				sqTag: 'tag-1',
 				self: {
 					id: 1,
 					name: 'First',
@@ -1919,6 +1933,9 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 					max: exDate,
 					maxStr: exDateStr,
 					cus: exDate,
+					sq: exDate,
+					sqAliased: exDate,
+					sqTag: 'tag-1',
 				},
 			},
 		);
@@ -1960,6 +1977,9 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				max: max(users.createdAt).as('max'),
 				maxStr: max(users.createdAtStr).as('max_str'),
 				sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+				sqAliased: qb.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+				sqTag: qb.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+					.as('sq_tag'),
 			}).from(users).groupBy(users.id)
 		);
 
@@ -1999,6 +2019,9 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			max: max(users.createdAt).as('max'),
 			maxStr: max(users.createdAtStr).as('max_str'),
 			sq: db.select({ createdAt: users.createdAt }).from(users).as('sq'),
+			sqAliased: db.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+			sqTag: db.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+				.as('sq_tag'),
 		}).from(users).groupBy(users.id);
 
 		const viewRes = await db.select().from(usersView);
@@ -2019,15 +2042,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		});
 
 		const viewNested = await db.query.usersView.findFirst({
-			columns: {
-				sq: false, // TODO: re-enable when supported in RQBv2
-			},
 			with: {
-				self: {
-					columns: {
-						sq: false, // TODO: re-enable when supported in RQBv2
-					},
-				},
+				self: true,
 			},
 		});
 
@@ -2040,6 +2056,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				max: exDate,
 				maxStr: exDateStr,
 				sq: exDate,
+				sqAliased: exDate,
+				sqTag: 'tag-1',
 				cus: exDate,
 			},
 		]);
@@ -2052,6 +2070,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				max: exDate,
 				maxStr: exDateStr,
 				sq: exDate,
+				sqAliased: exDate,
+				sqTag: 'tag-1',
 				cus: exDate,
 			},
 		]);
@@ -2079,6 +2099,14 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				},
 			},
 		);
+
+		type ViewRow = typeof usersView.$inferSelect;
+		type ViewNestedRow = {
+			[K in keyof (ViewRow & { self: ViewRow | null })]: (ViewRow & { self: ViewRow | null })[K];
+		};
+
+		expectTypeOf(viewNested).toEqualTypeOf<ViewNestedRow | undefined>();
+
 		expect(viewNested).toStrictEqual(
 			{
 				id: 1,
@@ -2088,6 +2116,9 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				max: exDate,
 				maxStr: exDateStr,
 				cus: exDate,
+				sq: exDate,
+				sqAliased: exDate,
+				sqTag: 'tag-1',
 				self: {
 					id: 1,
 					name: 'First',
@@ -2096,6 +2127,9 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 					max: exDate,
 					maxStr: exDateStr,
 					cus: exDate,
+					sq: exDate,
+					sqAliased: exDate,
+					sqTag: 'tag-1',
 				},
 			},
 		);

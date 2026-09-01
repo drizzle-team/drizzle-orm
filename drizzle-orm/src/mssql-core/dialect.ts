@@ -26,6 +26,7 @@ import {
 	relationToSQL,
 } from '~/relations.ts';
 import {
+	type DriverValueDecoder,
 	isSQLWrapper,
 	Param,
 	type Query,
@@ -39,7 +40,13 @@ import {
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/mssql.ts';
-import { makeDefaultQueryMapper, makeJitQueryMapper, type RowsMapperGenerator, type UpdateSet } from '~/utils.ts';
+import {
+	getColumnFromDecoder,
+	makeDefaultQueryMapper,
+	makeJitQueryMapper,
+	type RowsMapperGenerator,
+	type UpdateSet,
+} from '~/utils.ts';
 import { and, DrizzleError, type Name, ViewBaseConfig } from '../index.ts';
 import { type MsSqlCodecs, type MsSqlType, resolveMsSqlTypeAlias } from './codecs.ts';
 import { MsSqlColumn } from './columns/common.ts';
@@ -959,6 +966,7 @@ export class MsSqlDialect {
 		tableTsName: string,
 	) {
 		let decoderColumn: Column | undefined;
+		let subqueryDecoder: DriverValueDecoder<any, any> | undefined;
 		let fieldType: BuildRelationalQueryResult['selection'][number]['fieldType'];
 		let output: SQL;
 
@@ -988,6 +996,25 @@ export class MsSqlDialect {
 			output = sql`${decoderColumn ? this.codecs.apply(decoderColumn, inJson ? 'castInJson' : 'cast', q) : q} as ${
 				sql.identifier(key)
 			}`;
+		} else if (is(field, Subquery)) {
+			const innerField = Object.values(field._.selectedFields)[0];
+
+			if (is(innerField, Column)) {
+				decoderColumn = innerField;
+				subqueryDecoder = innerField;
+			} else if (is(innerField, SQL.Aliased)) {
+				decoderColumn = getColumnFromDecoder(innerField);
+				subqueryDecoder = innerField.sql.decoder;
+			} else if (is(innerField, SQL)) {
+				decoderColumn = getColumnFromDecoder(innerField);
+				subqueryDecoder = innerField.decoder;
+			}
+			fieldType = 'Subquery';
+
+			const q = sql`${table}.${sql.identifier(field._.alias)}`;
+			output = sql`${decoderColumn ? this.codecs.apply(decoderColumn, inJson ? 'castInJson' : 'cast', q) : q} as ${
+				sql.identifier(key)
+			}`;
 		} else if (isSQLWrapper(field)) {
 			const query = (field as SQLWrapper).getSQL();
 			decoderColumn = is(query.decoder, Column) ? query.decoder : undefined;
@@ -1011,6 +1038,7 @@ export class MsSqlDialect {
 					key,
 					field,
 					fieldType,
+					subqueryDecoder,
 					codec: !inJson || !(<MsSqlCustomColumn<any>> decoderColumn).mapFromJsonValue
 						? this.codecs.get(decoderColumn, inJson ? 'normalizeInJson' : 'normalize')
 						: undefined,
@@ -1019,6 +1047,7 @@ export class MsSqlDialect {
 					key,
 					field,
 					fieldType,
+					subqueryDecoder,
 				}) as BuildRelationalQueryResult['selection'][number],
 		);
 

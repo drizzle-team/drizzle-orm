@@ -7220,6 +7220,10 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 					...getColumns(users),
 					max: max(users.createdAt).as('max'),
 					maxStr: max(users.createdAtStr).as('maxStr'),
+					sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+					sqAliased: qb.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+					sqTag: qb.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+						.as('sq_tag'),
 				}).from(users).groupBy(users.id)
 			);
 
@@ -7258,6 +7262,10 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 				...getColumns(users),
 				max: max(users.createdAt).as('max'),
 				maxStr: max(users.createdAtStr).as('maxStr'),
+				sq: db.select({ createdAt: users.createdAt }).from(users).as('sq'),
+				sqAliased: db.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+				sqTag: db.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+					.as('sq_tag'),
 			}).from(users).groupBy(users.id);
 
 			const viewRes = await db.select().from(usersView);
@@ -7297,19 +7305,29 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			// no `arrMax`/`arrMaxStr`: cockroach has no aggregate over array types
 			// ("unknown signature: max(timestamptz[])"), unlike postgres
 			const aggregates = { max: exDate, maxStr: exDateStr };
+			const subqueries = { sq: exDate, sqAliased: exDate, sqTag: 'tag-1' };
 
-			expect(res).toStrictEqual([{ ...cols, ...aggregates }]);
-			expect(viewRes).toStrictEqual([{ ...cols, ...aggregates }]);
+			expect(res).toStrictEqual([{ ...cols, ...aggregates, ...subqueries }]);
+			expect(viewRes).toStrictEqual([{ ...cols, ...aggregates, ...subqueries }]);
 
 			// the custom type's own hooks are what ran for the json-shaped read
 			expect(customCast).toBeTruthy();
 			expect(customMap).toBeTruthy();
 
 			expect(nested).toStrictEqual({ ...cols, ...aggregates, self: { ...cols, ...aggregates } });
+
+			type ViewRow = typeof usersView.$inferSelect;
+			type ViewNestedRow = {
+				[K in keyof (ViewRow & { self: ViewRow | null })]: (ViewRow & { self: ViewRow | null })[K];
+			};
+
+			expectTypeOf(viewNested).toEqualTypeOf<ViewNestedRow | undefined>();
+
 			expect(viewNested).toStrictEqual({
 				...cols,
 				...aggregates,
-				self: { ...cols, ...aggregates },
+				...subqueries,
+				self: { ...cols, ...aggregates, ...subqueries },
 			});
 		});
 
@@ -7351,6 +7369,10 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 					...getColumns(users),
 					max: max(users.createdAt).as('max'),
 					maxStr: max(users.createdAtStr).as('maxStr'),
+					sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+					sqAliased: qb.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+					sqTag: qb.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+						.as('sq_tag'),
 				}).from(users).groupBy(users.id)
 			);
 
@@ -7393,6 +7415,10 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 				...getColumns(users),
 				max: max(users.createdAt).as('max'),
 				maxStr: max(users.createdAtStr).as('maxStr'),
+				sq: db.select({ createdAt: users.createdAt }).from(users).as('sq'),
+				sqAliased: db.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+				sqTag: db.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+					.as('sq_tag'),
 			}).from(users).groupBy(users.id);
 
 			const viewRes = await db.select().from(usersView);
@@ -7430,18 +7456,28 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 				arrCus: [exDate],
 			};
 			const aggregates = { max: exDate, maxStr: exDateStr };
+			const subqueries = { sq: exDate, sqAliased: exDate, sqTag: 'tag-1' };
 
-			expect(res).toStrictEqual([{ ...cols, ...aggregates }]);
-			expect(viewRes).toStrictEqual([{ ...cols, ...aggregates }]);
+			expect(res).toStrictEqual([{ ...cols, ...aggregates, ...subqueries }]);
+			expect(viewRes).toStrictEqual([{ ...cols, ...aggregates, ...subqueries }]);
 
 			expect(customCast).toBeTruthy();
 			expect(customMap).toBeTruthy();
 
 			expect(nested).toStrictEqual({ ...cols, ...aggregates, self: { ...cols, ...aggregates } });
+
+			type ViewRow = typeof usersView.$inferSelect;
+			type ViewNestedRow = {
+				[K in keyof (ViewRow & { self: ViewRow | null })]: (ViewRow & { self: ViewRow | null })[K];
+			};
+
+			expectTypeOf(viewNested).toEqualTypeOf<ViewNestedRow | undefined>();
+
 			expect(viewNested).toStrictEqual({
 				...cols,
 				...aggregates,
-				self: { ...cols, ...aggregates },
+				...subqueries,
+				self: { ...cols, ...aggregates, ...subqueries },
 			});
 		});
 

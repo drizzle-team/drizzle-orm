@@ -24,7 +24,7 @@ import {
 } from '~/relations.ts';
 import type { Name, Placeholder, SQLWrapper } from '~/sql/index.ts';
 import { and, isSQLWrapper } from '~/sql/index.ts';
-import { Param, type Query, SQL, sql, type SQLChunk, StringChunk, View } from '~/sql/sql.ts';
+import { type DriverValueDecoder, Param, type Query, SQL, sql, type SQLChunk, StringChunk, View } from '~/sql/sql.ts';
 import { resolveSQLiteTypeAlias, resolveUnionType, type SQLiteCodecs, type SQLiteType } from '~/sqlite-core/codecs.ts';
 import { SQLiteColumn, type SQLiteCustomColumn } from '~/sqlite-core/columns/index.ts';
 import type {
@@ -37,6 +37,7 @@ import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
 import {
+	getColumnFromDecoder,
 	makeDefaultQueryMapper,
 	makeJitQueryMapper,
 	orderSelectedFields,
@@ -798,6 +799,7 @@ export class SQLiteDialect {
 		tableTsName: string,
 	) {
 		let decoderColumn: Column | undefined;
+		let subqueryDecoder: DriverValueDecoder<any, any> | undefined;
 		let fieldType: BuildRelationalQueryResult['selection'][number]['fieldType'];
 		let output: SQL;
 
@@ -827,6 +829,25 @@ export class SQLiteDialect {
 			output = sql`${decoderColumn ? this.codecs.apply(decoderColumn, inJson ? 'castInJson' : 'cast', q) : q} as ${
 				sql.identifier(key)
 			}`;
+		} else if (is(field, Subquery)) {
+			const innerField = Object.values(field._.selectedFields)[0];
+
+			if (is(innerField, Column)) {
+				decoderColumn = innerField;
+				subqueryDecoder = innerField;
+			} else if (is(innerField, SQL.Aliased)) {
+				decoderColumn = getColumnFromDecoder(innerField);
+				subqueryDecoder = innerField.sql.decoder;
+			} else if (is(innerField, SQL)) {
+				decoderColumn = getColumnFromDecoder(innerField);
+				subqueryDecoder = innerField.decoder;
+			}
+			fieldType = 'Subquery';
+
+			const q = sql`${table}.${sql.identifier(field._.alias)}`;
+			output = sql`${decoderColumn ? this.codecs.apply(decoderColumn, inJson ? 'castInJson' : 'cast', q) : q} as ${
+				sql.identifier(key)
+			}`;
 		} else if (isSQLWrapper(field)) {
 			const query = (field as SQLWrapper).getSQL();
 			decoderColumn = is(query.decoder, Column) ? query.decoder : undefined;
@@ -850,6 +871,7 @@ export class SQLiteDialect {
 					key,
 					field,
 					fieldType,
+					subqueryDecoder,
 					codec: !inJson || !(<SQLiteCustomColumn<any>> decoderColumn).mapFromJsonValue
 						? this.codecs.get(decoderColumn, inJson ? 'normalizeInJson' : 'normalize')
 						: undefined,
@@ -858,6 +880,7 @@ export class SQLiteDialect {
 					key,
 					field,
 					fieldType,
+					subqueryDecoder,
 				}) as BuildRelationalQueryResult['selection'][number],
 		);
 
