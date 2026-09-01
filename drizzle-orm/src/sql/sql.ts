@@ -857,9 +857,10 @@ export namespace SQL {
 export class Placeholder<TName extends string = string, TValue = any> implements SQLWrapper {
 	static readonly [entityKind]: string = 'Placeholder';
 
-	declare protected: TValue;
+	// Keep values as protected to avoid bleeding into autocomplete (ex.: relational queries' "where")
+	declare protected value: TValue;
 
-	constructor(readonly name: TName) {}
+	constructor(protected readonly name: TName) {}
 
 	getSQL(): SQL {
 		return new SQL([this]);
@@ -872,32 +873,48 @@ export function placeholder<TName extends string>(name: TName): Placeholder<TNam
 }
 
 export function fillPlaceholders(params: unknown[], values: Record<string, unknown>): unknown[] {
-	return params.map((p) => {
+	const filled: unknown[] = new Array(params.length);
+
+	for (let i = 0; i < params.length; ++i) {
+		const p = params[i]!;
+
 		if (is(p, Placeholder)) {
-			if (!(p.name in values)) {
-				throw new Error(`No value for placeholder "${p.name}" was provided`);
+			// Bypass Placeholder's field protection
+			const { name } = p as any as { name: string };
+			if (!(name in values)) {
+				throw new Error(`No value for placeholder "${name}" was provided`);
 			}
 
-			return values[p.name];
+			filled[i] = values[name];
+			continue;
 		}
 
 		if (is(p, Param) && is(p.value, Placeholder)) {
-			if (!(p.value.name in values)) {
-				throw new Error(`No value for placeholder "${p.value.name}" was provided`);
+			// Bypass Placeholder's field protection
+			const { name } = p.value as any as { name: string };
+
+			if (!(name in values)) {
+				throw new Error(`No value for placeholder "${name}" was provided`);
 			}
 
-			const value = values[p.value.name];
-			if (value === null) return value;
+			const value = values[name];
+			if (value === null) {
+				filled[i] = value;
+				continue;
+			}
 
 			const mapped = p.encoder.mapToDriverValue.isNoop
 				? value
 				: p.encoder.mapToDriverValue(value);
 
-			return p.codec ? p.codec(mapped) : mapped;
+			filled[i] = p.codec ? p.codec(mapped) : mapped;
+			continue;
 		}
 
-		return p;
-	});
+		filled[i] = p;
+	}
+
+	return filled;
 }
 
 export type ColumnsSelection = Record<string, unknown>;
