@@ -530,10 +530,13 @@ describe('Filters', () => {
 			AND: [{
 				OR: [{
 					NOT: {
-						AND: [{ number: EmptyFilter }, { string: { OR: [] } }],
+						AND: [{ number: EmptyFilter }, { string: { OR: [{ in: EmptyFilter }] } }],
 					},
 				}, {
-					number: { NOT: EmptyFilter, AND: [] },
+					number: {
+						NOT: EmptyFilter,
+						AND: [{ gt: EmptyFilter }],
+					},
 				}],
 			}],
 		})).toStrictEqual(undefined);
