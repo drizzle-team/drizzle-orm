@@ -1991,17 +1991,21 @@ export function relationsFilterToSQL(
 				const throughTable = relation.throughTable ? aliasedTable(relation.throughTable, `ft${depth}`) : undefined;
 				const targetConfig = tablesRelations[relation.targetTableName]!;
 
-				const {
-					filter: relationFilter,
-					joinCondition,
-				} = relationToSQL(relation, table, targetTable, throughTable);
-				const subfilter = typeof value === 'boolean' ? undefined : relationsFilterToSQL(
+				const isExistsOnly = typeof value === 'boolean';
+				const subfilter = isExistsOnly ? undefined : relationsFilterToSQL(
 					targetTable,
 					value as AnyRelationsFilter,
 					targetConfig.relations,
 					tablesRelations,
 					depth + 1,
 				);
+
+				if (!isExistsOnly && !subfilter) continue;
+
+				const {
+					filter: relationFilter,
+					joinCondition,
+				} = relationToSQL(relation, table, targetTable, throughTable);
 				const filter = and(
 					relationFilter,
 					subfilter,

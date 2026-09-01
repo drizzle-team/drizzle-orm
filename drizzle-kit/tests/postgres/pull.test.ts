@@ -3329,3 +3329,70 @@ references drizzle_test.parent (other_id, child_id);`);
 	expect(pushSqlStatements).toStrictEqual([]);
 	expect(generateSqlStatements).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2965
+test('Issue No2965', async () => {
+	await db.query(`create table "table" (
+    id uuid primary key,
+    other_id jsonb default jsonb_build_array(10, 'Hi', true)
+);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+	} = await diffIntrospect(db, {}, 'issue-2965');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.one({ name: 'other_id' })).toStrictEqual({
+		default: "jsonb_build_array(10, 'Hi', true)",
+		dimensions: 0,
+		entityType: 'columns',
+		generated: null,
+		identity: null,
+		name: 'other_id',
+		notNull: false,
+		schema: 'public',
+		table: 'table',
+		type: 'jsonb',
+		typeSchema: null,
+	});
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2595
+test('Issue No 2595', async () => {
+	await db.query(`CREATE TABLE "table" (
+			id varchar(20)[] 
+		);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+	} = await diffIntrospect(db, {}, 'issue-2595');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.one({ name: 'id' })).toStrictEqual({
+		default: null,
+		dimensions: 1,
+		entityType: 'columns',
+		generated: null,
+		identity: null,
+		name: 'id',
+		notNull: false,
+		schema: 'public',
+		table: 'table',
+		type: 'varchar(20)',
+		typeSchema: null,
+	});
+});
