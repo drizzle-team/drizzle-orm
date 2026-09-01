@@ -18,12 +18,12 @@ import {
 import { geometry as pgGeometry } from '@drizzle-team/minipg/geometry';
 import { getOriginalColumnFromAlias } from '~/alias.ts';
 import { Column } from '~/column.ts';
-import { is } from '~/entity.ts';
+import { entityKind, is, isAnyKindIn } from '~/entity.ts';
 import type { SelectedFieldsOrdered } from '~/operations.ts';
 import type { PostgresType } from '~/pg-core/codecs.ts';
 import type { PgColumn } from '~/pg-core/columns/common.ts';
 import type { PreparedQuerySelection } from '~/pg-core/dialect.ts';
-import { type DriverValueDecoder, SQL, type SQLWrapper, type View } from '~/sql/sql.ts';
+import { type DriverValueDecoder, noopDecoder, SQL, type SQLWrapper, type View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { getColumnFromDecoder, getColumns, orderSelectedFields } from '~/utils.ts';
@@ -115,13 +115,30 @@ function getDecoder(field: SelectedFieldsOrdered<Column>[number]['field']): Driv
 	return field.sql.decoder;
 }
 
+function getSubqueryField(subquery: Subquery): Column | SQL | SQL.Aliased | undefined {
+	const innerField = Object.values(subquery._.selectedFields)[0];
+
+	return isAnyKindIn([Column[entityKind], SQL[entityKind], SQL.Aliased[entityKind]], innerField)
+		? innerField as Column | SQL | SQL.Aliased
+		: undefined;
+}
+
 function getRqbDecoder(field: RelationalItemDecodedField): DriverValueDecoder<any, any> {
 	if (is(field, Column)) return field;
+	if (is(field, Subquery)) {
+		const innerField = getSubqueryField(field);
+		return innerField ? getRqbDecoder(innerField) : noopDecoder;
+	}
 	return field.getSQL().decoder;
 }
 
 function getRqbColumn(field: RelationalItemDecodedField): Column | undefined {
-	return is(field, Column) ? field : getColumnFromDecoder(field as SQL | SQL.Aliased | SQLWrapper);
+	if (is(field, Column)) return field;
+	if (is(field, Subquery)) {
+		const innerField = getSubqueryField(field);
+		return innerField ? getRqbColumn(innerField) : undefined;
+	}
+	return getColumnFromDecoder(field as SQL | SQL.Aliased | SQLWrapper);
 }
 
 const transformCache = new WeakMap<object, Map<string, { codec: unknown; marker: TransformMarker }>>();
