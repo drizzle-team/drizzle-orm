@@ -1942,15 +1942,14 @@ export const wrapRecord = (it: Record<string, string>) => {
 };
 
 /*
-	CHECK (((email)::text <> 'test@gmail.com'::text))
-	Where (email) is column in table
+	pg_get_constraintdef returns:
+	CHECK (expression) [NO INHERIT] [NOT VALID | NOT ENFORCED]
 */
 export const parseCheckDefinition = (value: string): string => {
-	const clean = value.replace(/(?:\s+(?:NOT\s+VALID|NO\s+INHERIT))+\s*$/i, '').trim();
-	if (clean.startsWith('CHECK (') && clean.endsWith(')')) {
-		return clean.slice(7, -1);
-	}
-	return clean;
+	return value.replace(
+		/^CHECK\s*\(([\s\S]*)\)(?:\s+NO\s+INHERIT)?(?:\s+NOT\s+(?:VALID|ENFORCED))?\s*$/i,
+		'$1',
+	);
 };
 
 export const parseViewDefinition = (value: string | null | undefined): string | null => {
