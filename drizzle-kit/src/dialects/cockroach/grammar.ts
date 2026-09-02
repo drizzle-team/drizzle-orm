@@ -98,7 +98,11 @@ export const isSystemRole = (name: string) => {
 	Where (email) is column in table
 */
 export const parseCheckDefinition = (value: string): string => {
-	return value.replace(/^CHECK\s*\(\(/, '').replace(/\)\)\s*$/, '');
+	const clean = value.replace(/(?:\s+(?:NOT\s+VALID|NO\s+INHERIT))+\s*$/i, '').trim();
+	if (clean.startsWith('CHECK (') && clean.endsWith(')')) {
+		return clean.slice(7, -1);
+	}
+	return clean;
 };
 
 export const parseViewDefinition = (value: string | null | undefined): string | null => {

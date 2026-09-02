@@ -1,4 +1,4 @@
-import { splitSqlType, trimDefaultValueSuffix } from 'src/dialects/postgres/grammar';
+import { parseCheckDefinition, splitSqlType, trimDefaultValueSuffix } from 'src/dialects/postgres/grammar';
 import { expect, test } from 'vitest';
 
 test.each([
@@ -82,3 +82,22 @@ test('to default array', () => {
 	// 	`{{"key":"one"},{"key":"two"}}`,
 	// );
 });
+
+test.each([
+	['CHECK ((version >= 0))', '(version >= 0)'],
+	['CHECK ((version >= 0)) NOT VALID', '(version >= 0)'],
+	['CHECK ((version >= 0)) not valid', '(version >= 0)'],
+	['CHECK ((version >= 0)) NO INHERIT', '(version >= 0)'],
+	['CHECK ((version >= 0)) NO INHERIT NOT VALID', '(version >= 0)'],
+	['CHECK ((version >= 0)) NOT VALID NO INHERIT', '(version >= 0)'],
+	['CHECK (version >= 0)', 'version >= 0'],
+	['CHECK (version >= 0) NOT VALID', 'version >= 0'],
+	["CHECK (status <> 'NOT VALID')", "status <> 'NOT VALID'"],
+	["CHECK (status <> 'NOT VALID') NOT VALID", "status <> 'NOT VALID'"],
+	["CHECK (status <> 'NO INHERIT') NO INHERIT", "status <> 'NO INHERIT'"],
+	['CHECK (a > 0 AND b < 10)', 'a > 0 AND b < 10'],
+	['CHECK (a > 0 AND b < 10) NOT VALID', 'a > 0 AND b < 10'],
+])('parse check definition %#: %s', (it, expected) => {
+	expect(parseCheckDefinition(it)).toBe(expected);
+});
+
