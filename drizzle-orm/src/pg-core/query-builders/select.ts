@@ -34,6 +34,7 @@ import { ViewBaseConfig } from '~/view-common.ts';
 import { View } from '~/view.ts';
 import { type PostgresType, unionsTypeTable } from '../codecs.ts';
 import { extractUsedTable } from '../utils.ts';
+import { setPgViewDependencyConfig } from '../view-dependencies.ts';
 import type {
 	AnyPgSelectQueryBuilder,
 	CheckTableLikeSelection,
@@ -1152,9 +1153,12 @@ export class PgSelectBase<
 		if (this.config.joins) { for (const it of this.config.joins) usedTables.push(...extractUsedTable(it.table)); }
 
 		return new Proxy(
-			new Subquery(this.withoutSelectionCastCodecs().getSQL(), this.config.fields, alias, false, [
-				...new Set(usedTables),
-			]),
+			setPgViewDependencyConfig(
+				new Subquery(this.withoutSelectionCastCodecs().getSQL(), this.config.fields, alias, false, [
+					...new Set(usedTables),
+				]),
+				this,
+			),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
 	}

@@ -24,6 +24,7 @@ import type { SelectedFields } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
 import type { WithBuilder } from '../subquery.ts';
 import type { PgViewBase } from '../view-base.ts';
+import { setPgViewDependencyConfig } from '../view-dependencies.ts';
 import type { PgMaterializedView } from '../view.ts';
 import { PgAsyncCountBuilder } from './count.ts';
 import { PgAsyncDeleteBase } from './delete.ts';
@@ -132,12 +133,15 @@ export class PgAsyncDatabase<
 
 			const sql = ('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL();
 			return new Proxy(
-				new WithSubquery(
-					sql,
-					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
-					alias,
-					true,
-					sql.usedTables ?? [],
+				setPgViewDependencyConfig(
+					new WithSubquery(
+						sql,
+						selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
+						alias,
+						true,
+						sql.usedTables ?? [],
+					),
+					qb,
 				),
 				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 			);

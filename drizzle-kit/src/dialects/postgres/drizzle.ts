@@ -50,12 +50,14 @@ import type {
 	InterimSchema,
 	Policy,
 	PostgresEntities,
+	PostgresViewDependency,
 	PrimaryKey,
 	Schema,
 	SchemaError,
 	SchemaWarning,
 	UniqueConstraint,
 } from './ddl';
+import { setViewDependencies } from './ddl';
 import {
 	defaultNameForFK,
 	defaultNameForPK,
@@ -70,6 +72,8 @@ import {
 	trimDefaultValueSuffix,
 	typeFor,
 } from './grammar';
+
+const PgViewDependencies = Symbol.for('drizzle:PgViewDependencies');
 
 export const policyFrom = (policy: PgPolicy, dialect: PgDialect) => {
 	const mappedTo = !policy.to
@@ -641,18 +645,23 @@ export const fromDrizzleSchema = (
 	}
 
 	const combinedViews = [...schema.views, ...schema.matViews].map((it) => {
+		const dependencies = (it as unknown as Record<symbol, unknown>)[PgViewDependencies] as
+			| { schema: string | undefined; name: string; columns: string[] }[]
+			| undefined;
 		if (is(it, PgView)) {
 			return {
 				...getViewConfig(it),
+				dependencies,
 				materialized: false,
 				tablespace: undefined,
 				using: undefined,
 				withNoData: undefined,
 			};
 		} else {
-			return { ...getMaterializedViewConfig(it), materialized: true };
+			return { ...getMaterializedViewConfig(it), dependencies, materialized: true };
 		}
 	});
+	const viewDependencies: PostgresViewDependency[] = [];
 
 	for (const view of combinedViews) {
 		if (view.isExisting || !filter({ type: 'table', schema: view.schema ?? 'public', name: view.name })) continue;
@@ -668,6 +677,12 @@ export const fromDrizzleSchema = (
 		} = view;
 
 		const viewSchema = schema ?? 'public';
+		const dependencies = view.dependencies ?? [];
+		viewDependencies.push(...dependencies.map((dependency): PostgresViewDependency => ({
+			view: { schema: viewSchema, name: viewName },
+			relation: { schema: dependency.schema ?? 'public', name: dependency.name },
+			columns: dependency.columns,
+		})));
 
 		type MergerWithConfig = keyof (
 			& ViewWithConfig
@@ -749,6 +764,7 @@ export const fromDrizzleSchema = (
 			using: using ?? null,
 		});
 	}
+	setViewDependencies(res, viewDependencies);
 
 	res.enums = schema.enums.map<Enum>((e) => {
 		return {

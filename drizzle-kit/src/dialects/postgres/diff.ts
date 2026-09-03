@@ -18,6 +18,7 @@ import type {
 	Policy,
 	PostgresDDL,
 	PostgresEntities,
+	PostgresViewDependency,
 	PrimaryKey,
 	Privilege,
 	Role,
@@ -26,7 +27,7 @@ import type {
 	UniqueConstraint,
 	View,
 } from './ddl';
-import { createDDL, tableFromDDL } from './ddl';
+import { createDDL, getViewDependencies, tableFromDDL } from './ddl';
 import { defaults, defaultsCommutative, isSerialType } from './grammar';
 import type { JsonAlterPrimaryKey, JsonRecreateIndex, JsonStatement } from './statements';
 import { prepareStatement } from './statements';
@@ -1156,31 +1157,128 @@ export const ddlDiff = async (
 		});
 	});
 
+	const relationKey = (it: { schema: string; name: string }) => `${it.schema}\0${it.name}`;
+	const sourceViewDependencies = getViewDependencies(ddl1);
+	const viewDependencies = getViewDependencies(ddl2);
+	const viewsWithChangedDefinitions = new Set(
+		viewsAlters.filter((it) => it.diff.definition || it.diff.materialized)
+			.map((it) => relationKey(it.view)),
+	);
+	const forwardSchema = (schema: string) => {
+		return renamedSchemas.find((it) => it.from.name === schema)?.to.name ?? schema;
+	};
+	const inverseSchema = (schema: string) => {
+		return renamedSchemas.find((it) => it.to.name === schema)?.from.name ?? schema;
+	};
+
+	const recreatedViewKeys = new Set<string>();
+	const recreatedDropTargets = new Map<JsonStatement, string>();
+	const recreatedDropSources = new Map<JsonStatement, string>();
+	const sourceViewFor = (target: View) => {
+		const rename = renamedOrMovedViews.find((it) => it.to.schema === target.schema && it.to.name === target.name);
+		const currentSource = rename
+			? { schema: rename.from.schema, name: rename.from.name }
+			: { schema: target.schema, name: target.name };
+		return ddl1Copy.views.one({
+			schema: inverseSchema(currentSource.schema),
+			name: currentSource.name,
+		});
+	};
+	const recreateView = (target: View, source: View) => {
+		const targetKey = relationKey(target);
+		if (recreatedViewKeys.has(targetKey)) return;
+
+		const drop = prepareStatement('drop_view', {
+			view: { ...source, schema: forwardSchema(source.schema) },
+			cause: source,
+		});
+		jsonDropViews.push(drop);
+		createViews.push(prepareStatement('create_view', { view: target }));
+		recreatedViewKeys.add(targetKey);
+		recreatedDropTargets.set(drop, targetKey);
+		recreatedDropSources.set(drop, relationKey(source));
+	};
+
 	// recreate views
 	viewsAlters.filter((it) => it.diff.definition || it.diff.materialized).forEach((entry) => {
 		const it = entry.view;
-		const schemaRename = renamedSchemas.find((r) => r.to.name === it.schema);
-		const schema = schemaRename ? schemaRename.from.name : it.schema;
-		const viewRename = renamedViews.find((r) => r.to.schema === it.schema && r.to.name === it.name);
-		const name = viewRename ? viewRename.from.name : it.name;
-		const from = ddl1Copy.views.one({ schema, name });
+		const from = sourceViewFor(it);
 
 		if (!from) {
 			throw new Error(`
 				Missing view in original ddl:
 				${it.schema}:${it.name}
-				${schema}:${name}
 				`);
 		}
 
-		jsonDropViews.push(prepareStatement('drop_view', { view: entry.diff.$left, cause: from }));
-		createViews.push(prepareStatement('create_view', { view: it }));
+		recreateView(it, from);
 	});
 
 	const columnsToRecreate = columnAlters.filter((it) => it.generated && it.generated.to !== null).filter((it) => {
 		// if push and definition changed
 		return !(it.generated?.to && it.generated.from && mode === 'push');
 	});
+	const changedColumnKeys = new Set(
+		columnAlters.filter((it) => it.type)
+			.map((it) => `${it.schema}\0${it.table}\0${it.name}`),
+	);
+	const affectedViewKeys = changedColumnKeys.size > 0 ? new Set(recreatedViewKeys) : new Set<string>();
+	for (const dependency of viewDependencies) {
+		const view = ddl2.views.one(dependency.view);
+		if (
+			view !== null
+			&& !view.materialized
+			&& dependency.columns.some((column) => changedColumnKeys.has(`${relationKey(dependency.relation)}\0${column}`))
+		) {
+			affectedViewKeys.add(relationKey(dependency.view));
+		}
+	}
+
+	let affectedCount = -1;
+	while (affectedCount !== affectedViewKeys.size) {
+		affectedCount = affectedViewKeys.size;
+		for (const dependency of viewDependencies) {
+			const view = ddl2.views.one(dependency.view);
+			if (view !== null && !view.materialized && affectedViewKeys.has(relationKey(dependency.relation))) {
+				affectedViewKeys.add(relationKey(dependency.view));
+			}
+		}
+	}
+
+	for (const key of affectedViewKeys) {
+		const separator = key.indexOf('\0');
+		const target = ddl2.views.one({ schema: key.slice(0, separator), name: key.slice(separator + 1) });
+		if (!target || target.materialized) continue;
+		const source = sourceViewFor(target);
+		if (source) recreateView(target, source);
+	}
+
+	const topologicallySortViews = <T extends { view: View }>(
+		statements: T[],
+		dependencies: PostgresViewDependency[],
+		keyOf: (statement: T) => string = (it) => relationKey(it.view),
+	) => {
+		const byKey = new Map(statements.map((it) => [keyOf(it), it]));
+		const permanent = new Set<string>();
+		const temporary = new Set<string>();
+		const sorted: T[] = [];
+		const visit = (key: string) => {
+			if (permanent.has(key)) return;
+			if (temporary.has(key)) return;
+			temporary.add(key);
+			for (const dependency of dependencies) {
+				if (relationKey(dependency.view) === key) {
+					const dependencyKey = relationKey(dependency.relation);
+					if (byKey.has(dependencyKey)) visit(dependencyKey);
+				}
+			}
+			temporary.delete(key);
+			permanent.add(key);
+			sorted.push(byKey.get(key)!);
+		};
+		for (const key of byKey.keys()) visit(key);
+		return sorted;
+	};
 
 	const jsonRecreateColumns = columnsToRecreate.map((it) => {
 		const indexes = ddl2.indexes.list({ table: it.table, schema: it.schema }).filter((index) =>
@@ -1212,6 +1310,27 @@ export const ddlDiff = async (
 		});
 	});
 
+	const structuredDrops = jsonDropViews.filter((it) => recreatedDropTargets.has(it));
+	const dropViewDependencies = sourceViewDependencies.length > 0 ? sourceViewDependencies : viewDependencies;
+	const safeDropViewDependencies = sourceViewDependencies.length > 0
+		? dropViewDependencies
+		: dropViewDependencies.filter((it) => !viewsWithChangedDefinitions.has(relationKey(it.view)));
+	const orderedStructuredDrops = topologicallySortViews(
+		[...structuredDrops].reverse(),
+		safeDropViewDependencies,
+		(it) =>
+			sourceViewDependencies.length > 0
+				? recreatedDropSources.get(it)!
+				: recreatedDropTargets.get(it)!,
+	).reverse();
+	const structuredDropSet = new Set(structuredDrops);
+	let structuredDropIndex = 0;
+	for (let i = 0; i < jsonDropViews.length; i++) {
+		if (structuredDropSet.has(jsonDropViews[i])) {
+			jsonDropViews[i] = orderedStructuredDrops[structuredDropIndex++];
+		}
+	}
+
 	jsonStatements.push(...createSchemas);
 	jsonStatements.push(...renameSchemas);
 	jsonStatements.push(...jsonCreateEnums);
@@ -1236,9 +1355,9 @@ export const ddlDiff = async (
 	jsonStatements.push(...createTables);
 
 	jsonStatements.push(...jsonDropViews);
-	jsonStatements.push(...jsonRenameViews);
-	jsonStatements.push(...jsonMoveViews);
-	jsonStatements.push(...jsonAlterViews);
+	jsonStatements.push(...jsonRenameViews.filter((it) => !recreatedViewKeys.has(relationKey(it.to))));
+	jsonStatements.push(...jsonMoveViews.filter((it) => !recreatedViewKeys.has(relationKey(it.view))));
+	jsonStatements.push(...jsonAlterViews.filter((it) => !recreatedViewKeys.has(relationKey(it.view))));
 
 	jsonStatements.push(...jsonRenameTables);
 	jsonStatements.push(...jsonDropPoliciesStatements); // before drop tables
@@ -1284,7 +1403,7 @@ export const ddlDiff = async (
 
 	jsonStatements.push(...jsonAlterCheckConstraints);
 
-	const sortedCreateViews = createViews.sort((a, b) => {
+	const legacySortedCreateViews = createViews.sort((a, b) => {
 		// this sort fixes this issue: https://github.com/drizzle-team/drizzle-orm/issues/4520 and https://github.com/drizzle-team/drizzle-orm/issues/6176
 		// View1 can be recreated and other view2 was newly created. view2 depends on view1, need to sort them -> https://github.com/drizzle-team/drizzle-orm/issues/6176
 		// This caused dependent views to appear before their dependencies,
@@ -1316,6 +1435,10 @@ export const ddlDiff = async (
 
 		return 0;
 	});
+	const sortedCreateViews = topologicallySortViews(
+		legacySortedCreateViews,
+		viewDependencies,
+	);
 	jsonStatements.push(...sortedCreateViews);
 
 	jsonStatements.push(...jsonRenamePoliciesStatements);
