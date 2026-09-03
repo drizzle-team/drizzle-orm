@@ -4,8 +4,149 @@ import { escapeForTsLiteral } from '../utils';
 import type { Column, DiffEntities, ForeignKey } from './ddl';
 import type { Import } from './typescript';
 
-const namedCheckPattern = /CONSTRAINT\s+["'`[]?(\w+)["'`\]]?\s+CHECK\s*\((.*)\)/gi;
-const unnamedCheckPattern = /CHECK\s+\((.*)\)/gi;
+type CheckConstraint = { name: string | null; value: string };
+type CheckStart = { name: string | null; openParenthesisIndex: number };
+
+const quotePairs = {
+	"'": "'",
+	'"': '"',
+	'`': '`',
+	'[': ']',
+} as const;
+
+const closingQuoteFor = (char: string): string | undefined => {
+	return quotePairs[char as keyof typeof quotePairs];
+};
+
+const findQuotedEnd = (sql: string, startIndex: number, closingQuote: string): number | null => {
+	for (let index = startIndex + 1; index < sql.length; index++) {
+		if (sql[index] !== closingQuote) continue;
+		if (sql[index + 1] === closingQuote) {
+			index++;
+			continue;
+		}
+		return index;
+	}
+	return null;
+};
+
+const skipWhitespace = (sql: string, startIndex: number): number => {
+	let index = startIndex;
+	while (index < sql.length && /\s/.test(sql[index])) index++;
+	return index;
+};
+
+const isIdentifierCharacter = (char: string | undefined): boolean => {
+	if (char === undefined) return false;
+	const code = char.charCodeAt(0);
+	return code >= 0x80
+		|| code >= 48 && code <= 57
+		|| code >= 65 && code <= 90
+		|| code >= 97 && code <= 122
+		|| char === '_'
+		|| char === '$';
+};
+
+const matchesKeyword = (sql: string, index: number, keyword: string): boolean => {
+	if (isIdentifierCharacter(sql[index - 1])) return false;
+	if (isIdentifierCharacter(sql[index + keyword.length])) return false;
+
+	for (let offset = 0; offset < keyword.length; offset++) {
+		let code = sql.charCodeAt(index + offset);
+		if (code >= 97 && code <= 122) code -= 32;
+		if (code !== keyword.charCodeAt(offset)) return false;
+	}
+	return true;
+};
+
+const readIdentifier = (sql: string, startIndex: number): { name: string; endIndex: number } | null => {
+	const closingQuote = closingQuoteFor(sql[startIndex]);
+	if (closingQuote !== undefined) {
+		const endIndex = findQuotedEnd(sql, startIndex, closingQuote);
+		if (endIndex === null) return null;
+		const escapedQuote = closingQuote + closingQuote;
+		const name = sql.slice(startIndex + 1, endIndex).replaceAll(escapedQuote, closingQuote);
+		return { name, endIndex: endIndex + 1 };
+	}
+
+	let endIndex = startIndex;
+	while (isIdentifierCharacter(sql[endIndex])) endIndex++;
+	if (endIndex === startIndex) return null;
+	return { name: sql.slice(startIndex, endIndex), endIndex };
+};
+
+const readCheckStart = (sql: string, index: number, name: string | null): CheckStart | null => {
+	if (!matchesKeyword(sql, index, 'CHECK')) return null;
+	const openParenthesisIndex = skipWhitespace(sql, index + 'CHECK'.length);
+	if (sql[openParenthesisIndex] !== '(') return null;
+	return { name, openParenthesisIndex };
+};
+
+const readNamedCheckStart = (sql: string, index: number): CheckStart | null => {
+	if (!matchesKeyword(sql, index, 'CONSTRAINT')) return null;
+	const nameStartIndex = skipWhitespace(sql, index + 'CONSTRAINT'.length);
+	const identifier = readIdentifier(sql, nameStartIndex);
+	if (identifier === null) return null;
+	const checkStartIndex = skipWhitespace(sql, identifier.endIndex);
+	return readCheckStart(sql, checkStartIndex, identifier.name);
+};
+
+const findClosingParenthesis = (sql: string, openParenthesisIndex: number): number | null => {
+	let depth = 1;
+	for (let index = openParenthesisIndex + 1; index < sql.length; index++) {
+		const closingQuote = closingQuoteFor(sql[index]);
+		if (closingQuote !== undefined) {
+			const quotedEnd = findQuotedEnd(sql, index, closingQuote);
+			if (quotedEnd === null) return null;
+			index = quotedEnd;
+			continue;
+		}
+		if (sql[index] === '(') {
+			depth++;
+			continue;
+		}
+		if (sql[index] !== ')') continue;
+		depth--;
+		if (depth === 0) return index;
+	}
+	return null;
+};
+
+const readCheckConstraint = (
+	sql: string,
+	index: number,
+): { check: CheckConstraint; endIndex: number } | null => {
+	const start = readNamedCheckStart(sql, index) ?? readCheckStart(sql, index, null);
+	if (start === null) return null;
+	const endIndex = findClosingParenthesis(sql, start.openParenthesisIndex);
+	if (endIndex === null) return null;
+	const value = sql.slice(start.openParenthesisIndex + 1, endIndex).trim();
+	return { check: { name: start.name, value }, endIndex };
+};
+
+function extractCheckConstraints(sql: string): CheckConstraint[] {
+	const checks: CheckConstraint[] = [];
+	let index = 0;
+
+	while (index < sql.length) {
+		const closingQuote = closingQuoteFor(sql[index]);
+		if (closingQuote !== undefined) {
+			const quotedEnd = findQuotedEnd(sql, index, closingQuote);
+			index = quotedEnd === null ? sql.length : quotedEnd + 1;
+			continue;
+		}
+
+		const result = readCheckConstraint(sql, index);
+		if (result !== null) {
+			checks.push(result.check);
+			index = result.endIndex + 1;
+			continue;
+		}
+		index++;
+	}
+
+	return checks;
+}
 const viewAsStatementRegex = new RegExp(`\\bAS\\b\\s+(WITH.+|SELECT.+)$`, 'is'); // 'i' for case-insensitive, 's' for dotall mode
 
 /**
@@ -449,17 +590,10 @@ export const parseDefault = (type: string, it: string): Column['default'] => {
 
 export const parseTableSQL = (rawSql: string) => {
 	const sql = stripSqlComments(rawSql);
-	const namedChecks = [...sql.matchAll(namedCheckPattern)].map((it) => {
-		const [_, name, value] = it;
-		return { name, value: value.trim() };
-	});
-	const unnamedChecks = [...sql.matchAll(unnamedCheckPattern)].map((it) => {
-		const [_, value] = it;
-		return { name: null, value: value.trim() };
-	}).filter((it) => !namedChecks.some((x) => x.value === it.value));
+	const checks = extractCheckConstraints(sql);
 
 	return {
-		checks: [...namedChecks, ...unnamedChecks],
+		checks,
 	};
 };
 
