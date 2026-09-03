@@ -438,3 +438,70 @@ describe('schema filters', () => {
 		expect(filtered).toStrictEqual(['users_1', 'users_2', 'users_3']);
 	});
 });
+
+describe('neon role filters', () => {
+	test('provider neon excludes Neon system roles (#6105)', () => {
+		const filter = prepareEntityFilter('postgresql', {
+			schemas: undefined,
+			tables: undefined,
+			entities: { roles: { provider: 'neon' } },
+			extensions: undefined,
+		}, []);
+
+		const dbRoles = [
+			'authenticated',
+			'anonymous',
+			'cloud_admin',
+			'neon_service',
+			'neon_superuser',
+			'zenith_admin',
+			'app_role',
+		];
+
+		const filtered = dbRoles.filter((name) => filter({ type: 'role', name }));
+		expect(filtered).toStrictEqual(['app_role']);
+	});
+
+	test('provider neon also excludes PostgreSQL system roles (#6105 Codex)', () => {
+		const filter = prepareEntityFilter('postgresql', {
+			schemas: undefined,
+			tables: undefined,
+			entities: { roles: { provider: 'neon' } },
+			extensions: undefined,
+		}, []);
+
+		expect(filter({ type: 'role', name: 'pg_database_owner' })).toBe(false);
+		expect(filter({ type: 'role', name: 'pg_read_all_data' })).toBe(false);
+		expect(filter({ type: 'role', name: 'postgres' })).toBe(false);
+		expect(filter({ type: 'role', name: 'app_role' })).toBe(true);
+	});
+});
+
+describe('dialect-scoped system role filters (#6106 Codex P2)', () => {
+	test('postgresql rejects pg_* roles when include lists them', () => {
+		const filter = prepareEntityFilter('postgresql', {
+			schemas: undefined,
+			tables: undefined,
+			entities: { roles: { include: ['pg_app', 'app_role'] } },
+			extensions: undefined,
+		}, []);
+
+		expect(filter({ type: 'role', name: 'pg_app' })).toBe(false);
+		expect(filter({ type: 'role', name: 'app_role' })).toBe(true);
+	});
+
+	test('cockroach allows pg_app include and only rejects CRDB system roles', () => {
+		const filter = prepareEntityFilter('cockroach', {
+			schemas: undefined,
+			tables: undefined,
+			entities: { roles: { include: ['pg_app', 'admin', 'root', 'node', 'app_role'] } },
+			extensions: undefined,
+		}, []);
+
+		expect(filter({ type: 'role', name: 'pg_app' })).toBe(true);
+		expect(filter({ type: 'role', name: 'app_role' })).toBe(true);
+		expect(filter({ type: 'role', name: 'admin' })).toBe(false);
+		expect(filter({ type: 'role', name: 'root' })).toBe(false);
+		expect(filter({ type: 'role', name: 'node' })).toBe(false);
+	});
+});
