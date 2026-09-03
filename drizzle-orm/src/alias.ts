@@ -1,9 +1,9 @@
+import { View } from '~/view.ts';
 import type * as V1 from './_relations.ts';
 import { OriginalColumn } from './column-common.ts';
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
-import { View } from './sql/sql.ts';
 import { isSQLWrapper, SQL, sql } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
 import { Table } from './table.ts';
@@ -166,6 +166,11 @@ export class RelationTableAliasProxyHandler<T extends V1.Relation> implements Pr
 	}
 }
 
+/**
+ * Does not apply type-level transformation
+ *
+ * For typed alias, use `import { alias } from 'drizzle-orm/dialect-core/alias'`
+ */
 export function aliasedTable<T extends Table | View>(table: T, tableAlias: string): T {
 	return new Proxy(table, new TableAliasProxyHandler(tableAlias, false, false));
 }

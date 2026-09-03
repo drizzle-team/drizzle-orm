@@ -24,7 +24,7 @@ import {
 	relationToSQL,
 } from '~/relations.ts';
 import { and } from '~/sql/expressions/index.ts';
-import { isSQLWrapper, noopEncoder, Param, SQL, sql, StringChunk, View } from '~/sql/sql.ts';
+import { isSQLWrapper, noopEncoder, Param, SQL, sql, StringChunk } from '~/sql/sql.ts';
 import type {
 	DriverValueDecoder,
 	DriverValueEncoder,
@@ -46,6 +46,7 @@ import {
 	type UpdateSet,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { View } from '~/view.ts';
 import { type MySqlCodecs, type MySqlType, resolveMySqlTypeAlias, unionsTypeTable } from './codecs.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlCustomColumn } from './columns/custom.ts';

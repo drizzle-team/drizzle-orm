@@ -76,6 +76,7 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 		schema: TSchema;
 		columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
 		dialect: 'sqlite';
+		isAlias: false;
 	}>;
 
 	<
@@ -92,6 +93,7 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 		schema: TSchema;
 		columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
 		dialect: 'sqlite';
+		isAlias: false;
 	}>;
 	/**
 	 * @deprecated The third parameter of sqliteTable is changing and will only accept an array instead of an object
@@ -127,6 +129,7 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 		schema: TSchema;
 		columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
 		dialect: 'sqlite';
+		isAlias: false;
 	}>;
 
 	/**
@@ -163,6 +166,7 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 		schema: TSchema;
 		columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
 		dialect: 'sqlite';
+		isAlias: false;
 	}>;
 }
 
@@ -187,6 +191,7 @@ export function sqliteTableBase<
 	schema: TSchema;
 	columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
 	dialect: 'sqlite';
+	isAlias: false;
 }> {
 	const casingFn = getCasingFn(casing);
 	const rawTable = new SQLiteTable<{
@@ -194,6 +199,7 @@ export function sqliteTableBase<
 		schema: TSchema;
 		columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
 		dialect: 'sqlite';
+		isAlias: false;
 	}>(name, schema, baseName);
 
 	const parsedColumns: TColumnsMap = typeof columns === 'function' ? columns(getSQLiteColumnBuilders()) : columns;

@@ -26,7 +26,7 @@ import {
 } from '~/relations.ts';
 import { and } from '~/sql/expressions/index.ts';
 import type { DriverValueDecoder, Name, Placeholder, Query, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
-import { isSQLWrapper, Param, SQL, sql, StringChunk, View } from '~/sql/sql.ts';
+import { isSQLWrapper, Param, SQL, sql, StringChunk } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/singlestore.ts';
@@ -39,6 +39,7 @@ import {
 	type UpdateSet,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { View } from '~/view.ts';
 import { resolveSingleStoreTypeAlias, type SingleStoreCodecs, type SingleStoreType } from './codecs.ts';
 import { SingleStoreColumn } from './columns/common.ts';
 import type { SingleStoreCustomColumn } from './columns/custom.ts';

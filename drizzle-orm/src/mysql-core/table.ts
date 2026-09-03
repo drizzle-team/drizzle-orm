@@ -81,6 +81,7 @@ export function mysqlTableWithSchema<
 	schema: TSchemaName;
 	columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
 	dialect: 'mysql';
+	isAlias: false;
 }> {
 	const casingFn = getCasingFn(casing);
 	const rawTable = new MySqlTable<{
@@ -88,6 +89,7 @@ export function mysqlTableWithSchema<
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
 		dialect: 'mysql';
+		isAlias: false;
 	}>(name, schema, baseName);
 
 	const parsedColumns: TColumnsMap = typeof columns === 'function' ? columns(getMySqlColumnBuilders()) : columns;
@@ -135,6 +137,7 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
 		dialect: 'mysql';
+		isAlias: false;
 	}>;
 
 	<
@@ -151,6 +154,7 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
 		dialect: 'mysql';
+		isAlias: false;
 	}>;
 	/**
 	 * @deprecated The third parameter of mysqlTable is changing and will only accept an array instead of an object
@@ -186,6 +190,7 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
 		dialect: 'mysql';
+		isAlias: false;
 	}>;
 
 	/**
@@ -222,6 +227,7 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
 		dialect: 'mysql';
+		isAlias: false;
 	}>;
 }
 

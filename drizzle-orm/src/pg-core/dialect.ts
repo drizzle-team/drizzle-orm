@@ -31,7 +31,7 @@ import {
 	type TablesRelationalConfig,
 	type WithContainer,
 } from '~/relations.ts';
-import { and, isSQLWrapper, type SQLWrapper, View } from '~/sql/index.ts';
+import { and, isSQLWrapper, type SQLWrapper } from '~/sql/index.ts';
 import {
 	type DriverValueDecoder,
 	type Name,
@@ -52,6 +52,7 @@ import {
 	type UpdateSet,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { View } from '~/view.ts';
 import { type PgCodecs, type PostgresType, resolvePgTypeAlias } from './codecs.ts';
 import { PgViewBase } from './view-base.ts';
 import type { PgMaterializedView, PgView } from './view.ts';

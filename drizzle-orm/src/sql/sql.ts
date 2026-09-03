@@ -1,14 +1,13 @@
 import type { CodecsCollection } from '~/codecs.ts';
 import { entityKind, is } from '~/entity.ts';
-import type { SelectResult } from '~/query-builders/select.types.ts';
 import { Subquery } from '~/subquery.ts';
-import { TableName } from '~/table.utils.ts';
 import { hasTelemetry, tracer } from '~/tracing.ts';
-import type { Assume, Equal } from '~/utils.ts';
+import type { Equal } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { View } from '~/view.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
-import { IsAlias, OriginalName, Table, TableColumns, TableSchema } from '../table.ts';
+import { IsAlias, Table } from '../table.ts';
 
 /**
  * This class is used to indicate a primitive param value that is used in `sql` tag.
@@ -918,100 +917,6 @@ export function fillPlaceholders(params: unknown[], values: Record<string, unkno
 }
 
 export type ColumnsSelection = Record<string, unknown>;
-
-const IsDrizzleView = Symbol.for('drizzle:IsDrizzleView');
-
-export abstract class View<
-	TName extends string = string,
-	TExisting extends boolean = boolean,
-	TSelection extends ColumnsSelection = ColumnsSelection,
-> {
-	static readonly [entityKind]: string = 'View';
-
-	declare _: {
-		brand: 'View';
-		viewBrand: string;
-		name: TName;
-		existing: TExisting;
-		selectedFields: TSelection;
-	};
-
-	/** @internal */
-	[ViewBaseConfig]: {
-		name: TName;
-		originalName: TName;
-		schema: string | undefined;
-		selectedFields: ColumnsSelection;
-		isExisting: TExisting;
-		query: TExisting extends true ? undefined : SQL;
-		isAlias: boolean;
-	};
-
-	/** @internal */
-	[IsDrizzleView] = true;
-
-	/** @internal */
-	public get [TableName]() {
-		return this[ViewBaseConfig].name;
-	}
-
-	/** @internal */
-	public get [TableSchema]() {
-		return this[ViewBaseConfig].schema;
-	}
-
-	/** @internal */
-	public get [IsAlias]() {
-		return this[ViewBaseConfig].isAlias;
-	}
-
-	/** @internal */
-	public get [OriginalName]() {
-		return this[ViewBaseConfig].originalName;
-	}
-
-	/** @internal */
-	public get [TableColumns]() {
-		return (this[ViewBaseConfig].selectedFields) as any as Record<string, unknown>;
-	}
-
-	declare readonly $inferSelect: InferSelectViewModel<View<Assume<TName, string>, TExisting, TSelection>>;
-
-	constructor(
-		{ name, schema, selectedFields, query }: {
-			name: TName;
-			schema: string | undefined;
-			selectedFields: ColumnsSelection;
-			query: SQL | undefined;
-		},
-	) {
-		this[ViewBaseConfig] = {
-			name,
-			originalName: name,
-			schema,
-			selectedFields,
-			query: query as (TExisting extends true ? undefined : SQL),
-			isExisting: !query as TExisting,
-			isAlias: false,
-		};
-	}
-}
-
-export function isView(view: unknown): view is View {
-	return typeof view === 'object' && view !== null && IsDrizzleView in view;
-}
-
-export function getViewName<T extends View>(view: T): T['_']['name'] {
-	return view[ViewBaseConfig].name;
-}
-
-export type InferSelectViewModel<TView extends View> =
-	Equal<TView['_']['selectedFields'], { [x: string]: unknown }> extends true ? { [x: string]: unknown }
-		: SelectResult<
-			TView['_']['selectedFields'],
-			'single',
-			Record<TView['_']['name'], 'not-null'>
-		>;
 
 // Defined separately from the Column class to resolve circular dependency
 Column.prototype.getSQL = function() {

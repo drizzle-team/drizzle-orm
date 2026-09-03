@@ -1,7 +1,7 @@
+import type { View } from '~/view.ts';
 import type { Column, Columns, GetColumnData } from './column.ts';
 import { entityKind } from './entity.ts';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations.ts';
-import type { View } from './sql/sql.ts';
 import { TableName } from './table.utils.ts';
 import type { Simplify, Update } from './utils.ts';
 
@@ -10,6 +10,7 @@ export interface TableConfig<TColumns extends Columns = Columns> {
 	schema: string | undefined;
 	columns: TColumns;
 	dialect: string;
+	isAlias: boolean;
 }
 
 export type UpdateTableConfig<T extends TableConfig, TUpdate extends Partial<TableConfig>> = Required<
@@ -45,6 +46,7 @@ export interface TableTypeConfig<T extends TableConfig> {
 	readonly schema: T['schema'];
 	readonly columns: T['columns'];
 	readonly dialect: T['dialect'];
+	readonly isAlias: T['isAlias'];
 }
 
 export class Table<out T extends TableConfig = TableConfig> {
@@ -130,20 +132,29 @@ export function isTable(table: unknown): table is Table {
  */
 export type AnyTable<TPartial extends Partial<TableConfig>> = Table<UpdateTableConfig<TableConfig, TPartial>>;
 
-export function getTableName<T extends Table>(table: T): T['_']['name'] {
+export function getTableName<T extends Table | View>(table: T): T['_']['name'] {
 	return table[TableName];
+}
+
+export function getTableSchema<T extends Table | View>(table: T): T['_']['schema'] {
+	return table[TableSchema];
+}
+
+export function isTableAlias<T extends Table | View>(table: T): T['_']['isAlias'] {
+	return table[IsAlias];
 }
 
 export function getTableUniqueName<
 	T extends Table | View,
-	TResult extends string = T extends Table ? T['_']['schema'] extends undefined ? `public.${T['_']['name']}`
-		: `${T['_']['schema']}.${T['_']['name']}`
-		// Views don't have type-level schema names, to be added
-		: `${string}.${T['_']['name']}`,
+	TResult extends string = T['_']['isAlias'] extends true ? T['_']['name']
+		: T['_']['schema'] extends undefined ? T['_']['name']
+		: `${T['_']['schema']}.${T['_']['name']}`,
 >(
 	table: T,
 ): TResult {
-	return `${table[TableSchema] ?? 'public'}.${table[TableName]}` as TResult;
+	return (table[IsAlias] || table[TableSchema] === undefined
+		? table[TableName]
+		: `${table[TableSchema]}.${table[TableName]}`) as TResult;
 }
 
 export type MapColumnName<TName extends string, TColumn extends Column, TDBColumNames extends boolean> =

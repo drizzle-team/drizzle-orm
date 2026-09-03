@@ -35,7 +35,6 @@ import {
 	type SQLChunk,
 	type SQLWrapper,
 	StringChunk,
-	View,
 } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
@@ -47,6 +46,7 @@ import {
 	type RowsMapperGenerator,
 	type UpdateSet,
 } from '~/utils.ts';
+import { View } from '~/view.ts';
 import { and, DrizzleError, type Name, ViewBaseConfig } from '../index.ts';
 import { type MsSqlCodecs, type MsSqlType, resolveMsSqlTypeAlias } from './codecs.ts';
 import { MsSqlColumn } from './columns/common.ts';

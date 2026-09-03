@@ -1,7 +1,8 @@
+import { View } from '~/view.ts';
 import { ColumnTableAliasProxyHandler, TableAliasProxyHandler } from './alias.ts';
 import { Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
-import { SQL, View } from './sql/sql.ts';
+import { SQL } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
 import { ViewBaseConfig } from './view-common.ts';
 
