@@ -157,6 +157,21 @@ export function getTableUniqueName<
 		: `${table[TableSchema]}.${table[TableName]}`) as TResult;
 }
 
+/**
+ * Compatibility for _relations, to be removed
+ *
+ * @internal
+ */
+export function getLegacyTableUniqueName<
+	T extends Table | View,
+	TResult extends string = T['_']['schema'] extends undefined ? `public.${T['_']['name']}`
+		: `${T['_']['schema']}.${T['_']['name']}`,
+>(
+	table: T,
+): TResult {
+	return `${table[TableSchema] ?? 'public'}.${table[TableName]}` as TResult;
+}
+
 export type MapColumnName<TName extends string, TColumn extends Column, TDBColumNames extends boolean> =
 	TDBColumNames extends true ? TColumn['_']['name']
 		: TName;
