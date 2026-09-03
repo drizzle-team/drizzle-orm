@@ -17,12 +17,13 @@ import type {
 } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, CommentInput, Placeholder, Query } from '~/sql/sql.ts';
-import { SQL, sql, View } from '~/sql/sql.ts';
+import { SQL, sql } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import type { ValueOrArray } from '~/utils.ts';
 import { getTableColumns, getTableLikeName, haveSameKeys, orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { View } from '~/view.ts';
 import type { IndexBuilder } from '../indexes.ts';
 import type { UniqueConstraintBuilder } from '../unique-constraint.ts';
 import { convertIndexToString, extractUsedTable, toArray } from '../utils.ts';

@@ -22,7 +22,8 @@ import {
 	notLike,
 	or,
 } from '~/sql/expressions';
-import { type InferSelectViewModel, sql } from '~/sql/sql.ts';
+import { sql } from '~/sql/sql.ts';
+import type { InferViewSelectModel } from '~/view.ts';
 
 import type { IRecordSet } from 'mssql';
 import type { Equal } from 'type-tests/utils.ts';
@@ -437,7 +438,7 @@ await db.select().from(users);
 		>
 	>;
 	Expect<Equal<typeof result, typeof newYorkersWithSubquery.$inferSelect[]>>;
-	Expect<Equal<typeof result, InferSelectViewModel<typeof newYorkersWithSubquery>[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof newYorkersWithSubquery>[]>>;
 }
 
 {

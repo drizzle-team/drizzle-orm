@@ -69,6 +69,7 @@ export function singlestoreTableWithSchema<
 	schema: TSchemaName;
 	columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
 	dialect: 'singlestore';
+	isAlias: false;
 }> {
 	const casingFn = getCasingFn(casing);
 	const rawTable = new SingleStoreTable<{
@@ -76,6 +77,7 @@ export function singlestoreTableWithSchema<
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
 		dialect: 'singlestore';
+		isAlias: false;
 	}>(name, schema, baseName);
 
 	const parsedColumns: TColumnsMap = typeof columns === 'function' ? columns(getSingleStoreColumnBuilders()) : columns;
@@ -122,6 +124,7 @@ export interface SingleStoreTableFn<TSchemaName extends string | undefined = und
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
 		dialect: 'singlestore';
+		isAlias: false;
 	}>;
 
 	<
@@ -138,6 +141,7 @@ export interface SingleStoreTableFn<TSchemaName extends string | undefined = und
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
 		dialect: 'singlestore';
+		isAlias: false;
 	}>;
 	/**
 	 * @deprecated The third parameter of singlestoreTable is changing and will only accept an array instead of an object
@@ -173,6 +177,7 @@ export interface SingleStoreTableFn<TSchemaName extends string | undefined = und
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
 		dialect: 'singlestore';
+		isAlias: false;
 	}>;
 
 	/**
@@ -209,6 +214,7 @@ export interface SingleStoreTableFn<TSchemaName extends string | undefined = und
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
 		dialect: 'singlestore';
+		isAlias: false;
 	}>;
 }
 

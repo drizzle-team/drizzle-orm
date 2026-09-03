@@ -24,7 +24,7 @@ import {
 } from '~/relations.ts';
 import type { Name, Placeholder, SQLWrapper } from '~/sql/index.ts';
 import { and, isSQLWrapper } from '~/sql/index.ts';
-import { type DriverValueDecoder, Param, type Query, SQL, sql, type SQLChunk, StringChunk, View } from '~/sql/sql.ts';
+import { type DriverValueDecoder, Param, type Query, SQL, sql, type SQLChunk, StringChunk } from '~/sql/sql.ts';
 import { resolveSQLiteTypeAlias, resolveUnionType, type SQLiteCodecs, type SQLiteType } from '~/sqlite-core/codecs.ts';
 import { SQLiteColumn, type SQLiteCustomColumn } from '~/sqlite-core/columns/index.ts';
 import type {
@@ -45,6 +45,7 @@ import {
 	type UpdateSet,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { View } from '~/view.ts';
 import type {
 	SelectedFieldsOrdered,
 	SQLiteSelectConfig,

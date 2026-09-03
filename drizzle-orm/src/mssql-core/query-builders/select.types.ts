@@ -18,10 +18,11 @@ import type {
 	SelectResult,
 	SetOperator,
 } from '~/query-builders/select.types.ts';
-import type { ColumnsSelection, Placeholder, SQL, View } from '~/sql/sql.ts';
+import type { ColumnsSelection, Placeholder, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, ValidateShape } from '~/utils.ts';
+import type { UpdateViewConfig, View } from '~/view.ts';
 import type { PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
 import type { MsSqlViewBase } from '../view-base.ts';
 import type { MsSqlView, MsSqlViewWithSelection } from '../view.ts';
@@ -40,12 +41,15 @@ export type BuildAliasTable<TTable extends MsSqlTable | MsSqlView, TAlias extend
 		UpdateTableConfig<TTable['_'], {
 			name: TAlias;
 			columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias, 'mssql'>;
+			isAlias: true;
 		}>
 	>
-	: TTable extends View<any, any, any> ? MsSqlViewWithSelection<
-			TAlias,
-			TTable['_']['existing'],
-			MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias, 'mssql'>
+	: TTable extends View ? MsSqlViewWithSelection<
+			UpdateViewConfig<TTable['_'], {
+				name: TAlias;
+				selectedFields: MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias, 'mssql'>;
+				isAlias: true;
+			}>
 		>
 	: never;
 
@@ -103,7 +107,7 @@ export type MsSqlJoin<
 				T['_']['selection'],
 				TJoinedName,
 				TJoinedTable extends MsSqlTable ? TJoinedTable['_']['columns']
-					: TJoinedTable extends Subquery ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
+					: TJoinedTable extends Subquery | View ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
 					: never,
 				T['_']['selectMode']
 			>,

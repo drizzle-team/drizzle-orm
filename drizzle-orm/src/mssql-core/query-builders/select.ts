@@ -19,7 +19,7 @@ import type {
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, Placeholder, Query } from '~/sql/sql.ts';
-import { SQL, View } from '~/sql/sql.ts';
+import { SQL } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import {
@@ -32,6 +32,7 @@ import {
 	type ValueOrArray,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { View } from '~/view.ts';
 import { MsSqlViewBase } from '../view-base.ts';
 import type {
 	AnyMsSqlSelect,

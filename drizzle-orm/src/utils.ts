@@ -1,3 +1,4 @@
+import { View } from '~/view.ts';
 import type { Cache } from './cache/core/cache.ts';
 import type { CodecsCollection } from './codecs.ts';
 import type { AnyColumn } from './column.ts';
@@ -7,7 +8,7 @@ import type { Logger } from './logger.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './operations.ts';
 import type { TableLike } from './query-builders/select.types.ts';
 import type { AnyRelations, EmptyRelations } from './relations.ts';
-import { Param, SQL, View } from './sql/sql.ts';
+import { Param, SQL } from './sql/sql.ts';
 import type { DriverValueDecoder, SQLWrapper } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
 import { getTableName, Table } from './table.ts';

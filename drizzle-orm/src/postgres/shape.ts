@@ -23,10 +23,11 @@ import type { SelectedFieldsOrdered } from '~/operations.ts';
 import type { PostgresType } from '~/pg-core/codecs.ts';
 import type { PgColumn } from '~/pg-core/columns/common.ts';
 import type { PreparedQuerySelection } from '~/pg-core/dialect.ts';
-import { type DriverValueDecoder, noopDecoder, SQL, type SQLWrapper, type View } from '~/sql/sql.ts';
+import { type DriverValueDecoder, noopDecoder, SQL, type SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { getColumnFromDecoder, getColumns, orderSelectedFields } from '~/utils.ts';
+import type { View } from '~/view.ts';
 
 type ShapeType = [element: string, as?: string];
 

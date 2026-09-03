@@ -1,4 +1,5 @@
 import { IsAlias, OriginalName, Table, TableColumns, TableSchema } from '~/table.ts';
+import { View, type ViewConfig } from '~/view.ts';
 import { aliasedTable } from './alias.ts';
 import type { CodecsCollection, NormalizeArrayCodec, NormalizeCodec } from './codecs.ts';
 import { type AnyColumn, Column } from './column.ts';
@@ -41,7 +42,6 @@ import {
 	sql,
 	type SQLWrapper,
 	StringChunk,
-	View,
 } from './sql/sql.ts';
 import type { Subquery } from './subquery.ts';
 import {
@@ -54,17 +54,17 @@ import {
 	type ValueOrArray,
 } from './utils.ts';
 
-export type FilteredSchemaEntry = Table<any> | View<string, boolean, FieldSelection>;
+export type FilteredSchemaEntry = Table<any> | View<ViewConfig<FieldSelection>>;
 
-export type SchemaEntry = Table<any> | View<string, boolean, any>;
+export type SchemaEntry = Table<any> | View<ViewConfig<any>>;
 
 export type Schema = Record<string, SchemaEntry>;
 
-export type GetTableViewColumns<T extends SchemaEntry> = T extends View<string, boolean, any> ? T['_']['selectedFields']
+export type GetTableViewColumns<T extends SchemaEntry> = T extends View<ViewConfig<any>> ? T['_']['selectedFields']
 	: T extends Table<any> ? T['_']['columns']
 	: never;
 
-export type GetTableViewFieldSelection<T extends SchemaEntry> = T extends View<string, boolean, FieldSelection>
+export type GetTableViewFieldSelection<T extends SchemaEntry> = T extends View<ViewConfig<FieldSelection>>
 	? T['_']['selectedFields']
 	: T extends Table<any> ? T['_']['columns']
 	: never;

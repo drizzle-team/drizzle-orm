@@ -104,6 +104,7 @@ export function cockroachTableWithSchema<
 	schema: TSchemaName;
 	columns: CockroachBuildColumns<TTableName, TColumnsMap>;
 	dialect: 'cockroach';
+	isAlias: false;
 }> {
 	const casingFn = getCasingFn(casing);
 	const rawTable = new CockroachTable<{
@@ -111,6 +112,7 @@ export function cockroachTableWithSchema<
 		schema: TSchemaName;
 		columns: CockroachBuildColumns<TTableName, TColumnsMap>;
 		dialect: 'cockroach';
+		isAlias: false;
 	}>(name, schema, baseName);
 
 	const parsedColumns: TColumnsMap = typeof columns === 'function' ? columns(getCockroachColumnBuilders()) : columns;
@@ -151,6 +153,7 @@ export function cockroachTableWithSchema<
 				schema: TSchemaName;
 				columns: CockroachBuildColumns<TTableName, TColumnsMap>;
 				dialect: 'cockroach';
+				isAlias: false;
 			}>;
 		},
 	}) as any;
@@ -171,6 +174,7 @@ export interface CockroachTableFnInternal<TSchema extends string | undefined = u
 		schema: TSchema;
 		columns: CockroachBuildColumns<TTableName, TColumnsMap>;
 		dialect: 'cockroach';
+		isAlias: false;
 	}>;
 
 	<
@@ -187,6 +191,7 @@ export interface CockroachTableFnInternal<TSchema extends string | undefined = u
 		schema: TSchema;
 		columns: CockroachBuildColumns<TTableName, TColumnsMap>;
 		dialect: 'cockroach';
+		isAlias: false;
 	}>;
 }
 

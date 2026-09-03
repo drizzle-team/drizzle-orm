@@ -36,7 +36,7 @@ import {
 	relationsOrderToSQL,
 	relationToSQL,
 } from '~/relations.ts';
-import { and, View } from '~/sql/index.ts';
+import { and } from '~/sql/index.ts';
 import {
 	type DriverValueDecoder,
 	isSQLWrapper,
@@ -60,6 +60,7 @@ import {
 	type UpdateSet,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { View } from '~/view.ts';
 import { type CockroachCodecs, type CockroachType, resolveCockroachTypeAlias } from './codecs.ts';
 import type { CockroachSession } from './session.ts';
 import { CockroachViewBase } from './view-base.ts';
