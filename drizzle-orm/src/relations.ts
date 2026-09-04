@@ -457,6 +457,12 @@ export abstract class AggregatedField<T = unknown> implements SQLWrapper<T> {
 		readonly data: T;
 	};
 
+	// Reached from `BuildRelationalQueryResult['selection']`, whose element union names
+	// AggregatedField directly. A protected member here makes that class nominal, which
+	// makes the whole recursive selection type non-portable, which propagates out through
+	// the dialects' mapperGenerators. The resulting diagnostic points at the recursive
+	// type rather than at this member, which makes it easy to misread as a compiler limit.
+	/** @internal */
 	protected table: SchemaEntry | undefined;
 
 	onTable(table: SchemaEntry) {
@@ -2203,5 +2209,14 @@ export function getTableAsAliasSQL(table: SchemaEntry) {
 	}`;
 }
 
-export const EmptyFilter = Symbol.for('drizzle:EmptyFilter');
+// A string literal rather than `Symbol.for`. Both are unit types, so both narrow under
+// `===`, which the filter builder relies on. The difference is that a `unique symbol` is
+// nominal per declaration site: with two copies of the package on disk, copy A's
+// EmptyFilter and copy B's are unrelated types, and every public type mentioning it
+// stops being assignable across the boundary. A literal type is structural and compares
+// equal across installs.
+//
+// The runtime sentinel keeps the same identity semantics: `Symbol.for` already returned
+// the same symbol in every copy, and the literal is likewise shared by value.
+export const EmptyFilter = 'drizzle:EmptyFilter';
 export type EmptyFilter = typeof EmptyFilter;
