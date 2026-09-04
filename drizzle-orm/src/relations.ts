@@ -347,13 +347,7 @@ export class One<
 		super(targetTable, targetTableName);
 		this.alias = config?.alias;
 		if (config && 'where' in config) {
-			if (config.where === undefined) {
-				throw new Error(
-					`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
-				);
-			}
-
-			this.where = config.where;
+			this.where = config.where ?? EmptyFilter;
 		} else {
 			this.where = EmptyFilter;
 		}
@@ -406,13 +400,7 @@ export class Many<TTargetTableName extends string> extends Relation<TTargetTable
 		super(targetTable, targetTableName);
 		this.alias = config?.alias;
 		if (config && 'where' in config) {
-			if (config.where === undefined) {
-				throw new Error(
-					`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
-				);
-			}
-
-			this.where = config.where;
+			this.where = config.where ?? EmptyFilter;
 		} else {
 			this.where = EmptyFilter;
 		}
@@ -1802,12 +1790,7 @@ function relationsFieldFilterToSQL(
 	column: SQLWrapper,
 	filter: RelationsFieldFilter<unknown> | EmptyFilter | undefined,
 ): SQL | undefined {
-	if (filter === EmptyFilter) return undefined;
-	if (filter === undefined) {
-		throw new Error(
-			`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
-		);
-	}
+	if (filter === EmptyFilter || filter === undefined) return undefined;
 	if (typeof filter !== 'object' || is(filter, Placeholder)) return eq(column, filter);
 
 	const entries = Object.entries(filter as RelationFieldsFilterInternals<unknown>);
@@ -1815,12 +1798,7 @@ function relationsFieldFilterToSQL(
 
 	const parts: (SQL | undefined)[] = [];
 	for (const [target, value] of entries) {
-		if (value === EmptyFilter) continue;
-		if (value === undefined) {
-			throw new Error(
-				`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
-			);
-		}
+		if (value === EmptyFilter || value === undefined) continue;
 
 		switch (target as keyof RelationFieldsFilterInternals<unknown>) {
 			case 'NOT': {
@@ -1921,23 +1899,13 @@ export function relationsFilterToSQL(
 	tablesRelations: TablesRelationalConfig = {},
 	depth: number = 0,
 ): SQL | undefined {
-	if (filter === EmptyFilter) return undefined;
-	if (filter === undefined) {
-		throw new Error(
-			`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
-		);
-	}
+	if (filter === EmptyFilter || filter === undefined) return undefined;
 	const entries = Object.entries(filter);
 	if (!entries.length) return undefined;
 
 	const parts: (SQL | undefined)[] = [];
 	for (const [target, value] of entries) {
-		if (value === EmptyFilter) continue;
-		if (value === undefined) {
-			throw new Error(
-				`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
-			);
-		}
+		if (value === EmptyFilter || value === undefined) continue;
 
 		switch (target) {
 			case 'RAW': {
