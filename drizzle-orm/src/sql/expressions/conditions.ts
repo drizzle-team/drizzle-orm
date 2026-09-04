@@ -1,6 +1,7 @@
 import { type AnyColumn, Column, type GetColumnData } from '~/column.ts';
 import { entityKind, is, isAnyKindIn } from '~/entity.ts';
 import { Table } from '~/table.ts';
+import { View } from '~/view.ts';
 import {
 	isDriverValueEncoder,
 	isSQLWrapper,
@@ -11,7 +12,6 @@ import {
 	type SQLChunk,
 	type SQLWrapper,
 	StringChunk,
-	View,
 } from '../sql.ts';
 
 const notParamKinds = [

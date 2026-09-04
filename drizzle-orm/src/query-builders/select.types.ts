@@ -1,10 +1,11 @@
 import type { ChangeColumnTableName, ColumnType, Dialect } from '~/column-builder.ts';
 import type { AnyColumn, Column, ColumnBaseConfig, GetColumnData, UpdateColConfig } from '~/column.ts';
 import type { SelectedFields } from '~/operations.ts';
-import type { ColumnsSelection, SQL, View } from '~/sql/sql.ts';
+import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table } from '~/table.ts';
 import type { Assume, DrizzleTypeError, Equal, FromSingleKeyObject, IsNever, IsUnion, Not, Simplify } from '~/utils.ts';
+import type { View } from '~/view.ts';
 
 export type JoinType = 'inner' | 'left' | 'right' | 'full' | 'cross';
 

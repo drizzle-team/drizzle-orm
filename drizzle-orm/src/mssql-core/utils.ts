@@ -4,6 +4,7 @@ import { Table } from '~/table.ts';
 import { throwUnknownExtraConfigValue } from '~/table.utils.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import type { ViewConfig } from '~/view.ts';
 import type { Check } from './checks.ts';
 import { CheckBuilder } from './checks.ts';
 import type { MsSqlCodecs } from './codecs.ts';
@@ -64,10 +65,7 @@ export function getTableConfig(table: MsSqlTable) {
 	};
 }
 
-export function getViewConfig<
-	TName extends string = string,
-	TExisting extends boolean = boolean,
->(view: MsSqlView<TName, TExisting>) {
+export function getViewConfig<T extends ViewConfig = ViewConfig>(view: MsSqlView<T>) {
 	return {
 		...view[ViewBaseConfig],
 		...view[MsSqlViewConfig],

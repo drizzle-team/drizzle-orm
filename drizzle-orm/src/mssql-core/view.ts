@@ -4,8 +4,9 @@ import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
+import type { SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
+import type { UpdateViewConfig, ViewConfig } from '~/view.ts';
 import type { MsSqlColumn } from './columns/index.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
@@ -20,7 +21,10 @@ export interface ViewBuilderConfig {
 	checkOption?: boolean;
 }
 
-export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }> {
+export class ViewBuilderCore<
+	TConfig extends { name: string; columns?: unknown },
+	TSchema extends string | undefined = undefined,
+> {
 	static readonly [entityKind]: string = 'MsSqlViewBuilder';
 
 	declare readonly _: {
@@ -30,7 +34,7 @@ export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }
 
 	constructor(
 		protected name: TConfig['name'],
-		protected schema: string | undefined,
+		protected schema: TSchema,
 	) {}
 
 	protected config: ViewBuilderConfig = {
@@ -50,12 +54,23 @@ export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }
 	}
 }
 
-export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<{ name: TName }> {
+export class ViewBuilder<
+	TName extends string = string,
+	TSchema extends string | undefined = undefined,
+> extends ViewBuilderCore<{ name: TName }, TSchema> {
 	static override readonly [entityKind]: string = 'MsSqlViewBuilder';
 
 	as<TSelectedFields extends SelectedFields>(
 		qb: TypedQueryBuilder<TSelectedFields> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelectedFields>),
-	): MsSqlViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName, 'mssql'>> {
+	): MsSqlViewWithSelection<
+		{
+			name: TName;
+			schema: TSchema;
+			existing: false;
+			isAlias: false;
+			selectedFields: AddAliasToSelection<TSelectedFields, TName, 'mssql'>;
+		}
+	> {
 		if (typeof qb === 'function') {
 			qb = qb(new QueryBuilder());
 		}
@@ -77,14 +92,23 @@ export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<
 				},
 			}),
 			selectionProxy as any,
-		) as MsSqlViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName, 'mssql'>>;
+		) as MsSqlViewWithSelection<
+			{
+				name: TName;
+				schema: TSchema;
+				existing: false;
+				isAlias: false;
+				selectedFields: AddAliasToSelection<TSelectedFields, TName, 'mssql'>;
+			}
+		>;
 	}
 }
 
 export class ManualViewBuilder<
 	TName extends string = string,
 	TColumns extends Record<string, ColumnBuilderBase> = Record<string, ColumnBuilderBase>,
-> extends ViewBuilderCore<{ name: TName; columns: TColumns }> {
+	TSchema extends string | undefined = undefined,
+> extends ViewBuilderCore<{ name: TName; columns: TColumns }, TSchema> {
 	static override readonly [entityKind]: string = 'MsSqlManualViewBuilder';
 
 	private columns: Record<string, MsSqlColumn>;
@@ -92,7 +116,7 @@ export class ManualViewBuilder<
 	constructor(
 		name: TName,
 		columns: TColumns,
-		schema: string | undefined,
+		schema: TSchema,
 		casing: Casing | undefined,
 	) {
 		super(name, schema);
@@ -101,7 +125,15 @@ export class ManualViewBuilder<
 		) as BuildColumns<TName, TColumns, 'mssql'>;
 	}
 
-	existing(): MsSqlViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'mssql'>> {
+	existing(): MsSqlViewWithSelection<
+		{
+			name: TName;
+			schema: TSchema;
+			existing: true;
+			isAlias: false;
+			selectedFields: BuildColumns<TName, TColumns, 'mssql'>;
+		}
+	> {
 		return new Proxy(
 			new MsSqlView({
 				mssqlConfig: undefined,
@@ -118,10 +150,28 @@ export class ManualViewBuilder<
 				sqlAliasedBehavior: 'alias',
 				replaceOriginalName: true,
 			}),
-		) as MsSqlViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'mssql'>>;
+		) as MsSqlViewWithSelection<
+			{
+				name: TName;
+				schema: TSchema;
+				existing: true;
+				isAlias: false;
+				selectedFields: BuildColumns<TName, TColumns, 'mssql'>;
+			}
+		>;
 	}
 
-	as(query: SQL): MsSqlViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'mssql'>> {
+	as(
+		query: SQL,
+	): MsSqlViewWithSelection<
+		{
+			name: TName;
+			schema: TSchema;
+			existing: false;
+			isAlias: false;
+			selectedFields: BuildColumns<TName, TColumns, 'mssql'>;
+		}
+	> {
 		return new Proxy(
 			new MsSqlView({
 				mssqlConfig: this.config,
@@ -138,15 +188,19 @@ export class ManualViewBuilder<
 				sqlAliasedBehavior: 'alias',
 				replaceOriginalName: true,
 			}),
-		) as MsSqlViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'mssql'>>;
+		) as MsSqlViewWithSelection<
+			{
+				name: TName;
+				schema: TSchema;
+				existing: false;
+				isAlias: false;
+				selectedFields: BuildColumns<TName, TColumns, 'mssql'>;
+			}
+		>;
 	}
 }
 
-export class MsSqlView<
-	TName extends string = string,
-	TExisting extends boolean = boolean,
-	TSelectedFields extends ColumnsSelection = ColumnsSelection,
-> extends MsSqlViewBase<TName, TExisting, TSelectedFields> {
+export class MsSqlView<T extends ViewConfig = ViewConfig> extends MsSqlViewBase<T> {
 	static override readonly [entityKind]: string = 'MsSqlView';
 
 	declare protected $MsSqlViewBrand: 'MsSqlView';
@@ -156,8 +210,8 @@ export class MsSqlView<
 	constructor({ mssqlConfig, config }: {
 		mssqlConfig: ViewBuilderConfig | undefined;
 		config: {
-			name: TName;
-			schema: string | undefined;
+			name: T['name'];
+			schema: T['schema'];
 			selectedFields: SelectedFields;
 			query: SQL | undefined;
 		};
@@ -167,31 +221,34 @@ export class MsSqlView<
 	}
 }
 
-export type MsSqlViewWithSelection<
-	TName extends string,
-	TExisting extends boolean,
-	TSelectedFields extends ColumnsSelection,
-> = MsSqlView<TName, TExisting, TSelectedFields> & TSelectedFields;
+export type MsSqlViewWithSelection<T extends ViewConfig> = MsSqlView<T> & T['selectedFields'];
+
+/**
+ * Any SQL Server view with a specified boundary, e.g. `AnyMsSqlView<{ name: 'my_view' }>`.
+ *
+ * To describe any view with any config, use `MsSqlView` without type arguments.
+ */
+export type AnyMsSqlView<TPartial extends Partial<ViewConfig> = {}> = MsSqlView<UpdateViewConfig<ViewConfig, TPartial>>;
 
 /** @internal */
-export function mssqlViewWithSchema(
+export function mssqlViewWithSchema<TSchema extends string | undefined>(
 	name: string,
 	selection: Record<string, ColumnBuilderBase> | undefined,
-	schema: string | undefined,
+	schema: TSchema,
 	casing: Casing | undefined,
-): ViewBuilder | ManualViewBuilder {
+): ViewBuilder<string, TSchema> | ManualViewBuilder<string, Record<string, ColumnBuilderBase>, TSchema> {
 	if (selection) {
 		return new ManualViewBuilder(name, selection, schema, casing);
 	}
 	return new ViewBuilder(name, schema);
 }
 
-export interface MsSqlViewFn {
-	<TName extends string>(name: TName): ViewBuilder<TName>;
+export interface MsSqlViewFn<TSchema extends string | undefined = undefined> {
+	<TName extends string>(name: TName): ViewBuilder<TName, TSchema>;
 	<TName extends string, TColumns extends Record<string, ColumnBuilderBase>>(
 		name: TName,
 		columns: TColumns,
-	): ManualViewBuilder<TName, TColumns>;
+	): ManualViewBuilder<TName, TColumns, TSchema>;
 }
 
 /** @internal */

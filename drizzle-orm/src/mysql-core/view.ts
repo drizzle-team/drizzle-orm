@@ -6,6 +6,7 @@ import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
+import type { UpdateViewConfig, ViewConfig } from '~/view.ts';
 import type { MySqlColumn } from './columns/index.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
 import { mysqlTableWithSchema } from './table.ts';
@@ -18,7 +19,10 @@ export interface ViewBuilderConfig {
 	withCheckOption?: 'cascaded' | 'local';
 }
 
-export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }> {
+export class ViewBuilderCore<
+	TConfig extends { name: string; columns?: unknown },
+	TSchema extends string | undefined = undefined,
+> {
 	static readonly [entityKind]: string = 'MySqlViewBuilder';
 
 	declare readonly _: {
@@ -28,7 +32,7 @@ export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }
 
 	constructor(
 		protected name: TConfig['name'],
-		protected schema: string | undefined,
+		protected schema: TSchema,
 	) {}
 
 	protected config: ViewBuilderConfig = {};
@@ -55,12 +59,23 @@ export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }
 	}
 }
 
-export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<{ name: TName }> {
+export class ViewBuilder<
+	TName extends string = string,
+	TSchema extends string | undefined = undefined,
+> extends ViewBuilderCore<{ name: TName }, TSchema> {
 	static override readonly [entityKind]: string = 'MySqlViewBuilder';
 
 	as<TSelectedFields extends ColumnsSelection>(
 		qb: TypedQueryBuilder<TSelectedFields> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelectedFields>),
-	): MySqlViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName, 'mysql'>> {
+	): MySqlViewWithSelection<
+		{
+			name: TName;
+			schema: TSchema;
+			existing: false;
+			isAlias: false;
+			selectedFields: AddAliasToSelection<TSelectedFields, TName, 'mysql'>;
+		}
+	> {
 		if (typeof qb === 'function') {
 			qb = qb(new QueryBuilder());
 		}
@@ -82,14 +97,23 @@ export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<
 				},
 			}),
 			selectionProxy as any,
-		) as MySqlViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName, 'mysql'>>;
+		) as MySqlViewWithSelection<
+			{
+				name: TName;
+				schema: TSchema;
+				existing: false;
+				isAlias: false;
+				selectedFields: AddAliasToSelection<TSelectedFields, TName, 'mysql'>;
+			}
+		>;
 	}
 }
 
 export class ManualViewBuilder<
 	TName extends string = string,
 	TColumns extends Record<string, ColumnBuilderBase> = Record<string, ColumnBuilderBase>,
-> extends ViewBuilderCore<{ name: TName; columns: TColumns }> {
+	TSchema extends string | undefined = undefined,
+> extends ViewBuilderCore<{ name: TName; columns: TColumns }, TSchema> {
 	static override readonly [entityKind]: string = 'MySqlManualViewBuilder';
 
 	private columns: Record<string, MySqlColumn>;
@@ -97,7 +121,7 @@ export class ManualViewBuilder<
 	constructor(
 		name: TName,
 		columns: TColumns,
-		schema: string | undefined,
+		schema: TSchema,
 		casing: Casing | undefined,
 	) {
 		super(name, schema);
@@ -108,7 +132,15 @@ export class ManualViewBuilder<
 		>;
 	}
 
-	existing(): MySqlViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'mysql'>> {
+	existing(): MySqlViewWithSelection<
+		{
+			name: TName;
+			schema: TSchema;
+			existing: true;
+			isAlias: false;
+			selectedFields: BuildColumns<TName, TColumns, 'mysql'>;
+		}
+	> {
 		return new Proxy(
 			new MySqlView({
 				mysqlConfig: undefined,
@@ -125,10 +157,28 @@ export class ManualViewBuilder<
 				sqlAliasedBehavior: 'alias',
 				replaceOriginalName: true,
 			}),
-		) as MySqlViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'mysql'>>;
+		) as MySqlViewWithSelection<
+			{
+				name: TName;
+				schema: TSchema;
+				existing: true;
+				isAlias: false;
+				selectedFields: BuildColumns<TName, TColumns, 'mysql'>;
+			}
+		>;
 	}
 
-	as(query: SQL): MySqlViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'mysql'>> {
+	as(
+		query: SQL,
+	): MySqlViewWithSelection<
+		{
+			name: TName;
+			schema: TSchema;
+			existing: false;
+			isAlias: false;
+			selectedFields: BuildColumns<TName, TColumns, 'mysql'>;
+		}
+	> {
 		return new Proxy(
 			new MySqlView({
 				mysqlConfig: this.config,
@@ -145,15 +195,19 @@ export class ManualViewBuilder<
 				sqlAliasedBehavior: 'alias',
 				replaceOriginalName: true,
 			}),
-		) as MySqlViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'mysql'>>;
+		) as MySqlViewWithSelection<
+			{
+				name: TName;
+				schema: TSchema;
+				existing: false;
+				isAlias: false;
+				selectedFields: BuildColumns<TName, TColumns, 'mysql'>;
+			}
+		>;
 	}
 }
 
-export class MySqlView<
-	TName extends string = string,
-	TExisting extends boolean = boolean,
-	TSelectedFields extends ColumnsSelection = ColumnsSelection,
-> extends MySqlViewBase<TName, TExisting, TSelectedFields> {
+export class MySqlView<T extends ViewConfig = ViewConfig> extends MySqlViewBase<T> {
 	static override readonly [entityKind]: string = 'MySqlView';
 
 	declare protected $MySqlViewBrand: 'MySqlView';
@@ -163,8 +217,8 @@ export class MySqlView<
 	constructor({ mysqlConfig, config }: {
 		mysqlConfig: ViewBuilderConfig | undefined;
 		config: {
-			name: TName;
-			schema: string | undefined;
+			name: T['name'];
+			schema: T['schema'];
 			selectedFields: ColumnsSelection;
 			query: SQL | undefined;
 		};
@@ -174,31 +228,34 @@ export class MySqlView<
 	}
 }
 
-export type MySqlViewWithSelection<
-	TName extends string,
-	TExisting extends boolean,
-	TSelectedFields extends ColumnsSelection,
-> = MySqlView<TName, TExisting, TSelectedFields> & TSelectedFields;
+export type MySqlViewWithSelection<T extends ViewConfig> = MySqlView<T> & T['selectedFields'];
+
+/**
+ * Any MySQL view with a specified boundary, e.g. `AnyMySqlView<{ name: 'my_view' }>`.
+ *
+ * To describe any view with any config, use `MySqlView` without type arguments.
+ */
+export type AnyMySqlView<TPartial extends Partial<ViewConfig> = {}> = MySqlView<UpdateViewConfig<ViewConfig, TPartial>>;
 
 /** @internal */
-export function mysqlViewWithSchema(
+export function mysqlViewWithSchema<TSchema extends string | undefined>(
 	name: string,
 	selection: Record<string, ColumnBuilderBase> | undefined,
-	schema: string | undefined,
+	schema: TSchema,
 	casing: Casing | undefined,
-): ViewBuilder | ManualViewBuilder {
+): ViewBuilder<string, TSchema> | ManualViewBuilder<string, Record<string, ColumnBuilderBase>, TSchema> {
 	if (selection) {
 		return new ManualViewBuilder(name, selection, schema, casing);
 	}
 	return new ViewBuilder(name, schema);
 }
 
-export interface MySqlViewFn {
-	<TName extends string>(name: TName): ViewBuilder<TName>;
+export interface MySqlViewFn<TSchema extends string | undefined = undefined> {
+	<TName extends string>(name: TName): ViewBuilder<TName, TSchema>;
 	<TName extends string, TColumns extends Record<string, ColumnBuilderBase>>(
 		name: TName,
 		columns: TColumns,
-	): ManualViewBuilder<TName, TColumns>;
+	): ManualViewBuilder<TName, TColumns, TSchema>;
 }
 
 /** @internal */

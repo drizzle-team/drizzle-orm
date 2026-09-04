@@ -556,6 +556,10 @@ test('Column as decoder applies codecs', async ({ createDB, push }) => {
 			...getColumns(users),
 			max: max(users.createdAt).as('max'),
 			maxStr: max(users.createdAtStr).as('max_str'),
+			sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+			sqAliased: qb.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+			sqTag: qb.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+				.as('sq_tag'),
 		}).from(users).groupBy(users.id, users.name, users.createdAt, users.createdAtStr, users.cus)
 	);
 
@@ -591,6 +595,10 @@ test('Column as decoder applies codecs', async ({ createDB, push }) => {
 		...getColumns(users),
 		max: max(users.createdAt).as('max'),
 		maxStr: max(users.createdAtStr).as('max_str'),
+		sq: db.select({ createdAt: users.createdAt }).from(users).as('sq'),
+		sqAliased: db.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+		sqTag: db.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+			.as('sq_tag'),
 	}).from(users).groupBy(users.id, users.name, users.createdAt, users.createdAtStr, users.cus);
 
 	const viewRes = await db.select().from(usersView);
@@ -624,15 +632,24 @@ test('Column as decoder applies codecs', async ({ createDB, push }) => {
 		cus: exDate,
 	};
 	const expectedRow = { ...expectedCols, max: exDate, maxStr: exDateStr };
+	const expectedViewRow = { ...expectedRow, sq: exDate, sqAliased: exDate, sqTag: 'tag-1' };
 
-	expect(res).toStrictEqual([expectedRow]);
-	expect(viewRes).toStrictEqual([expectedRow]);
+	expect(res).toStrictEqual([expectedViewRow]);
+	expect(viewRes).toStrictEqual([expectedViewRow]);
 
 	expect(customCast).toBeTruthy();
 	expect(customMap).toBeTruthy();
 
 	expect(nested).toStrictEqual({ ...expectedRow, self: expectedRow });
-	expect(viewNested).toStrictEqual({ ...expectedRow, self: expectedRow });
+
+	type ViewRow = typeof usersView.$inferSelect;
+	type ViewNestedRow = {
+		[K in keyof (ViewRow & { self: ViewRow | null })]: (ViewRow & { self: ViewRow | null })[K];
+	};
+
+	expectTypeOf(viewNested).toEqualTypeOf<ViewNestedRow | undefined>();
+
+	expect(viewNested).toStrictEqual({ ...expectedViewRow, self: expectedViewRow });
 });
 
 test('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }) => {
@@ -670,6 +687,10 @@ test('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }
 			...getColumns(users),
 			max: max(users.createdAt).as('max'),
 			maxStr: max(users.createdAtStr).as('max_str'),
+			sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+			sqAliased: qb.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+			sqTag: qb.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+				.as('sq_tag'),
 		}).from(users).groupBy(users.id, users.name, users.createdAt, users.createdAtStr, users.cus)
 	);
 
@@ -705,6 +726,10 @@ test('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }
 		...getColumns(users),
 		max: max(users.createdAt).as('max'),
 		maxStr: max(users.createdAtStr).as('max_str'),
+		sq: db.select({ createdAt: users.createdAt }).from(users).as('sq'),
+		sqAliased: db.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+		sqTag: db.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+			.as('sq_tag'),
 	}).from(users).groupBy(users.id, users.name, users.createdAt, users.createdAtStr, users.cus);
 
 	const viewRes = await db.select().from(usersView);
@@ -738,15 +763,24 @@ test('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }
 		cus: exDate,
 	};
 	const expectedRow = { ...expectedCols, max: exDate, maxStr: exDateStr };
+	const expectedViewRow = { ...expectedRow, sq: exDate, sqAliased: exDate, sqTag: 'tag-1' };
 
-	expect(res).toStrictEqual([expectedRow]);
-	expect(viewRes).toStrictEqual([expectedRow]);
+	expect(res).toStrictEqual([expectedViewRow]);
+	expect(viewRes).toStrictEqual([expectedViewRow]);
 
 	expect(customCast).toBeTruthy();
 	expect(customMap).toBeTruthy();
 
 	expect(nested).toStrictEqual({ ...expectedRow, self: expectedRow });
-	expect(viewNested).toStrictEqual({ ...expectedRow, self: expectedRow });
+
+	type ViewRow = typeof usersView.$inferSelect;
+	type ViewNestedRow = {
+		[K in keyof (ViewRow & { self: ViewRow | null })]: (ViewRow & { self: ViewRow | null })[K];
+	};
+
+	expectTypeOf(viewNested).toEqualTypeOf<ViewNestedRow | undefined>();
+
+	expect(viewNested).toStrictEqual({ ...expectedViewRow, self: expectedViewRow });
 });
 
 test('Mappers: correct mappers enabled', async ({ db, createDB }) => {

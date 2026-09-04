@@ -7,6 +7,7 @@ import { Table, TableSchema } from '~/table.ts';
 import { throwUnknownExtraConfigValue } from '~/table.utils.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import type { ViewConfig } from '~/view.ts';
 import { type Check, CheckBuilder } from './checks.ts';
 import type { PgCodecs } from './codecs.ts';
 import { type ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
@@ -84,20 +85,14 @@ export function extractUsedTable(table: PgTable | Subquery | PgViewBase | SQL): 
 	return [];
 }
 
-export function getViewConfig<
-	TName extends string = string,
-	TExisting extends boolean = boolean,
->(view: PgView<TName, TExisting>) {
+export function getViewConfig<T extends ViewConfig = ViewConfig>(view: PgView<T>) {
 	return {
 		...view[ViewBaseConfig],
 		...view[PgViewConfig],
 	};
 }
 
-export function getMaterializedViewConfig<
-	TName extends string = string,
-	TExisting extends boolean = boolean,
->(view: PgMaterializedView<TName, TExisting>) {
+export function getMaterializedViewConfig<T extends ViewConfig = ViewConfig>(view: PgMaterializedView<T>) {
 	return {
 		...view[ViewBaseConfig],
 		...view[PgMaterializedViewConfig],

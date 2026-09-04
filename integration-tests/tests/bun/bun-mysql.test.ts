@@ -7558,6 +7558,9 @@ test('Column as decoder applies codecs', async () => {
 			max: max(users.createdAt).as('max'),
 			maxStr: max(users.createdAtStr).as('max_str'),
 			sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+			sqAliased: qb.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+			sqTag: qb.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+				.as('sq_tag'),
 		}).from(users).groupBy(users.id)
 	);
 
@@ -7597,6 +7600,9 @@ test('Column as decoder applies codecs', async () => {
 		max: max(users.createdAt).as('max'),
 		maxStr: max(users.createdAtStr).as('max_str'),
 		sq: db.select({ createdAt: users.createdAt }).from(users).as('sq'),
+		sqAliased: db.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+		sqTag: db.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+			.as('sq_tag'),
 	}).from(users).groupBy(users.id);
 
 	const viewRes = await db.select().from(usersView);
@@ -7617,15 +7623,8 @@ test('Column as decoder applies codecs', async () => {
 	});
 
 	const viewNested = await db.query.usersView.findFirst({
-		columns: {
-			sq: false, // TODO: re-enable when supported in RQBv2
-		},
 		with: {
-			self: {
-				columns: {
-					sq: false, // TODO: re-enable when supported in RQBv2
-				},
-			},
+			self: true,
 		},
 	});
 
@@ -7638,6 +7637,8 @@ test('Column as decoder applies codecs', async () => {
 			max: exDate,
 			maxStr: exDateStr,
 			sq: exDate,
+			sqAliased: exDate,
+			sqTag: 'tag-1',
 			cus: exDate,
 		},
 	]);
@@ -7650,6 +7651,8 @@ test('Column as decoder applies codecs', async () => {
 			max: exDate,
 			maxStr: exDateStr,
 			sq: exDate,
+			sqAliased: exDate,
+			sqTag: 'tag-1',
 			cus: exDate,
 		},
 	]);
@@ -7677,6 +7680,14 @@ test('Column as decoder applies codecs', async () => {
 			},
 		},
 	);
+
+	type ViewRow = typeof usersView.$inferSelect;
+	type ViewNestedRow = {
+		[K in keyof (ViewRow & { self: ViewRow | null })]: (ViewRow & { self: ViewRow | null })[K];
+	};
+
+	expectTypeOf(viewNested).toEqualTypeOf<ViewNestedRow | undefined>();
+
 	expect(viewNested).toStrictEqual(
 		{
 			id: 1,
@@ -7686,6 +7697,9 @@ test('Column as decoder applies codecs', async () => {
 			max: exDate,
 			maxStr: exDateStr,
 			cus: exDate,
+			sq: exDate,
+			sqAliased: exDate,
+			sqTag: 'tag-1',
 			self: {
 				id: 1,
 				name: 'First',
@@ -7694,6 +7708,9 @@ test('Column as decoder applies codecs', async () => {
 				max: exDate,
 				maxStr: exDateStr,
 				cus: exDate,
+				sq: exDate,
+				sqAliased: exDate,
+				sqTag: 'tag-1',
 			},
 		},
 	);
@@ -7735,6 +7752,9 @@ test('Column as decoder applies codecs - Jit mappers', async () => {
 			max: max(users.createdAt).as('max'),
 			maxStr: max(users.createdAtStr).as('max_str'),
 			sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+			sqAliased: qb.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+			sqTag: qb.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+				.as('sq_tag'),
 		}).from(users).groupBy(users.id)
 	);
 
@@ -7775,6 +7795,9 @@ test('Column as decoder applies codecs - Jit mappers', async () => {
 		max: max(users.createdAt).as('max'),
 		maxStr: max(users.createdAtStr).as('max_str'),
 		sq: db.select({ createdAt: users.createdAt }).from(users).as('sq'),
+		sqAliased: db.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+		sqTag: db.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+			.as('sq_tag'),
 	}).from(users).groupBy(users.id);
 
 	const viewRes = await db.select().from(usersView);
@@ -7795,15 +7818,8 @@ test('Column as decoder applies codecs - Jit mappers', async () => {
 	});
 
 	const viewNested = await db.query.usersView.findFirst({
-		columns: {
-			sq: false, // TODO: re-enable when supported in RQBv2
-		},
 		with: {
-			self: {
-				columns: {
-					sq: false, // TODO: re-enable when supported in RQBv2
-				},
-			},
+			self: true,
 		},
 	});
 
@@ -7816,6 +7832,8 @@ test('Column as decoder applies codecs - Jit mappers', async () => {
 			max: exDate,
 			maxStr: exDateStr,
 			sq: exDate,
+			sqAliased: exDate,
+			sqTag: 'tag-1',
 			cus: exDate,
 		},
 	]);
@@ -7828,6 +7846,8 @@ test('Column as decoder applies codecs - Jit mappers', async () => {
 			max: exDate,
 			maxStr: exDateStr,
 			sq: exDate,
+			sqAliased: exDate,
+			sqTag: 'tag-1',
 			cus: exDate,
 		},
 	]);
@@ -7855,6 +7875,14 @@ test('Column as decoder applies codecs - Jit mappers', async () => {
 			},
 		},
 	);
+
+	type ViewRow = typeof usersView.$inferSelect;
+	type ViewNestedRow = {
+		[K in keyof (ViewRow & { self: ViewRow | null })]: (ViewRow & { self: ViewRow | null })[K];
+	};
+
+	expectTypeOf(viewNested).toEqualTypeOf<ViewNestedRow | undefined>();
+
 	expect(viewNested).toStrictEqual(
 		{
 			id: 1,
@@ -7864,6 +7892,9 @@ test('Column as decoder applies codecs - Jit mappers', async () => {
 			max: exDate,
 			maxStr: exDateStr,
 			cus: exDate,
+			sq: exDate,
+			sqAliased: exDate,
+			sqTag: 'tag-1',
 			self: {
 				id: 1,
 				name: 'First',
@@ -7872,6 +7903,9 @@ test('Column as decoder applies codecs - Jit mappers', async () => {
 				max: exDate,
 				maxStr: exDateStr,
 				cus: exDate,
+				sq: exDate,
+				sqAliased: exDate,
+				sqTag: 'tag-1',
 			},
 		},
 	);

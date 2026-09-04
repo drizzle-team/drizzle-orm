@@ -1,7 +1,11 @@
 import type { CockroachColumn } from '~/cockroach-core/columns/index.ts';
 import type { CockroachTable, CockroachTableWithColumns } from '~/cockroach-core/table.ts';
 import type { CockroachViewBase } from '~/cockroach-core/view-base.ts';
-import type { CockroachViewWithSelection } from '~/cockroach-core/view.ts';
+import type {
+	CockroachMaterializedView,
+	CockroachMaterializedViewWithSelection,
+	CockroachViewWithSelection,
+} from '~/cockroach-core/view.ts';
 import type {
 	SelectedFields as SelectedFieldsBase,
 	SelectedFieldsFlat as SelectedFieldsFlatBase,
@@ -20,10 +24,11 @@ import type {
 	SelectResult,
 	SetOperator,
 } from '~/query-builders/select.types.ts';
-import type { ColumnsSelection, Placeholder, SQL, SQLWrapper, View } from '~/sql/sql.ts';
+import type { ColumnsSelection, Placeholder, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, DrizzleTypeError, Equal, ValidateShape, ValueOrArray } from '~/utils.ts';
+import type { UpdateViewConfig, View } from '~/view.ts';
 import type { CockroachPreparedQuery, PreparedQueryConfig } from '../session.ts';
 import type { CockroachSelectBase, CockroachSelectQueryBuilderBase } from './select.ts';
 
@@ -40,12 +45,22 @@ export type BuildAliasTable<TTable extends CockroachTable | View, TAlias extends
 		UpdateTableConfig<TTable['_'], {
 			name: TAlias;
 			columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias, 'cockroach'>;
+			isAlias: true;
 		}>
 	>
+	: TTable extends CockroachMaterializedView ? CockroachMaterializedViewWithSelection<
+			UpdateViewConfig<TTable['_'], {
+				name: TAlias;
+				selectedFields: MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias, 'cockroach'>;
+				isAlias: true;
+			}>
+		>
 	: TTable extends View ? CockroachViewWithSelection<
-			TAlias,
-			TTable['_']['existing'],
-			MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias, 'cockroach'>
+			UpdateViewConfig<TTable['_'], {
+				name: TAlias;
+				selectedFields: MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias, 'cockroach'>;
+				isAlias: true;
+			}>
 		>
 	: never;
 

@@ -97,6 +97,7 @@ export function pgTableWithSchema<
 	schema: TSchemaName;
 	columns: PgBuildColumns<TTableName, TColumnsMap>;
 	dialect: 'pg';
+	isAlias: false;
 }> {
 	const casingFn = getCasingFn(casing);
 	const rawTable = new PgTable<{
@@ -104,6 +105,7 @@ export function pgTableWithSchema<
 		schema: TSchemaName;
 		columns: PgBuildColumns<TTableName, TColumnsMap>;
 		dialect: 'pg';
+		isAlias: false;
 	}>(name, schema, baseName);
 
 	const parsedColumns: TColumnsMap = typeof columns === 'function' ? columns(getPgColumnBuilders()) : columns;
@@ -144,6 +146,7 @@ export function pgTableWithSchema<
 				schema: TSchemaName;
 				columns: PgBuildColumns<TTableName, TColumnsMap>;
 				dialect: 'pg';
+				isAlias: false;
 			}>;
 		},
 	}) as any;
@@ -163,6 +166,7 @@ export interface PgTableFnInternal<TSchema extends string | undefined = undefine
 		schema: TSchema;
 		columns: PgBuildColumns<TTableName, TColumnsMap>;
 		dialect: 'pg';
+		isAlias: false;
 	}>;
 
 	<
@@ -179,6 +183,7 @@ export interface PgTableFnInternal<TSchema extends string | undefined = undefine
 		schema: TSchema;
 		columns: PgBuildColumns<TTableName, TColumnsMap>;
 		dialect: 'pg';
+		isAlias: false;
 	}>;
 	/**
 	 * @deprecated The third parameter of pgTable is changing and will only accept an array instead of an object
@@ -216,6 +221,7 @@ export interface PgTableFnInternal<TSchema extends string | undefined = undefine
 		schema: TSchema;
 		columns: PgBuildColumns<TTableName, TColumnsMap>;
 		dialect: 'pg';
+		isAlias: false;
 	}>;
 
 	/**
@@ -252,6 +258,7 @@ export interface PgTableFnInternal<TSchema extends string | undefined = undefine
 		schema: TSchema;
 		columns: PgBuildColumns<TTableName, TColumnsMap>;
 		dialect: 'pg';
+		isAlias: false;
 	}>;
 }
 

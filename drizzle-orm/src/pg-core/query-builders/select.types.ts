@@ -6,7 +6,7 @@ import type {
 import type { PgColumn } from '~/pg-core/columns/index.ts';
 import type { PgTable, PgTableWithColumns } from '~/pg-core/table.ts';
 import type { PgViewBase } from '~/pg-core/view-base.ts';
-import type { PgViewWithSelection } from '~/pg-core/view.ts';
+import type { PgMaterializedView, PgMaterializedViewWithSelection, PgViewWithSelection } from '~/pg-core/view.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	AppendToNullabilityMap,
@@ -20,10 +20,11 @@ import type {
 	SelectResult,
 	SetOperator,
 } from '~/query-builders/select.types.ts';
-import type { ColumnsSelection, Placeholder, SQL, SQLWrapper, View } from '~/sql/sql.ts';
+import type { ColumnsSelection, Placeholder, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, DrizzleTypeError, Equal, ValidateShape, ValueOrArray } from '~/utils.ts';
+import type { UpdateViewConfig, View } from '~/view.ts';
 import type { PgSelectBase } from './select.ts';
 
 export interface PgSelectJoinConfig {
@@ -39,12 +40,22 @@ export type BuildAliasTable<TTable extends PgTable | View, TAlias extends string
 		UpdateTableConfig<TTable['_'], {
 			name: TAlias;
 			columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias, 'pg'>;
+			isAlias: true;
 		}>
 	>
+	: TTable extends PgMaterializedView ? PgMaterializedViewWithSelection<
+			UpdateViewConfig<TTable['_'], {
+				name: TAlias;
+				selectedFields: MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias, 'pg'>;
+				isAlias: true;
+			}>
+		>
 	: TTable extends View ? PgViewWithSelection<
-			TAlias,
-			TTable['_']['existing'],
-			MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias, 'pg'>
+			UpdateViewConfig<TTable['_'], {
+				name: TAlias;
+				selectedFields: MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias, 'pg'>;
+				isAlias: true;
+			}>
 		>
 	: never;
 

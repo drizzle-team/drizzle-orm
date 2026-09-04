@@ -1,14 +1,13 @@
 import type { CodecsCollection } from '~/codecs.ts';
 import { entityKind, is } from '~/entity.ts';
-import type { SelectResult } from '~/query-builders/select.types.ts';
 import { Subquery } from '~/subquery.ts';
-import { TableName } from '~/table.utils.ts';
 import { hasTelemetry, tracer } from '~/tracing.ts';
-import type { Assume, Equal } from '~/utils.ts';
+import type { Equal } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { View } from '~/view.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
-import { IsAlias, OriginalName, Table, TableColumns, TableSchema } from '../table.ts';
+import { IsAlias, Table } from '../table.ts';
 
 /**
  * This class is used to indicate a primitive param value that is used in `sql` tag.
@@ -857,9 +856,10 @@ export namespace SQL {
 export class Placeholder<TName extends string = string, TValue = any> implements SQLWrapper {
 	static readonly [entityKind]: string = 'Placeholder';
 
-	declare protected: TValue;
+	// Keep values as protected to avoid bleeding into autocomplete (ex.: relational queries' "where")
+	declare protected value: TValue;
 
-	constructor(readonly name: TName) {}
+	constructor(protected readonly name: TName) {}
 
 	getSQL(): SQL {
 		return new SQL([this]);
@@ -872,129 +872,51 @@ export function placeholder<TName extends string>(name: TName): Placeholder<TNam
 }
 
 export function fillPlaceholders(params: unknown[], values: Record<string, unknown>): unknown[] {
-	return params.map((p) => {
+	const filled: unknown[] = new Array(params.length);
+
+	for (let i = 0; i < params.length; ++i) {
+		const p = params[i]!;
+
 		if (is(p, Placeholder)) {
-			if (!(p.name in values)) {
-				throw new Error(`No value for placeholder "${p.name}" was provided`);
+			// Bypass Placeholder's field protection
+			const { name } = p as any as { name: string };
+			if (!(name in values)) {
+				throw new Error(`No value for placeholder "${name}" was provided`);
 			}
 
-			return values[p.name];
+			filled[i] = values[name];
+			continue;
 		}
 
 		if (is(p, Param) && is(p.value, Placeholder)) {
-			if (!(p.value.name in values)) {
-				throw new Error(`No value for placeholder "${p.value.name}" was provided`);
+			// Bypass Placeholder's field protection
+			const { name } = p.value as any as { name: string };
+
+			if (!(name in values)) {
+				throw new Error(`No value for placeholder "${name}" was provided`);
 			}
 
-			const value = values[p.value.name];
-			if (value === null) return value;
+			const value = values[name];
+			if (value === null) {
+				filled[i] = value;
+				continue;
+			}
 
 			const mapped = p.encoder.mapToDriverValue.isNoop
 				? value
 				: p.encoder.mapToDriverValue(value);
 
-			return p.codec ? p.codec(mapped) : mapped;
+			filled[i] = p.codec ? p.codec(mapped) : mapped;
+			continue;
 		}
 
-		return p;
-	});
+		filled[i] = p;
+	}
+
+	return filled;
 }
 
 export type ColumnsSelection = Record<string, unknown>;
-
-const IsDrizzleView = Symbol.for('drizzle:IsDrizzleView');
-
-export abstract class View<
-	TName extends string = string,
-	TExisting extends boolean = boolean,
-	TSelection extends ColumnsSelection = ColumnsSelection,
-> {
-	static readonly [entityKind]: string = 'View';
-
-	declare _: {
-		brand: 'View';
-		viewBrand: string;
-		name: TName;
-		existing: TExisting;
-		selectedFields: TSelection;
-	};
-
-	/** @internal */
-	[ViewBaseConfig]: {
-		name: TName;
-		originalName: TName;
-		schema: string | undefined;
-		selectedFields: ColumnsSelection;
-		isExisting: TExisting;
-		query: TExisting extends true ? undefined : SQL;
-		isAlias: boolean;
-	};
-
-	/** @internal */
-	[IsDrizzleView] = true;
-
-	/** @internal */
-	public get [TableName]() {
-		return this[ViewBaseConfig].name;
-	}
-
-	/** @internal */
-	public get [TableSchema]() {
-		return this[ViewBaseConfig].schema;
-	}
-
-	/** @internal */
-	public get [IsAlias]() {
-		return this[ViewBaseConfig].isAlias;
-	}
-
-	/** @internal */
-	public get [OriginalName]() {
-		return this[ViewBaseConfig].originalName;
-	}
-
-	/** @internal */
-	public get [TableColumns]() {
-		return (this[ViewBaseConfig].selectedFields) as any as Record<string, unknown>;
-	}
-
-	declare readonly $inferSelect: InferSelectViewModel<View<Assume<TName, string>, TExisting, TSelection>>;
-
-	constructor(
-		{ name, schema, selectedFields, query }: {
-			name: TName;
-			schema: string | undefined;
-			selectedFields: ColumnsSelection;
-			query: SQL | undefined;
-		},
-	) {
-		this[ViewBaseConfig] = {
-			name,
-			originalName: name,
-			schema,
-			selectedFields,
-			query: query as (TExisting extends true ? undefined : SQL),
-			isExisting: !query as TExisting,
-			isAlias: false,
-		};
-	}
-}
-
-export function isView(view: unknown): view is View {
-	return typeof view === 'object' && view !== null && IsDrizzleView in view;
-}
-
-export function getViewName<T extends View>(view: T): T['_']['name'] {
-	return view[ViewBaseConfig].name;
-}
-
-export type InferSelectViewModel<TView extends View> =
-	Equal<TView['_']['selectedFields'], { [x: string]: unknown }> extends true ? { [x: string]: unknown }
-		: SelectResult<
-			TView['_']['selectedFields'],
-			'single',
-			Record<TView['_']['name'], 'not-null'>
-		>;
 
 // Defined separately from the Column class to resolve circular dependency
 Column.prototype.getSQL = function() {
