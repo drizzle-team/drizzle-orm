@@ -27,7 +27,7 @@ import type {
 	View,
 } from './ddl';
 import { createDDL, tableFromDDL } from './ddl';
-import { defaults, defaultsCommutative, isSerialType } from './grammar';
+import { defaults, defaultsCommutative, existsInViewDef, isSerialType } from './grammar';
 import type { JsonAlterPrimaryKey, JsonRecreateIndex, JsonStatement } from './statements';
 import { prepareStatement } from './statements';
 
@@ -1284,38 +1284,31 @@ export const ddlDiff = async (
 
 	jsonStatements.push(...jsonAlterCheckConstraints);
 
-	const sortedCreateViews = createViews.sort((a, b) => {
-		// this sort fixes this issue: https://github.com/drizzle-team/drizzle-orm/issues/4520 and https://github.com/drizzle-team/drizzle-orm/issues/6176
-		// View1 can be recreated and other view2 was newly created. view2 depends on view1, need to sort them -> https://github.com/drizzle-team/drizzle-orm/issues/6176
-		// This caused dependent views to appear before their dependencies,
-		// which breaks migration
+	// Topological sort
+	// this sort fixes this issue: https://github.com/drizzle-team/drizzle-orm/issues/4520 and https://github.com/drizzle-team/drizzle-orm/issues/6176
+	// View1 can be recreated and other view2 was newly created. view2 depends on view1, need to sort them -> https://github.com/drizzle-team/drizzle-orm/issues/6176
+	// Dependent views must be created after their dependencies, otherwise the migration breaks
+	//
+	// `view2` depends on `view1` when `view1`'s (schema-qualified) name appears in `view2`'s definition
+	// Other dialects do this in drizzle.ts files
+	// TODO we have some tests on it in pg-views.test.ts
+	// but probably we should move this to function and test the function
+	const sortedCreateViews: typeof createViews[number][] = [];
+	const visited = new Set<typeof createViews[number]>();
+	const onStack = new Set<typeof createViews[number]>();
+	const visit = (node: typeof createViews[number]) => {
+		if (visited.has(node) || onStack.has(node)) return; // onStack guards against dependency cycles
+		onStack.add(node);
+		for (const other of createViews) {
+			// `node` depends on `other` when `other`'s name appears in `node`'s definition
+			if (other !== node && existsInViewDef(other.view, node.view)) visit(other);
+		}
+		onStack.delete(node);
+		visited.add(node);
+		sortedCreateViews.push(node);
+	};
+	for (const node of createViews) visit(node);
 
-		const existInDef = (
-			view1: { name: string; schema: string },
-			view2: { name: string; schema: string; definition: string | null },
-		) => {
-			const candidates = view1.schema !== 'public'
-				? [
-					`${view1.schema}"."${view1.name}"."`, // "schema"."view"
-					`${view1.schema}."${view1.name}`, // schema."view"
-					`${view1.schema}".${view1.name}`, // "schema".view
-					`${view1.schema}.${view1.name}`, // schema.view
-				]
-				: [
-					view1.name, // bare view name
-				];
-
-			return candidates.some((candidate) => view2.definition?.includes(candidate));
-		};
-
-		// If a's fields include b, a depends on b -> b comes first
-		if (existInDef(b.view, a.view)) return 1;
-
-		// If b's fields include a, b depends on a -> a comes first
-		if (existInDef(a.view, b.view)) return -1;
-
-		return 0;
-	});
 	jsonStatements.push(...sortedCreateViews);
 
 	jsonStatements.push(...jsonRenamePoliciesStatements);

@@ -23,7 +23,6 @@ import {
 	parseDefault,
 	parseSqliteDdl,
 	parseSqliteFks,
-	parseTableSQL,
 	parseViewSQL,
 	sqlTypeFrom,
 } from './grammar';
@@ -263,22 +262,26 @@ export const fromDatabase = async (
 		seq: string;
 		cid: number;
 	}>(`
-		SELECT 
-			m.tbl_name as "table",
-			m.sql,
-			il.name as "name",
-			ii.name as "column",
-			il.[unique] as "isUnique",
-			il.origin,
-			il.seq,
-			ii.cid
-		FROM sqlite_master AS m,
-			pragma_index_list(m.name) AS il,
-			pragma_index_info(il.name) AS ii
-		WHERE 
-			m.type = 'table' 
-			and m.tbl_name != '_cf_KV'
-		ORDER BY m.name COLLATE NOCASE;
+		SELECT
+    m.tbl_name    AS "table",
+    il.name       AS "name",
+    idx.sql       AS "sql",
+    ii.name       AS "column",
+    il."unique"   AS "isUnique",
+    il.origin,
+    il.partial,
+    il.seq,
+    ii.seqno,
+    ii.cid
+FROM sqlite_master AS m
+JOIN pragma_index_list(m.name)  AS il
+JOIN pragma_index_info(il.name) AS ii
+LEFT JOIN sqlite_master AS idx
+       ON idx.type = 'index'
+      AND idx.name = il.name
+WHERE m.type = 'table'
+  AND m.tbl_name != '_cf_KV'
+ORDER BY m.name COLLATE NOCASE, il.seq, ii.seqno;
 	`).then((indexes) => {
 		queryCallback('indexes', indexes, null);
 		return indexes.filter((it) => filter({ type: 'table', schema: false, name: it.table }));
@@ -615,7 +618,7 @@ export const fromDatabase = async (
 
 	const checks: CheckConstraint[] = [];
 	for (const [table, sql] of Object.entries(tablesToSQL)) {
-		const res = parseTableSQL(sql);
+		const res = parseSqliteDdl(sql);
 		for (const it of res.checks) {
 			const { name, value } = it;
 

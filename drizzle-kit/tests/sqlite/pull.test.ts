@@ -629,12 +629,18 @@ test('Issue No3407', async () => {
                 );
                 `);
 
+	await db.run(`CREATE TABLE users3 (
+  id       TEXT PRIMARY KEY,
+  -- CHECK (userType IN ('anonymous', 'emailPassword'))
+  userType TEXT NOT NULL
+);`);
+
 	const {
 		sqlStatements,
 		statements,
 		ddlAfterPull,
 		resultDdl,
-	} = await diffAfterPull(sqlite, {}, 'Issue #4307');
+	} = await diffAfterPull(sqlite, {}, 'Issue #3407');
 
 	expect(sqlStatements).toStrictEqual([]);
 	expect(statements).toStrictEqual([]);
@@ -800,6 +806,114 @@ test('Issue No6182', async () => {
 			notNull: true,
 			table: 'session_prompt',
 			type: 'numeric',
+		},
+	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6195
+test('Issue No6195', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	await db.run(`CREATE TABLE t (a TEXT CHECK(a <> ''), b INTEGER, CHECK (b > 0));`);
+	await db.run(`CREATE TABLE two (a INTEGER, CHECK (  a >
+		 0), CHECK (a < 10));`);
+	await db.run(`CREATE TABLE multi (b INTEGER, CHECK (
+  b > 0
+));`);
+
+	const { ddlAfterPull, initDDL, resultDdl, sqlStatements, statements } = await diffAfterPull(
+		sqlite,
+		{},
+		'Issue #6195',
+	);
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.checks.list({ table: 't' })).toStrictEqual([{
+		entityType: 'checks',
+		name: 't_check_1',
+		table: 't',
+		value: "a <> ''",
+	}, {
+		entityType: 'checks',
+		name: 't_check_2',
+		table: 't',
+		value: 'b > 0',
+	}]);
+	expect(ddlAfterPull.checks.list({ table: 'two' })).toStrictEqual([
+		{
+			entityType: 'checks',
+			name: 'two_check_3',
+			table: 'two',
+			value: 'a > 0',
+		},
+		{
+			entityType: 'checks',
+			name: 'two_check_4',
+			table: 'two',
+			value: 'a < 10',
+		},
+	]);
+	expect(ddlAfterPull.checks.list({ table: 'multi' })).toStrictEqual([
+		{
+			entityType: 'checks',
+			name: 'multi_check_5',
+			table: 'multi',
+			value: 'b > 0',
+		},
+	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6223
+test('Issue No6223', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	await db.run(
+		`CREATE TABLE table1 (id INTEGER PRIMARY KEY, code TEXT NOT NULL, note TEXT DEFAULT 'ask where it came from');`,
+	);
+	await db.run(`CREATE INDEX index1 ON table1 (code);`);
+
+	await db.run(`CREATE TABLE table2 (id INTEGER PRIMARY KEY, code TEXT NOT NULL, status TEXT);`);
+	await db.run(`CREATE UNIQUE INDEX index2 ON table2 (code) WHERE status = 'active';`);
+
+	const { ddlAfterPull, initDDL, resultDdl, sqlStatements, statements } = await diffAfterPull(
+		sqlite,
+		{},
+		'Issue #6223',
+	);
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.indexes.list()).toStrictEqual([
+		{
+			columns: [
+				{
+					isExpression: false,
+					value: 'code',
+				},
+			],
+			entityType: 'indexes',
+			isUnique: false,
+			name: 'index1',
+			origin: 'manual',
+			table: 'table1',
+			where: null,
+		},
+		{
+			columns: [
+				{
+					isExpression: false,
+					value: 'code',
+				},
+			],
+			entityType: 'indexes',
+			isUnique: true,
+			name: 'index2',
+			origin: 'manual',
+			table: 'table2',
+			where: "status = 'active'",
 		},
 	]);
 });

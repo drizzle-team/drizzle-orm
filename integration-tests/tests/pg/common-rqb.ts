@@ -6,6 +6,7 @@ import {
 	decimal,
 	index,
 	integer,
+	jsonb,
 	numeric,
 	pgEnum,
 	pgTable,
@@ -1441,5 +1442,31 @@ export function tests(test: Test) {
 
 		await db.execute(sql`DROP TABLE IF EXISTS ${posts};`);
 		await db.execute(sql`DROP TABLE IF EXISTS ${users};`);
+	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/2279
+	test.concurrent('Issue No2279', async ({ createDB, push }) => {
+		const corrupt_jsonb_demo = pgTable('corrupt_jsonb_demo', {
+			id: serial('id').primaryKey(),
+			data: jsonb('data').$type<{ [key: string]: any }>().notNull(),
+		});
+
+		const db = createDB({ corrupt_jsonb_demo });
+
+		await push({ corrupt_jsonb_demo });
+
+		await db.execute(sql`INSERT INTO corrupt_jsonb_demo (data) VALUES ('{"a": 1}');`);
+
+		const [res] = await db.select().from(corrupt_jsonb_demo);
+		await db
+			.update(corrupt_jsonb_demo)
+			.set({
+				data: res?.data,
+			})
+			.where(eq(corrupt_jsonb_demo.id, res!.id));
+
+		const res2 = await db.select().from(corrupt_jsonb_demo);
+
+		expect(res2).toStrictEqual([{ id: 1, data: { a: 1 } }]);
 	});
 }
