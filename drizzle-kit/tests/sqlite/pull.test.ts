@@ -470,6 +470,30 @@ test('introspect unique constraint', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6159
+test('introspect unique index mixing an expression with a column', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+	await db.run(
+		'CREATE TABLE `users`(`id` integer primary key, `email` text not null, `type` text not null);',
+	);
+	await db.run('CREATE UNIQUE INDEX `idx_c` ON `users` (`type`, lower(`email`));');
+
+	const schema = await fromDatabaseForDrizzle(db, () => true, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
+
+	// A unique index whose keys mix an expression with a plain column is still
+	// introspected as an index. It can't be promoted to a unique constraint,
+	// because constraints reference plain columns only — but it must not crash
+	// the whole introspection.
+	const idx = schema.indexes.find((it) => it.name === 'idx_c');
+	expect(idx).toBeTruthy();
+	expect(idx?.isUnique).toBe(true);
+	expect(schema.uniques.find((it) => it.name === 'idx_c')).toBeUndefined();
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/3047
 test('create table with custom type column', async (t) => {
 	const sqlite = new Database(':memory:');
