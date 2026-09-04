@@ -8,6 +8,7 @@ import type { ColumnsSelection } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
 import type { PgInsertHKTBase } from '../query-builders/insert.ts';
 import { PgInsertBase } from '../query-builders/insert.ts';
+import { createPgReturningOldNewMapper } from '../query-builders/returning.ts';
 import { extractUsedTable } from '../utils.ts';
 import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
 
@@ -93,7 +94,12 @@ export class PgEffectInsertBase<
 		const { returning: fields } = config;
 
 		const query = dialect.sqlToQuery(this.getSQL());
-		const mapper = fields
+		const mapper = config.returningOldNew && fields
+			? createPgReturningOldNewMapper(
+				this.dialect.mapperGenerators.rows(fields, undefined)!,
+				config.returningOldNew,
+			)
+			: fields
 			? this.dialect.mapperGenerators.rows(fields, undefined)
 			: undefined;
 
