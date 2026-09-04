@@ -21,6 +21,7 @@ import {
 	nameForPk,
 	nameForUnique,
 	parseDefault,
+	parseIndexWhere,
 	parseSqliteDdl,
 	parseSqliteFks,
 	parseTableSQL,
@@ -256,6 +257,8 @@ export const fromDatabase = async (
 	const dbIndexes = await db.query<{
 		table: string;
 		sql: string;
+		indexSql: string | null;
+		isPartial: number;
 		name: string;
 		column: string;
 		isUnique: number;
@@ -266,6 +269,11 @@ export const fromDatabase = async (
 		SELECT 
 			m.tbl_name as "table",
 			m.sql,
+			(
+				SELECT im.sql FROM sqlite_master AS im
+				WHERE im.type = 'index' AND im.name = il.name
+			) as "indexSql",
+			il.partial as "isPartial",
 			il.name as "name",
 			ii.name as "column",
 			il.[unique] as "isUnique",
@@ -332,8 +340,8 @@ export const fromDatabase = async (
 
 	const tableToIndexColumns = dbIndexes.reduce(
 		(acc, it) => {
-			const whereIdx = it.sql.toLowerCase().indexOf(' where ');
-			const where = whereIdx < 0 ? null : it.sql.slice(whereIdx + 7);
+			// `it.sql` is the table's CREATE TABLE — the predicate lives on the index's own DDL
+			const where = it.isPartial === 1 && it.indexSql ? parseIndexWhere(it.indexSql) : null;
 			const column = { value: it.column, isExpression: it.cid === -2 };
 			if (it.table in acc) {
 				if (it.name in acc[it.table]) {
@@ -634,7 +642,9 @@ export const fromDatabase = async (
 		for (const { columns, index } of Object.values(item).filter((it) => it.index.isUnique)) {
 			if (columns.length === 1) continue;
 			if (columns.some((it) => it.isExpression)) {
-				throw new Error(`unexpected unique index '${index.name}' with expression value: ${index.sql}`);
+				throw new Error(
+					`unexpected unique index '${index.name}' with expression value: ${index.indexSql ?? index.sql}`,
+				);
 			}
 
 			const origin = index.origin === 'u' || index.origin === 'pk' ? 'auto' : index.origin === 'c' ? 'manual' : null;

@@ -803,3 +803,37 @@ test('Issue No6182', async () => {
 		},
 	]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6223
+test('introspect partial index predicate', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	// the default holds " where " so a predicate read off the table's DDL leaks into the index
+	await db.run(
+		`CREATE TABLE t (
+			id INTEGER PRIMARY KEY,
+			code TEXT NOT NULL,
+			status TEXT,
+			note TEXT DEFAULT 'ask where it came from'
+		);`,
+	);
+	await db.run(`CREATE INDEX plain ON t (code);`);
+	await db.run(`CREATE UNIQUE INDEX partial ON t (code) WHERE status = 'active';`);
+	await db.run(`CREATE INDEX quoted ON t (note) WHERE note <> 'where';`);
+	await db.run(`CREATE INDEX expr ON t (lower(code), id) WHERE status = 'active';`);
+
+	const schema = await fromDatabaseForDrizzle(db, () => true, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
+	const { ddl, errors } = interimToDDL(schema);
+	expect(errors.length).toBe(0);
+
+	const whereOf = (name: string) => ddl.indexes.list().find((it) => it.name === name)?.where;
+
+	expect(whereOf('plain')).toBe(null);
+	expect(whereOf('partial')).toBe(`status = 'active'`);
+	expect(whereOf('quoted')).toBe(`note <> 'where'`);
+	expect(whereOf('expr')).toBe(`status = 'active'`);
+});
