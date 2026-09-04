@@ -463,6 +463,74 @@ export const parseTableSQL = (rawSql: string) => {
 	};
 };
 
+const isIdentifierChar = (char: string | undefined): boolean => char !== undefined && /[\w$]/.test(char);
+
+/**
+ * Extracts the predicate of a partial index from its own `CREATE INDEX ... WHERE ...` DDL.
+ *
+ * The predicate is whatever follows the `WHERE` that sits outside of any parentheses and after
+ * the indexed-column list, so a `where` inside a quoted identifier, a string literal or a column
+ * expression is never mistaken for the keyword. Returns `null` when the DDL carries no predicate.
+ */
+export const parseIndexWhere = (rawDdl: string): string | null => {
+	const ddl = stripSqlComments(rawDdl);
+	const len = ddl.length;
+	let depth = 0;
+	let columnsClosed = false;
+	let i = 0;
+
+	while (i < len) {
+		const char = ddl[i];
+
+		// string / identifier literals cannot hold the keyword — skip them whole
+		if (char === "'" || char === '"' || char === '`' || char === '[') {
+			const close = char === '[' ? ']' : char;
+			i++;
+			while (i < len) {
+				if (ddl[i] === close) {
+					// doubled quote escaping (e.g. '' inside a '...' literal)
+					if (close !== ']' && ddl[i + 1] === close) {
+						i += 2;
+						continue;
+					}
+					i++;
+					break;
+				}
+				i++;
+			}
+			continue;
+		}
+
+		if (char === '(') {
+			depth++;
+			i++;
+			continue;
+		}
+
+		if (char === ')') {
+			depth--;
+			if (depth === 0) columnsClosed = true;
+			i++;
+			continue;
+		}
+
+		if (
+			columnsClosed
+			&& depth === 0
+			&& (char === 'w' || char === 'W')
+			&& ddl.slice(i, i + 5).toLowerCase() === 'where'
+			&& !isIdentifierChar(ddl[i - 1])
+			&& !isIdentifierChar(ddl[i + 5])
+		) {
+			return ddl.slice(i + 5).trim() || null;
+		}
+
+		i++;
+	}
+
+	return null;
+};
+
 export const parseViewSQL = (sql: string) => {
 	const match = sql.match(viewAsStatementRegex);
 	return match ? match[1] : null;
