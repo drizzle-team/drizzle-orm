@@ -18,13 +18,12 @@ import {
 import { geometry as pgGeometry } from '@drizzle-team/minipg/geometry';
 import { getOriginalColumnFromAlias } from '~/alias.ts';
 import { Column } from '~/column.ts';
-import { entityKind, is, isAnyKindIn } from '~/entity.ts';
+import { is } from '~/entity.ts';
 import type { SelectedFieldsOrdered } from '~/operations.ts';
 import type { PostgresType } from '~/pg-core/codecs.ts';
 import type { PgColumn } from '~/pg-core/columns/common.ts';
 import type { PreparedQuerySelection } from '~/pg-core/dialect.ts';
-import { type DriverValueDecoder, noopDecoder, SQL, type SQLWrapper } from '~/sql/sql.ts';
-import { Subquery } from '~/subquery.ts';
+import { type DriverValueDecoder, noopDecoder } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
 import { getColumnFromDecoder, getColumns, orderSelectedFields } from '~/utils.ts';
 import type { View } from '~/view.ts';
@@ -105,41 +104,55 @@ function wireSpecFor(codecType: PostgresType, dimensions: number | undefined): W
 	return namedSpecFor(codecType, dimensions);
 }
 
+type PlainItem = SelectedFieldsOrdered<Column>[number];
 type RelationalSelection = Extract<PreparedQuerySelection, { type: 'relational' }>['fields'];
 type RelationalItem = RelationalSelection[number];
-type RelationalItemDecodedField = Exclude<RelationalItem['field'], Table | View>;
 
-function getDecoder(field: SelectedFieldsOrdered<Column>[number]['field']): DriverValueDecoder<any, any> {
-	if (is(field, Column)) return field;
-	if (is(field, SQL)) return field.decoder;
-	if (is(field, Subquery)) return field._.sql.decoder;
-	return field.sql.decoder;
-}
-
-function getSubqueryField(subquery: Subquery): Column | SQL | SQL.Aliased | undefined {
-	const innerField = Object.values(subquery._.selectedFields)[0];
-
-	return isAnyKindIn([Column[entityKind], SQL[entityKind], SQL.Aliased[entityKind]], innerField)
-		? innerField as Column | SQL | SQL.Aliased
-		: undefined;
-}
-
-function getRqbDecoder(field: RelationalItemDecodedField): DriverValueDecoder<any, any> {
-	if (is(field, Column)) return field;
-	if (is(field, Subquery)) {
-		const innerField = getSubqueryField(field);
-		return innerField ? getRqbDecoder(innerField) : noopDecoder;
+function getDecoder(item: PlainItem): DriverValueDecoder<any, any> {
+	switch (item.fieldType) {
+		case 'Column':
+			return item.field;
+		case 'SQL':
+			return item.field.decoder;
+		case 'SQL.Aliased':
+			return item.field.sql.decoder;
+		default:
+			return item.field._.sql.decoder;
 	}
-	return field.getSQL().decoder;
 }
 
-function getRqbColumn(field: RelationalItemDecodedField): Column | undefined {
-	if (is(field, Column)) return field;
-	if (is(field, Subquery)) {
-		const innerField = getSubqueryField(field);
-		return innerField ? getRqbColumn(innerField) : undefined;
+function getRqbDecoder(item: RelationalItem): DriverValueDecoder<any, any> {
+	switch (item.fieldType) {
+		case 'Column':
+			return item.field;
+		case 'SQL':
+			return item.field.decoder;
+		case 'SQL.Aliased':
+			return item.field.sql.decoder;
+		case 'Subquery':
+			return item.subqueryDecoder ?? noopDecoder;
+		case 'Nested':
+			return noopDecoder;
+		default:
+			return item.field.getSQL().decoder;
 	}
-	return getColumnFromDecoder(field as SQL | SQL.Aliased | SQLWrapper);
+}
+
+function getRqbColumn(item: RelationalItem): Column | undefined {
+	switch (item.fieldType) {
+		case 'Column':
+			return item.field;
+		case 'SQL':
+			return is(item.field.decoder, Column) ? item.field.decoder : undefined;
+		case 'SQL.Aliased':
+			return is(item.field.sql.decoder, Column) ? item.field.sql.decoder : undefined;
+		case 'Subquery':
+			return is(item.subqueryDecoder, Column) ? item.subqueryDecoder : undefined;
+		case 'Nested':
+			return undefined;
+		default:
+			return getColumnFromDecoder(item.field);
+	}
 }
 
 const transformCache = new WeakMap<object, Map<string, { codec: unknown; marker: TransformMarker }>>();
@@ -175,19 +188,6 @@ function memoizedTransform(
 	return marker;
 }
 
-function leafFor(
-	decoder: DriverValueDecoder<any, any>,
-	spec: WireSpec,
-	dimensions: number | undefined,
-): WireSpec | TransformMarker {
-	if (decoder.mapFromDriverValue.isNoop) return spec;
-
-	const key = is(decoder, Column) ? getOriginalColumnFromAlias(decoder) : decoder.mapFromDriverValue;
-	const decode = decoder.mapFromDriverValue.bind(decoder);
-
-	return memoizedTransform(key, spec, undefined, dimensions, () => Transform(spec as TypeSpec, decode));
-}
-
 function wireLeaf(
 	decoder: DriverValueDecoder<any, any>,
 	column: Column | undefined,
@@ -197,7 +197,12 @@ function wireLeaf(
 	const codecType = column ? (codecOverride ?? column.codec) as PostgresType | undefined : undefined;
 	const spec: WireSpec = codecType ? wireSpecFor(codecType, arrayDimensions) : 'unknown';
 
-	return leafFor(decoder, spec, arrayDimensions);
+	if (decoder.mapFromDriverValue.isNoop) return spec;
+
+	const key = is(decoder, Column) ? getOriginalColumnFromAlias(decoder) : decoder.mapFromDriverValue;
+	const decode = decoder.mapFromDriverValue.bind(decoder);
+
+	return memoizedTransform(key, spec, undefined, arrayDimensions, () => Transform(spec as TypeSpec, decode));
 }
 
 type ShapeEntry = ShapeValue;
@@ -245,8 +250,8 @@ function assembleGroupBody(
 
 const JSON_LEAF: TypeSpec = 'unknown';
 
-function jsonSpecForField(field: RelationalItemDecodedField, arrayDimensions: number | undefined): TypeSpec {
-	const codecType = getRqbColumn(field)?.codec as PostgresType | undefined;
+function jsonSpecForColumn(column: Column | undefined, arrayDimensions: number | undefined): TypeSpec {
+	const codecType = column?.codec as PostgresType | undefined;
 
 	if (!codecType) return JSON_LEAF;
 	// Parse jsons of unknown shape as 'unknown' type
@@ -259,15 +264,18 @@ function jsonLeafFor(item: RelationalItem): TypeSpec | TransformMarker {
 	const { field, codec, arrayDimensions } = item;
 
 	const mapFromJsonValue = (<{ mapFromJsonValue?: (value: unknown) => unknown }> field).mapFromJsonValue;
-	const decoder = getRqbDecoder(field as RelationalItemDecodedField);
+	const decoder = getRqbDecoder(item);
 	const isNoop = decoder.mapFromDriverValue.isNoop;
+	const column = getRqbColumn(item);
 
 	if (!mapFromJsonValue && !codec && isNoop) {
-		return jsonSpecForField(field as RelationalItemDecodedField, arrayDimensions);
+		return jsonSpecForColumn(column, arrayDimensions);
 	}
 
-	const spec = codec ? JSON_LEAF : jsonSpecForField(field as RelationalItemDecodedField, arrayDimensions);
-	const key = is(field, Column) ? getOriginalColumnFromAlias(field) : (mapFromJsonValue ?? decoder.mapFromDriverValue);
+	const spec = codec ? JSON_LEAF : jsonSpecForColumn(column, arrayDimensions);
+	const key = item.fieldType === 'Column'
+		? getOriginalColumnFromAlias(item.field)
+		: (mapFromJsonValue ?? decoder.mapFromDriverValue);
 	return memoizedTransform(key, spec, mapFromJsonValue ?? codec, arrayDimensions, () => {
 		const fn = mapFromJsonValue
 			? (value: any) => mapFromJsonValue(value)
@@ -282,10 +290,11 @@ function jsonLeafFor(item: RelationalItem): TypeSpec | TransformMarker {
 }
 
 function jsonSpecFor(selection: RelationalSelection): JsonSpec {
-	const spec: [string, TypeSpec | JsonMarker | TransformMarker][] = [];
+	const spec: [string, TypeSpec | JsonMarker | TransformMarker][] = new Array(selection.length);
 
-	for (const item of selection) {
-		spec.push([item.key, item.selection ? jsonMarkerFor(item) : jsonLeafFor(item)]);
+	for (let i = 0; i < selection.length; ++i) {
+		const item = selection[i]!;
+		spec[i] = [item.key, item.selection ? jsonMarkerFor(item) : jsonLeafFor(item)];
 	}
 
 	return spec;
@@ -297,24 +306,16 @@ function jsonMarkerFor(item: RelationalItem): JsonMarker {
 }
 
 function relationalShape(selection: RelationalSelection): ShapeEntries {
-	const root: [string, ShapeEntry][] = [];
+	const root: [string, ShapeEntry][] = new Array(selection.length);
 
-	for (const item of selection) {
-		if (item.selection) {
-			root.push([item.key, jsonMarkerFor(item)]);
-			continue;
-		}
-
-		const field = item.field as RelationalItemDecodedField;
-		root.push([
+	for (let i = 0; i < selection.length; ++i) {
+		const item = selection[i]!;
+		root[i] = [
 			item.key,
-			wireLeaf(
-				getRqbDecoder(field),
-				getRqbColumn(field),
-				undefined,
-				item.arrayDimensions,
-			),
-		]);
+			item.selection
+				? jsonMarkerFor(item)
+				: wireLeaf(getRqbDecoder(item), getRqbColumn(item), undefined, item.arrayDimensions),
+		];
 	}
 
 	return root;
@@ -334,8 +335,9 @@ export function buildShape(
 	const groups = new Map<string, PlainLeaf[]>();
 
 	for (let i = 0; i < fields.length; ++i) {
-		const { path, field, column, codecOverride, arrayDimensions } = fields[i]!;
-		const leaf = wireLeaf(getDecoder(field), column, codecOverride, arrayDimensions);
+		const item = fields[i]!;
+		const { path, column, codecOverride, arrayDimensions } = item;
+		const leaf = wireLeaf(getDecoder(item), column, codecOverride, arrayDimensions);
 
 		const key = path[0]!;
 		if (path.length === 1) {
