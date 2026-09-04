@@ -41,6 +41,9 @@ export class SingleStoreEnumColumn<T extends ColumnBaseConfig<'string enum'>>
 {
 	static override readonly [entityKind]: string = 'SingleStoreEnumColumn';
 
+	/** @internal */
+	override readonly codec = 'enum';
+
 	override readonly enumValues = this.config.enumValues;
 
 	getSQLType(): string {

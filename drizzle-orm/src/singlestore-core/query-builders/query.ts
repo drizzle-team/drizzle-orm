@@ -1,12 +1,12 @@
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import {
-	type BuildQueryResult,
-	type BuildRelationalQueryResult,
-	type DBQueryConfig,
-	makeDefaultRqbMapper,
-	type TableRelationalConfig,
-	type TablesRelationalConfig,
+import type {
+	BuildQueryResult,
+	BuildRelationalQueryResult,
+	DBQueryConfig,
+	RelationalRowsMapper,
+	TableRelationalConfig,
+	TablesRelationalConfig,
 } from '~/relations.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
@@ -70,6 +70,9 @@ export class SingleStoreRelationalQuery<
 > extends QueryPromise<TResult> {
 	static override readonly [entityKind]: string = 'SingleStoreRelationalQueryV2';
 
+	/** @internal */
+	protected mapper?: RelationalRowsMapper;
+
 	declare protected $brand: 'SingleStoreRelationalQuery';
 
 	constructor(
@@ -86,23 +89,16 @@ export class SingleStoreRelationalQuery<
 
 	prepare() {
 		const { query, builtQuery } = this._toSQL();
-		return this.session.prepareRelationalQuery(
+		return this.session.prepareQuery(
 			builtQuery,
-			undefined,
-			makeDefaultRqbMapper({
+			'objects',
+			this.mapper ??= this.dialect.mapperGenerators.relationalRows({
 				isFirst: this.mode === 'first',
 				parseJson: false,
 				parseJsonIfString: true,
-				rootJsonMappers: true,
+				rootJsonMappers: false,
 				selection: query.selection,
 			}),
-			{
-				isFirst: this.mode === 'first',
-				parseJson: false,
-				parseJsonIfString: true,
-				rootJsonMappers: true,
-				selection: query.selection,
-			},
 		) as PreparedQueryKind<TPreparedQueryHKT, SingleStorePreparedQueryConfig & { execute: TResult }, true>;
 	}
 
@@ -124,7 +120,6 @@ export class SingleStoreRelationalQuery<
 		return { builtQuery, query };
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this._getQuery().sql;
 	}

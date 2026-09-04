@@ -1,4 +1,5 @@
 import { entityKind, is } from '~/entity.ts';
+import { type MsSqlType, resolveUnionType } from '~/mssql-core/codecs.ts';
 import type { MsSqlColumn } from '~/mssql-core/columns/index.ts';
 import type { MsSqlDialect } from '~/mssql-core/dialect.ts';
 import type { MsSqlSession, PreparedQueryConfig, PreparedQueryHKTBase } from '~/mssql-core/session.ts';
@@ -18,7 +19,7 @@ import type {
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, Placeholder, Query } from '~/sql/sql.ts';
-import { SQL, View } from '~/sql/sql.ts';
+import { SQL } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import {
@@ -27,15 +28,19 @@ import {
 	getTableLikeName,
 	haveSameKeys,
 	orderSelectedFields,
+	resolveNullableObjectPaths,
 	type ValueOrArray,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { View } from '~/view.ts';
 import { MsSqlViewBase } from '../view-base.ts';
 import type {
 	AnyMsSqlSelect,
 	CreateMsSqlSelectFromBuilderMode,
 	GetMsSqlSetOperators,
+	MsSqlApplyFn,
 	MsSqlCreateSetOperatorFn,
+	MsSqlCrossJoinFn,
 	MsSqlJoinFn,
 	MsSqlSelectConfig,
 	MsSqlSelectDynamic,
@@ -47,6 +52,7 @@ import type {
 	MsSqlSetOperatorExcludedMethods,
 	MsSqlSetOperatorWithResult,
 	SelectedFields,
+	SelectedFieldsOrdered,
 	SetOperatorRightSelect,
 } from './select.types.ts';
 
@@ -217,12 +223,19 @@ export abstract class MsSqlSelectQueryBuilderBase<
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
 	}
 
-	private createJoin<TJoinType extends JoinType>(
+	private createJoin<
+		TJoinType extends JoinType,
+		TIsLateral extends (TJoinType extends 'full' | 'right' ? false : boolean),
+	>(
 		joinType: TJoinType,
-	): MsSqlJoinFn<this, TDynamic, TJoinType> {
+		lateral: TIsLateral,
+	): TIsLateral extends true ? MsSqlApplyFn<this, TDynamic, TJoinType>
+		: 'cross' extends TJoinType ? MsSqlCrossJoinFn<this, TDynamic>
+		: MsSqlJoinFn<this, TDynamic, TJoinType>
+	{
 		return (
 			table: MsSqlTable | Subquery | MsSqlViewBase | SQL,
-			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
+			on?: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
@@ -230,6 +243,9 @@ export abstract class MsSqlSelectQueryBuilderBase<
 			if (typeof tableName === 'string' && this.config.joins?.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
 			}
+
+			this.config.fieldsFlat = undefined;
+			this.config.mapper = undefined;
 
 			if (!this.isPartialSelect) {
 				// If this is the first join and this is not a partial select and we're not selecting from raw SQL, "move" the fields from the main table to the nested object
@@ -261,7 +277,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 				this.config.joins = [];
 			}
 
-			this.config.joins.push({ on, table, joinType, alias: tableName });
+			this.config.joins.push({ on, table, joinType, alias: tableName, lateral });
 
 			if (typeof tableName === 'string') {
 				switch (joinType) {
@@ -276,6 +292,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 						this.joinsNotNullableMap[tableName] = true;
 						break;
 					}
+					case 'cross':
 					case 'inner': {
 						this.joinsNotNullableMap[tableName] = true;
 						break;
@@ -321,7 +338,30 @@ export abstract class MsSqlSelectQueryBuilderBase<
 	 *   .leftJoin(pets, eq(users.id, pets.ownerId))
 	 * ```
 	 */
-	leftJoin = this.createJoin('left');
+	leftJoin = this.createJoin('left', false);
+
+	/**
+	 * Executes an `outer apply` operation by adding another table to the current query.
+	 *
+	 * T-SQL alternative for `left join lateral`.
+	 *
+	 * A `lateral` join allows the right-hand expression to refer to columns from the left-hand side.
+	 *
+	 * Calling this method associates each row of the table with the corresponding row from the joined table, if a match is found. If no matching row exists, it sets all columns of the joined table to null.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#left-join-lateral}
+	 *
+	 * @param table the table to apply.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Select all cities and, for each, the users that live in it
+	 * const sq = db.select().from(users).where(eq(users.cityId, cities.id)).as('sq');
+	 * const rows = await db.select().from(cities).outerApply(sq);
+	 * ```
+	 */
+	outerApply = this.createJoin('left', true);
 
 	/**
 	 * Executes a `right join` operation by adding another table to the current query.
@@ -350,7 +390,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 	 *   .rightJoin(pets, eq(users.id, pets.ownerId))
 	 * ```
 	 */
-	rightJoin = this.createJoin('right');
+	rightJoin = this.createJoin('right', false);
 
 	/**
 	 * Executes an `inner join` operation, creating a new table by combining rows from two tables that have matching values.
@@ -379,7 +419,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 	 *   .innerJoin(pets, eq(users.id, pets.ownerId))
 	 * ```
 	 */
-	innerJoin = this.createJoin('inner');
+	innerJoin = this.createJoin('inner', false);
 
 	/**
 	 * Executes a `full join` operation by combining rows from two tables into a new table.
@@ -408,7 +448,57 @@ export abstract class MsSqlSelectQueryBuilderBase<
 	 *   .fullJoin(pets, eq(users.id, pets.ownerId))
 	 * ```
 	 */
-	fullJoin = this.createJoin('full');
+	fullJoin = this.createJoin('full', false);
+
+	/**
+	 * Executes a `cross join` operation by combining rows from two tables into a new table.
+	 *
+	 * Calling this method retrieves all rows from both main and joined tables, merging all rows from each table.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#cross-join}
+	 *
+	 * @param table the table to join.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Select all users, each user with every pet
+	 * const usersWithPets: { user: User; pets: Pet; }[] = await db.select()
+	 *   .from(users)
+	 *   .crossJoin(pets)
+	 *
+	 * // Select userId and petId
+	 * const usersIdsAndPetIds: { userId: number; petId: number; }[] = await db.select({
+	 *   userId: users.id,
+	 *   petId: pets.id,
+	 * })
+	 *   .from(users)
+	 *   .crossJoin(pets)
+	 * ```
+	 */
+	crossJoin = this.createJoin('cross', false);
+
+	/**
+	 * Executes a `cross apply` operation by combining rows from two tables into a new table.
+	 *
+	 * T-SQL alternative for both `cross\inner join lateral`
+	 *
+	 * A `lateral` join allows the right-hand expression to refer to columns from the left-hand side.
+	 *
+	 * Calling this method retrieves all rows from both main and joined tables, merging all rows from each table.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#cross-join-lateral}
+	 *
+	 * @param table the table to apply.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * const sq = db.select().from(users).where(not(like(cities.name, 'L%'))).as('sq');
+	 * const rows = await db.select().from(cities).crossApply(sq);
+	 * ```
+	 */
+	crossApply = this.createJoin('cross', true);
 
 	private createSetOperator(
 		type: SetOperator,
@@ -812,10 +902,47 @@ export abstract class MsSqlSelectQueryBuilderBase<
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
-		this.config.fieldsFlat = orderSelectedFields<MsSqlColumn>(this.config.fields);
+		this.config.fieldsFlat ??= this._resolveSelection();
 		return this.dialect.buildSelectQuery(this.config);
+	}
+
+	/** @internal */
+	_resolveSelection(): SelectedFieldsOrdered {
+		const { config, dialect } = this;
+		const fieldsFlat = orderSelectedFields<MsSqlColumn>(config.fields, undefined, dialect.codecs);
+
+		const { setOperators } = config;
+		if (!setOperators.length) return fieldsFlat;
+
+		const setSelection: SelectedFieldsOrdered = fieldsFlat.map((f) => ({ ...f }));
+
+		for (const setOperator of setOperators) {
+			if (!setOperator) {
+				throw new Error('Cannot pass undefined values to any set operator');
+			}
+
+			const rightSelection = orderSelectedFields(setOperator.rightSelect.getSelectedFields());
+			for (let j = 0; j < setSelection.length; ++j) {
+				const l = setSelection[j]!;
+				const lPath = l.path.join('.');
+				// Equivalency of selections is a pre-requisite for set operations
+				const r = rightSelection.find((e) => e.path.join('.') === lPath)!;
+
+				const lc = (l.codecOverride ?? l.column?.codec) as MsSqlType | undefined;
+				const rc = (r.codecOverride ?? r.column?.codec) as MsSqlType | undefined;
+
+				l.codecOverride = lc && rc ? resolveUnionType(lc, rc) : lc;
+			}
+		}
+
+		for (const out of setSelection) {
+			out.codec = out.codecOverride
+				? dialect.codecs.get(out.column!, 'normalize', out.codecOverride as MsSqlType)
+				: out.codec;
+		}
+
+		return setSelection;
 	}
 
 	toSQL(): Query {
@@ -826,7 +953,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 		alias: TAlias,
 	): SubqueryWithSelection<this['_']['selectedFields'], TAlias> {
 		return new Proxy(
-			new Subquery(this.getSQL(), this.config.fields, alias),
+			new Subquery(this.withoutSelectionCastCodecs().getSQL(), this.config.fields, alias),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
 	}
@@ -841,6 +968,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 
 	/** @internal */
 	override withoutSelectionCastCodecs(): this {
+		this.config.ignoreSelectionCastCodecs = true;
 		return this;
 	}
 
@@ -912,12 +1040,18 @@ export class MsSqlSelectBase<
 		// Build query before accessing `fieldsFlat` - build mutates it
 		const query = this.dialect.sqlToQuery(this.getSQL());
 		const fieldsList = this.config.fieldsFlat!;
-		const preparedQuery = this.session.prepareQuery<
+		const nullableObjectPaths = resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap);
+
+		return this.session.prepareQuery<
 			PreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
 			TPreparedQueryHKT
-		>(query, fieldsList);
-		preparedQuery.joinsNotNullableMap = this.joinsNotNullableMap;
-		return preparedQuery as MsSqlSelectPrepare<this>;
+		>(
+			query,
+			'arrays',
+			this.config.mapper ??= this.dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths),
+		) as MsSqlSelectPrepare<
+			this
+		>;
 	}
 
 	execute = ((placeholderValues) => {

@@ -6,7 +6,7 @@ import type {
 import type { PgColumn } from '~/pg-core/columns/index.ts';
 import type { PgTable, PgTableWithColumns } from '~/pg-core/table.ts';
 import type { PgViewBase } from '~/pg-core/view-base.ts';
-import type { PgViewWithSelection } from '~/pg-core/view.ts';
+import type { PgMaterializedView, PgMaterializedViewWithSelection, PgViewWithSelection } from '~/pg-core/view.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	AppendToNullabilityMap,
@@ -20,10 +20,11 @@ import type {
 	SelectResult,
 	SetOperator,
 } from '~/query-builders/select.types.ts';
-import type { ColumnsSelection, Placeholder, SQL, SQLWrapper, View } from '~/sql/sql.ts';
+import type { ColumnsSelection, Placeholder, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, DrizzleTypeError, Equal, ValidateShape, ValueOrArray } from '~/utils.ts';
+import type { UpdateViewConfig, View } from '~/view.ts';
 import type { PgSelectBase } from './select.ts';
 
 export interface PgSelectJoinConfig {
@@ -39,12 +40,22 @@ export type BuildAliasTable<TTable extends PgTable | View, TAlias extends string
 		UpdateTableConfig<TTable['_'], {
 			name: TAlias;
 			columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias, 'pg'>;
+			isAlias: true;
 		}>
 	>
+	: TTable extends PgMaterializedView ? PgMaterializedViewWithSelection<
+			UpdateViewConfig<TTable['_'], {
+				name: TAlias;
+				selectedFields: MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias, 'pg'>;
+				isAlias: true;
+			}>
+		>
 	: TTable extends View ? PgViewWithSelection<
-			TAlias,
-			TTable['_']['existing'],
-			MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias, 'pg'>
+			UpdateViewConfig<TTable['_'], {
+				name: TAlias;
+				selectedFields: MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias, 'pg'>;
+				isAlias: true;
+			}>
 		>
 	: never;
 
@@ -76,6 +87,9 @@ export interface PgSelectConfig {
 		limit?: number | Placeholder;
 		offset?: number | Placeholder;
 	}[];
+	setFieldsFlat?: SelectedFieldsOrdered;
+	shape?: any;
+	mapper?: (raw: any) => any;
 	comment?: SQL;
 	ignoreSelectionCastCodecs?: boolean;
 	tagged?: boolean;
@@ -84,6 +98,16 @@ export interface PgSelectConfig {
 export type TableLikeHasEmptySelection<T extends PgTable | Subquery | PgViewBase | SQL> = T extends Subquery
 	? Equal<T['_']['selectedFields'], {}> extends true ? true : false
 	: false;
+
+export type CheckTableLikeSelection<T extends PgTable | Subquery | PgViewBase | SQL> =
+	TableLikeHasEmptySelection<T> extends true ?
+			| DrizzleTypeError<
+				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
+			>
+			| PgTable
+			| PgViewBase
+			| SQL
+		: T;
 
 export type PgSelectJoin<
 	T extends AnyPgSelectQueryBuilder,
@@ -123,10 +147,7 @@ export type PgSelectJoinFn<
 	TJoinedTable extends (TIsLateral extends true ? Subquery | SQL : PgTable | Subquery | PgViewBase | SQL),
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 >(
-	table: TableLikeHasEmptySelection<TJoinedTable> extends true ? DrizzleTypeError<
-			"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
-		>
-		: TJoinedTable,
+	table: CheckTableLikeSelection<TJoinedTable>,
 	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
 ) => PgSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
@@ -138,10 +159,7 @@ export type PgSelectCrossJoinFn<
 	TJoinedTable extends (TIsLateral extends true ? Subquery | SQL : PgTable | Subquery | PgViewBase | SQL),
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 >(
-	table: TableLikeHasEmptySelection<TJoinedTable> extends true ? DrizzleTypeError<
-			"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
-		>
-		: TJoinedTable,
+	table: CheckTableLikeSelection<TJoinedTable>,
 ) => PgSelectJoin<T, TDynamic, 'cross', TJoinedTable, TJoinedName>;
 
 export type SelectedFieldsFlat = SelectedFieldsFlatBase<PgColumn>;

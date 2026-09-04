@@ -60,7 +60,7 @@ export const handle = async (
 
 	const interimFromFiles = fromDrizzleSchema(res.tables, res.views);
 
-	const { ddl: ddl1 } = interimToDDL(interimFromDB);
+	const { ddl: ddl1 } = interimToDDL(interimFromDB, 'pull');
 	const { ddl: ddl2, errors: errors1 } = interimToDDL(interimFromFiles);
 
 	if (errors1.length > 0) {

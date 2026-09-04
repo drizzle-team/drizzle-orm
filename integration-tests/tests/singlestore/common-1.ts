@@ -405,6 +405,60 @@ export function tests(test: Test) {
 			expect(result).toEqual([{ id: 1, name: 'John', verified: true, jsonb: null, createdAt: result[0]!.createdAt }]);
 		});
 
+		test.concurrent('insert with explicit column list', async ({ db }) => {
+			const table = singlestoreTable('column_selection', {
+				id: int('id').primaryKey(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+				note: text('note'),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (id int primary key, name text not null, verified boolean not null default false, note text)`,
+			);
+
+			try {
+				await db.insert(table, 'id', 'name').values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+				await db.insert(table, 'id', 'name', 'note').values({ id: 3, name: 'Jack' });
+				await db.insert(table, 'note', 'name', 'id').values({ id: 4, name: 'Jill', note: 'hi' });
+
+				const result = await db.select().from(table).orderBy(table.id);
+				expect(result).toEqual([
+					{ id: 1, name: 'John', verified: false, note: null },
+					{ id: 2, name: 'Jane', verified: false, note: null },
+					{ id: 3, name: 'Jack', verified: false, note: null },
+					{ id: 4, name: 'Jill', verified: false, note: 'hi' },
+				]);
+			} finally {
+				await db.execute(sql`drop table if exists ${table}`);
+			}
+		});
+
+		test.concurrent('insert with explicit column list - on duplicate key update', async ({ db }) => {
+			const table = singlestoreTable('column_selection_conflict', {
+				id: int('id').primaryKey(),
+				name: text('name').notNull(),
+				note: text('note'),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(sql`create table ${table} (id int primary key, name text not null, note text)`);
+
+			try {
+				await db.insert(table, 'id', 'name').values({ id: 1, name: 'John' });
+				await db
+					.insert(table, 'id', 'name')
+					.values({ id: 1, name: 'Jane' })
+					.onDuplicateKeyUpdate({ set: { name: 'Updated' } });
+
+				const result = await db.select().from(table);
+				expect(result).toEqual([{ id: 1, name: 'Updated', note: null }]);
+			} finally {
+				await db.execute(sql`drop table if exists ${table}`);
+			}
+		});
+
 		test.concurrent('insert many', async ({ db }) => {
 			await db.insert(usersTable).values([
 				{ id: 1, name: 'John' },
@@ -564,7 +618,8 @@ export function tests(test: Test) {
 				.toSQL();
 
 			expect(query).toEqual({
-				sql: `select \`id\`, \`name\` from \`userstest\` group by \`userstest\`.\`id\`, \`userstest\`.\`name\``,
+				sql:
+					`select cast(\`id\` as char), \`name\` from \`userstest\` group by \`userstest\`.\`id\`, \`userstest\`.\`name\``,
 				params: [],
 			});
 		});
@@ -769,27 +824,29 @@ export function tests(test: Test) {
 			await db.execute(sql`drop table if exists ${users}`);
 			await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
 
-			const customers = alias(users, 'customer');
+			try {
+				const customers = alias(users, 'customer');
 
-			await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
-			const result = await db
-				.select().from(users)
-				.leftJoin(customers, eq(customers.id, 11))
-				.where(eq(users.id, 10))
-				.orderBy(asc(users.id));
+				await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
+				const result = await db
+					.select().from(users)
+					.leftJoin(customers, eq(customers.id, 11))
+					.where(eq(users.id, 10))
+					.orderBy(asc(users.id));
 
-			expect(result).toEqual([{
-				users: {
-					id: 10,
-					name: 'Ivan',
-				},
-				customer: {
-					id: 11,
-					name: 'Hans',
-				},
-			}]);
-
-			await db.execute(sql`drop table ${users}`);
+				expect(result).toEqual([{
+					users: {
+						id: 10,
+						name: 'Ivan',
+					},
+					customer: {
+						id: 11,
+						name: 'Hans',
+					},
+				}]);
+			} finally {
+				await db.execute(sql`drop table if exists ${users}`);
+			}
 		});
 
 		test.concurrent('select from alias', async ({ db }) => {
@@ -803,29 +860,31 @@ export function tests(test: Test) {
 			await db.execute(sql`drop table if exists ${users}`);
 			await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
 
-			const user = alias(users, 'user');
-			const customers = alias(users, 'customer');
+			try {
+				const user = alias(users, 'user');
+				const customers = alias(users, 'customer');
 
-			await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
-			const result = await db
-				.select()
-				.from(user)
-				.leftJoin(customers, eq(customers.id, 11))
-				.where(eq(user.id, 10))
-				.orderBy(asc(user.id));
+				await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
+				const result = await db
+					.select()
+					.from(user)
+					.leftJoin(customers, eq(customers.id, 11))
+					.where(eq(user.id, 10))
+					.orderBy(asc(user.id));
 
-			expect(result).toEqual([{
-				user: {
-					id: 10,
-					name: 'Ivan',
-				},
-				customer: {
-					id: 11,
-					name: 'Hans',
-				},
-			}]);
-
-			await db.execute(sql`drop table ${users}`);
+				expect(result).toEqual([{
+					user: {
+						id: 10,
+						name: 'Ivan',
+					},
+					customer: {
+						id: 11,
+						name: 'Hans',
+					},
+				}]);
+			} finally {
+				await db.execute(sql`drop table if exists ${users}`);
+			}
 		});
 
 		test.concurrent('insert with spaces', async ({ db }) => {
@@ -916,23 +975,25 @@ export function tests(test: Test) {
 		});
 
 		test.concurrent('migrator', async ({ db }) => {
-			await db.execute(sql`drop table if exists cities_migration`);
-			await db.execute(sql`drop table if exists users_migration`);
-			await db.execute(sql`drop table if exists users12`);
-			await db.execute(sql`drop table if exists __drizzle_migrations`);
+			try {
+				await db.execute(sql`drop table if exists cities_migration`);
+				await db.execute(sql`drop table if exists users_migration`);
+				await db.execute(sql`drop table if exists users12`);
+				await db.execute(sql`drop table if exists __drizzle_migrations`);
 
-			await migrate(db, { migrationsFolder: './drizzle2/singlestore' });
+				await migrate(db, { migrationsFolder: './drizzle2/singlestore' });
 
-			await db.insert(usersMigratorTable).values({ id: 1, name: 'John', email: 'email' });
+				await db.insert(usersMigratorTable).values({ id: 1, name: 'John', email: 'email' });
 
-			const result = await db.select().from(usersMigratorTable);
+				const result = await db.select().from(usersMigratorTable);
 
-			expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-			await db.execute(sql`drop table cities_migration`);
-			await db.execute(sql`drop table users_migration`);
-			await db.execute(sql`drop table users12`);
-			await db.execute(sql`drop table __drizzle_migrations`);
+				expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+			} finally {
+				await db.execute(sql`drop table if exists cities_migration`);
+				await db.execute(sql`drop table if exists users_migration`);
+				await db.execute(sql`drop table if exists users12`);
+				await db.execute(sql`drop table if exists __drizzle_migrations`);
+			}
 		});
 
 		test.concurrent('migrator: local migration is unapplied. Migrations timestamp is less than last db migration', async ({ db }) => {

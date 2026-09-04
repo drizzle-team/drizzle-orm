@@ -1,10 +1,10 @@
-import type * as V1 from '~/_relations.ts';
 import type { CockroachDialect } from '~/cockroach-core/dialect.ts';
 import {
 	CockroachDeleteBase,
 	CockroachInsertBuilder,
 	CockroachSelectBuilder,
 	CockroachUpdateBuilder,
+	type NoDuplicateColumns,
 	QueryBuilder,
 } from '~/cockroach-core/query-builders/index.ts';
 import type {
@@ -18,10 +18,12 @@ import type {
 import type { CockroachTable } from '~/cockroach-core/table.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
-import type { DrizzleTypeError, NeonAuthToken } from '~/utils.ts';
+import type { InferInsertModel, RequiredInsertKeys } from '~/table.ts';
+import type { DrizzleTypeError, IsNever, JoinUnion } from '~/utils.ts';
 import type { CockroachColumn } from './columns/index.ts';
 import { CockroachCountBuilder } from './query-builders/count.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
@@ -34,58 +36,40 @@ import type { CockroachMaterializedView } from './view.ts';
 
 export class CockroachDatabase<
 	TQueryResult extends CockroachQueryResultHKT,
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
+	TRelations extends AnyRelations = EmptyRelations,
 > {
 	static readonly [entityKind]: string = 'CockroachDatabase';
 
 	declare readonly _: {
-		readonly schema: TSchema | undefined;
-		readonly fullSchema: TFullSchema;
-		readonly tableNamesMap: Record<string, string>;
-		readonly session: CockroachSession<TQueryResult, TFullSchema, TSchema>;
+		readonly relations: TRelations;
+		readonly session: CockroachSession<TQueryResult, TRelations>;
 	};
 
-	_query: TFullSchema extends Record<string, never>
-		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
-		: {
-			[K in keyof TSchema]: RelationalQueryBuilder<TSchema, TSchema[K]>;
-		};
+	query: {
+		[K in keyof TRelations]: RelationalQueryBuilder<TRelations, TRelations[K]>;
+	};
 
 	constructor(
 		/** @internal */
 		readonly dialect: CockroachDialect,
 		/** @internal */
-		readonly session: CockroachSession<any, any, any>,
-		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
+		readonly session: CockroachSession<any, any>,
+		relations: TRelations,
 	) {
-		this._ = schema
-			? {
-				schema: schema.schema,
-				fullSchema: schema.fullSchema as TFullSchema,
-				tableNamesMap: schema.tableNamesMap,
+		this._ = {
+			relations,
+			session,
+		};
+
+		this.query = {} as typeof this['query'];
+		for (const [tableName, relation] of Object.entries(relations)) {
+			(this.query as CockroachDatabase<TQueryResult, AnyRelations>['query'])[tableName] = new RelationalQueryBuilder(
+				relations,
+				relations[relation.name]!.table as CockroachTable,
+				relation,
+				dialect,
 				session,
-			}
-			: {
-				schema: undefined,
-				fullSchema: {} as TFullSchema,
-				tableNamesMap: {},
-				session,
-			};
-		this._query = {} as typeof this['_query'];
-		if (this._.schema) {
-			for (const [tableName, columns] of Object.entries(this._.schema)) {
-				(this._query as CockroachDatabase<TQueryResult, Record<string, any>>['_query'])[tableName] =
-					new RelationalQueryBuilder(
-						schema!.fullSchema,
-						this._.schema,
-						this._.tableNamesMap,
-						schema!.fullSchema[tableName] as CockroachTable,
-						columns,
-						dialect,
-						session,
-					);
-			}
+			);
 		}
 	}
 
@@ -133,9 +117,10 @@ export class CockroachDatabase<
 				qb = qb(new QueryBuilder(self.dialect));
 			}
 
+			const sql = ('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL();
 			return new Proxy(
 				new WithSubquery(
-					qb.getSQL(),
+					sql,
 					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
 					alias,
 					true,
@@ -356,14 +341,42 @@ export class CockroachDatabase<
 		 * // Insert multiple rows
 		 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
 		 *
+		 * // Insert only selected columns
+		 * await db.insert(cars, 'brand', 'productionYear').values([{ brand: 'BMW', productionYear: 1995 }, { brand: 'Porsche', productionYear: 1989 }]);
+		 *
 		 * // Insert with returning clause
 		 * const insertedCar: Car[] = await db.insert(cars)
 		 *   .values({ brand: 'BMW' })
 		 *   .returning();
 		 * ```
 		 */
-		function insert<TTable extends CockroachTable>(table: TTable): CockroachInsertBuilder<TTable, TQueryResult> {
-			return new CockroachInsertBuilder(table, self.session, self.dialect, queries);
+		function insert<
+			TTable extends CockroachTable,
+			TColumnList extends (keyof InferInsertModel<TTable>)[] = [],
+			TRequiredKeys extends string = RequiredInsertKeys<TTable>,
+		>(
+			table: TTable,
+			...columns: TColumnList extends [] ? []
+				: IsNever<TRequiredKeys> extends true ? TColumnList & NoDuplicateColumns<TColumnList>
+				: [TRequiredKeys] extends [TColumnList[number]] ? TColumnList & NoDuplicateColumns<TColumnList>
+				: DrizzleTypeError<
+					`Column selection is missing following required columns: ${JoinUnion<
+						`"${Exclude<TRequiredKeys, TColumnList[number]>}"`,
+						', '
+					>}`
+				>[]
+		): CockroachInsertBuilder<TTable, TQueryResult, TColumnList extends [] ? 'all' : TColumnList>;
+		function insert<TTable extends CockroachTable>(
+			table: TTable,
+			...columns: string[]
+		): CockroachInsertBuilder<TTable, TQueryResult> {
+			return new CockroachInsertBuilder(
+				table,
+				self.session,
+				self.dialect,
+				queries,
+				columns.length ? columns : undefined,
+			);
 		}
 
 		/**
@@ -571,14 +584,42 @@ export class CockroachDatabase<
 	 * // Insert multiple rows
 	 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
 	 *
+	 * // Insert only selected columns
+	 * await db.insert(cars, 'brand', 'productionYear').values([{ brand: 'BMW', productionYear: 1995 }, { brand: 'Porsche', productionYear: 1989 }]);
+	 *
 	 * // Insert with returning clause
 	 * const insertedCar: Car[] = await db.insert(cars)
 	 *   .values({ brand: 'BMW' })
 	 *   .returning();
 	 * ```
 	 */
-	insert<TTable extends CockroachTable>(table: TTable): CockroachInsertBuilder<TTable, TQueryResult> {
-		return new CockroachInsertBuilder(table, this.session, this.dialect);
+	insert<
+		TTable extends CockroachTable,
+		TColumnList extends (keyof InferInsertModel<TTable>)[] = [],
+		TRequiredKeys extends string = RequiredInsertKeys<TTable>,
+	>(
+		table: TTable,
+		...columns: TColumnList extends [] ? []
+			: IsNever<TRequiredKeys> extends true ? TColumnList & NoDuplicateColumns<TColumnList>
+			: [TRequiredKeys] extends [TColumnList[number]] ? TColumnList & NoDuplicateColumns<TColumnList>
+			: DrizzleTypeError<
+				`Column selection is missing following required columns: ${JoinUnion<
+					`"${Exclude<TRequiredKeys, TColumnList[number]>}"`,
+					', '
+				>}`
+			>[]
+	): CockroachInsertBuilder<TTable, TQueryResult, TColumnList extends [] ? 'all' : TColumnList>;
+	insert<TTable extends CockroachTable>(
+		table: TTable,
+		...columns: string[]
+	): CockroachInsertBuilder<TTable, TQueryResult> {
+		return new CockroachInsertBuilder(
+			table,
+			this.session,
+			this.dialect,
+			undefined,
+			columns.length ? columns : undefined,
+		);
 	}
 
 	/**
@@ -615,30 +656,36 @@ export class CockroachDatabase<
 		return new CockroachRefreshMaterializedView(view, this.session, this.dialect);
 	}
 
-	protected authToken?: NeonAuthToken;
-
+	execute<TRow extends unknown[] = unknown[]>(
+		query: SQLWrapper | string,
+		mode: 'arrays',
+	): CockroachRaw<TRow[]>;
 	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
 		query: SQLWrapper | string,
-	): CockroachRaw<CockroachQueryResultKind<TQueryResult, TRow>> {
+		mode: 'objects',
+	): CockroachRaw<TRow[]>;
+	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+		query: SQLWrapper | string,
+		mode?: 'raw' | undefined,
+	): CockroachRaw<CockroachQueryResultKind<TQueryResult, TRow>>;
+	execute(
+		query: SQLWrapper | string,
+		mode?: 'raw' | 'objects' | 'arrays' | undefined,
+	): unknown {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sequel);
 		const prepared = this.session.prepareQuery<
-			PreparedQueryConfig & { execute: CockroachQueryResultKind<TQueryResult, TRow> }
+			PreparedQueryConfig & { execute: unknown }
 		>(
 			builtQuery,
-			undefined,
-			undefined,
+			mode ?? 'raw',
+			false,
 		);
-		return new CockroachRaw(
-			() => prepared.execute(undefined, this.authToken),
-			sequel,
-			builtQuery,
-			(result) => prepared.mapResult(result, true),
-		);
+		return new CockroachRaw(prepared, sequel, builtQuery);
 	}
 
 	transaction<T>(
-		transaction: (tx: CockroachTransaction<TQueryResult, TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: CockroachTransaction<TQueryResult, TRelations>) => Promise<T>,
 		config?: CockroachTransactionConfig,
 	): Promise<T> {
 		return this.session.transaction(transaction, config);
@@ -649,13 +696,8 @@ export type CockroachWithReplicas<Q> = Q & { $primary: Q };
 
 export const withReplicas = <
 	HKT extends CockroachQueryResultHKT,
-	TFullSchema extends Record<string, unknown>,
-	TSchema extends V1.TablesRelationalConfig,
-	Q extends CockroachDatabase<
-		HKT,
-		TFullSchema,
-		TSchema extends Record<string, unknown> ? V1.ExtractTablesWithRelations<TFullSchema> : TSchema
-	>,
+	TRelations extends AnyRelations,
+	Q extends CockroachDatabase<HKT, TRelations>,
 >(
 	primary: Q,
 	replicas: [Q, ...Q[]],
@@ -669,9 +711,9 @@ export const withReplicas = <
 	const $with: Q['$with'] = (arg: any) => getReplica(replicas).$with(arg) as any;
 
 	const update: Q['update'] = (...args: [any]) => primary.update(...args);
-	const insert: Q['insert'] = (...args: [any]) => primary.insert(...args);
+	const insert: Q['insert'] = ((...args: [any]) => primary.insert(...args)) as Q['insert'];
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
-	const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
+	const execute: Q['execute'] = ((...args: [any]) => primary.execute(...args)) as Q['execute'];
 	const transaction: Q['transaction'] = (...args: [any]) => primary.transaction(...args);
 	const refreshMaterializedView: Q['refreshMaterializedView'] = (...args: [any]) =>
 		primary.refreshMaterializedView(...args);
@@ -692,8 +734,8 @@ export const withReplicas = <
 		$count,
 		$with,
 		with: _with,
-		get _query() {
-			return getReplica(replicas)._query;
+		get query() {
+			return getReplica(replicas).query;
 		},
 	};
 };

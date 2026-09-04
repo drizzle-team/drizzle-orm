@@ -150,6 +150,10 @@ export const diffIntrospect = async (
 	const { schema: schema2, errors: e2 } = fromDrizzleSchema(response, filter);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(schema2);
 
+	if (e1.length > 0 || e2.length > 0 || e3.length > 0) {
+		throw new MockError([...e1, ...e2, ...e3]);
+	}
+
 	const {
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,

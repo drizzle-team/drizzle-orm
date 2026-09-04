@@ -88,6 +88,11 @@ export const relationsToTypeScript = (
 		const fks = Object.values(table.foreignKeys);
 		const tableColumns = table.columns?.map((it) => withCasing(it.name, casing)) ?? [];
 
+		// A table is a junction (many-to-many) only when it has exactly two foreign keys that point
+		// to two *different other* tables. A foreign key that references the table itself
+		// (self-reference) does not make it a junction, and every foreign key must still emit its
+		// own `one` relation — see https://github.com/drizzle-team/drizzle-orm/issues/6197
+		let handledAsJunction = false;
 		if (fks.length === 2) {
 			const [fk1, fk2] = fks;
 			// reference to different tables, means it can be through many-many
@@ -104,7 +109,10 @@ export const relationsToTypeScript = (
 
 			if (
 				toTable1 !== toTable2
+				&& toTable1 !== tableThrough // check for non self ref
+				&& toTable2 !== tableThrough // check for non self ref
 			) {
+				handledAsJunction = true;
 				if (!tableRelations[toTable1]) {
 					tableRelations[toTable1] = [];
 				}
@@ -138,7 +146,9 @@ export const relationsToTypeScript = (
 					columnsThroughTo,
 				});
 			}
-		} else {
+		}
+
+		if (!handledAsJunction) {
 			fks.forEach((fk) => {
 				const tableNameFrom = paramNameFor(fk.table, table.schema);
 				const tableNameTo = paramNameFor(fk.tableTo, fk.schemaTo);
@@ -173,8 +183,8 @@ export const relationsToTypeScript = (
 				// not matter if it's 1 column, 2 columns or more
 				if (
 					table.uniques.find((constraint) =>
-						constraint.columns.length === columnsFrom.length
-						&& constraint.columns.every((col, i) => col === columnsFrom[i])
+						constraint.columns.length === fk.columns.length // need to check without casing (name should be preserved)
+						&& constraint.columns.every((col, i) => col === fk.columns[i]) // need to check without casing (name should be preserved)
 					)
 				) {
 					// the difference between one and one-one is that one-one won't contain from and to
@@ -323,5 +333,6 @@ export const relationsToTypeScript = (
 
 	return {
 		file: importsTs + relationString,
+		tableRelations,
 	};
 };

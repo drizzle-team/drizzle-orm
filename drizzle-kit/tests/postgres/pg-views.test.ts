@@ -9,6 +9,7 @@ import {
 	serial,
 	snakeCase,
 	text,
+	timestamp,
 } from 'drizzle-orm/pg-core';
 import { generate } from 'src/cli/schema';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
@@ -2114,6 +2115,7 @@ test('.as in view select', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4181
+// https://github.com/drizzle-team/drizzle-orm/issues/3332
 // casing bug
 test('create view with snake_case', async () => {
 	const test = snakeCase.table('test', {
@@ -2326,4 +2328,156 @@ test('create 2 dependent views', async () => {
 	const { sqlStatements: pst2 } = await push({ db, to: schema });
 	expect(st2).toStrictEqual([]);
 	expect(pst2).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4181
+test('issue No4181', async () => {
+	const test1 = snakeCase.table('test1', {
+		testId: serial().primaryKey(),
+		testName: text().notNull(),
+	});
+
+	const testView1 = pgView('test_view1').as((qb) => {
+		return qb
+			.select({
+				testId: test1.testId,
+				testName: test1.testName,
+			})
+			.from(test1);
+	});
+
+	const schema = { test1, testView1 };
+
+	const { sqlStatements: st1 } = await diff({}, schema, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
+	const expectedSt1 = [
+		`CREATE TABLE "test1" (
+\t"test_id" serial PRIMARY KEY,
+\t"test_name" text NOT NULL
+);\n`,
+		'CREATE VIEW "test_view1" AS (select "test_id", "test_name" from "test1");',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6176
+test('Issue No6176', async () => {
+	const users = pgTable('users', {
+		id: integer(),
+	});
+
+	const mat1 = pgView('mat_user').as((db) => db.select().from(users));
+
+	const schema1 = { users, mat1 };
+
+	const mat2 = pgMaterializedView('mat_user').as((db) => db.select().from(users));
+	const view = pgView('user_view').as((qb) => qb.select().from(mat2));
+
+	const schema2 = { users, mat2, view };
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, []);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst1 } = await push({ db, to: schema2 });
+	const expectedSt1 = [
+		`DROP VIEW "mat_user";`,
+		'CREATE MATERIALIZED VIEW "mat_user" AS (select "id" from "users");',
+		'CREATE VIEW "user_view" AS (select "id" from "mat_user");',
+	];
+
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6194
+test.skipIf(Date.now() < +new Date('2026-09-05'))('Issue No6194', async () => {
+	const accessLogsTableFrom = pgTable('access_logs', {
+		id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+		accessedAt: timestamp('accessed_at', { mode: 'string' }).notNull().defaultNow(),
+	});
+
+	const schemaFrom = {
+		accessLogsTable: accessLogsTableFrom,
+		evenAccessLogsView: pgView('even_access_logs').as((qb) =>
+			qb.select().from(accessLogsTableFrom).where(sql`${accessLogsTableFrom.id} % 2 = 0`)
+		),
+	};
+
+	const accessLogsTableTo = pgTable('access_logs', {
+		id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+		accessedAt: timestamp('accessed_at', { mode: 'string', withTimezone: true }).notNull().defaultNow(),
+	});
+	const schemaTo = {
+		accessLogsTableTo,
+		evenAccessLogsView: pgView('even_access_logs').as((qb) =>
+			qb.select().from(accessLogsTableTo).where(sql`${accessLogsTableTo.id} % 2 = 0`)
+		),
+	};
+
+	const { sqlStatements: st1 } = await diff(schemaFrom, schemaTo, []);
+	await push({ db, to: schemaFrom });
+	const { sqlStatements: pst1 } = await push({ db, to: schemaTo });
+	const expectedSt1 = [''];
+
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+});
+
+// topological sort test
+test('topological sort test. deep view chain (recreate) is created in dependency order', async () => {
+	const t = pgTable('t', { id: integer() });
+
+	// old schema: four INDEPENDENT regular views (so the recreate drops are safe)
+	const schema1 = {
+		t,
+		zBase: pgView('z_base').as((qb) => qb.select({ id: t.id }).from(t)),
+		y1: pgView('y1').as((qb) => qb.select({ id: t.id }).from(t)),
+		x2: pgView('x2').as((qb) => qb.select({ id: t.id }).from(t)),
+		w3: pgView('w3').as((qb) => qb.select({ id: t.id }).from(t)),
+	};
+
+	// new schema: all flip to materialized (forces recreate) AND form the chain w3 -> x2 -> y1 -> z_base
+	const zBase = pgMaterializedView('z_base').as((qb) => qb.select({ id: t.id }).from(t));
+	const y1 = pgMaterializedView('y1').as((qb) => qb.select({ id: zBase.id }).from(zBase));
+	const x2 = pgMaterializedView('x2').as((qb) => qb.select({ id: y1.id }).from(y1));
+	const w3 = pgMaterializedView('w3').as((qb) => qb.select({ id: x2.id }).from(x2));
+	const schema2 = { t, y1, zBase, x2, w3 };
+
+	await push({ db, to: schema1, log: 'statements' });
+	// would throw if a dependent were created before its dependency
+	const { sqlStatements: pst } = await push({ db, to: schema2, log: 'statements' });
+
+	const st0 = [
+		'DROP VIEW "w3";',
+		'DROP VIEW "x2";',
+		'DROP VIEW "y1";',
+		'DROP VIEW "z_base";',
+		'CREATE MATERIALIZED VIEW "z_base" AS (select "id" from "t");',
+		'CREATE MATERIALIZED VIEW "y1" AS (select "id" from "z_base");',
+		'CREATE MATERIALIZED VIEW "x2" AS (select "id" from "y1");',
+		'CREATE MATERIALIZED VIEW "w3" AS (select "id" from "x2");',
+	];
+
+	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3309
+test('Issue No3309. tablesFilter with views', async () => {
+	await db.query(`CREATE TABLE test (id integer)`);
+	await db.query(`CREATE TABLE extensions_table (id integer)`);
+	await db.query(`CREATE VIEW extensions_view AS (select * from extensions_table)`);
+
+	const users = pgTable('users', {
+		id: integer(),
+	});
+
+	const schema1 = { users };
+
+	const { sqlStatements: pst1 } = await push({ db, to: schema1, tables: ['!extensions_table', '!extensions_view'] });
+	const expectedSt1 = [
+		'CREATE TABLE "users" (\n\t"id" integer\n);\n',
+		'DROP TABLE "test";',
+	];
+
+	expect(pst1).toStrictEqual(expectedSt1);
 });

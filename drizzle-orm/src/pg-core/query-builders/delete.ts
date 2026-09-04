@@ -42,6 +42,7 @@ export interface PgDeleteConfig {
 	table: PgTable;
 	returningFields?: SelectedFieldsFlat;
 	returning?: SelectedFieldsOrdered;
+	shape?: any;
 	withList?: Subquery[];
 	comment?: SQL;
 	ignoreSelectionCastCodecs?: boolean;
@@ -260,6 +261,7 @@ export class PgDeleteBase<
 			undefined,
 			this.dialect.codecs,
 		);
+		this.config.shape = undefined;
 		return this as any;
 	}
 

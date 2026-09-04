@@ -21,6 +21,7 @@ import {
 	usersTable,
 	usersToGroupsTable,
 } from './mysql.schema';
+import type { AllTypes } from './mysql.schema';
 
 const ENABLE_LOGGING = false;
 
@@ -12869,7 +12870,9 @@ test('alltypes', async () => {
 	expect(nestedRelationRes).toStrictEqual(rawRes);
 	expect(relationRootRes).toStrictEqual(rawRes);
 
-	const expectedRes = [
+	expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
+
+	const expectedRes: AllTypes[] = [
 		{
 			serial: 1,
 			blob: Buffer.from('BYTES'),
@@ -12888,7 +12891,7 @@ test('alltypes', async () => {
 			decimalNum: 9007199254740991,
 			decimalBig: 5044565289845416380n,
 			double: 15.35325689124218,
-			float: 1.0486,
+			float: 1.048596,
 			int: 621,
 			json: { arr: ['str', 10], str: 'strval' },
 			medInt: 560,
@@ -12969,4 +12972,48 @@ test('.toSQL()', () => {
 
 	expect(query).toHaveProperty('sql', expect.any(String));
 	expect(query).toHaveProperty('params', expect.any(Array));
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5367
+test('Correct error message on unknown column', async () => {
+	const query = db.query.usersTable.findFirst({
+		columns: {
+			id: true,
+			// @ts-expect-error
+			unknown: true,
+		},
+	});
+
+	expect(async () => await query).rejects.toThrow(
+		new DrizzleError({ message: `Unknown column: "usersTable"."unknown"` }),
+	);
+});
+
+test('Correct error message on unknown relation', async () => {
+	const query = db.query.usersTable.findFirst({
+		with: {
+			posts: true,
+			// @ts-expect-error
+			unknown: true,
+		},
+	});
+
+	expect(async () => await query).rejects.toThrow(
+		new DrizzleError({ message: `Unknown relation "usersTable" -> "unknown"` }),
+	);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5644
+test('Disallow unknown keys in filters', async () => {
+	const query = db.query.usersTable.findFirst({
+		where: {
+			name: 'NAME',
+			// @ts-expect-error
+			unknown: 'value',
+		},
+	});
+
+	expect(async () => await query).rejects.toThrow(
+		new DrizzleError({ message: `Unknown relational filter field: "unknown"` }),
+	);
 });

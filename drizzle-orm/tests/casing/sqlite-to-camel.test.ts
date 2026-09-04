@@ -1,8 +1,8 @@
 import Database from 'better-sqlite3';
 import { describe, it } from 'vitest';
-import { drizzle } from '~/better-sqlite3';
+import { betterSQLite3Codecs, drizzle } from '~/better-sqlite3';
 import { asc, eq, sql } from '~/sql';
-import { alias, camelCase, integer, text, union } from '~/sqlite-core';
+import { alias, camelCase, castToText, integer, text, union } from '~/sqlite-core';
 
 const users = camelCase.table('users', {
 	id: integer().primaryKey({ autoIncrement: true }),
@@ -24,6 +24,46 @@ const db = drizzle({ client: new Database(':memory:') });
 const fullName = sql`${users.first_name} || ' ' || ${users.last_name}`.as('name');
 
 describe('sqlite to camel case', () => {
+	it('unicode column names', ({ expect }) => {
+		const unicode = camelCase.table('unicode', {
+			칼럼명: text(),
+		});
+
+		expect(db.select().from(unicode).toSQL().sql).toEqual(
+			'select "칼럼명" from "unicode"',
+		);
+	});
+
+	it('qualifier preservation for sql fields', ({ expect }) => {
+		const a = camelCase.table('a', { id: integer('id').primaryKey(), cId: integer().notNull() });
+		const b = camelCase.table('b', { id: integer('id').primaryKey(), cId: integer().notNull(), label: text() });
+		const corr = sql`(select ${b.label} from ${b} where ${b.cId} = ${a.cId})`;
+
+		expect(db.select({ id: a.id, bRaw: corr }).from(a).toSQL().sql).toEqual(
+			'select "id", (select "b"."label" from "b" where "b"."cId" = "a"."cId") from "a"',
+		);
+		expect(db.select({ id: a.id, bRaw: corr.as('b_raw') }).from(a).toSQL().sql).toEqual(
+			'select "id", (select "b"."label" from "b" where "b"."cId" = "a"."cId") as "b_raw" from "a"',
+		);
+		expect(db.select({ id: a.id }).from(a).where(corr).toSQL().sql).toEqual(
+			'select "id" from "a" where (select "b"."label" from "b" where "b"."cId" = "a"."cId")',
+		);
+	});
+
+	it('qualifier preservation for subquery fields', ({ expect }) => {
+		const sq = db.select({ id: users.id, name: fullName }).from(users).as('sq');
+		const query = db
+			.select({ id: sq.id, name: sq.name })
+			.from(users)
+			.leftJoin(sq, eq(users.id, sq.id));
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select "sq"."id", "sq"."name" from "users" left join (select "id", "firstName" || \' \' || "lastName" as "name" from "users") "sq" on "users"."id" = "sq"."id"',
+			params: [],
+		});
+	});
+
 	it('select', ({ expect }) => {
 		const query = db
 			.select({ name: fullName, age: users.age })
@@ -77,7 +117,8 @@ describe('sqlite to camel case', () => {
 			.union(db.select({ first_name: users.first_name }).from(users));
 
 		expect(query.toSQL()).toEqual({
-			sql: 'select "firstName" from "users" union select "firstName" from "users"',
+			sql:
+				'select "firstName" from (select "firstName" from "users" union select "firstName" from "users") "drizzle_union"',
 			params: [],
 		});
 	});
@@ -89,7 +130,8 @@ describe('sqlite to camel case', () => {
 		);
 
 		expect(query.toSQL()).toEqual({
-			sql: 'select "firstName" from "users" union select "firstName" from "users"',
+			sql:
+				'select "firstName" from (select "firstName" from "users" union select "firstName" from "users") "drizzle_union"',
 			params: [],
 		});
 	});
@@ -118,6 +160,76 @@ describe('sqlite to camel case', () => {
 		expect(query.toSQL()).toEqual({
 			sql:
 				'insert into "users" ("id", "firstName", "lastName", "AGE") values (null, ?, ?, ?) on conflict ("users"."firstName") do update set "AGE" = ? returning "firstName", "AGE"',
+			params: ['John', 'Doe', 30, 31],
+		});
+	});
+
+	it('insert (column selection)', ({ expect }) => {
+		const query = db
+			.insert(users, 'first_name', 'last_name', 'age')
+			.values({ first_name: 'John', last_name: 'Doe', age: 30 })
+			.returning({ first_name: users.first_name, age: users.age });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "users" ("firstName", "lastName", "AGE") values (?, ?, ?) returning "firstName", "AGE"',
+			params: ['John', 'Doe', 30],
+		});
+	});
+
+	it('insert (column selection, multiple rows)', ({ expect }) => {
+		const query = db
+			.insert(users, 'first_name', 'last_name')
+			.values([{ first_name: 'John', last_name: 'Doe' }, { first_name: 'Jane', last_name: 'Roe' }]);
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "users" ("firstName", "lastName") values (?, ?), (?, ?)',
+			params: ['John', 'Doe', 'Jane', 'Roe'],
+		});
+	});
+
+	it('insert (column selection, omitted optional column)', ({ expect }) => {
+		const query = db
+			.insert(users, 'first_name', 'last_name', 'age')
+			.values({ first_name: 'John', last_name: 'Doe' });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "users" ("firstName", "lastName", "AGE") values (?, ?, null)',
+			params: ['John', 'Doe'],
+		});
+	});
+
+	it('insert (column selection) with select', ({ expect }) => {
+		const query = db
+			.insert(users, 'first_name', 'last_name')
+			.select(db.select({ first_name: users.first_name, last_name: users.last_name }).from(users));
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "users" ("firstName", "lastName") select "firstName", "lastName" from "users"',
+			params: [],
+		});
+	});
+
+	it('insert (column selection) emits columns in list order', ({ expect }) => {
+		const query = db
+			.insert(users, 'age', 'last_name', 'first_name')
+			.values({ first_name: 'John', last_name: 'Doe', age: 30 });
+
+		expect(query.toSQL()).toEqual({
+			sql: 'insert into "users" ("AGE", "lastName", "firstName") values (?, ?, ?)',
+			params: [30, 'Doe', 'John'],
+		});
+	});
+
+	it('insert (column selection) on conflict do update', ({ expect }) => {
+		const query = db
+			.insert(users, 'first_name', 'last_name', 'age')
+			.values({ first_name: 'John', last_name: 'Doe', age: 30 })
+			.onConflictDoUpdate({ target: users.first_name, set: { age: 31 } })
+			.returning({ first_name: users.first_name, age: users.age });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'insert into "users" ("firstName", "lastName", "AGE") values (?, ?, ?) on conflict ("users"."firstName") do update set "AGE" = ? returning "firstName", "AGE"',
 			params: ['John', 'Doe', 30, 31],
 		});
 	});
@@ -211,6 +323,68 @@ describe('sqlite to camel case', () => {
 		expect(query.toSQL()).toEqual({
 			sql: 'delete from "users" where "users"."id" = ? returning "firstName", "AGE" as "usersAge"',
 			params: [1],
+		});
+	});
+
+	describe('selection casts', () => {
+		const castCodecs = { ...betterSQLite3Codecs, integer: { ...betterSQLite3Codecs.integer, cast: castToText } };
+		const castDb = drizzle({ client: new Database(':memory:'), codecs: castCodecs });
+		const casts = camelCase.table('casts', { cast_value: integer() });
+		const castTargets = camelCase.table('cast_targets', { target_id: text() });
+		const castSubquery = () => castDb.select({ cast_value: casts.cast_value }).from(casts).as('sq');
+
+		it(`Cast respects alias config`, ({ expect }) => {
+			expect(castDb.select({ c: casts.cast_value }).from(casts).toSQL().sql).toEqual(
+				'select cast("castValue" as text) from "casts"',
+			);
+			expect(castDb.select({ c: casts.cast_value.as('alias') }).from(casts).toSQL().sql).toEqual(
+				'select cast("castValue" as text) as "alias" from "casts"',
+			);
+		});
+
+		it(`Cast applied to selected subquery depending on it's selection`, ({ expect }) => {
+			expect(castDb.select({ x: castSubquery() }).from(castTargets).toSQL().sql).toEqual(
+				'select cast((select "castValue" from "casts") as text) "sq" from "cast_targets"',
+			);
+		});
+
+		it('Nested queries ignore casts', ({ expect }) => {
+			const outer = castDb.select({ x: castSubquery() }).from(castTargets).as('outer');
+
+			expect(castDb.select().from(outer).toSQL().sql).toEqual(
+				'select cast((select "castValue" from "casts") as text) "sq" from (select (select "castValue" from "casts") "sq" from "cast_targets") "outer"',
+			);
+		});
+
+		it(`Column as decoder applies cast`, ({ expect }) => {
+			expect(
+				castDb.select({
+					x: sql`${casts.cast_value}`.mapWith(casts.cast_value),
+					y: sql`${casts.cast_value}`.mapWith(casts.cast_value).as('y'),
+				}).from(casts).toSQL().sql,
+			)
+				.toEqual('select cast("castValue" as text), cast("castValue" as text) as "y" from "casts"');
+		});
+
+		it(`Cast doesn't bleed params into selection`, ({ expect }) => {
+			// Regression test for pre-existing issue
+			const query = castDb.select({ x: castSubquery() }).from(castTargets).toSQL();
+
+			expect(query.params).toEqual([]);
+			expect(query.sql).not.toMatch(/\$\d|\?|@par/);
+		});
+
+		it(`No double spaces in union's 'order by' `, ({ expect }) => {
+			const branch = () => castDb.select({ x: casts.cast_value }).from(casts);
+			const query = branch()
+				.unionAll(branch())
+				.orderBy(sql`1`)
+				.limit(3);
+
+			expect(query.toSQL().sql).toEqual(
+				'select cast("castValue" as text) from (select "castValue" from "casts" union all select "castValue" from "casts" order by 1 limit ?) "drizzle_union"',
+			);
+			expect(query.toSQL().sql).not.toContain('order by 1  ');
 		});
 	});
 });

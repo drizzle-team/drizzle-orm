@@ -1,8 +1,8 @@
-import { refineGenericMySqlCodecs } from '~/mysql-core/codecs.ts';
+import { castToText, refineGenericMySqlCodecs } from '~/mysql-core/codecs.ts';
 import { textDecoder } from '~/utils.ts';
 
 const bitStringFromBytes = (value: Uint8Array): string => {
-	const str: string[] = Array.from({ length: value.length });
+	const str: string[] = new Array(value.length);
 	for (let i = 0; i < value.length; ++i) {
 		str[i] = value[i] === 49 ? '1' : '0';
 	}
@@ -11,13 +11,19 @@ const bitStringFromBytes = (value: Uint8Array): string => {
 
 export const tidbCodecs = refineGenericMySqlCodecs({
 	serial: {
+		cast: castToText,
 		normalize: Number,
 	},
 	bigint: {
+		cast: castToText,
 		normalize: BigInt,
 	},
 	'bigint:number': {
+		cast: castToText,
 		normalize: Number,
+	},
+	'bigint:string': {
+		cast: castToText,
 	},
 	boolean: {
 		normalize: (value: number) => value === 1,

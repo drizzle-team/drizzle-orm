@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
-import { alias } from 'drizzle-orm/singlestore-core';
+import { alias, bigint, int, singlestoreTable } from 'drizzle-orm/singlestore-core';
 import * as mysql from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 import relations from './singlestore.relations';
@@ -26,12 +26,12 @@ const ENABLE_LOGGING = false;
 
 declare module 'vitest' {
 	export interface TestContext {
-		singlestoreDbV2: SingleStoreDriverDatabase<never, typeof relations>;
+		singlestoreDbV2: SingleStoreDriverDatabase<typeof relations>;
 		singlestoreClient: mysql.Connection;
 	}
 }
 
-let db: SingleStoreDriverDatabase<never, typeof relations>;
+let db: SingleStoreDriverDatabase<typeof relations>;
 let client: mysql.Connection;
 
 beforeAll(async () => {
@@ -11207,7 +11207,48 @@ test('alltypes', async () => {
 	expect(nestedRelationRes).toStrictEqual(rawRes);
 	expect(relationRootRes).toStrictEqual(rawRes);
 
-	const expectedRes = [
+	type ExpectedType = {
+		serial: number;
+		bigint53: number | null;
+		bigint64: bigint | null;
+		bigintString: string | null;
+		binary: string | null;
+		boolean: boolean | null;
+		char: string | null;
+		date: Date | null;
+		dateStr: string | null;
+		datetime: Date | null;
+		datetimeStr: string | null;
+		decimal: string | null;
+		decimalNum: number | null;
+		decimalBig: bigint | null;
+		double: number | null;
+		float: number | null;
+		int: number | null;
+		json: unknown;
+		medInt: number | null;
+		smallInt: number | null;
+		real: number | null;
+		text: string | null;
+		time: string | null;
+		timestamp: Date | null;
+		timestampStr: string | null;
+		tinyInt: number | null;
+		varbin: string | null;
+		varchar: string | null;
+		year: number | null;
+		enum: 'enV1' | 'enV2' | null;
+		vectorI8: number[] | null;
+		vectorI16: number[] | null;
+		vectorI32: number[] | null;
+		vectorI64: bigint[] | null;
+		vectorF32: number[] | null;
+		vectorF64: number[] | null;
+	}[];
+
+	expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
+
+	const expectedRes: ExpectedType = [
 		{
 			serial: 1,
 			bigint53: 9007199254740991,
@@ -11224,7 +11265,7 @@ test('alltypes', async () => {
 			decimalNum: 9007199254740991,
 			decimalBig: 5044565289845416380n,
 			double: 15.35325689124218,
-			float: 1.0486,
+			float: 1.048596,
 			int: 621,
 			json: { arr: ['str', 10], str: 'strval' },
 			medInt: 560,
@@ -11323,4 +11364,48 @@ test('.toSQL()', () => {
 
 	expect(query).toHaveProperty('sql', expect.any(String));
 	expect(query).toHaveProperty('params', expect.any(Array));
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5367
+test('Correct error message on unknown column', async () => {
+	const query = db.query.usersTable.findFirst({
+		columns: {
+			id: true,
+			// @ts-expect-error
+			unknown: true,
+		},
+	});
+
+	expect(async () => await query).rejects.toThrow(
+		new DrizzleError({ message: `Unknown column: "usersTable"."unknown"` }),
+	);
+});
+
+test('Correct error message on unknown relation', async () => {
+	const query = db.query.usersTable.findFirst({
+		with: {
+			posts: true,
+			// @ts-expect-error
+			unknown: true,
+		},
+	});
+
+	expect(async () => await query).rejects.toThrow(
+		new DrizzleError({ message: `Unknown relation "usersTable" -> "unknown"` }),
+	);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5644
+test('Disallow unknown keys in filters', async () => {
+	const query = db.query.usersTable.findFirst({
+		where: {
+			name: 'NAME',
+			// @ts-expect-error
+			unknown: 'value',
+		},
+	});
+
+	expect(async () => await query).rejects.toThrow(
+		new DrizzleError({ message: `Unknown relational filter field: "unknown"` }),
+	);
 });

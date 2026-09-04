@@ -134,4 +134,15 @@ describe.concurrent('makePgArray', () => {
 		const output = makePgArray(input);
 		expect(output).toEqual('{"1","\n","3\\\\"}');
 	});
+
+	it('custom delimiter', ({ expect }) => {
+		expect(makePgArray(['point(1 2)', 'point(3 4)'], ':')).toEqual('{"point(1 2)":"point(3 4)"}');
+		expect(makePgArray([['1', '2'], ['3', '4']], ':')).toEqual('{{"1":"2"}:{"3":"4"}}');
+		expect(makePgArray([1, 2], ':')).toEqual('{1:2}');
+	});
+
+	it('defaults to a comma delimiter', ({ expect }) => {
+		expect(makePgArray([1, 2])).toEqual('{1,2}');
+		expect(makePgArray([1, 2], undefined)).toEqual('{1,2}');
+	});
 });

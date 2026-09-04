@@ -1,25 +1,128 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { and, asc, eq, exists, gt, inArray, lt, notInArray, sql } from 'drizzle-orm';
+import { and, asc, eq, exists, getColumns, getViewSelectedFields, gt, inArray, lt, notInArray, sql } from 'drizzle-orm';
 import {
 	alias,
 	boolean,
 	char,
 	cidr,
+	customType,
+	foreignKey,
 	inet,
 	integer,
+	json,
 	jsonb,
 	macaddr,
 	macaddr8,
 	numeric,
+	pgEnum,
 	pgTable,
 	pgTableCreator,
+	pgView,
 	serial,
+	snakeCase,
 	text,
 	timestamp,
 	uuid,
 } from 'drizzle-orm/pg-core';
+import type { PgAsyncDatabase } from 'drizzle-orm/pg-core/async/db';
 import { describe, expect } from 'vitest';
 import type { Test } from './instrumentation';
+
+const dnStaff = pgTable('dn_staff', {
+	userId: integer('user_id').primaryKey(),
+});
+const dnPeople = pgTable('dn_people', {
+	id: integer('id').primaryKey(),
+	name: text('name').notNull(),
+	nick: text('nick'),
+});
+const dnTicket = pgTable('dn_ticket', {
+	id: serial('id').primaryKey(),
+	staffId: integer('staff_id'),
+});
+const dnVStaff = pgTable('dn_vstaff', {
+	id: integer('id').primaryKey(),
+	deptId: integer('dept_id'),
+});
+const dnDept = pgTable('dn_dept', {
+	id: integer('id').primaryKey(),
+	name: text('name').notNull(),
+});
+const dnEmp = pgTable('dn_emp', {
+	id: serial('id').primaryKey(),
+	staffId: integer('staff_id'),
+});
+const dnStaffView = pgView('dn_staff_view').as((qb) =>
+	qb
+		.select({
+			staffId: dnVStaff.id.as('staff_id'),
+			dept: { id: dnDept.id.as('dept_id'), name: dnDept.name.as('dept_name') },
+		})
+		.from(dnVStaff)
+		.leftJoin(dnDept, eq(dnVStaff.deptId, dnDept.id))
+);
+
+const dnTables = { dnStaff, dnPeople, dnTicket, dnVStaff, dnDept, dnEmp };
+const dnPushSchema = { ...dnTables, dnStaffView };
+
+async function resetDeepNullification(db: PgAsyncDatabase<any, any>) {
+	await db.execute(sql`DROP VIEW IF EXISTS ${dnStaffView}`);
+	for (const t of Object.values(dnTables)) await db.execute(sql`DROP TABLE IF EXISTS ${t} CASCADE`);
+}
+
+async function runDeepNullification(db: PgAsyncDatabase<any, any>) {
+	await db.insert(dnStaff).values([{ userId: 1 }, { userId: 2 }]);
+	await db.insert(dnPeople).values([{ id: 1, name: 'Ann', nick: null }, { id: 2, name: 'Bob', nick: 'b' }]);
+	await db.insert(dnTicket).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]); // #3 -> outer miss
+	await db.insert(dnVStaff).values([{ id: 1, deptId: 1 }, { id: 2, deptId: 1 }]);
+	await db.insert(dnDept).values([{ id: 1, name: 'Eng' }]);
+	await db.insert(dnEmp).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]); // #3 -> outer view miss
+
+	const crew = db.select().from(dnStaff).leftJoin(dnPeople, eq(dnStaff.userId, dnPeople.id)).as('crew');
+
+	const sqJoin = await db
+		.select()
+		.from(dnTicket)
+		.leftJoin(crew, eq(crew.dn_staff.userId, dnTicket.staffId))
+		.orderBy(dnTicket.id);
+	expect(sqJoin).toEqual([
+		{
+			dn_ticket: { id: 1, staffId: 1 },
+			crew: { dn_staff: { userId: 1 }, dn_people: { id: 1, name: 'Ann', nick: null } },
+		},
+		{
+			dn_ticket: { id: 2, staffId: 2 },
+			crew: { dn_staff: { userId: 2 }, dn_people: { id: 2, name: 'Bob', nick: 'b' } },
+		},
+		{ dn_ticket: { id: 3, staffId: 3 }, crew: null },
+	]);
+
+	const viewJoin = await db
+		.select()
+		.from(dnEmp)
+		.leftJoin(dnStaffView, eq(dnStaffView.staffId, dnEmp.staffId))
+		.orderBy(dnEmp.id);
+	expect(viewJoin).toEqual([
+		{ dn_emp: { id: 1, staffId: 1 }, dn_staff_view: { staffId: 1, dept: { id: 1, name: 'Eng' } } },
+		{ dn_emp: { id: 2, staffId: 2 }, dn_staff_view: { staffId: 2, dept: { id: 1, name: 'Eng' } } },
+		{ dn_emp: { id: 3, staffId: 3 }, dn_staff_view: null },
+	]);
+
+	const crewInner = db.select().from(dnStaff).innerJoin(dnPeople, eq(dnStaff.userId, dnPeople.id)).as('crew_inner');
+	const innerFold = await db
+		.select({
+			ticketId: dnTicket.id,
+			person: { id: crewInner.dn_people.id, name: crewInner.dn_people.name, nick: crewInner.dn_people.nick },
+		})
+		.from(dnTicket)
+		.leftJoin(crewInner, eq(crewInner.dn_staff.userId, dnTicket.staffId))
+		.orderBy(dnTicket.id);
+	expect(innerFold).toEqual([
+		{ ticketId: 1, person: { id: 1, name: 'Ann', nick: null } },
+		{ ticketId: 2, person: { id: 2, name: 'Bob', nick: 'b' } },
+		{ ticketId: 3, person: null },
+	]);
+}
 
 export function tests(test: Test) {
 	describe('common', () => {
@@ -484,6 +587,72 @@ export function tests(test: Test) {
 			expect(result).toEqual([
 				{ id: 1, name: 'John', verified: true, jsonb: null, createdAt: result[0]!.createdAt },
 			]);
+		});
+
+		test.concurrent('insert with explicit column list', async ({ db, push }) => {
+			const table = pgTable('column_selection', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+				note: text('note'),
+			});
+
+			await push({ table });
+
+			await db.insert(table, 'name').values([{ name: 'John' }, { name: 'Jane' }]);
+			await db.insert(table, 'name', 'note').values({ name: 'Jack' });
+			await db.insert(table, 'note', 'name').values({ name: 'Jill', note: 'hi' });
+
+			const result = await db.select().from(table).orderBy(table.id);
+			expect(result).toEqual([
+				{ id: 1, name: 'John', verified: false, note: null },
+				{ id: 2, name: 'Jane', verified: false, note: null },
+				{ id: 3, name: 'Jack', verified: false, note: null },
+				{ id: 4, name: 'Jill', verified: false, note: 'hi' },
+			]);
+		});
+
+		test.concurrent('insert with explicit column list - select', async ({ db, push }) => {
+			const src = pgTable('column_selection_select_src', {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+			const dst = pgTable('column_selection_select_dst', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				verified: boolean('verified').notNull().default(false),
+			});
+
+			await push({ src, dst });
+
+			await db.insert(src).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+
+			await db.insert(dst, 'name').select(db.select({ name: src.name }).from(src).orderBy(src.id));
+
+			const result = await db.select().from(dst).orderBy(dst.id);
+			expect(result).toEqual([
+				{ id: 1, name: 'John', verified: false },
+				{ id: 2, name: 'Jane', verified: false },
+			]);
+		});
+
+		test.concurrent('insert with explicit column list - on conflict', async ({ db, push }) => {
+			const table = pgTable('column_selection_conflict', {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+				note: text('note'),
+			});
+
+			await push({ table });
+
+			await db.insert(table, 'id', 'name').values({ id: 1, name: 'John' });
+			await db
+				.insert(table, 'id', 'name')
+				.values({ id: 1, name: 'Jane' })
+				.onConflictDoUpdate({ target: table.id, set: { name: 'Updated' } });
+
+			const result = await db.select().from(table);
+			expect(result).toEqual([{ id: 1, name: 'Updated', note: null }]);
 		});
 
 		test.concurrent('insert many', async ({ db, push }) => {
@@ -1066,7 +1235,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/2872
-		test.skipIf(Date.now() < +new Date('2026-07-01')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-09-05')).concurrent(
 			'prepared statement with placeholder in .inArray',
 			async ({ db, push }) => {
 				const usersTable = pgTable('users_392', {
@@ -1350,6 +1519,361 @@ export function tests(test: Test) {
 					cities_53: null,
 				},
 			]);
+		});
+
+		test.concurrent("No nullification on non-joined table's all-null object", async ({ db, push }) => {
+			const users = pgTable('nullify1_users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				bio: text('bio'),
+				city: text('city'),
+			});
+
+			await push({ users });
+
+			await db.insert(users).values({ name: 'John' });
+
+			const res = await db
+				.select({ id: users.id, meta: { bio: users.bio, city: users.city } })
+				.from(users);
+
+			expect(res).toEqual([{ id: 1, meta: { bio: null, city: null } }]);
+		});
+
+		test.concurrent('Cross-table group never nullified', async ({ db, push }) => {
+			const citiesTable = pgTable('nullify2_cities', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('nullify2_users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				bio: text('bio'),
+				cityId: integer('city_id').references(() => citiesTable.id),
+			});
+
+			await push({ citiesTable, users2Table });
+
+			await db.insert(citiesTable).values([{ name: 'Paris' }]);
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+			const res = await db
+				.select({
+					id: users2Table.id,
+					g: { user: users2Table.name, cityId: citiesTable.id, cityName: citiesTable.name },
+				})
+				.from(users2Table)
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+				.orderBy(users2Table.id);
+
+			expect(res).toEqual([
+				{ id: 1, g: { user: 'John', cityId: 1, cityName: 'Paris' } },
+				{ id: 2, g: { user: 'Jane', cityId: null, cityName: null } },
+			]);
+
+			const onlyJoinedSideNotNull = await db
+				.select({ id: users2Table.id, g: { bio: users2Table.bio, cityId: citiesTable.id } })
+				.from(users2Table)
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+				.orderBy(users2Table.id);
+
+			expect(onlyJoinedSideNotNull).toEqual([
+				{ id: 1, g: { bio: null, cityId: 1 } },
+				{ id: 2, g: { bio: null, cityId: null } },
+			]);
+		});
+
+		test.concurrent('SQL field groups are never nullified', async ({ db, push }) => {
+			const citiesTable = pgTable('nullify3_cities', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('nullify3_users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => citiesTable.id),
+			});
+
+			await push({ citiesTable, users2Table });
+
+			await db.insert(citiesTable).values([{ name: 'Paris' }]);
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+			const res = await db
+				.select({
+					id: users2Table.id,
+					calc: {
+						user: sql<string>`upper(${users2Table.name})`,
+						city: sql<string | null>`upper(${citiesTable.name})`,
+					},
+				})
+				.from(users2Table)
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+				.orderBy(users2Table.id);
+
+			expect(res).toEqual([
+				{ id: 1, calc: { user: 'JOHN', city: 'PARIS' } },
+				{ id: 2, calc: { user: 'JANE', city: null } },
+			]);
+		});
+
+		test.concurrent('Nullify all-null group from from nullable join', async ({ db, push }) => {
+			const citiesTable = pgTable('nullify4_cities', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				state: text('state'),
+				zip: text('zip'),
+			});
+
+			const users2Table = pgTable('nullify4_users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => citiesTable.id),
+			});
+
+			await push({ citiesTable, users2Table });
+
+			await db.insert(citiesTable).values([{ name: 'Paris', state: 'IDF', zip: '75' }, { name: 'London' }]);
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane', cityId: 2 },
+				{ name: 'Jack' },
+			]);
+
+			const res = await db
+				.select({ name: users2Table.name, c: { state: citiesTable.state, zip: citiesTable.zip } })
+				.from(users2Table)
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+				.orderBy(users2Table.id);
+
+			expect(res).toEqual([
+				{ name: 'John', c: { state: 'IDF', zip: '75' } },
+				{ name: 'Jane', c: null },
+				{ name: 'Jack', c: null },
+			]);
+		});
+
+		test.concurrent("Don't disregard added SQL field during join nullification", async ({ db, push }) => {
+			const citiesTable = pgTable('nullify5_cities', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				state: text('state'),
+			});
+
+			const users2Table = pgTable('nullify5_users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => citiesTable.id),
+			});
+
+			await push({ citiesTable, users2Table });
+
+			await db.insert(citiesTable).values([{ name: 'Paris', state: 'IDF' }, { name: 'London' }]);
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 2 }]);
+
+			const res = await db
+				.select({
+					name: users2Table.name,
+					c: { state: citiesTable.state, cityUpper: sql<string>`upper(${citiesTable.name})` },
+				})
+				.from(users2Table)
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+				.orderBy(users2Table.id);
+
+			expect(res).toEqual([
+				{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
+				{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
+			]);
+		});
+		test.concurrent("No nullification on non-joined table's all-null object - jit", async ({ createDB, push }) => {
+			const users = pgTable('nullify1_users_jit', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				bio: text('bio'),
+				city: text('city'),
+			});
+
+			await push({ users });
+			const db = createDB({ users }, () => ({}), true);
+
+			await db.insert(users).values({ name: 'John' });
+
+			const res = await db
+				.select({ id: users.id, meta: { bio: users.bio, city: users.city } })
+				.from(users);
+
+			expect(res).toEqual([{ id: 1, meta: { bio: null, city: null } }]);
+		});
+
+		test.concurrent('Cross-table group never nullified - jit', async ({ createDB, push }) => {
+			const citiesTable = pgTable('nullify2_cities_jit', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('nullify2_users_jit', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				bio: text('bio'),
+				cityId: integer('city_id').references(() => citiesTable.id),
+			});
+
+			await push({ citiesTable, users2Table });
+			const db = createDB({ citiesTable, users2Table }, () => ({}), true);
+
+			await db.insert(citiesTable).values([{ name: 'Paris' }]);
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+			const res = await db
+				.select({
+					id: users2Table.id,
+					g: { user: users2Table.name, cityId: citiesTable.id, cityName: citiesTable.name },
+				})
+				.from(users2Table)
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+				.orderBy(users2Table.id);
+
+			expect(res).toEqual([
+				{ id: 1, g: { user: 'John', cityId: 1, cityName: 'Paris' } },
+				{ id: 2, g: { user: 'Jane', cityId: null, cityName: null } },
+			]);
+
+			const onlyJoinedSideNotNull = await db
+				.select({ id: users2Table.id, g: { bio: users2Table.bio, cityId: citiesTable.id } })
+				.from(users2Table)
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+				.orderBy(users2Table.id);
+
+			expect(onlyJoinedSideNotNull).toEqual([
+				{ id: 1, g: { bio: null, cityId: 1 } },
+				{ id: 2, g: { bio: null, cityId: null } },
+			]);
+		});
+
+		test.concurrent('SQL field groups are never nullified - jit', async ({ createDB, push }) => {
+			const citiesTable = pgTable('nullify3_cities_jit', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('nullify3_users_jit', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => citiesTable.id),
+			});
+
+			await push({ citiesTable, users2Table });
+			const db = createDB({ citiesTable, users2Table }, () => ({}), true);
+
+			await db.insert(citiesTable).values([{ name: 'Paris' }]);
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+			const res = await db
+				.select({
+					id: users2Table.id,
+					calc: {
+						user: sql<string>`upper(${users2Table.name})`,
+						city: sql<string | null>`upper(${citiesTable.name})`,
+					},
+				})
+				.from(users2Table)
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+				.orderBy(users2Table.id);
+
+			expect(res).toEqual([
+				{ id: 1, calc: { user: 'JOHN', city: 'PARIS' } },
+				{ id: 2, calc: { user: 'JANE', city: null } },
+			]);
+		});
+
+		test.concurrent(
+			'Nullify all-null group from from nullable join - jit',
+			async ({ createDB, push }) => {
+				const citiesTable = pgTable('nullify4_cities_jit', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					state: text('state'),
+					zip: text('zip'),
+				});
+
+				const users2Table = pgTable('nullify4_users_jit', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					cityId: integer('city_id').references(() => citiesTable.id),
+				});
+
+				await push({ citiesTable, users2Table });
+				const db = createDB({ citiesTable, users2Table }, () => ({}), true);
+
+				await db.insert(citiesTable).values([{ name: 'Paris', state: 'IDF', zip: '75' }, { name: 'London' }]);
+				await db.insert(users2Table).values([
+					{ name: 'John', cityId: 1 },
+					{ name: 'Jane', cityId: 2 },
+					{ name: 'Jack' },
+				]);
+
+				const res = await db
+					.select({ name: users2Table.name, c: { state: citiesTable.state, zip: citiesTable.zip } })
+					.from(users2Table)
+					.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+					.orderBy(users2Table.id);
+
+				expect(res).toEqual([
+					{ name: 'John', c: { state: 'IDF', zip: '75' } },
+					{ name: 'Jane', c: null },
+					{ name: 'Jack', c: null },
+				]);
+			},
+		);
+
+		test.concurrent("Don't disregard added SQL field during join nullification - jit", async ({ createDB, push }) => {
+			const citiesTable = pgTable('nullify5_cities_jit', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				state: text('state'),
+			});
+
+			const users2Table = pgTable('nullify5_users_jit', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => citiesTable.id),
+			});
+
+			await push({ citiesTable, users2Table });
+			const db = createDB({ citiesTable, users2Table }, () => ({}), true);
+
+			await db.insert(citiesTable).values([{ name: 'Paris', state: 'IDF' }, { name: 'London' }]);
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 2 }]);
+
+			const res = await db
+				.select({
+					name: users2Table.name,
+					c: { state: citiesTable.state, cityUpper: sql<string>`upper(${citiesTable.name})` },
+				})
+				.from(users2Table)
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+				.orderBy(users2Table.id);
+
+			expect(res).toEqual([
+				{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
+				{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
+			]);
+		});
+
+		// Shared schema, thus ran sequentially
+		// TODO: fix ^
+		test('Mappers: deep nullification', async ({ db, push }) => {
+			await resetDeepNullification(db);
+			await push(dnPushSchema);
+			await runDeepNullification(db);
+		});
+
+		test('Mappers: deep nullification - jit', async ({ db, createDB, push }) => {
+			await resetDeepNullification(db);
+			await push(dnPushSchema);
+			await runDeepNullification(createDB(dnTables, () => ({}), true));
 		});
 
 		test.concurrent('join subquery', async ({ db, push }) => {
@@ -1821,40 +2345,368 @@ export function tests(test: Test) {
 			]);
 		});
 
-		// https://github.com/drizzle-team/drizzle-orm/issues/5780
-		test.concurrent('issue #5780. .onUpdateFn()', async ({ db, push }) => {
+		// https://github.com/drizzle-team/drizzle-orm/issues/5485
+		test.concurrent('issue #5485', async ({ db, push }) => {
 			const table = pgTable('example', {
 				id: uuid('id').primaryKey().defaultRandom(),
-				name: text('name').notNull(),
-				updatedById: text('updated_by_id')
-					.$onUpdate(() => sql`1`)
-					.notNull(),
+				meta: jsonb('meta').notNull(),
+				meta2: jsonb('meta_2').notNull(),
 			});
 
 			await push({ table });
 
-			await db.insert(table).values({ name: 'foo', updatedById: 'some-uuid' });
+			await db.insert(table).values({ meta: '0.1', meta2: 0.1 });
 
-			// This should NOT invoke the $onUpdate callback — updatedById is explicitly provided.
-			// ----
-			await db.update(table).set({ name: 'foo', updatedById: 'new-some-uuid-new' }).where(
-				eq(table.updatedById, 'some-uuid'),
-			);
-			const result = (await db.select({ updatedById: table.updatedById }).from(table))[0];
+			const result = (await db.select({ meta: table.meta, meta2: table.meta2 }).from(table))[0];
 
 			expect(result).toStrictEqual({
-				updatedById: 'new-some-uuid-new',
+				meta: '0.1',
+				meta2: 0.1,
 			});
+		});
 
-			// ----
-			await db.update(table).set({ name: 'foo' }).where(
-				eq(table.updatedById, 'new-some-uuid-new'),
+		// https://github.com/drizzle-team/drizzle-orm/issues/4917
+		test.concurrent('issue #4917', async ({ db, push }) => {
+			const featureFlag = pgTable('feature_flag', (d) => ({
+				id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+				name: d.varchar({ length: 256 }).notNull().unique(),
+				description: d.text(),
+				// createdAt: d
+				// 	.timestamp({ withTimezone: true })
+				// 	.default(sql`CURRENT_TIMESTAMP`)
+				// 	.notNull(),
+				// updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
+			}));
+
+			const scopeEnum = pgEnum('scope', ['global', 'user']);
+			const featureFlagSetting = pgTable('feature_flag_setting', (d) => ({
+				id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+				featureFlagId: d
+					.integer()
+					.references(() => featureFlag.id)
+					.notNull(),
+				scope: scopeEnum().notNull(), // These become problematic since the are defined without name
+				entityId: d.text(), // These become problematic since the are defined without name
+				enabled: d.boolean().notNull(), // These become problematic since the are defined without name
+				// createdAt: d
+				// 	.timestamp({ withTimezone: true })
+				// 	.default(sql`CURRENT_TIMESTAMP`)
+				// 	.notNull(),
+				// updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
+			}));
+
+			const featureFlagView = pgView('feature_flag_view').as((qb) =>
+				qb
+					.select({
+						id: featureFlag.id,
+						name: featureFlag.name,
+						description: featureFlag.description,
+						scope: featureFlagSetting.scope,
+						entityId: featureFlagSetting.entityId,
+						enabled: featureFlagSetting.enabled,
+						// createdAt: featureFlagSetting.createdAt,
+						// updatedAt: featureFlagSetting.updatedAt,
+					})
+					.from(featureFlag)
+					.leftJoin(
+						featureFlagSetting,
+						eq(featureFlag.id, featureFlagSetting.featureFlagId),
+					)
 			);
 
-			const result2 = (await db.select({ updatedById: table.updatedById }).from(table))[0];
-			expect(result2).toStrictEqual({
-				updatedById: '1',
+			const schema = { featureFlag, scopeEnum, featureFlagSetting, featureFlagView };
+
+			await push(schema);
+
+			await db.insert(featureFlag).values({ name: 'name', id: 1 });
+			await db.insert(featureFlagSetting).values({ enabled: true, featureFlagId: 1, scope: 'user', id: 1 });
+
+			const res = await db
+				.select({
+					// id: featureFlagView.id,
+					// name: featureFlagView.name,
+					// description: featureFlagView.description,
+					// scope: featureFlagView.scope,
+					// entityId: featureFlagView.entityId,
+					// enabled: featureFlagView.enabled,
+					// createdAt: featureFlagView.createdAt,
+					// updatedAt: featureFlagView.updatedAt,
+					...getViewSelectedFields(featureFlagView),
+				})
+				.from(featureFlagView);
+
+			expect(res).toStrictEqual(
+				[
+					{
+						description: null,
+						enabled: true,
+						entityId: null,
+						id: 1,
+						name: 'name',
+						scope: 'user',
+					},
+				],
+			);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4518
+		test.concurrent('issue #4518', async ({ db, push }) => {
+			const table = pgTable('table', (d) => ({
+				column: d.jsonb(),
+				column2: d.jsonb(),
+			}));
+
+			await push({ table });
+
+			await db.insert(table).values({ column: '2', column2: 2 });
+
+			const res = await db
+				.select()
+				.from(table);
+
+			expect(res).toStrictEqual(
+				[
+					{
+						column: '2',
+						column2: 2,
+					},
+				],
+			);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4095
+		test.concurrent('issue No4095', async ({ db }) => {
+			const users = pgTable('users', {
+				id: integer(),
 			});
+
+			const someCTE = db.$with('SOME_CTE').as((cteQb) =>
+				cteQb
+					.select({
+						someColumn: users.id,
+					})
+					.from(users)
+			);
+
+			const sqlOutput = db
+				.with(someCTE)
+				.selectDistinct({
+					someColumn: someCTE.someColumn,
+				})
+				.from(someCTE)
+				.toSQL();
+
+			expect(sqlOutput).toStrictEqual({
+				params: [],
+				sql: 'with "SOME_CTE" as (select "id" from "users") select distinct "id" from "SOME_CTE"',
+			});
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4091
+		test.concurrent('RQB v2 numeric precision preserved in nested relation', async ({ push, createDB }) => {
+			const categories = pgTable('rqb_numeric_categories', {
+				id: uuid('id').defaultRandom().primaryKey(),
+			});
+
+			const products = pgTable('rqb_numeric_products', {
+				id: uuid('id').defaultRandom().primaryKey(),
+				categoryId: uuid('category_id'),
+				priceUahRetail: numeric('price_uah_retail'),
+				priceUahWholesaleBig: numeric('price_uah_wholesale_big'),
+			});
+
+			await push({ categories, products });
+			const db = createDB({ categories, products }, (r) => ({
+				categories: {
+					products: r.many.products({
+						from: r.categories.id,
+						to: r.products.categoryId,
+					}),
+				},
+				products: {
+					category: r.one.categories({
+						from: r.products.categoryId,
+						to: r.categories.id,
+					}),
+				},
+			}));
+
+			const categoryId = '11111111-1111-1111-1111-111111111111';
+			const productId = '22222222-2222-2222-2222-222222222222';
+
+			await db.insert(categories).values({ id: categoryId });
+			await db.insert(products).values({
+				id: productId,
+				categoryId,
+				priceUahRetail: '302312.1010',
+				priceUahWholesaleBig: '1010101010101010101.202020020202020202022020',
+			});
+
+			const result = await db.query.categories.findFirst({
+				where: {
+					id: categoryId,
+				},
+				with: {
+					products: {
+						columns: {
+							id: true,
+							priceUahRetail: true,
+							priceUahWholesaleBig: true,
+						},
+					},
+				},
+			});
+
+			expect(result).toStrictEqual({
+				id: categoryId,
+				products: [{
+					id: productId,
+					priceUahRetail: '302312.1010',
+					priceUahWholesaleBig: '1010101010101010101.202020020202020202022020',
+				}],
+			});
+
+			// numeric values must stay strings, not be coerced to JS numbers (precision loss)
+			expect(typeof result!.products[0]!.priceUahRetail).toBe('string');
+			expect(typeof result!.products[0]!.priceUahWholesaleBig).toBe('string');
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/3856
+		test.concurrent('Issue No3856', async ({ push, db }) => {
+			const code = snakeCase.table(
+				'code',
+				{
+					id: uuid().defaultRandom().primaryKey(),
+					personId: uuid().notNull(),
+					code: text().notNull(),
+				},
+				(table) => [
+					foreignKey({
+						columns: [table.personId],
+						foreignColumns: [person.id],
+						name: 'person_code_fk',
+					}),
+				],
+			);
+
+			const person = snakeCase.table('person', {
+				id: uuid().defaultRandom().primaryKey(),
+				email: text().notNull(),
+				firstName: text().notNull(),
+				lastName: text().notNull(),
+			});
+
+			const personWithCode = pgView('person_with_code').as((queryBuilder) => {
+				const personColumns = getColumns(person);
+
+				return queryBuilder
+					.select({
+						...personColumns,
+						code: code.code,
+					})
+					.from(person)
+					.innerJoin(code, eq(code.personId, person.id));
+			});
+
+			await push({ person, code, personWithCode });
+			const personSeed = {
+				id: '11111111-1111-1111-1111-111111111111',
+				email: 'test@gmail.com',
+				firstName: 'first_name',
+				lastName: 'last_name',
+			};
+
+			const codeSeed = {
+				id: '21111111-1111-1111-1111-111111111111',
+				personId: '11111111-1111-1111-1111-111111111111',
+				code: 'code value',
+			};
+
+			await db.insert(person).values(personSeed);
+			await db.insert(code).values(codeSeed);
+
+			const query = db
+				.select()
+				.from(personWithCode)
+				.where(eq(personWithCode.code, 'code value'));
+
+			const res = await query;
+
+			expect(res).toStrictEqual([{
+				code: 'code value',
+				email: 'test@gmail.com',
+				firstName: 'first_name',
+				id: '11111111-1111-1111-1111-111111111111',
+				lastName: 'last_name',
+			}]);
+
+			expect(query.toSQL()).toStrictEqual({
+				sql:
+					'select "id", "email", "first_name", "last_name", "code" from "person_with_code" where "person_with_code"."code" = $1',
+				params: ['code value'],
+			});
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/1504
+		test.concurrent('Issue No1504', async ({ push, db }) => {
+			type PropTypes = { [key: string]: any };
+
+			const jsonDbType = customType<{ data: PropTypes }>({
+				dataType() {
+					return 'jsonb';
+				},
+				toDriver(value: PropTypes) {
+					return sql`${JSON.stringify(value)}::jsonb`;
+				},
+				fromDriver(value: any): PropTypes {
+					return JSON.parse(value);
+				},
+			});
+
+			const table = pgTable('table', {
+				column: jsonDbType('column'),
+			});
+
+			await db.execute(sql`DROP TABLE IF EXISTS ${table}`);
+			await push({ table });
+
+			await db.insert(table).values({ column: { hello: 'world' } });
+			const res = await db
+				.select({ value: sql`${table.column} ->> 'hello'` })
+				.from(table);
+			expect(res).toStrictEqual([{ value: 'world' }]);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/1117
+		test.concurrent('Issue No1117', async ({ push, db }) => {
+			const table = pgTable('table', {
+				jsonData: json(),
+			});
+
+			await db.execute(sql`DROP TABLE IF EXISTS ${table}`);
+			await push({ table });
+
+			const saveData = db
+				.insert(table)
+				.values({
+					jsonData: sql.placeholder('jsonData'),
+				})
+				.prepare();
+
+			const jsonData = { some: 'data' };
+			// Neither of these work
+			await saveData.execute({ jsonData: jsonData });
+			await saveData.execute({
+				jsonData: JSON.stringify(jsonData),
+			});
+
+			const result = await db.select().from(table);
+
+			expect(result).toStrictEqual([{
+				jsonData: { some: 'data' },
+			}, {
+				jsonData: JSON.stringify({ some: 'data' }),
+			}]);
 		});
 	});
 }

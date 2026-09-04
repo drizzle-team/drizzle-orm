@@ -29,6 +29,9 @@ export class MsSqlFloat<T extends ColumnBaseConfig<'number double'>>
 {
 	static override readonly [entityKind]: string = 'MsSqlFloat';
 
+	/** @internal */
+	override readonly codec = 'float';
+
 	readonly precision: number | undefined = this.config.precision;
 
 	getSQLType(): string {

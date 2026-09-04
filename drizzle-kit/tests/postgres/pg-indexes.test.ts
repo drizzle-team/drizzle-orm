@@ -620,6 +620,7 @@ test('index #5', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2427
 test('index #6', async (t) => {
 	const enum_ = pgEnum('enum', ['text', 'not_text', 'something_else']);
 	const schema1 = {

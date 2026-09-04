@@ -4,9 +4,63 @@ import { escapeForTsLiteral } from '../utils';
 import type { Column, DiffEntities, ForeignKey } from './ddl';
 import type { Import } from './typescript';
 
-const namedCheckPattern = /CONSTRAINT\s+["'`[]?(\w+)["'`\]]?\s+CHECK\s*\((.*)\)/gi;
-const unnamedCheckPattern = /CHECK\s+\((.*)\)/gi;
 const viewAsStatementRegex = new RegExp(`\\bAS\\b\\s+(WITH.+|SELECT.+)$`, 'is'); // 'i' for case-insensitive, 's' for dotall mode
+
+/**
+ * Removes SQL comments (line comments and block comments) from a DDL string so
+ * parsers don't pick up commented-out constraints.
+ * String literals (single/double quotes, backticks, `[...]`) are preserved untouched.
+ */
+export const stripSqlComments = (sql: string): string => {
+	let result = '';
+	let i = 0;
+	const len = sql.length;
+
+	while (i < len) {
+		const char = sql[i];
+
+		// string / identifier literals — copy verbatim until the matching close
+		if (char === "'" || char === '"' || char === '`' || char === '[') {
+			const close = char === '[' ? ']' : char;
+			result += char;
+			i++;
+			while (i < len) {
+				result += sql[i];
+				// handle doubled-quote escaping (e.g. '' inside a '...' literal)
+				if (sql[i] === close) {
+					if (close !== ']' && sql[i + 1] === close) {
+						result += sql[i + 1];
+						i += 2;
+						continue;
+					}
+					i++;
+					break;
+				}
+				i++;
+			}
+			continue;
+		}
+
+		// line comment
+		if (char === '-' && sql[i + 1] === '-') {
+			while (i < len && sql[i] !== '\n') i++;
+			continue;
+		}
+
+		// block comment
+		if (char === '/' && sql[i + 1] === '*') {
+			i += 2;
+			while (i < len && !(sql[i] === '*' && sql[i + 1] === '/')) i++;
+			i += 2;
+			continue;
+		}
+
+		result += char;
+		i++;
+	}
+
+	return result;
+};
 
 export const nameForForeignKey = (fk: Pick<ForeignKey, 'table' | 'columns' | 'tableTo' | 'columnsTo'>) => {
 	return `fk_${fk.table}_${fk.columns.join('_')}_${fk.tableTo}_${fk.columnsTo.join('_')}_fk`;
@@ -24,7 +78,7 @@ export interface SqlType<MODE = unknown> {
 	is(type: string): boolean;
 	drizzleImport(): Import;
 	defaultFromDrizzle(value: unknown, mode?: MODE): Column['default'];
-	defaultFromIntrospect(value: string): Column['default'];
+	defaultFromIntrospect(value: string, type?: string): Column['default'];
 	toTs(
 		value: Column['default'],
 		type: string,
@@ -134,7 +188,22 @@ export const Numeric: SqlType = {
 		if (typeof value === 'number') return `${value.toString()}`;
 		throw new Error(`unexpected: ${value} ${typeof value}`);
 	},
-	defaultFromIntrospect: function(value: string): Column['default'] {
+	defaultFromIntrospect: function(value: string, type: string): Column['default'] {
+		const lowered = type.toLowerCase();
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/6182
+		// when user creates
+		// column BOOLEAN default false -> sqlite accepts it
+		// BOOLEAN is changed to numeric on introspect and false,true are stored in db as 0,1
+		// need to convert them
+		if (lowered.startsWith('boolean') || lowered.startsWith('numeric')) {
+			return value.toLowerCase() === 'true'
+				? '1'
+				: value.toLowerCase() === 'false'
+				? '0'
+				: value;
+		}
+
 		return value;
 	},
 	toTs: function(value: Column['default']) {
@@ -267,7 +336,6 @@ export const Custom: SqlType = {
 	},
 	drizzleImport: () => 'customType',
 	defaultFromDrizzle: (value) => {
-		if (!value) return '';
 		return String(value);
 	},
 	defaultFromIntrospect: (value) => {
@@ -286,7 +354,6 @@ export const typeFor = (sqlType: string): SqlType => {
 	if (Numeric.is(sqlType)) return Numeric;
 	if (Text.is(sqlType)) return Text;
 	if (Blob.is(sqlType)) return Blob;
-	if (Numeric.is(sqlType)) return Numeric;
 
 	// If no specific type matches, default to Custom
 	return Custom;
@@ -358,7 +425,7 @@ export const parseDefault = (type: string, it: string): Column['default'] => {
 	if (it === null) return null;
 	const grammarType = typeFor(type);
 
-	if (grammarType) return grammarType.defaultFromIntrospect(it);
+	if (grammarType) return grammarType.defaultFromIntrospect(it, type);
 
 	const trimmed = trimChar(it, "'");
 
@@ -378,21 +445,6 @@ export const parseDefault = (type: string, it: string): Column['default'] => {
 	return `(${it})`;
 };
 
-export const parseTableSQL = (sql: string) => {
-	const namedChecks = [...sql.matchAll(namedCheckPattern)].map((it) => {
-		const [_, name, value] = it;
-		return { name, value: value.trim() };
-	});
-	const unnamedChecks = [...sql.matchAll(unnamedCheckPattern)].map((it) => {
-		const [_, value] = it;
-		return { name: null, value: value.trim() };
-	}).filter((it) => !namedChecks.some((x) => x.value === it.value));
-
-	return {
-		checks: [...namedChecks, ...unnamedChecks],
-	};
-};
-
 export const parseViewSQL = (sql: string) => {
 	const match = sql.match(viewAsStatementRegex);
 	return match ? match[1] : null;
@@ -403,7 +455,8 @@ export interface Generated {
 	type: 'stored' | 'virtual';
 }
 
-export function extractGeneratedColumns(input: string): Record<string, Generated> {
+export function extractGeneratedColumns(rawInput: string): Record<string, Generated> {
+	const input = stripSqlComments(rawInput);
 	const columns: Record<string, Generated> = {};
 	const regex = /["'`[]?(\w+)["'`\]]?\s+(\w+)\s+GENERATED\s+ALWAYS\s+AS\s*\(/gi;
 
@@ -445,16 +498,19 @@ export const omitSystemTables = () => {
 interface IParseResult {
 	uniques: { name: string | null; columns: string[] }[];
 	pk: { name: string | null; columns: string[] };
+	checks: { name: string | null; value: string }[];
 }
 
 /**
  * Parses a SQLite DDL string to find primary key and unique constraints
  * Handles quoted with [], ``, "", or no quotes
  */
-export function parseSqliteDdl(ddl: string): IParseResult {
+export function parseSqliteDdl(rawDdl: string): IParseResult {
+	const ddl = stripSqlComments(rawDdl);
 	const result: IParseResult = {
 		pk: { name: null, columns: [] },
 		uniques: [],
+		checks: [],
 	};
 
 	const cleanIdentifier = (identifier: string): string => {
@@ -473,6 +529,18 @@ export function parseSqliteDdl(ddl: string): IParseResult {
 	let tableBody = bodyMatch[1];
 
 	const ident = '(?:\\[[^\\]]+\\]|`[^`]+`|"[^"]+"|[\\w_]+)';
+
+	// find CHECK constraints (named + unnamed, table-level or inline) and strip them, like the
+	// UNIQUE/PK handling below, so the column split isn't confused by commas inside the expression.
+	// The nested `\(...\)` alternative tolerates parens in the expression (e.g. `length(trim(a)) > 0`).
+	const checkRegex = new RegExp(
+		`(?:CONSTRAINT\\s+(${ident})\\s+)?CHECK\\s*\\(((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*)\\)`,
+		'gi',
+	);
+	tableBody = tableBody.replace(checkRegex, (_match, name, value) => {
+		result.checks.push({ name: name ? cleanIdentifier(name) : null, value: value.trim() });
+		return '';
+	});
 
 	// find table level UNIQUE constraints
 	const uniqueConstraintRegex = new RegExp(`CONSTRAINT\\s+(${ident})\\s+UNIQUE\\s*\\(([^)]+)\\)`, 'gi');

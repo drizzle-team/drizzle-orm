@@ -27,7 +27,7 @@ import type {
 	View,
 } from './ddl';
 import { createDDL, tableFromDDL } from './ddl';
-import { defaults, defaultsCommutative, isSerialType } from './grammar';
+import { defaults, defaultsCommutative, existsInViewDef, isSerialType } from './grammar';
 import type { JsonAlterPrimaryKey, JsonRecreateIndex, JsonStatement } from './statements';
 import { prepareStatement } from './statements';
 
@@ -701,7 +701,17 @@ export const ddlDiff = async (
 
 		if (idx.isUnique || idx.concurrently || idx.method || idx.with || forColumns || forWhere) {
 			const index = ddl2.indexes.one({ schema: idx.schema, table: idx.table, name: idx.name })!;
-			jsonRecreateIndex.push(prepareStatement('recreate_index', { index, diff: idx }));
+
+			// when a column used by the index is being dropped, the index is dropped with it (cascade),
+			// so the recreate must skip the explicit DROP INDEX
+			const prevIndex = ddl1.indexes.one({ schema: idx.schema, table: idx.table, name: idx.name });
+			const shouldDrop = !!prevIndex
+				&& !columnsToDelete.some((col) =>
+					col.schema === idx.schema
+					&& col.table === idx.table
+					&& prevIndex.columns.some((idxCol) => idxCol.value === col.name)
+				);
+			jsonRecreateIndex.push(prepareStatement('recreate_index', { index, diff: idx, shouldDrop }));
 		}
 	}
 
@@ -1139,7 +1149,7 @@ export const ddlDiff = async (
 
 	const viewsAlters = filteredViewAlters.map((it) => ({ diff: it, view: it.$right }));
 
-	const jsonAlterViews = viewsAlters.filter((it) => !it.diff.definition).map((it) => {
+	const jsonAlterViews = viewsAlters.filter((it) => !it.diff.definition && !it.diff.materialized).map((it) => {
 		return prepareStatement('alter_view', {
 			diff: it.diff,
 			view: it.view,
@@ -1147,7 +1157,7 @@ export const ddlDiff = async (
 	});
 
 	// recreate views
-	viewsAlters.filter((it) => it.diff.definition).forEach((entry) => {
+	viewsAlters.filter((it) => it.diff.definition || it.diff.materialized).forEach((entry) => {
 		const it = entry.view;
 		const schemaRename = renamedSchemas.find((r) => r.to.name === it.schema);
 		const schema = schemaRename ? schemaRename.from.name : it.schema;
@@ -1163,7 +1173,7 @@ export const ddlDiff = async (
 				`);
 		}
 
-		jsonDropViews.push(prepareStatement('drop_view', { view: it, cause: from }));
+		jsonDropViews.push(prepareStatement('drop_view', { view: entry.diff.$left, cause: from }));
 		createViews.push(prepareStatement('create_view', { view: it }));
 	});
 
@@ -1274,7 +1284,32 @@ export const ddlDiff = async (
 
 	jsonStatements.push(...jsonAlterCheckConstraints);
 
-	jsonStatements.push(...createViews);
+	// Topological sort
+	// this sort fixes this issue: https://github.com/drizzle-team/drizzle-orm/issues/4520 and https://github.com/drizzle-team/drizzle-orm/issues/6176
+	// View1 can be recreated and other view2 was newly created. view2 depends on view1, need to sort them -> https://github.com/drizzle-team/drizzle-orm/issues/6176
+	// Dependent views must be created after their dependencies, otherwise the migration breaks
+	//
+	// `view2` depends on `view1` when `view1`'s (schema-qualified) name appears in `view2`'s definition
+	// Other dialects do this in drizzle.ts files
+	// TODO we have some tests on it in pg-views.test.ts
+	// but probably we should move this to function and test the function
+	const sortedCreateViews: typeof createViews[number][] = [];
+	const visited = new Set<typeof createViews[number]>();
+	const onStack = new Set<typeof createViews[number]>();
+	const visit = (node: typeof createViews[number]) => {
+		if (visited.has(node) || onStack.has(node)) return; // onStack guards against dependency cycles
+		onStack.add(node);
+		for (const other of createViews) {
+			// `node` depends on `other` when `other`'s name appears in `node`'s definition
+			if (other !== node && existsInViewDef(other.view, node.view)) visit(other);
+		}
+		onStack.delete(node);
+		visited.add(node);
+		sortedCreateViews.push(node);
+	};
+	for (const node of createViews) visit(node);
+
+	jsonStatements.push(...sortedCreateViews);
 
 	jsonStatements.push(...jsonRenamePoliciesStatements);
 	jsonStatements.push(...jsonCreatePoliciesStatements);

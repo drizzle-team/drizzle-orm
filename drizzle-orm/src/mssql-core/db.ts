@@ -1,16 +1,19 @@
-import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import { type ColumnsSelection, sql, type SQLWrapper } from '~/sql/sql.ts';
+import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
-import type { DrizzleTypeError } from '~/utils.ts';
+import type { InferInsertModel, RequiredInsertKeys } from '~/table.ts';
+import type { DrizzleTypeError, IsNever, JoinUnion } from '~/utils.ts';
 import type { MsSqlDialect } from './dialect.ts';
+import { MsSqlCountBuilder } from './query-builders/count.ts';
 import {
 	MsSqlDeleteBase,
 	MsSqlInsertBuilder,
 	MsSqlSelectBuilder,
 	MsSqlUpdateBuilder,
+	type NoDuplicateColumns,
 	QueryBuilder,
 } from './query-builders/index.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
@@ -19,56 +22,53 @@ import type {
 	MsSqlSession,
 	MsSqlTransaction,
 	MsSqlTransactionConfig,
+	PreparedQueryConfig,
 	PreparedQueryHKTBase,
 	QueryResultHKT,
 	QueryResultKind,
 } from './session.ts';
 import type { WithSubqueryWithSelection } from './subquery.ts';
 import type { MsSqlTable } from './table.ts';
+import type { MsSqlViewBase } from './view-base.ts';
 
 export class MsSqlDatabase<
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TFullSchema extends Record<string, unknown> = {},
-	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
+	TRelations extends AnyRelations = EmptyRelations,
 > {
 	static readonly [entityKind]: string = 'MsSqlDatabase';
 
 	declare readonly _: {
-		readonly schema: TSchema | undefined;
-		readonly tableNamesMap: Record<string, string>;
+		readonly relations: TRelations;
+		readonly session: MsSqlSession<any, any, any>;
 	};
 
-	_query: TFullSchema extends Record<string, never>
-		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
-		: {
-			[K in keyof TSchema]: RelationalQueryBuilder<TPreparedQueryHKT, TSchema, TSchema[K]>;
-		};
+	query: {
+		[K in keyof TRelations]: RelationalQueryBuilder<TPreparedQueryHKT, TRelations, TRelations[K]>;
+	};
 
 	constructor(
 		/** @internal */
 		readonly dialect: MsSqlDialect,
 		/** @internal */
-		readonly session: MsSqlSession<any, any, any, any>,
-		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
+		readonly session: MsSqlSession<any, any, any>,
+		relations: TRelations,
 	) {
-		this._ = schema
-			? { schema: schema.schema, tableNamesMap: schema.tableNamesMap }
-			: { schema: undefined, tableNamesMap: {} };
-		this._query = {} as typeof this['_query'];
-		if (this._.schema) {
-			for (const [tableName, columns] of Object.entries(this._.schema)) {
-				(this._query as MsSqlDatabase<TQueryResult, TPreparedQueryHKT, Record<string, any>>['_query'])[tableName] =
-					new RelationalQueryBuilder(
-						schema!.fullSchema,
-						this._.schema,
-						this._.tableNamesMap,
-						schema!.fullSchema[tableName] as MsSqlTable,
-						columns,
-						dialect,
-						session,
-					);
-			}
+		this._ = {
+			relations,
+			session,
+		};
+
+		this.query = {} as typeof this['query'];
+		for (const [tableName, relation] of Object.entries(relations)) {
+			(this.query as MsSqlDatabase<TQueryResult, TPreparedQueryHKT, AnyRelations>['query'])[tableName] =
+				new RelationalQueryBuilder(
+					relations,
+					relations[relation.name]!.table as MsSqlTable,
+					relation,
+					dialect,
+					session,
+				);
 		}
 	}
 
@@ -116,11 +116,23 @@ export class MsSqlDatabase<
 				}
 
 				return new Proxy(
-					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
+					new WithSubquery(
+						('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL(),
+						qb.getSelectedFields() as SelectedFields,
+						alias,
+						true,
+					),
 					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 				) as WithSubqueryWithSelection<TSelection, TAlias>;
 			},
 		};
+	}
+
+	$count(
+		source: MsSqlTable | MsSqlViewBase | SQL | SQLWrapper,
+		filters?: SQL<unknown>,
+	) {
+		return new MsSqlCountBuilder({ source, filters, session: this.session, dialect: this.dialect });
 	}
 
 	/**
@@ -298,10 +310,38 @@ export class MsSqlDatabase<
 	 *
 	 * // Insert multiple rows
 	 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
+	 *
+	 * // Insert only selected columns
+	 * await db.insert(cars, 'brand', 'productionYear').values([{ brand: 'BMW', productionYear: 1995 }, { brand: 'Porsche', productionYear: 1989 }]);
 	 * ```
 	 */
-	insert<TTable extends MsSqlTable>(table: TTable): MsSqlInsertBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
-		return new MsSqlInsertBuilder(table, this.session, this.dialect);
+	insert<
+		TTable extends MsSqlTable,
+		TColumnList extends (keyof InferInsertModel<TTable>)[] = [],
+		TRequiredKeys extends string = RequiredInsertKeys<TTable>,
+	>(
+		table: TTable,
+		...columns: TColumnList extends [] ? []
+			: IsNever<TRequiredKeys> extends true ? TColumnList & NoDuplicateColumns<TColumnList>
+			: [TRequiredKeys] extends [TColumnList[number]] ? TColumnList & NoDuplicateColumns<TColumnList>
+			: DrizzleTypeError<
+				`Column selection is missing following required columns: ${JoinUnion<
+					`"${Exclude<TRequiredKeys, TColumnList[number]>}"`,
+					', '
+				>}`
+			>[]
+	): MsSqlInsertBuilder<
+		TTable,
+		TQueryResult,
+		TPreparedQueryHKT,
+		undefined,
+		TColumnList extends [] ? 'all' : TColumnList
+	>;
+	insert<TTable extends MsSqlTable>(
+		table: TTable,
+		...columns: string[]
+	): MsSqlInsertBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
+		return new MsSqlInsertBuilder(table, this.session, this.dialect, undefined, columns.length ? columns : undefined);
 	}
 
 	/**
@@ -327,15 +367,35 @@ export class MsSqlDatabase<
 		return new MsSqlDeleteBase(table, this.session, this.dialect);
 	}
 
+	execute<TRow extends unknown[] = unknown[]>(
+		query: SQLWrapper | string,
+		mode: 'arrays',
+	): Promise<TRow[]>;
+	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+		query: SQLWrapper | string,
+		mode: 'objects',
+	): Promise<TRow[]>;
 	execute<T extends { [column: string]: any } | { [column: string]: any }[]>(
 		query: SQLWrapper | string,
-	): Promise<QueryResultKind<TQueryResult, T>> {
-		return this.session.execute((typeof query === 'string' ? sql.raw(query) : query).getSQL());
+		mode?: 'raw' | undefined,
+	): Promise<QueryResultKind<TQueryResult, T>>;
+	execute(
+		query: SQLWrapper | string,
+		mode?: 'raw' | 'objects' | 'arrays' | undefined,
+	): unknown {
+		const sequel = (typeof query === 'string' ? sql.raw(query) : query).getSQL();
+		return this.session.prepareQuery<
+			PreparedQueryConfig & { execute: unknown },
+			PreparedQueryHKTBase
+		>(
+			this.dialect.sqlToQuery(sequel),
+			mode ?? 'raw',
+		).execute();
 	}
 
 	transaction<T>(
 		transaction: (
-			tx: MsSqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>,
+			tx: MsSqlTransaction<TQueryResult, TPreparedQueryHKT, TRelations>,
 			config?: MsSqlTransactionConfig,
 		) => Promise<T>,
 		config?: MsSqlTransactionConfig,
@@ -349,14 +409,8 @@ export type MySQLWithReplicas<Q> = Q & { $primary: Q };
 export const withReplicas = <
 	HKT extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TFullSchema extends Record<string, unknown>,
-	TSchema extends V1.TablesRelationalConfig,
-	Q extends MsSqlDatabase<
-		HKT,
-		TPreparedQueryHKT,
-		TFullSchema,
-		TSchema extends Record<string, unknown> ? V1.ExtractTablesWithRelations<TFullSchema> : TSchema
-	>,
+	TRelations extends AnyRelations,
+	Q extends MsSqlDatabase<HKT, TPreparedQueryHKT, TRelations>,
 >(
 	primary: Q,
 	replicas: [Q, ...Q[]],
@@ -367,9 +421,9 @@ export const withReplicas = <
 	const $with: Q['with'] = (...args: []) => getReplica(replicas).with(...args);
 
 	const update: Q['update'] = (...args: [any]) => primary.update(...args);
-	const insert: Q['insert'] = (...args: [any]) => primary.insert(...args);
+	const insert: Q['insert'] = ((...args: [any]) => primary.insert(...args)) as Q['insert'];
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
-	const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
+	const execute: Q['execute'] = ((...args: [any]) => primary.execute(...args)) as Q['execute'];
 	const transaction: Q['transaction'] = (...args: [any, any]) => primary.transaction(...args);
 
 	return {
@@ -384,8 +438,8 @@ export const withReplicas = <
 		select,
 		selectDistinct,
 		with: $with,
-		get _query() {
-			return getReplica(replicas)._query;
+		get query() {
+			return getReplica(replicas).query;
 		},
 	};
 };

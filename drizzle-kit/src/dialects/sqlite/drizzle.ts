@@ -70,7 +70,7 @@ export const fromDrizzleSchema = (
 			const hasUniqueIndex = Boolean(it.config.indexes.find((item) => {
 				const i = item.config;
 				const column = i.columns.length === 1 ? i.columns[0] : null;
-				return column && !is(column, SQL) && column.name === name;
+				return column && !is(column, SQL) && column.name === name && i.unique;
 			}));
 
 			return {
@@ -195,7 +195,11 @@ export const fromDrizzleSchema = (
 	}).flat();
 
 	const views = dViews.sort((a, b) => {
-		// see in "./dialects/postgres/drizzle.ts" for more
+		// this sort fixes this issue: https://github.com/drizzle-team/drizzle-orm/issues/4520
+		// When using `prepareFromSchemaFiles` to read schema files, views were returned in an unpredictable order
+		// (not in order that is was declared in schema.ts).
+		// This caused dependent views to appear before their dependencies,
+		// which breaks migration
 		const aConfig = getViewConfig(a);
 		const bConfig = getViewConfig(b);
 

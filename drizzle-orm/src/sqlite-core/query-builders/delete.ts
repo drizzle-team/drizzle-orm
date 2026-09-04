@@ -18,6 +18,7 @@ export interface SQLiteDeleteConfig {
 	table: SQLiteTable;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
+	ignoreSelectionCastCodecs?: boolean;
 }
 
 export interface SQLiteDeleteHKTBase {
@@ -263,7 +264,7 @@ export class SQLiteDeleteBase<
 	returning(
 		fields: SelectedFieldsFlat = this.table[SQLiteTable.Symbol.Columns],
 	): SQLiteDeleteReturning<this, TDynamic, any> | SQLiteDeleteReturningAll<this, TDynamic> {
-		this.config.returning = orderSelectedFields<SQLiteColumn>(fields);
+		this.config.returning = orderSelectedFields<SQLiteColumn>(fields, undefined, this.dialect.codecs);
 		return this as any;
 	}
 
@@ -273,6 +274,12 @@ export class SQLiteDeleteBase<
 
 	toSQL(): Query {
 		return this.dialect.sqlToQuery(this.getSQL());
+	}
+
+	/** @internal */
+	withoutSelectionCastCodecs() {
+		this.config.ignoreSelectionCastCodecs = true;
+		return this;
 	}
 
 	$dynamic(): SQLiteDeleteDynamic<this> {

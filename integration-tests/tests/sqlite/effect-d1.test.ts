@@ -1,6 +1,6 @@
 import { D1Client } from '@effect/sql-d1';
 import { D1Database, D1DatabaseAPI } from '@miniflare/d1';
-import { createSQLiteDB } from '@miniflare/shared';
+import Client from 'better-sqlite3';
 import {
 	defineRelations,
 	eq,
@@ -18,7 +18,7 @@ import { DB, push, runCommonEffectSQLiteTests } from './effect-common';
 import relations from './relations';
 
 const D1ClientLive = D1Client.layer({
-	db: new D1Database(new D1DatabaseAPI(await createSQLiteDB(':memory:'))) as any, // Old d1 version, has no `withSession`
+	db: new D1Database(new D1DatabaseAPI(new Client(':memory:'))) as any, // Old d1 version, has no `withSession`
 });
 
 const dbEffect = SQLiteDrizzle.make({ relations }).pipe(Effect.provide(SQLiteDrizzle.DefaultServices));
@@ -38,8 +38,6 @@ const createDB = <
 >(
 	schema: TSchema,
 	relations: (helpers: RelationsBuilder<TTables>) => TConfig,
-	// CF Workers don't support `new Function(...)`
-	_useJitMappers?: boolean,
 ) =>
 	SQLiteDrizzle.make({ relations: defineRelations(schema, relations) }).pipe(
 		Effect.provide(SQLiteDrizzle.DefaultServices),
@@ -72,6 +70,10 @@ runCommonEffectSQLiteTests({
 		'full join with alias',
 		'select from alias',
 		'Mappers: select complex selections',
+		'Cross-table group never nullified',
+		'Cross-table group never nullified - jit',
+		'Mappers: deep nullification',
+		'Mappers: deep nullification - jit',
 
 		// Cloudflare workers environment doesn't support 'new Function(...)'
 		'Mappers: correct mappers enabled',
