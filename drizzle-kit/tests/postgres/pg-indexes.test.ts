@@ -814,3 +814,24 @@ test('issue #5792', async () => {
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
 });
+
+test('composite index with distinct column opclasses (issue #6155)', async () => {
+	const schema = {
+		authSessions: pgTable('auth_sessions', {
+			userId: uuid('user_id'),
+			expiresAt: timestamp('expires_at', { withTimezone: true }),
+		}, (table) => [
+			index('idx_auth_sessions_active')
+				.using('btree', table.userId.op('uuid_ops'), table.expiresAt.op('timestamptz_ops')),
+		]),
+	};
+
+	const { sqlStatements: st1 } = await diff({}, schema, []);
+
+	const expectedSt1 = [
+		'CREATE TABLE "auth_sessions" (\n\t"user_id" uuid,\n\t"expires_at" timestamp with time zone\n);\n',
+		'CREATE INDEX "idx_auth_sessions_active" ON "auth_sessions" ("user_id" uuid_ops,"expires_at" timestamptz_ops);',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+});
+
