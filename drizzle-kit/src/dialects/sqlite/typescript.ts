@@ -350,8 +350,9 @@ const createTableIndexes = (
 			it.columns
 				.map((it) => `table.${withCasing(it.value, casing)}`)
 				.join(', ')
-		}),`;
-		statement += `\n`;
+		})`;
+		statement += it.where ? `.where(sql\`${it.where}\`)` : '';
+		statement += `,\n`;
 	}
 
 	return statement;

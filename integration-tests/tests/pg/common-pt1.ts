@@ -5,9 +5,11 @@ import {
 	boolean,
 	char,
 	cidr,
+	customType,
 	foreignKey,
 	inet,
 	integer,
+	json,
 	jsonb,
 	macaddr,
 	macaddr8,
@@ -2643,6 +2645,68 @@ export function tests(test: Test) {
 					'select "id", "email", "first_name", "last_name", "code" from "person_with_code" where "person_with_code"."code" = $1',
 				params: ['code value'],
 			});
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/1504
+		test.concurrent('Issue No1504', async ({ push, db }) => {
+			type PropTypes = { [key: string]: any };
+
+			const jsonDbType = customType<{ data: PropTypes }>({
+				dataType() {
+					return 'jsonb';
+				},
+				toDriver(value: PropTypes) {
+					return sql`${JSON.stringify(value)}::jsonb`;
+				},
+				fromDriver(value: any): PropTypes {
+					return JSON.parse(value);
+				},
+			});
+
+			const table = pgTable('table', {
+				column: jsonDbType('column'),
+			});
+
+			await db.execute(sql`DROP TABLE IF EXISTS ${table}`);
+			await push({ table });
+
+			await db.insert(table).values({ column: { hello: 'world' } });
+			const res = await db
+				.select({ value: sql`${table.column} ->> 'hello'` })
+				.from(table);
+			expect(res).toStrictEqual([{ value: 'world' }]);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/1117
+		test.concurrent('Issue No1117', async ({ push, db }) => {
+			const table = pgTable('table', {
+				jsonData: json(),
+			});
+
+			await db.execute(sql`DROP TABLE IF EXISTS ${table}`);
+			await push({ table });
+
+			const saveData = db
+				.insert(table)
+				.values({
+					jsonData: sql.placeholder('jsonData'),
+				})
+				.prepare();
+
+			const jsonData = { some: 'data' };
+			// Neither of these work
+			await saveData.execute({ jsonData: jsonData });
+			await saveData.execute({
+				jsonData: JSON.stringify(jsonData),
+			});
+
+			const result = await db.select().from(table);
+
+			expect(result).toStrictEqual([{
+				jsonData: { some: 'data' },
+			}, {
+				jsonData: JSON.stringify({ some: 'data' }),
+			}]);
 		});
 	});
 }
