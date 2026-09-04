@@ -311,6 +311,7 @@ export class MsSqlDialect {
 	 * `insert ... returning <selection>`
 	 *
 	 * If `isSingleTable` is true, then columns won't be prefixed with table name
+	 * @internal
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
@@ -463,6 +464,7 @@ export class MsSqlDialect {
 		return new SQL(chunks);
 	}
 
+	/** @internal */
 	private buildSelectionOutput(
 		fields: SelectedFieldsOrdered,
 		{ type, ignoreCastCodecs = false }: { type: 'INSERTED' | 'DELETED'; ignoreCastCodecs?: boolean },
@@ -957,6 +959,7 @@ export class MsSqlDialect {
 		return res;
 	}
 
+	/** @internal */
 	private buildRqbColumn(
 		table: Table | View,
 		field: unknown,
@@ -1054,6 +1057,7 @@ export class MsSqlDialect {
 		return output;
 	}
 
+	/** @internal */
 	private getSelectedTableColumns = (
 		table: Table | View,
 		columns: Record<string, boolean | undefined>,
@@ -1089,6 +1093,7 @@ export class MsSqlDialect {
 		return selectedColumns;
 	};
 
+	/** @internal */
 	private buildColumns = (
 		table: Table | View,
 		selection: BuildRelationalQueryResult['selection'],

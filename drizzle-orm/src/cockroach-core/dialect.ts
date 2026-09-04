@@ -200,6 +200,7 @@ export class CockroachDialect {
 		return `'${str.replace(/'/g, "''")}'`;
 	}
 
+	/** @internal */
 	private buildWithCTE(queries: Subquery[] | undefined): SQL | undefined {
 		if (!queries?.length) return undefined;
 
@@ -319,6 +320,7 @@ export class CockroachDialect {
 	 * `insert ... returning <selection>`
 	 *
 	 * If `isSingleTable` is true, then columns won't be prefixed with table name
+	 * @internal
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
@@ -471,6 +473,7 @@ export class CockroachDialect {
 		return new SQL(chunks);
 	}
 
+	/** @internal */
 	private buildJoins(
 		joins: CockroachSelectJoinConfig[] | undefined,
 	): SQL | undefined {
@@ -521,6 +524,7 @@ export class CockroachDialect {
 		return new SQL(joinsArray);
 	}
 
+	/** @internal */
 	private buildFromTable(
 		table: SQL | Subquery | CockroachViewBase | CockroachTable | undefined,
 	): SQL | Subquery | CockroachViewBase | CockroachTable | undefined {
@@ -905,6 +909,7 @@ export class CockroachDialect {
 		});
 	}
 
+	/** @internal */
 	private buildRqbColumn(
 		table: Table | View,
 		field: unknown,
@@ -1004,6 +1009,7 @@ export class CockroachDialect {
 		return output;
 	}
 
+	/** @internal */
 	private getSelectedTableColumns = (
 		table: Table | View,
 		columns: Record<string, boolean | undefined>,
@@ -1039,6 +1045,7 @@ export class CockroachDialect {
 		return selectedColumns;
 	};
 
+	/** @internal */
 	private buildColumns = (
 		table: Table | View,
 		selection: BuildRelationalQueryResult['selection'],

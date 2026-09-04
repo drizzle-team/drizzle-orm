@@ -32,6 +32,10 @@ export interface BuildQueryConfig {
 	escapeName(name: string): string;
 	escapeParam(num: number, value: unknown): string;
 	escapeString(str: string): string;
+	// Stripped so `SQL` does not reach `CodecsCollection`, which is nominal until its
+	// own protected member is marked. Once that happens this marker is belt-and-braces,
+	// but it is what makes `SQL` portable on its own.
+	/** @internal */
 	codecs?: CodecsCollection;
 	paramStartIndex?: { value: number };
 	inlineParams?: boolean;
@@ -169,6 +173,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 		} as Query;
 	}
 
+	/** @internal */
 	private collectSQL(
 		chunks: SQLChunk[],
 		config: BuildQueryConfig,
@@ -438,6 +443,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 		}
 	}
 
+	/** @internal */
 	private mapInlineParam(
 		chunk: unknown,
 		{ escapeString }: BuildQueryConfig,
@@ -519,7 +525,13 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 	}
 }
 
-export type GetDecoderResult<T> = T extends Column ? T['_']['data'] : T extends
+// Structural rather than `T extends Column`. Naming the class here makes the conditional
+// depend on relating one install's `Column` to another's, and that dependency propagates
+// out through `mapWith` to `Column`, `CodecsCollection`, and the mysql table/column/dialect
+// types. Matching on the shape instead resolves identically for `Column` -- its `_` is its
+// `ColumnBaseConfig`, whose `data` is exactly what the indexed access read -- while naming
+// nothing. `SQL`, `SQL.Aliased` and `View` brand as `_: { brand; type }` and so do not match.
+export type GetDecoderResult<T> = T extends { _: { data: infer TData } } ? TData : T extends
 	| DriverValueDecoder<infer TData, any>
 	| DriverValueDecoder<infer TData, any>['mapFromDriverValue'] ? TData
 : never;
@@ -530,6 +542,7 @@ export type GetDecoderResult<T> = T extends Column ? T['_']['data'] : T extends
 export class Name implements SQLWrapper {
 	static readonly [entityKind]: string = 'Name';
 
+	/** @internal */
 	protected brand!: 'Name';
 
 	constructor(readonly value: string) {}
@@ -601,6 +614,7 @@ export const noopMapper: DriverValueMapper<any, any> = {
 export class Param<TDataType = any, TDriverParamType = TDataType> implements SQLWrapper {
 	static readonly [entityKind]: string = 'Param';
 
+	/** @internal */
 	protected brand!: 'BoundParamValue';
 
 	/**
