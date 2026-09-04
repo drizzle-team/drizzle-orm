@@ -2187,6 +2187,46 @@ test('check definition', async () => {
 	]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6214
+test('check definition ending in NOT VALID', async () => {
+	await db.query(`
+		CREATE TABLE documents (
+			id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+			version integer NOT NULL
+		);
+	`);
+	await db.query(`
+		ALTER TABLE documents
+			ADD CONSTRAINT documents_version_check
+			CHECK (version >= 0) NOT VALID;
+	`);
+
+	const filter = prepareEntityFilter(
+		'postgresql',
+		{
+			tables: undefined,
+			schemas: undefined,
+			entities: undefined,
+			extensions: undefined,
+		},
+		[],
+	);
+	const { checks } = await fromDatabaseForDrizzle(db, filter, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
+
+	expect(checks).toStrictEqual([
+		{
+			entityType: 'checks',
+			schema: 'public',
+			name: 'documents_version_check',
+			table: 'documents',
+			value: '(version >= 0)',
+		},
+	]);
+});
+
 // other tables in migration schema
 test('pull after migrate with custom migrations table #1', async () => {
 	await db.query(`CREATE SCHEMA drizzle;`);
