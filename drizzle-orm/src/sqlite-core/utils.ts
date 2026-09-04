@@ -6,6 +6,7 @@ import { Table } from '~/table.ts';
 import { throwUnknownExtraConfigValue } from '~/table.utils.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import type { ViewConfig } from '~/view.ts';
 import type { Check } from './checks.ts';
 import { CheckBuilder } from './checks.ts';
 import type { SQLiteCodecs } from './codecs.ts';
@@ -77,10 +78,7 @@ export function extractUsedTable(table: SQLiteTable | Subquery | SQLiteViewBase 
 
 export type OnConflict = 'rollback' | 'abort' | 'fail' | 'ignore' | 'replace';
 
-export function getViewConfig<
-	TName extends string = string,
-	TExisting extends boolean = boolean,
->(view: SQLiteView<TName, TExisting>) {
+export function getViewConfig<T extends ViewConfig = ViewConfig>(view: SQLiteView<T>) {
 	return {
 		...view[ViewBaseConfig],
 		// ...view[SQLiteViewConfig],

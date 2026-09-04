@@ -479,6 +479,103 @@ describe('Filters', () => {
 		expect(buildFilter(table, { OR: [EmptyFilter] } as any)).toStrictEqual(undefined);
 		expect(buildFilter(table, { AND: [EmptyFilter] } as any)).toStrictEqual(undefined);
 	});
+
+	test('Nothing generates for empty OR', () => {
+		expect(buildFilter(table, {
+			OR: [
+				{ number: EmptyFilter },
+				{ string: EmptyFilter, date: EmptyFilter },
+				{ number: { eq: EmptyFilter, gt: EmptyFilter } },
+			],
+		})).toStrictEqual(undefined);
+	});
+
+	test('Nothing generates for empty AND', () => {
+		expect(buildFilter(table, {
+			AND: [
+				{ number: EmptyFilter },
+				{ OR: [{ string: EmptyFilter }] },
+				{ NOT: { number: EmptyFilter } },
+			],
+		})).toStrictEqual(undefined);
+	});
+
+	test('Non-empty OR with empty elements', () => {
+		expect(buildFilter(table, {
+			OR: [
+				{ number: EmptyFilter },
+				{ string: 'str' },
+				{ date: EmptyFilter },
+			],
+		})).toStrictEqual(and(or(and(eq(table.string, 'str')))!));
+	});
+
+	test('Non-empty AND with empty elements', () => {
+		expect(buildFilter(table, {
+			AND: [
+				{ number: EmptyFilter },
+				{ string: 'str' },
+				{ number: { gt: 2, lt: EmptyFilter } },
+			],
+		})).toStrictEqual(and(
+			and(
+				and(eq(table.string, 'str')),
+				and(and(gt(table.number, 2))),
+			)!,
+		));
+	});
+
+	test('Nothing generates for deep empty AND, OR, NOT', () => {
+		expect(buildFilter(table, {
+			AND: [{
+				OR: [{
+					NOT: {
+						AND: [{ number: EmptyFilter }, { string: { OR: [{ in: EmptyFilter }] } }],
+					},
+				}, {
+					number: {
+						NOT: EmptyFilter,
+						AND: [{ gt: EmptyFilter }],
+					},
+				}],
+			}],
+		})).toStrictEqual(undefined);
+	});
+
+	test('Nothing generates for deep empty AND, OR, NOT, non-empty values preserved', () => {
+		expect(buildFilter(table, {
+			AND: [{
+				OR: [
+					{ number: EmptyFilter },
+					{ AND: [{ string: EmptyFilter }, { number: { in: [1, 2], gt: EmptyFilter } }] },
+				],
+			}],
+		})).toStrictEqual(and(and(and(
+			or(
+				and(and(and(and(inArray(table.number, [1, 2]))))),
+			)!,
+		))));
+	});
+
+	test('Column-level OR/AND nested with EmptyFilter branches', () => {
+		expect(buildFilter(table, {
+			number: {
+				OR: [
+					{ AND: [{ gt: 1 }, { lt: EmptyFilter }] },
+					{ NOT: { eq: EmptyFilter } },
+				],
+			},
+		})).toStrictEqual(and(and(or(and(and(and(gt(table.number, 1)))))!)));
+	});
+
+	test('Nothing generates for empty column-level nested NOT', () => {
+		expect(buildFilter(table, {
+			number: {
+				NOT: { eq: EmptyFilter, OR: [{ eq: EmptyFilter }] },
+			},
+			string: 'str',
+		})).toStrictEqual(and(eq(table.string, 'str')));
+	});
 });
 
 const buildOrder = <TTable extends Table>(
@@ -692,5 +789,147 @@ describe('Relation names shadowing Object.prototype properties', () => {
 				},
 			} as any)
 		).toThrowError('Unknown relational filter field: "toString"');
+	});
+});
+
+describe('Relational filter EmptyFilter behavior', () => {
+	const relUsers = pgTable('user', { id: integer(), a: text(), b: text() });
+	const relData = pgTable('data', { id: integer(), userId: integer(), email: text(), username: text() });
+	const relTags = pgTable('tags', { id: integer(), dataId: integer(), name: text() });
+	const relSchema = { user: relUsers, data: relData, tags: relTags };
+
+	const db = drizzle.mock({
+		relations: defineRelations(relSchema, (r) => ({
+			user: { data: r.many.data({ from: r.user.id, to: r.data.userId }) },
+			data: { tags: r.many.tags({ from: r.data.id, to: r.tags.dataId }) },
+		})),
+	});
+
+	test('Nothing generates for empty relational filter', () => {
+		const { sql } = db.query.user.findMany({
+			where: {
+				data: {
+					OR: [{ email: EmptyFilter }, { username: EmptyFilter }],
+				},
+			},
+		}).toSQL();
+
+		expect(sql).not.toContain('exists');
+		expect(sql).not.toContain('where');
+	});
+
+	test('EmptyFilter values act as no values present', () => {
+		const reduced = db.query.user.findMany({
+			where: { a: 'x', data: { email: EmptyFilter, username: { eq: EmptyFilter } } },
+		}).toSQL();
+		const omitted = db.query.user.findMany({ where: { a: 'x' } }).toSQL();
+
+		expect(reduced.sql).toStrictEqual(omitted.sql);
+		expect(reduced.params).toStrictEqual(omitted.params);
+	});
+
+	test('Nothing generates for relational EmptyFilter', () => {
+		const { sql } = db.query.user.findMany({ where: { data: EmptyFilter } }).toSQL();
+
+		expect(sql).not.toContain('exists');
+	});
+
+	test('Nothing generates for Nested relational EmptyFilter', () => {
+		const { sql } = db.query.user.findMany({
+			where: {
+				OR: [
+					{ a: EmptyFilter },
+					{ b: EmptyFilter },
+					{ data: { OR: [{ email: EmptyFilter }, { username: EmptyFilter }] } },
+				],
+			},
+		}).toSQL();
+
+		expect(sql).not.toContain('exists');
+		expect(sql).not.toContain('where');
+	});
+
+	test('Top level OR survives with non-empty value', () => {
+		const { sql, params } = db.query.user.findMany({
+			where: {
+				OR: [
+					{ a: 'x' },
+					{ data: { OR: [{ email: EmptyFilter }, { username: EmptyFilter }] } },
+				],
+			},
+		}).toSQL();
+
+		expect(sql).not.toContain('exists');
+		expect(sql).toContain('where "d0"."a" = $1');
+		expect(params).toStrictEqual(['x']);
+	});
+
+	test('Top level AND survives with non-empty value', () => {
+		const { sql, params } = db.query.user.findMany({
+			where: {
+				AND: [
+					{ data: { email: EmptyFilter } },
+					{ data: { username: 'u' } },
+				],
+			},
+		}).toSQL();
+
+		expect(sql).toContain('exists (select * from "data" as "f0" where (("d0"."id" = "f0"."userId")');
+		expect(sql).toContain('"f0"."username" = $1');
+		expect(params).toStrictEqual(['u']);
+		expect(sql.match(/exists/g)).toHaveLength(1);
+	});
+
+	test('Nothing generates for nested empty relational filter', () => {
+		const { sql } = db.query.user.findMany({
+			where: {
+				data: {
+					tags: { name: EmptyFilter, OR: [{ id: EmptyFilter }] },
+				},
+			},
+		}).toSQL();
+
+		expect(sql).not.toContain('exists');
+		expect(sql).not.toContain('where');
+	});
+
+	test('Nested relational filter keeps every EXISTS entry', () => {
+		const { sql, params } = db.query.user.findMany({
+			where: {
+				data: {
+					email: EmptyFilter,
+					tags: { name: 't' },
+				},
+			},
+		}).toSQL();
+
+		expect(sql.match(/exists/g)).toHaveLength(2);
+		expect(sql).toContain('"f1"."name" = $1');
+		expect(params).toStrictEqual(['t']);
+	});
+
+	test('Nothing generates for keyless relational filter', () => {
+		const { sql } = db.query.user.findMany({ where: { data: {} } }).toSQL();
+
+		expect(sql).not.toContain('exists');
+		expect(sql).not.toContain('where');
+	});
+
+	test('Boolean relational filter emits `exists` queries', () => {
+		expect(db.query.user.findMany({ where: { data: true } }).toSQL().sql)
+			.toContain('where exists (select * from "data" as "f0" where "d0"."id" = "f0"."userId")');
+		expect(db.query.user.findMany({ where: { data: false } }).toSQL().sql)
+			.toContain('where not exists (select * from "data" as "f0" where "d0"."id" = "f0"."userId")');
+	});
+
+	test('Nothing generates for NOT on empty relational filter', () => {
+		const { sql } = db.query.user.findMany({
+			where: {
+				NOT: { data: { email: EmptyFilter } },
+			},
+		}).toSQL();
+
+		expect(sql).not.toContain('exists');
+		expect(sql).not.toContain('where');
 	});
 });

@@ -29,7 +29,8 @@ import {
 	notLike,
 	or,
 } from '~/sql/expressions/index.ts';
-import { type InferSelectViewModel, type SQL, sql } from '~/sql/sql.ts';
+import { type SQL, sql } from '~/sql/sql.ts';
+import type { InferViewSelectModel } from '~/view.ts';
 
 import { PgSelect } from '~/pg-core/query-builders/select.ts';
 import { db } from './db.ts';
@@ -991,7 +992,7 @@ await db
 		>
 	>;
 	Expect<Equal<typeof result, typeof newYorkersWithSubquery.$inferSelect[]>>;
-	Expect<Equal<typeof result, InferSelectViewModel<typeof newYorkersWithSubquery>[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof newYorkersWithSubquery>[]>>;
 }
 
 {
@@ -1018,7 +1019,7 @@ await db
 		>
 	>;
 	Expect<Equal<typeof result, typeof newYorkersWithSubquery2.$inferSelect[]>>;
-	Expect<Equal<typeof result, InferSelectViewModel<typeof newYorkersWithSubquery2>[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof newYorkersWithSubquery2>[]>>;
 }
 
 {
@@ -1264,7 +1265,7 @@ await db
 		}[]>
 	>;
 	Expect<Equal<typeof result, typeof view.$inferSelect[]>>;
-	Expect<Equal<typeof result, InferSelectViewModel<typeof view>[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof view>[]>>;
 }
 
 {
@@ -1301,7 +1302,7 @@ await db
 		}[]>
 	>;
 	Expect<Equal<typeof result, typeof view.$inferSelect[]>>;
-	Expect<Equal<typeof result, InferSelectViewModel<typeof view>[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof view>[]>>;
 }
 
 {

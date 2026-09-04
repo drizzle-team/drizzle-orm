@@ -60,6 +60,7 @@ export const createUsers2Table = (
 		schema: undefined;
 		dialect: 'mysql';
 		columns: { id: MySqlColumn<any> };
+		isAlias: false;
 	}>,
 ) =>
 	mysqlTable(name, {

@@ -1,4 +1,5 @@
 import { IsAlias, OriginalName, Table, TableColumns, TableSchema } from '~/table.ts';
+import { View, type ViewConfig } from '~/view.ts';
 import { aliasedTable } from './alias.ts';
 import type { CodecsCollection, NormalizeArrayCodec, NormalizeCodec } from './codecs.ts';
 import { type AnyColumn, Column } from './column.ts';
@@ -34,14 +35,15 @@ import {
 } from './sql/expressions/index.ts';
 import {
 	type CommentInput,
+	type DriverValueDecoder,
 	noopDecoder,
 	Placeholder,
 	SQL,
 	sql,
 	type SQLWrapper,
 	StringChunk,
-	View,
 } from './sql/sql.ts';
+import type { Subquery } from './subquery.ts';
 import {
 	type Assume,
 	type DrizzleTypeError,
@@ -52,17 +54,17 @@ import {
 	type ValueOrArray,
 } from './utils.ts';
 
-export type FilteredSchemaEntry = Table<any> | View<string, boolean, FieldSelection>;
+export type FilteredSchemaEntry = Table<any> | View<ViewConfig<FieldSelection>>;
 
-export type SchemaEntry = Table<any> | View<string, boolean, any>;
+export type SchemaEntry = Table<any> | View<ViewConfig<any>>;
 
 export type Schema = Record<string, SchemaEntry>;
 
-export type GetTableViewColumns<T extends SchemaEntry> = T extends View<string, boolean, any> ? T['_']['selectedFields']
+export type GetTableViewColumns<T extends SchemaEntry> = T extends View<ViewConfig<any>> ? T['_']['selectedFields']
 	: T extends Table<any> ? T['_']['columns']
 	: never;
 
-export type GetTableViewFieldSelection<T extends SchemaEntry> = T extends View<string, boolean, FieldSelection>
+export type GetTableViewFieldSelection<T extends SchemaEntry> = T extends View<ViewConfig<FieldSelection>>
 	? T['_']['selectedFields']
 	: T extends Table<any> ? T['_']['columns']
 	: never;
@@ -776,7 +778,8 @@ export interface BuildRelationalQueryResult {
 			codec?: NormalizeCodec | NormalizeArrayCodec;
 			/** For array type columns */
 			arrayDimensions?: number;
-
+			// Subquery only
+			subqueryDecoder?: DriverValueDecoder<any, any>;
 			// Nested selection only fields
 			/** For array type relations */
 			isArray?: boolean;
@@ -792,6 +795,9 @@ export interface BuildRelationalQueryResult {
 		} | {
 			field: SQL.Aliased;
 			fieldType: 'SQL.Aliased';
+		} | {
+			field: Subquery;
+			fieldType: 'Subquery';
 		} | {
 			field: SQLWrapper;
 			fieldType: 'SQLWrapper';
@@ -819,7 +825,7 @@ export function mapRelationalRow(
 ): Record<string, unknown> | Record<string, unknown>[] {
 	const maxIdx = isOne ? 1 : (rows as Record<string, unknown>[]).length;
 	const decoders: (undefined | ((v: any) => any))[] = buildQueryResultSelection.map(
-		({ field, fieldType, codec, arrayDimensions }) => {
+		({ field, fieldType, codec, arrayDimensions, subqueryDecoder }) => {
 			let decoder;
 			switch (fieldType) {
 				case 'Column':
@@ -830,6 +836,9 @@ export function mapRelationalRow(
 					break;
 				case 'SQL.Aliased':
 					decoder = field.sql.decoder;
+					break;
+				case 'Subquery':
+					decoder = subqueryDecoder ?? noopDecoder;
 					break;
 				case 'Nested':
 					decoder = noopDecoder;
@@ -915,7 +924,7 @@ export function mapRelationalRowFromArrays(
 ): Record<string, unknown> | Record<string, unknown>[] {
 	const maxIdx = isOne ? 1 : rows.length;
 	const decoders: (undefined | ((v: any) => any))[] = buildQueryResultSelection.map(
-		({ field, fieldType, codec, arrayDimensions }) => {
+		({ field, fieldType, codec, arrayDimensions, subqueryDecoder }) => {
 			let decoder;
 			switch (fieldType) {
 				case 'Column':
@@ -926,6 +935,9 @@ export function mapRelationalRowFromArrays(
 					break;
 				case 'SQL.Aliased':
 					decoder = field.sql.decoder;
+					break;
+				case 'Subquery':
+					decoder = subqueryDecoder ?? noopDecoder;
 					break;
 				case 'Nested':
 					decoder = noopDecoder;
@@ -1071,7 +1083,19 @@ function makeJitRqbMapperInner(
 	);
 
 	for (
-		const [idx, { field, fieldType, key, codec, isArray, selection: innerSelection, arrayDimensions }] of selection
+		const [
+			idx,
+			{
+				field,
+				fieldType,
+				key,
+				codec,
+				isArray,
+				selection: innerSelection,
+				arrayDimensions,
+				subqueryDecoder,
+			},
+		] of selection
 			.entries()
 	) {
 		const sel = `${selectionVar}[${idx}]`;
@@ -1181,6 +1205,19 @@ function makeJitRqbMapperInner(
 				} else if (!field.sql.decoder.mapFromDriverValue.isNoop) {
 					const id = counter.n++;
 					destructure = `field: { sql: { decoder: dec${id} } }`;
+					decoderExpr = `dec${id}.mapFromDriverValue`;
+				}
+				break;
+			}
+			case 'Subquery': {
+				if (useJsonMappers && (<any> subqueryDecoder)?.mapFromJsonValue) {
+					bypassCodecs = true;
+					const id = counter.n++;
+					destructure = `subqueryDecoder: dec${id}`;
+					decoderExpr = `dec${id}.mapFromJsonValue`;
+				} else if (subqueryDecoder && !subqueryDecoder.mapFromDriverValue.isNoop) {
+					const id = counter.n++;
+					destructure = `subqueryDecoder: dec${id}`;
 					decoderExpr = `dec${id}.mapFromDriverValue`;
 				}
 				break;
@@ -1991,17 +2028,21 @@ export function relationsFilterToSQL(
 				const throughTable = relation.throughTable ? aliasedTable(relation.throughTable, `ft${depth}`) : undefined;
 				const targetConfig = tablesRelations[relation.targetTableName]!;
 
-				const {
-					filter: relationFilter,
-					joinCondition,
-				} = relationToSQL(relation, table, targetTable, throughTable);
-				const subfilter = typeof value === 'boolean' ? undefined : relationsFilterToSQL(
+				const isExistsOnly = typeof value === 'boolean';
+				const subfilter = isExistsOnly ? undefined : relationsFilterToSQL(
 					targetTable,
 					value as AnyRelationsFilter,
 					targetConfig.relations,
 					tablesRelations,
 					depth + 1,
 				);
+
+				if (!isExistsOnly && !subfilter) continue;
+
+				const {
+					filter: relationFilter,
+					joinCondition,
+				} = relationToSQL(relation, table, targetTable, throughTable);
 				const filter = and(
 					relationFilter,
 					subfilter,

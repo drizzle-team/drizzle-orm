@@ -64,11 +64,10 @@ export const preparePostgresDB = async (
 			const { RDSDataClient } = await import(
 				'@aws-sdk/client-rds-data'
 			);
-			const { AwsDataApiSession, drizzle } = await import(
+			const { AwsDataApiSession, drizzle, AwsPgDialect } = await import(
 				'drizzle-orm/aws-data-api/pg'
 			);
 			const { migrate } = await import('drizzle-orm/aws-data-api/pg/migrator');
-			const { PgDialect } = await import('drizzle-orm/pg-core');
 
 			const config: AwsDataApiSessionOptions = {
 				database: credentials.database,
@@ -78,7 +77,7 @@ export const preparePostgresDB = async (
 			const rdsClient = new RDSDataClient();
 			const session = new AwsDataApiSession(
 				rdsClient,
-				new PgDialect(),
+				new AwsPgDialect(),
 				{},
 				config,
 				undefined,
