@@ -2417,12 +2417,67 @@ test.skipIf(Date.now() < +new Date('2026-09-05'))('Issue No6194', async () => {
 	const { sqlStatements: st1 } = await diff(schemaFrom, schemaTo, []);
 	await push({ db, to: schemaFrom });
 	const { sqlStatements: pst1 } = await push({ db, to: schemaTo });
-	const expectedSt1 = [
-		`DROP VIEW "mat_user";`,
-		'CREATE MATERIALIZED VIEW "mat_user" AS (select "id" from "users");',
-		'CREATE VIEW "user_view" AS (select "id" from "mat_user");',
-	];
+	const expectedSt1 = [''];
 
 	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+});
+
+// topological sort test
+test('topological sort test. deep view chain (recreate) is created in dependency order', async () => {
+	const t = pgTable('t', { id: integer() });
+
+	// old schema: four INDEPENDENT regular views (so the recreate drops are safe)
+	const schema1 = {
+		t,
+		zBase: pgView('z_base').as((qb) => qb.select({ id: t.id }).from(t)),
+		y1: pgView('y1').as((qb) => qb.select({ id: t.id }).from(t)),
+		x2: pgView('x2').as((qb) => qb.select({ id: t.id }).from(t)),
+		w3: pgView('w3').as((qb) => qb.select({ id: t.id }).from(t)),
+	};
+
+	// new schema: all flip to materialized (forces recreate) AND form the chain w3 -> x2 -> y1 -> z_base
+	const zBase = pgMaterializedView('z_base').as((qb) => qb.select({ id: t.id }).from(t));
+	const y1 = pgMaterializedView('y1').as((qb) => qb.select({ id: zBase.id }).from(zBase));
+	const x2 = pgMaterializedView('x2').as((qb) => qb.select({ id: y1.id }).from(y1));
+	const w3 = pgMaterializedView('w3').as((qb) => qb.select({ id: x2.id }).from(x2));
+	const schema2 = { t, y1, zBase, x2, w3 };
+
+	await push({ db, to: schema1, log: 'statements' });
+	// would throw if a dependent were created before its dependency
+	const { sqlStatements: pst } = await push({ db, to: schema2, log: 'statements' });
+
+	const st0 = [
+		'DROP VIEW "w3";',
+		'DROP VIEW "x2";',
+		'DROP VIEW "y1";',
+		'DROP VIEW "z_base";',
+		'CREATE MATERIALIZED VIEW "z_base" AS (select "id" from "t");',
+		'CREATE MATERIALIZED VIEW "y1" AS (select "id" from "z_base");',
+		'CREATE MATERIALIZED VIEW "x2" AS (select "id" from "y1");',
+		'CREATE MATERIALIZED VIEW "w3" AS (select "id" from "x2");',
+	];
+
+	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3309
+test('Issue No3309. tablesFilter with views', async () => {
+	await db.query(`CREATE TABLE test (id integer)`);
+	await db.query(`CREATE TABLE extensions_table (id integer)`);
+	await db.query(`CREATE VIEW extensions_view AS (select * from extensions_table)`);
+
+	const users = pgTable('users', {
+		id: integer(),
+	});
+
+	const schema1 = { users };
+
+	const { sqlStatements: pst1 } = await push({ db, to: schema1, tables: ['!extensions_table', '!extensions_view'] });
+	const expectedSt1 = [
+		'CREATE TABLE "users" (\n\t"id" integer\n);\n',
+		'DROP TABLE "test";',
+	];
+
 	expect(pst1).toStrictEqual(expectedSt1);
 });

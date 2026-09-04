@@ -8676,3 +8676,27 @@ test('Default value priority', async () => {
 
 	await db.execute(sql`DROP TABLE no_default_override`);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2279
+test('Issue No2279', async () => {
+	const corrupt_jsonb_demo = pgTable('corrupt_jsonb_demo', {
+		id: serial('id').primaryKey(),
+		data: jsonb('data').$type<{ [key: string]: any }>().notNull(),
+	});
+
+	await db.execute(sql`CREATE TABLE corrupt_jsonb_demo (id serial primary key, data jsonb not null)`);
+
+	await db.execute(sql`INSERT INTO corrupt_jsonb_demo (data) VALUES ('{"a": 1}');`);
+
+	const [res] = await db.select().from(corrupt_jsonb_demo);
+	await db
+		.update(corrupt_jsonb_demo)
+		.set({
+			data: res?.data,
+		})
+		.where(eq(corrupt_jsonb_demo.id, res!.id));
+
+	const res2 = await db.select().from(corrupt_jsonb_demo);
+
+	expect(res2).toStrictEqual([{ id: 1, data: { a: 1 } }]);
+});

@@ -167,7 +167,17 @@ const prepareRolesFilter = (entities: EntitiesFilter) => {
 	}
 
 	if (provider === 'neon') {
-		exclude.push('authenticated', 'anonymous');
+		exclude.push(
+			'authenticated',
+			'anonymous',
+			// reserved names
+			// https://neon.com/docs/manage/roles#reserved-role-names
+			'neon_superuser',
+			'cloud_admin',
+			'zenith_admin',
+			'none',
+			'neon_service',
+		);
 	}
 
 	const useRoles: boolean = typeof roles === 'boolean' ? roles : include.length > 0 || exclude.length > 0;
@@ -176,6 +186,8 @@ const prepareRolesFilter = (entities: EntitiesFilter) => {
 	if (!include.length && !exclude.length) return () => true;
 
 	const rolesFilter: (it: { type: 'role'; name: string }) => boolean = (it) => {
+		if (it.name.startsWith('pg_')) return false; // postgres system tables
+
 		const notExcluded = !exclude.length || !exclude.includes(it.name);
 		const included = !include.length || include.includes(it.name);
 

@@ -1,4 +1,4 @@
-import { parseSqliteDdl, parseTableSQL, parseViewSQL, stripSqlComments } from 'src/dialects/sqlite/grammar';
+import { parseSqliteDdl, parseViewSQL, stripSqlComments } from 'src/dialects/sqlite/grammar';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { prepareTestDatabase, TestDatabase } from './mocks';
 
@@ -72,14 +72,118 @@ describe('stripSqlComments', () => {
 	});
 });
 
-describe('parseTableSQL ignores commented-out constraints', () => {
+describe('parseSqliteDdl checks', () => {
+	test('unnamed table-level check', async () => {
+		const ddl = 'CREATE TABLE t (a INTEGER, CHECK (a > 0))';
+		await db.run(ddl);
+		expect(parseSqliteDdl(ddl).checks).toStrictEqual([{ name: null, value: 'a > 0' }]);
+	});
+
+	test('named check', async () => {
+		const ddl = 'CREATE TABLE t (a INTEGER, CONSTRAINT ck CHECK (a > 0))';
+		await db.run(ddl);
+		expect(parseSqliteDdl(ddl).checks).toStrictEqual([{ name: 'ck', value: 'a > 0' }]);
+	});
+
+	test('inline column check without a space before the paren', async () => {
+		const ddl = "CREATE TABLE t (a TEXT CHECK(a <> ''))";
+		await db.run(ddl);
+		expect(parseSqliteDdl(ddl).checks).toStrictEqual([{ name: null, value: "a <> ''" }]);
+	});
+
+	test('multiple checks on one table', async () => {
+		const ddl = 'CREATE TABLE t (a INTEGER, CHECK (a > 0), CHECK (a < 10))';
+		await db.run(ddl);
+		expect(parseSqliteDdl(ddl).checks).toStrictEqual([
+			{ name: null, value: 'a > 0' },
+			{ name: null, value: 'a < 10' },
+		]);
+	});
+
+	test('multiline check is collapsed and trimmed', async () => {
+		const ddl = 'CREATE TABLE t (b INTEGER, CHECK (\n  b > 0\n))';
+		await db.run(ddl);
+		expect(parseSqliteDdl(ddl).checks).toStrictEqual([{ name: null, value: 'b > 0' }]);
+	});
+
+	test('mixes named + inline + table-level checks', async () => {
+		const ddl = "CREATE TABLE t (a TEXT CHECK(a <>\n ''), b INTEGER, CONSTRAINT ck CHECK (b > 0))";
+		await db.run(ddl);
+		expect(parseSqliteDdl(ddl).checks).toStrictEqual([
+			{ name: null, value: "a <> ''" },
+			{ name: 'ck', value: 'b > 0' },
+		]);
+	});
+
+	test('nested function calls in the expression', async () => {
+		const ddl = 'CREATE TABLE t (name TEXT, CHECK (length(trim(name)) > 0))';
+		await db.run(ddl);
+		expect(parseSqliteDdl(ddl).checks).toStrictEqual([{ name: null, value: 'length(trim(name)) > 0' }]);
+	});
+
+	test('parenthesised sub-expression', async () => {
+		const ddl = 'CREATE TABLE t (a INTEGER, b INTEGER, CHECK ((a + b) > 0))';
+		await db.run(ddl);
+		expect(parseSqliteDdl(ddl).checks).toStrictEqual([{ name: null, value: '(a + b) > 0' }]);
+	});
+
+	test('named checks with bracket, double-quote and backtick names', async () => {
+		const ddl = 'CREATE TABLE t (a INTEGER, CONSTRAINT [ck1] CHECK (a > 0), '
+			+ 'CONSTRAINT "ck2" CHECK (a < 5), CONSTRAINT `ck3` CHECK (a <> 3))';
+		await db.run(ddl);
+		expect(parseSqliteDdl(ddl).checks).toStrictEqual([
+			{ name: 'ck1', value: 'a > 0' },
+			{ name: 'ck2', value: 'a < 5' },
+			{ name: 'ck3', value: 'a <> 3' },
+		]);
+	});
+
+	test('commas inside the expression do not break column parsing', async () => {
+		const ddl = "CREATE TABLE t (status TEXT CHECK (status IN ('a', 'b', 'c')), name TEXT UNIQUE)";
+		await db.run(ddl);
+		expect(parseSqliteDdl(ddl)).toStrictEqual({
+			checks: [{ name: null, value: "status IN ('a', 'b', 'c')" }],
+			uniques: [{ name: null, columns: ['name'] }],
+			pk: { name: null, columns: [] },
+		});
+	});
+
+	test('UNIQUE keyword inside a check is not treated as a unique constraint', async () => {
+		const ddl = "CREATE TABLE t (role TEXT CHECK (role <> 'UNIQUE'), name TEXT)";
+		await db.run(ddl);
+		expect(parseSqliteDdl(ddl)).toStrictEqual({
+			checks: [{ name: null, value: "role <> 'UNIQUE'" }],
+			uniques: [],
+			pk: { name: null, columns: [] },
+		});
+	});
+
+	test('checks mixed with uniques and a primary key', async () => {
+		const ddl = 'CREATE TABLE t (id INTEGER, a INTEGER, '
+			+ 'CONSTRAINT pk PRIMARY KEY(id), CONSTRAINT uq UNIQUE(a), CHECK (a > 0))';
+		await db.run(ddl);
+		expect(parseSqliteDdl(ddl)).toStrictEqual({
+			checks: [{ name: null, value: 'a > 0' }],
+			uniques: [{ name: 'uq', columns: ['a'] }],
+			pk: { name: 'pk', columns: ['id'] },
+		});
+	});
+
+	test('no checks', async () => {
+		const ddl = 'CREATE TABLE t (a INTEGER, b TEXT)';
+		await db.run(ddl);
+		expect(parseSqliteDdl(ddl).checks).toStrictEqual([]);
+	});
+});
+
+describe('parseSqliteDdl ignores commented-out checks', () => {
 	test('line-commented check is ignored', () => {
 		const sql = 'CREATE TABLE users (\n'
 			+ '  id TEXT PRIMARY KEY,\n'
 			+ "  -- CHECK (userType IN ('anonymous', 'emailPassword'))\n"
 			+ '  userType TEXT NOT NULL\n'
 			+ ')';
-		expect(parseTableSQL(sql).checks).toStrictEqual([]);
+		expect(parseSqliteDdl(sql).checks).toStrictEqual([]);
 	});
 
 	test('block-commented check is ignored', () => {
@@ -88,16 +192,16 @@ describe('parseTableSQL ignores commented-out constraints', () => {
 			+ '  /* CONSTRAINT users_ck CHECK (length(userType) > 0) */\n'
 			+ '  userType TEXT NOT NULL\n'
 			+ ')';
-		expect(parseTableSQL(sql).checks).toStrictEqual([]);
+		expect(parseSqliteDdl(sql).checks).toStrictEqual([]);
 	});
 
-	test('real check is still parsed', () => {
+	test('real check is still parsed alongside a commented-out one', () => {
 		const sql = 'CREATE TABLE users (\n'
 			+ '  id TEXT PRIMARY KEY,\n'
 			+ "  -- CHECK (userType IN ('x'))\n"
 			+ "  userType TEXT NOT NULL CHECK (userType <> '')\n"
 			+ ')';
-		expect(parseTableSQL(sql).checks).toStrictEqual([
+		expect(parseSqliteDdl(sql).checks).toStrictEqual([
 			{ name: null, value: "userType <> ''" },
 		]);
 	});
@@ -126,18 +230,18 @@ describe('parseSqliteDdl ignores commented-out constraints', () => {
 
 describe('parse ddl', (t) => {
 	test('all uniques', async () => {
-		const ddl = 'CREATE TABLE \`users\` (' + '\n'
-			+ '\`column\` text,' + '\n'
-			+ '\`column1\` text,' + '\n'
-			+ '\`column2\` text,' + '\n'
-			+ '\`column3\` text,' + '\n'
-			+ '\`column4\` text UNIQUE,' + '\n'
-			+ '\`column5\` text CONSTRAINT [hey] UNIQUE,' + '\n'
-			+ '\`column6\` text,' + '\n'
-			+ 'CONSTRAINT [unique_name] UNIQUE(\`column\`),' + '\n'
-			+ 'CONSTRAINT unique_name1 UNIQUE(\`column1\`),' + '\n'
-			+ 'CONSTRAINT "unique_name2" UNIQUE(\`column2\`),' + '\n'
-			+ 'CONSTRAINT \`unique_name3\` UNIQUE(\`column3\`)' + '\n'
+		const ddl = 'CREATE TABLE `users` (' + '\n'
+			+ '`column` text,' + '\n'
+			+ '`column1` text,' + '\n'
+			+ '`column2` text,' + '\n'
+			+ '`column3` text,' + '\n'
+			+ '`column4` text UNIQUE,' + '\n'
+			+ '`column5` text CONSTRAINT [hey] UNIQUE,' + '\n'
+			+ '`column6` text,' + '\n'
+			+ 'CONSTRAINT [unique_name] UNIQUE(`column`),' + '\n'
+			+ 'CONSTRAINT unique_name1 UNIQUE(`column1`),' + '\n'
+			+ 'CONSTRAINT "unique_name2" UNIQUE(`column2`),' + '\n'
+			+ 'CONSTRAINT `unique_name3` UNIQUE(`column3`)' + '\n'
 			+ ')';
 
 		await db.run(ddl);
@@ -152,25 +256,26 @@ describe('parse ddl', (t) => {
 				{ name: 'hey', columns: ['column5'] },
 			],
 			pk: { name: null, columns: [] },
+			checks: [],
 		});
 	});
 
 	test('corner case uniques', async () => {
-		const ddl = 'CREATE TABLE \`users\` (' + '\n'
-			+ '\`column\` text,' + '\n'
-			+ '\`column1\` text,' + '\n'
-			+ '\`column2\` text,' + '\n'
-			+ '\`column3\` text,'
-			+ '\`column4\` \ntext UNIQUE,' + '\n'
-			+ '\`column5\` text \nCONSTRAINT [hey] \tUNIQUE\n\t,' + '\n'
-			+ '\`column6\` text \nCONSTRAINT "hey" \tUNIQUE\n\t,' + '\n'
-			+ '\`column7\` text \nCONSTRAINT \`hey\` \tUNIQUE\n\t,' + '\n'
-			+ '\`column8\` text \nCONSTRAINT hey \tUNIQUE\n\t,' + '\n'
-			+ '\`column9\` text,' + '\n'
-			+ 'CONSTRAINT\n\t [unique_name] UNIQUE\n(\`column\`),'
-			+ 'CONSTRAINT unique_name1 UNIQUE(\`column1\`),' + '\n'
-			+ 'CONSTRAINT "unique_name2"\n UNIQUE(\`column2\`),' + '\n'
-			+ 'CONSTRAINT \`unique_name3\` UNIQUE(\`column3\`)' + '\n'
+		const ddl = 'CREATE TABLE `users` (' + '\n'
+			+ '`column` text,' + '\n'
+			+ '`column1` text,' + '\n'
+			+ '`column2` text,' + '\n'
+			+ '`column3` text,'
+			+ '`column4` \ntext UNIQUE,' + '\n'
+			+ '`column5` text \nCONSTRAINT [hey] \tUNIQUE\n\t,' + '\n'
+			+ '`column6` text \nCONSTRAINT "hey" \tUNIQUE\n\t,' + '\n'
+			+ '`column7` text \nCONSTRAINT `hey` \tUNIQUE\n\t,' + '\n'
+			+ '`column8` text \nCONSTRAINT hey \tUNIQUE\n\t,' + '\n'
+			+ '`column9` text,' + '\n'
+			+ 'CONSTRAINT\n\t [unique_name] UNIQUE\n(`column`),'
+			+ 'CONSTRAINT unique_name1 UNIQUE(`column1`),' + '\n'
+			+ 'CONSTRAINT "unique_name2"\n UNIQUE(`column2`),' + '\n'
+			+ 'CONSTRAINT `unique_name3` UNIQUE(`column3`)' + '\n'
 			+ ')';
 
 		await db.run(ddl);
@@ -188,56 +293,61 @@ describe('parse ddl', (t) => {
 				{ name: 'hey', columns: ['column8'] },
 			],
 			pk: { name: null, columns: [] },
+			checks: [],
 		});
 	});
 
 	test('pk #1', () => {
-		const ddl = 'CREATE TABLE \`users\` (' + '\n'
-			+ '\`column\` text' + '\n'
-			+ 'CONSTRAINT [pk] PRIMARY KEY(\`column\`)' + '\n'
+		const ddl = 'CREATE TABLE `users` (' + '\n'
+			+ '`column` text' + '\n'
+			+ 'CONSTRAINT [pk] PRIMARY KEY(`column`)' + '\n'
 			+ ')';
 
 		expect(parseSqliteDdl(ddl)).toStrictEqual({
 			uniques: [],
 			pk: { name: 'pk', columns: ['column'] },
+			checks: [],
 		});
 	});
 	test('pk #2', () => {
-		const ddl = 'CREATE TABLE \`users\` (' + '\n'
-			+ '\`column\` text' + '\n'
-			+ 'CONSTRAINT pk PRIMARY KEY(\`column\`)' + '\n'
+		const ddl = 'CREATE TABLE `users` (' + '\n'
+			+ '`column` text' + '\n'
+			+ 'CONSTRAINT pk PRIMARY KEY(`column`)' + '\n'
 			+ ')';
 
 		expect(parseSqliteDdl(ddl)).toStrictEqual({
 			uniques: [],
 			pk: { name: 'pk', columns: ['column'] },
+			checks: [],
 		});
 	});
 	test('pk #3', () => {
-		const ddl = 'CREATE TABLE \`users\` (' + '\n'
-			+ '\`column\` text' + '\n'
-			+ 'CONSTRAINT "pk" PRIMARY KEY(\`column\`)' + '\n'
+		const ddl = 'CREATE TABLE `users` (' + '\n'
+			+ '`column` text' + '\n'
+			+ 'CONSTRAINT "pk" PRIMARY KEY(`column`)' + '\n'
 			+ ')';
 
 		expect(parseSqliteDdl(ddl)).toStrictEqual({
 			uniques: [],
 			pk: { name: 'pk', columns: ['column'] },
+			checks: [],
 		});
 	});
 	test('pk #4', () => {
-		const ddl = 'CREATE TABLE \`users\` (' + '\n'
-			+ '\`column\` text' + '\n'
-			+ 'CONSTRAINT `pk` PRIMARY KEY(\`column\`)' + '\n'
+		const ddl = 'CREATE TABLE `users` (' + '\n'
+			+ '`column` text' + '\n'
+			+ 'CONSTRAINT `pk` PRIMARY KEY(`column`)' + '\n'
 			+ ')';
 
 		expect(parseSqliteDdl(ddl)).toStrictEqual({
 			uniques: [],
 			pk: { name: 'pk', columns: ['column'] },
+			checks: [],
 		});
 	});
 	test('pk #5', () => {
-		const ddl = 'CREATE TABLE \`users\` (' + '\n'
-			+ '\`column\` text PRIMARY KEY'
+		const ddl = 'CREATE TABLE `users` (' + '\n'
+			+ '`column` text PRIMARY KEY'
 			+ ')';
 
 		expect(parseSqliteDdl(ddl)).toStrictEqual({
@@ -246,11 +356,12 @@ describe('parse ddl', (t) => {
 				name: null,
 				columns: [`column`],
 			},
+			checks: [],
 		});
 	});
 	test('pk #6', () => {
-		const ddl = 'CREATE TABLE \`users\` (' + '\n'
-			+ '\`column\` text CONSTRAINT "pk" PRIMARY KEY'
+		const ddl = 'CREATE TABLE `users` (' + '\n'
+			+ '`column` text CONSTRAINT "pk" PRIMARY KEY'
 			+ ')';
 
 		expect(parseSqliteDdl(ddl)).toStrictEqual({
@@ -259,6 +370,7 @@ describe('parse ddl', (t) => {
 				name: 'pk',
 				columns: [`column`],
 			},
+			checks: [],
 		});
 	});
 });
