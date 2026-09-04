@@ -6,6 +6,7 @@ import { Table } from '~/table.ts';
 import { throwUnknownExtraConfigValue } from '~/table.utils.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import type { ViewConfig } from '~/view.ts';
 import type { Check } from './checks.ts';
 import { CheckBuilder } from './checks.ts';
 import type { MySqlCodecs } from './codecs.ts';
@@ -81,10 +82,7 @@ export function getTableConfig(table: MySqlTable) {
 	};
 }
 
-export function getViewConfig<
-	TName extends string = string,
-	TExisting extends boolean = boolean,
->(view: MySqlView<TName, TExisting>) {
+export function getViewConfig<T extends ViewConfig = ViewConfig>(view: MySqlView<T>) {
 	return {
 		...view[ViewBaseConfig],
 		...view[MySqlViewConfig],

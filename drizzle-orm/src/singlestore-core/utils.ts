@@ -66,10 +66,7 @@ export function getTableConfig(table: SingleStoreTable) {
 	};
 }
 
-/* export function getViewConfig<
-	TName extends string = string,
-	TExisting extends boolean = boolean,
->(view: SingleStoreView<TName, TExisting>) {
+/* export function getViewConfig<T extends ViewConfig = ViewConfig>(view: SingleStoreView<T>) {
 	return {
 		...view[ViewBaseConfig],
 		...view[SingleStoreViewConfig],

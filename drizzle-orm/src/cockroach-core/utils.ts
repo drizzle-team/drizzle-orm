@@ -5,6 +5,7 @@ import { Table } from '~/table.ts';
 import { throwUnknownExtraConfigValue } from '~/table.utils.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import type { ViewConfig } from '~/view.ts';
 import { type Check, CheckBuilder } from './checks.ts';
 import type { CockroachCodecs } from './codecs.ts';
 import type { AnyCockroachColumn } from './columns/index.ts';
@@ -66,19 +67,13 @@ export function getTableConfig<TTable extends CockroachTable>(table: TTable) {
 	};
 }
 
-export function getViewConfig<
-	TName extends string = string,
-	TExisting extends boolean = boolean,
->(view: CockroachView<TName, TExisting>) {
+export function getViewConfig<T extends ViewConfig = ViewConfig>(view: CockroachView<T>) {
 	return {
 		...view[ViewBaseConfig],
 	};
 }
 
-export function getMaterializedViewConfig<
-	TName extends string = string,
-	TExisting extends boolean = boolean,
->(view: CockroachMaterializedView<TName, TExisting>) {
+export function getMaterializedViewConfig<T extends ViewConfig = ViewConfig>(view: CockroachMaterializedView<T>) {
 	return {
 		...view[ViewBaseConfig],
 		...view[CockroachMaterializedViewConfig],

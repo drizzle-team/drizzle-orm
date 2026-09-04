@@ -7795,17 +7795,36 @@ export function tests(test: Test, exclude: string[] = []) {
 			cus: codecBypass('cus').notNull(),
 		});
 
-		const db = createDB({ users }, (r) => ({
+		const usersView = sqliteView('users_823_v').as((qb) =>
+			qb.select({
+				...getColumns(users),
+				max: max(users.createdAt).as('max'),
+				maxNum: max(users.num).as('maxNum'),
+				sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+				sqAliased: qb.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+				sqTag: qb.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+					.as('sq_tag'),
+			}).from(users).groupBy(users.id)
+		);
+
+		const db = createDB({ users, usersView }, (r) => ({
 			users: {
 				self: r.one.users({
 					from: r.users.id,
 					to: r.users.id,
 				}),
 			},
+			usersView: {
+				self: r.one.usersView({
+					from: r.usersView.id,
+					to: r.usersView.id,
+				}),
+			},
 		}));
 
+		await db.run(sql.raw('drop view if exists users_823_v'));
 		await db.run(sql.raw('drop table if exists users_823'));
-		await push({ users });
+		await push({ users, usersView });
 
 		const createdAt = new Date('2025-03-12T01:32:41.000Z');
 		const big = 5044565289845416380n;
@@ -7830,6 +7849,14 @@ export function tests(test: Test, exclude: string[] = []) {
 			},
 		});
 
+		const viewRes = await db.select().from(usersView);
+
+		const viewNested = await db.query.usersView.findFirst({
+			with: {
+				self: true,
+			},
+		});
+
 		const cols = {
 			id: 1,
 			name: 'First',
@@ -7838,12 +7865,30 @@ export function tests(test: Test, exclude: string[] = []) {
 			cus: big,
 		};
 
-		expect(res).toStrictEqual([{ ...cols, max: createdAt, maxNum: '475452353476' }]);
+		const aggregates = { max: createdAt, maxNum: '475452353476' };
+		const subqueries = { sq: createdAt, sqAliased: createdAt, sqTag: 'tag-1' };
+
+		expect(res).toStrictEqual([{ ...cols, ...aggregates }]);
+		expect(viewRes).toStrictEqual([{ ...cols, ...aggregates, ...subqueries }]);
 
 		expect(customCast).toBeTruthy();
 		expect(customMap).toBeTruthy();
 
 		expect(nested).toStrictEqual({ ...cols, self: cols });
+
+		type ViewRow = typeof usersView.$inferSelect;
+		type ViewNestedRow = {
+			[K in keyof (ViewRow & { self: ViewRow | null })]: (ViewRow & { self: ViewRow | null })[K];
+		};
+
+		expectTypeOf(viewNested).toEqualTypeOf<ViewNestedRow | undefined>();
+
+		expect(viewNested).toStrictEqual({
+			...cols,
+			...aggregates,
+			...subqueries,
+			self: { ...cols, ...aggregates, ...subqueries },
+		});
 	});
 
 	test.concurrent('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }) => {
@@ -7877,17 +7922,36 @@ export function tests(test: Test, exclude: string[] = []) {
 			cus: codecBypass('cus').notNull(),
 		});
 
-		const db = createDB({ users }, (r) => ({
+		const usersView = sqliteView('users_824_v').as((qb) =>
+			qb.select({
+				...getColumns(users),
+				max: max(users.createdAt).as('max'),
+				maxNum: max(users.num).as('maxNum'),
+				sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+				sqAliased: qb.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+				sqTag: qb.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+					.as('sq_tag'),
+			}).from(users).groupBy(users.id)
+		);
+
+		const db = createDB({ users, usersView }, (r) => ({
 			users: {
 				self: r.one.users({
 					from: r.users.id,
 					to: r.users.id,
 				}),
 			},
+			usersView: {
+				self: r.one.usersView({
+					from: r.usersView.id,
+					to: r.usersView.id,
+				}),
+			},
 		}), true);
 
+		await db.run(sql.raw('drop view if exists users_824_v'));
 		await db.run(sql.raw('drop table if exists users_824'));
-		await push({ users });
+		await push({ users, usersView });
 
 		const createdAt = new Date('2025-03-12T01:32:41.000Z');
 		const big = 5044565289845416380n;
@@ -7912,6 +7976,14 @@ export function tests(test: Test, exclude: string[] = []) {
 			},
 		});
 
+		const viewRes = await db.select().from(usersView);
+
+		const viewNested = await db.query.usersView.findFirst({
+			with: {
+				self: true,
+			},
+		});
+
 		const cols = {
 			id: 1,
 			name: 'First',
@@ -7920,12 +7992,30 @@ export function tests(test: Test, exclude: string[] = []) {
 			cus: big,
 		};
 
-		expect(res).toStrictEqual([{ ...cols, max: createdAt, maxNum: '475452353476' }]);
+		const aggregates = { max: createdAt, maxNum: '475452353476' };
+		const subqueries = { sq: createdAt, sqAliased: createdAt, sqTag: 'tag-1' };
+
+		expect(res).toStrictEqual([{ ...cols, ...aggregates }]);
+		expect(viewRes).toStrictEqual([{ ...cols, ...aggregates, ...subqueries }]);
 
 		expect(customCast).toBeTruthy();
 		expect(customMap).toBeTruthy();
 
 		expect(nested).toStrictEqual({ ...cols, self: cols });
+
+		type ViewRow = typeof usersView.$inferSelect;
+		type ViewNestedRow = {
+			[K in keyof (ViewRow & { self: ViewRow | null })]: (ViewRow & { self: ViewRow | null })[K];
+		};
+
+		expectTypeOf(viewNested).toEqualTypeOf<ViewNestedRow | undefined>();
+
+		expect(viewNested).toStrictEqual({
+			...cols,
+			...aggregates,
+			...subqueries,
+			self: { ...cols, ...aggregates, ...subqueries },
+		});
 	});
 
 	test('Query error wrapping', async ({ db }) => {

@@ -81,6 +81,7 @@ export function mssqlTableWithSchema<
 	schema: TSchemaName;
 	columns: BuildColumns<TTableName, TColumnsMap, 'mssql'>;
 	dialect: 'mssql';
+	isAlias: false;
 }> {
 	const casingFn = getCasingFn(casing);
 	const rawTable = new MsSqlTable<{
@@ -88,6 +89,7 @@ export function mssqlTableWithSchema<
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap, 'mssql'>;
 		dialect: 'mssql';
+		isAlias: false;
 	}>(name, schema, baseName);
 
 	const parsedColumns: TColumnsMap = typeof columns === 'function' ? columns(getMsSqlColumnBuilders()) : columns;
@@ -135,6 +137,7 @@ export interface MsSqlTableFn<TSchema extends string | undefined = undefined> {
 		schema: TSchema;
 		columns: BuildColumns<TTableName, TColumnsMap, 'mssql'>;
 		dialect: 'mssql';
+		isAlias: false;
 	}>;
 
 	<
@@ -151,6 +154,7 @@ export interface MsSqlTableFn<TSchema extends string | undefined = undefined> {
 		schema: TSchema;
 		columns: BuildColumns<TTableName, TColumnsMap, 'mssql'>;
 		dialect: 'mssql';
+		isAlias: false;
 	}>;
 }
 

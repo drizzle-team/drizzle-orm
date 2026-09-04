@@ -5,7 +5,7 @@ import type { NonArray, Writable } from '~/utils.ts';
 import { type PgEnum, type PgEnumObject, pgEnumObjectWithSchema, pgEnumWithSchema } from './columns/enum.ts';
 import { type pgSequence, pgSequenceWithSchema } from './sequence.ts';
 import { EnableRLS, type PgTableFn, type PgTableFnInternal, pgTableWithSchema } from './table.ts';
-import { type pgMaterializedView, pgMaterializedViewWithSchema, type pgView, pgViewWithSchema } from './view.ts';
+import { type PgMaterializedViewFn, pgMaterializedViewWithSchema, type PgViewFn, pgViewWithSchema } from './view.ts';
 
 export class PgSchema<TName extends string = string> implements SQLWrapper {
 	static readonly [entityKind]: string = 'PgSchema';
@@ -31,11 +31,11 @@ export class PgSchema<TName extends string = string> implements SQLWrapper {
 
 	view = ((name, columns) => {
 		return pgViewWithSchema(name, columns, this.schemaName, this.casing);
-	}) as typeof pgView;
+	}) as PgViewFn<TName>;
 
 	materializedView = ((name, columns) => {
 		return pgMaterializedViewWithSchema(name, columns, this.schemaName, this.casing);
-	}) as typeof pgMaterializedView;
+	}) as PgMaterializedViewFn<TName>;
 
 	public enum<U extends string, T extends Readonly<[U, ...U[]]>>(
 		enumName: string,
