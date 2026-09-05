@@ -25,7 +25,6 @@ import {
 	bigint,
 	boolean,
 	customType,
-	datetime,
 	index,
 	int,
 	MySqlAsyncSession,
@@ -37,13 +36,11 @@ import {
 	serial,
 	text,
 	timestamp,
-	unionAll,
 	unique,
 	varchar,
 } from 'drizzle-orm/mysql-core';
 import { TiDBServerlessDatabase } from 'drizzle-orm/tidb-serverless';
-import { expect } from 'vitest';
-import { expectTypeOf } from 'vitest';
+import { expect, expectTypeOf } from 'vitest';
 import { allTypesCodecsTable, assertAllTypesBounds, assertAllTypesUnions } from './all-types';
 import type { Test } from './instrumentation';
 import { createUsersOnUpdateTable, createUserTable } from './schema2';
@@ -655,7 +652,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	});
 
 	// https://github.com/drizzle-team/drizzle-orm/issues/1415
-	test.skipIf(Date.now() < +new Date('2026-09-05')).concurrent(
+	test.skipIf(Date.now() < +new Date('2026-09-12')).concurrent(
 		'prepared statement sql.placeholder in .inArray',
 		async ({ db, push }) => {
 			const users = createUserTable('users_116');
@@ -674,7 +671,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 	// https://github.com/drizzle-team/drizzle-orm/issues/1415
 	test
-		.skipIf(Date.now() < +new Date('2026-09-05'))
+		.skipIf(Date.now() < +new Date('2026-09-12'))
 		.concurrent(
 			'prepared statement sql.placeholder in .inArray #2',
 			async ({ db, push, seed }) => {

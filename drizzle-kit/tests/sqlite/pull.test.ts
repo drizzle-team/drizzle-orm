@@ -459,15 +459,76 @@ test('introspect unique constraint', async () => {
 
 	const schema = {
 		table: sqliteTable('table', {
-			col1: text('col1'),
-			col2: integer('col2').unique(),
+			col1: integer('col1').primaryKey(),
+			col2: text('col2').notNull(),
 		}, (t) => [
-			uniqueIndex('some_idx').on(t.col1),
+			uniqueIndex('some_idx1').on(t.col2),
+			index('some_idx2').on(sql`lower(${t.col2})`),
+			uniqueIndex('some_idx3').on(sql`lower(${t.col2})`),
+			index('some_idx4').on(sql`lower(${t.col2})`, t.col1),
+			uniqueIndex('some_idx5').on(sql`lower(${t.col2})`, t.col1),
 		]),
 	};
 
 	const { sqlStatements } = await diffAfterPull(sqlite, schema, 'introspect_unique_constraint');
 	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('introspect expression and partial indexes', async () => {
+	const sqlite = new Database(':memory:');
+
+	const schema = {
+		table: sqliteTable('table', {
+			col1: text('col1'),
+			col2: integer('col2'),
+		}, (t) => [
+			index('expr_idx').on(sql`lower(${t.col1})`),
+			index('partial_idx').on(t.col2).where(sql`"col2" > 3`),
+			index('mixed_idx').on(t.col1, sql`abs(${t.col2})`).where(sql`"col1" is not null`),
+			uniqueIndex('uniq_expr_idx').on(sql`lower(${t.col1})`, t.col2),
+		]),
+	};
+
+	const { sqlStatements } = await diffAfterPull(sqlite, schema, 'introspect_expression_indexes');
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('introspect index without a predicate', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	// `where` of an index only comes from its own ddl, `partial` of pragma_index_list tells there is one
+	await db.run(`CREATE TABLE \`t\`(\`c\` text default 'ask where it came from');`);
+	await db.run('CREATE INDEX `i` ON `t` (`c`);');
+	await db.run(`CREATE INDEX \`i2\` ON \`t\` (lower('a where b')) WHERE \`c\` <> 'c where d';`);
+
+	const schema = await fromDatabaseForDrizzle(db, () => true, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
+	const { ddl, errors } = interimToDDL(schema);
+
+	expect(errors.length).toBe(0);
+	expect(ddl.indexes.list()).toStrictEqual([
+		{
+			entityType: 'indexes',
+			table: 't',
+			name: 'i2',
+			columns: [{ value: `lower('a where b')`, isExpression: true }],
+			isUnique: false,
+			origin: 'manual',
+			where: `\`c\` <> 'c where d'`,
+		},
+		{
+			entityType: 'indexes',
+			table: 't',
+			name: 'i',
+			columns: [{ value: 'c', isExpression: false }],
+			isUnique: false,
+			origin: 'manual',
+			where: null,
+		},
+	]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3047

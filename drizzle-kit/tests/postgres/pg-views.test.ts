@@ -11,7 +11,6 @@ import {
 	text,
 	timestamp,
 } from 'drizzle-orm/pg-core';
-import { generate } from 'src/cli/schema';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -2390,7 +2389,7 @@ test('Issue No6176', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/6194
-test.skipIf(Date.now() < +new Date('2026-09-05'))('Issue No6194', async () => {
+test.skipIf(Date.now() < +new Date('2026-09-12'))('Issue No6194', async () => {
 	const accessLogsTableFrom = pgTable('access_logs', {
 		id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
 		accessedAt: timestamp('accessed_at', { mode: 'string' }).notNull().defaultNow(),

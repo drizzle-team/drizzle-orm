@@ -1,4 +1,4 @@
-import { parseSqliteDdl, parseViewSQL, stripSqlComments } from 'src/dialects/sqlite/grammar';
+import { parseSqliteDdl, parseSqliteIndex, parseViewSQL, stripSqlComments } from 'src/dialects/sqlite/grammar';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { prepareTestDatabase, TestDatabase } from './mocks';
 
@@ -69,6 +69,58 @@ describe('stripSqlComments', () => {
 	test('leaves comment-free sql untouched', () => {
 		const sql = 'CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT NOT NULL)';
 		expect(stripSqlComments(sql)).toBe(sql);
+	});
+});
+
+describe('parseSqliteIndex', () => {
+	test('plain columns', () => {
+		expect(parseSqliteIndex('CREATE INDEX `idx` ON `table` (`col1`, `col2`)')).toStrictEqual({
+			columns: ['`col1`', '`col2`'],
+			where: null,
+		});
+	});
+
+	test('expression columns', () => {
+		expect(parseSqliteIndex('CREATE UNIQUE INDEX "idx" ON "table" (lower("col1"), "col2")')).toStrictEqual({
+			columns: ['lower("col1")', '"col2"'],
+			where: null,
+		});
+	});
+
+	test('predicate of a partial index', () => {
+		expect(parseSqliteIndex('CREATE INDEX idx ON t (c1) WHERE c1 > 3 AND c2 IN (1, 2);')).toStrictEqual({
+			columns: ['c1'],
+			where: 'c1 > 3 AND c2 IN (1, 2)',
+		});
+	});
+
+	test('keeps commas of expressions and literals', () => {
+		expect(parseSqliteIndex(`CREATE INDEX idx ON "my(table)" (a, coalesce(b, 'x, y'))`)).toStrictEqual({
+			columns: ['a', `coalesce(b, 'x, y')`],
+			where: null,
+		});
+	});
+
+	test('predicate is only what follows the column list', () => {
+		expect(parseSqliteIndex(`CREATE INDEX idx ON t (lower('a where b'))`)).toStrictEqual({
+			columns: [`lower('a where b')`],
+			where: null,
+		});
+		expect(parseSqliteIndex(`CREATE INDEX idx ON t (lower('a where b')) WHERE c <> 'c where d'`)).toStrictEqual({
+			columns: [`lower('a where b')`],
+			where: `c <> 'c where d'`,
+		});
+	});
+
+	test('ignores comments', () => {
+		expect(parseSqliteIndex('CREATE INDEX idx ON t /* c1, */ (c1) -- WHERE c2')).toStrictEqual({
+			columns: ['c1'],
+			where: null,
+		});
+	});
+
+	test('statement without a column list', () => {
+		expect(parseSqliteIndex('CREATE INDEX idx ON t')).toStrictEqual({ columns: [], where: null });
 	});
 });
 
