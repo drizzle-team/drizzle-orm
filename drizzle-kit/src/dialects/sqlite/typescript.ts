@@ -205,7 +205,7 @@ const mapColumnDefault = (it: NonNullable<Column['default']>) => {
 		&& it.startsWith('(')
 		&& it.endsWith(')')
 	) {
-		return `sql\`${it}\``;
+		return `sql\`${it.replaceAll('`', '\\`')}\``;
 	}
 	// If default value is NULL as string it will come back from db as "'NULL'" and not just "NULL"
 	if (it === 'NULL') {
@@ -348,10 +348,12 @@ const createTableIndexes = (
 		statement += `${escapedIndexName})`;
 		statement += `.on(${
 			it.columns
-				.map((it) => `table.${withCasing(it.value, casing)}`)
+				.map((it) =>
+					it.isExpression ? `sql\`${it.value.replaceAll('`', '\\`')}\`` : `table.${withCasing(it.value, casing)}`
+				)
 				.join(', ')
 		})`;
-		statement += it.where ? `.where(sql\`${it.where}\`)` : '';
+		statement += it.where ? `.where(sql\`${it.where.replaceAll('`', '\\`')}\`)` : '';
 		statement += `,\n`;
 	}
 
@@ -387,7 +389,7 @@ const createTableChecks = (
 	checks.forEach((it) => {
 		statement += 'check(';
 		statement += `"${it.name}", `;
-		statement += `sql\`${it.value}\`)`;
+		statement += `sql\`${it.value.replaceAll('`', '\\`')}\`)`;
 		statement += `,\n`;
 	});
 

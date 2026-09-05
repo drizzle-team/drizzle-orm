@@ -495,6 +495,89 @@ export const omitSystemTables = () => {
 	return true;
 };
 
+interface IParsedIndex {
+	/** column names and expressions of the index, in the order they were declared */
+	columns: string[];
+	/** predicate of a partial index */
+	where: string | null;
+}
+
+/**
+ * Parses `CREATE [UNIQUE] INDEX [name] ON [table] (<columns>) [WHERE <predicate>]`.
+ * `pragma_index_info` reports NULL as a name of an expression column, so the ddl
+ * is the only source of the expression itself
+ */
+export function parseSqliteIndex(rawSql: string): IParsedIndex {
+	const sql = stripSqlComments(rawSql).replace(/(\r\n|\n|\r)/gm, ' ');
+	const result: IParsedIndex = { columns: [], where: null };
+
+	let started = false; // the column list starts at the first paren of the statement
+	let depth = 0;
+	let quote: string | null = null;
+	let column = '';
+	let i = 0;
+
+	const push = () => {
+		const trimmed = column.trim();
+		if (trimmed) result.columns.push(trimmed);
+		column = '';
+	};
+
+	for (; i < sql.length; i++) {
+		const char = sql[i];
+
+		if (quote) {
+			if (started) column += char;
+			if (char !== quote) continue;
+			// handle doubled-quote escaping (e.g. "" inside a "..." identifier)
+			if (quote !== ']' && sql[i + 1] === quote) {
+				if (started) column += sql[i + 1];
+				i += 1;
+				continue;
+			}
+			quote = null;
+			continue;
+		}
+
+		if (char === "'" || char === '"' || char === '`' || char === '[') {
+			quote = char === '[' ? ']' : char;
+			if (started) column += char;
+			continue;
+		}
+
+		if (char === '(') {
+			depth += 1;
+			if (started) column += char;
+			started = true;
+			continue;
+		}
+
+		if (char === ')') {
+			depth -= 1;
+			if (depth === 0) {
+				push();
+				break;
+			}
+			column += char;
+			continue;
+		}
+
+		if (char === ',' && depth === 1) {
+			push();
+			continue;
+		}
+
+		if (started) column += char;
+	}
+
+	if (!started) return result; // not a valid CREATE INDEX statement
+
+	const where = sql.slice(i + 1).match(/^\s*WHERE\s+([\s\S]+?)\s*;?\s*$/i);
+	result.where = where ? where[1] : null;
+
+	return result;
+}
+
 interface IParseResult {
 	uniques: { name: string | null; columns: string[] }[];
 	pk: { name: string | null; columns: string[] };
