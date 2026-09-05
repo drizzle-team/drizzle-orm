@@ -21,6 +21,7 @@ import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import { cockroachSchemaError, cockroachSchemaWarning, explain, explainJsonOutput, humanLog } from '../views';
 import { writeResult } from './generate-common';
+import { makeInverseResolver, withCapture } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
@@ -37,26 +38,39 @@ export const handle = async (config: GenerateConfig) => {
 			name: config.name,
 			breakpoints: config.breakpoints,
 			dialect: 'cockroach',
+			generateDownMigrations: config.generateDownMigrations,
 			type: 'custom',
 			renames: [],
 			snapshots,
 		});
 	}
 
+	const schemaRenames: { from: Schema; to: Schema }[] = [];
+	const enumRenames: { from: Enum; to: Enum }[] = [];
+	const seqRenames: { from: Sequence; to: Sequence }[] = [];
+	const policyRenames: { from: Policy; to: Policy }[] = [];
+	const tableRenames: { from: CockroachEntities['tables']; to: CockroachEntities['tables'] }[] = [];
+	const columnRenames: { from: Column; to: Column }[] = [];
+	const viewRenames: { from: View; to: View }[] = [];
+	const indexRenames: { from: Index; to: Index }[] = [];
+	const checkRenames: { from: CheckConstraint; to: CheckConstraint }[] = [];
+	const pkRenames: { from: PrimaryKey; to: PrimaryKey }[] = [];
+	const fkRenames: { from: ForeignKey; to: ForeignKey }[] = [];
+
 	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<Schema>('schema', config.hints),
-		resolver<Enum>('enum', config.hints),
-		resolver<Sequence>('sequence', config.hints),
-		resolver<Policy>('policy', config.hints),
-		resolver<CockroachEntities['tables']>('table', config.hints),
-		resolver<Column>('column', config.hints),
-		resolver<View>('view', config.hints),
-		resolver<Index>('index', config.hints),
-		resolver<CheckConstraint>('check', config.hints),
-		resolver<PrimaryKey>('primary_key', config.hints),
-		resolver<ForeignKey>('foreign key', config.hints),
+		withCapture(resolver<Schema>('schema', config.hints), schemaRenames),
+		withCapture(resolver<Enum>('enum', config.hints), enumRenames),
+		withCapture(resolver<Sequence>('sequence', config.hints), seqRenames),
+		withCapture(resolver<Policy>('policy', config.hints), policyRenames),
+		withCapture(resolver<CockroachEntities['tables']>('table', config.hints), tableRenames),
+		withCapture(resolver<Column>('column', config.hints), columnRenames),
+		withCapture(resolver<View>('view', config.hints), viewRenames),
+		withCapture(resolver<Index>('index', config.hints), indexRenames),
+		withCapture(resolver<CheckConstraint>('check', config.hints), checkRenames),
+		withCapture(resolver<PrimaryKey>('primary_key', config.hints), pkRenames),
+		withCapture(resolver<ForeignKey>('foreign key', config.hints), fkRenames),
 		'default',
 	);
 
@@ -64,14 +78,37 @@ export const handle = async (config: GenerateConfig) => {
 		return config.hints.toResponse();
 	}
 
+	const downDiff = config.generateDownMigrations
+		? await ddlDiff(
+			ddlCur,
+			ddlPrev,
+			makeInverseResolver(schemaRenames),
+			makeInverseResolver(enumRenames),
+			makeInverseResolver(seqRenames),
+			makeInverseResolver(policyRenames),
+			makeInverseResolver(tableRenames),
+			makeInverseResolver(columnRenames),
+			makeInverseResolver(viewRenames),
+			makeInverseResolver(indexRenames),
+			makeInverseResolver(checkRenames),
+			makeInverseResolver(pkRenames),
+			makeInverseResolver(fkRenames),
+			'default',
+		)
+		: undefined;
+	const downSqlStatements = downDiff?.sqlStatements;
+
 	if (!config.explain) {
 		return writeResult({
 			snapshot: snapshot,
 			sqlStatements,
+			downSqlStatements,
+			downStatements: downDiff?.groupedStatements,
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
 			dialect: 'cockroach',
+			generateDownMigrations: config.generateDownMigrations,
 			renames,
 			snapshots,
 		});

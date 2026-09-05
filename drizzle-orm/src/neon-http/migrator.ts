@@ -1,4 +1,5 @@
 import type { BatchItem } from '~/batch.ts';
+import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigratorInitFailResponse } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
@@ -77,6 +78,62 @@ export async function migrate<TRelations extends AnyRelations>(
 				sql`insert into ${sql.identifier(migrationsSchema)}.${
 					sql.identifier(migrationsTable)
 				} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
+			),
+		);
+	}
+
+	if (statements.length) {
+		await db.batch(statements as [BatchItem<'pg'>, ...BatchItem<'pg'>[]]);
+	}
+}
+
+/**
+ * Down statements and their journal deletions are sent as a single batch: the driver has no interactive
+ * transactions, so a batch is the only way to keep a failed rollback from leaving partial state behind.
+ */
+export async function rollback<TRelations extends AnyRelations>(
+	db: NeonHttpDatabase<TRelations>,
+	config: MigrationConfig,
+	steps: number = 1,
+) {
+	const migrations = readMigrationFiles(config);
+	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
+	const migrationsSchema = config.migrationsSchema ?? 'drizzle';
+
+	const dbMigrations = await db.session.objects<{ id: number; hash: string; created_at: string; name: string | null }>(
+		sql`select id, hash, name from ${sql.identifier(migrationsSchema)}.${
+			sql.identifier(migrationsTable)
+		} order by id desc limit ${sql.raw(String(steps))}`,
+	);
+
+	if (dbMigrations.length === 0) {
+		return;
+	}
+
+	const statements: BatchItem<'pg'>[] = [];
+	for (const dbMigration of dbMigrations) {
+		const meta = migrations.find((m) =>
+			m.hash === dbMigration.hash && (!dbMigration.name || m.name === dbMigration.name)
+		);
+		if (!meta) {
+			throw new DrizzleError({
+				message: `Cannot rollback migration with hash ${dbMigration.hash}: migration file not found`,
+			});
+		}
+		if (!meta.downSql || meta.downSql.length === 0) {
+			throw new DrizzleError({
+				message:
+					`Cannot rollback migration ${dbMigration.hash}: no down SQL available. Add a down.sql file alongside the migration.`,
+			});
+		}
+		for (const stmt of meta.downSql) {
+			statements.push(db.execute(sql.raw(stmt)));
+		}
+		statements.push(
+			db.execute(
+				sql`delete from ${sql.identifier(migrationsSchema)}.${
+					sql.identifier(migrationsTable)
+				} where id = ${dbMigration.id}`,
 			),
 		);
 	}

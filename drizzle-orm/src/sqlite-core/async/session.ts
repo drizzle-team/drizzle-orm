@@ -1,7 +1,7 @@
 import { type Cache, NoopCache, strategyFor } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
-import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
+import { DrizzleError, DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
@@ -536,6 +536,113 @@ export async function migrateAsync(
 				} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
 					new Date().toISOString()
 				})`,
+			);
+		}
+	});
+}
+
+const resolveMigrationsTable = (config?: string | Omit<MigrationConfig, 'migrationsFolder'>): string =>
+	config === undefined
+		? '__drizzle_migrations'
+		: typeof config === 'string'
+		? '__drizzle_migrations'
+		: (config.migrationsTable ?? '__drizzle_migrations');
+
+const findMigrationForRollback = (
+	migrations: MigrationMeta[],
+	dbMigration: { hash: string; created_at: string; name: string | null },
+): MigrationMeta => {
+	const meta = migrations.find((m) =>
+		m.hash
+			? m.hash === dbMigration.hash && (!dbMigration.name || m.name === dbMigration.name)
+			: m.folderMillis === Number(dbMigration.created_at)
+	);
+	if (!meta) {
+		throw new DrizzleError({
+			message: `Cannot rollback migration with hash ${dbMigration.hash}: migration file not found`,
+		});
+	}
+	if (!meta.downSql || meta.downSql.length === 0) {
+		throw new DrizzleError({
+			message:
+				`Cannot rollback migration ${dbMigration.hash}: no down SQL available. Add a down.sql file alongside the migration.`,
+		});
+	}
+	return meta;
+};
+
+export function rollbackSync(
+	migrations: MigrationMeta[],
+	session: SQLiteAsyncSession<'sync', unknown, AnyRelations>,
+	config?: string | Omit<MigrationConfig, 'migrationsFolder'>,
+	steps: number = 1,
+): void {
+	const migrationsTable = resolveMigrationsTable(config);
+
+	const dbMigrations = session.objects<{
+		id: number;
+		hash: string;
+		created_at: string;
+		name: string | null;
+	}>(
+		sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)} ORDER BY id DESC LIMIT ${
+			sql.raw(String(steps))
+		}`,
+	);
+
+	if (dbMigrations.length === 0) {
+		return;
+	}
+
+	session.run(sql`BEGIN`);
+	try {
+		for (const dbMigration of dbMigrations) {
+			const meta = findMigrationForRollback(migrations, dbMigration);
+			for (const stmt of meta.downSql!) {
+				session.run(sql.raw(stmt));
+			}
+			session.run(
+				sql`DELETE FROM ${sql.identifier(migrationsTable)} WHERE id = ${dbMigration.id}`,
+			);
+		}
+		session.run(sql`COMMIT`);
+	} catch (e) {
+		session.run(sql`ROLLBACK`);
+		throw e;
+	}
+}
+
+export async function rollbackAsync(
+	migrations: MigrationMeta[],
+	session: SQLiteAsyncSession<'async', unknown, AnyRelations>,
+	config?: string | Omit<MigrationConfig, 'migrationsFolder'>,
+	steps: number = 1,
+): Promise<void> {
+	const migrationsTable = resolveMigrationsTable(config);
+
+	const dbMigrations = await session.objects<{
+		id: number;
+		hash: string;
+		created_at: string;
+		name: string | null;
+	}>(
+		sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)} ORDER BY id DESC LIMIT ${
+			sql.raw(String(steps))
+		}`,
+	);
+
+	if (dbMigrations.length === 0) {
+		return;
+	}
+
+	await session.transaction(async (tx) => {
+		for (const dbMigration of dbMigrations) {
+			const meta = findMigrationForRollback(migrations, dbMigration);
+			for (const stmt of meta.downSql!) {
+				await tx.run(sql.raw(stmt));
+			}
+			await tx.run(
+				sql`DELETE FROM ${sql.identifier(migrationsTable)} WHERE id = ${dbMigration.id}`,
 			);
 		}
 	});
