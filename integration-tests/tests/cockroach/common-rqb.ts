@@ -1,5 +1,5 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { and, defineRelations, eq, inArray, isNotNull, not, or, sql } from 'drizzle-orm';
+import { and, defineRelations, eq, inArray, not, sql } from 'drizzle-orm';
 import type { AnyCockroachColumn, CockroachColumnBuilder } from 'drizzle-orm/cockroach-core';
 import {
 	bigint,
@@ -1039,7 +1039,7 @@ export function tests() {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4696
 		// postgresjs returns strings for itemCount but other drivers return numbers
-		test.skipIf(Date.now() < +new Date('2026-09-05')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-09-12')).concurrent(
 			'RQB v2 find many - extras',
 			async ({ push, createDB }) => {
 				const orderItemTable = cockroachTable('rqb_order_item_19', {

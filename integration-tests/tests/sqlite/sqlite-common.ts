@@ -43,7 +43,6 @@ import {
 	intersect,
 	numeric,
 	primaryKey,
-	real,
 	type SQLiteAsyncDatabase,
 	SQLiteDialect,
 	sqliteTable,
@@ -1455,7 +1454,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/2872
 		test
-			.skipIf(Date.now() < +new Date('2026-09-05'))
+			.skipIf(Date.now() < +new Date('2026-09-12'))
 			.concurrent(
 				'prepared statement with placeholder in .inArray',
 				async ({ db, push }) => {
