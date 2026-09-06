@@ -17,7 +17,8 @@ export function mapResultRow<TResult>(
 	row: unknown[],
 	joinsNotNullableMap: Record<string, boolean> | undefined,
 ): TResult {
-	// Key -> nested object key, value -> table name if all fields in the nested object are from the same table, false otherwise
+	// Key -> JSON-encoded path of the nested object, value -> table name if all fields
+	// in that object are from the same table, false otherwise
 	const nullifyMap: Record<string, string | false> = {};
 
 	const result = columns.reduce<Record<string, any>>(
@@ -43,19 +44,21 @@ export function mapResultRow<TResult>(
 					const rawValue = row[columnIndex]!;
 					const value = node[pathChunk] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
 
-					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
-						const objectName = path[0]!;
+					if (joinsNotNullableMap && is(field, Column) && path.length >= 2) {
+						// Key on the object's own path, not just path[0], so objects nested
+						// deeper than one level are tracked too.
+						const objectKey = JSON.stringify(path.slice(0, -1));
 						const tableName = getTableName(field.table);
 
 						if (value !== null) {
 							// A column that came back with a value proves the joined row exists,
 							// so this object must never be nullified - regardless of which of its
 							// columns happened to be read first.
-							nullifyMap[objectName] = false;
-						} else if (!(objectName in nullifyMap)) {
-							nullifyMap[objectName] = tableName;
-						} else if (typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== tableName) {
-							nullifyMap[objectName] = false;
+							nullifyMap[objectKey] = false;
+						} else if (!(objectKey in nullifyMap)) {
+							nullifyMap[objectKey] = tableName;
+						} else if (typeof nullifyMap[objectKey] === 'string' && nullifyMap[objectKey] !== tableName) {
+							nullifyMap[objectKey] = false;
 						}
 					}
 				}
@@ -67,9 +70,19 @@ export function mapResultRow<TResult>(
 
 	// Nullify all nested objects from nullifyMap that are nullable
 	if (joinsNotNullableMap && Object.keys(nullifyMap).length > 0) {
-		for (const [objectName, tableName] of Object.entries(nullifyMap)) {
-			if (typeof tableName === 'string' && !joinsNotNullableMap[tableName]) {
-				result[objectName] = null;
+		for (const [objectKey, tableName] of Object.entries(nullifyMap)) {
+			if (typeof tableName !== 'string' || joinsNotNullableMap[tableName]) {
+				continue;
+			}
+
+			const objectPath: string[] = JSON.parse(objectKey);
+			let node = result;
+			for (const pathChunk of objectPath.slice(0, -1)) {
+				node = node?.[pathChunk];
+			}
+
+			if (node) {
+				node[objectPath[objectPath.length - 1]!] = null;
 			}
 		}
 	}
