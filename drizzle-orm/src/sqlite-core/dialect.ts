@@ -20,7 +20,7 @@ import {
 import type { Name, Placeholder } from '~/sql/index.ts';
 import { and, eq } from '~/sql/index.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
-import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
+import { SQLiteColumn, SQLiteCustomColumn } from '~/sqlite-core/columns/index.ts';
 import type {
 	AnySQLiteSelectQueryBuilder,
 	SQLiteDeleteConfig,
@@ -209,24 +209,21 @@ export abstract class SQLiteDialect {
 				}
 			} else if (is(field, Column)) {
 				const tableName = field.table[Table.Symbol.Name];
-				if (field.columnType === 'SQLiteNumericBigInt') {
-					if (isSingleTable) {
-						chunk.push(
-							sql`cast(${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
-						);
-					} else {
-						chunk.push(
-							sql`cast(${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
-						);
-					}
+				const columnName = sql.identifier(this.casing.getColumnCasing(field));
+				const columnRef = isSingleTable
+					? sql`${columnName}`
+					: sql`${sql.identifier(tableName)}.${columnName}`;
+				const customSelect = is(field, SQLiteCustomColumn) ? field.sqlForSelect(columnRef) : undefined;
+
+				if (customSelect) {
+					chunk.push(customSelect);
+					chunk.push(sql` as ${columnName}`);
+				} else if (field.columnType === 'SQLiteNumericBigInt') {
+					chunk.push(sql`cast(${columnRef} as text)`);
+				} else if (isSingleTable) {
+					chunk.push(columnName);
 				} else {
-					if (isSingleTable) {
-						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
-					} else {
-						chunk.push(
-							sql`${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))}`,
-						);
-					}
+					chunk.push(columnRef);
 				}
 			} else if (is(field, Subquery)) {
 				const entries = Object.entries(field._.selectedFields) as [

@@ -1474,3 +1474,30 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 
 	Expect<Equal<{ enum: Role | null }[], typeof schemaRes>>;
 }
+
+{
+	type Point = { lat: number; lng: number };
+
+	const pointType = customType<{ data: Point; driverData: string }>({
+		dataType() {
+			return 'geometry(Point,4326)';
+		},
+		fromDriver(_value) {
+			return { lat: 0, lng: 0 };
+		},
+		selectFromDb(columnRef) {
+			return sql`st_astext(${columnRef})`;
+		},
+	});
+
+	const locations = pgTable('locations_select_from_db', {
+		id: integer('id').primaryKey(),
+		coords: pointType('coords'),
+	});
+
+	const result = await db.select().from(locations);
+	Expect<Equal<{ id: number; coords: Point | null }[], typeof result>>;
+
+	const partial = await db.select({ coords: locations.coords }).from(locations);
+	Expect<Equal<{ coords: Point | null }[], typeof partial>>;
+}
