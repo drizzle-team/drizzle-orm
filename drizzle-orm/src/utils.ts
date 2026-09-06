@@ -45,11 +45,16 @@ export function mapResultRow<TResult>(
 
 					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
 						const objectName = path[0]!;
-						if (!(objectName in nullifyMap)) {
-							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
-						} else if (
-							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
-						) {
+						const tableName = getTableName(field.table);
+
+						if (value !== null) {
+							// A column that came back with a value proves the joined row exists,
+							// so this object must never be nullified - regardless of which of its
+							// columns happened to be read first.
+							nullifyMap[objectName] = false;
+						} else if (!(objectName in nullifyMap)) {
+							nullifyMap[objectName] = tableName;
+						} else if (typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== tableName) {
 							nullifyMap[objectName] = false;
 						}
 					}
