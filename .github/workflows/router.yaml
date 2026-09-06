@@ -6,6 +6,15 @@ on:
       - main
   pull_request:
   workflow_dispatch:
+    inputs:
+      publish_to_github:
+        description: 'Publish to GitHub Packages instead of npm'
+        type: boolean
+        default: false
+      packages:
+        description: 'Comma-separated list of packages to publish, or "all"'
+        type: string
+        default: 'all'
 
 jobs:
   switch:
