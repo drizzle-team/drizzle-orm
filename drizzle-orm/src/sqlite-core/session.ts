@@ -1,7 +1,8 @@
 import { type Cache, hashQuery, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
-import { DrizzleError, DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
+import { DrizzleError, TransactionRollbackError } from '~/errors.ts';
+import { wrapSqliteError } from './errors.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
@@ -77,7 +78,7 @@ export abstract class SQLitePreparedQuery<T extends PreparedQueryConfig> impleme
 			try {
 				return await query();
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw wrapSqliteError(queryString, params, e);
 			}
 		}
 
@@ -86,7 +87,7 @@ export abstract class SQLitePreparedQuery<T extends PreparedQueryConfig> impleme
 			try {
 				return await query();
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw wrapSqliteError(queryString, params, e);
 			}
 		}
 
@@ -104,7 +105,7 @@ export abstract class SQLitePreparedQuery<T extends PreparedQueryConfig> impleme
 				]);
 				return res;
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw wrapSqliteError(queryString, params, e);
 			}
 		}
 
@@ -113,7 +114,7 @@ export abstract class SQLitePreparedQuery<T extends PreparedQueryConfig> impleme
 			try {
 				return await query();
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw wrapSqliteError(queryString, params, e);
 			}
 		}
 
@@ -129,7 +130,7 @@ export abstract class SQLitePreparedQuery<T extends PreparedQueryConfig> impleme
 				try {
 					result = await query();
 				} catch (e) {
-					throw new DrizzleQueryError(queryString, params, e as Error);
+					throw wrapSqliteError(queryString, params, e);
 				}
 
 				// put actual key
@@ -150,7 +151,7 @@ export abstract class SQLitePreparedQuery<T extends PreparedQueryConfig> impleme
 		try {
 			return await query();
 		} catch (e) {
-			throw new DrizzleQueryError(queryString, params, e as Error);
+			throw wrapSqliteError(queryString, params, e);
 		}
 	}
 
