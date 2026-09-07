@@ -493,6 +493,35 @@ test('introspect expression and partial indexes', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+test('introspect index with a sort order and a collation', async () => {
+	const sqlite = new Database(':memory:');
+
+	const schema = {
+		t: sqliteTable('t', {
+			code: text('code'),
+			createdAt: integer('created_at'),
+		}, (t) => [
+			index('i_desc').on(sql`${t.createdAt} DESC`),
+			index('i_coll').on(sql`${t.code} COLLATE NOCASE`),
+		]),
+	};
+
+	const { sqlStatements, resultDdl } = await diffAfterPull(sqlite, schema, 'introspect_desc_collate_indexes');
+	expect(sqlStatements).toStrictEqual([]);
+
+	// `DESC` and `COLLATE` are key part modifiers of a plain column, `pragma_index_info` reports
+	// the column itself(cid >= 0) and only the index ddl has the key part as it was declared
+	expect(resultDdl.indexes.one({ table: 't', name: 'i_desc' })!.columns).toStrictEqual([
+		{ value: '"created_at" DESC', isExpression: true },
+	]);
+	expect(resultDdl.indexes.one({ table: 't', name: 'i_coll' })!.columns).toStrictEqual([
+		{ value: '"code" COLLATE NOCASE', isExpression: true },
+	]);
+
+	const { sqlStatements: afterPush } = await push({ db: dbFrom(sqlite), to: schema });
+	expect(afterPush).toStrictEqual([]);
+});
+
 test('introspect index without a predicate', async () => {
 	const sqlite = new Database(':memory:');
 	const db = dbFrom(sqlite);

@@ -28,6 +28,15 @@ import {
 	sqlTypeFrom,
 } from './grammar';
 
+/**
+ * Tells whether a key part of an index ddl is a plain reference to `column`, `\`code\``, `[code]`,
+ * `"code"` and `code` all reference the same column, while `code DESC` or `lower(code)` do not
+ */
+const isColumnRef = (keyPart: string, column: string) => {
+	const unquoted = keyPart.replace(/^(?:\[|`|")/, '').replace(/(?:\]|`|")$/, '');
+	return unquoted.toLowerCase() === column.toLowerCase();
+};
+
 export const fromDatabaseForDrizzle = async (
 	db: DB,
 	filter: EntityFilter = () => true,
@@ -342,10 +351,12 @@ ORDER BY m.name COLLATE NOCASE, il.seq, ii.seqno;
 		// implicit indexes have no ddl of their own, they have neither expressions nor a predicate
 		const parsed = it.sql ? parseSqliteIndex(it.sql) : { columns: [], where: null };
 		const index = indexes[it.name] ??= { index: it, columns: [], where: it.isPartial ? parsed.where : null };
-		const isExpression = it.cid === -2;
 
-		// `pragma_index_info` reports NULL as a name of an expression column, the ddl has the expression itself
-		const value = isExpression ? parsed.columns[index.columns.length] ?? '' : it.column;
+		// `pragma_index_info` reports NULL as a name of an expression column and reports a plain name for
+		// a column with a `DESC`/`COLLATE` modifier, only the ddl has the key part as it was declared
+		const declared = parsed.columns[index.columns.length] ?? null;
+		const isExpression = it.cid === -2 || (declared !== null && !isColumnRef(declared, it.column));
+		const value = isExpression ? declared ?? '' : it.column;
 		index.columns.push({ value, isExpression });
 		return acc;
 	}, {} as Record<string, Record<string, TableIndex>>);

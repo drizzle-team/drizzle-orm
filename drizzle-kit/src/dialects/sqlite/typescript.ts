@@ -3,6 +3,7 @@ import { toCamelCase } from 'drizzle-orm/casing';
 import '../../@types/utils';
 import type { Casing } from '../../cli/validations/common';
 import { assertUnreachable } from '../../utils';
+import { escapeForSqlTemplate } from '../utils';
 import type {
 	CheckConstraint,
 	Column,
@@ -152,7 +153,7 @@ export const ddlToTypeScript = (
 		const columns = viewColumns[view.name] || [];
 		statement += createViewColumns(view, columns, casing);
 		statement += '})';
-		statement += `.as(sql\`${view.definition?.replaceAll('`', '\\`')}\`);`;
+		statement += `.as(sql\`${view.definition ? escapeForSqlTemplate(view.definition) : view.definition}\`);`;
 
 		return statement;
 	});
@@ -205,7 +206,7 @@ const mapColumnDefault = (it: NonNullable<Column['default']>) => {
 		&& it.startsWith('(')
 		&& it.endsWith(')')
 	) {
-		return `sql\`${it.replaceAll('`', '\\`')}\``;
+		return `sql\`${escapeForSqlTemplate(it)}\``;
 	}
 	// If default value is NULL as string it will come back from db as "'NULL'" and not just "NULL"
 	if (it === 'NULL') {
@@ -349,11 +350,11 @@ const createTableIndexes = (
 		statement += `.on(${
 			it.columns
 				.map((it) =>
-					it.isExpression ? `sql\`${it.value.replaceAll('`', '\\`')}\`` : `table.${withCasing(it.value, casing)}`
+					it.isExpression ? `sql\`${escapeForSqlTemplate(it.value)}\`` : `table.${withCasing(it.value, casing)}`
 				)
 				.join(', ')
 		})`;
-		statement += it.where ? `.where(sql\`${it.where.replaceAll('`', '\\`')}\`)` : '';
+		statement += it.where ? `.where(sql\`${escapeForSqlTemplate(it.where)}\`)` : '';
 		statement += `,\n`;
 	}
 
@@ -389,7 +390,7 @@ const createTableChecks = (
 	checks.forEach((it) => {
 		statement += 'check(';
 		statement += `"${it.name}", `;
-		statement += `sql\`${it.value.replaceAll('`', '\\`')}\`)`;
+		statement += `sql\`${escapeForSqlTemplate(it.value)}\`)`;
 		statement += `,\n`;
 	});
 

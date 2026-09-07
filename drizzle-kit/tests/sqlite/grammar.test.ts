@@ -122,6 +122,31 @@ describe('parseSqliteIndex', () => {
 	test('statement without a column list', () => {
 		expect(parseSqliteIndex('CREATE INDEX idx ON t')).toStrictEqual({ columns: [], where: null });
 	});
+
+	test('predicate wrapped in parentheses', () => {
+		expect(parseSqliteIndex(`CREATE INDEX i ON t (code) WHERE (status = 'a' AND id > 0)`).where).toBe(
+			`(status = 'a' AND id > 0)`,
+		);
+	});
+
+	test('predicate on a new line', () => {
+		expect(parseSqliteIndex('CREATE INDEX i ON t (code)\nWHERE status = 1').where).toBe('status = 1');
+	});
+
+	test('no space between the column list and the predicate', () => {
+		expect(parseSqliteIndex('CREATE INDEX i ON t (code)WHERE id > 0').where).toBe('id > 0');
+	});
+
+	test('quoted identifier containing `where` is not mistaken for the keyword', () => {
+		expect(parseSqliteIndex('CREATE INDEX i ON t ("a where b") WHERE id > 0')).toStrictEqual({
+			columns: ['"a where b"'],
+			where: 'id > 0',
+		});
+	});
+
+	test('index name containing `where` is not mistaken for the keyword', () => {
+		expect(parseSqliteIndex('CREATE INDEX where_idx ON t (code)').where).toBe(null);
+	});
 });
 
 describe('parseSqliteDdl checks', () => {
