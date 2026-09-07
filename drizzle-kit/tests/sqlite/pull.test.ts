@@ -978,3 +978,55 @@ test('Issue No6223', async () => {
 		},
 	]);
 });
+
+test('Issue No6223 #2', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	await db.run(
+		`CREATE TABLE table1 (id INTEGER PRIMARY KEY, code TEXT NOT NULL, note TEXT DEFAULT 'ask where it came from');`,
+	);
+	await db.run(`CREATE INDEX "some index where this exist" ON table1 (code);`);
+
+	await db.run(`CREATE TABLE table2 (id INTEGER PRIMARY KEY, code TEXT NOT NULL, status TEXT);`);
+	await db.run(`CREATE UNIQUE INDEX "some index where this exist - 2" ON table2 (code) WHERE status = 'active';`);
+
+	const { ddlAfterPull, initDDL, resultDdl, sqlStatements, statements } = await diffAfterPull(
+		sqlite,
+		{},
+		'Issue #6223-#2',
+	);
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.indexes.list()).toStrictEqual([
+		{
+			columns: [
+				{
+					isExpression: false,
+					value: 'code',
+				},
+			],
+			entityType: 'indexes',
+			isUnique: false,
+			name: 'some index where this exist',
+			origin: 'manual',
+			table: 'table1',
+			where: null,
+		},
+		{
+			columns: [
+				{
+					isExpression: false,
+					value: 'code',
+				},
+			],
+			entityType: 'indexes',
+			isUnique: true,
+			name: 'some index where this exist - 2',
+			origin: 'manual',
+			table: 'table2',
+			where: "status = 'active'",
+		},
+	]);
+});
