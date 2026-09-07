@@ -445,65 +445,6 @@ export const parseDefault = (type: string, it: string): Column['default'] => {
 	return `(${it})`;
 };
 
-export const parseIndexWhere = (rawDdl: string): string | null => {
-	const ddl = stripSqlComments(rawDdl);
-	const len = ddl.length;
-	let depth = 0;
-	let columnsClosed = false;
-	let i = 0;
-
-	while (i < len) {
-		const char = ddl[i];
-
-		// string / identifier literals cannot hold the keyword — skip them whole
-		if (char === "'" || char === '"' || char === '`' || char === '[') {
-			const close = char === '[' ? ']' : char;
-			i++;
-			while (i < len) {
-				if (ddl[i] === close) {
-					// doubled-quote escaping (e.g. '' inside a '...' literal)
-					if (close !== ']' && ddl[i + 1] === close) {
-						i += 2;
-						continue;
-					}
-					i++;
-					break;
-				}
-				i++;
-			}
-			continue;
-		}
-
-		if (char === '(') {
-			depth++;
-			i++;
-			continue;
-		}
-
-		if (char === ')') {
-			depth--;
-			if (depth === 0) columnsClosed = true;
-			i++;
-			continue;
-		}
-
-		if (
-			columnsClosed
-			&& depth === 0
-			&& (char === 'w' || char === 'W')
-			&& ddl.slice(i, i + 5).toLowerCase() === 'where'
-			&& !(ddl[i - 1] !== undefined && /[\w$]/.test(ddl[i - 1]))
-			&& !(ddl[i + 5] !== undefined && /[\w$]/.test(ddl[i + 5]))
-		) {
-			return ddl.slice(i + 5).trim() || null;
-		}
-
-		i++;
-	}
-
-	return null;
-};
-
 export const parseViewSQL = (sql: string) => {
 	const match = sql.match(viewAsStatementRegex);
 	return match ? match[1] : null;
@@ -553,6 +494,89 @@ export const omitSystemTables = () => {
 	// ['__drizzle_migrations', `'\\_cf\\_%'`, `'\\_litestream\\_%'`, `'libsql\\_%'`, `'sqlite\\_%'`];
 	return true;
 };
+
+interface IParsedIndex {
+	/** column names and expressions of the index, in the order they were declared */
+	columns: string[];
+	/** predicate of a partial index */
+	where: string | null;
+}
+
+/**
+ * Parses `CREATE [UNIQUE] INDEX [name] ON [table] (<columns>) [WHERE <predicate>]`.
+ * `pragma_index_info` reports NULL as a name of an expression column, so the ddl
+ * is the only source of the expression itself
+ */
+export function parseSqliteIndex(rawSql: string): IParsedIndex {
+	const sql = stripSqlComments(rawSql).replace(/(\r\n|\n|\r)/gm, ' ');
+	const result: IParsedIndex = { columns: [], where: null };
+
+	let started = false; // the column list starts at the first paren of the statement
+	let depth = 0;
+	let quote: string | null = null;
+	let column = '';
+	let i = 0;
+
+	const push = () => {
+		const trimmed = column.trim();
+		if (trimmed) result.columns.push(trimmed);
+		column = '';
+	};
+
+	for (; i < sql.length; i++) {
+		const char = sql[i];
+
+		if (quote) {
+			if (started) column += char;
+			if (char !== quote) continue;
+			// handle doubled-quote escaping (e.g. "" inside a "..." identifier)
+			if (quote !== ']' && sql[i + 1] === quote) {
+				if (started) column += sql[i + 1];
+				i += 1;
+				continue;
+			}
+			quote = null;
+			continue;
+		}
+
+		if (char === "'" || char === '"' || char === '`' || char === '[') {
+			quote = char === '[' ? ']' : char;
+			if (started) column += char;
+			continue;
+		}
+
+		if (char === '(') {
+			depth += 1;
+			if (started) column += char;
+			started = true;
+			continue;
+		}
+
+		if (char === ')') {
+			depth -= 1;
+			if (depth === 0) {
+				push();
+				break;
+			}
+			column += char;
+			continue;
+		}
+
+		if (char === ',' && depth === 1) {
+			push();
+			continue;
+		}
+
+		if (started) column += char;
+	}
+
+	if (!started) return result; // not a valid CREATE INDEX statement
+
+	const where = sql.slice(i + 1).match(/^\s*WHERE\s+([\s\S]+?)\s*;?\s*$/i);
+	result.where = where ? where[1] : null;
+
+	return result;
+}
 
 interface IParseResult {
 	uniques: { name: string | null; columns: string[] }[];

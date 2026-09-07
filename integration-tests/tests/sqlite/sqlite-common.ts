@@ -43,7 +43,6 @@ import {
 	intersect,
 	numeric,
 	primaryKey,
-	real,
 	type SQLiteAsyncDatabase,
 	SQLiteDialect,
 	sqliteTable,

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
 import { eq, gt, like, not, sql } from 'drizzle-orm';
-import { bigint, int, mysqlTable, primaryKey, serial, text, varchar } from 'drizzle-orm/mysql-core';
+import { bigint, mysqlTable, primaryKey, serial, text, varchar } from 'drizzle-orm/mysql-core';
 import { expect, expectTypeOf } from 'vitest';
 import type { Test } from './instrumentation';
 import { rqbPost, rqbUser } from './schema';

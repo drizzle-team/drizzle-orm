@@ -21,12 +21,21 @@ import {
 	nameForPk,
 	nameForUnique,
 	parseDefault,
-	parseIndexWhere,
 	parseSqliteDdl,
 	parseSqliteFks,
+	parseSqliteIndex,
 	parseViewSQL,
 	sqlTypeFrom,
 } from './grammar';
+
+/**
+ * Tells whether a key part of an index ddl is a plain reference to `column`, `\`code\``, `[code]`,
+ * `"code"` and `code` all reference the same column, while `code DESC` or `lower(code)` do not
+ */
+const isColumnRef = (keyPart: string, column: string) => {
+	const unquoted = keyPart.replace(/^(?:\[|`|")/, '').replace(/(?:\]|`|")$/, '');
+	return unquoted.toLowerCase() === column.toLowerCase();
+};
 
 export const fromDatabaseForDrizzle = async (
 	db: DB,
@@ -255,28 +264,23 @@ export const fromDatabase = async (
 
 	const dbIndexes = await db.query<{
 		table: string;
-		indexSql: string | null;
-		tableSql: string;
 		name: string;
+		sql: string | null; // null for indexes implicitly created by UNIQUE/PRIMARY KEY constraints
 		column: string;
 		isUnique: number;
+		isPartial: number;
 		origin: string; // u=auto c=manual pk
-		partial: 0 | 1;
-		seq: string;
 		cid: number;
 	}>(`
 		SELECT
     m.tbl_name    AS "table",
-	m.sql         AS "tableSql",
     il.name       AS "name",
-    idx.sql       AS "indexSql",
+    idx.sql       AS "sql",
     ii.name       AS "column",
     il."unique"   AS "isUnique",
-    il.origin,
-    il.partial,
-    il.seq,
-    ii.seqno,
-    ii.cid
+    il."partial"  AS "isPartial",
+    il.origin     AS "origin",
+    ii.cid        AS "cid"
 FROM sqlite_master AS m
 JOIN pragma_index_list(m.name)  AS il
 JOIN pragma_index_info(il.name) AS ii
@@ -302,6 +306,11 @@ ORDER BY m.name COLLATE NOCASE, il.seq, ii.seqno;
 	let viewsCount = 0;
 
 	type DBIndex = typeof dbIndexes[number];
+	type TableIndex = {
+		index: DBIndex;
+		columns: { value: string; isExpression: boolean }[];
+		where: string | null;
+	};
 	// append primaryKeys by table
 
 	const tableToParsedFks = dbTableColumns.reduce((acc, it) => {
@@ -337,29 +346,20 @@ ORDER BY m.name COLLATE NOCASE, il.seq, ii.seqno;
 		return acc;
 	}, {} as Record<string, Record<string, Generated>>);
 
-	const tableToIndexColumns = dbIndexes.reduce(
-		(acc, it) => {
-			const where = it.partial === 1 && it.indexSql ? parseIndexWhere(it.indexSql) : null;
-			const column = { value: it.column, isExpression: it.cid === -2 };
-			if (it.table in acc) {
-				if (it.name in acc[it.table]) {
-					const idx = acc[it.table][it.name];
-					idx.columns.push(column);
-				} else {
-					const idx = { index: it, columns: [column], where };
-					acc[it.table][it.name] = idx;
-				}
-			} else {
-				const idx = { index: it, columns: [column], where };
-				acc[it.table] = { [it.name]: idx };
-			}
-			return acc;
-		},
-		{} as Record<
-			string,
-			Record<string, { index: DBIndex; columns: { value: string; isExpression: boolean }[]; where: string | null }>
-		>,
-	);
+	const tableToIndexColumns = dbIndexes.reduce((acc, it) => {
+		const indexes = acc[it.table] ??= {};
+		// implicit indexes have no ddl of their own, they have neither expressions nor a predicate
+		const parsed = it.sql ? parseSqliteIndex(it.sql) : { columns: [], where: null };
+		const index = indexes[it.name] ??= { index: it, columns: [], where: it.isPartial ? parsed.where : null };
+
+		// `pragma_index_info` reports NULL as a name of an expression column and reports a plain name for
+		// a column with a `DESC`/`COLLATE` modifier, only the ddl has the key part as it was declared
+		const declared = parsed.columns[index.columns.length] ?? null;
+		const isExpression = it.cid === -2 || (declared !== null && !isColumnRef(declared, it.column));
+		const value = isExpression ? declared ?? '' : it.column;
+		index.columns.push({ value, isExpression });
+		return acc;
+	}, {} as Record<string, Record<string, TableIndex>>);
 
 	const tablesToSQL = dbTableColumns.reduce((acc, it) => {
 		if (it.table in acc) return acc;
@@ -367,6 +367,11 @@ ORDER BY m.name COLLATE NOCASE, il.seq, ii.seqno;
 		acc[it.table] = it.sql;
 		return acc;
 	}, {} as Record<string, string>) || {};
+
+	const tableToParsedDdl = Object.entries(tablesToSQL).reduce((acc, [table, sql]) => {
+		acc[table] = parseSqliteDdl(sql);
+		return acc;
+	}, {} as Record<string, ReturnType<typeof parseSqliteDdl>>);
 
 	const tables: SqliteEntities['tables'][] = [
 		...new Set(dbTableColumns.map((it) => it.table)),
@@ -377,10 +382,9 @@ ORDER BY m.name COLLATE NOCASE, il.seq, ii.seqno;
 
 	const pks: PrimaryKey[] = [];
 	for (const [key, value] of Object.entries(tableToPk)) {
-		const tableSql = tablesToSQL[key];
-		const parsed = parseSqliteDdl(tableSql);
-
 		if (value.length === 1) continue;
+
+		const parsed = tableToParsedDdl[key];
 
 		pks.push({
 			entityType: 'pks',
@@ -413,6 +417,8 @@ ORDER BY m.name COLLATE NOCASE, il.seq, ii.seqno;
 		const generated = tableToGenerated[column.table]?.[column.name] || null;
 
 		const tableIndexes = Object.values(tableToIndexColumns[column.table] || {});
+		// implicit indexes carry no sql of their own, their constraint is declared in the table ddl
+		const parsedDdl = tableToParsedDdl[column.table];
 
 		const unique = primaryKey
 			? null // if pk, no UNIQUE
@@ -423,9 +429,7 @@ ORDER BY m.name COLLATE NOCASE, il.seq, ii.seqno;
 				return idx.origin === 'u' && idx.isUnique && it.columns.length === 1 && idx.table === column.table
 					&& idx.column === column.name;
 			}).map((it) => {
-				const parsed = parseSqliteDdl(it.index.tableSql);
-
-				const constraint = parsed.uniques.find((parsedUnique) =>
+				const constraint = parsedDdl.uniques.find((parsedUnique) =>
 					areStringArraysEqual(it.columns.map((indexCol) => indexCol.value), parsedUnique.columns)
 				);
 				if (!constraint) return null;
@@ -441,11 +445,10 @@ ORDER BY m.name COLLATE NOCASE, il.seq, ii.seqno;
 				// we can only safely define PRIMARY KEY column when there is automatically(origin=pk) created unique index on the column(only 1)
 				return idx.origin === 'pk' && idx.isUnique && it.columns.length === 1 && idx.table === column.table
 					&& idx.column === column.name;
-			}).map((it) => {
-				const parsed = parseSqliteDdl(it.index.tableSql);
-				if (parsed.pk.columns.length > 1) return;
+			}).map(() => {
+				if (parsedDdl.pk.columns.length > 1) return;
 
-				const constraint = areStringArraysEqual(parsed.pk.columns, [name]) ? parsed.pk : null;
+				const constraint = areStringArraysEqual(parsedDdl.pk.columns, [name]) ? parsedDdl.pk : null;
 				if (!constraint) return { name: null };
 
 				return { name: constraint.name };
@@ -620,9 +623,8 @@ ORDER BY m.name COLLATE NOCASE, il.seq, ii.seqno;
 	const checkConstraints: Record<string, CheckConstraint> = {};
 
 	const checks: CheckConstraint[] = [];
-	for (const [table, sql] of Object.entries(tablesToSQL)) {
-		const res = parseSqliteDdl(sql);
-		for (const it of res.checks) {
+	for (const table of Object.keys(tablesToSQL)) {
+		for (const it of tableToParsedDdl[table].checks) {
 			const { name, value } = it;
 
 			let checkName = name ? name : `${table}_check_${++checkCounter}`;
@@ -637,18 +639,12 @@ ORDER BY m.name COLLATE NOCASE, il.seq, ii.seqno;
 
 	const uniques: UniqueConstraint[] = [];
 	for (const [table, item] of Object.entries(tableToIndexColumns)) {
-		for (const { columns, index } of Object.values(item).filter((it) => it.index.isUnique)) {
+		// only implicitly created(origin=u) indexes stand for a UNIQUE constraint declared in the table ddl
+		const implicitUniques = Object.values(item).filter((it) => it.index.isUnique && it.index.origin === 'u');
+		for (const { columns } of implicitUniques) {
 			if (columns.length === 1) continue;
-			if (columns.some((it) => it.isExpression)) {
-				throw new Error(`unexpected unique index '${index.name}' with expression value: ${index.indexSql}`);
-			}
 
-			const origin = index.origin === 'u' || index.origin === 'pk' ? 'auto' : index.origin === 'c' ? 'manual' : null;
-			if (!origin) throw new Error(`Index with unexpected origin: ${index.origin}`);
-
-			const parsed = parseSqliteDdl(index.tableSql);
-
-			const constraint = parsed.uniques.find((parsedUnique) =>
+			const constraint = tableToParsedDdl[table].uniques.find((parsedUnique) =>
 				areStringArraysEqual(columns.map((it) => it.value), parsedUnique.columns)
 			);
 			if (!constraint) continue;
