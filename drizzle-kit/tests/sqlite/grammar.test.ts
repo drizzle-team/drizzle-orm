@@ -1,4 +1,4 @@
-import { parseSqliteDdl, parseViewSQL, stripSqlComments } from 'src/dialects/sqlite/grammar';
+import { parseIndexWhere, parseSqliteDdl, parseViewSQL, stripSqlComments } from 'src/dialects/sqlite/grammar';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { prepareTestDatabase, TestDatabase } from './mocks';
 
@@ -372,5 +372,47 @@ describe('parse ddl', (t) => {
 			},
 			checks: [],
 		});
+	});
+});
+
+describe('parseIndexWhere', () => {
+	test('non-partial index has no predicate', () => {
+		expect(parseIndexWhere('CREATE INDEX i ON t (code)')).toBe(null);
+	});
+
+	test('reads a simple predicate', () => {
+		expect(parseIndexWhere("CREATE UNIQUE INDEX i ON t (code) WHERE status = 'active'")).toBe("status = 'active'");
+	});
+
+	test('a `where` inside a string literal in the predicate is kept, not truncated', () => {
+		expect(parseIndexWhere("CREATE INDEX i ON t (note) WHERE note <> 'where'")).toBe("note <> 'where'");
+	});
+
+	test('expression columns with nested parens do not confuse the scan', () => {
+		expect(parseIndexWhere("CREATE INDEX i ON t (lower(code), id) WHERE status = 'active'")).toBe(
+			"status = 'active'",
+		);
+	});
+
+	test('predicate wrapped in parentheses', () => {
+		expect(parseIndexWhere("CREATE INDEX i ON t (code) WHERE (status = 'a' AND id > 0)")).toBe(
+			"(status = 'a' AND id > 0)",
+		);
+	});
+
+	test('WHERE on a new line', () => {
+		expect(parseIndexWhere('CREATE INDEX i ON t (code)\nWHERE status = 1')).toBe('status = 1');
+	});
+
+	test('quoted identifier containing "where" is not mistaken for the keyword', () => {
+		expect(parseIndexWhere('CREATE INDEX i ON t ("a where b") WHERE id > 0')).toBe('id > 0');
+	});
+
+	test('index name containing where is ignored', () => {
+		expect(parseIndexWhere('CREATE INDEX where_idx ON t (code)')).toBe(null);
+	});
+
+	test('no space between column list and WHERE', () => {
+		expect(parseIndexWhere('CREATE INDEX i ON t (code)WHERE id > 0')).toBe('id > 0');
 	});
 });

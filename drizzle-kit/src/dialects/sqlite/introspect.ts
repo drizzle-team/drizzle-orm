@@ -21,6 +21,7 @@ import {
 	nameForPk,
 	nameForUnique,
 	parseDefault,
+	parseIndexWhere,
 	parseSqliteDdl,
 	parseSqliteFks,
 	parseViewSQL,
@@ -254,18 +255,21 @@ export const fromDatabase = async (
 
 	const dbIndexes = await db.query<{
 		table: string;
-		sql: string;
+		indexSql: string | null;
+		tableSql: string;
 		name: string;
 		column: string;
 		isUnique: number;
 		origin: string; // u=auto c=manual pk
+		partial: 0 | 1;
 		seq: string;
 		cid: number;
 	}>(`
 		SELECT
     m.tbl_name    AS "table",
+	m.sql         AS "tableSql",
     il.name       AS "name",
-    idx.sql       AS "sql",
+    idx.sql       AS "indexSql",
     ii.name       AS "column",
     il."unique"   AS "isUnique",
     il.origin,
@@ -335,8 +339,7 @@ ORDER BY m.name COLLATE NOCASE, il.seq, ii.seqno;
 
 	const tableToIndexColumns = dbIndexes.reduce(
 		(acc, it) => {
-			const whereIdx = it.sql.toLowerCase().indexOf(' where ');
-			const where = whereIdx < 0 ? null : it.sql.slice(whereIdx + 7);
+			const where = it.partial === 1 && it.indexSql ? parseIndexWhere(it.indexSql) : null;
 			const column = { value: it.column, isExpression: it.cid === -2 };
 			if (it.table in acc) {
 				if (it.name in acc[it.table]) {
@@ -420,7 +423,7 @@ ORDER BY m.name COLLATE NOCASE, il.seq, ii.seqno;
 				return idx.origin === 'u' && idx.isUnique && it.columns.length === 1 && idx.table === column.table
 					&& idx.column === column.name;
 			}).map((it) => {
-				const parsed = parseSqliteDdl(it.index.sql);
+				const parsed = parseSqliteDdl(it.index.tableSql);
 
 				const constraint = parsed.uniques.find((parsedUnique) =>
 					areStringArraysEqual(it.columns.map((indexCol) => indexCol.value), parsedUnique.columns)
@@ -439,7 +442,7 @@ ORDER BY m.name COLLATE NOCASE, il.seq, ii.seqno;
 				return idx.origin === 'pk' && idx.isUnique && it.columns.length === 1 && idx.table === column.table
 					&& idx.column === column.name;
 			}).map((it) => {
-				const parsed = parseSqliteDdl(it.index.sql);
+				const parsed = parseSqliteDdl(it.index.tableSql);
 				if (parsed.pk.columns.length > 1) return;
 
 				const constraint = areStringArraysEqual(parsed.pk.columns, [name]) ? parsed.pk : null;
@@ -637,13 +640,13 @@ ORDER BY m.name COLLATE NOCASE, il.seq, ii.seqno;
 		for (const { columns, index } of Object.values(item).filter((it) => it.index.isUnique)) {
 			if (columns.length === 1) continue;
 			if (columns.some((it) => it.isExpression)) {
-				throw new Error(`unexpected unique index '${index.name}' with expression value: ${index.sql}`);
+				throw new Error(`unexpected unique index '${index.name}' with expression value: ${index.indexSql}`);
 			}
 
 			const origin = index.origin === 'u' || index.origin === 'pk' ? 'auto' : index.origin === 'c' ? 'manual' : null;
 			if (!origin) throw new Error(`Index with unexpected origin: ${index.origin}`);
 
-			const parsed = parseSqliteDdl(index.sql);
+			const parsed = parseSqliteDdl(index.tableSql);
 
 			const constraint = parsed.uniques.find((parsedUnique) =>
 				areStringArraysEqual(columns.map((it) => it.value), parsedUnique.columns)
