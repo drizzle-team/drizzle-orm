@@ -20,6 +20,8 @@ import {
 } from '~/pg-core/codecs.ts';
 import { base64ToUint8Array } from '~/utils.ts';
 
+const textDecoder = new TextDecoder('utf-8', { ignoreBOM: true });
+
 export const effectPgCodecs = refineGenericPgCodecs({
 	bit: {
 		cast: castToText,
@@ -325,6 +327,7 @@ export const effectPgCodecs = refineGenericPgCodecs({
 			: arrayCompatNormalize((v: Uint8Array) => Buffer.from(v)),
 	},
 	enum: {
+		normalize: (value: string | Uint8Array) => typeof value === 'string' ? value : textDecoder.decode(value),
 		cast: castToText,
 		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
