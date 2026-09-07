@@ -2746,6 +2746,74 @@ test('relations issue', async () => {
 	expect(relationsError).toBeNull();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6253
+test('issue 6253: two-FK domain table is not a junction', async () => {
+	await db.query(`create table account (
+  id integer primary key
+);`);
+	await db.query(`create table category (
+  id integer primary key
+);`);
+	await db.query(`create table transaction_record (
+  id integer primary key,
+  account_id integer not null references account(id),
+  category_id integer references category(id),
+  amount numeric not null,
+  status text not null,
+  description text,
+  created_at timestamptz not null default now()
+);`);
+
+	const {
+		generateSqlStatements,
+		generateStatements,
+		pushSqlStatements,
+		pushStatements,
+		relationsError,
+		relationsFile,
+	} = await diffIntrospect(
+		db,
+		{},
+		'issue-6253',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(relationsError).toBeNull();
+	expect(relationsFile).toContain('transactionRecord: {');
+	expect(relationsFile).toContain('account: r.one.account(');
+	expect(relationsFile).toContain('category: r.one.category(');
+	expect(relationsFile).toContain('transactionRecords: r.many.transactionRecord()');
+	expect(relationsFile).not.toContain('.through(');
+});
+
+test('two-FK join table with only FK columns is still a through relation', async () => {
+	await db.query(`create table users (
+  id integer primary key
+);`);
+	await db.query(`create table roles (
+  id integer primary key
+);`);
+	await db.query(`create table user_roles (
+  user_id integer not null references users(id),
+  role_id integer not null references roles(id),
+  primary key (user_id, role_id)
+);`);
+
+	const { relationsError, relationsFile } = await diffIntrospect(
+		db,
+		{},
+		'pure-junction',
+	);
+
+	expect(relationsError).toBeNull();
+	expect(relationsFile).toContain('.through(');
+	expect(relationsFile).toContain('r.many.roles()');
+	expect(relationsFile).not.toContain('userRoles: {');
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/5525
 test('issue 5525', async () => {
 	await db.query(`CREATE TABLE "country" (
