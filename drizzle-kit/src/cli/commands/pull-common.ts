@@ -308,7 +308,10 @@ export const relationsToTypeScript = (
 					})`
 					: `[${
 						relation.columnsThroughFrom!
-							.map((it) => `r.${relation.tableFrom}.${it}.through(${relation.tableThrough}.${it})`)
+							.map(
+								(it, i) =>
+									`r.${relation.tableFrom}.${relation.columnsFrom[i]}.through(r.${relation.tableThrough}.${it})`,
+							)
 							.join(', ')
 					}]`;
 				const to = relation.columnsThroughTo!.length === 1
@@ -317,7 +320,9 @@ export const relationsToTypeScript = (
 					})`
 					: `[${
 						relation.columnsThroughTo!
-							.map((it) => `r.${relation.tableTo}.${it}.through(${relation.tableThrough}.${it})`)
+							.map(
+								(it, i) => `r.${relation.tableTo}.${relation.columnsTo![i]}.through(r.${relation.tableThrough}.${it})`,
+							)
 							.join(', ')
 					}]`;
 

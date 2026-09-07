@@ -2746,6 +2746,45 @@ test('relations issue', async () => {
 	expect(relationsError).toBeNull();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6100
+test('issue 6100', async () => {
+	await db.query(`CREATE TABLE organizations (
+		id bigint NOT NULL,
+		tenant_id bigint NOT NULL,
+		PRIMARY KEY (id, tenant_id)
+	);`);
+	await db.query(`CREATE TABLE users (
+		id bigint NOT NULL,
+		tenant_id bigint NOT NULL,
+		PRIMARY KEY (id, tenant_id)
+	);`);
+	await db.query(`CREATE TABLE assignments (
+		organization_id bigint NOT NULL,
+		organization_tenant_id bigint NOT NULL,
+		user_id bigint NOT NULL,
+		user_tenant_id bigint NOT NULL
+	);`);
+	await db.query(
+		`ALTER TABLE assignments ADD CONSTRAINT assignments_organization_fk FOREIGN KEY (organization_id, organization_tenant_id) REFERENCES organizations (id, tenant_id);`,
+	);
+	await db.query(
+		`ALTER TABLE assignments ADD CONSTRAINT assignments_user_fk FOREIGN KEY (user_id, user_tenant_id) REFERENCES users (id, tenant_id);`,
+	);
+
+	const { generateSqlStatements, generateStatements, pushSqlStatements, pushStatements, relationsError } =
+		await diffIntrospect(
+			db,
+			{},
+			'issue-6100',
+		);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(relationsError).toBeNull();
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/5525
 test('issue 5525', async () => {
 	await db.query(`CREATE TABLE "country" (
