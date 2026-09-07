@@ -4,7 +4,7 @@ import { alias, int, mysqlTable, snakeCase, time } from 'drizzle-orm/mysql-core'
 import { drizzle, type MySql2Database } from 'drizzle-orm/mysql2';
 import * as mysql from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import relations from './mysql.relations';
+import relations from '../mysql.relations';
 import {
 	allTypesTable,
 	commentsTable,
@@ -20,8 +20,8 @@ import {
 	students,
 	usersTable,
 	usersToGroupsTable,
-} from './mysql.schema';
-import type { AllTypes } from './mysql.schema';
+} from '../mysql.schema';
+import type { AllTypes } from '../mysql.schema';
 
 const ENABLE_LOGGING = false;
 
