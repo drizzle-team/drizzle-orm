@@ -608,7 +608,6 @@ const createTableColumns = (
 		// Provide just this in column function
 
 		const fks = fkByColumnName[it.name];
-		// Andrii: I switched it off until we will get a custom naem setting in references
 		if (fks) {
 			const fksStatement = fks
 				.map((it) => {

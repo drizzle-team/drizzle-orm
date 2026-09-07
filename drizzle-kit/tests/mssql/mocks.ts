@@ -107,12 +107,13 @@ export const diffIntrospect = async (
 	initSchema: MssqlDBSchema,
 	testName: string,
 	schemas: string[] = [],
+	tables: string[] = [],
 	entities?: EntitiesFilter,
 ) => {
 	const filterConfig: EntitiesFilterConfig = {
 		schemas,
 		entities,
-		tables: [],
+		tables,
 		extensions: [],
 	};
 
