@@ -25,7 +25,6 @@ import {
 	bigint,
 	boolean,
 	customType,
-	datetime,
 	index,
 	int,
 	MySqlAsyncSession,
@@ -37,13 +36,11 @@ import {
 	serial,
 	text,
 	timestamp,
-	unionAll,
 	unique,
 	varchar,
 } from 'drizzle-orm/mysql-core';
 import { TiDBServerlessDatabase } from 'drizzle-orm/tidb-serverless';
-import { expect } from 'vitest';
-import { expectTypeOf } from 'vitest';
+import { expect, expectTypeOf } from 'vitest';
 import { allTypesCodecsTable, assertAllTypesBounds, assertAllTypesUnions } from './all-types';
 import type { Test } from './instrumentation';
 import { createUsersOnUpdateTable, createUserTable } from './schema2';

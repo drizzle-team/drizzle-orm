@@ -11,7 +11,6 @@ import {
 	text,
 	timestamp,
 } from 'drizzle-orm/pg-core';
-import { generate } from 'src/cli/schema';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
