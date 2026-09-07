@@ -14,7 +14,7 @@ import type {
 	ViewColumn,
 } from './ddl';
 import { fullTableFromDDL } from './ddl';
-import { typeFor } from './grammar';
+import { defaultNameForFK, typeFor } from './grammar';
 
 const imports = [
 	'bigint',
@@ -197,9 +197,9 @@ export const ddlToTypeScript = (
 		statement += '}';
 
 		// more than 2 fields or self reference or cyclic
-		// Andrii: I switched this one off until we will get custom names in .references()
 		const filteredFKs = table.fks.filter((it) => {
-			return it.columns.length > 1 || isSelf(it);
+			return (it.columns.length > 1 || isSelf(it))
+				|| (it.columns.length === 1 && it.name !== defaultNameForFK(it.table, it.columns, it.tableTo, it.columnsTo));
 		});
 
 		const hasCallback = table.indexes.length > 0
@@ -355,7 +355,9 @@ const createTableColumns = (
 		.filter((it) => {
 			return !isSelf(it);
 		})
-		.filter((it) => it.columns.length === 1);
+		.filter((it) =>
+			it.columns.length === 1 && it.name === defaultNameForFK(it.table, it.columns, it.tableTo, it.columnsTo)
+		);
 
 	const fkByColumnName = oneColumnsFKs.reduce((res, it) => {
 		const arr = res[it.columns[0]] || [];
@@ -384,7 +386,6 @@ const createTableColumns = (
 		statement += it.generated ? `.generatedAlwaysAs(sql\`${it.generated.as}\`)` : '';
 
 		const fks = fkByColumnName[it.name];
-		// Andrii: I switched it off until we will get a custom naem setting in references
 		if (fks) {
 			const fksStatement = fks
 				.map((it) => {

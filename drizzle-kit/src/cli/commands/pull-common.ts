@@ -308,7 +308,10 @@ export const relationsToTypeScript = (
 					})`
 					: `[${
 						relation.columnsThroughFrom!
-							.map((it) => `r.${relation.tableFrom}.${it}.through(${relation.tableThrough}.${it})`)
+							// https://github.com/drizzle-team/drizzle-orm/issues/6100
+							.map((it, index) =>
+								`r.${relation.tableFrom}.${relation.columnsFrom[index]}.through(r.${relation.tableThrough}.${it})`
+							)
 							.join(', ')
 					}]`;
 				const to = relation.columnsThroughTo!.length === 1
@@ -317,7 +320,10 @@ export const relationsToTypeScript = (
 					})`
 					: `[${
 						relation.columnsThroughTo!
-							.map((it) => `r.${relation.tableTo}.${it}.through(${relation.tableThrough}.${it})`)
+							// https://github.com/drizzle-team/drizzle-orm/issues/6100
+							.map((it, index) =>
+								`r.${relation.tableTo}.${relation.columnsTo![index]}.through(r.${relation.tableThrough}.${it})`
+							)
 							.join(', ')
 					}]`;
 
