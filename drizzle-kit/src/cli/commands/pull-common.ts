@@ -56,6 +56,17 @@ function prepareNameFor(name: string, tableColumns: string[]) {
 	return tableColumns.includes(name) ? `${name}Relation` : name;
 }
 
+const isPureJunctionTable = (
+	table: SchemaForPull[number],
+	fks: SchemaForPull[number]['foreignKeys'],
+): boolean => {
+	if (fks.length !== 2) return false;
+	const columns = table.columns;
+	if (!columns || columns.length === 0) return false;
+	const fkColumns = new Set(fks.flatMap((fk) => fk.columns));
+	return columns.every((col) => fkColumns.has(col.name));
+};
+
 export const relationsToTypeScript = (
 	schema: SchemaForPull,
 	casing: Casing,
@@ -88,12 +99,19 @@ export const relationsToTypeScript = (
 		const fks = Object.values(table.foreignKeys);
 		const tableColumns = table.columns?.map((it) => withCasing(it.name, casing)) ?? [];
 
-		// A table is a junction (many-to-many) only when it has exactly two foreign keys that point
-		// to two *different other* tables. A foreign key that references the table itself
-		// (self-reference) does not make it a junction, and every foreign key must still emit its
-		// own `one` relation — see https://github.com/drizzle-team/drizzle-orm/issues/6197
+		// A table is a junction (many-to-many) only when:
+		// - it has exactly two foreign keys
+		// - those FKs point to two *different other* tables (not a self-reference)
+		// - every column on the table is one of those FK columns
+		//
+		// A domain entity can legitimately have exactly two FKs plus its own PK /
+		// business columns — that is not a join table. Self-references also do not
+		// make a junction. Direct `one` relations are safer than inventing a
+		// through-relation. See:
+		// https://github.com/drizzle-team/drizzle-orm/issues/6197
+		// https://github.com/drizzle-team/drizzle-orm/issues/6253
 		let handledAsJunction = false;
-		if (fks.length === 2) {
+		if (isPureJunctionTable(table, fks)) {
 			const [fk1, fk2] = fks;
 			// reference to different tables, means it can be through many-many
 			const toTable1 = withCasing(paramNameFor(fk1.tableTo, fk1.schemaTo), casing);
@@ -113,6 +131,7 @@ export const relationsToTypeScript = (
 				&& toTable2 !== tableThrough // check for non self ref
 			) {
 				handledAsJunction = true;
+
 				if (!tableRelations[toTable1]) {
 					tableRelations[toTable1] = [];
 				}
