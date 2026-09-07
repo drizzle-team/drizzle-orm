@@ -468,8 +468,6 @@ test('composite primary key', async () => {
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
-
-	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
