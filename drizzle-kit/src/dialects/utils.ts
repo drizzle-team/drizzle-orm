@@ -122,6 +122,14 @@ export const escapeForTsLiteral = (input: string) => {
 	return JSON.stringify(input);
 };
 
+/**
+ * Escapes raw sql so it can be embedded into a `sql` template literal of a generated file,
+ * a backslash of a sql escape sequence(`_utf8mb4\'\'`) would otherwise be eaten by TypeScript
+ */
+export const escapeForSqlTemplate = (sql: string) => {
+	return sql.replaceAll('\\', '\\\\').replaceAll('`', '\\`').replaceAll('${', '\\${');
+};
+
 export function inspect(it: any): string {
 	if (!it) return '';
 

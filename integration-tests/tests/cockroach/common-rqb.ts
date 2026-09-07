@@ -1,5 +1,5 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { and, defineRelations, eq, inArray, isNotNull, not, or, sql } from 'drizzle-orm';
+import { and, defineRelations, eq, inArray, not, sql } from 'drizzle-orm';
 import type { AnyCockroachColumn, CockroachColumnBuilder } from 'drizzle-orm/cockroach-core';
 import {
 	bigint,
