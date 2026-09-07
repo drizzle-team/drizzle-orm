@@ -6,7 +6,9 @@ import type { MySqlColumn } from './columns/index.ts';
 export * from '~/sql/expressions/index.ts';
 
 export function concat(column: MySqlColumn | SQL.Aliased, value: string | Placeholder | SQLWrapper): SQL {
-	return sql`${column} || ${bindIfParam(value, column)}`;
+	// `||` is logical OR in MySQL unless PIPES_AS_CONCAT is in sql_mode, so string
+	// concatenation has to go through concat().
+	return sql`concat(${column}, ${bindIfParam(value, column)})`;
 }
 
 export function substring(
