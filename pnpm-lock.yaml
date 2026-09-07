@@ -130,8 +130,8 @@ importers:
   drizzle-kit:
     dependencies:
       '@drizzle-team/brocli':
-        specifier: ^0.12.0
-        version: 0.12.0
+        specifier: 0.12.1
+        version: 0.12.1
       '@js-temporal/polyfill':
         specifier: ^0.5.1
         version: 0.5.1
@@ -1717,8 +1717,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@drizzle-team/brocli@0.12.0':
-    resolution: {integrity: sha512-mlUE+rZ8CatQekLhnaiN91Iemdd+e2gFKooGlnRB3oPTL3VghLfX24dx7HrzMNeC1JrIB/0kpsfyty3f5HNfxQ==}
+  '@drizzle-team/brocli@0.12.1':
+    resolution: {integrity: sha512-yHwomvolVafvUXhy5TdiJVkuNCxXn+bKOs2aWiWEQh/5YaV97Oa/abJz3dmx7lxgIUsUlS1Jl4mEfvJPo3YsVw==}
 
   '@drizzle-team/minipg@0.3.2':
     resolution: {integrity: sha512-BA/8+kxRq5i5hFU63El3oZinOBg0KxTNSIr3HCIqjKMpxDSUqbFocuPZKHdLzR3JdgPuqalu3lo90xFmMJZvWQ==}
@@ -10811,7 +10811,7 @@ snapshots:
   '@dprint/win32-x64@0.50.2':
     optional: true
 
-  '@drizzle-team/brocli@0.12.0': {}
+  '@drizzle-team/brocli@0.12.1': {}
 
   '@drizzle-team/minipg@0.3.2(typescript@5.9.3)':
     dependencies:
