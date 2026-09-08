@@ -1,76 +1,112 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import type { BatchItem } from '~/batch.ts';
+import { type Cache, NoopCache } from '~/cache/core/index.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import type { PreparedQuery } from '~/session.ts';
-import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
-import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import { SQLiteTransaction } from '~/sqlite-core/index.ts';
+import type { AnyRelations } from '~/relations.ts';
+import { type Query, sql } from '~/sql/sql.ts';
+import {
+	SQLiteAsyncPreparedQuery,
+	type SQLiteAsyncPreparedQueryConfig as PreparedQueryConfigBase,
+	SQLiteAsyncSession,
+	SQLiteAsyncTransaction,
+	type SQLiteQueryExecutors,
+} from '~/sqlite-core/async/session.ts';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types.ts';
-import type {
-	PreparedQueryConfig as PreparedQueryConfigBase,
-	SQLiteExecuteMethod,
-	SQLiteTransactionConfig,
-} from '~/sqlite-core/session.ts';
-import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
-import { mapResultRow } from '~/utils.ts';
+import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
 
 export interface SQLiteD1SessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
+
+export type D1RunResult = D1Result;
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
-export class SQLiteD1Session<
-	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends SQLiteSession<'async', D1Result, TFullSchema, TSchema> {
+export class SQLiteD1Session<TRelations extends AnyRelations>
+	extends SQLiteAsyncSession<'async', D1RunResult, TRelations>
+{
 	static override readonly [entityKind]: string = 'SQLiteD1Session';
 
 	private logger: Logger;
+	private cache: Cache;
 
 	constructor(
-		private client: D1Database,
-		dialect: SQLiteAsyncDialect,
-		private schema: RelationalSchemaConfig<TSchema> | undefined,
+		private client: D1Database | D1DatabaseSession,
+		dialect: SQLiteDialect,
+		private relations: TRelations,
 		private options: SQLiteD1SessionOptions = {},
 	) {
-		super(dialect);
+		super(dialect, 'async');
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery(
 		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		executeMethod: SQLiteExecuteMethod,
-		isResponseInArrayMode: boolean,
-		customResultMapper?: (rows: unknown[][]) => unknown,
+		mode: 'arrays' | 'objects' | 'raw',
+		_prepare: boolean,
+		executeMethod?: SQLiteExecuteMethod,
+		mapper?: (rows: any[]) => any,
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 	): D1PreparedQuery {
-		const stmt = this.client.prepare(query.sql);
+		let stmt: D1PreparedStatement;
+		try {
+			stmt = this.client.prepare(query.sql);
+		} catch (e) {
+			throw new DrizzleQueryError(query.sql, query.params, e as Error);
+		}
+		const executors: SQLiteQueryExecutors<'async'> = {
+			all: (params) => {
+				if (mode === 'arrays') return stmt.bind(...params).raw();
+				return stmt.bind(...params).all().then(({ results }) => results);
+			},
+			get: (params) => {
+				if (mode === 'arrays') return stmt.bind(...params).raw().then((rows) => rows[0]);
+				return stmt.bind(...params).first();
+			},
+			run: (params) => {
+				return stmt.bind(...params).run();
+			},
+			values: (params) => {
+				return stmt.bind(...params).raw();
+			},
+		};
 		return new D1PreparedQuery(
 			stmt,
-			query,
-			this.logger,
-			fields,
+			'async',
 			executeMethod,
-			isResponseInArrayMode,
-			customResultMapper,
+			executors,
+			query,
+			mapper,
+			mode,
+			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 		);
 	}
 
 	async batch<T extends BatchItem<'sqlite'>[] | readonly BatchItem<'sqlite'>[]>(queries: T) {
-		const preparedQueries: PreparedQuery[] = [];
+		const preparedQueries: SQLiteAsyncPreparedQuery<any>[] = [];
 		const builtQueries: D1PreparedStatement[] = [];
 
 		for (const query of queries) {
-			const preparedQuery = query._prepare();
+			const preparedQuery = query._prepare() as D1PreparedQuery<any>;
 			const builtQuery = preparedQuery.getQuery();
 			preparedQueries.push(preparedQuery);
 			if (builtQuery.params.length > 0) {
-				builtQueries.push((preparedQuery as D1PreparedQuery).stmt.bind(...builtQuery.params));
+				builtQueries.push((preparedQuery as D1PreparedQuery<any>).stmt.bind(...builtQuery.params));
 			} else {
 				const builtQuery = preparedQuery.getQuery();
 				builtQueries.push(
@@ -80,26 +116,35 @@ export class SQLiteD1Session<
 		}
 
 		const batchResults = await this.client.batch<any>(builtQueries);
-		return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true));
-	}
+		return batchResults.map((result, i) => {
+			const { executeMethod, mapper, mode } = preparedQueries[i]!;
 
-	override extractRawAllValueFromBatchResult(result: unknown): unknown {
-		return (result as D1Result).results;
-	}
+			if (executeMethod === 'run') return result;
 
-	override extractRawGetValueFromBatchResult(result: unknown): unknown {
-		return (result as D1Result).results[0];
-	}
+			let values: any = result.results;
+			if (executeMethod === 'values') return d1ToRawMapping(values);
+			if (executeMethod === 'get') {
+				if (!values[0]) return;
 
-	override extractRawValuesValueFromBatchResult(result: unknown): unknown {
-		return d1ToRawMapping((result as D1Result).results);
+				if (!mapper) return mode === 'arrays' ? d1ToRawMapping([values[0]])[0] : values[0];
+
+				return mapper(mode === 'arrays' ? d1ToRawMapping([values[0]]) : [values[0]])[0];
+			}
+
+			values = mode === 'arrays' ? d1ToRawMapping(values) : values;
+			if (!mapper) return values;
+
+			return mapper(values);
+		});
 	}
 
 	override async transaction<T>(
-		transaction: (tx: D1Transaction<TFullSchema, TSchema>) => T | Promise<T>,
+		transaction: (tx: D1Transaction<TRelations>) => T | Promise<T>,
 		config?: SQLiteTransactionConfig,
 	): Promise<T> {
-		const tx = new D1Transaction('async', this.dialect, this, this.schema);
+		if (config?.behavior === 'concurrent') throw new Error('Concurrent transactions are not supported by driver');
+
+		const tx = new D1Transaction('async', this.dialect, this, this.relations, undefined, true);
 		await this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
 		try {
 			const result = await transaction(tx);
@@ -112,15 +157,23 @@ export class SQLiteD1Session<
 	}
 }
 
-export class D1Transaction<
-	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends SQLiteTransaction<'async', D1Result, TFullSchema, TSchema> {
+export class D1Transaction<TRelations extends AnyRelations>
+	extends SQLiteAsyncTransaction<'async', D1RunResult, TRelations>
+{
 	static override readonly [entityKind]: string = 'D1Transaction';
 
-	override async transaction<T>(transaction: (tx: D1Transaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
+	override async transaction<T>(
+		transaction: (tx: D1Transaction<TRelations>) => Promise<T>,
+	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex}`;
-		const tx = new D1Transaction('async', this.dialect, this.session, this.schema, this.nestedIndex + 1);
+		const tx = new D1Transaction(
+			'async',
+			this.dialect,
+			this.session,
+			this._.relations,
+			this.nestedIndex + 1,
+			this.forbidJsonb,
+		);
 		await this.session.run(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = await transaction(tx);
@@ -148,115 +201,46 @@ function d1ToRawMapping(results: any) {
 	return rows;
 }
 
-export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends SQLitePreparedQuery<
+export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends SQLiteAsyncPreparedQuery<
 	{ type: 'async'; run: D1Response; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
 	static override readonly [entityKind]: string = 'D1PreparedQuery';
 
 	/** @internal */
-	customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown;
-
-	/** @internal */
 	fields?: SelectedFieldsOrdered;
 
 	/** @internal */
-	stmt: D1PreparedStatement;
+	readonly stmt: D1PreparedStatement;
 
 	constructor(
 		stmt: D1PreparedStatement,
+		resultKind: 'sync' | 'async',
+		executeMethod: SQLiteExecuteMethod = 'all',
+		executors: SQLiteQueryExecutors<'async'>,
 		query: Query,
-		private logger: Logger,
-		fields: SelectedFieldsOrdered | undefined,
-		executeMethod: SQLiteExecuteMethod,
-		private _isResponseInArrayMode: boolean,
-		customResultMapper?: (rows: unknown[][]) => unknown,
+		mapper: ((rows: any[]) => any) | undefined,
+		mode: 'arrays' | 'objects' | 'raw',
+		logger: Logger,
+		cache: Cache | undefined,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 	) {
-		super('async', executeMethod, query);
-		this.customResultMapper = customResultMapper;
-		this.fields = fields;
+		super(
+			resultKind,
+			executeMethod,
+			executors,
+			query,
+			mapper,
+			mode,
+			logger,
+			cache,
+			queryMetadata,
+			cacheConfig,
+		);
+
 		this.stmt = stmt;
-	}
-
-	run(placeholderValues?: Record<string, unknown>): Promise<D1Response> {
-		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-		this.logger.logQuery(this.query.sql, params);
-		return this.stmt.bind(...params).run();
-	}
-
-	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
-		const { fields, query, logger, stmt, customResultMapper } = this;
-		if (!fields && !customResultMapper) {
-			const params = fillPlaceholders(query.params, placeholderValues ?? {});
-			logger.logQuery(query.sql, params);
-			return stmt.bind(...params).all().then(({ results }) => this.mapAllResult(results!));
-		}
-
-		const rows = await this.values(placeholderValues);
-
-		return this.mapAllResult(rows);
-	}
-
-	override mapAllResult(rows: unknown, isFromBatch?: boolean): unknown {
-		if (isFromBatch) {
-			rows = d1ToRawMapping((rows as D1Result).results);
-		}
-
-		if (!this.fields && !this.customResultMapper) {
-			return rows;
-		}
-
-		if (this.customResultMapper) {
-			return this.customResultMapper(rows as unknown[][]);
-		}
-
-		return (rows as unknown[][]).map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
-	}
-
-	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
-		const { fields, joinsNotNullableMap, query, logger, stmt, customResultMapper } = this;
-		if (!fields && !customResultMapper) {
-			const params = fillPlaceholders(query.params, placeholderValues ?? {});
-			logger.logQuery(query.sql, params);
-			return stmt.bind(...params).all().then(({ results }) => results![0]);
-		}
-
-		const rows = await this.values(placeholderValues);
-
-		if (!rows[0]) {
-			return undefined;
-		}
-
-		if (customResultMapper) {
-			return customResultMapper(rows) as T['all'];
-		}
-
-		return mapResultRow(fields!, rows[0], joinsNotNullableMap);
-	}
-
-	override mapGetResult(result: unknown, isFromBatch?: boolean): unknown {
-		if (isFromBatch) {
-			result = d1ToRawMapping((result as D1Result).results)[0];
-		}
-
-		if (!this.fields && !this.customResultMapper) {
-			return result;
-		}
-
-		if (this.customResultMapper) {
-			return this.customResultMapper([result as unknown[]]) as T['all'];
-		}
-
-		return mapResultRow(this.fields!, result as unknown[], this.joinsNotNullableMap);
-	}
-
-	values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {
-		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-		this.logger.logQuery(this.query.sql, params);
-		return this.stmt.bind(...params).raw();
-	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
 	}
 }

@@ -1,0 +1,1015 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import 'dotenv/config';
+import { and, asc, count, eq, inArray, sql } from 'drizzle-orm';
+import {
+	bigint,
+	getTableConfig,
+	index,
+	int,
+	mysqlTable,
+	mysqlView,
+	primaryKey,
+	serial,
+	text,
+	timestamp,
+	varchar,
+} from 'drizzle-orm/mysql-core';
+import { expect, expectTypeOf } from 'vitest';
+import { type AllTypes, allTypesData, allTypesTable } from './all-types';
+import type { Test } from './instrumentation';
+import { createCitiesTable, createUsers2Table } from './schema2';
+
+export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
+	test.beforeEach(async ({ task, skip }) => {
+		if (exclude.has(task.name)) skip();
+	});
+
+	test('select from a many subquery', async ({ db, push }) => {
+		const citiesTable = createCitiesTable('cities_many_subquery');
+		const users2Table = createUsers2Table('users_2_many_subquery', citiesTable);
+
+		await push({ citiesTable, users2Table });
+
+		await db.insert(citiesTable)
+			.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+
+		await db.insert(users2Table).values([
+			{ name: 'John', cityId: 1 },
+			{ name: 'Jane', cityId: 2 },
+			{ name: 'Jack', cityId: 2 },
+		]);
+
+		const res = await db.select({
+			population: db.select({ count: count().as('count') }).from(users2Table).where(
+				eq(users2Table.cityId, citiesTable.id),
+			).as(
+				'population',
+			),
+			name: citiesTable.name,
+		}).from(citiesTable);
+
+		expectTypeOf(res).toEqualTypeOf<
+			{
+				population: number;
+				name: string;
+			}[]
+		>();
+
+		expect(res).toStrictEqual([{
+			population: 1,
+			name: 'Paris',
+		}, {
+			population: 2,
+			name: 'London',
+		}]);
+	});
+
+	test('select from a one subquery', async ({ db, push }) => {
+		const citiesTable = createCitiesTable('cities_one_subquery');
+		const users2Table = createUsers2Table('users_2_one_subquery', citiesTable);
+
+		await push({ citiesTable, users2Table });
+
+		await db.insert(citiesTable)
+			.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+
+		await db.insert(users2Table).values([
+			{ name: 'John', cityId: 1 },
+			{ name: 'Jane', cityId: 2 },
+			{ name: 'Jack', cityId: 2 },
+		]);
+
+		const res = await db.select({
+			cityName: db.select({ name: citiesTable.name }).from(citiesTable).where(eq(users2Table.cityId, citiesTable.id))
+				.as(
+					'cityName',
+				),
+			name: users2Table.name,
+		}).from(users2Table);
+
+		expectTypeOf(res).toEqualTypeOf<
+			{
+				cityName: string;
+				name: string;
+			}[]
+		>();
+
+		expect(res).toStrictEqual([{
+			cityName: 'Paris',
+			name: 'John',
+		}, {
+			cityName: 'London',
+			name: 'Jane',
+		}, {
+			cityName: 'London',
+			name: 'Jack',
+		}]);
+	});
+
+	test('test $onUpdateFn and $onUpdate works with sql value', async ({ db, push }) => {
+		const users = mysqlTable('users_on_update', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+			updatedAt: timestamp('updated_at', {
+				fsp: 6,
+			})
+				.notNull()
+				.$onUpdate(() => sql`current_timestamp`),
+		});
+
+		await push({ users });
+
+		await db.insert(users).values({
+			name: 'John',
+		});
+		const insertResp = await db.select({ updatedAt: users.updatedAt }).from(users);
+		await new Promise((resolve) => setTimeout(resolve, 1000));
+
+		const now = Date.now();
+		await new Promise((resolve) => setTimeout(resolve, 1000));
+		await db.update(users).set({
+			name: 'John',
+		});
+		const updateResp = await db.select({ updatedAt: users.updatedAt }).from(users);
+
+		expect(insertResp[0]?.updatedAt.getTime() ?? 0).lessThan(now);
+		expect(updateResp[0]?.updatedAt.getTime() ?? 0).greaterThan(now);
+	});
+
+	test.concurrent('$onUpdateFn called only when needed', async ({ db, push }) => {
+		let counter = 0;
+		const table = mysqlTable('on_update_call_test', {
+			id: int('id').primaryKey(),
+			name: text('name').notNull(),
+			inc: int('inc').$onUpdateFn(() => counter++),
+		});
+
+		await push({ table });
+
+		await db.insert(table).values({ id: 1, name: 'First', inc: 0 });
+		expect(counter).toStrictEqual(0);
+		expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'First', inc: 0 }]);
+
+		await db.update(table).set({ name: 'Second', inc: null });
+		expect(counter).toStrictEqual(0);
+		expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'Second', inc: null }]);
+
+		await db.update(table).set({ name: 'Third', inc: 10 });
+		expect(counter).toStrictEqual(0);
+		expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'Third', inc: 10 }]);
+
+		await db.update(table).set({ name: 'Fourth' });
+		expect(counter).toStrictEqual(1);
+		expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'Fourth', inc: 0 }]);
+
+		await db.update(table).set({ name: 'Fifth' });
+		expect(counter).toStrictEqual(2);
+		expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'Fifth', inc: 1 }]);
+
+		await db.insert(table).values({ id: 2, name: 'Second' });
+		expect(counter).toStrictEqual(3);
+		expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([
+			{ id: 1, name: 'Fifth', inc: 1 },
+			{ id: 2, name: 'Second', inc: 2 },
+		]);
+	});
+
+	test.concurrent('db.execute modes', async ({ db, push }) => {
+		const users = mysqlTable('users_execute_modes_1', (t) => ({
+			id: t.int().primaryKey(),
+			name: t.text().notNull(),
+		}));
+
+		await push({ users });
+
+		await db.insert(users).values([
+			{
+				id: 1,
+				name: 'First',
+			},
+			{
+				id: 2,
+				name: 'Second',
+			},
+		]);
+
+		const rObj = await db.execute<{ id: number; name: string }>(
+			sql`select ${users.id}, ${users.name} from ${users} order by ${users.id}`,
+			'objects',
+		);
+		const rArr = await db.execute<[number, string]>(
+			sql`select ${users.id}, ${users.name} from ${users} order by ${users.id}`,
+			'arrays',
+		);
+
+		expectTypeOf(rObj).toEqualTypeOf<{ id: number; name: string }[]>();
+		expectTypeOf(rArr).toEqualTypeOf<[number, string][]>();
+
+		expect(rObj).toStrictEqual([
+			{
+				id: 1,
+				name: 'First',
+			},
+			{
+				id: 2,
+				name: 'Second',
+			},
+		]);
+		expect(rArr).toStrictEqual([[1, 'First'], [2, 'Second']]);
+	});
+
+	test.concurrent('all types', async ({ db, push }) => {
+		await push({ allTypesTable });
+
+		await db.insert(allTypesTable).values(allTypesData);
+
+		const rawRes = await db.select().from(allTypesTable);
+
+		expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
+		expect(rawRes).toStrictEqual([allTypesData]);
+	});
+
+	test.concurrent('insert into ... select', async ({ db, push }) => {
+		const notifications = mysqlTable('notifications', {
+			id: int('id').primaryKey().autoincrement(),
+			sentAt: timestamp('sent_at').notNull().defaultNow(),
+			message: text('message').notNull(),
+		});
+		const users = mysqlTable('users_64', {
+			id: int('id').primaryKey().autoincrement(),
+			name: text('name').notNull(),
+		});
+		const userNotications = mysqlTable('user_notifications', {
+			userId: int('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+			notificationId: int('notification_id').notNull().references(() => notifications.id, { onDelete: 'cascade' }),
+		}, (t) => [primaryKey({ columns: [t.userId, t.notificationId] })]);
+
+		await push({ notifications, users, userNotications });
+
+		await db
+			.insert(notifications)
+			.values({ message: 'You are one of the 3 lucky winners!' });
+		const newNotification = await db
+			.select({ id: notifications.id })
+			.from(notifications)
+			.then((result) => result[0]);
+
+		await db.insert(users).values([
+			{ name: 'Alice' },
+			{ name: 'Bob' },
+			{ name: 'Charlie' },
+			{ name: 'David' },
+			{ name: 'Eve' },
+		]);
+
+		await db
+			.insert(userNotications)
+			.select(
+				db
+					.select({
+						userId: users.id,
+						notificationId: sql`(${newNotification!.id})`.as('notification_id'),
+					})
+					.from(users)
+					.where(inArray(users.name, ['Alice', 'Charlie', 'Eve']))
+					.orderBy(asc(users.id)),
+			);
+		const sentNotifications = await db.select().from(userNotications);
+
+		expect(sentNotifications).toStrictEqual([
+			{ userId: 1, notificationId: newNotification!.id },
+			{ userId: 3, notificationId: newNotification!.id },
+			{ userId: 5, notificationId: newNotification!.id },
+		]);
+	});
+
+	test.concurrent('insert into ... select with keys in different order', async ({ db, push }) => {
+		const users1 = mysqlTable('users_65', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+		const users2 = mysqlTable('users_66', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await push({ users1, users2 });
+
+		await db.insert(users2).values({ id: 1, name: 'First' });
+		await db.insert(users1).select(
+			db
+				.select({
+					name: users2.name,
+					id: users2.id,
+				})
+				.from(users2),
+		);
+		const res = await db.select().from(users1);
+
+		expect(res).toStrictEqual([{
+			id: 1,
+			name: 'First',
+		}]);
+	});
+
+	test.concurrent('insert into ... select with generated column', async ({ db, push }) => {
+		const users1 = mysqlTable('users1_iswgc', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+		const users2 = mysqlTable('users2_iswgc', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await push({ users1, users2 });
+
+		await db.insert(users1).values([
+			{ name: 'Alice' },
+			{ name: 'Bob' },
+			{ name: 'Charlie' },
+		]);
+
+		await db.insert(users2).select(db.select({ name: users1.name }).from(users1));
+		const result1 = await db.select().from(users2);
+
+		expect(result1).toStrictEqual([
+			{ id: 1, name: 'Alice' },
+			{ id: 2, name: 'Bob' },
+			{ id: 3, name: 'Charlie' },
+		]);
+
+		// @ts-expect-error
+		expect(() => db.insert(users2).select(db.select({ name: users1.name, unknown: users1.id }).from(users1)))
+			.toThrowError();
+	});
+
+	test.concurrent('MySqlTable :: select with `use index` hint', async ({ db, push }) => {
+		const users = mysqlTable('users_67', {
+			id: serial('id').primaryKey(),
+			name: varchar('name', { length: 100 }).notNull(),
+		}, () => [usersTableNameIndex]);
+		const usersTableNameIndex = index('users_name_index_67').on(users.name);
+
+		await push({ users });
+
+		await db.insert(users).values([
+			{ name: 'Alice' },
+			{ name: 'Bob' },
+			{ name: 'Charlie' },
+			{ name: 'David' },
+			{ name: 'Eve' },
+		]);
+
+		const result = await db.select()
+			.from(users, {
+				useIndex: [usersTableNameIndex],
+			})
+			.where(eq(users.name, 'David'));
+
+		expect(result).toHaveLength(1);
+		expect(result).toEqual([{ id: 4, name: 'David' }]);
+	});
+
+	test.concurrent('MySqlTable :: select with `use index` hint on 1 index', async ({ db, push }) => {
+		const users = mysqlTable('users_68', {
+			id: serial('id').primaryKey(),
+			name: varchar('name', { length: 100 }).notNull(),
+		}, () => [usersTableNameIndex]);
+		const usersTableNameIndex = index('users_name_index_68').on(users.name);
+
+		await push({ users });
+
+		const query = db.select()
+			.from(users, {
+				useIndex: usersTableNameIndex,
+			})
+			.where(eq(users.name, 'David'))
+			.toSQL();
+
+		expect(query.sql).to.include('USE INDEX (`users_name_index_68`)');
+	});
+
+	test.concurrent('MySqlTable :: select with `use index` hint on multiple indexes', async ({ db, push }) => {
+		const users = mysqlTable('users_69', {
+			id: serial('id').primaryKey(),
+			name: varchar('name', { length: 100 }).notNull(),
+			age: int('age').notNull(),
+		}, () => [usersTableNameIndex, usersTableAgeIndex]);
+		const usersTableNameIndex = index('users_name_index_69').on(users.name);
+		const usersTableAgeIndex = index('users_age_index_69').on(users.age);
+
+		await push({ users });
+
+		const query = db.select()
+			.from(users, {
+				useIndex: [usersTableNameIndex, usersTableAgeIndex],
+			})
+			.where(eq(users.name, 'David'))
+			.toSQL();
+
+		expect(query.sql).to.include('USE INDEX (`users_name_index_69`, `users_age_index_69`)');
+	});
+
+	test.concurrent('MySqlTable :: select with `use index` hint on not existed index', async ({ db, push }) => {
+		const users = mysqlTable('users_70', {
+			id: serial('id').primaryKey(),
+			name: varchar('name', { length: 100 }).notNull(),
+		}, () => [usersTableNameIndex]);
+		const usersTableNameIndex = index('users_name_index_70').on(users.name);
+
+		await push({ users });
+
+		await db.insert(users).values([
+			{ name: 'Alice' },
+			{ name: 'Bob' },
+			{ name: 'Charlie' },
+			{ name: 'David' },
+			{ name: 'Eve' },
+		]);
+
+		await expect((async () => {
+			return await db.select()
+				.from(users, {
+					useIndex: ['some_other_index'],
+				})
+				.where(eq(users.name, 'David'));
+		})()).rejects.toThrowError();
+	});
+
+	test.concurrent(
+		'MySqlTable :: select with `use index` + `force index` incompatible hints',
+		async ({ db, push }) => {
+			const users = mysqlTable('users_71', {
+				id: serial('id').primaryKey(),
+				name: varchar('name', { length: 100 }).notNull(),
+				age: int('age').notNull(),
+			}, () => [usersTableNameIndex, usersTableAgeIndex]);
+			const usersTableNameIndex = index('users_name_index_71').on(users.name);
+			const usersTableAgeIndex = index('users_age_index_71').on(users.age);
+
+			await push({ users });
+
+			await db.insert(users).values([
+				{ name: 'Alice', age: 18 },
+				{ name: 'Bob', age: 19 },
+				{ name: 'Charlie', age: 20 },
+				{ name: 'David', age: 21 },
+				{ name: 'Eve', age: 22 },
+			]);
+
+			await expect((async () => {
+				return await db.select()
+					.from(users, {
+						useIndex: [usersTableNameIndex],
+						forceIndex: [usersTableAgeIndex],
+					})
+					.where(eq(users.name, 'David'));
+			})()).rejects.toThrowError();
+		},
+	);
+
+	test.concurrent('MySqlTable :: select with join `use index` hint', async ({ db, push }) => {
+		const users = mysqlTable('users_72', {
+			id: serial('id').primaryKey(),
+			name: varchar('name', { length: 100 }).notNull(),
+		});
+
+		const posts = mysqlTable('posts_72', {
+			id: serial('id').primaryKey(),
+			text: varchar('text', { length: 100 }).notNull(),
+			userId: bigint('user_id', { mode: 'number', unsigned: true }).references(() => users.id, { onDelete: 'cascade' })
+				.notNull(),
+		}, () => [postsTableUserIdIndex]);
+		const postsTableUserIdIndex = index('posts_user_id_index_72').on(posts.userId);
+
+		await push({ users, posts });
+		await db.insert(users).values([
+			{ name: 'Alice' },
+			{ name: 'Bob' },
+			{ name: 'Charlie' },
+			{ name: 'David' },
+			{ name: 'Eve' },
+		]);
+
+		await db.insert(posts).values([
+			{ text: 'Alice post', userId: 1 },
+			{ text: 'Bob post', userId: 2 },
+			{ text: 'Charlie post', userId: 3 },
+			{ text: 'David post', userId: 4 },
+			{ text: 'Eve post', userId: 5 },
+		]);
+
+		const result = await db.select({
+			userId: users.id,
+			name: users.name,
+			postId: posts.id,
+			text: posts.text,
+		})
+			.from(users)
+			.leftJoin(posts, eq(users.id, posts.userId), {
+				useIndex: [postsTableUserIdIndex],
+			})
+			.where(and(
+				eq(users.name, 'David'),
+				eq(posts.text, 'David post'),
+			));
+
+		expect(result).toHaveLength(1);
+		expect(result).toEqual([{ userId: 4, name: 'David', postId: 4, text: 'David post' }]);
+	});
+
+	test.concurrent('MySqlTable :: select with join `use index` hint on 1 index', async ({ db, push }) => {
+		const users = mysqlTable('users_73', {
+			id: serial('id').primaryKey(),
+			name: varchar('name', { length: 100 }).notNull(),
+		});
+
+		const posts = mysqlTable('posts_73', {
+			id: serial('id').primaryKey(),
+			text: varchar('text', { length: 100 }).notNull(),
+			userId: bigint('user_id', { mode: 'number', unsigned: true }).references(() => users.id, { onDelete: 'cascade' })
+				.notNull(),
+		}, () => [postsTableUserIdIndex]);
+		const postsTableUserIdIndex = index('posts_user_id_index_73').on(posts.userId);
+
+		await push({ users, posts });
+
+		const query = db.select({
+			userId: users.id,
+			name: users.name,
+			postId: posts.id,
+			text: posts.text,
+		})
+			.from(users)
+			.leftJoin(posts, eq(users.id, posts.userId), {
+				useIndex: postsTableUserIdIndex,
+			})
+			.where(and(
+				eq(users.name, 'David'),
+				eq(posts.text, 'David post'),
+			)).toSQL();
+
+		expect(query.sql).to.include('USE INDEX (`posts_user_id_index_73`)');
+	});
+
+	test.concurrent('MySqlTable :: select with cross join `use index` hint', async ({ db, push }) => {
+		const users = mysqlTable('users_74', {
+			id: serial('id').primaryKey(),
+			name: varchar('name', { length: 100 }).notNull(),
+		});
+
+		const posts = mysqlTable('posts_74', {
+			id: serial('id').primaryKey(),
+			text: varchar('text', { length: 100 }).notNull(),
+			userId: bigint('user_id', { mode: 'number', unsigned: true }).references(() => users.id, { onDelete: 'cascade' })
+				.notNull(),
+		}, () => [postsTableUserIdIndex]);
+		const postsTableUserIdIndex = index('posts_user_id_index_74').on(posts.userId);
+
+		await push({ users, posts });
+
+		await db.insert(users).values([
+			{ id: 1, name: 'Alice' },
+			{ id: 2, name: 'Bob' },
+		]);
+
+		await db.insert(posts).values([
+			{ id: 1, text: 'Alice post', userId: 1 },
+			{ id: 2, text: 'Bob post', userId: 2 },
+		]);
+
+		const result = await db.select()
+			.from(users)
+			.crossJoin(posts, {
+				useIndex: [postsTableUserIdIndex],
+			})
+			.orderBy(users.id, posts.id);
+
+		expect(result).toStrictEqual([{
+			users_74: { id: 1, name: 'Alice' },
+			posts_74: { id: 1, text: 'Alice post', userId: 1 },
+		}, {
+			users_74: { id: 1, name: 'Alice' },
+			posts_74: { id: 2, text: 'Bob post', userId: 2 },
+		}, {
+			users_74: { id: 2, name: 'Bob' },
+			posts_74: { id: 1, text: 'Alice post', userId: 1 },
+		}, {
+			users_74: { id: 2, name: 'Bob' },
+			posts_74: { id: 2, text: 'Bob post', userId: 2 },
+		}]);
+	});
+
+	test.concurrent('MySqlTable :: select with cross join `use index` hint on 1 index', async ({ db, push }) => {
+		const users = mysqlTable('users_75', {
+			id: serial('id').primaryKey(),
+			name: varchar('name', { length: 100 }).notNull(),
+		});
+
+		const posts = mysqlTable('posts_75', {
+			id: serial('id').primaryKey(),
+			text: varchar('text', { length: 100 }).notNull(),
+			userId: bigint('user_id', { mode: 'number', unsigned: true }).references(() => users.id, { onDelete: 'cascade' })
+				.notNull(),
+		}, () => [postsTableUserIdIndex]);
+		const postsTableUserIdIndex = index('posts_user_id_index_75').on(posts.userId);
+
+		await push({ users, posts });
+
+		const query = db.select({
+			userId: users.id,
+			name: users.name,
+			postId: posts.id,
+			text: posts.text,
+		})
+			.from(users)
+			.crossJoin(posts, {
+				useIndex: postsTableUserIdIndex,
+			})
+			.where(and(
+				eq(users.name, 'David'),
+				eq(posts.text, 'David post'),
+			)).toSQL();
+
+		expect(query.sql).to.include('USE INDEX (`posts_user_id_index_75`)');
+	});
+
+	test.concurrent('MySqlTable :: select with join `use index` hint on multiple indexes', async ({ db, push }) => {
+		const users = mysqlTable('users_76', {
+			id: serial('id').primaryKey(),
+			name: varchar('name', { length: 100 }).notNull(),
+		});
+
+		const posts = mysqlTable('posts_76', {
+			id: serial('id').primaryKey(),
+			text: varchar('text', { length: 100 }).notNull(),
+			userId: bigint('user_id', { mode: 'number', unsigned: true }).references(() => users.id, { onDelete: 'cascade' })
+				.notNull(),
+		}, () => [postsTableUserIdIndex, postsTableTextIndex]);
+		const postsTableUserIdIndex = index('posts_user_id_index_76').on(posts.userId);
+		const postsTableTextIndex = index('posts_text_index_76').on(posts.text);
+
+		await push({ users, posts });
+
+		const query = db.select({
+			userId: users.id,
+			name: users.name,
+			postId: posts.id,
+			text: posts.text,
+		})
+			.from(users)
+			.leftJoin(posts, eq(users.id, posts.userId), {
+				useIndex: [postsTableUserIdIndex, postsTableTextIndex],
+			})
+			.where(and(
+				eq(users.name, 'David'),
+				eq(posts.text, 'David post'),
+			)).toSQL();
+
+		expect(query.sql).to.include('USE INDEX (`posts_user_id_index_76`, `posts_text_index_76`)');
+	});
+
+	test.concurrent('MySqlTable :: select with join `use index` hint on not existed index', async ({ db, push }) => {
+		const users = mysqlTable('users_77', {
+			id: serial('id').primaryKey(),
+			name: varchar('name', { length: 100 }).notNull(),
+		});
+
+		const posts = mysqlTable('posts_77', {
+			id: serial('id').primaryKey(),
+			text: varchar('text', { length: 100 }).notNull(),
+			userId: bigint('user_id', { mode: 'number', unsigned: true }).references(() => users.id, { onDelete: 'cascade' })
+				.notNull(),
+		}, () => [postsTableUserIdIndex]);
+		const postsTableUserIdIndex = index('posts_user_id_index_77').on(posts.userId);
+
+		await push({ users, posts });
+
+		await db.insert(users).values([
+			{ name: 'Alice' },
+			{ name: 'Bob' },
+			{ name: 'Charlie' },
+			{ name: 'David' },
+			{ name: 'Eve' },
+		]);
+
+		await db.insert(posts).values([
+			{ text: 'Alice post', userId: 1 },
+			{ text: 'Bob post', userId: 2 },
+			{ text: 'Charlie post', userId: 3 },
+			{ text: 'David post', userId: 4 },
+			{ text: 'Eve post', userId: 5 },
+		]);
+
+		await expect((async () => {
+			return await db.select({
+				userId: users.id,
+				name: users.name,
+				postId: posts.id,
+				text: posts.text,
+			})
+				.from(users)
+				.leftJoin(posts, eq(users.id, posts.userId), {
+					useIndex: ['some_other_index'],
+				})
+				.where(and(
+					eq(users.name, 'David'),
+					eq(posts.text, 'David post'),
+				));
+		})()).rejects.toThrowError();
+	});
+
+	test.concurrent(
+		'MySqlTable :: select with join `use index` + `force index` incompatible hints',
+		async ({ db, push }) => {
+			const users = mysqlTable('users_78', {
+				id: serial('id').primaryKey(),
+				name: varchar('name', { length: 100 }).notNull(),
+			});
+
+			const posts = mysqlTable('posts_78', {
+				id: serial('id').primaryKey(),
+				text: varchar('text', { length: 100 }).notNull(),
+				userId: bigint('user_id', { mode: 'number', unsigned: true }).references(() => users.id, {
+					onDelete: 'cascade',
+				})
+					.notNull(),
+			}, () => [postsTableUserIdIndex, postsTableTextIndex]);
+			const postsTableUserIdIndex = index('posts_user_id_index_78').on(posts.userId);
+			const postsTableTextIndex = index('posts_text_index_78').on(posts.text);
+
+			await push({ users, posts });
+
+			await db.insert(users).values([
+				{ name: 'Alice' },
+				{ name: 'Bob' },
+				{ name: 'Charlie' },
+				{ name: 'David' },
+				{ name: 'Eve' },
+			]);
+
+			await db.insert(posts).values([
+				{ text: 'Alice post', userId: 1 },
+				{ text: 'Bob post', userId: 2 },
+				{ text: 'Charlie post', userId: 3 },
+				{ text: 'David post', userId: 4 },
+				{ text: 'Eve post', userId: 5 },
+			]);
+
+			await expect((async () => {
+				return await db.select({
+					userId: users.id,
+					name: users.name,
+					postId: posts.id,
+					text: posts.text,
+				})
+					.from(users)
+					.leftJoin(posts, eq(users.id, posts.userId), {
+						useIndex: [postsTableUserIdIndex],
+						forceIndex: [postsTableTextIndex],
+					})
+					.where(and(
+						eq(users.name, 'David'),
+						eq(posts.text, 'David post'),
+					));
+			})()).rejects.toThrowError();
+		},
+	);
+
+	test.concurrent('MySqlTable :: select with Subquery join `use index`', async ({ db, push }) => {
+		const users = mysqlTable('users_79', {
+			id: serial('id').primaryKey(),
+			name: varchar('name', { length: 100 }).notNull(),
+		});
+
+		const posts = mysqlTable('posts_79', {
+			id: serial('id').primaryKey(),
+			text: varchar('text', { length: 100 }).notNull(),
+			userId: bigint('user_id', { mode: 'number', unsigned: true }).references(() => users.id, { onDelete: 'cascade' })
+				.notNull(),
+		}, () => [postsTableUserIdIndex]);
+		const postsTableUserIdIndex = index('posts_user_id_index_79').on(posts.userId);
+
+		await push({ users, posts });
+
+		await db.insert(users).values([
+			{ name: 'Alice' },
+			{ name: 'Bob' },
+			{ name: 'Charlie' },
+			{ name: 'David' },
+			{ name: 'Eve' },
+		]);
+
+		await db.insert(posts).values([
+			{ text: 'Alice post', userId: 1 },
+			{ text: 'Bob post', userId: 2 },
+			{ text: 'Charlie post', userId: 3 },
+			{ text: 'David post', userId: 4 },
+			{ text: 'Eve post', userId: 5 },
+		]);
+
+		const sq = db.select().from(posts, { useIndex: [postsTableUserIdIndex] }).where(eq(posts.userId, 1)).as('sq');
+
+		const result = await db.select({
+			userId: users.id,
+			name: users.name,
+			postId: sq.id,
+			text: sq.text,
+		})
+			.from(users)
+			.leftJoin(sq, eq(users.id, sq.userId))
+			.where(eq(users.name, 'Alice'));
+
+		expect(result).toHaveLength(1);
+		expect(result).toEqual([{ userId: 1, name: 'Alice', postId: 1, text: 'Alice post' }]);
+	});
+
+	test.concurrent('MySqlTable :: select with Subquery join with `use index` in join', async ({ db, push }) => {
+		const users = mysqlTable('users_80', {
+			id: serial('id').primaryKey(),
+			name: varchar('name', { length: 100 }).notNull(),
+		});
+
+		const posts = mysqlTable('posts_80', {
+			id: serial('id').primaryKey(),
+			text: varchar('text', { length: 100 }).notNull(),
+			userId: bigint('user_id', { mode: 'number', unsigned: true }).references(() => users.id, { onDelete: 'cascade' })
+				.notNull(),
+		}, () => [postsTableUserIdIndex]);
+		const postsTableUserIdIndex = index('posts_user_id_index_80').on(posts.userId);
+
+		await push({ users, posts });
+
+		const sq = db.select().from(posts).where(eq(posts.userId, 1)).as('sq');
+
+		const query = db.select({
+			userId: users.id,
+			name: users.name,
+			postId: sq.id,
+			text: sq.text,
+		})
+			.from(users)
+			// @ts-expect-error
+			.leftJoin(sq, eq(users.id, sq.userId, { useIndex: [postsTableUserIdIndex] }))
+			.where(eq(users.name, 'Alice'))
+			.toSQL();
+
+		expect(query.sql).not.include('USE INDEX');
+	});
+
+	test.concurrent('View :: select with `use index` hint', async ({ db, push }) => {
+		const users = mysqlTable('users_81', {
+			id: serial('id').primaryKey(),
+			name: varchar('name', { length: 100 }).notNull(),
+		}, () => [usersTableNameIndex]);
+
+		const usersTableNameIndex = index('users_name_index_81').on(users.name);
+
+		const usersView = mysqlView('users_view_81').as((qb) => qb.select().from(users));
+
+		await push({ users, usersView });
+
+		// @ts-expect-error
+		const query = db.select().from(usersView, {
+			useIndex: [usersTableNameIndex],
+		}).toSQL();
+
+		expect(query.sql).not.include('USE INDEX');
+	});
+
+	test.concurrent('Subquery :: select with `use index` hint', async ({ db, push }) => {
+		const users = mysqlTable('users_82', {
+			id: serial('id').primaryKey(),
+			name: varchar('name', { length: 100 }).notNull(),
+		}, () => [usersTableNameIndex]);
+		const usersTableNameIndex = index('users_name_index_82').on(users.name);
+
+		await push({ users });
+
+		const sq = db.select().from(users).as('sq');
+
+		// @ts-expect-error
+		const query = db.select().from(sq, {
+			useIndex: [usersTableNameIndex],
+		}).toSQL();
+
+		expect(query.sql).not.include('USE INDEX');
+	});
+
+	test.concurrent('sql operator as cte', async ({ db, push }) => {
+		const users = mysqlTable('users_83', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await push({ users });
+		await db.insert(users).values([
+			{ name: 'John' },
+			{ name: 'Jane' },
+		]);
+
+		const sq1 = db.$with('sq', {
+			userId: users.id,
+			data: {
+				name: users.name,
+			},
+		}).as(sql`select * from ${users} where ${users.name} = 'John'`);
+		const result1 = await db.with(sq1).select().from(sq1);
+
+		const sq2 = db.$with('sq', {
+			userId: users.id,
+			data: {
+				name: users.name,
+			},
+		}).as(() => sql`select * from ${users} where ${users.name} = 'Jane'`);
+		const result2 = await db.with(sq2).select().from(sq1);
+
+		expect(result1).toEqual([{ userId: 1, data: { name: 'John' } }]);
+		expect(result2).toEqual([{ userId: 2, data: { name: 'Jane' } }]);
+	});
+
+	test.concurrent('sql.Aliased in cte', async ({ db, push }) => {
+		const users = mysqlTable('users_109_sqla', {
+			id: int('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await push({ users });
+		await db.insert(users).values([
+			{ id: 1, name: 'John' },
+			{ id: 2, name: 'Jane' },
+		]);
+
+		const sq1 = db.$with('sq1').as((qb) =>
+			qb.select({
+				aliased: sql`count(*)`.mapWith(Number).as('alias'),
+			}).from(users)
+		);
+		const sq2 = db.$with('sq2').as((qb) =>
+			qb.select({
+				aliased: sql`sum(${users.id})`.mapWith(Number).as('alias'),
+			}).from(users)
+		);
+
+		const result = await db.with(sq1, sq2).select({
+			count: sq1.aliased,
+			sum: sq2.aliased,
+		}).from(sq1).crossJoin(sq2);
+
+		expect(result).toEqual([{ count: 2, sum: 3 }]);
+
+		const result2 = await db.with(sq1).select({
+			count: sq1.aliased,
+		}).from(sq1).groupBy(sq1.aliased).orderBy(sq1.aliased);
+
+		expect(result2).toEqual([{ count: 2 }]);
+	});
+
+	test.concurrent('contraint names config', async ({ db, push }) => {
+		const users = mysqlTable('users_84', {
+			id: int('id').unique(),
+			id1: int('id1').unique('custom_name'),
+		});
+
+		await push({ users });
+
+		const tableConf = getTableConfig(users);
+
+		expect(tableConf.columns.find((it) => it.name === 'id')!.uniqueName).toBe(undefined);
+		expect(tableConf.columns.find((it) => it.name === 'id1')!.uniqueName).toBe('custom_name');
+	});
+
+	test.concurrent('Default value priority', async ({ db, push }) => {
+		const exTbl = mysqlTable('no_default_override', {
+			id: int('id').primaryKey(),
+			defSql: int('def_sql').default(sql`1`),
+			defNum: int('def_num').default(1),
+			defFn: int('def_fn').$defaultFn(() => 1),
+			defUpdFn: int('def_upd_fn').$onUpdateFn(() => 1),
+			defMix1: int('def_mix1').default(1).$defaultFn(() => 2).$onUpdateFn(() => 3),
+			defMix2: int('def_mix2').$defaultFn(() => 2).$onUpdateFn(() => 3),
+			defMix3: int('def_mix3').default(1).$defaultFn(() => 2),
+			defMix4: int('def_mix4').default(sql`1`).$onUpdateFn(() => 3),
+		});
+
+		await db.execute(sql`DROP TABLE IF EXISTS ${exTbl};`);
+		await push({ exTbl });
+
+		await db.insert(exTbl).values({ id: 1 });
+
+		const res = await db.select().from(exTbl);
+
+		expect(res).toStrictEqual([{
+			id: 1,
+			defSql: 1,
+			defNum: 1,
+			defFn: 1,
+			defUpdFn: 1,
+			defMix1: 2,
+			defMix2: 2,
+			defMix3: 2,
+			defMix4: 1,
+		}]);
+	});
+}

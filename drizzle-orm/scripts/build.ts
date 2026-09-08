@@ -1,76 +1,66 @@
-#!/usr/bin/env -S pnpm tsx
-import 'zx/globals';
-import cpy from 'cpy';
+#!/usr/bin/env bun
+import { $ } from 'bun';
+import { globSync } from 'glob';
+import { mkdirSync, renameSync, rmSync } from 'node:fs';
+import * as fs from 'node:fs/promises';
+import { build as tsdown } from 'tsdown';
+import { emitDirIndexShims } from './emit-dir-index-shims.ts';
 
-async function updateAndCopyPackageJson() {
-	const pkg = await fs.readJSON('package.json');
+const entries = globSync('src/**/*.ts', { ignore: ['src/**/*.test.ts'] });
 
-	const entries = await glob('src/**/*.ts');
-
-	pkg.exports = entries.reduce<
-		Record<string, {
-			import: {
-				types?: string;
-				default: string;
-			};
-			require: {
-				types: string;
-				default: string;
-			};
-			default: string;
-			types: string;
-		}>
-	>(
-		(acc, rawEntry) => {
-			const entry = rawEntry.match(/src\/(.*)\.ts/)![1]!;
-			const exportsEntry = entry === 'index' ? '.' : './' + entry.replace(/\/index$/, '');
-			const importEntry = `./${entry}.js`;
-			const requireEntry = `./${entry}.cjs`;
-			acc[exportsEntry] = {
-				import: {
-					types: `./${entry}.d.ts`,
-					default: importEntry,
-				},
-				require: {
-					types: `./${entry}.d.cts`,
-					default: requireEntry,
-				},
-				types: `./${entry}.d.ts`,
-				default: importEntry,
-			};
-			return acc;
-		},
-		{},
-	);
-
-	await fs.writeJSON('dist.new/package.json', pkg, { spaces: 2 });
+async function copyPackageJson() {
+	// The published `exports` map is static (root + `"./*"` wildcard) and lives in package.json
+	// directly; this just carries it into the dist that gets packed. The wildcard's directory-index
+	// shims are the only dynamic piece — see emitDirIndexShims.
+	const pkg = JSON.parse(await fs.readFile('package.json', 'utf8'));
+	await fs.writeFile('dist.new/package.json', JSON.stringify(pkg, null, 2));
 }
 
-await fs.remove('dist.new');
+async function main() {
+	const startTime = Date.now();
 
-await Promise.all([
-	(async () => {
-		await $`tsup`.stdio('pipe', 'pipe', 'pipe');
-	})(),
-	(async () => {
-		await $`tsc -p tsconfig.dts.json`.stdio('pipe', 'pipe', 'pipe');
-		await cpy('dist-dts/**/*.d.ts', 'dist.new', {
-			rename: (basename) => basename.replace(/\.d\.ts$/, '.d.cts'),
-		});
-		await cpy('dist-dts/**/*.d.ts', 'dist.new', {
-			rename: (basename) => basename.replace(/\.d\.ts$/, '.d.ts'),
-		});
-	})(),
-]);
+	rmSync('dist.new', { recursive: true, force: true });
+	mkdirSync('dist.new', { recursive: true });
 
-await Promise.all([
-	$`tsup src/version.ts --no-config --dts --format esm --outDir dist.new`.stdio('pipe', 'pipe', 'pipe'),
-	$`tsup src/version.ts --no-config --dts --format cjs --outDir dist.new`.stdio('pipe', 'pipe', 'pipe'),
-]);
+	await tsdown({
+		entry: entries,
+		outDir: './dist.new',
+		format: ['cjs', 'es'],
+		unbundle: true,
+		platform: 'node',
+		external: [/^[^./]/], // everything?
+		tsconfig: 'tsconfig.json',
+		sourcemap: true,
+		dts: true,
+		clean: false,
+		alias: {
+			'~': './src',
+		},
+		outExtensions: (ctx) => {
+			if (ctx.format === 'cjs') {
+				return { js: '.cjs', dts: '.d.cts' };
+			}
+			return { js: '.js', dts: '.d.ts' };
+		},
+	});
 
-await $`scripts/fix-imports.ts`;
+	await $`bun scripts/fix-imports.ts`.quiet();
+	await Promise.all([
+		fs.copyFile('../README.md', 'dist.new/README.md'),
+		copyPackageJson(),
+	]);
+	await emitDirIndexShims(entries, 'dist.new');
 
-await fs.copy('../README.md', 'dist.new/README.md');
-await updateAndCopyPackageJson();
-await fs.remove('dist');
-await fs.rename('dist.new', 'dist');
+	rmSync('dist', { recursive: true, force: true });
+	renameSync('dist.new', 'dist');
+
+	const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+	console.log(`Build complete ${elapsed}s`);
+}
+
+if (import.meta.main) {
+	main().catch((e) => {
+		console.error(e);
+		process.exit(1);
+	}).then(() => process.exit(0));
+}

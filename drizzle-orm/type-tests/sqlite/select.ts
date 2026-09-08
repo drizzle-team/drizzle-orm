@@ -20,9 +20,10 @@ import {
 	notInArray,
 	notLike,
 	or,
-} from '~/expressions.ts';
-import { type InferSelectViewModel, param, sql } from '~/sql/sql.ts';
+} from '~/sql/expressions/index.ts';
+import { param, sql } from '~/sql/sql.ts';
 import { alias } from '~/sqlite-core/alias.ts';
+import type { InferViewSelectModel } from '~/view.ts';
 
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
@@ -31,10 +32,228 @@ import type { SQLiteSelect, SQLiteSelectQueryBuilder } from '~/sqlite-core/query
 import { sqliteTable } from '~/sqlite-core/table.ts';
 import { sqliteView } from '~/sqlite-core/view.ts';
 import { db } from './db.ts';
-import { cities, classes, newYorkers, users } from './tables.ts';
+import { cities, classes, newYorkers, newYorkersWithSubquery, users } from './tables.ts';
 
 const city = alias(cities, 'city');
 const city1 = alias(cities, 'city1');
+
+const leftJoinFull = db.select().from(users).leftJoin(city, eq(users.id, city.id)).all();
+
+Expect<
+	Equal<
+		{
+			users_table: typeof users.$inferSelect;
+			city: typeof cities.$inferSelect | null;
+		}[],
+		typeof leftJoinFull
+	>
+>;
+
+const rightJoinFull = db.select().from(users).rightJoin(city, eq(users.id, city.id)).all();
+
+Expect<
+	Equal<
+		{
+			users_table: typeof users.$inferSelect | null;
+			city: typeof city.$inferSelect;
+		}[],
+		typeof rightJoinFull
+	>
+>;
+
+const innerJoinFull = db.select().from(users).innerJoin(city, eq(users.id, city.id)).all();
+
+Expect<
+	Equal<
+		{
+			users_table: typeof users.$inferSelect;
+			city: typeof city.$inferSelect;
+		}[],
+		typeof innerJoinFull
+	>
+>;
+
+const fullJoinFull = db.select().from(users).fullJoin(city, eq(users.id, city.id)).all();
+
+Expect<
+	Equal<
+		{
+			users_table: typeof users.$inferSelect | null;
+			city: typeof city.$inferSelect | null;
+		}[],
+		typeof fullJoinFull
+	>
+>;
+
+const crossJoinFull = db.select().from(users).crossJoin(city).all();
+
+Expect<
+	Equal<
+		{
+			users_table: typeof users.$inferSelect;
+			city: typeof city.$inferSelect;
+		}[],
+		typeof crossJoinFull
+	>
+>;
+
+const leftJoinFlat = db
+	.select({
+		userId: users.id,
+		userName: users.name,
+		cityId: city.id,
+		cityName: city.name,
+	})
+	.from(users)
+	.leftJoin(city, eq(users.id, city.id))
+	.all();
+
+Expect<
+	Equal<{
+		userId: number;
+		userName: string | null;
+		cityId: number | null;
+		cityName: string | null;
+	}[], typeof leftJoinFlat>
+>;
+
+const rightJoinFlat = db
+	.select({
+		userId: users.id,
+		userName: users.name,
+		cityId: city.id,
+		cityName: city.name,
+	})
+	.from(users)
+	.rightJoin(city, eq(users.id, city.id))
+	.all();
+
+Expect<
+	Equal<{
+		userId: number | null;
+		userName: string | null;
+		cityId: number;
+		cityName: string;
+	}[], typeof rightJoinFlat>
+>;
+
+const innerJoinFlat = db
+	.select({
+		userId: users.id,
+		userName: users.name,
+		cityId: city.id,
+		cityName: city.name,
+	})
+	.from(users)
+	.innerJoin(city, eq(users.id, city.id))
+	.all();
+
+Expect<
+	Equal<{
+		userId: number;
+		userName: string | null;
+		cityId: number;
+		cityName: string;
+	}[], typeof innerJoinFlat>
+>;
+
+const fullJoinFlat = db
+	.select({
+		userId: users.id,
+		userName: users.name,
+		cityId: city.id,
+		cityName: city.name,
+	})
+	.from(users)
+	.fullJoin(city, eq(users.id, city.id))
+	.all();
+
+Expect<
+	Equal<{
+		userId: number | null;
+		userName: string | null;
+		cityId: number | null;
+		cityName: string | null;
+	}[], typeof fullJoinFlat>
+>;
+
+const crossJoinFlat = db
+	.select({
+		userId: users.id,
+		userName: users.name,
+		cityId: city.id,
+		cityName: city.name,
+	})
+	.from(users)
+	.crossJoin(city)
+	.all();
+
+Expect<
+	Equal<{
+		userId: number;
+		userName: string | null;
+		cityId: number;
+		cityName: string;
+	}[], typeof crossJoinFlat>
+>;
+
+const leftJoinMixed = db
+	.select({
+		id: users.id,
+		name: users.name,
+		nameUpper: sql<string | null>`upper(${users.name})`,
+		idComplex: sql<string | null>`${users.id}::text || ${city.id}::text`,
+		city: {
+			id: city.id,
+			name: city.name,
+		},
+	})
+	.from(users)
+	.leftJoin(city, eq(users.id, city.id))
+	.all();
+
+Expect<
+	Equal<
+		{
+			id: number;
+			name: string | null;
+			nameUpper: string | null;
+			idComplex: string | null;
+			city: {
+				id: number;
+				name: string;
+			} | null;
+		}[],
+		typeof leftJoinMixed
+	>
+>;
+
+const leftJoinMixed2 = db
+	.select({
+		id: users.id,
+		name: users.name,
+		foo: {
+			bar: users.id,
+			baz: cities.id,
+		},
+	})
+	.from(users)
+	.leftJoin(cities, eq(users.id, cities.id))
+	.all();
+
+Expect<
+	Equal<
+		{
+			id: number;
+			name: string | null;
+			foo: {
+				bar: number;
+				baz: number | null;
+			};
+		}[],
+		typeof leftJoinMixed2
+	>
+>;
 
 const joinAll = db
 	.select()
@@ -444,6 +663,35 @@ Expect<
 }
 
 {
+	const result = db.select().from(newYorkersWithSubquery).all();
+	Expect<
+		Equal<
+			{
+				id: number;
+				class: 'A' | 'C';
+				cityCount: number;
+				lastCityId: number;
+			}[],
+			typeof result
+		>
+	>;
+	Expect<Equal<typeof result, typeof newYorkersWithSubquery.$inferSelect[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof newYorkersWithSubquery>[]>>;
+}
+
+{
+	const result = db.select({ cityCount: newYorkersWithSubquery.cityCount }).from(newYorkersWithSubquery).all();
+	Expect<
+		Equal<
+			{
+				cityCount: number;
+			}[],
+			typeof result
+		>
+	>;
+}
+
+{
 	db
 		.select()
 		.from(users)
@@ -617,5 +865,5 @@ Expect<
 		}[]>
 	>;
 	Expect<Equal<typeof result, typeof view.$inferSelect[]>>;
-	Expect<Equal<typeof result, InferSelectViewModel<typeof view>[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof view>[]>>;
 }

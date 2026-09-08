@@ -1,15 +1,12 @@
-#!/usr/bin/env -S pnpm tsx
+#!/usr/bin/env bun
 import 'zx/globals';
 import cpy from 'cpy';
 
 await fs.remove('dist');
-await $`rollup --config rollup.config.ts --configPlugin typescript`;
-await $`resolve-tspaths`;
+await $`tsdown`;
+// Create .d.ts fallback for the `types` field in exports
+await cpy('dist/**/*.d.mts', 'dist', {
+	rename: (basename) => basename.replace(/\.d\.mts$/, '.d.ts'),
+});
 await fs.copy('README.md', 'dist/README.md');
-await cpy('dist/**/*.d.ts', 'dist', {
-	rename: (basename) => basename.replace(/\.d\.ts$/, '.d.mts'),
-});
-await cpy('dist/**/*.d.ts', 'dist', {
-	rename: (basename) => basename.replace(/\.d\.ts$/, '.d.cts'),
-});
 await fs.copy('package.json', 'dist/package.json');

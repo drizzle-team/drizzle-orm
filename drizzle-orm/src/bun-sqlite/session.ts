@@ -1,44 +1,46 @@
 /// <reference types="bun-types" />
 
-import type { Database, Statement as BunStatement } from 'bun:sqlite';
+import type { Changes, Database } from 'bun:sqlite';
 import { entityKind } from '~/entity.ts';
+import { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
-import type { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
-import { SQLiteTransaction } from '~/sqlite-core/index.ts';
-import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types.ts';
-import type {
-	PreparedQueryConfig as PreparedQueryConfigBase,
-	SQLiteExecuteMethod,
-	SQLiteTransactionConfig,
-} from '~/sqlite-core/session.ts';
-import { SQLitePreparedQuery as PreparedQueryBase, SQLiteSession } from '~/sqlite-core/session.ts';
-import { mapResultRow } from '~/utils.ts';
+import type { AnyRelations } from '~/relations.ts';
+import { type Query, sql } from '~/sql/sql.ts';
+import {
+	SQLiteAsyncPreparedQuery,
+	type SQLiteAsyncPreparedQueryConfig as PreparedQueryConfigBase,
+	SQLiteAsyncSession,
+	SQLiteAsyncTransaction,
+	type SQLiteQueryExecutors,
+} from '~/sqlite-core/async/session.ts';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
+import type { DrizzleTypeError } from '~/utils.ts';
 
 export interface SQLiteBunSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
-type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
-type Statement = BunStatement<any>;
+export type SQLiteBunRunResult = Changes;
 
-export class SQLiteBunSession<
-	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends SQLiteSession<'sync', void, TFullSchema, TSchema> {
+type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
+
+export class SQLiteBunSession<TRelations extends AnyRelations>
+	extends SQLiteAsyncSession<'sync', SQLiteBunRunResult, TRelations>
+{
 	static override readonly [entityKind]: string = 'SQLiteBunSession';
 
 	private logger: Logger;
 
 	constructor(
 		private client: Database,
-		dialect: SQLiteSyncDialect,
-		private schema: RelationalSchemaConfig<TSchema> | undefined,
-		options: SQLiteBunSessionOptions = {},
+		dialect: SQLiteDialect,
+		private relations: TRelations,
+		private options: SQLiteBunSessionOptions = {},
 	) {
-		super(dialect);
+		super(dialect, 'sync');
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
@@ -48,127 +50,94 @@ export class SQLiteBunSession<
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		executeMethod: SQLiteExecuteMethod,
-		isResponseInArrayMode: boolean,
-		customResultMapper?: (rows: unknown[][]) => unknown,
-	): PreparedQuery<T> {
-		const stmt = this.client.prepare(query.sql);
-		return new PreparedQuery(
-			stmt,
-			query,
-			this.logger,
-			fields,
+		mode: 'arrays' | 'objects' | 'raw',
+		_prepare: boolean,
+		executeMethod?: SQLiteExecuteMethod,
+		mapper?: (rows: any[]) => any,
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+	): SQLiteAsyncPreparedQuery<T & { run: SQLiteBunRunResult }> {
+		let stmt: ReturnType<typeof this.client.query>;
+		try {
+			stmt = this.client.query(query.sql);
+		} catch (e) {
+			throw new DrizzleQueryError(query.sql, query.params, e as Error);
+		}
+		const executors: SQLiteQueryExecutors<'sync'> = {
+			all: (params) => {
+				if (mode === 'arrays') return stmt.values(...params as any[]);
+				return stmt.all(...params as any[]);
+			},
+			get: (params) => {
+				if (mode === 'arrays') return stmt.values(...params as any[])[0];
+				return stmt.get(...params as any[]);
+			},
+			run: (params) => {
+				return stmt.run(...params as any[]);
+			},
+			values: (params) => {
+				return stmt.values(...params as any[]);
+			},
+		};
+
+		return new SQLiteAsyncPreparedQuery(
+			'sync',
 			executeMethod,
-			isResponseInArrayMode,
-			customResultMapper,
+			executors,
+			query,
+			mapper,
+			mode,
+			this.logger,
+			undefined,
+			queryMetadata,
+			undefined,
 		);
 	}
 
 	override transaction<T>(
-		transaction: (tx: SQLiteBunTransaction<TFullSchema, TSchema>) => T,
+		transaction: (tx: SQLiteBunTransaction<TRelations>) => T,
 		config: SQLiteTransactionConfig = {},
 	): T {
-		const tx = new SQLiteBunTransaction('sync', this.dialect, this, this.schema);
+		const tx = new SQLiteBunTransaction('sync', this.dialect, this, this.relations);
 		let result: T | undefined;
 		const nativeTx = this.client.transaction(() => {
 			result = transaction(tx);
 		});
+		if (config.behavior === 'concurrent') throw new Error('Concurrent transactions are not supported by driver');
 		nativeTx[config.behavior ?? 'deferred']();
 		return result!;
 	}
 }
 
 export class SQLiteBunTransaction<
-	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends SQLiteTransaction<'sync', void, TFullSchema, TSchema> {
+	TRelations extends AnyRelations,
+> extends SQLiteAsyncTransaction<'sync', SQLiteBunRunResult, TRelations> {
 	static override readonly [entityKind]: string = 'SQLiteBunTransaction';
 
-	override transaction<T>(transaction: (tx: SQLiteBunTransaction<TFullSchema, TSchema>) => T): T {
+	override transaction<T>(
+		transaction: (
+			tx: SQLiteBunTransaction<TRelations>,
+		) => T extends Promise<any> ? DrizzleTypeError<"Sync drivers can't use async functions in transactions!">
+			: T,
+	): T {
 		const savepointName = `sp${this.nestedIndex}`;
-		const tx = new SQLiteBunTransaction('sync', this.dialect, this.session, this.schema, this.nestedIndex + 1);
+		const tx = new SQLiteBunTransaction(
+			'sync',
+			this.dialect,
+			this.session,
+			this._.relations,
+			this.nestedIndex + 1,
+		);
 		this.session.run(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = transaction(tx);
 			this.session.run(sql.raw(`release savepoint ${savepointName}`));
-			return result;
+			return result as T;
 		} catch (err) {
 			this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
 			throw err;
 		}
-	}
-}
-
-export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<
-	{ type: 'sync'; run: void; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
-> {
-	static override readonly [entityKind]: string = 'SQLiteBunPreparedQuery';
-
-	constructor(
-		private stmt: Statement,
-		query: Query,
-		private logger: Logger,
-		private fields: SelectedFieldsOrdered | undefined,
-		executeMethod: SQLiteExecuteMethod,
-		private _isResponseInArrayMode: boolean,
-		private customResultMapper?: (rows: unknown[][]) => unknown,
-	) {
-		super('sync', executeMethod, query);
-	}
-
-	run(placeholderValues?: Record<string, unknown>) {
-		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-		this.logger.logQuery(this.query.sql, params);
-		return this.stmt.run(...params);
-	}
-
-	all(placeholderValues?: Record<string, unknown>): T['all'] {
-		const { fields, query, logger, joinsNotNullableMap, stmt, customResultMapper } = this;
-		if (!fields && !customResultMapper) {
-			const params = fillPlaceholders(query.params, placeholderValues ?? {});
-			logger.logQuery(query.sql, params);
-			return stmt.all(...params);
-		}
-
-		const rows = this.values(placeholderValues) as unknown[][];
-
-		if (customResultMapper) {
-			return customResultMapper(rows) as T['all'];
-		}
-
-		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
-	}
-
-	get(placeholderValues?: Record<string, unknown>): T['get'] {
-		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-		this.logger.logQuery(this.query.sql, params);
-		const row = this.stmt.values(...params)[0];
-
-		if (!row) {
-			return undefined;
-		}
-
-		const { fields, joinsNotNullableMap, customResultMapper } = this;
-		if (!fields && !customResultMapper) {
-			return row;
-		}
-
-		if (customResultMapper) {
-			return customResultMapper([row]) as T['get'];
-		}
-
-		return mapResultRow(fields!, row, joinsNotNullableMap);
-	}
-
-	values(placeholderValues?: Record<string, unknown>): T['values'] {
-		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-		this.logger.logQuery(this.query.sql, params);
-		return this.stmt.values(...params);
-	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
 	}
 }

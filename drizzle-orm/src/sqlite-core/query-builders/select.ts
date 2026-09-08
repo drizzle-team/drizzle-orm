@@ -1,3 +1,4 @@
+import type { CacheConfig, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
@@ -10,11 +11,9 @@ import type {
 	SelectResult,
 	SetOperator,
 } from '~/query-builders/select.types.ts';
-import { QueryPromise } from '~/query-promise.ts';
-import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import { SQL, View } from '~/sql/sql.ts';
-import type { ColumnsSelection, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
+import { SQL } from '~/sql/sql.ts';
+import type { ColumnsSelection, Placeholder, Query } from '~/sql/sql.ts';
 import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { SQLiteSession } from '~/sqlite-core/session.ts';
@@ -22,45 +21,53 @@ import type { SubqueryWithSelection } from '~/sqlite-core/subquery.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import {
-	applyMixins,
-	getTableColumns,
-	getTableLikeName,
-	haveSameKeys,
-	orderSelectedFields,
-	type ValueOrArray,
-} from '~/utils.ts';
+import { getTableColumns, getTableLikeName, haveSameKeys, orderSelectedFields, type ValueOrArray } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { View } from '~/view.ts';
+import { extractUsedTable } from '../utils.ts';
 import { SQLiteViewBase } from '../view-base.ts';
 import type {
 	AnySQLiteSelect,
-	CreateSQLiteSelectFromBuilderMode,
+	AnySQLiteSelectQueryBuilder,
 	GetSQLiteSetOperators,
 	SelectedFields,
 	SetOperatorRightSelect,
 	SQLiteCreateSetOperatorFn,
 	SQLiteSelectConfig,
+	SQLiteSelectCrossJoinFn,
 	SQLiteSelectDynamic,
-	SQLiteSelectExecute,
-	SQLiteSelectHKT,
 	SQLiteSelectHKTBase,
 	SQLiteSelectJoinFn,
-	SQLiteSelectPrepare,
+	SQLiteSelectKind,
+	SQLiteSelectQueryBuilderHKT,
 	SQLiteSelectWithout,
 	SQLiteSetOperatorExcludedMethods,
 	SQLiteSetOperatorWithResult,
 } from './select.types.ts';
 
+export interface SQLiteSelectBuilderConstructor {
+	new(
+		config: {
+			table: SQLiteSelectConfig['table'];
+			fields: SQLiteSelectConfig['fields'];
+			isPartialSelect: boolean;
+			session: SQLiteSession<any, any> | undefined;
+			dialect: SQLiteDialect;
+			withList: Subquery[];
+			distinct: boolean | undefined;
+		},
+	): AnySQLiteSelectQueryBuilder;
+}
+
 export class SQLiteSelectBuilder<
 	TSelection extends SelectedFields | undefined,
-	TResultType extends 'sync' | 'async',
 	TRunResult,
-	TBuilderMode extends 'db' | 'qb' = 'db',
+	THKT extends SQLiteSelectHKTBase = SQLiteSelectQueryBuilderHKT,
 > {
 	static readonly [entityKind]: string = 'SQLiteSelectBuilder';
 
 	private fields: TSelection;
-	private session: SQLiteSession<any, any, any, any> | undefined;
+	private session: SQLiteSession<any, any> | undefined;
 	private dialect: SQLiteDialect;
 	private withList: Subquery[] | undefined;
 	private distinct: boolean | undefined;
@@ -68,11 +75,12 @@ export class SQLiteSelectBuilder<
 	constructor(
 		config: {
 			fields: TSelection;
-			session: SQLiteSession<any, any, any, any> | undefined;
+			session: SQLiteSession<any, any> | undefined;
 			dialect: SQLiteDialect;
 			withList?: Subquery[];
 			distinct?: boolean;
 		},
+		private builder: SQLiteSelectBuilderConstructor = SQLiteSelectBase,
 	) {
 		this.fields = config.fields;
 		this.session = config.session;
@@ -83,13 +91,15 @@ export class SQLiteSelectBuilder<
 
 	from<TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL>(
 		source: TFrom,
-	): CreateSQLiteSelectFromBuilderMode<
-		TBuilderMode,
+	): SQLiteSelectKind<
+		THKT,
 		GetSelectTableName<TFrom>,
-		TResultType,
 		TRunResult,
 		TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection,
-		TSelection extends undefined ? 'single' : 'partial'
+		TSelection extends undefined ? 'single' : 'partial',
+		GetSelectTableName<TFrom> extends string ? Record<GetSelectTableName<TFrom>, 'not-null'> : {},
+		false,
+		never
 	> {
 		const isPartialSelect = !!this.fields;
 
@@ -111,22 +121,21 @@ export class SQLiteSelectBuilder<
 			fields = getTableColumns<SQLiteTable>(source);
 		}
 
-		return new SQLiteSelectBase({
+		return new this.builder({
 			table: source,
 			fields,
 			isPartialSelect,
 			session: this.session,
 			dialect: this.dialect,
-			withList: this.withList,
+			withList: this.withList ?? [],
 			distinct: this.distinct,
 		}) as any;
 	}
 }
 
-export abstract class SQLiteSelectQueryBuilderBase<
+export class SQLiteSelectBase<
 	THKT extends SQLiteSelectHKTBase,
 	TTableName extends string | undefined,
-	TResultType extends 'sync' | 'async',
 	TRunResult,
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
@@ -143,7 +152,6 @@ export abstract class SQLiteSelectQueryBuilderBase<
 		readonly dialect: 'sqlite';
 		readonly hkt: THKT;
 		readonly tableName: TTableName;
-		readonly resultType: TResultType;
 		readonly runResult: TRunResult;
 		readonly selection: TSelection;
 		readonly selectMode: TSelectMode;
@@ -152,6 +160,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 		readonly excludedMethods: TExcludedMethods;
 		readonly result: TResult;
 		readonly selectedFields: TSelectedFields;
+		readonly config: SQLiteSelectConfig;
 	};
 
 	/** @internal */
@@ -159,15 +168,17 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	protected joinsNotNullableMap: Record<string, boolean>;
 	private tableName: string | undefined;
 	private isPartialSelect: boolean;
-	protected session: SQLiteSession<any, any, any, any> | undefined;
+	protected session: SQLiteSession<any, any> | undefined;
 	protected dialect: SQLiteDialect;
+	protected cacheConfig?: WithCacheConfig = undefined;
+	protected usedTables: Set<string> = new Set();
 
 	constructor(
 		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
 			table: SQLiteSelectConfig['table'];
 			fields: SQLiteSelectConfig['fields'];
 			isPartialSelect: boolean;
-			session: SQLiteSession<any, any, any, any> | undefined;
+			session: SQLiteSession<any, any> | undefined;
 			dialect: SQLiteDialect;
 			withList: Subquery[] | undefined;
 			distinct: boolean | undefined;
@@ -186,24 +197,39 @@ export abstract class SQLiteSelectQueryBuilderBase<
 		this.dialect = dialect;
 		this._ = {
 			selectedFields: fields as TSelectedFields,
+			config: this.config,
 		} as this['_'];
 		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
+		for (const item of extractUsedTable(table)) this.usedTables.add(item);
+	}
+
+	/** @internal */
+	getUsedTables() {
+		return [...this.usedTables];
 	}
 
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
-	): SQLiteSelectJoinFn<this, TDynamic, TJoinType> {
+	): 'cross' extends TJoinType ? SQLiteSelectCrossJoinFn<this, TDynamic>
+		: SQLiteSelectJoinFn<this, TDynamic, TJoinType>
+	{
 		return (
 			table: SQLiteTable | Subquery | SQLiteViewBase | SQL,
-			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
+			on?: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
 
+			// store all tables used in a query
+			for (const item of extractUsedTable(table)) this.usedTables.add(item);
+
 			if (typeof tableName === 'string' && this.config.joins?.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
 			}
+
+			this.config.fieldsFlat = undefined;
+			this.config.mapper = undefined;
 
 			if (!this.isPartialSelect) {
 				// If this is the first join and this is not a partial select and we're not selecting from raw SQL, "move" the fields from the main table to the nested object
@@ -249,6 +275,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 						this.joinsNotNullableMap[tableName] = true;
 						break;
 					}
+					case 'cross':
 					case 'inner': {
 						this.joinsNotNullableMap[tableName] = true;
 						break;
@@ -281,12 +308,12 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User; pets: Pet | null }[] = await db.select()
+	 * const usersWithPets: { user: User; pets: Pet | null; }[] = await db.select()
 	 *   .from(users)
 	 *   .leftJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number; petId: number | null }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number; petId: number | null; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -310,12 +337,12 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User | null; pets: Pet }[] = await db.select()
+	 * const usersWithPets: { user: User | null; pets: Pet; }[] = await db.select()
 	 *   .from(users)
 	 *   .rightJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number | null; petId: number }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number | null; petId: number; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -339,12 +366,12 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User; pets: Pet }[] = await db.select()
+	 * const usersWithPets: { user: User; pets: Pet; }[] = await db.select()
 	 *   .from(users)
 	 *   .innerJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number; petId: number }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number; petId: number; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -368,12 +395,12 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User | null; pets: Pet | null }[] = await db.select()
+	 * const usersWithPets: { user: User | null; pets: Pet | null; }[] = await db.select()
 	 *   .from(users)
 	 *   .fullJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number | null; petId: number | null }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number | null; petId: number | null; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -382,6 +409,34 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	 * ```
 	 */
 	fullJoin = this.createJoin('full');
+
+	/**
+	 * Executes a `cross join` operation by combining rows from two tables into a new table.
+	 *
+	 * Calling this method retrieves all rows from both main and joined tables, merging all rows from each table.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#cross-join}
+	 *
+	 * @param table the table to join.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Select all users, each user with every pet
+	 * const usersWithPets: { user: User; pets: Pet; }[] = await db.select()
+	 *   .from(users)
+	 *   .crossJoin(pets)
+	 *
+	 * // Select userId and petId
+	 * const usersIdsAndPetIds: { userId: number; petId: number; }[] = await db.select({
+	 *   userId: users.id,
+	 *   petId: pets.id,
+	 * })
+	 *   .from(users)
+	 *   .crossJoin(pets)
+	 * ```
+	 */
+	crossJoin = this.createJoin('cross');
 
 	private createSetOperator(
 		type: SetOperator,
@@ -637,7 +692,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	groupBy(
 		builder: (aliases: this['_']['selection']) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>,
 	): SQLiteSelectWithout<this, TDynamic, 'groupBy'>;
-	groupBy(...columns: (SQLiteColumn | SQL)[]): SQLiteSelectWithout<this, TDynamic, 'groupBy'>;
+	groupBy(...columns: (SQLiteColumn | SQL | SQL.Aliased)[]): SQLiteSelectWithout<this, TDynamic, 'groupBy'>;
 	groupBy(
 		...columns:
 			| [(aliases: this['_']['selection']) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>]
@@ -684,7 +739,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	orderBy(
 		builder: (aliases: this['_']['selection']) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>,
 	): SQLiteSelectWithout<this, TDynamic, 'orderBy'>;
-	orderBy(...columns: (SQLiteColumn | SQL)[]): SQLiteSelectWithout<this, TDynamic, 'orderBy'>;
+	orderBy(...columns: (SQLiteColumn | SQL | SQL.Aliased)[]): SQLiteSelectWithout<this, TDynamic, 'orderBy'>;
 	orderBy(
 		...columns:
 			| [(aliases: this['_']['selection']) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>]
@@ -767,21 +822,35 @@ export abstract class SQLiteSelectQueryBuilderBase<
 		return this as any;
 	}
 
-	/** @internal */
+	$withCache(config?: { config?: CacheConfig; tag?: string; autoInvalidate?: boolean } | false) {
+		this.cacheConfig = config === undefined
+			? { config: {}, enabled: true, autoInvalidate: true }
+			: config === false
+			? { enabled: false }
+			: { enabled: true, autoInvalidate: true, ...config };
+		return this;
+	}
+
 	getSQL(): SQL {
+		this.config.fieldsFlat ??= orderSelectedFields<SQLiteColumn>(this.config.fields, undefined, this.dialect.codecs);
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
 	toSQL(): Query {
-		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		return rest;
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	as<TAlias extends string>(
 		alias: TAlias,
 	): SubqueryWithSelection<this['_']['selectedFields'], TAlias> {
+		const usedTables: string[] = [];
+		usedTables.push(...extractUsedTable(this.config.table));
+		if (this.config.joins) { for (const it of this.config.joins) usedTables.push(...extractUsedTable(it.table)); }
+
 		return new Proxy(
-			new Subquery(this.getSQL(), this.config.fields, alias),
+			new Subquery(this.withoutSelectionCastCodecs().getSQL(), this.config.fields, alias, false, [
+				...new Set(usedTables),
+			]),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
 	}
@@ -794,110 +863,16 @@ export abstract class SQLiteSelectQueryBuilderBase<
 		) as this['_']['selectedFields'];
 	}
 
+	/** @internal */
+	override withoutSelectionCastCodecs(): this {
+		this.config.ignoreSelectionCastCodecs = true;
+		return this;
+	}
+
 	$dynamic(): SQLiteSelectDynamic<this> {
 		return this;
 	}
 }
-
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface SQLiteSelectBase<
-	TTableName extends string | undefined,
-	TResultType extends 'sync' | 'async',
-	TRunResult,
-	TSelection extends ColumnsSelection,
-	TSelectMode extends SelectMode = 'single',
-	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
-		: {},
-	TDynamic extends boolean = false,
-	TExcludedMethods extends string = never,
-	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
-	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
-> extends
-	SQLiteSelectQueryBuilderBase<
-		SQLiteSelectHKT,
-		TTableName,
-		TResultType,
-		TRunResult,
-		TSelection,
-		TSelectMode,
-		TNullabilityMap,
-		TDynamic,
-		TExcludedMethods,
-		TResult,
-		TSelectedFields
-	>,
-	QueryPromise<TResult>
-{}
-
-export class SQLiteSelectBase<
-	TTableName extends string | undefined,
-	TResultType extends 'sync' | 'async',
-	TRunResult,
-	TSelection,
-	TSelectMode extends SelectMode = 'single',
-	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
-		: {},
-	TDynamic extends boolean = false,
-	TExcludedMethods extends string = never,
-	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
-	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
-> extends SQLiteSelectQueryBuilderBase<
-	SQLiteSelectHKT,
-	TTableName,
-	TResultType,
-	TRunResult,
-	TSelection,
-	TSelectMode,
-	TNullabilityMap,
-	TDynamic,
-	TExcludedMethods,
-	TResult,
-	TSelectedFields
-> implements RunnableQuery<TResult, 'sqlite'>, SQLWrapper {
-	static override readonly [entityKind]: string = 'SQLiteSelect';
-
-	/** @internal */
-	_prepare(isOneTimeQuery = true): SQLiteSelectPrepare<this> {
-		if (!this.session) {
-			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
-		}
-		const fieldsList = orderSelectedFields<SQLiteColumn>(this.config.fields);
-		const query = this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
-			this.dialect.sqlToQuery(this.getSQL()),
-			fieldsList,
-			'all',
-			true,
-		);
-		query.joinsNotNullableMap = this.joinsNotNullableMap;
-		return query as ReturnType<this['prepare']>;
-	}
-
-	prepare(): SQLiteSelectPrepare<this> {
-		return this._prepare(false);
-	}
-
-	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
-		return this._prepare().run(placeholderValues);
-	};
-
-	all: ReturnType<this['prepare']>['all'] = (placeholderValues) => {
-		return this._prepare().all(placeholderValues);
-	};
-
-	get: ReturnType<this['prepare']>['get'] = (placeholderValues) => {
-		return this._prepare().get(placeholderValues);
-	};
-
-	values: ReturnType<this['prepare']>['values'] = (placeholderValues) => {
-		return this._prepare().values(placeholderValues);
-	};
-
-	async execute(): Promise<SQLiteSelectExecute<this>> {
-		return this.all() as SQLiteSelectExecute<this>;
-	}
-}
-
-applyMixins(SQLiteSelectBase, [QueryPromise]);
 
 function createSetOperator(type: SetOperator, isAll: boolean): SQLiteCreateSetOperatorFn {
 	return (leftSelect, rightSelect, ...restSelects) => {

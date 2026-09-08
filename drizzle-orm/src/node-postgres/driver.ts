@@ -1,56 +1,34 @@
 import pg, { type Pool, type PoolConfig } from 'pg';
 import { entityKind } from '~/entity.ts';
-import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { PgDatabase } from '~/pg-core/db.ts';
+import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
-import { type DrizzleConfig, isConfig } from '~/utils.ts';
+import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import { jitCompatCheck } from '~/utils.ts';
+import { nodePgCodecs } from './codecs.ts';
 import type { NodePgClient, NodePgQueryResultHKT } from './session.ts';
 import { NodePgSession } from './session.ts';
 
-export interface PgDriverOptions {
-	logger?: Logger;
-}
-
-export class NodePgDriver {
-	static readonly [entityKind]: string = 'NodePgDriver';
-
-	constructor(
-		private client: NodePgClient,
-		private dialect: PgDialect,
-		private options: PgDriverOptions = {},
-	) {
-	}
-
-	createSession(
-		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
-	): NodePgSession<Record<string, unknown>, TablesRelationalConfig> {
-		return new NodePgSession(this.client, this.dialect, schema, { logger: this.options.logger });
-	}
-}
-
 export class NodePgDatabase<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-> extends PgDatabase<NodePgQueryResultHKT, TSchema> {
+	TRelations extends AnyRelations = EmptyRelations,
+> extends PgAsyncDatabase<NodePgQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'NodePgDatabase';
 }
 
 function construct<
-	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends NodePgClient = NodePgClient,
 >(
 	client: TClient,
-	config: DrizzleConfig<TSchema> = {},
-): NodePgDatabase<TSchema> & {
-	$client: TClient;
+	config: DrizzlePgConfig<TRelations> = {},
+): NodePgDatabase<TRelations> & {
+	$client: NodePgClient extends TClient ? Pool : TClient;
 } {
-	const dialect = new PgDialect({ casing: config.casing });
+	const dialect = new PgDialect({
+		useJitMappers: jitCompatCheck(config.jit),
+		codecs: config.codecs ?? nodePgCodecs,
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -58,84 +36,82 @@ function construct<
 		logger = config.logger;
 	}
 
-	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
-	if (config.schema) {
-		const tablesConfig = extractTablesRelationalConfig(
-			config.schema,
-			createTableRelationsHelpers,
-		);
-		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
-			tableNamesMap: tablesConfig.tableNamesMap,
-		};
-	}
+	const relations = config.relations ?? {};
+	const session = new NodePgSession(client, dialect, relations, {
+		logger,
+		cache: config.cache,
+	});
 
-	const driver = new NodePgDriver(client, dialect, { logger });
-	const session = driver.createSession(schema);
-	const db = new NodePgDatabase(dialect, session, schema as any) as NodePgDatabase<TSchema>;
+	const db = new NodePgDatabase(
+		dialect,
+		session,
+		relations,
+	) as NodePgDatabase<TRelations>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }
 
 export function drizzle<
-	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends NodePgClient = Pool,
 >(
 	...params:
 		| [
-			TClient | string,
+			string,
 		]
 		| [
-			TClient | string,
-			DrizzleConfig<TSchema>,
+			string,
+			DrizzlePgConfig<TRelations>,
 		]
 		| [
-			(
-				& DrizzleConfig<TSchema>
-				& ({
-					connection: string | PoolConfig;
-				} | {
-					client: TClient;
-				})
-			),
+			& DrizzlePgConfig<TRelations>
+			& ({
+				client: TClient;
+			} | {
+				connection: string | PoolConfig;
+			}),
 		]
-): NodePgDatabase<TSchema> & {
-	$client: TClient;
+): NodePgDatabase<TRelations> & {
+	$client: NodePgClient extends TClient ? Pool : TClient;
 } {
 	if (typeof params[0] === 'string') {
 		const instance = new pg.Pool({
 			connectionString: params[0],
 		});
 
-		return construct(instance, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+		return construct(
+			instance,
+			params[1] as DrizzlePgConfig<TRelations> | undefined,
+		) as any;
 	}
 
-	if (isConfig(params[0])) {
-		const { connection, client, ...drizzleConfig } = params[0] as (
-			& ({ connection?: PoolConfig | string; client?: TClient })
-			& DrizzleConfig<TSchema>
-		);
+	const { connection, client, ...drizzlePgCDrizzlePgConfig } = params[0] as (
+		& ({ connection?: PoolConfig | string; client?: TClient })
+		& DrizzlePgConfig<TRelations>
+	);
 
-		if (client) return construct(client, drizzleConfig);
+	if (client) return construct(client, drizzlePgCDrizzlePgConfig);
 
-		const instance = typeof connection === 'string'
-			? new pg.Pool({
-				connectionString: connection,
-			})
-			: new pg.Pool(connection!);
+	const instance = typeof connection === 'string'
+		? new pg.Pool({
+			connectionString: connection,
+		})
+		: new pg.Pool(connection!);
 
-		return construct(instance, drizzleConfig) as any;
-	}
-
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	return construct(instance, drizzlePgCDrizzlePgConfig) as any;
 }
 
 export namespace drizzle {
-	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
-		config?: DrizzleConfig<TSchema>,
-	): NodePgDatabase<TSchema> & {
+	export function mock<
+		TRelations extends AnyRelations = EmptyRelations,
+	>(
+		config?: DrizzlePgConfig<TRelations>,
+	): NodePgDatabase<TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;

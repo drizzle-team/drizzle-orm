@@ -1,6 +1,7 @@
-import { ConnectionOptions } from 'tls';
-import type { Driver, Prefix } from './cli/validations/common';
-import type { Dialect } from './schemaValidator';
+import type { PGlite } from '@electric-sql/pglite';
+import type { ConnectionOptions } from 'tls';
+import type { Driver } from './cli/validations/common';
+import type { Dialect } from './utils/schemaValidator';
 
 // import {SslOptions} from 'mysql2'
 type SslOptions = {
@@ -53,7 +54,7 @@ type Verify<T, U extends T> = U;
  *
  * ---
  *
- * `migrations` - param let’s use specify custom table and schema(PostgreSQL only) for migrations.
+ * `migrations` - param let’s you specify a custom table and schema(PostgreSQL only) for migrations.
  * By default, all information about executed migrations will be stored in the database inside
  * the `__drizzle_migrations` table, and for PostgreSQL, inside the drizzle schema.
  * However, you can configure where to store those records.
@@ -116,12 +117,9 @@ export type Config =
 		schemaFilter?: string | string[];
 		schema?: string | string[];
 		verbose?: boolean;
-		strict?: boolean;
-		casing?: 'camelCase' | 'snake_case';
 		migrations?: {
 			table?: string;
 			schema?: string;
-			prefix?: Prefix;
 		};
 		introspect?: {
 			casing: 'camel' | 'preserve';
@@ -182,6 +180,11 @@ export type Config =
 			};
 		}
 		| {
+			dialect: Verify<Dialect, 'postgresql'>;
+			driver: Verify<Driver, 'pglite'>;
+			client: PGlite;
+		}
+		| {
 			dialect: Verify<Dialect, 'mysql'>;
 			dbCredentials:
 				| {
@@ -213,6 +216,10 @@ export type Config =
 			dialect: Verify<Dialect, 'sqlite'>;
 			driver: Verify<Driver, 'durable-sqlite'>;
 		}
+		| {
+			dialect: Verify<Dialect, 'sqlite'>;
+			driver: Verify<Driver, 'sqlite-cloud'>;
+		}
 		| {}
 		| {
 			dialect: Verify<Dialect, 'singlestore'>;
@@ -229,6 +236,52 @@ export type Config =
 					url: string;
 				};
 		}
+		// TODO update?
+		| {
+			dialect: Verify<Dialect, 'mssql'>;
+			dbCredentials:
+				| {
+					port: number;
+					user: string;
+					password: string;
+					database: string;
+					server: string;
+					options?: {
+						encrypt?: boolean;
+						trustServerCertificate?: boolean;
+					};
+				}
+				| {
+					url: string;
+				};
+		}
+		| {
+			dialect: Verify<Dialect, 'cockroach'>;
+			dbCredentials:
+				| ({
+					host: string;
+					port?: number;
+					user?: string;
+					password?: string;
+					database: string;
+					ssl?:
+						| boolean
+						| 'require'
+						| 'allow'
+						| 'prefer'
+						| 'verify-full'
+						| ConnectionOptions;
+				} & {})
+				| {
+					url: string;
+				};
+		}
+		| {
+			dialect: Verify<Dialect, 'duckdb'>;
+			dbCredentials: {
+				url: string;
+			};
+		}
 	);
 
 /**
@@ -238,7 +291,7 @@ export type Config =
  * **Config** usage:
  *
  * `dialect` - mandatory and is responsible for explicitly providing a databse dialect you are using for all the commands
- * *Possible values*: `postgresql`, `mysql`, `sqlite`, `singlestore`
+ * *Possible values*: `postgresql`, `mysql`, `sqlite`, `singlestore`, `gel`
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#dialect
  *
@@ -268,7 +321,7 @@ export type Config =
  *
  * ---
  *
- * `migrations` - param let’s use specify custom table and schema(PostgreSQL only) for migrations.
+ * `migrations` - param let’s you specify a custom table and schema(PostgreSQL only) for migrations.
  * By default, all information about executed migrations will be stored in the database inside
  * the `__drizzle_migrations` table, and for PostgreSQL, inside the drizzle schema.
  * However, you can configure where to store those records.

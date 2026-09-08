@@ -1,0 +1,83 @@
+name: Drizzle check
+description: Run the project's `drizzle-kit check` and post the result as a sticky PR comment; fails on conflicts.
+
+inputs:
+  config:
+    description: Path to the drizzle config file, relative to working-directory.
+    required: false
+    default: drizzle.config.ts
+  working-directory:
+    description: Directory to run the check in.
+    required: false
+    default: .
+  github-token:
+    description: 'Token used to post the sticky PR comment. Needs `pull-requests: write`.'
+    required: false
+    default: ${{ github.token }}
+  diagram:
+    description: >-
+      Whether to include a Mermaid diagram of the conflicting migrations in the PR comment
+      (true/false). When unset, the diagram is included where GitHub renders Mermaid:
+      github.com, GitHub Enterprise Cloud, and GitHub Enterprise Server 3.7+.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - id: check
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        DRIZZLE_CONFIG: ${{ inputs.config }}
+      run: |
+        # In monorepos the lockfile usually lives above working-directory; walk up to find it.
+        dir=$(pwd)
+        pm_exec="npx --no-install"
+        while :; do
+          if [ -f "$dir/pnpm-lock.yaml" ]; then pm_exec="pnpm exec"; break; fi
+          if [ -f "$dir/yarn.lock" ]; then pm_exec="yarn"; break; fi
+          if [ -f "$dir/bun.lockb" ] || [ -f "$dir/bun.lock" ]; then pm_exec="bun x"; break; fi
+          if [ "$dir" = "/" ] || [ "$dir" = "${GITHUB_WORKSPACE:-}" ]; then break; fi
+          dir=$(dirname "$dir")
+        done
+
+        if ! $pm_exec drizzle-kit --version >/dev/null 2>&1; then
+          echo "::error::drizzle-kit could not be resolved in $(pwd) (tried '$pm_exec drizzle-kit')."
+          {
+            echo "not_found=true"
+            echo "envelope="
+            echo "exit_code=127"
+            echo "pm_exec=$pm_exec"
+          } >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        set +e
+        envelope=$($pm_exec drizzle-kit check --config "$DRIZZLE_CONFIG" --output json)
+        code=$?
+        set -e
+
+        delimiter="DRIZZLE_ENVELOPE_$RANDOM$RANDOM"
+        {
+          echo "not_found=false"
+          echo "envelope<<$delimiter"
+          echo "$envelope"
+          echo "$delimiter"
+          echo "exit_code=$code"
+          echo "pm_exec=$pm_exec"
+        } >> "$GITHUB_OUTPUT"
+
+    - id: comment
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        DRIZZLE_CHECK_ENVELOPE: ${{ steps.check.outputs.envelope }}
+        DRIZZLE_CHECK_EXIT_CODE: ${{ steps.check.outputs.exit_code }}
+        DRIZZLE_CHECK_NOT_FOUND: ${{ steps.check.outputs.not_found }}
+        DRIZZLE_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        DRIZZLE_PM_EXEC: ${{ steps.check.outputs.pm_exec }}
+        DRIZZLE_CONFIG: ${{ inputs.config }}
+        DRIZZLE_DIAGRAM: ${{ inputs.diagram }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: node "${{ github.action_path }}/post-comment.mjs"

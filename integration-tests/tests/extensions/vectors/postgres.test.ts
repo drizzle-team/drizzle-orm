@@ -1,85 +1,13 @@
-import Docker from 'dockerode';
-import { eq, hammingDistance, jaccardDistance, l2Distance, not, sql } from 'drizzle-orm';
-import { bigserial, bit, halfvec, pgTable, sparsevec, vector } from 'drizzle-orm/pg-core';
-import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import getPort from 'get-port';
-import postgres, { type Sql } from 'postgres';
-import { v4 as uuid } from 'uuid';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import type { Pool } from '@drizzle-team/minipg';
+import { defineRelations, eq, hammingDistance, jaccardDistance, l2Distance, not, sql } from 'drizzle-orm';
+import { bigserial, bit, customType, halfvec, integer, pgTable, sparsevec, vector } from 'drizzle-orm/pg-core';
+import type { PostgresDatabase } from 'drizzle-orm/postgres';
+import { drizzle } from 'drizzle-orm/postgres';
+import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 
 const ENABLE_LOGGING = false;
 
-let pgContainer: Docker.Container;
-let docker: Docker;
-let client: Sql;
-let db: PostgresJsDatabase;
-
-async function createDockerDB(): Promise<string> {
-	const inDocker = (docker = new Docker());
-	const port = await getPort({ port: 5432 });
-	const image = 'pgvector/pgvector:pg16';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		inDocker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	);
-
-	pgContainer = await docker.createContainer({
-		Image: image,
-		Env: ['POSTGRES_PASSWORD=postgres', 'POSTGRES_USER=postgres', 'POSTGRES_DB=postgres'],
-		name: `drizzle-integration-tests-${uuid()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'5432/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await pgContainer.start();
-
-	return `postgres://postgres:postgres@localhost:${port}/postgres`;
-}
-
-beforeAll(async () => {
-	const connectionString = process.env['PG_VECTOR_CONNECTION_STRING'] ?? (await createDockerDB());
-
-	const sleep = 250;
-	let timeLeft = 5000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			client = postgres(connectionString, {
-				max: 1,
-				onnotice: () => {
-					// disable notices
-				},
-			});
-			await client`select 1`;
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to Postgres');
-		await client?.end().catch(console.error);
-		await pgContainer?.stop().catch(console.error);
-		throw lastError;
-	}
-	db = drizzle(client, { logger: ENABLE_LOGGING });
-
-	await db.execute(sql`CREATE EXTENSION IF NOT EXISTS vector;`);
-});
-
-afterAll(async () => {
-	await client?.end().catch(console.error);
-	await pgContainer?.stop().catch(console.error);
-});
+let db: PostgresDatabase<typeof relations> & { $client: Pool };
 
 const items = pgTable('items', {
 	id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -89,15 +17,37 @@ const items = pgTable('items', {
 	sparsevec: sparsevec('sparsevec', { dimensions: 5 }),
 });
 
+const relations = defineRelations({ items }, (r) => ({
+	items: {
+		self: r.many.items({
+			from: r.items.id,
+			to: r.items.id,
+		}),
+	},
+}));
+
+beforeAll(async () => {
+	const connectionString = process.env['PG_VECTOR_CONNECTION_STRING'];
+	if (!connectionString) throw new Error('PG_VECTOR_CONNECTION_STRING is not set in env variables');
+
+	db = drizzle(connectionString, { logger: ENABLE_LOGGING, relations });
+
+	await db.execute(sql`CREATE EXTENSION IF NOT EXISTS vector;`);
+});
+
+afterAll(async () => {
+	await db?.$client.end().catch(console.error);
+});
+
 beforeEach(async () => {
 	await db.execute(sql`drop table if exists items cascade`);
 	await db.execute(sql`
 		CREATE TABLE items (
-		          id bigserial PRIMARY KEY, 
+		          id bigserial PRIMARY KEY,
 		          "vector" vector(3),
 		          "bit" bit(3),
 		          "halfvec" halfvec(3),
-		          "sparsevec" sparsevec(5) 
+		          "sparsevec" sparsevec(5)
 		      );
 	`);
 });
@@ -189,7 +139,7 @@ test('insert + order by subquery', async () => {
 
 	expect(query.toSQL()).toStrictEqual({
 		sql:
-			'select "id", "vector", "bit", "halfvec", "sparsevec" from "items" where not "items"."id" = $1 order by "items"."vector" <-> (select "vector" from "items" where "items"."id" = $2) limit $3',
+			'select "id", "vector", "bit", "halfvec", "sparsevec" from "items" where not ("items"."id" = $1) order by "items"."vector" <-> (select "vector" from "items" where "items"."id" = $2) limit $3',
 		params: [1, 1, 5],
 	});
 	const res = await query;
@@ -380,4 +330,126 @@ test('select + insert all vectors', async () => {
 		halfvec: [1, 2, 3],
 		sparsevec: '{1:1,3:2,5:3}/5',
 	}]);
+});
+
+test('null vectors survive driver-side parsing', async () => {
+	await db.insert(items).values([{}]);
+
+	const response = await db.select().from(items);
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		vector: null,
+		bit: null,
+		halfvec: null,
+		sparsevec: null,
+	}]);
+});
+
+test('vector arrays are parsed item by item', async () => {
+	await db.execute(sql`drop table if exists vector_arrays cascade`);
+	await db.execute(sql`
+		CREATE TABLE vector_arrays (
+			id integer PRIMARY KEY,
+			"vectors" vector(3)[]
+		);
+	`);
+
+	const vectorArrays = pgTable('vector_arrays', {
+		id: integer('id').primaryKey(),
+		vectors: vector('vectors', { dimensions: 3 }).array(),
+	});
+
+	await db.insert(vectorArrays).values({ id: 1, vectors: [[1, 2, 3], [4, 5, 6]] });
+
+	const response = await db.select().from(vectorArrays);
+
+	expect(response).toStrictEqual([{ id: 1, vectors: [[1, 2, 3], [4, 5, 6]] }]);
+
+	await db.execute(sql`drop table vector_arrays cascade`);
+});
+
+test('halfvec and sparsevec arrays are parsed item by item', async () => {
+	await db.execute(sql`drop table if exists vec_arrays cascade`);
+	await db.execute(sql`
+		CREATE TABLE vec_arrays (
+			id integer PRIMARY KEY,
+			"halfvecs" halfvec(3)[],
+			"sparsevecs" sparsevec(5)[]
+		);
+	`);
+
+	const vecArrays = pgTable('vec_arrays', {
+		id: integer('id').primaryKey(),
+		halfvecs: halfvec('halfvecs', { dimensions: 3 }).array(),
+		sparsevecs: sparsevec('sparsevecs', { dimensions: 5 }).array(),
+	});
+
+	await db.insert(vecArrays).values({
+		id: 1,
+		halfvecs: [[1, 2, 3], [4, 5, 6]],
+		sparsevecs: ['{1:1,3:2,5:3}/5', '{2:9}/5'],
+	});
+
+	const response = await db.select().from(vecArrays);
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		halfvecs: [[1, 2, 3], [4, 5, 6]],
+		sparsevecs: ['{1:1,3:2,5:3}/5', '{2:9}/5'],
+	}]);
+
+	await db.execute(sql`drop table vec_arrays cascade`);
+});
+
+test('a custom column over a vector type decodes on top of the parsed vector', async () => {
+	await db.execute(sql`drop table if exists custom_vectors cascade`);
+	await db.execute(sql`
+		CREATE TABLE custom_vectors (
+			id integer PRIMARY KEY,
+			"summed" vector(3)
+		);
+	`);
+
+	const summedVector = customType<{ data: number; driverData: number[]; config: { dimensions: number } }>({
+		dataType: (config) => `vector(${config!.dimensions})`,
+		codec: 'vector',
+		toDriver: () => sql`'[1,2,3]'`,
+		fromDriver: (value) => value.reduce((acc, v) => acc + v, 0),
+	});
+
+	const customVectors = pgTable('custom_vectors', {
+		id: integer('id').primaryKey(),
+		summed: summedVector('summed', { dimensions: 3 }),
+	});
+
+	await db.insert(customVectors).values({ id: 1, summed: 0 });
+
+	const response = await db.select().from(customVectors);
+	expect(response).toStrictEqual([{ id: 1, summed: 6 }]);
+
+	await db.execute(sql`drop table custom_vectors cascade`);
+});
+
+test('RQBv2', async () => {
+	await db.insert(items).values([{
+		vector: [3, 1, 2],
+		bit: '000',
+		halfvec: [1, 2, 3],
+		sparsevec: '{1:1,3:2,5:3}/5',
+	}]).returning();
+
+	const rawResponse = await db.select().from(items);
+	const rootRqbResponse = await db.query.items.findMany();
+	const { self: nestedRqbResponse } = (await db.query.items.findFirst({
+		with: {
+			self: true,
+		},
+	}))!;
+
+	expectTypeOf(rootRqbResponse).toEqualTypeOf(rawResponse);
+	expectTypeOf(nestedRqbResponse).toEqualTypeOf(rawResponse);
+
+	expect(rootRqbResponse).toStrictEqual(rawResponse);
+	expect(nestedRqbResponse).toStrictEqual(rawResponse);
 });

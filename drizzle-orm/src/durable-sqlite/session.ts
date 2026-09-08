@@ -1,18 +1,18 @@
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders, type Query } from '~/sql/sql.ts';
-import { type SQLiteSyncDialect, SQLiteTransaction } from '~/sqlite-core/index.ts';
-import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types.ts';
+import type { AnyRelations } from '~/relations.ts';
+import type { Query } from '~/sql/sql.ts';
 import {
-	type PreparedQueryConfig as PreparedQueryConfigBase,
-	type SQLiteExecuteMethod,
-	SQLiteSession,
-	type SQLiteTransactionConfig,
-} from '~/sqlite-core/session.ts';
-import { SQLitePreparedQuery as PreparedQueryBase } from '~/sqlite-core/session.ts';
-import { mapResultRow } from '~/utils.ts';
+	SQLiteAsyncPreparedQuery,
+	type SQLiteAsyncPreparedQueryConfig as PreparedQueryConfigBase,
+	SQLiteAsyncSession,
+	SQLiteAsyncTransaction,
+	type SQLiteQueryExecutors,
+} from '~/sqlite-core/async/session.ts';
+import type { SQLiteDialect } from '~/sqlite-core/index.ts';
+import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
+import type { DrizzleTypeError } from '~/utils.ts';
 
 export interface SQLiteDOSessionOptions {
 	logger?: Logger;
@@ -20,162 +20,123 @@ export interface SQLiteDOSessionOptions {
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
-export class SQLiteDOSession<TFullSchema extends Record<string, unknown>, TSchema extends TablesRelationalConfig>
-	extends SQLiteSession<
-		'sync',
-		SqlStorageCursor<Record<string, SqlStorageValue>>,
-		TFullSchema,
-		TSchema
-	>
-{
+export type DurableSQLiteRunResult = SqlStorageCursor<Record<string, SqlStorageValue>>;
+
+export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteAsyncSession<
+	'sync',
+	DurableSQLiteRunResult,
+	TRelations
+> {
 	static override readonly [entityKind]: string = 'SQLiteDOSession';
 
 	private logger: Logger;
 
 	constructor(
 		private client: DurableObjectStorage,
-		dialect: SQLiteSyncDialect,
-		private schema: RelationalSchemaConfig<TSchema> | undefined,
-		options: SQLiteDOSessionOptions = {},
+		dialect: SQLiteDialect,
+		private relations: TRelations,
+		private options: SQLiteDOSessionOptions = {},
 	) {
-		super(dialect);
+		super(dialect, 'sync');
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		executeMethod: SQLiteExecuteMethod,
-		isResponseInArrayMode: boolean,
-		customResultMapper?: (rows: unknown[][]) => unknown,
-	): SQLiteDOPreparedQuery<T> {
-		return new SQLiteDOPreparedQuery(
-			this.client,
-			query,
-			this.logger,
-			fields,
+		mode: 'arrays' | 'objects' | 'raw',
+		_prepare: boolean,
+		executeMethod?: SQLiteExecuteMethod,
+		mapper?: (rows: any[]) => any,
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+	): SQLiteAsyncPreparedQuery<T & { run: DurableSQLiteRunResult }> {
+		const executors: SQLiteQueryExecutors<'sync'> = {
+			all: (params) => {
+				const res = params.length > 0
+					? this.client.sql.exec(query.sql, ...params)
+					: this.client.sql.exec(query.sql);
+
+				if (mode === 'objects') return res.toArray();
+				// @ts-ignore .raw().toArray() exists
+				return res.raw().toArray();
+			},
+			get: (params) => {
+				const res = params.length > 0
+					? this.client.sql.exec(query.sql, ...params)
+					: this.client.sql.exec(query.sql);
+
+				if (mode === 'objects') return res.one();
+
+				return res.raw().next().value;
+			},
+			run: (params) => {
+				return params.length > 0
+					? this.client.sql.exec(query.sql, ...params)
+					: this.client.sql.exec(query.sql);
+			},
+			values: (params) => {
+				const res = params.length > 0
+					? this.client.sql.exec(query.sql, ...params)
+					: this.client.sql.exec(query.sql);
+
+				// @ts-ignore .raw().toArray() exists
+				return res.raw().toArray();
+			},
+		};
+
+		return new SQLiteAsyncPreparedQuery(
+			'sync',
 			executeMethod,
-			isResponseInArrayMode,
-			customResultMapper,
+			executors,
+			query,
+			mapper,
+			mode,
+			this.logger,
+			undefined,
+			queryMetadata,
+			undefined,
 		);
 	}
 
 	override transaction<T>(
 		transaction: (
-			tx: SQLiteTransaction<'sync', SqlStorageCursor<Record<string, SqlStorageValue>>, TFullSchema, TSchema>,
+			tx: SQLiteAsyncTransaction<
+				'sync',
+				DurableSQLiteRunResult,
+				TRelations
+			>,
 		) => T,
-		_config?: SQLiteTransactionConfig,
+		config?: SQLiteTransactionConfig,
 	): T {
-		const tx = new SQLiteDOTransaction('sync', this.dialect, this, this.schema);
-		this.client.transactionSync(() => {
-			transaction(tx);
-		});
-		return {} as any;
+		if (config?.behavior) {
+			throw new Error('Transaction behavior is not supported by driver');
+		}
+		const tx = new SQLiteDOTransaction('sync', this.dialect, this, this.relations, undefined, true);
+		return this.client.transactionSync(() => transaction(tx));
 	}
 }
 
-export class SQLiteDOTransaction<TFullSchema extends Record<string, unknown>, TSchema extends TablesRelationalConfig>
-	extends SQLiteTransaction<
-		'sync',
-		SqlStorageCursor<Record<string, SqlStorageValue>>,
-		TFullSchema,
-		TSchema
-	>
+export class SQLiteDOTransaction<TRelations extends AnyRelations>
+	extends SQLiteAsyncTransaction<'sync', DurableSQLiteRunResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'SQLiteDOTransaction';
 
-	override transaction<T>(transaction: (tx: SQLiteDOTransaction<TFullSchema, TSchema>) => T): T {
-		const tx = new SQLiteDOTransaction('sync', this.dialect, this.session, this.schema, this.nestedIndex + 1);
-		this.session.transaction(() => transaction(tx));
-
-		return {} as any;
-	}
-}
-
-export class SQLiteDOPreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<{
-	type: 'sync';
-	run: void;
-	all: T['all'];
-	get: T['get'];
-	values: T['values'];
-	execute: T['execute'];
-}> {
-	static override readonly [entityKind]: string = 'SQLiteDOPreparedQuery';
-
-	constructor(
-		private client: DurableObjectStorage,
-		query: Query,
-		private logger: Logger,
-		private fields: SelectedFieldsOrdered | undefined,
-		executeMethod: SQLiteExecuteMethod,
-		private _isResponseInArrayMode: boolean,
-		private customResultMapper?: (rows: unknown[][]) => unknown,
-	) {
-		super('sync', executeMethod, query);
-	}
-
-	run(placeholderValues?: Record<string, unknown>): void {
-		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-		this.logger.logQuery(this.query.sql, params);
-
-		params.length > 0 ? this.client.sql.exec(this.query.sql, ...params) : this.client.sql.exec(this.query.sql);
-	}
-
-	all(placeholderValues?: Record<string, unknown>): T['all'] {
-		const { fields, joinsNotNullableMap, query, logger, client, customResultMapper } = this;
-		if (!fields && !customResultMapper) {
-			const params = fillPlaceholders(query.params, placeholderValues ?? {});
-			logger.logQuery(query.sql, params);
-
-			return params.length > 0 ? client.sql.exec(query.sql, ...params).toArray() : client.sql.exec(query.sql).toArray();
-		}
-
-		const rows = this.values(placeholderValues) as unknown[][];
-
-		if (customResultMapper) {
-			return customResultMapper(rows) as T['all'];
-		}
-
-		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
-	}
-
-	get(placeholderValues?: Record<string, unknown>): T['get'] {
-		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-		this.logger.logQuery(this.query.sql, params);
-
-		const { fields, client, joinsNotNullableMap, customResultMapper, query } = this;
-		if (!fields && !customResultMapper) {
-			return params.length > 0 ? client.sql.exec(query.sql, ...params).one() : client.sql.exec(query.sql).one();
-		}
-
-		const rows = this.values(placeholderValues) as unknown[][];
-		const row = rows[0];
-
-		if (!row) {
-			return undefined;
-		}
-
-		if (customResultMapper) {
-			return customResultMapper(rows) as T['get'];
-		}
-
-		return mapResultRow(fields!, row, joinsNotNullableMap);
-	}
-
-	values(placeholderValues?: Record<string, unknown>): T['values'] {
-		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-		this.logger.logQuery(this.query.sql, params);
-
-		const res = params.length > 0
-			? this.client.sql.exec(this.query.sql, ...params)
-			: this.client.sql.exec(this.query.sql);
-
-		// @ts-ignore .raw().toArray() exists
-		return res.raw().toArray();
-	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
+	override transaction<T>(
+		transaction: (
+			tx: SQLiteDOTransaction<TRelations>,
+		) => T extends Promise<any> ? DrizzleTypeError<"Sync drivers can't use async functions in transactions!">
+			: T,
+	): T {
+		const tx = new SQLiteDOTransaction(
+			'sync',
+			this.dialect,
+			this.session,
+			this._.relations,
+			this.nestedIndex + 1,
+			true,
+		);
+		return this.session.transaction(() => transaction(tx)) as T;
 	}
 }

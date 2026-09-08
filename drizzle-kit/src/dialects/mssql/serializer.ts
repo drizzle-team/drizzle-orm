@@ -1,0 +1,75 @@
+import { humanLog, mssqlSchemaError } from '../../cli/views';
+import { findLeafSnapshotIds } from '../../utils/utils-node';
+import type { MssqlDDL } from './ddl';
+import { createDDL, interimToDDL } from './ddl';
+import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
+import type { MssqlSnapshot } from './snapshot';
+import { drySnapshot, snapshotValidator } from './snapshot';
+
+export const prepareSnapshot = async (
+	snapshots: string[],
+	filenames: string[],
+): Promise<{
+	ddlPrev: MssqlDDL;
+	ddlCur: MssqlDDL;
+	snapshot: MssqlSnapshot;
+	snapshotPrev: MssqlSnapshot;
+	custom: MssqlSnapshot;
+}> => {
+	const { readFileSync } = await import('fs');
+	const { randomUUID } = await import('crypto');
+	const prevSnapshot = snapshots.length === 0
+		? drySnapshot
+		: snapshotValidator.strict(
+			JSON.parse(readFileSync(snapshots[snapshots.length - 1]).toString()),
+		);
+
+	const ddlPrev = createDDL();
+	for (const entry of prevSnapshot.ddl) {
+		ddlPrev.entities.push(entry);
+	}
+
+	const res = await prepareFromSchemaFiles(filenames);
+
+	// DO we wanna respect entity filter here?
+	const { schema, errors } = fromDrizzleSchema(res, () => true);
+
+	if (errors.length > 0) {
+		humanLog(errors.map((it) => mssqlSchemaError(it)).join('\n'));
+		process.exit(1);
+	}
+
+	const { ddl: ddlCur, errors: errors2 } = interimToDDL(schema);
+
+	if (errors2.length > 0) {
+		humanLog(errors2.map((it) => mssqlSchemaError(it)).join('\n'));
+		process.exit(1);
+	}
+
+	const id = randomUUID();
+	const prevIds = snapshots.length === 0 ? [prevSnapshot.id] : findLeafSnapshotIds(snapshots);
+
+	const snapshot = {
+		version: '2',
+		dialect: 'mssql',
+		id,
+		prevIds,
+		ddl: ddlCur.entities.list(),
+		renames: [],
+	} satisfies MssqlSnapshot;
+
+	const {
+		id: _ignoredId,
+		prevIds: _ignoredPrevIds,
+		...prevRest
+	} = prevSnapshot;
+
+	// that's for custom migrations, when we need new IDs, but old snapshot
+	const custom: MssqlSnapshot = {
+		id,
+		prevIds,
+		...prevRest,
+	};
+
+	return { ddlPrev, ddlCur, snapshot, snapshotPrev: prevSnapshot, custom };
+};

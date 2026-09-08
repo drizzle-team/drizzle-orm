@@ -1,15 +1,12 @@
 import { entityKind } from '~/entity.ts';
-import { QueryPromise } from '~/query-promise.ts';
-import type { RunnableQuery } from '~/runnable-query.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { PgBasePreparedQuery } from '../session.ts';
 
-export interface PgRaw<TResult> extends QueryPromise<TResult>, RunnableQuery<TResult, 'pg'>, SQLWrapper {}
-
-export class PgRaw<TResult> extends QueryPromise<TResult>
-	implements RunnableQuery<TResult, 'pg'>, SQLWrapper, PreparedQuery
-{
-	static override readonly [entityKind]: string = 'PgRaw';
+// oxlint-disable-next-line no-unused-vars
+export interface PgRaw<TResult> extends SQLWrapper {}
+export class PgRaw<TResult> implements SQLWrapper, PreparedQuery {
+	static readonly [entityKind]: string = 'PgRaw';
 
 	declare readonly _: {
 		readonly dialect: 'pg';
@@ -17,15 +14,12 @@ export class PgRaw<TResult> extends QueryPromise<TResult>
 	};
 
 	constructor(
-		public execute: () => Promise<TResult>,
-		private sql: SQL,
-		private query: Query,
-		private mapBatchResult: (result: unknown) => unknown,
+		protected prepared: PgBasePreparedQuery,
+		protected sql: SQL,
+		protected query: Query,
 	) {
-		super();
 	}
 
-	/** @internal */
 	getSQL() {
 		return this.sql;
 	}
@@ -34,16 +28,8 @@ export class PgRaw<TResult> extends QueryPromise<TResult>
 		return this.query;
 	}
 
-	mapResult(result: unknown, isFromBatch?: boolean) {
-		return isFromBatch ? this.mapBatchResult(result) : result;
-	}
-
-	_prepare(): PreparedQuery {
-		return this;
-	}
-
 	/** @internal */
-	isResponseInArrayMode() {
-		return false;
+	_prepare() {
+		return this.prepared;
 	}
 }

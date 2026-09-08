@@ -1,8 +1,10 @@
 {
 	"compilerOptions": {
-		"target": "es2021",
-		"lib": ["es2021"],
+		"target": "ESNext",
+		"lib": ["ESNext"],
 		"types": ["node"],
+		"module": "preserve",
+		"moduleResolution": "bundler",
 		"strictNullChecks": true,
 		"strictFunctionTypes": false,
 		"allowJs": true,
@@ -12,13 +14,15 @@
 		"strict": true,
 		"noImplicitOverride": true,
 		"forceConsistentCasingInFileNames": true,
-		"module": "CommonJS",
-		"moduleResolution": "node",
 		"resolveJsonModule": true,
 		"noErrorTruncation": true,
 		"isolatedModules": true,
 		"sourceMap": true,
 		"baseUrl": ".",
+		"paths": {
+			"@/*": ["tests/fixtures/tsconfig-paths/src/*"],
+			"@profile": ["tests/fixtures/tsconfig-paths/src/profile/schema.ts"]
+		},
 		"outDir": "dist",
 		"noEmit": true,
 		"typeRoots": ["node_modules/@types", "src/@types"]

@@ -1,7 +1,8 @@
 /* eslint-disable drizzle-internal/require-entity-kind */
 import type BetterSqlite3 from 'better-sqlite3';
 import Database from 'better-sqlite3';
-import { eq, relations, sql } from 'drizzle-orm';
+import { defineRelations, eq, sql } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import type { SqliteRemoteDatabase, SqliteRemoteResult } from 'drizzle-orm/sqlite-proxy';
@@ -133,6 +134,8 @@ const schema = {
 	usersConfig,
 };
 
+const relationsV2 = defineRelations(schema);
+
 class ServerSimulator {
 	constructor(private db: BetterSqlite3.Database) {}
 
@@ -211,7 +214,7 @@ class ServerSimulator {
 	}
 }
 
-let db: SqliteRemoteDatabase<typeof schema>;
+let db: SqliteRemoteDatabase<typeof relationsV2>;
 let client: Database.Database;
 let serverSimulator: ServerSimulator;
 
@@ -249,7 +252,7 @@ beforeAll(async () => {
 			console.error('Error from sqlite proxy server:', e);
 			throw e;
 		}
-	}, { schema });
+	}, { relations: relationsV2 });
 });
 
 beforeEach(async () => {
@@ -335,8 +338,8 @@ afterAll(async () => {
 test('findMany + findOne api example', async () => {
 	const user = await db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id });
 	const insertRes = await db.insert(usersTable).values({ id: 2, name: 'Dan' });
-	const manyUsers = await db.query.usersTable.findMany({});
-	const oneUser = await db.query.usersTable.findFirst({});
+	const manyUsersV2 = await db.query.usersTable.findMany({});
+	const oneUserV2 = await db.query.usersTable.findFirst({});
 
 	expectTypeOf(user).toEqualTypeOf<
 		{
@@ -346,14 +349,14 @@ test('findMany + findOne api example', async () => {
 
 	expectTypeOf(insertRes).toEqualTypeOf<SqliteRemoteResult>;
 
-	expectTypeOf(manyUsers).toEqualTypeOf<{
+	expectTypeOf(manyUsersV2).toEqualTypeOf<{
 		id: number;
 		name: string;
 		verified: number;
 		invitedBy: number | null;
 	}[]>;
 
-	expectTypeOf(oneUser).toEqualTypeOf<
+	expectTypeOf(oneUserV2).toEqualTypeOf<
 		{
 			id: number;
 			name: string;
@@ -368,12 +371,12 @@ test('findMany + findOne api example', async () => {
 
 	expect(insertRes).toEqual({ rows: { changes: 1, lastInsertRowid: 2 } });
 
-	expect(manyUsers).toEqual([
+	expect(manyUsersV2).toEqual([
 		{ id: 1, name: 'John', verified: 0, invitedBy: null },
 		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
 	]);
 
-	expect(oneUser).toEqual(
+	expect(oneUserV2).toEqual(
 		{ id: 1, name: 'John', verified: 0, invitedBy: null },
 	);
 });
@@ -498,13 +501,14 @@ test('insert + findMany + findFirst', async () => {
 	);
 });
 
-test.skip('insert + db.all + db.get + db.values + db.run', async () => {
+// TODO: swap arrays for objects after adding object-mode querying support to proxy
+test('insert + db.all + db.get + db.values + db.run', async () => {
 	const batchResponse = await db.batch([
 		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 		db.run(sql`insert into users (id, name) values (2, 'Dan')`),
-		db.all<typeof usersTable.$inferSelect>(sql`select * from users`),
+		db.all<[number, string, number, number | null]>(sql`select * from users`),
 		db.values(sql`select * from users`),
-		db.get<typeof usersTable.$inferSelect>(sql`select * from users`),
+		db.get<[number, string, number, number | null]>(sql`select * from users`),
 	]);
 
 	expectTypeOf(batchResponse).toEqualTypeOf<[
@@ -512,19 +516,9 @@ test.skip('insert + db.all + db.get + db.values + db.run', async () => {
 			id: number;
 		}[],
 		SqliteRemoteResult,
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		}[],
+		[number, string, number, number | null][],
 		unknown[][],
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		},
+		[number, string, number, number | null],
 	]>();
 
 	expect(batchResponse.length).eq(5);
@@ -536,17 +530,27 @@ test.skip('insert + db.all + db.get + db.values + db.run', async () => {
 	expect(batchResponse[1]).toEqual({ changes: 1, lastInsertRowid: 2 });
 
 	expect(batchResponse[2]).toEqual([
-		{ id: 1, name: 'John', verified: 0, invited_by: null },
-		{ id: 2, name: 'Dan', verified: 0, invited_by: null },
+		[
+			1,
+			'John',
+			0,
+			null,
+		],
+		[
+			2,
+			'Dan',
+			0,
+			null,
+		],
 	]);
 
-	expect(batchResponse[3].map((row) => Array.prototype.slice.call(row))).toEqual([
+	expect(batchResponse[3]).toEqual([
 		[1, 'John', 0, null],
 		[2, 'Dan', 0, null],
 	]);
 
 	expect(batchResponse[4]).toEqual(
-		{ id: 1, name: 'John', verified: 0, invited_by: null },
+		[1, 'John', 0, null],
 	);
 });
 
@@ -594,6 +598,7 @@ test('insert + findManyWith + db.all', async () => {
 	expect(batchResponse[3]).toEqual([
 		[1, 'John', 0, null],
 		[2, 'Dan', 0, null],
+		// TODO: replace after adding object-mode querying to proxy api
 		// { id: 1, name: 'John', verified: 0, invited_by: null },
 		// { id: 2, name: 'Dan', verified: 0, invited_by: null },
 	]);

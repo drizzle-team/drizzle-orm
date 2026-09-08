@@ -1,0 +1,346 @@
+import { getTableName, is, SQL } from 'drizzle-orm';
+import { Relations } from 'drizzle-orm/_relations';
+import type { AnyMySqlColumn, AnyMySqlTable } from 'drizzle-orm/mysql-core';
+import {
+	getTableConfig,
+	getViewConfig,
+	MySqlChar,
+	MySqlColumn,
+	MySqlCustomColumn,
+	MySqlDateTime,
+	MySqlDialect,
+	MySqlEnumColumn,
+	MySqlTable,
+	MySqlText,
+	MySqlTimestamp,
+	MySqlVarChar,
+	MySqlView,
+} from 'drizzle-orm/mysql-core';
+import { loadModule } from '../../utils/utils-node';
+import { sqlToStr } from '../drizzle';
+import type { Column, InterimSchema } from './ddl';
+import { defaultNameForFK, nameForUnique, typeFor } from './grammar';
+
+export const defaultFromColumn = (
+	column: AnyMySqlColumn,
+): Column['default'] => {
+	if (typeof column.default === 'undefined') return null;
+	let value = column.default;
+
+	if (is(column.default, SQL)) {
+		let str = sqlToStr(column.default);
+		// we need to wrap unknown statements in () otherwise there's not enough info in Type.toSQL
+		if (!str.startsWith('(')) return `(${str})`;
+		return str;
+	}
+
+	if (is(column, MySqlCustomColumn)) {
+		const res = column.mapToDriverValue(column.default);
+		if (typeof res === 'string') value = res;
+		value = String(res);
+	}
+
+	const grammarType = typeFor(column.getSQLType().toLowerCase());
+	if (grammarType) return grammarType.defaultFromDrizzle(value);
+
+	throw new Error(`unexpected default: ${column.getSQLType().toLowerCase()} ${column.default}`);
+};
+
+export const upper = <T extends string>(value: T | undefined): Uppercase<T> | null => {
+	if (!value) return null;
+	return value.toUpperCase() as Uppercase<T>;
+};
+
+export const fromDrizzleSchema = (
+	tables: AnyMySqlTable[],
+	views: MySqlView[],
+): InterimSchema => {
+	const dialect = new MySqlDialect();
+	const result: InterimSchema = {
+		tables: [],
+		columns: [],
+		pks: [],
+		fks: [],
+		indexes: [],
+		checks: [],
+		views: [],
+		viewColumns: [],
+	};
+
+	for (const table of tables) {
+		const {
+			name: tableName,
+			columns,
+			indexes,
+			foreignKeys,
+			schema,
+			checks,
+			primaryKeys,
+			uniqueConstraints,
+		} = getTableConfig(table);
+
+		if (schema) continue;
+
+		result.tables.push({
+			entityType: 'tables',
+			name: tableName,
+		});
+
+		for (const column of columns) {
+			const { name } = column;
+			const notNull: boolean = column.notNull;
+
+			const sqlType = column.getSQLType().replace(', ', ','); // TODO: remove, should be redundant real(6, 3)->real(6,3)
+
+			const autoIncrement = typeof (column as any).autoIncrement === 'undefined'
+				? false
+				: (column as any).autoIncrement;
+
+			const generated: Column['generated'] = column.generated
+				? {
+					as: is(column.generated.as, SQL)
+						? dialect.sqlToQuery(column.generated.as as SQL).sql
+						: typeof column.generated.as === 'function'
+						? dialect.sqlToQuery(column.generated.as() as SQL).sql
+						: (column.generated.as as any),
+					type: column.generated.mode === 'virtual' ? 'virtual' : 'stored',
+				}
+				: null;
+
+			const defaultValue = defaultFromColumn(column);
+			const type = is(column, MySqlEnumColumn)
+				? `enum(${column.enumValues?.map((it) => `'${it.replaceAll("'", "''")}'`).join(',')})`
+				: sqlType;
+
+			let onUpdateNow: boolean = false;
+			let onUpdateNowFsp: number | null = null;
+			if (is(column, MySqlTimestamp) || is(column, MySqlDateTime)) {
+				onUpdateNow = column.hasOnUpdateNow ?? false;
+				onUpdateNowFsp = column.onUpdateNowFsp ?? null;
+			}
+
+			let charSet: string | null = null;
+			let collation: string | null = null;
+			if (is(column, MySqlChar) || is(column, MySqlVarChar) || is(column, MySqlText) || is(column, MySqlEnumColumn)) {
+				charSet = column.charSet;
+				collation = column.collation ?? null;
+			}
+
+			result.columns.push({
+				entityType: 'columns',
+				table: tableName,
+				name,
+				type,
+				notNull,
+				autoIncrement,
+				onUpdateNow,
+				onUpdateNowFsp,
+				charSet,
+				collation,
+				generated,
+				isPK: column.primary,
+				isUnique: column.isUnique,
+				uniqueName: column.uniqueName ?? null,
+				default: defaultValue,
+			});
+		}
+
+		for (const pk of primaryKeys) {
+			const columnNames = pk.columns.map((c: any) => c.name);
+
+			result.pks.push({
+				entityType: 'pks',
+				table: tableName,
+				name: 'PRIMARY',
+				columns: columnNames,
+			});
+		}
+
+		for (const unique of uniqueConstraints) {
+			const columns = unique.columns.map((c) => {
+				if (is(c, SQL)) {
+					const sql = dialect.sqlToQuery(c).sql;
+					return { value: sql, isExpression: true };
+				}
+				return { value: c.name, isExpression: false };
+			});
+
+			const name = unique.isNameExplicit
+				? unique.name
+				: nameForUnique(tableName, unique.columns.filter((c) => !is(c, SQL)).map((c) => c.name));
+
+			result.indexes.push({
+				entityType: 'indexes',
+				table: tableName,
+				name: name,
+				columns: columns,
+				isUnique: true,
+				algorithm: null,
+				lock: null,
+				using: null,
+				nameExplicit: unique.isNameExplicit,
+			});
+		}
+
+		for (const fk of foreignKeys) {
+			const reference = fk.reference();
+			const referenceFT = reference.foreignTable;
+
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+			const tableTo = getTableName(referenceFT);
+
+			const columnsFrom = reference.columns.map((it) => it.name);
+			const columnsTo = reference.foreignColumns.map((it) => it.name);
+
+			let name = fk.isNameExplicit()
+				? fk.getName()
+				: defaultNameForFK({ table: tableName, columns: columnsFrom, tableTo, columnsTo });
+
+			result.fks.push({
+				entityType: 'fks',
+				table: tableName,
+				name,
+				columns: columnsFrom,
+				tableTo,
+				columnsTo,
+				onUpdate: upper(fk.onUpdate) ?? 'NO ACTION',
+				onDelete: upper(fk.onDelete) ?? 'NO ACTION',
+				nameExplicit: fk.isNameExplicit(),
+			});
+		}
+
+		for (const index of indexes) {
+			const columns = index.config.columns;
+			const name = index.config.name;
+
+			result.indexes.push({
+				entityType: 'indexes',
+				table: tableName,
+				name,
+				columns: columns.map((it) => {
+					if (is(it, SQL)) {
+						const sql = dialect.sqlToQuery(it, 'indexes').sql;
+						return { value: sql, isExpression: true };
+					} else {
+						return { value: `${it.name}`, isExpression: false };
+					}
+				}),
+				algorithm: index.config.algorithm ?? null,
+				lock: index.config.lock ?? null,
+				isUnique: index.config.unique ?? false,
+				using: index.config.using ?? null,
+				nameExplicit: index.isNameExplicit,
+			});
+		}
+
+		for (const check of checks) {
+			const name = check.name;
+			const value = check.value;
+
+			result.checks.push({
+				entityType: 'checks',
+				table: tableName,
+				name,
+				value: dialect.sqlToQuery(value).sql,
+			});
+		}
+	}
+
+	for (
+		// this sort fixes this issue: https://github.com/drizzle-team/drizzle-orm/issues/4520
+		// When using `prepareFromSchemaFiles` to read schema files, views were returned in an unpredictable order
+		// (not in order that is was declared in schema.ts).
+		// This caused dependent views to appear before their dependencies,
+		// which breaks migration
+		const view of views.sort((a, b) => {
+			const aConfig = getViewConfig(a);
+			const bConfig = getViewConfig(b);
+
+			// If a's fields include b, a depends on b → b comes first
+			if (aConfig.query?.queryChunks.includes(b)) return 1;
+
+			// If b's fields include a, b depends on a → a comes first
+			if (bConfig.query?.queryChunks.includes(a)) return -1;
+
+			return 0;
+		})
+	) {
+		const cfg = getViewConfig(view);
+		const {
+			isExisting,
+			name,
+			query,
+			selectedFields,
+			algorithm,
+			sqlSecurity,
+			withCheckOption,
+		} = cfg;
+
+		if (isExisting) continue;
+
+		for (const key in selectedFields) {
+			if (is(selectedFields[key], MySqlColumn)) {
+				const column = selectedFields[key];
+				const notNull: boolean = column.notNull;
+
+				result.viewColumns.push({
+					view: name,
+					name: column.name,
+					type: column.getSQLType(),
+					notNull: notNull,
+				});
+			}
+		}
+
+		result.views.push({
+			entityType: 'views',
+			name,
+			definition: query ? dialect.sqlToQuery(query).sql : '',
+			withCheckOption: withCheckOption ?? null,
+			algorithm: algorithm ?? 'undefined', // set default values
+			sqlSecurity: sqlSecurity ?? 'definer', // set default values
+		});
+	}
+
+	return result;
+};
+
+export const prepareFromSchemaFiles = async (imports: string[]) => {
+	const tables: AnyMySqlTable[] = [];
+	const views: MySqlView[] = [];
+	const relations: Relations[] = [];
+
+	for (let i = 0; i < imports.length; i++) {
+		const it = imports[i];
+		const i0: Record<string, unknown> = await loadModule(it);
+		const prepared = prepareFromExports(i0);
+
+		tables.push(...prepared.tables);
+		views.push(...prepared.views);
+		relations.push(...prepared.relations);
+	}
+	return { tables: Array.from(new Set(tables)), views, relations };
+};
+
+export const prepareFromExports = (exports: Record<string, unknown>) => {
+	const tables: AnyMySqlTable[] = [];
+	const views: MySqlView[] = [];
+	const relations: Relations[] = [];
+
+	const i0values = Object.values(exports);
+	i0values.forEach((t) => {
+		if (is(t, MySqlTable)) {
+			tables.push(t);
+		}
+
+		if (is(t, MySqlView)) {
+			views.push(t);
+		}
+
+		if (is(t, Relations)) {
+			relations.push(t);
+		}
+	});
+
+	return { tables, views, relations };
+};

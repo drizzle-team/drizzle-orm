@@ -1,0 +1,935 @@
+import { describe, expect, test } from 'vitest';
+import type { AnyColumn } from '~/column';
+import { boolean, date, integer, pgTable, text } from '~/pg-core';
+import { drizzle } from '~/pglite';
+import {
+	defineRelations,
+	EmptyFilter,
+	relationExtrasToSQL,
+	relationsFilterToSQL,
+	relationsOrderToSQL,
+} from '~/relations';
+import type { OrderBy, OrderByOperators, TableFilter } from '~/relations';
+import {
+	and,
+	arrayContained,
+	arrayContains,
+	arrayOverlaps,
+	asc,
+	desc,
+	eq,
+	gt,
+	gte,
+	ilike,
+	inArray,
+	isNotNull,
+	isNull,
+	like,
+	lt,
+	lte,
+	ne,
+	not,
+	notIlike,
+	notInArray,
+	notLike,
+	or,
+	type SQL,
+	sql,
+	StringChunk,
+} from '~/sql';
+import type { AnyTable, Table } from '~/table';
+import type { Simplify, ValueOrArray } from '~/utils';
+
+const table = pgTable('test', {
+	string: text(),
+	number: integer(),
+	arr: integer().array(),
+	date: date('date', {
+		mode: 'date',
+	}),
+});
+
+// oxlint-disable-next-line unicorn/no-useless-undefined
+const returnUndefined = () => undefined;
+
+const buildFilter = <TTable extends Table>(table: TTable, filter: TableFilter<TTable>) =>
+	relationsFilterToSQL(table, filter as TableFilter);
+
+describe('Filters', () => {
+	test('No shortcuts for object-type data', () => {
+		try {
+			buildFilter(table, {
+				// @ts-expect-error
+				date: new Date(),
+			});
+			buildFilter(table, {
+				date: sql.placeholder('date'),
+			});
+			buildFilter(table, {
+				date: {
+					eq: new Date(),
+				},
+			});
+			buildFilter(table, {
+				date: {
+					eq: sql.placeholder('date'),
+				},
+			});
+		} catch {
+			return;
+		}
+	});
+
+	test('eq shortcut', () => {
+		expect(buildFilter(table, {
+			number: 1,
+		})).toStrictEqual(and(eq(table.number, 1)));
+	});
+
+	test('eq', () => {
+		expect(buildFilter(table, {
+			number: {
+				eq: 2,
+			},
+			date: EmptyFilter,
+		})).toStrictEqual(and(and(eq(table.number, 2))));
+	});
+
+	test('ne', () => {
+		expect(buildFilter(table, {
+			number: {
+				ne: 2,
+			},
+			date: EmptyFilter,
+		})).toStrictEqual(and(and(ne(table.number, 2))));
+	});
+
+	test('gt', () => {
+		expect(buildFilter(table, {
+			number: {
+				gt: 2,
+			},
+		})).toStrictEqual(and(and(gt(table.number, 2))));
+	});
+
+	test('gte', () => {
+		expect(buildFilter(table, {
+			number: {
+				gte: 2,
+			},
+		})).toStrictEqual(and(and(gte(table.number, 2))));
+	});
+
+	test('lt', () => {
+		expect(buildFilter(table, {
+			number: {
+				lt: 2,
+			},
+		})).toStrictEqual(and(and(lt(table.number, 2))));
+	});
+
+	test('lte', () => {
+		expect(buildFilter(table, {
+			number: {
+				lte: 2,
+			},
+		})).toStrictEqual(and(and(lte(table.number, 2))));
+	});
+
+	test('ilike', () => {
+		expect(buildFilter(table, {
+			string: {
+				ilike: '%I',
+			},
+		})).toStrictEqual(and(and(ilike(table.string, '%I'))));
+	});
+
+	test('like', () => {
+		expect(buildFilter(table, {
+			string: {
+				like: '%I',
+			},
+		})).toStrictEqual(and(and(like(table.string, '%I'))));
+	});
+
+	test('notIlike', () => {
+		expect(buildFilter(table, {
+			string: {
+				notIlike: '%I',
+			},
+		})).toStrictEqual(and(and(notIlike(table.string, '%I'))));
+	});
+
+	test('notLike', () => {
+		expect(buildFilter(table, {
+			string: {
+				notLike: '%I',
+			},
+		})).toStrictEqual(and(and(notLike(table.string, '%I'))));
+	});
+
+	test('in', () => {
+		expect(buildFilter(table, {
+			number: {
+				in: [2, 3],
+			},
+		})).toStrictEqual(and(and(inArray(table.number, [2, 3]))));
+	});
+
+	test('notIn', () => {
+		expect(buildFilter(table, {
+			number: {
+				notIn: [2, 3],
+			},
+		})).toStrictEqual(and(and(notInArray(table.number, [2, 3]))));
+	});
+
+	test('arrayContains', () => {
+		expect(buildFilter(table, {
+			arr: {
+				arrayContains: [2, 3],
+			},
+		})).toStrictEqual(and(and(arrayContains(table.arr, [2, 3]))));
+	});
+
+	test('arrayContained', () => {
+		expect(buildFilter(table, {
+			arr: {
+				arrayContained: [2, 3],
+			},
+		})).toStrictEqual(and(and(arrayContained(table.arr, [2, 3]))));
+	});
+
+	test('arrayOverlaps', () => {
+		expect(buildFilter(table, {
+			arr: {
+				arrayOverlaps: [2, 3],
+			},
+		})).toStrictEqual(and(and(arrayOverlaps(table.arr, [2, 3]))));
+	});
+
+	test('isNotNull', () => {
+		expect(buildFilter(table, {
+			number: {
+				isNotNull: true,
+			},
+		})).toStrictEqual(and(and(isNotNull(table.number))));
+	});
+
+	test('isNull', () => {
+		expect(buildFilter(table, {
+			number: {
+				isNull: true,
+			},
+		})).toStrictEqual(and(and(isNull(table.number))));
+	});
+
+	test('column NOT', () => {
+		expect(buildFilter(table, {
+			number: {
+				NOT: {
+					isNull: true,
+				},
+			},
+		})).toStrictEqual(and(and(not(and(isNull(table.number))!))));
+	});
+
+	test('column OR', () => {
+		expect(buildFilter(table, {
+			number: {
+				OR: [{
+					isNull: true,
+				}, {
+					isNotNull: true,
+				}],
+			},
+		})).toStrictEqual(and(and(or(and(isNull(table.number)), and(isNotNull(table.number))!))));
+	});
+
+	test('RAW', () => {
+		expect(buildFilter(table, {
+			RAW: (t, { sql }) => sql`${t} ${t.string} ${t.date} ${t.number}`,
+		})).toStrictEqual(and(sql`${table} ${table.string} ${table.date} ${table.number}`));
+	});
+
+	test('NOT', () => {
+		expect(buildFilter(table, {
+			NOT: {
+				number: {
+					eq: 2,
+				},
+			},
+		})).toStrictEqual(and(not(and(and(eq(table.number, 2)))!)));
+	});
+
+	test('NOT', () => {
+		expect(buildFilter(table, {
+			OR: [{
+				number: {
+					eq: 2,
+				},
+			}, {
+				string: 'str',
+			}],
+		})).toStrictEqual(and(
+			or(
+				and(and(eq(table.number, 2))),
+				and(eq(table.string, 'str')),
+			)!,
+		));
+	});
+
+	test('AND', () => {
+		expect(buildFilter(table, {
+			number: {
+				OR: [1, 2],
+			},
+			string: 'str',
+		})).toStrictEqual(and(
+			and(or(eq(table.number, 1), eq(table.number, 2))),
+			eq(table.string, 'str'),
+		));
+	});
+
+	test('EmptyFilter skips column field', () => {
+		expect(buildFilter(table, {
+			number: {
+				eq: 2,
+			},
+			string: EmptyFilter,
+			date: EmptyFilter,
+		})).toStrictEqual(and(and(eq(table.number, 2))));
+	});
+
+	test('EmptyFilter skips field operator', () => {
+		expect(buildFilter(table, {
+			number: {
+				eq: 2,
+				gt: EmptyFilter,
+			},
+		})).toStrictEqual(and(and(eq(table.number, 2))));
+	});
+
+	test('EmptyFilter as whole filter returns undefined', () => {
+		expect(relationsFilterToSQL(table, EmptyFilter)).toStrictEqual(undefined);
+	});
+
+	test('undefined column field throws', () => {
+		expect(() =>
+			buildFilter(table, {
+				date: undefined,
+			})
+		).toThrowError(
+			`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
+		);
+	});
+
+	test('undefined field operator throws', () => {
+		expect(() =>
+			buildFilter(table, {
+				number: {
+					eq: undefined,
+				},
+			})
+		).toThrowError(
+			`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
+		);
+	});
+
+	test('undefined whole filter throws', () => {
+		expect(() => relationsFilterToSQL(table, undefined)).toThrowError(
+			`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
+		);
+	});
+
+	test('undefined in field OR array throws', () => {
+		expect(() =>
+			buildFilter(table, {
+				number: {
+					OR: [{ eq: 2 }, undefined],
+				},
+			} as any)
+		).toThrowError(
+			`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
+		);
+	});
+
+	test('undefined in field AND array throws', () => {
+		expect(() =>
+			buildFilter(table, {
+				number: {
+					AND: [undefined],
+				},
+			} as any)
+		).toThrowError(
+			`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
+		);
+	});
+
+	test('undefined nested in field NOT -> OR array throws', () => {
+		expect(() =>
+			buildFilter(table, {
+				number: {
+					NOT: { OR: [undefined] },
+				},
+			} as any)
+		).toThrowError(
+			`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
+		);
+	});
+
+	test('EmptyFilter in field OR array is skipped', () => {
+		expect(buildFilter(table, {
+			number: {
+				OR: [EmptyFilter, { eq: 2 }],
+			},
+		} as any)).toStrictEqual(buildFilter(table, {
+			number: {
+				OR: [{ eq: 2 }],
+			},
+		} as any));
+	});
+
+	test('undefined in relation-level structural keys throws', () => {
+		for (const key of ['OR', 'AND', 'NOT', 'RAW'] as const) {
+			expect(() => buildFilter(table, { [key]: undefined } as any), `${key}: undefined`).toThrowError(
+				`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
+			);
+		}
+	});
+
+	test('OR set to EmptyFilter is skipped', () => {
+		expect(buildFilter(table, { OR: EmptyFilter } as any)).toStrictEqual(undefined);
+		expect(buildFilter(table, { OR: EmptyFilter, number: 1 } as any)).toStrictEqual(and(eq(table.number, 1)));
+	});
+
+	test('AND set to EmptyFilter is skipped', () => {
+		expect(buildFilter(table, { AND: EmptyFilter } as any)).toStrictEqual(undefined);
+		expect(buildFilter(table, { AND: EmptyFilter, number: 1 } as any)).toStrictEqual(and(eq(table.number, 1)));
+	});
+
+	test('NOT set to EmptyFilter is skipped', () => {
+		expect(buildFilter(table, { NOT: EmptyFilter } as any)).toStrictEqual(undefined);
+		expect(buildFilter(table, { NOT: EmptyFilter, number: 1 } as any)).toStrictEqual(and(eq(table.number, 1)));
+	});
+
+	test('RAW set to EmptyFilter is skipped', () => {
+		expect(buildFilter(table, { RAW: EmptyFilter } as any)).toStrictEqual(undefined);
+		expect(buildFilter(table, { RAW: EmptyFilter, number: 1 } as any)).toStrictEqual(and(eq(table.number, 1)));
+	});
+
+	test('RAW callback returning EmptyFilter is skipped', () => {
+		expect(buildFilter(table, { RAW: () => EmptyFilter })).toStrictEqual(undefined);
+		expect(buildFilter(table, { RAW: () => EmptyFilter, number: 1 })).toStrictEqual(and(eq(table.number, 1)));
+	});
+
+	test('RAW callback returning SQL still applies', () => {
+		expect(buildFilter(table, { RAW: (t, { sql }) => sql`${t.number} > 1` }))
+			.toStrictEqual(and(sql`${table.number} > 1`));
+	});
+
+	test('empty field OR array throws', () => {
+		expect(() =>
+			buildFilter(table, {
+				number: {
+					OR: [],
+				},
+			} as any)
+		).toThrowError(
+			"Unexpected empty array in filters' 'OR' section. Omit field or use 'EmptyFilter' if you want filter to be skipped.",
+		);
+	});
+
+	test('empty field AND array throws', () => {
+		expect(() =>
+			buildFilter(table, {
+				number: {
+					AND: [],
+				},
+			} as any)
+		).toThrowError(
+			"Unexpected empty array in filters' 'AND' section. Omit field or use 'EmptyFilter' if you want filter to be skipped.",
+		);
+	});
+
+	test('empty relation-level OR array throws', () => {
+		expect(() => buildFilter(table, { OR: [] } as any)).toThrowError(
+			"Unexpected empty array in filters' 'OR' section. Omit field or use 'EmptyFilter' if you want filter to be skipped.",
+		);
+	});
+
+	test('empty relation-level AND array throws', () => {
+		expect(() => buildFilter(table, { AND: [] } as any)).toThrowError(
+			"Unexpected empty array in filters' 'AND' section. Omit field or use 'EmptyFilter' if you want filter to be skipped.",
+		);
+	});
+
+	test('nested empty array throws through recursion', () => {
+		expect(() =>
+			buildFilter(table, {
+				AND: [{ OR: [] }],
+			} as any)
+		).toThrowError(
+			"Unexpected empty array in filters' 'OR' section. Omit field or use 'EmptyFilter' if you want filter to be skipped.",
+		);
+	});
+
+	test('array of only EmptyFilter is skipped, not treated as empty', () => {
+		expect(buildFilter(table, { number: { OR: [EmptyFilter] } } as any)).toStrictEqual(undefined);
+		expect(buildFilter(table, { OR: [EmptyFilter] } as any)).toStrictEqual(undefined);
+		expect(buildFilter(table, { AND: [EmptyFilter] } as any)).toStrictEqual(undefined);
+	});
+
+	test('Nothing generates for empty OR', () => {
+		expect(buildFilter(table, {
+			OR: [
+				{ number: EmptyFilter },
+				{ string: EmptyFilter, date: EmptyFilter },
+				{ number: { eq: EmptyFilter, gt: EmptyFilter } },
+			],
+		})).toStrictEqual(undefined);
+	});
+
+	test('Nothing generates for empty AND', () => {
+		expect(buildFilter(table, {
+			AND: [
+				{ number: EmptyFilter },
+				{ OR: [{ string: EmptyFilter }] },
+				{ NOT: { number: EmptyFilter } },
+			],
+		})).toStrictEqual(undefined);
+	});
+
+	test('Non-empty OR with empty elements', () => {
+		expect(buildFilter(table, {
+			OR: [
+				{ number: EmptyFilter },
+				{ string: 'str' },
+				{ date: EmptyFilter },
+			],
+		})).toStrictEqual(and(or(and(eq(table.string, 'str')))!));
+	});
+
+	test('Non-empty AND with empty elements', () => {
+		expect(buildFilter(table, {
+			AND: [
+				{ number: EmptyFilter },
+				{ string: 'str' },
+				{ number: { gt: 2, lt: EmptyFilter } },
+			],
+		})).toStrictEqual(and(
+			and(
+				and(eq(table.string, 'str')),
+				and(and(gt(table.number, 2))),
+			)!,
+		));
+	});
+
+	test('Nothing generates for deep empty AND, OR, NOT', () => {
+		expect(buildFilter(table, {
+			AND: [{
+				OR: [{
+					NOT: {
+						AND: [{ number: EmptyFilter }, { string: { OR: [{ in: EmptyFilter }] } }],
+					},
+				}, {
+					number: {
+						NOT: EmptyFilter,
+						AND: [{ gt: EmptyFilter }],
+					},
+				}],
+			}],
+		})).toStrictEqual(undefined);
+	});
+
+	test('Nothing generates for deep empty AND, OR, NOT, non-empty values preserved', () => {
+		expect(buildFilter(table, {
+			AND: [{
+				OR: [
+					{ number: EmptyFilter },
+					{ AND: [{ string: EmptyFilter }, { number: { in: [1, 2], gt: EmptyFilter } }] },
+				],
+			}],
+		})).toStrictEqual(and(and(and(
+			or(
+				and(and(and(and(inArray(table.number, [1, 2]))))),
+			)!,
+		))));
+	});
+
+	test('Column-level OR/AND nested with EmptyFilter branches', () => {
+		expect(buildFilter(table, {
+			number: {
+				OR: [
+					{ AND: [{ gt: 1 }, { lt: EmptyFilter }] },
+					{ NOT: { eq: EmptyFilter } },
+				],
+			},
+		})).toStrictEqual(and(and(or(and(and(and(gt(table.number, 1)))))!)));
+	});
+
+	test('Nothing generates for empty column-level nested NOT', () => {
+		expect(buildFilter(table, {
+			number: {
+				NOT: { eq: EmptyFilter, OR: [{ eq: EmptyFilter }] },
+			},
+			string: 'str',
+		})).toStrictEqual(and(eq(table.string, 'str')));
+	});
+});
+
+const buildOrder = <TTable extends Table>(
+	table: TTable,
+	order:
+		| {
+			[K in keyof TTable['_']['columns']]?: 'asc' | 'desc' | undefined;
+		}
+		| ((
+			fields: Simplify<
+				AnyTable<TTable['_']> & TTable['_']['columns']
+			>,
+			operators: OrderByOperators,
+		) => ValueOrArray<AnyColumn | SQL> | undefined),
+) => relationsOrderToSQL(table, order as OrderBy);
+
+describe('Orders', () => {
+	test('Callback column', () => {
+		expect(buildOrder(table, ({ date }) => date)).toStrictEqual(asc(table.date));
+	});
+
+	test('Callback SQL', () => {
+		expect(buildOrder(table, ({ date }, { desc }) => desc(date))).toStrictEqual(desc(table.date));
+	});
+
+	test('Callback array', () => {
+		expect(buildOrder(table, ({ date, number, string }, { asc, desc }) => [desc(date), asc(number), string]))
+			.toStrictEqual(sql.join([desc(table.date), asc(table.number), asc(table.string)], new StringChunk(`, `)));
+	});
+
+	test('Object', () => {
+		expect(buildOrder(table, {
+			string: 'desc',
+			number: undefined,
+			date: 'asc',
+		})).toStrictEqual(sql.join([desc(table.string), asc(table.date)], new StringChunk(`, `)));
+	});
+
+	test('Undefined object', () => {
+		expect(buildOrder(table, {
+			number: undefined,
+			date: undefined,
+		})).toStrictEqual(undefined);
+	});
+
+	test('Empty object', () => {
+		expect(buildOrder(table, {})).toStrictEqual(undefined);
+	});
+
+	test('Callback returning undefined', () => {
+		expect(buildOrder(table, returnUndefined)).toStrictEqual(undefined);
+	});
+
+	test('Callback returning empty array', () => {
+		expect(buildOrder(table, () => [])).toStrictEqual(undefined);
+	});
+});
+
+describe('Extras', () => {
+	test('Callback returning undefined is skipped', () => {
+		const res = relationExtrasToSQL(table, {
+			skipped: returnUndefined,
+		});
+		expect(res.sql).toStrictEqual(undefined);
+		expect(res.selection).toStrictEqual([]);
+	});
+
+	test('Callback returning undefined is skipped alongside kept extras', () => {
+		const res = relationExtrasToSQL(table, {
+			skipped: returnUndefined,
+			keptCb: () => sql`1`,
+			keptRaw: sql`1`,
+			keptAs: sql`1`.as('1'),
+		});
+		expect(res.selection.map((s) => s.key)).toStrictEqual(['keptCb', 'keptRaw', 'keptAs']);
+		expect(res.sql).not.toStrictEqual(undefined);
+	});
+});
+
+test('Relation & colum names collision', () => {
+	expect(() =>
+		defineRelations({ table }, (r) => ({
+			table: {
+				string: r.one.table(),
+			},
+		}))
+	).toThrowError(
+		`relations -> table: { string: r.one.table(...) }: relation name collides with column "string" of table "table"`,
+	);
+});
+
+const users = pgTable('users', {
+	id: integer(),
+});
+const posts = pgTable('posts', {
+	id: integer(),
+	authorId: integer(),
+});
+
+describe('Relation config where', () => {
+	test('omitted where does not throw', () => {
+		expect(() =>
+			defineRelations({ users, posts }, (r) => ({
+				users: {
+					posts: r.many.posts({
+						from: r.users.id,
+						to: r.posts.authorId,
+					}),
+				},
+			}))
+		).not.toThrow();
+	});
+
+	test('EmptyFilter where does not throw', () => {
+		expect(() =>
+			defineRelations({ users, posts }, (r) => ({
+				users: {
+					posts: r.many.posts({
+						from: r.users.id,
+						to: r.posts.authorId,
+						where: EmptyFilter,
+					}),
+				},
+			}))
+		).not.toThrow();
+	});
+
+	test('undefined where throws', () => {
+		expect(() =>
+			defineRelations({ users, posts }, (r) => ({
+				users: {
+					posts: r.many.posts({
+						from: r.users.id,
+						to: r.posts.authorId,
+						where: undefined,
+					}),
+				},
+			}))
+		).toThrowError(
+			`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
+		);
+	});
+});
+
+describe('Reverse-derived relation filter binding (isFilterReversed)', () => {
+	const filterUsers = pgTable('users', { id: integer(), name: text() });
+	const filterPosts = pgTable('posts', { id: integer(), authorId: integer(), published: boolean() });
+	const filterSchema = { users: filterUsers, posts: filterPosts };
+
+	test('own where on a reverse-derived relation binds to the target table', () => {
+		const db = drizzle.mock({
+			relations: defineRelations(filterSchema, (r) => ({
+				posts: { author: r.one.users({ from: r.posts.authorId, to: r.users.id }) },
+				users: { posts: r.many.posts({ where: { published: true } }) },
+			})),
+		});
+
+		const { sql } = db.query.users.findMany({ with: { posts: true } }).toSQL();
+		expect(sql).toContain('where (("d0"."id" = "d1"."authorId") and ("d1"."published" = $1))');
+		expect(sql).not.toContain('"d0"."published"');
+	});
+
+	test('inherited where on a reverse-derived relation binds to the source table', () => {
+		const db = drizzle.mock({
+			relations: defineRelations(filterSchema, (r) => ({
+				posts: { author: r.one.users({ from: r.posts.authorId, to: r.users.id, where: { name: 'x' } }) },
+				users: { posts: r.many.posts() },
+			})),
+		});
+
+		const { sql } = db.query.users.findMany({ with: { posts: true } }).toSQL();
+		expect(sql).toContain('where (("d0"."id" = "d1"."authorId") and ("d0"."name" = $1))');
+		expect(sql).not.toContain('"d1"."name"');
+	});
+});
+
+describe('Relation names shadowing Object.prototype properties', () => {
+	const results = pgTable('results', { id: integer(), constructorId: integer() });
+	const constructors = pgTable('constructors', { id: integer(), name: text() });
+	const protoSchema = { results, constructors };
+
+	test('relation named "constructor" does not falsely collide with columns', () => {
+		expect(() =>
+			defineRelations(protoSchema, (r) => ({
+				results: {
+					constructor: r.one.constructors({ from: r.results.constructorId, to: r.constructors.id }),
+				},
+			}))
+		).not.toThrow();
+	});
+
+	test('filter on a relation named "constructor" builds a relation filter', () => {
+		const db = drizzle.mock({
+			relations: defineRelations(protoSchema, (r) => ({
+				results: {
+					constructor: r.one.constructors({ from: r.results.constructorId, to: r.constructors.id }),
+				},
+			})),
+		});
+
+		const { sql } = db.query.results.findMany({ where: { constructor: { id: 1 } } }).toSQL();
+		expect(sql).toContain('exists (select * from "constructors" as "f0" where');
+		expect(sql).not.toContain('"d0"."constructor"');
+	});
+
+	test('unknown filter field named after an inherited property throws', () => {
+		expect(() =>
+			buildFilter(table, {
+				toString: {
+					eq: 1,
+				},
+			} as any)
+		).toThrowError('Unknown relational filter field: "toString"');
+	});
+});
+
+describe('Relational filter EmptyFilter behavior', () => {
+	const relUsers = pgTable('user', { id: integer(), a: text(), b: text() });
+	const relData = pgTable('data', { id: integer(), userId: integer(), email: text(), username: text() });
+	const relTags = pgTable('tags', { id: integer(), dataId: integer(), name: text() });
+	const relSchema = { user: relUsers, data: relData, tags: relTags };
+
+	const db = drizzle.mock({
+		relations: defineRelations(relSchema, (r) => ({
+			user: { data: r.many.data({ from: r.user.id, to: r.data.userId }) },
+			data: { tags: r.many.tags({ from: r.data.id, to: r.tags.dataId }) },
+		})),
+	});
+
+	test('Nothing generates for empty relational filter', () => {
+		const { sql } = db.query.user.findMany({
+			where: {
+				data: {
+					OR: [{ email: EmptyFilter }, { username: EmptyFilter }],
+				},
+			},
+		}).toSQL();
+
+		expect(sql).not.toContain('exists');
+		expect(sql).not.toContain('where');
+	});
+
+	test('EmptyFilter values act as no values present', () => {
+		const reduced = db.query.user.findMany({
+			where: { a: 'x', data: { email: EmptyFilter, username: { eq: EmptyFilter } } },
+		}).toSQL();
+		const omitted = db.query.user.findMany({ where: { a: 'x' } }).toSQL();
+
+		expect(reduced.sql).toStrictEqual(omitted.sql);
+		expect(reduced.params).toStrictEqual(omitted.params);
+	});
+
+	test('Nothing generates for relational EmptyFilter', () => {
+		const { sql } = db.query.user.findMany({ where: { data: EmptyFilter } }).toSQL();
+
+		expect(sql).not.toContain('exists');
+	});
+
+	test('Nothing generates for Nested relational EmptyFilter', () => {
+		const { sql } = db.query.user.findMany({
+			where: {
+				OR: [
+					{ a: EmptyFilter },
+					{ b: EmptyFilter },
+					{ data: { OR: [{ email: EmptyFilter }, { username: EmptyFilter }] } },
+				],
+			},
+		}).toSQL();
+
+		expect(sql).not.toContain('exists');
+		expect(sql).not.toContain('where');
+	});
+
+	test('Top level OR survives with non-empty value', () => {
+		const { sql, params } = db.query.user.findMany({
+			where: {
+				OR: [
+					{ a: 'x' },
+					{ data: { OR: [{ email: EmptyFilter }, { username: EmptyFilter }] } },
+				],
+			},
+		}).toSQL();
+
+		expect(sql).not.toContain('exists');
+		expect(sql).toContain('where "d0"."a" = $1');
+		expect(params).toStrictEqual(['x']);
+	});
+
+	test('Top level AND survives with non-empty value', () => {
+		const { sql, params } = db.query.user.findMany({
+			where: {
+				AND: [
+					{ data: { email: EmptyFilter } },
+					{ data: { username: 'u' } },
+				],
+			},
+		}).toSQL();
+
+		expect(sql).toContain('exists (select * from "data" as "f0" where (("d0"."id" = "f0"."userId")');
+		expect(sql).toContain('"f0"."username" = $1');
+		expect(params).toStrictEqual(['u']);
+		expect(sql.match(/exists/g)).toHaveLength(1);
+	});
+
+	test('Nothing generates for nested empty relational filter', () => {
+		const { sql } = db.query.user.findMany({
+			where: {
+				data: {
+					tags: { name: EmptyFilter, OR: [{ id: EmptyFilter }] },
+				},
+			},
+		}).toSQL();
+
+		expect(sql).not.toContain('exists');
+		expect(sql).not.toContain('where');
+	});
+
+	test('Nested relational filter keeps every EXISTS entry', () => {
+		const { sql, params } = db.query.user.findMany({
+			where: {
+				data: {
+					email: EmptyFilter,
+					tags: { name: 't' },
+				},
+			},
+		}).toSQL();
+
+		expect(sql.match(/exists/g)).toHaveLength(2);
+		expect(sql).toContain('"f1"."name" = $1');
+		expect(params).toStrictEqual(['t']);
+	});
+
+	test('Nothing generates for keyless relational filter', () => {
+		const { sql } = db.query.user.findMany({ where: { data: {} } }).toSQL();
+
+		expect(sql).not.toContain('exists');
+		expect(sql).not.toContain('where');
+	});
+
+	test('Boolean relational filter emits `exists` queries', () => {
+		expect(db.query.user.findMany({ where: { data: true } }).toSQL().sql)
+			.toContain('where exists (select * from "data" as "f0" where "d0"."id" = "f0"."userId")');
+		expect(db.query.user.findMany({ where: { data: false } }).toSQL().sql)
+			.toContain('where not exists (select * from "data" as "f0" where "d0"."id" = "f0"."userId")');
+	});
+
+	test('Nothing generates for NOT on empty relational filter', () => {
+		const { sql } = db.query.user.findMany({
+			where: {
+				NOT: { data: { email: EmptyFilter } },
+			},
+		}).toSQL();
+
+		expect(sql).not.toContain('exists');
+		expect(sql).not.toContain('where');
+	});
+});

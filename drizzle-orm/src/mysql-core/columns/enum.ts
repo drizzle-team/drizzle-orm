@@ -1,45 +1,76 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
-import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
+import type { MySqlTable } from '~/mysql-core/table.ts';
+import type { NonArray, Writable } from '~/utils.ts';
+import { MySqlStringBaseColumn, MySqlStringColumnBaseBuilder } from './string.common.ts';
 
-export type MySqlEnumColumnBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> =
-	MySqlEnumColumnBuilder<{
-		name: TName;
-		dataType: 'string';
-		columnType: 'MySqlEnumColumn';
-		data: TEnum[number];
-		driverParam: string;
-		enumValues: TEnum;
-	}>;
-
-export class MySqlEnumColumnBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlEnumColumn'>>
-	extends MySqlColumnBuilder<T, { enumValues: T['enumValues'] }>
-{
+export class MySqlEnumColumnBuilder<TEnum extends [string, ...string[]]> extends MySqlStringColumnBaseBuilder<{
+	dataType: 'string enum';
+	data: TEnum[number];
+	driverParam: string;
+	enumValues: TEnum;
+}, { enumValues: TEnum }> {
 	static override readonly [entityKind]: string = 'MySqlEnumColumnBuilder';
 
-	constructor(name: T['name'], values: T['enumValues']) {
-		super(name, 'string', 'MySqlEnumColumn');
+	constructor(name: string, values: TEnum) {
+		super(name, 'string enum', 'MySqlEnumColumn');
 		this.config.enumValues = values;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlEnumColumn<MakeColumnConfig<T, TTableName> & { enumValues: T['enumValues'] }> {
-		return new MySqlEnumColumn<MakeColumnConfig<T, TTableName> & { enumValues: T['enumValues'] }>(
+	override build(table: MySqlTable) {
+		return new MySqlEnumColumn(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class MySqlEnumColumn<T extends ColumnBaseConfig<'string', 'MySqlEnumColumn'>>
-	extends MySqlColumn<T, { enumValues: T['enumValues'] }>
+export class MySqlEnumColumn<T extends ColumnBaseConfig<'string enum'>>
+	extends MySqlStringBaseColumn<T, { enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'MySqlEnumColumn';
+
+	/** @internal */
+	override readonly codec = 'enum';
+
+	override readonly enumValues = this.config.enumValues;
+
+	getSQLType(): string {
+		return `enum(${this.enumValues!.map((value) => `'${value}'`).join(',')})`;
+	}
+}
+
+// enum as ts enum
+export class MySqlEnumObjectColumnBuilder<TEnum extends object> extends MySqlStringColumnBaseBuilder<{
+	dataType: 'string enum';
+	data: TEnum[keyof TEnum];
+	driverParam: string;
+	enumValues: string[];
+}, { enumValues: TEnum }> {
+	static override readonly [entityKind]: string = 'MySqlEnumObjectColumnBuilder';
+
+	constructor(name: string, values: TEnum) {
+		super(name, 'string enum', 'MySqlEnumObjectColumn');
+		this.config.enumValues = values;
+	}
+
+	/** @internal */
+	override build(table: MySqlTable) {
+		return new MySqlEnumObjectColumn(
+			table,
+			this.config as any,
+		);
+	}
+}
+
+export class MySqlEnumObjectColumn<T extends ColumnBaseConfig<'string enum'>>
+	extends MySqlStringBaseColumn<T, { enumValues: T['enumValues'] }>
+{
+	static override readonly [entityKind]: string = 'MySqlEnumObjectColumn';
+
+	/** @internal */
+	override readonly codec = 'enum';
 
 	override readonly enumValues = this.config.enumValues;
 
@@ -50,20 +81,42 @@ export class MySqlEnumColumn<T extends ColumnBaseConfig<'string', 'MySqlEnumColu
 
 export function mysqlEnum<U extends string, T extends Readonly<[U, ...U[]]>>(
 	values: T | Writable<T>,
-): MySqlEnumColumnBuilderInitial<'', Writable<T>>;
-export function mysqlEnum<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	name: TName,
+): MySqlEnumColumnBuilder<Writable<T>>;
+export function mysqlEnum<U extends string, T extends Readonly<[U, ...U[]]>>(
+	name: string,
 	values: T | Writable<T>,
-): MySqlEnumColumnBuilderInitial<TName, Writable<T>>;
+): MySqlEnumColumnBuilder<Writable<T>>;
+export function mysqlEnum<E extends Record<string, string>>(
+	enumObj: NonArray<E>,
+): MySqlEnumObjectColumnBuilder<E>;
+export function mysqlEnum<E extends Record<string, string>>(
+	name: string,
+	values: NonArray<E>,
+): MySqlEnumObjectColumnBuilder<E>;
 export function mysqlEnum(
-	a?: string | readonly [string, ...string[]] | [string, ...string[]],
-	b?: readonly [string, ...string[]] | [string, ...string[]],
+	a?: string | readonly [string, ...string[]] | [string, ...string[]] | Record<string, string>,
+	b?: readonly [string, ...string[]] | [string, ...string[]] | Record<string, string>,
 ): any {
-	const { name, config: values } = getColumnNameAndConfig<readonly [string, ...string[]] | [string, ...string[]]>(a, b);
+	// if name + array or just array - it means we have string union passed
+	if (typeof a === 'string' && Array.isArray(b) || Array.isArray(a)) {
+		const name = typeof a === 'string' && a.length > 0 ? a : '';
+		const values = (typeof a === 'string' ? b : a) ?? [];
 
-	if (values.length === 0) {
-		throw new Error(`You have an empty array for "${name}" enum values`);
+		if (values.length === 0) {
+			throw new Error(`You have an empty array for "${name}" enum values`);
+		}
+
+		return new MySqlEnumColumnBuilder(name, values as any);
 	}
 
-	return new MySqlEnumColumnBuilder(name, values as any);
+	if (typeof a === 'string' && typeof b === 'object' || typeof a === 'object') {
+		const name = typeof a === 'object' ? '' : a;
+		const values = typeof a === 'object' ? Object.values(a) : typeof b === 'object' ? Object.values(b) : [];
+
+		if (values.length === 0) {
+			throw new Error(`You have an empty array for "${name}" enum values`);
+		}
+
+		return new MySqlEnumObjectColumnBuilder(name, values as any);
+	}
 }

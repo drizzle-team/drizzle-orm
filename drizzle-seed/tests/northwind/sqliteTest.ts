@@ -10,7 +10,7 @@ import * as schema from './sqliteSchema.ts';
 
 const { Sqlite_PATH } = process.env;
 const sqliteDb = betterSqlite3(Sqlite_PATH);
-const db = drizzle(sqliteDb);
+const db = drizzle({ client: sqliteDb });
 
 console.log('database connection was established successfully.');
 

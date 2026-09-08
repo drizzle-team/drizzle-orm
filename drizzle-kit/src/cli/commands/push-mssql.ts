@@ -1,0 +1,289 @@
+import chalk from 'chalk';
+import { render } from 'hanji';
+import { extractMssqlExisting } from '../../dialects/drizzle';
+import type {
+	CheckConstraint,
+	Column,
+	DefaultConstraint,
+	ForeignKey,
+	Index,
+	MssqlDDL,
+	MssqlEntities,
+	PrimaryKey,
+	Schema,
+	UniqueConstraint,
+	View,
+} from '../../dialects/mssql/ddl';
+import { interimToDDL } from '../../dialects/mssql/ddl';
+import { ddlDiff } from '../../dialects/mssql/diff';
+import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/mssql/drizzle';
+import type { JsonStatement } from '../../dialects/mssql/statements';
+import { prepareEntityFilter } from '../../dialects/pull-utils';
+import type { DB } from '../../utils';
+import { isInteractive, outputFormat } from '../context';
+import { CommandOutputCliError, UnsupportedSchemaChangeError } from '../errors';
+import { highlightSQL } from '../highlighter';
+import type { HintsHandler } from '../hints';
+import { resolver } from '../prompts';
+import { Select } from '../selector-ui';
+import type { EntitiesFilterConfig } from '../validations/common';
+import type { MssqlCredentials } from '../validations/mssql';
+import {
+	EmptyProgressView,
+	explain as explainView,
+	explainJsonOutput,
+	humanLog,
+	mssqlSchemaError,
+	ProgressView,
+} from '../views';
+
+export const handle = async (
+	filenames: string[],
+	verbose: boolean,
+	credentials: MssqlCredentials,
+	filters: EntitiesFilterConfig,
+	force: boolean,
+	explain: boolean,
+	migrations: {
+		table: string;
+		schema: string;
+	},
+	hints: HintsHandler,
+) => {
+	const json = outputFormat() === 'json';
+
+	const { connectToMsSQL } = await import('../connections');
+	const { introspect } = await import('./pull-mssql');
+
+	const { db } = await connectToMsSQL(credentials);
+	const res = await prepareFromSchemaFiles(filenames);
+
+	const existing = extractMssqlExisting(res.schemas, res.views);
+	const filter = prepareEntityFilter('mssql', filters, existing);
+
+	const { schema: schemaTo, errors } = fromDrizzleSchema(res, filter);
+
+	if (errors.length > 0) {
+		throw new CommandOutputCliError('push', errors.map((it) => mssqlSchemaError(it)).join('\n'), {
+			dialect: 'mssql',
+		});
+	}
+
+	const progress = json
+		? new EmptyProgressView()
+		: new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
+	const { schema: schemaFrom } = await introspect(db, filter, progress, migrations);
+
+	const { ddl: ddl1 } = interimToDDL(schemaFrom);
+	const { ddl: ddl2, errors: errors1 } = interimToDDL(schemaTo);
+
+	if (errors1.length > 0) {
+		throw new CommandOutputCliError('push', errors1.map((it) => mssqlSchemaError(it)).join('\n'), {
+			dialect: 'mssql',
+		});
+	}
+
+	const { sqlStatements, statements: jsonStatements, groupedStatements } = await ddlDiff(
+		ddl1,
+		ddl2,
+		resolver<Schema>('schema', hints, 'dbo'),
+		resolver<MssqlEntities['tables']>('table', hints, 'dbo'),
+		resolver<Column>('column', hints, 'dbo'),
+		resolver<View>('view', hints, 'dbo'),
+		resolver<UniqueConstraint>('unique', hints, 'dbo'),
+		resolver<Index>('index', hints, 'dbo'),
+		resolver<CheckConstraint>('check', hints, 'dbo'),
+		resolver<PrimaryKey>('primary_key', hints, 'dbo'),
+		resolver<ForeignKey>('foreign key', hints, 'dbo'),
+		resolver<DefaultConstraint>('default', hints, 'dbo'),
+		'push',
+	);
+
+	if (hints.hasMissingHints()) {
+		return hints.toResponse();
+	}
+
+	if (sqlStatements.length === 0) {
+		if (!json) {
+			render(`[${chalk.blue('i')}] No changes detected`);
+		}
+		return { status: 'no_changes' as const, dialect: 'mssql' };
+	}
+
+	const suggestionHints = await suggestions(db, jsonStatements, ddl2, hints);
+
+	if (hints.hasMissingHints()) {
+		return hints.toResponse();
+	}
+
+	if (explain) {
+		if (json) {
+			return explainJsonOutput('mssql', jsonStatements, suggestionHints);
+		}
+		const explainMessage = explainView('mssql', groupedStatements, suggestionHints);
+		if (explainMessage) {
+			humanLog(explainMessage);
+		}
+		return { status: 'ok' as const, dialect: 'mssql' };
+	}
+
+	if (!force && !json && isInteractive() && suggestionHints.length > 0) {
+		const { data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
+		if (data?.index === 0) {
+			render(`[${chalk.red('x')}] All changes were aborted`);
+			process.exit(0);
+		}
+	}
+
+	const lossStatements = suggestionHints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
+
+	for (const statement of [...lossStatements, ...sqlStatements]) {
+		if (verbose) humanLog(highlightSQL(statement));
+
+		await db.query(statement);
+	}
+
+	if (!json) {
+		render(`[${chalk.green('\u2713')}] Changes applied`);
+	}
+	return { status: 'ok' as const, dialect: 'mssql' };
+};
+
+const identifier = (it: { schema?: string; table: string }) => {
+	const { schema, table } = it;
+
+	const schemaKey = schema && schema !== 'dbo' ? `[${schema}].` : '';
+	const tableKey = `[${table}]`;
+
+	return `${schemaKey}${tableKey}`;
+};
+
+export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2: MssqlDDL, hints: HintsHandler) => {
+	const json = outputFormat() === 'json';
+	const useHints = json || !isInteractive();
+	const grouped: { hint: string; statement?: string }[] = [];
+
+	const filtered = jsonStatements.filter((it) => {
+		if (it.type === 'alter_column' && it.diff.generated) return false;
+
+		return true;
+	});
+
+	for (const statement of filtered) {
+		if (statement.type === 'drop_table') {
+			const tableName = identifier({ schema: statement.table.schema, table: statement.table.name });
+			const entity = [statement.table.schema ?? 'dbo', statement.table.name] as const;
+			if (hints.matchConfirm('table', entity)) continue;
+			const res = await db.query(`select top(1) 1 from ${tableName};`);
+
+			if (res.length > 0) {
+				if (useHints) {
+					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'table', entity, reason: 'non_empty' });
+				} else {
+					grouped.push({ hint: `You're about to delete non-empty [${statement.table.name}] table` });
+				}
+			}
+			continue;
+		}
+
+		if (statement.type === 'drop_column') {
+			const column = statement.column;
+
+			const key = identifier({ schema: column.schema, table: column.table });
+			const entity = [column.schema ?? 'dbo', column.table, column.name] as const;
+			if (hints.matchConfirm('column', entity)) continue;
+
+			const res = await db.query(`SELECT TOP(1) 1 FROM ${key} WHERE [${column.name}] IS NOT NULL;`);
+			if (res.length === 0) continue;
+
+			if (useHints) {
+				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'column', entity, reason: 'non_empty' });
+			} else {
+				grouped.push({ hint: `You're about to delete non-empty [${column.name}] column in [${column.table}] table` });
+			}
+			continue;
+		}
+
+		if (statement.type === 'drop_schema') {
+			const entity = [statement.name] as const;
+			if (hints.matchConfirm('schema', entity)) continue;
+			// count tables in schema
+			const res = await db.query(
+				`select count(*) as count from information_schema.tables where table_schema = '${statement.name}';`,
+			);
+			const count = Number(res[0].count);
+			if (count === 0) continue;
+
+			const tableGrammar = count === 1 ? 'table' : 'tables';
+			if (useHints) {
+				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'schema', entity, reason: 'non_empty' });
+			} else {
+				grouped.push({ hint: `You're about to delete [${statement.name}] schema with ${count} ${tableGrammar}` });
+			}
+			continue;
+		}
+
+		if (statement.type === 'drop_pk') {
+			const schema = statement.pk.schema ?? 'dbo';
+			const table = statement.pk.table;
+			const id = identifier({ table: table, schema: schema });
+			const entity = [schema, table, statement.pk.name] as const;
+			if (hints.matchConfirm('primary_key', entity)) continue;
+			const res = await db.query(
+				`select top(1) 1 from ${id};`,
+			);
+
+			if (res.length > 0) {
+				const hint = `You're about to drop ${
+					chalk.underline(id)
+				} primary key, this statements may fail and your table may lose primary key`;
+
+				if (useHints) {
+					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'primary_key', entity, reason: 'non_empty' });
+				} else {
+					grouped.push({ hint });
+				}
+			}
+
+			continue;
+		}
+
+		if (
+			statement.type === 'rename_column'
+			&& ddl2.checks.one({ schema: statement.to.schema, table: statement.to.table })
+		) {
+			if (useHints) {
+				throw new UnsupportedSchemaChangeError({
+					kind: 'rename_blocked_by_check_constraint',
+					schema: statement.to.schema ?? 'dbo',
+					table: statement.to.table,
+					from: statement.from.name,
+					to: statement.to.name,
+				});
+			}
+			grouped.push({
+				hint:
+					`You are trying to rename column from ${statement.from.name} to ${statement.to.name}, but it is not possible to rename a column if it is used in a check constraint on the table.\nTo rename the column, first drop the check constraint, then rename the column, and finally recreate the check constraint`,
+			});
+			continue;
+		}
+
+		if (statement.type === 'rename_schema') {
+			if (useHints) {
+				throw new UnsupportedSchemaChangeError({
+					kind: 'rename_schema_unsupported',
+					from: statement.from.name,
+					to: statement.to.name,
+					dialect: 'mssql',
+				});
+			}
+			grouped.push({
+				hint:
+					`You are trying to rename schema ${statement.from.name} to ${statement.to.name}, but it is not supported to rename a schema in mssql.\nYou should create new schema and transfer everything to it`,
+			});
+			continue;
+		}
+	}
+
+	return grouped;
+};

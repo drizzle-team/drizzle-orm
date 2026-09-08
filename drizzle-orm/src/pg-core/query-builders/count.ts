@@ -1,86 +1,48 @@
 import { entityKind } from '~/entity.ts';
-import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
-import type { NeonAuthToken } from '~/utils.ts';
-import type { PgSession } from '../session.ts';
+import { type Query, SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
+import type { PgDialect } from '../dialect.ts';
 import type { PgTable } from '../table.ts';
+import type { PgViewBase } from '../view-base.ts';
 
-export class PgCountBuilder<
-	TSession extends PgSession<any, any, any>,
-> extends SQL<number> implements Promise<number>, SQLWrapper {
-	private sql: SQL<number>;
-	private token?: NeonAuthToken;
+export class PgCountBuilder extends SQL<number> implements SQLWrapper<number> {
+	static override readonly [entityKind]: string = 'PgCountBuilder';
 
-	static override readonly [entityKind] = 'PgCountBuilder';
-	[Symbol.toStringTag] = 'PgCountBuilder';
-
-	private session: TSession;
-
-	private static buildEmbeddedCount(
-		source: PgTable | SQL | SQLWrapper,
-		filters?: SQL<unknown>,
-	): SQL<number> {
-		return sql<number>`(select count(*) from ${source}${sql.raw(' where ').if(filters)}${filters})`;
-	}
+	private dialect: PgDialect;
 
 	private static buildCount(
-		source: PgTable | SQL | SQLWrapper,
+		source: PgTable | PgViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
+		parens?: boolean,
 	): SQL<number> {
-		return sql<number>`select count(*) as count from ${source}${sql.raw(' where ').if(filters)}${filters};`;
+		const where = sql` where ${filters}`.if(filters);
+		const query = sql<number>`select count(*) from ${source}${where}`;
+
+		return parens ? sql`(${query})` : query;
 	}
 
 	constructor(
-		readonly params: {
-			source: PgTable | SQL | SQLWrapper;
+		protected countConfig: {
+			source: PgTable | PgViewBase | SQL | SQLWrapper;
 			filters?: SQL<unknown>;
-			session: TSession;
+			dialect: PgDialect;
 		},
 	) {
-		super(PgCountBuilder.buildEmbeddedCount(params.source, params.filters).queryChunks);
+		super(PgCountBuilder.buildCount(countConfig.source, countConfig.filters, true).queryChunks);
+		this.dialect = countConfig.dialect;
+		this.mapWith((e) => {
+			if (typeof e === 'number') return e;
 
-		this.mapWith(Number);
-
-		this.session = params.session;
-
-		this.sql = PgCountBuilder.buildCount(
-			params.source,
-			params.filters,
-		);
+			return Number(e ?? 0);
+		});
 	}
 
-	/** @intrnal */
-	setToken(token?: NeonAuthToken) {
-		this.token = token;
-		return this;
-	}
+	private executableSql: SQL<number> | undefined;
+	protected build(): Query {
+		if (!this.executableSql) {
+			const { source, filters } = this.countConfig;
+			this.executableSql = PgCountBuilder.buildCount(source, filters);
+		}
 
-	then<TResult1 = number, TResult2 = never>(
-		onfulfilled?: ((value: number) => TResult1 | PromiseLike<TResult1>) | null | undefined,
-		onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null | undefined,
-	): Promise<TResult1 | TResult2> {
-		return Promise.resolve(this.session.count(this.sql, this.token))
-			.then(
-				onfulfilled,
-				onrejected,
-			);
-	}
-
-	catch(
-		onRejected?: ((reason: any) => any) | null | undefined,
-	): Promise<number> {
-		return this.then(undefined, onRejected);
-	}
-
-	finally(onFinally?: (() => void) | null | undefined): Promise<number> {
-		return this.then(
-			(value) => {
-				onFinally?.();
-				return value;
-			},
-			(reason) => {
-				onFinally?.();
-				throw reason;
-			},
-		);
+		return this.dialect.sqlToQuery(this.executableSql);
 	}
 }

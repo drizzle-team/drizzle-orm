@@ -49,7 +49,7 @@ class ImportAnalyzer {
 	private isDirectory = (path: string) => {
 		try {
 			return fs.lstatSync(path).isDirectory();
-		} catch (e) {
+		} catch {
 			return false;
 		}
 	};
@@ -57,7 +57,7 @@ class ImportAnalyzer {
 	private isFile = (path: string) => {
 		try {
 			return fs.lstatSync(path).isFile();
-		} catch (e) {
+		} catch {
 			return false;
 		}
 	};
@@ -154,8 +154,6 @@ class ImportAnalyzer {
 					type: type,
 				});
 			}
-		} catch (e) {
-			throw e;
 		} finally {
 			this.visited.add(target);
 		}

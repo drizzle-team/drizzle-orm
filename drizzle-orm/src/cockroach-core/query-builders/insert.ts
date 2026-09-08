@@ -1,0 +1,522 @@
+import type { CockroachDialect } from '~/cockroach-core/dialect.ts';
+import type { IndexColumn } from '~/cockroach-core/indexes.ts';
+import type {
+	CockroachPreparedQuery,
+	CockroachQueryResultHKT,
+	CockroachQueryResultKind,
+	CockroachSession,
+	PreparedQueryConfig,
+} from '~/cockroach-core/session.ts';
+import type { CockroachTable, TableConfig } from '~/cockroach-core/table.ts';
+import { entityKind, is } from '~/entity.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import type { SelectResultFields } from '~/query-builders/select.types.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import type { RunnableQuery } from '~/runnable-query.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
+import type { ColumnsSelection, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
+import { SQL, sql } from '~/sql/sql.ts';
+import type { Subquery } from '~/subquery.ts';
+import type { InferInsertModel } from '~/table.ts';
+import { getTableName, Table } from '~/table.ts';
+import { tracer } from '~/tracing.ts';
+import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
+import type { AnyCockroachColumn, CockroachColumn } from '../columns/common.ts';
+import { QueryBuilder } from './query-builder.ts';
+import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
+import type { CockroachUpdateSetSource } from './update.ts';
+
+export interface CockroachInsertConfig<TTable extends CockroachTable = CockroachTable> {
+	ignoreSelectionCastCodecs?: boolean;
+	table: TTable;
+	values: Record<string, unknown>[] | TypedQueryBuilder<CockroachInsertSelection<TTable>> | SQL;
+	withList?: Subquery[];
+	onConflict?: SQL;
+	returningFields?: SelectedFieldsFlat;
+	returning?: SelectedFieldsOrdered;
+	select?: boolean;
+	columnList?: string[];
+}
+
+export type CockroachInsertValue<
+	TTable extends CockroachTable<TableConfig>,
+	OverrideT extends boolean = false,
+	TColumnsList extends string[] | 'all' = 'all',
+	TModel extends Record<string, any> = InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>,
+> =
+	& {
+		[K in keyof TModel as TColumnsList extends 'all' ? K : Extract<K, TColumnsList[number]>]:
+			| TModel[K]
+			| SQL
+			| Placeholder;
+	}
+	& {};
+
+export type CockroachInsertSelection<
+	TTable extends CockroachTable<TableConfig>,
+	TColumnsList extends string[] | 'all' = 'all',
+	TModel extends Record<string, unknown> = InferInsertModel<TTable>,
+> =
+	& {
+		[K in keyof TModel as TColumnsList extends 'all' ? K : Extract<K, TColumnsList[number]>]:
+			| AnyCockroachColumn
+			| SQL
+			| SQL.Aliased
+			| TModel[K];
+	}
+	& {};
+
+export type NoDuplicateColumns<
+	T extends readonly unknown[],
+	TSeen = never,
+> = T extends readonly [infer Head, ...infer Tail] ? [
+		Head extends TSeen ? DrizzleTypeError<`Duplicate columns are not allowed in insert selection: "${Head & string}"`>
+			: Head,
+		...NoDuplicateColumns<Tail, TSeen | Head>,
+	]
+	: T;
+
+export type ValidateInsertSelectionKey<
+	TTable extends CockroachTable<TableConfig>,
+	TSelection extends CockroachInsertSelection<any>,
+	K extends keyof TSelection,
+> = K extends keyof InferInsertModel<TTable> ? TSelection[K]
+	: K extends keyof InferInsertModel<TTable, { override: true }> ? DrizzleTypeError<
+			`Column "${
+				& K
+				& string}" in table "${TTable['_'][
+				'name'
+			]}" is a generated column - manual value insertion restricted`
+		>
+	: DrizzleTypeError<`Column "${K & string}" does not exist in table "${TTable['_']['name']}"`>;
+
+export type NoUnknownKeysInInsertSelection<
+	TTable extends CockroachTable<TableConfig>,
+	TSelection extends CockroachInsertSelection<any>,
+	TColumnList extends string[] | 'all' = 'all',
+> = {
+	[K in keyof TSelection]: TColumnList extends string[]
+		? K extends TColumnList[number] ? ValidateInsertSelectionKey<TTable, TSelection, K>
+		: DrizzleTypeError<`Column "${K & string}" is not included in the insert column selection`>
+		: ValidateInsertSelectionKey<TTable, TSelection, K>;
+};
+
+export class CockroachInsertBuilder<
+	TTable extends CockroachTable,
+	TQueryResult extends CockroachQueryResultHKT,
+	TColumnList extends string[] | 'all' = 'all',
+	OverrideT extends boolean = false,
+> {
+	static readonly [entityKind]: string = 'CockroachInsertBuilder';
+
+	constructor(
+		private table: TTable,
+		private session: CockroachSession,
+		private dialect: CockroachDialect,
+		private withList?: Subquery[],
+		private columnList?: string[],
+	) {}
+
+	values(value: CockroachInsertValue<TTable, OverrideT, TColumnList>): CockroachInsertBase<TTable, TQueryResult>;
+	values(values: CockroachInsertValue<TTable, OverrideT, TColumnList>[]): CockroachInsertBase<TTable, TQueryResult>;
+	values(
+		values: CockroachInsertValue<TTable, OverrideT, TColumnList> | CockroachInsertValue<
+			TTable,
+			OverrideT,
+			TColumnList
+		>[],
+	): CockroachInsertBase<TTable, TQueryResult> {
+		values = Array.isArray(values) ? values : [values];
+		if (values.length === 0) {
+			throw new Error('values() must be called with at least one value');
+		}
+		return new CockroachInsertBase(
+			this.table,
+			values,
+			this.session,
+			this.dialect,
+			this.withList,
+			false,
+			this.columnList,
+		) as any;
+	}
+
+	select<TSelection extends CockroachInsertSelection<TTable, TColumnList>>(
+		selectQuery: (
+			qb: QueryBuilder,
+		) => TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection, TColumnList>>,
+	): CockroachInsertBase<TTable, TQueryResult>;
+	select(selectQuery: (qb: QueryBuilder) => SQL): CockroachInsertBase<TTable, TQueryResult>;
+	select(selectQuery: SQL): CockroachInsertBase<TTable, TQueryResult>;
+	select<TSelection extends CockroachInsertSelection<TTable, TColumnList>>(
+		selectQuery: TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection, TColumnList>>,
+	): CockroachInsertBase<TTable, TQueryResult>;
+	select(
+		selectQuery:
+			| SQL
+			| TypedQueryBuilder<
+				NoUnknownKeysInInsertSelection<TTable, CockroachInsertSelection<TTable, TColumnList>, TColumnList>
+			>
+			| ((qb: QueryBuilder) =>
+				| TypedQueryBuilder<
+					NoUnknownKeysInInsertSelection<TTable, CockroachInsertSelection<TTable, TColumnList>, TColumnList>
+				>
+				| SQL),
+	): CockroachInsertBase<TTable, TQueryResult> {
+		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
+		if ('withoutSelectionCastCodecs' in select) select.withoutSelectionCastCodecs();
+
+		if (!is(select, SQL)) {
+			const insertCols = Object.keys(this.table[Table.Symbol.Columns]);
+			const selected = Object.keys(select._.selectedFields);
+
+			for (const col of selected) {
+				if (!insertCols.includes(col)) {
+					throw new Error(
+						`Insert select error: column "${col}" does not exist in table "${this.table[Table.Symbol.Name]}"`,
+					);
+				}
+			}
+		}
+
+		return new CockroachInsertBase(
+			this.table,
+			select,
+			this.session,
+			this.dialect,
+			this.withList,
+			true,
+			this.columnList,
+		);
+	}
+}
+
+export type CockroachInsertWithout<
+	T extends AnyCockroachInsert,
+	TDynamic extends boolean,
+	K extends keyof T & string,
+> = TDynamic extends true ? T
+	: Omit<
+		CockroachInsertBase<
+			T['_']['table'],
+			T['_']['queryResult'],
+			T['_']['selectedFields'],
+			T['_']['returning'],
+			TDynamic,
+			T['_']['excludedMethods'] | K
+		>,
+		T['_']['excludedMethods'] | K
+	>;
+
+export type CockroachInsertReturning<
+	T extends AnyCockroachInsert,
+	TDynamic extends boolean,
+	TSelectedFields extends SelectedFieldsFlat,
+> = CockroachInsertBase<
+	T['_']['table'],
+	T['_']['queryResult'],
+	TSelectedFields,
+	SelectResultFields<TSelectedFields>,
+	TDynamic,
+	T['_']['excludedMethods']
+>;
+
+export type CockroachInsertReturningAll<T extends AnyCockroachInsert, TDynamic extends boolean> = CockroachInsertBase<
+	T['_']['table'],
+	T['_']['queryResult'],
+	T['_']['table']['_']['columns'],
+	T['_']['table']['$inferSelect'],
+	TDynamic,
+	T['_']['excludedMethods']
+>;
+
+export interface CockroachInsertOnConflictDoUpdateConfig<T extends AnyCockroachInsert> {
+	target: IndexColumn | IndexColumn[];
+	/** @deprecated use either `targetWhere` or `setWhere` */
+	where?: SQL;
+	// TODO: add tests for targetWhere and setWhere
+	targetWhere?: SQL;
+	setWhere?: SQL;
+	set: CockroachUpdateSetSource<T['_']['table']>;
+}
+
+export type CockroachInsertPrepare<T extends AnyCockroachInsert> = CockroachPreparedQuery<
+	PreparedQueryConfig & {
+		execute: T['_']['returning'] extends undefined ? CockroachQueryResultKind<T['_']['queryResult'], never>
+			: T['_']['returning'][];
+	}
+>;
+
+export type CockroachInsertDynamic<T extends AnyCockroachInsert> = CockroachInsert<
+	T['_']['table'],
+	T['_']['queryResult'],
+	T['_']['returning']
+>;
+
+export type AnyCockroachInsert = CockroachInsertBase<any, any, any, any, any, any>;
+
+export type CockroachInsert<
+	TTable extends CockroachTable = CockroachTable,
+	TQueryResult extends CockroachQueryResultHKT = CockroachQueryResultHKT,
+	TSelectedFields extends ColumnsSelection | undefined = ColumnsSelection | undefined,
+	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
+> = CockroachInsertBase<TTable, TQueryResult, TSelectedFields, TReturning, true, never>;
+
+export interface CockroachInsertBase<
+	TTable extends CockroachTable,
+	TQueryResult extends CockroachQueryResultHKT,
+	TSelectedFields extends ColumnsSelection | undefined = undefined,
+	TReturning extends Record<string, unknown> | undefined = undefined,
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+> extends
+	TypedQueryBuilder<
+		TSelectedFields,
+		TReturning extends undefined ? CockroachQueryResultKind<TQueryResult, never> : TReturning[]
+	>,
+	QueryPromise<TReturning extends undefined ? CockroachQueryResultKind<TQueryResult, never> : TReturning[]>,
+	RunnableQuery<
+		TReturning extends undefined ? CockroachQueryResultKind<TQueryResult, never> : TReturning[],
+		'cockroach'
+	>,
+	SQLWrapper
+{
+	readonly _: {
+		readonly dialect: 'cockroach';
+		readonly table: TTable;
+		readonly queryResult: TQueryResult;
+		readonly selectedFields: TSelectedFields;
+		readonly returning: TReturning;
+		readonly dynamic: TDynamic;
+		readonly excludedMethods: TExcludedMethods;
+		readonly result: TReturning extends undefined ? CockroachQueryResultKind<TQueryResult, never> : TReturning[];
+	};
+}
+
+export class CockroachInsertBase<
+	TTable extends CockroachTable,
+	TQueryResult extends CockroachQueryResultHKT,
+	TSelectedFields extends ColumnsSelection | undefined = undefined,
+	TReturning extends Record<string, unknown> | undefined = undefined,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TDynamic extends boolean = false,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TExcludedMethods extends string = never,
+> extends QueryPromise<TReturning extends undefined ? CockroachQueryResultKind<TQueryResult, never> : TReturning[]>
+	implements
+		TypedQueryBuilder<
+			TSelectedFields,
+			TReturning extends undefined ? CockroachQueryResultKind<TQueryResult, never> : TReturning[]
+		>,
+		RunnableQuery<
+			TReturning extends undefined ? CockroachQueryResultKind<TQueryResult, never> : TReturning[],
+			'cockroach'
+		>,
+		SQLWrapper
+{
+	static override readonly [entityKind]: string = 'CockroachInsert';
+
+	private config: CockroachInsertConfig<TTable>;
+
+	constructor(
+		table: TTable,
+		values: CockroachInsertConfig['values'],
+		private session: CockroachSession,
+		private dialect: CockroachDialect,
+		withList?: Subquery[],
+		select?: boolean,
+		columnList?: string[],
+	) {
+		super();
+		this.config = { table, values: values as any, withList, select, columnList };
+	}
+
+	/**
+	 * Adds a `returning` clause to the query.
+	 *
+	 * Calling this method will return the specified fields of the inserted rows. If no fields are specified, all fields will be returned.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/insert#insert-returning}
+	 *
+	 * @example
+	 * ```ts
+	 * // Insert one row and return all fields
+	 * const insertedCar: Car[] = await db.insert(cars)
+	 *   .values({ brand: 'BMW' })
+	 *   .returning();
+	 *
+	 * // Insert one row and return only the id
+	 * const insertedCarId: { id: number }[] = await db.insert(cars)
+	 *   .values({ brand: 'BMW' })
+	 *   .returning({ id: cars.id });
+	 * ```
+	 */
+	returning(): CockroachInsertWithout<CockroachInsertReturningAll<this, TDynamic>, TDynamic, 'returning'>;
+	returning<TSelectedFields extends SelectedFieldsFlat>(
+		fields: TSelectedFields,
+	): CockroachInsertWithout<CockroachInsertReturning<this, TDynamic, TSelectedFields>, TDynamic, 'returning'>;
+	returning(
+		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
+	): CockroachInsertWithout<AnyCockroachInsert, TDynamic, 'returning'> {
+		this.config.returningFields = fields;
+		this.config.returning = orderSelectedFields<CockroachColumn>(
+			fields,
+			undefined,
+			this.dialect.codecs,
+		);
+		return this as any;
+	}
+
+	/**
+	 * Adds an `on conflict do nothing` clause to the query.
+	 *
+	 * Calling this method simply avoids inserting a row as its alternative action.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/insert#on-conflict-do-nothing}
+	 *
+	 * @param config The `target` and `where` clauses.
+	 *
+	 * @example
+	 * ```ts
+	 * // Insert one row and cancel the insert if there's a conflict
+	 * await db.insert(cars)
+	 *   .values({ id: 1, brand: 'BMW' })
+	 *   .onConflictDoNothing();
+	 *
+	 * // Explicitly specify conflict target
+	 * await db.insert(cars)
+	 *   .values({ id: 1, brand: 'BMW' })
+	 *   .onConflictDoNothing({ target: cars.id });
+	 * ```
+	 */
+	onConflictDoNothing(
+		config: { target?: IndexColumn | IndexColumn[]; where?: SQL } = {},
+	): CockroachInsertWithout<this, TDynamic, 'onConflictDoNothing' | 'onConflictDoUpdate'> {
+		if (config.target === undefined) {
+			this.config.onConflict = sql`do nothing`;
+		} else {
+			let targetColumn = '';
+			targetColumn = Array.isArray(config.target)
+				? config.target.map((it) => this.dialect.escapeName(it.name)).join(',')
+				: this.dialect.escapeName(config.target.name);
+
+			const whereSql = config.where ? sql` where ${config.where}` : undefined;
+			this.config.onConflict = sql`(${sql.raw(targetColumn)})${whereSql} do nothing`;
+		}
+		return this as any;
+	}
+
+	/**
+	 * Adds an `on conflict do update` clause to the query.
+	 *
+	 * Calling this method will update the existing row that conflicts with the row proposed for insertion as its alternative action.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/insert#upserts-and-conflicts}
+	 *
+	 * @param config The `target`, `set` and `where` clauses.
+	 *
+	 * @example
+	 * ```ts
+	 * // Update the row if there's a conflict
+	 * await db.insert(cars)
+	 *   .values({ id: 1, brand: 'BMW' })
+	 *   .onConflictDoUpdate({
+	 *     target: cars.id,
+	 *     set: { brand: 'Porsche' }
+	 *   });
+	 *
+	 * // Upsert with 'where' clause
+	 * await db.insert(cars)
+	 *   .values({ id: 1, brand: 'BMW' })
+	 *   .onConflictDoUpdate({
+	 *     target: cars.id,
+	 *     set: { brand: 'newBMW' },
+	 *     targetWhere: sql`${cars.createdAt} > '2023-01-01'::date`,
+	 *   });
+	 * ```
+	 */
+	onConflictDoUpdate(
+		config: CockroachInsertOnConflictDoUpdateConfig<this>,
+	): CockroachInsertWithout<this, TDynamic, 'onConflictDoNothing' | 'onConflictDoUpdate'> {
+		if (config.where && (config.targetWhere || config.setWhere)) {
+			throw new Error(
+				'You cannot use both "where" and "targetWhere"/"setWhere" at the same time - "where" is deprecated, use "targetWhere" or "setWhere" instead.',
+			);
+		}
+		const whereSql = config.where ? sql` where ${config.where}` : undefined;
+		const targetWhereSql = config.targetWhere ? sql` where ${config.targetWhere}` : undefined;
+		const setWhereSql = config.setWhere ? sql` where ${config.setWhere}` : undefined;
+		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
+		let targetColumn = '';
+		targetColumn = Array.isArray(config.target)
+			? config.target.map((it) => this.dialect.escapeName(it.name)).join(',')
+			: this.dialect.escapeName(config.target.name);
+		this.config.onConflict = sql`(${
+			sql.raw(targetColumn)
+		})${targetWhereSql} do update set ${setSql}${whereSql}${setWhereSql}`;
+		return this as any;
+	}
+
+	getSQL(): SQL {
+		return this.dialect.buildInsertQuery(this.config);
+	}
+
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
+	}
+
+	/** @internal */
+	_prepare(name?: string, generateName = false): CockroachInsertPrepare<this> {
+		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			const { returning: fields } = this.config;
+			const query = this.dialect.sqlToQuery(this.getSQL());
+
+			return this.session.prepareQuery<
+				PreparedQueryConfig & {
+					execute: TReturning extends undefined ? CockroachQueryResultKind<TQueryResult, never> : TReturning[];
+				}
+			>(
+				query,
+				fields ? 'arrays' : 'raw',
+				name ?? generateName,
+				fields ? this.dialect.mapperGenerators.rows(fields, undefined) : undefined,
+			);
+		});
+	}
+
+	prepare(name?: string): CockroachInsertPrepare<this> {
+		return this._prepare(name, true);
+	}
+
+	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
+		return tracer.startActiveSpan('drizzle.operation', () => {
+			return this._prepare().execute(placeholderValues);
+		});
+	};
+
+	/** @internal */
+	getSelectedFields(): this['_']['selectedFields'] {
+		return (
+			this.config.returningFields
+				? new Proxy(
+					this.config.returningFields,
+					new SelectionProxyHandler({
+						alias: getTableName(this.config.table),
+						sqlAliasedBehavior: 'alias',
+						sqlBehavior: 'error',
+					}),
+				)
+				: undefined
+		) as this['_']['selectedFields'];
+	}
+
+	/** @internal */
+	withoutSelectionCastCodecs(): this {
+		this.config.ignoreSelectionCastCodecs = true;
+		return this;
+	}
+
+	$dynamic(): CockroachInsertDynamic<this> {
+		return this as any;
+	}
+}

@@ -1,75 +1,328 @@
-import type {
-	ColumnBuilderBase,
-	ColumnBuilderBaseConfig,
-	ColumnBuilderExtraConfig,
-	ColumnBuilderRuntimeConfig,
-	ColumnDataType,
-	HasGenerated,
-	MakeColumnConfig,
-} from '~/column-builder.ts';
-import { ColumnBuilder } from '~/column-builder.ts';
-import type { ColumnBaseConfig } from '~/column.ts';
+import type { ColumnType, GeneratedColumnConfig, GeneratedIdentityConfig } from '~/column-builder.ts';
 import { Column } from '~/column.ts';
-import { entityKind, is } from '~/entity.ts';
-import type { Simplify, Update } from '~/utils.ts';
-
+import { entityKind } from '~/entity.ts';
 import type { ForeignKey, UpdateDeleteAction } from '~/pg-core/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/pg-core/foreign-keys.ts';
 import type { AnyPgTable, PgTable } from '~/pg-core/table.ts';
 import type { SQL } from '~/sql/sql.ts';
 import { iife } from '~/tracing-utils.ts';
+import type { Update } from '~/utils.ts';
+import type { PostgresType } from '../codecs.ts';
 import type { PgIndexOpClass } from '../indexes.ts';
-import { uniqueKeyName } from '../unique-constraint.ts';
-import { makePgArray, parsePgArray } from '../utils/array.ts';
+
+export type PgArrayDimension = 0 | 1 | 2 | 3 | 4 | 5;
+type PgArrayDimensionString = '[]' | '[][]' | '[][][]' | '[][][][]' | '[][][][][]';
+
+type ArrayDimensionStringToNumber<T extends PgArrayDimensionString> = T extends '[]' ? 1
+	: T extends '[][]' ? 2
+	: T extends '[][][]' ? 3
+	: T extends '[][][][]' ? 4
+	: T extends '[][][][][]' ? 5
+	: never;
+
+export interface PgColumnBuilderConfig {
+	dataType: ColumnType;
+	data: unknown;
+	driverParam: unknown;
+	// Optional - set via chain methods
+	notNull?: boolean;
+	hasDefault?: boolean;
+	isPrimaryKey?: boolean;
+	isAutoincrement?: boolean;
+	hasRuntimeDefault?: boolean;
+	enumValues?: string[];
+	identity?: 'always' | 'byDefault';
+	generated?: unknown;
+	dimensions?: PgArrayDimension;
+	$type?: unknown;
+}
+
+export interface PgColumnBuilderRuntimeConfig<TData> {
+	name: string;
+	keyAsName: boolean;
+	notNull: boolean;
+	default: TData | SQL | undefined;
+	defaultFn: (() => TData | SQL) | undefined;
+	onUpdateFn: (() => TData | SQL) | undefined;
+	hasDefault: boolean;
+	primaryKey: boolean;
+	isUnique: boolean;
+	uniqueName: string | undefined;
+	uniqueType: string | undefined;
+	dataType: string;
+	columnType: string;
+	generated: GeneratedColumnConfig<TData> | undefined;
+	generatedIdentity: GeneratedIdentityConfig | undefined;
+	dimensions?: PgArrayDimension;
+}
+
+// TODO: remove isAutoincrement and hasRuntimeDefault
+export interface PgColumnBaseConfig<out TDataType extends ColumnType = ColumnType> {
+	name: string;
+	dataType: TDataType;
+	tableName: string;
+	notNull: boolean;
+	hasDefault: boolean;
+	isPrimaryKey: boolean;
+	isAutoincrement: boolean;
+	hasRuntimeDefault: boolean;
+	data: unknown;
+	driverParam: unknown;
+	enumValues: string[] | undefined;
+	generated: unknown;
+	identity: undefined | 'always' | 'byDefault';
+}
+
+type WrapArray<T, N extends number> = N extends 1 ? T[]
+	: N extends 2 ? T[][]
+	: N extends 3 ? T[][][]
+	: N extends 4 ? T[][][][]
+	: N extends 5 ? T[][][][][]
+	: T;
+
+export type SetNotNull<T> = T & { readonly _: { notNull: true } };
+export type SetHasDefault<T> = T & { readonly _: { hasDefault: true } };
+export type SetIsPrimaryKey<T> = T & { readonly _: { isPrimaryKey: true; notNull: true } };
+export type SetHasRuntimeDefault<T> = T & {
+	readonly _: { hasRuntimeDefault: true; hasDefault: true };
+};
+export type Set$Type<T, TType> = T & { readonly _: { $type: TType } };
+export type SetHasGenerated<T> = T & {
+	readonly _: { hasDefault: true; generated: true };
+};
+export type SetDimensions<T, TDim extends PgArrayDimension> = T & {
+	readonly _: { dimensions: TDim };
+};
+export type SetIdentity<T, TType extends 'always' | 'byDefault'> = T & {
+	readonly _: { notNull: true; hasDefault: true; identity: TType };
+};
+
+export type HasIdentity<T, TType extends 'always' | 'byDefault'> = SetIdentity<T, TType>;
+
+type GetBaseData<T> = T extends { $type: infer U } ? U : T extends { data: infer D } ? D : unknown;
+
+type ResolveData<T extends PgColumnBuilderConfig> = T['dimensions'] extends 1 | 2 | 3 | 4 | 5
+	? WrapArray<GetBaseData<T>, T['dimensions']>
+	: GetBaseData<T>;
+
+export type ResolvePgColumnConfig<
+	out T extends PgColumnBuilderConfig,
+	out TTableName extends string,
+	out TData = ResolveData<T>,
+> = {
+	name: string;
+	tableName: TTableName;
+	dataType: T['dataType'];
+	data: TData;
+	driverParam: T['dimensions'] extends 1 | 2 | 3 | 4 | 5 ? WrapArray<T['driverParam'], T['dimensions']> | string
+		: T['driverParam'];
+	notNull: T['notNull'] extends true ? true : false;
+	hasDefault: T['hasDefault'] extends true ? true : false;
+	isPrimaryKey: false;
+	isAutoincrement: false;
+	hasRuntimeDefault: false;
+	enumValues: T extends { enumValues: infer E extends string[] } ? E : undefined;
+	identity: T['identity'] extends 'always' | 'byDefault' ? T['identity'] : undefined;
+	generated: T['generated'] extends true ? true : undefined;
+} & {};
+
+export interface AnyPgColumnBuilder {
+	readonly _: PgColumnBuilderConfig;
+}
+
+export type PgBuildColumn<
+	TTableName extends string,
+	TBuilder extends AnyPgColumnBuilder,
+	TBuiltConfig extends PgColumnBaseConfig<ColumnType> = ResolvePgColumnConfig<
+		TBuilder['_'],
+		TTableName
+	>,
+> = PgColumn<ColumnType, TBuiltConfig, {}>;
+
+export type PgBuildColumns<
+	out TTableName extends string,
+	out TConfigMap extends Record<string, AnyPgColumnBuilder>,
+> =
+	& {
+		[Key in keyof TConfigMap]: PgBuildColumn<TTableName, TConfigMap[Key]>;
+	}
+	& {};
+
+export type PgBuildExtraConfigColumns<
+	out TConfigMap extends Record<string, AnyPgColumnBuilder>,
+> =
+	& {
+		[Key in keyof TConfigMap]: ExtraConfigColumn;
+	}
+	& {};
+
+export type PgColumns = Record<string, PgColumn>;
 
 export interface ReferenceConfig {
 	ref: () => PgColumn;
-	actions: {
+	config: {
+		name?: string;
 		onUpdate?: UpdateDeleteAction;
 		onDelete?: UpdateDeleteAction;
 	};
 }
 
-export interface PgColumnBuilderBase<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
-	TTypeConfig extends object = object,
-> extends ColumnBuilderBase<T, TTypeConfig & { dialect: 'pg' }> {}
-
 export abstract class PgColumnBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
-	TRuntimeConfig extends object = object,
-	TTypeConfig extends object = object,
-	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
-> extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'pg' }, TExtraConfig>
-	implements PgColumnBuilderBase<T, TTypeConfig>
-{
+	out T extends PgColumnBuilderConfig = PgColumnBuilderConfig,
+	out TRuntimeConfig extends object = object,
+> {
+	static readonly [entityKind]: string = 'PgColumnBuilder';
+
+	declare readonly _: T;
+
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
-	static override readonly [entityKind]: string = 'PgColumnBuilder';
+	protected config: PgColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
 
-	array<TSize extends number | undefined = undefined>(size?: TSize): PgArrayBuilder<
-		& {
-			name: T['name'];
-			dataType: 'array';
-			columnType: 'PgArray';
-			data: T['data'][];
-			driverParam: T['driverParam'][] | string;
-			enumValues: T['enumValues'];
-			size: TSize;
-			baseBuilder: T;
-		}
-		& (T extends { notNull: true } ? { notNull: true } : {})
-		& (T extends { hasDefault: true } ? { hasDefault: true } : {}),
-		T
-	> {
-		return new PgArrayBuilder(this.config.name, this as PgColumnBuilder<any, any>, size as any);
+	constructor(name: string, dataType: ColumnType, columnType: string) {
+		this.config = {
+			name,
+			keyAsName: name === '',
+			notNull: false,
+			default: undefined,
+			hasDefault: false,
+			primaryKey: false,
+			isUnique: false,
+			uniqueName: undefined,
+			uniqueType: undefined,
+			dataType,
+			columnType,
+			generated: undefined,
+			defaultFn: undefined,
+			onUpdateFn: undefined,
+			generatedIdentity: undefined,
+		} as PgColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
+	}
+
+	/**
+	 * Changes the data type of the column. Commonly used with `json` columns. Also, useful for branded types.
+	 *
+	 * @example
+	 * ```ts
+	 * const users = pgTable('users', {
+	 * 	id: integer('id').$type<UserId>().primaryKey(),
+	 * 	details: json('details').$type<UserDetails>().notNull(),
+	 * });
+	 * ```
+	 */
+	$type<TType>(): Set$Type<this, TType> {
+		return this as Set$Type<this, TType>;
+	}
+
+	/**
+	 * Adds a `not null` clause to the column definition.
+	 *
+	 * Affects the `select` model of the table - columns *without* `not null` will be nullable on select.
+	 */
+	notNull(): SetNotNull<this> {
+		this.config.notNull = true;
+		return this as SetNotNull<this>;
+	}
+
+	/**
+	 * Adds a `default <value>` clause to the column definition.
+	 *
+	 * Affects the `insert` model of the table - columns *with* `default` are optional on insert.
+	 *
+	 * If you need to set a dynamic default value, use {@link $defaultFn} instead.
+	 */
+	default(value: ResolveData<this['_']> | SQL): SetHasDefault<this> {
+		this.config.default = value;
+		this.config.hasDefault = true;
+		return this as SetHasDefault<this>;
+	}
+
+	/**
+	 * Adds a dynamic default value to the column.
+	 * The function will be called when the row is inserted, and the returned value will be used as the column value.
+	 *
+	 * **Note:** This value does not affect the `drizzle-kit` behavior, it is only used at runtime in `drizzle-orm`.
+	 */
+	$defaultFn(fn: () => ResolveData<this['_']> | SQL): SetHasRuntimeDefault<this> {
+		this.config.defaultFn = fn;
+		this.config.hasDefault = true;
+		return this as SetHasRuntimeDefault<this>;
+	}
+
+	/**
+	 * Alias for {@link $defaultFn}.
+	 */
+	$default(fn: () => ResolveData<this['_']> | SQL): SetHasRuntimeDefault<this> {
+		return this.$defaultFn(fn);
+	}
+
+	/**
+	 * Adds a dynamic update value to the column.
+	 * The function will be called when the row is updated, and the returned value will be used as the column value if none is provided.
+	 * If no `default` (or `$defaultFn`) value is provided, the function will be called when the row is inserted as well, and the returned value will be used as the column value.
+	 *
+	 * **Note:** This value does not affect the `drizzle-kit` behavior, it is only used at runtime in `drizzle-orm`.
+	 */
+	$onUpdateFn(fn: () => ResolveData<this['_']> | SQL): SetHasDefault<this> {
+		this.config.onUpdateFn = fn;
+		this.config.hasDefault = true;
+		return this as SetHasDefault<this>;
+	}
+
+	/**
+	 * Alias for {@link $onUpdateFn}.
+	 */
+	$onUpdate(fn: () => ResolveData<this['_']> | SQL): SetHasDefault<this> {
+		return this.$onUpdateFn(fn);
+	}
+
+	/**
+	 * Adds a `primary key` clause to the column definition. This implicitly makes the column `not null`.
+	 */
+	primaryKey(): SetIsPrimaryKey<this> {
+		this.config.primaryKey = true;
+		this.config.notNull = true;
+		return this as SetIsPrimaryKey<this>;
+	}
+
+	/** @internal Sets the name of the column to the key within the table definition if a name was not given. */
+	setName(name: string, casingFn: (name: string) => string) {
+		if (this.config.name !== '') return;
+		this.config.name = casingFn(name);
+	}
+
+	/**
+	 * Makes this column a PostgreSQL array column.
+	 *
+	 * @example
+	 * ```ts
+	 * const t = pgTable('t', {
+	 *   // 1D array: number[]
+	 *   tags: integer().array(),
+	 *   // Or explicitly: integer().array('[]')
+	 *   // 2D array: number[][]
+	 *   matrix: integer().array('[][]'),
+	 * });
+	 * ```
+	 */
+	array(): SetDimensions<this, 1>;
+	array<TDim extends PgArrayDimensionString>(
+		dimensions: TDim,
+	): SetDimensions<this, ArrayDimensionStringToNumber<TDim>>;
+	array<TDim extends PgArrayDimensionString>(
+		dimensions?: TDim,
+	): SetDimensions<this, ArrayDimensionStringToNumber<TDim>> {
+		// Calculate dimensions as number from string notation
+		const dim = dimensions ?? '[]';
+		this.config.dimensions = (dim.length / 2) as PgArrayDimension;
+		return this as SetDimensions<this, ArrayDimensionStringToNumber<TDim>>;
 	}
 
 	references(
 		ref: ReferenceConfig['ref'],
-		actions: ReferenceConfig['actions'] = {},
+		config: ReferenceConfig['config'] = {},
 	): this {
-		this.foreignKeyConfigs.push({ ref, actions });
+		this.foreignKeyConfigs.push({ ref, config });
 		return this;
 	}
 
@@ -83,80 +336,195 @@ export abstract class PgColumnBuilder<
 		return this;
 	}
 
-	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL)): HasGenerated<this, {
-		type: 'always';
-	}> {
+	generatedAlwaysAs(as: SQL | (() => SQL)): SetHasGenerated<this> {
 		this.config.generated = {
 			as,
 			type: 'always',
 			mode: 'stored',
 		};
-		return this as HasGenerated<this, {
-			type: 'always';
-		}>;
+		return this as SetHasGenerated<this>;
 	}
 
 	/** @internal */
 	buildForeignKeys(column: PgColumn, table: PgTable): ForeignKey[] {
-		return this.foreignKeyConfigs.map(({ ref, actions }) => {
+		return this.foreignKeyConfigs.map(({ ref, config }) => {
 			return iife(
-				(ref, actions) => {
+				(ref, config) => {
 					const builder = new ForeignKeyBuilder(() => {
 						const foreignColumn = ref();
-						return { columns: [column], foreignColumns: [foreignColumn] };
+						return { name: config.name, columns: [column], foreignColumns: [foreignColumn] };
 					});
-					if (actions.onUpdate) {
-						builder.onUpdate(actions.onUpdate);
+					if (config.onUpdate) {
+						builder.onUpdate(config.onUpdate);
 					}
-					if (actions.onDelete) {
-						builder.onDelete(actions.onDelete);
+					if (config.onDelete) {
+						builder.onDelete(config.onDelete);
 					}
 					return builder.build(table);
 				},
 				ref,
-				actions,
+				config,
 			);
 		});
 	}
 
 	/** @internal */
-	abstract build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgColumn<MakeColumnConfig<T, TTableName>>;
+	abstract build(table: PgTable): PgColumn<any>;
 
 	/** @internal */
 	buildExtraConfigColumn<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): ExtraConfigColumn {
-		return new ExtraConfigColumn(table, this.config);
+		return new ExtraConfigColumn(table, { ...this.config, dimensions: this.config.dimensions ?? 0 });
 	}
 }
 
-// To understand how to use `PgColumn` and `PgColumn`, see `Column` and `AnyColumn` documentation.
+// TODO: we should potenitally do column to be
+// in charge of map value/array of values/json value and json array of values in 1 place
 export abstract class PgColumn<
-	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
-	TRuntimeConfig extends object = {},
-	TTypeConfig extends object = {},
-> extends Column<T, TRuntimeConfig, TTypeConfig & { dialect: 'pg' }> {
+	out TColumnType extends ColumnType = any,
+	out T extends PgColumnBaseConfig<TColumnType> = PgColumnBaseConfig<TColumnType>,
+	out TRuntimeConfig extends object = {},
+> extends Column<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'PgColumn';
 
+	/** @internal */
+	abstract override readonly codec?: PostgresType;
+
+	/** @internal */
+	override readonly table: PgTable;
+
+	readonly dimensions: PgArrayDimension;
+
 	constructor(
-		override readonly table: PgTable,
-		config: ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>,
+		table: PgTable,
+		config: PgColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig,
 	) {
-		if (!config.uniqueName) {
-			config.uniqueName = uniqueKeyName(table, [config.name]);
-		}
 		super(table, config);
+		this.table = table;
+		this.dimensions = config.dimensions ?? 0;
+	}
+
+	/** @internal */
+	override postBuild() {
+		if (this.dimensions) {
+			const originalFromDriver = this.mapFromDriverValue.bind(this);
+			const originalToDriver = this.mapToDriverValue.bind(this);
+
+			this.mapFromDriverValue = this.mapFromDriverValue.isNoop
+				? this.mapFromDriverValue
+				: (value: unknown): unknown => {
+					return this.mapArrayElements(value, originalFromDriver, this.dimensions);
+				};
+
+			this.mapToDriverValue = this.mapToDriverValue.isNoop
+				? this.mapToDriverValue
+				: (value: unknown): unknown => {
+					return this.mapArrayElements(value as unknown[], originalToDriver, this.dimensions);
+				};
+		}
+
+		return this;
+	}
+
+	/**
+	 * Transforms this built column back into a fresh {@link PgColumnBuilder} in the exact same state:
+	 * a bare `toBuilder()` yields a builder whose built column is config-identical to this one.
+	 *
+	 * Useful for deriving a table from an existing one — pass the returned builder to `pgTable()` or
+	 * `pgSchema().table()` — while adjusting individual clauses through {@link overrides}.
+	 */
+	toBuilder(overrides?: PgColumnToBuilderOverrides<T['data']>): PgColumnBuilder {
+		const config = { ...this.config };
+
+		if (overrides) {
+			const { name, unique, ...rest } = overrides;
+			Object.assign(config, rest);
+
+			if (name !== undefined) {
+				config.name = name;
+				config.keyAsName = false;
+			}
+
+			if (unique !== undefined) {
+				config.isUnique = unique !== false;
+				const uniqueConfig = typeof unique === 'object' ? unique : undefined;
+				config.uniqueName = uniqueConfig?.name;
+				config.uniqueType = uniqueConfig?.nulls;
+			}
+
+			// `generatedAlwaysAs` deliberately leaves `hasDefault` false on pg (generated columns are
+			// excluded from inserts via shouldDisableInsert instead), so it is not a source here.
+			config.hasDefault = config.default !== undefined
+				|| config.defaultFn !== undefined
+				|| config.onUpdateFn !== undefined
+				|| config.generatedIdentity !== undefined;
+		}
+
+		return new PgClonedColumnBuilder(
+			config,
+			Object.getPrototypeOf(this).constructor as PgColumnConstructor,
+		);
+	}
+
+	/** @internal */
+	override shouldDisableInsert(): boolean {
+		return (this.config.generatedIdentity !== undefined && this.config.generatedIdentity.type !== 'byDefault')
+			|| (this.config.generated !== undefined && this.config.generated.type !== 'byDefault');
+	}
+
+	/** @internal */
+	private mapArrayElements(value: unknown, mapper: (v: unknown) => unknown, depth: number): unknown {
+		if (depth > 0 && Array.isArray(value)) {
+			return value.map((v) => v === null ? null : this.mapArrayElements(v, mapper, depth - 1));
+		}
+		return mapper(value);
+	}
+}
+
+export interface PgColumnToBuilderOverrides<TData = unknown> {
+	name?: string;
+	notNull?: boolean;
+	primaryKey?: boolean;
+	default?: TData | SQL | undefined;
+	defaultFn?: (() => TData | SQL) | undefined;
+	onUpdateFn?: (() => TData | SQL) | undefined;
+	unique?: boolean | { name?: string; nulls?: 'distinct' | 'not distinct' };
+	generated?: GeneratedColumnConfig<TData> | undefined;
+	generatedIdentity?: GeneratedIdentityConfig | undefined;
+}
+
+type PgColumnConstructor = new(table: PgTable, config: any) => PgColumn;
+
+// Builder produced by {@link PgColumn.toBuilder}: rebuilds the source column's concrete class
+// against a copy of its runtime config, so `pgTable()`'s build step (`build().postBuild()`)
+// reconstructs a codec-faithful clone the same way it builds any other column.
+export class PgClonedColumnBuilder extends PgColumnBuilder {
+	static override readonly [entityKind]: string = 'PgClonedColumnBuilder';
+
+	private readonly ColumnClass: PgColumnConstructor;
+
+	constructor(config: PgColumnBuilderRuntimeConfig<unknown>, ColumnClass: PgColumnConstructor) {
+		super(config.name, config.dataType as ColumnType, config.columnType);
+		this.config = config as any;
+		this.ColumnClass = ColumnClass;
+	}
+
+	/** @internal */
+	override build(table: PgTable): PgColumn {
+		return new this.ColumnClass(table, this.config);
 	}
 }
 
 export type IndexedExtraConfigType = { order?: 'asc' | 'desc'; nulls?: 'first' | 'last'; opClass?: string };
 
 export class ExtraConfigColumn<
-	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
-> extends PgColumn<T, IndexedExtraConfigType> {
+	out T extends PgColumnBaseConfig<ColumnType> = PgColumnBaseConfig<ColumnType>,
+> extends PgColumn<ColumnType, T, IndexedExtraConfigType> {
 	static override readonly [entityKind]: string = 'ExtraConfigColumn';
+
+	/** @internal */
+	override readonly codec = undefined;
 
 	override getSQLType(): string {
 		return this.getSQLType();
@@ -231,7 +599,7 @@ export class ExtraConfigColumn<
 export class IndexedColumn {
 	static readonly [entityKind]: string = 'IndexedColumn';
 	constructor(
-		name: string | undefined,
+		name: string,
 		keyAsName: boolean,
 		type: string,
 		indexConfig: IndexedExtraConfigType,
@@ -242,112 +610,15 @@ export class IndexedColumn {
 		this.indexConfig = indexConfig;
 	}
 
-	name: string | undefined;
+	name: string;
 	keyAsName: boolean;
 	type: string;
 	indexConfig: IndexedExtraConfigType;
 }
 
-export type AnyPgColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, string>> = {}> = PgColumn<
-	Required<Update<ColumnBaseConfig<ColumnDataType, string>, TPartial>>
+export type AnyPgColumn<
+	TPartial extends Partial<PgColumnBaseConfig<ColumnType>> = {},
+> = PgColumn<
+	any,
+	Required<Update<PgColumnBaseConfig<ColumnType>, TPartial>>
 >;
-
-export type PgArrayColumnBuilderBaseConfig = ColumnBuilderBaseConfig<'array', 'PgArray'> & {
-	size: number | undefined;
-	baseBuilder: ColumnBuilderBaseConfig<ColumnDataType, string>;
-};
-
-export class PgArrayBuilder<
-	T extends PgArrayColumnBuilderBaseConfig,
-	TBase extends ColumnBuilderBaseConfig<ColumnDataType, string> | PgArrayColumnBuilderBaseConfig,
-> extends PgColumnBuilder<
-	T,
-	{
-		baseBuilder: TBase extends PgArrayColumnBuilderBaseConfig ? PgArrayBuilder<
-				TBase,
-				TBase extends { baseBuilder: infer TBaseBuilder extends ColumnBuilderBaseConfig<any, any> } ? TBaseBuilder
-					: never
-			>
-			: PgColumnBuilder<TBase, {}, Simplify<Omit<TBase, keyof ColumnBuilderBaseConfig<any, any>>>>;
-		size: T['size'];
-	},
-	{
-		baseBuilder: TBase extends PgArrayColumnBuilderBaseConfig ? PgArrayBuilder<
-				TBase,
-				TBase extends { baseBuilder: infer TBaseBuilder extends ColumnBuilderBaseConfig<any, any> } ? TBaseBuilder
-					: never
-			>
-			: PgColumnBuilder<TBase, {}, Simplify<Omit<TBase, keyof ColumnBuilderBaseConfig<any, any>>>>;
-		size: T['size'];
-	}
-> {
-	static override readonly [entityKind] = 'PgArrayBuilder';
-
-	constructor(
-		name: string,
-		baseBuilder: PgArrayBuilder<T, TBase>['config']['baseBuilder'],
-		size: T['size'],
-	) {
-		super(name, 'array', 'PgArray');
-		this.config.baseBuilder = baseBuilder;
-		this.config.size = size;
-	}
-
-	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgArray<MakeColumnConfig<T, TTableName> & { size: T['size']; baseBuilder: T['baseBuilder'] }, TBase> {
-		const baseColumn = this.config.baseBuilder.build(table);
-		return new PgArray<MakeColumnConfig<T, TTableName> & { size: T['size']; baseBuilder: T['baseBuilder'] }, TBase>(
-			table as AnyPgTable<{ name: MakeColumnConfig<T, TTableName>['tableName'] }>,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
-			baseColumn,
-		);
-	}
-}
-
-export class PgArray<
-	T extends ColumnBaseConfig<'array', 'PgArray'> & {
-		size: number | undefined;
-		baseBuilder: ColumnBuilderBaseConfig<ColumnDataType, string>;
-	},
-	TBase extends ColumnBuilderBaseConfig<ColumnDataType, string>,
-> extends PgColumn<T, {}, { size: T['size']; baseBuilder: T['baseBuilder'] }> {
-	readonly size: T['size'];
-
-	static override readonly [entityKind]: string = 'PgArray';
-
-	constructor(
-		table: AnyPgTable<{ name: T['tableName'] }>,
-		config: PgArrayBuilder<T, TBase>['config'],
-		readonly baseColumn: PgColumn,
-		readonly range?: [number | undefined, number | undefined],
-	) {
-		super(table, config);
-		this.size = config.size;
-	}
-
-	getSQLType(): string {
-		return `${this.baseColumn.getSQLType()}[${typeof this.size === 'number' ? this.size : ''}]`;
-	}
-
-	override mapFromDriverValue(value: unknown[] | string): T['data'] {
-		if (typeof value === 'string') {
-			// Thank you node-postgres for not parsing enum arrays
-			value = parsePgArray(value);
-		}
-		return value.map((v) => this.baseColumn.mapFromDriverValue(v));
-	}
-
-	override mapToDriverValue(value: unknown[], isNestedArray = false): unknown[] | string {
-		const a = value.map((v) =>
-			v === null
-				? null
-				: is(this.baseColumn, PgArray)
-				? this.baseColumn.mapToDriverValue(v as unknown[], true)
-				: this.baseColumn.mapToDriverValue(v)
-		);
-		if (isNestedArray) return a;
-		return makePgArray(a);
-	}
-}

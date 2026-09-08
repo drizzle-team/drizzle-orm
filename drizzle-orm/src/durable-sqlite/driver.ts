@@ -1,37 +1,34 @@
 /// <reference types="@cloudflare/workers-types" />
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	type ExtractTablesWithRelations,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
-import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
-import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
-import type { DrizzleConfig } from '~/utils.ts';
-import { SQLiteDOSession } from './session.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
+import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
+import { durableSQLiteCodecs } from './codecs.ts';
+import { type DurableSQLiteRunResult, SQLiteDOSession } from './session.ts';
 
-export class DrizzleSqliteDODatabase<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-> extends BaseSQLiteDatabase<'sync', SqlStorageCursor<Record<string, SqlStorageValue>>, TSchema> {
+export class DrizzleSqliteDODatabase<TRelations extends AnyRelations = EmptyRelations>
+	extends SQLiteAsyncDatabase<'sync', DurableSQLiteRunResult, TRelations>
+{
 	static override readonly [entityKind]: string = 'DrizzleSqliteDODatabase';
 
 	/** @internal */
-	declare readonly session: SQLiteDOSession<TSchema, ExtractTablesWithRelations<TSchema>>;
+	declare readonly session: SQLiteDOSession<TRelations>;
 }
 
 export function drizzle<
-	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends DurableObjectStorage = DurableObjectStorage,
 >(
 	client: TClient,
-	config: DrizzleConfig<TSchema> = {},
-): DrizzleSqliteDODatabase<TSchema> & {
+	config: Omit<DrizzleSQLiteConfig<TRelations>, 'jit'> = {},
+): DrizzleSqliteDODatabase<TRelations> & {
 	$client: TClient;
 } {
-	const dialect = new SQLiteSyncDialect({ casing: config.casing });
+	const dialect = new SQLiteDialect({
+		codecs: config.codecs ?? durableSQLiteCodecs,
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -39,21 +36,17 @@ export function drizzle<
 		logger = config.logger;
 	}
 
-	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
-	if (config.schema) {
-		const tablesConfig = extractTablesRelationalConfig(
-			config.schema,
-			createTableRelationsHelpers,
-		);
-		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
-			tableNamesMap: tablesConfig.tableNamesMap,
-		};
-	}
-
-	const session = new SQLiteDOSession(client as DurableObjectStorage, dialect, schema, { logger });
-	const db = new DrizzleSqliteDODatabase('sync', dialect, session, schema) as DrizzleSqliteDODatabase<TSchema>;
+	const relations = config.relations ?? {} as TRelations;
+	const session = new SQLiteDOSession(client as DurableObjectStorage, dialect, relations, {
+		logger,
+	});
+	const db = new DrizzleSqliteDODatabase(
+		'sync',
+		dialect,
+		session,
+		relations,
+		true,
+	);
 	(<any> db).$client = client;
 
 	return db as any;

@@ -1,24 +1,15 @@
 import type { GetColumnData } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import type {
-	AnyMySqlQueryResultHKT,
-	MySqlPreparedQueryConfig,
-	MySqlQueryResultHKT,
-	MySqlQueryResultKind,
-	MySqlSession,
-	PreparedQueryHKTBase,
-	PreparedQueryKind,
-} from '~/mysql-core/session.ts';
+import type { AnyMySqlQueryResultHKT, MySqlQueryResultHKT } from '~/mysql-core/session.ts';
+import type { MySqlSession } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
-import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { type CommentInput, type Placeholder, type Query, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
-import { Table } from '~/table.ts';
-import { mapUpdateSet, type UpdateSet, type ValueOrArray } from '~/utils.ts';
+import { type InferInsertModel, Table } from '~/table.ts';
+import { type Assume, mapUpdateSet, type UpdateSet, type ValueOrArray } from '~/utils.ts';
 import type { MySqlColumn } from '../columns/common.ts';
-import type { SelectedFieldsOrdered } from './select.types.ts';
 
 export interface MySqlUpdateConfig {
 	where?: SQL | undefined;
@@ -26,23 +17,37 @@ export interface MySqlUpdateConfig {
 	orderBy?: (MySqlColumn | SQL | SQL.Aliased)[];
 	set: UpdateSet;
 	table: MySqlTable;
-	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
+	comment?: SQL;
 }
 
-export type MySqlUpdateSetSource<TTable extends MySqlTable> =
+export type MySqlUpdateSetSource<
+	TTable extends MySqlTable,
+	TModel extends Record<string, any> = InferInsertModel<TTable>,
+> =
 	& {
-		[Key in keyof TTable['$inferInsert']]?:
+		[Key in keyof TModel & string]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
 			| SQL
+			| Placeholder
 			| undefined;
 	}
 	& {};
 
+export interface MySqlUpdateBuilderConstructor {
+	new(
+		table: MySqlTable,
+		set: UpdateSet,
+		session: MySqlSession,
+		dialect: MySqlDialect,
+		withList?: Subquery[],
+	): AnyMySqlUpdate;
+}
+
 export class MySqlUpdateBuilder<
 	TTable extends MySqlTable,
 	TQueryResult extends MySqlQueryResultHKT,
-	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TBuilderHKT extends MySqlUpdateHKTBase = MySqlUpdateHKT,
 > {
 	static readonly [entityKind]: string = 'MySqlUpdateBuilder';
 
@@ -55,89 +60,118 @@ export class MySqlUpdateBuilder<
 		private session: MySqlSession,
 		private dialect: MySqlDialect,
 		private withList?: Subquery[],
+		private builder: MySqlUpdateBuilderConstructor = MySqlUpdateBase as unknown as MySqlUpdateBuilderConstructor,
 	) {}
 
-	set(values: MySqlUpdateSetSource<TTable>): MySqlUpdateBase<TTable, TQueryResult, TPreparedQueryHKT> {
-		return new MySqlUpdateBase(this.table, mapUpdateSet(this.table, values), this.session, this.dialect, this.withList);
+	set(values: MySqlUpdateSetSource<TTable>): MySqlUpdateKind<TBuilderHKT, TTable, TQueryResult> {
+		return new this.builder(
+			this.table,
+			mapUpdateSet(this.table, values),
+			this.session,
+			this.dialect,
+			this.withList,
+		) as any;
 	}
 }
 
 export type MySqlUpdateWithout<
-	T extends AnyMySqlUpdateBase,
+	T extends AnyMySqlUpdate,
 	TDynamic extends boolean,
 	K extends keyof T & string,
 > = TDynamic extends true ? T : Omit<
-	MySqlUpdateBase<
+	MySqlUpdateKind<
+		T['_']['hkt'],
 		T['_']['table'],
 		T['_']['queryResult'],
-		T['_']['preparedQueryHKT'],
 		TDynamic,
 		T['_']['excludedMethods'] | K
 	>,
 	T['_']['excludedMethods'] | K
 >;
 
-export type MySqlUpdatePrepare<T extends AnyMySqlUpdateBase> = PreparedQueryKind<
-	T['_']['preparedQueryHKT'],
-	MySqlPreparedQueryConfig & {
-		execute: MySqlQueryResultKind<T['_']['queryResult'], never>;
-		iterator: never;
-	},
-	true
->;
-
-export type MySqlUpdateDynamic<T extends AnyMySqlUpdateBase> = MySqlUpdate<
+export type MySqlUpdateDynamic<T extends AnyMySqlUpdate> = MySqlUpdateKind<
+	T['_']['hkt'],
 	T['_']['table'],
 	T['_']['queryResult'],
-	T['_']['preparedQueryHKT']
+	true,
+	never
 >;
 
 export type MySqlUpdate<
 	TTable extends MySqlTable = MySqlTable,
 	TQueryResult extends MySqlQueryResultHKT = AnyMySqlQueryResultHKT,
-	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
-> = MySqlUpdateBase<TTable, TQueryResult, TPreparedQueryHKT, true, never>;
+> = MySqlUpdateBase<MySqlUpdateHKT, TTable, TQueryResult, true, never>;
 
-export type AnyMySqlUpdateBase = MySqlUpdateBase<any, any, any, any, any>;
+export type AnyMySqlUpdate = MySqlUpdateBase<any, any, any, any, any>;
 
-export interface MySqlUpdateBase<
+export interface MySqlUpdateHKTBase {
+	table: unknown;
+	queryResult: unknown;
+	dynamic: boolean;
+	excludedMethods: string;
+	_type: unknown;
+}
+
+export interface MySqlUpdateHKT extends MySqlUpdateHKTBase {
+	_type: MySqlUpdateBase<
+		MySqlUpdateHKT,
+		Assume<this['table'], MySqlTable>,
+		Assume<this['queryResult'], MySqlQueryResultHKT>,
+		this['dynamic'],
+		this['excludedMethods']
+	>;
+}
+
+export type MySqlUpdateKind<
+	T extends MySqlUpdateHKTBase,
 	TTable extends MySqlTable,
 	TQueryResult extends MySqlQueryResultHKT,
-	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-> extends QueryPromise<MySqlQueryResultKind<TQueryResult, never>>, SQLWrapper {
+> = (T & {
+	table: TTable;
+	queryResult: TQueryResult;
+	dynamic: TDynamic;
+	excludedMethods: TExcludedMethods;
+})['_type'];
+
+export interface MySqlUpdateBase<
+	THKT extends MySqlUpdateHKTBase,
+	TTable extends MySqlTable,
+	TQueryResult extends MySqlQueryResultHKT,
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+> extends SQLWrapper {
 	readonly _: {
+		readonly hkt: THKT;
 		readonly table: TTable;
 		readonly queryResult: TQueryResult;
-		readonly preparedQueryHKT: TPreparedQueryHKT;
 		readonly dynamic: TDynamic;
 		readonly excludedMethods: TExcludedMethods;
 	};
 }
 
 export class MySqlUpdateBase<
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	THKT extends MySqlUpdateHKTBase,
 	TTable extends MySqlTable,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TQueryResult extends MySqlQueryResultHKT,
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<MySqlQueryResultKind<TQueryResult, never>> implements SQLWrapper {
-	static override readonly [entityKind]: string = 'MySqlUpdate';
+> implements SQLWrapper {
+	static readonly [entityKind]: string = 'MySqlUpdate';
 
-	private config: MySqlUpdateConfig;
+	protected config: MySqlUpdateConfig;
 
 	constructor(
 		table: TTable,
 		set: UpdateSet,
-		private session: MySqlSession,
-		private dialect: MySqlDialect,
+		protected session: MySqlSession,
+		protected dialect: MySqlDialect,
 		withList?: Subquery[],
 	) {
-		super();
 		this.config = { set, table, withList };
 	}
 
@@ -210,35 +244,21 @@ export class MySqlUpdateBase<
 		return this as any;
 	}
 
-	/** @internal */
+	/**
+	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
+	 */
+	comment(comment: CommentInput): MySqlUpdateWithout<this, TDynamic, 'comment'> {
+		this.config.comment = sql.comment(comment);
+		return this as any;
+	}
+
 	getSQL(): SQL {
 		return this.dialect.buildUpdateQuery(this.config);
 	}
 
 	toSQL(): Query {
-		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		return rest;
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
-
-	prepare(): MySqlUpdatePrepare<this> {
-		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
-			this.config.returning,
-		) as MySqlUpdatePrepare<this>;
-	}
-
-	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this.prepare().execute(placeholderValues);
-	};
-
-	private createIterator = (): ReturnType<this['prepare']>['iterator'] => {
-		const self = this;
-		return async function*(placeholderValues) {
-			yield* self.prepare().iterator(placeholderValues);
-		};
-	};
-
-	iterator = this.createIterator();
 
 	$dynamic(): MySqlUpdateDynamic<this> {
 		return this as any;

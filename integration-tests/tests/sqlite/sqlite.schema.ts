@@ -1,0 +1,235 @@
+import {
+	alias,
+	type AnySQLiteColumn,
+	blob,
+	customType,
+	integer,
+	numeric,
+	primaryKey,
+	QueryBuilder,
+	real,
+	snakeCase,
+	text,
+} from 'drizzle-orm/sqlite-core';
+
+import { eq, getTableColumns, ne, sql } from 'drizzle-orm';
+
+export const usersTable = snakeCase.table('users', {
+	id: integer().primaryKey({ autoIncrement: true }),
+	name: text().notNull(),
+	verified: integer().notNull().default(0),
+	invitedBy: integer().references((): AnySQLiteColumn => usersTable.id),
+});
+
+export const groupsTable = snakeCase.table('groups', {
+	id: integer().primaryKey({ autoIncrement: true }),
+	name: text().notNull(),
+	description: text(),
+});
+export const usersToGroupsTable = snakeCase.table(
+	'users_to_groups',
+	{
+		id: integer().primaryKey({ autoIncrement: true }),
+		userId: integer({ mode: 'number' }).notNull().references(
+			() => usersTable.id,
+		),
+		groupId: integer({ mode: 'number' }).notNull().references(
+			() => groupsTable.id,
+		),
+	},
+	(t) => [primaryKey({ columns: [t.userId, t.groupId] })],
+);
+
+export const postsTable = snakeCase.table('posts', {
+	id: integer().primaryKey({ autoIncrement: true }),
+	content: text().notNull(),
+	ownerId: integer({ mode: 'number' }).references(
+		() => usersTable.id,
+	),
+	createdAt: integer({ mode: 'timestamp_ms' })
+		.notNull().default(sql`current_timestamp`),
+});
+
+export const usersView = snakeCase.view('users_view').as((qb) =>
+	qb.select({
+		...getTableColumns(usersTable),
+		postContent: postsTable.content,
+		createdAt: postsTable.createdAt,
+		counter: sql<string | number>`(select count(*) from ${usersTable} as ${alias(usersTable, 'count_source')} where ${
+			ne(usersTable.id, 2)
+		})`
+			.mapWith((data) => {
+				return data === '0' || data === 0 ? null : Number(data);
+			}).as('count'),
+	})
+		.from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.ownerId))
+);
+
+export const usersSubquery = new QueryBuilder().select({
+	...getTableColumns(usersTable),
+	postContent: postsTable.content,
+	createdAt: postsTable.createdAt,
+	counter: sql<string | number>`(select count(*) from ${usersTable} as ${alias(usersTable, 'count_source')} where ${
+		ne(usersTable.id, 2)
+	})`
+		.mapWith((data) => {
+			return data === '0' || data === 0 ? null : Number(data);
+		}).as('count'),
+})
+	.from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.ownerId)).as('users_sq');
+
+export const commentsTable = snakeCase.table('comments', {
+	id: integer().primaryKey({ autoIncrement: true }),
+	content: text().notNull(),
+	creator: integer({ mode: 'number' }).references(
+		() => usersTable.id,
+	),
+	postId: integer({ mode: 'number' }).references(() => postsTable.id),
+	createdAt: integer({ mode: 'timestamp_ms' })
+		.notNull().default(sql`current_timestamp`),
+});
+
+export const commentLikesTable = snakeCase.table('comment_likes', {
+	id: integer().primaryKey({ autoIncrement: true }),
+	creator: integer({ mode: 'number' }).references(
+		() => usersTable.id,
+	),
+	commentId: integer({ mode: 'number' }).references(
+		() => commentsTable.id,
+	),
+	createdAt: integer({ mode: 'timestamp_ms' })
+		.notNull().default(sql`current_timestamp`),
+});
+
+export const allTypesTable = snakeCase.table('all_types', {
+	int: integer({
+		mode: 'number',
+	}),
+	bool: integer({
+		mode: 'boolean',
+	}),
+	time: integer({
+		mode: 'timestamp',
+	}),
+	timeMs: integer({
+		mode: 'timestamp_ms',
+	}),
+	bigint: blob({
+		mode: 'bigint',
+	}),
+	buffer: blob({
+		mode: 'buffer',
+	}),
+	json: blob({
+		mode: 'json',
+	}),
+	numeric: numeric(),
+	numericNum: numeric({
+		mode: 'number',
+	}),
+	numericBig: numeric({
+		mode: 'bigint',
+	}),
+	real: real(),
+	text: text({
+		mode: 'text',
+	}),
+	jsonText: text({
+		mode: 'json',
+	}),
+});
+
+export type AllTypes = {
+	int: number | null;
+	bool: boolean | null;
+	time: Date | null;
+	timeMs: Date | null;
+	bigint: bigint | null;
+	buffer: Buffer | null;
+	json: unknown;
+	numeric: string | null;
+	numericNum: number | null;
+	numericBig: bigint | null;
+	real: number | null;
+	text: string | null;
+	jsonText: unknown;
+};
+
+export const students = snakeCase.table('students', {
+	studentId: integer('student_id').primaryKey().notNull(),
+	name: text().notNull(),
+});
+
+export const courseOfferings = snakeCase.table('course_offerings', {
+	courseId: integer('course_id').notNull(),
+	semester: text().notNull(),
+});
+
+export const studentGrades = snakeCase.table('student_grades', {
+	studentId: integer('student_id').notNull(),
+	courseId: integer('course_id').notNull(),
+	semester: text().notNull(),
+	grade: text(),
+});
+
+const customBigInt = customType<{
+	data: bigint;
+	driverData: Buffer;
+	jsonData: string;
+}>({
+	codec: 'blob',
+	dataType: () => 'blob',
+	fromDriver: (value) => {
+		return BigInt(value.toString());
+	},
+	fromJson: (value) => {
+		return BigInt(Buffer.from(value, 'hex').toString());
+	},
+	toDriver: (value) => Buffer.from(value.toString()),
+});
+
+const customBytes = customType<{
+	data: Buffer;
+	driverData: Buffer;
+	jsonData: string;
+}>({
+	codec: 'blob',
+	dataType: () => 'blob',
+	fromJson: (value) => {
+		return Buffer.from(value, 'hex');
+	},
+	forJsonSelect: (identifier, sql) => {
+		return sql`hex(${identifier})`;
+	},
+});
+
+const customTimestamp = customType<{
+	data: Date;
+	driverData: number;
+	jsonData: number;
+}>({
+	codec: 'integer',
+	dataType: () => 'integer',
+	fromDriver: (value: number) => {
+		return new Date(value);
+	},
+	toDriver: (value: Date) => {
+		return value.getTime();
+	},
+});
+
+const customInt = customType<{
+	data: number;
+	driverData: number;
+}>({
+	codec: 'integer',
+	dataType: () => 'integer',
+});
+
+export const customTypesTable = snakeCase.table('custom_types', {
+	id: integer('id'),
+	big: customBigInt(),
+	bytes: customBytes(),
+	time: customTimestamp(),
+	int: customInt(),
+});

@@ -1,23 +1,29 @@
 import type { ResultSetHeader } from 'mysql2/promise';
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { SingleStoreDriverDatabase } from '~/singlestore/driver.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
+import type { InferInsertModel, RequiredInsertKeys } from '~/table.ts';
+import type { DrizzleTypeError, IsNever, JoinUnion } from '~/utils.ts';
 import type { SingleStoreDialect } from './dialect.ts';
 import { SingleStoreCountBuilder } from './query-builders/count.ts';
 import {
+	type NoDuplicateColumns,
 	QueryBuilder,
 	SingleStoreDeleteBase,
 	SingleStoreInsertBuilder,
 	SingleStoreSelectBuilder,
 	SingleStoreUpdateBuilder,
 } from './query-builders/index.ts';
+import { RelationalQueryBuilder } from './query-builders/query.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import type {
 	PreparedQueryHKTBase,
+	SingleStorePreparedQueryConfig,
 	SingleStoreQueryResultHKT,
 	SingleStoreQueryResultKind,
 	SingleStoreSession,
@@ -30,55 +36,53 @@ import type { SingleStoreTable } from './table.ts';
 export class SingleStoreDatabase<
 	TQueryResult extends SingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TFullSchema extends Record<string, unknown> = {},
-	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
+	TRelations extends AnyRelations = EmptyRelations,
 > {
 	static readonly [entityKind]: string = 'SingleStoreDatabase';
 
 	declare readonly _: {
-		readonly schema: TSchema | undefined;
-		readonly fullSchema: TFullSchema;
-		readonly tableNamesMap: Record<string, string>;
+		readonly relations: TRelations;
+		readonly session: SingleStoreSession<TQueryResult, TPreparedQueryHKT, TRelations>;
 	};
 
-	// We are waiting for SingleStore support for `json_array` function
-	/**@inrernal */
-	query: unknown;
+	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
+	query: {
+		[K in keyof TRelations]: RelationalQueryBuilder<
+			TPreparedQueryHKT,
+			TRelations,
+			TRelations[K]
+		>;
+	};
 
 	constructor(
 		/** @internal */
 		readonly dialect: SingleStoreDialect,
 		/** @internal */
-		readonly session: SingleStoreSession<any, any, any, any>,
-		schema: RelationalSchemaConfig<TSchema> | undefined,
+		readonly session: SingleStoreSession<any, any, any>,
+		relations: TRelations,
 	) {
-		this._ = schema
-			? {
-				schema: schema.schema,
-				fullSchema: schema.fullSchema as TFullSchema,
-				tableNamesMap: schema.tableNamesMap,
-			}
-			: {
-				schema: undefined,
-				fullSchema: {} as TFullSchema,
-				tableNamesMap: {},
-			};
+		this._ = {
+			relations,
+			session,
+		};
 		this.query = {} as typeof this['query'];
-		// this.queryNotSupported = true;
-		// if (this._.schema) {
-		// 	for (const [tableName, columns] of Object.entries(this._.schema)) {
-		// 		(this.query as SingleStoreDatabase<TQueryResult, TPreparedQueryHKT, Record<string, any>>['query'])[tableName] =
-		// 			new RelationalQueryBuilder(
-		// 				schema!.fullSchema,
-		// 				this._.schema,
-		// 				this._.tableNamesMap,
-		// 				schema!.fullSchema[tableName] as SingleStoreTable,
-		// 				columns,
-		// 				dialect,
-		// 				session,
-		// 			);
-		// 	}
-		// }
+		for (const [tableName, relation] of Object.entries(relations)) {
+			(this.query as SingleStoreDatabase<
+				TQueryResult,
+				TPreparedQueryHKT,
+				AnyRelations
+			>['query'])[
+				tableName
+			] = new RelationalQueryBuilder(
+				relations,
+				relations[relation.name]!.table as SingleStoreTable,
+				relation,
+				dialect,
+				session,
+			);
+		}
+
+		this.$cache = { invalidate: async (_params: any) => {} };
 	}
 
 	/**
@@ -127,7 +131,7 @@ export class SingleStoreDatabase<
 
 			return new Proxy(
 				new WithSubquery(
-					qb.getSQL(),
+					('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL(),
 					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
 					alias,
 					true,
@@ -436,12 +440,32 @@ export class SingleStoreDatabase<
 	 *
 	 * // Insert multiple rows
 	 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
+	 *
+	 * // Insert only selected columns
+	 * await db.insert(cars, 'brand', 'productionYear').values([{ brand: 'BMW', productionYear: 1995 }, { brand: 'Porsche', productionYear: 1989 }]);
 	 * ```
 	 */
+	insert<
+		TTable extends SingleStoreTable,
+		TColumnList extends (keyof InferInsertModel<TTable>)[] = [],
+		TRequiredKeys extends string = RequiredInsertKeys<TTable>,
+	>(
+		table: TTable,
+		...columns: TColumnList extends [] ? []
+			: IsNever<TRequiredKeys> extends true ? TColumnList & NoDuplicateColumns<TColumnList>
+			: [TRequiredKeys] extends [TColumnList[number]] ? TColumnList & NoDuplicateColumns<TColumnList>
+			: DrizzleTypeError<
+				`Column selection is missing following required columns: ${JoinUnion<
+					`"${Exclude<TRequiredKeys, TColumnList[number]>}"`,
+					', '
+				>}`
+			>[]
+	): SingleStoreInsertBuilder<TTable, TQueryResult, TPreparedQueryHKT, TColumnList extends [] ? 'all' : TColumnList>;
 	insert<TTable extends SingleStoreTable>(
 		table: TTable,
+		...columns: string[]
 	): SingleStoreInsertBuilder<TTable, TQueryResult, TPreparedQueryHKT> {
-		return new SingleStoreInsertBuilder(table, this.session, this.dialect);
+		return new SingleStoreInsertBuilder(table, this.session, this.dialect, columns.length ? columns : undefined);
 	}
 
 	/**
@@ -469,15 +493,37 @@ export class SingleStoreDatabase<
 		return new SingleStoreDeleteBase(table, this.session, this.dialect);
 	}
 
+	execute<TRow extends unknown[] = unknown[]>(
+		query: SQLWrapper | string,
+		mode: 'arrays',
+	): Promise<TRow[]>;
+	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+		query: SQLWrapper | string,
+		mode: 'objects',
+	): Promise<TRow[]>;
 	execute<T extends { [column: string]: any } = ResultSetHeader>(
 		query: SQLWrapper | string,
-	): Promise<SingleStoreQueryResultKind<TQueryResult, T>> {
-		return this.session.execute(typeof query === 'string' ? sql.raw(query) : query.getSQL());
+		mode?: 'raw' | undefined,
+	): Promise<SingleStoreQueryResultKind<TQueryResult, T>>;
+	execute(
+		query: SQLWrapper | string,
+		mode?: 'raw' | 'objects' | 'arrays' | undefined,
+	): unknown {
+		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
+		return this.session.prepareQuery<
+			SingleStorePreparedQueryConfig & { execute: unknown },
+			PreparedQueryHKTBase
+		>(
+			this.dialect.sqlToQuery(sequel),
+			mode ?? 'raw',
+		).execute();
 	}
+
+	$cache: { invalidate: Cache['onMutate'] };
 
 	transaction<T>(
 		transaction: (
-			tx: SingleStoreTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>,
+			tx: SingleStoreTransaction<TQueryResult, TPreparedQueryHKT, TRelations>,
 			config?: SingleStoreTransactionConfig,
 		) => Promise<T>,
 		config?: SingleStoreTransactionConfig,
@@ -486,7 +532,7 @@ export class SingleStoreDatabase<
 	}
 }
 
-export type SingleStoreWithReplicas<Q> = Q & { $primary: Q };
+export type SingleStoreWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
 
 export const withReplicas = <
 	Q extends SingleStoreDriverDatabase,
@@ -501,9 +547,9 @@ export const withReplicas = <
 	const $with: Q['with'] = (...args: []) => getReplica(replicas).with(...args);
 
 	const update: Q['update'] = (...args: [any]) => primary.update(...args);
-	const insert: Q['insert'] = (...args: [any]) => primary.insert(...args);
+	const insert: Q['insert'] = ((...args: [any]) => primary.insert(...args)) as Q['insert'];
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
-	const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
+	const execute: Q['execute'] = ((...args: [any]) => primary.execute(...args)) as Q['execute'];
 	const transaction: Q['transaction'] = (...args: [any, any]) => primary.transaction(...args);
 
 	return {
@@ -514,6 +560,7 @@ export const withReplicas = <
 		execute,
 		transaction,
 		$primary: primary,
+		$replicas: replicas,
 		select,
 		selectDistinct,
 		$count,

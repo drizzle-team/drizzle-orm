@@ -1,94 +1,495 @@
+import { View } from '~/view.ts';
+import type { Cache } from './cache/core/cache.ts';
+import type { CodecsCollection } from './codecs.ts';
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { is } from './entity.ts';
 import type { Logger } from './logger.ts';
-import type { SelectedFieldsOrdered } from './operations.ts';
+import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './operations.ts';
 import type { TableLike } from './query-builders/select.types.ts';
-import { Param, SQL, View } from './sql/sql.ts';
-import type { DriverValueDecoder } from './sql/sql.ts';
+import type { AnyRelations, EmptyRelations } from './relations.ts';
+import { Param, SQL } from './sql/sql.ts';
+import type { DriverValueDecoder, SQLWrapper } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
 import { getTableName, Table } from './table.ts';
 import { ViewBaseConfig } from './view-common.ts';
 
 /** @internal */
-export function mapResultRow<TResult>(
+export function resolveNullableObjectPaths(
 	columns: SelectedFieldsOrdered<AnyColumn>,
-	row: unknown[],
 	joinsNotNullableMap: Record<string, boolean> | undefined,
-): TResult {
-	// Key -> nested object key, value -> table name if all fields in the nested object are from the same table, false otherwise
-	const nullifyMap: Record<string, string | false> = {};
+): string[] | undefined {
+	if (!joinsNotNullableMap) return undefined;
 
-	const result = columns.reduce<Record<string, any>>(
-		(result, { path, field }, columnIndex) => {
-			let decoder: DriverValueDecoder<unknown, unknown>;
-			if (is(field, Column)) {
+	// prefix -> table
+	const tableOf = new Map<string, string | false>();
+	const order: string[] = [];
+	const seen = new Set<string>();
+
+	for (const { path, field, fieldType } of columns) {
+		if (path.length < 2) continue;
+		const key = path[0]!;
+		if (!seen.has(key)) {
+			seen.add(key);
+			order.push(key);
+		}
+		if (fieldType !== 'Column') continue;
+		const tableName = getTableName(field.table);
+		const current = tableOf.get(key);
+		if (current === undefined) tableOf.set(key, tableName);
+		else if (current !== false && current !== tableName) tableOf.set(key, false);
+	}
+
+	const result: string[] = [];
+	for (const key of order) {
+		const table = tableOf.get(key);
+		// sql field only group remains not nullable due to lack of table to be bound to
+		if (typeof table === 'string' && !joinsNotNullableMap[table]) result.push(key);
+	}
+
+	return result;
+}
+
+function nullablePathTargets(
+	columns: SelectedFieldsOrdered<AnyColumn>,
+	nullableObjectPaths: string[],
+): { key: string; leaves: number[] }[] {
+	const targets: {
+		key: string;
+		leaves: number[];
+	}[] = new Array(nullableObjectPaths.length);
+
+	for (let i = 0; i < nullableObjectPaths.length; ++i) {
+		const key = nullableObjectPaths[i]!;
+		const leaves: number[] = [];
+		for (let j = 0; j < columns.length; ++j) {
+			const cp = columns[j]!.path;
+			if (cp.length > 1 && cp[0] === key) leaves.push(j);
+		}
+
+		targets[i] = { key, leaves };
+	}
+
+	return targets;
+}
+
+/** @internal bypass bundle-time filtering */
+export const FnConstructor = Object.getPrototypeOf(() => null).constructor as typeof Function;
+
+/** @internal */
+function makeJitQueryMapperInner(
+	columns: SelectedFieldsOrdered<AnyColumn>,
+	nullableObjectPaths?: string[],
+): string {
+	const preFn = [] as string[];
+	const fn = [] as string[];
+	fn.push(`const [ ${columns.map((_, i) => `c${i}`).join(', ')} ] = rows[i];`);
+
+	// top-level key -> the c-ids of every leaf nested under it, so a nullable group can test them all at once.
+	const descendantIds: Record<string, string[]> = {};
+	const nullableKeys = new Set(nullableObjectPaths ?? []);
+	const decodes = new Array<string>(columns.length);
+
+	for (let idx = 0; idx < columns.length; ++idx) {
+		const { field, fieldType, path, codec, arrayDimensions } = columns[idx]!;
+		let decoder: DriverValueDecoder<unknown, unknown>;
+		let decoderStr: string;
+		let decoderFieldDestructure: string;
+		switch (fieldType) {
+			case 'Column':
 				decoder = field;
-			} else if (is(field, SQL)) {
+				decoderFieldDestructure = `field: decoder${idx}`;
+				break;
+			case 'SQL':
 				decoder = field.decoder;
-			} else {
+				decoderFieldDestructure = `field: { decoder: decoder${idx} }`;
+				break;
+			case 'Subquery':
+				decoder = field._.sql.decoder;
+				decoderFieldDestructure = `field: { _: { sql: { decoder: decoder${idx} } } }`;
+				break;
+			default:
 				decoder = field.sql.decoder;
-			}
-			let node = result;
-			for (const [pathChunkIndex, pathChunk] of path.entries()) {
-				if (pathChunkIndex < path.length - 1) {
-					if (!(pathChunk in node)) {
-						node[pathChunk] = {};
-					}
-					node = node[pathChunk];
-				} else {
-					const rawValue = row[columnIndex]!;
-					const value = node[pathChunk] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
+				decoderFieldDestructure = `field: { sql: { decoder: decoder${idx} } }`;
+		}
+		decoderStr = `decoder${idx}.mapFromDriverValue`;
+		if (decoder.mapFromDriverValue.isNoop) decoderStr = '';
+		if (decoderStr) {
+			preFn.push(`const { ${decoderFieldDestructure}${codec ? `, codec: codec${idx}` : ''} } = columns[${idx}];`);
+		} else if (codec) {
+			preFn.push(`const { codec: codec${idx} } = columns[${idx}];`);
+		}
 
-					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
-						const objectName = path[0]!;
-						if (!(objectName in nullifyMap)) {
-							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
-						} else if (
-							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
-						) {
-							nullifyMap[objectName] = false;
+		const colStr = `c${idx}`;
+		let decodedValue = colStr;
+		if (codec) decodedValue = `codec${idx}(${decodedValue}, ${arrayDimensions})`;
+		if (decoderStr) decodedValue = `${decoderStr}(${decodedValue})`;
+		decodes[idx] = colStr === decodedValue
+			? `${colStr}`
+			: `${colStr} === null ? ${colStr} : ${decodedValue}`;
+
+		if (path.length > 1) (descendantIds[path[0]!] ??= []).push(colStr);
+	}
+
+	fn.push(`mapped[i] = {`);
+	let currentObjectPath: string[] = [];
+	for (let idx = 0; idx < columns.length; ++idx) {
+		const { path } = columns[idx]!;
+		const jsonPath = path.map((e) => JSON.stringify(e));
+		const decodedValue = decodes[idx]!;
+
+		const objectPath = path.slice(0, -1);
+		let commonLen = 0;
+		while (
+			commonLen < currentObjectPath.length
+			&& commonLen < objectPath.length
+			&& currentObjectPath[commonLen] === objectPath[commonLen]
+		) commonLen++;
+
+		for (let d = currentObjectPath.length - 1; d >= commonLen; --d) {
+			fn.push(`${'\t'.repeat(d + 1)}},`);
+		}
+
+		for (let d = commonLen; d < objectPath.length; ++d) {
+			const nullable = d === 0 && nullableKeys.has(path[0]!);
+			fn.push(
+				`${'\t'.repeat(d + 1)}${jsonPath[d]}: ${
+					nullable
+						? `${descendantIds[path[0]!]!.map((c) => `${c} === null`).join(' && ')} ? null : {`
+						: '{'
+				}`,
+			);
+		}
+
+		currentObjectPath = objectPath;
+		fn.push(`${'\t'.repeat(path.length)}${jsonPath[path.length - 1]}: ${decodedValue},`);
+	}
+
+	for (let d = currentObjectPath.length - 1; d >= 0; --d) {
+		fn.push(`${'\t'.repeat(d + 1)}},`);
+	}
+	fn.push(`};`);
+
+	return `${preFn.length ? `${preFn.join('\n\t')}\n\t` : ''}for (let i = 0; i < length; ++i) {
+		${fn.join('\n\t\t')}
+	}`;
+}
+
+export type RowsMapperGenerator = <TResult = any>(
+	columns: SelectedFieldsOrdered<AnyColumn>,
+	nullableObjectPaths: string[] | undefined,
+) => RowsMapper<TResult> | undefined;
+export interface RowsMapper<TResult = Record<string, unknown>[]> {
+	(rows: unknown[][]): TResult;
+	/** @internal jit mapper's function body for debugging */
+	body?: string;
+}
+
+export function makeJitQueryMapper<TResult>(
+	columns: SelectedFieldsOrdered<AnyColumn>,
+	nullableObjectPaths: string[] | undefined,
+): RowsMapper<TResult> {
+	const internals = `\t"use strict";
+	const { columns } = this;
+	const { length } = rows;
+	const mapped = new Array(length);
+	${makeJitQueryMapperInner(columns, nullableObjectPaths)}
+	return mapped;
+	//# sourceURL=drizzle:jit-query-mapper`;
+
+	const fn = Object.assign(
+		new FnConstructor(
+			'rows',
+			internals,
+		).bind({
+			columns,
+		}),
+		{ body: `function jitQueryMapper (rows) {\n${internals}\n}` },
+	) as RowsMapper<TResult>;
+
+	return fn;
+}
+
+/** @internal */
+export function jitCompatCheck(isEnabled?: boolean): boolean {
+	if (!isEnabled) return false;
+
+	try {
+		const res = new FnConstructor('input', '"use strict"; return input;')(true);
+		if (res !== true) {
+			// In case it's broken in runtime but not forbidden
+			console.warn(
+				'Unable to use jit mappers due to incompatibility: corrupted jit function output.\nFalling back to premade mappers.\nError details:',
+			);
+			console.error(`Expected to receive \`true\`, got: ${res}`);
+		}
+		return true;
+	} catch (e) {
+		console.warn(
+			'Unable to use jit mappers due to incompatibility.\nFalling back to premade mappers.\nError details:',
+		);
+		console.error(e);
+		return false;
+	}
+}
+
+export function makeDefaultQueryMapper<TResult>(
+	columns: SelectedFieldsOrdered<AnyColumn>,
+	nullableObjectPaths: string[] | undefined,
+): RowsMapper<TResult> {
+	const interpretedData: (((v: any) => any) | undefined)[] = new Array(columns.length);
+	for (let i = 0; i < columns.length; ++i) {
+		const { field, fieldType, codec, arrayDimensions } = columns[i]!;
+
+		let decoderSrc: DriverValueDecoder<unknown, unknown>;
+		switch (fieldType) {
+			case 'Column':
+				decoderSrc = field;
+				break;
+			case 'SQL':
+				decoderSrc = field.decoder;
+				break;
+			case 'Subquery':
+				decoderSrc = field._.sql.decoder;
+				break;
+			default:
+				decoderSrc = field.sql.decoder;
+		}
+
+		let decoder: ((v: any) => any) | undefined;
+		if (decoderSrc.mapFromDriverValue.isNoop) {
+			decoder = codec ? (v: any) => codec(v, arrayDimensions!) : undefined;
+		} else {
+			decoder = codec
+				? (v: any) => decoderSrc.mapFromDriverValue(codec(v, arrayDimensions!))
+				: (v: any) => decoderSrc.mapFromDriverValue(v);
+		}
+
+		interpretedData[i] = decoder;
+	}
+
+	const targets = nullableObjectPaths?.length
+		? nullablePathTargets(columns, nullableObjectPaths)
+		: undefined;
+
+	return ((rows) => {
+		const { length: rowLength } = rows;
+		const output: TResult[] = new Array(rowLength);
+		for (let j = 0; j < rowLength; ++j) {
+			const row = rows[j]!;
+
+			const result: Record<string, any> = {};
+
+			for (let i = 0; i < columns.length; ++i) {
+				const { path } = columns[i]!;
+
+				let node = result;
+				for (let p = 0; p < path.length; ++p) {
+					const pathChunk = path[p]!;
+					if (p < path.length - 1) {
+						if (!(pathChunk in node)) {
+							node[pathChunk] = {};
 						}
+						node = node[pathChunk];
+					} else {
+						const decoder = interpretedData[i]!;
+						const rawValue = row[i]!;
+						node[pathChunk] = rawValue === null
+							? null
+							: decoder
+							? decoder(rawValue)
+							: rawValue;
 					}
 				}
 			}
-			return result;
-		},
-		{},
-	);
 
-	// Nullify all nested objects from nullifyMap that are nullable
-	if (joinsNotNullableMap && Object.keys(nullifyMap).length > 0) {
-		for (const [objectName, tableName] of Object.entries(nullifyMap)) {
-			if (typeof tableName === 'string' && !joinsNotNullableMap[tableName]) {
-				result[objectName] = null;
+			// Nullify every top-level nullable group whose leaves are all null on this row.
+			if (targets) {
+				for (let i = 0; i < targets.length; ++i) {
+					const { key, leaves } = targets[i]!;
+
+					let allNull = true;
+					for (let j = 0; j < leaves.length; ++j) {
+						const i = leaves[j]!;
+
+						if (row[i] !== null) {
+							allNull = false;
+							break;
+						}
+					}
+					if (allNull) result[key] = null;
+				}
 			}
-		}
-	}
 
-	return result as TResult;
+			output[j] = result as TResult;
+		}
+
+		return output;
+	}) as RowsMapper<TResult>;
+}
+
+export function make$ReturningResponseMapper(
+	returningIds: SelectedFieldsOrdered<Column> | undefined,
+	generatedIds?: Record<string, unknown>[],
+) {
+	if (!returningIds) return;
+
+	return ({ insertId, affectedRows }: {
+		insertId: number;
+		affectedRows: number;
+	}) => {
+		const returningResponse = [];
+		let j = 0;
+		for (let i = insertId; i < insertId + affectedRows; i++) {
+			for (const column of returningIds) {
+				const key = returningIds[0]!.path[0]!;
+				if (is(column.field, Column)) {
+					// @ts-ignore
+					if (column.field.primary && column.field.autoIncrement) {
+						returningResponse.push({ [key]: i });
+					}
+					if (column.field.defaultFn && generatedIds) {
+						// generatedIds[rowIdx][key]
+						returningResponse.push({ [key]: generatedIds[j]![key] });
+					}
+				}
+			}
+			j++;
+		}
+
+		return returningResponse;
+	};
 }
 
 /** @internal */
 export function orderSelectedFields<TColumn extends AnyColumn>(
 	fields: Record<string, unknown>,
 	pathPrefix?: string[],
+	codecs?: CodecsCollection,
+): SelectedFieldsOrdered<TColumn>;
+/**
+ * @deprecated `result` argument is used for internal recursion, do not use outside of the function
+ * @internal
+ */
+export function orderSelectedFields<TColumn extends AnyColumn>(
+	fields: Record<string, unknown>,
+	pathPrefix?: string[],
+	codecs?: CodecsCollection,
+	result?: SelectedFieldsOrdered<AnyColumn>,
+): SelectedFieldsOrdered<TColumn>;
+/** @internal */
+export function orderSelectedFields<TColumn extends AnyColumn>(
+	fields: Record<string, unknown>,
+	pathPrefix?: string[],
+	codecs?: CodecsCollection,
+	result: SelectedFieldsOrdered<AnyColumn> = [],
 ): SelectedFieldsOrdered<TColumn> {
-	return Object.entries(fields).reduce<SelectedFieldsOrdered<AnyColumn>>((result, [name, field]) => {
+	const entries = Object.entries(fields);
+
+	for (let i = 0; i < entries.length; ++i) {
+		const [name, field] = entries[i]!;
 		if (typeof name !== 'string') {
-			return result;
+			return result as SelectedFieldsOrdered<TColumn>;
 		}
 
 		const newPath = pathPrefix ? [...pathPrefix, name] : [name];
-		if (is(field, Column) || is(field, SQL) || is(field, SQL.Aliased)) {
-			result.push({ path: newPath, field });
+		if (is(field, Column)) {
+			result.push({
+				path: newPath,
+				field: field,
+				fieldType: 'Column',
+				codec: codecs?.get(field, 'normalize'),
+				arrayDimensions: (<any> field).dimensions,
+				column: field,
+			});
+		} else if (is(field, SQL)) {
+			const col = getColumnFromDecoder(field);
+			result.push(
+				col
+					? {
+						path: newPath,
+						field,
+						fieldType: 'SQL',
+						codec: codecs?.get(col, 'normalize'),
+						arrayDimensions: (<any> col).dimensions,
+						column: col,
+					}
+					: {
+						path: newPath,
+						field,
+						fieldType: 'SQL',
+					},
+			);
+		} else if (is(field, SQL.Aliased)) {
+			const col = getColumnFromDecoder(field);
+			result.push(
+				col
+					? {
+						path: newPath,
+						field,
+						fieldType: 'SQL.Aliased',
+						codec: codecs?.get(col, 'normalize'),
+						arrayDimensions: (<any> col).dimensions,
+						column: col,
+					}
+					: {
+						path: newPath,
+						field,
+						fieldType: 'SQL.Aliased',
+					},
+			);
+		} else if (is(field, Subquery)) {
+			let column: Column | undefined;
+			const entries = Object.values(field._.selectedFields) as (SQL.Aliased | Column | SQL)[];
+			const entry = entries[0]!;
+
+			let fieldDecoder: DriverValueDecoder<any, any>;
+			if (is(entry, Column)) {
+				column = entry;
+				fieldDecoder = entry;
+			} else if (is(entry, SQL)) {
+				column = getColumnFromDecoder(entry);
+				fieldDecoder = entry.decoder;
+			} else {
+				column = getColumnFromDecoder(entry);
+				fieldDecoder = entry.sql.decoder;
+			}
+
+			if (fieldDecoder) {
+				field._.sql.decoder = fieldDecoder;
+			}
+
+			result.push(
+				column
+					? {
+						path: newPath,
+						field,
+						fieldType: 'Subquery',
+						codec: codecs?.get(column, 'normalize'),
+						arrayDimensions: (<any> column).dimensions,
+						column,
+					}
+					: {
+						path: newPath,
+						field,
+						fieldType: 'Subquery',
+					},
+			);
 		} else if (is(field, Table)) {
-			result.push(...orderSelectedFields(field[Table.Symbol.Columns], newPath));
+			orderSelectedFields(field[Table.Symbol.Columns], newPath, codecs, result);
 		} else {
-			result.push(...orderSelectedFields(field as Record<string, unknown>, newPath));
+			orderSelectedFields(field as Record<string, unknown>, newPath, codecs, result);
 		}
-		return result;
-	}, []) as SelectedFieldsOrdered<TColumn>;
+	}
+
+	return result as SelectedFieldsOrdered<TColumn>;
+}
+
+export function getColumnFromDecoder(source: SQL | SQL.Aliased | SQLWrapper): Column | undefined {
+	const query = source.getSQL();
+
+	if (is(query.decoder, Column)) return query.decoder;
+	return undefined;
 }
 
 export function haveSameKeys(left: Record<string, unknown>, right: Record<string, unknown>) {
@@ -110,22 +511,24 @@ export function haveSameKeys(left: Record<string, unknown>, right: Record<string
 
 /** @internal */
 export function mapUpdateSet(table: Table, values: Record<string, unknown>): UpdateSet {
-	const entries: [string, UpdateSet[string]][] = Object.entries(values)
-		.filter(([, value]) => value !== undefined)
-		.map(([key, value]) => {
-			// eslint-disable-next-line unicorn/prefer-ternary
-			if (is(value, SQL) || is(value, Column)) {
-				return [key, value];
-			} else {
-				return [key, new Param(value, table[Table.Symbol.Columns][key])];
-			}
-		});
+	const entries = Object.entries(values).filter(([, value]) => value !== undefined);
 
 	if (entries.length === 0) {
 		throw new Error('No values to set');
 	}
 
-	return Object.fromEntries(entries);
+	const mapped: [string, UpdateSet[string]][] = new Array(entries.length);
+	for (let i = 0; i < entries.length; ++i) {
+		const [key, value] = entries[i]!;
+		// eslint-disable-next-line unicorn/prefer-ternary
+		if (is(value, SQL) || is(value, Column)) {
+			mapped[i] = [key, value];
+		} else {
+			mapped[i] = [key, new Param(value, table[Table.Symbol.Columns][key])];
+		}
+	}
+
+	return Object.fromEntries(mapped);
 }
 
 export type UpdateSet = Record<string, SQL | Param | AnyColumn | null | undefined>;
@@ -144,6 +547,21 @@ export type Simplify<T> =
 		[K in keyof T]: T[K];
 	}
 	& {};
+
+export type Not<T extends boolean> = T extends true ? false : true;
+
+export type IsNever<T> = [T] extends [never] ? true : false;
+
+export type IsUnion<T, U extends T = T> = (T extends any ? (U extends T ? false : true) : never) extends false ? false
+	: true;
+
+export type SingleKeyObject<T, TError extends string, K = keyof T> = IsNever<K> extends true ? never
+	: IsUnion<K> extends true ? DrizzleTypeError<TError>
+	: T;
+
+export type FromSingleKeyObject<T, Result, TError extends string, K = keyof T> = IsNever<K> extends true ? never
+	: IsUnion<K> extends true ? DrizzleTypeError<TError>
+	: Result;
 
 export type SimplifyMappedType<T> = [T] extends [unknown] ? T : never;
 
@@ -184,12 +602,28 @@ export type Writable<T> = {
 	-readonly [P in keyof T]: T[P];
 };
 
+export type NonArray<T> = T extends any[] ? never : T;
+
 export function getTableColumns<T extends Table>(table: T): T['_']['columns'] {
 	return table[Table.Symbol.Columns];
 }
 
 export function getViewSelectedFields<T extends View>(view: T): T['_']['selectedFields'] {
 	return view[ViewBaseConfig].selectedFields;
+}
+
+export function getColumns<T extends Table | View | Subquery>(
+	table: T,
+): T extends Table ? T['_']['columns']
+	: T extends View ? T['_']['selectedFields']
+	: T extends Subquery ? T['_']['selectedFields']
+	: never
+{
+	return (is(table, Table)
+		? table[Table.Symbol.Columns]
+		: is(table, View)
+		? table[ViewBaseConfig].selectedFields
+		: table._.selectedFields) as any;
 }
 
 /** @internal */
@@ -211,13 +645,13 @@ export type ColumnsWithTable<
 	TColumns extends AnyColumn<{ tableName: TTableName }>[],
 > = { [Key in keyof TColumns]: AnyColumn<{ tableName: TForeignTableName }> };
 
-export type Casing = 'snake_case' | 'camelCase';
-
-export interface DrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> {
-	logger?: boolean | Logger;
-	schema?: TSchema;
-	casing?: Casing;
+export interface DrizzleConfig<TRelationConfigs extends AnyRelations = EmptyRelations> {
+	logger?: boolean | Logger | undefined;
+	relations?: TRelationConfigs | undefined;
+	cache?: Cache | undefined;
+	jit?: boolean | undefined;
 }
+
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	? Exclude<keyof T, keyof ValidShape> extends never ? TResult
 	: DrizzleTypeError<
@@ -250,18 +684,6 @@ export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = Keys extends 
 	? Required<Pick<T, Keys>> & Partial<Omit<T, Keys>>
 	: never;
 
-type ExpectedConfigShape = {
-	logger?: boolean | {
-		logQuery(query: string, params: unknown[]): void;
-	};
-	schema?: Record<string, never>;
-	casing?: 'snake_case' | 'camelCase';
-};
-
-// If this errors, you must update config shape checker function with new config specs
-const _: DrizzleConfig = {} as ExpectedConfigShape;
-const __: ExpectedConfigShape = {} as DrizzleConfig;
-
 export function isConfig(data: any): boolean {
 	if (typeof data !== 'object' || data === null) return false;
 
@@ -277,22 +699,9 @@ export function isConfig(data: any): boolean {
 		return true;
 	}
 
-	if ('schema' in data) {
-		const type = typeof data['logger'];
+	if ('relations' in data) {
+		const type = typeof data['relations'];
 		if (type !== 'object' && type !== 'undefined') return false;
-
-		return true;
-	}
-
-	if ('casing' in data) {
-		const type = typeof data['logger'];
-		if (type !== 'string' && type !== 'undefined') return false;
-
-		return true;
-	}
-
-	if ('mode' in data) {
-		if (data['mode'] !== 'default' || data['mode'] !== 'planetscale' || data['mode'] !== undefined) return false;
 
 		return true;
 	}
@@ -311,9 +720,118 @@ export function isConfig(data: any): boolean {
 		return true;
 	}
 
+	if ('jit' in data) {
+		const type = typeof data['jit'];
+		if (type !== 'boolean' && type !== 'undefined') return false;
+
+		return true;
+	}
+
+	if ('codecs' in data) {
+		const type = typeof data['codecs'];
+		if (type !== 'object' && type !== 'undefined') return false;
+
+		return true;
+	}
+
 	if (Object.keys(data).length === 0) return true;
 
 	return false;
 }
 
 export type NeonAuthToken = string | (() => string | Promise<string>);
+
+export const textDecoder = typeof TextDecoder === 'undefined' ? null : new TextDecoder();
+
+export function assertUnreachable(_x: never | undefined): never {
+	throw new Error("Didn't expect to get here");
+}
+
+export function isWithEnum(column: Column<any>): column is typeof column & { enumValues: [string, ...string[]] };
+export function isWithEnum(value: unknown): value is { enumValues: [string, ...string[]] };
+export function isWithEnum(value: unknown): boolean {
+	return ((typeof value === 'object' && value !== null) || typeof value === 'function') && 'enumValues' in value
+		&& Array.isArray(value.enumValues)
+		&& value.enumValues.length > 0;
+}
+
+export type Literal = string | number | boolean | null;
+export type Json = Literal | { [key: string]: any } | any[];
+
+export type ColumnIsGeneratedAlwaysAs<TColumn> = TColumn extends Column<any>
+	? TColumn['_']['identity'] extends 'always' ? true
+	: TColumn['_'] extends { generated: undefined } ? false
+	: TColumn['_']['generated'] extends { type: 'byDefault' } ? false
+	: true
+	: false;
+
+export type GetSelection<T extends SelectedFieldsFlat<Column<any>> | Table<any> | View> = T extends Table<any>
+	? T['_']['columns']
+	: T extends View ? T['_']['selectedFields']
+	: T;
+
+export type RemoveNeverElements<T extends any[]> = T extends [infer First, ...infer Rest]
+	? IsNever<First> extends true ? RemoveNeverElements<Rest>
+	: [First, ...RemoveNeverElements<Rest>]
+	: [];
+
+export type EnumValuesToEnum<TEnumValues extends [string, ...string[]]> = { [K in TEnumValues[number]]: K };
+
+export type EnumValuesToReadonlyEnum<TEnumValues extends [string, ...string[]]> = {
+	readonly [K in TEnumValues[number]]: K;
+};
+
+export const CONSTANTS = {
+	INT8_MIN: -128,
+	INT8_MAX: 127,
+	INT8_UNSIGNED_MAX: 255,
+	INT16_MIN: -32768,
+	INT16_MAX: 32767,
+	INT16_UNSIGNED_MAX: 65535,
+	INT24_MIN: -8388608,
+	INT24_MAX: 8388607,
+	INT24_UNSIGNED_MAX: 16777215,
+	INT32_MIN: -2147483648,
+	INT32_MAX: 2147483647,
+	INT32_UNSIGNED_MAX: 4294967295,
+	INT48_MIN: -140737488355328,
+	INT48_MAX: 140737488355327,
+	INT48_UNSIGNED_MAX: 281474976710655,
+	INT64_MIN: -9223372036854775808n,
+	INT64_MAX: 9223372036854775807n,
+	INT64_UNSIGNED_MAX: 18446744073709551615n,
+};
+
+export function base64ToUint8Array(base64: string): Uint8Array {
+	if (!base64) return new Uint8Array(0);
+	const binary = atob(base64);
+	const len = binary.length;
+	const bytes = new Uint8Array(len);
+
+	for (let i = 0; i < len; ++i) {
+		bytes[i] = binary.charCodeAt(i);
+	}
+
+	return bytes;
+}
+
+export type PartialWithUndefined<T> = {
+	[K in keyof T]?: T[K] | undefined;
+};
+
+export type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends ((k: infer I) => void) ? I
+	: never;
+
+export type LastInUnion<U> = UnionToIntersection<U extends any ? (x: U) => void : never> extends (x: infer M) => void
+	? M
+	: never;
+
+export type UnionToTuple<U, Last = LastInUnion<U>> = [U] extends [never] ? []
+	: [...UnionToTuple<Exclude<U, Last>>, Last];
+
+export type JoinTuple<T extends any[], Separator extends string> = T extends [] ? ''
+	: T extends [string | number | boolean | bigint] ? `${T[0]}`
+	: T extends [string | number | boolean | bigint, ...infer U] ? `${T[0]}${Separator}${JoinTuple<U, Separator>}`
+	: string;
+
+export type JoinUnion<U extends string, Separator extends string> = JoinTuple<UnionToTuple<U>, Separator>;

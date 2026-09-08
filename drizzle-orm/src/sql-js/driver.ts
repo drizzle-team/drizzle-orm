@@ -1,25 +1,28 @@
 import type { Database } from 'sql.js';
+import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
-import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
-import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
-import type { DrizzleConfig } from '~/utils.ts';
-import { SQLJsSession } from './session.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
+import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
+import { jitCompatCheck } from '~/utils.ts';
+import { sqlJsCodecs } from './codecs.ts';
+import { type SQLJsRunResult, SQLJsSession } from './session.ts';
 
-export type SQLJsDatabase<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-> = BaseSQLiteDatabase<'sync', void, TSchema>;
+export class SQLJsDatabase<TRelations extends AnyRelations = EmptyRelations>
+	extends SQLiteAsyncDatabase<'sync', SQLJsRunResult, TRelations>
+{
+	static override readonly [entityKind]: string = 'SQLJsDatabase';
+}
 
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	client: Database,
-	config: DrizzleConfig<TSchema> = {},
-): SQLJsDatabase<TSchema> {
-	const dialect = new SQLiteSyncDialect({ casing: config.casing });
+	config: DrizzleSQLiteConfig<TRelations> = {},
+): SQLJsDatabase<TRelations> & { $client: Database } {
+	const dialect = new SQLiteDialect({
+		codecs: config.codecs ?? sqlJsCodecs,
+		useJitMappers: jitCompatCheck(config.jit),
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -27,19 +30,17 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		logger = config.logger;
 	}
 
-	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
-	if (config.schema) {
-		const tablesConfig = extractTablesRelationalConfig(
-			config.schema,
-			createTableRelationsHelpers,
-		);
-		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
-			tableNamesMap: tablesConfig.tableNamesMap,
-		};
-	}
+	const relations = config.relations ?? {} as TRelations;
+	const session = new SQLJsSession(client, dialect, relations, {
+		logger,
+	});
+	const db = new SQLJsDatabase(
+		'sync',
+		dialect,
+		session,
+		relations,
+	);
+	(<any> db).$client = client;
 
-	const session = new SQLJsSession(client, dialect, schema, { logger });
-	return new BaseSQLiteDatabase('sync', dialect, session, schema) as SQLJsDatabase<TSchema>;
+	return db as any;
 }

@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
-import fs from 'node:fs';
+import fs, { existsSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { formatToMillis } from './migrator.utils.ts';
 
 export interface KitConfig {
 	out: string;
@@ -10,6 +12,8 @@ export interface MigrationConfig {
 	migrationsFolder: string;
 	migrationsTable?: string;
 	migrationsSchema?: string;
+	/** @internal */
+	init?: boolean;
 }
 
 export interface MigrationMeta {
@@ -17,43 +21,67 @@ export interface MigrationMeta {
 	folderMillis: number;
 	hash: string;
 	bps: boolean;
+	name: string;
+}
+
+export interface MigrationFromJournalConfig {
+	migrationsJournal: MigrationsJournal;
+	migrationsTable?: string;
+}
+
+export type MigrationsJournal = {
+	sql: string;
+	timestamp: number;
+	name: string;
+}[];
+
+/** Only gets returned if migrator failed with `init: true` used by `drizzle-kit pull --init`*/
+export interface MigratorInitFailResponse {
+	exitCode: 'databaseMigrations' | 'localMigrations';
+}
+
+/** Only gets returned if migrator failed with `init: true` used by `drizzle-kit pull --init`*/
+export interface MigratorInitFailResponse {
+	exitCode: 'databaseMigrations' | 'localMigrations';
 }
 
 export function readMigrationFiles(config: MigrationConfig): MigrationMeta[] {
+	if (fs.existsSync(`${config.migrationsFolder}/meta/_journal.json`)) {
+		// it means user has folders V2
+		// we need to warn to up the folders
+		throw Error(
+			'We detected that you have old drizzle-kit migration folders. You must upgrade drizzle-kit and run "drizzle-kit up"',
+		);
+	}
+
 	const migrationFolderTo = config.migrationsFolder;
 
 	const migrationQueries: MigrationMeta[] = [];
 
-	const journalPath = `${migrationFolderTo}/meta/_journal.json`;
-	if (!fs.existsSync(journalPath)) {
-		throw new Error(`Can't find meta/_journal.json file`);
-	}
+	const migrations = readdirSync(migrationFolderTo)
+		.map((subdir) => ({ path: join(migrationFolderTo, subdir, 'migration.sql'), name: subdir }))
+		.filter((it) => existsSync(it.path));
 
-	const journalAsString = fs.readFileSync(`${migrationFolderTo}/meta/_journal.json`).toString();
+	migrations.sort((a, b) => a.name.localeCompare(b.name));
 
-	const journal = JSON.parse(journalAsString) as {
-		entries: { idx: number; when: number; tag: string; breakpoints: boolean }[];
-	};
+	for (const migration of migrations) {
+		const migrationPath = migration.path;
+		const migrationDate = migration.name.slice(0, 14);
+		const query = fs.readFileSync(migrationPath).toString();
 
-	for (const journalEntry of journal.entries) {
-		const migrationPath = `${migrationFolderTo}/${journalEntry.tag}.sql`;
+		const result = query.split('--> statement-breakpoint').map((it) => {
+			return it;
+		});
 
-		try {
-			const query = fs.readFileSync(`${migrationFolderTo}/${journalEntry.tag}.sql`).toString();
+		const millis = formatToMillis(migrationDate);
 
-			const result = query.split('--> statement-breakpoint').map((it) => {
-				return it;
-			});
-
-			migrationQueries.push({
-				sql: result,
-				bps: journalEntry.breakpoints,
-				folderMillis: journalEntry.when,
-				hash: crypto.createHash('sha256').update(query).digest('hex'),
-			});
-		} catch {
-			throw new Error(`No file ${migrationPath} found in ${migrationFolderTo} folder`);
-		}
+		migrationQueries.push({
+			sql: result,
+			bps: true,
+			folderMillis: millis,
+			hash: crypto.createHash('sha256').update(query).digest('hex'),
+			name: migration.name,
+		});
 	}
 
 	return migrationQueries;

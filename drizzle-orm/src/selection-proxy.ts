@@ -1,7 +1,8 @@
-import { ColumnAliasProxyHandler, TableAliasProxyHandler } from './alias.ts';
+import { View } from '~/view.ts';
+import { ColumnTableAliasProxyHandler, TableAliasProxyHandler } from './alias.ts';
 import { Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
-import { SQL, View } from './sql/sql.ts';
+import { SQL } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
 import { ViewBaseConfig } from './view-common.ts';
 
@@ -44,7 +45,7 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 		this.config = { ...config };
 	}
 
-	get(subquery: T, prop: string | symbol): any {
+	get(subquery: T, prop: string | symbol, receiver: any): any {
 		if (prop === '_') {
 			return {
 				...subquery['_' as keyof typeof subquery],
@@ -76,6 +77,14 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 			: subquery;
 		const value: unknown = columns[prop as keyof typeof columns];
 
+		// value === undefined check must stay for actual selection fields named `getSQL`
+		if (value === undefined && prop === 'getSQL') {
+			const target = subquery[prop as keyof T];
+			if (typeof target !== 'function') return target;
+
+			return target.bind(receiver ?? subquery);
+		}
+
 		if (is(value, SQL.Aliased)) {
 			// Never return the underlying SQL expression for a field previously selected in a subquery
 			if (this.config.sqlAliasedBehavior === 'sql' && !value.isSelectionField) {
@@ -84,6 +93,7 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 
 			const newValue = value.clone();
 			newValue.isSelectionField = true;
+			newValue.origin = this.config.alias;
 			return newValue;
 		}
 
@@ -101,11 +111,12 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 			if (this.config.alias) {
 				return new Proxy(
 					value,
-					new ColumnAliasProxyHandler(
+					new ColumnTableAliasProxyHandler(
 						new Proxy(
 							value.table,
-							new TableAliasProxyHandler(this.config.alias, this.config.replaceOriginalName ?? false),
+							new TableAliasProxyHandler(this.config.alias, this.config.replaceOriginalName ?? false, true),
 						),
+						true,
 					),
 				);
 			}

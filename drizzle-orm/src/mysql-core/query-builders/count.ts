@@ -1,79 +1,48 @@
 import { entityKind } from '~/entity.ts';
-import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
-import type { MySqlSession } from '../session.ts';
+import { type Query, SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
+import type { MySqlDialect } from '../dialect.ts';
 import type { MySqlTable } from '../table.ts';
 import type { MySqlViewBase } from '../view-base.ts';
 
-export class MySqlCountBuilder<
-	TSession extends MySqlSession<any, any, any>,
-> extends SQL<number> implements Promise<number>, SQLWrapper {
-	private sql: SQL<number>;
+export class MySqlCountBuilder extends SQL<number> implements SQLWrapper<number> {
+	static override readonly [entityKind]: string = 'MySqlCountBuilder';
 
-	static override readonly [entityKind] = 'MySqlCountBuilder';
-	[Symbol.toStringTag] = 'MySqlCountBuilder';
-
-	private session: TSession;
-
-	private static buildEmbeddedCount(
-		source: MySqlTable | MySqlViewBase | SQL | SQLWrapper,
-		filters?: SQL<unknown>,
-	): SQL<number> {
-		return sql<number>`(select count(*) from ${source}${sql.raw(' where ').if(filters)}${filters})`;
-	}
+	private dialect: MySqlDialect;
 
 	private static buildCount(
 		source: MySqlTable | MySqlViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
+		parens?: boolean,
 	): SQL<number> {
-		return sql<number>`select count(*) as count from ${source}${sql.raw(' where ').if(filters)}${filters}`;
+		const where = sql` where ${filters}`.if(filters);
+		const query = sql<number>`select count(*) from ${source}${where}`;
+
+		return parens ? sql`(${query})` : query;
 	}
 
 	constructor(
-		readonly params: {
+		protected countConfig: {
 			source: MySqlTable | MySqlViewBase | SQL | SQLWrapper;
 			filters?: SQL<unknown>;
-			session: TSession;
+			dialect: MySqlDialect;
 		},
 	) {
-		super(MySqlCountBuilder.buildEmbeddedCount(params.source, params.filters).queryChunks);
+		super(MySqlCountBuilder.buildCount(countConfig.source, countConfig.filters, true).queryChunks);
+		this.dialect = countConfig.dialect;
+		this.mapWith((e) => {
+			if (typeof e === 'number') return e;
 
-		this.mapWith(Number);
-
-		this.session = params.session;
-
-		this.sql = MySqlCountBuilder.buildCount(
-			params.source,
-			params.filters,
-		);
+			return Number(e ?? 0);
+		});
 	}
 
-	then<TResult1 = number, TResult2 = never>(
-		onfulfilled?: ((value: number) => TResult1 | PromiseLike<TResult1>) | null | undefined,
-		onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null | undefined,
-	): Promise<TResult1 | TResult2> {
-		return Promise.resolve(this.session.count(this.sql))
-			.then(
-				onfulfilled,
-				onrejected,
-			);
-	}
+	private executableSql: SQL<number> | undefined;
+	protected build(): Query {
+		if (!this.executableSql) {
+			const { source, filters } = this.countConfig;
+			this.executableSql = MySqlCountBuilder.buildCount(source, filters);
+		}
 
-	catch(
-		onRejected?: ((reason: any) => never | PromiseLike<never>) | null | undefined,
-	): Promise<number> {
-		return this.then(undefined, onRejected);
-	}
-
-	finally(onFinally?: (() => void) | null | undefined): Promise<number> {
-		return this.then(
-			(value) => {
-				onFinally?.();
-				return value;
-			},
-			(reason) => {
-				onFinally?.();
-				throw reason;
-			},
-		);
+		return this.dialect.sqlToQuery(this.executableSql);
 	}
 }

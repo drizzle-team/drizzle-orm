@@ -1,5 +1,20 @@
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
-import { integer, numeric, pgSchema, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import {
+	bigint,
+	bigserial,
+	integer,
+	numeric,
+	pgSchema,
+	pgTable,
+	serial,
+	smallint,
+	smallserial,
+	snakeCase,
+	text,
+	timestamp,
+	uuid,
+	varchar,
+} from 'drizzle-orm/pg-core';
 
 export const schema = pgSchema('seeder_lib_pg');
 
@@ -127,3 +142,33 @@ export const posts = schema.table(
 		userId: integer().references(() => users.id),
 	},
 );
+
+export const testSequences = schema.table(
+	'test_sequences',
+	{
+		col1: integer().generatedAlwaysAsIdentity(),
+		col2: bigint({ mode: 'number' }).generatedByDefaultAsIdentity(),
+		col3: bigint({ mode: 'bigint' }).generatedByDefaultAsIdentity(),
+		col4: smallint(),
+		col5: serial(),
+		col6: bigserial({ mode: 'number' }),
+		col7: bigserial({ mode: 'bigint' }),
+		col8: smallserial(),
+	},
+);
+
+export const uuidTest = schema.table('uuid_test', {
+	col1: uuid(),
+});
+
+const casingSchema = snakeCase.schema('seeder_lib_pg');
+
+export const schemaCasingTest = casingSchema.table('casing_test', {
+	columnName1: integer(),
+	columnName2: integer(),
+});
+
+export const casingTest = snakeCase.table('casing_test', {
+	columnName1: integer(),
+	columnName2: integer(),
+});

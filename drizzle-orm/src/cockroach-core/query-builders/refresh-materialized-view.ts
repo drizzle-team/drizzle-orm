@@ -1,0 +1,103 @@
+import type { CockroachDialect } from '~/cockroach-core/dialect.ts';
+import type {
+	CockroachPreparedQuery,
+	CockroachQueryResultHKT,
+	CockroachQueryResultKind,
+	CockroachSession,
+	PreparedQueryConfig,
+} from '~/cockroach-core/session.ts';
+import type { CockroachMaterializedView } from '~/cockroach-core/view.ts';
+import { entityKind } from '~/entity.ts';
+import { QueryPromise } from '~/query-promise.ts';
+import type { RunnableQuery } from '~/runnable-query.ts';
+import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { tracer } from '~/tracing.ts';
+
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+export interface CockroachRefreshMaterializedView<TQueryResult extends CockroachQueryResultHKT>
+	extends
+		QueryPromise<CockroachQueryResultKind<TQueryResult, never>>,
+		RunnableQuery<CockroachQueryResultKind<TQueryResult, never>, 'cockroach'>,
+		SQLWrapper
+{
+	readonly _: {
+		readonly dialect: 'cockroach';
+		readonly result: CockroachQueryResultKind<TQueryResult, never>;
+	};
+}
+
+export class CockroachRefreshMaterializedView<TQueryResult extends CockroachQueryResultHKT>
+	extends QueryPromise<CockroachQueryResultKind<TQueryResult, never>>
+	implements RunnableQuery<CockroachQueryResultKind<TQueryResult, never>, 'cockroach'>, SQLWrapper
+{
+	static override readonly [entityKind]: string = 'CockroachRefreshMaterializedView';
+
+	private config: {
+		view: CockroachMaterializedView;
+		concurrently?: boolean;
+		withNoData?: boolean;
+	};
+
+	constructor(
+		view: CockroachMaterializedView,
+		private session: CockroachSession,
+		private dialect: CockroachDialect,
+	) {
+		super();
+		this.config = { view };
+	}
+
+	concurrently(): this {
+		if (this.config.withNoData !== undefined) {
+			throw new Error('Cannot use concurrently and withNoData together');
+		}
+		this.config.concurrently = true;
+		return this;
+	}
+
+	withNoData(): this {
+		if (this.config.concurrently !== undefined) {
+			throw new Error('Cannot use concurrently and withNoData together');
+		}
+		this.config.withNoData = true;
+		return this;
+	}
+
+	getSQL(): SQL {
+		return this.dialect.buildRefreshMaterializedViewQuery(this.config);
+	}
+
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
+	}
+
+	/** @internal */
+	_prepare(name?: string, generateName = false): CockroachPreparedQuery<
+		PreparedQueryConfig & {
+			execute: CockroachQueryResultKind<TQueryResult, never>;
+		}
+	> {
+		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			const query = this.dialect.sqlToQuery(this.getSQL());
+			return this.session.prepareQuery(
+				query,
+				'raw',
+				name ?? generateName,
+			);
+		});
+	}
+
+	prepare(name?: string): CockroachPreparedQuery<
+		PreparedQueryConfig & {
+			execute: CockroachQueryResultKind<TQueryResult, never>;
+		}
+	> {
+		return this._prepare(name, true);
+	}
+
+	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
+		return tracer.startActiveSpan('drizzle.operation', () => {
+			return this._prepare().execute(placeholderValues);
+		});
+	};
+}

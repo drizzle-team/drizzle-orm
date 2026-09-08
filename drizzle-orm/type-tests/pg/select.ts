@@ -1,6 +1,8 @@
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
-
+import { getTableColumns } from '~/index.ts';
+import { alias } from '~/pg-core/alias.ts';
+import { boolean, integer, pgMaterializedView, pgTable, pgView, QueryBuilder, text } from '~/pg-core/index.ts';
 import {
 	and,
 	arrayContained,
@@ -26,32 +28,26 @@ import {
 	notInArray,
 	notLike,
 	or,
-} from '~/expressions.ts';
-import { alias } from '~/pg-core/alias.ts';
-import {
-	boolean,
-	integer,
-	pgMaterializedView,
-	type PgSelect,
-	type PgSelectQueryBuilder,
-	pgTable,
-	pgView,
-	QueryBuilder,
-	text,
-} from '~/pg-core/index.ts';
-import { type InferSelectViewModel, type SQL, sql } from '~/sql/sql.ts';
+} from '~/sql/expressions/index.ts';
+import { type SQL, sql } from '~/sql/sql.ts';
+import type { InferViewSelectModel } from '~/view.ts';
 
+import { PgSelect } from '~/pg-core/query-builders/select.ts';
 import { db } from './db.ts';
-import { cities, classes, newYorkers, newYorkers2, users } from './tables.ts';
+import {
+	cities,
+	classes,
+	newYorkers,
+	newYorkers2,
+	newYorkersWithSubquery,
+	newYorkersWithSubquery2,
+	users,
+} from './tables.ts';
 
 const city = alias(cities, 'city');
 const city1 = alias(cities, 'city1');
 
 const leftJoinFull = await db.select().from(users).leftJoin(city, eq(users.id, city.id));
-
-{
-	await db.select().from(users).leftJoin(city, eq(users.id, city.id));
-}
 
 Expect<
 	Equal<
@@ -96,6 +92,18 @@ Expect<
 			city: typeof city.$inferSelect | null;
 		}[],
 		typeof fullJoinFull
+	>
+>;
+
+const crossJoinFull = await db.select().from(users).crossJoin(city);
+
+Expect<
+	Equal<
+		{
+			users_table: typeof users.$inferSelect;
+			city: typeof city.$inferSelect;
+		}[],
+		typeof crossJoinFull
 	>
 >;
 
@@ -173,6 +181,25 @@ Expect<
 		cityId: number | null;
 		cityName: string | null;
 	}[], typeof fullJoinFlat>
+>;
+
+const crossJoinFlat = await db
+	.select({
+		userId: users.id,
+		userText: users.text,
+		cityId: city.id,
+		cityName: city.name,
+	})
+	.from(users)
+	.crossJoin(city);
+
+Expect<
+	Equal<{
+		userId: number;
+		userText: string | null;
+		cityId: number;
+		cityName: string;
+	}[], typeof crossJoinFlat>
 >;
 
 const leftJoinMixed = await db
@@ -952,6 +979,50 @@ await db
 }
 
 {
+	const result = await db.select().from(newYorkersWithSubquery);
+	Expect<
+		Equal<
+			{
+				id: number;
+				class: 'A' | 'C';
+				cityCount: number;
+				lastCityId: number;
+			}[],
+			typeof result
+		>
+	>;
+	Expect<Equal<typeof result, typeof newYorkersWithSubquery.$inferSelect[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof newYorkersWithSubquery>[]>>;
+}
+
+{
+	const result = await db.select({ cityCount: newYorkersWithSubquery.cityCount }).from(newYorkersWithSubquery);
+	Expect<
+		Equal<
+			{
+				cityCount: number;
+			}[],
+			typeof result
+		>
+	>;
+}
+
+{
+	const result = await db.select().from(newYorkersWithSubquery2);
+	Expect<
+		Equal<
+			{
+				id: number;
+				cityCount: number;
+			}[],
+			typeof result
+		>
+	>;
+	Expect<Equal<typeof result, typeof newYorkersWithSubquery2.$inferSelect[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof newYorkersWithSubquery2>[]>>;
+}
+
+{
 	db
 		.select()
 		.from(users)
@@ -1003,7 +1074,7 @@ await db
 }
 
 {
-	function withFriends<T extends PgSelectQueryBuilder>(qb: T) {
+	function withFriends<T extends PgSelect>(qb: T) {
 		const friends = alias(users, 'friends');
 		const friends2 = alias(users, 'friends2');
 		const friends3 = alias(users, 'friends3');
@@ -1019,6 +1090,7 @@ await db
 
 	const qb = db.select().from(users).$dynamic();
 	const result = await withFriends(qb);
+
 	Expect<
 		Equal<typeof result, {
 			users_table: typeof users.$inferSelect;
@@ -1043,7 +1115,7 @@ await db
 
 {
 	// TODO: add to docs
-	function dynamic<T extends PgSelectQueryBuilder>(qb: T) {
+	function dynamic<T extends PgSelect>(qb: T) {
 		return qb.where(sql``).having(sql``).groupBy(sql``).orderBy(sql``).limit(1).offset(1).for('update');
 	}
 
@@ -1193,7 +1265,7 @@ await db
 		}[]>
 	>;
 	Expect<Equal<typeof result, typeof view.$inferSelect[]>>;
-	Expect<Equal<typeof result, InferSelectViewModel<typeof view>[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof view>[]>>;
 }
 
 {
@@ -1230,5 +1302,308 @@ await db
 		}[]>
 	>;
 	Expect<Equal<typeof result, typeof view.$inferSelect[]>>;
-	Expect<Equal<typeof result, InferSelectViewModel<typeof view>[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof view>[]>>;
+}
+
+{
+	const table1 = pgTable('table1', {
+		id: integer().primaryKey(),
+		name: text().notNull(),
+	});
+
+	const table2 = pgTable('table2', {
+		id: integer().primaryKey(),
+		age: integer().notNull(),
+		table1Id: integer().references(() => table1.id).notNull(),
+	});
+
+	const view = pgView('view').as((qb) => qb.select().from(table2));
+
+	const leftLateralRawRes = await db.select({
+		table1,
+		sqId: sql<number | null>`${sql.identifier('t2')}.${sql.identifier('id')}`.as('sqId'),
+	}).from(table1).leftJoinLateral(sql`(SELECT * FROM ${table2}) as ${sql.identifier('t2')}`, sql`true`);
+
+	Expect<
+		Equal<typeof leftLateralRawRes, {
+			table1: {
+				id: number;
+				name: string;
+			};
+			sqId: number | null;
+		}[]>
+	>;
+
+	const leftLateralSubRes = await db.select().from(table1).leftJoinLateral(
+		db.select().from(table2).as('sub'),
+		sql`true`,
+	);
+
+	Expect<
+		Equal<typeof leftLateralSubRes, {
+			table1: {
+				id: number;
+				name: string;
+			};
+			sub: {
+				id: number;
+				age: number;
+				table1Id: number;
+			} | null;
+		}[]>
+	>;
+
+	const sqLeftLateral = db.select().from(table2).as('sub');
+
+	const leftLateralSubSelectionRes = await db.select(
+		{
+			id: table1.id,
+			sId: sqLeftLateral.id,
+		},
+	).from(table1).leftJoinLateral(
+		sqLeftLateral,
+		sql`true`,
+	);
+
+	Expect<
+		Equal<typeof leftLateralSubSelectionRes, {
+			id: number;
+			sId: number | null;
+		}[]>
+	>;
+
+	await db.select().from(table1)
+		// @ts-expect-error
+		.leftJoinLateral(table2, sql`true`);
+
+	await db.select().from(table1)
+		// @ts-expect-error
+		.leftJoinLateral(view, sql`true`);
+
+	const innerLateralRawRes = await db.select({
+		table1,
+		sqId: sql<number>`${sql.identifier('t2')}.${sql.identifier('id')}`.as('sqId'),
+	}).from(table1).innerJoinLateral(sql`(SELECT * FROM ${table2}) as ${sql.identifier('t2')}`, sql`true`);
+
+	Expect<
+		Equal<typeof innerLateralRawRes, {
+			table1: {
+				id: number;
+				name: string;
+			};
+			sqId: number;
+		}[]>
+	>;
+
+	const innerLateralSubRes = await db.select().from(table1).innerJoinLateral(
+		db.select().from(table2).as('sub'),
+		sql`true`,
+	);
+
+	Expect<
+		Equal<typeof innerLateralSubRes, {
+			table1: {
+				id: number;
+				name: string;
+			};
+			sub: {
+				id: number;
+				age: number;
+				table1Id: number;
+			};
+		}[]>
+	>;
+
+	const sqInnerLateral = db.select().from(table2).as('sub');
+
+	const innerLateralSubSelectionRes = await db.select(
+		{
+			id: table1.id,
+			sId: sqLeftLateral.id,
+		},
+	).from(table1).innerJoinLateral(
+		sqInnerLateral,
+		sql`true`,
+	);
+
+	Expect<
+		Equal<typeof innerLateralSubSelectionRes, {
+			id: number;
+			sId: number;
+		}[]>
+	>;
+
+	await db.select().from(table1)
+		// @ts-expect-error
+		.innerJoinLateral(table2, sql`true`);
+
+	await db.select().from(table1)
+		// @ts-expect-error
+		.innerJoinLateral(view, sql`true`);
+
+	const crossLateralRawRes = await db.select({
+		table1,
+		sqId: sql<number>`${sql.identifier('t2')}.${sql.identifier('id')}`.as('sqId'),
+	}).from(table1).crossJoinLateral(sql`(SELECT * FROM ${table2}) as ${sql.identifier('t2')}`);
+
+	Expect<
+		Equal<typeof crossLateralRawRes, {
+			table1: {
+				id: number;
+				name: string;
+			};
+			sqId: number;
+		}[]>
+	>;
+
+	const crossLateralSubRes = await db.select().from(table1).crossJoinLateral(
+		db.select().from(table2).as('sub'),
+	);
+
+	Expect<
+		Equal<typeof crossLateralSubRes, {
+			table1: {
+				id: number;
+				name: string;
+			};
+			sub: {
+				id: number;
+				age: number;
+				table1Id: number;
+			};
+		}[]>
+	>;
+
+	const sqCrossLateral = db.select().from(table2).as('sub');
+
+	const crossLateralSubSelectionRes = await db.select(
+		{
+			id: table1.id,
+			sId: sqCrossLateral.id,
+		},
+	).from(table1).crossJoinLateral(
+		sqInnerLateral,
+	);
+
+	Expect<
+		Equal<typeof crossLateralSubSelectionRes, {
+			id: number;
+			sId: number;
+		}[]>
+	>;
+
+	await db.select().from(table1)
+		// @ts-expect-error
+		.crossJoinLateral(table2);
+
+	await db.select().from(table1)
+		// @ts-expect-error
+		.crossJoinLateral(view);
+}
+
+// Dialect-agnostic test - do not duplicate
+{
+	const res = await db.select({
+		preNull: sql<number | null>`somequery`.mapWith((v) => {
+			Expect<Equal<typeof v, number>>;
+			return String(v);
+		}).as('sq1'),
+		postNull: sql<number>`somequery`.mapWith((v) => {
+			Expect<Equal<typeof v, number>>;
+			return String(v);
+		}).nullable().as('sq2'),
+		prePostNull: sql<number | null>`somequery`.mapWith((v) => {
+			Expect<Equal<typeof v, number>>;
+			return String(v);
+		}).nullable().as('sq3'),
+		default: sql`somequery`.mapWith((v) => {
+			Expect<Equal<typeof v, unknown>>;
+			return String(v);
+		}).as('sq4'),
+		unknown: sql<unknown>`somequery`.mapWith((v) => {
+			Expect<Equal<typeof v, unknown>>;
+			return String(v);
+		}).as('sq5'),
+		any: sql<any>`somequery`.mapWith((v) => {
+			Expect<Equal<typeof v, any>>;
+			return String(v);
+		}).as('sq6'),
+	}).from(users);
+
+	Expect<
+		Equal<typeof res, {
+			preNull: string | null;
+			postNull: string | null;
+			prePostNull: string | null;
+			default: string;
+			unknown: string;
+			any: string;
+		}[]>
+	>;
+}
+
+{
+	const tripTable = pgTable('tripTable', {
+		id: integer(),
+	});
+
+	const riderTable = pgTable('riderTable', {
+		id: integer(),
+	});
+
+	const userTable = pgTable('userTable', {
+		id: integer(),
+	});
+
+	const vehicleTable = pgTable('vehicleTable', {
+		id: integer(),
+	});
+
+	const includeRider = true as boolean;
+	const includeRiderUser = true as boolean;
+	const includeVehicle = true as boolean;
+
+	let qb = db
+		.select({
+			...getTableColumns(tripTable),
+			...(includeRider ? { rider: getTableColumns(riderTable) } : {}),
+			...(includeRiderUser ? { riderUser: getTableColumns(userTable) } : {}),
+			...(includeVehicle ? { vehicle: getTableColumns(vehicleTable) } : {}),
+		})
+		.from(tripTable)
+		.$dynamic();
+
+	if (includeRider) {
+		qb = qb.leftJoin(riderTable, eq(tripTable.id, riderTable.id));
+		if (includeRiderUser) {
+			qb = qb.innerJoin(userTable, eq(riderTable.id, userTable.id));
+		}
+	}
+	if (includeVehicle) {
+		qb = qb.leftJoin(vehicleTable, eq(tripTable.id, vehicleTable.id));
+	}
+
+	Expect<
+		Equal<Awaited<typeof qb>, {
+			vehicle?:
+				| {
+					id: number | null;
+				}
+				| null
+				| undefined;
+			riderUser?:
+				| {
+					id: number | null;
+				}
+				| null
+				| undefined;
+			rider?:
+				| {
+					id: number | null;
+				}
+				| null
+				| undefined;
+			id: number | null;
+		}[]>
+	>;
 }

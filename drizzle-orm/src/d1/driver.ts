@@ -3,31 +3,29 @@ import type { D1Database as MiniflareD1Database } from '@miniflare/d1';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	type ExtractTablesWithRelations,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
-import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
-import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import type { DrizzleConfig, IfNotImported } from '~/utils.ts';
-import { SQLiteD1Session } from './session.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
+import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
+import type { IfNotImported } from '~/utils.ts';
+import { d1Codecs } from './codecs.ts';
+import { type D1RunResult, SQLiteD1Session } from './session.ts';
 
 export type AnyD1Database = IfNotImported<
 	D1Database,
 	MiniflareD1Database,
-	D1Database | IfNotImported<MiniflareD1Database, never, MiniflareD1Database>
+	| D1Database
+	| IfNotImported<D1DatabaseSession, never, D1DatabaseSession>
+	| IfNotImported<MiniflareD1Database, never, MiniflareD1Database>
 >;
 
-export class DrizzleD1Database<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-> extends BaseSQLiteDatabase<'async', D1Result, TSchema> {
+export class DrizzleD1Database<TRelations extends AnyRelations = EmptyRelations>
+	extends SQLiteAsyncDatabase<'async', D1RunResult, TRelations>
+{
 	static override readonly [entityKind]: string = 'D1Database';
 
 	/** @internal */
-	declare readonly session: SQLiteD1Session<TSchema, ExtractTablesWithRelations<TSchema>>;
+	declare readonly session: SQLiteD1Session<TRelations>;
 
 	async batch<U extends BatchItem<'sqlite'>, T extends Readonly<[U, ...U[]]>>(
 		batch: T,
@@ -37,15 +35,17 @@ export class DrizzleD1Database<
 }
 
 export function drizzle<
-	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends AnyD1Database = AnyD1Database,
 >(
 	client: TClient,
-	config: DrizzleConfig<TSchema> = {},
-): DrizzleD1Database<TSchema> & {
+	config: Omit<DrizzleSQLiteConfig<TRelations>, 'jit'> = {},
+): DrizzleD1Database<TRelations> & {
 	$client: TClient;
 } {
-	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
+	const dialect = new SQLiteDialect({
+		codecs: config.codecs ?? d1Codecs,
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -53,22 +53,23 @@ export function drizzle<
 		logger = config.logger;
 	}
 
-	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
-	if (config.schema) {
-		const tablesConfig = extractTablesRelationalConfig(
-			config.schema,
-			createTableRelationsHelpers,
-		);
-		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
-			tableNamesMap: tablesConfig.tableNamesMap,
-		};
-	}
-
-	const session = new SQLiteD1Session(client as D1Database, dialect, schema, { logger });
-	const db = new DrizzleD1Database('async', dialect, session, schema) as DrizzleD1Database<TSchema>;
+	const relations = config.relations ?? {} as TRelations;
+	const session = new SQLiteD1Session(client as D1Database, dialect, relations, {
+		logger,
+		cache: config.cache,
+	});
+	const db = new DrizzleD1Database(
+		'async',
+		dialect,
+		session,
+		relations,
+		true,
+	);
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }

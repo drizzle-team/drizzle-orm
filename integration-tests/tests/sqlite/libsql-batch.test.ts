@@ -1,7 +1,8 @@
 import { createClient } from '@libsql/client';
 import type { Client, ResultSet } from '@libsql/client';
 import retry from 'async-retry';
-import { eq, relations, sql } from 'drizzle-orm';
+import { defineRelations, eq, sql } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
@@ -44,9 +45,7 @@ export const usersToGroupsTable = sqliteTable(
 			() => groupsTable.id,
 		),
 	},
-	(t) => ({
-		pk: primaryKey({ columns: [t.userId, t.groupId] }),
-	}),
+	(t) => [primaryKey({ columns: [t.userId, t.groupId] })],
 );
 export const usersToGroupsConfig = relations(usersToGroupsTable, ({ one }) => ({
 	group: one(groupsTable, {
@@ -134,15 +133,14 @@ const schema = {
 	usersConfig,
 };
 
-let db: LibSQLDatabase<typeof schema>;
+const relationsV2 = defineRelations(schema);
+
+let db: LibSQLDatabase<typeof relationsV2>;
 let client: Client;
 
 beforeAll(async () => {
-	const url = process.env['LIBSQL_URL'];
+	const url = process.env['LIBSQL_URL'] ?? 'file::memory:?cache=shared';
 	const authToken = process.env['LIBSQL_AUTH_TOKEN'];
-	if (!url) {
-		throw new Error('LIBSQL_URL is not set');
-	}
 	client = await retry(async () => {
 		client = createClient({ url, authToken });
 		return client;
@@ -156,7 +154,7 @@ beforeAll(async () => {
 			client?.close();
 		},
 	});
-	db = drizzle(client, { schema, logger: ENABLE_LOGGING });
+	db = drizzle({ client, logger: ENABLE_LOGGING, relations: relationsV2 });
 });
 
 afterAll(async () => {
@@ -460,6 +458,32 @@ test('insert + findManyWith + db.all', async () => {
 		{ id: 1, name: 'John', verified: 0, invited_by: null },
 		{ id: 2, name: 'Dan', verified: 0, invited_by: null },
 	]);
+});
+
+test('reproduce "insert + update + select + select partial" test bug', async () => {
+	await client.execute('drop table if exists "users";');
+	await client.execute(`
+			CREATE TABLE "users" (
+			    "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+			    "name" text NOT NULL,
+			    "verified" integer DEFAULT 0 NOT NULL,
+			    "invited_by" integer
+			);
+		`);
+
+	// const query1 = db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }).toSQL();
+	// console.log(query1);
+	const sql1 = 'insert into "users" ("id", "name", "verified", "invited_by") values (?, ?, ?, null) returning "id"';
+	const params1 = [1, 'John', 0];
+	const res1 = await client.execute({ sql: sql1 as string, args: params1 as any[] });
+	console.log(res1);
+
+	// const query2 = db.update(usersTable).set({ name: 'Dan' }).where(eq(usersTable.id, 1)).toSQL();
+	// console.log(query2);
+	const sql2 = 'update "users" set "name" = ? where "users"."id" = ?';
+	const params2 = ['Dan', 1];
+	const res2 = await client.execute({ sql: sql2 as string, args: params2 as any[] });
+	console.log(res2);
 });
 
 // batch api for insert + update + select

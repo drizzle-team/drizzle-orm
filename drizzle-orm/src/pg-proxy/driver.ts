@@ -1,19 +1,15 @@
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { PgDatabase } from '~/pg-core/db.ts';
-import { PgDialect } from '~/pg-core/dialect.ts';
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
+import { PgDialect, type PgDialectConfig } from '~/pg-core/dialect.ts';
+import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import { jitCompatCheck } from '~/utils.ts';
 import { type PgRemoteQueryResultHKT, PgRemoteSession } from './session.ts';
 
-export class PgRemoteDatabase<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-> extends PgDatabase<PgRemoteQueryResultHKT, TSchema> {
+export class PgRemoteDatabase<TRelations extends AnyRelations = EmptyRelations>
+	extends PgAsyncDatabase<PgRemoteQueryResultHKT, TRelations>
+{
 	static override readonly [entityKind]: string = 'PgRemoteDatabase';
 }
 
@@ -21,15 +17,17 @@ export type RemoteCallback = (
 	sql: string,
 	params: any[],
 	method: 'all' | 'execute',
-	typings?: any[],
 ) => Promise<{ rows: any[] }>;
 
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	callback: RemoteCallback,
-	config: DrizzleConfig<TSchema> = {},
-	_dialect: () => PgDialect = () => new PgDialect({ casing: config.casing }),
-): PgRemoteDatabase<TSchema> {
-	const dialect = _dialect();
+	config: DrizzlePgConfig<TRelations> = {},
+	_dialect: (config?: PgDialectConfig) => PgDialect = (cfg) => new PgDialect(cfg),
+): PgRemoteDatabase<TRelations> {
+	const dialect = _dialect({
+		useJitMappers: jitCompatCheck(config.jit),
+		codecs: config.codecs,
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -37,19 +35,17 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		logger = config.logger;
 	}
 
-	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
-	if (config.schema) {
-		const tablesConfig = extractTablesRelationalConfig(
-			config.schema,
-			createTableRelationsHelpers,
-		);
-		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
-			tableNamesMap: tablesConfig.tableNamesMap,
-		};
+	const relations = config.relations ?? {} as TRelations;
+	const session = new PgRemoteSession(callback, dialect, relations, { logger, cache: config.cache });
+	const db = new PgRemoteDatabase(
+		dialect,
+		session,
+		relations,
+	) as PgRemoteDatabase<TRelations>;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
 	}
 
-	const session = new PgRemoteSession(callback, dialect, schema, { logger });
-	return new PgRemoteDatabase(dialect, session, schema as any) as PgRemoteDatabase<TSchema>;
+	return db;
 }

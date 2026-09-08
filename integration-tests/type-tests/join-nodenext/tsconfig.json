@@ -1,0 +1,19 @@
+{
+	"compilerOptions": {
+		"useDefineForClassFields": true,
+		"module": "nodenext",
+		"target": "es2022",
+		"moduleResolution": "node16",
+		"skipLibCheck": true,
+		"allowImportingTsExtensions": true,
+		"moduleDetection": "force",
+		"noEmit": true,
+		"strict": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"noFallthroughCasesInSwitch": true,
+		"noUncheckedSideEffectImports": true
+	},
+	"noEmit": true,
+	"include": ["./*.ts"]
+}

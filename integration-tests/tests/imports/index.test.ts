@@ -1,70 +1,105 @@
 import { afterAll, expect, it } from 'vitest';
 import 'zx/globals';
 import * as fs from 'fs';
+import { globSync } from 'glob';
 import path from 'path';
-
-$.verbose = false;
+$.verbose = true;
 
 const IMPORTS_FOLDER = 'tests/imports/files';
 
-const folderPath = '../drizzle-orm/dist/package.json';
-const pj = JSON.parse(fs.readFileSync(folderPath, 'utf8'));
+// The published `exports` map collapsed to a `"./*"` wildcard, so the importable public subpaths
+// are no longer enumerable from it — re-derive them from the same source globs the build keys off.
+const exportSubpaths = [
+	...new Set(
+		globSync('../drizzle-orm/src/**/*.ts', { ignore: ['**/*.test.ts'] })
+			.map((f) => f.match(/src\/(.*)\.ts$/)![1]!)
+			.map((e) => (e === 'index' ? '.' : './' + e.replace(/\/index$/, ''))),
+	),
+];
 
-if (!fs.existsSync(IMPORTS_FOLDER)) {
-	fs.mkdirSync(IMPORTS_FOLDER);
-}
-
-it('dynamic imports check for CommonJS', async () => {
-	const promises: ProcessPromise[] = [];
-	for (const [i, key] of Object.keys(pj['exports']).entries()) {
-		const o1 = path.join('drizzle-orm', key);
-		if (
-			o1.startsWith('drizzle-orm/bun-sqlite') || o1.startsWith('drizzle-orm/pglite')
-			|| o1.startsWith('drizzle-orm/expo-sqlite') || o1.startsWith('drizzle-orm/libsql/wasm')
-			|| o1.startsWith('drizzle-orm/bun-sql')
-		) {
-			continue;
-		}
-		fs.writeFileSync(`${IMPORTS_FOLDER}/imports_${i}.cjs`, 'requ');
-		fs.appendFileSync(`${IMPORTS_FOLDER}/imports_${i}.cjs`, 'ire("' + o1 + '");\n', {});
-
-		// fs.writeFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'imp');
-		// fs.appendFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'ort "' + o1 + '"\n', {});
-
-		promises.push(
-			$`node ${IMPORTS_FOLDER}/imports_${i}.cjs`.nothrow(),
-			// $`node ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow(),
-		);
-	}
-	const results = await Promise.all(promises);
-
-	for (const result of results) {
-		expect(result.exitCode, result.message).toBe(0);
-	}
-});
-
-it('dynamic imports check for ESM', async () => {
-	const promises: ProcessPromise[] = [];
-	for (const [i, key] of Object.keys(pj['exports']).entries()) {
-		const o1 = path.join('drizzle-orm', key);
-		if (
-			o1.startsWith('drizzle-orm/bun-sqlite') || o1.startsWith('drizzle-orm/expo-sqlite')
-			|| o1.startsWith('drizzle-orm/bun-sql')
-		) {
-			continue;
-		}
-		fs.writeFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'imp');
-		fs.appendFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'ort "' + o1 + '"\n', {});
-		promises.push($`node ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow());
-	}
-
-	const results = await Promise.all(promises);
-
-	for (const result of results) {
-		expect(result.exitCode, result.message).toBe(0);
-	}
-});
+fs.mkdirSync(IMPORTS_FOLDER, { recursive: true });
 
 afterAll(() => {
-	fs.rmdirSync(IMPORTS_FOLDER, { recursive: true });
+	fs.rmSync(IMPORTS_FOLDER, { recursive: true });
 });
+
+function chunk<T>(arr: T[], size: number): T[][] {
+	const chunks: T[][] = [];
+	for (let i = 0; i < arr.length; i += size) {
+		chunks.push(arr.slice(i, i + size));
+	}
+	return chunks;
+}
+
+const promisesCJS: (() => ProcessPromise)[] = [];
+for (const [i, key] of exportSubpaths.entries()) {
+	const o1 = path.join('drizzle-orm', key);
+	if (
+		o1.startsWith('drizzle-orm/bun-sqlite') || o1.startsWith('drizzle-orm/pglite')
+		|| o1.startsWith('drizzle-orm/expo-sqlite') || o1.startsWith('drizzle-orm/libsql/wasm')
+		|| o1.startsWith('drizzle-orm/bun-sql') || o1.startsWith('drizzle-orm/tursodatabase/wasm')
+		|| o1.startsWith('drizzle-orm/prisma') || o1.startsWith('drizzle-orm/node-sqlite')
+		|| o1.startsWith('drizzle-orm/effect-sqlite-bun')
+		|| o1 === 'drizzle-orm/postgres' || o1.startsWith('drizzle-orm/postgres/')
+	) {
+		continue;
+	}
+	fs.writeFileSync(`${IMPORTS_FOLDER}/imports_${i}.cjs`, 'requ');
+	fs.appendFileSync(`${IMPORTS_FOLDER}/imports_${i}.cjs`, 'ire("' + o1 + '");\n', {});
+
+	// fs.writeFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'imp');
+	// fs.appendFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'ort "' + o1 + '"\n', {});
+
+	promisesCJS.push(
+		() => $`node ${IMPORTS_FOLDER}/imports_${i}.cjs`.nothrow().timeout('5s', 'SIGTERM'),
+		// () => $`node ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow().timeout('5s', 'SIGTERM'),
+	);
+}
+
+const chunksCJS = chunk(promisesCJS, 10);
+
+for (const c of chunksCJS) {
+	it.concurrent('dynamic imports check for CommonJS chunk', async () => {
+		const results = await Promise.all(c.map((c) => c()));
+
+		for (const result of results) {
+			expect(result.exitCode, result.message).toBe(0);
+		}
+	});
+}
+
+const promises: (() => ProcessPromise)[] = [];
+for (const [i, key] of exportSubpaths.entries()) {
+	const o1 = path.join('drizzle-orm', key);
+	if (
+		o1.startsWith('drizzle-orm/bun-sqlite') || o1.startsWith('drizzle-orm/expo-sqlite')
+		|| o1.startsWith('drizzle-orm/bun-sql') || o1.startsWith('drizzle-orm/tursodatabase/wasm')
+		|| o1.startsWith('drizzle-orm/prisma') || o1.startsWith('drizzle-orm/node-sqlite')
+		|| o1.startsWith('drizzle-orm/effect-sqlite-bun')
+		|| o1 === 'drizzle-orm/postgres/cf'
+	) {
+		continue;
+	}
+	fs.writeFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'imp');
+	fs.appendFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'ort "' + o1 + '"\n', {});
+	promises.push(
+		() => $`node ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow().timeout('5s', 'SIGTERM'),
+		() =>
+			$`node --import import-in-the-middle/hook.mjs ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow().timeout(
+				'5s',
+				'SIGTERM',
+			),
+	);
+}
+
+const chunksESM = chunk(promises, 10);
+
+for (const c of chunksESM) {
+	it('dynamic imports check for ESM chunk', async () => {
+		const results = await Promise.all(c.map((c) => c()));
+
+		for (const result of results) {
+			expect(result.exitCode, result.message).toBe(0);
+		}
+	});
+}

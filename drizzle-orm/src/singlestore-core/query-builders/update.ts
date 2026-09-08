@@ -15,9 +15,10 @@ import type {
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
-import { Table } from '~/table.ts';
+import { type InferInsertModel, Table } from '~/table.ts';
 import { mapUpdateSet, type UpdateSet, type ValueOrArray } from '~/utils.ts';
 import type { SingleStoreColumn } from '../columns/common.ts';
+import { extractUsedTable } from '../utils.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 
 export interface SingleStoreUpdateConfig {
@@ -28,13 +29,18 @@ export interface SingleStoreUpdateConfig {
 	table: SingleStoreTable;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
+	ignoreSelectionCastCodecs?: boolean;
 }
 
-export type SingleStoreUpdateSetSource<TTable extends SingleStoreTable> =
+export type SingleStoreUpdateSetSource<
+	TTable extends SingleStoreTable,
+	TModel extends Record<string, any> = InferInsertModel<TTable>,
+> =
 	& {
-		[Key in keyof TTable['$inferInsert']]?:
+		[Key in keyof TModel & string]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
 			| SQL
+			| Placeholder
 			| undefined;
 	}
 	& {};
@@ -216,20 +222,25 @@ export class SingleStoreUpdateBase<
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildUpdateQuery(this.config);
 	}
 
 	toSQL(): Query {
-		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		return rest;
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	prepare(): SingleStoreUpdatePrepare<this> {
+		const { returning: fields } = this.config;
+
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
-			this.config.returning,
+			fields ? 'arrays' : 'raw',
+			fields ? this.dialect.mapperGenerators.rows(fields, undefined) : undefined,
+			{
+				type: 'update',
+				tables: extractUsedTable(this.config.table),
+			},
 		) as SingleStoreUpdatePrepare<this>;
 	}
 
@@ -245,6 +256,12 @@ export class SingleStoreUpdateBase<
 	};
 
 	iterator = this.createIterator();
+
+	/** @internal */
+	withoutSelectionCastCodecs() {
+		this.config.ignoreSelectionCastCodecs = true;
+		return this;
+	}
 
 	$dynamic(): SingleStoreUpdateDynamic<this> {
 		return this as any;

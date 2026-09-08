@@ -22,7 +22,7 @@ describe('libsql', async (it) => {
 
 		await db.$client.close();
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({connection: string, ...config})', async () => {
@@ -35,7 +35,7 @@ describe('libsql', async (it) => {
 
 		await db.$client.close();
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({connection: params, ...config})', async () => {
@@ -50,33 +50,18 @@ describe('libsql', async (it) => {
 
 		await db.$client.close();
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
-	it('drizzle(client)', async () => {
+	it('drizzle({ client })', async () => {
 		const client = createClient({
 			url: ':memory:',
 		});
-		const db = drizzle(client);
+		const db = drizzle({ client });
 
 		await db.$client.execute('SELECT 1;');
 
 		await db.$client.close();
-	});
-
-	it('drizzle(client, config)', async () => {
-		const client = createClient({
-			url: ':memory:',
-		});
-		const db = drizzle(client, {
-			schema,
-		});
-
-		await db.$client.execute('SELECT 1;');
-
-		await db.$client.close();
-
-		expect(db.query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({client, ...config})', async () => {
@@ -92,6 +77,6 @@ describe('libsql', async (it) => {
 
 		await db.$client.close();
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 });

@@ -1,151 +1,272 @@
 name: Release (feature branch)
 
 on:
-  push:
-    branches-ignore:
-      - main
-  pull_request: {}
+  workflow_call:
+    inputs:
+      publish_to_github:
+        description: 'Publish to GitHub Packages instead of npm'
+        type: boolean
+        default: false
+      packages:
+        description: 'Comma-separated list of packages to publish, or "all"'
+        type: string
+        default: 'all'
+    secrets:
+      PLANETSCALE_CONNECTION_STRING:
+        required: true
+      NEON_CONNECTION_STRING:
+        required: true
+      NEON_HTTP_CONNECTION_STRING:
+        required: true
+      TIDB_CONNECTION_STRING:
+        required: true
+      XATA_API_KEY:
+        required: true
+      XATA_BRANCH:
+        required: true
+      LIBSQL_REMOTE_URL:
+        required: true
+      LIBSQL_REMOTE_TOKEN:
+        required: true
+      TURSODATABASE_REMOTE_URL:
+        required: true
+      TURSODATABASE_REMOTE_TOKEN:
+        required: true
+      SQLITE_CLOUD_CONNECTION_STRING:
+        required: true
+      SQLITE_MANY_CLOUD_CONNECTION_STRING:
+        required: true
+      TURBO_TOKEN:
+        required: true
+      NETLIFY_DB_URL:
+        required: true
+      GH_PACKAGES_TOKEN:
+        required: false
+
+concurrency:
+  group: feature-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  release:
-    # only run on all pushes or pull requests from forks
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
-    strategy:
-      matrix:
-        package:
-          - drizzle-orm
-          - drizzle-kit
-          - drizzle-zod
-          - drizzle-seed
-          - drizzle-typebox
-          - drizzle-valibot
-          - eslint-plugin-drizzle
-    runs-on: ubuntu-20.04
-    permissions:
-      contents: read
-      id-token: write
-    services:
-      postgres-postgis:
-        image: postgis/postgis:16-3.4
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: drizzle
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 54322:5432
-      postgres-vector:
-        image: pgvector/pgvector:pg16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: drizzle
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 54321:5432
-      postgres:
-        image: postgres:14
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: drizzle
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 55433:5432
-      mysql:
-        image: mysql:8
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: drizzle
-        options: >-
-          --health-cmd "mysqladmin ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 33306:3306
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    outputs:
+      publish_matrix: ${{ steps.publish-matrix.outputs.packages }}
+    env:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: 'team_KbvYUtAn1Tqytsj8HbNcYDqV'
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '18.18'
-          registry-url: 'https://registry.npmjs.org'
-
-      - uses: pnpm/action-setup@v3
-        name: Install pnpm
-        id: pnpm-install
-        with:
-          version: latest
-          run_install: false
-
-      - name: Get pnpm store directory
-        id: pnpm-cache
+      - name: Compute publish matrix
+        id: publish-matrix
         shell: bash
+        env:
+          PACKAGES_FILTER: ${{ inputs.packages }}
         run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
-
-      - uses: actions/cache@v4
-        name: Setup pnpm cache
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Check preconditions
-        id: checks
-        shell: bash
-        working-directory: ${{ matrix.package }}
-        run: |
-          old_version="$(jq -r .version package.json)"
-          version="$old_version-$(git rev-parse --short HEAD)"
-          npm version $version
-          tag="${{ github.ref_name }}"
-          is_version_published="$(npm view ${{ matrix.package }} versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
-
-          if [[ "$is_version_published" == "true" ]]; then
-            echo "\`${{ matrix.package }}$version\` already published, adding tag \`$tag\`" >> $GITHUB_STEP_SUMMARY
-            npm dist-tag add ${{ matrix.package }}@$version $tag
+          set -euo pipefail
+          all='["drizzle-orm","drizzle-kit","drizzle-seed","eslint-plugin-drizzle"]'
+          if [[ -z "$PACKAGES_FILTER" || "$PACKAGES_FILTER" == "all" ]]; then
+            selected="$all"
           else
-            {
-              echo "version=$version"
-              echo "tag=$tag"
-              echo "has_new_release=true"
-            } >> $GITHUB_OUTPUT
+            selected="$(jq -cn --arg f "$PACKAGES_FILTER" '$f | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""))')"
+            unknown="$(jq -cn --argjson all "$all" --argjson sel "$selected" '$sel - $all')"
+            if [[ "$unknown" != "[]" ]]; then
+              echo "::error::Unknown package(s) in filter: $unknown"
+              exit 1
+            fi
+            if [[ "$selected" == "[]" ]]; then
+              echo "::error::Empty package filter"
+              exit 1
+            fi
           fi
+          echo "packages=$selected" >> "$GITHUB_OUTPUT"
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6
+        with: { run_install: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Compute version suffix
+        id: meta
+        shell: bash
+        run: echo "suffix=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Build all
+        run: pnpm build:artifact
+      - name: Upload build-dist
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-dist
+          path: |
+            **/dist
+            **/*.tsbuildinfo
+      - name: Pack
+        run: pnpm pack:artifact
+      - uses: actions/upload-artifact@v7
+        with: 
+          name: packages
+          path: |
+            drizzle-orm/package.tgz
+            drizzle-kit/package.tgz
+            drizzle-seed/package.tgz
+            eslint-plugin-drizzle/package.tgz
 
-      - name: Build
-        if: steps.checks.outputs.has_new_release == 'true'
+      # Tiny marker so other jobs can wait without failing
+      - name: Upload build-ready marker
+        run: mkdir -p .gh && echo "ok" > .gh/build-ready
+      - uses: actions/upload-artifact@v7
+        with:
+          name: build-ready
+          path: .gh/build-ready
+      - name: test:types & lint
+        run: pnpm test:types-lint
+
+  test:
+    # NOTE: no 'needs: [prepare]' on purpose — start early, warm DBs, then wait for artifacts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # - shard: int:singlestore
+          #   dbs: [singlestore]
+          # - shard: int:singlestore-core
+          #   dbs: [singlestore-many]
+          # - shard: int:singlestore-proxy
+          #   dbs: [singlestore-many]
+          - shard: int:mysql
+            dbs: [mysql]
+          - shard: int:postgres
+            dbs: [postgres, postgres-http-gateway]
+          - shard: int:neon
+            dbs: []
+          - shard: int:sqlite
+            dbs: []
+          - shard: int:turso-serverless
+            dbs: []
+          - shard: int:other
+            dbs: [mysql, postgres, postgres-postgis, postgres-vector]
+          - shard: int:seeder
+            dbs: [mysql, postgres]
+          - shard: int:imports
+            dbs: []
+          - shard: int:planetscale
+            dbs: []
+          - shard: int:cockroach
+            dbs: [cockroach]
+          - shard: int:cockroach-rqb
+            dbs: [cockroach]
+          - shard: int:bun
+            dbs: [postgres, postgres-vector, postgres-postgis, mysql]
+          - shard: int:mssql
+            dbs: [mssql]
+          - shard: orm
+            dbs: []
+          - shard: kit:other
+            dbs: [mysql]
+          - shard: kit:postgres
+            dbs: [postgres, postgres-postgis]
+          - shard: kit:postgres18
+            dbs: [postgres, postgres-postgis, postgres18]
+          - shard: kit:postgres17
+            dbs: [postgres, postgres-postgis, postgres17]
+          - shard: kit:postgres16
+            dbs: [postgres, postgres-postgis, postgres16]
+          - shard: kit:cockroach
+            dbs: [cockroach]
+          - shard: kit:mssql
+            dbs: [mssql]
+          - shard: seed
+            dbs: [cockroach, mysql, mssql, postgres-postgis, singlestore]
+          - shard: validators
+            dbs: []
+         
+    name: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6
+        with: { run_install: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Start DBs needed by shard (pre-warm)
+        if: ${{ matrix.dbs && join(matrix.dbs, ',') != '' }}
+        shell: bash
         run: |
-          (
-            cd drizzle-orm
-            pnpm prisma generate --schema src/prisma/schema.prisma
-          )
-          pnpm build
+          set -euxo pipefail
+          
+          compose_files=()
+          for db in ${{ join(matrix.dbs, ' ') }}; do
+            case "$db" in
+              postgres)            compose_files+=("-f" "compose/postgres.yml") ;;
+              postgres-http-gateway) compose_files+=("-f" "compose/postgres-http-gateway.yml") ;;
+              postgres-postgis)    compose_files+=("-f" "compose/postgres-postgis.yml") ;;
+              postgres-vector)     compose_files+=("-f" "compose/postgres-vector.yml") ;;
+              postgres18)          compose_files+=("-f" "compose/postgres18.yml") ;;
+              postgres17)          compose_files+=("-f" "compose/postgres17.yml") ;;
+              postgres16)          compose_files+=("-f" "compose/postgres16.yml") ;;
+              mysql)               compose_files+=("-f" "compose/mysql.yml") ;;
+              singlestore)         compose_files+=("-f" "compose/singlestore.yml") ;;
+              singlestore-many)    compose_files+=("-f" "compose/singlestore-many.yml") ;;
+              mssql)               compose_files+=("-f" "compose/mssql.yml") ;;
+              cockroach)           compose_files+=("-f" "compose/cockroach.yml") ;;
+              *) echo "Unknown db '$db'"; exit 1 ;;
+            esac
+          done
+          docker compose "${compose_files[@]}" up -d
 
+          chmod +x compose/wait.sh
+          compose/wait.sh ${{ join(matrix.dbs, ' ') }}
+
+      - name: Wait for 'prepare' to finish (poll artifact)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_id="${{ github.run_id }}"
+          repo="${{ github.repository }}"
+          echo "Waiting for 'build-ready' artifact from prepare job in run $run_id..."
+          for i in $(seq 1 120); do
+            artifacts_json="$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${repo}/actions/runs/${run_id}/artifacts")"
+            echo "$artifacts_json" | jq -e '.artifacts[] | select(.name=="build-ready")' >/dev/null 2>&1 && { echo "build-ready found"; break; }
+            echo "…still waiting ($i/120)"
+            sleep 5
+          done
+
+      - name: Download build-dist (compiled JS)
+        uses: actions/download-artifact@v4
+        with:
+          name: build-dist
+          path: .
+
+      # Required for packaging tests
+      - name: Download packed tarballs
+        if: matrix.shard == 'orm'
+        uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: .
+
+      # No `pnpm build` here — we reuse dist to save time
+
+      - uses: oven-sh/setup-bun@v2
       - name: Run tests
-        if: steps.checks.outputs.has_new_release == 'true'
         env:
           PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
+          PG_HTTP_GATEWAY_URL: http://localhost:8080/query
           PG_VECTOR_CONNECTION_STRING: postgres://postgres:postgres@localhost:54321/drizzle
           PG_POSTGIS_CONNECTION_STRING: postgres://postgres:postgres@localhost:54322/drizzle
-          MYSQL_CONNECTION_STRING: mysql://root:root@localhost:33306/drizzle
+          PG18_URL: postgres://postgres:postgres@localhost:54325/drizzle
+          PG17_URL: postgres://postgres:postgres@localhost:54324/drizzle
+          PG16_URL: postgres://postgres:postgres@localhost:54323/drizzle
+          POSTGIS_URL: postgres://postgres:postgres@localhost:54322/drizzle
+          MYSQL_CONNECTION_STRING: mysql://root:mysql@localhost:3306/drizzle
           PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
           NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
           TIDB_CONNECTION_STRING: ${{ secrets.TIDB_CONNECTION_STRING }}
@@ -154,48 +275,288 @@ jobs:
           LIBSQL_URL: file:local.db
           LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
           LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
+          TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
+          TURSODATABASE_REMOTE_TOKEN: ${{ secrets.TURSODATABASE_REMOTE_TOKEN }}
+          SINGLESTORE_CONNECTION_STRING: singlestore://root:singlestore@localhost:33307/
+          SINGLESTORE_MANY_CONNECTION_STRING: singlestore://root:singlestore@localhost:3308/;singlestore://root:singlestore@localhost:3309/;singlestore://root:singlestore@localhost:3310/;singlestore://root:singlestore@localhost:3311/
+          COCKROACH_CONNECTION_STRING: postgresql://root@127.0.0.1:26257/defaultdb?sslmode=disable
+          MSSQL_CONNECTION_STRING: mssql://SA:drizzle123PASSWORD!@localhost:1433?encrypt=true&trustServerCertificate=true
+          TEST_CONFIG_PATH_PREFIX: ./tests/cli/
+          SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
+          SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
+          NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
+        working-directory: integration-tests
+        shell: bash
         run: |
-          if [[ ${{ github.event_name }} != "push" && "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
+          set -euxo pipefail
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
             export SKIP_EXTERNAL_DB_TESTS=1
           fi
-          if [[ "${{ matrix.package }}" == "drizzle-orm" ]]; then
-            pnpm test --filter ${{ matrix.package }} --filter integration-tests
+          case ${{ matrix.shard }} in
+            int:singlestore) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-prefixed.test.ts ./singlestore/singlestore-custom.test.ts ;;
+            int:singlestore-core) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore.test.ts ;;
+            int:singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-proxy.test.ts ;;
+            int:postgres)
+              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
+                pnpm --stream test:postgres
+              fi
+            ;;
+            int:neon)
+              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
+                pnpm --stream test:neon
+              fi
+            ;;
+            int:mysql)
+              pnpm --stream test:mysql
+            ;;
+            int:tidb)
+              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
+                pnpm --stream vitest --reporter=verbose --silent=false tests/mysql/tidb
+              fi
+            ;;
+            int:planetscale)
+              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
+                pnpm --stream test:planetscale
+              fi
+            ;;
+            int:cockroach) pnpm --stream test:cockroach ;;
+            int:cockroach-rqb) pnpm --stream test:cockroach-rqb ;;
+            int:mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
+            int:sqlite) pnpm --stream test:sqlite ;;
+            int:turso-serverless) 
+              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
+                pnpm --stream vitest --reporter=verbose --silent=false --test-timeout=200000 --hook-timeout=200000 run tests/sqlite/tursodatabase-serverless.test.ts 
+              fi
+            ;;
+            kit:other) cd ../drizzle-kit && pnpm --stream run test:other ;;
+            kit:postgres) cd ../drizzle-kit && pnpm --stream run test:postgres ;;
+            kit:postgres18) cd ../drizzle-kit && PG_VERSION=18 pnpm --stream run test:postgres ;;
+            kit:postgres17) cd ../drizzle-kit && PG_VERSION=17 pnpm --stream run test:postgres ;;
+            kit:postgres16) cd ../drizzle-kit && PG_VERSION=16 pnpm --stream run test:postgres ;;
+            kit:cockroach) cd ../drizzle-kit && pnpm --stream run test:cockroach ;;
+            kit:mssql) cd ../drizzle-kit && pnpm --stream run test:mssql ;;
+            validators)
+              pnpm --stream vitest --reporter=verbose --silent=false run tests/validators
+            ;;
+            orm|seed)
+              (cd ../drizzle-${{ matrix.shard }} && pnpm --stream test --reporter=verbose --silent=false)
+            ;;
+            
+            int:bun)  bun test ./tests/bun/ ;;
+
+            int:seeder) pnpm --stream test:seeder ;;
+            int:imports) pnpm --stream test:imports ;;
+            int:other) pnpm --stream test:other ;;
+
+            *) echo "Unknown shard: ${{matrix.shard}}"; exit 1 ;;
+          esac
+
+  attw:
+    needs: [prepare]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
+        with: { run_install: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile --prefer-offline
+      - uses: oven-sh/setup-bun@v2
+      - name: Download package tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: ./artifacts
+      - name: Run @arethetypeswrong/cli
+        run: |
+          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-kit/package.tgz
+          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-seed/package.tgz
+          bun --bun run ./attw-fork/src/run.ts ./artifacts/eslint-plugin-drizzle/package.tgz
+        env:
+          ATTW_FORMAT: concise
+
+  attw-orm:
+    needs: [prepare]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        package: [node16-cjs, node16-esm, bundler]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
+        with: { run_install: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+      - run: pnpm fetch && pnpm install --frozen-lockfile --prefer-offline
+      - uses: oven-sh/setup-bun@v2
+      - name: Download drizzle-orm tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: ./artifacts
+      - name: Run @arethetypeswrong/cli
+        working-directory: drizzle-orm
+        run: bun --bun run ../attw-fork/src/run.ts ../artifacts/drizzle-orm/package.tgz ${{ matrix.package }}
+        env:
+          ATTW_FORMAT: concise
+
+  publint-orm:
+    needs: [prepare]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-node@v6
+        with: { node-version: '24' }
+      - name: Download drizzle-orm tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: ./artifacts
+      - name: Run publint
+        run: npx -y publint@0.3.21 ./artifacts/drizzle-orm/package.tgz
+
+  skills-revision-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Skip on non-pull-request events
+        if: github.event_name != 'pull_request'
+        run: echo "Not a pull request — skills revision gate does not apply"
+      - if: github.event_name == 'pull_request'
+        uses: actions/checkout@v5
+        with: { fetch-depth: 0 }
+      - if: github.event_name == 'pull_request'
+        uses: pnpm/action-setup@v6
+        with: { run_install: false }
+      - if: github.event_name == 'pull_request'
+        uses: actions/setup-node@v6
+        with: { node-version: '24', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+      - name: Skills revision gate
+        if: github.event_name == 'pull_request'
+        working-directory: drizzle-kit
+        env:
+          GH_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          pnpm install --frozen-lockfile --prefer-offline
+          pnpm skills:revision:check
+
+  release:
+    needs: [test, prepare, attw, attw-orm, publint-orm, skills-revision-gate]
+    # workflow_dispatch only: this job holds `id-token: write` and is the sole path to
+    # the publish step, so PR/push events must never enter it — that would both expose
+    # OIDC minting to untrusted PR code and auto-publish on push.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions: { contents: read, id-token: write }
+    
+    # force empty so npm can use OIDC
+    env:
+      NODE_AUTH_TOKEN: ""   
+      NPM_TOKEN: ""
+    strategy:
+      matrix:
+        package: ${{ fromJson(needs.prepare.outputs.publish_matrix) }}
+    steps:
+      - uses: actions/checkout@v5
+
+      # don't specify registry url, so there's no .npmrc config file
+      - uses: actions/setup-node@v6
+        with: { node-version: '24' }
+      
+      # nuke, so npm can use OIDC
+      - name: Remove temp npmrc
+        run: rm -f "$NPM_CONFIG_USERCONFIG"
+    
+      # >= 11.5.1 for trusted publishing
+      - name: Update NPM
+        run: npm install -g npm@11 # npm 12.0.0 ships without sigstore in its bundled tree and breaks `npm publish`
+      - name: Configure GitHub Packages auth
+        if: inputs.publish_to_github
+        env:
+          # a PAT instead of GITHUB_TOKEN: workflow-token publishes link the package to this
+          # public repo and inherit its visibility; PAT publishes default to private
+          GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+        run: |
+          if [[ -z "$GH_PACKAGES_TOKEN" ]]; then
+            echo "::error::Set the GH_PACKAGES_TOKEN secret (classic PAT with write:packages) to publish to GitHub Packages"
+            exit 1
+          fi
+          echo "//npm.pkg.github.com/:_authToken=$GH_PACKAGES_TOKEN" >> "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
+      - name: Download package tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: ./artifacts
+      - name: Check preconditions (from tarball)
+        id: checks
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          if [[ "${{ inputs.publish_to_github }}" == "true" ]]; then
+            # GitHub Packages only accepts packages scoped to the repo owner; the repository
+            # field is stripped so the package isn't linked to this public repo and stays private
+            pkg_name="@${{ github.repository_owner }}/${{ matrix.package }}"
+            strip_repo="true"
+            registry_args=(--registry=https://npm.pkg.github.com)
           else
-            pnpm test --filter ${{ matrix.package }}
+            pkg_name="${{ matrix.package }}"
+            strip_repo="false"
+            registry_args=()
           fi
 
-      - name: Pack
+          _version="$(tar -xOf ./artifacts/${{ matrix.package }}/package.tgz package/package.json | jq -r .version)"
+          branch="${{ github.ref_name }}"
+          if [[ "$branch" == "beta" ]]; then
+            tag="rc"
+            version="$_version"
+          else
+            tag="$branch"
+            suffix=$(git rev-parse --short HEAD)
+            version="$_version-$suffix"
+          fi
+          tmpdir="$(mktemp -d)"
+          tar -xzf ./artifacts/${{ matrix.package }}/package.tgz -C "$tmpdir"
+
+          jq --arg v "$version" --arg n "$pkg_name" --argjson strip_repo "$strip_repo" \
+            '.version = $v | .name = $n | if $strip_repo then del(.repository) else . end' \
+            "$tmpdir/package/package.json" > "$tmpdir/package/package.json.tmp"
+            mv "$tmpdir/package/package.json.tmp" "$tmpdir/package/package.json"
+
+          tar -czf ./artifacts/${{ matrix.package }}/package.tgz -C "$tmpdir" package
+          rm -rf "$tmpdir"
+
+          # tolerate 404 (never published) and a single-version string response
+          is_published="$(npm view "$pkg_name" versions --json "${registry_args[@]}" 2>/dev/null | jq -r --arg v "$version" '[.] | flatten | any(. == $v)' || echo false)"
+          if [[ "$is_published" == "true" ]]; then
+            echo "\`$pkg_name@$version\` already published, tagging \`$tag\`" >> $GITHUB_STEP_SUMMARY
+          else
+            { echo "version=$version"; echo "tag=$tag"; echo "has_new_release=true"; } >> $GITHUB_OUTPUT
+          fi
+      - name: Publish (from tarball)
         if: steps.checks.outputs.has_new_release == 'true'
-        working-directory: ${{ matrix.package }}
         shell: bash
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
+          GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
         run: |
-          npm run pack
-  
-      - name: Run @arethetypeswrong/cli
-        if: steps.checks.outputs.has_new_release == 'true'
-        working-directory: ${{ matrix.package }}
-        shell: bash
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
-        run: |
-          pnpm attw package.tgz
-
-      - name: Publish
-        if: github.event_name == 'push' && steps.checks.outputs.has_new_release == 'true'
-        run: |
-          tag="${{ steps.checks.outputs.tag }}"
-          version="${{ steps.checks.outputs.version }}"
-
-          echo "Publishing ${{ matrix.package }}@$tag using version $version"
-          npm run publish -- --tag $tag
-
-          echo "npm: \`${{ matrix.package }}@$tag | ${{ matrix.package }}@$version\`" >> $GITHUB_STEP_SUMMARY
-
-          # Post release message to Discord
-          # curl -X POST -H "Content-Type: application/json" -d "{\"embeds\": [{\"title\": \"New \`${{ matrix.package }}\` release! 🎉\", \"url\": \"https://www.npmjs.com/package/${{ matrix.package }}/v/$version\", \"color\": \"12907856\", \"fields\": [{\"name\": \"Version\", \"value\": \"\`$version\`\"}, {\"name\": \"Tag\", \"value\": \"\`$tag\`\"}]}]}" ${{ secrets.DISCORD_DEV_RELEASE_WEBHOOK_URL }}
-        working-directory: ${{ matrix.package }}
-        shell: bash
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
+          set -euxo pipefail
+          if [[ "${{ inputs.publish_to_github }}" == "true" ]]; then
+            # provenance is npmjs-only
+            npm publish ./artifacts/${{ matrix.package }}/package.tgz --tag "${{ steps.checks.outputs.tag }}" --registry=https://npm.pkg.github.com --no-provenance
+            pkg_url=""
+            SECONDS=0
+            until [[ -n "$pkg_url" ]] || (( SECONDS >= 10 )); do
+              pkg_url="$(curl -fsSL -H "Authorization: Bearer $GH_PACKAGES_TOKEN" \
+                "https://api.github.com/orgs/${{ github.repository_owner }}/packages/npm/${{ matrix.package }}/versions?per_page=100" \
+                | jq -r --arg v "${{ steps.checks.outputs.version }}" 'first(.[] | select(.name == $v) | .html_url) // empty' || true)"
+              [[ -n "$pkg_url" ]] || sleep 2
+            done
+            pkg_url="${pkg_url:-https://github.com/orgs/${{ github.repository_owner }}/packages/npm/package/${{ matrix.package }}}"
+            echo "GitHub Packages: [\`@${{ github.repository_owner }}/${{ matrix.package }}@${{ steps.checks.outputs.tag }} | ${{ steps.checks.outputs.version }}\`]($pkg_url)" >> $GITHUB_STEP_SUMMARY
+          else
+            npm publish ./artifacts/${{ matrix.package }}/package.tgz --tag "${{ steps.checks.outputs.tag }}"
+            echo "npm: \`${{ matrix.package }}@${{ steps.checks.outputs.tag }} | ${{ steps.checks.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          fi

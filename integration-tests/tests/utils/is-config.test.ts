@@ -36,7 +36,7 @@ describe('Objects', (it) => {
 			isConfig({
 				casing: 'camelCase',
 			} as DrizzleConfig),
-		).toEqual(true);
+		).toEqual(false); // No more casings on DB
 
 		expect(
 			isConfig({
@@ -54,17 +54,17 @@ describe('Objects', (it) => {
 
 		expect(
 			isConfig({
-				schema: {
+				relations: {
 					any: true,
 				},
-			} as DrizzleConfig<any>),
+			} as unknown as DrizzleConfig<any>),
 		).toEqual(true);
 
 		expect(
 			isConfig({
 				casing: 'camelCase',
 				logger: true,
-				schema: {
+				relations: {
 					any: true,
 				},
 			} as DrizzleConfig<any>),
@@ -72,10 +72,22 @@ describe('Objects', (it) => {
 
 		expect(
 			isConfig({
-				casing: 'camelCase',
+				logger: true,
 				trash: true,
 			} as DrizzleConfig),
 		).toEqual(true);
+
+		expect(
+			isConfig({
+				codecs: {},
+			} as DrizzleConfig),
+		).toEqual(true);
+
+		expect(
+			isConfig({
+				codecs: 'not a codec collection',
+			} as unknown as DrizzleConfig),
+		).toEqual(false);
 	});
 
 	it('Rejects non-configs', () => {
@@ -180,7 +192,7 @@ describe('Rejects drivers', (it) => {
 
 	it('vercel:Client', async () => {
 		const cl = vcClient({
-			connectionString: process.env['NEON_CONNECTION_STRING'],
+			connectionString: process.env['NEON_CONNECTION_STRING']?.replace('-pooler', ''),
 		});
 
 		const res = isConfig(cl);
@@ -374,7 +386,7 @@ describe('Accepts drivers in .client', (it) => {
 
 	it('vercel:Client', async () => {
 		const cl = vcClient({
-			connectionString: process.env['NEON_CONNECTION_STRING'],
+			connectionString: process.env['NEON_CONNECTION_STRING']?.replace('-pooler', ''),
 		});
 
 		const res = isConfig({ client: cl });
@@ -461,7 +473,7 @@ describe('Accepts drivers in .client', (it) => {
 	});
 
 	it('mysql2/promise:Pool', async () => {
-		const cl = await ms2pPool({
+		const cl = ms2pPool({
 			uri: process.env['MYSQL_CONNECTION_STRING'],
 		});
 

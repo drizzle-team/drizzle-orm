@@ -1,30 +1,30 @@
-import type { OPSQLiteConnection, QueryResult } from '@op-engineering/op-sqlite';
+import type { DB } from '@op-engineering/op-sqlite';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
-import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
-import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import type { DrizzleConfig } from '~/utils.ts';
-import { OPSQLiteSession } from './session.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
+import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
+import { jitCompatCheck } from '~/utils.ts';
+import { opSQLiteCodecs } from './codecs.ts';
+import { type OPSQLiteRunResult, OPSQLiteSession } from './session.ts';
 
-export class OPSQLiteDatabase<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-> extends BaseSQLiteDatabase<'async', QueryResult, TSchema> {
+export class OPSQLiteDatabase<TRelations extends AnyRelations = EmptyRelations>
+	extends SQLiteAsyncDatabase<'async', OPSQLiteRunResult, TRelations>
+{
 	static override readonly [entityKind]: string = 'OPSQLiteDatabase';
 }
 
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
-	client: OPSQLiteConnection,
-	config: DrizzleConfig<TSchema> = {},
-): OPSQLiteDatabase<TSchema> & {
-	$client: OPSQLiteConnection;
+export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
+	client: DB,
+	config: DrizzleSQLiteConfig<TRelations> = {},
+): OPSQLiteDatabase<TRelations> & {
+	$client: DB;
 } {
-	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
+	const dialect = new SQLiteDialect({
+		codecs: config.codecs ?? opSQLiteCodecs,
+		useJitMappers: jitCompatCheck(config.jit),
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -32,22 +32,22 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		logger = config.logger;
 	}
 
-	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
-	if (config.schema) {
-		const tablesConfig = extractTablesRelationalConfig(
-			config.schema,
-			createTableRelationsHelpers,
-		);
-		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
-			tableNamesMap: tablesConfig.tableNamesMap,
-		};
-	}
-
-	const session = new OPSQLiteSession(client, dialect, schema, { logger });
-	const db = new OPSQLiteDatabase('async', dialect, session, schema) as OPSQLiteDatabase<TSchema>;
+	const relations = config.relations ?? {} as TRelations;
+	const session = new OPSQLiteSession(client, dialect, relations, {
+		logger,
+		cache: config.cache,
+	});
+	const db = new OPSQLiteDatabase(
+		'async',
+		dialect,
+		session,
+		relations,
+	);
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }

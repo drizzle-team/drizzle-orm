@@ -1,6 +1,4 @@
 import {
-	type QueryArrayConfig,
-	type QueryConfig,
 	type QueryResult,
 	type QueryResultRow,
 	types,
@@ -8,195 +6,123 @@ import {
 	VercelPool,
 	type VercelPoolClient,
 } from '@vercel/postgres';
+import type { CustomTypesConfig } from 'pg';
+import type { Cache } from '~/cache/core/cache.ts';
+import { NoopCache } from '~/cache/core/cache.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
-import { type PgDialect, PgTransaction } from '~/pg-core/index.ts';
-import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
+import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
+import type { PgDialect } from '~/pg-core/index.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
-import { type Assume, mapResultRow } from '~/utils.ts';
+import { preparedStatementName } from '~/query-name-generator.ts';
+import type { AnyRelations } from '~/relations.ts';
+import { type Query, sql } from '~/sql/sql.ts';
+import type { Assume } from '~/utils.ts';
 
 export type VercelPgClient = VercelPool | VercelClient | VercelPoolClient;
 
-export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
-	static override readonly [entityKind]: string = 'VercelPgPreparedQuery';
-
-	private rawQuery: QueryConfig;
-	private queryConfig: QueryArrayConfig;
-
-	constructor(
-		private client: VercelPgClient,
-		queryString: string,
-		private params: unknown[],
-		private logger: Logger,
-		private fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		private _isResponseInArrayMode: boolean,
-		private customResultMapper?: (rows: unknown[][]) => T['execute'],
-	) {
-		super({ sql: queryString, params });
-		this.rawQuery = {
-			name,
-			text: queryString,
-			types: {
-				// @ts-ignore
-				getTypeParser: (typeId, format) => {
-					if (typeId === types.builtins.TIMESTAMPTZ) {
-						return (val: any) => val;
-					}
-					if (typeId === types.builtins.TIMESTAMP) {
-						return (val: any) => val;
-					}
-					if (typeId === types.builtins.DATE) {
-						return (val: any) => val;
-					}
-					if (typeId === types.builtins.INTERVAL) {
-						return (val: any) => val;
-					}
-					// @ts-ignore
-					return types.getTypeParser(typeId, format);
-				},
-			},
-		};
-		this.queryConfig = {
-			name,
-			text: queryString,
-			rowMode: 'array',
-			types: {
-				// @ts-ignore
-				getTypeParser: (typeId, format) => {
-					if (typeId === types.builtins.TIMESTAMPTZ) {
-						return (val: any) => val;
-					}
-					if (typeId === types.builtins.TIMESTAMP) {
-						return (val: any) => val;
-					}
-					if (typeId === types.builtins.DATE) {
-						return (val: any) => val;
-					}
-					if (typeId === types.builtins.INTERVAL) {
-						return (val: any) => val;
-					}
-					// @ts-ignore
-					return types.getTypeParser(typeId, format);
-				},
-			},
-		};
-	}
-
-	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
-
-		this.logger.logQuery(this.rawQuery.text, params);
-
-		const { fields, rawQuery, client, queryConfig: query, joinsNotNullableMap, customResultMapper } = this;
-		if (!fields && !customResultMapper) {
-			return client.query(rawQuery, params);
-		}
-
-		const { rows } = await client.query(query, params);
-
-		if (customResultMapper) {
-			return customResultMapper(rows);
-		}
-
-		return rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
-	}
-
-	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
-		this.logger.logQuery(this.rawQuery.text, params);
-		return this.client.query(this.rawQuery, params).then((result) => result.rows);
-	}
-
-	values(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['values']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
-		this.logger.logQuery(this.rawQuery.text, params);
-		return this.client.query(this.queryConfig, params).then((result) => result.rows);
-	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
-	}
-}
-
 export interface VercelPgSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
+const noop = (val: any) => val;
+const typeConfig: CustomTypesConfig = {
+	getTypeParser: <CustomTypesConfig['getTypeParser']> ((typeId, format) => {
+		switch (typeId as number) {
+			case types.builtins.TIMESTAMPTZ:
+			case types.builtins.TIMESTAMP:
+			case types.builtins.DATE:
+			case types.builtins.INTERVAL:
+			case 1231: // numeric[]
+			case 1115: // timestamp[]
+			case 1185: // timestamp with timezone[]
+			case 1187: // interval[]
+			case 1182: // date[]
+				return noop;
+			default:
+				return types.getTypeParser(typeId, format);
+		}
+	}),
+};
+
 export class VercelPgSession<
-	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends PgSession<VercelPgQueryResultHKT, TFullSchema, TSchema> {
+	TRelations extends AnyRelations,
+> extends PgAsyncSession<VercelPgQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'VercelPgSession';
 
 	private logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		private client: VercelPgClient,
 		dialect: PgDialect,
-		private schema: RelationalSchemaConfig<TSchema> | undefined,
+		private relations: TRelations,
 		private options: VercelPgSessionOptions = {},
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		name: string | undefined,
-		isResponseInArrayMode: boolean,
-		customResultMapper?: (rows: unknown[][]) => T['execute'],
-	): PgPreparedQuery<T> {
-		return new VercelPgPreparedQuery(
-			this.client,
-			query.sql,
-			query.params,
+		mode: 'arrays' | 'objects' | 'raw',
+		name: string | boolean,
+		mapper: ((rows: any[]) => any) | undefined,
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
+	) {
+		const queryName = typeof name === 'string'
+			? name
+			: name === true
+			? preparedStatementName(query.sql, query.params)
+			: undefined;
+
+		const executor = async (params?: unknown[]) => {
+			return this.client.query({
+				name: queryName,
+				rowMode: mode === 'arrays' ? 'array' : undefined as any,
+				text: query.sql,
+				types: typeConfig,
+			}, params).then((r) => mode === 'raw' ? r : r.rows);
+		};
+
+		return new PgAsyncPreparedQuery<T>(
+			executor,
+			query,
+			mapper,
+			mode,
 			this.logger,
-			fields,
-			name,
-			isResponseInArrayMode,
-			customResultMapper,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 		);
 	}
 
-	async query(query: string, params: unknown[]): Promise<QueryResult> {
-		this.logger.logQuery(query, params);
-		const result = await this.client.query({
-			rowMode: 'array',
-			text: query,
-			values: params,
-		});
-		return result;
-	}
-
-	async queryObjects<T extends QueryResultRow>(
-		query: string,
-		params: unknown[],
-	): Promise<QueryResult<T>> {
-		return this.client.query<T>(query, params);
-	}
-
-	override async count(sql: SQL): Promise<number> {
-		const result = await this.execute(sql);
-
-		return Number((result as any)['rows'][0]['count']);
-	}
-
 	override async transaction<T>(
-		transaction: (tx: VercelPgTransaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: VercelPgTransaction<TRelations>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
-		const session = this.client instanceof VercelPool // eslint-disable-line no-instanceof/no-instanceof
-			? new VercelPgSession(await this.client.connect(), this.dialect, this.schema, this.options)
+		const session = typeof this.client === 'function' || this.client instanceof VercelPool // oxlint-disable-line drizzle-internal/no-instanceof
+			? new VercelPgSession(await this.client.connect(), this.dialect, this.relations, this.options)
 			: this;
-		const tx = new VercelPgTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
-		await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
+		const tx = new VercelPgTransaction<TRelations>(
+			this.dialect,
+			session,
+			this.relations,
+			undefined,
+			false,
+		);
 		try {
+			await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
+			if (typeof config?.snapshot === 'string') {
+				await tx.execute(tx.setTransactionSnapshotSQL(config.snapshot));
+			}
 			const result = await transaction(tx);
 			await tx.execute(sql`commit`);
 			return result;
@@ -204,7 +130,7 @@ export class VercelPgSession<
 			await tx.execute(sql`rollback`);
 			throw error;
 		} finally {
-			if (this.client instanceof VercelPool) { // eslint-disable-line no-instanceof/no-instanceof
+			if (typeof this.client === 'function' || this.client instanceof VercelPool) { // oxlint-disable-line drizzle-internal/no-instanceof
 				(session.client as VercelPoolClient).release();
 			}
 		}
@@ -212,20 +138,20 @@ export class VercelPgSession<
 }
 
 export class VercelPgTransaction<
-	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends PgTransaction<VercelPgQueryResultHKT, TFullSchema, TSchema> {
+	TRelations extends AnyRelations,
+> extends PgAsyncTransaction<VercelPgQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'VercelPgTransaction';
 
 	override async transaction<T>(
-		transaction: (tx: VercelPgTransaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: VercelPgTransaction<TRelations>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new VercelPgTransaction<TFullSchema, TSchema>(
+		const tx = new VercelPgTransaction<TRelations>(
 			this.dialect,
 			this.session,
-			this.schema,
+			this._.relations,
 			this.nestedIndex + 1,
+			false,
 		);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {

@@ -30,7 +30,7 @@ describe('planetscale', async (it) => {
 		await db.$client.execute('SELECT 1;');
 
 		expect(db.$client).toBeInstanceOf(Client);
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({connection: string, ...config})', async () => {
@@ -42,7 +42,7 @@ describe('planetscale', async (it) => {
 		await db.$client.execute('SELECT 1;');
 
 		expect(db.$client).toBeInstanceOf(Client);
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({connection: params, ...config})', async () => {
@@ -56,32 +56,18 @@ describe('planetscale', async (it) => {
 		await db.$client.execute('SELECT 1;');
 
 		expect(db.$client).toBeInstanceOf(Client);
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
-	it('drizzle(client)', async () => {
+	it('drizzle({ client })', async () => {
 		const client = new Client({
 			url: process.env['PLANETSCALE_CONNECTION_STRING'],
 		});
-		const db = drizzle(client);
+		const db = drizzle({ client });
 
 		await db.$client.execute('SELECT 1;');
 
 		expect(db.$client).toBeInstanceOf(Client);
-	});
-
-	it('drizzle(client, config)', async () => {
-		const client = new Client({
-			url: process.env['PLANETSCALE_CONNECTION_STRING'],
-		});
-		const db = drizzle(client, {
-			schema,
-		});
-
-		await db.$client.execute('SELECT 1;');
-
-		expect(db.$client).toBeInstanceOf(Client);
-		expect(db.query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({client, ...config})', async () => {
@@ -96,6 +82,6 @@ describe('planetscale', async (it) => {
 		await db.$client.execute('SELECT 1;');
 
 		expect(db.$client).toBeInstanceOf(Client);
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 });

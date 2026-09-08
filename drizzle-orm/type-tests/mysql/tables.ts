@@ -1,6 +1,5 @@
+import * as crypto from 'node:crypto';
 import { type Equal, Expect } from 'type-tests/utils.ts';
-import type { BuildColumn } from '~/column-builder.ts';
-import { eq, gt } from '~/expressions.ts';
 import {
 	bigint,
 	binary,
@@ -39,10 +38,10 @@ import {
 	year,
 } from '~/mysql-core/index.ts';
 import { mysqlSchema } from '~/mysql-core/schema.ts';
-import { mysqlView, type MySqlViewWithSelection } from '~/mysql-core/view.ts';
+import { mysqlView } from '~/mysql-core/view.ts';
+import { eq } from '~/sql/expressions/index.ts';
 import { sql } from '~/sql/sql.ts';
 import type { InferSelectModel } from '~/table.ts';
-import type { Simplify } from '~/utils.ts';
 import { db } from './db.ts';
 
 export const users = mysqlTable(
@@ -62,109 +61,38 @@ export const users = mysqlTable(
 		createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
 		enumCol: mysqlEnum('enum_col', ['a', 'b', 'c']).notNull(),
 	},
-	(users) => ({
-		usersAge1Idx: uniqueIndex('usersAge1Idx').on(users.class),
-		usersAge2Idx: index('usersAge2Idx').on(users.class),
-		uniqueClass: uniqueIndex('uniqueClass')
+	(users) => [
+		uniqueIndex('usersAge1Idx').on(users.class),
+		index('usersAge2Idx').on(users.class),
+		uniqueIndex('uniqueClass')
 			.on(users.class, users.subClass)
 			.lock('default')
-			.algorythm('copy')
+			.algorithm('copy')
 			.using(`btree`),
-		legalAge: check('legalAge', sql`${users.age1} > 18`),
-		usersClassFK: foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] }),
-		usersClassComplexFK: foreignKey({
+		check('legalAge', sql`${users.age1} > 18`),
+		foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] }),
+		foreignKey({
 			columns: [users.class, users.subClass],
 			foreignColumns: [classes.class, classes.subClass],
 		}),
-		pk: primaryKey(users.age1, users.class),
-	}),
+		primaryKey({ columns: [users.age1, users.class] }),
+	],
 );
 
 export const cities = mysqlTable('cities_table', {
 	id: serial('id').primaryKey(),
 	name: text('name_db').notNull(),
 	population: int('population').default(0),
-}, (cities) => ({
-	citiesNameIdx: index('citiesNameIdx').on(cities.id),
-}));
-
-Expect<
-	Equal<
-		{
-			id: MySqlColumn<
-				{
-					name: 'id';
-					tableName: 'cities_table';
-					dataType: 'number';
-					columnType: 'MySqlSerial';
-					data: number;
-					driverParam: number;
-					notNull: true;
-					hasDefault: true;
-					isPrimaryKey: true;
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isAutoincrement: true;
-					hasRuntimeDefault: false;
-				},
-				{},
-				{}
-			>;
-			name: MySqlColumn<
-				{
-					name: 'name_db';
-					tableName: 'cities_table';
-					dataType: 'string';
-					columnType: 'MySqlText';
-					data: string;
-					driverParam: string;
-					notNull: true;
-					hasDefault: false;
-					isPrimaryKey: false;
-					enumValues: [string, ...string[]];
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				},
-				{},
-				{}
-			>;
-			population: MySqlColumn<
-				{
-					name: 'population';
-					tableName: 'cities_table';
-					dataType: 'number';
-					columnType: 'MySqlInt';
-					data: number;
-					driverParam: string | number;
-					notNull: false;
-					hasDefault: true;
-					isPrimaryKey: false;
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				},
-				{},
-				{}
-			>;
-		},
-		typeof cities._.columns
-	>
->;
+}, (cities) => [
+	index('citiesNameIdx').on(cities.id),
+]);
 
 Expect<
 	Equal<{
 		id: number;
-		name_db: string;
+		name: string;
 		population: number | null;
-	}, InferSelectModel<typeof cities, { dbColumnNames: true }>>
+	}, InferSelectModel<typeof cities>>
 >;
 
 Expect<
@@ -181,11 +109,9 @@ export const citiesCustom = customSchema.table('cities_table', {
 	id: serial('id').primaryKey(),
 	name: text('name_db').notNull(),
 	population: int('population').default(0),
-}, (cities) => ({
-	citiesNameIdx: index('citiesNameIdx').on(cities.id),
-}));
-
-Expect<Equal<typeof cities._.columns, typeof citiesCustom._.columns>>;
+}, (cities) => [
+	index('citiesNameIdx').on(cities.id),
+]);
 
 export const classes = mysqlTable('classes_table', ({ serial, text }) => ({
 	id: serial('id').primaryKey(),
@@ -214,355 +140,31 @@ export const newYorkers = mysqlView('new_yorkers')
 		return qb.with(sq).select().from(sq).where(sql`${users.homeCity} = 1`);
 	});
 
-Expect<
-	Equal<
-		MySqlViewWithSelection<'new_yorkers', false, {
-			userId: MySqlColumn<{
-				name: 'id';
-				dataType: 'number';
-				columnType: 'MySqlSerial';
-				data: number;
-				driverParam: number;
-				notNull: true;
-				hasDefault: true;
-				tableName: 'new_yorkers';
-				enumValues: undefined;
-				baseColumn: never;
-				generated: undefined;
-				identity: undefined;
-				isPrimaryKey: true;
-				isAutoincrement: true;
-				hasRuntimeDefault: false;
-			}>;
-			cityId: MySqlColumn<{
-				name: 'id';
-				dataType: 'number';
-				columnType: 'MySqlSerial';
-				data: number;
-				driverParam: number;
-				notNull: false;
-				hasDefault: true;
-				tableName: 'new_yorkers';
-				enumValues: undefined;
-				baseColumn: never;
-				generated: undefined;
-				identity: undefined;
-				isPrimaryKey: true;
-				isAutoincrement: true;
-				hasRuntimeDefault: false;
-			}>;
-		}>,
-		typeof newYorkers
-	>
->;
-
-{
-	const newYorkers = customSchema.view('new_yorkers')
-		.algorithm('merge')
-		.sqlSecurity('definer')
-		.as((qb) => {
-			const sq = qb
-				.$with('sq')
-				.as(
-					qb.select({ userId: users.id, cityId: cities.id })
-						.from(users)
-						.leftJoin(cities, eq(cities.id, users.homeCity))
-						.where(sql`${users.age1} > 18`),
-				);
-			return qb.with(sq).select().from(sq).where(sql`${users.homeCity} = 1`);
-		});
-
-	Expect<
-		Equal<
-			MySqlViewWithSelection<'new_yorkers', false, {
-				userId: MySqlColumn<{
-					name: 'id';
-					dataType: 'number';
-					columnType: 'MySqlSerial';
-					data: number;
-					driverParam: number;
-					notNull: true;
-					hasDefault: true;
-					tableName: 'new_yorkers';
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: true;
-					isAutoincrement: true;
-					hasRuntimeDefault: false;
-				}>;
-				cityId: MySqlColumn<{
-					name: 'id';
-					dataType: 'number';
-					columnType: 'MySqlSerial';
-					data: number;
-					driverParam: number;
-					notNull: false;
-					hasDefault: true;
-					tableName: 'new_yorkers';
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: true;
-					isAutoincrement: true;
-					hasRuntimeDefault: false;
-				}>;
-			}>,
-			typeof newYorkers
-		>
-	>;
-}
-
-{
-	const newYorkers = mysqlView('new_yorkers', {
-		userId: int('user_id').notNull(),
-		cityId: int('city_id'),
-	})
-		.algorithm('merge')
-		.sqlSecurity('definer')
-		.as(
-			sql`select ${users.id} as user_id, ${cities.id} as city_id from ${users} left join ${cities} on ${
-				eq(cities.id, users.homeCity)
-			} where ${gt(users.age1, 18)}`,
-		);
-
-	Expect<
-		Equal<
-			MySqlViewWithSelection<'new_yorkers', false, {
-				userId: MySqlColumn<{
-					name: 'user_id';
-					dataType: 'number';
-					columnType: 'MySqlInt';
-					data: number;
-					driverParam: string | number;
-					hasDefault: false;
-					notNull: true;
-					tableName: 'new_yorkers';
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-				cityId: MySqlColumn<{
-					name: 'city_id';
-					notNull: false;
-					hasDefault: false;
-					dataType: 'number';
-					columnType: 'MySqlInt';
-					data: number;
-					driverParam: string | number;
-					tableName: 'new_yorkers';
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-			}>,
-			typeof newYorkers
-		>
-	>;
-}
-
-{
-	const newYorkers = customSchema.view('new_yorkers', {
-		userId: int('user_id').notNull(),
-		cityId: int('city_id'),
-	})
-		.algorithm('merge')
-		.sqlSecurity('definer')
-		.as(
-			sql`select ${users.id} as user_id, ${cities.id} as city_id from ${users} left join ${cities} on ${
-				eq(cities.id, users.homeCity)
-			} where ${gt(users.age1, 18)}`,
-		);
-
-	Expect<
-		Equal<
-			MySqlViewWithSelection<'new_yorkers', false, {
-				userId: MySqlColumn<{
-					name: 'user_id';
-					dataType: 'number';
-					columnType: 'MySqlInt';
-					data: number;
-					driverParam: string | number;
-					hasDefault: false;
-					notNull: true;
-					tableName: 'new_yorkers';
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-				cityId: MySqlColumn<{
-					name: 'city_id';
-					notNull: false;
-					hasDefault: false;
-					dataType: 'number';
-					columnType: 'MySqlInt';
-					data: number;
-					driverParam: string | number;
-					tableName: 'new_yorkers';
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-			}>,
-			typeof newYorkers
-		>
-	>;
-}
-
-{
-	const newYorkers = mysqlView('new_yorkers', {
-		userId: int('user_id').notNull(),
-		cityId: int('city_id'),
-	}).existing();
-
-	Expect<
-		Equal<
-			MySqlViewWithSelection<'new_yorkers', true, {
-				userId: MySqlColumn<{
-					name: 'user_id';
-					dataType: 'number';
-					columnType: 'MySqlInt';
-					data: number;
-					driverParam: string | number;
-					hasDefault: false;
-					notNull: true;
-					tableName: 'new_yorkers';
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-				cityId: MySqlColumn<{
-					name: 'city_id';
-					notNull: false;
-					hasDefault: false;
-					dataType: 'number';
-					columnType: 'MySqlInt';
-					data: number;
-					driverParam: string | number;
-					tableName: 'new_yorkers';
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-			}>,
-			typeof newYorkers
-		>
-	>;
-}
-
-{
-	const newYorkers = customSchema.view('new_yorkers', {
-		userId: int('user_id').notNull(),
-		cityId: int('city_id'),
-	}).existing();
-
-	Expect<
-		Equal<
-			MySqlViewWithSelection<'new_yorkers', true, {
-				userId: MySqlColumn<{
-					name: 'user_id';
-					dataType: 'number';
-					columnType: 'MySqlInt';
-					data: number;
-					driverParam: string | number;
-					hasDefault: false;
-					notNull: true;
-					tableName: 'new_yorkers';
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-				cityId: MySqlColumn<{
-					name: 'city_id';
-					notNull: false;
-					hasDefault: false;
-					dataType: 'number';
-					columnType: 'MySqlInt';
-					data: number;
-					driverParam: string | number;
-					tableName: 'new_yorkers';
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-			}>,
-			typeof newYorkers
-		>
-	>;
-}
-
-{
-	const customText = customType<{ data: string }>({
-		dataType() {
-			return 'text';
-		},
-	});
-
-	const t = customText('name').notNull();
-	Expect<
-		Equal<
-			{
-				brand: 'Column';
-				name: 'name';
-				tableName: 'table';
-				dataType: 'custom';
-				columnType: 'MySqlCustomColumn';
-				data: string;
-				driverParam: unknown;
-				notNull: true;
-				hasDefault: false;
-				enumValues: undefined;
-				baseColumn: never;
-				dialect: 'mysql';
-				generated: undefined;
-				identity: undefined;
-				isPrimaryKey: false;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-			},
-			Simplify<BuildColumn<'table', typeof t, 'mysql'>['_']>
-		>
-	>;
-}
+export const newYorkersWithSubquery = mysqlView('new_yorkers_with_sq')
+	.as((qb) =>
+		qb
+			.select({
+				id: users.id,
+				class: users.class,
+				cityCount: qb
+					.select({ count: sql<number>`count(*)`.as('count') })
+					.from(cities)
+					.as('city_count'),
+				lastCityId: qb
+					.select({ id: cities.id })
+					.from(cities)
+					.orderBy(cities.id)
+					.limit(1)
+					.as('last_city'),
+			})
+			.from(users)
+	);
 
 {
 	mysqlTable('test', {
-		bigint: bigint('bigint', { mode: 'bigint' }),
-		number: bigint('number', { mode: 'number' }),
+		bigint: bigint('bigint', { mode: 'bigint' }).default(100n),
+		bigintNumber: bigint('bigint_number', { mode: 'number' }).default(100),
+		bigintString: bigint('bigint_string', { mode: 'string' }).default('100'),
 		date: date('date').default(new Date()),
 		date2: date('date2', { mode: 'date' }).default(new Date()),
 		date3: date('date3', { mode: 'string' }).default('2020-01-01'),
@@ -769,12 +371,10 @@ Expect<
 			createdAt: timestamp('created_at', { mode: 'string' }).defaultNow().notNull(),
 			updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow().onUpdateNow(),
 		},
-		(table) => {
-			return {
-				emailLogId: primaryKey({ columns: [table.id], name: 'email_log_id' }),
-				emailLogMessageIdUnique: unique('email_log_message_id_unique').on(table.messageId),
-			};
-		},
+		(table) => [
+			primaryKey({ columns: [table.id] }),
+			unique('email_log_message_id_unique').on(table.messageId),
+		],
 	);
 
 	Expect<
@@ -953,8 +553,8 @@ Expect<
 		name: text(),
 	});
 
-	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], 'id'>>;
-	Expect<Equal<typeof keysAsColumnNames['name']['_']['name'], 'name'>>;
+	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], string>>;
+	Expect<Equal<typeof keysAsColumnNames['name']['_']['name'], string>>;
 }
 
 {
@@ -1045,4 +645,48 @@ Expect<
 		year: year(),
 		yeardef: year().default(0),
 	});
+}
+
+{
+	enum Role {
+		admin = 'admin',
+		user = 'user',
+		guest = 'guest',
+	}
+
+	enum RoleNonString {
+		admin,
+		user,
+		guest,
+	}
+
+	enum RolePartiallyString {
+		admin,
+		user = 'user',
+		guest = 'guest',
+	}
+
+	const table = mysqlTable('table', {
+		enum: mysqlEnum('enum', Role),
+		// @ts-expect-error
+		enum1: mysqlEnum('enum1', RoleNonString),
+		// @ts-expect-error
+		enum2: mysqlEnum('enum2', RolePartiallyString),
+	});
+
+	const res = await db.select({ enum: table.enum }).from(table);
+
+	Expect<Equal<{ enum: Role | null }[], typeof res>>;
+}
+
+{
+	// https://github.com/drizzle-team/drizzle-orm/issues/4294
+	const test = mysqlTable('test', {
+		id: varchar('id').primaryKey().unique(),
+		parentRef: varchar('parentRef').$type<string | null>(),
+	});
+
+	type InsertTest = typeof test.$inferInsert;
+
+	Expect<Equal<InsertTest, { id: string; parentRef?: string | null }>>;
 }

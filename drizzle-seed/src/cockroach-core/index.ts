@@ -1,0 +1,134 @@
+import { type AnyColumn, is, sql } from 'drizzle-orm';
+import { Relations } from 'drizzle-orm/_relations';
+import type { CockroachColumn, CockroachDatabase, CockroachSchema } from 'drizzle-orm/cockroach-core';
+import { CockroachTable, getTableConfig } from 'drizzle-orm/cockroach-core';
+import { getSchemaInfo } from '../common.ts';
+import { seedDialect } from '../seedPlan.ts';
+import type { RefinementsType } from '../types/seedService.ts';
+import type { Column, SeedRelations } from '../types/tables.ts';
+
+// Cockroach-----------------------------------------------------------------------------------------------------------
+export const resetCockroach = async (
+	db: CockroachDatabase<any, any>,
+	cockroachTables: { [key: string]: CockroachTable },
+) => {
+	const tablesToTruncate = Object.entries(cockroachTables).map(([_, table]) => {
+		const config = getTableConfig(table);
+		config.schema = config.schema === undefined ? 'public' : config.schema;
+
+		return `"${config.schema}"."${config.name}"`;
+	});
+
+	await db.execute(sql.raw(`truncate ${tablesToTruncate.join(',')} cascade;`));
+};
+
+export const filterCockroachSchema = (schema: {
+	[key: string]:
+		| CockroachTable
+		| CockroachSchema
+		| Relations
+		| any;
+}) => {
+	const cockroachSchema = Object.fromEntries(
+		Object.entries(schema).filter((keyValue): keyValue is [string, CockroachTable | Relations] =>
+			is(keyValue[1], CockroachTable) || is(keyValue[1], Relations)
+		),
+	);
+
+	const cockroachTables = Object.fromEntries(
+		Object.entries(schema).filter((keyValue): keyValue is [string, CockroachTable] => is(keyValue[1], CockroachTable)),
+	);
+
+	return { cockroachSchema, cockroachTables };
+};
+
+export const seedCockroach = async (
+	db: CockroachDatabase<any, any>,
+	schema: {
+		[key: string]:
+			| CockroachTable
+			| CockroachSchema
+			| Relations
+			| any;
+	},
+	options: { count?: number; seed?: number; version?: number; relations?: SeedRelations; dryRun?: boolean } = {},
+	refinements?: RefinementsType,
+) => {
+	const { cockroachSchema, cockroachTables } = filterCockroachSchema(schema);
+	const { tables, relations } = getSchemaInfo(cockroachSchema, cockroachTables, mapCockroachColumns, options.relations);
+
+	return await seedDialect({
+		connectionType: 'cockroach',
+		db,
+		drizzleTables: cockroachTables,
+		tables,
+		relations,
+		options,
+		refinements,
+	});
+};
+const getTypeParams = (sqlType: string) => {
+	// get type params
+	const typeParams: Column['typeParams'] = {};
+
+	// handle dimensions
+	if (sqlType.includes('[')) {
+		const match = sqlType.match(/\[\w*]/g);
+		if (match) {
+			typeParams['dimensions'] = match.length;
+		}
+	}
+
+	if (
+		sqlType.startsWith('numeric')
+		|| sqlType.startsWith('decimal')
+		|| sqlType.startsWith('double precision')
+		|| sqlType.startsWith('real')
+	) {
+		const match = sqlType.match(/\((\d+), *(\d+)\)/);
+		if (match) {
+			typeParams['precision'] = Number(match[1]);
+			typeParams['scale'] = Number(match[2]);
+		}
+	} else if (
+		sqlType.startsWith('varchar')
+		|| sqlType.startsWith('char')
+		|| sqlType.startsWith('bit')
+		|| sqlType.startsWith('vector')
+		|| sqlType.startsWith('time')
+		|| sqlType.startsWith('timestamp')
+		|| sqlType.startsWith('interval')
+	) {
+		const match = sqlType.match(/\((\d+)\)/);
+		if (match) {
+			typeParams['length'] = Number(match[1]);
+		}
+	}
+
+	return typeParams;
+};
+
+export const mapCockroachColumns = (
+	columns: AnyColumn[],
+	dbToTsColumnNamesMap: { [key: string]: string },
+): Column[] => {
+	return columns.map((column) => {
+		const cockroachCol = column as CockroachColumn;
+		const sqlType = column.getSQLType();
+
+		return {
+			name: dbToTsColumnNamesMap[column.name] as string,
+			columnType: sqlType,
+			typeParams: { ...getTypeParams(sqlType), dimensions: cockroachCol.dimensions },
+			dataType: column.dataType.split(' ')[0]!,
+			size: undefined, // we no longer support length for arrays
+			hasDefault: column.hasDefault,
+			default: column.default,
+			enumValues: column.enumValues,
+			isUnique: column.isUnique,
+			notNull: column.notNull,
+			primary: column.primary,
+			generatedIdentityType: column.generatedIdentity?.type,
+		} satisfies Column;
+	});
+};

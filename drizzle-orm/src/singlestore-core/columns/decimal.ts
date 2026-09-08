@@ -1,50 +1,41 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
-import { getColumnNameAndConfig } from '~/utils.ts';
+import type { SingleStoreTable } from '~/singlestore-core/table.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 
-export type SingleStoreDecimalBuilderInitial<TName extends string> = SingleStoreDecimalBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'SingleStoreDecimal';
-	data: string;
-	driverParam: string;
-	enumValues: undefined;
-	generated: undefined;
-}>;
-
-export class SingleStoreDecimalBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'SingleStoreDecimal'>,
-> extends SingleStoreColumnBuilderWithAutoIncrement<
-	T,
-	SingleStoreDecimalConfig
-> {
+export class SingleStoreDecimalBuilder<TUnsigned extends boolean | undefined>
+	extends SingleStoreColumnBuilderWithAutoIncrement<{
+		dataType: Equal<TUnsigned, true> extends true ? 'string unumeric' : 'string numeric';
+		data: string;
+		driverParam: string;
+	}, SingleStoreDecimalConfig>
+{
 	static override readonly [entityKind]: string = 'SingleStoreDecimalBuilder';
 
-	constructor(name: T['name'], config: SingleStoreDecimalConfig | undefined) {
-		super(name, 'string', 'SingleStoreDecimal');
+	constructor(name: string, config: SingleStoreDecimalConfig | undefined) {
+		super(name, config?.unsigned ? 'string unumeric' : 'string numeric' as any, 'SingleStoreDecimal');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
 		this.config.unsigned = config?.unsigned;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySingleStoreTable<{ name: TTableName }>,
-	): SingleStoreDecimal<MakeColumnConfig<T, TTableName>> {
-		return new SingleStoreDecimal<MakeColumnConfig<T, TTableName>>(
+	override build(table: SingleStoreTable) {
+		return new SingleStoreDecimal(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class SingleStoreDecimal<
-	T extends ColumnBaseConfig<'string', 'SingleStoreDecimal'>,
-> extends SingleStoreColumnWithAutoIncrement<T, SingleStoreDecimalConfig> {
+export class SingleStoreDecimal<T extends ColumnBaseConfig<'string numeric' | 'string unumeric'>>
+	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreDecimalConfig>
+{
 	static override readonly [entityKind]: string = 'SingleStoreDecimal';
+
+	/** @internal */
+	override readonly codec = 'decimal';
 
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;
@@ -64,27 +55,139 @@ export class SingleStoreDecimal<
 	}
 }
 
-export interface SingleStoreDecimalConfig {
-	precision?: number;
-	scale?: number;
-	unsigned?: boolean;
+export class SingleStoreDecimalNumberBuilder<TUnsigned extends boolean | undefined>
+	extends SingleStoreColumnBuilderWithAutoIncrement<{
+		dataType: Equal<TUnsigned, true> extends true ? 'number unsigned' : 'number';
+		data: number;
+		driverParam: string;
+	}, SingleStoreDecimalConfig>
+{
+	static override readonly [entityKind]: string = 'SingleStoreDecimalNumberBuilder';
+
+	constructor(name: string, config: SingleStoreDecimalConfig | undefined) {
+		super(name, config?.unsigned ? 'number unsigned' : 'number' as any, 'SingleStoreDecimalNumber');
+		this.config.precision = config?.precision;
+		this.config.scale = config?.scale;
+		this.config.unsigned = config?.unsigned;
+	}
+
+	/** @internal */
+	override build(table: SingleStoreTable) {
+		return new SingleStoreDecimalNumber(
+			table,
+			this.config as any,
+		);
+	}
 }
 
-export function decimal(): SingleStoreDecimalBuilderInitial<''>;
-export function decimal(
-	config: SingleStoreDecimalConfig,
-): SingleStoreDecimalBuilderInitial<''>;
-export function decimal<TName extends string>(
-	name: TName,
-	config?: SingleStoreDecimalConfig,
-): SingleStoreDecimalBuilderInitial<TName>;
-export function decimal(
-	a?: string | SingleStoreDecimalConfig,
-	b: SingleStoreDecimalConfig = {},
-) {
-	const { name, config } = getColumnNameAndConfig<SingleStoreDecimalConfig>(
-		a,
-		b,
-	);
-	return new SingleStoreDecimalBuilder(name, config);
+export class SingleStoreDecimalNumber<T extends ColumnBaseConfig<'number' | 'number unsigned'>>
+	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreDecimalConfig>
+{
+	static override readonly [entityKind]: string = 'SingleStoreDecimalNumber';
+
+	/** @internal */
+	override readonly codec = 'decimal:number';
+
+	readonly precision: number | undefined = this.config.precision;
+	readonly scale: number | undefined = this.config.scale;
+	readonly unsigned: boolean | undefined = this.config.unsigned;
+
+	override mapToDriverValue = String;
+
+	getSQLType(): string {
+		let type = '';
+		if (this.precision !== undefined && this.scale !== undefined) {
+			type += `decimal(${this.precision},${this.scale})`;
+		} else if (this.precision === undefined) {
+			type += 'decimal';
+		} else {
+			type += `decimal(${this.precision})`;
+		}
+		type = type === 'decimal(10,0)' || type === 'decimal(10)' ? 'decimal' : type;
+		return this.unsigned ? `${type} unsigned` : type;
+	}
+}
+
+export class SingleStoreDecimalBigIntBuilder<TUnsigned extends boolean | undefined>
+	extends SingleStoreColumnBuilderWithAutoIncrement<{
+		dataType: Equal<TUnsigned, true> extends true ? 'bigint uint64' : 'bigint int64';
+		data: bigint;
+		driverParam: string;
+	}, SingleStoreDecimalConfig>
+{
+	static override readonly [entityKind]: string = 'SingleStoreDecimalBigIntBuilder';
+
+	constructor(name: string, config: SingleStoreDecimalConfig | undefined) {
+		super(name, config?.unsigned ? 'bigint uint64' : 'bigint int64' as any, 'SingleStoreDecimalBigInt');
+		this.config.precision = config?.precision;
+		this.config.scale = config?.scale;
+		this.config.unsigned = config?.unsigned;
+	}
+
+	/** @internal */
+	override build(table: SingleStoreTable) {
+		return new SingleStoreDecimalBigInt(
+			table,
+			this.config as any,
+		);
+	}
+}
+
+export class SingleStoreDecimalBigInt<T extends ColumnBaseConfig<'bigint int64' | 'bigint uint64'>>
+	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreDecimalConfig>
+{
+	static override readonly [entityKind]: string = 'SingleStoreDecimalBigInt';
+
+	/** @internal */
+	override readonly codec = 'decimal:bigint';
+
+	readonly precision: number | undefined = this.config.precision;
+	readonly scale: number | undefined = this.config.scale;
+	readonly unsigned: boolean | undefined = this.config.unsigned;
+
+	override mapToDriverValue = String;
+
+	getSQLType(): string {
+		let type = '';
+		if (this.precision !== undefined && this.scale !== undefined) {
+			type += `decimal(${this.precision},${this.scale})`;
+		} else if (this.precision === undefined) {
+			type += 'decimal';
+		} else {
+			type += `decimal(${this.precision})`;
+		}
+		type = type === 'decimal(10,0)' || type === 'decimal(10)' ? 'decimal' : type;
+		return this.unsigned ? `${type} unsigned` : type;
+	}
+}
+
+export interface SingleStoreDecimalConfig<
+	T extends 'string' | 'number' | 'bigint' = 'string' | 'number' | 'bigint',
+	TUnsigned extends boolean | undefined = boolean | undefined,
+> {
+	precision?: number;
+	scale?: number;
+	unsigned?: TUnsigned;
+	mode?: T;
+}
+
+export function decimal<TMode extends 'string' | 'number' | 'bigint', TUnsigned extends boolean | undefined>(
+	config?: SingleStoreDecimalConfig<TMode, TUnsigned>,
+): Equal<TMode, 'number'> extends true ? SingleStoreDecimalNumberBuilder<TUnsigned>
+	: Equal<TMode, 'bigint'> extends true ? SingleStoreDecimalBigIntBuilder<TUnsigned>
+	: SingleStoreDecimalBuilder<TUnsigned>;
+export function decimal<TMode extends 'string' | 'number' | 'bigint', TUnsigned extends boolean | undefined>(
+	name: string,
+	config?: SingleStoreDecimalConfig<TMode, TUnsigned>,
+): Equal<TMode, 'number'> extends true ? SingleStoreDecimalNumberBuilder<TUnsigned>
+	: Equal<TMode, 'bigint'> extends true ? SingleStoreDecimalBigIntBuilder<TUnsigned>
+	: SingleStoreDecimalBuilder<TUnsigned>;
+export function decimal(a?: string | SingleStoreDecimalConfig, b: SingleStoreDecimalConfig = {}) {
+	const { name, config } = getColumnNameAndConfig<SingleStoreDecimalConfig>(a, b);
+	const mode = config?.mode;
+	return mode === 'number'
+		? new SingleStoreDecimalNumberBuilder(name, config)
+		: mode === 'bigint'
+		? new SingleStoreDecimalBigIntBuilder(name, config)
+		: new SingleStoreDecimalBuilder(name, config);
 }

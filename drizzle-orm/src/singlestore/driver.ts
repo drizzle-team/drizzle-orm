@@ -1,17 +1,16 @@
 import { type Connection as CallbackConnection, createPool, type Pool as CallbackPool, type PoolOptions } from 'mysql2';
 import type { Connection, Pool } from 'mysql2/promise';
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SingleStoreDatabase } from '~/singlestore-core/db.ts';
 import { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
-import { type DrizzleConfig, type IfNotImported, type ImportTypeError, isConfig } from '~/utils.ts';
+import type { DrizzleSingleStoreConfig } from '~/singlestore-core/utils.ts';
+import { jitCompatCheck } from '~/utils.ts';
+import { npmVersion } from '~/version.ts';
+import { singleStoreCodecs } from './codecs.ts';
 import type {
 	SingleStoreDriverClient,
 	SingleStoreDriverPreparedQueryHKT,
@@ -21,6 +20,7 @@ import { SingleStoreDriverSession } from './session.ts';
 
 export interface SingleStoreDriverOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class SingleStoreDriverDriver {
@@ -34,34 +34,40 @@ export class SingleStoreDriverDriver {
 	}
 
 	createSession(
-		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
-	): SingleStoreDriverSession<Record<string, unknown>, TablesRelationalConfig> {
-		return new SingleStoreDriverSession(this.client, this.dialect, schema, { logger: this.options.logger });
+		relations: AnyRelations,
+	): SingleStoreDriverSession<AnyRelations> {
+		return new SingleStoreDriverSession(this.client, this.dialect, relations, {
+			logger: this.options.logger,
+			cache: this.options.cache,
+		});
 	}
 }
 
 export { SingleStoreDatabase } from '~/singlestore-core/db.ts';
 
 export class SingleStoreDriverDatabase<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-> extends SingleStoreDatabase<SingleStoreDriverQueryResultHKT, SingleStoreDriverPreparedQueryHKT, TSchema> {
+	TRelations extends AnyRelations = EmptyRelations,
+> extends SingleStoreDatabase<SingleStoreDriverQueryResultHKT, SingleStoreDriverPreparedQueryHKT, TRelations> {
 	static override readonly [entityKind]: string = 'SingleStoreDriverDatabase';
 }
 
-export type SingleStoreDriverDrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> =
-	& Omit<DrizzleConfig<TSchema>, 'schema'>
-	& ({ schema: TSchema } | { schema?: undefined });
+export type SingleStoreDriverDrizzleConfig<
+	TRelations extends AnyRelations = EmptyRelations,
+> = DrizzleSingleStoreConfig<TRelations>;
 
 function construct<
-	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends Pool | Connection | CallbackPool | CallbackConnection = CallbackPool,
 >(
 	client: TClient,
-	config: SingleStoreDriverDrizzleConfig<TSchema> = {},
-): SingleStoreDriverDatabase<TSchema> & {
-	$client: TClient;
+	config: SingleStoreDriverDrizzleConfig<TRelations> = {},
+): SingleStoreDriverDatabase<TRelations> & {
+	$client: AnySingleStoreDriverConnection extends TClient ? CallbackPool : TClient;
 } {
-	const dialect = new SingleStoreDialect({ casing: config.casing });
+	const dialect = new SingleStoreDialect({
+		useJitMappers: jitCompatCheck(config.jit),
+		codecs: config.codecs ?? singleStoreCodecs,
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -71,23 +77,18 @@ function construct<
 
 	const clientForInstance = isCallbackClient(client) ? client.promise() : client;
 
-	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
-	if (config.schema) {
-		const tablesConfig = extractTablesRelationalConfig(
-			config.schema,
-			createTableRelationsHelpers,
-		);
-		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
-			tableNamesMap: tablesConfig.tableNamesMap,
-		};
-	}
-
-	const driver = new SingleStoreDriverDriver(clientForInstance as SingleStoreDriverClient, dialect, { logger });
-	const session = driver.createSession(schema);
-	const db = new SingleStoreDriverDatabase(dialect, session, schema as any) as SingleStoreDriverDatabase<TSchema>;
+	const relations = config.relations ?? {} as TRelations;
+	const driver = new SingleStoreDriverDriver(clientForInstance as SingleStoreDriverClient, dialect, {
+		logger,
+		cache: config.cache,
+	});
+	const session = driver.createSession(relations);
+	const db = new SingleStoreDriverDatabase(dialect, session, relations) as SingleStoreDriverDatabase<TRelations>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }
@@ -102,65 +103,73 @@ function isCallbackClient(client: any): client is CallbackClient {
 
 export type AnySingleStoreDriverConnection = Pool | Connection | CallbackPool | CallbackConnection;
 
+const CONNECTION_ATTRS: PoolOptions['connectAttributes'] = {
+	_connector_name: 'SingleStore Drizzle ORM Driver',
+	_connector_version: npmVersion,
+};
+
 export function drizzle<
-	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends AnySingleStoreDriverConnection = CallbackPool,
 >(
-	...params: IfNotImported<
-		CallbackPool,
-		[ImportTypeError<'singlestore'>],
-		[
-			TClient | string,
-		] | [
-			TClient | string,
-			SingleStoreDriverDrizzleConfig<TSchema>,
-		] | [
-			(
-				& SingleStoreDriverDrizzleConfig<TSchema>
-				& ({
-					connection: string | PoolOptions;
-				} | {
-					client: TClient;
-				})
-			),
-		]
-	>
-): SingleStoreDriverDatabase<TSchema> & {
-	$client: TClient;
+	...params: [
+		string,
+	] | [
+		string,
+		SingleStoreDriverDrizzleConfig<TRelations>,
+	] | [
+		(
+			& SingleStoreDriverDrizzleConfig<TRelations>
+			& ({
+				connection: string | PoolOptions;
+			} | {
+				client: TClient;
+			})
+		),
+	]
+): SingleStoreDriverDatabase<TRelations> & {
+	$client: AnySingleStoreDriverConnection extends TClient ? CallbackPool : TClient;
 } {
 	if (typeof params[0] === 'string') {
 		const connectionString = params[0]!;
 		const instance = createPool({
 			uri: connectionString,
+			connectAttributes: CONNECTION_ATTRS,
 		});
 
 		return construct(instance, params[1]) as any;
 	}
 
-	if (isConfig(params[0])) {
-		const { connection, client, ...drizzleConfig } = params[0] as
-			& { connection?: PoolOptions | string; client?: TClient }
-			& SingleStoreDriverDrizzleConfig<TSchema>;
+	const { connection, client, ...drizzleConfig } = params[0] as
+		& { connection?: PoolOptions | string; client?: TClient }
+		& SingleStoreDriverDrizzleConfig<TRelations>;
 
-		if (client) return construct(client, drizzleConfig) as any;
+	if (client) return construct(client, drizzleConfig) as any;
 
-		const instance = typeof connection === 'string'
-			? createPool({
-				uri: connection,
-			})
-			: createPool(connection!);
-		const db = construct(instance, drizzleConfig);
+	let opts: PoolOptions = {};
+	opts = typeof connection === 'string'
+		? {
+			uri: connection,
+			connectAttributes: CONNECTION_ATTRS,
+		}
+		: {
+			...connection,
+			connectAttributes: {
+				...connection!.connectAttributes,
+				...CONNECTION_ATTRS,
+			},
+		};
 
-		return db as any;
-	}
+	const instance = createPool(opts);
+	const db = construct(instance, drizzleConfig);
 
-	return construct(params[0] as TClient, params[1] as SingleStoreDriverDrizzleConfig<TSchema> | undefined) as any;
+	return db as any;
 }
 
 export namespace drizzle {
-	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
-		config?: SingleStoreDriverDrizzleConfig<TSchema>,
-	): SingleStoreDriverDatabase<TSchema> & {
+	export function mock<TRelations extends AnyRelations = EmptyRelations>(
+		config?: SingleStoreDriverDrizzleConfig<TRelations>,
+	): SingleStoreDriverDatabase<TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;

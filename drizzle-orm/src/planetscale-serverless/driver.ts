@@ -1,41 +1,33 @@
 import type { Config } from '@planetscale/database';
 import { Client } from '@planetscale/database';
 import { entityKind } from '~/entity.ts';
-import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { MySqlDatabase } from '~/mysql-core/db.ts';
+import { MySqlAsyncDatabase } from '~/mysql-core/async/db.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
-import { type DrizzleConfig, isConfig } from '~/utils.ts';
-import type { PlanetScalePreparedQueryHKT, PlanetscaleQueryResultHKT } from './session.ts';
+import type { DrizzleMySqlConfig } from '~/mysql-core/utils.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import { jitCompatCheck } from '~/utils.ts';
+import { planetscaleServerlessCodecs } from './codecs.ts';
+import type { PlanetscaleQueryResultHKT } from './session.ts';
 import { PlanetscaleSession } from './session.ts';
 
-export interface PlanetscaleSDriverOptions {
-	logger?: Logger;
-}
-
 export class PlanetScaleDatabase<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-> extends MySqlDatabase<PlanetscaleQueryResultHKT, PlanetScalePreparedQueryHKT, TSchema> {
+	TRelations extends AnyRelations = EmptyRelations,
+> extends MySqlAsyncDatabase<PlanetscaleQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'PlanetScaleDatabase';
 }
 
 function construct<
-	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends Client = Client,
 >(
 	client: TClient,
-	config: DrizzleConfig<TSchema> = {},
-): PlanetScaleDatabase<TSchema> & {
+	config: DrizzleMySqlConfig<TRelations> = {},
+): PlanetScaleDatabase<TRelations> & {
 	$client: TClient;
 } {
 	// Client is not Drizzle Object, so we can ignore this rule here
-	// eslint-disable-next-line no-instanceof/no-instanceof
+	// oxlint-disable-next-line drizzle-internal/no-instanceof
 	if (!(client instanceof Client)) {
 		throw new Error(`Warning: You need to pass an instance of Client:
 
@@ -47,11 +39,14 @@ const client = new Client({
   password: process.env["DATABASE_PASSWORD"],
 });
 
-const db = drizzle(client);
+const db = drizzle({ client });
 		`);
 	}
 
-	const dialect = new MySqlDialect({ casing: config.casing });
+	const dialect = new MySqlDialect({
+		useJitMappers: jitCompatCheck(config.jit),
+		codecs: config.codecs ?? planetscaleServerlessCodecs,
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -59,38 +54,37 @@ const db = drizzle(client);
 		logger = config.logger;
 	}
 
-	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
-	if (config.schema) {
-		const tablesConfig = extractTablesRelationalConfig(
-			config.schema,
-			createTableRelationsHelpers,
-		);
-		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
-			tableNamesMap: tablesConfig.tableNamesMap,
-		};
-	}
-
-	const session = new PlanetscaleSession(client, dialect, undefined, schema, { logger });
-	const db = new PlanetScaleDatabase(dialect, session, schema as any, 'planetscale') as PlanetScaleDatabase<TSchema>;
+	const relations = config.relations ?? {} as TRelations;
+	const session = new PlanetscaleSession(client, dialect, undefined, relations, {
+		logger,
+		cache: config.cache,
+	});
+	const db = new PlanetScaleDatabase(
+		dialect,
+		session,
+		relations,
+	) as PlanetScaleDatabase<TRelations>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }
 
 export function drizzle<
-	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends Client = Client,
 >(
 	...params: [
-		TClient | string,
+		string,
 	] | [
-		TClient | string,
-		DrizzleConfig<TSchema>,
+		string,
+		DrizzleMySqlConfig<TRelations>,
 	] | [
 		(
-			& DrizzleConfig<TSchema>
+			& DrizzleMySqlConfig<TRelations>
 			& ({
 				connection: string | Config;
 			} | {
@@ -98,7 +92,7 @@ export function drizzle<
 			})
 		),
 	]
-): PlanetScaleDatabase<TSchema> & {
+): PlanetScaleDatabase<TRelations> & {
 	$client: TClient;
 } {
 	if (typeof params[0] === 'string') {
@@ -109,31 +103,29 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	if (isConfig(params[0])) {
-		const { connection, client, ...drizzleConfig } = params[0] as
-			& { connection?: Config | string; client?: TClient }
-			& DrizzleConfig;
+	const { connection, client, ...DrizzleMySqlConfig } = params[0] as
+		& { connection?: Config | string; client?: TClient }
+		& DrizzleMySqlConfig<TRelations>;
 
-		if (client) return construct(client, drizzleConfig) as any;
+	if (client) return construct(client, DrizzleMySqlConfig) as any;
 
-		const instance = typeof connection === 'string'
-			? new Client({
-				url: connection,
-			})
-			: new Client(
-				connection!,
-			);
+	const instance = typeof connection === 'string'
+		? new Client({
+			url: connection,
+		})
+		: new Client(
+			connection!,
+		);
 
-		return construct(instance, drizzleConfig) as any;
-	}
-
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	return construct(instance, DrizzleMySqlConfig) as any;
 }
 
 export namespace drizzle {
-	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
-		config?: DrizzleConfig<TSchema>,
-	): PlanetScaleDatabase<TSchema> & {
+	export function mock<
+		TRelations extends AnyRelations = EmptyRelations,
+	>(
+		config?: DrizzleMySqlConfig<TRelations>,
+	): PlanetScaleDatabase<TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;

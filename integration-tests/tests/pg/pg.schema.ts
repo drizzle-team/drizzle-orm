@@ -1,0 +1,472 @@
+import { eq, getTableColumns, ne, sql } from 'drizzle-orm';
+import {
+	alias,
+	bigint,
+	bigserial,
+	boolean,
+	bytea,
+	char,
+	cidr,
+	customType,
+	date,
+	doublePrecision,
+	inet,
+	integer,
+	interval,
+	json,
+	jsonb,
+	line,
+	macaddr,
+	macaddr8,
+	numeric,
+	type PgColumn,
+	pgEnum,
+	point,
+	primaryKey,
+	QueryBuilder,
+	real,
+	serial,
+	smallint,
+	smallserial,
+	snakeCase,
+	text,
+	time,
+	timestamp,
+	uuid,
+	varchar,
+} from 'drizzle-orm/pg-core';
+
+export const usersTable = snakeCase.table('users', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	verified: boolean('verified').notNull().default(false),
+	invitedBy: integer('invited_by').references((): PgColumn => usersTable.id),
+});
+
+export const schemaV1 = snakeCase.schema('schemaV1');
+
+export const usersV1 = schemaV1.table('usersV1', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	verified: boolean('verified').notNull().default(false),
+	invitedBy: integer('invited_by'),
+});
+
+export const usersTableV1 = schemaV1.table('users_table_V1', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	verified: boolean('verified').notNull().default(false),
+	invitedBy: integer('invited_by'),
+});
+
+export const groupsTable = snakeCase.table('groups', {
+	id: serial().primaryKey(),
+	name: text().notNull(),
+	description: text(),
+});
+
+export const usersToGroupsTable = snakeCase.table('users_to_groups', {
+	id: serial().primaryKey(),
+	userId: integer().notNull().references(() => usersTable.id),
+	groupId: integer().notNull().references(() => groupsTable.id),
+}, (t) => ({
+	pk: primaryKey(t.groupId, t.userId),
+}));
+
+export const postsTable = snakeCase.table('posts', {
+	id: serial().primaryKey(),
+	content: text().notNull(),
+	ownerId: integer().references(() => usersTable.id),
+	createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+});
+
+export const usersView = snakeCase.view('users_view').as((qb) =>
+	qb.select({
+		...getTableColumns(usersTable),
+		postContent: postsTable.content,
+		createdAt: postsTable.createdAt,
+		counter: sql<string | bigint | number>`(select count(*) from ${usersTable} as ${
+			alias(usersTable, 'count_source')
+		} where ${ne(usersTable.id, 2)})`
+			.mapWith((data) => {
+				return data === '0' || data === 0 || data === 0n ? null : Number(data);
+			}).as('count'),
+	})
+		.from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.ownerId))
+);
+
+export const usersSubquery = new QueryBuilder().select({
+	...getTableColumns(usersTable),
+	postContent: postsTable.content,
+	createdAt: postsTable.createdAt,
+	counter: sql<string | bigint | number>`(select count(*) from ${usersTable} as ${
+		alias(usersTable, 'count_source')
+	} where ${ne(usersTable.id, 2)})`
+		.mapWith((data) => {
+			return data === '0' || data === 0 || data === 0n ? null : Number(data);
+		}).as('count'),
+})
+	.from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.ownerId)).as('users_sq');
+
+export const commentsTable = snakeCase.table('comments', {
+	id: serial().primaryKey(),
+	content: text().notNull(),
+	creator: integer().references(() => usersTable.id),
+	postId: integer().references(() => postsTable.id),
+	createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+});
+
+export const commentLikesTable = snakeCase.table('comment_likes', {
+	id: serial().primaryKey(),
+	creator: integer().references(() => usersTable.id),
+	commentId: integer().references(() => commentsTable.id),
+	createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+});
+
+export const rqbSchema = snakeCase.schema('rqb_test_schema');
+
+export const schemaUsers = rqbSchema.table('users', {
+	id: serial().primaryKey(),
+	name: text().notNull(),
+	verified: boolean().notNull().default(false),
+	invitedBy: integer().references((): PgColumn => schemaUsers.id),
+});
+
+export const schemaPosts = rqbSchema.table('posts', {
+	id: serial().primaryKey(),
+	content: text().notNull(),
+	ownerId: integer().references(() => schemaUsers.id),
+	createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+});
+
+export const schemaGroups = rqbSchema.table('groups', {
+	id: serial().primaryKey(),
+	name: text().notNull(),
+	description: text(),
+});
+
+export const schemaUsersToGroups = rqbSchema.table('users_to_groups', {
+	id: serial().primaryKey(),
+	userId: integer().notNull().references(() => schemaUsers.id),
+	groupId: integer().notNull().references(() => schemaGroups.id),
+}, (t) => ({
+	pk: primaryKey(t.groupId, t.userId),
+}));
+
+export const schemaUsersView = rqbSchema.view('users_sch_view').as((qb) =>
+	qb.select({
+		...getTableColumns(schemaUsers),
+		postContent: schemaPosts.content,
+		createdAt: schemaPosts.createdAt,
+		counter: sql<string | bigint | number>`(select count(*) from ${schemaUsers} as ${
+			alias(schemaUsers, 'count_source')
+		} where ${ne(schemaUsers.id, 2)})`
+			.mapWith((data) => {
+				return data === '0' || data === 0 || data === 0n ? null : Number(data);
+			}).as('count'),
+	})
+		.from(schemaUsers).leftJoin(schemaPosts, eq(schemaUsers.id, schemaPosts.ownerId))
+);
+
+export const en = pgEnum('en', ['enVal1', 'enVal2']);
+
+export const allTypesTable = snakeCase.table('all_types', {
+	serial: serial(),
+	bigserial53: bigserial({
+		mode: 'number',
+	}),
+	bigserial64: bigserial({
+		mode: 'bigint',
+	}),
+	int: integer(),
+	bigint53: bigint({
+		mode: 'number',
+	}),
+	bigint64: bigint({
+		mode: 'bigint',
+	}),
+	bigintString: bigint({
+		mode: 'string',
+	}),
+	bool: boolean(),
+	bytea: bytea(),
+	char: char(),
+	cidr: cidr(),
+	date: date({
+		mode: 'date',
+	}),
+	dateStr: date({
+		mode: 'string',
+	}),
+	double: doublePrecision(),
+	enum: en(),
+	inet: inet(),
+	interval: interval(),
+	json: json(),
+	jsonb: jsonb(),
+	line: line({
+		mode: 'abc',
+	}),
+	lineTuple: line({
+		mode: 'tuple',
+	}),
+	macaddr: macaddr(),
+	macaddr8: macaddr8(),
+	numeric: numeric(),
+	numericNum: numeric({
+		mode: 'number',
+	}),
+	numericBig: numeric({
+		mode: 'bigint',
+	}),
+	point: point({
+		mode: 'xy',
+	}),
+	pointTuple: point({
+		mode: 'tuple',
+	}),
+	real: real(),
+	smallint: smallint(),
+	smallserial: smallserial(),
+	text: text(),
+	time: time(),
+	timestamp: timestamp({
+		mode: 'date',
+	}),
+	timestampTz: timestamp({
+		mode: 'date',
+		withTimezone: true,
+	}),
+	timestampStr: timestamp({
+		mode: 'string',
+	}),
+	timestampTzStr: timestamp({
+		mode: 'string',
+		withTimezone: true,
+	}),
+	uuid: uuid(),
+	varchar: varchar(),
+	arrint: integer().array(),
+	arrbigint53: bigint({
+		mode: 'number',
+	}).array(),
+	arrbigint64: bigint({
+		mode: 'bigint',
+	}).array(),
+	arrbigintString: bigint({
+		mode: 'string',
+	}).array(),
+	arrbool: boolean().array(),
+	arrbytea: bytea().array(),
+	arrchar: char().array(),
+	arrcidr: cidr().array(),
+	arrdate: date({
+		mode: 'date',
+	}).array(),
+	arrdateStr: date({
+		mode: 'string',
+	}).array(),
+	arrdouble: doublePrecision().array(),
+	arrenum: en().array(),
+	arrinet: inet().array(),
+	arrinterval: interval().array(),
+	arrjson: json().array(),
+	arrjsonb: jsonb().array(),
+	arrline: line({
+		mode: 'abc',
+	}).array(),
+	arrlineTuple: line({
+		mode: 'tuple',
+	}).array(),
+	arrmacaddr: macaddr().array(),
+	arrmacaddr8: macaddr8().array(),
+	arrnumeric: numeric().array(),
+	arrnumericNum: numeric({
+		mode: 'number',
+	}).array(),
+	arrnumericBig: numeric({
+		mode: 'bigint',
+	}).array(),
+	arrpoint: point({
+		mode: 'xy',
+	}).array(),
+	arrpointTuple: point({
+		mode: 'tuple',
+	}).array(),
+	arrreal: real().array(),
+	arrsmallint: smallint().array(),
+	arrtext: text().array(),
+	arrtime: time().array(),
+	arrtimestamp: timestamp({
+		mode: 'date',
+	}).array(),
+	arrtimestampTz: timestamp({
+		mode: 'date',
+		withTimezone: true,
+	}).array(),
+	arrtimestampStr: timestamp({
+		mode: 'string',
+	}).array(),
+	arrtimestampTzStr: timestamp({
+		mode: 'string',
+		withTimezone: true,
+	}).array(),
+	arruuid: uuid().array(),
+	arrvarchar: varchar().array(),
+});
+
+export type AllTypes = {
+	serial: number;
+	bigserial53: number;
+	bigserial64: bigint;
+	int: number | null;
+	bigint53: number | null;
+	bigint64: bigint | null;
+	bigintString: string | null;
+	bool: boolean | null;
+	bytea: Buffer | null;
+	char: string | null;
+	cidr: string | null;
+	date: Date | null;
+	dateStr: string | null;
+	double: number | null;
+	enum: 'enVal1' | 'enVal2' | null;
+	inet: string | null;
+	interval: string | null;
+	json: unknown;
+	jsonb: unknown;
+	line: { a: number; b: number; c: number } | null;
+	lineTuple: [number, number, number] | null;
+	macaddr: string | null;
+	macaddr8: string | null;
+	numeric: string | null;
+	numericNum: number | null;
+	numericBig: bigint | null;
+	point: { x: number; y: number } | null;
+	pointTuple: [number, number] | null;
+	real: number | null;
+	smallint: number | null;
+	smallserial: number;
+	text: string | null;
+	time: string | null;
+	timestamp: Date | null;
+	timestampTz: Date | null;
+	timestampStr: string | null;
+	timestampTzStr: string | null;
+	uuid: string | null;
+	varchar: string | null;
+	arrint: number[] | null;
+	arrbigint53: number[] | null;
+	arrbigint64: bigint[] | null;
+	arrbigintString: string[] | null;
+	arrbool: boolean[] | null;
+	arrbytea: Buffer[] | null;
+	arrchar: string[] | null;
+	arrcidr: string[] | null;
+	arrdate: Date[] | null;
+	arrdateStr: string[] | null;
+	arrdouble: number[] | null;
+	arrenum: ('enVal1' | 'enVal2')[] | null;
+	arrinet: string[] | null;
+	arrinterval: string[] | null;
+	arrjson: unknown[] | null;
+	arrjsonb: unknown[] | null;
+	arrline: { a: number; b: number; c: number }[] | null;
+	arrlineTuple: [number, number, number][] | null;
+	arrmacaddr: string[] | null;
+	arrmacaddr8: string[] | null;
+	arrnumeric: string[] | null;
+	arrnumericNum: number[] | null;
+	arrnumericBig: bigint[] | null;
+	arrpoint: { x: number; y: number }[] | null;
+	arrpointTuple: [number, number][] | null;
+	arrreal: number[] | null;
+	arrsmallint: number[] | null;
+	arrtext: string[] | null;
+	arrtime: string[] | null;
+	arrtimestamp: Date[] | null;
+	arrtimestampTz: Date[] | null;
+	arrtimestampStr: string[] | null;
+	arrtimestampTzStr: string[] | null;
+	arruuid: string[] | null;
+	arrvarchar: string[] | null;
+};
+
+export const students = snakeCase.table('students', {
+	studentId: serial('student_id').primaryKey().notNull(),
+	name: text().notNull(),
+});
+
+export const courseOfferings = snakeCase.table('course_offerings', {
+	courseId: integer('course_id').notNull(),
+	semester: varchar({ length: 10 }).notNull(),
+});
+
+export const studentGrades = snakeCase.table('student_grades', {
+	studentId: integer('student_id').notNull(),
+	courseId: integer('course_id').notNull(),
+	semester: varchar({ length: 10 }).notNull(),
+	grade: char({ length: 2 }),
+});
+
+const customBigInt = customType<{
+	data: bigint;
+	driverData: bigint;
+	driverOutput: string;
+	jsonData: string;
+}>({
+	codec: 'bigint',
+	dataType: () => 'bigint',
+	fromDriver: BigInt,
+	fromJson: BigInt,
+});
+
+const customBytes = customType<{
+	data: Buffer;
+	driverData: Buffer;
+	jsonData: string;
+}>({
+	codec: 'bytea',
+	dataType: () => 'bytea',
+	fromJson: (value) => {
+		return Buffer.from(value.slice(2, value.length), 'hex');
+	},
+	forJsonSelect: (identifier, sql, arrayDimensions) =>
+		sql`${identifier}::text${sql.raw('[]'.repeat(arrayDimensions ?? 0))}`,
+});
+
+const customTimestamp = customType<{
+	data: Date;
+	driverData: string;
+	jsonData: string;
+}>({
+	codec: 'timestamp',
+	dataType: () => 'timestamp(3)',
+	toDriver: (value: Date) => {
+		return value.toISOString();
+	},
+});
+
+const customInt = customType<{
+	data: number;
+	driverData: number;
+}>({
+	codec: 'integer',
+	dataType: () => 'integer',
+});
+
+export const customTypesTable = snakeCase.table('custom_types', {
+	id: serial('id'),
+	big: customBigInt(),
+	bigArr: customBigInt().array(),
+	bigMtx: customBigInt().array('[][]'),
+	bytes: customBytes(),
+	bytesArr: customBytes().array(),
+	bytesMtx: customBytes().array('[][]'),
+	time: customTimestamp(),
+	timeArr: customTimestamp().array(),
+	timeMtx: customTimestamp().array('[][]'),
+	int: customInt(),
+	intArr: customInt().array(),
+	intMtx: customInt().array('[][]'),
+});

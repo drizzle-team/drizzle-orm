@@ -4,7 +4,7 @@ import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { reset, seed } from 'drizzle-seed';
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
-import * as schema from './sqliteSchema.ts';
+import * as schema from './sqliteSchema';
 
 let client: BetterSqlite3.Database;
 let db: BetterSQLite3Database;
@@ -12,7 +12,7 @@ let db: BetterSQLite3Database;
 beforeAll(async () => {
 	client = new BetterSqlite3(':memory:');
 
-	db = drizzle(client);
+	db = drizzle({ client });
 
 	db.run(
 		sql.raw(`
@@ -66,7 +66,7 @@ beforeAll(async () => {
 	\`reports_to\` integer,
 	\`photo_path\` text,
 	FOREIGN KEY (\`reports_to\`) REFERENCES \`employee\`(\`id\`) ON UPDATE no action ON DELETE no action
-);        
+);
     `),
 	);
 
@@ -88,7 +88,7 @@ beforeAll(async () => {
 	\`employee_id\` integer NOT NULL,
 	FOREIGN KEY (\`customer_id\`) REFERENCES \`customer\`(\`id\`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (\`employee_id\`) REFERENCES \`employee\`(\`id\`) ON UPDATE no action ON DELETE cascade
-);        
+);
     `),
 	);
 
@@ -105,7 +105,7 @@ beforeAll(async () => {
 	\`discontinued\` integer NOT NULL,
 	\`supplier_id\` integer NOT NULL,
 	FOREIGN KEY (\`supplier_id\`) REFERENCES \`supplier\`(\`id\`) ON UPDATE no action ON DELETE cascade
-);        
+);
     `),
 	);
 
@@ -122,7 +122,7 @@ beforeAll(async () => {
 	\`postal_code\` text NOT NULL,
 	\`country\` text NOT NULL,
 	\`phone\` text NOT NULL
-);        
+);
     `),
 	);
 

@@ -1,85 +1,129 @@
-import type { BatchItem } from '~/batch.ts';
+import type { BatchItem, BatchResponse } from '~/batch.ts';
+import { type Cache, NoopCache } from '~/cache/core/index.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import type { PreparedQuery } from '~/session.ts';
-import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
-import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import { SQLiteTransaction } from '~/sqlite-core/index.ts';
-import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types.ts';
-import type {
-	PreparedQueryConfig as PreparedQueryConfigBase,
-	SQLiteExecuteMethod,
-	SQLiteTransactionConfig,
-} from '~/sqlite-core/session.ts';
-import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
-import { mapResultRow } from '~/utils.ts';
-import type { AsyncBatchRemoteCallback, AsyncRemoteCallback, RemoteCallback, SqliteRemoteResult } from './driver.ts';
+import type { AnyRelations } from '~/relations.ts';
+import { type Query, type SQL, sql } from '~/sql/sql.ts';
+import {
+	SQLiteAsyncPreparedQuery,
+	type SQLiteAsyncPreparedQueryConfig as PreparedQueryConfigBase,
+	SQLiteAsyncSession,
+	SQLiteAsyncTransaction,
+	type SQLiteQueryExecutors,
+} from '~/sqlite-core/async/session.ts';
+import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
+import type { AsyncBatchRemoteCallback, RemoteCallback, SqliteRemoteResult } from './driver.ts';
 
 export interface SQLiteRemoteSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
 export class SQLiteRemoteSession<
-	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends SQLiteSession<'async', SqliteRemoteResult, TFullSchema, TSchema> {
+	TRelations extends AnyRelations,
+> extends SQLiteAsyncSession<'async', SqliteRemoteResult, TRelations> {
 	static override readonly [entityKind]: string = 'SQLiteRemoteSession';
 
 	private logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		private client: RemoteCallback,
-		dialect: SQLiteAsyncDialect,
-		private schema: RelationalSchemaConfig<TSchema> | undefined,
-		private batchCLient?: AsyncBatchRemoteCallback,
-		options: SQLiteRemoteSessionOptions = {},
+		dialect: SQLiteDialect,
+		private relations: TRelations,
+		private batchClient?: AsyncBatchRemoteCallback,
+		private options: SQLiteRemoteSessionOptions = {},
 	) {
-		super(dialect);
+		super(dialect, 'async');
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
 		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		executeMethod: SQLiteExecuteMethod,
-		isResponseInArrayMode: boolean,
-		customResultMapper?: (rows: unknown[][]) => unknown,
-	): RemotePreparedQuery<T> {
-		return new RemotePreparedQuery(
-			this.client,
-			query,
-			this.logger,
-			fields,
+		mode: 'arrays' | 'objects' | 'raw',
+		_prepare: boolean,
+		executeMethod?: SQLiteExecuteMethod,
+		mapper?: (rows: any[]) => any,
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
+	): SQLiteAsyncPreparedQuery<T & { run: SqliteRemoteResult }> {
+		// TODO: client doesn't support object mode querying - revisit api
+		const executors: SQLiteQueryExecutors<'async'> = {
+			all: (params) => this.client(query.sql, params, 'all').then(({ rows }) => rows),
+			get: (params) => this.client(query.sql, params, 'get').then(({ rows }) => rows),
+			run: (params) => this.client(query.sql, params, 'run'),
+			values: (params) => this.client(query.sql, params, 'all').then(({ rows }) => rows),
+		};
+		return new SQLiteAsyncPreparedQuery(
+			'async',
 			executeMethod,
-			isResponseInArrayMode,
-			customResultMapper,
+			executors,
+			query,
+			mapper,
+			mode,
+			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 		);
 	}
 
-	async batch<T extends BatchItem<'sqlite'>[] | readonly BatchItem<'sqlite'>[]>(queries: T) {
-		const preparedQueries: PreparedQuery[] = [];
-		const builtQueries: { sql: string; params: any[]; method: 'run' | 'all' | 'values' | 'get' }[] = [];
+	override objects<T = unknown>(_query: SQL): Promise<T[]> {
+		throw new Error("Proxy driver doesn't support object-mode querying");
+	}
+
+	override object<T = unknown>(_query: SQL): Promise<T> {
+		throw new Error("Proxy driver doesn't support object-mode querying");
+	}
+
+	async batch<T extends BatchItem<'sqlite'>[] | readonly BatchItem<'sqlite'>[]>(queries: T): Promise<BatchResponse<T>> {
+		const preparedQueries: SQLiteAsyncPreparedQuery<any>[] = [];
+		const builtQueries: { sql: string; params: any[]; method: SQLiteExecuteMethod }[] = [];
 
 		for (const query of queries) {
-			const preparedQuery = query._prepare();
-			const builtQuery = (preparedQuery as RemotePreparedQuery).getQuery();
+			const preparedQuery = query._prepare() as SQLiteAsyncPreparedQuery<any>;
+			const builtQuery = preparedQuery.getQuery();
 			preparedQueries.push(preparedQuery);
-			builtQueries.push({ sql: builtQuery.sql, params: builtQuery.params, method: builtQuery.method });
+			builtQueries.push({ sql: builtQuery.sql, params: builtQuery.params, method: preparedQuery.executeMethod });
 		}
 
-		const batchResults = await (this.batchCLient as AsyncBatchRemoteCallback)(builtQueries);
-		return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true));
+		const batchResults = await (this.batchClient as AsyncBatchRemoteCallback)(builtQueries);
+		return batchResults.map((result, i) => {
+			const { executeMethod, mapper } = preparedQueries[i]!;
+
+			if (executeMethod === 'run') return result;
+			if (executeMethod === 'values') return result.rows;
+
+			const { rows } = result;
+			if (executeMethod === 'get') {
+				if (!rows) return;
+				if (!mapper) return rows;
+
+				return mapper([rows])[0];
+			}
+
+			if (!mapper) return rows;
+
+			return mapper(rows);
+		}) as BatchResponse<T>;
 	}
 
 	override async transaction<T>(
-		transaction: (tx: SQLiteProxyTransaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: SQLiteProxyTransaction<TRelations>) => Promise<T>,
 		config?: SQLiteTransactionConfig,
 	): Promise<T> {
-		const tx = new SQLiteProxyTransaction('async', this.dialect, this, this.schema);
+		if (config?.behavior === 'concurrent') throw new Error('Concurrent transactions are not supported by driver');
+
+		const tx = new SQLiteProxyTransaction('async', this.dialect, this, this.relations);
 		await this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
 		try {
 			const result = await transaction(tx);
@@ -90,31 +134,24 @@ export class SQLiteRemoteSession<
 			throw err;
 		}
 	}
-
-	override extractRawAllValueFromBatchResult(result: unknown): unknown {
-		return (result as SqliteRemoteResult).rows;
-	}
-
-	override extractRawGetValueFromBatchResult(result: unknown): unknown {
-		return (result as SqliteRemoteResult).rows![0];
-	}
-
-	override extractRawValuesValueFromBatchResult(result: unknown): unknown {
-		return (result as SqliteRemoteResult).rows;
-	}
 }
 
-export class SQLiteProxyTransaction<
-	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
-> extends SQLiteTransaction<'async', SqliteRemoteResult, TFullSchema, TSchema> {
+export class SQLiteProxyTransaction<TRelations extends AnyRelations>
+	extends SQLiteAsyncTransaction<'async', SqliteRemoteResult, TRelations>
+{
 	static override readonly [entityKind]: string = 'SQLiteProxyTransaction';
 
 	override async transaction<T>(
-		transaction: (tx: SQLiteProxyTransaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: SQLiteProxyTransaction<TRelations>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex}`;
-		const tx = new SQLiteProxyTransaction('async', this.dialect, this.session, this.schema, this.nestedIndex + 1);
+		const tx = new SQLiteProxyTransaction(
+			'async',
+			this.dialect,
+			this.session,
+			this._.relations,
+			this.nestedIndex + 1,
+		);
 		await this.session.run(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = await transaction(tx);
@@ -124,123 +161,5 @@ export class SQLiteProxyTransaction<
 			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
 			throw err;
 		}
-	}
-}
-
-export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends SQLitePreparedQuery<
-	{ type: 'async'; run: SqliteRemoteResult; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
-> {
-	static override readonly [entityKind]: string = 'SQLiteProxyPreparedQuery';
-
-	private method: SQLiteExecuteMethod;
-
-	constructor(
-		private client: RemoteCallback,
-		query: Query,
-		private logger: Logger,
-		private fields: SelectedFieldsOrdered | undefined,
-		executeMethod: SQLiteExecuteMethod,
-		private _isResponseInArrayMode: boolean,
-		/** @internal */ public customResultMapper?: (
-			rows: unknown[][],
-			mapColumnValue?: (value: unknown) => unknown,
-		) => unknown,
-	) {
-		super('async', executeMethod, query);
-		this.customResultMapper = customResultMapper;
-		this.method = executeMethod;
-	}
-
-	override getQuery(): Query & { method: SQLiteExecuteMethod } {
-		return { ...this.query, method: this.method };
-	}
-
-	run(placeholderValues?: Record<string, unknown>): Promise<SqliteRemoteResult> {
-		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-		this.logger.logQuery(this.query.sql, params);
-		return (this.client as AsyncRemoteCallback)(this.query.sql, params, 'run') as Promise<
-			SqliteRemoteResult
-		>;
-	}
-
-	override mapAllResult(rows: unknown, isFromBatch?: boolean): unknown {
-		if (isFromBatch) {
-			rows = (rows as SqliteRemoteResult).rows;
-		}
-
-		if (!this.fields && !this.customResultMapper) {
-			return rows;
-		}
-
-		if (this.customResultMapper) {
-			return this.customResultMapper(rows as unknown[][]) as T['all'];
-		}
-
-		return (rows as unknown[][]).map((row) => {
-			return mapResultRow(
-				this.fields!,
-				row,
-				this.joinsNotNullableMap,
-			);
-		});
-	}
-
-	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
-		const { query, logger, client } = this;
-
-		const params = fillPlaceholders(query.params, placeholderValues ?? {});
-		logger.logQuery(query.sql, params);
-
-		const { rows } = await (client as AsyncRemoteCallback)(query.sql, params, 'all');
-		return this.mapAllResult(rows);
-	}
-
-	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
-		const { query, logger, client } = this;
-
-		const params = fillPlaceholders(query.params, placeholderValues ?? {});
-		logger.logQuery(query.sql, params);
-
-		const clientResult = await (client as AsyncRemoteCallback)(query.sql, params, 'get');
-
-		return this.mapGetResult(clientResult.rows);
-	}
-
-	override mapGetResult(rows: unknown, isFromBatch?: boolean): unknown {
-		if (isFromBatch) {
-			rows = (rows as SqliteRemoteResult).rows;
-		}
-
-		const row = rows as unknown[];
-
-		if (!this.fields && !this.customResultMapper) {
-			return row;
-		}
-
-		if (!row) {
-			return undefined;
-		}
-
-		if (this.customResultMapper) {
-			return this.customResultMapper([rows] as unknown[][]) as T['get'];
-		}
-
-		return mapResultRow(
-			this.fields!,
-			row,
-			this.joinsNotNullableMap,
-		);
-	}
-
-	async values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {
-		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-		this.logger.logQuery(this.query.sql, params);
-		const clientResult = await (this.client as AsyncRemoteCallback)(this.query.sql, params, 'values');
-		return clientResult.rows as T[];
-	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
 	}
 }

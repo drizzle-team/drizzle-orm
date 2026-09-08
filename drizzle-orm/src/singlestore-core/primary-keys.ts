@@ -25,6 +25,10 @@ export function primaryKey(...config: any) {
 export class PrimaryKeyBuilder {
 	static readonly [entityKind]: string = 'SingleStorePrimaryKeyBuilder';
 
+	declare _: {
+		brand: 'SingleStorePrimaryKeyBuilder';
+	};
+
 	/** @internal */
 	columns: SingleStoreColumn[];
 
@@ -50,10 +54,12 @@ export class PrimaryKey {
 
 	readonly columns: SingleStoreColumn[];
 	readonly name?: string;
+	readonly isNameExplicit: boolean;
 
 	constructor(readonly table: SingleStoreTable, columns: SingleStoreColumn[], name?: string) {
 		this.columns = columns;
 		this.name = name;
+		this.isNameExplicit = !!name;
 	}
 
 	getName(): string {

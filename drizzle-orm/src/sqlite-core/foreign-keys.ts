@@ -91,6 +91,10 @@ export class ForeignKey {
 		];
 		return name ?? `${chunks.join('_')}_fk`;
 	}
+
+	isNameExplicit() {
+		return !!this.reference().name;
+	}
 }
 
 type ColumnsWithTable<
@@ -98,22 +102,6 @@ type ColumnsWithTable<
 	TColumns extends SQLiteColumn[],
 > = { [Key in keyof TColumns]: AnySQLiteColumn<{ tableName: TTableName }> };
 
-/**
- * @deprecated please use `foreignKey({ columns: [], foreignColumns: [] })` syntax without callback
- * @param config
- * @returns
- */
-export function foreignKey<
-	TTableName extends string,
-	TForeignTableName extends string,
-	TColumns extends [AnySQLiteColumn<{ tableName: TTableName }>, ...AnySQLiteColumn<{ tableName: TTableName }>[]],
->(
-	config: () => {
-		name?: string;
-		columns: TColumns;
-		foreignColumns: ColumnsWithTable<TForeignTableName, TColumns>;
-	},
-): ForeignKeyBuilder;
 export function foreignKey<
 	TTableName extends string,
 	TForeignTableName extends string,

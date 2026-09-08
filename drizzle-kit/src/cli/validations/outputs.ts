@@ -16,6 +16,10 @@ export const outputs = {
 			withStyle.error(
 				`"${param}" is not a valid driver. Available drivers: "pg", "mysql2", "better-sqlite", "libsql", "turso". You can read more about drizzle.config: https://orm.drizzle.team/kit-docs/config-reference`,
 			),
+		noClientAndCredentials: () =>
+			withStyle.error(
+				`Please specify a 'client' or 'dbCredentials' param in config. It will help drizzle to know how to query you database. You can read more about drizzle.config: https://orm.drizzle.team/kit-docs/config-reference`,
+			),
 		noCredentials: () =>
 			withStyle.error(
 				`Please specify a 'dbCredentials' param in config. It will help drizzle to know how to query you database. You can read more about drizzle.config: https://orm.drizzle.team/kit-docs/config-reference`,
@@ -51,6 +55,15 @@ export const outputs = {
 	mysql: {
 		connection: {
 			driver: () => withStyle.error(`Only "mysql2" is available options for "--driver"`),
+			required: () =>
+				withStyle.error(
+					`Either "url" or "host", "database" are required for database connection`,
+				),
+		},
+	},
+	mssql: {
+		connection: {
+			driver: () => withStyle.error(`Only "mssql" is available options for "--driver"`),
 			required: () =>
 				withStyle.error(
 					`Either "url" or "host", "database" are required for database connection`,

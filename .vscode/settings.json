@@ -1,0 +1,26 @@
+{
+	"typescript.tsdk": "node_modules/typescript/lib",
+	"editor.defaultFormatter": "dprint.dprint",
+	"[javascript]": {
+		"editor.defaultFormatter": "dprint.dprint"
+	},
+	"[typescript]": {
+		"editor.defaultFormatter": "dprint.dprint"
+	},
+	"[json]": {
+		"editor.defaultFormatter": "dprint.dprint"
+	},
+	"[markdown]": {
+		"editor.defaultFormatter": "dprint.dprint"
+	},
+	"oxc.enable": true,
+	"postman.settings.dotenv-detection-notification-visibility": false,
+	"files.watcherExclude": {
+		"**/dist/**": true,
+		"**/dist.new/**": true,
+		"**/.cache/**": true,
+		"**/.turbo/**": true,
+		"**/.rollup.cache/**": true,
+		"**/dist-dts/**": true
+	}
+}

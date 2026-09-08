@@ -1,122 +1,152 @@
-/// <reference types="bun-types" />
-
-import type { SQLOptions } from 'bun';
-import { SQL } from 'bun';
-import { entityKind } from '~/entity.ts';
-import { DefaultLogger } from '~/logger.ts';
-import { PgDatabase } from '~/pg-core/db.ts';
-import { PgDialect } from '~/pg-core/dialect.ts';
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
-import { type DrizzleConfig, isConfig } from '~/utils.ts';
-import type { BunSQLQueryResultHKT } from './session.ts';
-import { BunSQLSession } from './session.ts';
-
-export class BunSQLDatabase<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-> extends PgDatabase<BunSQLQueryResultHKT, TSchema> {
-	static override readonly [entityKind]: string = 'BunSQLDatabase';
-}
-
-function construct<TSchema extends Record<string, unknown> = Record<string, never>>(
-	client: SQL,
-	config: DrizzleConfig<TSchema> = {},
-): BunSQLDatabase<TSchema> & {
-	$client: SQL;
-} {
-	const dialect = new PgDialect({ casing: config.casing });
-	let logger;
-	if (config.logger === true) {
-		logger = new DefaultLogger();
-	} else if (config.logger !== false) {
-		logger = config.logger;
-	}
-
-	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
-	if (config.schema) {
-		const tablesConfig = extractTablesRelationalConfig(
-			config.schema,
-			createTableRelationsHelpers,
-		);
-		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
-			tableNamesMap: tablesConfig.tableNamesMap,
-		};
-	}
-
-	const session = new BunSQLSession(client, dialect, schema, { logger });
-	const db = new BunSQLDatabase(dialect, session, schema as any) as BunSQLDatabase<TSchema>;
-	(<any> db).$client = client;
-
-	return db as any;
-}
+import type { SQL } from 'bun';
+import type { DrizzleMySqlConfig } from '~/mysql-core/utils.ts';
+import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
+import { type BunMySqlDatabase, drizzle as mysqlConstructor } from './mysql/driver.ts';
+import { type BunSQLDatabase, drizzle as postgresConstructor } from './postgres/driver.ts';
+import { type BunSQLiteDatabase, drizzle as sqliteConstructor } from './sqlite/driver.ts';
 
 export function drizzle<
-	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends SQL = SQL,
 >(
 	...params: [
-		TClient | string,
+		string,
 	] | [
-		TClient | string,
-		DrizzleConfig<TSchema>,
+		string,
+		DrizzlePgConfig<TRelations>,
 	] | [
 		(
-			& DrizzleConfig<TSchema>
+			& DrizzlePgConfig<TRelations>
 			& ({
-				connection: string | ({ url?: string } & SQLOptions);
+				connection: string | ({ url?: string } & SQL.Options);
 			} | {
 				client: TClient;
 			})
 		),
 	]
-): BunSQLDatabase<TSchema> & {
+): BunSQLDatabase<TRelations> & {
 	$client: TClient;
 } {
-	if (typeof params[0] === 'string') {
-		const instance = new SQL(params[0]);
-
-		return construct(instance, params[1]) as any;
-	}
-
-	if (isConfig(params[0])) {
-		const { connection, client, ...drizzleConfig } = params[0] as {
-			connection?: { url?: string } & SQLOptions;
-			client?: TClient;
-		} & DrizzleConfig<TSchema>;
-
-		if (client) return construct(client, drizzleConfig) as any;
-
-		if (typeof connection === 'object' && connection.url !== undefined) {
-			const { url, ...config } = connection;
-
-			const instance = new SQL({ url, ...config });
-			return construct(instance, drizzleConfig) as any;
-		}
-
-		const instance = new SQL(connection);
-		return construct(instance, drizzleConfig) as any;
-	}
-
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	return postgresConstructor(...params);
 }
 
 export namespace drizzle {
-	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
-		config?: DrizzleConfig<TSchema>,
-	): BunSQLDatabase<TSchema> & {
+	export function mock<
+		TRelations extends AnyRelations = EmptyRelations,
+	>(config?: DrizzlePgConfig<TRelations>): BunSQLDatabase<TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
-		return construct({
-			options: {
-				parsers: {},
-				serializers: {},
-			},
-		} as any, config) as any;
+		return postgresConstructor.mock(config);
+	}
+
+	export function postgres<
+		TRelations extends AnyRelations = EmptyRelations,
+		TClient extends SQL = SQL,
+	>(
+		...params: [
+			string,
+		] | [
+			string,
+			DrizzlePgConfig<TRelations>,
+		] | [
+			(
+				& DrizzlePgConfig<TRelations>
+				& ({
+					connection: string | ({ url?: string } & SQL.Options);
+				} | {
+					client: TClient;
+				})
+			),
+		]
+	): BunSQLDatabase<TRelations> & {
+		$client: TClient;
+	} {
+		return postgresConstructor(...params);
+	}
+
+	export namespace postgres {
+		export function mock<
+			TRelations extends AnyRelations = EmptyRelations,
+		>(config?: DrizzlePgConfig<TRelations>): BunSQLDatabase<TRelations> & {
+			$client: '$client is not available on drizzle.mock()';
+		} {
+			return postgresConstructor.mock(config);
+		}
+	}
+
+	export function sqlite<
+		TRelations extends AnyRelations = EmptyRelations,
+		TClient extends SQL = SQL,
+	>(
+		...params: [
+			string,
+		] | [
+			string,
+			DrizzleSQLiteConfig<TRelations>,
+		] | [
+			(
+				& DrizzleSQLiteConfig<TRelations>
+				& ({
+					connection: string | ({ url?: string } & SQL.Options);
+				} | {
+					client: TClient;
+				})
+			),
+		]
+	): BunSQLiteDatabase<TRelations> & {
+		$client: TClient;
+	} {
+		return sqliteConstructor(...params);
+	}
+
+	export namespace sqlite {
+		export function mock<
+			TRelations extends AnyRelations = EmptyRelations,
+		>(config?: DrizzleSQLiteConfig<TRelations>): BunSQLiteDatabase<TRelations> & {
+			$client: '$client is not available on drizzle.mock()';
+		} {
+			return sqliteConstructor.mock(config);
+		}
+	}
+
+	export function mysql<
+		TRelations extends AnyRelations = EmptyRelations,
+		TClient extends SQL = SQL,
+	>(
+		...params: [
+			string,
+		] | [
+			string,
+			DrizzleMySqlConfig<TRelations>,
+		] | [
+			(
+				& DrizzleMySqlConfig<TRelations>
+				& ({
+					connection: string | ({ url?: string } & SQL.Options);
+				} | {
+					client: TClient;
+				})
+			),
+		]
+	): BunMySqlDatabase<TRelations> & {
+		$client: TClient;
+	} {
+		return mysqlConstructor(...params) as BunMySqlDatabase<TRelations> & {
+			$client: TClient;
+		};
+	}
+
+	export namespace mysql {
+		export function mock<
+			TRelations extends AnyRelations = EmptyRelations,
+		>(config?: DrizzleMySqlConfig<TRelations>): BunMySqlDatabase<TRelations> & {
+			$client: '$client is not available on drizzle.mock()';
+		} {
+			return mysqlConstructor.mock(config) as BunMySqlDatabase<TRelations> & {
+				$client: '$client is not available on drizzle.mock()';
+			};
+		}
 	}
 }

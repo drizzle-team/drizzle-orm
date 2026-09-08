@@ -51,12 +51,14 @@ export class UniqueConstraint {
 	static readonly [entityKind]: string = 'SingleStoreUniqueConstraint';
 
 	readonly columns: SingleStoreColumn[];
-	readonly name?: string;
+	readonly name: string;
 	readonly nullsNotDistinct: boolean = false;
+	readonly isNameExplicit: boolean;
 
 	constructor(readonly table: SingleStoreTable, columns: SingleStoreColumn[], name?: string) {
 		this.columns = columns;
 		this.name = name ?? uniqueKeyName(this.table, this.columns.map((column) => column.name));
+		this.isNameExplicit = !!name;
 	}
 
 	getName() {

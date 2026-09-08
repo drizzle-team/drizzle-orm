@@ -1,5 +1,4 @@
 import retry from 'async-retry';
-import type Docker from 'dockerode';
 import { asc, eq, Name, placeholder, sql } from 'drizzle-orm';
 import type { SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
 import { drizzle } from 'drizzle-orm/singlestore';
@@ -23,25 +22,24 @@ import * as mysql2 from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { toLocalDate } from '~/utils';
-import { createDockerDB } from './singlestore-common';
+import relations from './relations';
 
-const ENABLE_LOGGING = false;
+type TestSingleStoreDB = SingleStoreDriverDatabase<typeof relations>;
+declare module 'vitest' {
+	interface TestContext {
+		singlestore: {
+			db: TestSingleStoreDB;
+		};
+	}
+}
 
-let db: SingleStoreDriverDatabase;
+let db: SingleStoreDriverDatabase<typeof relations>;
 let client: mysql2.Connection;
-let container: Docker.Container | undefined;
 
 beforeAll(async () => {
-	let connectionString;
-	if (process.env['SINGLESTORE_CONNECTION_STRING']) {
-		connectionString = process.env['SINGLESTORE_CONNECTION_STRING'];
-	} else {
-		const { connectionString: conStr, container: contrainerObj } = await createDockerDB();
-		connectionString = conStr;
-		container = contrainerObj;
-	}
+	const connectionString = process.env['SINGLESTORE_CONNECTION_STRING'];
 	client = await retry(async () => {
-		client = await mysql2.createConnection(connectionString);
+		client = await mysql2.createConnection({ uri: connectionString, supportBigNumbers: true });
 		await client.connect();
 		return client;
 	}, {
@@ -56,12 +54,11 @@ beforeAll(async () => {
 	});
 	await client.query(`CREATE DATABASE IF NOT EXISTS drizzle;`);
 	await client.changeUser({ database: 'drizzle' });
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle({ client, relations });
 });
 
 afterAll(async () => {
 	await client?.end();
-	await container?.stop().catch(console.error);
 });
 
 beforeEach((ctx) => {
@@ -562,27 +559,29 @@ test('full join with alias', async (ctx) => {
 	await db.execute(sql`drop table if exists ${users}`);
 	await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
 
-	const customers = alias(users, 'customer');
+	try {
+		const customers = alias(users, 'customer');
 
-	await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
-	const result = await db
-		.select().from(users)
-		.leftJoin(customers, eq(customers.id, 11))
-		.where(eq(users.id, 10))
-		.orderBy(asc(users.id));
+		await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
+		const result = await db
+			.select().from(users)
+			.leftJoin(customers, eq(customers.id, 11))
+			.where(eq(users.id, 10))
+			.orderBy(asc(users.id));
 
-	expect(result).toEqual([{
-		users: {
-			id: 10,
-			name: 'Ivan',
-		},
-		customer: {
-			id: 11,
-			name: 'Hans',
-		},
-	}]);
-
-	await db.execute(sql`drop table ${users}`);
+		expect(result).toEqual([{
+			users: {
+				id: 10,
+				name: 'Ivan',
+			},
+			customer: {
+				id: 11,
+				name: 'Hans',
+			},
+		}]);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('select from alias', async (ctx) => {
@@ -598,29 +597,31 @@ test('select from alias', async (ctx) => {
 	await db.execute(sql`drop table if exists ${users}`);
 	await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
 
-	const user = alias(users, 'user');
-	const customers = alias(users, 'customer');
+	try {
+		const user = alias(users, 'user');
+		const customers = alias(users, 'customer');
 
-	await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
-	const result = await db
-		.select()
-		.from(user)
-		.leftJoin(customers, eq(customers.id, 11))
-		.where(eq(user.id, 10))
-		.orderBy(asc(user.id));
+		await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
+		const result = await db
+			.select()
+			.from(user)
+			.leftJoin(customers, eq(customers.id, 11))
+			.where(eq(user.id, 10))
+			.orderBy(asc(user.id));
 
-	expect(result).toEqual([{
-		user: {
-			id: 10,
-			name: 'Ivan',
-		},
-		customer: {
-			id: 11,
-			name: 'Hans',
-		},
-	}]);
-
-	await db.execute(sql`drop table ${users}`);
+		expect(result).toEqual([{
+			user: {
+				id: 10,
+				name: 'Ivan',
+			},
+			customer: {
+				id: 11,
+				name: 'Hans',
+			},
+		}]);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('insert with spaces', async (ctx) => {
@@ -695,25 +696,27 @@ test('prepared statement with placeholder in .where', async (ctx) => {
 });
 
 test('migrator', async (ctx) => {
-	const { db } = ctx.singlestore;
+	try {
+		const { db } = ctx.singlestore;
 
-	await db.execute(sql`drop table if exists cities_migration`);
-	await db.execute(sql`drop table if exists users_migration`);
-	await db.execute(sql`drop table if exists users12`);
-	await db.execute(sql`drop table if exists __drizzle_migrations`);
+		await db.execute(sql`drop table if exists cities_migration`);
+		await db.execute(sql`drop table if exists users_migration`);
+		await db.execute(sql`drop table if exists users12`);
+		await db.execute(sql`drop table if exists __drizzle_migrations`);
 
-	await migrate(db, { migrationsFolder: './drizzle2/singlestore' });
+		await migrate(db, { migrationsFolder: './drizzle2/singlestore' });
 
-	await db.insert(usersMigratorTable).values({ id: 1, name: 'John', email: 'email' });
+		await db.insert(usersMigratorTable).values({ id: 1, name: 'John', email: 'email' });
 
-	const result = await db.select().from(usersMigratorTable);
+		const result = await db.select().from(usersMigratorTable);
 
-	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-	await db.execute(sql`drop table cities_migration`);
-	await db.execute(sql`drop table users_migration`);
-	await db.execute(sql`drop table users12`);
-	await db.execute(sql`drop table __drizzle_migrations`);
+		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+	} finally {
+		await db.execute(sql`drop table if exists cities_migration`);
+		await db.execute(sql`drop table if exists users_migration`);
+		await db.execute(sql`drop table if exists users12`);
+		await db.execute(sql`drop table if exists __drizzle_migrations`);
+	}
 });
 
 test('insert via db.execute + select via db.execute', async (ctx) => {
@@ -821,7 +824,7 @@ test('custom binary', async (ctx) => {
 
 	expect(res).toEqual([{
 		id,
-		sqlId: Buffer.from(id, 'hex'),
+		sqlId: Buffer.from(id, 'hex').toString(),
 		rawId: id,
 	}]);
 });

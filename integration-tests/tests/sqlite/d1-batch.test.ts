@@ -1,8 +1,9 @@
 /// <reference types="@cloudflare/workers-types" />
 import 'dotenv/config';
 import { D1Database, D1DatabaseAPI } from '@miniflare/d1';
-import { createSQLiteDB } from '@miniflare/shared';
-import { eq, relations, sql } from 'drizzle-orm';
+import Client from 'better-sqlite3';
+import { defineRelations, eq, sql } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
 import { drizzle } from 'drizzle-orm/d1';
 import { type AnySQLiteColumn, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
@@ -45,9 +46,7 @@ export const usersToGroupsTable = sqliteTable(
 			() => groupsTable.id,
 		),
 	},
-	(t) => ({
-		pk: primaryKey({ columns: [t.userId, t.groupId] }),
-	}),
+	(t) => [primaryKey({ columns: [t.userId, t.groupId] })],
 );
 export const usersToGroupsConfig = relations(usersToGroupsTable, ({ one }) => ({
 	group: one(groupsTable, {
@@ -135,12 +134,14 @@ const schema = {
 	usersConfig,
 };
 
-let db: DrizzleD1Database<typeof schema>;
+const relationsV2 = defineRelations(schema);
+
+let db: DrizzleD1Database<typeof relationsV2>;
 
 beforeAll(async () => {
-	const sqliteDb = await createSQLiteDB(':memory:');
+	const sqliteDb = new Client(':memory:');
 	const d1db = new D1Database(new D1DatabaseAPI(sqliteDb));
-	db = drizzle(d1db, { logger: ENABLE_LOGGING, schema });
+	db = drizzle(d1db, { logger: ENABLE_LOGGING, relations: relationsV2 });
 });
 
 beforeEach(async () => {
@@ -252,17 +253,17 @@ test('batch api example', async () => {
 		invitedBy: null,
 	}]);
 
-	// expect(batchResponse[1]).toEqual({
-	// 	results: [],
-	// 	success: true,
-	// 	meta: {
-	// 		duration: 0.027083873748779297,
-	// 		last_row_id: 2,
-	// 		changes: 1,
-	// 		served_by: 'miniflare.db',
-	// 		internal_stats: null,
-	// 	},
-	// });
+	expect(batchResponse[1]).toEqual({
+		results: [],
+		success: true,
+		meta: {
+			duration: expect.toSatisfy((v) => typeof v === 'number', 'expected number'),
+			last_row_id: 2,
+			changes: 1,
+			served_by: 'miniflare.db',
+			internal_stats: null,
+		},
+	});
 
 	expect(batchResponse[2]).toEqual([
 		{ id: 1, name: 'John', verified: 0, invitedBy: null },
@@ -297,7 +298,17 @@ test('insert + findMany', async () => {
 		id: 1,
 	}]);
 
-	// expect(batchResponse[1]).toEqual({ columns: [], rows: [], rowsAffected: 1, lastInsertRowid: 2n });
+	expect(batchResponse[1]).toEqual({
+		meta: {
+			changes: 1,
+			duration: expect.toSatisfy((v) => typeof v === 'number', 'expected number'),
+			internal_stats: null,
+			last_row_id: 2,
+			served_by: 'miniflare.db',
+		},
+		results: [],
+		success: true,
+	});
 
 	expect(batchResponse[2]).toEqual([
 		{ id: 1, name: 'John', verified: 0, invitedBy: null },
@@ -339,7 +350,17 @@ test('insert + findMany + findFirst', async () => {
 		id: 1,
 	}]);
 
-	// expect(batchResponse[1]).toEqual({ columns: [], rows: [], rowsAffected: 1, lastInsertRowid: 2n });
+	expect(batchResponse[1]).toEqual({
+		meta: {
+			changes: 1,
+			duration: expect.toSatisfy((v) => typeof v === 'number', 'expected number'),
+			internal_stats: null,
+			last_row_id: 2,
+			served_by: 'miniflare.db',
+		},
+		results: [],
+		success: true,
+	});
 
 	expect(batchResponse[2]).toEqual([
 		{ id: 1, name: 'John', verified: 0, invitedBy: null },
@@ -386,7 +407,17 @@ test('insert + db.all + db.get + db.values + db.run', async () => {
 		id: 1,
 	}]);
 
-	// expect(batchResponse[1]).toEqual({ columns: [], rows: [], rowsAffected: 1, lastInsertRowid: 2n });
+	expect(batchResponse[1]).toEqual({
+		meta: {
+			changes: 1,
+			duration: expect.toSatisfy((v) => typeof v === 'number', 'expected number'),
+			internal_stats: null,
+			last_row_id: 2,
+			served_by: 'miniflare.db',
+		},
+		results: [],
+		success: true,
+	});
 
 	expect(batchResponse[2], 'all').toEqual([
 		{ id: 1, name: 'John', verified: 0, invited_by: null },
@@ -434,7 +465,17 @@ test('insert + findManyWith + db.all', async () => {
 		id: 1,
 	}]);
 
-	// expect(batchResponse[1]).toEqual({ columns: [], rows: [], rowsAffected: 1, lastInsertRowid: 2n });
+	expect(batchResponse[1]).toEqual({
+		meta: {
+			changes: 1,
+			duration: expect.toSatisfy((v) => typeof v === 'number', 'expected number'),
+			internal_stats: null,
+			last_row_id: 2,
+			served_by: 'miniflare.db',
+		},
+		results: [],
+		success: true,
+	});
 
 	expect(batchResponse[2]).toEqual([
 		{ id: 1, name: 'John', verified: 0, invitedBy: null },
@@ -486,7 +527,17 @@ test('insert + update + select + select partial', async () => {
 		id: 1,
 	}]);
 
-	// expect(batchResponse[1]).toEqual({ columns: [], rows: [], rowsAffected: 1, lastInsertRowid: 1n });
+	expect(batchResponse[1]).toEqual({
+		meta: {
+			changes: 1,
+			duration: expect.toSatisfy((v) => typeof v === 'number', 'expected number'),
+			internal_stats: null,
+			last_row_id: 1,
+			served_by: 'miniflare.db',
+		},
+		results: [],
+		success: true,
+	});
 
 	expect(batchResponse[2]).toEqual([
 		{ id: 1, name: 'Dan', verified: 0, invitedBy: null },
@@ -536,7 +587,17 @@ test('insert + delete + select + select partial', async () => {
 		id: 1,
 	}]);
 
-	// expect(batchResponse[1]).toEqual({ columns: [], rows: [], rowsAffected: 1, lastInsertRowid: 2n });
+	expect(batchResponse[1]).toEqual({
+		meta: {
+			changes: 1,
+			duration: expect.toSatisfy((v) => typeof v === 'number', 'expected number'),
+			internal_stats: null,
+			last_row_id: 2,
+			served_by: 'miniflare.db',
+		},
+		results: [],
+		success: true,
+	});
 
 	expect(batchResponse[2]).toEqual([
 		{ id: 1, invitedBy: null },

@@ -1,97 +1,174 @@
-import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
-import { CasingCache } from '~/casing.ts';
+import { aliasedTable, getOriginalColumnFromAlias } from '~/alias.ts';
+import { CodecsCollection } from '~/codecs.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
-import { and, eq } from '~/expressions.ts';
-import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
-import {
-	type BuildRelationalQueryResult,
-	type DBQueryConfig,
-	getOperators,
-	getOrderByOperators,
-	Many,
-	normalizeRelation,
-	One,
-	type Relation,
-	type TableRelationalConfig,
-	type TablesRelationalConfig,
+import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
+import { getMigrationsToRun } from '~/migrator.utils.ts';
+import type {
+	AnyOne,
+	BuildRelationalQueryResult,
+	ColumnWithTSName,
+	DBQueryConfig,
+	RelationalRowsMapperGenerator,
+	TableRelationalConfig,
+	TablesRelationalConfig,
+	WithContainer,
 } from '~/relations.ts';
-import type { Name, Placeholder, QueryWithTypings, SQLChunk } from '~/sql/sql.ts';
-import { Param, SQL, sql, View } from '~/sql/sql.ts';
+import {
+	collectRelationalSubquery,
+	getTableAsAliasSQL,
+	makeDefaultRqbMapper,
+	makeJitRqbMapper,
+	type RelationalWithSubqueries,
+	relationExtrasToSQL,
+	relationsFilterToSQL,
+	relationsOrderToSQL,
+	relationToSQL,
+	type SchemaEntry,
+} from '~/relations.ts';
+import { and } from '~/sql/expressions/index.ts';
+import type { DriverValueDecoder, Name, Placeholder, Query, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
+import { isSQLWrapper, Param, SQL, sql, StringChunk } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { getTableName, getTableUniqueName, Table } from '~/table.ts';
-import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { getTableName, Table, TableColumns } from '~/table.ts';
+import { upgradeIfNeeded } from '~/up-migrations/singlestore.ts';
+import {
+	getColumnFromDecoder,
+	make$ReturningResponseMapper,
+	makeDefaultQueryMapper,
+	makeJitQueryMapper,
+	type RowsMapperGenerator,
+	type UpdateSet,
+} from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { View } from '~/view.ts';
+import { resolveSingleStoreTypeAlias, type SingleStoreCodecs, type SingleStoreType } from './codecs.ts';
 import { SingleStoreColumn } from './columns/common.ts';
+import type { SingleStoreCustomColumn } from './columns/custom.ts';
 import type { SingleStoreDeleteConfig } from './query-builders/delete.ts';
 import type { SingleStoreInsertConfig } from './query-builders/insert.ts';
-import type {
-	SelectedFieldsOrdered,
-	SingleStoreSelectConfig,
-	SingleStoreSelectJoinConfig,
-} from './query-builders/select.types.ts';
+import type { SelectedFieldsOrdered, SingleStoreSelectConfig } from './query-builders/select.types.ts';
 import type { SingleStoreUpdateConfig } from './query-builders/update.ts';
 import type { SingleStoreSession } from './session.ts';
 import { SingleStoreTable } from './table.ts';
-/* import { SingleStoreViewBase } from './view-base.ts'; */
 
 export interface SingleStoreDialectConfig {
-	casing?: Casing;
+	useJitMappers?: boolean;
+	codecs?: SingleStoreCodecs;
+}
+
+interface BuildRelationalQueryResultWithOrder extends BuildRelationalQueryResult {
+	order?: SQL;
 }
 
 export class SingleStoreDialect {
 	static readonly [entityKind]: string = 'SingleStoreDialect';
 
-	/** @internal */
-	readonly casing: CasingCache;
+	readonly codecs: CodecsCollection<SingleStoreType>;
+	readonly mapperGenerators: {
+		rows: RowsMapperGenerator;
+		relationalRows: RelationalRowsMapperGenerator;
+		$returning: typeof make$ReturningResponseMapper;
+	};
 
 	constructor(config?: SingleStoreDialectConfig) {
-		this.casing = new CasingCache(config?.casing);
+		this.codecs = new CodecsCollection<SingleStoreType>(resolveSingleStoreTypeAlias, config?.codecs);
+		this.mapperGenerators = config?.useJitMappers
+			? {
+				rows: makeJitQueryMapper,
+				relationalRows: makeJitRqbMapper,
+				$returning: make$ReturningResponseMapper,
+			}
+			: {
+				rows: makeDefaultQueryMapper,
+				relationalRows: makeDefaultRqbMapper,
+				$returning: make$ReturningResponseMapper,
+			};
 	}
 
 	async migrate(
 		migrations: MigrationMeta[],
 		session: SingleStoreSession,
 		config: Omit<MigrationConfig, 'migrationsSchema'>,
-	): Promise<void> {
+	): Promise<void | MigratorInitFailResponse> {
 		const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
-		const migrationTableCreate = sql`
-			create table if not exists ${sql.identifier(migrationsTable)} (
-				id serial primary key,
-				hash text not null,
-				created_at bigint
-			)
-		`;
-		await session.execute(migrationTableCreate);
 
-		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
-			sql`select id, hash, created_at from ${sql.identifier(migrationsTable)} order by created_at desc limit 1`,
+		// Detect DB version and upgrade table schema if needed
+		const { newDb } = await upgradeIfNeeded(
+			migrationsTable,
+			session,
+			migrations,
 		);
 
-		const lastDbMigration = dbMigrations[0];
+		if (newDb) {
+			const migrationTableCreate = sql`
+			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
+				id SERIAL PRIMARY KEY,
+				hash TEXT NOT NULL,
+				created_at BIGINT,
+				name TEXT,
+				applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+			)
+		`;
+			await session.execute(migrationTableCreate);
+		}
 
+		const dbMigrations = await session.objects<{
+			id: number;
+			hash: string;
+			created_at: string;
+			name: string | null;
+		}>(
+			sql`select id, hash, created_at, name from ${sql.identifier(migrationsTable)}`,
+		);
+
+		if (typeof config === 'object' && config.init) {
+			if (dbMigrations.length) {
+				return { exitCode: 'databaseMigrations' as const };
+			}
+
+			if (migrations.length > 1) {
+				return { exitCode: 'localMigrations' as const };
+			}
+
+			const [migration] = migrations;
+
+			if (!migration) return;
+
+			await session.execute(
+				sql`insert into ${
+					sql.identifier(
+						migrationsTable,
+					)
+				} (\`hash\`, \`created_at\`, \`name\`) values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
+			);
+
+			return;
+		}
+
+		const migrationsToRun = getMigrationsToRun({
+			localMigrations: migrations,
+			dbMigrations,
+		});
 		await session.transaction(async (tx) => {
-			for (const migration of migrations) {
-				if (
-					!lastDbMigration
-					|| Number(lastDbMigration.created_at) < migration.folderMillis
-				) {
-					for (const stmt of migration.sql) {
-						await tx.execute(sql.raw(stmt));
-					}
-					await tx.execute(
-						sql`insert into ${
-							sql.identifier(migrationsTable)
-						} (\`hash\`, \`created_at\`) values(${migration.hash}, ${migration.folderMillis})`,
-					);
+			for (const migration of migrationsToRun) {
+				for (const stmt of migration.sql) {
+					await tx.execute(sql.raw(stmt));
 				}
+				await tx.execute(
+					sql`insert into ${
+						sql.identifier(
+							migrationsTable,
+						)
+					} (\`hash\`, \`created_at\`, \`name\`) values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
+				);
 			}
 		});
 	}
 
 	escapeName(name: string): string {
-		return `\`${name}\``;
+		return `\`${name.replace(/`/g, '``')}\``;
 	}
 
 	escapeParam(_num: number): string {
@@ -105,22 +182,36 @@ export class SingleStoreDialect {
 	private buildWithCTE(queries: Subquery[] | undefined): SQL | undefined {
 		if (!queries?.length) return undefined;
 
-		const withSqlChunks = [sql`with `];
-		for (const [i, w] of queries.entries()) {
-			withSqlChunks.push(sql`${sql.identifier(w._.alias)} as (${w._.sql})`);
-			if (i < queries.length - 1) {
-				withSqlChunks.push(sql`, `);
-			}
+		const queriesLen = queries.length;
+		const withSqlChunks: SQLChunk[] = new Array(queriesLen + 1);
+		let writeIdx = 0;
+		withSqlChunks[writeIdx++] = new StringChunk('with ');
+
+		for (let i = 0; i < queriesLen; ++i) {
+			const w = queries[i]!;
+			withSqlChunks[writeIdx++] = (i < queriesLen - 1)
+				? sql`${sql.identifier(w._.alias)} as (${w._.sql}), `
+				: sql`${sql.identifier(w._.alias)} as (${w._.sql}) `;
 		}
-		withSqlChunks.push(sql` `);
-		return sql.join(withSqlChunks);
+
+		return new SQL(withSqlChunks);
 	}
 
-	buildDeleteQuery({ table, where, returning, withList, limit, orderBy }: SingleStoreDeleteConfig): SQL {
+	buildDeleteQuery({
+		table,
+		where,
+		returning,
+		withList,
+		limit,
+		orderBy,
+		ignoreSelectionCastCodecs,
+	}: SingleStoreDeleteConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${
+				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: ignoreSelectionCastCodecs, table })
+			}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -135,31 +226,53 @@ export class SingleStoreDialect {
 	buildUpdateSet(table: SingleStoreTable, set: UpdateSet): SQL {
 		const tableColumns = table[Table.Symbol.Columns];
 
-		const columnNames = Object.keys(tableColumns).filter((colName) =>
-			set[colName] !== undefined || tableColumns[colName]?.onUpdateFn !== undefined
+		const columnNames = Object.keys(tableColumns).filter(
+			(colName) =>
+				set[colName] !== undefined
+				|| tableColumns[colName]?.onUpdateFn !== undefined,
 		);
 
-		const setSize = columnNames.length;
-		return sql.join(columnNames.flatMap((colName, i) => {
+		const setLength = columnNames.length;
+		const setArr: SQLChunk[] = new Array(setLength);
+
+		for (let i = 0; i < columnNames.length; ++i) {
+			const colName = columnNames[i]!;
 			const col = tableColumns[colName]!;
 
-			const value = set[colName] ?? sql.param(col.onUpdateFn!(), col);
-			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
-
-			if (i < setSize - 1) {
-				return [res, sql.raw(', ')];
+			let value;
+			if (set[colName] !== undefined) {
+				value = set[colName];
+			} else {
+				const updateRes = col.onUpdateFn?.();
+				value = is(updateRes, SQL) ? updateRes : sql.param(updateRes, col);
 			}
-			return [res];
-		}));
+
+			setArr[i] = i < setLength - 1
+				? sql`${sql.identifier(col.name)} = ${value}, `
+				: sql`${sql.identifier(col.name)} = ${value}`;
+		}
+
+		return new SQL(setArr);
 	}
 
-	buildUpdateQuery({ table, set, where, returning, withList, limit, orderBy }: SingleStoreUpdateConfig): SQL {
+	buildUpdateQuery({
+		table,
+		set,
+		where,
+		returning,
+		withList,
+		limit,
+		orderBy,
+		ignoreSelectionCastCodecs,
+	}: SingleStoreUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const setSql = this.buildUpdateSet(table, set);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${
+				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: ignoreSelectionCastCodecs, table })
+			}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -184,84 +297,190 @@ export class SingleStoreDialect {
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
-		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
+		{ isSingleTable = false, ignoreCastCodecs = false, table }: {
+			isSingleTable?: boolean;
+			ignoreCastCodecs?: boolean;
+			table?: SingleStoreTable | SQL | Subquery;
+		} = {},
 	): SQL {
-		const columnsLen = fields.length;
+		const { length: columnsLen } = fields;
+		const chunks: SQLChunk[] = [];
+		const tableName = table
+			? is(table, SQL) || is(table, Subquery)
+				? undefined
+				: (table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
+					? table[Table.Symbol.Name]
+					: `${table[Table.Symbol.Schema]}.${table[Table.Symbol.Name]}`)
+			: undefined;
 
-		const chunks = fields
-			.flatMap(({ field }, i) => {
-				const chunk: SQLChunk[] = [];
+		for (let i = 0; i < columnsLen; ++i) {
+			const { field, codecOverride, column, fieldType } = fields[i]!;
+			const override = codecOverride as SingleStoreType | undefined;
 
-				if (is(field, SQL.Aliased) && field.isSelectionField) {
-					chunk.push(sql.identifier(field.fieldAlias));
-				} else if (is(field, SQL.Aliased) || is(field, SQL)) {
-					const query = is(field, SQL.Aliased) ? field.sql : field;
-
+			switch (fieldType) {
+				case 'Column': {
+					let name: Name | Column;
 					if (isSingleTable) {
-						chunk.push(
-							new SQL(
-								query.queryChunks.map((c) => {
-									if (is(c, SingleStoreColumn)) {
-										return sql.identifier(this.casing.getColumnCasing(c));
+						name = field.isAlias
+							? sql.identifier(getOriginalColumnFromAlias(field).name)
+							: sql.identifier(field.name);
+					} else {
+						name = field.isAlias ? getOriginalColumnFromAlias(field) : field;
+					}
+
+					const casted = ignoreCastCodecs ? name : this.codecs.apply(field, 'cast', name, override);
+					chunks.push(field.isAlias ? sql`${casted} as ${field}` : casted);
+
+					break;
+				}
+				case 'SQL.Aliased': {
+					if (field.isSelectionField) {
+						const query = !isSingleTable && field.origin !== undefined
+							? sql`${sql.identifier(field.origin)}.${sql.identifier(field.fieldAlias)}`
+							: sql.identifier(field.fieldAlias);
+						if (column && !ignoreCastCodecs) chunks.push(this.codecs.apply(column, 'cast', query, override));
+						else chunks.push(query);
+					} else {
+						if (isSingleTable && tableName !== undefined) {
+							const { queryChunks } = field.sql;
+							const newChunks: SQLChunk[] = new Array(queryChunks.length);
+							let abort = false;
+
+							for (let i = 0; i < queryChunks.length; ++i) {
+								const c = queryChunks[i]!;
+								if (is(c, Column)) {
+									const { table } = c;
+									const columnTableName = table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
+										? table[Table.Symbol.Name]
+										: `${table[Table.Symbol.Schema]}.${table[Table.Symbol.Name]}`;
+									if (columnTableName !== tableName) {
+										abort = true;
+										break;
 									}
-									return c;
-								}),
-							),
+
+									newChunks[i] = sql.identifier(c.name);
+								} else {
+									newChunks[i] = c;
+								}
+							}
+
+							if (abort) {
+								chunks.push(
+									column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field.sql, override) : field.sql,
+								);
+							} else {
+								const newSql = new SQL(newChunks);
+
+								if (field.sql.shouldInlineParams) newSql.inlineParams();
+								chunks.push(
+									column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', newSql, override) : newSql,
+								);
+							}
+						} else {
+							chunks.push(
+								column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field.sql, override) : field.sql,
+							);
+						}
+
+						chunks.push(sql` as ${sql.identifier(field.fieldAlias)}`);
+					}
+
+					break;
+				}
+				case 'SQL': {
+					if (isSingleTable && tableName !== undefined) {
+						const { queryChunks } = field;
+						const newChunks: SQLChunk[] = new Array(queryChunks.length);
+						let abort = false;
+
+						for (let i = 0; i < queryChunks.length; ++i) {
+							const c = queryChunks[i]!;
+							if (is(c, Column)) {
+								const { table } = c;
+								const columnTableName = table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
+									? table[Table.Symbol.Name]
+									: `${table[Table.Symbol.Schema]}.${table[Table.Symbol.Name]}`;
+								if (columnTableName !== tableName) {
+									abort = true;
+									break;
+								}
+
+								newChunks[i] = sql.identifier(c.name);
+							} else {
+								newChunks[i] = c;
+							}
+						}
+
+						if (abort) {
+							chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
+						} else {
+							const newSql = new SQL(newChunks);
+							if (field.shouldInlineParams) newSql.inlineParams();
+							chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', newSql, override) : newSql);
+						}
+					} else chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
+
+					break;
+				}
+				case 'Subquery': {
+					if (!field._.isWith) {
+						const inner = sql`(${field._.sql})`;
+						chunks.push(
+							sql`${column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', inner, override) : inner} ${
+								sql.identifier(field._.alias)
+							}`,
 						);
 					} else {
-						chunk.push(query);
+						chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
 					}
 
-					if (is(field, SQL.Aliased)) {
-						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
-					}
-				} else if (is(field, Column)) {
-					if (isSingleTable) {
-						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
-					} else {
-						chunk.push(field);
-					}
+					break;
 				}
+			}
 
-				if (i < columnsLen - 1) {
-					chunk.push(sql`, `);
-				}
+			if (i < columnsLen - 1) {
+				chunks.push(new StringChunk(', '));
+			}
+		}
 
-				return chunk;
-			});
-
-		return sql.join(chunks);
+		return new SQL(chunks);
 	}
 
 	private buildLimit(limit: number | Placeholder | undefined): SQL | undefined {
-		return typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
+		return typeof limit === 'object'
+				|| (typeof limit === 'number' && limit >= 0)
 			? sql` limit ${limit}`
 			: undefined;
 	}
 
-	private buildOrderBy(orderBy: (SingleStoreColumn | SQL | SQL.Aliased)[] | undefined): SQL | undefined {
-		return orderBy && orderBy.length > 0 ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined;
+	private buildOrderBy(
+		orderBy: (SingleStoreColumn | SQL | SQL.Aliased)[] | undefined,
+	): SQL | undefined {
+		return orderBy && orderBy.length > 0
+			? sql` order by ${sql.join(orderBy, new StringChunk(', '))}`
+			: undefined;
 	}
 
-	buildSelectQuery(
-		{
-			withList,
-			fields,
-			fieldsFlat,
-			where,
-			having,
-			table,
-			joins,
-			orderBy,
-			groupBy,
-			limit,
-			offset,
-			lockingClause,
-			distinct,
-			setOperators,
-		}: SingleStoreSelectConfig,
-	): SQL {
-		const fieldsList = fieldsFlat ?? orderSelectedFields<SingleStoreColumn>(fields);
+	buildSelectQuery({
+		withList,
+		fieldsFlat,
+		where,
+		having,
+		table,
+		joins,
+		orderBy,
+		groupBy,
+		limit,
+		offset,
+		lockingClause,
+		distinct,
+		setOperators,
+		ignoreSelectionCastCodecs,
+	}: SingleStoreSelectConfig): SQL {
+		if (!fieldsFlat) {
+			throw new Error('Select query builder must be provided with `fieldsFlat` on `buildSelectQuery` invocation');
+		}
+		const fieldsList = fieldsFlat;
 		for (const f of fieldsList) {
 			if (
 				is(f.field, Column)
@@ -274,14 +493,20 @@ export class SingleStoreDialect {
 						? undefined
 						: getTableName(table))
 				&& !((table) =>
-					joins?.some(({ alias }) =>
-						alias === (table[Table.Symbol.IsAlias] ? getTableName(table) : table[Table.Symbol.BaseName])
+					joins?.some(
+						({ alias }) =>
+							alias
+								=== (table[Table.Symbol.IsAlias]
+									? getTableName(table)
+									: table[Table.Symbol.BaseName]),
 					))(f.field.table)
 			) {
 				const tableName = getTableName(f.field.table);
 				throw new Error(
 					`Your "${
-						f.path.join('->')
+						f.path.join(
+							'->',
+						)
 					}" field references a column "${tableName}"."${f.field.name}", but the table "${tableName}" is not part of the query! Did you forget to join it?`,
 				);
 			}
@@ -293,25 +518,42 @@ export class SingleStoreDialect {
 
 		const distinctSql = distinct ? sql` distinct` : undefined;
 
-		const selection = this.buildSelection(fieldsList, { isSingleTable });
+		const selection = this.buildSelection(fieldsList, {
+			isSingleTable,
+			table,
+			ignoreCastCodecs: ignoreSelectionCastCodecs || setOperators.length > 0,
+		});
 
 		const tableSql = (() => {
-			if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
-				return sql`${sql.identifier(table[Table.Symbol.OriginalName])} ${sql.identifier(table[Table.Symbol.Name])}`;
+			if (is(table, Table) && table[Table.Symbol.IsAlias]) {
+				return sql`${sql`${sql.identifier(table[Table.Symbol.Schema] ?? '')}.`.if(table[Table.Symbol.Schema])}${
+					sql.identifier(
+						table[Table.Symbol.OriginalName],
+					)
+				} ${sql.identifier(table[Table.Symbol.Name])}`;
+			}
+
+			if (is(table, View) && table[ViewBaseConfig].isAlias) {
+				let fullName = sql`${sql.identifier(table[ViewBaseConfig].originalName)}`;
+				if (table[ViewBaseConfig].schema) {
+					fullName = sql`${sql.identifier(table[ViewBaseConfig].schema)}.${fullName}`;
+				}
+				return sql`${fullName} ${sql.identifier(table[ViewBaseConfig].name)}`;
 			}
 
 			return table;
 		})();
 
-		const joinsArray: SQL[] = [];
+		const joinsArray: SQLChunk[] = [];
 
 		if (joins) {
 			for (const [index, joinMeta] of joins.entries()) {
 				if (index === 0) {
-					joinsArray.push(sql` `);
+					joinsArray.push(new StringChunk(' '));
 				}
 				const table = joinMeta.table;
 				const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
+				const onSql = joinMeta.on ? sql` on ${joinMeta.on}` : undefined;
 
 				if (is(table, SingleStoreTable)) {
 					const tableName = table[SingleStoreTable.Symbol.Name];
@@ -319,9 +561,9 @@ export class SingleStoreDialect {
 					const origTableName = table[SingleStoreTable.Symbol.OriginalName];
 					const alias = tableName === origTableName ? undefined : joinMeta.alias;
 					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
+						sql`${new StringChunk(joinMeta.joinType)} join${lateralSql} ${
 							tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
-						}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+						}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 					);
 				} else if (is(table, View)) {
 					const viewName = table[ViewBaseConfig].name;
@@ -329,22 +571,22 @@ export class SingleStoreDialect {
 					const origViewName = table[ViewBaseConfig].originalName;
 					const alias = viewName === origViewName ? undefined : joinMeta.alias;
 					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
+						sql`${new StringChunk(joinMeta.joinType)} join${lateralSql} ${
 							viewSchema ? sql`${sql.identifier(viewSchema)}.` : undefined
-						}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+						}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 					);
 				} else {
 					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${table} on ${joinMeta.on}`,
+						sql`${new StringChunk(joinMeta.joinType)} join${lateralSql} ${table}${onSql}`,
 					);
 				}
 				if (index < joins.length - 1) {
-					joinsArray.push(sql` `);
+					joinsArray.push(new StringChunk(' '));
 				}
 			}
 		}
 
-		const joinsSql = sql.join(joinsArray);
+		const joinsSql = new SQL(joinsArray);
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
@@ -352,7 +594,9 @@ export class SingleStoreDialect {
 
 		const orderBySql = this.buildOrderBy(orderBy);
 
-		const groupBySql = groupBy && groupBy.length > 0 ? sql` group by ${sql.join(groupBy, sql`, `)}` : undefined;
+		const groupBySql = groupBy && groupBy.length > 0
+			? sql` group by ${sql.join(groupBy, new StringChunk(', '))}`
+			: undefined;
 
 		const limitSql = this.buildLimit(limit);
 
@@ -361,9 +605,9 @@ export class SingleStoreDialect {
 		let lockingClausesSql;
 		if (lockingClause) {
 			const { config, strength } = lockingClause;
-			lockingClausesSql = sql` for ${sql.raw(strength)}`;
+			lockingClausesSql = sql` for ${new StringChunk(strength)}`;
 			if (config.noWait) {
-				lockingClausesSql.append(sql` no wait`);
+				lockingClausesSql.append(sql` nowait`);
 			} else if (config.skipLocked) {
 				lockingClausesSql.append(sql` skip locked`);
 			}
@@ -373,129 +617,192 @@ export class SingleStoreDialect {
 			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
 
 		if (setOperators.length > 0) {
-			return this.buildSetOperations(finalQuery, setOperators);
+			return this.buildSetOperations(finalQuery, fieldsList, ignoreSelectionCastCodecs, setOperators);
 		}
 
 		return finalQuery;
 	}
 
-	buildSetOperations(leftSelect: SQL, setOperators: SingleStoreSelectConfig['setOperators']): SQL {
-		const [setOperator, ...rest] = setOperators;
-
-		if (!setOperator) {
-			throw new Error('Cannot pass undefined values to any set operator');
+	buildSetOperations(
+		leftSelect: SQL,
+		outputSelection: SelectedFieldsOrdered,
+		ignoreSelectionCastCodecs: boolean | undefined,
+		setOperators: SingleStoreSelectConfig['setOperators'],
+	): SQL {
+		for (let i = 0; i < setOperators.length; ++i) {
+			const setOperator = setOperators[i]!;
+			leftSelect = this.buildSetOperationQuery({ leftSelect, setOperator });
 		}
 
-		if (rest.length === 0) {
-			return this.buildSetOperationQuery({ leftSelect, setOperator });
-		}
-
-		// Some recursive magic here
-		return this.buildSetOperations(
-			this.buildSetOperationQuery({ leftSelect, setOperator }),
-			rest,
-		);
+		return ignoreSelectionCastCodecs ? leftSelect : sql`select ${
+			this.buildSelection(
+				outputSelection.map((field) => {
+					if (field.fieldType === 'SQL.Aliased') {
+						const ref = field.field.clone();
+						ref.isSelectionField = true;
+						return { ...field, field: ref, fieldType: 'SQL.Aliased' };
+					}
+					if (field.fieldType === 'Column' && field.field.isAlias) {
+						const ref = new SQL.Aliased(sql`${sql.identifier(field.field.name)}`, field.field.name);
+						ref.isSelectionField = true;
+						return { ...field, field: ref, fieldType: 'SQL.Aliased' };
+					}
+					if (field.fieldType === 'Subquery') {
+						const ref = new SQL.Aliased(sql`${field.field.getSQL()}`, field.field._.alias);
+						ref.isSelectionField = true;
+						return { ...field, field: ref, fieldType: 'SQL.Aliased' };
+					}
+					return field;
+				}),
+				{
+					isSingleTable: true,
+					ignoreCastCodecs: ignoreSelectionCastCodecs,
+				},
+			)
+		} from (${leftSelect}) ${sql.identifier('drizzle_union')}`;
 	}
 
 	buildSetOperationQuery({
 		leftSelect,
 		setOperator: { type, isAll, rightSelect, limit, orderBy, offset },
-	}: { leftSelect: SQL; setOperator: SingleStoreSelectConfig['setOperators'][number] }): SQL {
+	}: {
+		leftSelect: SQL;
+		setOperator: SingleStoreSelectConfig['setOperators'][number];
+	}): SQL {
 		const leftChunk = sql`(${leftSelect.getSQL()}) `;
-		const rightChunk = sql`(${rightSelect.getSQL()})`;
+		const rightChunk = sql`(${rightSelect.withoutSelectionCastCodecs().getSQL()})`;
 
 		let orderBySql;
 		if (orderBy && orderBy.length > 0) {
 			const orderByValues: (SQL<unknown> | Name)[] = [];
 
 			// The next bit is necessary because the sql operator replaces ${table.column} with `table`.`column`
-			// which is invalid SingleStore syntax, Table from one of the SELECTs cannot be used in global ORDER clause
-			for (const orderByUnit of orderBy) {
-				if (is(orderByUnit, SingleStoreColumn)) {
-					orderByValues.push(sql.identifier(this.casing.getColumnCasing(orderByUnit)));
-				} else if (is(orderByUnit, SQL)) {
-					for (let i = 0; i < orderByUnit.queryChunks.length; i++) {
-						const chunk = orderByUnit.queryChunks[i];
+			// which is invalid Sql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
+			for (const singleOrderBy of orderBy) {
+				if (is(singleOrderBy, SingleStoreColumn)) {
+					orderByValues.push(sql.identifier(singleOrderBy.name));
+				} else if (is(singleOrderBy, SQL)) {
+					for (let i = 0; i < singleOrderBy.queryChunks.length; i++) {
+						const chunk = singleOrderBy.queryChunks[i];
 
 						if (is(chunk, SingleStoreColumn)) {
-							orderByUnit.queryChunks[i] = sql.identifier(this.casing.getColumnCasing(chunk));
+							singleOrderBy.queryChunks[i] = sql.identifier(chunk.name);
 						}
 					}
 
-					orderByValues.push(sql`${orderByUnit}`);
+					orderByValues.push(sql`${singleOrderBy}`);
 				} else {
-					orderByValues.push(sql`${orderByUnit}`);
+					orderByValues.push(sql`${singleOrderBy}`);
 				}
 			}
 
-			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)} `;
+			orderBySql = sql` order by ${sql.join(orderByValues, new StringChunk(', '))}`;
 		}
 
 		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
 			? sql` limit ${limit}`
 			: undefined;
 
-		const operatorChunk = sql.raw(`${type} ${isAll ? 'all ' : ''}`);
+		const operatorChunk = new StringChunk(`${type} ${isAll ? 'all ' : ''}`);
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	buildInsertQuery(
-		{ table, values, ignore, onConflict }: SingleStoreInsertConfig,
-	): { sql: SQL; generatedIds: Record<string, unknown>[] } {
+	buildInsertQuery({
+		table,
+		values,
+		ignore,
+		onConflict,
+		columnList,
+	}: SingleStoreInsertConfig): {
+		sql: SQL;
+		generatedIds: Record<string, unknown>[];
+	} {
 		// const isSingleValue = values.length === 1;
-		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, SingleStoreColumn> = table[Table.Symbol.Columns];
-		const colEntries: [string, SingleStoreColumn][] = Object.entries(columns).filter(([_, col]) =>
-			!col.shouldDisableInsert()
-		);
+		const colEntries: [string, SingleStoreColumn][] = columnList
+			? columnList.map((name) => [name, columns[name]!] as [string, SingleStoreColumn])
+			: Object.entries(
+				columns,
+			).filter(([_, col]) => !col.shouldDisableInsert());
 
-		const insertOrder = colEntries.map(([, column]) => sql.identifier(this.casing.getColumnCasing(column)));
+		const insertOrderArr: SQLChunk[] = new Array(colEntries.length * 2 + 1);
+		let orderWriteIdx = 0;
+		insertOrderArr[orderWriteIdx++] = new StringChunk('(');
+		for (let i = 0; i < colEntries.length; ++i) {
+			const [, { name }] = colEntries[i]!;
+			insertOrderArr[orderWriteIdx++] = sql.identifier(name);
+
+			if (i < colEntries.length - 1) insertOrderArr[orderWriteIdx++] = new StringChunk(', ');
+		}
+		insertOrderArr[orderWriteIdx++] = new StringChunk(')');
+		const insertOrder = new SQL(insertOrderArr);
 		const generatedIdsResponse: Record<string, unknown>[] = [];
 
-		for (const [valueIndex, value] of values.entries()) {
+		const valuesSqlList: SQLChunk[] = Array.from({
+			length: (colEntries.length * 2 + 1) * values.length + values.length - 1,
+		});
+
+		let writeIdx = 0;
+		for (let valueIndex = 0; valueIndex < values.length; ++valueIndex) {
+			const value = values[valueIndex]!;
 			const generatedIds: Record<string, unknown> = {};
 
-			const valueList: (SQLChunk | SQL)[] = [];
-			for (const [fieldName, col] of colEntries) {
+			valuesSqlList[writeIdx++] = new StringChunk('(');
+			for (let i = 0; i < colEntries.length; ++i) {
+				const [fieldName, col] = colEntries[i]!;
 				const colValue = value[fieldName];
-				if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
+				if (colValue === undefined) {
 					// eslint-disable-next-line unicorn/no-negated-condition
 					if (col.defaultFn !== undefined) {
 						const defaultFnResult = col.defaultFn();
 						generatedIds[fieldName] = defaultFnResult;
-						const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
-						valueList.push(defaultValue);
+						const defaultValue = is(defaultFnResult, SQL)
+							? defaultFnResult
+							: sql.param(defaultFnResult, col);
+						valuesSqlList[writeIdx++] = defaultValue;
 						// eslint-disable-next-line unicorn/no-negated-condition
 					} else if (!col.default && col.onUpdateFn !== undefined) {
 						const onUpdateFnResult = col.onUpdateFn();
-						const newValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
-						valueList.push(newValue);
+						const newValue = is(onUpdateFnResult, SQL)
+							? onUpdateFnResult
+							: sql.param(onUpdateFnResult, col);
+						valuesSqlList[writeIdx++] = newValue;
 					} else {
-						valueList.push(sql`default`);
+						valuesSqlList[writeIdx++] = new StringChunk(`default`);
 					}
+				} else if (is(colValue, SQL)) {
+					valuesSqlList[writeIdx++] = colValue;
 				} else {
-					if (col.defaultFn && is(colValue, Param)) {
-						generatedIds[fieldName] = colValue.value;
+					if (col.defaultFn) {
+						generatedIds[fieldName] = colValue;
 					}
-					valueList.push(colValue);
+					valuesSqlList[writeIdx++] = new Param(colValue, col);
+				}
+
+				if (i < colEntries.length - 1) {
+					valuesSqlList[writeIdx++] = new StringChunk(', ');
 				}
 			}
 
 			generatedIdsResponse.push(generatedIds);
-			valuesSqlList.push(valueList);
+
+			valuesSqlList[writeIdx++] = new StringChunk(')');
+
 			if (valueIndex < values.length - 1) {
-				valuesSqlList.push(sql`, `);
+				valuesSqlList[writeIdx++] = new StringChunk(`, `);
 			}
 		}
 
-		const valuesSql = sql.join(valuesSqlList);
+		const valuesSql = new SQL(valuesSqlList);
 
 		const ignoreSql = ignore ? sql` ignore` : undefined;
 
-		const onConflictSql = onConflict ? sql` on duplicate key ${onConflict}` : undefined;
+		const onConflictSql = onConflict
+			? sql` on duplicate key ${onConflict}`
+			: undefined;
 
 		return {
 			sql: sql`insert${ignoreSql} into ${table} ${insertOrder} values ${valuesSql}${onConflictSql}`,
@@ -503,311 +810,392 @@ export class SingleStoreDialect {
 		};
 	}
 
-	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
+	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): Query {
 		return sql.toQuery({
-			casing: this.casing,
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
+			codecs: this.codecs,
 			invokeSource,
 		});
 	}
 
+	private buildRqbColumn(
+		table: SchemaEntry,
+		field: unknown,
+		key: string,
+		inJson: boolean,
+		selection: BuildRelationalQueryResult['selection'],
+		tableTsName: string,
+	) {
+		let decoderColumn: Column | undefined;
+		let subqueryDecoder: DriverValueDecoder<any, any> | undefined;
+		let fieldType: BuildRelationalQueryResult['selection'][number]['fieldType'];
+		let output: SQL;
+
+		if (is(field, Column)) {
+			decoderColumn = field;
+			fieldType = 'Column';
+
+			const name = sql`${table}.${sql.identifier(field.name)}`;
+			const casted = inJson && (<SingleStoreCustomColumn<any>> field).jsonSelectIdentifier
+				? (<SingleStoreCustomColumn<any>> field).jsonSelectIdentifier!(name, sql)
+				: this.codecs.apply(field, inJson ? 'castInJson' : 'cast', name);
+
+			output = sql`${casted} as ${sql.identifier(key)}`;
+		} else if (is(field, SQL)) {
+			decoderColumn = is(field.decoder, Column) ? field.decoder : undefined;
+			fieldType = 'SQL';
+
+			const q = sql`${table}.${sql.identifier(key)}`;
+			output = sql`${decoderColumn ? this.codecs.apply(decoderColumn, inJson ? 'castInJson' : 'cast', q) : q} as ${
+				sql.identifier(key)
+			}`;
+		} else if (is(field, SQL.Aliased)) {
+			decoderColumn = is(field.sql.decoder, Column) ? field.sql.decoder : undefined;
+			fieldType = 'SQL.Aliased';
+
+			const q = sql`${table}.${sql.identifier(field.fieldAlias)}`;
+			output = sql`${decoderColumn ? this.codecs.apply(decoderColumn, inJson ? 'castInJson' : 'cast', q) : q} as ${
+				sql.identifier(key)
+			}`;
+		} else if (is(field, Subquery)) {
+			const innerField = Object.values(field._.selectedFields)[0];
+
+			if (is(innerField, Column)) {
+				decoderColumn = innerField;
+				subqueryDecoder = innerField;
+			} else if (is(innerField, SQL.Aliased)) {
+				decoderColumn = getColumnFromDecoder(innerField);
+				subqueryDecoder = innerField.sql.decoder;
+			} else if (is(innerField, SQL)) {
+				decoderColumn = getColumnFromDecoder(innerField);
+				subqueryDecoder = innerField.decoder;
+			}
+			fieldType = 'Subquery';
+
+			const q = sql`${table}.${sql.identifier(field._.alias)}`;
+			output = sql`${decoderColumn ? this.codecs.apply(decoderColumn, inJson ? 'castInJson' : 'cast', q) : q} as ${
+				sql.identifier(key)
+			}`;
+		} else if (isSQLWrapper(field)) {
+			const query = (field as SQLWrapper).getSQL();
+			decoderColumn = is(query.decoder, Column) ? query.decoder : undefined;
+			fieldType = 'SQLWrapper';
+
+			const q = sql`${table}.${sql.identifier(key)}`;
+			output = sql`${decoderColumn ? this.codecs.apply(decoderColumn, inJson ? 'castInJson' : 'cast', q) : q} as ${
+				sql.identifier(key)
+			}`;
+		} else {
+			throw new DrizzleError({
+				message: field === undefined
+					? `Unknown column: "${tableTsName}"."${key}"`
+					: `Views and subqueries with nested selections are not supported by the relational query builder`,
+			});
+		}
+
+		selection.push(
+			(decoderColumn
+				? {
+					key,
+					field,
+					fieldType,
+					subqueryDecoder,
+					codec: !inJson || !(<SingleStoreCustomColumn<any>> decoderColumn).mapFromJsonValue
+						? this.codecs.get(decoderColumn, inJson ? 'normalizeInJson' : 'normalize')
+						: undefined,
+				}
+				: {
+					key,
+					field,
+					fieldType,
+					subqueryDecoder,
+				}) as BuildRelationalQueryResult['selection'][number],
+		);
+
+		return output;
+	}
+
+	private getSelectedTableColumns = (
+		table: SchemaEntry,
+		columns: Record<string, boolean | undefined>,
+	) => {
+		const selectedColumns: ColumnWithTSName[] = [];
+		const columnContainer = table[TableColumns];
+		const entries = Object.entries(columns);
+
+		let colSelectionMode: boolean | undefined;
+		for (const [k, v] of entries) {
+			if (v === undefined) continue;
+			colSelectionMode = colSelectionMode || v;
+
+			if (v) {
+				const column = columnContainer[k]!;
+
+				selectedColumns.push({
+					column: column as Column | SQL | SQLWrapper | SQL.Aliased,
+					tsName: k,
+				});
+			}
+		}
+
+		if (colSelectionMode === false) {
+			for (const [k, v] of Object.entries(columnContainer)) {
+				if (columns[k] === false) continue;
+
+				selectedColumns.push({
+					column: v as Column | SQL | SQLWrapper | SQL.Aliased | Table,
+					tsName: k,
+				});
+			}
+		}
+
+		return selectedColumns;
+	};
+
+	private buildColumns = (
+		table: SchemaEntry,
+		selection: BuildRelationalQueryResult['selection'],
+		inJson: boolean,
+		tableTsName: string,
+		config?: DBQueryConfig<'many'>,
+	) => {
+		if (!config?.columns) {
+			return sql.join(
+				Object.entries(table[TableColumns]).map(([k, v]) => {
+					return this.buildRqbColumn(table, v, k, inJson, selection, tableTsName);
+				}),
+				new StringChunk(', '),
+			);
+		}
+
+		const columnIdentifiers: SQL[] = [];
+		const selectedColumns = this.getSelectedTableColumns(
+			table,
+			config.columns,
+		);
+
+		for (const { column, tsName } of selectedColumns) {
+			columnIdentifiers.push(this.buildRqbColumn(table, column, tsName, inJson, selection, tableTsName));
+		}
+
+		return columnIdentifiers.length
+			? sql.join(columnIdentifiers, new StringChunk(', '))
+			: undefined;
+	};
+
 	buildRelationalQuery({
-		fullSchema,
 		schema,
-		tableNamesMap,
 		table,
 		tableConfig,
 		queryConfig: config,
-		tableAlias,
-		nestedQueryRelation,
-		joinOn,
+		relationWhere,
+		mode,
+		errorPath,
+		depth,
+		isNestedMany,
+		throughJoin,
+		nested,
+		withSubqueries,
 	}: {
-		fullSchema: Record<string, unknown>;
 		schema: TablesRelationalConfig;
-		tableNamesMap: Record<string, string>;
-		table: SingleStoreTable;
+		table: SchemaEntry;
 		tableConfig: TableRelationalConfig;
-		queryConfig: true | DBQueryConfig<'many', true>;
-		tableAlias: string;
-		nestedQueryRelation?: Relation;
-		joinOn?: SQL;
-	}): BuildRelationalQueryResult<SingleStoreTable, SingleStoreColumn> {
-		let selection: BuildRelationalQueryResult<SingleStoreTable, SingleStoreColumn>['selection'] = [];
-		let limit, offset, orderBy: SingleStoreSelectConfig['orderBy'], where;
-		const joins: SingleStoreSelectJoinConfig[] = [];
+		queryConfig?: DBQueryConfig<'many'> | true;
+		relationWhere?: SQL;
+		mode: 'first' | 'many';
+		errorPath?: string;
+		depth?: number;
+		isNestedMany?: boolean;
+		throughJoin?: SQL;
+		nested?: boolean;
+		withSubqueries?: RelationalWithSubqueries;
+	}): BuildRelationalQueryResultWithOrder {
+		const selection: BuildRelationalQueryResult['selection'] = [];
+		const isSingle = mode === 'first';
+		const params = config === true ? undefined : config;
+		const currentPath = errorPath ?? '';
+		const currentDepth = depth ?? 0;
+		const subqueries: RelationalWithSubqueries = withSubqueries ?? new Map();
+		if (!currentDepth) {
+			collectRelationalSubquery(subqueries, table);
+			table = aliasedTable(table, `d${currentDepth}`);
+		}
 
-		if (config === true) {
-			const selectionEntries = Object.entries(tableConfig.columns);
-			selection = selectionEntries.map((
-				[key, value],
-			) => ({
-				dbKey: value.name,
-				tsKey: key,
-				field: aliasedTableColumn(value as SingleStoreColumn, tableAlias),
-				relationTableTsKey: undefined,
-				isJson: false,
-				selection: [],
-			}));
-		} else {
-			const aliasedColumns = Object.fromEntries(
-				Object.entries(tableConfig.columns).map(([key, value]) => [key, aliasedTableColumn(value, tableAlias)]),
-			);
+		const limit = isSingle ? 1 : params?.limit;
+		const offset = params?.offset;
 
-			if (config.where) {
-				const whereSql = typeof config.where === 'function'
-					? config.where(aliasedColumns, getOperators())
-					: config.where;
-				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
-			}
+		const columns = this.buildColumns(table, selection, !!nested, tableConfig.name, params);
 
-			const fieldsSelection: { tsKey: string; value: SingleStoreColumn | SQL.Aliased }[] = [];
-			let selectedColumns: string[] = [];
-
-			// Figure out which columns to select
-			if (config.columns) {
-				let isIncludeMode = false;
-
-				for (const [field, value] of Object.entries(config.columns)) {
-					if (value === undefined) {
-						continue;
-					}
-
-					if (field in tableConfig.columns) {
-						if (!isIncludeMode && value === true) {
-							isIncludeMode = true;
-						}
-						selectedColumns.push(field);
-					}
-				}
-
-				if (selectedColumns.length > 0) {
-					selectedColumns = isIncludeMode
-						? selectedColumns.filter((c) => config.columns?.[c] === true)
-						: Object.keys(tableConfig.columns).filter((key) => !selectedColumns.includes(key));
-				}
-			} else {
-				// Select all columns if selection is not specified
-				selectedColumns = Object.keys(tableConfig.columns);
-			}
-
-			for (const field of selectedColumns) {
-				const column = tableConfig.columns[field]! as SingleStoreColumn;
-				fieldsSelection.push({ tsKey: field, value: column });
-			}
-
-			let selectedRelations: {
-				tsKey: string;
-				queryConfig: true | DBQueryConfig<'many', false>;
-				relation: Relation;
-			}[] = [];
-
-			// Figure out which relations to select
-			if (config.with) {
-				selectedRelations = Object.entries(config.with)
-					.filter((entry): entry is [typeof entry[0], NonNullable<typeof entry[1]>] => !!entry[1])
-					.map(([tsKey, queryConfig]) => ({ tsKey, queryConfig, relation: tableConfig.relations[tsKey]! }));
-			}
-
-			let extras;
-
-			// Figure out which extras to select
-			if (config.extras) {
-				extras = typeof config.extras === 'function'
-					? config.extras(aliasedColumns, { sql })
-					: config.extras;
-				for (const [tsKey, value] of Object.entries(extras)) {
-					fieldsSelection.push({
-						tsKey,
-						value: mapColumnsInAliasedSQLToAlias(value, tableAlias),
-					});
-				}
-			}
-
-			// Transform `fieldsSelection` into `selection`
-			// `fieldsSelection` shouldn't be used after this point
-			for (const { tsKey, value } of fieldsSelection) {
-				selection.push({
-					dbKey: is(value, SQL.Aliased) ? value.fieldAlias : tableConfig.columns[tsKey]!.name,
-					tsKey,
-					field: is(value, Column) ? aliasedTableColumn(value, tableAlias) : value,
-					relationTableTsKey: undefined,
-					isJson: false,
-					selection: [],
-				});
-			}
-
-			let orderByOrig = typeof config.orderBy === 'function'
-				? config.orderBy(aliasedColumns, getOrderByOperators())
-				: config.orderBy ?? [];
-			if (!Array.isArray(orderByOrig)) {
-				orderByOrig = [orderByOrig];
-			}
-			orderBy = orderByOrig.map((orderByValue) => {
-				if (is(orderByValue, Column)) {
-					return aliasedTableColumn(orderByValue, tableAlias) as SingleStoreColumn;
-				}
-				return mapColumnsInSQLToAlias(orderByValue, tableAlias);
-			});
-
-			limit = config.limit;
-			offset = config.offset;
-
-			// Process all relations
-			for (
-				const {
-					tsKey: selectedRelationTsKey,
-					queryConfig: selectedRelationConfigValue,
-					relation,
-				} of selectedRelations
-			) {
-				const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
-				const relationTableName = getTableUniqueName(relation.referencedTable);
-				const relationTableTsName = tableNamesMap[relationTableName]!;
-				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
-				const joinOn = and(
-					...normalizedRelation.fields.map((field, i) =>
-						eq(
-							aliasedTableColumn(normalizedRelation.references[i]!, relationTableAlias),
-							aliasedTableColumn(field, tableAlias),
-						)
-					),
-				);
-				const builtRelation = this.buildRelationalQuery({
-					fullSchema,
+		const where: SQL | undefined = params && 'where' in params && relationWhere
+			? and(
+				relationsFilterToSQL(
+					table,
+					params.where,
+					tableConfig.relations,
 					schema,
-					tableNamesMap,
-					table: fullSchema[relationTableTsName] as SingleStoreTable,
-					tableConfig: schema[relationTableTsName]!,
-					queryConfig: is(relation, One)
-						? (selectedRelationConfigValue === true
-							? { limit: 1 }
-							: { ...selectedRelationConfigValue, limit: 1 })
-						: selectedRelationConfigValue,
-					tableAlias: relationTableAlias,
-					joinOn,
-					nestedQueryRelation: relation,
-				});
-				const field = sql`${sql.identifier(relationTableAlias)}.${sql.identifier('data')}`.as(selectedRelationTsKey);
-				joins.push({
-					on: sql`true`,
-					table: new Subquery(builtRelation.sql as SQL, {}, relationTableAlias),
-					alias: relationTableAlias,
-					joinType: 'left',
-					lateral: true,
-				});
-				selection.push({
-					dbKey: selectedRelationTsKey,
-					tsKey: selectedRelationTsKey,
-					field,
-					relationTableTsKey: relationTableTsName,
-					isJson: true,
-					selection: builtRelation.selection,
-				});
+					subqueries,
+				),
+				relationWhere,
+			)
+			: params && 'where' in params
+			? relationsFilterToSQL(
+				table,
+				params.where,
+				tableConfig.relations,
+				schema,
+				subqueries,
+			)
+			: relationWhere;
+		const order = params?.orderBy
+			? relationsOrderToSQL(table, params.orderBy)
+			: undefined;
+		const extras = params?.extras
+			? relationExtrasToSQL(table, params.extras, this.codecs, nested)
+			: undefined;
+		if (extras) selection.push(...extras.selection);
+
+		const selectionArr: SQL[] = columns ? [columns] : [];
+		if (extras?.sql) selectionArr.push(extras.sql);
+
+		let joins: SQL | undefined;
+		switch (params) {
+			case undefined:
+				break;
+			default: {
+				const { with: withParam } = params as WithContainer;
+				if (!withParam) break;
+
+				const withEntries = Object.entries(withParam).filter(([_, v]) => v);
+				if (!withEntries.length) break;
+
+				const joinChunks: SQLChunk[] = new Array(withEntries.length * 2);
+				joinChunks[0] = new StringChunk(' ');
+
+				for (let readIdx = 0, writeIdx = 1; readIdx < withEntries.length; ++readIdx) {
+					const [k, join] = withEntries[readIdx]!;
+
+					const relation = tableConfig.relations[k];
+					if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
+					const isSingle = relation.relationType === 'one';
+					selectionArr.push(
+						isSingle
+							? sql`${sql.identifier(k)}.${sql.identifier('r')} as ${sql.identifier(k)}`
+							: sql`coalesce(${sql.identifier(k)}.${sql.identifier('r')}, json_build_array()) as ${
+								sql.identifier(
+									k,
+								)
+							}`,
+					);
+					collectRelationalSubquery(subqueries, relation.targetTable);
+					collectRelationalSubquery(subqueries, relation.throughTable);
+
+					const targetTable = aliasedTable(
+						relation.targetTable,
+						`d${currentDepth + 1}`,
+					);
+					const throughTable = relation.throughTable
+						? aliasedTable(relation.throughTable, `tr${currentDepth}`)
+						: undefined;
+
+					const { filter, joinCondition } = relationToSQL(
+						relation,
+						table,
+						targetTable,
+						throughTable,
+					);
+
+					const throughJoin = throughTable
+						? sql` inner join ${getTableAsAliasSQL(throughTable)} on ${joinCondition!}`
+						: undefined;
+
+					const innerQuery = this.buildRelationalQuery({
+						table: targetTable,
+						mode: isSingle ? 'first' : 'many',
+						schema,
+						queryConfig: join as DBQueryConfig,
+						tableConfig: schema[relation.targetTableName]!,
+						relationWhere: filter,
+						errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
+						depth: currentDepth + 1,
+						withSubqueries: subqueries,
+						isNestedMany: !isSingle,
+						throughJoin,
+						nested: true,
+					});
+
+					selection.push({
+						field: targetTable,
+						fieldType: 'Nested',
+						key: k,
+						selection: innerQuery.selection,
+						isArray: !isSingle,
+						isOptional: ((relation as AnyOne).optional ?? false)
+							|| (join !== true
+								&& !!(join as Exclude<typeof join, boolean | undefined>)
+									.where),
+					});
+
+					const jsonColumns = sql.join(
+						innerQuery.selection.map(
+							(s) => sql`${new StringChunk(this.escapeString(s.key))}, ${sql.identifier(s.key)}`,
+						),
+						new StringChunk(', '),
+					);
+
+					const joinQuery = sql`left join lateral(select ${sql`${
+						isSingle
+							? sql`json_build_object(${jsonColumns})`
+							: sql`json_agg(json_build_object(${jsonColumns})${
+								innerQuery.order
+									? sql` ORDER BY ${sql.identifier(`$drizzle_order_row_number`)}`
+									: undefined
+							})`
+					} as ${sql.identifier('r')}`} from (${innerQuery.sql}) as ${sql.identifier('t')}) as ${
+						sql.identifier(
+							k,
+						)
+					} on true`;
+
+					joinChunks[writeIdx++] = joinQuery;
+					if (readIdx < withEntries.length - 1) joinChunks[writeIdx++] = new StringChunk(' ');
+				}
+
+				joins = new SQL(joinChunks);
+
+				break;
 			}
 		}
 
-		if (selection.length === 0) {
-			throw new DrizzleError({ message: `No fields selected for table "${tableConfig.tsName}" ("${tableAlias}")` });
-		}
-
-		let result;
-
-		where = and(joinOn, where);
-
-		if (nestedQueryRelation) {
-			let field = sql`JSON_TO_ARRAY(${
-				sql.join(
-					selection.map(({ field, tsKey, isJson }) =>
-						isJson
-							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
-							: is(field, SQL.Aliased)
-							? field.sql
-							: field
-					),
-					sql`, `,
-				)
-			})`;
-			if (is(nestedQueryRelation, Many)) {
-				field = sql`json_agg(${field})`;
-			}
-			const nestedSelection = [{
-				dbKey: 'data',
-				tsKey: 'data',
-				field: field.as('data'),
-				isJson: true,
-				relationTableTsKey: tableConfig.tsName,
-				selection,
-			}];
-
-			const needsSubquery = limit !== undefined || offset !== undefined || (orderBy?.length ?? 0) > 0;
-
-			if (needsSubquery) {
-				result = this.buildSelectQuery({
-					table: aliasedTable(table, tableAlias),
-					fields: {},
-					fieldsFlat: [
-						{
-							path: [],
-							field: sql.raw('*'),
-						},
-						...(((orderBy?.length ?? 0) > 0)
-							? [{
-								path: [],
-								field: sql`row_number() over (order by ${sql.join(orderBy!, sql`, `)})`,
-							}]
-							: []),
-					],
-					where,
-					limit,
-					offset,
-					setOperators: [],
-				});
-
-				where = undefined;
-				limit = undefined;
-				offset = undefined;
-				orderBy = undefined;
-			} else {
-				result = aliasedTable(table, tableAlias);
-			}
-
-			result = this.buildSelectQuery({
-				table: is(result, SingleStoreTable) ? result : new Subquery(result, {}, tableAlias),
-				fields: {},
-				fieldsFlat: nestedSelection.map(({ field }) => ({
-					path: [],
-					field: is(field, Column) ? aliasedTableColumn(field, tableAlias) : field,
-				})),
-				joins,
-				where,
-				limit,
-				offset,
-				orderBy,
-				setOperators: [],
+		if (!selectionArr.length) {
+			throw new DrizzleError({
+				message: `No fields selected for table "${tableConfig.name}"${currentPath ? ` ("${currentPath}")` : ''}`,
 			});
-		} else {
-			result = this.buildSelectQuery({
-				table: aliasedTable(table, tableAlias),
-				fields: {},
-				fieldsFlat: selection.map(({ field }) => ({
-					path: [],
-					field: is(field, Column) ? aliasedTableColumn(field, tableAlias) : field,
-				})),
-				joins,
-				where,
-				limit,
-				offset,
-				orderBy,
-				setOperators: [],
-			});
 		}
+
+		if (isNestedMany && order) {
+			selectionArr.push(
+				sql`row_number() over (order by ${order}) as ${sql.identifier(`$drizzle_order_row_number`)}`,
+			);
+		}
+		const selectionSet = sql.join(selectionArr, new StringChunk(', '));
+
+		const withSql = currentDepth ? undefined : this.buildWithCTE([...subqueries.values()]);
+		const query = sql`${withSql}select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${joins}${
+			sql` where ${where}`.if(
+				where,
+			)
+		}${sql` order by ${order}`.if(order)}${sql` limit ${limit}`.if(limit !== undefined)}${
+			sql` offset ${offset}`.if(
+				offset !== undefined,
+			)
+		}`;
 
 		return {
-			tableTsKey: tableConfig.tsName,
-			sql: result,
+			sql: query,
 			selection,
+			order,
 		};
 	}
 }

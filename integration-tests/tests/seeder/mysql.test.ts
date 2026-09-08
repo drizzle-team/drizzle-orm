@@ -1,46 +1,14 @@
-import Docker from 'dockerode';
 import { sql } from 'drizzle-orm';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { drizzle } from 'drizzle-orm/mysql2';
 import { reset, seed } from 'drizzle-seed';
-import getPort from 'get-port';
 import type { Connection } from 'mysql2/promise';
 import { createConnection } from 'mysql2/promise';
-import { v4 as uuid } from 'uuid';
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
-import * as schema from './mysqlSchema.ts';
+import * as schema from './mysqlSchema';
 
-let mysqlContainer: Docker.Container;
 let client: Connection;
 let db: MySql2Database;
-
-async function createDockerDB(): Promise<string> {
-	const docker = new Docker();
-	const port = await getPort({ port: 3306 });
-	const image = 'mysql:8';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-		docker.modem.followProgress(pullStream, (err) => err ? reject(err) : resolve(err))
-	);
-
-	mysqlContainer = await docker.createContainer({
-		Image: image,
-		Env: ['MYSQL_ROOT_PASSWORD=mysql', 'MYSQL_DATABASE=drizzle'],
-		name: `drizzle-integration-tests-${uuid()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'3306/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await mysqlContainer.start();
-
-	return `mysql://root:mysql@127.0.0.1:${port}/drizzle`;
-}
 
 const createNorthwindTables = async () => {
 	await db.execute(
@@ -246,7 +214,12 @@ const createAllGeneratorsTables = async () => {
 };
 
 beforeAll(async () => {
-	const connectionString = await createDockerDB();
+	const connectionString = process.env['MYSQL_CONNECTION_STRING'];
+	if (!connectionString) {
+		throw new Error(
+			'MYSQL_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up mysql` and export the connection string before running tests.',
+		);
+	}
 
 	const sleep = 1000;
 	let timeLeft = 40000;
@@ -256,7 +229,7 @@ beforeAll(async () => {
 		try {
 			client = await createConnection(connectionString);
 			await client.connect();
-			db = drizzle(client);
+			db = drizzle({ client });
 			connected = true;
 			break;
 		} catch (e) {
@@ -268,7 +241,6 @@ beforeAll(async () => {
 	if (!connected) {
 		console.error('Cannot connect to MySQL');
 		await client?.end().catch(console.error);
-		await mysqlContainer?.stop().catch(console.error);
 		throw lastError;
 	}
 
@@ -279,7 +251,6 @@ beforeAll(async () => {
 
 afterAll(async () => {
 	await client?.end().catch(console.error);
-	await mysqlContainer?.stop().catch(console.error);
 });
 
 afterEach(async () => {

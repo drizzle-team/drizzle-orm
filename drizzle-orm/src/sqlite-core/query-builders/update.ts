@@ -1,17 +1,15 @@
 import type { GetColumnData } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { JoinType, SelectResultFields } from '~/query-builders/select.types.ts';
-import { QueryPromise } from '~/query-promise.ts';
-import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
-import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
+import type { SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
-import { Table } from '~/table.ts';
+import { type InferInsertModel, Table } from '~/table.ts';
 import {
-	type DrizzleTypeError,
+	type Assume,
 	getTableLikeName,
 	mapUpdateSet,
 	orderSelectedFields,
@@ -33,22 +31,37 @@ export interface SQLiteUpdateConfig {
 	joins: SQLiteSelectJoinConfig[];
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
+	ignoreSelectionCastCodecs?: boolean;
 }
 
-export type SQLiteUpdateSetSource<TTable extends SQLiteTable> =
+export type SQLiteUpdateSetSource<
+	TTable extends SQLiteTable,
+	TModel extends Record<string, any> = InferInsertModel<TTable>,
+> =
 	& {
-		[Key in keyof TTable['$inferInsert']]?:
+		[Key in keyof TModel & string]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
 			| SQL
 			| SQLiteColumn
+			| Placeholder
 			| undefined;
 	}
 	& {};
 
+export interface SQLiteUpdateBuilderConstructor {
+	new(
+		table: SQLiteTable,
+		set: UpdateSet,
+		session: SQLiteSession<any, any>,
+		dialect: SQLiteDialect,
+		withList?: Subquery[],
+	): AnySQLiteUpdate;
+}
+
 export class SQLiteUpdateBuilder<
 	TTable extends SQLiteTable,
-	TResultType extends 'sync' | 'async',
 	TRunResult,
+	THKT extends SQLiteUpdateHKTBase = SQLiteUpdateQueryBuilderHKT,
 > {
 	static readonly [entityKind]: string = 'SQLiteUpdateBuilder';
 
@@ -58,19 +71,20 @@ export class SQLiteUpdateBuilder<
 
 	constructor(
 		protected table: TTable,
-		protected session: SQLiteSession<any, any, any, any>,
+		protected session: SQLiteSession<any, any>,
 		protected dialect: SQLiteDialect,
 		private withList?: Subquery[],
+		private builder: SQLiteUpdateBuilderConstructor = SQLiteUpdateBase,
 	) {}
 
 	set(
 		values: SQLiteUpdateSetSource<TTable>,
 	): SQLiteUpdateWithout<
-		SQLiteUpdateBase<TTable, TResultType, TRunResult>,
+		Assume<SQLiteUpdateKind<THKT, TTable, TRunResult>, AnySQLiteUpdate>,
 		false,
 		'leftJoin' | 'rightJoin' | 'innerJoin' | 'fullJoin'
 	> {
-		return new SQLiteUpdateBase(
+		return new this.builder(
 			this.table,
 			mapUpdateSet(this.table, values),
 			this.session,
@@ -80,14 +94,56 @@ export class SQLiteUpdateBuilder<
 	}
 }
 
+export interface SQLiteUpdateHKTBase {
+	table: unknown;
+	resultType: unknown;
+	runResult: unknown;
+	from: unknown;
+	returning: unknown;
+	dynamic: boolean;
+	excludedMethods: string;
+	result: unknown;
+	_type: unknown;
+}
+
+export interface SQLiteUpdateQueryBuilderHKT extends SQLiteUpdateHKTBase {
+	_type: SQLiteUpdateBase<
+		SQLiteUpdateQueryBuilderHKT,
+		Assume<this['table'], SQLiteTable>,
+		this['runResult'],
+		Assume<this['from'], SQLiteTable | Subquery | SQLiteViewBase | SQL | undefined>,
+		this['returning'],
+		this['dynamic'],
+		this['excludedMethods']
+	>;
+}
+
+export type SQLiteUpdateKind<
+	T extends SQLiteUpdateHKTBase,
+	TTable extends SQLiteTable,
+	TRunResult,
+	TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL | undefined = undefined,
+	TReturning = undefined,
+	TDynamic extends boolean = false,
+	TExcludedMethods extends string = never,
+> = (T & {
+	table: TTable;
+	runResult: TRunResult;
+	from: TFrom;
+	returning: TReturning;
+	dynamic: TDynamic;
+	excludedMethods: TExcludedMethods;
+	result: TReturning extends undefined ? TRunResult : TReturning[];
+})['_type'];
+
 export type SQLiteUpdateWithout<
 	T extends AnySQLiteUpdate,
 	TDynamic extends boolean,
 	K extends keyof T & string,
 > = TDynamic extends true ? T : Omit<
-	SQLiteUpdateBase<
+	SQLiteUpdateKind<
+		T['_']['hkt'],
 		T['_']['table'],
-		T['_']['resultType'],
 		T['_']['runResult'],
 		T['_']['from'],
 		T['_']['returning'],
@@ -102,9 +158,9 @@ export type SQLiteUpdateWithJoins<
 	TDynamic extends boolean,
 	TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL,
 > = TDynamic extends true ? T : Omit<
-	SQLiteUpdateBase<
+	SQLiteUpdateKind<
+		T['_']['hkt'],
 		T['_']['table'],
-		T['_']['resultType'],
 		T['_']['runResult'],
 		TFrom,
 		T['_']['returning'],
@@ -115,9 +171,9 @@ export type SQLiteUpdateWithJoins<
 >;
 
 export type SQLiteUpdateReturningAll<T extends AnySQLiteUpdate, TDynamic extends boolean> = SQLiteUpdateWithout<
-	SQLiteUpdateBase<
+	SQLiteUpdateKind<
+		T['_']['hkt'],
 		T['_']['table'],
-		T['_']['resultType'],
 		T['_']['runResult'],
 		T['_']['from'],
 		T['_']['table']['$inferSelect'],
@@ -133,9 +189,9 @@ export type SQLiteUpdateReturning<
 	TDynamic extends boolean,
 	TSelectedFields extends SelectedFields,
 > = SQLiteUpdateWithout<
-	SQLiteUpdateBase<
+	SQLiteUpdateKind<
+		T['_']['hkt'],
 		T['_']['table'],
-		T['_']['resultType'],
 		T['_']['runResult'],
 		T['_']['from'],
 		SelectResultFields<TSelectedFields>,
@@ -144,23 +200,6 @@ export type SQLiteUpdateReturning<
 	>,
 	TDynamic,
 	'returning'
->;
-
-export type SQLiteUpdateExecute<T extends AnySQLiteUpdate> = T['_']['returning'] extends undefined ? T['_']['runResult']
-	: T['_']['returning'][];
-
-export type SQLiteUpdatePrepare<T extends AnySQLiteUpdate> = SQLitePreparedQuery<
-	{
-		type: T['_']['resultType'];
-		run: T['_']['runResult'];
-		all: T['_']['returning'] extends undefined ? DrizzleTypeError<'.all() cannot be used without .returning()'>
-			: T['_']['returning'][];
-		get: T['_']['returning'] extends undefined ? DrizzleTypeError<'.get() cannot be used without .returning()'>
-			: T['_']['returning'];
-		values: T['_']['returning'] extends undefined ? DrizzleTypeError<'.values() cannot be used without .returning()'>
-			: any[][];
-		execute: SQLiteUpdateExecute<T>;
-	}
 >;
 
 export type SQLiteUpdateJoinFn<
@@ -182,36 +221,38 @@ export type SQLiteUpdateJoinFn<
 		| undefined,
 ) => T;
 
-export type SQLiteUpdateDynamic<T extends AnySQLiteUpdate> = SQLiteUpdate<
+export type SQLiteUpdateDynamic<T extends AnySQLiteUpdate> = SQLiteUpdateKind<
+	T['_']['hkt'],
 	T['_']['table'],
-	T['_']['resultType'],
 	T['_']['runResult'],
-	T['_']['returning']
+	T['_']['from'],
+	T['_']['returning'],
+	true,
+	never
 >;
 
 export type SQLiteUpdate<
 	TTable extends SQLiteTable = SQLiteTable,
-	TResultType extends 'sync' | 'async' = 'sync' | 'async',
 	TRunResult = any,
 	TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL | undefined = undefined,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
-> = SQLiteUpdateBase<TTable, TResultType, TRunResult, TFrom, TReturning, true, never>;
+> = SQLiteUpdateBase<SQLiteUpdateQueryBuilderHKT, TTable, TRunResult, TFrom, TReturning, true, never>;
 
 export type AnySQLiteUpdate = SQLiteUpdateBase<any, any, any, any, any, any, any>;
 
 export interface SQLiteUpdateBase<
+	THKT extends SQLiteUpdateHKTBase,
 	TTable extends SQLiteTable = SQLiteTable,
-	TResultType extends 'sync' | 'async' = 'sync' | 'async',
 	TRunResult = unknown,
 	TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL | undefined = undefined,
 	TReturning = undefined,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-> extends SQLWrapper, QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]> {
+> extends SQLWrapper {
 	readonly _: {
 		readonly dialect: 'sqlite';
+		readonly hkt: THKT;
 		readonly table: TTable;
-		readonly resultType: TResultType;
 		readonly runResult: TRunResult;
 		readonly from: TFrom;
 		readonly returning: TReturning;
@@ -222,20 +263,19 @@ export interface SQLiteUpdateBase<
 }
 
 export class SQLiteUpdateBase<
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	THKT extends SQLiteUpdateHKTBase,
 	TTable extends SQLiteTable = SQLiteTable,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TResultType extends 'sync' | 'async' = 'sync' | 'async',
 	TRunResult = unknown,
 	TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL | undefined = undefined,
-	TReturning = undefined,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TReturning = undefined,
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]>
-	implements RunnableQuery<TReturning extends undefined ? TRunResult : TReturning[], 'sqlite'>, SQLWrapper
-{
-	static override readonly [entityKind]: string = 'SQLiteUpdate';
+> implements SQLWrapper {
+	static readonly [entityKind]: string = 'SQLiteUpdate';
 
 	/** @internal */
 	config: SQLiteUpdateConfig;
@@ -243,11 +283,10 @@ export class SQLiteUpdateBase<
 	constructor(
 		table: TTable,
 		set: UpdateSet,
-		private session: SQLiteSession<any, any, any, any>,
-		private dialect: SQLiteDialect,
+		protected session: SQLiteSession<any, any>,
+		protected dialect: SQLiteDialect,
 		withList?: Subquery[],
 	) {
-		super();
 		this.config = { set, table, withList, joins: [] };
 	}
 
@@ -405,52 +444,22 @@ export class SQLiteUpdateBase<
 	returning(
 		fields: SelectedFields = this.config.table[SQLiteTable.Symbol.Columns],
 	): SQLiteUpdateWithout<AnySQLiteUpdate, TDynamic, 'returning'> {
-		this.config.returning = orderSelectedFields<SQLiteColumn>(fields);
+		this.config.returning = orderSelectedFields<SQLiteColumn>(fields, undefined, this.dialect.codecs);
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildUpdateQuery(this.config);
 	}
 
 	toSQL(): Query {
-		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		return rest;
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	/** @internal */
-	_prepare(isOneTimeQuery = true): SQLiteUpdatePrepare<this> {
-		return this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
-			this.dialect.sqlToQuery(this.getSQL()),
-			this.config.returning,
-			this.config.returning ? 'all' : 'run',
-			true,
-		) as SQLiteUpdatePrepare<this>;
-	}
-
-	prepare(): SQLiteUpdatePrepare<this> {
-		return this._prepare(false);
-	}
-
-	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
-		return this._prepare().run(placeholderValues);
-	};
-
-	all: ReturnType<this['prepare']>['all'] = (placeholderValues) => {
-		return this._prepare().all(placeholderValues);
-	};
-
-	get: ReturnType<this['prepare']>['get'] = (placeholderValues) => {
-		return this._prepare().get(placeholderValues);
-	};
-
-	values: ReturnType<this['prepare']>['values'] = (placeholderValues) => {
-		return this._prepare().values(placeholderValues);
-	};
-
-	override async execute(): Promise<SQLiteUpdateExecute<this>> {
-		return (this.config.returning ? this.all() : this.run()) as SQLiteUpdateExecute<this>;
+	withoutSelectionCastCodecs() {
+		this.config.ignoreSelectionCastCodecs = true;
+		return this;
 	}
 
 	$dynamic(): SQLiteUpdateDynamic<this> {

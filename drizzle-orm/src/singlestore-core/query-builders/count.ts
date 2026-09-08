@@ -9,7 +9,7 @@ export class SingleStoreCountBuilder<
 > extends SQL<number> implements Promise<number>, SQLWrapper {
 	private sql: SQL<number>;
 
-	static override readonly [entityKind] = 'SingleStoreCountBuilder';
+	static override readonly [entityKind]: string = 'SingleStoreCountBuilder';
 	[Symbol.toStringTag] = 'SingleStoreCountBuilder';
 
 	private session: TSession;
