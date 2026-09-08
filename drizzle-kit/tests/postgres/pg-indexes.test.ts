@@ -814,3 +814,29 @@ test('issue #5792', async () => {
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6079
+test('Issue No6079', async () => {
+	await db.query(`CREATE EXTENSION IF NOT EXISTS vector;`);
+
+	const schema = {
+		table: pgTable('readings', {
+			id: text('id').primaryKey(),
+			embedding: vector('embedding', { dimensions: 1536 }),
+		}, (t) => [
+			index('chunk_embedding_hnsw_idx')
+				.using('hnsw', t.embedding.op('vector_cosine_ops'))
+				.with({ m: 24, ef_construction: 128 }),
+		]),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
+
+	const expectedSt1 = [
+		'CREATE TABLE "readings" (\n\t"id" text PRIMARY KEY,\n\t"embedding" vector(1536)\n);\n',
+		'CREATE INDEX "chunk_embedding_hnsw_idx" ON "readings" USING hnsw ("embedding" vector_cosine_ops) WITH (m=24, ef_construction=128);',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+});
