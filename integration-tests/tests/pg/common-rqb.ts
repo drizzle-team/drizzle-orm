@@ -10,6 +10,7 @@ import {
 	numeric,
 	pgEnum,
 	pgTable,
+	QueryBuilder,
 	serial,
 	text,
 	timestamp,
@@ -1151,6 +1152,80 @@ export function tests(test: Test) {
 			};
 			expect(throwFunc2).toThrowError(
 				/.+all "from" columns must belong to table "users", found column of table "blogs"$/,
+			);
+		});
+
+		test.concurrent('RQB v2 defineRelations partial ".through" error', () => {
+			const users = pgTable('users', { id: integer().primaryKey() });
+			const groups = pgTable('groups', { id: integer().primaryKey() });
+			const usersToGroups = pgTable('users_to_groups', { userId: integer(), groupId: integer() });
+
+			const throughOnFromOnly = () => {
+				defineRelations({ users, groups, usersToGroups }, (r) => ({
+					users: {
+						groups: r.many.groups({
+							from: r.users.id.through(r.usersToGroups.userId),
+							to: r.groups.id,
+						}),
+					},
+				}));
+			};
+			expect(throughOnFromOnly).toThrowError(
+				/.+".through\(column\)" must be used either on all columns in "from" and "to" or not defined on any of them$/,
+			);
+
+			const throughOnToOnly = () => {
+				defineRelations({ users, groups, usersToGroups }, (r) => ({
+					users: {
+						groups: r.many.groups({
+							from: r.users.id,
+							to: r.groups.id.through(r.usersToGroups.groupId),
+						}),
+					},
+				}));
+			};
+			expect(throughOnToOnly).toThrowError(
+				/.+".through\(column\)" must be used either on all columns in "from" and "to" or not defined on any of them$/,
+			);
+
+			const throughOnSomeColumns = () => {
+				const composite = pgTable('composite', { a: integer(), b: integer() });
+				const compositeJoin = pgTable('composite_join', { a: integer(), b: integer() });
+
+				defineRelations({ users, composite, compositeJoin }, (r) => ({
+					users: {
+						composite: r.many.composite({
+							from: [r.users.id.through(r.compositeJoin.a), r.users.id],
+							to: [r.composite.a.through(r.compositeJoin.a), r.composite.b.through(r.compositeJoin.b)],
+						}),
+					},
+				}));
+			};
+			expect(throughOnSomeColumns).toThrowError(
+				/.+".through\(column\)" must be used either on all columns in "from" and "to" or not defined on any of them$/,
+			);
+		});
+
+		test.concurrent('RQB v2 subquery alias collision error', ({ createDB }) => {
+			const users = pgTable('rqb_alias_users', { id: integer().primaryKey(), name: text() });
+			const posts = pgTable('rqb_alias_posts', { id: integer().primaryKey(), authorId: integer() });
+
+			const qb = new QueryBuilder();
+			const first = qb.select({ id: users.id, name: users.name }).from(users).as('user_source');
+			const second = qb.select({ id: users.id }).from(users).as('user_source');
+
+			const db = createDB({ first, second, posts }, (r) => ({
+				posts: {
+					author: r.one.first({ from: r.posts.authorId, to: r.first.id }),
+					owner: r.one.second({ from: r.posts.authorId, to: r.second.id }),
+				},
+			}));
+
+			const throwFunc = () =>
+				db.query.posts.findMany({ columns: { id: true }, with: { author: true, owner: true } }).toSQL();
+
+			expect(throwFunc).toThrowError(
+				/^Different subqueries with the same alias "user_source" are used in a single relational query.+$/,
 			);
 		});
 
