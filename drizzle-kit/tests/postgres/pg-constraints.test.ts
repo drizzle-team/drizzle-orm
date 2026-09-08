@@ -2777,6 +2777,7 @@ test('issue #5955', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/6193
+// https://github.com/drizzle-team/drizzle-orm/issues/6078
 test('Issue No6193. order in composite pks', async () => {
 	const to = {
 		table: pgTable('table', {
