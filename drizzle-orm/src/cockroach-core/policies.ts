@@ -12,11 +12,11 @@ export type CockroachPolicyToOption =
 	| CockroachRole;
 
 export interface CockroachPolicyConfig {
-	as?: 'permissive' | 'restrictive';
-	for?: 'all' | 'select' | 'insert' | 'update' | 'delete';
-	to?: CockroachPolicyToOption;
-	using?: SQL;
-	withCheck?: SQL;
+	as?: 'permissive' | 'restrictive' | undefined;
+	for?: 'all' | 'select' | 'insert' | 'update' | 'delete' | undefined;
+	to?: CockroachPolicyToOption | undefined;
+	using?: SQL | undefined;
+	withCheck?: SQL | undefined;
 }
 
 export class CockroachPolicy implements CockroachPolicyConfig {

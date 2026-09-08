@@ -1,8 +1,8 @@
 import { entityKind } from '~/entity.ts';
 
 export interface CockroachRoleConfig {
-	createDb?: boolean;
-	createRole?: boolean;
+	createDb?: boolean | undefined;
+	createRole?: boolean | undefined;
 }
 
 export class CockroachRole implements CockroachRoleConfig {

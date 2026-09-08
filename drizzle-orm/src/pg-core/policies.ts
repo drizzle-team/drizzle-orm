@@ -13,11 +13,11 @@ export type PgPolicyToOption =
 	| PgRole;
 
 export interface PgPolicyConfig {
-	as?: 'permissive' | 'restrictive';
-	for?: 'all' | 'select' | 'insert' | 'update' | 'delete';
-	to?: PgPolicyToOption;
-	using?: SQL;
-	withCheck?: SQL;
+	as?: 'permissive' | 'restrictive' | undefined;
+	for?: 'all' | 'select' | 'insert' | 'update' | 'delete' | undefined;
+	to?: PgPolicyToOption | undefined;
+	using?: SQL | undefined;
+	withCheck?: SQL | undefined;
 }
 
 export class PgPolicy implements PgPolicyConfig {

@@ -1,9 +1,9 @@
 import { entityKind } from '~/entity.ts';
 
 export interface PgRoleConfig {
-	createDb?: boolean;
-	createRole?: boolean;
-	inherit?: boolean;
+	createDb?: boolean | undefined;
+	createRole?: boolean | undefined;
+	inherit?: boolean | undefined;
 }
 
 export class PgRole implements PgRoleConfig {
