@@ -5212,7 +5212,7 @@ export function tests(driver?: string) {
 				serial: 1,
 				bigint53: 9007199254740991,
 				bigint64: 5044565289845416380n,
-				binary: '1',
+				binary: Buffer.from('1'),
 				boolean: true,
 				char: 'c',
 				date: new Date(1741743161623),
@@ -5247,7 +5247,7 @@ export function tests(driver?: string) {
 					.slice(0, 19)
 					.replace('T', ' '),
 				tinyInt: 7,
-				varbin: '1010110101001101',
+				varbin: Buffer.from('1010110101001101'),
 				varchar: 'VCHAR',
 				year: 2025,
 			});
@@ -5258,7 +5258,7 @@ export function tests(driver?: string) {
 				serial: number;
 				bigint53: number | null;
 				bigint64: bigint | null;
-				binary: string | null;
+				binary: Buffer | null;
 				boolean: boolean | null;
 				char: string | null;
 				date: Date | null;
@@ -5280,7 +5280,7 @@ export function tests(driver?: string) {
 				timestamp: Date | null;
 				timestampStr: string | null;
 				tinyInt: number | null;
-				varbin: string | null;
+				varbin: Buffer | null;
 				varchar: string | null;
 				year: number | null;
 				enum: 'enV1' | 'enV2' | null;
@@ -5291,7 +5291,7 @@ export function tests(driver?: string) {
 					serial: 1,
 					bigint53: 9007199254740991,
 					bigint64: 5044565289845416380n,
-					binary: '1',
+					binary: Buffer.from('1'),
 					boolean: true,
 					char: 'c',
 					date: new Date('2025-03-12T00:00:00.000Z'),
@@ -5313,7 +5313,7 @@ export function tests(driver?: string) {
 					timestamp: new Date('2025-03-12T01:32:42.000Z'),
 					timestampStr: '2025-03-12 01:32:41',
 					tinyInt: 7,
-					varbin: '1010110101001101',
+					varbin: Buffer.from('1010110101001101'),
 					varchar: 'VCHAR',
 					year: 2025,
 					enum: 'enV1',
