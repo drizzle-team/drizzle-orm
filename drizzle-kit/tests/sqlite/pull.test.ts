@@ -760,6 +760,42 @@ test('Issue No3231', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 	expect(statements).toStrictEqual([]);
 });
+// implicit fks resolve to the target's pk columns, in pk order, not column order
+test('introspect implicit fk to composite pk', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	await db.run(`CREATE TABLE users(name text, tenant text, age integer, primary key(tenant, name));`);
+	await db.run(
+		`CREATE TABLE posts(user_tenant text, user_name text, foreign key(user_tenant, user_name) references users);`,
+	);
+
+	const schema = await fromDatabaseForDrizzle(db, () => true, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
+	const { ddl, errors } = interimToDDL(schema);
+
+	expect(errors.length).toBe(0);
+	expect(ddl.fks.list()).toStrictEqual([
+		{
+			table: 'posts',
+			columns: ['user_tenant', 'user_name'],
+			tableTo: 'users',
+			columnsTo: ['tenant', 'name'],
+			onUpdate: 'NO ACTION',
+			onDelete: 'NO ACTION',
+			nameExplicit: true,
+			name: 'fk_posts_user_tenant_user_name_users_tenant_name_fk',
+			entityType: 'fks',
+		},
+	]);
+
+	const { sqlStatements, statements } = await diffAfterPull(sqlite, {}, 'implicit-composite-fk');
+	expect(sqlStatements).toStrictEqual([]);
+	expect(statements).toStrictEqual([]);
+});
+
 test('Issue No3231 #2', async () => {
 	const sqlite = new Database(':memory:');
 	const db = dbFrom(sqlite);

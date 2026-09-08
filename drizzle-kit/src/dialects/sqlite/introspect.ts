@@ -249,11 +249,12 @@ export const fromDatabase = async (
 		name: string;
 	}>(
 		`SELECT * FROM sqlite_master WHERE name != 'sqlite_sequence' 
-    and name != 'sqlite_stat1' 
-    and name != '_litestream_seq' 
-    and name != '_litestream_lock' 
-    and tbl_name != '_cf_KV' 
-    and sql GLOB '*[ *' || CHAR(9) || CHAR(10) || CHAR(13) || ']AUTOINCREMENT[^'']*';`,
+			AND tbl_name NOT LIKE '\\_cf\\_%' ESCAPE '\\'
+			AND tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
+			AND tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
+			AND tbl_name NOT LIKE 'sqlite\\_%' ESCAPE '\\'
+			AND tbl_name NOT LIKE 'd1\\_%' ESCAPE '\\'
+			AND sql GLOB '*[ *' || CHAR(9) || CHAR(10) || CHAR(13) || ']AUTOINCREMENT[^'']*';`,
 	).then((tables) => {
 		queryCallback('tablesWithSequences', tables, null);
 		return tables.filter((it) => filter({ type: 'table', schema: false, name: it.name }));
@@ -273,23 +274,27 @@ export const fromDatabase = async (
 		cid: number;
 	}>(`
 		SELECT
-    m.tbl_name    AS "table",
-    il.name       AS "name",
-    idx.sql       AS "sql",
-    ii.name       AS "column",
-    il."unique"   AS "isUnique",
-    il."partial"  AS "isPartial",
-    il.origin     AS "origin",
-    ii.cid        AS "cid"
-FROM sqlite_master AS m
-JOIN pragma_index_list(m.name)  AS il
-JOIN pragma_index_info(il.name) AS ii
-LEFT JOIN sqlite_master AS idx
-       ON idx.type = 'index'
-      AND idx.name = il.name
-WHERE m.type = 'table'
-  AND m.tbl_name != '_cf_KV'
-ORDER BY m.name COLLATE NOCASE, il.seq, ii.seqno;
+			m.tbl_name    AS "table",
+			il.name       AS "name",
+			idx.sql       AS "sql",
+			ii.name       AS "column",
+			il."unique"   AS "isUnique",
+			il."partial"  AS "isPartial",
+			il.origin     AS "origin",
+			ii.cid        AS "cid"
+		FROM sqlite_master AS m
+		JOIN pragma_index_list(m.name)  AS il
+		JOIN pragma_index_info(il.name) AS ii
+		LEFT JOIN sqlite_master AS idx
+			ON idx.type = 'index'
+			AND idx.name = il.name
+		WHERE m.type = 'table'
+			AND m.tbl_name NOT LIKE '\\_cf\\_%' ESCAPE '\\'
+			AND m.tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
+			AND m.tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
+			AND m.tbl_name NOT LIKE 'sqlite\\_%' ESCAPE '\\'
+			AND m.tbl_name NOT LIKE 'd1\\_%' ESCAPE '\\'
+		ORDER BY m.name COLLATE NOCASE, il.seq, ii.seqno;
 	`).then((indexes) => {
 		queryCallback('indexes', indexes, null);
 		return indexes.filter((it) => filter({ type: 'table', schema: false, name: it.table }));
@@ -483,28 +488,26 @@ ORDER BY m.name COLLATE NOCASE, il.seq, ii.seqno;
 		seq: number;
 		id: number;
 	}>(
-		`WITH pks AS (
-		  SELECT m.name AS tbl, ti.name AS col, ti.pk AS pk
-		  FROM sqlite_master m
-		  JOIN pragma_table_info(m.name) ti
-		  WHERE m.type = 'table' AND ti.pk > 0
-		)
-		SELECT
-		  m.name                    AS "tableFrom",
-		  f.id                      AS "id",
-		  f."table"                 AS "tableTo",
-		  f."from"                  AS "from",
-		  f.seq                     AS "seq",
-		  COALESCE(f."to", p.col)   AS "to",
-		  f.on_update               AS "onUpdate",
-		  f.on_delete               AS "onDelete"
+		`SELECT
+		  m.name        AS "tableFrom",
+		  f.id          AS "id",
+		  f."table"     AS "tableTo",
+		  f."from"      AS "from",
+		  f.seq         AS "seq",
+		  -- implicit FKs have no "to", they reference the target's PK columns in order (pk is 1-based, seq is 0-based)
+		  COALESCE(f."to", (
+		    SELECT ti.name FROM pragma_table_info(f."table") ti WHERE ti.pk = f.seq + 1
+		  ))            AS "to",
+		  f.on_update   AS "onUpdate",
+		  f.on_delete   AS "onDelete"
 		FROM sqlite_master m
 		JOIN pragma_foreign_key_list(m.name) f
-		LEFT JOIN pks p
-		       ON p.tbl = f."table"
-		      AND p.pk  = f.seq + 1        -- pk is 1-based, seq is 0-based
 		WHERE m.type = 'table'
-		  AND m.name NOT LIKE 'sqlite_%'
+		  AND m.name NOT LIKE '\\_cf\\_%' ESCAPE '\\'
+		  AND m.name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
+		  AND m.name NOT LIKE 'libsql\\_%' ESCAPE '\\'
+		  AND m.name NOT LIKE 'sqlite\\_%' ESCAPE '\\'
+		  AND m.name NOT LIKE 'd1\\_%' ESCAPE '\\'
 		ORDER BY m.name, f.id, f.seq;`,
 	).then((fks) => {
 		queryCallback('fks', fks, null);
