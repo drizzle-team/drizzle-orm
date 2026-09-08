@@ -810,6 +810,52 @@ export function tests() {
 			}]);
 		});
 
+		test('left join with nested select where first column value is null', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.insert(usersTable).values([{ id: 1, name: 'John' }]).run();
+			await db.insert(users2Table).values([{ id: 1, name: 'John', cityId: null }]).run();
+
+			const result = await db
+				.select({
+					name: usersTable.name,
+					details: {
+						cityId: users2Table.cityId,
+						name: users2Table.name,
+					},
+				})
+				.from(usersTable)
+				.leftJoin(users2Table, eq(users2Table.id, usersTable.id))
+				.all();
+
+			expect(result).toEqual([{
+				name: 'John',
+				details: { cityId: null, name: 'John' },
+			}]);
+		});
+
+		test('left join with nested select where all column values are null', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.insert(usersTable).values([{ id: 1, name: 'John' }]).run();
+			await db.insert(users2Table).values([{ id: 1, name: 'John', cityId: null }]).run();
+
+			const result = await db
+				.select({
+					city: {
+						id: citiesTable.id,
+						name: citiesTable.name,
+					},
+				})
+				.from(users2Table)
+				.leftJoin(citiesTable, eq(citiesTable.id, users2Table.cityId))
+				.all();
+
+			expect(result).toEqual([{
+				city: null,
+			}]);
+		});
+
 		test('full join with alias', async (ctx) => {
 			const { db } = ctx.sqlite;
 
