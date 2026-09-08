@@ -1,7 +1,8 @@
 import mssql from 'mssql';
 import { describe, it } from 'vitest';
-import { alias, bit, castToText, int, snakeCase, text, union } from '~/mssql-core';
+import { alias, bit, castToText, int, QueryBuilder, snakeCase, text, union } from '~/mssql-core';
 import { drizzle, nodeMssqlCodecs } from '~/node-mssql';
+import { defineRelations } from '~/relations';
 import { asc, eq, sql } from '~/sql';
 
 const testSchema = snakeCase.schema('test');
@@ -27,6 +28,44 @@ const developers = testSchema.table('developers', {
 
 const devs = alias(developers, 'devs');
 const db = drizzle({ client: new mssql.ConnectionPool({ server: '' }) });
+
+const projects = snakeCase.table('projects', {
+	id: int().primaryKey(),
+	developerId: int(),
+	projectName: text(),
+});
+
+const usersView = snakeCase.view('users_view').as((qb) =>
+	qb.select({ id: users.id, firstName: users.firstName, lastName: users.lastName }).from(users)
+);
+
+const staff = new QueryBuilder().select({
+	id: users.id,
+	firstName: users.firstName,
+	role: sql<string>`upper(${users.lastName})`.as('user_role'),
+}).from(users).as('staff_members');
+
+const rqbRelations = defineRelations({ users, developers, projects, staff, usersView }, (r) => ({
+	users: {
+		developers: r.one.developers({ from: r.users.id, to: r.developers.userId }),
+	},
+	developers: {
+		user: r.one.users({ from: r.developers.userId, to: r.users.id }),
+		projects: r.many.projects({ from: r.developers.userId, to: r.projects.developerId }),
+		member: r.one.staff({ from: r.developers.userId, to: r.staff.role }),
+		viewUser: r.one.usersView({ from: r.developers.userId, to: r.usersView.id }),
+	},
+	projects: {
+		developer: r.one.developers({ from: r.projects.developerId, to: r.developers.userId }),
+	},
+	staff: {
+		developers: r.many.developers({ from: r.staff.id, to: r.developers.userId }),
+	},
+	usersView: {
+		developers: r.many.developers({ from: r.usersView.id, to: r.developers.userId }),
+	},
+}));
+const rqbDb = drizzle({ client: new mssql.ConnectionPool({ server: '' }), relations: rqbRelations });
 
 const fullName = sql`${users.firstName} || ' ' || ${users.lastName}`.as('name');
 
@@ -68,6 +107,215 @@ describe('mssql to snake case', () => {
 			sql:
 				"select [sq].[id], [sq].[name] from [users] left join (select [id], [first_name] || ' ' || [last_name] as [name] from [users]) [sq] on [users].[id] = [sq].[id]",
 			params: [],
+		});
+	});
+
+	it('relational query over a subquery source', ({ expect }) => {
+		const query = rqbDb.query.staff.findMany({
+			columns: { id: true, role: true },
+			where: { role: { like: 'A%' } },
+			orderBy: { firstName: 'asc' },
+			with: { developers: true },
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"with [staff_members] as (select [id], [first_name], upper([last_name]) as [user_role] from [users]) select [d0].[id] as [id], [d0].[user_role] as [role], coalesce([r0_0].[j], '[]') as [developers] from [staff_members] as [d0] outer apply (select [d1].[user_id] as [userId], [d1].[uses_drizzle_orm] as [usesDrizzleORM] from [test].[developers] as [d1] where [d0].[id] = [d1].[user_id] for json path, include_null_values) [r0_0]([j]) where [d0].[user_role] like @par0 order by [d0].[first_name] asc",
+			params: ['A%'],
+		});
+	});
+
+	it("relational query joining on a subquery's aliased sql field", ({ expect }) => {
+		const query = rqbDb.query.developers.findMany({ with: { member: true } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'with [staff_members] as (select [id], [first_name], upper([last_name]) as [user_role] from [users]) select [d0].[user_id] as [userId], [d0].[uses_drizzle_orm] as [usesDrizzleORM], [r0_0].[j] as [member] from [test].[developers] as [d0] outer apply (select top(@par0) [d1].[id] as [id], [d1].[first_name] as [firstName], [d1].[user_role] as [role] from [staff_members] as [d1] where [d0].[user_id] = [d1].[user_role] for json path, include_null_values, without_array_wrapper) [r0_0]([j])',
+			params: [1],
+		});
+	});
+
+	it('relational query - table, single level (find many)', ({ expect }) => {
+		const query = rqbDb.query.users.findMany({});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select [d0].[id] as [id], [d0].[first_name] as [firstName], [d0].[last_name] as [lastName], [d0].[AGE] as [age] from [users] as [d0]',
+			params: [],
+		});
+	});
+
+	it('relational query - table, single level (find first)', ({ expect }) => {
+		const query = rqbDb.query.users.findFirst({});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select top(@par0) [d0].[id] as [id], [d0].[first_name] as [firstName], [d0].[last_name] as [lastName], [d0].[AGE] as [age] from [users] as [d0]',
+			params: [1],
+		});
+	});
+
+	it('relational query - table, nested (find many)', ({ expect }) => {
+		const query = rqbDb.query.users.findMany({ with: { developers: true } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select [d0].[id] as [id], [d0].[first_name] as [firstName], [d0].[last_name] as [lastName], [d0].[AGE] as [age], [r0_0].[j] as [developers] from [users] as [d0] outer apply (select top(@par0) [d1].[user_id] as [userId], [d1].[uses_drizzle_orm] as [usesDrizzleORM] from [test].[developers] as [d1] where [d0].[id] = [d1].[user_id] for json path, include_null_values, without_array_wrapper) [r0_0]([j])',
+			params: [1],
+		});
+	});
+
+	it('relational query - table, nested (find first)', ({ expect }) => {
+		const query = rqbDb.query.users.findFirst({ with: { developers: true } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select top(@par0) [d0].[id] as [id], [d0].[first_name] as [firstName], [d0].[last_name] as [lastName], [d0].[AGE] as [age], [r0_0].[j] as [developers] from [users] as [d0] outer apply (select top(@par1) [d1].[user_id] as [userId], [d1].[uses_drizzle_orm] as [usesDrizzleORM] from [test].[developers] as [d1] where [d0].[id] = [d1].[user_id] for json path, include_null_values, without_array_wrapper) [r0_0]([j])',
+			params: [1, 1],
+		});
+	});
+
+	it('relational query - table, deeply nested (find many)', ({ expect }) => {
+		const query = rqbDb.query.users.findMany({ with: { developers: { with: { projects: true } } } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"select [d0].[id] as [id], [d0].[first_name] as [firstName], [d0].[last_name] as [lastName], [d0].[AGE] as [age], [r0_0].[j] as [developers] from [users] as [d0] outer apply (select top(@par0) [d1].[user_id] as [userId], [d1].[uses_drizzle_orm] as [usesDrizzleORM], json_query(coalesce([r1_0].[j], '[]')) as [projects] from [test].[developers] as [d1] outer apply (select [d2].[id] as [id], [d2].[developer_id] as [developerId], [d2].[project_name] as [projectName] from [projects] as [d2] where [d1].[user_id] = [d2].[developer_id] for json path, include_null_values) [r1_0]([j]) where [d0].[id] = [d1].[user_id] for json path, include_null_values, without_array_wrapper) [r0_0]([j])",
+			params: [1],
+		});
+	});
+
+	it('relational query - table, deeply nested (find first)', ({ expect }) => {
+		const query = rqbDb.query.users.findFirst({ with: { developers: { with: { projects: true } } } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"select top(@par0) [d0].[id] as [id], [d0].[first_name] as [firstName], [d0].[last_name] as [lastName], [d0].[AGE] as [age], [r0_0].[j] as [developers] from [users] as [d0] outer apply (select top(@par1) [d1].[user_id] as [userId], [d1].[uses_drizzle_orm] as [usesDrizzleORM], json_query(coalesce([r1_0].[j], '[]')) as [projects] from [test].[developers] as [d1] outer apply (select [d2].[id] as [id], [d2].[developer_id] as [developerId], [d2].[project_name] as [projectName] from [projects] as [d2] where [d1].[user_id] = [d2].[developer_id] for json path, include_null_values) [r1_0]([j]) where [d0].[id] = [d1].[user_id] for json path, include_null_values, without_array_wrapper) [r0_0]([j])",
+			params: [1, 1],
+		});
+	});
+
+	it('relational query - view, single level (find first)', ({ expect }) => {
+		const query = rqbDb.query.usersView.findFirst({});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select top(@par0) [d0].[id] as [id], [d0].[first_name] as [firstName], [d0].[last_name] as [lastName] from [users_view] as [d0]',
+			params: [1],
+		});
+	});
+
+	it('relational query - view, nested (find many)', ({ expect }) => {
+		const query = rqbDb.query.usersView.findMany({ with: { developers: true } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"select [d0].[id] as [id], [d0].[first_name] as [firstName], [d0].[last_name] as [lastName], coalesce([r0_0].[j], '[]') as [developers] from [users_view] as [d0] outer apply (select [d1].[user_id] as [userId], [d1].[uses_drizzle_orm] as [usesDrizzleORM] from [test].[developers] as [d1] where [d0].[id] = [d1].[user_id] for json path, include_null_values) [r0_0]([j])",
+			params: [],
+		});
+	});
+
+	it('relational query - mixed table -> table -> view (find many)', ({ expect }) => {
+		const query = rqbDb.query.projects.findMany({
+			with: { developer: { with: { viewUser: true, member: true } } },
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'with [staff_members] as (select [id], [first_name], upper([last_name]) as [user_role] from [users]) select [d0].[id] as [id], [d0].[developer_id] as [developerId], [d0].[project_name] as [projectName], [r0_0].[j] as [developer] from [projects] as [d0] outer apply (select top(@par0) [d1].[user_id] as [userId], [d1].[uses_drizzle_orm] as [usesDrizzleORM], json_query([r1_0].[j]) as [viewUser], json_query([r1_1].[j]) as [member] from [test].[developers] as [d1] outer apply (select top(@par1) [d2].[id] as [id], [d2].[first_name] as [firstName], [d2].[last_name] as [lastName] from [users_view] as [d2] where [d1].[user_id] = [d2].[id] for json path, include_null_values, without_array_wrapper) [r1_0]([j]) outer apply (select top(@par2) [d2].[id] as [id], [d2].[first_name] as [firstName], [d2].[user_role] as [role] from [staff_members] as [d2] where [d1].[user_id] = [d2].[user_role] for json path, include_null_values, without_array_wrapper) [r1_1]([j]) where [d0].[developer_id] = [d1].[user_id] for json path, include_null_values, without_array_wrapper) [r0_0]([j])',
+			params: [1, 1, 1],
+		});
+	});
+
+	it('relational query - mixed view -> table -> table (find first)', ({ expect }) => {
+		const query = rqbDb.query.usersView.findFirst({ with: { developers: { with: { projects: true } } } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"select top(@par0) [d0].[id] as [id], [d0].[first_name] as [firstName], [d0].[last_name] as [lastName], coalesce([r0_0].[j], '[]') as [developers] from [users_view] as [d0] outer apply (select [d1].[user_id] as [userId], [d1].[uses_drizzle_orm] as [usesDrizzleORM], json_query(coalesce([r1_0].[j], '[]')) as [projects] from [test].[developers] as [d1] outer apply (select [d2].[id] as [id], [d2].[developer_id] as [developerId], [d2].[project_name] as [projectName] from [projects] as [d2] where [d1].[user_id] = [d2].[developer_id] for json path, include_null_values) [r1_0]([j]) where [d0].[id] = [d1].[user_id] for json path, include_null_values) [r0_0]([j])",
+			params: [1],
+		});
+	});
+
+	it('relational query - subquery, single level (find many)', ({ expect }) => {
+		const query = rqbDb.query.staff.findMany({});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'with [staff_members] as (select [id], [first_name], upper([last_name]) as [user_role] from [users]) select [d0].[id] as [id], [d0].[first_name] as [firstName], [d0].[user_role] as [role] from [staff_members] as [d0]',
+			params: [],
+		});
+	});
+
+	it('relational query - subquery, single level (find first)', ({ expect }) => {
+		const query = rqbDb.query.staff.findFirst({});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'with [staff_members] as (select [id], [first_name], upper([last_name]) as [user_role] from [users]) select top(@par0) [d0].[id] as [id], [d0].[first_name] as [firstName], [d0].[user_role] as [role] from [staff_members] as [d0]',
+			params: [1],
+		});
+	});
+
+	it('relational query - subquery, nested (find many)', ({ expect }) => {
+		const query = rqbDb.query.staff.findMany({ with: { developers: true } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"with [staff_members] as (select [id], [first_name], upper([last_name]) as [user_role] from [users]) select [d0].[id] as [id], [d0].[first_name] as [firstName], [d0].[user_role] as [role], coalesce([r0_0].[j], '[]') as [developers] from [staff_members] as [d0] outer apply (select [d1].[user_id] as [userId], [d1].[uses_drizzle_orm] as [usesDrizzleORM] from [test].[developers] as [d1] where [d0].[id] = [d1].[user_id] for json path, include_null_values) [r0_0]([j])",
+			params: [],
+		});
+	});
+
+	it('relational query - subquery, nested (find first)', ({ expect }) => {
+		const query = rqbDb.query.staff.findFirst({ with: { developers: true } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"with [staff_members] as (select [id], [first_name], upper([last_name]) as [user_role] from [users]) select top(@par0) [d0].[id] as [id], [d0].[first_name] as [firstName], [d0].[user_role] as [role], coalesce([r0_0].[j], '[]') as [developers] from [staff_members] as [d0] outer apply (select [d1].[user_id] as [userId], [d1].[uses_drizzle_orm] as [usesDrizzleORM] from [test].[developers] as [d1] where [d0].[id] = [d1].[user_id] for json path, include_null_values) [r0_0]([j])",
+			params: [1],
+		});
+	});
+
+	it('relational query - subquery, deeply nested (find many)', ({ expect }) => {
+		const query = rqbDb.query.staff.findMany({ with: { developers: { with: { projects: true } } } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"with [staff_members] as (select [id], [first_name], upper([last_name]) as [user_role] from [users]) select [d0].[id] as [id], [d0].[first_name] as [firstName], [d0].[user_role] as [role], coalesce([r0_0].[j], '[]') as [developers] from [staff_members] as [d0] outer apply (select [d1].[user_id] as [userId], [d1].[uses_drizzle_orm] as [usesDrizzleORM], json_query(coalesce([r1_0].[j], '[]')) as [projects] from [test].[developers] as [d1] outer apply (select [d2].[id] as [id], [d2].[developer_id] as [developerId], [d2].[project_name] as [projectName] from [projects] as [d2] where [d1].[user_id] = [d2].[developer_id] for json path, include_null_values) [r1_0]([j]) where [d0].[id] = [d1].[user_id] for json path, include_null_values) [r0_0]([j])",
+			params: [],
+		});
+	});
+
+	it('relational query - subquery, deeply nested (find first)', ({ expect }) => {
+		const query = rqbDb.query.staff.findFirst({ with: { developers: { with: { projects: true } } } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"with [staff_members] as (select [id], [first_name], upper([last_name]) as [user_role] from [users]) select top(@par0) [d0].[id] as [id], [d0].[first_name] as [firstName], [d0].[user_role] as [role], coalesce([r0_0].[j], '[]') as [developers] from [staff_members] as [d0] outer apply (select [d1].[user_id] as [userId], [d1].[uses_drizzle_orm] as [usesDrizzleORM], json_query(coalesce([r1_0].[j], '[]')) as [projects] from [test].[developers] as [d1] outer apply (select [d2].[id] as [id], [d2].[developer_id] as [developerId], [d2].[project_name] as [projectName] from [projects] as [d2] where [d1].[user_id] = [d2].[developer_id] for json path, include_null_values) [r1_0]([j]) where [d0].[id] = [d1].[user_id] for json path, include_null_values) [r0_0]([j])",
+			params: [1],
+		});
+	});
+
+	it('relational query - mixed table -> subquery -> table (find many)', ({ expect }) => {
+		const query = rqbDb.query.developers.findMany({ with: { member: { with: { developers: true } } } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"with [staff_members] as (select [id], [first_name], upper([last_name]) as [user_role] from [users]) select [d0].[user_id] as [userId], [d0].[uses_drizzle_orm] as [usesDrizzleORM], [r0_0].[j] as [member] from [test].[developers] as [d0] outer apply (select top(@par0) [d1].[id] as [id], [d1].[first_name] as [firstName], [d1].[user_role] as [role], json_query(coalesce([r1_0].[j], '[]')) as [developers] from [staff_members] as [d1] outer apply (select [d2].[user_id] as [userId], [d2].[uses_drizzle_orm] as [usesDrizzleORM] from [test].[developers] as [d2] where [d1].[id] = [d2].[user_id] for json path, include_null_values) [r1_0]([j]) where [d0].[user_id] = [d1].[user_role] for json path, include_null_values, without_array_wrapper) [r0_0]([j])",
+			params: [1],
+		});
+	});
+
+	it('relational query - mixed subquery -> table -> view (find first)', ({ expect }) => {
+		const query = rqbDb.query.staff.findFirst({
+			with: { developers: { with: { viewUser: true } } },
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"with [staff_members] as (select [id], [first_name], upper([last_name]) as [user_role] from [users]) select top(@par0) [d0].[id] as [id], [d0].[first_name] as [firstName], [d0].[user_role] as [role], coalesce([r0_0].[j], '[]') as [developers] from [staff_members] as [d0] outer apply (select [d1].[user_id] as [userId], [d1].[uses_drizzle_orm] as [usesDrizzleORM], json_query([r1_0].[j]) as [viewUser] from [test].[developers] as [d1] outer apply (select top(@par1) [d2].[id] as [id], [d2].[first_name] as [firstName], [d2].[last_name] as [lastName] from [users_view] as [d2] where [d1].[user_id] = [d2].[id] for json path, include_null_values, without_array_wrapper) [r1_0]([j]) where [d0].[id] = [d1].[user_id] for json path, include_null_values) [r0_0]([j])",
+			params: [1, 1],
 		});
 	});
 

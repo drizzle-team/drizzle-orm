@@ -1,3 +1,4 @@
+import { eq, getTableColumns, sql } from 'drizzle-orm';
 import { relations } from 'drizzle-orm/_relations';
 import {
 	bigint,
@@ -14,6 +15,7 @@ import {
 	json,
 	mediumint,
 	primaryKey,
+	QueryBuilder,
 	real,
 	serial,
 	singlestoreEnum,
@@ -106,6 +108,14 @@ export const postsConfig = relations(postsTable, ({ one, many }) => ({
 	}),
 	comments: many(commentsTable),
 }));
+
+export const usersSubquery = new QueryBuilder().select({
+	...getTableColumns(usersTable),
+	postContent: postsTable.content,
+	createdAt: postsTable.createdAt,
+	upperName: sql<string>`upper(${usersTable.name})`.as('upper_name'),
+})
+	.from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.ownerId)).as('users_sq');
 
 export const commentsTable = snakeCase.table('comments', {
 	id: serial().primaryKey(),

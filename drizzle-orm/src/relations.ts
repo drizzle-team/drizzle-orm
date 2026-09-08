@@ -5,6 +5,7 @@ import type { CodecsCollection, NormalizeArrayCodec, NormalizeCodec } from './co
 import { type AnyColumn, Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
 import { DrizzleError } from './errors.ts';
+import type { SelectResultFields } from './query-builders/select.types.ts';
 import {
 	and,
 	arrayContained,
@@ -43,7 +44,7 @@ import {
 	type SQLWrapper,
 	StringChunk,
 } from './sql/sql.ts';
-import type { Subquery } from './subquery.ts';
+import { Subquery } from './subquery.ts';
 import {
 	type Assume,
 	type DrizzleTypeError,
@@ -54,18 +55,22 @@ import {
 	type ValueOrArray,
 } from './utils.ts';
 
-export type FilteredSchemaEntry = Table<any> | View<ViewConfig<FieldSelection>>;
+export type FilteredSchemaEntry =
+	| Table<any>
+	| View<ViewConfig<FieldSelection>>
+	| Subquery<string, FieldSelection>;
 
-export type SchemaEntry = Table<any> | View<ViewConfig<any>>;
+export type SchemaEntry = Table<any> | View<ViewConfig<any>> | Subquery<string, any>;
 
 export type Schema = Record<string, SchemaEntry>;
 
-export type GetTableViewColumns<T extends SchemaEntry> = T extends View<ViewConfig<any>> ? T['_']['selectedFields']
+export type GetTableViewColumns<T extends SchemaEntry> = T extends View<ViewConfig<any>> | Subquery<string, any>
+	? T['_']['selectedFields']
 	: T extends Table<any> ? T['_']['columns']
 	: never;
 
-export type GetTableViewFieldSelection<T extends SchemaEntry> = T extends View<ViewConfig<FieldSelection>>
-	? T['_']['selectedFields']
+export type GetTableViewFieldSelection<T extends SchemaEntry> = T extends
+	View<ViewConfig<FieldSelection>> | Subquery<string, FieldSelection> ? T['_']['selectedFields']
 	: T extends Table<any> ? T['_']['columns']
 	: never;
 
@@ -105,8 +110,6 @@ export function processRelations(tablesConfig: TablesRelationalConfig, tables: S
 				sourceTable,
 				through,
 				where,
-				sourceColumnTableNames,
-				targetColumnTableNames,
 			} = relation;
 			const relationPrintName = `relations -> ${tableConfig.name}: { ${relationFieldName}: r.${
 				is(relation, One) ? 'one' : 'many'
@@ -137,17 +140,17 @@ export function processRelations(tablesConfig: TablesRelationalConfig, tables: S
 					);
 				}
 
-				for (const sName of sourceColumnTableNames) {
-					if (sName !== sourceTableName) {
+				for (const { _: { tableName } } of sourceColumns) {
+					if (tableName !== sourceTableName) {
 						throw new Error(
-							`${relationPrintName}: all "from" columns must belong to table "${sourceTableName}", found column of table "${sName}"`,
+							`${relationPrintName}: all "from" columns must belong to table "${sourceTableName}", found column of table "${tableName}"`,
 						);
 					}
 				}
-				for (const tName of targetColumnTableNames) {
-					if (tName !== targetTableName) {
+				for (const { _: { tableName } } of targetColumns) {
+					if (tableName !== targetTableName) {
 						throw new Error(
-							`${relationPrintName}: all "to" columns must belong to table "${targetTableName}", found column of table "${tName}"`,
+							`${relationPrintName}: all "to" columns must belong to table "${targetTableName}", found column of table "${tableName}"`,
 						);
 					}
 				}
@@ -299,8 +302,8 @@ export abstract class Relation<
 	declare public readonly relationType: 'many' | 'one';
 
 	fieldName!: string;
-	sourceColumns!: Column<any>[];
-	targetColumns!: Column<any>[];
+	sourceColumns!: RelationsBuilderColumnBase[];
+	targetColumns!: RelationsBuilderColumnBase[];
 	alias: string | undefined;
 	where!: AnyTableFilter | EmptyFilter;
 	sourceTable!: SchemaEntry;
@@ -311,11 +314,6 @@ export abstract class Relation<
 	};
 	throughTable?: SchemaEntry;
 	isFilterReversed?: boolean;
-
-	/** @internal */
-	sourceColumnTableNames: string[] = [];
-	/** @internal */
-	targetColumnTableNames: string[] = [];
 
 	constructor(
 		targetTable: SchemaEntry,
@@ -358,31 +356,32 @@ export class One<
 			this.where = EmptyFilter;
 		}
 
-		if (config?.from) {
-			this.sourceColumns = ((Array.isArray(config.from)
-				? config.from
-				: [config.from]) as RelationsBuilderColumnBase[]).map((it: RelationsBuilderColumnBase) => {
-					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
-					this.sourceColumnTableNames.push(it._.tableName);
-					return it._.column as Column;
-				});
+		const from = config?.from
+			? (Array.isArray(config.from) ? config.from : [config.from]) as RelationsBuilderColumnBase[]
+			: undefined;
+		const to = config?.to
+			? (Array.isArray(config.to) ? config.to : [config.to]) as RelationsBuilderColumnBase[]
+			: undefined;
+
+		if (from) {
+			for (const { _: { through } } of from) {
+				if (through) this.throughTable ??= tables[through._.tableName]! as SchemaEntry;
+			}
+
+			this.sourceColumns = from;
 		}
-		if (config?.to) {
-			this.targetColumns = (Array.isArray(config.to)
-				? config.to
-				: [config.to]).map((it: RelationsBuilderColumnBase) => {
-					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
-					this.targetColumnTableNames.push(it._.tableName);
-					return it._.column as Column;
-				});
+		if (to) {
+			for (const { _: { through } } of to) {
+				if (through) this.throughTable ??= tables[through._.tableName]! as SchemaEntry;
+			}
+
+			this.targetColumns = to;
 		}
 
 		if (this.throughTable) {
 			this.through = {
-				source: (Array.isArray(config?.from) ? config.from : config?.from ? [config.from] : []).map((
-					c,
-				) => c._.through!),
-				target: (Array.isArray(config?.to) ? config.to : config?.to ? [config.to] : []).map((c) => c._.through!),
+				source: from?.flatMap((c) => c._.through ?? []) ?? [],
+				target: to?.flatMap((c) => c._.through ?? []) ?? [],
 			};
 		}
 		this.optional = (config?.optional ?? true) as TOptional;
@@ -417,30 +416,31 @@ export class Many<TTargetTableName extends string> extends Relation<TTargetTable
 			this.where = EmptyFilter;
 		}
 
-		if (config?.from) {
-			this.sourceColumns = ((Array.isArray(config.from)
-				? config.from
-				: [config.from]) as RelationsBuilderColumnBase[]).map((it: RelationsBuilderColumnBase) => {
-					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
-					this.sourceColumnTableNames.push(it._.tableName);
-					return it._.column as Column;
-				});
+		const from = config?.from
+			? (Array.isArray(config.from) ? config.from : [config.from]) as RelationsBuilderColumnBase[]
+			: undefined;
+		const to = config?.to
+			? (Array.isArray(config.to) ? config.to : [config.to]) as RelationsBuilderColumnBase[]
+			: undefined;
+
+		if (from) {
+			for (const { _: { through } } of from) {
+				if (through) this.throughTable ??= tables[through._.tableName]! as SchemaEntry;
+			}
+
+			this.sourceColumns = from;
 		}
-		if (config?.to) {
-			this.targetColumns = (Array.isArray(config.to)
-				? config.to
-				: [config.to]).map((it: RelationsBuilderColumnBase) => {
-					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
-					this.targetColumnTableNames.push(it._.tableName);
-					return it._.column as Column;
-				});
+		if (to) {
+			for (const { _: { through } } of to) {
+				if (through) this.throughTable ??= tables[through._.tableName]! as SchemaEntry;
+			}
+
+			this.targetColumns = to;
 		}
 		if (this.throughTable) {
 			this.through = {
-				source: (Array.isArray(config?.from) ? config.from : config?.from ? [config.from] : []).map((
-					c,
-				) => c._.through!),
-				target: (Array.isArray(config?.to) ? config.to : config?.to ? [config.to] : []).map((c) => c._.through!),
+				source: from?.flatMap((c) => c._.through ?? []) ?? [],
+				target: to?.flatMap((c) => c._.through ?? []) ?? [],
 			};
 		}
 	}
@@ -735,14 +735,18 @@ export type InferRelationalQueryTableResult<
 	]: TRawSelection[K];
 };
 
+export type InferSchemaEntrySelectModel<TEntry extends SchemaEntry> = TEntry extends Subquery<string, any>
+	? SelectResultFields<TEntry['_']['selectedFields']>
+	: Assume<
+		TEntry,
+		{ $inferSelect: Record<string, unknown> }
+	>['$inferSelect'];
+
 export type BuildQueryResult<
 	TSchema extends TablesRelationalConfig,
 	TTableConfig extends TableRelationalConfig,
 	TFullSelection extends true | Record<string, unknown>,
-	TModel extends Record<string, unknown> = Assume<
-		TTableConfig['table'],
-		{ $inferSelect: Record<string, unknown> }
-	>['$inferSelect'],
+	TModel extends Record<string, unknown> = InferSchemaEntrySelectModel<TTableConfig['table']>,
 > = TFullSelection extends true | Record<string, never> ? TModel
 	: TFullSelection extends Record<string, unknown> ? Simplify<
 			& (InferRelationalQueryTableResult<
@@ -805,7 +809,7 @@ export interface BuildRelationalQueryResult {
 			field: AggregatedField;
 			fieldType: 'AggregatedField';
 		} | {
-			field: Table | View;
+			field: SchemaEntry;
 			fieldType: 'Nested';
 		})
 	)[];
@@ -1620,12 +1624,16 @@ export class RelationsHelperStatic<TTables extends Schema> {
 
 	one: {
 		[K in keyof TTables]: TTables[K] extends FilteredSchemaEntry ? OneFn<TTables[K], K & string>
-			: DrizzleTypeError<'Views with nested selections are not supported by the relational query builder'>;
+			: DrizzleTypeError<
+				'Views and subqueries with nested selections are not supported by the relational query builder'
+			>;
 	};
 
 	many: {
 		[K in keyof TTables]: TTables[K] extends FilteredSchemaEntry ? ManyFn<TTables[K], K & string>
-			: DrizzleTypeError<'Views with nested selections are not supported by the relational query builder'>;
+			: DrizzleTypeError<
+				'Views and subqueries with nested selections are not supported by the relational query builder'
+			>;
 	};
 
 	/** @internal - to be reworked */
@@ -1649,7 +1657,7 @@ export type RelationsBuilderTables<TSchema extends Schema> = {
 			& RelationsBuilderColumns<TSchema[TTableName], TTableName & string>
 			& RelationsBuilderTable<TTableName & string>
 		)
-		: DrizzleTypeError<'Views with nested selections are not supported by the relational query builder'>;
+		: DrizzleTypeError<'Views and subqueries with nested selections are not supported by the relational query builder'>;
 };
 
 export type RelationsBuilder<TSchema extends Schema> =
@@ -1702,7 +1710,7 @@ export function extractTablesFromSchema<TSchema extends Record<string, unknown>>
 	schema: TSchema,
 ): ExtractTablesFromSchema<TSchema> {
 	return Object.fromEntries(
-		Object.entries(schema).filter(([_, e]) => is(e, Table) || is(e, View)),
+		Object.entries(schema).filter(([_, e]) => is(e, Table) || is(e, View) || is(e, Subquery)),
 	) as ExtractTablesFromSchema<TSchema>;
 }
 
@@ -1912,6 +1920,7 @@ export function relationsFilterToSQL(
 	filter: AnyRelationsFilter | AnyTableFilter | undefined | EmptyFilter,
 	tableRelations: RelationsRecord,
 	tablesRelations: TablesRelationalConfig,
+	withSubqueries: RelationalWithSubqueries,
 	depth?: number,
 ): SQL | undefined;
 export function relationsFilterToSQL(
@@ -1919,6 +1928,7 @@ export function relationsFilterToSQL(
 	filter: AnyRelationsFilter | AnyTableFilter | undefined | EmptyFilter,
 	tableRelations: RelationsRecord = {},
 	tablesRelations: TablesRelationalConfig = {},
+	withSubqueries?: RelationalWithSubqueries,
 	depth: number = 0,
 ): SQL | undefined {
 	if (filter === EmptyFilter) return undefined;
@@ -1963,7 +1973,7 @@ export function relationsFilterToSQL(
 				parts.push(
 					or(
 						...(value as AnyRelationsFilter[]).map((subFilter) =>
-							relationsFilterToSQL(table, subFilter, tableRelations, tablesRelations, depth)
+							relationsFilterToSQL(table, subFilter, tableRelations, tablesRelations, withSubqueries!, depth)
 						),
 					)!,
 				);
@@ -1980,7 +1990,7 @@ export function relationsFilterToSQL(
 				parts.push(
 					and(
 						...(value as AnyRelationsFilter[]).map((subFilter) =>
-							relationsFilterToSQL(table, subFilter, tableRelations, tablesRelations, depth)
+							relationsFilterToSQL(table, subFilter, tableRelations, tablesRelations, withSubqueries!, depth)
 						),
 					)!,
 				);
@@ -1993,6 +2003,7 @@ export function relationsFilterToSQL(
 					value as AnyRelationsFilter,
 					tableRelations,
 					tablesRelations,
+					withSubqueries!,
 					depth,
 				);
 				if (!built) continue;
@@ -2024,6 +2035,11 @@ export function relationsFilterToSQL(
 					});
 				}
 
+				if (withSubqueries) {
+					collectRelationalSubquery(withSubqueries, relation.targetTable);
+					collectRelationalSubquery(withSubqueries, relation.throughTable);
+				}
+
 				const targetTable = aliasedTable(relation.targetTable, `f${depth}`);
 				const throughTable = relation.throughTable ? aliasedTable(relation.throughTable, `ft${depth}`) : undefined;
 				const targetConfig = tablesRelations[relation.targetTableName]!;
@@ -2034,6 +2050,7 @@ export function relationsFilterToSQL(
 					value as AnyRelationsFilter,
 					targetConfig.relations,
 					tablesRelations,
+					withSubqueries!,
 					depth + 1,
 				);
 
@@ -2137,6 +2154,12 @@ export function relationExtrasToSQL(
 	};
 }
 
+function relationFieldIdentifier({ _: { column, key } }: RelationsBuilderColumnBase) {
+	return sql.identifier(
+		is(column, Column) ? column.name : is(column, SQL.Aliased) ? column.fieldAlias : key,
+	);
+}
+
 export interface BuiltRelationFilters {
 	filter?: SQL;
 	joinCondition?: SQL;
@@ -2153,8 +2176,8 @@ export function relationToSQL(
 			const t = relation.through!.source[i]!;
 
 			return eq(
-				sql`${sourceTable}.${sql.identifier(s.name)}`,
-				sql`${throughTable!}.${sql.identifier(is(t._.column, Column) ? t._.column.name : t._.key)}`,
+				sql`${sourceTable}.${relationFieldIdentifier(s)}`,
+				sql`${throughTable!}.${relationFieldIdentifier(t)}`,
 			);
 		});
 
@@ -2162,8 +2185,8 @@ export function relationToSQL(
 			const t = relation.through!.target[i]!;
 
 			return eq(
-				sql`${throughTable!}.${sql.identifier(is(t._.column, Column) ? t._.column.name : t._.key)}`,
-				sql`${targetTable}.${sql.identifier(s.name)}`,
+				sql`${throughTable!}.${relationFieldIdentifier(t)}`,
+				sql`${targetTable}.${relationFieldIdentifier(s)}`,
 			);
 		});
 
@@ -2180,8 +2203,8 @@ export function relationToSQL(
 		const t = relation.targetColumns[i]!;
 
 		return eq(
-			sql`${sourceTable}.${sql.identifier(s.name)}`,
-			sql`${targetTable}.${sql.identifier(t.name)}`,
+			sql`${sourceTable}.${relationFieldIdentifier(s)}`,
+			sql`${targetTable}.${relationFieldIdentifier(t)}`,
 		);
 	});
 
@@ -2191,6 +2214,27 @@ export function relationToSQL(
 	)!;
 
 	return { filter: fullWhere };
+}
+
+// `Subquery` instances used in relational queries are collected into `WITH` on query's root level
+export type RelationalWithSubqueries = Map<string, Subquery>;
+export function collectRelationalSubquery(
+	collector: RelationalWithSubqueries,
+	entity: SchemaEntry | undefined,
+): void {
+	if (!entity || !is(entity, Subquery)) return;
+
+	const name = entity._.alias;
+	const existing = collector.get(name);
+
+	if (existing && existing._.sql !== entity._.sql) {
+		throw new DrizzleError({
+			message:
+				`Different subqueries with the same alias "${name}" are used in a single relational query - make sure every subquery in schema has a unique alias`,
+		});
+	}
+
+	collector.set(name, entity);
 }
 
 export function getTableAsAliasSQL(table: SchemaEntry) {

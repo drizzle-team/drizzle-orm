@@ -1,6 +1,6 @@
 import { describe, it } from 'vitest';
 import { drizzle, nodeCockroachCodecs } from '~/cockroach';
-import { alias, boolean, castToText, int4, snakeCase, text, union } from '~/cockroach-core';
+import { alias, boolean, castToText, int4, QueryBuilder, snakeCase, text, union } from '~/cockroach-core';
 import { defineRelations } from '~/relations';
 import { asc, eq, sql } from '~/sql';
 
@@ -17,9 +17,42 @@ const developers = testSchema.table('developers', {
 	usesDrizzleORM: boolean().notNull(),
 });
 const devs = alias(developers, 'devs');
-const relations = defineRelations({ users, developers }, (r) => ({
-	users: { developers: r.one.developers({ from: r.users.id, to: r.developers.userId }) },
-	developers: { user: r.one.users({ from: r.developers.userId, to: r.users.id }) },
+
+const projects = snakeCase.table('projects', {
+	id: int4().primaryKey(),
+	developerId: int4(),
+	projectName: text(),
+});
+
+const usersView = snakeCase.view('users_view').as((qb) =>
+	qb.select({ id: users.id, firstName: users.firstName, lastName: users.lastName }).from(users)
+);
+
+const staff = new QueryBuilder().select({
+	id: users.id,
+	firstName: users.firstName,
+	role: sql<string>`upper(${users.lastName})`.as('user_role'),
+}).from(users).as('staff_members');
+
+const relations = defineRelations({ users, developers, projects, staff, usersView }, (r) => ({
+	users: {
+		developers: r.one.developers({ from: r.users.id, to: r.developers.userId }),
+	},
+	developers: {
+		user: r.one.users({ from: r.developers.userId, to: r.users.id }),
+		projects: r.many.projects({ from: r.developers.userId, to: r.projects.developerId }),
+		member: r.one.staff({ from: r.developers.userId, to: r.staff.role }),
+		viewUser: r.one.usersView({ from: r.developers.userId, to: r.usersView.id }),
+	},
+	projects: {
+		developer: r.one.developers({ from: r.projects.developerId, to: r.developers.userId }),
+	},
+	staff: {
+		developers: r.many.developers({ from: r.staff.id, to: r.developers.userId }),
+	},
+	usersView: {
+		developers: r.many.developers({ from: r.usersView.id, to: r.developers.userId }),
+	},
 }));
 
 const db = drizzle.mock({ relations });
@@ -64,6 +97,215 @@ describe('cockroach to snake case', () => {
 			sql:
 				'select "sq"."id", "sq"."name" from "users" left join (select "id", "first_name" || \' \' || "last_name" as "name" from "users") "sq" on "users"."id" = "sq"."id"',
 			params: [],
+		});
+	});
+
+	it('relational query over a subquery source', ({ expect }) => {
+		const query = db.query.staff.findMany({
+			columns: { id: true, role: true },
+			where: { role: { like: 'A%' } },
+			orderBy: { firstName: 'asc' },
+			with: { developers: true },
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'with "staff_members" as (select "id", "first_name", upper("last_name") as "user_role" from "users") select "d0"."id" as "id", "d0"."user_role" as "role", "developers"."r" as "developers" from "staff_members" as "d0" left join lateral(select coalesce(json_agg(row_to_json("t".*)), \'[]\') as "r" from (select "d1"."user_id" as "userId", "d1"."uses_drizzle_orm" as "usesDrizzleORM" from "test"."developers" as "d1" where "d0"."id" = "d1"."user_id") as "t") as "developers" on true where "d0"."user_role" like $1 order by "d0"."first_name" asc',
+			params: ['A%'],
+		});
+	});
+
+	it("relational query joining on a subquery's aliased sql field", ({ expect }) => {
+		const query = db.query.developers.findMany({ with: { member: true } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'with "staff_members" as (select "id", "first_name", upper("last_name") as "user_role" from "users") select "d0"."user_id" as "userId", "d0"."uses_drizzle_orm" as "usesDrizzleORM", "member"."r" as "member" from "test"."developers" as "d0" left join lateral(select row_to_json("t".*) "r" from (select "d1"."id" as "id", "d1"."first_name" as "firstName", "d1"."user_role" as "role" from "staff_members" as "d1" where "d0"."user_id" = "d1"."user_role" limit $1) as "t") as "member" on true',
+			params: [1],
+		});
+	});
+
+	it('relational query - table, single level (find many)', ({ expect }) => {
+		const query = db.query.users.findMany({});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select "d0"."id" as "id", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."AGE" as "age" from "users" as "d0"',
+			params: [],
+		});
+	});
+
+	it('relational query - table, single level (find first)', ({ expect }) => {
+		const query = db.query.users.findFirst({});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select "d0"."id" as "id", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."AGE" as "age" from "users" as "d0" limit $1',
+			params: [1],
+		});
+	});
+
+	it('relational query - table, nested (find many)', ({ expect }) => {
+		const query = db.query.users.findMany({ with: { developers: true } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select "d0"."id" as "id", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."AGE" as "age", "developers"."r" as "developers" from "users" as "d0" left join lateral(select row_to_json("t".*) "r" from (select "d1"."user_id" as "userId", "d1"."uses_drizzle_orm" as "usesDrizzleORM" from "test"."developers" as "d1" where "d0"."id" = "d1"."user_id" limit $1) as "t") as "developers" on true',
+			params: [1],
+		});
+	});
+
+	it('relational query - table, nested (find first)', ({ expect }) => {
+		const query = db.query.users.findFirst({ with: { developers: true } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select "d0"."id" as "id", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."AGE" as "age", "developers"."r" as "developers" from "users" as "d0" left join lateral(select row_to_json("t".*) "r" from (select "d1"."user_id" as "userId", "d1"."uses_drizzle_orm" as "usesDrizzleORM" from "test"."developers" as "d1" where "d0"."id" = "d1"."user_id" limit $1) as "t") as "developers" on true limit $2',
+			params: [1, 1],
+		});
+	});
+
+	it('relational query - table, deeply nested (find many)', ({ expect }) => {
+		const query = db.query.users.findMany({ with: { developers: { with: { projects: true } } } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select "d0"."id" as "id", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."AGE" as "age", "developers"."r" as "developers" from "users" as "d0" left join lateral(select row_to_json("t".*) "r" from (select "d1"."user_id" as "userId", "d1"."uses_drizzle_orm" as "usesDrizzleORM", "projects"."r" as "projects" from "test"."developers" as "d1" left join lateral(select coalesce(json_agg(row_to_json("t".*)), \'[]\') as "r" from (select "d2"."id" as "id", "d2"."developer_id" as "developerId", "d2"."project_name" as "projectName" from "projects" as "d2" where "d1"."user_id" = "d2"."developer_id") as "t") as "projects" on true where "d0"."id" = "d1"."user_id" limit $1) as "t") as "developers" on true',
+			params: [1],
+		});
+	});
+
+	it('relational query - table, deeply nested (find first)', ({ expect }) => {
+		const query = db.query.users.findFirst({ with: { developers: { with: { projects: true } } } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select "d0"."id" as "id", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."AGE" as "age", "developers"."r" as "developers" from "users" as "d0" left join lateral(select row_to_json("t".*) "r" from (select "d1"."user_id" as "userId", "d1"."uses_drizzle_orm" as "usesDrizzleORM", "projects"."r" as "projects" from "test"."developers" as "d1" left join lateral(select coalesce(json_agg(row_to_json("t".*)), \'[]\') as "r" from (select "d2"."id" as "id", "d2"."developer_id" as "developerId", "d2"."project_name" as "projectName" from "projects" as "d2" where "d1"."user_id" = "d2"."developer_id") as "t") as "projects" on true where "d0"."id" = "d1"."user_id" limit $1) as "t") as "developers" on true limit $2',
+			params: [1, 1],
+		});
+	});
+
+	it('relational query - view, single level (find first)', ({ expect }) => {
+		const query = db.query.usersView.findFirst({});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select "d0"."id" as "id", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName" from "users_view" as "d0" limit $1',
+			params: [1],
+		});
+	});
+
+	it('relational query - view, nested (find many)', ({ expect }) => {
+		const query = db.query.usersView.findMany({ with: { developers: true } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select "d0"."id" as "id", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "developers"."r" as "developers" from "users_view" as "d0" left join lateral(select coalesce(json_agg(row_to_json("t".*)), \'[]\') as "r" from (select "d1"."user_id" as "userId", "d1"."uses_drizzle_orm" as "usesDrizzleORM" from "test"."developers" as "d1" where "d0"."id" = "d1"."user_id") as "t") as "developers" on true',
+			params: [],
+		});
+	});
+
+	it('relational query - mixed table -> table -> view (find many)', ({ expect }) => {
+		const query = db.query.projects.findMany({
+			with: { developer: { with: { viewUser: true, member: true } } },
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'with "staff_members" as (select "id", "first_name", upper("last_name") as "user_role" from "users") select "d0"."id" as "id", "d0"."developer_id" as "developerId", "d0"."project_name" as "projectName", "developer"."r" as "developer" from "projects" as "d0" left join lateral(select row_to_json("t".*) "r" from (select "d1"."user_id" as "userId", "d1"."uses_drizzle_orm" as "usesDrizzleORM", "viewUser"."r" as "viewUser", "member"."r" as "member" from "test"."developers" as "d1" left join lateral(select row_to_json("t".*) "r" from (select "d2"."id" as "id", "d2"."first_name" as "firstName", "d2"."last_name" as "lastName" from "users_view" as "d2" where "d1"."user_id" = "d2"."id" limit $1) as "t") as "viewUser" on true left join lateral(select row_to_json("t".*) "r" from (select "d2"."id" as "id", "d2"."first_name" as "firstName", "d2"."user_role" as "role" from "staff_members" as "d2" where "d1"."user_id" = "d2"."user_role" limit $2) as "t") as "member" on true where "d0"."developer_id" = "d1"."user_id" limit $3) as "t") as "developer" on true',
+			params: [1, 1, 1],
+		});
+	});
+
+	it('relational query - mixed view -> table -> table (find first)', ({ expect }) => {
+		const query = db.query.usersView.findFirst({ with: { developers: { with: { projects: true } } } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select "d0"."id" as "id", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "developers"."r" as "developers" from "users_view" as "d0" left join lateral(select coalesce(json_agg(row_to_json("t".*)), \'[]\') as "r" from (select "d1"."user_id" as "userId", "d1"."uses_drizzle_orm" as "usesDrizzleORM", "projects"."r" as "projects" from "test"."developers" as "d1" left join lateral(select coalesce(json_agg(row_to_json("t".*)), \'[]\') as "r" from (select "d2"."id" as "id", "d2"."developer_id" as "developerId", "d2"."project_name" as "projectName" from "projects" as "d2" where "d1"."user_id" = "d2"."developer_id") as "t") as "projects" on true where "d0"."id" = "d1"."user_id") as "t") as "developers" on true limit $1',
+			params: [1],
+		});
+	});
+
+	it('relational query - subquery, single level (find many)', ({ expect }) => {
+		const query = db.query.staff.findMany({});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'with "staff_members" as (select "id", "first_name", upper("last_name") as "user_role" from "users") select "d0"."id" as "id", "d0"."first_name" as "firstName", "d0"."user_role" as "role" from "staff_members" as "d0"',
+			params: [],
+		});
+	});
+
+	it('relational query - subquery, single level (find first)', ({ expect }) => {
+		const query = db.query.staff.findFirst({});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'with "staff_members" as (select "id", "first_name", upper("last_name") as "user_role" from "users") select "d0"."id" as "id", "d0"."first_name" as "firstName", "d0"."user_role" as "role" from "staff_members" as "d0" limit $1',
+			params: [1],
+		});
+	});
+
+	it('relational query - subquery, nested (find many)', ({ expect }) => {
+		const query = db.query.staff.findMany({ with: { developers: true } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'with "staff_members" as (select "id", "first_name", upper("last_name") as "user_role" from "users") select "d0"."id" as "id", "d0"."first_name" as "firstName", "d0"."user_role" as "role", "developers"."r" as "developers" from "staff_members" as "d0" left join lateral(select coalesce(json_agg(row_to_json("t".*)), \'[]\') as "r" from (select "d1"."user_id" as "userId", "d1"."uses_drizzle_orm" as "usesDrizzleORM" from "test"."developers" as "d1" where "d0"."id" = "d1"."user_id") as "t") as "developers" on true',
+			params: [],
+		});
+	});
+
+	it('relational query - subquery, nested (find first)', ({ expect }) => {
+		const query = db.query.staff.findFirst({ with: { developers: true } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'with "staff_members" as (select "id", "first_name", upper("last_name") as "user_role" from "users") select "d0"."id" as "id", "d0"."first_name" as "firstName", "d0"."user_role" as "role", "developers"."r" as "developers" from "staff_members" as "d0" left join lateral(select coalesce(json_agg(row_to_json("t".*)), \'[]\') as "r" from (select "d1"."user_id" as "userId", "d1"."uses_drizzle_orm" as "usesDrizzleORM" from "test"."developers" as "d1" where "d0"."id" = "d1"."user_id") as "t") as "developers" on true limit $1',
+			params: [1],
+		});
+	});
+
+	it('relational query - subquery, deeply nested (find many)', ({ expect }) => {
+		const query = db.query.staff.findMany({ with: { developers: { with: { projects: true } } } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'with "staff_members" as (select "id", "first_name", upper("last_name") as "user_role" from "users") select "d0"."id" as "id", "d0"."first_name" as "firstName", "d0"."user_role" as "role", "developers"."r" as "developers" from "staff_members" as "d0" left join lateral(select coalesce(json_agg(row_to_json("t".*)), \'[]\') as "r" from (select "d1"."user_id" as "userId", "d1"."uses_drizzle_orm" as "usesDrizzleORM", "projects"."r" as "projects" from "test"."developers" as "d1" left join lateral(select coalesce(json_agg(row_to_json("t".*)), \'[]\') as "r" from (select "d2"."id" as "id", "d2"."developer_id" as "developerId", "d2"."project_name" as "projectName" from "projects" as "d2" where "d1"."user_id" = "d2"."developer_id") as "t") as "projects" on true where "d0"."id" = "d1"."user_id") as "t") as "developers" on true',
+			params: [],
+		});
+	});
+
+	it('relational query - subquery, deeply nested (find first)', ({ expect }) => {
+		const query = db.query.staff.findFirst({ with: { developers: { with: { projects: true } } } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'with "staff_members" as (select "id", "first_name", upper("last_name") as "user_role" from "users") select "d0"."id" as "id", "d0"."first_name" as "firstName", "d0"."user_role" as "role", "developers"."r" as "developers" from "staff_members" as "d0" left join lateral(select coalesce(json_agg(row_to_json("t".*)), \'[]\') as "r" from (select "d1"."user_id" as "userId", "d1"."uses_drizzle_orm" as "usesDrizzleORM", "projects"."r" as "projects" from "test"."developers" as "d1" left join lateral(select coalesce(json_agg(row_to_json("t".*)), \'[]\') as "r" from (select "d2"."id" as "id", "d2"."developer_id" as "developerId", "d2"."project_name" as "projectName" from "projects" as "d2" where "d1"."user_id" = "d2"."developer_id") as "t") as "projects" on true where "d0"."id" = "d1"."user_id") as "t") as "developers" on true limit $1',
+			params: [1],
+		});
+	});
+
+	it('relational query - mixed table -> subquery -> table (find many)', ({ expect }) => {
+		const query = db.query.developers.findMany({ with: { member: { with: { developers: true } } } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'with "staff_members" as (select "id", "first_name", upper("last_name") as "user_role" from "users") select "d0"."user_id" as "userId", "d0"."uses_drizzle_orm" as "usesDrizzleORM", "member"."r" as "member" from "test"."developers" as "d0" left join lateral(select row_to_json("t".*) "r" from (select "d1"."id" as "id", "d1"."first_name" as "firstName", "d1"."user_role" as "role", "developers"."r" as "developers" from "staff_members" as "d1" left join lateral(select coalesce(json_agg(row_to_json("t".*)), \'[]\') as "r" from (select "d2"."user_id" as "userId", "d2"."uses_drizzle_orm" as "usesDrizzleORM" from "test"."developers" as "d2" where "d1"."id" = "d2"."user_id") as "t") as "developers" on true where "d0"."user_id" = "d1"."user_role" limit $1) as "t") as "member" on true',
+			params: [1],
+		});
+	});
+
+	it('relational query - mixed subquery -> table -> view (find first)', ({ expect }) => {
+		const query = db.query.staff.findFirst({
+			with: { developers: { with: { viewUser: true } } },
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'with "staff_members" as (select "id", "first_name", upper("last_name") as "user_role" from "users") select "d0"."id" as "id", "d0"."first_name" as "firstName", "d0"."user_role" as "role", "developers"."r" as "developers" from "staff_members" as "d0" left join lateral(select coalesce(json_agg(row_to_json("t".*)), \'[]\') as "r" from (select "d1"."user_id" as "userId", "d1"."uses_drizzle_orm" as "usesDrizzleORM", "viewUser"."r" as "viewUser" from "test"."developers" as "d1" left join lateral(select row_to_json("t".*) "r" from (select "d2"."id" as "id", "d2"."first_name" as "firstName", "d2"."last_name" as "lastName" from "users_view" as "d2" where "d1"."user_id" = "d2"."id" limit $1) as "t") as "viewUser" on true where "d0"."id" = "d1"."user_id") as "t") as "developers" on true limit $2',
+			params: [1, 1],
 		});
 	});
 
