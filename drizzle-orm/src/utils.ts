@@ -45,11 +45,15 @@ export function mapResultRow<TResult>(
 
 					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
 						const objectName = path[0]!;
-						if (!(objectName in nullifyMap)) {
-							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
-						} else if (
-							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
-						) {
+						const tableName = getTableName(field.table);
+
+						if (value !== null) {
+							// A non-null column proves the joined row exists — do not nullify
+							// the nested object, regardless of which of its columns was read first.
+							nullifyMap[objectName] = false;
+						} else if (!(objectName in nullifyMap)) {
+							nullifyMap[objectName] = tableName;
+						} else if (typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== tableName) {
 							nullifyMap[objectName] = false;
 						}
 					}
