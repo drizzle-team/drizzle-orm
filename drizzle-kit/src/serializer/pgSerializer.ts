@@ -1227,13 +1227,18 @@ WHERE
 
 					const tableResponse = await getColumnsInfoQuery({ schema: tableSchema, table: tableName, db });
 
+					// key_column_usage (not constraint_column_usage) carries ordinal_position,
+					// so composite PK / UNIQUE columns keep their declared order; joining on
+					// table_schema/table_name also avoids cross-table constraint-name collisions.
 					const tableConstraints = await db.query(
-						`SELECT c.column_name, c.data_type, constraint_type, constraint_name, constraint_schema
+						`SELECT c.column_name, c.data_type, tc.constraint_type, tc.constraint_name, tc.constraint_schema
       FROM information_schema.table_constraints tc
-      JOIN information_schema.constraint_column_usage AS ccu USING (constraint_schema, constraint_name)
+      JOIN information_schema.key_column_usage AS kcu ON kcu.constraint_schema = tc.constraint_schema
+        AND kcu.constraint_name = tc.constraint_name AND kcu.table_schema = tc.table_schema AND kcu.table_name = tc.table_name
       JOIN information_schema.columns AS c ON c.table_schema = tc.constraint_schema
-        AND tc.table_name = c.table_name AND ccu.column_name = c.column_name
-      WHERE tc.table_name = '${tableName}' and constraint_schema = '${tableSchema}';`,
+        AND tc.table_name = c.table_name AND kcu.column_name = c.column_name
+      WHERE tc.table_name = '${tableName}' and tc.constraint_schema = '${tableSchema}'
+      ORDER BY tc.constraint_name, kcu.ordinal_position;`,
 					);
 
 					const tableChecks = await db.query(`SELECT 
@@ -1272,9 +1277,13 @@ WHERE
             con.conname AS constraint_name,
             rel.relname AS table_name,
             att.attname AS column_name,
+            att.attnum AS column_attnum,
             fnsp.nspname AS foreign_table_schema,
             frel.relname AS foreign_table_name,
             fatt.attname AS foreign_column_name,
+            fatt.attnum AS foreign_column_attnum,
+            con.conkey::text AS conkey_text,
+            con.confkey::text AS confkey_text,
             CASE con.confupdtype
               WHEN 'a' THEN 'NO ACTION'
               WHEN 'r' THEN 'RESTRICT'
@@ -1309,37 +1318,50 @@ WHERE
 					if (progressCallback) {
 						progressCallback('fks', foreignKeysCount, 'fetching');
 					}
+					// The FK query above joins pg_attribute with attnum = ANY(conkey) /
+					// ANY(confkey), which yields a Cartesian product of source and foreign
+					// columns for composite keys. Pair columns by their ordinal position:
+					// conkey[i] references confkey[i] (per the SQL standard and pg docs).
+					type RawFk = {
+						meta: { tableTo: string; schemaTo: string; onDelete?: string; onUpdate?: string };
+						conkey: number[];
+						confkey: number[];
+						src: Record<number, string>;
+						dst: Record<number, string>;
+					};
+					const rawFks: Record<string, RawFk> = {};
 					for (const fk of tableForeignKeys) {
-						// const tableFrom = fk.table_name;
-						const columnFrom: string = fk.column_name;
-						const tableTo = fk.foreign_table_name;
-						const columnTo: string = fk.foreign_column_name;
-						const schemaTo: string = fk.foreign_table_schema;
-						const foreignKeyName = fk.constraint_name;
-						const onUpdate = fk.update_rule?.toLowerCase();
-						const onDelete = fk.delete_rule?.toLowerCase();
-
-						if (typeof foreignKeysToReturn[foreignKeyName] !== 'undefined') {
-							foreignKeysToReturn[foreignKeyName].columnsFrom.push(columnFrom);
-							foreignKeysToReturn[foreignKeyName].columnsTo.push(columnTo);
-						} else {
-							foreignKeysToReturn[foreignKeyName] = {
-								name: foreignKeyName,
-								tableFrom: tableName,
-								tableTo,
-								schemaTo,
-								columnsFrom: [columnFrom],
-								columnsTo: [columnTo],
-								onDelete,
-								onUpdate,
+						const foreignKeyName = fk.constraint_name as string;
+						if (typeof rawFks[foreignKeyName] === 'undefined') {
+							rawFks[foreignKeyName] = {
+								meta: {
+									tableTo: fk.foreign_table_name,
+									schemaTo: fk.foreign_table_schema,
+									onDelete: fk.delete_rule?.toLowerCase(),
+									onUpdate: fk.update_rule?.toLowerCase(),
+								},
+								// int2vector renders as space-separated attnums ("1 3"); some
+								// drivers surface it in array form ("{1,3}") - accept both.
+								conkey: (fk.conkey_text as string).trim().replace(/^\{|\}$/g, '').split(/[\s,]+/).map(Number),
+								confkey: (fk.confkey_text as string).trim().replace(/^\{|\}$/g, '').split(/[\s,]+/).map(Number),
+								src: {},
+								dst: {},
 							};
 						}
-
-						foreignKeysToReturn[foreignKeyName].columnsFrom = [
-							...new Set(foreignKeysToReturn[foreignKeyName].columnsFrom),
-						];
-
-						foreignKeysToReturn[foreignKeyName].columnsTo = [...new Set(foreignKeysToReturn[foreignKeyName].columnsTo)];
+						rawFks[foreignKeyName].src[fk.column_attnum as number] = fk.column_name;
+						rawFks[foreignKeyName].dst[fk.foreign_column_attnum as number] = fk.foreign_column_name;
+					}
+					for (const [foreignKeyName, raw] of Object.entries(rawFks)) {
+						foreignKeysToReturn[foreignKeyName] = {
+							name: foreignKeyName,
+							tableFrom: tableName,
+							tableTo: raw.meta.tableTo,
+							schemaTo: raw.meta.schemaTo,
+							columnsFrom: raw.conkey.map((attnum) => raw.src[attnum]).filter((c) => c !== undefined),
+							columnsTo: raw.confkey.map((attnum) => raw.dst[attnum]).filter((c) => c !== undefined),
+							onDelete: raw.meta.onDelete,
+							onUpdate: raw.meta.onUpdate,
+						};
 					}
 
 					const uniqueConstrainsRows = tableConstraints.filter((mapRow) => mapRow.constraint_type === 'UNIQUE');
@@ -1405,13 +1427,14 @@ WHERE
 						const cprimaryKey = tableConstraints.filter((mapRow) => mapRow.constraint_type === 'PRIMARY KEY');
 
 						if (cprimaryKey.length > 1) {
+							// NOTE: inline (escaped) literals instead of $1/$2 placeholders - some
+							// DB wrappers passed to fromDatabase (e.g. pushSchema's) drop params.
 							const tableCompositePkName = await db.query(
 								`SELECT conname AS primary_key
             FROM   pg_constraint join pg_class on (pg_class.oid = conrelid)
             WHERE  contype = 'p' 
-            AND    connamespace = $1::regnamespace  
-            AND    pg_class.relname = $2;`,
-								[tableSchema, tableName],
+            AND    connamespace = '${escapeSingleQuotes(tableSchema)}'::regnamespace  
+            AND    pg_class.relname = '${escapeSingleQuotes(tableName)}';`,
 							);
 							primaryKeys[tableCompositePkName[0].primary_key] = {
 								name: tableCompositePkName[0].primary_key,
@@ -1963,9 +1986,14 @@ const defaultForColumn = (column: any, internals: PgKitInternals, tableName: str
 	const columnDefaultAsString: string = column.column_default.toString();
 
 	if (isArray) {
+		// An empty array default ('{}') has no inner content; splitting that would
+		// yield [""], corrupting the default into an array holding one empty string.
+		const arrayContent = columnDefaultAsString.slice(2, -2);
+		if (arrayContent.trim() === '') {
+			return `'{}'`;
+		}
 		return `'{${
-			columnDefaultAsString
-				.slice(2, -2)
+			arrayContent
 				.split(/\s*,\s*/g)
 				.map((value) => {
 					if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(column.data_type.slice(0, -2))) {
