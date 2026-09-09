@@ -1,5 +1,7 @@
+import { toCamelCase } from 'drizzle-orm/casing';
 import { Minimatch } from 'minimatch';
 import type { EntitiesFilter, ExtensionsFilter, SchemasFilter, TablesFilter } from '../cli/validations/common';
+import type { Casing } from '../cli/validations/common';
 import { assertUnreachable } from '../utils';
 import type { Dialect } from '../utils/schemaValidator';
 
@@ -195,4 +197,22 @@ const prepareRolesFilter = (entities: EntitiesFilter) => {
 	};
 
 	return rolesFilter;
+};
+
+const escapeColumnKey = (value: string) => {
+	if (/^(?![a-zA-Z_$][a-zA-Z0-9_$]*$).+$/.test(value)) {
+		return `"${value}"`;
+	}
+	return value;
+};
+
+export const withCasing = (value: string, casing?: Casing) => {
+	if (casing === 'preserve') {
+		return escapeColumnKey(value);
+	}
+	if (casing === 'camel') {
+		return escapeColumnKey(toCamelCase(value));
+	}
+
+	return value;
 };
