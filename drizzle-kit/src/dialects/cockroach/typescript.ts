@@ -2,7 +2,7 @@ import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import type { Casing } from '../../cli/validations/common';
 import { assertUnreachable, trimChar } from '../../utils';
-import { withCasing } from '../common';
+import { withCasing } from '../pull-utils';
 import { inspect } from '../utils';
 import type { CheckConstraint, CockroachDDL, Column, ForeignKey, Index, Policy, PrimaryKey, ViewColumn } from './ddl';
 import { tableFromDDL } from './ddl';

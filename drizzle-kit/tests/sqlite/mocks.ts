@@ -147,7 +147,7 @@ export const diffAfterPull = async (
 	}
 
 	if (sqlStatements.length === 0) {
-		rmSync(`tests/postgres/tmp/${testName}.ts`);
+		rmSync(`tests/sqlite/tmp/${testName}.ts`);
 	}
 
 	return { sqlStatements, statements, initDDL, ddlAfterPull: ddl1, resultDdl: ddl2 };
