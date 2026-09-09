@@ -1,86 +1,97 @@
 import { expect, test } from 'vitest';
-import { pgTable, text } from '~/pg-core/index.ts';
+import { integer, pgTable, text } from '~/pg-core/index.ts';
 import { mapResultRow, orderSelectedFields } from '~/utils.ts';
 
-const joinedTable = pgTable('joined', {
-	nullableField: text('nullable_field'),
-	nonNullField: text('non_null_field').notNull(),
+// Regression for https://github.com/drizzle-team/drizzle-orm/issues/1603
+// Nested partial-select on a nullable left join must not nullify the whole
+// object when only the first selected column is null.
+
+const orgTable = pgTable('org', {
+	id: integer('id'),
+	name: text('name'),
+	slug: text('slug'),
 });
 
-test('mapResultRow keeps nested object when first joined column is null', () => {
-	const fields = {
-		joined: {
-			nullableField: joinedTable.nullableField,
-			nonNullField: joinedTable.nonNullField,
-		},
-	};
-
-	const columns = orderSelectedFields(fields);
-
-	const result = mapResultRow(
-		columns,
-		[null, 'value'],
-		{
-			joined: false,
-		},
-	);
-
-	expect(result).toEqual({
-		joined: {
-			nullableField: null,
-			nonNullField: 'value',
-		},
-	});
+const orgBrandingTable = pgTable('org_branding', {
+	logo: text('logo'),
+	panelBackground: text('panel_background'),
 });
 
-test('mapResultRow nullifies nested object when all joined columns are null', () => {
-	const fields = {
-		joined: {
-			nullableField: joinedTable.nullableField,
-			nonNullField: joinedTable.nonNullField,
-		},
-	};
-
-	const columns = orderSelectedFields(fields);
-
-	const result = mapResultRow(
-		columns,
-		[null, null],
-		{
-			joined: false,
-		},
-	);
-
-	expect(result).toEqual({
-		joined: null,
-	});
-});
-
-test('mapResultRow matches issue #1603 branding.logo-null panelBackground-non-null case', () => {
-	const orgBrandingTable = pgTable('org_branding', {
-		logo: text('logo'),
-		panelBackground: text('panel_background').notNull(),
-	});
-
-	const fields = {
+test('keeps nested object when first joined column is null but a later column is not', () => {
+	const columns = orderSelectedFields({
+		name: orgTable.name,
 		branding: {
 			logo: orgBrandingTable.logo,
 			panelBackground: orgBrandingTable.panelBackground,
 		},
-	};
-
-	const columns = orderSelectedFields(fields);
+	});
 
 	const result = mapResultRow(
 		columns,
-		[null, '#1a8cff'],
-		{ branding: false },
+		['Test org 2', null, '#1a8cff'],
+		{ org: true, org_branding: false },
 	);
 
 	expect(result).toEqual({
+		name: 'Test org 2',
+		branding: { logo: null, panelBackground: '#1a8cff' },
+	});
+});
+
+test('is independent of column order (first non-null, later null)', () => {
+	const columns = orderSelectedFields({
 		branding: {
-			logo: null,
-			panelBackground: '#1a8cff',
+			panelBackground: orgBrandingTable.panelBackground,
+			logo: orgBrandingTable.logo,
 		},
+	});
+
+	const result = mapResultRow(columns, ['#1a8cff', null], { org_branding: false });
+
+	expect(result).toEqual({
+		branding: { panelBackground: '#1a8cff', logo: null },
+	});
+});
+
+test('keeps nested object when all joined columns are non-null', () => {
+	const columns = orderSelectedFields({
+		branding: {
+			logo: orgBrandingTable.logo,
+			panelBackground: orgBrandingTable.panelBackground,
+		},
+	});
+
+	const result = mapResultRow(columns, ['logo.png', '#1a8cff'], { org_branding: false });
+
+	expect(result).toEqual({
+		branding: { logo: 'logo.png', panelBackground: '#1a8cff' },
+	});
+});
+
+test('nullifies nested object when every joined column is null and join is nullable', () => {
+	const columns = orderSelectedFields({
+		branding: {
+			logo: orgBrandingTable.logo,
+			panelBackground: orgBrandingTable.panelBackground,
+		},
+	});
+
+	const result = mapResultRow(columns, [null, null], { org_branding: false });
+
+	expect(result).toEqual({ branding: null });
+});
+
+test('keeps all-null nested object when the join is not nullable', () => {
+	const columns = orderSelectedFields({
+		branding: {
+			logo: orgBrandingTable.logo,
+			panelBackground: orgBrandingTable.panelBackground,
+		},
+	});
+
+	const result = mapResultRow(columns, [null, null], { org_branding: true });
+
+	expect(result).toEqual({
+		branding: { logo: null, panelBackground: null },
 	});
 });
