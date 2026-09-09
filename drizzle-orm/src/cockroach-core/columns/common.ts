@@ -373,7 +373,9 @@ export abstract class CockroachColumnBuilder<
 	buildExtraConfigColumn<TTableName extends string>(
 		table: AnyCockroachTable<{ name: TTableName }>,
 	): ExtraConfigColumn {
-		return new ExtraConfigColumn(table, { ...this.config, dimensions: this.config.dimensions ?? 0 });
+		const column = new ExtraConfigColumn(table, { ...this.config, dimensions: this.config.dimensions ?? 0 });
+		column.sqlTypeResolver = () => this.build(table).getSQLType();
+		return column;
 	}
 }
 
@@ -448,8 +450,20 @@ export class ExtraConfigColumn<
 	/** @internal */
 	override readonly codec = undefined;
 
+	/** @internal */
+	sqlTypeResolver: (() => string) | undefined;
+
+	private cachedSQLType: string | undefined;
+
 	override getSQLType(): string {
-		return this.getSQLType();
+		// Shouldn't trigger, ensure resolver is set
+		if (this.cachedSQLType === undefined) {
+			if (!this.sqlTypeResolver) {
+				throw new Error(`Column "${this.name}" was built without SQL type resolver`);
+			}
+			this.cachedSQLType = this.sqlTypeResolver();
+		}
+		return this.cachedSQLType;
 	}
 
 	indexConfig: IndexedExtraConfigType = {
