@@ -485,6 +485,7 @@ export function cockroachToRelationsPull(schema: CockroachDDL): SchemaForPull {
 		return {
 			schema: rawTable.schema,
 			foreignKeys: rawTable.fks,
+			columns: rawTable.columns.map((it) => ({ name: it.name })),
 			uniques: Object.values(rawTable.indexes).map((idx) => ({
 				columns: idx.columns.map((idxc) => {
 					if (!idxc.isExpression && idx.isUnique) {

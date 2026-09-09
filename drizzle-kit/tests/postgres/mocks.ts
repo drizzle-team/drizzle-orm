@@ -435,6 +435,7 @@ export const diffIntrospect = async (
 		ddlAfterPull: ddl1,
 		schema2,
 		relationsError,
+		relationsFile: relationsForTsc.file,
 	};
 };
 
