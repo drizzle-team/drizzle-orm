@@ -16,13 +16,10 @@ import {
 	text,
 	uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
-import * as fs from 'fs';
 import { interimToDDL } from 'src/dialects/sqlite/ddl';
 import { fromDatabaseForDrizzle } from 'src/dialects/sqlite/introspect';
 import { expect, test } from 'vitest';
 import { dbFrom, diffAfterPull, push } from './mocks';
-
-fs.mkdirSync('tests/sqlite/tmp', { recursive: true });
 
 test('introspect tables with fk constraint', async () => {
 	const sqlite = new Database(':memory:');
@@ -1094,4 +1091,24 @@ test('Issue No6223 #2', async () => {
 			where: "status = 'active'",
 		},
 	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6074
+test('Issue No6074', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	await db.run(`CREATE TABLE "CallLog" ("CallID" TEXT PRIMARY KEY);`);
+	await db.run(`CREATE TABLE "Subset" (
+  "CallID" TEXT PRIMARY KEY REFERENCES "CallLog"("CallID")
+);`);
+
+	const { ddlAfterPull, initDDL, resultDdl, sqlStatements, statements } = await diffAfterPull(
+		sqlite,
+		{},
+		'Issue #6074',
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+	expect(statements).toStrictEqual([]);
 });
