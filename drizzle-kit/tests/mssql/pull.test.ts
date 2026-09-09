@@ -831,3 +831,74 @@ test('Issue No5993', async () => {
 		},
 	]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5992
+// pull must not crash when a filtered-in table has an FK to a filtered-out table
+test('introspect fk to a table excluded by tablesFilter is skipped', async () => {
+	await db.query('CREATE TABLE referenced_table (id int NOT NULL PRIMARY KEY)');
+	await db.query('CREATE TABLE parent_table (id int NOT NULL PRIMARY KEY, child_id int NULL)');
+	await db.query(
+		'ALTER TABLE parent_table ADD CONSTRAINT FK_parent_referenced FOREIGN KEY (child_id) REFERENCES referenced_table(id)',
+	);
+
+	const { sqlStatements, statements, fromFileDDL, introspectDDL } = await diffIntrospect(
+		db,
+		{},
+		'#5992',
+		[],
+		['parent_table'],
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+	expect(statements).toStrictEqual([]);
+	expect(fromFileDDL.fks.list()).toStrictEqual([]);
+	expect(fromFileDDL.tables.list().map((it) => it.name)).toStrictEqual(['parent_table']);
+	expect(introspectDDL.fks.list()).toStrictEqual([]);
+	expect(introspectDDL.tables.list().map((it) => it.name)).toStrictEqual(['parent_table']);
+});
+test('introspect fk is kept when both tables pass tablesFilter', async () => {
+	await db.query('CREATE TABLE referenced_table (id int NOT NULL PRIMARY KEY)');
+	await db.query('CREATE TABLE parent_table (id int NOT NULL PRIMARY KEY, child_id int NULL)');
+	await db.query(
+		'ALTER TABLE parent_table ADD CONSTRAINT FK_parent_referenced FOREIGN KEY (child_id) REFERENCES referenced_table(id)',
+	);
+
+	const { sqlStatements, statements, fromFileDDL, introspectDDL } = await diffIntrospect(
+		db,
+		{},
+		'#5992-2',
+		[],
+		['parent_table', 'referenced_table'],
+	);
+
+	expect(sqlStatements).toStrictEqual([]);
+	expect(statements).toStrictEqual([]);
+	expect(fromFileDDL.fks.list()).toStrictEqual([{
+		table: 'parent_table',
+		tableTo: 'referenced_table',
+		columns: ['child_id'],
+		columnsTo: ['id'],
+		onDelete: 'NO ACTION',
+		onUpdate: 'NO ACTION',
+		schema: 'dbo',
+		schemaTo: 'dbo',
+		entityType: 'fks',
+		nameExplicit: true, // should be true, since it does not match defaultNameForPk and it should be declared as 3rd param
+		name: 'FK_parent_referenced',
+	}]);
+	expect(fromFileDDL.tables.list().map((it) => it.name)).toStrictEqual(['parent_table', 'referenced_table']);
+	expect(introspectDDL.fks.list()).toStrictEqual([{
+		table: 'parent_table',
+		tableTo: 'referenced_table',
+		columns: ['child_id'],
+		columnsTo: ['id'],
+		onDelete: 'NO ACTION',
+		onUpdate: 'NO ACTION',
+		schema: 'dbo',
+		schemaTo: 'dbo',
+		entityType: 'fks',
+		nameExplicit: true,
+		name: 'FK_parent_referenced',
+	}]);
+	expect(introspectDDL.tables.list().map((it) => it.name)).toStrictEqual(['parent_table', 'referenced_table']);
+});

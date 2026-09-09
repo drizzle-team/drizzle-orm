@@ -1,7 +1,8 @@
-import type { ColumnsSelection, Placeholder, SQL, View } from '~/sql/sql.ts';
+import type { ColumnsSelection, Placeholder, SQL } from '~/sql/sql.ts';
 import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteTable, SQLiteTableWithColumns } from '~/sqlite-core/table.ts';
 import type { Assume, ValidateShape } from '~/utils.ts';
+import type { UpdateViewConfig, View } from '~/view.ts';
 
 import type {
 	SelectedFields as SelectFieldsBase,
@@ -39,12 +40,15 @@ export type BuildAliasTable<TTable extends SQLiteTable | View, TAlias extends st
 		UpdateTableConfig<TTable['_'], {
 			name: TAlias;
 			columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias, 'sqlite'>;
+			isAlias: true;
 		}>
 	>
 	: TTable extends View ? SQLiteViewWithSelection<
-			TAlias,
-			TTable['_']['existing'],
-			MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias, 'sqlite'>
+			UpdateViewConfig<TTable['_'], {
+				name: TAlias;
+				selectedFields: MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias, 'sqlite'>;
+				isAlias: true;
+			}>
 		>
 	: never;
 
@@ -52,6 +56,7 @@ export interface SQLiteSelectConfig {
 	withList?: Subquery[];
 	fields: Record<string, unknown>;
 	fieldsFlat?: SelectedFieldsOrdered;
+	mapper?: (raw: any) => any;
 	where?: SQL;
 	having?: SQL;
 	table: SQLiteTable | Subquery | SQLiteViewBase | SQL;
@@ -69,6 +74,7 @@ export interface SQLiteSelectConfig {
 		limit?: number | Placeholder;
 		offset?: number | Placeholder;
 	}[];
+	ignoreSelectionCastCodecs?: boolean;
 }
 
 export type SQLiteSelectJoin<
@@ -180,7 +186,6 @@ export interface SQLiteSelectQueryBuilderHKT extends SQLiteSelectHKTBase {
 }
 
 export type SQLiteSetOperatorExcludedMethods =
-	| 'config'
 	| 'leftJoin'
 	| 'rightJoin'
 	| 'innerJoin'

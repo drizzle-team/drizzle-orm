@@ -1,241 +1,108 @@
 import type { FieldPacket, ResultSetHeader } from 'mysql2/promise';
-import type * as V1 from '~/_relations.ts';
-import { Column } from '~/column.ts';
-import { entityKind, is } from '~/entity.ts';
+import type { Cache } from '~/cache/core/index.ts';
+import { NoopCache } from '~/cache/core/index.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
+import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import {
-	type AnyRelations,
-	makeJitRqbMapper,
-	type RelationalQueryMapperConfig,
-	type RelationalRowsMapper,
-} from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
 import { SingleStoreTransaction } from '~/singlestore-core/index.ts';
-import type { SelectedFieldsOrdered } from '~/singlestore-core/query-builders/select.types.ts';
 import type {
+	AnySingleStoreMapper,
 	PreparedQueryKind,
 	SingleStorePreparedQueryConfig,
 	SingleStorePreparedQueryHKT,
 	SingleStoreQueryResultHKT,
 	SingleStoreTransactionConfig,
 } from '~/singlestore-core/session.ts';
-import { SingleStorePreparedQuery as PreparedQueryBase, SingleStoreSession } from '~/singlestore-core/session.ts';
-import type { Query, SQL } from '~/sql/sql.ts';
-import { fillPlaceholders } from '~/sql/sql.ts';
-import { type Assume, makeDefaultQueryMapper, makeJitQueryMapper, type RowsMapper } from '~/utils.ts';
+import { SingleStorePreparedQuery, SingleStoreSession } from '~/singlestore-core/session.ts';
+import type { Query } from '~/sql/sql.ts';
+import type { Assume } from '~/utils.ts';
 import type { RemoteCallback } from './driver.ts';
 
 export type SingleStoreRawQueryResult = [ResultSetHeader, FieldPacket[]];
 
 export interface SingleStoreRemoteSessionOptions {
 	logger?: Logger;
-	useJitMappers?: boolean;
+	cache?: Cache;
 }
 
-export class SingleStoreRemoteSession<
-	TFullSchema extends Record<string, unknown>,
-	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends SingleStoreSession<
+export class SingleStoreRemoteSession<TRelations extends AnyRelations> extends SingleStoreSession<
 	SingleStoreRemoteQueryResultHKT,
 	SingleStoreRemotePreparedQueryHKT,
-	TFullSchema,
-	TRelations,
-	TSchema
+	TRelations
 > {
 	static override readonly [entityKind]: string = 'SingleStoreRemoteSession';
 
 	private logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		private client: RemoteCallback,
 		dialect: SingleStoreDialect,
 		private relations: TRelations,
-		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: SingleStoreRemoteSessionOptions,
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends SingleStorePreparedQueryConfig>(
 		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		customResultMapper?: (rows: unknown[][]) => T['execute'],
-		generatedIds?: Record<string, unknown>[],
-		returningIds?: SelectedFieldsOrdered,
+		mode: 'arrays' | 'objects' | 'raw',
+		mapper?: AnySingleStoreMapper,
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 	): PreparedQueryKind<SingleStoreRemotePreparedQueryHKT, T> {
-		return new PreparedQuery(
-			this.client,
-			query.sql,
-			query.params,
+		const { client } = this;
+
+		const executor = async (params: unknown[] = []) => {
+			const raw = client(query.sql, params, mode === 'arrays' ? 'all' : 'execute');
+
+			if (mode === 'objects') return raw.then(({ rows }) => rows[0]);
+			if (mode === 'arrays' || !mapper) return raw.then(({ rows }) => rows);
+
+			return raw.then(({ rows }) => ({
+				insertId: rows[0]?.insertId,
+				affectedRows: rows[0]?.affectedRows,
+			}));
+		};
+
+		return new SingleStorePreparedQuery(
+			executor,
+			undefined,
+			query,
+			mapper,
+			mode,
 			this.logger,
-			fields,
-			this.options.useJitMappers,
-			customResultMapper,
-			generatedIds,
-			returningIds,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 		) as PreparedQueryKind<SingleStoreRemotePreparedQueryHKT, T>;
 	}
 
-	prepareRelationalQuery<T extends SingleStorePreparedQueryConfig>(
-		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
-		config: RelationalQueryMapperConfig,
-		generatedIds?: Record<string, unknown>[],
-		returningIds?: SelectedFieldsOrdered,
-	): PreparedQueryKind<SingleStoreRemotePreparedQueryHKT, T> {
-		return new PreparedQuery(
-			this.client,
-			query.sql,
-			query.params,
-			this.logger,
-			fields,
-			this.options.useJitMappers,
-			customResultMapper,
-			generatedIds,
-			returningIds,
-			true,
-			config,
-		) as any;
-	}
-
-	override all<T = unknown>(query: SQL): Promise<T[]> {
-		const querySql = this.dialect.sqlToQuery(query);
-		this.logger.logQuery(querySql.sql, querySql.params);
-		return this.client(querySql.sql, querySql.params, 'all').then(({ rows }) => rows) as Promise<T[]>;
-	}
-
 	override async transaction<T>(
-		_transaction: (tx: SingleStoreProxyTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		_transaction: (tx: SingleStoreProxyTransaction<TRelations>) => Promise<T>,
 		_config?: SingleStoreTransactionConfig,
 	): Promise<T> {
 		throw new Error('Transactions are not supported by the SingleStore Proxy driver');
 	}
 }
 
-export class SingleStoreProxyTransaction<
-	TFullSchema extends Record<string, unknown>,
-	TRelations extends AnyRelations,
-	TSchema extends V1.TablesRelationalConfig,
-> extends SingleStoreTransaction<
-	SingleStoreRemoteQueryResultHKT,
-	SingleStoreRemotePreparedQueryHKT,
-	TFullSchema,
-	TRelations,
-	TSchema
-> {
+export class SingleStoreProxyTransaction<TRelations extends AnyRelations>
+	extends SingleStoreTransaction<SingleStoreRemoteQueryResultHKT, SingleStoreRemotePreparedQueryHKT, TRelations>
+{
 	static override readonly [entityKind]: string = 'SingleStoreProxyTransaction';
 
 	override async transaction<T>(
-		_transaction: (tx: SingleStoreProxyTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
+		_transaction: (tx: SingleStoreProxyTransaction<TRelations>) => Promise<T>,
 	): Promise<T> {
 		throw new Error('Transactions are not supported by the SingleStore Proxy driver');
-	}
-}
-
-export class PreparedQuery<T extends SingleStorePreparedQueryConfig, TIsRqbV2 extends boolean = false>
-	extends PreparedQueryBase<T>
-{
-	static override readonly [entityKind]: string = 'SingleStoreProxyPreparedQuery';
-	private rowMapper?: RowsMapper<T['execute']> | RelationalRowsMapper<T['execute']>;
-
-	constructor(
-		private client: RemoteCallback,
-		private queryString: string,
-		private params: unknown[],
-		private logger: Logger,
-		private fields: SelectedFieldsOrdered | undefined,
-		private useJitMappers: boolean | undefined,
-		private customResultMapper?: (
-			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
-		) => T['execute'],
-		// Keys that were used in $default and the value that was generated for them
-		private generatedIds?: Record<string, unknown>[],
-		// Keys that should be returned, it has the column with all properries + key from object
-		private returningIds?: SelectedFieldsOrdered,
-		private isRqbV2Query?: TIsRqbV2,
-		private rqbConfig?: RelationalQueryMapperConfig,
-	) {
-		super();
-	}
-
-	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
-
-		const params = fillPlaceholders(this.params, placeholderValues);
-
-		const { fields, client, queryString, logger, nullableObjectPaths, customResultMapper, returningIds, generatedIds } =
-			this;
-
-		logger.logQuery(queryString, params);
-
-		if (!fields && !customResultMapper) {
-			const { rows: data } = await client(queryString, params, 'execute');
-
-			const insertId = data[0].insertId as number;
-			const affectedRows = data[0].affectedRows;
-
-			if (returningIds) {
-				const returningResponse = [];
-				let j = 0;
-				for (let i = insertId; i < insertId + affectedRows; i++) {
-					for (const column of returningIds) {
-						const key = returningIds[0]!.path[0]!;
-						if (is(column.field, Column)) {
-							// @ts-ignore
-							if (column.field.primary && column.field.autoIncrement) {
-								returningResponse.push({ [key]: i });
-							}
-							if (column.field.defaultFn && generatedIds) {
-								// generatedIds[rowIdx][key]
-								returningResponse.push({ [key]: generatedIds[j]![key] });
-							}
-						}
-					}
-					j++;
-				}
-
-				return returningResponse;
-			}
-
-			return data;
-		}
-
-		const { rows } = await client(queryString, params, 'all');
-
-		if (customResultMapper) {
-			return customResultMapper(rows);
-		}
-
-		return (this.rowMapper = this.rowMapper as RowsMapper<T['execute']>
-			?? (this.useJitMappers
-				? makeJitQueryMapper<T['execute']>(fields!, nullableObjectPaths)
-				: makeDefaultQueryMapper<T['execute']>(fields!, nullableObjectPaths)))(rows);
-	}
-
-	private async executeRqbV2(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
-
-		const { client, queryString, logger, customResultMapper } = this;
-
-		logger.logQuery(queryString, params);
-
-		const { rows: res } = await client(queryString, params, 'execute');
-		const rows = res[0];
-
-		return this.useJitMappers
-			? (this.rowMapper = this.rowMapper as RelationalRowsMapper<T['execute']>
-				?? makeJitRqbMapper<T['execute']>(this.rqbConfig!))(rows)
-			: customResultMapper!(rows);
-	}
-
-	override iterator(
-		_placeholderValues: Record<string, unknown> = {},
-	): AsyncGenerator<T['iterator']> {
-		throw new Error('Streaming is not supported by the SingleStore Proxy driver');
 	}
 }
 
@@ -244,5 +111,5 @@ export interface SingleStoreRemoteQueryResultHKT extends SingleStoreQueryResultH
 }
 
 export interface SingleStoreRemotePreparedQueryHKT extends SingleStorePreparedQueryHKT {
-	type: PreparedQuery<Assume<this['config'], SingleStorePreparedQueryConfig>>;
+	type: SingleStorePreparedQuery<Assume<this['config'], SingleStorePreparedQueryConfig>>;
 }

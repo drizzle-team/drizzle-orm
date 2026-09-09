@@ -1,10 +1,9 @@
 import type { AnyCockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
-import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
+import { CockroachColumn, type CockroachColumnBaseConfig, CockroachColumnBuilder } from './common.ts';
 
-export class CockroachBitBuilder extends CockroachColumnWithArrayBuilder<{
+export class CockroachBitBuilder extends CockroachColumnBuilder<{
 	dataType: 'string binary';
 	data: string;
 	driverParam: string;
@@ -29,10 +28,13 @@ export class CockroachBitBuilder extends CockroachColumnWithArrayBuilder<{
 	}
 }
 
-export class CockroachBit<T extends ColumnBaseConfig<'string binary'> & { length?: number }>
-	extends CockroachColumn<T, { length: T['length']; setLength: boolean }>
+export class CockroachBit<T extends CockroachColumnBaseConfig<'string binary'> & { length?: number }>
+	extends CockroachColumn<'string binary', T, { length: T['length']; setLength: boolean }>
 {
 	static override readonly [entityKind]: string = 'CockroachBit';
+
+	/** @internal */
+	override readonly codec = 'bit';
 
 	getSQLType(): string {
 		return this.config.setLength ? `bit(${this.length})` : 'bit';

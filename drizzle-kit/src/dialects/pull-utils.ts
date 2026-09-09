@@ -1,5 +1,7 @@
+import { toCamelCase } from 'drizzle-orm/casing';
 import { Minimatch } from 'minimatch';
 import type { EntitiesFilter, ExtensionsFilter, SchemasFilter, TablesFilter } from '../cli/validations/common';
+import type { Casing } from '../cli/validations/common';
 import { assertUnreachable } from '../utils';
 import type { Dialect } from '../utils/schemaValidator';
 import { isSystemRole as isCockroachSystemRole } from './cockroach/grammar';
@@ -172,6 +174,7 @@ const prepareRolesFilter = (dialect: Dialect, entities: EntitiesFilter) => {
 		// Neon reserved / system roles. `authenticated`/`anonymous` are Neon
 		// Auth; the rest are Neon-managed internals that push must never DROP
 		// (https://github.com/drizzle-team/drizzle-orm/issues/6105).
+		// https://neon.com/docs/manage/roles#reserved-role-names
 		exclude.push(
 			'authenticated',
 			'anonymous',
@@ -179,6 +182,7 @@ const prepareRolesFilter = (dialect: Dialect, entities: EntitiesFilter) => {
 			'neon_service',
 			'neon_superuser',
 			'zenith_admin',
+			'none',
 		);
 	}
 
@@ -201,4 +205,22 @@ const prepareRolesFilter = (dialect: Dialect, entities: EntitiesFilter) => {
 	};
 
 	return rolesFilter;
+};
+
+const escapeColumnKey = (value: string) => {
+	if (/^(?![a-zA-Z_$][a-zA-Z0-9_$]*$).+$/.test(value)) {
+		return `"${value}"`;
+	}
+	return value;
+};
+
+export const withCasing = (value: string, casing?: Casing) => {
+	if (casing === 'preserve') {
+		return escapeColumnKey(value);
+	}
+	if (casing === 'camel') {
+		return escapeColumnKey(toCamelCase(value));
+	}
+
+	return value;
 };

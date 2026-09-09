@@ -12,7 +12,6 @@ import { PgEffectPreparedQuery, PgEffectSession, PgEffectTransaction } from '~/p
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
-import type { Assume } from '~/utils.ts';
 
 export interface EffectPgQueryEffectHKT extends QueryEffectHKTBase {
 	readonly error: EffectDrizzleQueryError;
@@ -20,7 +19,7 @@ export interface EffectPgQueryEffectHKT extends QueryEffectHKTBase {
 }
 
 export interface EffectPgQueryResultHKT extends PgQueryResultHKT {
-	type: readonly Assume<this['row'], object>[];
+	type: unknown;
 }
 
 export interface EffectPgSessionOptions {

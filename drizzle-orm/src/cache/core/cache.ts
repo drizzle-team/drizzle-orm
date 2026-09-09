@@ -243,17 +243,50 @@ function sha256(bytes: Uint8Array): Uint8Array {
 	return out;
 }
 
+const HEX = /* @__PURE__ */ (() => {
+	const table = new Array<string>(256);
+	for (let i = 0; i < 256; i++) table[i] = i.toString(16).padStart(2, '0');
+	return table;
+})();
+
+function toHex(bytes: Uint8Array): string {
+	let hex = '';
+	for (let i = 0; i < bytes.length; i++) hex += HEX[bytes[i]!];
+	return hex;
+}
+
+type NodeCreateHash = (algorithm: string) => {
+	update(data: string): { digest(encoding: 'hex'): string };
+};
+
+let nodeCreateHash: NodeCreateHash | null | undefined;
+
+function getNodeCreateHash(): NodeCreateHash | null {
+	if (nodeCreateHash !== undefined) return nodeCreateHash;
+
+	let resolved: NodeCreateHash | null;
+	try {
+		const nodeCrypto = (globalThis as any).process?.getBuiltinModule?.('node:crypto');
+		resolved = typeof nodeCrypto?.createHash === 'function' ? nodeCrypto.createHash : null;
+	} catch {
+		resolved = null;
+	}
+
+	return (nodeCreateHash = resolved);
+}
+
+let encoder: TextEncoder | undefined;
+
 export async function hashQuery(sql: string, params?: any[]) {
 	const dataToHash = `${sql}-${JSON.stringify(params, (_, v) => typeof v === 'bigint' ? `${v}n` : v)}`;
-	const encoder = new TextEncoder();
+
+	const createHash = getNodeCreateHash();
+	if (createHash) return createHash('sha256').update(dataToHash).digest('hex');
+
+	encoder ??= new TextEncoder();
 	const data = encoder.encode(dataToHash);
 
 	const subtle = typeof globalThis.crypto !== 'undefined' ? globalThis.crypto.subtle : undefined;
-	const hashArray = subtle
-		? [...new Uint8Array(await subtle.digest('SHA-256', data))]
-		: [...sha256(data)];
 
-	const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-
-	return hashHex;
+	return toHex(subtle ? new Uint8Array(await subtle.digest('SHA-256', data)) : sha256(data));
 }

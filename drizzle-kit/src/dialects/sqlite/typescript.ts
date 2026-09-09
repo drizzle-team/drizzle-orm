@@ -3,6 +3,8 @@ import { toCamelCase } from 'drizzle-orm/casing';
 import '../../@types/utils';
 import type { Casing } from '../../cli/validations/common';
 import { assertUnreachable } from '../../utils';
+import { withCasing } from '../pull-utils';
+import { escapeForSqlTemplate } from '../utils';
 import type {
 	CheckConstraint,
 	Column,
@@ -36,24 +38,6 @@ const objToStatement2 = (json: any) => {
 };
 
 const relations = new Set<string>();
-
-const escapeColumnKey = (value: string) => {
-	if (/^(?![a-zA-Z_$][a-zA-Z0-9_$]*$).+$/.test(value)) {
-		return `"${value}"`;
-	}
-	return value;
-};
-
-const withCasing = (value: string, casing?: Casing) => {
-	if (casing === 'preserve') {
-		return escapeColumnKey(value);
-	}
-	if (casing === 'camel') {
-		return escapeColumnKey(value.camelCase());
-	}
-
-	return value;
-};
 
 const dbColumnName = ({ name, casing, withMode = false }: { name: string; casing: Casing; withMode?: boolean }) => {
 	if (casing === 'preserve') {
@@ -152,7 +136,7 @@ export const ddlToTypeScript = (
 		const columns = viewColumns[view.name] || [];
 		statement += createViewColumns(view, columns, casing);
 		statement += '})';
-		statement += `.as(sql\`${view.definition?.replaceAll('`', '\\`')}\`);`;
+		statement += `.as(sql\`${view.definition ? escapeForSqlTemplate(view.definition) : view.definition}\`);`;
 
 		return statement;
 	});
@@ -205,7 +189,7 @@ const mapColumnDefault = (it: NonNullable<Column['default']>) => {
 		&& it.startsWith('(')
 		&& it.endsWith(')')
 	) {
-		return `sql\`${it}\``;
+		return `sql\`${escapeForSqlTemplate(it)}\``;
 	}
 	// If default value is NULL as string it will come back from db as "'NULL'" and not just "NULL"
 	if (it === 'NULL') {
@@ -348,10 +332,13 @@ const createTableIndexes = (
 		statement += `${escapedIndexName})`;
 		statement += `.on(${
 			it.columns
-				.map((it) => `table.${withCasing(it.value, casing)}`)
+				.map((it) =>
+					it.isExpression ? `sql\`${escapeForSqlTemplate(it.value)}\`` : `table.${withCasing(it.value, casing)}`
+				)
 				.join(', ')
-		}),`;
-		statement += `\n`;
+		})`;
+		statement += it.where ? `.where(sql\`${escapeForSqlTemplate(it.where)}\`)` : '';
+		statement += `,\n`;
 	}
 
 	return statement;
@@ -386,7 +373,7 @@ const createTableChecks = (
 	checks.forEach((it) => {
 		statement += 'check(';
 		statement += `"${it.name}", `;
-		statement += `sql\`${it.value}\`)`;
+		statement += `sql\`${escapeForSqlTemplate(it.value)}\`)`;
 		statement += `,\n`;
 	});
 

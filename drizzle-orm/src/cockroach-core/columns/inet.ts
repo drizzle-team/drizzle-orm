@@ -1,9 +1,8 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyCockroachTable } from '../table.ts';
-import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
+import { CockroachColumn, type CockroachColumnBaseConfig, CockroachColumnBuilder } from './common.ts';
 
-export class CockroachInetBuilder extends CockroachColumnWithArrayBuilder<{
+export class CockroachInetBuilder extends CockroachColumnBuilder<{
 	dataType: 'string inet';
 	data: string;
 	driverParam: string;
@@ -25,8 +24,13 @@ export class CockroachInetBuilder extends CockroachColumnWithArrayBuilder<{
 	}
 }
 
-export class CockroachInet<T extends ColumnBaseConfig<'string inet'>> extends CockroachColumn<T> {
+export class CockroachInet<T extends CockroachColumnBaseConfig<'string inet'>>
+	extends CockroachColumn<'string inet', T>
+{
 	static override readonly [entityKind]: string = 'CockroachInet';
+
+	/** @internal */
+	override readonly codec = 'inet';
 
 	getSQLType(): string {
 		return 'inet';

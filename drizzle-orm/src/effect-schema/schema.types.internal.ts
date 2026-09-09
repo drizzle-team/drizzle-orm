@@ -2,9 +2,9 @@ import type { Schema as s } from 'effect';
 import type { Struct, Top as SchemaTop, UndefinedOr } from 'effect/Schema';
 import type { Column } from '~/column.ts';
 import type { SelectedFieldsFlat } from '~/operations.ts';
-import type { View } from '~/sql/sql.ts';
 import type { Table } from '~/table.ts';
 import type { Assume, DrizzleTypeError, Simplify } from '~/utils.ts';
+import type { View } from '~/view.ts';
 import type { ColumnIsGeneratedAlwaysAs, GetSelection } from '../utils.ts';
 import type { GetEffectSchemaType, HandleColumn } from './column.types.ts';
 

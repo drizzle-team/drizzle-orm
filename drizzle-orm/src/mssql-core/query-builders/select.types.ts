@@ -18,10 +18,11 @@ import type {
 	SelectResult,
 	SetOperator,
 } from '~/query-builders/select.types.ts';
-import type { ColumnsSelection, Placeholder, SQL, View } from '~/sql/sql.ts';
+import type { ColumnsSelection, Placeholder, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, ValidateShape } from '~/utils.ts';
+import type { UpdateViewConfig, View } from '~/view.ts';
 import type { PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
 import type { MsSqlViewBase } from '../view-base.ts';
 import type { MsSqlView, MsSqlViewWithSelection } from '../view.ts';
@@ -40,12 +41,15 @@ export type BuildAliasTable<TTable extends MsSqlTable | MsSqlView, TAlias extend
 		UpdateTableConfig<TTable['_'], {
 			name: TAlias;
 			columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias, 'mssql'>;
+			isAlias: true;
 		}>
 	>
-	: TTable extends View<any, any, any> ? MsSqlViewWithSelection<
-			TAlias,
-			TTable['_']['existing'],
-			MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias, 'mssql'>
+	: TTable extends View ? MsSqlViewWithSelection<
+			UpdateViewConfig<TTable['_'], {
+				name: TAlias;
+				selectedFields: MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias, 'mssql'>;
+				isAlias: true;
+			}>
 		>
 	: never;
 
@@ -53,6 +57,8 @@ export interface MsSqlSelectConfig {
 	withList?: Subquery[];
 	fields: Record<string, unknown>;
 	fieldsFlat?: SelectedFieldsOrdered;
+	mapper?: (raw: any) => any;
+	ignoreSelectionCastCodecs?: boolean;
 	where?: SQL;
 	having?: SQL;
 	table: MsSqlTable | Subquery | MsSqlViewBase | SQL;
@@ -101,7 +107,7 @@ export type MsSqlJoin<
 				T['_']['selection'],
 				TJoinedName,
 				TJoinedTable extends MsSqlTable ? TJoinedTable['_']['columns']
-					: TJoinedTable extends Subquery ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
+					: TJoinedTable extends Subquery | View ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
 					: never,
 				T['_']['selectMode']
 			>,
@@ -127,6 +133,27 @@ export type MsSqlJoinFn<
 >(
 	table: TJoinedTable,
 	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
+) => MsSqlJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
+
+export type MsSqlCrossJoinFn<
+	T extends AnyMsSqlSelectQueryBuilder,
+	TDynamic extends boolean,
+> = <
+	TJoinedTable extends MsSqlTable | Subquery | MsSqlViewBase | SQL,
+	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
+>(
+	table: TJoinedTable,
+) => MsSqlJoin<T, TDynamic, 'cross', TJoinedTable, TJoinedName>;
+
+export type MsSqlApplyFn<
+	T extends AnyMsSqlSelectQueryBuilder,
+	TDynamic extends boolean,
+	TJoinType extends JoinType,
+> = <
+	TJoinedTable extends MsSqlTable | Subquery | MsSqlViewBase | SQL,
+	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
+>(
+	table: TJoinedTable,
 ) => MsSqlJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
 export type SelectedFieldsFlat = SelectedFieldsFlatBase<MsSqlColumn>;
@@ -214,7 +241,6 @@ export type MsSqlSetOperatorExcludedMethods =
 	| 'where'
 	| 'having'
 	| 'groupBy'
-	| 'session'
 	| 'fetch'
 	| 'offset'
 	| 'leftJoin'

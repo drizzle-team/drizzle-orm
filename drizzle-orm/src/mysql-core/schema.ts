@@ -1,7 +1,7 @@
 import type { Casing } from '~/casing.ts';
 import { entityKind, is } from '~/entity.ts';
 import { type MySqlTableFn, mysqlTableWithSchema } from './table.ts';
-import { type mysqlView, mysqlViewWithSchema } from './view.ts';
+import { type MySqlViewFn, mysqlViewWithSchema } from './view.ts';
 
 export class MySqlSchema<TName extends string = string> {
 	static readonly [entityKind]: string = 'MySqlSchema';
@@ -17,7 +17,7 @@ export class MySqlSchema<TName extends string = string> {
 
 	view = ((name, columns) => {
 		return mysqlViewWithSchema(name, columns, this.schemaName, this.casing);
-	}) as typeof mysqlView;
+	}) as MySqlViewFn<TName>;
 }
 
 /** @deprecated - use `instanceof MySqlSchema` */

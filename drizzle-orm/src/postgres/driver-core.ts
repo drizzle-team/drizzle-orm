@@ -1,4 +1,4 @@
-import type { Pool } from 'minipg';
+import type { Pool } from '@drizzle-team/minipg';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';

@@ -1,4 +1,4 @@
-import { client as createClient, type HttpClient, type HttpConfig } from 'minipg/http';
+import { client as createClient, type HttpClient, type HttpConfig } from '@drizzle-team/minipg/http';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { construct, type PostgresHttpDatabase } from './driver-core.ts';

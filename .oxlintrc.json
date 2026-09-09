@@ -13,7 +13,7 @@
 			}
 		],
 		"typescript/no-import-type-side-effects": "error",
-		"import/consistent-type-specifier-style Style": "error",
+		"import/consistent-type-specifier-style": "error",
 		"import/no-cycle": "error",
 		"import/no-self-import": "error",
 		"import/no-empty-named-blocks": "error",

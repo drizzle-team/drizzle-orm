@@ -1,6 +1,8 @@
 export * from './alias.ts';
+export * from './array.ts';
 export * from './casing.ts';
 export * from './checks.ts';
+export * from './codecs.ts';
 export * from './columns/index.ts';
 export * from './db.ts';
 export * from './dialect.ts';
@@ -16,5 +18,5 @@ export * from './session.ts';
 export * from './subquery.ts';
 export * from './table.ts';
 export * from './unique-constraint.ts';
-export * from './utils/index.ts';
+export * from './utils.ts';
 export * from './view.ts';

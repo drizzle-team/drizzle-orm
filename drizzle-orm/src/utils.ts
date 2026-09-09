@@ -1,3 +1,4 @@
+import { View } from '~/view.ts';
 import type { Cache } from './cache/core/cache.ts';
 import type { CodecsCollection } from './codecs.ts';
 import type { AnyColumn } from './column.ts';
@@ -7,7 +8,7 @@ import type { Logger } from './logger.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './operations.ts';
 import type { TableLike } from './query-builders/select.types.ts';
 import type { AnyRelations, EmptyRelations } from './relations.ts';
-import { Param, SQL, View } from './sql/sql.ts';
+import { Param, SQL } from './sql/sql.ts';
 import type { DriverValueDecoder, SQLWrapper } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
 import { getTableName, Table } from './table.ts';
@@ -644,16 +645,13 @@ export type ColumnsWithTable<
 	TColumns extends AnyColumn<{ tableName: TTableName }>[],
 > = { [Key in keyof TColumns]: AnyColumn<{ tableName: TForeignTableName }> };
 
-export interface DrizzleConfig<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelationConfigs extends AnyRelations = EmptyRelations,
-> {
+export interface DrizzleConfig<TRelationConfigs extends AnyRelations = EmptyRelations> {
 	logger?: boolean | Logger | undefined;
-	schema?: TSchema | undefined;
 	relations?: TRelationConfigs | undefined;
 	cache?: Cache | undefined;
 	jit?: boolean | undefined;
 }
+
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	? Exclude<keyof T, keyof ValidShape> extends never ? TResult
 	: DrizzleTypeError<
@@ -686,18 +684,6 @@ export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = Keys extends 
 	? Required<Pick<T, Keys>> & Partial<Omit<T, Keys>>
 	: never;
 
-type ExpectedConfigShape = {
-	logger?: boolean | {
-		logQuery(query: string, params: unknown[]): void;
-	} | undefined;
-	schema?: Record<string, never> | undefined;
-	relations?: AnyRelations | undefined;
-};
-
-// If this errors, you must update config shape checker function with new config specs
-const _: DrizzleConfig<any, any> = {} as ExpectedConfigShape;
-const __: ExpectedConfigShape = {} as DrizzleConfig;
-
 export function isConfig(data: any): boolean {
 	if (typeof data !== 'object' || data === null) return false;
 
@@ -709,13 +695,6 @@ export function isConfig(data: any): boolean {
 			type !== 'boolean' && (type !== 'object' || typeof data['logger']['logQuery'] !== 'function')
 			&& type !== 'undefined'
 		) return false;
-
-		return true;
-	}
-
-	if ('schema' in data) {
-		const type = typeof data['schema'];
-		if (type !== 'object' && type !== 'undefined') return false;
 
 		return true;
 	}
@@ -749,7 +728,7 @@ export function isConfig(data: any): boolean {
 	}
 
 	if ('codecs' in data) {
-		const type = typeof data['connection'];
+		const type = typeof data['codecs'];
 		if (type !== 'object' && type !== 'undefined') return false;
 
 		return true;
@@ -795,11 +774,6 @@ export type RemoveNeverElements<T extends any[]> = T extends [infer First, ...in
 	? IsNever<First> extends true ? RemoveNeverElements<Rest>
 	: [First, ...RemoveNeverElements<Rest>]
 	: [];
-
-export type HasBaseColumn<TColumn> = TColumn extends { _: { baseColumn: Column | undefined } }
-	? IsNever<TColumn['_']['baseColumn']> extends false ? true
-	: false
-	: false;
 
 export type EnumValuesToEnum<TEnumValues extends [string, ...string[]]> = { [K in TEnumValues[number]]: K };
 

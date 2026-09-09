@@ -1,5 +1,4 @@
 /// <reference types="@cloudflare/workers-types" />
-import type { PGlite } from '@electric-sql/pglite';
 import type { SQLiteCloudRowset } from '@sqlitecloud/drivers';
 import { DrizzleQueryError, is } from 'drizzle-orm';
 import type { AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
@@ -41,10 +40,7 @@ const normalisePGliteUrl = (it: string) => {
 };
 
 export const preparePostgresDB = async (
-	credentials: PostgresCredentials | {
-		driver: 'pglite';
-		client: PGlite;
-	},
+	credentials: PostgresCredentials,
 ): Promise<
 	DB & {
 		packageName:
@@ -68,11 +64,10 @@ export const preparePostgresDB = async (
 			const { RDSDataClient } = await import(
 				'@aws-sdk/client-rds-data'
 			);
-			const { AwsDataApiSession, drizzle } = await import(
+			const { AwsDataApiSession, drizzle, AwsPgDialect } = await import(
 				'drizzle-orm/aws-data-api/pg'
 			);
 			const { migrate } = await import('drizzle-orm/aws-data-api/pg/migrator');
-			const { PgDialect } = await import('drizzle-orm/pg-core');
 
 			const config: AwsDataApiSessionOptions = {
 				database: credentials.database,
@@ -82,7 +77,7 @@ export const preparePostgresDB = async (
 			const rdsClient = new RDSDataClient();
 			const session = new AwsDataApiSession(
 				rdsClient,
-				new PgDialect(),
+				new AwsPgDialect(),
 				{},
 				config,
 				undefined,
@@ -151,6 +146,13 @@ export const preparePostgresDB = async (
 
 		if (driver === 'pglite') {
 			assertPackages('@electric-sql/pglite');
+			if (!('client' in credentials)) {
+				humanLog(
+					withStyle.info(
+						`Drizzle Kit creates a PGlite instance from "url", so no extensions are loaded. If your database uses extensions, provide your own PGlite instance via the 'client' param in the drizzle config.`,
+					),
+				);
+			}
 			const { PGlite, types } = await import('@electric-sql/pglite');
 			const { drizzle } = await import('drizzle-orm/pglite');
 			const { migrate } = await import('drizzle-orm/pglite/migrator');

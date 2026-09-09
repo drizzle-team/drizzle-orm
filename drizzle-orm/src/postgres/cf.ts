@@ -1,4 +1,4 @@
-import { createPool, type Pool, type PoolConfig } from 'minipg/cf';
+import { createPool, type Pool, type PoolConfig } from '@drizzle-team/minipg/cf';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { construct, type PostgresDatabase } from './driver-core.ts';

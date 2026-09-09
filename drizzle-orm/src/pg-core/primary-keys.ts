@@ -25,6 +25,10 @@ export function primaryKey(...config: any) {
 export class PrimaryKeyBuilder {
 	static readonly [entityKind]: string = 'PgPrimaryKeyBuilder';
 
+	declare _: {
+		brand: 'PgPrimaryKeyBuilder';
+	};
+
 	/** @internal */
 	columns: PgColumn[];
 

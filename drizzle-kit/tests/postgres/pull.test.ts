@@ -899,7 +899,7 @@ test('introspect view #3', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-08-12'))('introspect view #4', async () => {
+test.skipIf(Date.now() < +new Date('2026-09-12'))('introspect view #4', async () => {
 	const table = pgTable('table', {
 		column1: text().notNull(),
 		column2: text(),
@@ -928,7 +928,7 @@ test.skipIf(Date.now() < +new Date('2026-08-12'))('introspect view #4', async ()
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-08-12'))('introspect view #5', async () => {
+test.skipIf(Date.now() < +new Date('2026-09-12'))('introspect view #5', async () => {
 	const applications = pgTable('applications', {
 		applicationId: serial('application_id').primaryKey(),
 		studentId: integer('student_id').references(() => students.studentId),
@@ -1820,7 +1820,7 @@ test('introspect view with table filter', async () => {
 // this does not look like a bug
 // sequences are separete entities
 // entity filter for sequences ??
-test.skipIf(Date.now() < +new Date('2026-08-12'))('introspect sequences with table filter', async () => {
+test.skipIf(Date.now() < +new Date('2026-09-12'))('introspect sequences with table filter', async () => {
 	// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')
 
 	// const seq1 = pgSequence('seq1');
@@ -2812,16 +2812,20 @@ CREATE INDEX "idx_19612_cnst_full_name_idx" ON "public"."constructor" USING btre
 // when user does not have permissions, introspection should not fail
 // https://github.com/drizzle-team/drizzle-orm/issues/5568
 test('non-admin', async () => {
-	const newSchema = pgSchema('schema_not_for_non_admin');
+	const schemaNotForNonAdmin = pgSchema('schema_not_for_non_admin');
+	const tableNotForNonAdmin = schemaNotForNonAdmin.table('table_not_for_non_admin', {
+		id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+	});
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
 			name: text('name'),
+			fkOnSchemaNotForNonAdmin: integer('fk_on_schema_not_for_non_admin').references(
+				() => tableNotForNonAdmin.id,
+			),
 		}),
-		schemaNotForNonAdmin: newSchema,
-		tableNotForNonAdmin: newSchema.table('table_not_for_non_admin', {
-			id: integer('id'),
-		}),
+		schemaNotForNonAdmin,
+		tableNotForNonAdmin,
 	};
 
 	await push({ db, to: schema });
@@ -3135,4 +3139,402 @@ CREATE TABLE table2 (
 	expect(generateStatements).toStrictEqual([]);
 	expect(pushSqlStatements).toStrictEqual([]);
 	expect(generateSqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3736
+test('issue No3736', async () => {
+	await db.query(`CREATE TABLE "keyfigures" (
+	"id" integer NOT NULL,
+	"comp_uuid" uuid NOT NULL,
+	"year" varchar(255) NOT NULL
+);`);
+
+	await db.query(`CREATE INDEX "keyfigures__comp_uuid_idx" ON "keyfigures" USING btree ("comp_uuid" uuid_ops);`);
+	await db.query(
+		`CREATE INDEX "keyfigures__comp_uuid_year_idx" ON "keyfigures" USING btree ("comp_uuid" uuid_ops,"year" text_ops);`,
+	);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'issue 3736');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.indexes.list().map((it) => it.columns)).toStrictEqual([
+		[
+			{
+				asc: true,
+				isExpression: false,
+				nullsFirst: false,
+				opclass: null,
+				value: 'comp_uuid',
+			},
+		],
+		[
+			{
+				asc: true,
+				isExpression: false,
+				nullsFirst: false,
+				opclass: null, // default op class
+				value: 'comp_uuid',
+			},
+			{
+				asc: true,
+				isExpression: false,
+				nullsFirst: false,
+				opclass: null, // default op class
+				value: 'year',
+			},
+		],
+	]);
+	expect(schema2.indexes.map((it) => it.columns)).toStrictEqual([
+		[
+			{
+				asc: true,
+				isExpression: false,
+				nullsFirst: false,
+				opclass: null,
+				value: 'comp_uuid',
+			},
+		],
+		[
+			{
+				asc: true,
+				isExpression: false,
+				nullsFirst: false,
+				opclass: null,
+				value: 'comp_uuid',
+			},
+			{
+				asc: true,
+				isExpression: false,
+				nullsFirst: false,
+				opclass: null,
+				value: 'year',
+			},
+		],
+	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3250
+test('issue No3250', async () => {
+	await db.query(`CREATE TABLE users (
+    "id" SERIAL PRIMARY KEY,
+    "username" TEXT NOT NULL,
+    account_type varchar(64) DEFAULT NULL::character varying NULL
+);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'issue 3250');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.list({ name: 'account_type' })).toStrictEqual([
+		{
+			default: 'NULL',
+			dimensions: 0,
+			entityType: 'columns',
+			generated: null,
+			identity: null,
+			name: 'account_type',
+			notNull: false,
+			schema: 'public',
+			table: 'users',
+			type: 'varchar(64)',
+			typeSchema: null,
+		},
+	]);
+	expect(schema2.columns.find((it) => it.name === 'account_type')).toStrictEqual(
+		{
+			default: 'NULL',
+			dimensions: 0,
+			entityType: 'columns',
+			generated: null,
+			identity: null,
+			name: 'account_type',
+			notNull: false,
+			pk: false,
+			pkName: null,
+			schema: 'public',
+			table: 'users',
+			type: 'varchar(64)',
+			typeSchema: null,
+			unique: false,
+			uniqueName: null,
+			uniqueNullsNotDistinct: false,
+		},
+	);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3820
+test('issue No3820', async () => {
+	await db.query(`CREATE TABLE "Guru" (
+	"id" int8 primary key generated by default as identity
+);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, {}, 'issue-3820');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2993
+test('issue No2993', async () => {
+	await db.query(`create schema drizzle_test;`);
+	await db.query(`create table drizzle_test.child (
+    id uuid primary key,
+    other_id uuid not null
+);`);
+	await db.query(`create table drizzle_test.parent (
+    id uuid primary key,
+    other_id uuid not null,
+    child_id uuid unique references drizzle_test.child (id) on delete restrict,
+    unique (other_id, child_id)
+);`);
+	await db.query(`alter table drizzle_test.child add constraint test_key
+foreign key (other_id, id)
+references drizzle_test.parent (other_id, child_id);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, {}, 'issue-2993');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2965
+test('Issue No2965', async () => {
+	await db.query(`create table "table" (
+    id uuid primary key,
+    other_id jsonb default jsonb_build_array(10, 'Hi', true)
+);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+	} = await diffIntrospect(db, {}, 'issue-2965');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.one({ name: 'other_id' })).toStrictEqual({
+		default: "jsonb_build_array(10, 'Hi', true)",
+		dimensions: 0,
+		entityType: 'columns',
+		generated: null,
+		identity: null,
+		name: 'other_id',
+		notNull: false,
+		schema: 'public',
+		table: 'table',
+		type: 'jsonb',
+		typeSchema: null,
+	});
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2595
+test('Issue No 2595', async () => {
+	await db.query(`CREATE TABLE "table" (
+			id varchar(20)[] 
+		);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+	} = await diffIntrospect(db, {}, 'issue-2595');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.one({ name: 'id' })).toStrictEqual({
+		default: null,
+		dimensions: 1,
+		entityType: 'columns',
+		generated: null,
+		identity: null,
+		name: 'id',
+		notNull: false,
+		schema: 'public',
+		table: 'table',
+		type: 'varchar(20)',
+		typeSchema: null,
+	});
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2069
+test('Issue No2069', async () => {
+	await db.query(`create table "table" (
+		 ref_icon character varying(255) COLLATE pg_catalog."default" DEFAULT 'activity'::character varying
+	);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+	} = await diffIntrospect(db, {}, 'issue-2069');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.one({ name: 'ref_icon' })).toStrictEqual({
+		default: "'activity'",
+		dimensions: 0,
+		entityType: 'columns',
+		generated: null,
+		identity: null,
+		name: 'ref_icon',
+		notNull: false,
+		schema: 'public',
+		table: 'table',
+		type: 'varchar(255)',
+		typeSchema: null,
+	});
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3446
+test('Issue No3446', async () => {
+	await db.query(`create table "table" (
+		 ref_icon bytea
+	);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'issue-3446');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.list()).toStrictEqual([{
+		default: null,
+		dimensions: 0,
+		entityType: 'columns',
+		generated: null,
+		identity: null,
+		name: 'ref_icon',
+		notNull: false,
+		schema: 'public',
+		table: 'table',
+		type: 'bytea',
+		typeSchema: null,
+	}]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6214
+// TODO revise this when "NOT VALID" feature is supported
+test.skipIf(Date.now() < +new Date('2026-09-12'))('Issue No6214', async () => {
+	await db.query(`CREATE TABLE documents (
+  id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  version integer NOT NULL
+);`);
+
+	await db.query(`ALTER TABLE documents
+  ADD CONSTRAINT documents_version_check
+  CHECK (version >= 0) NOT VALID;`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'issue-6214');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.checks.list()).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6105
+test('Issue No6105', async () => {
+	await db.query(`CREATE ROLE neon_service`);
+	await db.query(`CREATE ROLE cloud_admin`);
+	await db.query(`CREATE ROLE zenith_admin`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'issue-6105', undefined, {
+		roles: { provider: 'neon', exclude: ['postgres', 'superuser'] },
+	});
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.roles.list()).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6074
+test('Issue No6074', async () => {
+	await db.query(`CREATE TABLE "CallLog" ("CallID" TEXT PRIMARY KEY);`);
+	await db.query(`CREATE TABLE "Subset" (
+  "CallID" TEXT PRIMARY KEY REFERENCES "CallLog"("CallID")
+);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'issue-6074');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.roles.list()).toStrictEqual([]);
 });

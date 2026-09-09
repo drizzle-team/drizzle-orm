@@ -71,7 +71,7 @@ export function mssqlTableWithSchema<
 	extraConfig:
 		| ((
 			self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'mssql'>,
-		) => MsSqlTableExtraConfig | MsSqlTableExtraConfigValue[])
+		) => MsSqlTableExtraConfig | (MsSqlTableExtraConfigValue | MsSqlTableExtraConfigValue[])[])
 		| undefined,
 	schema: TSchemaName,
 	casing: Casing | undefined,
@@ -81,6 +81,7 @@ export function mssqlTableWithSchema<
 	schema: TSchemaName;
 	columns: BuildColumns<TTableName, TColumnsMap, 'mssql'>;
 	dialect: 'mssql';
+	isAlias: false;
 }> {
 	const casingFn = getCasingFn(casing);
 	const rawTable = new MsSqlTable<{
@@ -88,6 +89,7 @@ export function mssqlTableWithSchema<
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap, 'mssql'>;
 		dialect: 'mssql';
+		isAlias: false;
 	}>(name, schema, baseName);
 
 	const parsedColumns: TColumnsMap = typeof columns === 'function' ? columns(getMsSqlColumnBuilders()) : columns;
@@ -127,12 +129,15 @@ export interface MsSqlTableFn<TSchema extends string | undefined = undefined> {
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
-		extraConfig?: (self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'mssql'>) => MsSqlTableExtraConfigValue[],
+		extraConfig?: (
+			self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'mssql'>,
+		) => (MsSqlTableExtraConfigValue | MsSqlTableExtraConfigValue[])[],
 	): MsSqlTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
 		columns: BuildColumns<TTableName, TColumnsMap, 'mssql'>;
 		dialect: 'mssql';
+		isAlias: false;
 	}>;
 
 	<
@@ -141,12 +146,15 @@ export interface MsSqlTableFn<TSchema extends string | undefined = undefined> {
 	>(
 		name: TTableName,
 		columns: (columnTypes: MsSqlColumnBuilders) => TColumnsMap,
-		extraConfig?: (self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'mssql'>) => MsSqlTableExtraConfigValue[],
+		extraConfig?: (
+			self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'mssql'>,
+		) => (MsSqlTableExtraConfigValue | MsSqlTableExtraConfigValue[])[],
 	): MsSqlTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
 		columns: BuildColumns<TTableName, TColumnsMap, 'mssql'>;
 		dialect: 'mssql';
+		isAlias: false;
 	}>;
 }
 

@@ -1,8 +1,7 @@
 import type { AnyCockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
-import { CockroachColumn, CockroachColumnBuilder } from './common.ts';
+import { CockroachColumn, type CockroachColumnBaseConfig, CockroachColumnBuilder } from './common.ts';
 
 export class CockroachVectorBuilder extends CockroachColumnBuilder<
 	{
@@ -19,6 +18,13 @@ export class CockroachVectorBuilder extends CockroachColumnBuilder<
 		this.config.length = config.dimensions;
 	}
 
+	/**
+	 * @throws always - CockroachDB has no array type for `vector`
+	 */
+	override array(): never {
+		throw new Error('CockroachDB does not support arrays of vector columns');
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyCockroachTable<{ name: TTableName }>,
@@ -31,9 +37,12 @@ export class CockroachVectorBuilder extends CockroachColumnBuilder<
 }
 
 export class CockroachVector<
-	T extends ColumnBaseConfig<'array vector'>,
-> extends CockroachColumn<T, { length: number }> {
+	T extends CockroachColumnBaseConfig<'array vector'>,
+> extends CockroachColumn<'array vector', T, { length: number }> {
 	static override readonly [entityKind]: string = 'CockroachVector';
+
+	/** @internal */
+	override readonly codec = 'vector';
 
 	getSQLType(): string {
 		return `vector(${this.config.length})`;
@@ -41,13 +50,6 @@ export class CockroachVector<
 
 	override mapToDriverValue = (value: unknown): unknown => {
 		return JSON.stringify(value);
-	};
-
-	override mapFromDriverValue = (value: string): unknown => {
-		return value
-			.slice(1, -1)
-			.split(',')
-			.map((v) => Number.parseFloat(v));
 	};
 }
 

@@ -261,6 +261,7 @@ export class PgDeleteBase<
 			undefined,
 			this.dialect.codecs,
 		);
+		this.config.shape = undefined;
 		return this as any;
 	}
 
