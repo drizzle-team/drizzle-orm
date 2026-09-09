@@ -1,3 +1,6 @@
+import { toCamelCase } from 'drizzle-orm/casing';
+import type { Casing } from 'src/cli/validations/common';
+
 export type ResolverOutput<T> = {
 	created: T[];
 	deleted: T[];
@@ -33,4 +36,22 @@ export const hash = (input: string, len: number = 12) => {
 	}
 
 	return result.join('');
+};
+
+const escapeColumnKey = (value: string) => {
+	if (/^(?![a-zA-Z_$][a-zA-Z0-9_$]*$).+$/.test(value)) {
+		return `"${value}"`;
+	}
+	return value;
+};
+
+export const withCasing = (value: string, casing?: Casing) => {
+	if (casing === 'preserve') {
+		return escapeColumnKey(value);
+	}
+	if (casing === 'camel') {
+		return escapeColumnKey(toCamelCase(value));
+	}
+
+	return value;
 };

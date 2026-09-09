@@ -2,6 +2,7 @@ import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import type { Casing } from '../../cli/validations/common';
 import { assertUnreachable } from '../../utils';
+import { withCasing } from '../common';
 import type {
 	CheckConstraint,
 	Column,
@@ -80,24 +81,6 @@ const objToStatement2 = (json: { [s: string]: unknown }, mode: 'string' | 'numbe
 	statement += keys.map((it) => `${it}: ${mode === 'string' ? `"${json[it]}"` : json[it]}`).join(', '); // no "" for keys
 	statement += ' }';
 	return statement;
-};
-
-const escapeColumnKey = (value: string) => {
-	if (/^(?![a-zA-Z_$][a-zA-Z0-9_$]*$).+$/.test(value)) {
-		return `"${value}"`;
-	}
-	return value;
-};
-
-const withCasing = (value: string, casing: Casing) => {
-	if (casing === 'preserve') {
-		return escapeColumnKey(value);
-	}
-	if (casing === 'camel') {
-		return escapeColumnKey(toCamelCase(value));
-	}
-
-	assertUnreachable(casing);
 };
 
 const dbColumnName = ({ name, casing, withMode = false }: { name: string; casing: Casing; withMode?: boolean }) => {

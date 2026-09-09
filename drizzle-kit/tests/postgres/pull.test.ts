@@ -3515,3 +3515,26 @@ test('Issue No6105', async () => {
 	expect(generateSqlStatements).toStrictEqual([]);
 	expect(ddlAfterPull.roles.list()).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6074
+test('Issue No6074', async () => {
+	await db.query(`CREATE TABLE "CallLog" ("CallID" TEXT PRIMARY KEY);`);
+	await db.query(`CREATE TABLE "Subset" (
+  "CallID" TEXT PRIMARY KEY REFERENCES "CallLog"("CallID")
+);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'issue-6074');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.roles.list()).toStrictEqual([]);
+});
