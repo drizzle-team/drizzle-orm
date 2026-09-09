@@ -7,7 +7,7 @@ const table = mysqlTable('binary_buffer_test', {
 	varbinary: varbinary('varbinary', { length: 11 }).notNull(),
 });
 
-describe.concurrent('MySQL binary columns', () => {
+describe('MySQL binary columns', () => {
 	test('preserve Buffer values returned by mysql2', ({ expect }) => {
 		const value = Buffer.from([0x00, 0xff, 0x80, 0x31]);
 
@@ -30,6 +30,33 @@ describe.concurrent('MySQL binary columns', () => {
 		expect(Buffer.isBuffer(varbinaryValue)).toBe(true);
 		expect(binaryValue).toEqual(Buffer.from(value));
 		expect(varbinaryValue).toEqual(Buffer.from(value));
+	});
+
+	test('preserve Uint8Array bytes when the Node Buffer global is unavailable', ({ expect }) => {
+		const originalBuffer = globalThis.Buffer;
+		const value = new Uint8Array([0x00, 0xff, 0x80, 0x31]);
+
+		try {
+			Object.defineProperty(globalThis, 'Buffer', {
+				value: undefined,
+				configurable: true,
+				writable: true,
+			});
+
+			const binaryValue = table.binary.mapFromDriverValue(value);
+			const varbinaryValue = table.varbinary.mapFromDriverValue(value);
+
+			expect(binaryValue).toBeInstanceOf(Uint8Array);
+			expect(varbinaryValue).toBeInstanceOf(Uint8Array);
+			expect([...binaryValue]).toEqual([...value]);
+			expect([...varbinaryValue]).toEqual([...value]);
+		} finally {
+			Object.defineProperty(globalThis, 'Buffer', {
+				value: originalBuffer,
+				configurable: true,
+				writable: true,
+			});
+		}
 	});
 
 	test('convert legacy string driver values to Buffer', ({ expect }) => {
