@@ -10,7 +10,7 @@
 		"test:data-api": "sst shell vitest run tests/pg/awsdatapi.test.ts",
 		"test:postgres": "vitest --reporter=verbose --silent=false run tests/pg/ --exclude tests/pg/neon-http.test.ts --exclude tests/pg/neon-http-batch.test.ts --exclude tests/pg/neon-serverless.test.ts --exclude tests/pg/netlify-db.test.ts --exclude tests/pg/postgres-neon-ws.test.ts --exclude tests/pg/postgres-neon-http.test.ts --exclude tests/pg/postgres-neon-http-batch.test.ts",
 		"test:neon": "vitest --reporter=verbose --silent=false run --passWithNoTests tests/pg/neon-http.test.ts tests/pg/neon-http-batch.test.ts tests/pg/neon-serverless.test.ts tests/pg/netlify-db.test.ts && vitest --reporter=verbose --silent=false run --passWithNoTests tests/pg/postgres-neon-ws.test.ts tests/pg/postgres-neon-http.test.ts tests/pg/postgres-neon-http-batch.test.ts",
-		"test:mysql": "vitest run --reporter=verbose --silent=false run tests/mysql/default tests/mysql/mysql.test.ts",
+		"test:mysql": "vitest run --reporter=verbose --silent=false run tests/mysql/default",
 		"test:sqlite": "vitest run --reporter=verbose --silent=false run tests/sqlite --exclude tests/sqlite/tursodatabase-serverless.test.ts",
 		"test:cockroach": "vitest --reporter=verbose --silent=false run tests/cockroach --exclude tests/cockroach/cockroach.rqb.test.ts",
 		"test:cockroach-rqb": "vitest --reporter=verbose --silent=false run tests/cockroach/cockroach.rqb.test.ts",

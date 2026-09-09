@@ -9,7 +9,6 @@ import type {
 	RowDataPacket,
 	TypeCast,
 } from 'mysql2/promise';
-import { once } from 'node:events';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
@@ -113,30 +112,20 @@ export class SingleStoreDriverSession<
 			}, params);
 			const stream = driverQuery.stream();
 
-			function dataListener() {
-				stream.pause();
-			}
-
-			stream.on('data', dataListener);
-
 			try {
-				const onEnd = once(stream, 'end');
-				const onError = once(stream, 'error');
-
-				while (true) {
-					stream.resume();
-
-					const row = await Promise.race([onEnd, onError, new Promise((resolve) => stream.once('data', resolve))]);
-					if (row === undefined || (Array.isArray(row) && row.length === 0)) {
-						break;
-					}
-					if (row instanceof Error) { // oxlint-disable-line drizzle-internal/no-instanceof
-						throw row;
-					}
+				for await (const row of stream.iterator({ destroyOnReturn: false })) {
 					yield row;
 				}
 			} finally {
-				stream.off('data', dataListener);
+				if (!stream.readableEnded && !stream.destroyed) {
+					stream.resume();
+					await new Promise<void>((resolve) => {
+						stream.on('end', resolve);
+						stream.on('error', resolve);
+						stream.on('close', resolve);
+					});
+				}
+
 				if (isPool(client)) {
 					conn.end();
 				}

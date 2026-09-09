@@ -229,7 +229,6 @@ export const getSchemaInfo = (
 				relationsConfig: relationsV2,
 				drizzleTables,
 				tables,
-				getDbToTsColumnNamesMap,
 				tableRelations,
 				knownRelations: relations,
 			}),

@@ -1,6 +1,7 @@
 import { describe, it } from 'vitest';
+import { defineRelations } from '~/relations';
 import { drizzle, singleStoreCodecs } from '~/singlestore';
-import { alias, boolean, camelCase, castToText, int, serial, text, union } from '~/singlestore-core';
+import { alias, boolean, camelCase, castToText, int, QueryBuilder, serial, text, union } from '~/singlestore-core';
 import { asc, eq, sql } from '~/sql';
 
 const testSchema = camelCase.schema('test');
@@ -21,6 +22,36 @@ const developers = testSchema.table('developers', {
 const devs = alias(developers, 'devs');
 
 const db = drizzle.mock();
+
+const projects = camelCase.table('projects', {
+	id: int().primaryKey(),
+	developer_id: int(),
+	project_name: text(),
+});
+
+const staff = new QueryBuilder().select({
+	id: users.id,
+	first_name: users.first_name,
+	role: sql<string>`upper(${users.last_name})`.as('user_role'),
+}).from(users).as('staff_members');
+
+const rqbRelations = defineRelations({ users, developers, projects, staff }, (r) => ({
+	users: {
+		developers: r.one.developers({ from: r.users.id, to: r.developers.user_id }),
+	},
+	developers: {
+		user: r.one.users({ from: r.developers.user_id, to: r.users.id }),
+		projects: r.many.projects({ from: r.developers.user_id, to: r.projects.developer_id }),
+		member: r.one.staff({ from: r.developers.user_id, to: r.staff.role }),
+	},
+	projects: {
+		developer: r.one.developers({ from: r.projects.developer_id, to: r.developers.user_id }),
+	},
+	staff: {
+		developers: r.many.developers({ from: r.staff.id, to: r.developers.user_id }),
+	},
+}));
+const rqbDb = drizzle.mock({ relations: rqbRelations });
 
 const fullName = sql`${users.first_name} || ' ' || ${users.last_name}`.as('name');
 
@@ -62,6 +93,183 @@ describe('singlestore to camel case', () => {
 			sql:
 				"select cast(`sq`.`id` as char), `sq`.`name` from `users` left join (select `id`, `firstName` || ' ' || `lastName` as `name` from `users`) `sq` on `users`.`id` = `sq`.`id`",
 			params: [],
+		});
+	});
+
+	it('relational query over a subquery source', ({ expect }) => {
+		const query = rqbDb.query.staff.findMany({
+			columns: { id: true, role: true },
+			where: { role: { like: 'A%' } },
+			orderBy: { first_name: 'asc' },
+			with: { developers: true },
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`user_role` as `role`, coalesce(`developers`.`r`, json_build_array()) as `developers` from `staff_members` as `d0` left join lateral(select json_agg(json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`)) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`userId`) as `t`) as `developers` on true where `d0`.`user_role` like ? order by `d0`.`firstName` asc",
+			params: ['A%'],
+		});
+	});
+
+	it("relational query joining on a subquery's aliased sql field", ({ expect }) => {
+		const query = rqbDb.query.developers.findMany({ with: { member: true } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select cast(`d0`.`userId` as char) as `user_id`, `d0`.`usesDrizzleOrm` as `uses_drizzle_orm`, `member`.`r` as `member` from `test`.`developers` as `d0` left join lateral(select json_build_object('id', `id`, 'first_name', `first_name`, 'role', `role`) as `r` from (select cast(`d1`.`id` as char) as `id`, `d1`.`firstName` as `first_name`, `d1`.`user_role` as `role` from `staff_members` as `d1` where `d0`.`userId` = `d1`.`user_role` limit ?) as `t`) as `member` on true",
+			params: [1],
+		});
+	});
+
+	it('relational query - table, single level (find many)', ({ expect }) => {
+		const query = rqbDb.query.users.findMany({});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`lastName` as `last_name`, `d0`.`AGE` as `age` from `users` as `d0`',
+			params: [],
+		});
+	});
+
+	it('relational query - table, single level (find first)', ({ expect }) => {
+		const query = rqbDb.query.users.findFirst({});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`lastName` as `last_name`, `d0`.`AGE` as `age` from `users` as `d0` limit ?',
+			params: [1],
+		});
+	});
+
+	it('relational query - table, nested (find many)', ({ expect }) => {
+		const query = rqbDb.query.users.findMany({ with: { developers: true } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`lastName` as `last_name`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`userId` limit ?) as `t`) as `developers` on true",
+			params: [1],
+		});
+	});
+
+	it('relational query - table, nested (find first)', ({ expect }) => {
+		const query = rqbDb.query.users.findFirst({ with: { developers: true } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`lastName` as `last_name`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`userId` limit ?) as `t`) as `developers` on true limit ?",
+			params: [1, 1],
+		});
+	});
+
+	it('relational query - table, deeply nested (find many)', ({ expect }) => {
+		const query = rqbDb.query.users.findMany({ with: { developers: { with: { projects: true } } } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`lastName` as `last_name`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`, 'projects', `projects`) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm`, coalesce(`projects`.`r`, json_build_array()) as `projects` from `test`.`developers` as `d1` left join lateral(select json_agg(json_build_object('id', `id`, 'developer_id', `developer_id`, 'project_name', `project_name`)) as `r` from (select `d2`.`id` as `id`, `d2`.`developerId` as `developer_id`, `d2`.`projectName` as `project_name` from `projects` as `d2` where `d1`.`userId` = `d2`.`developerId`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`userId` limit ?) as `t`) as `developers` on true",
+			params: [1],
+		});
+	});
+
+	it('relational query - table, deeply nested (find first)', ({ expect }) => {
+		const query = rqbDb.query.users.findFirst({ with: { developers: { with: { projects: true } } } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`lastName` as `last_name`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`, 'projects', `projects`) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm`, coalesce(`projects`.`r`, json_build_array()) as `projects` from `test`.`developers` as `d1` left join lateral(select json_agg(json_build_object('id', `id`, 'developer_id', `developer_id`, 'project_name', `project_name`)) as `r` from (select `d2`.`id` as `id`, `d2`.`developerId` as `developer_id`, `d2`.`projectName` as `project_name` from `projects` as `d2` where `d1`.`userId` = `d2`.`developerId`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`userId` limit ?) as `t`) as `developers` on true limit ?",
+			params: [1, 1],
+		});
+	});
+
+	it('relational query - subquery, single level (find first)', ({ expect }) => {
+		const query = rqbDb.query.staff.findFirst({});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`user_role` as `role` from `staff_members` as `d0` limit ?',
+			params: [1],
+		});
+	});
+
+	it('relational query - subquery, nested (find many)', ({ expect }) => {
+		const query = rqbDb.query.staff.findMany({ with: { developers: true } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`user_role` as `role`, coalesce(`developers`.`r`, json_build_array()) as `developers` from `staff_members` as `d0` left join lateral(select json_agg(json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`)) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`userId`) as `t`) as `developers` on true",
+			params: [],
+		});
+	});
+
+	it('relational query - mixed table -> table -> subquery (find many)', ({ expect }) => {
+		const query = rqbDb.query.projects.findMany({
+			with: { developer: { with: { member: true } } },
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select `d0`.`id` as `id`, `d0`.`developerId` as `developer_id`, `d0`.`projectName` as `project_name`, `developer`.`r` as `developer` from `projects` as `d0` left join lateral(select json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`, 'member', `member`) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm`, `member`.`r` as `member` from `test`.`developers` as `d1` left join lateral(select json_build_object('id', `id`, 'first_name', `first_name`, 'role', `role`) as `r` from (select cast(`d2`.`id` as char) as `id`, `d2`.`firstName` as `first_name`, `d2`.`user_role` as `role` from `staff_members` as `d2` where `d1`.`userId` = `d2`.`user_role` limit ?) as `t`) as `member` on true where `d0`.`developerId` = `d1`.`userId` limit ?) as `t`) as `developer` on true",
+			params: [1, 1],
+		});
+	});
+
+	it('relational query - mixed subquery -> table -> table (find first)', ({ expect }) => {
+		const query = rqbDb.query.staff.findFirst({ with: { developers: { with: { projects: true } } } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`user_role` as `role`, coalesce(`developers`.`r`, json_build_array()) as `developers` from `staff_members` as `d0` left join lateral(select json_agg(json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`, 'projects', `projects`)) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm`, coalesce(`projects`.`r`, json_build_array()) as `projects` from `test`.`developers` as `d1` left join lateral(select json_agg(json_build_object('id', `id`, 'developer_id', `developer_id`, 'project_name', `project_name`)) as `r` from (select `d2`.`id` as `id`, `d2`.`developerId` as `developer_id`, `d2`.`projectName` as `project_name` from `projects` as `d2` where `d1`.`userId` = `d2`.`developerId`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`userId`) as `t`) as `developers` on true limit ?",
+			params: [1],
+		});
+	});
+
+	it('relational query - subquery, single level (find many)', ({ expect }) => {
+		const query = rqbDb.query.staff.findMany({});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`user_role` as `role` from `staff_members` as `d0`',
+			params: [],
+		});
+	});
+
+	it('relational query - subquery, nested (find first)', ({ expect }) => {
+		const query = rqbDb.query.staff.findFirst({ with: { developers: true } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`user_role` as `role`, coalesce(`developers`.`r`, json_build_array()) as `developers` from `staff_members` as `d0` left join lateral(select json_agg(json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`)) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`userId`) as `t`) as `developers` on true limit ?",
+			params: [1],
+		});
+	});
+
+	it('relational query - subquery, deeply nested (find many)', ({ expect }) => {
+		const query = rqbDb.query.staff.findMany({ with: { developers: { with: { projects: true } } } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`user_role` as `role`, coalesce(`developers`.`r`, json_build_array()) as `developers` from `staff_members` as `d0` left join lateral(select json_agg(json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`, 'projects', `projects`)) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm`, coalesce(`projects`.`r`, json_build_array()) as `projects` from `test`.`developers` as `d1` left join lateral(select json_agg(json_build_object('id', `id`, 'developer_id', `developer_id`, 'project_name', `project_name`)) as `r` from (select `d2`.`id` as `id`, `d2`.`developerId` as `developer_id`, `d2`.`projectName` as `project_name` from `projects` as `d2` where `d1`.`userId` = `d2`.`developerId`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`userId`) as `t`) as `developers` on true",
+			params: [],
+		});
+	});
+
+	it('relational query - subquery, deeply nested (find first)', ({ expect }) => {
+		const query = rqbDb.query.staff.findFirst({ with: { developers: { with: { projects: true } } } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`user_role` as `role`, coalesce(`developers`.`r`, json_build_array()) as `developers` from `staff_members` as `d0` left join lateral(select json_agg(json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`, 'projects', `projects`)) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm`, coalesce(`projects`.`r`, json_build_array()) as `projects` from `test`.`developers` as `d1` left join lateral(select json_agg(json_build_object('id', `id`, 'developer_id', `developer_id`, 'project_name', `project_name`)) as `r` from (select `d2`.`id` as `id`, `d2`.`developerId` as `developer_id`, `d2`.`projectName` as `project_name` from `projects` as `d2` where `d1`.`userId` = `d2`.`developerId`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`userId`) as `t`) as `developers` on true limit ?",
+			params: [1],
+		});
+	});
+
+	it('relational query - mixed table -> subquery -> table (find many)', ({ expect }) => {
+		const query = rqbDb.query.developers.findMany({ with: { member: { with: { developers: true } } } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select cast(`d0`.`userId` as char) as `user_id`, `d0`.`usesDrizzleOrm` as `uses_drizzle_orm`, `member`.`r` as `member` from `test`.`developers` as `d0` left join lateral(select json_build_object('id', `id`, 'first_name', `first_name`, 'role', `role`, 'developers', `developers`) as `r` from (select cast(`d1`.`id` as char) as `id`, `d1`.`firstName` as `first_name`, `d1`.`user_role` as `role`, coalesce(`developers`.`r`, json_build_array()) as `developers` from `staff_members` as `d1` left join lateral(select json_agg(json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`)) as `r` from (select cast(`d2`.`userId` as char) as `user_id`, `d2`.`usesDrizzleOrm` as `uses_drizzle_orm` from `test`.`developers` as `d2` where `d1`.`id` = `d2`.`userId`) as `t`) as `developers` on true where `d0`.`userId` = `d1`.`user_role` limit ?) as `t`) as `member` on true",
+			params: [1],
 		});
 	});
 

@@ -6,6 +6,7 @@ import {
 	integer,
 	numeric,
 	primaryKey,
+	QueryBuilder,
 	real,
 	snakeCase,
 	text,
@@ -63,6 +64,19 @@ export const usersView = snakeCase.view('users_view').as((qb) =>
 	})
 		.from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.ownerId))
 );
+
+export const usersSubquery = new QueryBuilder().select({
+	...getTableColumns(usersTable),
+	postContent: postsTable.content,
+	createdAt: postsTable.createdAt,
+	counter: sql<string | number>`(select count(*) from ${usersTable} as ${alias(usersTable, 'count_source')} where ${
+		ne(usersTable.id, 2)
+	})`
+		.mapWith((data) => {
+			return data === '0' || data === 0 ? null : Number(data);
+		}).as('count'),
+})
+	.from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.ownerId)).as('users_sq');
 
 export const commentsTable = snakeCase.table('comments', {
 	id: integer().primaryKey({ autoIncrement: true }),
