@@ -54,8 +54,16 @@ export class MySqlVarBinary<
 	length: number | undefined = this.config.length;
 
 	override mapFromDriverValue(value: string | Buffer | Uint8Array): Buffer {
-		if (Buffer.isBuffer(value)) return value;
-		return Buffer.from(value);
+		if (typeof Buffer !== 'undefined') {
+			if (Buffer.isBuffer(value)) return value;
+			return Buffer.from(value);
+		}
+
+		if (typeof value === 'string') {
+			return new TextEncoder().encode(value) as Buffer;
+		}
+
+		return value as Buffer;
 	}
 
 	getSQLType(): string {
