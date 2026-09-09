@@ -8,6 +8,7 @@ import {
 	index,
 	int4,
 	numeric,
+	QueryBuilder,
 	text,
 	timestamp,
 	uniqueIndex,
@@ -1146,6 +1147,80 @@ export function tests() {
 			};
 			expect(throwFunc2).toThrowError(
 				/.+all "from" columns must belong to table "users", found column of table "blogs"$/,
+			);
+		});
+
+		test.concurrent('RQB v2 defineRelations partial ".through" error', () => {
+			const users = cockroachTable('users', { id: int4().primaryKey() });
+			const groups = cockroachTable('groups', { id: int4().primaryKey() });
+			const usersToGroups = cockroachTable('users_to_groups', { userId: int4(), groupId: int4() });
+
+			const throughOnFromOnly = () => {
+				defineRelations({ users, groups, usersToGroups }, (r) => ({
+					users: {
+						groups: r.many.groups({
+							from: r.users.id.through(r.usersToGroups.userId),
+							to: r.groups.id,
+						}),
+					},
+				}));
+			};
+			expect(throughOnFromOnly).toThrowError(
+				/.+".through\(column\)" must be used either on all columns in "from" and "to" or not defined on any of them$/,
+			);
+
+			const throughOnToOnly = () => {
+				defineRelations({ users, groups, usersToGroups }, (r) => ({
+					users: {
+						groups: r.many.groups({
+							from: r.users.id,
+							to: r.groups.id.through(r.usersToGroups.groupId),
+						}),
+					},
+				}));
+			};
+			expect(throughOnToOnly).toThrowError(
+				/.+".through\(column\)" must be used either on all columns in "from" and "to" or not defined on any of them$/,
+			);
+
+			const throughOnSomeColumns = () => {
+				const composite = cockroachTable('composite', { a: int4(), b: int4() });
+				const compositeJoin = cockroachTable('composite_join', { a: int4(), b: int4() });
+
+				defineRelations({ users, composite, compositeJoin }, (r) => ({
+					users: {
+						composite: r.many.composite({
+							from: [r.users.id.through(r.compositeJoin.a), r.users.id],
+							to: [r.composite.a.through(r.compositeJoin.a), r.composite.b.through(r.compositeJoin.b)],
+						}),
+					},
+				}));
+			};
+			expect(throughOnSomeColumns).toThrowError(
+				/.+".through\(column\)" must be used either on all columns in "from" and "to" or not defined on any of them$/,
+			);
+		});
+
+		test.concurrent('RQB v2 subquery alias collision error', ({ createDB }) => {
+			const users = cockroachTable('rqb_alias_users', { id: int4().primaryKey(), name: text() });
+			const posts = cockroachTable('rqb_alias_posts', { id: int4().primaryKey(), authorId: int4() });
+
+			const qb = new QueryBuilder();
+			const first = qb.select({ id: users.id, name: users.name }).from(users).as('user_source');
+			const second = qb.select({ id: users.id }).from(users).as('user_source');
+
+			const db = createDB({ first, second, posts }, (r) => ({
+				posts: {
+					author: r.one.first({ from: r.posts.authorId, to: r.first.id }),
+					owner: r.one.second({ from: r.posts.authorId, to: r.second.id }),
+				},
+			}));
+
+			const throwFunc = () =>
+				db.query.posts.findMany({ columns: { id: true }, with: { author: true, owner: true } }).toSQL();
+
+			expect(throwFunc).toThrowError(
+				/^Different subqueries with the same alias "user_source" are used in a single relational query.+$/,
 			);
 		});
 

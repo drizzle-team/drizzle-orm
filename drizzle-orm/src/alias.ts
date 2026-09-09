@@ -126,6 +126,74 @@ export class TableAliasProxyHandler<T extends Table | View> implements ProxyHand
 	}
 }
 
+export class SubquerySelectionAliasProxyHandler<TSelection extends Record<string, unknown>>
+	implements ProxyHandler<TSelection>
+{
+	static readonly [entityKind]: string = 'SubquerySelectionAliasProxyHandler';
+
+	constructor(private subquery: Subquery, private alias: string) {}
+
+	get(selection: TSelection, prop: string | symbol): any {
+		const value = selection[prop as keyof TSelection];
+
+		if (is(value, Column)) return new Proxy(value, new ColumnTableAliasProxyHandler(this.subquery as any, true));
+		if (is(value, SQL.Aliased)) {
+			const newValue = value.clone();
+			newValue.isSelectionField = true;
+			newValue.origin = this.alias;
+
+			return newValue;
+		}
+
+		return value;
+	}
+}
+
+export class SubqueryAliasProxyHandler<T extends Subquery> implements ProxyHandler<T> {
+	static readonly [entityKind]: string = 'SubqueryAliasProxyHandler';
+
+	constructor(private alias: string) {}
+
+	get(target: T, prop: string | symbol, receiver: any): any {
+		if (prop === Table.Symbol.IsAlias) {
+			return true;
+		}
+
+		if (prop === Table.Symbol.Name) {
+			return this.alias;
+		}
+
+		if (prop === Table.Symbol.OriginalName) {
+			return target._.alias;
+		}
+
+		if (prop === Table.Symbol.Schema) {
+			return undefined;
+		}
+
+		if (prop === '_') {
+			return {
+				...target._,
+				alias: this.alias,
+				isWith: true,
+				selectedFields: new Proxy(
+					target._.selectedFields,
+					new SubquerySelectionAliasProxyHandler(receiver, this.alias),
+				),
+			};
+		}
+
+		if (prop === Table.Symbol.Columns) {
+			return new Proxy(
+				target._.selectedFields,
+				new SubquerySelectionAliasProxyHandler(receiver, this.alias),
+			);
+		}
+
+		return target[prop as keyof T];
+	}
+}
+
 export class ColumnAliasProxyHandler<T extends Column> implements ProxyHandler<T> {
 	static readonly [entityKind]: string = 'ColumnAliasProxyHandler';
 
@@ -171,8 +239,10 @@ export class RelationTableAliasProxyHandler<T extends V1.Relation> implements Pr
  *
  * For typed alias, use `import { alias } from 'drizzle-orm/dialect-core/alias'`
  */
-export function aliasedTable<T extends Table | View>(table: T, tableAlias: string): T {
-	return new Proxy(table, new TableAliasProxyHandler(tableAlias, false, false));
+export function aliasedTable<T extends Table | View | Subquery>(table: T, tableAlias: string): T {
+	return is(table, Subquery)
+		? new Proxy(table, new SubqueryAliasProxyHandler(tableAlias)) as T
+		: new Proxy(table, new TableAliasProxyHandler(tableAlias, false, false) as ProxyHandler<T>);
 }
 
 export function aliasedColumn<T extends Column>(column: T, alias: string): T {

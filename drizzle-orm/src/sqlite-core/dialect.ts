@@ -8,16 +8,19 @@ import {
 	type AnyOne,
 	// AggregatedField,
 	type BuildRelationalQueryResult,
+	collectRelationalSubquery,
 	type ColumnWithTSName,
 	type DBQueryConfig,
 	getTableAsAliasSQL,
 	makeDefaultRqbMapper,
 	makeJitRqbMapper,
 	type RelationalRowsMapperGenerator,
+	type RelationalWithSubqueries,
 	relationExtrasToSQL,
 	relationsFilterToSQL,
 	relationsOrderToSQL,
 	relationToSQL,
+	type SchemaEntry,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 	type WithContainer,
@@ -52,7 +55,6 @@ import type {
 	SQLiteSelectJoinConfig,
 } from './query-builders/select.types.ts';
 import { SQLiteViewBase } from './view-base.ts';
-import type { SQLiteView } from './view.ts';
 
 export interface SQLiteDialectConfig {
 	codecs?: SQLiteCodecs;
@@ -792,7 +794,7 @@ export class SQLiteDialect {
 	}
 
 	private buildRqbColumn(
-		table: Table | View,
+		table: SchemaEntry,
 		field: unknown,
 		key: string,
 		inJson: boolean,
@@ -862,7 +864,7 @@ export class SQLiteDialect {
 			throw new DrizzleError({
 				message: field === undefined
 					? `Unknown column: "${tableTsName}"."${key}"`
-					: `Views with nested selections are not supported by the relational query builder`,
+					: `Views and subqueries with nested selections are not supported by the relational query builder`,
 			});
 		}
 
@@ -889,7 +891,7 @@ export class SQLiteDialect {
 	}
 
 	private getSelectedTableColumns = (
-		table: Table | View,
+		table: SchemaEntry,
 		columns: Record<string, boolean | undefined>,
 	) => {
 		const selectedColumns: ColumnWithTSName[] = [];
@@ -926,7 +928,7 @@ export class SQLiteDialect {
 	};
 
 	private buildColumns = (
-		table: SQLiteTable | SQLiteView,
+		table: SchemaEntry,
 		selection: BuildRelationalQueryResult['selection'],
 		inJson: boolean,
 		tableTsName: string,
@@ -969,9 +971,10 @@ export class SQLiteDialect {
 		depth,
 		throughJoin,
 		jsonb,
+		withSubqueries,
 	}: {
 		schema: TablesRelationalConfig;
-		table: SQLiteTable | SQLiteView;
+		table: SchemaEntry;
 		tableConfig: TableRelationalConfig;
 		queryConfig?: DBQueryConfig<'many'> | true;
 		relationWhere?: SQL;
@@ -981,13 +984,18 @@ export class SQLiteDialect {
 		depth?: number;
 		throughJoin?: SQL;
 		jsonb: SQL;
+		withSubqueries?: RelationalWithSubqueries;
 	}): BuildRelationalQueryResult {
 		const selection: BuildRelationalQueryResult['selection'] = [];
 		const isSingle = mode === 'first';
 		const params = config === true ? undefined : config;
 		const currentPath = errorPath ?? '';
 		const currentDepth = depth ?? 0;
-		if (!currentDepth) table = aliasedTable(table, `d${currentDepth}`);
+		const subqueries: RelationalWithSubqueries = withSubqueries ?? new Map();
+		if (!currentDepth) {
+			collectRelationalSubquery(subqueries, table);
+			table = aliasedTable(table, `d${currentDepth}`);
+		}
 
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
@@ -1001,6 +1009,7 @@ export class SQLiteDialect {
 					params.where,
 					tableConfig.relations,
 					schema,
+					subqueries,
 				),
 				relationWhere,
 			)
@@ -1010,6 +1019,7 @@ export class SQLiteDialect {
 				params.where,
 				tableConfig.relations,
 				schema,
+				subqueries,
 			)
 			: relationWhere;
 		const order = params?.orderBy
@@ -1038,6 +1048,9 @@ export class SQLiteDialect {
 					const relation = tableConfig.relations[k];
 					if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
 					const isSingle = relation.relationType === 'one';
+					collectRelationalSubquery(subqueries, relation.targetTable);
+					collectRelationalSubquery(subqueries, relation.throughTable);
+
 					const targetTable = aliasedTable(
 						relation.targetTable,
 						`d${currentDepth + 1}`,
@@ -1045,6 +1058,7 @@ export class SQLiteDialect {
 					const throughTable = relation.throughTable
 						? aliasedTable(relation.throughTable, `tr${currentDepth}`)
 						: undefined;
+
 					const { filter, joinCondition } = relationToSQL(
 						relation,
 						table,
@@ -1057,7 +1071,7 @@ export class SQLiteDialect {
 						: undefined;
 
 					const innerQuery = this.buildRelationalQuery({
-						table: targetTable as SQLiteTable | SQLiteView,
+						table: targetTable,
 						mode: isSingle ? 'first' : 'many',
 						schema,
 						queryConfig: join as DBQueryConfig,
@@ -1066,6 +1080,7 @@ export class SQLiteDialect {
 						isNested: true,
 						errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 						depth: currentDepth + 1,
+						withSubqueries: subqueries,
 						throughJoin,
 						jsonb,
 					});
@@ -1127,7 +1142,8 @@ export class SQLiteDialect {
 		}
 		const selectionSet = sql.join(selectionArr, new StringChunk(', '));
 
-		const query = sql`select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${
+		const withSql = currentDepth ? undefined : this.buildWithCTE([...subqueries.values()]);
+		const query = sql`${withSql}select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${
 			sql` where ${where}`.if(
 				where,
 			)

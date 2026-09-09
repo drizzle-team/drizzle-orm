@@ -28,13 +28,16 @@ import type {
 	WithContainer,
 } from '~/relations.ts';
 import {
+	collectRelationalSubquery,
 	getTableAsAliasSQL,
 	makeDefaultRqbMapper,
 	makeJitRqbMapper,
+	type RelationalWithSubqueries,
 	relationExtrasToSQL,
 	relationsFilterToSQL,
 	relationsOrderToSQL,
 	relationToSQL,
+	type SchemaEntry,
 } from '~/relations.ts';
 import { and } from '~/sql/index.ts';
 import {
@@ -906,7 +909,7 @@ export class CockroachDialect {
 	}
 
 	private buildRqbColumn(
-		table: Table | View,
+		table: SchemaEntry,
 		field: unknown,
 		key: string,
 		inJson: boolean,
@@ -977,7 +980,7 @@ export class CockroachDialect {
 			throw new DrizzleError({
 				message: field === undefined
 					? `Unknown column: "${tableTsName}"."${key}"`
-					: `Views with nested selections are not supported by the relational query builder`,
+					: `Views and subqueries with nested selections are not supported by the relational query builder`,
 			});
 		}
 
@@ -1005,7 +1008,7 @@ export class CockroachDialect {
 	}
 
 	private getSelectedTableColumns = (
-		table: Table | View,
+		table: SchemaEntry,
 		columns: Record<string, boolean | undefined>,
 	) => {
 		const selectedColumns: ColumnWithTSName[] = [];
@@ -1040,7 +1043,7 @@ export class CockroachDialect {
 	};
 
 	private buildColumns = (
-		table: Table | View,
+		table: SchemaEntry,
 		selection: BuildRelationalQueryResult['selection'],
 		inJson: boolean,
 		tableTsName: string,
@@ -1078,9 +1081,10 @@ export class CockroachDialect {
 		depth,
 		throughJoin,
 		nested,
+		withSubqueries,
 	}: {
 		schema: TablesRelationalConfig;
-		table: CockroachTable | CockroachViewBase;
+		table: SchemaEntry;
 		tableConfig: TableRelationalConfig;
 		queryConfig?: DBQueryConfigWithComment<'many'> | true;
 		relationWhere?: SQL;
@@ -1089,24 +1093,29 @@ export class CockroachDialect {
 		depth?: number;
 		throughJoin?: SQL;
 		nested?: boolean;
+		withSubqueries?: RelationalWithSubqueries;
 	}): BuildRelationalQueryResult {
 		const selection: BuildRelationalQueryResult['selection'] = [];
 		const isSingle = mode === 'first';
 		const params = config === true ? undefined : config;
 		const currentPath = errorPath ?? '';
 		const currentDepth = depth ?? 0;
-		if (!currentDepth) table = aliasedTable(table, `d${currentDepth}`);
+		const subqueries: RelationalWithSubqueries = withSubqueries ?? new Map();
+		if (!currentDepth) {
+			collectRelationalSubquery(subqueries, table);
+			table = aliasedTable(table, `d${currentDepth}`);
+		}
 
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
 
 		const where: SQL | undefined = params && 'where' in params && relationWhere
 			? and(
-				relationsFilterToSQL(table, params.where, tableConfig.relations, schema),
+				relationsFilterToSQL(table, params.where, tableConfig.relations, schema, subqueries),
 				relationWhere,
 			)
 			: params && 'where' in params
-			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema)
+			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, subqueries)
 			: relationWhere;
 		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy) : undefined;
 		const columns = this.buildColumns(table, selection, !!nested, tableConfig.name, params);
@@ -1137,10 +1146,14 @@ export class CockroachDialect {
 					const relation = tableConfig.relations[k];
 					if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
 					const isSingle = relation.relationType === 'one';
+					collectRelationalSubquery(subqueries, relation.targetTable);
+					collectRelationalSubquery(subqueries, relation.throughTable);
+
 					const targetTable = aliasedTable(relation.targetTable, `d${currentDepth + 1}`);
 					const throughTable = relation.throughTable
-						? (aliasedTable(relation.throughTable, `tr${currentDepth}`) as Table | View)
+						? (aliasedTable(relation.throughTable, `tr${currentDepth}`))
 						: undefined;
+
 					const { filter, joinCondition } = relationToSQL(relation, table, targetTable, throughTable);
 
 					selectionArr.push(sql`${sql.identifier(k)}.${sql.identifier('r')} as ${sql.identifier(k)}`);
@@ -1150,7 +1163,7 @@ export class CockroachDialect {
 						: undefined;
 
 					const innerQuery = this.buildRelationalQuery({
-						table: targetTable as CockroachTable | CockroachViewBase,
+						table: targetTable,
 						mode: isSingle ? 'first' : 'many',
 						schema,
 						queryConfig: join as DBQueryConfigWithComment,
@@ -1158,6 +1171,7 @@ export class CockroachDialect {
 						relationWhere: filter,
 						errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 						depth: currentDepth + 1,
+						withSubqueries: subqueries,
 						throughJoin,
 						nested: true,
 					});
@@ -1195,7 +1209,8 @@ export class CockroachDialect {
 		}
 		const selectionSet = sql.join(selectionArr, new StringChunk(', '));
 
-		const query = sql`select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${joins}${
+		const withSql = currentDepth ? undefined : this.buildWithCTE([...subqueries.values()]);
+		const query = sql`${withSql}select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${joins}${
 			where ? sql` where ${where}` : undefined
 		}${order ? sql` order by ${order}` : undefined}${limit !== undefined ? sql` limit ${limit}` : undefined}${
 			offset !== undefined ? sql` offset ${offset}` : undefined

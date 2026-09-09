@@ -17,13 +17,16 @@ import type {
 	WithContainer,
 } from '~/relations.ts';
 import {
+	collectRelationalSubquery,
 	getTableAsAliasSQL,
 	makeDefaultRqbMapper,
 	makeJitRqbMapper,
+	type RelationalWithSubqueries,
 	relationExtrasToSQL,
 	relationsFilterToSQL,
 	relationsOrderToSQL,
 	relationToSQL,
+	type SchemaEntry,
 } from '~/relations.ts';
 import {
 	type DriverValueDecoder,
@@ -208,6 +211,24 @@ export class MsSqlDialect {
 
 	escapeString(str: string): string {
 		return `'${str.replace(/'/g, "''")}'`;
+	}
+
+	private buildWithCTE(queries: Subquery[] | undefined): SQL | undefined {
+		if (!queries?.length) return undefined;
+
+		const queriesLen = queries.length;
+		const withSqlChunks: SQLChunk[] = new Array(queriesLen + 1);
+		let writeIdx = 0;
+		withSqlChunks[writeIdx++] = new StringChunk('with ');
+
+		for (let i = 0; i < queriesLen; ++i) {
+			const w = queries[i]!;
+			withSqlChunks[writeIdx++] = (i < queriesLen - 1)
+				? sql`${sql.identifier(w._.alias)} as (${w._.sql}), `
+				: sql`${sql.identifier(w._.alias)} as (${w._.sql}) `;
+		}
+
+		return new SQL(withSqlChunks);
 	}
 
 	buildDeleteQuery({ table, where, output, ignoreSelectionCastCodecs }: MsSqlDeleteConfig): SQL {
@@ -596,22 +617,7 @@ export class MsSqlDialect {
 
 		const isSingleTable = !joins || joins.length === 0;
 
-		let withSql: SQL | undefined;
-		if (withList?.length) {
-			const withListLen = withList.length;
-			const withSqlChunks: SQLChunk[] = new Array(withListLen + 1);
-			let writeIdx = 0;
-			withSqlChunks[writeIdx++] = new StringChunk('with ');
-
-			for (let i = 0; i < withListLen; ++i) {
-				const w = withList[i]!;
-				withSqlChunks[writeIdx++] = (i < withListLen - 1)
-					? sql`${sql.identifier(w._.alias)} as (${w._.sql}), `
-					: sql`${sql.identifier(w._.alias)} as (${w._.sql}) `;
-			}
-
-			withSql = new SQL(withSqlChunks);
-		}
+		const withSql = this.buildWithCTE(withList);
 
 		const distinctSql = distinct ? sql` distinct` : undefined;
 
@@ -958,7 +964,7 @@ export class MsSqlDialect {
 	}
 
 	private buildRqbColumn(
-		table: Table | View,
+		table: SchemaEntry,
 		field: unknown,
 		key: string,
 		inJson: boolean,
@@ -1028,7 +1034,7 @@ export class MsSqlDialect {
 			throw new DrizzleError({
 				message: field === undefined
 					? `Unknown column: "${tableTsName}"."${key}"`
-					: `Views with nested selections are not supported by the relational query builder`,
+					: `Views and subqueries with nested selections are not supported by the relational query builder`,
 			});
 		}
 
@@ -1055,7 +1061,7 @@ export class MsSqlDialect {
 	}
 
 	private getSelectedTableColumns = (
-		table: Table | View,
+		table: SchemaEntry,
 		columns: Record<string, boolean | undefined>,
 	) => {
 		const selectedColumns: ColumnWithTSName[] = [];
@@ -1090,7 +1096,7 @@ export class MsSqlDialect {
 	};
 
 	private buildColumns = (
-		table: Table | View,
+		table: SchemaEntry,
 		selection: BuildRelationalQueryResult['selection'],
 		inJson: boolean,
 		tableTsName: string,
@@ -1128,9 +1134,10 @@ export class MsSqlDialect {
 		depth,
 		throughJoin,
 		nested,
+		withSubqueries,
 	}: {
 		schema: TablesRelationalConfig;
-		table: MsSqlTable | MsSqlViewBase;
+		table: SchemaEntry;
 		tableConfig: TableRelationalConfig;
 		queryConfig?: DBQueryConfigWithComment<'many'> | true;
 		relationWhere?: SQL;
@@ -1139,24 +1146,29 @@ export class MsSqlDialect {
 		depth?: number;
 		throughJoin?: SQL;
 		nested?: boolean;
+		withSubqueries?: RelationalWithSubqueries;
 	}): BuildRelationalQueryResult {
 		const selection: BuildRelationalQueryResult['selection'] = [];
 		const isSingle = mode === 'first';
 		const params = config === true ? undefined : config;
 		const currentPath = errorPath ?? '';
 		const currentDepth = depth ?? 0;
-		if (!currentDepth) table = aliasedTable(table, `d${currentDepth}`);
+		const subqueries: RelationalWithSubqueries = withSubqueries ?? new Map();
+		if (!currentDepth) {
+			collectRelationalSubquery(subqueries, table);
+			table = aliasedTable(table, `d${currentDepth}`);
+		}
 
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
 
 		const where: SQL | undefined = params && 'where' in params && relationWhere
 			? and(
-				relationsFilterToSQL(table, params.where, tableConfig.relations, schema),
+				relationsFilterToSQL(table, params.where, tableConfig.relations, schema, subqueries),
 				relationWhere,
 			)
 			: params && 'where' in params
-			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema)
+			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, subqueries)
 			: relationWhere;
 		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy) : undefined;
 
@@ -1193,10 +1205,14 @@ export class MsSqlDialect {
 					const relation = tableConfig.relations[k];
 					if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
 					const isSingle = relation.relationType === 'one';
+					collectRelationalSubquery(subqueries, relation.targetTable);
+					collectRelationalSubquery(subqueries, relation.throughTable);
+
 					const targetTable = aliasedTable(relation.targetTable, `d${currentDepth + 1}`);
 					const throughTable = relation.throughTable
-						? (aliasedTable(relation.throughTable, `tr${currentDepth}`) as Table | View)
+						? (aliasedTable(relation.throughTable, `tr${currentDepth}`))
 						: undefined;
+
 					const { filter, joinCondition } = relationToSQL(relation, table, targetTable, throughTable);
 
 					const nestedThroughJoin = throughTable
@@ -1204,7 +1220,7 @@ export class MsSqlDialect {
 						: undefined;
 
 					const innerQuery = this.buildRelationalQuery({
-						table: targetTable as MsSqlTable | MsSqlViewBase,
+						table: targetTable,
 						mode: isSingle ? 'first' : 'many',
 						schema,
 						queryConfig: join as DBQueryConfigWithComment,
@@ -1212,6 +1228,7 @@ export class MsSqlDialect {
 						relationWhere: filter,
 						errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 						depth: currentDepth + 1,
+						withSubqueries: subqueries,
 						throughJoin: nestedThroughJoin,
 						nested: true,
 					});
@@ -1258,7 +1275,8 @@ export class MsSqlDialect {
 		const useOffset = offset !== undefined;
 		const top = !useOffset && limit !== undefined ? sql` top(${limit})` : undefined;
 
-		const query = sql`select${top} ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${
+		const withSql = currentDepth ? undefined : this.buildWithCTE([...subqueries.values()]);
+		const query = sql`${withSql}select${top} ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${
 			applies.length ? sql.join(applies) : undefined
 		}${where ? sql` where ${where}` : undefined}${order ? sql` order by ${order}` : undefined}${
 			useOffset ? sql` offset ${offset} rows` : undefined

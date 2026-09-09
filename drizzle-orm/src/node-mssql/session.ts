@@ -1,6 +1,5 @@
 import type { ConnectionPool, IResult, Request } from 'mssql';
 import mssql from 'mssql';
-import { once } from 'node:events';
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -88,33 +87,11 @@ export class NodeMsSqlSession<
 
 			request.query(query.sql);
 
-			function dataListener() {
-				stream.pause();
-			}
-
-			stream.on('data', dataListener);
-
 			try {
-				const onEnd = once(stream, 'end');
-				const onError = once(stream, 'error');
-
-				while (true) {
-					stream.resume();
-					const row = await Promise.race([
-						onEnd,
-						onError,
-						new Promise((resolve) => stream.once('data', resolve)),
-					]);
-					if (row === undefined || (Array.isArray(row) && row.length === 0)) {
-						break;
-					}
-					if (row instanceof Error) { // oxlint-disable-line drizzle-internal/no-instanceof
-						throw row;
-					}
+				for await (const row of stream) {
 					yield row;
 				}
 			} finally {
-				stream.off('data', dataListener);
 				request.cancel();
 			}
 		};
