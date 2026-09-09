@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 type MySqlVarBinaryMode = 'string' | 'buffer';
@@ -102,6 +102,7 @@ export class MySqlVarBinaryBuffer<
 
 	override mapFromDriverValue(value: string | Buffer | Uint8Array): Buffer {
 		if (Buffer.isBuffer(value)) return value;
+		if (typeof value === 'string') return Buffer.from(value, 'latin1');
 		return Buffer.from(value);
 	}
 
@@ -117,11 +118,11 @@ export interface MySqlVarbinaryOptions<TMode extends MySqlVarBinaryMode = MySqlV
 
 export function varbinary<TMode extends MySqlVarBinaryMode = MySqlVarBinaryMode>(
 	config: MySqlVarbinaryOptions<TMode>,
-): Equal<TMode, 'buffer'> extends true ? MySqlVarBinaryBufferBuilderInitial<''> : MySqlVarBinaryBuilderInitial<''>;
+): TMode extends 'buffer' ? MySqlVarBinaryBufferBuilderInitial<''> : MySqlVarBinaryBuilderInitial<''>;
 export function varbinary<TName extends string, TMode extends MySqlVarBinaryMode = MySqlVarBinaryMode>(
 	name: TName,
 	config: MySqlVarbinaryOptions<TMode>,
-): Equal<TMode, 'buffer'> extends true ? MySqlVarBinaryBufferBuilderInitial<TName> : MySqlVarBinaryBuilderInitial<TName>;
+): TMode extends 'buffer' ? MySqlVarBinaryBufferBuilderInitial<TName> : MySqlVarBinaryBuilderInitial<TName>;
 export function varbinary(a?: string | MySqlVarbinaryOptions, b?: MySqlVarbinaryOptions) {
 	const { name, config } = getColumnNameAndConfig<MySqlVarbinaryOptions>(a, b);
 	return config.mode === 'buffer' ? new MySqlVarBinaryBufferBuilder(name, config) : new MySqlVarBinaryBuilder(name, config);
