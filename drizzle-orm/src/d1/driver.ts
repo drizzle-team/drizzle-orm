@@ -27,6 +27,25 @@ export class DrizzleD1Database<TRelations extends AnyRelations = EmptyRelations>
 	/** @internal */
 	declare readonly session: SQLiteD1Session<TRelations>;
 
+	/**
+	 * Executes multiple queries on database in one roundrtip
+	 *
+	 * D1 batch results are keyed by column's db name, thus every query
+	 * must alias columns with duplicate names to prevent data loss
+	 *
+	 * @example
+	 *
+	 * db.batch([
+	 * 	db.select({
+	 * 		userId: users.id.as('user_id'), // aliased to prevent user and post id from collapsing into same field in driver's response
+	 * 		postId: posts.id,
+	 * 		userName: users.name,
+	 * 		postContent: posts.content,
+	 * 		// ...
+	 * 	}).from(users).leftJoin(posts, eq(users.id, posts.id)),
+	 * 	// ...
+	 * ])
+	 */
 	async batch<U extends BatchItem<'sqlite'>, T extends Readonly<[U, ...U[]]>>(
 		batch: T,
 	): Promise<BatchResponse<T>> {
