@@ -650,6 +650,11 @@ const buildArrayDefault = (defaultValue: string, typeName: string): string => {
 		return `sql\`${defaultValue}\``;
 	}
 	defaultValue = defaultValue.substring(2, defaultValue.length - 2);
+	// An empty array literal ('{}') trims to an empty string; splitting that would
+	// yield [""], emitting .default([""]) instead of .default([]).
+	if (defaultValue.trim() === '') {
+		return '[]';
+	}
 	return `[${
 		defaultValue
 			.split(/\s*,\s*/g)

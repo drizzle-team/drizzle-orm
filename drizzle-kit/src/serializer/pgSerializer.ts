@@ -1986,9 +1986,14 @@ const defaultForColumn = (column: any, internals: PgKitInternals, tableName: str
 	const columnDefaultAsString: string = column.column_default.toString();
 
 	if (isArray) {
+		// An empty array default ('{}') has no inner content; splitting that would
+		// yield [""], corrupting the default into an array holding one empty string.
+		const arrayContent = columnDefaultAsString.slice(2, -2);
+		if (arrayContent.trim() === '') {
+			return `'{}'`;
+		}
 		return `'{${
-			columnDefaultAsString
-				.slice(2, -2)
+			arrayContent
 				.split(/\s*,\s*/g)
 				.map((value) => {
 					if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(column.data_type.slice(0, -2))) {
