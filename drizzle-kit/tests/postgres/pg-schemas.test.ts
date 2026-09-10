@@ -158,3 +158,15 @@ test('rename schema #2', async () => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
+test(`PlanetScale's Neki internal schema`, async () => {
+	await db.query('create schema __neki;'); // internal schema
+	await db.query('create table __neki.users (id int);');
+
+	const to = {
+		devSchema: pgSchema('dev'),
+	};
+
+	const { sqlStatements: pst } = await push({ db, to });
+	expect(pst).toStrictEqual(['CREATE SCHEMA "dev";']); // __neki schema is ignored
+});
