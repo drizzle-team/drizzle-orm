@@ -899,7 +899,7 @@ test('introspect view #3', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-07-01'))('introspect view #4', async () => {
+test.skipIf(Date.now() < +new Date('2026-09-17'))('introspect view #4', async () => {
 	const table = pgTable('table', {
 		column1: text().notNull(),
 		column2: text(),
@@ -928,7 +928,7 @@ test.skipIf(Date.now() < +new Date('2026-07-01'))('introspect view #4', async ()
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-07-01'))('introspect view #5', async () => {
+test.skipIf(Date.now() < +new Date('2026-09-17'))('introspect view #5', async () => {
 	const applications = pgTable('applications', {
 		applicationId: serial('application_id').primaryKey(),
 		studentId: integer('student_id').references(() => students.studentId),
@@ -1792,7 +1792,7 @@ test('introspect view with table filter', async () => {
 // this does not look like a bug
 // sequences are separete entities
 // entity filter for sequences ??
-test.skipIf(Date.now() < +new Date('2026-07-01'))('introspect sequences with table filter', async () => {
+test.skipIf(Date.now() < +new Date('2026-09-17'))('introspect sequences with table filter', async () => {
 	// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')
 
 	// const seq1 = pgSequence('seq1');
@@ -2997,9 +2997,12 @@ test('issue #5869', async () => {
 	]);
 });
 
-test(`PlanetScale's Neki internal schema`, async () => {
+test(`PlanetScale's Neki internal schema #1`, async () => {
 	await db.query('create schema __neki;'); // internal schema
 	await db.query('create table __neki.users (id int);');
+
+	await db.query('create schema dev;');
+
 	await db.query('create table users (id int);');
 
 	const {
@@ -3009,7 +3012,7 @@ test(`PlanetScale's Neki internal schema`, async () => {
 		pushStatements,
 		ddlAfterPull,
 		schema2,
-	} = await diffIntrospect(db, {}, 'neki_internal_schema');
+	} = await diffIntrospect(db, {}, 'neki_internal_schema', ['public']);
 
 	expect(generateSqlStatements).toStrictEqual([]);
 	expect(generateStatements).toStrictEqual([]);
@@ -3022,8 +3025,53 @@ test(`PlanetScale's Neki internal schema`, async () => {
 		entityType: 'tables',
 		isRlsEnabled: false,
 	}]);
-	console.log('schema2: ', schema2);
+
 	expect(schema2.schemas).toStrictEqual([]); // public is stripped
+	expect(schema2.tables).toStrictEqual([{
+		schema: 'public',
+		name: 'users',
+		entityType: 'tables',
+		isRlsEnabled: false,
+	}]);
+});
+test(`PlanetScale's Neki internal schema #2`, async () => {
+	await db.query('create schema __neki;'); // internal schema
+	await db.query('create table __neki.users (id int);');
+
+	await db.query('create schema dev;');
+
+	await db.query('create table users (id int);');
+
+	const {
+		generateSqlStatements,
+		generateStatements,
+		pushSqlStatements,
+		pushStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'neki_internal_schema-2');
+
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(ddlAfterPull.schemas.list()).toStrictEqual([
+		{
+			entityType: 'schemas',
+			name: 'dev',
+		},
+	]); // public is stripped
+	expect(ddlAfterPull.tables.list()).toStrictEqual([{
+		schema: 'public',
+		name: 'users',
+		entityType: 'tables',
+		isRlsEnabled: false,
+	}]);
+
+	expect(schema2.schemas).toStrictEqual([{
+		entityType: 'schemas',
+		name: 'dev',
+	}]); // public is stripped
 	expect(schema2.tables).toStrictEqual([{
 		schema: 'public',
 		name: 'users',

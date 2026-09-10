@@ -46,9 +46,6 @@ export const prepareEntityFilter = (
 
 	const existingSchemas = existingEntities.filter((x) => x.type === 'schema').map((x) => x.name);
 
-	// PlanetScale's Neki internal schema
-	schemasConfig.push('!__neki');
-
 	const schemasFilter = prepareSchemasFitler(schemasConfig, existingSchemas);
 
 	const postgisTablesGlobs = ['!geography_columns', '!geometry_columns', '!spatial_ref_sys'];
