@@ -25,7 +25,7 @@ describe('[select] read replicas singlestore', () => {
 		const spyRead1 = vi.spyOn(read1, 'select');
 		const spyRead2 = vi.spyOn(read2, 'select');
 
-		const query = db.$primary.select().from(users);
+		const query = db.select().from(users);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(1);
 		expect(query.toSQL().sql).toEqual('select cast(`id` as char) from `users`');
@@ -49,7 +49,7 @@ describe('[select] read replicas singlestore', () => {
 		const spyRead1 = vi.spyOn(read1, 'select');
 		const spyRead2 = vi.spyOn(read2, 'select');
 
-		const query1 = db.select({ count: sql`count(*)`.as('count') }).from(users).limit(1);
+		const query1 = db.$replica.select({ count: sql`count(*)`.as('count') }).from(users).limit(1);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
@@ -57,7 +57,7 @@ describe('[select] read replicas singlestore', () => {
 
 		expect(query1.toSQL().sql).toEqual('select count(*) as `count` from `users` limit ?');
 
-		const query2 = db.select().from(users);
+		const query2 = db.$replica.select().from(users);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(1);
 		expect(query2.toSQL().sql).toEqual('select cast(`id` as char) from `users`');
@@ -72,13 +72,13 @@ describe('[select] read replicas singlestore', () => {
 		const spyPrimary = vi.spyOn(primaryDb, 'select');
 		const spyRead1 = vi.spyOn(read1, 'select');
 
-		const query1 = db.select().from(users);
+		const query1 = db.$replica.select().from(users);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(query1.toSQL().sql).toEqual('select cast(`id` as char) from `users`');
 
-		const query2 = db.select().from(users);
+		const query2 = db.$replica.select().from(users);
 		expect(spyRead1).toHaveBeenCalledTimes(2);
 		expect(query2.toSQL().sql).toEqual('select cast(`id` as char) from `users`');
 	});
@@ -92,13 +92,13 @@ describe('[select] read replicas singlestore', () => {
 		const spyPrimary = vi.spyOn(primaryDb, 'select');
 		const spyRead1 = vi.spyOn(read1, 'select');
 
-		const query1 = db.select({ id: users.id }).from(users);
+		const query1 = db.$replica.select({ id: users.id }).from(users);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(query1.toSQL().sql).toEqual('select cast(`id` as char) from `users`');
 
-		const query2 = db.$primary.select().from(users);
+		const query2 = db.select().from(users);
 		expect(spyPrimary).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(query2.toSQL().sql).toEqual('select cast(`id` as char) from `users`');
@@ -117,14 +117,14 @@ describe('[select] read replicas singlestore', () => {
 		const spyRead1 = vi.spyOn(read1, 'select');
 		const spyRead2 = vi.spyOn(read2, 'select');
 
-		const query1 = db.select().from(users);
+		const query1 = db.$replica.select().from(users);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 		expect(query1.toSQL().sql).toEqual('select cast(`id` as char) from `users`');
 
-		const query2 = db.select().from(users);
+		const query2 = db.$replica.select().from(users);
 
 		expect(spyRead1).toHaveBeenCalledTimes(2);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
@@ -144,7 +144,7 @@ describe('[selectDistinct] read replicas singlestore', () => {
 		const spyRead1 = vi.spyOn(read1, 'selectDistinct');
 		const spyRead2 = vi.spyOn(read2, 'selectDistinct');
 
-		const query = db.$primary.selectDistinct().from(users);
+		const query = db.selectDistinct().from(users);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledTimes(0);
@@ -167,14 +167,14 @@ describe('[selectDistinct] read replicas singlestore', () => {
 		const spyRead1 = vi.spyOn(read1, 'selectDistinct');
 		const spyRead2 = vi.spyOn(read2, 'selectDistinct');
 
-		const query1 = db.selectDistinct().from(users);
+		const query1 = db.$replica.selectDistinct().from(users);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 		expect(query1.toSQL().sql).toEqual('select distinct cast(`id` as char) from `users`');
 
-		const query2 = db.selectDistinct().from(users);
+		const query2 = db.$replica.selectDistinct().from(users);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(1);
 		expect(query2.toSQL().sql).toEqual('select distinct cast(`id` as char) from `users`');
@@ -189,13 +189,13 @@ describe('[selectDistinct] read replicas singlestore', () => {
 		const spyPrimary = vi.spyOn(primaryDb, 'selectDistinct');
 		const spyRead1 = vi.spyOn(read1, 'selectDistinct');
 
-		const query1 = db.selectDistinct().from(users);
+		const query1 = db.$replica.selectDistinct().from(users);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(query1.toSQL().sql).toEqual('select distinct cast(`id` as char) from `users`');
 
-		const query2 = db.selectDistinct().from(users);
+		const query2 = db.$replica.selectDistinct().from(users);
 		expect(spyRead1).toHaveBeenCalledTimes(2);
 		expect(query2.toSQL().sql).toEqual('select distinct cast(`id` as char) from `users`');
 	});
@@ -209,13 +209,13 @@ describe('[selectDistinct] read replicas singlestore', () => {
 		const spyPrimary = vi.spyOn(primaryDb, 'selectDistinct');
 		const spyRead1 = vi.spyOn(read1, 'selectDistinct');
 
-		const query1 = db.selectDistinct().from(users);
+		const query1 = db.$replica.selectDistinct().from(users);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(query1.toSQL().sql).toEqual('select distinct cast(`id` as char) from `users`');
 
-		const query2 = db.$primary.selectDistinct().from(users);
+		const query2 = db.selectDistinct().from(users);
 		expect(spyPrimary).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(query2.toSQL().sql).toEqual('select distinct cast(`id` as char) from `users`');
@@ -234,14 +234,14 @@ describe('[selectDistinct] read replicas singlestore', () => {
 		const spyRead1 = vi.spyOn(read1, 'selectDistinct');
 		const spyRead2 = vi.spyOn(read2, 'selectDistinct');
 
-		const query1 = db.selectDistinct().from(users);
+		const query1 = db.$replica.selectDistinct().from(users);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 		expect(query1.toSQL().sql).toEqual('select distinct cast(`id` as char) from `users`');
 
-		const query2 = db.selectDistinct().from(users);
+		const query2 = db.$replica.selectDistinct().from(users);
 		expect(spyRead1).toHaveBeenCalledTimes(2);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 		expect(query2.toSQL().sql).toEqual('select distinct cast(`id` as char) from `users`');
@@ -264,7 +264,7 @@ describe('[with] read replicas singlestore', () => {
 		const obj3 = {} as any;
 		const obj4 = {} as any;
 
-		db.$primary.with(obj1, obj2, obj3, obj4);
+		db.with(obj1, obj2, obj3, obj4);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledTimes(0);
@@ -287,13 +287,13 @@ describe('[with] read replicas singlestore', () => {
 		const spyRead1 = vi.spyOn(read1, 'with');
 		const spyRead2 = vi.spyOn(read2, 'with');
 
-		db.with();
+		db.$replica.with();
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 
-		db.with();
+		db.$replica.with();
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(1);
 	});
@@ -307,12 +307,12 @@ describe('[with] read replicas singlestore', () => {
 		const spyPrimary = vi.spyOn(primaryDb, 'with');
 		const spyRead1 = vi.spyOn(read1, 'with');
 
-		db.with();
+		db.$replica.with();
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 
-		db.with();
+		db.$replica.with();
 		expect(spyRead1).toHaveBeenCalledTimes(2);
 	});
 
@@ -325,12 +325,12 @@ describe('[with] read replicas singlestore', () => {
 		const spyPrimary = vi.spyOn(primaryDb, 'with');
 		const spyRead1 = vi.spyOn(read1, 'with');
 
-		db.with();
+		db.$replica.with();
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 
-		db.$primary.with();
+		db.with();
 		expect(spyPrimary).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 	});
@@ -351,14 +351,14 @@ describe('[with] read replicas singlestore', () => {
 		const obj2 = {} as any;
 		const obj3 = {} as any;
 
-		db.with(obj1);
+		db.$replica.with(obj1);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledWith(obj1);
 
-		db.with(obj2, obj3);
+		db.$replica.with(obj2, obj3);
 		expect(spyRead1).toHaveBeenCalledTimes(2);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledWith(obj2, obj3);
@@ -569,7 +569,7 @@ describe('[v2 findFirst] read replicas mysql', () => {
 		const spyRead2 = vi.spyOn(read2['query']['usersTable'], 'findFirst');
 		const obj = {} as any;
 
-		db.$primary.query.usersTable.findFirst(obj);
+		db.query.usersTable.findFirst(obj);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledTimes(0);
@@ -593,14 +593,14 @@ describe('[v2 findFirst] read replicas mysql', () => {
 		const spyRead2 = vi.spyOn(read2['query']['usersTable'], 'findFirst');
 		const par1 = {} as any;
 
-		db.query.usersTable.findFirst(par1);
+		db.$replica.query.usersTable.findFirst(par1);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledWith(par1);
 
-		const query = db.query.usersTable.findFirst();
+		const query = db.$replica.query.usersTable.findFirst();
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(1);
 		expect(query.toSQL().sql).toEqual(
@@ -617,12 +617,12 @@ describe('[v2 findFirst] read replicas mysql', () => {
 		const spyPrimary = vi.spyOn(primaryDb['query']['usersTable'], 'findFirst');
 		const spyRead1 = vi.spyOn(read1['query']['usersTable'], 'findFirst');
 
-		db.query.usersTable.findFirst();
+		db.$replica.query.usersTable.findFirst();
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 
-		db.query.usersTable.findFirst();
+		db.$replica.query.usersTable.findFirst();
 		expect(spyRead1).toHaveBeenCalledTimes(2);
 	});
 
@@ -635,12 +635,12 @@ describe('[v2 findFirst] read replicas mysql', () => {
 		const spyPrimary = vi.spyOn(primaryDb['query']['usersTable'], 'findFirst');
 		const spyRead1 = vi.spyOn(read1['query']['usersTable'], 'findFirst');
 
-		db.query.usersTable.findFirst();
+		db.$replica.query.usersTable.findFirst();
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 
-		db.$primary.query.usersTable.findFirst();
+		db.query.usersTable.findFirst();
 		expect(spyPrimary).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 	});
@@ -658,13 +658,13 @@ describe('[v2 findFirst] read replicas mysql', () => {
 		const spyRead1 = vi.spyOn(read1['query']['usersTable'], 'findFirst');
 		const spyRead2 = vi.spyOn(read2['query']['usersTable'], 'findFirst');
 
-		db.query.usersTable.findFirst();
+		db.$replica.query.usersTable.findFirst();
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 
-		db.query.usersTable.findFirst();
+		db.$replica.query.usersTable.findFirst();
 		expect(spyRead1).toHaveBeenCalledTimes(2);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 	});
@@ -683,7 +683,7 @@ describe('[v2 findMany] read replicas mysql', () => {
 		const spyRead2 = vi.spyOn(read2['query']['usersTable'], 'findMany');
 		const obj = {} as any;
 
-		const query = db.$primary.query.usersTable.findMany(obj);
+		const query = db.query.usersTable.findMany(obj);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledTimes(0);
@@ -711,7 +711,7 @@ describe('[v2 findMany] read replicas mysql', () => {
 		const obj1 = {} as any;
 		const obj2 = {} as any;
 
-		const query1 = db.query.usersTable.findMany(obj1);
+		const query1 = db.$replica.query.usersTable.findMany(obj1);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
@@ -721,7 +721,7 @@ describe('[v2 findMany] read replicas mysql', () => {
 		);
 		expect(spyRead1).toHaveBeenCalledWith(obj1);
 
-		const query2 = db.query.usersTable.findMany(obj2);
+		const query2 = db.$replica.query.usersTable.findMany(obj2);
 
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(1);
@@ -742,7 +742,7 @@ describe('[v2 findMany] read replicas mysql', () => {
 		const obj1 = {} as any;
 		const obj2 = {} as any;
 
-		const query1 = db.query.usersTable.findMany(obj1);
+		const query1 = db.$replica.query.usersTable.findMany(obj1);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
@@ -751,7 +751,7 @@ describe('[v2 findMany] read replicas mysql', () => {
 			'select cast(`d0`.`id` as char) as `id`, `d0`.`name` as `name`, `d0`.`verified` as `verified` from `users` as `d0`',
 		);
 
-		const query2 = db.query.usersTable.findMany(obj2);
+		const query2 = db.$replica.query.usersTable.findMany(obj2);
 		expect(spyRead1).toHaveBeenCalledTimes(2);
 		expect(spyRead1).toHaveBeenNthCalledWith(2, obj2);
 		expect(query2.toSQL().sql).toEqual(
@@ -770,7 +770,7 @@ describe('[v2 findMany] read replicas mysql', () => {
 		const obj1 = {} as any;
 		const obj2 = {} as any;
 
-		const query1 = db.query.usersTable.findMany(obj1);
+		const query1 = db.$replica.query.usersTable.findMany(obj1);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
@@ -779,7 +779,7 @@ describe('[v2 findMany] read replicas mysql', () => {
 			'select cast(`d0`.`id` as char) as `id`, `d0`.`name` as `name`, `d0`.`verified` as `verified` from `users` as `d0`',
 		);
 
-		const query2 = db.$primary.query.usersTable.findMany(obj2);
+		const query2 = db.query.usersTable.findMany(obj2);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
@@ -804,7 +804,7 @@ describe('[v2 findMany] read replicas mysql', () => {
 		const obj1 = {} as any;
 		const obj2 = {} as any;
 
-		const query1 = db.query.usersTable.findMany(obj1);
+		const query1 = db.$replica.query.usersTable.findMany(obj1);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
@@ -814,7 +814,7 @@ describe('[v2 findMany] read replicas mysql', () => {
 			'select cast(`d0`.`id` as char) as `id`, `d0`.`name` as `name`, `d0`.`verified` as `verified` from `users` as `d0`',
 		);
 
-		const query2 = db.query.usersTable.findMany(obj2);
+		const query2 = db.$replica.query.usersTable.findMany(obj2);
 		expect(spyRead1).toHaveBeenCalledTimes(2);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenNthCalledWith(2, obj2);
@@ -836,7 +836,7 @@ describe('[$count] read replicas postgres', () => {
 		const spyRead1 = vi.spyOn(read1, '$count');
 		const spyRead2 = vi.spyOn(read2, '$count');
 
-		db.$primary.$count(users);
+		db.$count(users);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledTimes(0);
@@ -858,13 +858,13 @@ describe('[$count] read replicas postgres', () => {
 		const spyRead1 = vi.spyOn(read1, '$count');
 		const spyRead2 = vi.spyOn(read2, '$count');
 
-		db.$count(users);
+		db.$replica.$count(users);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 
-		db.select().from(users);
+		db.$replica.select().from(users);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 	});
@@ -878,12 +878,12 @@ describe('[$count] read replicas postgres', () => {
 		const spyPrimary = vi.spyOn(primaryDb, '$count');
 		const spyRead1 = vi.spyOn(read1, '$count');
 
-		db.$count(users);
+		db.$replica.$count(users);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 
-		db.$count(users);
+		db.$replica.$count(users);
 		expect(spyRead1).toHaveBeenCalledTimes(2);
 	});
 
@@ -896,12 +896,12 @@ describe('[$count] read replicas postgres', () => {
 		const spyPrimary = vi.spyOn(primaryDb, '$count');
 		const spyRead1 = vi.spyOn(read1, '$count');
 
-		db.$count(users);
+		db.$replica.$count(users);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 
-		db.$primary.$count(users);
+		db.$count(users);
 		expect(spyPrimary).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 	});
@@ -919,13 +919,13 @@ describe('[$count] read replicas postgres', () => {
 		const spyRead1 = vi.spyOn(read1, '$count');
 		const spyRead2 = vi.spyOn(read2, '$count');
 
-		db.$count(users);
+		db.$replica.$count(users);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 
-		db.$count(users);
+		db.$replica.$count(users);
 
 		expect(spyRead1).toHaveBeenCalledTimes(2);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
