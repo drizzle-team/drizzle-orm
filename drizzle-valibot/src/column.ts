@@ -58,13 +58,22 @@ import { CONSTANTS } from './constants.ts';
 import { isColumnType, isWithEnum } from './utils.ts';
 import type { Json } from './utils.ts';
 
-export const literalSchema = v.union([v.string(), v.number(), v.boolean(), v.null()]);
-export const jsonSchema: v.GenericSchema<Json> = v.union([
-	literalSchema,
-	v.array(v.any()),
-	v.record(v.string(), v.any()),
-]);
-export const bufferSchema: v.GenericSchema<Buffer> = v.custom<Buffer>((v) => v instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
+export const createLiteralSchema = (valibot: typeof v = v) =>
+	valibot.union([valibot.string(), valibot.number(), valibot.boolean(), valibot.null()]);
+
+export const createJsonSchema = (valibot: typeof v = v): v.GenericSchema<Json> =>
+	valibot.union([
+		createLiteralSchema(valibot),
+		valibot.array(valibot.any()),
+		valibot.record(valibot.string(), valibot.any()),
+	]);
+
+export const createBufferSchema = (valibot: typeof v = v): v.GenericSchema<Buffer> =>
+	valibot.custom<Buffer>((val) => val instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
+
+export const literalSchema = createLiteralSchema(v);
+export const jsonSchema: v.GenericSchema<Json> = createJsonSchema(v);
+export const bufferSchema: v.GenericSchema<Buffer> = createBufferSchema(v);
 
 export function mapEnumValues(values: string[]) {
 	return Object.fromEntries(values.map((value) => [value, value]));
@@ -111,11 +120,11 @@ export function columnToSchema(column: Column, valibot: typeof v = v): v.Generic
 		} else if (column.dataType === 'string') {
 			schema = stringColumnToSchema(column, valibot);
 		} else if (column.dataType === 'json') {
-			schema = jsonSchema;
+			schema = valibot === v ? jsonSchema : createJsonSchema(valibot);
 		} else if (column.dataType === 'custom') {
 			schema = valibot.any();
 		} else if (column.dataType === 'buffer') {
-			schema = bufferSchema;
+			schema = valibot === v ? bufferSchema : createBufferSchema(valibot);
 		}
 	}
 

@@ -427,3 +427,34 @@ test('createSchemaFactory - select, insert, update', (t) => {
 	Expect<Equal<typeof insertResult, typeof expectedInsert>>();
 	Expect<Equal<typeof updateResult, typeof expectedUpdate>>();
 });
+
+test('createSchemaFactory with custom valibotInstance for json and buffer', (t) => {
+	let customUnionCalled = false;
+	let customCustomCalled = false;
+
+	const customValibot = {
+		...v,
+		union: ((...args: any[]) => {
+			customUnionCalled = true;
+			return (v.union as any)(...args);
+		}) as typeof v.union,
+		custom: ((...args: any[]) => {
+			customCustomCalled = true;
+			return (v.custom as any)(...args);
+		}) as typeof v.custom,
+	};
+
+	const table = sqliteTable('test', {
+		buf: blob({ mode: 'buffer' }).notNull(),
+		jsonCol: text({ mode: 'json' }).notNull(),
+	});
+
+	const { createSelectSchema } = createSchemaFactory({
+		valibotInstance: customValibot as any,
+	});
+
+	createSelectSchema(table);
+
+	t.expect(customUnionCalled).toBe(true);
+	t.expect(customCustomCalled).toBe(true);
+});
