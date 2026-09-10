@@ -2996,3 +2996,38 @@ test('issue #5869', async () => {
 		},
 	]);
 });
+
+test(`PlanetScale's Neki internal schema`, async () => {
+	await db.query('create schema __neki;'); // internal schema
+	await db.query('create table __neki.users (id int);');
+	await db.query('create table users (id int);');
+
+	const {
+		generateSqlStatements,
+		generateStatements,
+		pushSqlStatements,
+		pushStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'neki_internal_schema');
+
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(ddlAfterPull.schemas.list()).toStrictEqual([]); // public is stripped
+	expect(ddlAfterPull.tables.list()).toStrictEqual([{
+		schema: 'public',
+		name: 'users',
+		entityType: 'tables',
+		isRlsEnabled: false,
+	}]);
+	console.log('schema2: ', schema2);
+	expect(schema2.schemas).toStrictEqual([]); // public is stripped
+	expect(schema2.tables).toStrictEqual([{
+		schema: 'public',
+		name: 'users',
+		entityType: 'tables',
+		isRlsEnabled: false,
+	}]);
+});

@@ -390,6 +390,15 @@ describe('push', () => {
 			await _.clear();
 		}
 	});
+
+	test(`PlanetScale's Neki internal schema`, async () => {
+		await db.query('create schema __neki;'); // internal schema
+		await db.query('create table __neki.users (id int);');
+		await db.query('create table users (id int);');
+
+		const { sqlStatements: pst } = await push({ db, to: {} });
+		expect(pst).toStrictEqual(['DROP TABLE "users";']);
+	});
 });
 
 describe('schema filters', () => {
