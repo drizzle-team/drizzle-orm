@@ -478,4 +478,30 @@ describe('batch', () => {
 			],
 		});
 	});
+
+	test('rolls the whole set back on error', async ({ db }) => {
+		await db.insert(usersTable).values({ id: 1, name: 'Survivor' });
+
+		await expect(db.batch([
+			db.insert(usersTable).values({ id: 2, name: 'Doomed' }),
+			db.insert(postsTable).values({ id: 1, content: 'orphan', ownerId: 9999 }),
+		])).rejects.toThrow(/foreign key|violates/i);
+
+		expect(await db.select({ name: usersTable.name }).from(usersTable)).toEqual([{ name: 'Survivor' }]);
+	});
+
+	test('rollback covers DDL', async ({ db }) => {
+		await db.execute(sql`drop table if exists pg_batch_ddl`);
+
+		await expect(db.batch([
+			db.execute(sql`create table pg_batch_ddl (id integer primary key)`),
+			db.execute(sql`insert into pg_batch_ddl values (1)`),
+			db.execute(sql`insert into pg_batch_ddl values (1)`),
+		])).rejects.toThrow(/duplicate key|unique/i);
+
+		const present = await db.execute<{ present: boolean }>(
+			sql`select to_regclass('public.pg_batch_ddl') is not null as present`,
+		);
+		expect(present.rows[0]!.present).toBe(false);
+	});
 });

@@ -277,7 +277,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			.select({
 				categoryId: courseCategories.id,
 				category: courseCategories.name,
-				total: sql<number>`count(${courseCategories.id})`,
+				total: sql<number>`count(${courseCategories.id})`.mapWith(Number),
 			})
 			.from(courseCategories)
 			.groupBy(courseCategories.id, courseCategories.name)
@@ -322,7 +322,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				db
 					.select({
 						region: orders.region,
-						totalSales: sql<number>`sum(${orders.amount})`.as('total_sales'),
+						totalSales: sql<number>`sum(${orders.amount})`.mapWith(Number).as('total_sales'),
 					})
 					.from(orders)
 					.groupBy(orders.region),
@@ -349,8 +349,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			.select({
 				region: orders.region,
 				product: orders.product,
-				productUnits: sql<number>`cast(sum(${orders.quantity}) as unsigned)`,
-				productSales: sql<number>`cast(sum(${orders.amount}) as unsigned)`,
+				productUnits: sql<number>`cast(sum(${orders.quantity}) as unsigned)`.mapWith(Number),
+				productSales: sql<number>`cast(sum(${orders.amount}) as unsigned)`.mapWith(Number),
 			})
 			.from(orders)
 			.where(inArray(orders.region, db.select({ region: topRegions.region }).from(topRegions)))
@@ -540,7 +540,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		await push({ users });
 		await seed({ users }, () => ({ users: { count: 2 } }));
 
-		const res = await db.select({ count: sql`count(*)` }).from(users);
+		const res = await db.select({ count: sql`count(*)`.mapWith(Number) }).from(users);
 
 		expect(res).toEqual([{ count: 2 }]);
 	});
@@ -588,7 +588,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			.select({
 				id: cities.id,
 				name: sql<string>`upper(${cities.name})`.as('upper_name'),
-				usersCount: sql<number>`count(${users.id})`.as('users_count'),
+				usersCount: sql<number>`count(${users.id})`.mapWith(Number).as('users_count'),
 			})
 			.from(cities)
 			.leftJoin(users, eq(users.cityId, cities.id))
@@ -674,7 +674,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 	test.concurrent('select from raw sql', async ({ db }) => {
 		const result = await db.select({
-			id: sql<number>`id`,
+			id: sql<number>`id`.mapWith(Number),
 			name: sql<string>`name`,
 		}).from(sql`(select 1 as id, 'John' as name) as users`);
 
@@ -688,7 +688,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	test.concurrent('select from raw sql with joins', async ({ db }) => {
 		const result = await db
 			.select({
-				id: sql<number>`users.id`,
+				id: sql<number>`users.id`.mapWith(Number),
 				name: sql<string>`users.name`,
 				userCity: sql<string>`users.city`,
 				cityName: sql<string>`cities.name`,
@@ -706,7 +706,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	test.concurrent('join on aliased sql from select', async ({ db }) => {
 		const result = await db
 			.select({
-				userId: sql<number>`users.id`.as('userId'),
+				userId: sql<number>`users.id`.mapWith(Number).as('userId'),
 				name: sql<string>`users.name`,
 				userCity: sql<string>`users.city`,
 				cityId: sql<number>`cities.id`.as('cityId'),

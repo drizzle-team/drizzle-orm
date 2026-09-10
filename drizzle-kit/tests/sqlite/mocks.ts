@@ -11,7 +11,7 @@ import { HintsHandler } from 'src/cli/hints';
 import { configMigrations } from 'src/cli/validations/common';
 import { EmptyProgressView } from 'src/cli/views';
 import { hash } from 'src/dialects/common';
-import { createDDL, fromEntities, interimToDDL, SQLiteDDL } from 'src/dialects/sqlite/ddl';
+import { createDDL, fromEntities, interimToDDL, SQLiteDDL, sqliteToRelationsPull } from 'src/dialects/sqlite/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/sqlite/diff';
 import { defaultFromColumn, fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
 import { fromDatabaseForDrizzle } from 'src/dialects/sqlite/introspect';
@@ -20,11 +20,14 @@ import { SQLiteDB } from 'src/utils';
 import { mockResolver } from 'src/utils/mocks';
 import { tsc } from 'tests/utils';
 import 'zx/globals';
+import { relationsToTypeScript } from 'src/cli/commands/pull-common';
 import { updateToV7 } from 'src/cli/commands/up-sqlite';
 import { serializeSQLite } from 'src/legacy/sqlite-v6/serializer';
 import { diff as legacyDiff } from 'src/legacy/sqlite-v6/sqliteDiff';
+import { loadModule } from 'src/utils/utils-node';
 
-mkdirSync('tests/sqlite/tmp/', { recursive: true });
+const tmpDir = 'tests/sqlite/tmp';
+mkdirSync(tmpDir, { recursive: true });
 
 export type SqliteSchema = Record<string, SQLiteTable | SQLiteView | unknown>;
 export type SqliteSchemaOld = Record<string, SQLiteTableOld | SQLiteViewOld | unknown>;
@@ -97,7 +100,7 @@ export const diffAfterPull = async (
 		client.exec(st);
 	}
 
-	const path = `tests/sqlite/tmp/${testName}.ts`;
+	const filePath = `${tmpDir}/${testName}.ts`;
 
 	const schema = await fromDatabaseForDrizzle(db, () => true, () => {}, {
 		schema: 'drizzle',
@@ -106,10 +109,25 @@ export const diffAfterPull = async (
 	const { ddl: ddl2, errors: err1 } = interimToDDL(schema);
 	const file = ddlToTypeScript(ddl2, 'camel', schema.viewsToColumns, 'sqlite');
 
-	writeFileSync(path, file.file);
-	await tsc(file.file);
+	writeFileSync(filePath, file.file);
+	await tsc(file.file).catch((e) => {
+		throw new Error(`tsc error in file ${filePath}`, { cause: e });
+	});
 
-	const res = await prepareFromSchemaFiles([path]);
+	// relations
+	const relationsPath = `${tmpDir}/${testName}-relations.ts`;
+	const schemaAbsolutePath = path.resolve(tmpDir, testName);
+	const relationsForTsc = relationsToTypeScript(
+		sqliteToRelationsPull(ddl2),
+		'camel',
+		schemaAbsolutePath,
+	);
+	writeFileSync(relationsPath, relationsForTsc.file);
+	await tsc(relationsForTsc.file).catch((e) => {
+		throw new Error(`tsc error in file ${relationsPath}`, { cause: e });
+	});
+
+	const res = await prepareFromSchemaFiles([filePath]);
 	const { ddl: ddl1, errors: err2 } = interimToDDL(fromDrizzleSchema(res.tables, res.views));
 
 	const { sqlStatements, statements } = await ddlDiff(
@@ -120,7 +138,17 @@ export const diffAfterPull = async (
 		'push',
 	);
 
-	rmSync(path);
+	try {
+		await loadModule(path.relative(process.cwd(), relationsPath));
+		rmSync(relationsPath);
+	} catch (error: any) {
+		console.log(`Error while importing relations`);
+		throw error;
+	}
+
+	if (sqlStatements.length === 0) {
+		rmSync(`tests/sqlite/tmp/${testName}.ts`);
+	}
 
 	return { sqlStatements, statements, initDDL, ddlAfterPull: ddl1, resultDdl: ddl2 };
 };

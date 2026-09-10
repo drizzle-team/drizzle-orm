@@ -1,12 +1,15 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { and, asc, eq, exists, getViewSelectedFields, gt, inArray, lt, notInArray, sql } from 'drizzle-orm';
+import { and, asc, eq, exists, getColumns, getViewSelectedFields, gt, inArray, lt, notInArray, sql } from 'drizzle-orm';
 import {
 	alias,
 	boolean,
 	char,
 	cidr,
+	customType,
+	foreignKey,
 	inet,
 	integer,
+	json,
 	jsonb,
 	macaddr,
 	macaddr8,
@@ -16,6 +19,7 @@ import {
 	pgTableCreator,
 	pgView,
 	serial,
+	snakeCase,
 	text,
 	timestamp,
 	uuid,
@@ -1231,7 +1235,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/2872
-		test.skipIf(Date.now() < +new Date('2026-08-05')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-09-12')).concurrent(
 			'prepared statement with placeholder in .inArray',
 			async ({ db, push }) => {
 				const usersTable = pgTable('users_392', {
@@ -2468,6 +2472,241 @@ export function tests(test: Test) {
 					},
 				],
 			);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4095
+		test.concurrent('issue No4095', async ({ db }) => {
+			const users = pgTable('users', {
+				id: integer(),
+			});
+
+			const someCTE = db.$with('SOME_CTE').as((cteQb) =>
+				cteQb
+					.select({
+						someColumn: users.id,
+					})
+					.from(users)
+			);
+
+			const sqlOutput = db
+				.with(someCTE)
+				.selectDistinct({
+					someColumn: someCTE.someColumn,
+				})
+				.from(someCTE)
+				.toSQL();
+
+			expect(sqlOutput).toStrictEqual({
+				params: [],
+				sql: 'with "SOME_CTE" as (select "id" from "users") select distinct "id" from "SOME_CTE"',
+			});
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4091
+		test.concurrent('RQB v2 numeric precision preserved in nested relation', async ({ push, createDB }) => {
+			const categories = pgTable('rqb_numeric_categories', {
+				id: uuid('id').defaultRandom().primaryKey(),
+			});
+
+			const products = pgTable('rqb_numeric_products', {
+				id: uuid('id').defaultRandom().primaryKey(),
+				categoryId: uuid('category_id'),
+				priceUahRetail: numeric('price_uah_retail'),
+				priceUahWholesaleBig: numeric('price_uah_wholesale_big'),
+			});
+
+			await push({ categories, products });
+			const db = createDB({ categories, products }, (r) => ({
+				categories: {
+					products: r.many.products({
+						from: r.categories.id,
+						to: r.products.categoryId,
+					}),
+				},
+				products: {
+					category: r.one.categories({
+						from: r.products.categoryId,
+						to: r.categories.id,
+					}),
+				},
+			}));
+
+			const categoryId = '11111111-1111-1111-1111-111111111111';
+			const productId = '22222222-2222-2222-2222-222222222222';
+
+			await db.insert(categories).values({ id: categoryId });
+			await db.insert(products).values({
+				id: productId,
+				categoryId,
+				priceUahRetail: '302312.1010',
+				priceUahWholesaleBig: '1010101010101010101.202020020202020202022020',
+			});
+
+			const result = await db.query.categories.findFirst({
+				where: {
+					id: categoryId,
+				},
+				with: {
+					products: {
+						columns: {
+							id: true,
+							priceUahRetail: true,
+							priceUahWholesaleBig: true,
+						},
+					},
+				},
+			});
+
+			expect(result).toStrictEqual({
+				id: categoryId,
+				products: [{
+					id: productId,
+					priceUahRetail: '302312.1010',
+					priceUahWholesaleBig: '1010101010101010101.202020020202020202022020',
+				}],
+			});
+
+			// numeric values must stay strings, not be coerced to JS numbers (precision loss)
+			expect(typeof result!.products[0]!.priceUahRetail).toBe('string');
+			expect(typeof result!.products[0]!.priceUahWholesaleBig).toBe('string');
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/3856
+		test.concurrent('Issue No3856', async ({ push, db }) => {
+			const code = snakeCase.table(
+				'code',
+				{
+					id: uuid().defaultRandom().primaryKey(),
+					personId: uuid().notNull(),
+					code: text().notNull(),
+				},
+				(table) => [
+					foreignKey({
+						columns: [table.personId],
+						foreignColumns: [person.id],
+						name: 'person_code_fk',
+					}),
+				],
+			);
+
+			const person = snakeCase.table('person', {
+				id: uuid().defaultRandom().primaryKey(),
+				email: text().notNull(),
+				firstName: text().notNull(),
+				lastName: text().notNull(),
+			});
+
+			const personWithCode = pgView('person_with_code').as((queryBuilder) => {
+				const personColumns = getColumns(person);
+
+				return queryBuilder
+					.select({
+						...personColumns,
+						code: code.code,
+					})
+					.from(person)
+					.innerJoin(code, eq(code.personId, person.id));
+			});
+
+			await push({ person, code, personWithCode });
+			const personSeed = {
+				id: '11111111-1111-1111-1111-111111111111',
+				email: 'test@gmail.com',
+				firstName: 'first_name',
+				lastName: 'last_name',
+			};
+
+			const codeSeed = {
+				id: '21111111-1111-1111-1111-111111111111',
+				personId: '11111111-1111-1111-1111-111111111111',
+				code: 'code value',
+			};
+
+			await db.insert(person).values(personSeed);
+			await db.insert(code).values(codeSeed);
+
+			const query = db
+				.select()
+				.from(personWithCode)
+				.where(eq(personWithCode.code, 'code value'));
+
+			const res = await query;
+
+			expect(res).toStrictEqual([{
+				code: 'code value',
+				email: 'test@gmail.com',
+				firstName: 'first_name',
+				id: '11111111-1111-1111-1111-111111111111',
+				lastName: 'last_name',
+			}]);
+
+			expect(query.toSQL()).toStrictEqual({
+				sql:
+					'select "id", "email", "first_name", "last_name", "code" from "person_with_code" where "person_with_code"."code" = $1',
+				params: ['code value'],
+			});
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/1504
+		test.concurrent('Issue No1504', async ({ push, db }) => {
+			type PropTypes = { [key: string]: any };
+
+			const jsonDbType = customType<{ data: PropTypes }>({
+				dataType() {
+					return 'jsonb';
+				},
+				toDriver(value: PropTypes) {
+					return sql`${JSON.stringify(value)}::jsonb`;
+				},
+				fromDriver(value: any): PropTypes {
+					return JSON.parse(value);
+				},
+			});
+
+			const table = pgTable('table', {
+				column: jsonDbType('column'),
+			});
+
+			await db.execute(sql`DROP TABLE IF EXISTS ${table}`);
+			await push({ table });
+
+			await db.insert(table).values({ column: { hello: 'world' } });
+			const res = await db
+				.select({ value: sql`${table.column} ->> 'hello'` })
+				.from(table);
+			expect(res).toStrictEqual([{ value: 'world' }]);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/1117
+		test.concurrent('Issue No1117', async ({ push, db }) => {
+			const table = pgTable('table', {
+				jsonData: json(),
+			});
+
+			await db.execute(sql`DROP TABLE IF EXISTS ${table}`);
+			await push({ table });
+
+			const saveData = db
+				.insert(table)
+				.values({
+					jsonData: sql.placeholder('jsonData'),
+				})
+				.prepare();
+
+			const jsonData = { some: 'data' };
+			// Neither of these work
+			await saveData.execute({ jsonData: jsonData });
+			await saveData.execute({
+				jsonData: JSON.stringify(jsonData),
+			});
+
+			const result = await db.select().from(table);
+
+			expect(result).toStrictEqual([{
+				jsonData: { some: 'data' },
+			}, {
+				jsonData: JSON.stringify({ some: 'data' }),
+			}]);
 		});
 	});
 }

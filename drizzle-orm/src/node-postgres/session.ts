@@ -120,8 +120,15 @@ export class NodePgSession<
 			undefined,
 			false,
 		);
+
 		try {
 			await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
+		} catch (e) {
+			if (isPool) (session.client as PoolClient).release();
+			throw e;
+		}
+
+		try {
 			if (typeof config?.snapshot === 'string') {
 				await tx.execute(tx.setTransactionSnapshotSQL(config.snapshot));
 			}

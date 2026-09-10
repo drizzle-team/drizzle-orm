@@ -85,7 +85,9 @@ export function pgTableWithSchema<
 	name: TTableName,
 	columns: TColumnsMap | ((columnTypes: PgColumnsBuilders) => TColumnsMap),
 	extraConfig:
-		| ((self: PgBuildExtraConfigColumns<TColumnsMap>) => PgTableExtraConfig | PgTableExtraConfigValue[])
+		| ((
+			self: PgBuildExtraConfigColumns<TColumnsMap>,
+		) => PgTableExtraConfig | (PgTableExtraConfigValue | PgTableExtraConfigValue[])[])
 		| undefined,
 	schema: TSchemaName,
 	casing: Casing | undefined,
@@ -95,6 +97,7 @@ export function pgTableWithSchema<
 	schema: TSchemaName;
 	columns: PgBuildColumns<TTableName, TColumnsMap>;
 	dialect: 'pg';
+	isAlias: false;
 }> {
 	const casingFn = getCasingFn(casing);
 	const rawTable = new PgTable<{
@@ -102,6 +105,7 @@ export function pgTableWithSchema<
 		schema: TSchemaName;
 		columns: PgBuildColumns<TTableName, TColumnsMap>;
 		dialect: 'pg';
+		isAlias: false;
 	}>(name, schema, baseName);
 
 	const parsedColumns: TColumnsMap = typeof columns === 'function' ? columns(getPgColumnBuilders()) : columns;
@@ -142,6 +146,7 @@ export function pgTableWithSchema<
 				schema: TSchemaName;
 				columns: PgBuildColumns<TTableName, TColumnsMap>;
 				dialect: 'pg';
+				isAlias: false;
 			}>;
 		},
 	}) as any;
@@ -155,12 +160,13 @@ export interface PgTableFnInternal<TSchema extends string | undefined = undefine
 		columns: TColumnsMap,
 		extraConfig?: (
 			self: PgBuildExtraConfigColumns<TColumnsMap>,
-		) => PgTableExtraConfigValue[],
+		) => (PgTableExtraConfigValue | PgTableExtraConfigValue[])[],
 	): PgTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
 		columns: PgBuildColumns<TTableName, TColumnsMap>;
 		dialect: 'pg';
+		isAlias: false;
 	}>;
 
 	<
@@ -169,12 +175,15 @@ export interface PgTableFnInternal<TSchema extends string | undefined = undefine
 	>(
 		name: TTableName,
 		columns: (columnTypes: PgColumnsBuilders) => TColumnsMap,
-		extraConfig?: (self: PgBuildExtraConfigColumns<TColumnsMap>) => PgTableExtraConfigValue[],
+		extraConfig?: (
+			self: PgBuildExtraConfigColumns<TColumnsMap>,
+		) => (PgTableExtraConfigValue | PgTableExtraConfigValue[])[],
 	): PgTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
 		columns: PgBuildColumns<TTableName, TColumnsMap>;
 		dialect: 'pg';
+		isAlias: false;
 	}>;
 	/**
 	 * @deprecated The third parameter of pgTable is changing and will only accept an array instead of an object
@@ -212,6 +221,7 @@ export interface PgTableFnInternal<TSchema extends string | undefined = undefine
 		schema: TSchema;
 		columns: PgBuildColumns<TTableName, TColumnsMap>;
 		dialect: 'pg';
+		isAlias: false;
 	}>;
 
 	/**
@@ -248,6 +258,7 @@ export interface PgTableFnInternal<TSchema extends string | undefined = undefine
 		schema: TSchema;
 		columns: PgBuildColumns<TTableName, TColumnsMap>;
 		dialect: 'pg';
+		isAlias: false;
 	}>;
 }
 

@@ -1,14 +1,13 @@
-import {
-	type BuildQueryResult,
-	type BuildRelationalQueryResult,
-	type DBQueryConfig,
-	mapRelationalRow,
-	type TableRelationalConfig,
-	type TablesRelationalConfig,
-} from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
+import type {
+	BuildQueryResult,
+	BuildRelationalQueryResult,
+	DBQueryConfig,
+	RelationalRowsMapper,
+	TableRelationalConfig,
+	TablesRelationalConfig,
+} from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
@@ -17,123 +16,92 @@ import type { CockroachDialect } from '../dialect.ts';
 import type { CockroachPreparedQuery, CockroachSession, PreparedQueryConfig } from '../session.ts';
 import type { CockroachTable } from '../table.ts';
 
-export class RelationalQueryBuilder<TSchema extends TablesRelationalConfig, TFields extends TableRelationalConfig> {
-	static readonly [entityKind]: string = 'CockroachRelationalQueryBuilder';
+export class RelationalQueryBuilder<
+	TSchema extends TablesRelationalConfig,
+	TFields extends TableRelationalConfig,
+> {
+	static readonly [entityKind]: string = 'CockroachRelationalQueryBuilderV2';
 
 	constructor(
-		private fullSchema: Record<string, unknown>,
 		private schema: TSchema,
-		private tableNamesMap: Record<string, string>,
 		private table: CockroachTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: CockroachDialect,
 		private session: CockroachSession,
 	) {}
 
-	findMany<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', true, TSchema, TFields>>,
+	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
+		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
 	): CockroachRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new CockroachRelationalQuery(
-			this.fullSchema,
 			this.schema,
-			this.tableNamesMap,
 			this.table,
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config ? (config as DBQueryConfig<'many', true>) : {},
+			config as DBQueryConfig<'many'> | undefined ?? true,
 			'many',
 		);
 	}
 
-	findFirst<TSelection extends Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>(
-		config?: KnownKeysOnly<TSelection, Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>,
-	): CockroachRelationalQuery<BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
+	findFirst<TConfig extends DBQueryConfig<'one', TSchema, TFields>>(
+		config?: KnownKeysOnly<TConfig, DBQueryConfig<'one', TSchema, TFields>>,
+	): CockroachRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
 		return new CockroachRelationalQuery(
-			this.fullSchema,
 			this.schema,
-			this.tableNamesMap,
 			this.table,
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config ? { ...(config as DBQueryConfig<'many', true> | undefined), limit: 1 } : { limit: 1 },
+			config as DBQueryConfig<'one'> | undefined ?? true,
 			'first',
 		);
 	}
 }
 
 export class CockroachRelationalQuery<TResult> extends QueryPromise<TResult>
-	implements RunnableQuery<TResult, 'pg'>, SQLWrapper
+	implements RunnableQuery<TResult, 'cockroach'>, SQLWrapper
 {
-	static override readonly [entityKind]: string = 'CockroachRelationalQuery';
+	static override readonly [entityKind]: string = 'CockroachRelationalQueryV2';
+
+	/** @internal */
+	protected mapper?: RelationalRowsMapper;
 
 	declare readonly _: {
-		readonly dialect: 'pg';
+		readonly dialect: 'cockroach';
 		readonly result: TResult;
 	};
 
 	constructor(
-		private fullSchema: Record<string, unknown>,
-		private schema: TablesRelationalConfig,
-		private tableNamesMap: Record<string, string>,
-		private table: CockroachTable,
-		private tableConfig: TableRelationalConfig,
-		private dialect: CockroachDialect,
-		private session: CockroachSession,
-		private config: DBQueryConfig<'many', true> | true,
-		private mode: 'many' | 'first',
+		protected schema: TablesRelationalConfig,
+		protected table: CockroachTable,
+		protected tableConfig: TableRelationalConfig,
+		protected dialect: CockroachDialect,
+		protected session: CockroachSession,
+		protected config: DBQueryConfig<'many' | 'one'> | true,
+		protected mode: 'many' | 'first',
 	) {
 		super();
 	}
 
-	/** @internal */
-	_prepare(name?: string, generateName = false): CockroachPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
-		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const { query, builtQuery } = this._toSQL();
-
-			return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
-				builtQuery,
-				undefined,
-				name ?? (generateName ? preparedStatementName(builtQuery.sql, builtQuery.params) : name),
-				(rawRows, mapColumnValue) => {
-					const rows = rawRows.map((row) =>
-						mapRelationalRow(this.schema, this.tableConfig, row, query.selection, mapColumnValue)
-					);
-					if (this.mode === 'first') {
-						return rows[0] as TResult;
-					}
-					return rows as TResult;
-				},
-			);
-		});
-	}
-
-	prepare(name?: string): CockroachPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
-		return this._prepare(name, true);
-	}
-
-	private _getQuery() {
-		return this.dialect.buildRelationalQueryWithoutPK({
-			fullSchema: this.fullSchema,
+	protected _getQuery() {
+		return this.dialect.buildRelationalQuery({
 			schema: this.schema,
-			tableNamesMap: this.tableNamesMap,
 			table: this.table,
 			tableConfig: this.tableConfig,
 			queryConfig: this.config,
-			tableAlias: this.tableConfig.tsName,
+			mode: this.mode,
 		});
 	}
 
-	/** @internal */
 	getSQL(): SQL {
-		return this._getQuery().sql as SQL;
+		return this._getQuery().sql;
 	}
 
-	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
+	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
 		const query = this._getQuery();
 
-		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
+		const builtQuery = this.dialect.sqlToQuery(query.sql);
 
 		return { query, builtQuery };
 	}
@@ -142,9 +110,37 @@ export class CockroachRelationalQuery<TResult> extends QueryPromise<TResult>
 		return this._toSQL().builtQuery;
 	}
 
-	override execute(): Promise<TResult> {
+	/** @internal */
+	_prepare(name?: string, generateName = false): CockroachPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			const { dialect } = this;
+			const isFirst = this.mode === 'first';
+
+			const { query, builtQuery } = this._toSQL();
+
+			return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
+				builtQuery,
+				'arrays',
+				name ?? generateName,
+				this.mapper ??= dialect.mapperGenerators.relationalRows({
+					isFirst,
+					parseJson: false,
+					parseJsonIfString: false,
+					rootJsonMappers: false,
+					selection: query.selection,
+					arrayModeRoot: true,
+				}),
+			);
+		});
+	}
+
+	prepare(name?: string): CockroachPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
+		return this._prepare(name, true);
+	}
+
+	override execute(placeholderValues?: Record<string, unknown>): Promise<TResult> {
 		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(undefined);
+			return this._prepare().execute(placeholderValues);
 		});
 	}
 }

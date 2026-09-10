@@ -23,6 +23,7 @@ export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 	returning?: SelectedFieldsOrdered;
 	select?: boolean;
 	columnList?: string[];
+	ignoreSelectionCastCodecs?: boolean;
 }
 
 export type SQLiteInsertValue<
@@ -165,6 +166,7 @@ export class SQLiteInsertBuilder<
 				| SQL),
 	): SQLiteInsertKind<THKT, TTable, TRunResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
+		if ('withoutSelectionCastCodecs' in select) select.withoutSelectionCastCodecs();
 
 		if (!is(select, SQL)) {
 			const insertCols = Object.keys(this.table[Table.Symbol.Columns]);
@@ -378,7 +380,7 @@ export class SQLiteInsertBase<
 	returning(
 		fields: SelectedFieldsFlat = this.config.table[SQLiteTable.Symbol.Columns],
 	): SQLiteInsertWithout<AnySQLiteInsert, TDynamic, 'returning'> {
-		this.config.returning = orderSelectedFields<SQLiteColumn>(fields);
+		this.config.returning = orderSelectedFields<SQLiteColumn>(fields, undefined, this.dialect.codecs);
 		return this as any;
 	}
 
@@ -472,6 +474,12 @@ export class SQLiteInsertBase<
 
 	toSQL(): Query {
 		return this.dialect.sqlToQuery(this.getSQL());
+	}
+
+	/** @internal */
+	withoutSelectionCastCodecs() {
+		this.config.ignoreSelectionCastCodecs = true;
+		return this;
 	}
 
 	$dynamic(): SQLiteInsertDynamic<this> {

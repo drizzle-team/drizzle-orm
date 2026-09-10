@@ -9,6 +9,7 @@ import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteEffectDatabase } from '~/sqlite-core/effect/db.ts';
 import type { EffectDrizzleSQLiteConfig } from '~/sqlite-core/effect/utils.ts';
+import { effectSQLiteDoCodecs } from './codecs.ts';
 import { type EffectSQLiteDoQueryEffectHKT, type EffectSQLiteDoRunResult, EffectSQLiteDOSession } from './session.ts';
 export { DefaultServices } from '~/effect-core/defaults.ts';
 
@@ -59,7 +60,9 @@ export const make = Effect.fn('SQLiteDODrizzle.make')(
 		const cache = yield* EffectCache;
 		const logger = yield* EffectLogger;
 
-		const dialect = new SQLiteDialect();
+		const dialect = new SQLiteDialect({
+			codecs: config.codecs ?? effectSQLiteDoCodecs,
+		});
 
 		const relations = config.relations ?? {} as TRelations;
 		const session = new EffectSQLiteDOSession(client, dialect, relations, {

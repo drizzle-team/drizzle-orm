@@ -61,12 +61,16 @@ export class EffectSQLiteNodeSession<TRelations extends AnyRelations>
 				const q = this.client.unsafe(query.sql, params);
 
 				if (mode === 'arrays') return q.values;
+				// Null-prototype object => object
+				if (mode === 'objects') return q.withoutTransform.pipe(Effect.map((e) => e.map((row) => ({ ...row }))));
 				return q.withoutTransform;
 			},
 			get: (params) => {
 				const q = this.client.unsafe(query.sql, params);
 
 				if (mode === 'arrays') return q.values.pipe(Effect.map((e) => e[0]));
+				// Null-prototype object => object
+				if (mode === 'objects') return q.withoutTransform.pipe(Effect.map((e) => e[0] ? { ...e[0] } : e[0]));
 				return q.withoutTransform.pipe(Effect.map((e) => e[0]));
 			},
 			values: (params) => this.client.unsafe(query.sql, params).values,

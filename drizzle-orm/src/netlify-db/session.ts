@@ -161,8 +161,15 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 			undefined,
 			false,
 		);
+
 		try {
 			await tx.execute(sql`begin ${tx.getTransactionConfigSQL(config)}`);
+		} catch (e) {
+			poolClient.release();
+			throw e;
+		}
+
+		try {
 			if (typeof config.snapshot === 'string') {
 				await tx.execute(tx.setTransactionSnapshotSQL(config.snapshot));
 			}

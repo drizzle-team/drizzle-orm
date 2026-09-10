@@ -1,5 +1,5 @@
 import { SQL as BunSQL } from 'bun';
-import { afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeAll, beforeEach, describe, expect, expectTypeOf, test } from 'bun:test';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import {
 	and,
@@ -101,6 +101,7 @@ import { allTypesData, makeAllTypes } from '~/pg/all-types';
 import { clear, init, rqbPost, rqbUser } from '~/pg/schema';
 import { normalizeDataWithDbCodecs } from '~/pg/utils';
 import { Expect } from '~/utils';
+import { assertAllTypesBounds } from '../pg/all-types';
 import { relations } from '../pg/relations';
 import {
 	assertMalformedSnapshotRejected,
@@ -7320,6 +7321,10 @@ test('all types ~codecs~', async () => {
 			'pointtuple ∪ pointtuple': [24.5, 49.6],
 		},
 	]));
+
+	await assertAllTypesBounds(db);
+
+	await db.$client.close();
 });
 
 test('Query error wrapping', async () => {
@@ -7370,6 +7375,9 @@ test('Column as decoder applies codecs', async () => {
 			arrMax: max(users.arrCreatedAt).as('arr_max'),
 			arrMaxStr: max(users.arrCreatedAtStr).as('arr_max_str'),
 			sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+			sqAliased: qb.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+			sqTag: qb.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+				.as('sq_tag'),
 		}).from(users).groupBy(users.id)
 	);
 
@@ -7403,7 +7411,7 @@ test('Column as decoder applies codecs', async () => {
 	)`);
 
 	await db.execute(
-		sql`CREATE VIEW ${usersView} AS SELECT *, max(${users.createdAt}) as max, max(${users.createdAtStr}) as max_str, max(${users.arrCreatedAt}) as arr_max, max(${users.arrCreatedAtStr}) as arr_max_str, (select created_at from users) as sq FROM ${users} GROUP BY ${users.id}`,
+		sql`CREATE VIEW ${usersView} AS SELECT *, max(${users.createdAt}) as max, max(${users.createdAtStr}) as max_str, max(${users.arrCreatedAt}) as arr_max, max(${users.arrCreatedAtStr}) as arr_max_str, (select ${users.createdAt} from ${users}) as sq, (select ${users.createdAt} from ${users}) as sq_aliased, (select ${users.id} from ${users}) as sq_tag FROM ${users} GROUP BY ${users.id}`,
 	);
 
 	const exDateStr = '1970-01-16 16:45:46.351';
@@ -7427,6 +7435,9 @@ test('Column as decoder applies codecs', async () => {
 		arrMax: max(users.arrCreatedAt).as('arr_max'),
 		arrMaxStr: max(users.arrCreatedAtStr).as('arr_max_str'),
 		sq: db.select({ createdAt: users.createdAt }).from(users).as('sq'),
+		sqAliased: db.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+		sqTag: db.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+			.as('sq_tag'),
 	}).from(users).groupBy(users.id);
 
 	const viewRes = await db.select().from(usersView);
@@ -7451,15 +7462,8 @@ test('Column as decoder applies codecs', async () => {
 	});
 
 	const viewNested = await db.query.usersView.findFirst({
-		columns: {
-			sq: false, // TODO: re-enable when supported in RQBv2
-		},
 		with: {
-			self: {
-				columns: {
-					sq: false, // TODO: re-enable when supported in RQBv2
-				},
-			},
+			self: true,
 		},
 	});
 
@@ -7476,6 +7480,8 @@ test('Column as decoder applies codecs', async () => {
 			arrMax: [exDate],
 			arrMaxStr: [exDateStr],
 			sq: exDate,
+			sqAliased: exDate,
+			sqTag: 'tag-1',
 			cus: exDate,
 			arrCus: [exDate],
 		},
@@ -7493,6 +7499,8 @@ test('Column as decoder applies codecs', async () => {
 			arrMax: [exDate],
 			arrMaxStr: [exDateStr],
 			sq: exDate,
+			sqAliased: exDate,
+			sqTag: 'tag-1',
 			cus: exDate,
 			arrCus: [exDate],
 		},
@@ -7531,6 +7539,14 @@ test('Column as decoder applies codecs', async () => {
 			},
 		},
 	);
+
+	type ViewRow = typeof usersView.$inferSelect;
+	type ViewNestedRow = {
+		[K in keyof (ViewRow & { self: ViewRow | null })]: (ViewRow & { self: ViewRow | null })[K];
+	};
+
+	expectTypeOf(viewNested).toEqualTypeOf<ViewNestedRow | undefined>();
+
 	expect(viewNested).toStrictEqual(
 		{
 			id: 1,
@@ -7544,6 +7560,9 @@ test('Column as decoder applies codecs', async () => {
 			arrMax: [exDate],
 			arrMaxStr: [exDateStr],
 			cus: exDate,
+			sq: exDate,
+			sqAliased: exDate,
+			sqTag: 'tag-1',
 			arrCus: [exDate],
 			self: {
 				id: 1,
@@ -7557,10 +7576,15 @@ test('Column as decoder applies codecs', async () => {
 				arrMax: [exDate],
 				arrMaxStr: [exDateStr],
 				cus: exDate,
+				sq: exDate,
+				sqAliased: exDate,
+				sqTag: 'tag-1',
 				arrCus: [exDate],
 			},
 		},
 	);
+
+	await db.$client.close();
 });
 
 test('Column as decoder applies codecs - Jit mappers', async () => {
@@ -7604,6 +7628,9 @@ test('Column as decoder applies codecs - Jit mappers', async () => {
 			arrMax: max(users.arrCreatedAt).as('arr_max'),
 			arrMaxStr: max(users.arrCreatedAtStr).as('arr_max_str'),
 			sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+			sqAliased: qb.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+			sqTag: qb.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+				.as('sq_tag'),
 		}).from(users).groupBy(users.id)
 	);
 
@@ -7638,7 +7665,7 @@ test('Column as decoder applies codecs - Jit mappers', async () => {
 	)`);
 
 	await db.execute(
-		sql`CREATE VIEW ${usersView} AS SELECT *, max(${users.createdAt}) as max, max(${users.createdAtStr}) as max_str, max(${users.arrCreatedAt}) as arr_max, max(${users.arrCreatedAtStr}) as arr_max_str, (select created_at from users) as sq FROM ${users} GROUP BY ${users.id}`,
+		sql`CREATE VIEW ${usersView} AS SELECT *, max(${users.createdAt}) as max, max(${users.createdAtStr}) as max_str, max(${users.arrCreatedAt}) as arr_max, max(${users.arrCreatedAtStr}) as arr_max_str, (select ${users.createdAt} from ${users}) as sq, (select ${users.createdAt} from ${users}) as sq_aliased, (select ${users.id} from ${users}) as sq_tag FROM ${users} GROUP BY ${users.id}`,
 	);
 
 	const exDateStr = '1970-01-16 16:45:46.351';
@@ -7662,6 +7689,9 @@ test('Column as decoder applies codecs - Jit mappers', async () => {
 		arrMax: max(users.arrCreatedAt).as('arr_max'),
 		arrMaxStr: max(users.arrCreatedAtStr).as('arr_max_str'),
 		sq: db.select({ createdAt: users.createdAt }).from(users).as('sq'),
+		sqAliased: db.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+		sqTag: db.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+			.as('sq_tag'),
 	}).from(users).groupBy(users.id);
 
 	const viewRes = await db.select().from(usersView);
@@ -7686,15 +7716,8 @@ test('Column as decoder applies codecs - Jit mappers', async () => {
 	});
 
 	const viewNested = await db.query.usersView.findFirst({
-		columns: {
-			sq: false, // TODO: re-enable when supported in RQBv2
-		},
 		with: {
-			self: {
-				columns: {
-					sq: false, // TODO: re-enable when supported in RQBv2
-				},
-			},
+			self: true,
 		},
 	});
 
@@ -7711,6 +7734,8 @@ test('Column as decoder applies codecs - Jit mappers', async () => {
 			arrMax: [exDate],
 			arrMaxStr: [exDateStr],
 			sq: exDate,
+			sqAliased: exDate,
+			sqTag: 'tag-1',
 			cus: exDate,
 			arrCus: [exDate],
 		},
@@ -7728,6 +7753,8 @@ test('Column as decoder applies codecs - Jit mappers', async () => {
 			arrMax: [exDate],
 			arrMaxStr: [exDateStr],
 			sq: exDate,
+			sqAliased: exDate,
+			sqTag: 'tag-1',
 			cus: exDate,
 			arrCus: [exDate],
 		},
@@ -7766,6 +7793,14 @@ test('Column as decoder applies codecs - Jit mappers', async () => {
 			},
 		},
 	);
+
+	type ViewRow = typeof usersView.$inferSelect;
+	type ViewNestedRow = {
+		[K in keyof (ViewRow & { self: ViewRow | null })]: (ViewRow & { self: ViewRow | null })[K];
+	};
+
+	expectTypeOf(viewNested).toEqualTypeOf<ViewNestedRow | undefined>();
+
 	expect(viewNested).toStrictEqual(
 		{
 			id: 1,
@@ -7779,6 +7814,9 @@ test('Column as decoder applies codecs - Jit mappers', async () => {
 			arrMax: [exDate],
 			arrMaxStr: [exDateStr],
 			cus: exDate,
+			sq: exDate,
+			sqAliased: exDate,
+			sqTag: 'tag-1',
 			arrCus: [exDate],
 			self: {
 				id: 1,
@@ -7792,10 +7830,15 @@ test('Column as decoder applies codecs - Jit mappers', async () => {
 				arrMax: [exDate],
 				arrMaxStr: [exDateStr],
 				cus: exDate,
+				sq: exDate,
+				sqAliased: exDate,
+				sqTag: 'tag-1',
 				arrCus: [exDate],
 			},
 		},
 	);
+
+	await db.$client.close();
 });
 
 test("No nullification on non-joined table's all-null object", async () => {
@@ -8005,6 +8048,8 @@ test("No nullification on non-joined table's all-null object - jit", async () =>
 	expect(res).toEqual([{ id: 1, meta: { bio: null, city: null } }]);
 
 	await db.execute(sql`DROP TABLE nullify1_users_jit`);
+
+	await db.$client.close();
 });
 
 test('Cross-table group never nullified - jit', async () => {
@@ -8055,6 +8100,8 @@ test('Cross-table group never nullified - jit', async () => {
 
 	await db.execute(sql`DROP TABLE nullify2_users_jit`);
 	await db.execute(sql`DROP TABLE nullify2_cities_jit`);
+
+	await db.$client.close();
 });
 
 test('SQL field groups are never nullified - jit', async () => {
@@ -8094,6 +8141,8 @@ test('SQL field groups are never nullified - jit', async () => {
 
 	await db.execute(sql`DROP TABLE nullify3_users_jit`);
 	await db.execute(sql`DROP TABLE nullify3_cities_jit`);
+
+	await db.$client.close();
 });
 
 test('Nullify all-null group from from nullable join - jit', async () => {
@@ -8142,6 +8191,8 @@ test('Nullify all-null group from from nullable join - jit', async () => {
 
 	await db.execute(sql`DROP TABLE nullify4_users_jit`);
 	await db.execute(sql`DROP TABLE nullify4_cities_jit`);
+
+	await db.$client.close();
 });
 
 test("Don't disregard added SQL field during join nullification - jit", async () => {
@@ -8179,6 +8230,8 @@ test("Don't disregard added SQL field during join nullification - jit", async ()
 
 	await db.execute(sql`DROP TABLE nullify5_users_jit`);
 	await db.execute(sql`DROP TABLE nullify5_cities_jit`);
+
+	await db.$client.close();
 });
 
 const dnStaff = pgTable('dn_staff', (t) => ({ userId: t.integer('user_id').primaryKey() }));
@@ -8544,6 +8597,8 @@ test('Issue #5062', async () => {
 			workno: '1',
 		},
 	]);
+
+	await db.$client.close();
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5090
@@ -8573,6 +8628,8 @@ test('Issue #5090', async () => {
 			},
 		],
 	);
+
+	await db.$client.close();
 });
 
 test('Default value priority', async () => {
@@ -8618,4 +8675,28 @@ test('Default value priority', async () => {
 	}]);
 
 	await db.execute(sql`DROP TABLE no_default_override`);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2279
+test('Issue No2279', async () => {
+	const corrupt_jsonb_demo = pgTable('corrupt_jsonb_demo', {
+		id: serial('id').primaryKey(),
+		data: jsonb('data').$type<{ [key: string]: any }>().notNull(),
+	});
+
+	await db.execute(sql`CREATE TABLE corrupt_jsonb_demo (id serial primary key, data jsonb not null)`);
+
+	await db.execute(sql`INSERT INTO corrupt_jsonb_demo (data) VALUES ('{"a": 1}');`);
+
+	const [res] = await db.select().from(corrupt_jsonb_demo);
+	await db
+		.update(corrupt_jsonb_demo)
+		.set({
+			data: res?.data,
+		})
+		.where(eq(corrupt_jsonb_demo.id, res!.id));
+
+	const res2 = await db.select().from(corrupt_jsonb_demo);
+
+	expect(res2).toStrictEqual([{ id: 1, data: { a: 1 } }]);
 });

@@ -11,7 +11,6 @@ import type { CockroachTable, TableConfig } from '~/cockroach-core/table.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
@@ -21,13 +20,14 @@ import type { Subquery } from '~/subquery.ts';
 import type { InferInsertModel } from '~/table.ts';
 import { getTableName, Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
-import { type DrizzleTypeError, mapUpdateSet, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
+import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
 import type { AnyCockroachColumn, CockroachColumn } from '../columns/common.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { CockroachUpdateSetSource } from './update.ts';
 
 export interface CockroachInsertConfig<TTable extends CockroachTable = CockroachTable> {
+	ignoreSelectionCastCodecs?: boolean;
 	table: TTable;
 	values: Record<string, unknown>[] | TypedQueryBuilder<CockroachInsertSelection<TTable>> | SQL;
 	withList?: Subquery[];
@@ -164,6 +164,7 @@ export class CockroachInsertBuilder<
 				| SQL),
 	): CockroachInsertBase<TTable, TQueryResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
+		if ('withoutSelectionCastCodecs' in select) select.withoutSelectionCastCodecs();
 
 		if (!is(select, SQL)) {
 			const insertCols = Object.keys(this.table[Table.Symbol.Columns]);
@@ -358,7 +359,11 @@ export class CockroachInsertBase<
 		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
 	): CockroachInsertWithout<AnyCockroachInsert, TDynamic, 'returning'> {
 		this.config.returningFields = fields;
-		this.config.returning = orderSelectedFields<CockroachColumn>(fields);
+		this.config.returning = orderSelectedFields<CockroachColumn>(
+			fields,
+			undefined,
+			this.dialect.codecs,
+		);
 		return this as any;
 	}
 
@@ -452,7 +457,6 @@ export class CockroachInsertBase<
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildInsertQuery(this.config);
 	}
@@ -464,15 +468,18 @@ export class CockroachInsertBase<
 	/** @internal */
 	_prepare(name?: string, generateName = false): CockroachInsertPrepare<this> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			const { returning: fields } = this.config;
 			const query = this.dialect.sqlToQuery(this.getSQL());
+
 			return this.session.prepareQuery<
 				PreparedQueryConfig & {
 					execute: TReturning extends undefined ? CockroachQueryResultKind<TQueryResult, never> : TReturning[];
 				}
 			>(
 				query,
-				this.config.returning,
-				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+				fields ? 'arrays' : 'raw',
+				name ?? generateName,
+				fields ? this.dialect.mapperGenerators.rows(fields, undefined) : undefined,
 			);
 		});
 	}
@@ -481,16 +488,9 @@ export class CockroachInsertBase<
 		return this._prepare(name, true);
 	}
 
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
-	}
-
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues, this.authToken);
+			return this._prepare().execute(placeholderValues);
 		});
 	};
 
@@ -512,6 +512,7 @@ export class CockroachInsertBase<
 
 	/** @internal */
 	withoutSelectionCastCodecs(): this {
+		this.config.ignoreSelectionCastCodecs = true;
 		return this;
 	}
 

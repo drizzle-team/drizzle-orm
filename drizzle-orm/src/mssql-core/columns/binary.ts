@@ -36,6 +36,9 @@ export class MsSqlBinary<T extends ColumnBaseConfig<'object buffer'>> extends Ms
 > {
 	static override readonly [entityKind]: string = 'MsSqlBinary';
 
+	/** @internal */
+	override readonly codec = 'binary';
+
 	getSQLType(): string {
 		return this.config.setLength ? `binary(${this.length})` : `binary`;
 	}

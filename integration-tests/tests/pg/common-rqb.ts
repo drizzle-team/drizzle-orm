@@ -1,7 +1,23 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { and, defineRelations, eq, inArray, isNotNull, not, or, sql } from 'drizzle-orm';
+import { and, defineRelations, eq, inArray, not, sql } from 'drizzle-orm';
 import type { AnyPgColumn, PgColumnBuilder } from 'drizzle-orm/pg-core';
-import { bigint, integer, numeric, pgEnum, pgTable, serial, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+	bigint,
+	decimal,
+	index,
+	integer,
+	jsonb,
+	numeric,
+	pgEnum,
+	pgTable,
+	QueryBuilder,
+	serial,
+	text,
+	timestamp,
+	uniqueIndex,
+	uuid,
+	varchar,
+} from 'drizzle-orm/pg-core';
 import { describe, expect, expectTypeOf } from 'vitest';
 import type { Test } from './instrumentation';
 
@@ -965,6 +981,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4169
+		// https://github.com/drizzle-team/drizzle-orm/issues/3493
 		test.concurrent(
 			'RQB v2 find many - $count',
 			async ({ push, createDB }) => {
@@ -1028,7 +1045,7 @@ export function tests(test: Test) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4696
 		// postgresjs returns strings for itemCount but other drivers return numbers
-		test.skipIf(Date.now() < +new Date('2026-08-05')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-09-12')).concurrent(
 			'RQB v2 find many - extras',
 			async ({ push, createDB }) => {
 				const orderItemTable = pgTable('rqb_order_item_19', {
@@ -1135,6 +1152,80 @@ export function tests(test: Test) {
 			};
 			expect(throwFunc2).toThrowError(
 				/.+all "from" columns must belong to table "users", found column of table "blogs"$/,
+			);
+		});
+
+		test.concurrent('RQB v2 defineRelations partial ".through" error', () => {
+			const users = pgTable('users', { id: integer().primaryKey() });
+			const groups = pgTable('groups', { id: integer().primaryKey() });
+			const usersToGroups = pgTable('users_to_groups', { userId: integer(), groupId: integer() });
+
+			const throughOnFromOnly = () => {
+				defineRelations({ users, groups, usersToGroups }, (r) => ({
+					users: {
+						groups: r.many.groups({
+							from: r.users.id.through(r.usersToGroups.userId),
+							to: r.groups.id,
+						}),
+					},
+				}));
+			};
+			expect(throughOnFromOnly).toThrowError(
+				/.+".through\(column\)" must be used either on all columns in "from" and "to" or not defined on any of them$/,
+			);
+
+			const throughOnToOnly = () => {
+				defineRelations({ users, groups, usersToGroups }, (r) => ({
+					users: {
+						groups: r.many.groups({
+							from: r.users.id,
+							to: r.groups.id.through(r.usersToGroups.groupId),
+						}),
+					},
+				}));
+			};
+			expect(throughOnToOnly).toThrowError(
+				/.+".through\(column\)" must be used either on all columns in "from" and "to" or not defined on any of them$/,
+			);
+
+			const throughOnSomeColumns = () => {
+				const composite = pgTable('composite', { a: integer(), b: integer() });
+				const compositeJoin = pgTable('composite_join', { a: integer(), b: integer() });
+
+				defineRelations({ users, composite, compositeJoin }, (r) => ({
+					users: {
+						composite: r.many.composite({
+							from: [r.users.id.through(r.compositeJoin.a), r.users.id],
+							to: [r.composite.a.through(r.compositeJoin.a), r.composite.b.through(r.compositeJoin.b)],
+						}),
+					},
+				}));
+			};
+			expect(throughOnSomeColumns).toThrowError(
+				/.+".through\(column\)" must be used either on all columns in "from" and "to" or not defined on any of them$/,
+			);
+		});
+
+		test.concurrent('RQB v2 subquery alias collision error', ({ createDB }) => {
+			const users = pgTable('rqb_alias_users', { id: integer().primaryKey(), name: text() });
+			const posts = pgTable('rqb_alias_posts', { id: integer().primaryKey(), authorId: integer() });
+
+			const qb = new QueryBuilder();
+			const first = qb.select({ id: users.id, name: users.name }).from(users).as('user_source');
+			const second = qb.select({ id: users.id }).from(users).as('user_source');
+
+			const db = createDB({ first, second, posts }, (r) => ({
+				posts: {
+					author: r.one.first({ from: r.posts.authorId, to: r.first.id }),
+					owner: r.one.second({ from: r.posts.authorId, to: r.second.id }),
+				},
+			}));
+
+			const throwFunc = () =>
+				db.query.posts.findMany({ columns: { id: true }, with: { author: true, owner: true } }).toSQL();
+
+			expect(throwFunc).toThrowError(
+				/^Different subqueries with the same alias "user_source" are used in a single relational query.+$/,
 			);
 		});
 
@@ -1253,5 +1344,204 @@ export function tests(test: Test) {
 				],
 			},
 		]);
+	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/4169
+	test.concurrent('issue #4169', async ({ createDB }) => {
+		const candidates = pgTable(
+			'candidates',
+			{
+				id: uuid().defaultRandom().primaryKey(),
+				createdOn: timestamp('created_on', { mode: 'date' }).notNull().defaultNow(),
+				email: text().notNull(),
+				firstName: text('first_name').notNull(),
+				lastName: text('last_name').notNull(),
+				phone: text('phone').notNull(),
+				profileLink: text('profile_link'),
+			},
+			(table) => [
+				index('created_on_candidates_idx').on(table.createdOn),
+				uniqueIndex('email_candidates_idx').on(table.email),
+			],
+		);
+
+		const candicacyStatusEnum = pgEnum('candidacy_status', [
+			'IN_PROGRESS',
+			'CANCELED',
+			'CLOSED',
+		]);
+
+		const jobCandidacies = pgTable('job_candidacy', {
+			id: uuid().defaultRandom().primaryKey(),
+			createdOn: timestamp('created_on', { mode: 'date' }).notNull().defaultNow(),
+			candidateId: uuid('candidate_id')
+				.notNull()
+				.references(() => candidates.id),
+			status: candicacyStatusEnum().notNull(),
+		});
+
+		const db = createDB({ candidates, jobCandidacies }, (r) => ({
+			candidates: {
+				jobCandidacies: r.many.jobCandidacies(),
+			},
+			jobCandidacies: {
+				candidate: r.one.candidates({
+					from: r.jobCandidacies.candidateId,
+					to: r.candidates.id,
+				}),
+			},
+		}));
+
+		const recordsQuery = db.query.candidates.findMany({
+			extras: {
+				activeJobs: db
+					.$count(
+						jobCandidacies,
+						and(
+							eq(jobCandidacies.candidateId, candidates.id),
+							not(
+								inArray(jobCandidacies.status, [
+									'CANCELED',
+									'CLOSED',
+								]),
+							),
+						),
+					)
+					.as('activeJobs'),
+			},
+		}).toSQL();
+
+		expect(recordsQuery).toStrictEqual({
+			params: [
+				'CANCELED',
+				'CLOSED',
+			],
+			sql:
+				'select "d0"."id" as "id", "d0"."created_on" as "createdOn", "d0"."email" as "email", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."phone" as "phone", "d0"."profile_link" as "profileLink", ((select count(*) from "job_candidacy" where (("job_candidacy"."candidate_id" = "candidates"."id") and (not ("job_candidacy"."status" in ($1, $2)))))) as "activeJobs" from "candidates" as "d0"',
+		});
+	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/3943
+	test.concurrent('issue No3943', async ({ createDB, push }) => {
+		const parent = pgTable('parent', {
+			id: serial().primaryKey(),
+			parentVal: decimal(),
+		});
+		const child = pgTable('child', {
+			parentId: serial().references(() => parent.id),
+			childVal: decimal(),
+		});
+
+		const db = createDB({ parent, child }, (r) => ({
+			child: {
+				parent: r.one.parent({
+					from: r.child.parentId,
+					to: r.parent.id,
+				}),
+			},
+			parent: {
+				child: r.many.child(),
+			},
+		}));
+
+		await push({ parent, child });
+
+		const [parentRes] = await db.insert(parent).values({ parentVal: '12.34' }).returning();
+		await db.insert(child).values({ parentId: parentRes?.id, childVal: '56.78' });
+		const res = await db.query.child.findFirst({ with: { parent: true } });
+
+		expect(res).toStrictEqual({
+			childVal: '56.78',
+			parent: {
+				id: 1,
+				parentVal: '12.34',
+			},
+			parentId: 1,
+		});
+	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/3400
+	test.concurrent('issue 3400', async ({ createDB, push }) => {
+		const users = pgTable('users', {
+			id: varchar('id', { length: 191 }).notNull().primaryKey(),
+			createdAt: timestamp('created_at', { precision: 3, mode: 'string' })
+				.default(sql`CURRENT_TIMESTAMP(3)`)
+				.notNull(),
+		});
+
+		const posts = pgTable('posts', {
+			id: varchar('id', { length: 191 }).notNull().primaryKey(),
+			createdAt: timestamp('created_at', { precision: 3, mode: 'string' })
+				.default(sql`CURRENT_TIMESTAMP(3)`)
+				.notNull(),
+			authorId: varchar('author_id', { length: 191 }).notNull(),
+		});
+
+		const db = createDB({ users, posts }, (r) => ({
+			posts: {
+				author: r.one.users({
+					from: [r.posts.authorId],
+					to: [r.users.id],
+				}),
+			},
+		}));
+
+		await db.execute(sql`DROP TABLE IF EXISTS ${posts};`);
+		await db.execute(sql`DROP TABLE IF EXISTS ${users};`);
+		await push({ users, posts });
+
+		await db.insert(users).values({
+			id: 'user_123',
+		});
+
+		await db.insert(posts).values([
+			{
+				id: 'post_123',
+				authorId: 'user_123',
+			},
+		]);
+
+		const user = await db.query.users.findFirst({});
+		const post = await db.query.posts.findFirst({});
+		const nested = await db.query.posts.findFirst({
+			with: {
+				author: true,
+			},
+		});
+
+		const timestampFormat = (s: string) => (s.includes('T') ? 'ISO' : 'SQL');
+		expect(timestampFormat(user!.createdAt)).toBe('SQL');
+		expect(timestampFormat(post!.createdAt)).toBe('SQL');
+		expect(timestampFormat(nested!.createdAt)).toBe('SQL');
+		expect(timestampFormat(nested!.author!.createdAt)).toBe('SQL');
+
+		await db.execute(sql`DROP TABLE IF EXISTS ${posts};`);
+		await db.execute(sql`DROP TABLE IF EXISTS ${users};`);
+	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/2279
+	test.concurrent('Issue No2279', async ({ createDB, push }) => {
+		const corrupt_jsonb_demo = pgTable('corrupt_jsonb_demo', {
+			id: serial('id').primaryKey(),
+			data: jsonb('data').$type<{ [key: string]: any }>().notNull(),
+		});
+
+		const db = createDB({ corrupt_jsonb_demo });
+
+		await push({ corrupt_jsonb_demo });
+
+		await db.execute(sql`INSERT INTO corrupt_jsonb_demo (data) VALUES ('{"a": 1}');`);
+
+		const [res] = await db.select().from(corrupt_jsonb_demo);
+		await db
+			.update(corrupt_jsonb_demo)
+			.set({
+				data: res?.data,
+			})
+			.where(eq(corrupt_jsonb_demo.id, res!.id));
+
+		const res2 = await db.select().from(corrupt_jsonb_demo);
+
+		expect(res2).toStrictEqual([{ id: 1, data: { a: 1 } }]);
 	});
 }

@@ -1,8 +1,7 @@
 import type { AnyCockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
-import { CockroachColumn } from './common.ts';
+import { CockroachColumn, type CockroachColumnBaseConfig } from './common.ts';
 import { CockroachIntColumnBaseBuilder } from './int.common.ts';
 
 export class CockroachBigInt53Builder extends CockroachIntColumnBaseBuilder<{
@@ -27,19 +26,17 @@ export class CockroachBigInt53Builder extends CockroachIntColumnBaseBuilder<{
 	}
 }
 
-export class CockroachBigInt53<T extends ColumnBaseConfig<'number int53'>> extends CockroachColumn<T> {
+export class CockroachBigInt53<T extends CockroachColumnBaseConfig<'number int53'>>
+	extends CockroachColumn<'number int53', T>
+{
 	static override readonly [entityKind]: string = 'CockroachBigInt53';
+
+	/** @internal */
+	override readonly codec = 'int8:number';
 
 	getSQLType(): string {
 		return 'int8';
 	}
-
-	override mapFromDriverValue = (value: number | string): number => {
-		if (typeof value === 'number') {
-			return value;
-		}
-		return Number(value);
-	};
 }
 
 export class CockroachBigInt64Builder extends CockroachIntColumnBaseBuilder<{
@@ -64,17 +61,17 @@ export class CockroachBigInt64Builder extends CockroachIntColumnBaseBuilder<{
 	}
 }
 
-export class CockroachBigInt64<T extends ColumnBaseConfig<'bigint int64'>> extends CockroachColumn<T> {
+export class CockroachBigInt64<T extends CockroachColumnBaseConfig<'bigint int64'>>
+	extends CockroachColumn<'bigint int64', T>
+{
 	static override readonly [entityKind]: string = 'CockroachBigInt64';
+
+	/** @internal */
+	override readonly codec = 'int8';
 
 	getSQLType(): string {
 		return 'int8';
 	}
-
-	// eslint-disable-next-line unicorn/prefer-native-coercion-functions
-	override mapFromDriverValue = (value: string): bigint => {
-		return BigInt(value);
-	};
 }
 
 export interface CockroachBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {

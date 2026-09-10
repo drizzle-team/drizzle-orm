@@ -236,17 +236,6 @@ function arrayColumnToSchema(
 			// TODO - INT64 number range
 			return length ? type.bigint.array().exactlyLength(length) : type.bigint.array();
 		}
-		case 'basecolumn': {
-			// CockroachDB/GEL style: has a separate baseColumn
-			const baseColumn = (<{ baseColumn?: Column }> column).baseColumn;
-			if (baseColumn) {
-				const length = column.length;
-				const schema = columnToSchema(baseColumn).array();
-				if (length) return schema.exactlyLength(length);
-				return schema;
-			}
-			return type.unknown.array();
-		}
 		default: {
 			return type.unknown.array();
 		}

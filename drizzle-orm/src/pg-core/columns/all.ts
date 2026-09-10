@@ -15,7 +15,7 @@ import { jsonb } from './jsonb.ts';
 import { line } from './line.ts';
 import { macaddr } from './macaddr.ts';
 import { macaddr8 } from './macaddr8.ts';
-import { numeric } from './numeric.ts';
+import { decimal, numeric } from './numeric.ts';
 import { point } from './point.ts';
 import { geometry } from './postgis_extension/geometry.ts';
 import { real } from './real.ts';
@@ -52,6 +52,7 @@ export function getPgColumnBuilders() {
 		macaddr,
 		macaddr8,
 		numeric,
+		decimal,
 		point,
 		geometry,
 		real,

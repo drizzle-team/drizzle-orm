@@ -43,7 +43,6 @@ export class PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT> im
 		return this;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildRefreshMaterializedViewQuery(this.config);
 	}

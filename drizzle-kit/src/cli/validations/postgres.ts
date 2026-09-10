@@ -1,5 +1,6 @@
+import type { PGlite } from '@electric-sql/pglite';
 import type { TypeOf } from 'zod';
-import { boolean, coerce, literal, object, string, undefined as zUndefined, union } from 'zod';
+import { boolean, coerce, custom, literal, object, string, undefined as zUndefined, union } from 'zod';
 import { ConfigConnectionCliError } from '../errors';
 import { error } from '../views';
 import { wrapParam } from './common';
@@ -41,6 +42,10 @@ export const postgresCredentials = union([
 		driver: literal('pglite'),
 		url: string().min(1),
 	}),
+	object({
+		driver: literal('pglite'),
+		client: custom<PGlite>((client) => typeof client === 'object' && client !== null),
+	}),
 ]);
 
 export type PostgresCredentials = TypeOf<typeof postgresCredentials>;
@@ -59,6 +64,16 @@ export const printConfigConnectionIssues = (
 				wrapParam('secretArn', options.secretArn, false, 'secret'),
 				wrapParam('resourceArn', options.resourceArn, false, 'secret'),
 			].join('\n'),
+		);
+	}
+
+	if (options.driver === 'pglite') {
+		throw new ConfigConnectionCliError(
+			'pglite',
+			['url', 'client'],
+			error(
+				`Please provide either "url" or "client" for PGlite driver`,
+			),
 		);
 	}
 

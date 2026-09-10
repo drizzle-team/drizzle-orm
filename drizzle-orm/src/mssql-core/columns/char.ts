@@ -36,6 +36,9 @@ export class MsSqlChar<T extends ColumnBaseConfig<'string' | 'string enum'>>
 {
 	static override readonly [entityKind]: string = 'MsSqlChar';
 
+	/** @internal */
+	override readonly codec = 'char';
+
 	override readonly enumValues = this.config.enum;
 
 	readonly nonUnicode: boolean = this.config.nonUnicode;

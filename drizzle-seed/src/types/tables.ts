@@ -39,7 +39,10 @@ export type Table = {
 	name: string;
 	columns: Column[];
 	uniqueConstraints: string[][];
+	/** columns marked primary one by one, which is all `Column.primary` ever reflects */
 	primaryKeys: string[];
+	/** column tuples declared primary at table level, which never mark their columns as primary */
+	compositePrimaryKeys: string[][];
 };
 
 export type Relation = {
@@ -71,10 +74,25 @@ export type DrizzleUniqueConstraint =
 	| MsSqlUniCon
 	| SingleStoreUniCon;
 
+/**
+ * A relational config as built by `defineRelations`. Declared structurally rather than as drizzle's `AnyRelations` so
+ * that a config built over a schema whose types TypeScript had to widen still fits - a single `references(() => ...)`
+ * back at its own table is enough to widen one - which is exactly what `drizzle({ relations })` accepts too.
+ */
+export type SeedRelations = {
+	[tsTableName: string]: { table: any; name: string; relations: any } | undefined;
+};
+
+export type DrizzlePrimaryKey = {
+	readonly columns: AnyColumn[];
+	readonly name?: string;
+};
+
 export type TableConfigT = {
 	name: string;
 	schema?: string;
 	columns: AnyColumn[];
 	uniqueConstraints: DrizzleUniqueConstraint[];
 	foreignKeys?: DrizzleForeignKey[];
+	primaryKeys?: DrizzlePrimaryKey[];
 };

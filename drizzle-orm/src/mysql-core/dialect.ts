@@ -15,20 +15,32 @@ import type {
 } from '~/relations.ts';
 import {
 	// AggregatedField,
+	collectRelationalSubquery,
 	getTableAsAliasSQL,
 	makeDefaultRqbMapper,
 	makeJitRqbMapper,
+	type RelationalWithSubqueries,
 	relationExtrasToSQL,
 	relationsFilterToSQL,
 	relationsOrderToSQL,
 	relationToSQL,
+	type SchemaEntry,
 } from '~/relations.ts';
 import { and } from '~/sql/expressions/index.ts';
-import { isSQLWrapper, noopEncoder, Param, SQL, sql, StringChunk, View } from '~/sql/sql.ts';
-import type { DriverValueEncoder, Name, Placeholder, Query, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
+import { isSQLWrapper, noopEncoder, Param, SQL, sql, StringChunk } from '~/sql/sql.ts';
+import type {
+	DriverValueDecoder,
+	DriverValueEncoder,
+	Name,
+	Placeholder,
+	Query,
+	SQLChunk,
+	SQLWrapper,
+} from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
 import {
+	getColumnFromDecoder,
 	make$ReturningResponseMapper,
 	makeDefaultQueryMapper,
 	makeJitQueryMapper,
@@ -37,6 +49,7 @@ import {
 	type UpdateSet,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { View } from '~/view.ts';
 import { type MySqlCodecs, type MySqlType, resolveMySqlTypeAlias, unionsTypeTable } from './codecs.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlCustomColumn } from './columns/custom.ts';
@@ -50,7 +63,6 @@ import type {
 import type { MySqlUpdateConfig } from './query-builders/update.ts';
 import { MySqlTable } from './table.ts';
 import { MySqlViewBase } from './view-base.ts';
-import type { MySqlView } from './view.ts';
 
 export interface MySqlDialectConfig {
 	escapeParam?: (num: number) => string;
@@ -106,15 +118,19 @@ export class MySqlDialect {
 	private buildWithCTE(queries: Subquery[] | undefined): SQL | undefined {
 		if (!queries?.length) return undefined;
 
-		const withSqlChunks = [sql`with `];
-		for (const [i, w] of queries.entries()) {
-			withSqlChunks.push(sql`${sql.identifier(w._.alias)} as (${w._.sql})`);
-			if (i < queries.length - 1) {
-				withSqlChunks.push(sql`, `);
-			}
+		const queriesLen = queries.length;
+		const withSqlChunks: SQLChunk[] = new Array(queriesLen + 1);
+		let writeIdx = 0;
+		withSqlChunks[writeIdx++] = new StringChunk('with ');
+
+		for (let i = 0; i < queriesLen; ++i) {
+			const w = queries[i]!;
+			withSqlChunks[writeIdx++] = (i < queriesLen - 1)
+				? sql`${sql.identifier(w._.alias)} as (${w._.sql}), `
+				: sql`${sql.identifier(w._.alias)} as (${w._.sql}) `;
 		}
-		withSqlChunks.push(sql` `);
-		return sql.join(withSqlChunks);
+
+		return new SQL(withSqlChunks);
 	}
 
 	buildDeleteQuery({
@@ -148,7 +164,7 @@ export class MySqlDialect {
 		);
 
 		const setLength = columnNames.length;
-		const setArr: SQLChunk[] = Array.from({ length: setLength });
+		const setArr: SQLChunk[] = new Array(setLength);
 
 		for (let i = 0; i < columnNames.length; ++i) {
 			const colName = columnNames[i]!;
@@ -251,7 +267,7 @@ export class MySqlDialect {
 					} else {
 						if (isSingleTable && tableName !== undefined) {
 							const { queryChunks } = field.sql;
-							const newChunks: SQLChunk[] = Array.from({ length: queryChunks.length });
+							const newChunks: SQLChunk[] = new Array(queryChunks.length);
 							let abort = false;
 
 							for (let i = 0; i < queryChunks.length; ++i) {
@@ -298,7 +314,7 @@ export class MySqlDialect {
 				case 'SQL': {
 					if (isSingleTable && tableName !== undefined) {
 						const { queryChunks } = field;
-						const newChunks: SQLChunk[] = Array.from({ length: queryChunks.length });
+						const newChunks: SQLChunk[] = new Array(queryChunks.length);
 						let abort = false;
 
 						for (let i = 0; i < queryChunks.length; ++i) {
@@ -331,11 +347,15 @@ export class MySqlDialect {
 					break;
 				}
 				case 'Subquery': {
-					if (column && !ignoreCastCodecs && !field._.isWith) {
-						const innerCasted = this.codecs.apply(column, 'cast', sql`(${field._.sql})`, override);
-						chunks.push(sql`${innerCasted} ${sql.identifier(field._.alias)}`);
+					if (!field._.isWith) {
+						const inner = sql`(${field._.sql})`;
+						chunks.push(
+							sql`${column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', inner, override) : inner} ${
+								sql.identifier(field._.alias)
+							}`,
+						);
 					} else {
-						chunks.push(column ? this.codecs.apply(column, 'cast', field) : field, override);
+						chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
 					}
 
 					break;
@@ -343,7 +363,7 @@ export class MySqlDialect {
 			}
 
 			if (i < columnsLen - 1) {
-				chunks.push(sql`, `);
+				chunks.push(new StringChunk(', '));
 			}
 		}
 
@@ -362,7 +382,7 @@ export class MySqlDialect {
 		orderBy: (MySqlColumn | SQL | SQL.Aliased)[] | undefined,
 	): SQL | undefined {
 		return orderBy && orderBy.length > 0
-			? sql` order by ${sql.join(orderBy, sql`, `)}`
+			? sql` order by ${sql.join(orderBy, new StringChunk(', '))}`
 			: undefined;
 	}
 
@@ -374,7 +394,7 @@ export class MySqlDialect {
 		indexFor: 'USE' | 'FORCE' | 'IGNORE';
 	}): SQL | undefined {
 		return indexes && indexes.length > 0
-			? sql` ${sql.raw(indexFor)} INDEX ${indexes.map((it) => sql.identifier(it))}`
+			? sql` ${new StringChunk(indexFor)} INDEX ${indexes.map((it) => sql.identifier(it))}`
 			: undefined;
 	}
 
@@ -465,12 +485,12 @@ export class MySqlDialect {
 			return table;
 		})();
 
-		const joinsArray: SQL[] = [];
+		const joinsArray: SQLChunk[] = [];
 
 		if (joins) {
 			for (const [index, joinMeta] of joins.entries()) {
 				if (index === 0) {
-					joinsArray.push(sql` `);
+					joinsArray.push(new StringChunk(' '));
 				}
 				const table = joinMeta.table;
 				const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
@@ -494,7 +514,7 @@ export class MySqlDialect {
 						indexFor: 'IGNORE',
 					});
 					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
+						sql`${new StringChunk(joinMeta.joinType)} join${lateralSql} ${
 							tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
 						}${sql.identifier(origTableName)}${useIndexSql}${forceIndexSql}${ignoreIndexSql}${
 							alias && sql` ${sql.identifier(alias)}`
@@ -506,22 +526,22 @@ export class MySqlDialect {
 					const origViewName = table[ViewBaseConfig].originalName;
 					const alias = viewName === origViewName ? undefined : joinMeta.alias;
 					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
+						sql`${new StringChunk(joinMeta.joinType)} join${lateralSql} ${
 							viewSchema ? sql`${sql.identifier(viewSchema)}.` : undefined
 						}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 					);
 				} else {
 					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${table}${onSql}`,
+						sql`${new StringChunk(joinMeta.joinType)} join${lateralSql} ${table}${onSql}`,
 					);
 				}
 				if (index < joins.length - 1) {
-					joinsArray.push(sql` `);
+					joinsArray.push(new StringChunk(' '));
 				}
 			}
 		}
 
-		const joinsSql = sql.join(joinsArray);
+		const joinsSql = new SQL(joinsArray);
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
@@ -530,7 +550,7 @@ export class MySqlDialect {
 		const orderBySql = this.buildOrderBy(orderBy);
 
 		const groupBySql = groupBy && groupBy.length > 0
-			? sql` group by ${sql.join(groupBy, sql`, `)}`
+			? sql` group by ${sql.join(groupBy, new StringChunk(', '))}`
 			: undefined;
 
 		const limitSql = this.buildLimit(limit);
@@ -555,7 +575,7 @@ export class MySqlDialect {
 		let lockingClausesSql;
 		if (lockingClause) {
 			const { config, strength } = lockingClause;
-			lockingClausesSql = sql` for ${sql.raw(strength)}`;
+			lockingClausesSql = sql` for ${new StringChunk(strength)}`;
 			if (config.noWait) {
 				lockingClausesSql.append(sql` nowait`);
 			} else if (config.skipLocked) {
@@ -654,35 +674,33 @@ export class MySqlDialect {
 			const orderByValues: (SQL<unknown> | Name)[] = [];
 
 			// The next bit is necessary because the sql operator replaces ${table.column} with `table`.`column`
-			// which is invalid MySql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
-			for (const orderByUnit of orderBy) {
-				if (is(orderByUnit, MySqlColumn)) {
-					orderByValues.push(
-						sql.identifier(orderByUnit.name),
-					);
-				} else if (is(orderByUnit, SQL)) {
-					for (let i = 0; i < orderByUnit.queryChunks.length; i++) {
-						const chunk = orderByUnit.queryChunks[i];
+			// which is invalid Sql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
+			for (const singleOrderBy of orderBy) {
+				if (is(singleOrderBy, MySqlColumn)) {
+					orderByValues.push(sql.identifier(singleOrderBy.name));
+				} else if (is(singleOrderBy, SQL)) {
+					for (let i = 0; i < singleOrderBy.queryChunks.length; i++) {
+						const chunk = singleOrderBy.queryChunks[i];
 
 						if (is(chunk, MySqlColumn)) {
-							orderByUnit.queryChunks[i] = sql.identifier(chunk.name);
+							singleOrderBy.queryChunks[i] = sql.identifier(chunk.name);
 						}
 					}
 
-					orderByValues.push(sql`${orderByUnit}`);
+					orderByValues.push(sql`${singleOrderBy}`);
 				} else {
-					orderByValues.push(sql`${orderByUnit}`);
+					orderByValues.push(sql`${singleOrderBy}`);
 				}
 			}
 
-			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)} `;
+			orderBySql = sql` order by ${sql.join(orderByValues, new StringChunk(', '))}`;
 		}
 
 		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
 			? sql` limit ${limit}`
 			: undefined;
 
-		const operatorChunk = sql.raw(`${type} ${isAll ? 'all ' : ''}`);
+		const operatorChunk = new StringChunk(`${type} ${isAll ? 'all ' : ''}`);
 
 		// Binary protocol bug bypass
 		const offsetSql = offset
@@ -712,7 +730,17 @@ export class MySqlDialect {
 				.map((key) => [key, columns[key]] as [string, MySqlColumn])
 			: colEntries.filter(([_, col]) => !col.shouldDisableInsert());
 
-		const insertOrder = colEntriesFiltered.map(([, column]) => sql.identifier(column.name));
+		const insertOrderArr: SQLChunk[] = new Array(colEntriesFiltered.length * 2 + 1);
+		let writeIdx = 0;
+		insertOrderArr[writeIdx++] = new StringChunk('(');
+		for (let i = 0; i < colEntriesFiltered.length; ++i) {
+			const [, { name }] = colEntriesFiltered[i]!;
+			insertOrderArr[writeIdx++] = sql.identifier(name);
+
+			if (i < colEntriesFiltered.length - 1) insertOrderArr[writeIdx++] = new StringChunk(', ');
+		}
+		insertOrderArr[writeIdx++] = new StringChunk(')');
+		const insertOrder = new SQL(insertOrderArr);
 		const generatedIdsResponse: Record<string, unknown>[] = [];
 
 		const valuesSqlList: SQLChunk[] = Array.from({
@@ -808,7 +836,7 @@ export class MySqlDialect {
 	}
 
 	private buildRqbColumn(
-		table: Table | View,
+		table: SchemaEntry,
 		field: unknown,
 		key: string,
 		inJson: boolean,
@@ -816,6 +844,7 @@ export class MySqlDialect {
 		tableTsName: string,
 	) {
 		let decoderColumn: Column | undefined;
+		let subqueryDecoder: DriverValueDecoder<any, any> | undefined;
 		let fieldType: BuildRelationalQueryResult['selection'][number]['fieldType'];
 		let output: SQL;
 
@@ -845,6 +874,25 @@ export class MySqlDialect {
 			output = sql`${decoderColumn ? this.codecs.apply(decoderColumn, inJson ? 'castInJson' : 'cast', q) : q} as ${
 				sql.identifier(key)
 			}`;
+		} else if (is(field, Subquery)) {
+			const innerField = Object.values(field._.selectedFields)[0];
+
+			if (is(innerField, Column)) {
+				decoderColumn = innerField;
+				subqueryDecoder = innerField;
+			} else if (is(innerField, SQL.Aliased)) {
+				decoderColumn = getColumnFromDecoder(innerField);
+				subqueryDecoder = innerField.sql.decoder;
+			} else if (is(innerField, SQL)) {
+				decoderColumn = getColumnFromDecoder(innerField);
+				subqueryDecoder = innerField.decoder;
+			}
+			fieldType = 'Subquery';
+
+			const q = sql`${table}.${sql.identifier(field._.alias)}`;
+			output = sql`${decoderColumn ? this.codecs.apply(decoderColumn, inJson ? 'castInJson' : 'cast', q) : q} as ${
+				sql.identifier(key)
+			}`;
 		} else if (isSQLWrapper(field)) {
 			const query = (field as SQLWrapper).getSQL();
 			decoderColumn = is(query.decoder, Column) ? query.decoder : undefined;
@@ -858,7 +906,7 @@ export class MySqlDialect {
 			throw new DrizzleError({
 				message: field === undefined
 					? `Unknown column: "${tableTsName}"."${key}"`
-					: `Views with nested selections are not supported by the relational query builder`,
+					: `Views and subqueries with nested selections are not supported by the relational query builder`,
 			});
 		}
 
@@ -868,7 +916,8 @@ export class MySqlDialect {
 					key,
 					field,
 					fieldType,
-					codec: decoderColumn && (!inJson || !(<MySqlCustomColumn<any>> decoderColumn).mapFromJsonValue)
+					subqueryDecoder,
+					codec: !inJson || !(<MySqlCustomColumn<any>> decoderColumn).mapFromJsonValue
 						? this.codecs.get(decoderColumn, inJson ? 'normalizeInJson' : 'normalize')
 						: undefined,
 				}
@@ -876,6 +925,7 @@ export class MySqlDialect {
 					key,
 					field,
 					fieldType,
+					subqueryDecoder,
 				}) as BuildRelationalQueryResult['selection'][number],
 		);
 
@@ -883,7 +933,7 @@ export class MySqlDialect {
 	}
 
 	private buildColumns = (
-		table: Table | View,
+		table: SchemaEntry,
 		selection: BuildRelationalQueryResult['selection'],
 		inJson: boolean,
 		tableTsName: string,
@@ -894,7 +944,7 @@ export class MySqlDialect {
 				Object.entries(table[TableColumns]).map(([k, v]) => {
 					return this.buildRqbColumn(table, v, k, inJson, selection, tableTsName);
 				}),
-				sql`, `,
+				new StringChunk(', '),
 			);
 		}
 
@@ -920,7 +970,7 @@ export class MySqlDialect {
 		}
 
 		return columnIdentifiers.length
-			? sql.join(columnIdentifiers, sql`, `)
+			? sql.join(columnIdentifiers, new StringChunk(', '))
 			: undefined;
 	};
 
@@ -936,9 +986,10 @@ export class MySqlDialect {
 		isNestedMany,
 		throughJoin,
 		nested,
+		withSubqueries,
 	}: {
 		schema: TablesRelationalConfig;
-		table: MySqlTable | MySqlView;
+		table: SchemaEntry;
 		tableConfig: TableRelationalConfig;
 		queryConfig?: DBQueryConfigWithComment<'many'> | true;
 		relationWhere?: SQL;
@@ -948,13 +999,18 @@ export class MySqlDialect {
 		isNestedMany?: boolean;
 		throughJoin?: SQL;
 		nested?: boolean;
+		withSubqueries?: RelationalWithSubqueries;
 	}): BuildRelationalQueryResult {
 		const selection: BuildRelationalQueryResult['selection'] = [];
 		const isSingle = mode === 'first';
 		const params = config === true ? undefined : config;
 		const currentPath = errorPath ?? '';
 		const currentDepth = depth ?? 0;
-		if (!currentDepth) table = aliasedTable(table, `d${currentDepth}`);
+		const subqueries: RelationalWithSubqueries = withSubqueries ?? new Map();
+		if (!currentDepth) {
+			collectRelationalSubquery(subqueries, table);
+			table = aliasedTable(table, `d${currentDepth}`);
+		}
 
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
@@ -968,6 +1024,7 @@ export class MySqlDialect {
 					params.where,
 					tableConfig.relations,
 					schema,
+					subqueries,
 				),
 				relationWhere,
 			)
@@ -977,6 +1034,7 @@ export class MySqlDialect {
 				params.where,
 				tableConfig.relations,
 				schema,
+				subqueries,
 			)
 			: relationWhere;
 		const order = params?.orderBy
@@ -1001,8 +1059,8 @@ export class MySqlDialect {
 				const withEntries = Object.entries(withParam).filter(([_, v]) => v);
 				if (!withEntries.length) break;
 
-				const joinChunks: SQL[] = Array.from({ length: (withEntries.length * 2) });
-				joinChunks[0] = sql` `;
+				const joinChunks: SQLChunk[] = new Array(withEntries.length * 2);
+				joinChunks[0] = new StringChunk(' ');
 
 				for (let readIdx = 0, writeIdx = 1; readIdx < withEntries.length; ++readIdx) {
 					const [k, join] = withEntries[readIdx]!;
@@ -1014,6 +1072,9 @@ export class MySqlDialect {
 					const relation = tableConfig.relations[k];
 					if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
 					const isSingle = relation.relationType === 'one';
+					collectRelationalSubquery(subqueries, relation.targetTable);
+					collectRelationalSubquery(subqueries, relation.throughTable);
+
 					const targetTable = aliasedTable(
 						relation.targetTable,
 						`d${currentDepth + 1}`,
@@ -1021,6 +1082,7 @@ export class MySqlDialect {
 					const throughTable = relation.throughTable
 						? aliasedTable(relation.throughTable, `tr${currentDepth}`)
 						: undefined;
+
 					const { filter, joinCondition } = relationToSQL(
 						relation,
 						table,
@@ -1033,7 +1095,7 @@ export class MySqlDialect {
 						: undefined;
 
 					const innerQuery = this.buildRelationalQuery({
-						table: targetTable as MySqlTable,
+						table: targetTable,
 						mode: isSingle ? 'first' : 'many',
 						schema,
 						queryConfig: join as DBQueryConfigWithComment,
@@ -1041,6 +1103,7 @@ export class MySqlDialect {
 						relationWhere: filter,
 						errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 						depth: currentDepth + 1,
+						withSubqueries: subqueries,
 						isNestedMany: !isSingle,
 						throughJoin,
 						nested: true,
@@ -1060,9 +1123,9 @@ export class MySqlDialect {
 
 					const jsonColumns = sql.join(
 						innerQuery.selection.map(
-							(s) => sql`${sql.raw(this.escapeString(s.key))}, ${sql.identifier(s.key)}`,
+							(s) => sql`${new StringChunk(this.escapeString(s.key))}, ${sql.identifier(s.key)}`,
 						),
-						sql`, `,
+						new StringChunk(', '),
 					);
 
 					const joinQuery = sql`left join lateral(select ${sql`${
@@ -1076,7 +1139,7 @@ export class MySqlDialect {
 					} on true`;
 
 					joinChunks[writeIdx++] = joinQuery;
-					if (readIdx < withEntries.length) joinChunks[writeIdx++] = sql` `;
+					if (readIdx < withEntries.length - 1) joinChunks[writeIdx++] = new StringChunk(' ');
 				}
 
 				joins = new SQL(joinChunks);
@@ -1094,12 +1157,13 @@ export class MySqlDialect {
 		if (isNestedMany && order) {
 			selectionArr.push(sql`row_number() over (order by ${order})`);
 		}
-		const selectionSet = sql.join(selectionArr, sql`, `);
+		const selectionSet = sql.join(selectionArr, new StringChunk(', '));
 		const comment = config !== true && config?.comment
 			? sql.comment(config.comment)
 			: undefined;
 
-		const query = sql`select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${joins}${
+		const withSql = currentDepth ? undefined : this.buildWithCTE([...subqueries.values()]);
+		const query = sql`${withSql}select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${joins}${
 			where ? sql` where ${where}` : undefined
 		}${order ? sql` order by ${order}` : undefined}${
 			limit !== undefined ? sql` limit ${sql.param(limit, this.paginationEncoder)}` : undefined

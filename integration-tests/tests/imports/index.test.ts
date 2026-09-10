@@ -76,6 +76,7 @@ for (const [i, key] of exportSubpaths.entries()) {
 		|| o1.startsWith('drizzle-orm/bun-sql') || o1.startsWith('drizzle-orm/tursodatabase/wasm')
 		|| o1.startsWith('drizzle-orm/prisma') || o1.startsWith('drizzle-orm/node-sqlite')
 		|| o1.startsWith('drizzle-orm/effect-sqlite-bun')
+		|| o1 === 'drizzle-orm/postgres/cf'
 	) {
 		continue;
 	}

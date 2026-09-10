@@ -37,6 +37,8 @@ import {
 
 // * convert oid into number in comparisons to prevent issues with different types (string vs number) (pg converts oid to number automatically - pgsql cli returns as string)
 
+const isResolved = (names: (string | undefined)[]): names is string[] => names.every((it) => it !== undefined);
+
 export const fromDatabase = async (
 	db: DB,
 	filter: EntityFilter = () => true,
@@ -841,45 +843,46 @@ export const fromDatabase = async (
 
 	for (const fk of constraintsList.filter((it) => it.type === 'f')) {
 		const table = tablesList.find((it) => Number(it.oid) === Number(fk.tableId));
-		const schema = namespaces.find((it) => Number(it.oid) === Number(fk.schemaId));
 		const tableTo = tablesList.find((it) => Number(it.oid) === Number(fk.tableToId));
+
+		if (!table || !tableTo) {
+			// this can happen if:
+			// 1. the foreign key points to a table to which the user does not have access
+			// 2. the foreign key points to a table that is not in the filtered list of tables (e.g., system tables)
+			// in both cases, we cannot resolve the foreign key, so we skip it
+			continue;
+		}
 
 		const columns = fk.columnsOrdinals.map((it) => {
 			const column = columnsList.find((column) =>
-				Number(column.tableId) === Number(fk.tableId) && column.ordinality === it
+				Number(column.tableId) === Number(table.oid) && column.ordinality === it
 			);
 			return column?.name;
 		});
 
 		const columnsTo = fk.columnsToOrdinals.map((it) => {
 			const column = columnsList.find((column) =>
-				Number(column.tableId) === Number(fk.tableToId) && column.ordinality === it
+				Number(column.tableId) === Number(tableTo.oid) && column.ordinality === it
 			);
 			return column?.name;
 		});
 
-		if (
-			!table
-			|| !schema
-			|| !tableTo
-			|| columns.some((column) => column === undefined)
-			|| columnsTo.some((column) => column === undefined)
-		) {
+		if (!isResolved(columns) || !isResolved(columnsTo)) {
+			// for the same reasons as above, some of the referenced columns may be invisible,
+			// which leaves the foreign key unresolvable
 			continue;
 		}
-		const resolvedColumns = columns.filter((column): column is string => column !== undefined);
-		const resolvedColumnsTo = columnsTo.filter((column): column is string => column !== undefined);
 
 		fks.push({
 			entityType: 'fks',
-			schema: schema.name,
+			schema: table.schema,
 			table: table.name,
 			name: fk.name,
 			nameExplicit: true,
-			columns: resolvedColumns,
+			columns,
 			tableTo: tableTo.name,
 			schemaTo: tableTo.schema,
-			columnsTo: resolvedColumnsTo,
+			columnsTo,
 			onUpdate: parseOnType(fk.onUpdate),
 			onDelete: parseOnType(fk.onDelete),
 		});

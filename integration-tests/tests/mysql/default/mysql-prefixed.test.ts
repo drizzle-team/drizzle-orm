@@ -446,9 +446,9 @@ test.concurrent('build query', async ({ db, push }) => {
 		.toSQL();
 
 	expect(query).toEqual({
-		sql: `select \`id\`, \`name\` from \`${getTableName(users)}\` group by \`${getTableName(users)}\`.\`id\`, \`${
+		sql: `select cast(\`id\` as char), \`name\` from \`${getTableName(users)}\` group by \`${
 			getTableName(users)
-		}\`.\`name\``,
+		}\`.\`id\`, \`${getTableName(users)}\`.\`name\``,
 		params: [],
 	});
 });
@@ -1016,7 +1016,7 @@ test.concurrent('join subquery', async ({ db, push }) => {
 		.select({
 			categoryId: courseCategoriesTable.id,
 			category: courseCategoriesTable.name,
-			total: sql<number>`count(${courseCategoriesTable.id})`,
+			total: sql<number>`count(${courseCategoriesTable.id})`.mapWith(Number),
 		})
 		.from(courseCategoriesTable)
 		.groupBy(courseCategoriesTable.id, courseCategoriesTable.name)
@@ -1067,7 +1067,7 @@ test.concurrent('with ... select', async ({ db, push }) => {
 			db
 				.select({
 					region: orders.region,
-					totalSales: sql<number>`sum(${orders.amount})`.as('total_sales'),
+					totalSales: sql<number>`sum(${orders.amount})`.mapWith(Number).as('total_sales'),
 				})
 				.from(orders)
 				.groupBy(orders.region),
@@ -1094,8 +1094,8 @@ test.concurrent('with ... select', async ({ db, push }) => {
 		.select({
 			region: orders.region,
 			product: orders.product,
-			productUnits: sql<number>`cast(sum(${orders.quantity}) as unsigned)`,
-			productSales: sql<number>`cast(sum(${orders.amount}) as unsigned)`,
+			productUnits: sql<number>`cast(sum(${orders.quantity}) as unsigned)`.mapWith(Number),
+			productSales: sql<number>`cast(sum(${orders.amount}) as unsigned)`.mapWith(Number),
 		})
 		.from(orders)
 		.where(inArray(orders.region, db.select({ region: topRegions.region }).from(topRegions)))
@@ -1192,7 +1192,7 @@ test.concurrent('select count()', async ({ db, push }) => {
 	await push({ users });
 	await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }]);
 
-	const res = await db.select({ count: sql`count(*)` }).from(users);
+	const res = await db.select({ count: sql`count(*)`.mapWith(Number) }).from(users);
 
 	expect(res).toEqual([{ count: 2 }]);
 });
@@ -1242,7 +1242,7 @@ test.concurrent('having', async ({ db, push }) => {
 		.select({
 			id: cities.id,
 			name: sql<string>`upper(${cities.name})`.as('upper_name'),
-			usersCount: sql<number>`count(${users2.id})`.as('users_count'),
+			usersCount: sql<number>`count(${users2.id})`.mapWith(Number).as('users_count'),
 		})
 		.from(cities)
 		.leftJoin(users2, eq(users2.cityId, cities.id))
@@ -1340,7 +1340,7 @@ test.concurrent('view', async ({ db, push }) => {
 
 test.concurrent('select from raw sql', async ({ db }) => {
 	const result = await db.select({
-		id: sql<number>`id`,
+		id: sql<number>`id`.mapWith(Number),
 		name: sql<string>`name`,
 	}).from(sql`(select 1 as id, 'John' as name) as users`);
 
@@ -1354,7 +1354,7 @@ test.concurrent('select from raw sql', async ({ db }) => {
 test.concurrent('select from raw sql with joins', async ({ db }) => {
 	const result = await db
 		.select({
-			id: sql<number>`users.id`,
+			id: sql<number>`users.id`.mapWith(Number),
 			name: sql<string>`users.name`,
 			userCity: sql<string>`users.city`,
 			cityName: sql<string>`cities.name`,
@@ -1372,10 +1372,10 @@ test.concurrent('select from raw sql with joins', async ({ db }) => {
 test.concurrent('join on aliased sql from select', async ({ db }) => {
 	const result = await db
 		.select({
-			userId: sql<number>`users.id`.as('userId'),
+			userId: sql<number>`users.id`.mapWith(Number).as('userId'),
 			name: sql<string>`users.name`,
 			userCity: sql<string>`users.city`,
-			cityId: sql<number>`cities.id`.as('cityId'),
+			cityId: sql<number>`cities.id`.mapWith(Number).as('cityId'),
 			cityName: sql<string>`cities.name`,
 		})
 		.from(sql`(select 1 as id, 'John' as name, 'New York' as city) as users`)

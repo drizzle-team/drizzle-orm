@@ -9,6 +9,7 @@ import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteEffectDatabase } from '~/sqlite-core/effect/db.ts';
 import type { EffectDrizzleSQLiteConfig } from '~/sqlite-core/effect/utils.ts';
 import { jitCompatCheck } from '~/utils.ts';
+import { effectLibsqlCodecs } from './codecs.ts';
 import { type EffectLibsqlQueryEffectHKT, type EffectLibsqlRunResult, EffectLibsqlSession } from './session.ts';
 export { DefaultServices } from '~/effect-core/defaults.ts';
 
@@ -53,6 +54,7 @@ export const make = Effect.fn('LibsqlDrizzle.make')(
 		const logger = yield* EffectLogger;
 
 		const dialect = new SQLiteDialect({
+			codecs: config.codecs ?? effectLibsqlCodecs,
 			useJitMappers: jitCompatCheck(config.jit),
 		});
 

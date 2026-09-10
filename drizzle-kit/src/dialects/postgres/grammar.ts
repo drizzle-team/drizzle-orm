@@ -2167,6 +2167,24 @@ export const defaultsCommutative = (
 	return false;
 };
 
+export const existsInViewDef = (
+	view1: { name: string; schema: string },
+	view2: { name: string; schema: string; definition: string | null },
+) => {
+	const candidates = view1.schema !== 'public'
+		? [
+			`${view1.schema}"."${view1.name}`, // "schema"."view"
+			`${view1.schema}."${view1.name}`, // schema."view"
+			`${view1.schema}".${view1.name}`, // "schema".view
+			`${view1.schema}.${view1.name}`, // schema.view
+		]
+		: [
+			view1.name, // bare view name
+		];
+
+	return candidates.some((candidate) => view2.definition?.includes(candidate));
+};
+
 export const defaults = {
 	/*
 			By default, PostgreSQL uses the cluster’s default tablespace (which is named 'pg_default')

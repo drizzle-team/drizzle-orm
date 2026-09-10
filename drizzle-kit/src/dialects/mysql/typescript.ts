@@ -1,7 +1,8 @@
 import { toCamelCase } from 'drizzle-orm/casing';
 import type { Casing } from '../../cli/validations/common';
 import { assertUnreachable } from '../../utils';
-import { inspect } from '../utils';
+import { withCasing as makeCasing } from '../pull-utils';
+import { escapeForSqlTemplate, inspect } from '../utils';
 import type { CheckConstraint, Column, ForeignKey, Index, MysqlDDL, PrimaryKey, ViewColumn } from './ddl';
 import { Enum, parseEnum, typeFor } from './grammar';
 
@@ -65,22 +66,8 @@ const objToStatement2 = (json: any) => {
 
 const relations = new Set<string>();
 
-const escapeColumnKey = (value: string) => {
-	if (/^(?![a-zA-Z_$][a-zA-Z0-9_$]*$).+$/.test(value)) {
-		return `"${value}"`;
-	}
-	return value;
-};
-
 const prepareCasing = (casing?: Casing) => (value: string) => {
-	if (casing === 'preserve') {
-		return escapeColumnKey(value);
-	}
-	if (casing === 'camel') {
-		return escapeColumnKey(toCamelCase(value));
-	}
-
-	assertUnreachable(casing);
+	return makeCasing(value, casing);
 };
 
 const dbColumnName = ({ name, casing, withMode = false }: { name: string; casing: Casing; withMode?: boolean }) => {
@@ -191,7 +178,7 @@ export const ddlToTypeScript = (
 		statement += algorithm ? `.algorithm("${algorithm}")` : '';
 		statement += sqlSecurity ? `.sqlSecurity("${sqlSecurity}")` : '';
 		statement += withCheckOption ? `.withCheckOption("${withCheckOption}")` : '';
-		statement += `.as(sql\`${definition?.replaceAll('`', '\\`')}\`);`;
+		statement += `.as(sql\`${definition ? escapeForSqlTemplate(definition) : definition}\`);`;
 
 		viewsStatements.push(statement);
 	}
@@ -384,7 +371,7 @@ const createTableIndexes = (
 	let statement = '';
 	for (const it of idxs) {
 		const columns = it.columns.map((x) =>
-			x.isExpression ? `sql\`${x.value.replaceAll('`', '\\`')}\`` : `table.${casing(x.value)}`
+			x.isExpression ? `sql\`${escapeForSqlTemplate(x.value)}\`` : `table.${casing(x.value)}`
 		).join(', ');
 		statement += it.isUnique ? '\tuniqueIndex(' : '\tindex(';
 		statement += `"${it.name}")`;

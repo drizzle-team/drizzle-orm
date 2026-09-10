@@ -97,6 +97,40 @@ test('studio #5', async (t) => {
 	});
 });
 
+test('studio #6 - pglite with dbCredentials.url', async (t) => {
+	const res = await brotest(studio, '--config=pglite-url.config.ts');
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+	expect(res.options).toStrictEqual({
+		dialect: 'postgresql',
+		schema: './schema.ts',
+		host: '127.0.0.1',
+		port: 4983,
+		credentials: {
+			driver: 'pglite',
+			url: 'memory://',
+		},
+	});
+});
+
+test('studio #7 - pglite with a client instance instead of dbCredentials', async (t) => {
+	const res = await brotest(studio, '--config=pglite-client.config.ts');
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+
+	const { credentials, ...rest } = res.options as any;
+	expect(rest).toStrictEqual({
+		dialect: 'postgresql',
+		schema: './schema.ts',
+		host: '127.0.0.1',
+		port: 4983,
+	});
+
+	expect(Object.keys(credentials).sort()).toStrictEqual(['client', 'driver']);
+	expect(credentials.driver).toBe('pglite');
+	// the very instance from the config has to be forwarded, not a freshly constructed one
+	expect(credentials.client.__fixtureTag).toBe('pglite-client.config.ts');
+	expect(typeof credentials.client.query).toBe('function');
+});
+
 // --- errors ---
 test('err #1', async (t) => {
 	const res = await brotest(studio, '--config=expo.config.ts');
@@ -228,6 +262,59 @@ test('validate config #6', async (t) => {
 	let error: any = res.type === 'error' ? res.error : undefined;
 	expect(error).toBeInstanceOf(Error);
 	expect(error.message).toBe('process.exit unexpectedly called with "1"');
+
+	spy.mockRestore();
+});
+
+test('validate config #7 - pglite without a client and without dbCredentials', async (t) => {
+	const spy = vi.spyOn(console, 'log');
+
+	const { path, name } = createConfig({
+		dialect: 'postgresql',
+		schema: 'schema.ts',
+		driver: 'pglite',
+		// no 'client', no 'dbCredentials'
+	} as any, prefix);
+
+	const res = await brotest(studio, `--config=${name}`);
+
+	unlinkSync(path);
+
+	expect(res.type).toBe('error');
+
+	const calls = spy.mock.calls.map((c) => stripAnsi(String(c[0])));
+	expect(calls[0]).toBe(`Reading config file '${path}'`);
+	expect(calls[1]).toBe(
+		` Invalid input  Please specify a 'client' or 'dbCredentials' param in config. It will help drizzle to know how to query you database. You can read more about drizzle.config: https://orm.drizzle.team/kit-docs/config-reference`,
+	);
+
+	let error: any = res.type === 'error' ? res.error : undefined;
+	expect(error).toBeInstanceOf(Error);
+	expect(error.message).toBe('process.exit unexpectedly called with "1"');
+
+	spy.mockRestore();
+});
+
+test('validate config #8 - a client is only accepted for the pglite driver', async (t) => {
+	const spy = vi.spyOn(console, 'log');
+
+	// @ts-expect-error 'client' is not a valid param without driver: 'pglite'
+	const { path, name } = createConfig({
+		dialect: 'postgresql',
+		schema: 'schema.ts',
+		client: {},
+	}, prefix);
+
+	const res = await brotest(studio, `--config=${name}`);
+
+	unlinkSync(path);
+
+	expect(res.type).toBe('error');
+
+	const calls = spy.mock.calls.map((c) => stripAnsi(String(c[0])));
+	expect(calls[1]).toBe(
+		` Invalid input  Please specify a 'dbCredentials' param in config. It will help drizzle to know how to query you database. You can read more about drizzle.config: https://orm.drizzle.team/kit-docs/config-reference`,
+	);
 
 	spy.mockRestore();
 });

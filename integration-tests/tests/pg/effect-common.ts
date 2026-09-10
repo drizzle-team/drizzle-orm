@@ -19,6 +19,7 @@ import { EffectCache, type EffectCacheShape } from 'drizzle-orm/cache/core/cache
 import { EffectLogger, type EffectLoggerShape, QueryEffectHKTBase } from 'drizzle-orm/effect-core';
 import {
 	alias,
+	bigint,
 	boolean,
 	customType,
 	except,
@@ -54,8 +55,14 @@ import * as Ref from 'effect/Ref';
 import * as Result from 'effect/Result';
 import { SqlClient } from 'effect/unstable/sql/SqlClient';
 import { SqlError } from 'effect/unstable/sql/SqlError';
-import { type AllTypes, allTypesData, allTypesRelations, makeAllTypes } from './all-types';
-import { assertAllTypesUnions } from './all-types-unions';
+import {
+	type AllTypes,
+	allTypesData,
+	allTypesRelations,
+	assertAllTypesBounds,
+	assertAllTypesUnions,
+	makeAllTypes,
+} from './all-types';
 import { relations } from './relations';
 import { rqbPost, rqbUser } from './schema';
 import { normalizeDataWithDbCodecs } from './utils';
@@ -2548,6 +2555,9 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 					yield* Effect.promise(() =>
 						assertAllTypesUnions(relDb as any, allTypesTable, (query) => Effect.runPromiseWith(context)(query))
 					);
+					yield* Effect.promise(() =>
+						assertAllTypesBounds(relDb as any, (query) => Effect.runPromiseWith(context)(query))
+					);
 				}),
 		);
 
@@ -4347,6 +4357,9 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 						arrMax: max(users.arrCreatedAt).as('arr_max'),
 						arrMaxStr: max(users.arrCreatedAtStr).as('arr_max_str'),
 						sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+						sqAliased: qb.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+						sqTag: qb.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+							.as('sq_tag'),
 					}).from(users).groupBy(users.id)
 				);
 
@@ -4387,6 +4400,9 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 					arrMax: max(users.arrCreatedAt).as('arr_max'),
 					arrMaxStr: max(users.arrCreatedAtStr).as('arr_max_str'),
 					sq: db.select({ createdAt: users.createdAt }).from(users).as('sq'),
+					sqAliased: db.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+					sqTag: db.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+						.as('sq_tag'),
 				}).from(users).groupBy(users.id);
 
 				const viewRes = yield* db.select().from(usersView);
@@ -4411,15 +4427,8 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				});
 
 				const viewNested = yield* db.query.usersView.findFirst({
-					columns: {
-						sq: false, // TODO: re-enable when supported in RQBv2
-					},
 					with: {
-						self: {
-							columns: {
-								sq: false, // TODO: re-enable when supported in RQBv2
-							},
-						},
+						self: true,
 					},
 				});
 
@@ -4436,6 +4445,8 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 						arrMax: [exDate],
 						arrMaxStr: [exDateStr],
 						sq: exDate,
+						sqAliased: exDate,
+						sqTag: 'tag-1',
 						cus: exDate,
 						arrCus: [exDate],
 					},
@@ -4453,6 +4464,8 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 						arrMax: [exDate],
 						arrMaxStr: [exDateStr],
 						sq: exDate,
+						sqAliased: exDate,
+						sqTag: 'tag-1',
 						cus: exDate,
 						arrCus: [exDate],
 					},
@@ -4491,6 +4504,14 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 						},
 					},
 				);
+
+				type ViewRow = typeof usersView.$inferSelect;
+				type ViewNestedRow = {
+					[K in keyof (ViewRow & { self: ViewRow | null })]: (ViewRow & { self: ViewRow | null })[K];
+				};
+
+				expectTypeOf(viewNested).toEqualTypeOf<ViewNestedRow | undefined>();
+
 				expect(viewNested).toStrictEqual(
 					{
 						id: 1,
@@ -4504,6 +4525,9 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 						arrMax: [exDate],
 						arrMaxStr: [exDateStr],
 						cus: exDate,
+						sq: exDate,
+						sqAliased: exDate,
+						sqTag: 'tag-1',
 						arrCus: [exDate],
 						self: {
 							id: 1,
@@ -4517,6 +4541,9 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 							arrMax: [exDate],
 							arrMaxStr: [exDateStr],
 							cus: exDate,
+							sq: exDate,
+							sqAliased: exDate,
+							sqTag: 'tag-1',
 							arrCus: [exDate],
 						},
 					},
@@ -4565,6 +4592,9 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 						arrMax: max(users.arrCreatedAt).as('arr_max'),
 						arrMaxStr: max(users.arrCreatedAtStr).as('arr_max_str'),
 						sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+						sqAliased: qb.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+						sqTag: qb.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+							.as('sq_tag'),
 					}).from(users).groupBy(users.id)
 				);
 
@@ -4605,6 +4635,9 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 					arrMax: max(users.arrCreatedAt).as('arr_max'),
 					arrMaxStr: max(users.arrCreatedAtStr).as('arr_max_str'),
 					sq: db.select({ createdAt: users.createdAt }).from(users).as('sq'),
+					sqAliased: db.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+					sqTag: db.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+						.as('sq_tag'),
 				}).from(users).groupBy(users.id);
 
 				const viewRes = yield* db.select().from(usersView);
@@ -4629,15 +4662,8 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				});
 
 				const viewNested = yield* db.query.usersView.findFirst({
-					columns: {
-						sq: false, // TODO: re-enable when supported in RQBv2
-					},
 					with: {
-						self: {
-							columns: {
-								sq: false, // TODO: re-enable when supported in RQBv2
-							},
-						},
+						self: true,
 					},
 				});
 
@@ -4654,6 +4680,8 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 						arrMax: [exDate],
 						arrMaxStr: [exDateStr],
 						sq: exDate,
+						sqAliased: exDate,
+						sqTag: 'tag-1',
 						cus: exDate,
 						arrCus: [exDate],
 					},
@@ -4671,6 +4699,8 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 						arrMax: [exDate],
 						arrMaxStr: [exDateStr],
 						sq: exDate,
+						sqAliased: exDate,
+						sqTag: 'tag-1',
 						cus: exDate,
 						arrCus: [exDate],
 					},
@@ -4709,6 +4739,14 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 						},
 					},
 				);
+
+				type ViewRow = typeof usersView.$inferSelect;
+				type ViewNestedRow = {
+					[K in keyof (ViewRow & { self: ViewRow | null })]: (ViewRow & { self: ViewRow | null })[K];
+				};
+
+				expectTypeOf(viewNested).toEqualTypeOf<ViewNestedRow | undefined>();
+
 				expect(viewNested).toStrictEqual(
 					{
 						id: 1,
@@ -4722,6 +4760,9 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 						arrMax: [exDate],
 						arrMaxStr: [exDateStr],
 						cus: exDate,
+						sq: exDate,
+						sqAliased: exDate,
+						sqTag: 'tag-1',
 						arrCus: [exDate],
 						self: {
 							id: 1,
@@ -4735,6 +4776,9 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 							arrMax: [exDate],
 							arrMaxStr: [exDateStr],
 							cus: exDate,
+							sq: exDate,
+							sqAliased: exDate,
+							sqTag: 'tag-1',
 							arrCus: [exDate],
 						},
 					},

@@ -20,7 +20,6 @@ import type {
 	SelectMode,
 	SelectResult,
 } from '~/query-builders/select.types.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
@@ -29,7 +28,6 @@ import { Subquery } from '~/subquery.ts';
 import { getTableName, type InferInsertModel, Table } from '~/table.ts';
 import {
 	type Assume,
-	type DrizzleTypeError,
 	type Equal,
 	getTableLikeName,
 	mapUpdateSet,
@@ -42,13 +40,14 @@ import { ViewBaseConfig } from '~/view-common.ts';
 import type { CockroachColumn } from '../columns/common.ts';
 import type { CockroachViewBase } from '../view-base.ts';
 import type {
+	CheckTableLikeSelection,
 	CockroachSelectJoinConfig,
 	SelectedFields,
 	SelectedFieldsOrdered,
-	TableLikeHasEmptySelection,
 } from './select.types.ts';
 
 export interface CockroachUpdateConfig {
+	ignoreSelectionCastCodecs?: boolean;
 	where?: SQL | undefined;
 	set: UpdateSet;
 	table: CockroachTable;
@@ -150,10 +149,7 @@ export type CockroachUpdateJoinFn<
 > = <
 	TJoinedTable extends CockroachTable | Subquery | CockroachViewBase | SQL,
 >(
-	table: TableLikeHasEmptySelection<TJoinedTable> extends true ? DrizzleTypeError<
-			"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
-		>
-		: TJoinedTable,
+	table: CheckTableLikeSelection<TJoinedTable>,
 	on:
 		| (
 			(
@@ -393,10 +389,7 @@ export class CockroachUpdateBase<
 	}
 
 	from<TFrom extends CockroachTable | Subquery | CockroachViewBase | SQL>(
-		source: TableLikeHasEmptySelection<TFrom> extends true ? DrizzleTypeError<
-				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
-			>
-			: TFrom,
+		source: CheckTableLikeSelection<TFrom>,
 	): CockroachUpdateWithJoins<this, TDynamic, TFrom> {
 		const src = source as TFrom;
 		const tableName = getTableLikeName(src);
@@ -576,11 +569,14 @@ export class CockroachUpdateBase<
 		}
 
 		this.config.returningFields = fields;
-		this.config.returning = orderSelectedFields<CockroachColumn>(fields);
+		this.config.returning = orderSelectedFields<CockroachColumn>(
+			fields,
+			undefined,
+			this.dialect.codecs,
+		);
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildUpdateQuery(this.config);
 	}
@@ -591,18 +587,18 @@ export class CockroachUpdateBase<
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): CockroachUpdatePrepare<this> {
+		const { returning: fields } = this.config;
 		const query = this.dialect.sqlToQuery(this.getSQL());
-		const preparedQuery = this.session.prepareQuery<
+		const nullableObjectPaths = fields ? resolveNullableObjectPaths(fields, this.joinsNotNullableMap) : undefined;
+
+		return this.session.prepareQuery<
 			PreparedQueryConfig & { execute: TReturning[] }
 		>(
 			query,
-			this.config.returning,
-			name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+			fields ? 'arrays' : 'raw',
+			name ?? generateName,
+			fields ? this.dialect.mapperGenerators.rows(fields, nullableObjectPaths) : undefined,
 		);
-		preparedQuery.nullableObjectPaths = this.config.returning
-			? resolveNullableObjectPaths(this.config.returning, this.joinsNotNullableMap)
-			: undefined;
-		return preparedQuery;
 	}
 
 	prepare(name?: string): CockroachUpdatePrepare<this> {
@@ -631,6 +627,7 @@ export class CockroachUpdateBase<
 
 	/** @internal */
 	withoutSelectionCastCodecs(): this {
+		this.config.ignoreSelectionCastCodecs = true;
 		return this;
 	}
 

@@ -115,7 +115,7 @@ test('Query mapper: flat select decodes each column through its codec', () => {
 			"use strict";
 			const { columns } = this;
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			const { codec: codec0 } = columns[0];
 			const { codec: codec2 } = columns[2];
 			for (let i = 0; i < length; ++i) {
@@ -142,7 +142,7 @@ test('Query mapper: select - nothing to decode - text', () => {
 			"use strict";
 			const { columns } = this;
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			for (let i = 0; i < length; ++i) {
 				const [ c0 ] = rows[i];
 				mapped[i] = {
@@ -164,7 +164,7 @@ test('Query mapper: select - nothing to decode - boolean, null', () => {
 			"use strict";
 			const { columns } = this;
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			for (let i = 0; i < length; ++i) {
 				const [ c0 ] = rows[i];
 				mapped[i] = {
@@ -189,7 +189,7 @@ test('Query mapper: insert/select/update/delete returning', () => {
 			"use strict";
 			const { columns } = this;
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			const { codec: codec0 } = columns[0];
 			const { codec: codec2 } = columns[2];
 			for (let i = 0; i < length; ++i) {
@@ -210,7 +210,7 @@ test('Query mapper: insert/select/update/delete returning', () => {
 			"use strict";
 			const { columns } = this;
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			const { codec: codec0 } = columns[0];
 			const { codec: codec2 } = columns[2];
 			for (let i = 0; i < length; ++i) {
@@ -234,7 +234,7 @@ test('Query mapper: insert/select/update/delete returning', () => {
 			"use strict";
 			const { columns } = this;
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			const { codec: codec0 } = columns[0];
 			const { codec: codec2 } = columns[2];
 			for (let i = 0; i < length; ++i) {
@@ -255,7 +255,7 @@ test('Query mapper: insert/select/update/delete returning', () => {
 			"use strict";
 			const { columns } = this;
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			const { codec: codec0 } = columns[0];
 			const { codec: codec2 } = columns[2];
 			for (let i = 0; i < length; ++i) {
@@ -288,7 +288,7 @@ test("Query mapper: leftJoin nullifies joined group, innerJoin doesn't", () => {
 			"use strict";
 			const { columns } = this;
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			const { codec: codec0 } = columns[0];
 			const { codec: codec2 } = columns[2];
 			const { codec: codec5 } = columns[5];
@@ -326,7 +326,7 @@ test("Query mapper: leftJoin nullifies joined group, innerJoin doesn't", () => {
 			"use strict";
 			const { columns } = this;
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			const { codec: codec0 } = columns[0];
 			const { codec: codec2 } = columns[2];
 			const { codec: codec5 } = columns[5];
@@ -374,7 +374,7 @@ test('Query mapper: custom flat selection', () => {
 				"use strict";
 				const { columns } = this;
 				const { length } = rows;
-				const mapped = Array.from({ length });
+				const mapped = new Array(length);
 				const { codec: codec0 } = columns[0];
 				const { codec: codec5 } = columns[5];
 				for (let i = 0; i < length; ++i) {
@@ -403,7 +403,7 @@ test('Query mapper: custom flat selection', () => {
 				"use strict";
 				const { columns } = this;
 				const { length } = rows;
-				const mapped = Array.from({ length });
+				const mapped = new Array(length);
 				const { codec: codec0 } = columns[0];
 				const { codec: codec5 } = columns[5];
 				for (let i = 0; i < length; ++i) {
@@ -452,7 +452,7 @@ test("Query mapper: don't nullify group with non-null extra sql field", () => {
 			"use strict";
 			const { columns } = this;
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			const { codec: codec0 } = columns[0];
 			const { codec: codec2 } = columns[2];
 			const { field: { sql: { decoder: decoder4 } } } = columns[4];
@@ -508,7 +508,7 @@ test('Query mapper: nullify group witn nested objects', () => {
 			"use strict";
 			const { columns } = this;
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			const { codec: codec2 } = columns[2];
 			const { codec: codec4 } = columns[4];
 			for (let i = 0; i < length; ++i) {
@@ -550,7 +550,7 @@ test("Query mapper: nullification isn't bound to `.notNull()` columns", () => {
 			"use strict";
 			const { columns } = this;
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			for (let i = 0; i < length; ++i) {
 				const [ c0, c1, c2 ] = rows[i];
 				mapped[i] = {
@@ -578,7 +578,7 @@ test("Query mapper: selection origin table isn't nullified", () => {
 			"use strict";
 			const { columns } = this;
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			for (let i = 0; i < length; ++i) {
 				const [ c0, c1 ] = rows[i];
 				mapped[i] = {
@@ -610,7 +610,7 @@ test('Query mapper: a constant sql field keeps its group alive on a join miss', 
 			"use strict";
 			const { columns } = this;
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			for (let i = 0; i < length; ++i) {
 				const [ c0, c1, c2 ] = rows[i];
 				mapped[i] = {
@@ -641,7 +641,7 @@ test('Query mapper: nullify all-null custom column selection group', () => {
 			"use strict";
 			const { columns } = this;
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			for (let i = 0; i < length; ++i) {
 				const [ c0, c1 ] = rows[i];
 				mapped[i] = {
@@ -673,7 +673,7 @@ test('Query mapper: cross-table group never nullified', () => {
 			"use strict";
 			const { columns } = this;
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			const { codec: codec0 } = columns[0];
 			for (let i = 0; i < length; ++i) {
 				const [ c0, c1 ] = rows[i];
@@ -705,7 +705,7 @@ test('Query mapper: sql-only group never nullified', () => {
 			"use strict";
 			const { columns } = this;
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			for (let i = 0; i < length; ++i) {
 				const [ c0, c1 ] = rows[i];
 				mapped[i] = {
@@ -734,7 +734,7 @@ test('Query mapper: only top level group nullifies', () => {
 			"use strict";
 			const { columns } = this;
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			for (let i = 0; i < length; ++i) {
 				const [ c0, c1, c2 ] = rows[i];
 				mapped[i] = {
@@ -767,7 +767,7 @@ test('Query mapper: joined subquery nullifies', () => {
 			"use strict";
 			const { columns } = this;
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			const { codec: codec1 } = columns[1];
 			for (let i = 0; i < length; ++i) {
 				const [ c0, c1, c2 ] = rows[i];
@@ -796,7 +796,7 @@ test('Query mapper: never nullify without nullable paths', () => {
 			"use strict";
 			const { columns } = this;
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			for (let i = 0; i < length; ++i) {
 				const [ c0, c1 ] = rows[i];
 				mapped[i] = {
@@ -1029,7 +1029,7 @@ test('RQB array mode: empty config', () => {
 			const { codec: codec4 } = selection[0];
 			const { codec: codec5 } = selection[2];
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			for (let i = 0; i < length; ++i) {
 				const row = rows[i];
 				let [ c0, c1, c2, c3 ] = row;
@@ -1059,7 +1059,7 @@ test('RQB array mode: extras', () => {
 			const { field: { decoder: dec8 } } = selection[4];
 			const { field: { decoder: dec9 } } = selection[5];
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			for (let i = 0; i < length; ++i) {
 				const row = rows[i];
 				let [ c0, c1, c2, c3, c4, c5 ] = row;
@@ -1122,7 +1122,7 @@ test('RQB array mode: a nested relation is a json object/array column', () => {
 			const { codec: codec25 } = s17[2];
 			const { field: { decoder: dec26 } } = s17[4];
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			for (let i = 0; i < length; ++i) {
 				const row = rows[i];
 				let [ c0, c1, c2, c3, c4, c5 ] = row;
@@ -1358,7 +1358,7 @@ test('Column as decoder: a select with aggregates and a subquery resolves each c
 			"use strict";
 			const { columns } = this;
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			const { codec: codec2 } = columns[2];
 			const { codec: codec4 } = columns[4];
 			const { codec: codec5 } = columns[5];
@@ -1409,7 +1409,7 @@ test('Column as decoder: a view over select resolves the same codecs', () => {
 			"use strict";
 			const { columns } = this;
 			const { length } = rows;
-			const mapped = Array.from({ length });
+			const mapped = new Array(length);
 			const { codec: codec2 } = columns[2];
 			const { codec: codec4 } = columns[4];
 			const { codec: codec5 } = columns[5];

@@ -1,5 +1,4 @@
 import type { ResultSetHeader } from 'mysql2/promise';
-import type * as V1 from '~/_relations.ts';
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -24,6 +23,7 @@ import { RelationalQueryBuilder } from './query-builders/query.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import type {
 	PreparedQueryHKTBase,
+	SingleStorePreparedQueryConfig,
 	SingleStoreQueryResultHKT,
 	SingleStoreQueryResultKind,
 	SingleStoreSession,
@@ -36,17 +36,13 @@ import type { SingleStoreTable } from './table.ts';
 export class SingleStoreDatabase<
 	TQueryResult extends SingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TFullSchema extends Record<string, unknown> = {},
 	TRelations extends AnyRelations = EmptyRelations,
-	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > {
 	static readonly [entityKind]: string = 'SingleStoreDatabase';
 
 	declare readonly _: {
-		readonly schema: TSchema | undefined;
-		readonly fullSchema: TFullSchema;
 		readonly relations: TRelations;
-		readonly tableNamesMap: Record<string, string>;
+		readonly session: SingleStoreSession<TQueryResult, TPreparedQueryHKT, TRelations>;
 	};
 
 	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
@@ -62,31 +58,19 @@ export class SingleStoreDatabase<
 		/** @internal */
 		readonly dialect: SingleStoreDialect,
 		/** @internal */
-		readonly session: SingleStoreSession<any, any, any, any, any>,
+		readonly session: SingleStoreSession<any, any, any>,
 		relations: TRelations,
-		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 	) {
-		this._ = schema
-			? {
-				schema: schema.schema,
-				fullSchema: schema.fullSchema as TFullSchema,
-				tableNamesMap: schema.tableNamesMap,
-				relations,
-			}
-			: {
-				schema: undefined,
-				fullSchema: {} as TFullSchema,
-				tableNamesMap: {},
-				relations,
-			};
+		this._ = {
+			relations,
+			session,
+		};
 		this.query = {} as typeof this['query'];
 		for (const [tableName, relation] of Object.entries(relations)) {
 			(this.query as SingleStoreDatabase<
 				TQueryResult,
 				TPreparedQueryHKT,
-				TSchema,
-				AnyRelations,
-				V1.TablesRelationalConfig
+				AnyRelations
 			>['query'])[
 				tableName
 			] = new RelationalQueryBuilder(
@@ -147,7 +131,7 @@ export class SingleStoreDatabase<
 
 			return new Proxy(
 				new WithSubquery(
-					qb.getSQL(),
+					('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL(),
 					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
 					alias,
 					true,
@@ -509,17 +493,37 @@ export class SingleStoreDatabase<
 		return new SingleStoreDeleteBase(table, this.session, this.dialect);
 	}
 
+	execute<TRow extends unknown[] = unknown[]>(
+		query: SQLWrapper | string,
+		mode: 'arrays',
+	): Promise<TRow[]>;
+	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+		query: SQLWrapper | string,
+		mode: 'objects',
+	): Promise<TRow[]>;
 	execute<T extends { [column: string]: any } = ResultSetHeader>(
 		query: SQLWrapper | string,
-	): Promise<SingleStoreQueryResultKind<TQueryResult, T>> {
-		return this.session.execute(typeof query === 'string' ? sql.raw(query) : query.getSQL());
+		mode?: 'raw' | undefined,
+	): Promise<SingleStoreQueryResultKind<TQueryResult, T>>;
+	execute(
+		query: SQLWrapper | string,
+		mode?: 'raw' | 'objects' | 'arrays' | undefined,
+	): unknown {
+		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
+		return this.session.prepareQuery<
+			SingleStorePreparedQueryConfig & { execute: unknown },
+			PreparedQueryHKTBase
+		>(
+			this.dialect.sqlToQuery(sequel),
+			mode ?? 'raw',
+		).execute();
 	}
 
 	$cache: { invalidate: Cache['onMutate'] };
 
 	transaction<T>(
 		transaction: (
-			tx: SingleStoreTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TRelations, TSchema>,
+			tx: SingleStoreTransaction<TQueryResult, TPreparedQueryHKT, TRelations>,
 			config?: SingleStoreTransactionConfig,
 		) => Promise<T>,
 		config?: SingleStoreTransactionConfig,
@@ -545,7 +549,7 @@ export const withReplicas = <
 	const update: Q['update'] = (...args: [any]) => primary.update(...args);
 	const insert: Q['insert'] = ((...args: [any]) => primary.insert(...args)) as Q['insert'];
 	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
-	const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
+	const execute: Q['execute'] = ((...args: [any]) => primary.execute(...args)) as Q['execute'];
 	const transaction: Q['transaction'] = (...args: [any, any]) => primary.transaction(...args);
 
 	return {

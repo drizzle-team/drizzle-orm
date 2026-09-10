@@ -338,26 +338,28 @@ test('full join with alias', async ({ db }) => {
 	await db.execute(sql`drop table if exists ${users}`);
 	await db.execute(sql`create table ${users} (id int primary key, name text not null)`);
 
-	const customers = alias(users, 'customer');
+	try {
+		const customers = alias(users, 'customer');
 
-	await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
-	const result = await db
-		.select().from(users)
-		.leftJoin(customers, eq(customers.id, 11))
-		.where(eq(users.id, 10));
+		await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
+		const result = await db
+			.select().from(users)
+			.leftJoin(customers, eq(customers.id, 11))
+			.where(eq(users.id, 10));
 
-	expect(result).toEqual([{
-		users: {
-			id: 10,
-			name: 'Ivan',
-		},
-		customer: {
-			id: 11,
-			name: 'Hans',
-		},
-	}]);
-
-	await db.execute(sql`drop table ${users}`);
+		expect(result).toEqual([{
+			users: {
+				id: 10,
+				name: 'Ivan',
+			},
+			customer: {
+				id: 11,
+				name: 'Hans',
+			},
+		}]);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('select from alias', async ({ db }) => {
@@ -371,28 +373,30 @@ test('select from alias', async ({ db }) => {
 	await db.execute(sql`drop table if exists ${users}`);
 	await db.execute(sql`create table ${users} (id int primary key, name text not null)`);
 
-	const user = alias(users, 'user');
-	const customers = alias(users, 'customer');
+	try {
+		const user = alias(users, 'user');
+		const customers = alias(users, 'customer');
 
-	await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
-	const result = await db
-		.select()
-		.from(user)
-		.leftJoin(customers, eq(customers.id, 11))
-		.where(eq(user.id, 10));
+		await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
+		const result = await db
+			.select()
+			.from(user)
+			.leftJoin(customers, eq(customers.id, 11))
+			.where(eq(user.id, 10));
 
-	expect(result).toEqual([{
-		user: {
-			id: 10,
-			name: 'Ivan',
-		},
-		customer: {
-			id: 11,
-			name: 'Hans',
-		},
-	}]);
-
-	await db.execute(sql`drop table ${users}`);
+		expect(result).toEqual([{
+			user: {
+				id: 10,
+				name: 'Ivan',
+			},
+			customer: {
+				id: 11,
+				name: 'Hans',
+			},
+		}]);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('insert with spaces', async ({ db }) => {
@@ -458,31 +462,33 @@ test('prepared statement with placeholder in .where', async ({ db }) => {
 });
 
 test('migrator', async ({ db }) => {
-	const usersMigratorTable = mssqlTableRaw('users12', {
-		id: int('id').identity().primaryKey(),
-		name: text('name').notNull(),
-		email: text('email').notNull(),
-	}, (table) => [
-		uniqueIndex('').on(table.name),
-	]);
+	try {
+		const usersMigratorTable = mssqlTableRaw('users12', {
+			id: int('id').identity().primaryKey(),
+			name: text('name').notNull(),
+			email: text('email').notNull(),
+		}, (table) => [
+			uniqueIndex('').on(table.name),
+		]);
 
-	await db.execute(sql.raw(`drop table if exists cities_migration`));
-	await db.execute(sql.raw(`drop table if exists users_migration`));
-	await db.execute(sql.raw(`drop table if exists users12`));
-	await db.execute(sql.raw(`drop table if exists [drizzle].[__drizzle_migrations]`));
+		await db.execute(sql.raw(`drop table if exists cities_migration`));
+		await db.execute(sql.raw(`drop table if exists users_migration`));
+		await db.execute(sql.raw(`drop table if exists users12`));
+		await db.execute(sql.raw(`drop table if exists [drizzle].[__drizzle_migrations]`));
 
-	await migrate(db, { migrationsFolder: './drizzle2/mssql' });
+		await migrate(db, { migrationsFolder: './drizzle2/mssql' });
 
-	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 
-	const result = await db.select().from(usersMigratorTable);
+		const result = await db.select().from(usersMigratorTable);
 
-	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-	await db.execute(sql.raw(`drop table cities_migration`));
-	await db.execute(sql.raw(`drop table users_migration`));
-	await db.execute(sql.raw(`drop table users12`));
-	await db.execute(sql.raw(`drop table [drizzle].[__drizzle_migrations]`));
+		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+	} finally {
+		await db.execute(sql.raw(`drop table if exists cities_migration`));
+		await db.execute(sql.raw(`drop table if exists users_migration`));
+		await db.execute(sql.raw(`drop table if exists users12`));
+		await db.execute(sql.raw(`drop table if exists [drizzle].[__drizzle_migrations]`));
+	}
 });
 
 test('insert via db.execute + select via db.execute', async ({ db }) => {
@@ -521,32 +527,34 @@ test('insert + select all possible dates', async ({ db }) => {
 		`,
 	);
 
-	const d = new Date('2022-11-11');
+	try {
+		const d = new Date('2022-11-11');
 
-	await db.insert(datesTable).values({
-		date: d,
-		dateAsString: '2022-11-11',
-		time: new Date('1970-01-01T12:12:12.000Z'),
-		datetime: d,
-		datetimeAsString: '2022-11-11T12:12:12.000Z',
-	});
+		await db.insert(datesTable).values({
+			date: d,
+			dateAsString: '2022-11-11',
+			time: new Date('1970-01-01T12:12:12.000Z'),
+			datetime: d,
+			datetimeAsString: '2022-11-11T12:12:12.000Z',
+		});
 
-	const res = await db.select().from(datesTable);
+		const res = await db.select().from(datesTable);
 
-	expect(res[0]?.date).toBeInstanceOf(Date); // eslint-disable-line no-instanceof/no-instanceof
-	expect(res[0]?.datetime).toBeInstanceOf(Date); // eslint-disable-line no-instanceof/no-instanceof
-	expect(typeof res[0]?.dateAsString).toEqual('string');
-	expect(typeof res[0]?.datetimeAsString).toEqual('string');
+		expect(res[0]?.date).toBeInstanceOf(Date); // eslint-disable-line no-instanceof/no-instanceof
+		expect(res[0]?.datetime).toBeInstanceOf(Date); // eslint-disable-line no-instanceof/no-instanceof
+		expect(typeof res[0]?.dateAsString).toEqual('string');
+		expect(typeof res[0]?.datetimeAsString).toEqual('string');
 
-	expect(res).toEqual([{
-		date: (new Date('2022-11-11')),
-		dateAsString: '2022-11-11',
-		time: new Date('1970-01-01T12:12:12.000Z'),
-		datetime: new Date('2022-11-11'),
-		datetimeAsString: '2022-11-11T12:12:12.000Z',
-	}]);
-
-	await db.execute(sql`drop table ${datesTable}`);
+		expect(res).toEqual([{
+			date: (new Date('2022-11-11')),
+			dateAsString: '2022-11-11',
+			time: new Date('1970-01-01T12:12:12.000Z'),
+			datetime: new Date('2022-11-11'),
+			datetimeAsString: '2022-11-11T12:12:12.000Z',
+		}]);
+	} finally {
+		await db.execute(sql`drop table if exists ${datesTable}`);
+	}
 });
 
 test('Mysql enum test case #1', async ({ db }) => {
@@ -1087,13 +1095,15 @@ test('prefixed table', async ({ db }) => {
 		sql`create table myprefix_test_prefixed_table_with_unique_name (id int not null primary key, name text not null)`,
 	);
 
-	await db.insert(users).values({ id: 1, name: 'John' });
+	try {
+		await db.insert(users).values({ id: 1, name: 'John' });
 
-	const result = await db.select().from(users);
+		const result = await db.select().from(users);
 
-	expect(result).toEqual([{ id: 1, name: 'John' }]);
-
-	await db.execute(sql`drop table ${users}`);
+		expect(result).toEqual([{ id: 1, name: 'John' }]);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('orderBy with aliased column', ({ db }) => {
@@ -1328,40 +1338,44 @@ test('join view as subquery', async ({ db }) => {
 	await db.execute(
 		sql`create table ${users} (id int identity not null primary key, name text not null, city_id integer not null)`,
 	);
-	await db.execute(sql`create view ${newYorkers} as select * from ${users} where city_id = 1`);
 
-	await db.insert(users).values([
-		{ name: 'John', cityId: 1 },
-		{ name: 'Jane', cityId: 2 },
-		{ name: 'Jack', cityId: 1 },
-		{ name: 'Jill', cityId: 2 },
-	]);
+	try {
+		await db.execute(sql`create view ${newYorkers} as select * from ${users} where city_id = 1`);
 
-	const sq = db.select().from(newYorkers).as('new_yorkers_sq');
+		await db.insert(users).values([
+			{ name: 'John', cityId: 1 },
+			{ name: 'Jane', cityId: 2 },
+			{ name: 'Jack', cityId: 1 },
+			{ name: 'Jill', cityId: 2 },
+		]);
 
-	const result = await db.select().from(users).leftJoin(sq, eq(users.id, sq.id));
+		const sq = db.select().from(newYorkers).as('new_yorkers_sq');
 
-	expect(result).toEqual([
-		{
-			users_join_view: { id: 1, name: 'John', cityId: 1 },
-			new_yorkers_sq: { id: 1, name: 'John', cityId: 1 },
-		},
-		{
-			users_join_view: { id: 2, name: 'Jane', cityId: 2 },
-			new_yorkers_sq: null,
-		},
-		{
-			users_join_view: { id: 3, name: 'Jack', cityId: 1 },
-			new_yorkers_sq: { id: 3, name: 'Jack', cityId: 1 },
-		},
-		{
-			users_join_view: { id: 4, name: 'Jill', cityId: 2 },
-			new_yorkers_sq: null,
-		},
-	]);
+		const result = await db.select().from(users).leftJoin(sq, eq(users.id, sq.id));
 
-	await db.execute(sql`drop view ${newYorkers}`);
-	await db.execute(sql`drop table ${users}`);
+		expect(result).toEqual([
+			{
+				users_join_view: { id: 1, name: 'John', cityId: 1 },
+				new_yorkers_sq: { id: 1, name: 'John', cityId: 1 },
+			},
+			{
+				users_join_view: { id: 2, name: 'Jane', cityId: 2 },
+				new_yorkers_sq: null,
+			},
+			{
+				users_join_view: { id: 3, name: 'Jack', cityId: 1 },
+				new_yorkers_sq: { id: 3, name: 'Jack', cityId: 1 },
+			},
+			{
+				users_join_view: { id: 4, name: 'Jill', cityId: 2 },
+				new_yorkers_sq: null,
+			},
+		]);
+
+		await db.execute(sql`drop view ${newYorkers}`);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('select iterator', async ({ db }) => {
@@ -1421,11 +1435,13 @@ test('insert undefined', async ({ db }) => {
 		sql`create table ${users} (id int identity not null primary key, name text)`,
 	);
 
-	await expect((async () => {
-		await db.insert(users).values({ name: undefined });
-	})()).resolves.not.toThrowError();
-
-	await db.execute(sql`drop table ${users}`);
+	try {
+		await expect((async () => {
+			await db.insert(users).values({ name: undefined });
+		})()).resolves.not.toThrowError();
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('update undefined', async ({ db }) => {
@@ -1440,13 +1456,15 @@ test('update undefined', async ({ db }) => {
 		sql`create table ${users} (id int not null primary key, name text)`,
 	);
 
-	await expect((async () => {
-		await db.update(users).set({ name: undefined });
-	})()).rejects.toThrowError();
+	try {
+		await expect((async () => {
+			await db.update(users).set({ name: undefined });
+		})()).rejects.toThrowError();
 
-	await expect((async () => {
-		await db.update(users).set({ id: 1, name: undefined });
-	})()).resolves.not.toThrowError();
-
-	await db.execute(sql`drop table ${users}`);
+		await expect((async () => {
+			await db.update(users).set({ id: 1, name: undefined });
+		})()).resolves.not.toThrowError();
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
