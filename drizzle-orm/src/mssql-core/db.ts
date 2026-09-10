@@ -404,7 +404,16 @@ export class MsSqlDatabase<
 	}
 }
 
-export type MySQLWithReplicas<Q> = Q & { $primary: Q };
+export type MySQLWithReplicas<Q> = Q & {
+	$replica: Q;
+	/**
+	 * @deprecated `withReplicas` db now defaults to using primary
+	 *
+	 * Use `db.$replica` to redirect query to replica
+	 */
+	$primary: Q;
+	$replicas: Q[];
+};
 
 export const withReplicas = <
 	HKT extends QueryResultHKT,
@@ -416,30 +425,9 @@ export const withReplicas = <
 	replicas: [Q, ...Q[]],
 	getReplica: (replicas: Q[]) => Q = () => replicas[Math.floor(Math.random() * replicas.length)]!,
 ): MySQLWithReplicas<Q> => {
-	const select: Q['select'] = (...args: []) => getReplica(replicas).select(...args);
-	const selectDistinct: Q['selectDistinct'] = (...args: []) => getReplica(replicas).selectDistinct(...args);
-	const $with: Q['with'] = (...args: []) => getReplica(replicas).with(...args);
-
-	const update: Q['update'] = (...args: [any]) => primary.update(...args);
-	const insert: Q['insert'] = ((...args: [any]) => primary.insert(...args)) as Q['insert'];
-	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
-	const execute: Q['execute'] = ((...args: [any]) => primary.execute(...args)) as Q['execute'];
-	const transaction: Q['transaction'] = (...args: [any, any]) => primary.transaction(...args);
-
-	return {
-		...primary,
-		update,
-		insert,
-		delete: $delete,
-		execute,
-		transaction,
-		$primary: primary,
-		$replicas: replicas,
-		select,
-		selectDistinct,
-		with: $with,
-		get query() {
-			return getReplica(replicas).query;
-		},
-	};
+	return Object.create(primary, {
+		$replica: { get: () => getReplica(replicas) },
+		$primary: { value: primary },
+		$replicas: { value: replicas },
+	});
 };
