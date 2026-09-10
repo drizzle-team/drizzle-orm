@@ -618,7 +618,7 @@ export type AnyDBQueryConfig = {
 	columns?:
 		| DBQueryConfigColumns<GetTableViewFieldSelection<TableRelationalConfig['table']>>
 		| undefined;
-	where?: RelationsFilter<TableRelationalConfig, TablesRelationalConfig> | undefined;
+	where?: RelationsFilter<TableRelationalConfig, TablesRelationalConfig> | EmptyFilter;
 	extras?:
 		| DBQueryConfigExtras<TableRelationalConfig['table']>
 		| undefined;
