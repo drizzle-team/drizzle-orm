@@ -17,7 +17,7 @@ import * as v from 'valibot';
 import { test } from 'vitest';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
+import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectEnumValues, expectSchemaShape } from './utils.ts';
 
 const integerSchema = v.pipe(v.number(), v.minValue(CONSTANTS.INT32_MIN), v.maxValue(CONSTANTS.INT32_MAX), v.integer());
@@ -561,3 +561,52 @@ test('all data types', (t) => {
 	// @ts-expect-error
 	createSelectSchema(mView, { unknown: v.string() });
 }
+
+test('createSchemaFactory - select, insert, update', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+
+	const { createSelectSchema, createInsertSchema, createUpdateSchema } = createSchemaFactory();
+	const selectResult = createSelectSchema(table);
+	const insertResult = createInsertSchema(table);
+	const updateResult = createUpdateSchema(table);
+
+	const expectedSelect = v.object({ id: integerSchema, name: textSchema });
+	const expectedInsert = v.object({ id: v.optional(integerSchema), name: textSchema });
+	const expectedUpdate = v.object({ id: v.optional(integerSchema), name: v.optional(textSchema) });
+
+	expectSchemaShape(t, expectedSelect).from(selectResult);
+	expectSchemaShape(t, expectedInsert).from(insertResult);
+	expectSchemaShape(t, expectedUpdate).from(updateResult);
+
+	Expect<Equal<typeof selectResult, typeof expectedSelect>>();
+	Expect<Equal<typeof insertResult, typeof expectedInsert>>();
+	Expect<Equal<typeof updateResult, typeof expectedUpdate>>();
+});
+
+test('createSchemaFactory with valibotInstance', (t) => {
+	const table = pgTable('test', {
+		id: serial().primaryKey(),
+		name: text().notNull(),
+	});
+
+	const { createSelectSchema } = createSchemaFactory({
+		valibotInstance: v,
+	});
+	const selectResult = createSelectSchema(table);
+	const expectedSelect = v.object({ id: integerSchema, name: textSchema });
+
+	expectSchemaShape(t, expectedSelect).from(selectResult);
+	Expect<Equal<typeof selectResult, typeof expectedSelect>>();
+});
+
+test('createSchemaFactory with pgEnum', (t) => {
+	const roleEnum = pgEnum('role', ['admin', 'user']);
+	const { createSelectSchema } = createSchemaFactory();
+	const result = createSelectSchema(roleEnum);
+	const expected = v.enum({ admin: 'admin', user: 'user' });
+	expectEnumValues(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});

@@ -5,7 +5,7 @@ import * as v from 'valibot';
 import { test } from 'vitest';
 import { bufferSchema, jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
+import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
 
 const intSchema = v.pipe(
@@ -403,3 +403,58 @@ test('all data types', (t) => {
 	// @ts-expect-error
 	createSelectSchema(view, { unknown: v.string() });
 }
+
+test('createSchemaFactory - select, insert, update', (t) => {
+	const table = sqliteTable('test', {
+		id: int().primaryKey({ autoIncrement: true }),
+		name: text().notNull(),
+	});
+
+	const { createSelectSchema, createInsertSchema, createUpdateSchema } = createSchemaFactory();
+	const selectResult = createSelectSchema(table);
+	const insertResult = createInsertSchema(table);
+	const updateResult = createUpdateSchema(table);
+
+	const expectedSelect = v.object({ id: intSchema, name: textSchema });
+	const expectedInsert = v.object({ id: v.optional(intSchema), name: textSchema });
+	const expectedUpdate = v.object({ id: v.optional(intSchema), name: v.optional(textSchema) });
+
+	expectSchemaShape(t, expectedSelect).from(selectResult);
+	expectSchemaShape(t, expectedInsert).from(insertResult);
+	expectSchemaShape(t, expectedUpdate).from(updateResult);
+
+	Expect<Equal<typeof selectResult, typeof expectedSelect>>();
+	Expect<Equal<typeof insertResult, typeof expectedInsert>>();
+	Expect<Equal<typeof updateResult, typeof expectedUpdate>>();
+});
+
+test('createSchemaFactory with custom valibotInstance for json and buffer', (t) => {
+	let customUnionCalled = false;
+	let customCustomCalled = false;
+
+	const customValibot = {
+		...v,
+		union: ((...args: any[]) => {
+			customUnionCalled = true;
+			return (v.union as any)(...args);
+		}) as typeof v.union,
+		custom: ((...args: any[]) => {
+			customCustomCalled = true;
+			return (v.custom as any)(...args);
+		}) as typeof v.custom,
+	};
+
+	const table = sqliteTable('test', {
+		buf: blob({ mode: 'buffer' }).notNull(),
+		jsonCol: text({ mode: 'json' }).notNull(),
+	});
+
+	const { createSelectSchema } = createSchemaFactory({
+		valibotInstance: customValibot as any,
+	});
+
+	createSelectSchema(table);
+
+	t.expect(customUnionCalled).toBe(true);
+	t.expect(customCustomCalled).toBe(true);
+});
