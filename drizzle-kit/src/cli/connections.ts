@@ -18,6 +18,7 @@ import { normaliseSQLiteUrl } from '../utils/utils-node';
 import { JSONB } from '../utils/when-json-met-bigint';
 import type { ProxyParams } from './commands/studio';
 import { ConnectionStringDatabaseCliError, DatabaseDriverCliError } from './errors';
+import { pickTursoDriver, type TursoDriver } from './turso-driver';
 import { assertPackages, checkPackage, QueryError } from './utils';
 import type { DuckDbCredentials } from './validations/duckdb';
 import type { LibSQLCredentials } from './validations/libsql';
@@ -2442,13 +2443,16 @@ export const connectToTursoRemote = async (
 	credentials: LibSQLCredentials,
 ): Promise<
 	LibSQLDB & {
-		packageName: '@libsql/client' | '@tursodatabase/serverless' | '@tursodatabase/database';
+		packageName: TursoDriver;
 		migrate: (config: string | MigrationConfig) => Promise<void | MigratorInitFailResponse>;
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
 	}
 > => {
-	if ((await checkPackage('@libsql/client'))) {
+	const driver = await pickTursoDriver(credentials.authToken !== undefined, checkPackage);
+
+	if (driver === '@libsql/client') {
+		humanLog(withStyle.info(`Using '@libsql/client' driver for database querying`));
 		const { createClient } = await import('@libsql/client');
 		const { drizzle } = await import('drizzle-orm/libsql');
 		const { migrate } = await import('drizzle-orm/libsql/migrator');
@@ -2525,12 +2529,7 @@ export const connectToTursoRemote = async (
 		};
 	}
 
-	if (
-		await checkPackage('@tursodatabase/serverless') && !(
-			// Prefer dedicated local driver for local databases
-			credentials.authToken === undefined && await checkPackage('@tursodatabase/database')
-		)
-	) {
+	if (driver === '@tursodatabase/serverless') {
 		humanLog(withStyle.info(`Using '@tursodatabase/serverless' driver for database querying`));
 		const { connect } = await import('@tursodatabase/serverless');
 		const { drizzle } = await import('drizzle-orm/tursodatabase-serverless');
@@ -2590,15 +2589,7 @@ export const connectToTursoRemote = async (
 		};
 	}
 
-	if (await checkPackage('@tursodatabase/database')) {
-		if (credentials.authToken !== undefined) {
-			throw new DatabaseDriverCliError(
-				'turso',
-				['@libsql/client', '@tursodatabase/serverless'],
-				`Unable to use '@tursodatabase/database' with remote turso database\nPlease install '@libsql/client' or '@tursodatabase/serverless' for Drizzle Kit to connect to remote turso databases`,
-			);
-		}
-
+	if (driver === '@tursodatabase/database') {
 		humanLog(withStyle.info(`Using '@tursodatabase/database' driver for database querying`));
 		const { Database } = await import('@tursodatabase/database');
 		const { drizzle } = await import('drizzle-orm/tursodatabase/database');
@@ -2663,11 +2654,24 @@ export const connectToTursoRemote = async (
 		};
 	}
 
+	if (credentials.authToken !== undefined) {
+		// '@tursodatabase/database' is local-only, so it is never picked for a remote
+		// database even when it is the only driver installed.
+		const localOnlyDriverInstalled = await checkPackage('@tursodatabase/database');
+		throw new DatabaseDriverCliError(
+			'turso',
+			['@libsql/client', '@tursodatabase/serverless'],
+			`${
+				localOnlyDriverInstalled
+					? `Unable to use '@tursodatabase/database' with remote turso database\n`
+					: ''
+			}Please install '@libsql/client' or '@tursodatabase/serverless' for Drizzle Kit to connect to remote turso databases`,
+		);
+	}
+
 	throw new DatabaseDriverCliError(
 		'turso',
 		['@libsql/client', '@tursodatabase/database', '@tursodatabase/serverless'],
-		typeof credentials.authToken === 'string'
-			? `Please install '@libsql/client' or '@tursodatabase/serverless' for Drizzle Kit to connect to remote turso databases`
-			: `Please install '@libsql/client', '@tursodatabase/database' or '@tursodatabase/serverless' for Drizzle Kit to connect to turso databases`,
+		`Please install '@libsql/client', '@tursodatabase/database' or '@tursodatabase/serverless' for Drizzle Kit to connect to turso databases`,
 	);
 };
