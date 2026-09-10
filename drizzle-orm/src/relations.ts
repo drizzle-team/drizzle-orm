@@ -1468,8 +1468,8 @@ export interface RelationFieldsFilterInternals<T> {
 	isNull?: true | EmptyFilter;
 	isNotNull?: true | EmptyFilter;
 	NOT?: RelationsFieldFilter<T> | EmptyFilter;
-	OR?: RelationsFieldFilter<T>[] | EmptyFilter;
-	AND?: RelationsFieldFilter<T>[] | EmptyFilter;
+	OR?: (RelationsFieldFilter<T> | EmptyFilter)[] | EmptyFilter;
+	AND?: (RelationsFieldFilter<T> | EmptyFilter)[] | EmptyFilter;
 }
 
 export type Primitive = string | number | bigint | boolean | symbol | null | undefined;
@@ -1479,16 +1479,15 @@ export type RelationsFieldFilter<T = unknown> =
 	| (
 		unknown extends T ? never : T extends Primitive ? T : never
 	)
-	// TODO: Bleeds into filters - discuss removal
 	| Placeholder;
 
 export interface RelationsFilterCommons<
 	TTable extends TableRelationalConfig = TableRelationalConfig,
 	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
 > {
-	OR?: RelationsFilter<TTable, TSchema>[] | EmptyFilter;
+	OR?: (RelationsFilter<TTable, TSchema> | EmptyFilter)[] | EmptyFilter;
 	NOT?: RelationsFilter<TTable, TSchema> | EmptyFilter;
-	AND?: RelationsFilter<TTable, TSchema>[] | EmptyFilter;
+	AND?: (RelationsFilter<TTable, TSchema> | EmptyFilter)[] | EmptyFilter;
 	RAW?:
 		| SQLWrapper
 		| ((
@@ -1532,9 +1531,9 @@ export interface TableFilterCommons<
 	TTable extends SchemaEntry = SchemaEntry,
 	TColumns extends Record<string, unknown> = GetTableViewColumns<TTable>,
 > {
-	OR?: TableFilter<TTable, TColumns>[] | EmptyFilter;
+	OR?: (TableFilter<TTable, TColumns> | EmptyFilter)[] | EmptyFilter;
 	NOT?: TableFilter<TTable, TColumns> | EmptyFilter;
-	AND?: TableFilter<TTable, TColumns>[] | EmptyFilter;
+	AND?: (TableFilter<TTable, TColumns> | EmptyFilter)[] | EmptyFilter;
 	RAW?:
 		| SQLWrapper
 		| ((
