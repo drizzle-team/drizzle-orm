@@ -861,6 +861,9 @@ export class Placeholder<TName extends string = string, TValue = any> implements
 
 	constructor(protected readonly name: TName) {}
 
+	/**
+	 * @deprecated Field hidden to prevent bleeding into autocomplete
+	 */
 	getSQL(): SQL {
 		return new SQL([this]);
 	}

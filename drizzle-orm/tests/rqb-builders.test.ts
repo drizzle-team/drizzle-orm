@@ -346,9 +346,10 @@ describe('Filters', () => {
 		expect(() =>
 			buildFilter(table, {
 				number: {
+					// @ts-expect-error
 					OR: [{ eq: 2 }, undefined],
 				},
-			} as any)
+			})
 		).toThrowError(
 			`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
 		);
@@ -358,9 +359,10 @@ describe('Filters', () => {
 		expect(() =>
 			buildFilter(table, {
 				number: {
+					// @ts-expect-error
 					AND: [undefined],
 				},
-			} as any)
+			})
 		).toThrowError(
 			`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
 		);
@@ -370,9 +372,10 @@ describe('Filters', () => {
 		expect(() =>
 			buildFilter(table, {
 				number: {
+					// @ts-expect-error
 					NOT: { OR: [undefined] },
 				},
-			} as any)
+			})
 		).toThrowError(
 			`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
 		);
@@ -383,39 +386,83 @@ describe('Filters', () => {
 			number: {
 				OR: [EmptyFilter, { eq: 2 }],
 			},
-		} as any)).toStrictEqual(buildFilter(table, {
+		})).toStrictEqual(buildFilter(table, {
 			number: {
 				OR: [{ eq: 2 }],
 			},
-		} as any));
+		}));
+	});
+
+	test('EmptyFilter in field OR array alongside shortcut values', () => {
+		expect(buildFilter(table, {
+			number: {
+				OR: [1, EmptyFilter, 2],
+			},
+		})).toStrictEqual(and(and(or(eq(table.number, 1), eq(table.number, 2)))));
+	});
+
+	test('EmptyFilter in field OR array alongside placeholder', () => {
+		expect(buildFilter(table, {
+			number: {
+				OR: [sql.placeholder('n'), EmptyFilter],
+			},
+		})).toStrictEqual(and(and(or(eq(table.number, sql.placeholder('n'))))));
+	});
+
+	test('EmptyFilter in field AND array is skipped', () => {
+		expect(buildFilter(table, {
+			number: {
+				AND: [{ gt: 1 }, EmptyFilter, 3],
+			},
+		})).toStrictEqual(and(and(and(and(gt(table.number, 1)), eq(table.number, 3)))));
+	});
+
+	test('Field NOT over OR of only EmptyFilter is skipped', () => {
+		expect(buildFilter(table, {
+			number: {
+				NOT: { OR: [EmptyFilter] },
+			},
+			string: 'str',
+		})).toStrictEqual(and(eq(table.string, 'str')));
+	});
+
+	test('Field value types are still checked next to EmptyFilter', () => {
+		expect(() =>
+			buildFilter(table, {
+				number: {
+					// @ts-expect-error
+					OR: [EmptyFilter, 'str'],
+				},
+			})
+		).not.toThrow();
 	});
 
 	test('undefined in relation-level structural keys throws', () => {
 		for (const key of ['OR', 'AND', 'NOT', 'RAW'] as const) {
-			expect(() => buildFilter(table, { [key]: undefined } as any), `${key}: undefined`).toThrowError(
+			expect(() => buildFilter(table, { [key]: undefined }), `${key}: undefined`).toThrowError(
 				`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
 			);
 		}
 	});
 
 	test('OR set to EmptyFilter is skipped', () => {
-		expect(buildFilter(table, { OR: EmptyFilter } as any)).toStrictEqual(undefined);
-		expect(buildFilter(table, { OR: EmptyFilter, number: 1 } as any)).toStrictEqual(and(eq(table.number, 1)));
+		expect(buildFilter(table, { OR: EmptyFilter })).toStrictEqual(undefined);
+		expect(buildFilter(table, { OR: EmptyFilter, number: 1 })).toStrictEqual(and(eq(table.number, 1)));
 	});
 
 	test('AND set to EmptyFilter is skipped', () => {
-		expect(buildFilter(table, { AND: EmptyFilter } as any)).toStrictEqual(undefined);
-		expect(buildFilter(table, { AND: EmptyFilter, number: 1 } as any)).toStrictEqual(and(eq(table.number, 1)));
+		expect(buildFilter(table, { AND: EmptyFilter })).toStrictEqual(undefined);
+		expect(buildFilter(table, { AND: EmptyFilter, number: 1 })).toStrictEqual(and(eq(table.number, 1)));
 	});
 
 	test('NOT set to EmptyFilter is skipped', () => {
-		expect(buildFilter(table, { NOT: EmptyFilter } as any)).toStrictEqual(undefined);
-		expect(buildFilter(table, { NOT: EmptyFilter, number: 1 } as any)).toStrictEqual(and(eq(table.number, 1)));
+		expect(buildFilter(table, { NOT: EmptyFilter })).toStrictEqual(undefined);
+		expect(buildFilter(table, { NOT: EmptyFilter, number: 1 })).toStrictEqual(and(eq(table.number, 1)));
 	});
 
 	test('RAW set to EmptyFilter is skipped', () => {
-		expect(buildFilter(table, { RAW: EmptyFilter } as any)).toStrictEqual(undefined);
-		expect(buildFilter(table, { RAW: EmptyFilter, number: 1 } as any)).toStrictEqual(and(eq(table.number, 1)));
+		expect(buildFilter(table, { RAW: EmptyFilter })).toStrictEqual(undefined);
+		expect(buildFilter(table, { RAW: EmptyFilter, number: 1 })).toStrictEqual(and(eq(table.number, 1)));
 	});
 
 	test('RAW callback returning EmptyFilter is skipped', () => {
@@ -434,7 +481,7 @@ describe('Filters', () => {
 				number: {
 					OR: [],
 				},
-			} as any)
+			})
 		).toThrowError(
 			"Unexpected empty array in filters' 'OR' section. Omit field or use 'EmptyFilter' if you want filter to be skipped.",
 		);
@@ -446,20 +493,20 @@ describe('Filters', () => {
 				number: {
 					AND: [],
 				},
-			} as any)
+			})
 		).toThrowError(
 			"Unexpected empty array in filters' 'AND' section. Omit field or use 'EmptyFilter' if you want filter to be skipped.",
 		);
 	});
 
 	test('empty relation-level OR array throws', () => {
-		expect(() => buildFilter(table, { OR: [] } as any)).toThrowError(
+		expect(() => buildFilter(table, { OR: [] })).toThrowError(
 			"Unexpected empty array in filters' 'OR' section. Omit field or use 'EmptyFilter' if you want filter to be skipped.",
 		);
 	});
 
 	test('empty relation-level AND array throws', () => {
-		expect(() => buildFilter(table, { AND: [] } as any)).toThrowError(
+		expect(() => buildFilter(table, { AND: [] })).toThrowError(
 			"Unexpected empty array in filters' 'AND' section. Omit field or use 'EmptyFilter' if you want filter to be skipped.",
 		);
 	});
@@ -468,16 +515,16 @@ describe('Filters', () => {
 		expect(() =>
 			buildFilter(table, {
 				AND: [{ OR: [] }],
-			} as any)
+			})
 		).toThrowError(
 			"Unexpected empty array in filters' 'OR' section. Omit field or use 'EmptyFilter' if you want filter to be skipped.",
 		);
 	});
 
 	test('array of only EmptyFilter is skipped, not treated as empty', () => {
-		expect(buildFilter(table, { number: { OR: [EmptyFilter] } } as any)).toStrictEqual(undefined);
-		expect(buildFilter(table, { OR: [EmptyFilter] } as any)).toStrictEqual(undefined);
-		expect(buildFilter(table, { AND: [EmptyFilter] } as any)).toStrictEqual(undefined);
+		expect(buildFilter(table, { number: { OR: [EmptyFilter] } })).toStrictEqual(undefined);
+		expect(buildFilter(table, { OR: [EmptyFilter] })).toStrictEqual(undefined);
+		expect(buildFilter(table, { AND: [EmptyFilter] })).toStrictEqual(undefined);
 	});
 
 	test('Nothing generates for empty OR', () => {
@@ -920,6 +967,32 @@ describe('Relational filter EmptyFilter behavior', () => {
 			.toContain('where exists (select * from "data" as "f0" where "d0"."id" = "f0"."userId")');
 		expect(db.query.user.findMany({ where: { data: false } }).toSQL().sql)
 			.toContain('where not exists (select * from "data" as "f0" where "d0"."id" = "f0"."userId")');
+	});
+
+	test('EmptyFilter in column-level OR array inside relational filter', () => {
+		const { sql, params } = db.query.user.findMany({
+			where: {
+				data: {
+					email: { OR: [EmptyFilter, 'e'] },
+				},
+			},
+		}).toSQL();
+
+		expect(sql.match(/exists/g)).toHaveLength(1);
+		expect(sql).toContain('"f0"."email" = $1');
+		expect(params).toStrictEqual(['e']);
+	});
+
+	test('Nothing generates for column-level arrays of only EmptyFilter', () => {
+		const { sql } = db.query.user.findMany({
+			where: {
+				a: { OR: [EmptyFilter] },
+				data: { email: { AND: [EmptyFilter] } },
+			},
+		}).toSQL();
+
+		expect(sql).not.toContain('exists');
+		expect(sql).not.toContain('where');
 	});
 
 	test('Nothing generates for NOT on empty relational filter', () => {
