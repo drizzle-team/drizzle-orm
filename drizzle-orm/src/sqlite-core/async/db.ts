@@ -661,7 +661,16 @@ export class SQLiteAsyncDatabase<
 	}
 }
 
-export type SQLiteWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
+export type SQLiteWithReplicas<Q> = Q & {
+	$replica: Q;
+	/**
+	 * @deprecated `withReplicas` db now defaults to using primary
+	 *
+	 * Use `db.$replica` to redirect query to replica
+	 */
+	$primary: Q;
+	$replicas: Q[];
+};
 
 export const withReplicas = <
 	TResultKind extends 'sync' | 'async',
@@ -677,38 +686,9 @@ export const withReplicas = <
 	replicas: [Q, ...Q[]],
 	getReplica: (replicas: Q[]) => Q = () => replicas[Math.floor(Math.random() * replicas.length)]!,
 ): SQLiteWithReplicas<Q> => {
-	const select: Q['select'] = (...args: []) => getReplica(replicas).select(...args);
-	const selectDistinct: Q['selectDistinct'] = (...args: []) => getReplica(replicas).selectDistinct(...args);
-	const $count: Q['$count'] = (...args: [any]) => getReplica(replicas).$count(...args);
-	const $with: Q['with'] = (...args: []) => getReplica(replicas).with(...args);
-
-	const update: Q['update'] = (...args: [any]) => primary.update(...args);
-	const insert: Q['insert'] = ((...args: [any]) => primary.insert(...args)) as Q['insert'];
-	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
-	const run: Q['run'] = (...args: [any]) => primary.run(...args);
-	const all: Q['all'] = (...args: [any]) => primary.all(...args);
-	const get: Q['get'] = (...args: [any]) => primary.get(...args);
-	const values: Q['values'] = (...args: [any]) => primary.values(...args);
-	const transaction: Q['transaction'] = (...args: [any]) => primary.transaction(...args);
-
-	return {
-		...primary,
-		update,
-		insert,
-		delete: $delete,
-		run,
-		all,
-		get,
-		values,
-		transaction,
-		$primary: primary,
-		$replicas: replicas,
-		select,
-		selectDistinct,
-		$count,
-		with: $with,
-		get query() {
-			return getReplica(replicas).query;
-		},
-	};
+	return Object.create(primary, {
+		$replica: { get: () => getReplica(replicas) },
+		$primary: { value: primary },
+		$replicas: { value: replicas },
+	});
 };
