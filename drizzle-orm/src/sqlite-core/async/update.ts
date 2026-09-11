@@ -50,7 +50,7 @@ export type SQLiteAsyncUpdatePrepare<T extends AnySQLiteAsyncUpdate> = SQLiteAsy
 		all: T['_']['returning'] extends undefined ? DrizzleTypeError<'.all() cannot be used without .returning()'>
 			: T['_']['returning'][];
 		get: T['_']['returning'] extends undefined ? DrizzleTypeError<'.get() cannot be used without .returning()'>
-			: T['_']['returning'];
+			: T['_']['returning'] | undefined;
 		values: T['_']['returning'] extends undefined ? DrizzleTypeError<'.values() cannot be used without .returning()'>
 			: any[][];
 		execute: SQLiteAsyncUpdateExecute<T>;
