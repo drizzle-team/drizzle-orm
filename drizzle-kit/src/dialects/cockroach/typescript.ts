@@ -6,7 +6,7 @@ import { withCasing } from '../pull-utils';
 import { inspect } from '../utils';
 import type { CheckConstraint, CockroachDDL, Column, ForeignKey, Index, Policy, PrimaryKey, ViewColumn } from './ddl';
 import { tableFromDDL } from './ddl';
-import { defaultNameForPK, defaults, typeFor } from './grammar';
+import { defaultNameForFK, defaultNameForPK, defaults, typeFor } from './grammar';
 
 // TODO: omit defaults opclass...
 const imports = [
@@ -338,28 +338,48 @@ export const ddlToTypeScript = (ddl: CockroachDDL, columnsForViews: ViewColumn[]
 		let func = tableSchema ? `${tableSchema}.table` : tableFn;
 		func += table.isRlsEnabled ? '.withRLS' : '';
 		let statement = `export const ${withCasing(paramName, casing)} = ${func}("${table.name}", {\n`;
-		statement += createTableColumns(columns, table.pk, fks, enumTypes, schemas, casing);
+
+		const callbackFks: ForeignKey[] = [];
+		const inlineFks: ForeignKey[] = [];
+		for (let index = 0; index < fks.length; index++) {
+			const fk = fks[index];
+			if (
+				!isSelf(fk) && fk.columns.length === 1
+				&& fk.name === defaultNameForFK(fk.table, fk.columns, fk.tableTo, fk.columnsTo)
+			) inlineFks.push(fk);
+			else callbackFks.push(fk);
+		}
+
+		const primaryKeyType: 'callback' | 'inline' = table.pk
+				&& (
+					table.pk.columns.length > 1
+					|| (table.pk.columns.length === 1 && table.pk.name !== defaultNameForPK(table.name))
+				)
+			? 'callback'
+			: 'inline';
+
+		statement += createTableColumns(
+			columns,
+			primaryKeyType === 'inline' ? table.pk : null,
+			inlineFks,
+			schemas,
+			casing,
+		);
 		statement += '}';
 
-		// copied from pg
-		const filteredFKs = table.fks.filter((it) => {
-			return it.columns.length > 1 || isSelf(it);
-		});
-
-		const hasPkCallback = Boolean(
-			table.pk
-				&& (table.pk.columns.length > 1
-					|| (table.pk?.columns.length === 1 && table.pk.name !== defaultNameForPK(table.name))),
-		);
-
-		const hasCallback = table.indexes.length > 0 || filteredFKs.length > 0 || table.policies.length > 0
-			|| hasPkCallback || table.checks.length > 0;
+		const hasCallback = table.indexes.length > 0
+			|| callbackFks.length > 0
+			|| table.policies.length > 0
+			|| primaryKeyType === 'callback'
+			|| table.checks.length > 0;
 
 		if (hasCallback) {
 			statement += ', ';
 			statement += '(table) => [\n';
-			statement += hasPkCallback ? createTablePK(table.pk!, casing) : '';
-			statement += createTableFKs(filteredFKs, schemas, casing);
+			statement += primaryKeyType === 'callback'
+				? createTablePK(table.pk!, casing)
+				: '';
+			statement += createTableFKs(callbackFks, schemas, casing);
 			statement += createTableIndexes(table.name, table.indexes, casing);
 			statement += createTablePolicies(table.policies, casing, rolesNameToTsKey);
 			statement += createTableChecks(table.checks, casing);
@@ -480,21 +500,13 @@ const createViewColumns = (columns: ViewColumn[], enumTypes: Set<string>, casing
 const createTableColumns = (
 	columns: Column[],
 	primaryKey: PrimaryKey | null,
-	fks: ForeignKey[],
-	enumTypes: Set<string>,
+	inlineFks: ForeignKey[],
 	schemas: Record<string, string>,
 	casing: Casing,
 ): string => {
 	let statement = '';
 
-	// no self refs and no cyclic
-	const oneColumnsFKs = Object.values(fks)
-		.filter((it) => {
-			return !isSelf(it);
-		})
-		.filter((it) => it.columns.length === 1);
-
-	const fkByColumnName = oneColumnsFKs.reduce(
+	const fkByColumnName = inlineFks.reduce(
 		(res, it) => {
 			const arr = res[it.columns[0]] || [];
 			arr.push(it);

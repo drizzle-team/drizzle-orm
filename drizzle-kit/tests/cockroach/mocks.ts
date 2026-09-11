@@ -20,7 +20,14 @@ import {
 	isCockroachView,
 } from 'drizzle-orm/cockroach-core';
 import { configMigrations } from 'src/cli/validations/common';
-import { CockroachDDL, Column, createDDL, interimToDDL, SchemaError } from 'src/dialects/cockroach/ddl';
+import {
+	CockroachDDL,
+	cockroachToRelationsPull,
+	createDDL,
+	fromEntities,
+	interimToDDL,
+	SchemaError,
+} from 'src/dialects/cockroach/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/cockroach/diff';
 import {
 	defaultFromColumn,
@@ -43,10 +50,12 @@ import { ddlToTypeScript } from 'src/dialects/cockroach/typescript';
 import { DB } from 'src/utils';
 import 'zx/globals';
 import { randomUUID } from 'crypto';
+import { relationsToTypeScript } from 'src/cli/commands/pull-common';
 import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/common';
 import { hash } from 'src/dialects/common';
 import { extractCrdbExisting } from 'src/dialects/drizzle';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
+import { loadModule } from 'src/utils/utils-node';
 import { measure, tsc } from 'tests/utils';
 import { expect, test as base } from 'vitest';
 
@@ -315,12 +324,26 @@ export const diffIntrospect = async (
 
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
+	// schema
 	const filePath = `tests/cockroach/tmp/${testName}.ts`;
-
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
 	writeFileSync(filePath, file.file);
+	await tsc(file.file).catch((e) => {
+		throw new Error(`tsc error in file ${filePath}`, { cause: e });
+	});
 
-	await tsc(file.file);
+	// relations
+	const relationsPath = `tests/cockroach/tmp/${testName}-relations.ts`;
+	const schemaAbsolutePath = path.resolve('tests/cockroach/tmp', testName);
+	const relationsForTsc = relationsToTypeScript(
+		cockroachToRelationsPull(ddl1),
+		'camel',
+		schemaAbsolutePath,
+	);
+	writeFileSync(relationsPath, relationsForTsc.file);
+	await tsc(relationsForTsc.file).catch((e) => {
+		throw new Error(`tsc error in file ${relationsPath}`, { cause: e });
+	});
 
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([filePath]);
@@ -328,18 +351,54 @@ export const diffIntrospect = async (
 	const { schema: schema2, errors: e2, warnings } = fromDrizzleSchema(response, filter);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(schema2);
 
-	const { sqlStatements: afterFileSqlStatements, statements: afterFileStatements } = await ddlDiffDry(
-		ddl1,
-		ddl2,
-		'push',
-	);
+	// we need to create copies, since first ddlDiffDry makes preserve entity names logic
+	const ddl1Copy = fromEntities(ddl1.entities.list());
+	const ddl2Copy = fromEntities(ddl2.entities.list());
 
-	rmSync(`tests/cockroach/tmp/${testName}.ts`);
+	const {
+		sqlStatements: pushAfterFileSqlStatements,
+		statements: pushAfterFileStatements,
+		groupedStatements: pushAfterFileGroupedStatements,
+	} = await ddlDiffDry(ddl1, ddl2, 'push');
+
+	if (pushAfterFileSqlStatements.length > 0) {
+		console.log(chalk.bgRed('After push: ') + '\n' + explain('cockroach', pushAfterFileGroupedStatements, []));
+	}
+
+	const {
+		sqlStatements: generateAfterFileSqlStatements,
+		statements: generateAfterFileStatements,
+		groupedStatements: generateAfterFileGroupedStatements,
+	} = await ddlDiffDry(ddl1Copy, ddl2Copy, 'default');
+
+	if (generateAfterFileSqlStatements.length > 0) {
+		console.log(
+			chalk.bgRed('After generate: ') + '\n' + explain('cockroach', generateAfterFileGroupedStatements, []),
+		);
+	}
+
+	let relationsError: Error | null = null;
+	try {
+		await loadModule(path.relative(process.cwd(), relationsPath));
+		rmSync(relationsPath);
+	} catch (error: any) {
+		relationsError = error;
+	}
+
+	if (
+		[...generateAfterFileSqlStatements, ...pushAfterFileSqlStatements].length === 0
+	) {
+		rmSync(filePath);
+	}
 
 	return {
-		sqlStatements: afterFileSqlStatements,
-		statements: afterFileStatements,
+		pushSqlStatements: pushAfterFileSqlStatements,
+		pushStatements: pushAfterFileStatements,
+		generateSqlStatements: generateAfterFileSqlStatements,
+		generateStatements: generateAfterFileStatements,
+		ddlAfterPull: ddl1,
 		schema2,
+		relationsError,
 	};
 };
 

@@ -3116,6 +3116,7 @@ test('issue #5413', async () => {
 	]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6025
 test('primary key with non default name', async () => {
 	await db.query(`
 CREATE TABLE table1 (
@@ -3134,6 +3135,41 @@ CREATE TABLE table2 (
 		generateStatements,
 		generateSqlStatements,
 	} = await diffIntrospect(db, {}, 'primary-key-without-default-name');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+});
+
+// constraints (pk / fk / unique / check) round-trip with custom and default names
+test('constraints with custom and default names', async () => {
+	await db.query(`CREATE TABLE "ref" ("id" integer PRIMARY KEY);`);
+	await db.query(`
+CREATE TABLE "t_custom" (
+	"id" integer,
+	"ref_id" integer,
+	"val" integer,
+	"num" integer,
+	CONSTRAINT "custom_pk" PRIMARY KEY ("id"),
+	CONSTRAINT "custom_fk" FOREIGN KEY ("ref_id") REFERENCES "ref"("id"),
+	CONSTRAINT "custom_unique" UNIQUE ("val"),
+	CONSTRAINT "custom_check" CHECK ("num" > 0)
+);`);
+	await db.query(`
+CREATE TABLE "t_default" (
+	"id" integer PRIMARY KEY,
+	"ref_id" integer REFERENCES "ref"("id"),
+	"val" integer UNIQUE,
+	"num" integer CHECK ("num" > 0)
+);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, {}, 'constraints-custom-and-default');
 
 	expect(pushStatements).toStrictEqual([]);
 	expect(generateStatements).toStrictEqual([]);

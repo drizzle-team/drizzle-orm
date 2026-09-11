@@ -214,6 +214,14 @@ export type TableFull = {
 	defaults: DefaultConstraint[];
 };
 
+export const fromEntities = (entities: MssqlEntity[]) => {
+	const ddl = createDDL();
+	for (const it of entities) {
+		ddl.entities.push(it);
+	}
+	return ddl;
+};
+
 export const fullTableFromDDL = (table: Table, ddl: MssqlDDL): TableFull => {
 	const filter = { schema: table.schema, table: table.name } as const;
 	const columns = ddl.columns.list(filter);

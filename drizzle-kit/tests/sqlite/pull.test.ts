@@ -38,9 +38,11 @@ test('introspect tables with fk constraint', async () => {
 	});
 	const schema = { users, posts };
 
-	const { statements, sqlStatements } = await diffAfterPull(sqlite, schema, 'fk-tables');
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffAfterPull(sqlite, schema, 'fk-tables');
 
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3231
@@ -90,9 +92,11 @@ test('introspect table with self reference', async () => {
 
 	const schema = { users };
 
-	const { statements, sqlStatements } = await diffAfterPull(sqlite, schema, 'self-ref-table');
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffAfterPull(sqlite, schema, 'self-ref-table');
 
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('introspect table fk on multiple columns', async () => {
@@ -112,9 +116,11 @@ test('introspect table fk on multiple columns', async () => {
 
 	const schema = { users, ref };
 
-	const { statements, sqlStatements } = await diffAfterPull(sqlite, schema, 'composite-fk');
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffAfterPull(sqlite, schema, 'composite-fk');
 
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('composite fk introspect self ref', async () => {
@@ -128,9 +134,11 @@ test('composite fk introspect self ref', async () => {
 
 	const schema = { users };
 
-	const { statements, sqlStatements } = await diffAfterPull(sqlite, schema, 'composite-fk-self-ref');
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffAfterPull(sqlite, schema, 'composite-fk-self-ref');
 
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('generated always column: link to another column', async () => {
@@ -144,9 +152,11 @@ test('generated always column: link to another column', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffAfterPull(sqlite, schema, 'generated-link-column');
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffAfterPull(sqlite, schema, 'generated-link-column');
 
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('generated always column virtual: link to another column', async () => {
@@ -160,10 +170,13 @@ test('generated always column virtual: link to another column', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffAfterPull(sqlite, schema, 'generated-link-column-virtual');
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffAfterPull(sqlite, schema, 'generated-link-column-virtual');
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test('complex generated always', async () => {
@@ -184,14 +197,23 @@ test('complex generated always', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements, initDDL, resultDdl } = await diffAfterPull(
+	const {
+		pushStatements: statements,
+		pushSqlStatements: sqlStatements,
+		initDDL,
+		resultDdl,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffAfterPull(
 		sqlite,
 		schema,
 		'complex generated always',
 	);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 	expect(
 		initDDL.columns.one({ name: 'full_name' })?.generated,
 	).toEqual({
@@ -215,9 +237,11 @@ test('instrospect strings with single quotes', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffAfterPull(sqlite, schema, 'introspect-strings-with-single-quotes');
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffAfterPull(sqlite, schema, 'introspect-strings-with-single-quotes');
 
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4582
@@ -278,10 +302,13 @@ test('view #1', async () => {
 		testView3,
 	};
 
-	const { statements, sqlStatements } = await diffAfterPull(sqlite, schema, 'view-1');
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffAfterPull(sqlite, schema, 'view-1');
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3674
@@ -327,10 +354,13 @@ ORDER BY dt_timestamp DESC`);
 
 	const schema = { userLogs, latestUserLogs };
 
-	const { statements, sqlStatements } = await diffAfterPull(sqlite, schema, 'view-2');
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffAfterPull(sqlite, schema, 'view-2');
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4582
@@ -368,10 +398,13 @@ test('view #3 aggregate function', async () => {
 
 	const schema = { orderDetails, orderSubtotals };
 
-	const { statements, sqlStatements } = await diffAfterPull(sqlite, schema, 'view-3');
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffAfterPull(sqlite, schema, 'view-3');
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test('broken view', async () => {
@@ -389,7 +422,13 @@ test('broken view', async () => {
 		testView2,
 	};
 
-	const { statements, sqlStatements, resultDdl } = await diffAfterPull(sqlite, schema, 'broken-view');
+	const {
+		pushStatements: statements,
+		pushSqlStatements: sqlStatements,
+		resultDdl,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffAfterPull(sqlite, schema, 'broken-view');
 
 	expect(
 		resultDdl.views.one({
@@ -397,7 +436,9 @@ test('broken view', async () => {
 		})?.error,
 	).toBeTypeOf('string');
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5053
@@ -411,9 +452,14 @@ test('single quote default', async () => {
 		display_name: text().default('').notNull(),
 	});
 
-	const { sqlStatements } = await diffAfterPull(sqlite, { group }, 'single_quote_default');
+	const { pushSqlStatements: sqlStatements, generateSqlStatements } = await diffAfterPull(
+		sqlite,
+		{ group },
+		'single_quote_default',
+	);
 
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/2827
@@ -426,9 +472,14 @@ test('introspect text type', async () => {
 		text3: text().default('``'),
 	});
 
-	const { sqlStatements } = await diffAfterPull(sqlite, { table }, 'introspect_text_type');
+	const { pushSqlStatements: sqlStatements, generateSqlStatements } = await diffAfterPull(
+		sqlite,
+		{ table },
+		'introspect_text_type',
+	);
 
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3590
@@ -446,9 +497,14 @@ test('introspect composite pk + check', async () => {
 		]),
 	};
 
-	const { sqlStatements } = await diffAfterPull(sqlite, schema, 'introspect_composite_pk_check');
+	const { pushSqlStatements: sqlStatements, generateSqlStatements } = await diffAfterPull(
+		sqlite,
+		schema,
+		'introspect_composite_pk_check',
+	);
 
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('introspect unique constraint', async () => {
@@ -467,8 +523,13 @@ test('introspect unique constraint', async () => {
 		]),
 	};
 
-	const { sqlStatements } = await diffAfterPull(sqlite, schema, 'introspect_unique_constraint');
+	const { pushSqlStatements: sqlStatements, generateSqlStatements } = await diffAfterPull(
+		sqlite,
+		schema,
+		'introspect_unique_constraint',
+	);
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('introspect expression and partial indexes', async () => {
@@ -486,8 +547,13 @@ test('introspect expression and partial indexes', async () => {
 		]),
 	};
 
-	const { sqlStatements } = await diffAfterPull(sqlite, schema, 'introspect_expression_indexes');
+	const { pushSqlStatements: sqlStatements, generateSqlStatements } = await diffAfterPull(
+		sqlite,
+		schema,
+		'introspect_expression_indexes',
+	);
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test('introspect index with a sort order and a collation', async () => {
@@ -503,8 +569,13 @@ test('introspect index with a sort order and a collation', async () => {
 		]),
 	};
 
-	const { sqlStatements, resultDdl } = await diffAfterPull(sqlite, schema, 'introspect_desc_collate_indexes');
+	const { pushSqlStatements: sqlStatements, resultDdl, generateSqlStatements } = await diffAfterPull(
+		sqlite,
+		schema,
+		'introspect_desc_collate_indexes',
+	);
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 
 	// `DESC` and `COLLATE` are key part modifiers of a plain column, `pragma_index_info` reports
 	// the column itself(cid >= 0) and only the index ddl has the key part as it was declared
@@ -589,8 +660,13 @@ test('create table with custom type column', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffAfterPull(sqlite, schema, 'table-with-custom-type-column');
+	const { pushSqlStatements: sqlStatements, generateSqlStatements } = await diffAfterPull(
+		sqlite,
+		schema,
+		'table-with-custom-type-column',
+	);
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 // filter default migration table
@@ -680,13 +756,13 @@ CREATE TABLE table2 (
 );
 `);
 
-	const {
-		sqlStatements,
-		statements,
-	} = await diffAfterPull(sqlite, {}, 'primary-key-without-default-name');
+	const { pushSqlStatements: sqlStatements, pushStatements: statements, generateStatements, generateSqlStatements } =
+		await diffAfterPull(sqlite, {}, 'primary-key-without-default-name');
 
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 	expect(statements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3407
@@ -723,14 +799,18 @@ test('Issue No3407', async () => {
 );`);
 
 	const {
-		sqlStatements,
-		statements,
+		pushSqlStatements: sqlStatements,
+		pushStatements: statements,
 		ddlAfterPull,
 		resultDdl,
+		generateStatements,
+		generateSqlStatements,
 	} = await diffAfterPull(sqlite, {}, 'Issue #3407');
 
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 	expect(statements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
 	expect(ddlAfterPull.checks.list()).toStrictEqual([]);
 	expect(ddlAfterPull.uniques.list()).toStrictEqual([]);
 	expect(ddlAfterPull.fks.list()).toStrictEqual([]);
@@ -748,14 +828,18 @@ test('Issue No3231', async () => {
 	await db.run(`CREATE TABLE posts(user_id integer references users);`); // valid syntax
 
 	const {
-		sqlStatements,
-		statements,
+		pushSqlStatements: sqlStatements,
+		pushStatements: statements,
 		ddlAfterPull,
 		resultDdl,
+		generateStatements,
+		generateSqlStatements,
 	} = await diffAfterPull(sqlite, {}, 'Issue #3231');
 
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 	expect(statements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
 });
 // implicit fks resolve to the target's pk columns, in pk order, not column order
 test('introspect implicit fk to composite pk', async () => {
@@ -788,9 +872,12 @@ test('introspect implicit fk to composite pk', async () => {
 		},
 	]);
 
-	const { sqlStatements, statements } = await diffAfterPull(sqlite, {}, 'implicit-composite-fk');
+	const { pushSqlStatements: sqlStatements, pushStatements: statements, generateStatements, generateSqlStatements } =
+		await diffAfterPull(sqlite, {}, 'implicit-composite-fk');
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 	expect(statements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
 });
 
 test('Issue No3231 #2', async () => {
@@ -819,14 +906,24 @@ test('Issue No6182', async () => {
 	);
 `);
 
-	const { ddlAfterPull, initDDL, resultDdl, sqlStatements, statements } = await diffAfterPull(
+	const {
+		ddlAfterPull,
+		initDDL,
+		resultDdl,
+		pushSqlStatements: sqlStatements,
+		pushStatements: statements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffAfterPull(
 		sqlite,
 		{},
 		'Issue #6182',
 	);
 
 	expect(statements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 	expect(ddlAfterPull.columns.list()).toStrictEqual([
 		{
 			autoincrement: false,
@@ -945,14 +1042,24 @@ test('Issue No6195', async () => {
   b > 0
 ));`);
 
-	const { ddlAfterPull, initDDL, resultDdl, sqlStatements, statements } = await diffAfterPull(
+	const {
+		ddlAfterPull,
+		initDDL,
+		resultDdl,
+		pushSqlStatements: sqlStatements,
+		pushStatements: statements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffAfterPull(
 		sqlite,
 		{},
 		'Issue #6195',
 	);
 
 	expect(statements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 	expect(ddlAfterPull.checks.list({ table: 't' })).toStrictEqual([{
 		entityType: 'checks',
 		name: 't_check_1',
@@ -1001,14 +1108,24 @@ test('Issue No6223', async () => {
 	await db.run(`CREATE TABLE table2 (id INTEGER PRIMARY KEY, code TEXT NOT NULL, status TEXT);`);
 	await db.run(`CREATE UNIQUE INDEX index2 ON table2 (code) WHERE status = 'active';`);
 
-	const { ddlAfterPull, initDDL, resultDdl, sqlStatements, statements } = await diffAfterPull(
+	const {
+		ddlAfterPull,
+		initDDL,
+		resultDdl,
+		pushSqlStatements: sqlStatements,
+		pushStatements: statements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffAfterPull(
 		sqlite,
 		{},
 		'Issue #6223',
 	);
 
 	expect(statements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 	expect(ddlAfterPull.indexes.list()).toStrictEqual([
 		{
 			columns: [
@@ -1053,14 +1170,24 @@ test('Issue No6223 #2', async () => {
 	await db.run(`CREATE TABLE table2 (id INTEGER PRIMARY KEY, code TEXT NOT NULL, status TEXT);`);
 	await db.run(`CREATE UNIQUE INDEX "some index where this exist - 2" ON table2 (code) WHERE status = 'active';`);
 
-	const { ddlAfterPull, initDDL, resultDdl, sqlStatements, statements } = await diffAfterPull(
+	const {
+		ddlAfterPull,
+		initDDL,
+		resultDdl,
+		pushSqlStatements: sqlStatements,
+		pushStatements: statements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffAfterPull(
 		sqlite,
 		{},
 		'Issue #6223-#2',
 	);
 
 	expect(statements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 	expect(ddlAfterPull.indexes.list()).toStrictEqual([
 		{
 			columns: [
@@ -1103,12 +1230,81 @@ test('Issue No6074', async () => {
   "CallID" TEXT PRIMARY KEY REFERENCES "CallLog"("CallID")
 );`);
 
-	const { ddlAfterPull, initDDL, resultDdl, sqlStatements, statements } = await diffAfterPull(
+	const {
+		ddlAfterPull,
+		initDDL,
+		resultDdl,
+		pushSqlStatements: sqlStatements,
+		pushStatements: statements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffAfterPull(
 		sqlite,
 		{},
 		'Issue #6074',
 	);
 
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 	expect(statements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6025
+test('primary key with non default name', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	await db.run(`CREATE TABLE table1 (id integer, CONSTRAINT "primary_key" PRIMARY KEY (id));`);
+	await db.run(`CREATE TABLE table2 (id integer primary key);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffAfterPull(sqlite, {}, 'sqlite-primary-key-without-default-name');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+});
+
+// constraints (pk / fk / unique / check) round-trip with custom and default names
+test('constraints with custom and default names', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	await db.run(`CREATE TABLE "ref" ("id" integer PRIMARY KEY);`);
+	await db.run(`
+CREATE TABLE "t_custom" (
+	"id" integer,
+	"ref_id" integer,
+	"val" integer,
+	"num" integer,
+	CONSTRAINT "custom_pk" PRIMARY KEY ("id"),
+	CONSTRAINT "custom_fk" FOREIGN KEY ("ref_id") REFERENCES "ref"("id"),
+	CONSTRAINT "custom_unique" UNIQUE ("val"),
+	CONSTRAINT "custom_check" CHECK ("num" > 0)
+);`);
+	await db.run(`
+CREATE TABLE "t_default" (
+	"id" integer PRIMARY KEY,
+	"ref_id" integer REFERENCES "ref"("id"),
+	"val" integer UNIQUE,
+	"num" integer CHECK ("num" > 0)
+);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffAfterPull(sqlite, {}, 'sqlite-constraints-custom-and-default');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });

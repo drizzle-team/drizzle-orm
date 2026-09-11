@@ -16,7 +16,7 @@ import type {
 	View,
 	ViewColumn,
 } from './ddl';
-import { nameForPk, typeFor } from './grammar';
+import { nameForForeignKey, nameForPk, typeFor } from './grammar';
 
 export const imports = ['integer', 'real', 'text', 'numeric', 'blob', 'customType'] as const;
 export type Import = typeof imports[number];
@@ -96,32 +96,40 @@ export const ddlToTypeScript = (
 		const uniqies = schema.uniques.list({ table: table.name });
 		const checks = schema.checks.list({ table: table.name });
 
+		const callbackFks: ForeignKey[] = [];
+		const inlineFks: ForeignKey[] = [];
+		for (const fk of fks) {
+			if (
+				!isSelf(fk) && fk.columns.length === 1
+				&& fk.name === nameForForeignKey(fk)
+			) inlineFks.push(fk);
+			else callbackFks.push(fk);
+		}
+
+		const primaryKeyType: 'callback' | 'inline' = pk
+				&& (
+					pk.columns.length > 1
+					|| (pk.columns.length === 1 && pk.name !== nameForPk(table.name))
+				)
+			? 'callback'
+			: 'inline';
+
 		let statement = `export const ${withCasing(table.name, casing)} = sqliteTable("${table.name}", {\n`;
 
-		statement += createTableColumns(columns, fks, pk, casing);
+		statement += createTableColumns(columns, inlineFks, primaryKeyType === 'inline' ? pk : null, casing);
 		statement += '}';
 
-		// more than 2 fields
-		const filteredFKs = fks.filter((it) => {
-			return it.columns.length > 1;
-		});
-
-		const hasPkCallback = Boolean(
-			pk
-				&& (pk.columns.length > 1
-					|| (pk.columns.length === 1 && pk.name !== nameForPk(table.name))),
-		);
 		if (
 			indexes.length > 0
-			|| filteredFKs.length > 0
-			|| hasPkCallback
+			|| callbackFks.length > 0
+			|| primaryKeyType === 'callback'
 			|| uniqies.length > 0
 			|| checks.length > 0
 		) {
 			statement += ',\n(table) => [';
 			statement += createTableIndexes(table.name, indexes, casing);
-			statement += createTableFKs(Object.values(filteredFKs), casing);
-			statement += hasPkCallback ? createTablePK(pk!, casing) : '';
+			statement += createTableFKs(callbackFks, casing);
+			statement += primaryKeyType === 'callback' ? createTablePK(pk!, casing) : '';
 			statement += createTableUniques(uniqies, casing);
 			statement += createTableChecks(checks, casing);
 			statement += ']';
@@ -250,7 +258,7 @@ const column = (
 
 const createTableColumns = (
 	columns: Column[],
-	fks: ForeignKey[],
+	inlineFks: ForeignKey[],
 	pk: PrimaryKey | null,
 	casing: Casing,
 ): string => {
@@ -269,7 +277,7 @@ const createTableColumns = (
 			}\`, { mode: "${it.generated.type}" })`
 			: '';
 
-		const references = fks.filter((fk) => fk.columns.length === 1 && fk.columns[0] === it.name);
+		const references = inlineFks.filter((fk) => fk.columns[0] === it.name);
 
 		for (const fk of references) {
 			const typeSuffix = isCyclic(fk) ? ': AnySQLiteColumn' : '';

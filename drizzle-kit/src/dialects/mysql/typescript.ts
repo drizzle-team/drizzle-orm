@@ -4,7 +4,7 @@ import { assertUnreachable } from '../../utils';
 import { withCasing as makeCasing } from '../pull-utils';
 import { escapeForSqlTemplate, inspect } from '../utils';
 import type { CheckConstraint, Column, ForeignKey, Index, MysqlDDL, PrimaryKey, ViewColumn } from './ddl';
-import { Enum, parseEnum, typeFor } from './grammar';
+import { defaultNameForFK, Enum, parseEnum, typeFor } from './grammar';
 
 export const imports = [
 	'boolean',
@@ -123,39 +123,45 @@ export const ddlToTypeScript = (
 
 	const tableStatements = [] as string[];
 	for (const table of ddl.tables.list()) {
+		const fks = ddl.fks.list({ table: table.name });
+		const indexes = ddl.indexes.list({ table: table.name });
+		const checks = ddl.checks.list({ table: table.name });
+		const pk = ddl.pks.one({ table: table.name });
+
+		const callbackFks: ForeignKey[] = [];
+		const inlineFks: ForeignKey[] = [];
+		for (const fk of fks) {
+			if (
+				!isSelf(fk) && fk.columns.length === 1
+				&& fk.name === defaultNameForFK(fk)
+			) inlineFks.push(fk);
+			else callbackFks.push(fk);
+		}
+
+		const primaryKeyType: 'callback' | 'inline' = pk && pk.columns.length > 1 ? 'callback' : 'inline';
+
 		let statement = `export const ${withCasing(table.name)} = ${vendor}Table("${table.name}", {\n`;
 		statement += createTableColumns(
 			ddl.columns.list({ table: table.name }),
-			ddl.pks.one({ table: table.name }),
-			ddl.fks.list({ table: table.name }),
+			primaryKeyType === 'inline' ? pk : null,
+			inlineFks,
 			withCasing,
 			casing,
 			vendor,
 		);
 		statement += '}';
 
-		const fks = ddl.fks.list({ table: table.name });
-		const indexes = ddl.indexes.list({ table: table.name });
-		const checks = ddl.checks.list({ table: table.name });
-		const pk = ddl.pks.one({ table: table.name });
-
-		// more than 2 fields or self reference or cyclic
-		const filteredFKs = fks.filter((it) => {
-			return it.columns.length > 1 || isSelf(it);
-		});
-
 		const hasIndexes = indexes.length > 0;
-		const hasFKs = filteredFKs.length > 0;
-		const hasPK = pk && pk.columns.length > 1;
+		const hasFKs = callbackFks.length > 0;
 		const hasChecks = checks.length > 0;
-		const hasCallbackParams = hasIndexes || hasFKs || hasPK || hasChecks;
+		const hasCallbackParams = hasIndexes || hasFKs || primaryKeyType === 'callback' || hasChecks;
 
 		if (hasCallbackParams) {
 			statement += ',\n';
 			statement += '(table) => [\n';
-			statement += hasPK ? createTablePK(pk, withCasing) : '';
+			statement += primaryKeyType === 'callback' ? createTablePK(pk!, withCasing) : '';
 			statement += createTableIndexes(indexes, withCasing);
-			statement += createTableFKs(filteredFKs, withCasing);
+			statement += createTableFKs(callbackFks, withCasing);
 			statement += createTableChecks(checks);
 			statement += ']';
 		}
@@ -280,7 +286,7 @@ const column = (
 const createTableColumns = (
 	columns: Column[],
 	pk: PrimaryKey | null,
-	fks: ForeignKey[],
+	inlineFks: ForeignKey[],
 	casing: (val: string) => string,
 	rawCasing: Casing,
 	vendor: 'mysql' | 'singlestore',
@@ -317,7 +323,7 @@ const createTableColumns = (
 			}\`, { mode: "${it.generated.type}" })`
 			: '';
 
-		const columnFKs = fks.filter((x) => x.columns.length === 1 && x.columns[0] === it.name && !isSelf(x));
+		const columnFKs = inlineFks.filter((x) => x.columns[0] === it.name);
 
 		for (const fk of columnFKs) {
 			const onDelete = fk.onDelete !== 'NO ACTION' ? fk.onDelete?.toLowerCase() : null;
