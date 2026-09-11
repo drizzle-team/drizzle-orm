@@ -13,12 +13,18 @@ export function substring(
 	column: SQLiteColumn | SQL.Aliased,
 	{ from, for: _for }: { from?: number | SQLWrapper; for?: number | SQLWrapper },
 ): SQL {
-	const chunks: SQLChunk[] = [sql`substring(`, column];
-	if (from !== undefined) {
-		chunks.push(sql` from `, bindIfParam(from, column));
+	// SQLite has no `substring(x from y for z)` form, only `substr(x, start, length)`.
+	// `substr` counts from 1, which is what an omitted `from` means.
+	const chunks: SQLChunk[] = [sql`substr(`, column];
+	if (from === undefined) {
+		if (_for !== undefined) {
+			chunks.push(sql`, 1`);
+		}
+	} else {
+		chunks.push(sql`, `, bindIfParam(from, column));
 	}
 	if (_for !== undefined) {
-		chunks.push(sql` for `, bindIfParam(_for, column));
+		chunks.push(sql`, `, bindIfParam(_for, column));
 	}
 	chunks.push(sql`)`);
 	return sql.join(chunks);
