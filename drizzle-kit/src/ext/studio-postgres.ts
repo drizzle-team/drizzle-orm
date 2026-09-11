@@ -22,6 +22,7 @@ import { interimToDDL } from '../dialects/postgres/ddl';
 import { ddlDiff } from '../dialects/postgres/diff';
 import { fromDatabase as dfd } from '../dialects/postgres/duckdb-introspect';
 import { fromDatabase as fd } from '../dialects/postgres/introspect';
+import { ddlToTypeScript as dtt } from '../dialects/postgres/typescript';
 import { mockResolver } from '../utils/mocks';
 
 export type Interim<T> = Omit<T, 'entityType'>;
@@ -197,3 +198,9 @@ export const diffPostgresql = async (from: InterimStudioSchema, to: InterimStudi
 export const fromDatabase = fd;
 export const fromAwsDatabase = afd;
 export const fromDuckDbDatabase = dfd;
+
+export const ddlToTypeScript = (schema: InterimStudioSchema) => {
+	const interimSchema = fromInterims(schema);
+	const { ddl } = interimToDDL(interimSchema);
+	return dtt(ddl, interimSchema.viewColumns, 'camel');
+};
