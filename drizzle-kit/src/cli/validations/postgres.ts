@@ -21,6 +21,15 @@ export const postgresCredentials = union([
 			boolean(),
 			object({}).passthrough(),
 		]).optional(),
+		// postgres.js multi-host option, so migrations can target the primary
+		// when the first host in the list is a read-only replica.
+		target_session_attrs: union([
+			literal('primary'),
+			literal('standby'),
+			literal('prefer-standby'),
+			literal('read-write'),
+			literal('read-only'),
+		]).optional(),
 	}).transform((o) => {
 		delete o.driver;
 		return o as Omit<typeof o, 'driver'>;
