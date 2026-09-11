@@ -4,15 +4,16 @@ import type {
 	ForeignKey,
 	Index,
 	InterimColumn,
-	InterimSchema,
 	PrimaryKey,
 	SqliteEntities,
 	UniqueConstraint,
 	View,
+	ViewColumn,
 } from '../dialects/sqlite/ddl';
 import { interimToDDL } from '../dialects/sqlite/ddl';
 import { ddlDiff } from '../dialects/sqlite/diff';
 import { fromDatabase as fd } from '../dialects/sqlite/introspect';
+import { ddlToTypeScript as dtt } from '../dialects/sqlite/typescript';
 import { mockResolver } from '../utils/mocks';
 
 export type Interim<T> = Omit<T, 'entityType'>;
@@ -38,7 +39,7 @@ export type InterimStudioSchema = {
 	views: InterimView[];
 };
 
-const fromInterims = (tables: InterimTable[], views: InterimView[]): InterimSchema => {
+const fromInterims = (tables: InterimTable[], views: InterimView[]) => {
 	const tbls: SqliteEntities['tables'][] = tables.map((it) => ({
 		entityType: 'tables',
 		name: it.name,
@@ -82,6 +83,15 @@ const fromInterims = (tables: InterimTable[], views: InterimView[]): InterimSche
 	const vws: View[] = views.map((it) => {
 		return { entityType: 'views', isExisting: false, error: null, definition: it.definition, name: it.name };
 	});
+	const viewsToColumns: Record<string, ViewColumn[]> = views.reduce((acc, table) => {
+		acc[table.name] = table.columns.map((it) => {
+			return {
+				view: table.name,
+				...it,
+			} satisfies ViewColumn;
+		});
+		return acc;
+	}, {} as Record<string, ViewColumn[]>);
 
 	return {
 		tables: tbls,
@@ -92,6 +102,7 @@ const fromInterims = (tables: InterimTable[], views: InterimView[]): InterimSche
 		uniques,
 		indexes,
 		views: vws,
+		viewsToColumns,
 	};
 };
 
@@ -116,3 +127,9 @@ export const diffSqlite = async (
 };
 
 export const fromDatabase = fd;
+
+export const ddlToTypeScript = (schema: InterimStudioSchema) => {
+	const interimSchema = fromInterims(schema.tables, schema.views);
+	const { ddl } = interimToDDL(interimSchema);
+	return dtt(ddl, 'camel', interimSchema.viewsToColumns, 'sqlite');
+};

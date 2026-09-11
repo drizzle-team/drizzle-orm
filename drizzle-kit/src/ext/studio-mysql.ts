@@ -13,6 +13,7 @@ import type {
 import { interimToDDL } from '../dialects/mysql/ddl';
 import { ddlDiff } from '../dialects/mysql/diff';
 import { fromDatabase as fd } from '../dialects/mysql/introspect';
+import { ddlToTypeScript as dtt } from '../dialects/mysql/typescript';
 import { mockResolver } from '../utils/mocks';
 
 export type Interim<T> = Omit<T, 'entityType'>;
@@ -141,3 +142,9 @@ export const diffMySql = async (from: InterimStudioSchema, to: InterimStudioSche
 };
 
 export const fromDatabase = fd;
+
+export const ddlToTypeScript = (schema: InterimStudioSchema) => {
+	const interimSchema = fromInterims(schema);
+	const { ddl } = interimToDDL(interimSchema);
+	return dtt(ddl, interimSchema.viewColumns, 'camel', 'mysql');
+};
